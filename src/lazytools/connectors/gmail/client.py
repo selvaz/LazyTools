@@ -80,12 +80,7 @@ class GmailClient:
     # GmailService
     # ------------------------------------------------------------------ #
     def list_message_ids(self, *, query: str | None = None, max_results: int = 25) -> list[str]:
-        resp = (
-            self._service.users()
-            .messages()
-            .list(userId="me", q=query, maxResults=max_results)
-            .execute()
-        )
+        resp = self._service.users().messages().list(userId="me", q=query, maxResults=max_results).execute()
         return [m["id"] for m in resp.get("messages", [])]
 
     def get_message(self, message_id: str) -> dict[str, Any]:

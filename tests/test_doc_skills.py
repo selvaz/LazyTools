@@ -43,9 +43,7 @@ def test_build_then_query_roundtrip(tmp_path: Path) -> None:
         "To authenticate, call login() with an API token. "
         "Tokens are issued from the dashboard settings page."
     )
-    (docs / "billing.md").write_text(
-        "# Billing\nInvoices are generated monthly and emailed to the account owner."
-    )
+    (docs / "billing.md").write_text("# Billing\nInvoices are generated monthly and emailed to the account owner.")
 
     meta = build_skill([str(docs)], "test-skill", output_root=str(tmp_path / "out"))
     assert meta["total_chunks"] >= 1

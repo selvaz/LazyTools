@@ -22,9 +22,7 @@ import contextvars
 
 #: The opaque scope of the work currently running (e.g. a task id), or ``None``
 #: outside a tracked run (e.g. a direct tool call in a test).
-active_scope: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "lazytools_active_scope", default=None
-)
+active_scope: contextvars.ContextVar[str | None] = contextvars.ContextVar("lazytools_active_scope", default=None)
 
 
 def current_scope() -> str | None:
