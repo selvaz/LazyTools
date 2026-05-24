@@ -114,3 +114,46 @@ def test_external_tool_provider_exclude_removes_tools():
 def test_external_tool_spec_requires_name():
     with pytest.raises(ValueError, match="non-empty string name"):
         ExternalToolSpec.from_mapping({"description": "missing name"})
+
+
+# ---------------------------------------------------------------------------
+# Same-origin redirect handler (relocated from LazyBridge audit suite)
+# ---------------------------------------------------------------------------
+
+
+def test_gateway_redirect_handler_rejects_cross_host() -> None:
+    import urllib.error
+    import urllib.request
+
+    from lazytools.connectors.gateway import _SameOriginRedirectHandler
+
+    handler = _SameOriginRedirectHandler()
+    req = urllib.request.Request("https://api.example.com/v1/tool")
+    with pytest.raises(urllib.error.HTTPError, match="different host"):
+        handler.redirect_request(req, fp=None, code=302, msg="", headers={}, newurl="https://evil.invalid/path")
+
+
+def test_gateway_redirect_handler_rejects_https_downgrade() -> None:
+    import urllib.error
+    import urllib.request
+
+    from lazytools.connectors.gateway import _SameOriginRedirectHandler
+
+    handler = _SameOriginRedirectHandler()
+    req = urllib.request.Request("https://api.example.com/v1/tool")
+    with pytest.raises(urllib.error.HTTPError, match="downgrade"):
+        handler.redirect_request(req, fp=None, code=302, msg="", headers={}, newurl="http://api.example.com/v1/tool")
+
+
+def test_gateway_redirect_handler_allows_same_host_path_change() -> None:
+    """Same-host redirect (e.g. /v1 -> /v2) must still work."""
+    import urllib.request
+
+    from lazytools.connectors.gateway import _SameOriginRedirectHandler
+
+    handler = _SameOriginRedirectHandler()
+    req = urllib.request.Request("https://api.example.com/v1/tool")
+    new_req = handler.redirect_request(
+        req, fp=None, code=302, msg="", headers={}, newurl="https://api.example.com/v2/tool"
+    )
+    assert new_req.full_url == "https://api.example.com/v2/tool"

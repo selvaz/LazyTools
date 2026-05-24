@@ -373,3 +373,63 @@ async def test_mcp_invalidate_tools_cache_forces_refetch() -> None:
 def test_mcp_cache_ttl_validates_value() -> None:
     with pytest.raises(ValueError, match="cache_tools_ttl"):
         MCP.from_transport("fs", FakeTransport(), cache_tools_ttl=0)
+
+
+# ---------------------------------------------------------------------------
+# Transport internals (relocated from LazyBridge audit suite)
+# ---------------------------------------------------------------------------
+
+
+def test_mcp_stdio_transport_has_per_instance_connect_lock() -> None:
+    """Two StdioTransport instances get distinct locks (no shared state)."""
+    from lazytools.connectors.mcp.transports import StdioTransport
+
+    a = StdioTransport(command="echo", args=["hi"])
+    b = StdioTransport(command="echo", args=["hi"])
+    assert isinstance(a._connect_lock, asyncio.Lock)
+    assert a._connect_lock is not b._connect_lock
+
+
+def test_mcp_http_transport_has_per_instance_connect_lock() -> None:
+    from lazytools.connectors.mcp.transports import HttpTransport
+
+    t = HttpTransport(url="http://localhost:0/mcp")
+    assert isinstance(t._connect_lock, asyncio.Lock)
+
+
+async def test_mcp_connect_serialises_concurrent_callers() -> None:
+    """Two concurrent connect() callers must not both build a stack: the SDK
+    import is forced to fail, so both raise identically with no half-built state."""
+    from unittest.mock import patch
+
+    from lazytools.connectors.mcp.transports import StdioTransport
+
+    t = StdioTransport(command="echo")
+    with patch.dict("sys.modules", {"mcp": None}):
+        results = await asyncio.gather(t.connect(), t.connect(), return_exceptions=True)
+
+    assert all(isinstance(r, ImportError) for r in results)
+    assert t._session is None
+    assert t._stack is None
+
+
+async def test_stdio_transport_list_tools_before_connect_raises_runtimeerror() -> None:
+    pytest.importorskip("mcp")
+    from lazytools.connectors.mcp.transports import StdioTransport
+
+    t = StdioTransport(command="false")  # never connect
+    with pytest.raises(RuntimeError, match="connect"):
+        await t.list_tools()
+    with pytest.raises(RuntimeError, match="connect"):
+        await t.call_tool("anything", {})
+
+
+async def test_http_transport_list_tools_before_connect_raises_runtimeerror() -> None:
+    pytest.importorskip("mcp")
+    from lazytools.connectors.mcp.transports import HttpTransport
+
+    t = HttpTransport(url="http://127.0.0.1:1/")
+    with pytest.raises(RuntimeError, match="connect"):
+        await t.list_tools()
+    with pytest.raises(RuntimeError, match="connect"):
+        await t.call_tool("anything", {})
