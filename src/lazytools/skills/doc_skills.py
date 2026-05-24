@@ -705,7 +705,7 @@ def skill_pipeline(
 
     Returns an Agent.chain(router, executor).as_tool().
     """
-    from lazybridge.engines.llm import LLMEngine
+    from lazybridge import LLMEngine
 
     sdir = Path(skill_dir).expanduser().resolve()
     manifest = _load_manifest(sdir)
