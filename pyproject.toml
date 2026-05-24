@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lazytoolkit"
+version = "0.1.0"
+description = "Reusable tool providers, connector clients, and safety wrappers for LazyBridge and LazyPulse agents."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "selvaz" }]
+keywords = ["llm", "agents", "tools", "gmail", "telegram", "mcp", "lazybridge"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["lazybridge>=0.7.9,<0.9"]
+
+[project.optional-dependencies]
+gmail    = ["google-api-python-client>=2.0,<3.0", "google-auth>=2.0,<3.0", "google-auth-oauthlib>=1.0,<2.0"]
+telegram = ["httpx>=0.27,<1.0"]
+mcp      = ["mcp>=1.0,<2.0"]
+docs     = ["pypdf>=3.0,<7.0", "python-docx>=1.0,<2.0", "trafilatura>=1.6,<3.0"]
+test     = ["pytest>=7.0", "pytest-asyncio>=0.23", "pytest-cov>=4.0", "httpx>=0.27,<1.0", "ruff>=0.6", "mypy>=1.10"]
+
+[project.urls]
+Homepage = "https://github.com/selvaz/LazyTools"
+Repository = "https://github.com/selvaz/LazyTools"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lazytools"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    "E402",
+    "E501",
+    "B008",
+    "RUF012",
+    "SIM105",
+    "SIM108",  # ternary vs if-else — readability
+    "RUF002",
+    "RUF022",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lazytools"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
