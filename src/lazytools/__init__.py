@@ -15,6 +15,20 @@ This top-level module performs no eager heavy imports by design.
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+# Single-source the version from installed distribution metadata so
+# ``__version__`` and ``importlib.metadata.version("lazytoolkit")`` can never
+# disagree.  Falls back to a literal only when running from an uninstalled
+# source tree.
+try:
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _dist_version
+
+    try:
+        __version__ = _dist_version("lazytoolkit")
+    except PackageNotFoundError:  # pragma: no cover — uninstalled source tree
+        __version__ = "0.1.0"
+    del _dist_version, PackageNotFoundError
+except ImportError:  # pragma: no cover — Python < 3.8, unsupported
+    __version__ = "0.1.0"
 
 __all__ = ["__version__"]

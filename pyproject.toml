@@ -37,6 +37,7 @@ site     = ["mkdocs-material>=9.5,<10.0", "mkdocstrings[python]>=0.24,<1.0", "mk
 [project.urls]
 Homepage = "https://github.com/selvaz/LazyTools"
 Repository = "https://github.com/selvaz/LazyTools"
+Documentation = "https://tools.lazybridge.com"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lazytools"]
