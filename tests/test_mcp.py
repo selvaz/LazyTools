@@ -339,3 +339,37 @@ def test_lock_initialised_on_first_async_use() -> None:
     asyncio.run(fs.aconnect())
     assert fs._lock is not None
     asyncio.run(fs.aclose())
+
+
+# ---------------------------------------------------------------------------
+# Cache TTL + invalidation (relocated from LazyBridge audit suite)
+# ---------------------------------------------------------------------------
+
+
+async def test_mcp_tools_cache_expires_after_ttl() -> None:
+    transport = FakeTransport()
+    fs = MCP.from_transport("fs", transport, cache_tools_ttl=0.05)
+    first = await fs.alist_tools()
+    # Second call within TTL hits cache — transport is not re-asked.
+    second = await fs.alist_tools()
+    assert first is second  # same cached list object
+
+    # Wait past TTL; the next call re-fetches (rebuilt — Tool identity differs).
+    await asyncio.sleep(0.1)
+    third = await fs.alist_tools()
+    assert third is not first
+    assert [t.name for t in third] == [t.name for t in first]
+
+
+async def test_mcp_invalidate_tools_cache_forces_refetch() -> None:
+    transport = FakeTransport()
+    fs = MCP.from_transport("fs", transport, cache_tools_ttl=600)
+    first = await fs.alist_tools()
+    fs.invalidate_tools_cache()
+    second = await fs.alist_tools()
+    assert second is not first
+
+
+def test_mcp_cache_ttl_validates_value() -> None:
+    with pytest.raises(ValueError, match="cache_tools_ttl"):
+        MCP.from_transport("fs", FakeTransport(), cache_tools_ttl=0)

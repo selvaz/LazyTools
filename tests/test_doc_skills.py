@@ -26,8 +26,13 @@ def test_public_api_smoke() -> None:
 
 def test_skill_builder_tools_returns_tools() -> None:
     tools = skill_builder_tools()
-    assert len(tools) >= 1
-    assert all(t.name for t in tools)
+    assert len(tools) == 1
+    assert tools[0].name == "build_doc_skill"
+
+
+def test_skill_builder_tools_custom_name() -> None:
+    tools = skill_builder_tools(name="my_builder")
+    assert tools[0].name == "my_builder"
 
 
 def test_build_then_query_roundtrip(tmp_path: Path) -> None:
