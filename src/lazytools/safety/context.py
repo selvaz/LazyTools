@@ -5,8 +5,8 @@ concurrency, an approval issued for one unit of work can never be spent by
 another. The orchestrator sets the scope for the duration of a run; the tool
 reads it when consuming a grant.
 
-In LazyPulse the scope is the running task id: ``PulseAgent`` sets
-:data:`active_scope` (via ``lazypulse._context``) for the duration of
+In LazyPulse the scope is the running task id: the orchestrator (e.g.
+``PulseAgent``) sets :data:`active_scope` for the duration of
 ``Agent.run``, and ``GmailTools`` / ``TelegramTools`` read
 :func:`current_scope` when consuming a send grant. The value propagates into
 **async** tools (lazybridge awaits them in the same context) but not into sync

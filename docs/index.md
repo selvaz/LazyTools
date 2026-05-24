@@ -49,7 +49,8 @@ and additional base tools.
 imports `lazypulse`, and `lazybridge` never imports `lazytools` — all enforced
 by boundary tests.
 
-> **Migrating from lazybridge ≤0.7.9?** These tools used to live under
-> `lazybridge.ext.{mcp,gateway}` / `lazybridge.external_tools.*` (and the
-> Gmail/Telegram tools under `lazypulse.adapters.*`). The old paths still work
-> with a `DeprecationWarning` until 0.9 — import from `lazytools.*` instead.
+> **Migrating from lazybridge ≤0.8?** These tools used to live under
+> `lazybridge.ext.{mcp,gateway}` / `lazybridge.external_tools.*`. Those
+> deprecation shims were **removed in lazybridge 0.9** — import from
+> `lazytools.*` instead. The Gmail/Telegram tools also re-export from
+> `lazypulse.adapters.*`, which still emits a `DeprecationWarning`.

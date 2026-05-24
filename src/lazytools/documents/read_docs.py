@@ -21,7 +21,7 @@ Usage — as a Tool:
     )
 
 Optional dependencies (graceful degradation if missing):
-    pip install lazybridge[tools]   # installs pypdf, python-docx, trafilatura
+    pip install 'lazytoolkit[docs]'   # installs pypdf, python-docx, trafilatura
 """
 
 from __future__ import annotations
