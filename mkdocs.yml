@@ -1,6 +1,6 @@
 site_name: LazyTools
 site_description: Reusable tool providers, connector clients, and safety wrappers for LazyBridge agents.
-site_url: https://selvaz.github.io/LazyTools/
+site_url: https://tools.lazybridge.com/
 repo_url: https://github.com/selvaz/LazyTools
 repo_name: selvaz/LazyTools
 edit_uri: edit/main/docs/
