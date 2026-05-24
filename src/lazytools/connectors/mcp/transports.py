@@ -1,9 +1,9 @@
 """MCP transports — stdio (subprocess) and Streamable HTTP.
 
 Each transport implements the small interface :class:`_Transport`. The
-public :class:`MCP` factory in :mod:`lazybridge.ext.mcp.server` builds
+public :class:`MCP` factory in :mod:`lazytools.connectors.mcp.server` builds
 transports lazily and only imports the official ``mcp`` SDK when a real
-server is constructed — so importing :mod:`lazybridge.ext.mcp` itself is
+server is constructed — so importing :mod:`lazytools.connectors.mcp` itself is
 cheap and never fails.
 """
 
@@ -74,7 +74,7 @@ class StdioTransport(_Transport):
                 from mcp.client.stdio import stdio_client
             except ImportError as e:  # pragma: no cover — exercised only without [mcp]
                 raise ImportError(
-                    "lazybridge.ext.mcp.MCP.stdio requires the official MCP SDK. Install with: pip install lazytoolkit[mcp]"
+                    "lazytools.connectors.mcp.MCP.stdio requires the official MCP SDK. Install with: pip install lazytoolkit[mcp]"
                 ) from e
             from contextlib import AsyncExitStack
 
@@ -157,7 +157,7 @@ class HttpTransport(_Transport):
                 from mcp.client.streamable_http import streamablehttp_client
             except ImportError as e:  # pragma: no cover
                 raise ImportError(
-                    "lazybridge.ext.mcp.MCP.http requires the official MCP SDK. Install with: pip install lazytoolkit[mcp]"
+                    "lazytools.connectors.mcp.MCP.http requires the official MCP SDK. Install with: pip install lazytoolkit[mcp]"
                 ) from e
             from contextlib import AsyncExitStack
 

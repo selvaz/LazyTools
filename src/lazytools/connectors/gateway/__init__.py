@@ -1,7 +1,7 @@
 """External tool providers for server-side managed integrations.
 
 This extension adapts tools exposed by an external gateway into normal
-LazyBridge :class:`~lazybridge.tools.Tool` objects.  It is intended for
+LazyBridge :class:`~lazybridge.Tool` objects.  It is intended for
 Pipedream/Composio/Arcade/custom backends that already own OAuth,
 credential storage, policy, and audit logging.
 

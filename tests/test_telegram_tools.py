@@ -59,6 +59,15 @@ async def test_allow_list_enforced() -> None:
     assert svc.sent == []
 
 
+async def test_allow_list_is_case_insensitive_for_string_chats() -> None:
+    # @username chat ids match case-insensitively (Telegram usernames are
+    # case-insensitive); numeric ids are unaffected by normalization.
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, allowed_chat_ids=["@MyChannel"], require_confirmation=False)
+    await tools._send_message(chat_id="@mychannel", text="ok")
+    assert len(svc.sent) == 1
+
+
 async def test_require_confirmation_false_allows_reply() -> None:
     svc = FakeTelegramService()
     tools = TelegramTools(svc, allowed_chat_ids=[42], require_confirmation=False)
