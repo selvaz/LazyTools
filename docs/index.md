@@ -7,7 +7,7 @@ agents built on [LazyBridge](https://github.com/selvaz/LazyBridge) (and
 !!! info "Part of the LazyBridge ecosystem"
     LazyBridge is the stable core runtime; **LazyTools is where capabilities
     live** — anything you add to `Agent(tools=[...])` that talks to the outside
-    world. See the [ecosystem overview](https://lazybridge.com/ecosystem/) for
+    world. See the [ecosystem overview](https://lazybridge.com/) for
     how the three packages stack.
 
 ```bash

@@ -61,6 +61,8 @@ plugins:
           - index.md
         Guides:
           - connectors.md
+          - mcp.md
+          - gateway.md
           - safety.md
 
 markdown_extensions:
@@ -82,5 +84,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Connectors: connectors.md
+  - MCP: mcp.md
+  - External tool gateway: gateway.md
   - Safety: safety.md
   - Reference: reference.md
