@@ -27,7 +27,6 @@ Optional dependencies (graceful degradation if missing):
 from __future__ import annotations
 
 import json
-import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -114,6 +113,14 @@ _EXT_READERS: dict[str, object] = {
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 
+#: Default per-file size ceiling (bytes) for the LLM-facing tool. A file
+#: larger than this is reported as skipped rather than read, so a single huge
+#: file (or a decompression-bomb-shaped input) cannot exhaust memory.
+DEFAULT_MAX_FILE_BYTES = 10_000_000
+#: Default ceiling on the number of files read in one folder scan.
+DEFAULT_MAX_FILES = 500
+
+
 def read_folder_docs(
     path: str,
     extensions: str = "txt,md,pdf,docx,html",
@@ -122,6 +129,8 @@ def read_folder_docs(
     output_format: str = "text",
     *,
     base_dir: str | None = None,
+    max_file_bytes: int | None = DEFAULT_MAX_FILE_BYTES,
+    max_files: int | None = DEFAULT_MAX_FILES,
 ) -> str:
     """Read documents from a file or folder and return their text content.
 
@@ -197,12 +206,41 @@ def read_folder_docs(
     else:
         raise ValueError(f"path is neither a file nor a directory — {path}")
 
+    # Cap the number of files read in one call so a folder with thousands of
+    # documents can't be slurped wholesale into a single tool result.
+    files_truncated = False
+    if max_files is not None and len(files) > max_files:
+        files = files[:max_files]
+        files_truncated = True
+
     records: list[dict] = []
     for fpath in files:
         suffix = fpath.suffix.lower()
+        try:
+            size = fpath.stat().st_size
+        except OSError as exc:
+            # The file may have vanished between glob and stat, or be
+            # unreadable. Record the failure and move on rather than aborting
+            # the whole scan.
+            records.append(
+                {
+                    "filename": fpath.name,
+                    "relative_path": str(fpath.relative_to(root)),
+                    "extension": suffix.lstrip("."),
+                    "size_bytes": 0,
+                    "char_count": 0,
+                    "content": f"[Error accessing file: {exc}]",
+                }
+            )
+            continue
         reader = _EXT_READERS.get(suffix)
         if reader is None:
             content = f"[Unsupported extension: {suffix}]"
+        elif max_file_bytes is not None and size > max_file_bytes:
+            # Bound the on-disk size we will read into memory. This is a first
+            # line of defence against memory exhaustion; note a small but
+            # heavily-compressed file (e.g. a PDF) can still expand on extract.
+            content = f"[Skipped: file is {size:,} bytes, exceeds max_file_bytes={max_file_bytes:,}]"
         else:
             try:
                 content = reader(fpath, html_mode)  # type: ignore[operator]
@@ -213,7 +251,7 @@ def read_folder_docs(
                 "filename": fpath.name,
                 "relative_path": str(fpath.relative_to(root)),
                 "extension": suffix.lstrip("."),
-                "size_bytes": fpath.stat().st_size,
+                "size_bytes": size,
                 "char_count": len(content),
                 "content": content,
             }
@@ -232,37 +270,47 @@ def read_folder_docs(
         )
         parts.append(f"{header}\n\n{rec['content']}")
 
+    truncation_note = (
+        f" | NOTE: file list truncated to the first {max_files} files" if files_truncated else ""
+    )
     summary = (
         f"[{len(records)} document(s) read from '{path}' | "
-        f"extensions: {extensions} | html_mode: {html_mode} | recursive: {recursive}]\n"
+        f"extensions: {extensions} | html_mode: {html_mode} | recursive: {recursive}{truncation_note}]\n"
         f"{'─' * 72}\n\n"
     )
     return summary + "\n\n".join(parts)
 
 
-def read_docs_tools(*, base_dir: str | None = None) -> list[Tool]:
+def read_docs_tools(
+    *,
+    base_dir: str,
+    max_file_bytes: int | None = DEFAULT_MAX_FILE_BYTES,
+    max_files: int | None = DEFAULT_MAX_FILES,
+) -> list[Tool]:
     """Return a single-element list with ``read_folder_docs`` wrapped as a Tool.
 
     Args:
-        base_dir: Sandbox directory — ``read_folder_docs`` will reject any path
-            that resolves outside this directory at runtime.  **Strongly
-            recommended** whenever the tool is exposed to an LLM agent, because
-            without a sandbox an agent can read arbitrary files on the host
-            (``/etc/passwd``, SSH keys, ``.env`` files, etc.).
-            ``None`` (default) allows any path — only safe when the caller
-            fully controls the ``path`` argument (i.e. non-LLM usage).
+        base_dir: Sandbox directory — **required**. ``read_folder_docs`` rejects
+            any path that resolves outside this directory at runtime. The tool's
+            ``path`` argument is LLM-controlled and therefore untrusted; without
+            a sandbox an agent could read arbitrary files on the host
+            (``/etc/passwd``, SSH keys, ``.env`` files, etc.). Passing ``None``
+            (or an empty string) raises ``ValueError`` — call ``read_folder_docs``
+            directly if you genuinely need un-sandboxed access from trusted code.
+        max_file_bytes: Per-file size ceiling; a larger file is reported as
+            skipped instead of read. Defaults to ``DEFAULT_MAX_FILE_BYTES``.
+        max_files: Ceiling on the number of files read per folder scan.
+            Defaults to ``DEFAULT_MAX_FILES``.
     """
     from lazybridge import Tool
 
-    if base_dir is None:
-        warnings.warn(
-            "read_docs_tools() called without base_dir=. "
-            "When exposed to an LLM agent this allows reading ANY file on the "
-            "host filesystem.  Pass base_dir='/safe/directory' to sandbox access.",
-            UserWarning,
-            stacklevel=2,
+    if not base_dir:
+        raise ValueError(
+            "read_docs_tools(base_dir=...) is required. The tool's path argument "
+            "is LLM-controlled, so without a sandbox an agent could read ANY file "
+            "on the host. Pass base_dir='/safe/directory', or call read_folder_docs "
+            "directly for trusted, non-LLM usage."
         )
-        return [Tool(read_folder_docs)]
 
     def _bound(
         path: str,
@@ -279,6 +327,8 @@ def read_docs_tools(*, base_dir: str | None = None) -> list[Tool]:
             recursive=recursive,
             output_format=output_format,
             base_dir=base_dir,
+            max_file_bytes=max_file_bytes,
+            max_files=max_files,
         )
 
     return [Tool(_bound, name="read_folder_docs", description=read_folder_docs.__doc__)]
