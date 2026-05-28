@@ -73,10 +73,13 @@ class GmailClient:
                 creds = flow.run_local_server(port=0)
             with open(token_path, "w") as fh:
                 fh.write(creds.to_json())
-            # The cached token holds a long-lived OAuth refresh token; a
-            # world-readable file (default umask often yields 0644) would let
-            # any local user steal it.  Tighten to owner-only.  ``chmod`` after
-            # the write also fixes the permissions of a pre-existing file.
+        # The cached token holds a long-lived OAuth refresh token; a
+        # world-readable file (default umask often yields 0644) would let any
+        # local user steal it.  Tighten to owner-only whenever the token file
+        # exists — this also covers a still-valid token written by an older
+        # version with loose permissions, where the rewrite branch above is
+        # skipped entirely.
+        if os.path.exists(token_path):
             try:
                 os.chmod(token_path, 0o600)
             except OSError:  # pragma: no cover — e.g. unusual filesystems

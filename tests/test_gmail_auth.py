@@ -131,9 +131,14 @@ def test_authserv_id_match_is_exact() -> None:
 # ------------------------------------------------------------------ #
 
 
-def _install_fake_google(monkeypatch: pytest.MonkeyPatch) -> None:
+def _install_fake_google(monkeypatch: pytest.MonkeyPatch, *, existing_valid: bool = False) -> None:
     """Inject stand-in google* modules so from_credentials runs the OAuth
-    flow → token-persist path without the ``gmail`` extra or any network."""
+    flow → token-persist path without the ``gmail`` extra or any network.
+
+    When ``existing_valid`` is True the cached token loads as a *valid*
+    credential, so ``from_credentials`` skips the rewrite branch entirely —
+    exercising the path where only the standalone ``chmod`` tightens perms.
+    """
 
     class _FakeCreds:
         valid = True
@@ -144,7 +149,11 @@ def _install_fake_google(monkeypatch: pytest.MonkeyPatch) -> None:
 
         @classmethod
         def from_authorized_user_file(cls, *_args: object, **_kw: object) -> _FakeCreds:
-            # Return an "invalid, non-refreshable" creds so from_credentials
+            if existing_valid:
+                # A valid cached token: from_credentials returns without
+                # rewriting, so only the standalone chmod can tighten perms.
+                return cls()
+            # Otherwise an "invalid, non-refreshable" creds so from_credentials
             # falls through to the interactive flow → token re-write path.
             stale = cls()
             stale.valid = False  # type: ignore[misc]
@@ -210,4 +219,24 @@ def test_preexisting_token_is_tightened(tmp_path: Path, monkeypatch: pytest.Monk
         scopes=["https://www.googleapis.com/auth/gmail.metadata"],
     )
 
+    assert token_path.stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes only")
+def test_valid_preexisting_token_is_tightened(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A still-valid cached token written by an older version at 0644: the
+    # rewrite branch is skipped, so the standalone chmod must still tighten it.
+    _install_fake_google(monkeypatch, existing_valid=True)
+    token_path = tmp_path / "token.json"
+    token_path.write_text('{"refresh_token": "secret"}')
+    os.chmod(token_path, 0o644)
+
+    GmailClient.from_credentials(
+        credentials_path=str(tmp_path / "credentials.json"),
+        token_path=str(token_path),
+        scopes=["https://www.googleapis.com/auth/gmail.metadata"],
+    )
+
+    # Untouched content (no rewrite) but tightened permissions.
+    assert token_path.read_text() == '{"refresh_token": "secret"}'
     assert token_path.stat().st_mode & 0o777 == 0o600
