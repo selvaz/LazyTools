@@ -182,6 +182,10 @@ class SkillManifest:
     total_chunks: int
     avgdl: float
     extensions: list[str]
+    # Skill-*bundle format* version — the on-disk layout / schema of the
+    # generated bundle (SKILL.md + manifest.json + vocab.json + chunks.jsonl).
+    # This is a separate namespace from the ``lazytoolkit`` package version
+    # and is bumped only when the bundle format changes incompatibly.
     version: str = "3.0.0"
     created_by: str = "lazytools.skills"
 

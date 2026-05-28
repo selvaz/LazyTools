@@ -108,7 +108,7 @@ from lazytools.connectors.mcp import MCP
 
 
 # 1) Spawn a stdio MCP server (subprocess) and use its tools.
-#    ``allow=`` (or ``deny=``) is REQUIRED since 0.7.9 — deny-by-default.
+#    ``allow=`` (or ``deny=``) is REQUIRED — deny-by-default.
 #    Omitting both raises ``ValueError`` at construction so the LLM never
 #    silently sees an unaudited filesystem / git / shell tool surface.
 fs = MCP.stdio(
@@ -175,8 +175,8 @@ async def use_fs():
 
 - **Both `MCP.http` and `MCP.stdio` are deny-by-default.** Omitting
   both `allow=` and `deny=` raises `ValueError` at construction
-  (since 0.7.9 — the pre-fix `stdio` default warned and proceeded,
-  which was unsafe for filesystem / git / shell MCP servers).  Pass
+  (a warn-and-proceed `stdio` default would be unsafe for
+  filesystem / git / shell MCP servers).  Pass
   `allow=["*"]` only after auditing the advertised tool surface,
   or restrict with a glob list.
 - **Namespaced names in glob patterns.** `allow=` / `deny=` match

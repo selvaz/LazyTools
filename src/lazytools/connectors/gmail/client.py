@@ -2,9 +2,9 @@
 
 The Google client libraries are imported **lazily**, inside
 :meth:`GmailClient.from_credentials`, so this module imports cleanly without
-the ``gmail`` extra. ``GmailInbox`` and ``GmailTools`` depend only on the
-duck-typed surface defined here, which means tests inject a fake client and
-never touch Google.
+the ``gmail`` extra. :class:`~lazytools.connectors.gmail.tools.GmailTools`
+depends only on the duck-typed :class:`GmailService` surface defined here,
+which means tests inject a fake client and never touch Google.
 """
 
 from __future__ import annotations
@@ -73,6 +73,17 @@ class GmailClient:
                 creds = flow.run_local_server(port=0)
             with open(token_path, "w") as fh:
                 fh.write(creds.to_json())
+        # The cached token holds a long-lived OAuth refresh token; a
+        # world-readable file (default umask often yields 0644) would let any
+        # local user steal it.  Tighten to owner-only whenever the token file
+        # exists — this also covers a still-valid token written by an older
+        # version with loose permissions, where the rewrite branch above is
+        # skipped entirely.
+        if os.path.exists(token_path):
+            try:
+                os.chmod(token_path, 0o600)
+            except OSError:  # pragma: no cover — e.g. unusual filesystems
+                pass
         service = build("gmail", "v1", credentials=creds, cache_discovery=False)
         return cls(service)
 
