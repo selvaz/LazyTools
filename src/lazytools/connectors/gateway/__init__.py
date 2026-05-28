@@ -5,8 +5,12 @@ LazyBridge :class:`~lazybridge.Tool` objects.  It is intended for
 Pipedream/Composio/Arcade/custom backends that already own OAuth,
 credential storage, policy, and audit logging.
 
-Secrets must stay in the external gateway.  LazyBridge receives only tool
-schemas and sanitized tool results.
+Secrets must stay in the external gateway.  LazyTools forwards tool schemas
+and passes each tool's JSON response through to LazyBridge **unmodified** —
+it performs no sanitisation, redaction, or filtering of the result body.
+Sanitising results (stripping secrets, PII, internal identifiers) is the
+responsibility of the *remote* gateway before it returns them; configure
+that server-side.
 """
 
 from __future__ import annotations

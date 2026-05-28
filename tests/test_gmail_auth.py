@@ -143,7 +143,7 @@ def _install_fake_google(monkeypatch: pytest.MonkeyPatch) -> None:
             return '{"refresh_token": "secret"}'
 
         @classmethod
-        def from_authorized_user_file(cls, *_args: object, **_kw: object) -> "_FakeCreds":
+        def from_authorized_user_file(cls, *_args: object, **_kw: object) -> _FakeCreds:
             # Return an "invalid, non-refreshable" creds so from_credentials
             # falls through to the interactive flow → token re-write path.
             stale = cls()
@@ -154,7 +154,7 @@ def _install_fake_google(monkeypatch: pytest.MonkeyPatch) -> None:
 
     class _FakeFlow:
         @classmethod
-        def from_client_secrets_file(cls, *_args: object, **_kw: object) -> "_FakeFlow":
+        def from_client_secrets_file(cls, *_args: object, **_kw: object) -> _FakeFlow:
             return cls()
 
         def run_local_server(self, **_kw: object) -> _FakeCreds:

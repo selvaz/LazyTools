@@ -42,7 +42,7 @@ class MCPServer:
     cleanup, use the server as an async context manager::
 
         async with MCP.stdio("fs", command="...", args=[...]) as fs:
-            agent = Agent("claude-opus-4-7", tools=[fs])
+            agent = Agent("claude-opus-4-8", tools=[fs])
             await agent.run("...")
 
     Without that, the transport stays open for the process lifetime; the
@@ -60,8 +60,8 @@ class MCPServer:
     #: Default lifetime of the discovered-tools cache.  After expiry the
     #: next ``alist_tools()`` call re-fetches from the upstream MCP
     #: server, picking up any tools added or removed since the last
-    #: discovery (audit H-E).  ``None`` disables expiry — the
-    #: pre-1.0.x behaviour.
+    #: discovery.  ``None`` disables expiry — the cache then lives until
+    #: :meth:`invalidate_tools_cache` is called.
     _DEFAULT_CACHE_TTL = 60.0
 
     def __init__(
@@ -121,10 +121,9 @@ class MCPServer:
         Cached for ``cache_tools_ttl`` seconds (default 60 s).  Once the
         cache expires the next call re-fetches from the upstream
         transport so an MCP server that hot-loads or unloads tools is
-        eventually reflected in the agent's tool list (audit H-E).
-        Pass ``cache_tools_ttl=None`` to disable expiry entirely (the
-        pre-1.0.x behaviour) and :meth:`invalidate_tools_cache` to flush
-        explicitly.
+        eventually reflected in the agent's tool list.
+        Pass ``cache_tools_ttl=None`` to disable expiry entirely and
+        :meth:`invalidate_tools_cache` to flush explicitly.
         """
         await self.aconnect()
         now = time.monotonic()
@@ -185,11 +184,11 @@ class MCPServer:
         full_name = f"{self._prefix}{local_name}"
         description = mcp_tool.get("description") or f"MCP tool {local_name!r}"
         parameters = mcp_tool.get("inputSchema") or {"type": "object", "properties": {}}
-        # Phase-2 Block C: 0.7 silently coerced any non-``object`` root
-        # (array / union / string) to an empty object schema, which then
-        # appeared to the LLM as a tool with no parameters — silent loss
-        # of the actual call surface.  0.7.9 raises so the MCP server
-        # author or namespacing config can be fixed.
+        # Reject non-``object`` schema roots loudly.  Silently coercing an
+        # array / union / string root to an empty object schema would make
+        # the tool appear to the LLM as taking no parameters — a silent
+        # loss of the actual call surface.  Raising here lets the MCP
+        # server author or the namespacing config be fixed instead.
         if not isinstance(parameters, dict):
             raise ValueError(
                 f"MCP server {self.name!r}: tool {local_name!r} has a non-dict inputSchema "
@@ -258,22 +257,21 @@ class MCP:
     ) -> MCPServer:
         """Build an MCP server bound to a stdio (subprocess) transport.
 
-        ``allow=`` (or ``deny=``) is **required** since 0.7.9 — same
-        deny-by-default posture as :meth:`http`.  The 0.7-era warn-and-
-        proceed default exposed every advertised tool to the LLM
-        silently; that's a non-trivial blast radius for filesystem /
-        git / shell MCP servers, so we now fail at construction.  Pass
-        ``allow=["*"]`` to opt every advertised tool in explicitly
-        after auditing the surface.
+        ``allow=`` (or ``deny=``) is **required** — same deny-by-default
+        posture as :meth:`http`.  A warn-and-proceed default would expose
+        every advertised tool to the LLM silently; that's a non-trivial
+        blast radius for filesystem / git / shell MCP servers, so we fail
+        at construction instead.  Pass ``allow=["*"]`` to opt every
+        advertised tool in explicitly after auditing the surface.
         """
         if allow is None and deny is None:
             raise ValueError(
                 f"MCP.stdio({name!r}, command={command!r}) requires an explicit\n"
-                f"  allow=[...] or deny=[...] filter (deny-by-default since 0.7.9).\n"
+                f"  allow=[...] or deny=[...] filter (deny-by-default).\n"
                 f"  Pass allow=['*'] to opt every advertised tool in after auditing\n"
                 f"  the surface, or pass an explicit allow / deny list of fnmatch\n"
                 f"  globs (e.g. allow=['fs.read_*', 'fs.list_*']).\n"
-                f"  The 0.7-era warn-and-proceed default was unsafe for filesystem /\n"
+                f"  A warn-and-proceed default would be unsafe for filesystem /\n"
                 f"  git / shell MCP servers — the LLM could invoke any tool the\n"
                 f"  subprocess advertised."
             )

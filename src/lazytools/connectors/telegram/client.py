@@ -1,10 +1,10 @@
 """Thin wrapper around the Telegram Bot API.
 
 ``httpx`` is imported lazily inside :meth:`TelegramClient.from_token`, so this
-module imports cleanly without the ``telegram`` extra. ``TelegramInbox`` and
-``TelegramTools`` depend only on the duck-typed :class:`TelegramService`
-surface defined here, which means tests inject a fake client and never touch
-the network.
+module imports cleanly without the ``telegram`` extra.
+:class:`~lazytools.connectors.telegram.tools.TelegramTools` depends only on the
+duck-typed :class:`TelegramService` surface defined here, which means tests
+inject a fake client and never touch the network.
 
 Why not aiogram / python-telegram-bot? Those ship a *dispatcher* that runs its
 own polling loop — a second loop competing with the PulseAgent's tick loop.

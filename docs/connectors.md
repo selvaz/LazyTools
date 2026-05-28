@@ -17,7 +17,7 @@ client = GmailClient.from_credentials(
 # gmail_create_draft is always allowed; gmail_send is gated (allow-list +
 # one-shot confirmation). See Safety.
 tools = GmailTools(client, allowed_recipients=["teammate@example.com"])
-agent = Agent("claude-opus-4-7", tools=[tools])
+agent = Agent("claude-opus-4-8", tools=[tools])
 ```
 
 Install: `pip install 'lazytoolkit[gmail]'`.
@@ -49,7 +49,7 @@ fs = MCP.stdio(
     args=["-y", "@modelcontextprotocol/server-filesystem", "/tmp/project"],
     allow=["fs.read_*"],          # least-privilege filtering
 )
-agent = Agent("claude-opus-4-7", tools=[fs])
+agent = Agent("claude-opus-4-8", tools=[fs])
 ```
 
 Install: `pip install 'lazytoolkit[mcp]'`.

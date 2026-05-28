@@ -216,8 +216,10 @@ provider = ExternalToolProvider(client=PipedreamClient(my_sdk))
   thread per call.
 - **Credentials.** The gateway's API key is held by the
   *client*, not by individual tools — secrets stay server-side.
-  Don't return secrets in tool results either; clients should
-  redact before responding.
+  **LazyTools passes each tool's JSON response through to the agent
+  unmodified — it does not sanitise, redact, or filter results.**
+  Sanitising results (stripping secrets, PII, internal identifiers)
+  is the remote gateway's job; do it server-side before responding.
 - **Status: alpha.** This module's API may evolve between minor
   releases. Pin a version and read the CHANGELOG before
   upgrading.
