@@ -160,11 +160,18 @@ def read_folder_docs(
             Ignored when path points to a single file.
         output_format: How to format the combined output.
             "text" (default) — a single human/LLM-readable string with headers.
-            "json" — a JSON array with per-file metadata and content.
+            "json" — a JSON object with a "records" array (one entry per file,
+                each with per-file metadata and content) plus truncation
+                fields: "truncated" (bool), "max_files" (the cap applied), and
+                "total_found" (matches discovered before the cap). Parse the
+                output with ``json.loads`` and index ``["records"]`` for the
+                file list.
 
     Returns:
-        A single string containing the text of all matched documents, or an
-        error description string if the path is not found.
+        A single string. For ``output_format="text"`` this is the concatenated,
+        human/LLM-readable document text; for ``output_format="json"`` it is the
+        serialized JSON object described above. Returns an error description
+        string if the path is not found.
     """
     target = Path(path).expanduser().resolve()
 
