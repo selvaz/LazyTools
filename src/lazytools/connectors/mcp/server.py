@@ -126,16 +126,22 @@ class MCPServer:
         :meth:`invalidate_tools_cache` to flush explicitly.
         """
         await self.aconnect()
-        now = time.monotonic()
-        if self._tools_cache is not None and (
-            self._cache_ttl is None or (now - self._tools_cache_ts) < self._cache_ttl
-        ):
+        # Guard the cache check + refill under the lock so two concurrent
+        # callers can't both observe a miss and issue duplicate
+        # ``list_tools()`` round-trips (and clobber each other's cache).
+        # ``aconnect`` already released the lock above (asyncio.Lock is not
+        # reentrant), so acquiring it here is safe.
+        async with self._get_lock():
+            now = time.monotonic()
+            if self._tools_cache is not None and (
+                self._cache_ttl is None or (now - self._tools_cache_ts) < self._cache_ttl
+            ):
+                return self._tools_cache
+            mcp_tools = await self._transport.list_tools()
+            wrapped = [self._wrap_tool(t) for t in mcp_tools]
+            self._tools_cache = self._filter(wrapped)
+            self._tools_cache_ts = now
             return self._tools_cache
-        mcp_tools = await self._transport.list_tools()
-        wrapped = [self._wrap_tool(t) for t in mcp_tools]
-        self._tools_cache = self._filter(wrapped)
-        self._tools_cache_ts = now
-        return self._tools_cache
 
     def invalidate_tools_cache(self) -> None:
         """Drop the cached tool list so the next call re-fetches.

@@ -66,10 +66,15 @@ def _read_docx(path: Path) -> str:
         elif tag == "tbl":
             rows = []
             for row in block:
+                # A <w:tbl> contains non-row children (<w:tblPr>, <w:tblGrid>)
+                # alongside the actual <w:tr> rows.  Only iterate cells of
+                # genuine table rows; the previous ``or True`` guard made
+                # this filter a no-op and pulled grid/property elements into
+                # the cell loop.
+                if row.tag.split("}")[-1] != "tr":
+                    continue
                 cells = [
-                    "".join(n.text or "" for n in cell.iter() if hasattr(n, "text")).strip()
-                    for cell in row
-                    if row.tag.split("}")[-1] in ("tr",) or True
+                    "".join(n.text or "" for n in cell.iter() if hasattr(n, "text")).strip() for cell in row
                 ]
                 rows.append(" | ".join(c for c in cells if c))
             if rows:

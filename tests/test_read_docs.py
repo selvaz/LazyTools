@@ -89,6 +89,27 @@ def test_json_output_signals_truncation(tmp_path: Path) -> None:
     assert len(payload["records"]) == 2
 
 
+def test_reads_docx_paragraphs_and_table(tmp_path: Path) -> None:
+    docx = pytest.importorskip("docx")  # python-docx, from the [docs] extra
+
+    doc = docx.Document()
+    doc.add_paragraph("Intro paragraph.")
+    table = doc.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "Name"
+    table.cell(0, 1).text = "Role"
+    table.cell(1, 0).text = "Ada"
+    table.cell(1, 1).text = "Engineer"
+    f = tmp_path / "report.docx"
+    doc.save(str(f))
+
+    out = read_folder_docs(str(f), extensions="docx")
+    # Paragraph text and every table cell must be present, with cells
+    # joined by the " | " separator the reader emits per row.
+    assert "Intro paragraph." in out
+    assert "Name | Role" in out
+    assert "Ada | Engineer" in out
+
+
 def test_json_output_no_truncation_when_under_cap(tmp_path: Path) -> None:
     import json
 
