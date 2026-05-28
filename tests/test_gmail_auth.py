@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import os
+import sys
+import types
+from pathlib import Path
+
+import pytest
+
 from lazytools.connectors.gmail.auth import parse_authentication_results
+from lazytools.connectors.gmail.client import GmailClient
 
 
 def test_all_pass() -> None:
@@ -116,3 +124,90 @@ def test_authserv_id_match_is_exact() -> None:
     # A subdomain of the trusted host is also not the trusted host.
     header4 = "relay.mx.google.com; dkim=pass; dmarc=pass"
     assert parse_authentication_results(header4, trusted_authserv_id="mx.google.com")["dkim"] is False
+
+
+# ------------------------------------------------------------------ #
+# Token file permissions (security hardening)
+# ------------------------------------------------------------------ #
+
+
+def _install_fake_google(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Inject stand-in google* modules so from_credentials runs the OAuth
+    flow → token-persist path without the ``gmail`` extra or any network."""
+
+    class _FakeCreds:
+        valid = True
+
+        @staticmethod
+        def to_json() -> str:
+            return '{"refresh_token": "secret"}'
+
+        @classmethod
+        def from_authorized_user_file(cls, *_args: object, **_kw: object) -> "_FakeCreds":
+            # Return an "invalid, non-refreshable" creds so from_credentials
+            # falls through to the interactive flow → token re-write path.
+            stale = cls()
+            stale.valid = False  # type: ignore[misc]
+            stale.expired = False  # type: ignore[attr-defined]
+            stale.refresh_token = None  # type: ignore[attr-defined]
+            return stale
+
+    class _FakeFlow:
+        @classmethod
+        def from_client_secrets_file(cls, *_args: object, **_kw: object) -> "_FakeFlow":
+            return cls()
+
+        def run_local_server(self, **_kw: object) -> _FakeCreds:
+            return _FakeCreds()
+
+    requests_mod = types.ModuleType("google.auth.transport.requests")
+    requests_mod.Request = object  # type: ignore[attr-defined]
+    creds_mod = types.ModuleType("google.oauth2.credentials")
+    creds_mod.Credentials = _FakeCreds  # type: ignore[attr-defined]
+    flow_mod = types.ModuleType("google_auth_oauthlib.flow")
+    flow_mod.InstalledAppFlow = _FakeFlow  # type: ignore[attr-defined]
+    discovery_mod = types.ModuleType("googleapiclient.discovery")
+    discovery_mod.build = lambda *a, **k: object()  # type: ignore[attr-defined]
+
+    for name, mod in {
+        "google.auth.transport.requests": requests_mod,
+        "google.oauth2.credentials": creds_mod,
+        "google_auth_oauthlib.flow": flow_mod,
+        "googleapiclient.discovery": discovery_mod,
+    }.items():
+        monkeypatch.setitem(sys.modules, name, mod)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes only")
+def test_persisted_token_is_owner_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_fake_google(monkeypatch)
+    token_path = tmp_path / "token.json"
+    # Force a permissive umask so a naive open() would land at 0644.
+    old_umask = os.umask(0o022)
+    try:
+        GmailClient.from_credentials(
+            credentials_path=str(tmp_path / "credentials.json"),
+            token_path=str(token_path),
+            scopes=["https://www.googleapis.com/auth/gmail.metadata"],
+        )
+    finally:
+        os.umask(old_umask)
+
+    assert token_path.exists()
+    assert token_path.stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes only")
+def test_preexisting_token_is_tightened(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_fake_google(monkeypatch)
+    token_path = tmp_path / "token.json"
+    token_path.write_text("{}")
+    os.chmod(token_path, 0o644)
+
+    GmailClient.from_credentials(
+        credentials_path=str(tmp_path / "credentials.json"),
+        token_path=str(token_path),
+        scopes=["https://www.googleapis.com/auth/gmail.metadata"],
+    )
+
+    assert token_path.stat().st_mode & 0o777 == 0o600
