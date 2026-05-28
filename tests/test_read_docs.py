@@ -66,3 +66,42 @@ def test_max_files_truncates_scan(tmp_path: Path) -> None:
         (tmp_path / f"f{i}.txt").write_text(f"file {i}")
     out = read_folder_docs(str(tmp_path), extensions="txt", base_dir=str(tmp_path), max_files=2)
     assert "truncated to the first 2 files" in out
+
+
+def test_json_output_signals_truncation(tmp_path: Path) -> None:
+    # JSON consumers must be able to detect that the cap fired — a bare list
+    # would silently drop the indicator that the text branch emits as a NOTE.
+    import json
+
+    for i in range(5):
+        (tmp_path / f"f{i}.txt").write_text(f"file {i}")
+    out = read_folder_docs(
+        str(tmp_path),
+        extensions="txt",
+        base_dir=str(tmp_path),
+        max_files=2,
+        output_format="json",
+    )
+    payload = json.loads(out)
+    assert payload["truncated"] is True
+    assert payload["max_files"] == 2
+    assert payload["total_found"] == 5
+    assert len(payload["records"]) == 2
+
+
+def test_json_output_no_truncation_when_under_cap(tmp_path: Path) -> None:
+    import json
+
+    (tmp_path / "a.txt").write_text("a")
+    (tmp_path / "b.txt").write_text("b")
+    out = read_folder_docs(
+        str(tmp_path),
+        extensions="txt",
+        base_dir=str(tmp_path),
+        max_files=10,
+        output_format="json",
+    )
+    payload = json.loads(out)
+    assert payload["truncated"] is False
+    assert payload["total_found"] == 2
+    assert len(payload["records"]) == 2
