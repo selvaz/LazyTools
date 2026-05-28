@@ -209,6 +209,7 @@ def read_folder_docs(
     # Cap the number of files read in one call so a folder with thousands of
     # documents can't be slurped wholesale into a single tool result.
     files_truncated = False
+    total_found = len(files)
     if max_files is not None and len(files) > max_files:
         files = files[:max_files]
         files_truncated = True
@@ -258,7 +259,16 @@ def read_folder_docs(
         )
 
     if output_format == "json":
-        return json.dumps(records, ensure_ascii=False, indent=2)
+        # Wrap in an object so callers can detect truncation. Returning a bare
+        # list would silently drop the cap from JSON consumers (the text branch
+        # appends a "NOTE" line, but downstream code parses the JSON shape).
+        payload = {
+            "records": records,
+            "truncated": files_truncated,
+            "max_files": max_files,
+            "total_found": total_found,
+        }
+        return json.dumps(payload, ensure_ascii=False, indent=2)
 
     parts: list[str] = []
     for rec in records:
