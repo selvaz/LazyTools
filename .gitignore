@@ -7,4 +7,6 @@ __pycache__/
 .coverage
 build/
 dist/
+site/
 .venv/
+generated_skills/

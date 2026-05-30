@@ -59,10 +59,15 @@ plugins:
       sections:
         Overview:
           - index.md
-        Guides:
+        Tools:
           - connectors.md
+          - gmail.md
+          - telegram.md
           - mcp.md
           - gateway.md
+          - documents.md
+          - skills.md
+        Safety:
           - safety.md
 
 markdown_extensions:
@@ -93,9 +98,14 @@ extra:
 
 nav:
   - Home: index.md
-  - Connectors: connectors.md
-  - MCP: mcp.md
-  - External tool gateway: gateway.md
+  - Tools:
+      - Overview: connectors.md
+      - Gmail: gmail.md
+      - Telegram: telegram.md
+      - MCP: mcp.md
+      - External tool gateway: gateway.md
+      - Documents: documents.md
+      - Skills: skills.md
   - Safety: safety.md
   - Reference: reference.md
   - Ecosystem:

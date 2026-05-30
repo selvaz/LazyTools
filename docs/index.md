@@ -32,11 +32,18 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 
 ## What's in the box
 
-| Category | Modules | Docs |
+Each tool has its own deep, reference-grade guide — what it does, how it works
+internally, every parameter and exposed tool function, runnable examples, the
+safety model, and troubleshooting. Start at the [Tools overview](connectors.md).
+
+| Tool | Module | Guide |
 |---|---|---|
-| **Connectors** | `connectors/{gmail,telegram,mcp,gateway}` — clients + tool providers that bridge to an external service or protocol | [Connectors](connectors.md) |
-| **Documents** | `documents/read_docs` — read `.txt/.md/.pdf/.docx/.html` from a folder/file | [Connectors](connectors.md#documents) |
-| **Skills** | `skills/doc_skills` — build/query portable BM25 doc skills | [Connectors](connectors.md#skills) |
+| **Gmail** | `connectors/gmail` — guarded draft/send + auth-header parsing | [Gmail](gmail.md) |
+| **Telegram** | `connectors/telegram` — guarded send tool | [Telegram](telegram.md) |
+| **MCP** | `connectors/mcp` — Model Context Protocol connector | [MCP](mcp.md) |
+| **External tool gateway** | `connectors/gateway` — remote JSON-HTTP tool registries | [Gateway](gateway.md) |
+| **Documents** | `documents/read_docs` — read `.txt/.md/.pdf/.docx/.html` from a folder/file | [Documents](documents.md) |
+| **Skills** | `skills/doc_skills` — build/query portable BM25 doc skills | [Skills](skills.md) |
 | **Safety** | `safety/{allowlist,gates}` — reusable allow-list + one-shot confirmation gate | [Safety](safety.md) |
 
 **Planned** (added when the first module lands, not scaffolded empty): more

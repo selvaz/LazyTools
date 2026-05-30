@@ -57,6 +57,30 @@ SDK is an optional dependency — `import lazytools.connectors.mcp` is cheap;
 constructing an `MCP.stdio(...)` or `MCP.http(...)` is what triggers
 the SDK import (and a clean `ImportError` if missing).
 
+> **Status: alpha.** Install: `pip install 'lazytoolkit[mcp]'`. The package is
+> `lazytoolkit` (PyPI); the import root is `lazytools`.
+
+## Parameters
+
+Shared across `MCP.stdio`, `MCP.http`, and `MCP.from_transport`:
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `name` | `str` | — | Server name; also the default namespace prefix. |
+| `namespace` | `bool` | `True` | Prepend `"<name>."` to each tool name. `False` keeps raw names. |
+| `prefix` | `str \| None` | `None` | Custom prefix instead of the server name. |
+| `allow` | `Iterable[str] \| None` | `None` | fnmatch globs (vs the **namespaced** name) to permit. **Required** for `stdio`/`http` — deny-by-default. |
+| `deny` | `Iterable[str] \| None` | `None` | fnmatch globs to block. For `stdio`, satisfies the allow-or-deny requirement on its own. |
+| `cache_tools_ttl` | `float \| None` | `60.0` | Lifetime of the discovered-tools cache, in seconds. `None` = never expire (must be `> 0`). |
+
+Transport-specific:
+
+| Factory | Extra params |
+|---|---|
+| `MCP.stdio` | `command: str` (required), `args: list[str] \| None`, `env: dict[str, str] \| None` |
+| `MCP.http` | `url: str` (required), `headers: dict[str, str] \| None` |
+| `MCP.from_transport` | `transport: _Transport` (required) — bring-your-own, e.g. in-process fakes |
+
 ## Synopsis
 
 An MCP server is a tool catalogue. The framework consumes it as a
@@ -170,6 +194,33 @@ async def use_fs():
         )
         await agent.run("…")
 ```
+
+## Security & safety
+
+- **Deny-by-default.** `MCP.stdio` and `MCP.http` both *require* an explicit
+  `allow=` (or, for `stdio`, `deny=`). Omitting them raises `ValueError` at
+  construction so the LLM can never silently see an unaudited filesystem / git /
+  shell tool surface. Pass `allow=["*"]` only after auditing the advertised tools.
+- **Least privilege via globs.** Expose a safe slice (e.g.
+  `allow=["fs.read_*", "fs.list_*"]`) rather than the whole catalogue; layer
+  `deny=` for explicit carve-outs.
+- **Schema is consumed verbatim.** A non-`object` or non-dict `inputSchema` raises
+  loudly at wrap time rather than silently presenting a no-arg tool — fix the MCP
+  server or `deny=` that tool.
+- **Headers carry secrets.** For `MCP.http`, the `headers={"Authorization": ...}`
+  token travels to the remote server — point it only at servers you trust.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `ValueError: requires an explicit allow= / deny=` | Constructed `stdio`/`http` without a filter | Pass `allow=[...]` (or `allow=["*"]` after auditing) |
+| `ImportError` on `MCP.stdio(...)` / `MCP.http(...)` | MCP SDK not installed | `pip install 'lazytoolkit[mcp]'` |
+| Error during `Agent(tools=[server])`, not at query time | Lazy connect fails fast at construction | Wrap construction in try/except for graceful degradation |
+| Allow/deny glob never matches | Pattern written without the namespace | Use the full namespaced name, e.g. `"github.delete_*"` |
+| `ValueError: cache_tools_ttl must be > 0 or None` | Non-positive TTL | Pass a positive float, or `None` to disable expiry |
+| `RuntimeError: … is closed and cannot be reused` | Reused a server after `aclose()` | Construct a new `MCPServer` |
+| New upstream tools not visible | Cache still warm | Wait out `cache_tools_ttl` or call `invalidate_tools_cache()` |
 
 ## Pitfalls
 
