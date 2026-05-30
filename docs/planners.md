@@ -184,6 +184,16 @@ run_plan(pid, task="Compare Apple and Google headcounts")
 - To combine exactly **two** branches, use `task_kind="from_parallel"` for A
   plus `context_kind="from_parallel"` + `context_step` for B.
 
+!!! warning "Version note: from_parallel_all via the add_step builder tool"
+    On lazybridge **0.9.0 / 0.9.1**, the `add_step` builder tool's schema lists
+    only `literal` / `from_prev` / `from_step` / `from_parallel`, so an LLM
+    driving the planner cannot *select* `from_parallel_all` through `add_step`
+    (the runtime accepts it, but the value isn't in the tool's enum). On those
+    versions it's reachable only through the typed `PlanSpec` / `StepSpec` path.
+    A later lazybridge release adds `from_parallel_all` to the `add_step` schema
+    so the value the guidance steers toward is selectable — see the LazyBridge
+    CHANGELOG.
+
 ## Blackboard (`blackboard_orchestrator_agent`)
 
 A flat to-do list instead of a DAG. Three tools over shared closure state:
