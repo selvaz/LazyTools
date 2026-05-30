@@ -69,7 +69,15 @@ plugins:
           - skills.md
         Core tools:
           - core-tools.md
-          - planners.md
+          - planners/index.md
+          - planners/dag-builder.md
+          - planners/blackboard.md
+          - composition/index.md
+          - composition/chain.md
+          - composition/parallel.md
+          - hil/index.md
+          - hil/human.md
+          - hil/supervisor.md
         Safety:
           - safety.md
 
@@ -111,7 +119,18 @@ nav:
       - Skills: skills.md
   - Core tools:
       - Overview: core-tools.md
-      - Planners: planners.md
+      - Planners:
+          - planners/index.md
+          - DAG builder: planners/dag-builder.md
+          - Blackboard: planners/blackboard.md
+      - Composition sugar:
+          - composition/index.md
+          - Chain: composition/chain.md
+          - Parallel: composition/parallel.md
+      - Human-in-the-loop:
+          - hil/index.md
+          - Human approval: hil/human.md
+          - Supervisor REPL: hil/supervisor.md
   - Safety: safety.md
   - Reference: reference.md
   - Ecosystem:
