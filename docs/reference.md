@@ -66,9 +66,12 @@ These ship in the LazyBridge core (`lazybridge.ext.planners`), not in
 `blackboard_orchestrator_agent` are the canonical names; the
 `make_*` symbols below are the same callables.
 
-::: lazybridge.ext.planners.make_planner
+> The blackboard planner (`make_blackboard_planner` /
+> `blackboard_orchestrator_agent`) takes the same arguments — see the
+> [Planners guide](planners.md#blackboard-blackboard_orchestrator_agent) for
+> its full reference.
 
-::: lazybridge.ext.planners.make_blackboard_planner
+::: lazybridge.ext.planners.make_planner
 
 ::: lazybridge.ext.planners.make_plan_builder_tools
 
