@@ -67,6 +67,9 @@ plugins:
           - gateway.md
           - documents.md
           - skills.md
+        Core tools:
+          - core-tools.md
+          - planners.md
         Safety:
           - safety.md
 
@@ -106,6 +109,9 @@ nav:
       - External tool gateway: gateway.md
       - Documents: documents.md
       - Skills: skills.md
+  - Core tools:
+      - Overview: core-tools.md
+      - Planners: planners.md
   - Safety: safety.md
   - Reference: reference.md
   - Ecosystem:

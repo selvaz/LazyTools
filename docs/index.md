@@ -50,6 +50,13 @@ safety model, and troubleshooting. Start at the [Tools overview](connectors.md).
 connectors — `github`, `slack`, `notion`, `calendar`, `filesystem`, `browser` —
 and additional base tools.
 
+!!! tip "Core tools"
+    Beyond the connectors above, the [Core tools](core-tools.md) section
+    documents orchestration primitives that ship inside the **LazyBridge core**
+    itself (under `lazybridge.ext.*`) rather than in `lazytoolkit` — start with
+    [Planners](planners.md), which turn a list of sub-agents into a single
+    planning-and-dispatch `Agent`.
+
 ## Dependency rules
 
 `lazytools → lazybridge` is the only allowed dependency. `lazytools` never
