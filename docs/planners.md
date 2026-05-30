@@ -16,7 +16,7 @@ Two factories, same input shape (`agents: list[Agent]`), different trade-offs:
 > `lazybridge.ext.planners`. LazyBridge comes transitively with
 > `pip install lazytoolkit`, or install it directly with `pip install lazybridge`.
 
-!!! note "Naming — \"orchestrator\" vs \"planner\""
+!!! note "Naming: orchestrator vs planner"
     `orchestrator_agent` is the **canonical** name; it avoids the verbal
     collision with `lazybridge.Plan` (the *static* DAG engine). An orchestrator
     is an LLM agent that *dynamically* dispatches to sub-agents. The older names
