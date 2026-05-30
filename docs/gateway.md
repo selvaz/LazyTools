@@ -74,6 +74,42 @@ ExternalToolProvider(
 registry or execution call fails. Carries `status` (HTTP code) and
 `body` (parsed response payload, when JSON).
 
+## Parameters
+
+### `ExternalToolProvider`
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `client` | `ExternalToolClient` | — | Any object implementing `list_tools()` + `call_tool()` (optional async `acall_tool()`). |
+| `specs` | `Iterable[ExternalToolSpec \| Mapping] \| None` | `None` | Pre-fetched specs; when set, skips the `list_tools()` round-trip. |
+| `include` | `Iterable[str] \| None` | `None` | Allow-list of **original** tool names (exact match, not glob). |
+| `exclude` | `Iterable[str]` | `()` | Deny-list of original tool names (exact match). |
+| `name_prefix` | `str` | `""` | Prepended to each tool name (e.g. `"ext."`). Applied *after* include/exclude. |
+| `strict` | `bool \| None` | `None` | `None` honours each spec's own `strict`; `True`/`False` overrides all. |
+
+### `JsonHttpExternalToolClient`
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `base_url` | `str` | — | Gateway base URL (trailing slash trimmed). |
+| `api_key` | `str \| None` | `None` | Bearer token; auto-sets `Authorization` unless you already provided it. |
+| `headers` | `Mapping[str, str] \| None` | `None` | Extra headers, merged with `Authorization`/`Accept`. |
+| `timeout` | `float` | `30.0` | Per-request HTTP timeout (seconds). |
+| `tools_path` | `str` | `"/tools"` | Registry endpoint (GET). |
+| `call_path_template` | `str` | `"/tools/{name}/call"` | Execution endpoint (POST); `{name}` is URL-escaped. |
+
+### `ExternalToolSpec`
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `name` | `str` | — | Tool identifier (non-empty). |
+| `description` | `str` | — | LLM-facing description (defaults to `"Call external tool <name>."`). |
+| `parameters` | `Mapping` | `{}`-object schema | Provider-agnostic JSON Schema object. |
+| `strict` | `bool` | `False` | Provider-strict mode opt-in. |
+
+`ExternalToolSpec.from_mapping(raw)` accepts both `{"name", "description",
+"parameters"}` and OpenAI-style `{"function": {...}}` shapes.
+
 ## Synopsis
 
 The gateway turns an HTTP-hosted tool catalogue into LazyBridge
@@ -188,6 +224,31 @@ class PipedreamClient:
 
 provider = ExternalToolProvider(client=PipedreamClient(my_sdk))
 ```
+
+## Security & safety
+
+- **Secrets stay server-side.** The gateway's API key lives on the *client*, not
+  on individual tools. LazyTools never sees or forwards the credential to the LLM.
+- **Same-origin redirects only.** `JsonHttpExternalToolClient` refuses a redirect
+  to a different host and refuses an `https→http` downgrade, so the
+  `Authorization` header can't be leaked to a 302 target. Same-host scheme
+  *upgrades* (http→https) remain allowed.
+- **No result sanitisation.** LazyTools passes each tool's JSON response through
+  **unmodified** — stripping secrets/PII/internal identifiers is the *remote*
+  gateway's job, done server-side before responding.
+- **Scope the surface.** Use `include` / `exclude` / `name_prefix` (and
+  `specs=[...]`) to expose only the safe subset of a large catalogue.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `ExternalToolError` with `status=4xx/5xx` | Gateway returned an HTTP error | Inspect `err.status` / `err.body`; both error classes surface here |
+| `ExternalToolError: … invalid JSON` | Non-JSON response body | Ensure the endpoint returns JSON; check `Accept` handling |
+| `ExternalToolError: refusing redirect to different host` | Gateway 302'd to another host | Point `base_url` at the final host; same-origin redirects only |
+| `ExternalToolError: registry must return a list or {'tools': list}` | `/tools` returned an unexpected shape | Return `[{...}]` or `{"tools": [{...}]}` |
+| `ValueError: must include a non-empty string name` | A spec lacked a valid `name` | Fix the registry payload, or build `ExternalToolSpec` explicitly |
+| `exclude=["delete_*"]` didn't block `delete_user` | Filters are exact-name, not globs | List exact names, or pre-filter via `specs=` |
 
 ## Pitfalls
 
