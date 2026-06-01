@@ -8,7 +8,7 @@ Treat each as its own mini-repository.
 
 | Tool | What it gives an agent | Install | Guide |
 |---|---|---|---|
-| **Gmail** | A safe Gmail outbox: ungated `gmail_create_draft` + guarded `gmail_send`, plus inbound auth-header verification. | `pip install 'lazytoolkit[gmail]'` | [Gmail](gmail.md) |
+| **Gmail** | Safe Gmail access: ungated reads (`gmail_list_emails` structured search, `gmail_get_email`) + ungated `gmail_create_draft` + guarded `gmail_send`, plus inbound auth-header verification. | `pip install 'lazytoolkit[gmail]'` | [Gmail](gmail.md) |
 | **Telegram** | A guarded Telegram outbox: `telegram_send_message` with allow-list + one-shot confirmation. | `pip install 'lazytoolkit[telegram]'` | [Telegram](telegram.md) |
 | **MCP** | Drop an existing Model Context Protocol server's tool catalogue into an agent, deny-by-default. | `pip install 'lazytoolkit[mcp]'` | [MCP](mcp.md) |
 | **Code Support Agent** | Delegate coding work to Claude Code & Codex — each in CLI or MCP mode, plus a collaboration pipeline. | `pip install lazytoolkit` | [Code Support Agent](code-support/index.md) |
