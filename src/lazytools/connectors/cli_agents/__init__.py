@@ -1,9 +1,15 @@
 """CLI Agent connectors — delegate tasks to Claude Code and Codex CLIs.
 
-Both tools run as subprocesses and return plain text. Drop them directly
-into ``Agent(tools=[claude_code, codex])``.
+Three drop-in tools for ``Agent(tools=[...])``:
 
-  from lazytools.connectors.cli_agents import claude_code, codex, check_clis_available
+* :func:`claude_code` — delegate a task to the Claude Code CLI.
+* :func:`codex` — delegate a task to the Codex CLI.
+* :func:`build_cli_collaboration` — the two of them collaborating, packaged as a
+  single multi-agent pipeline tool.
+
+  from lazytools.connectors.cli_agents import (
+      claude_code, codex, build_cli_collaboration, check_clis_available,
+  )
 
 Auth notes:
 - **Claude Code**: reads ``~/.claude/.credentials.json`` for
@@ -27,6 +33,7 @@ import shutil
 
 from lazytools.connectors.cli_agents._claude_code import claude_code
 from lazytools.connectors.cli_agents._codex import codex
+from lazytools.connectors.cli_agents._collaboration import build_cli_collaboration
 
 
 def check_clis_available() -> dict[str, bool]:
@@ -44,5 +51,6 @@ def check_clis_available() -> dict[str, bool]:
 __all__ = [
     "claude_code",
     "codex",
+    "build_cli_collaboration",
     "check_clis_available",
 ]
