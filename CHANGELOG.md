@@ -37,13 +37,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - CI now enforces a coverage floor (`--cov-fail-under=70`).
 
 ### Added
-- **CLI Agent connector** (`lazytools.connectors.cli_agents`) — `claude_code`
-  and `codex` tool functions that delegate tasks to the respective CLIs as
-  subprocesses. Both are plain sync callables (`subprocess.run`) usable
-  directly in `Agent(tools=[claude_code, codex])`; `Tool.run` dispatches them
-  to a thread pool so the event loop stays free. No extra dependencies —
-  stdlib only (`subprocess`, `json`, `shutil`). Includes
-  `check_clis_available()` for startup validation.
+- **CLI Agents connector** (`lazytools.connectors.cli_agents`) — delegate tasks
+  to the Claude Code and Codex CLIs as subprocesses, and let them collaborate.
+  Stdlib only (`subprocess`, `json`, `shutil`) — no extra dependencies. See the
+  [CLI Agents guide](https://tools.lazybridge.com/cli-agents/).
   - `claude_code(task, *, mode, cwd, session_id, timeout)` — wraps
     `claude -p ... --output-format json`. Supports `read` / `write` / `plan`
     modes, session resumption via `--resume`, and OAuth token injection from
@@ -52,6 +49,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
     `codex exec ...`. Supports `read` / `write` modes; `write` uses
     `--full-auto` to avoid interactive confirmation prompts in non-interactive
     subprocesses.
+  - `build_cli_collaboration(*, name, description, claude_model, codex_model,
+    synthesizer_model, executor_model, execute)` — the multi-agent pipeline
+    (Claude Code analyses → Codex critiques → synthesizer plans → executor
+    implements) packaged as a **single named `Agent`** that drops into
+    `Agent(tools=[...])` like the function tools. `execute=False` yields a
+    read-only analyse-and-plan pipeline.
+  - `check_clis_available()` — `shutil.which` check for both CLIs at startup.
+  - Both function tools use `subprocess.run` (sync) and are dispatched to a
+    thread pool by `Tool.run`, so the event loop stays free. Set
+    `tool_timeout=None` on `LLMEngine` so the engine never cancels a running
+    subprocess (which would orphan it).
 - `CHANGELOG.md` and `SECURITY.md`.
 - Expanded test coverage for `skills.doc_skills` (BM25 scoring, heading-aware
   chunking, `query_skill` modes, `build_skill` options) and a DOCX

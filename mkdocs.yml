@@ -64,6 +64,7 @@ plugins:
           - gmail.md
           - telegram.md
           - mcp.md
+          - cli-agents.md
           - gateway.md
           - documents.md
           - skills.md
@@ -114,6 +115,7 @@ nav:
       - Gmail: gmail.md
       - Telegram: telegram.md
       - MCP: mcp.md
+      - CLI Agents: cli-agents.md
       - External tool gateway: gateway.md
       - Documents: documents.md
       - Skills: skills.md
