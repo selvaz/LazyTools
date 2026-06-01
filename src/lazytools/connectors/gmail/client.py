@@ -5,11 +5,21 @@ The Google client libraries are imported **lazily**, inside
 the ``gmail`` extra. :class:`~lazytools.connectors.gmail.tools.GmailTools`
 depends only on the duck-typed :class:`GmailService` surface defined here,
 which means tests inject a fake client and never touch Google.
+
+Thread-safety note
+------------------
+``httplib2`` (used internally by ``googleapiclient``) is **not thread-safe**.
+:class:`GmailClient` serialises every API call through a per-instance
+``threading.Lock`` so that multiple worker threads (e.g. concurrent
+:class:`~lazypulse.PulseAgent` tasks running via ``asyncio.to_thread`` /
+``loop.run_in_executor``) can safely share a single client without corrupting
+the underlying SSL/HTTP connection state.
 """
 
 from __future__ import annotations
 
 import base64
+import threading
 from email.mime.text import MIMEText
 from typing import Any, Protocol
 
@@ -29,12 +39,18 @@ class GmailService(Protocol):
 
 
 class GmailClient:
-    """Production :class:`GmailService` backed by ``googleapiclient``."""
+    """Production :class:`GmailService` backed by ``googleapiclient``.
+
+    All methods acquire a per-instance lock before touching the underlying
+    ``googleapiclient`` resource so the client is safe to call from multiple
+    threads concurrently (e.g. parallel PulseAgent task workers).
+    """
 
     def __init__(self, service: Any) -> None:
         # ``service`` is a googleapiclient Resource (or any object exposing
         # the same ``users().messages()`` shape).
         self._service = service
+        self._lock = threading.Lock()
 
     @classmethod
     def from_credentials(
@@ -91,24 +107,28 @@ class GmailClient:
     # GmailService
     # ------------------------------------------------------------------ #
     def list_message_ids(self, *, query: str | None = None, max_results: int = 25) -> list[str]:
-        resp = self._service.users().messages().list(userId="me", q=query, maxResults=max_results).execute()
+        with self._lock:
+            resp = self._service.users().messages().list(userId="me", q=query, maxResults=max_results).execute()
         return [m["id"] for m in resp.get("messages", [])]
 
     def get_message(self, message_id: str) -> dict[str, Any]:
-        return (
-            self._service.users()
-            .messages()
-            .get(userId="me", id=message_id, format="metadata", metadataHeaders=METADATA_HEADERS)
-            .execute()
-        )
+        with self._lock:
+            return (
+                self._service.users()
+                .messages()
+                .get(userId="me", id=message_id, format="metadata", metadataHeaders=METADATA_HEADERS)
+                .execute()
+            )
 
     def create_draft(self, *, to: str, subject: str, body: str) -> dict[str, Any]:
         raw = _encode(to, subject, body)
-        return self._service.users().drafts().create(userId="me", body={"message": {"raw": raw}}).execute()
+        with self._lock:
+            return self._service.users().drafts().create(userId="me", body={"message": {"raw": raw}}).execute()
 
     def send_message(self, *, to: str, subject: str, body: str) -> dict[str, Any]:
         raw = _encode(to, subject, body)
-        return self._service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        with self._lock:
+            return self._service.users().messages().send(userId="me", body={"raw": raw}).execute()
 
 
 def _encode(to: str, subject: str, body: str) -> str:

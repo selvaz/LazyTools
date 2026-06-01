@@ -17,9 +17,47 @@ def _tools(svc: FakeGmailService, **kw: Any) -> tuple[Any, Any]:
     return provider, by_name
 
 
-def test_as_tools_exposes_both() -> None:
+def test_as_tools_exposes_all() -> None:
     _, by_name = _tools(FakeGmailService())
-    assert set(by_name) == {"gmail_create_draft", "gmail_send"}
+    assert set(by_name) == {"gmail_list_emails", "gmail_get_email", "gmail_create_draft", "gmail_send"}
+
+
+def test_list_emails_no_messages() -> None:
+    svc = FakeGmailService()
+    provider, _ = _tools(svc)
+    out = provider._list_emails()
+    assert out == "No messages found."
+
+
+def test_list_emails_returns_ids_and_subjects() -> None:
+    svc = FakeGmailService(messages={
+        "abc123": {"payload": {"headers": [
+            {"name": "From", "value": "alice@x.com"},
+            {"name": "Subject", "value": "Hello"},
+        ]}},
+    })
+    provider, _ = _tools(svc)
+    out = provider._list_emails()
+    assert "abc123" in out
+    assert "Hello" in out
+
+
+def test_get_email_returns_headers_and_snippet() -> None:
+    svc = FakeGmailService(messages={
+        "msg1": {
+            "snippet": "test snippet",
+            "payload": {"headers": [
+                {"name": "From", "value": "bob@x.com"},
+                {"name": "Subject", "value": "Test"},
+                {"name": "Date", "value": "Mon, 1 Jun 2026"},
+            ]},
+        }
+    })
+    provider, _ = _tools(svc)
+    out = provider._get_email("msg1")
+    assert "bob@x.com" in out
+    assert "Test" in out
+    assert "test snippet" in out
 
 
 def test_provider_is_tool_provider() -> None:
