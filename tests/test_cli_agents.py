@@ -97,6 +97,14 @@ class TestClaudeCode:
         assert "[claude_code]" in result
         assert "invalid mode" in result
 
+    def test_does_not_override_oauth_env(self):
+        # Auth is left to the CLI: we must not synthesize/override env, so
+        # subprocess.run is called without an explicit env= kwarg (inherits).
+        payload = json.dumps({"subtype": "success", "result": "ok"})
+        with patch("subprocess.run", return_value=_proc(stdout=payload)) as mock_run:
+            claude_code("task")
+        assert "env" not in mock_run.call_args.kwargs
+
 
 # ─── codex ────────────────────────────────────────────────────────────────────
 
@@ -111,8 +119,8 @@ class TestCodex:
         assert "exec" in cmd
         assert "-s" in cmd
         assert "read-only" in cmd
-        assert "-a" in cmd
-        assert "untrusted" in cmd
+        # `codex exec` has no `-a` approval flag — it must not be emitted.
+        assert "-a" not in cmd
 
     def test_write_mode_uses_full_auto(self):
         with patch("subprocess.run", return_value=_proc(stdout="done")) as mock_run:

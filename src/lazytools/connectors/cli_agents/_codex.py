@@ -8,9 +8,11 @@ import subprocess
 _log = logging.getLogger(__name__)
 
 _SANDBOX_FLAGS: dict[str, list[str]] = {
-    "read": ["-s", "read-only", "-a", "untrusted"],
-    # --full-auto avoids interactive approval prompts in non-interactive subprocesses.
-    # Never use -a on-failure here: it hangs waiting for stdin when a step fails.
+    # `codex exec` only exposes the sandbox flag (-s / --sandbox); there is no
+    # `-a` approval flag, so read-only sandbox is the whole story here.
+    "read": ["-s", "read-only"],
+    # --full-auto pairs workspace-write with a non-interactive approval policy,
+    # so a step that needs approval never blocks waiting on stdin.
     "write": ["-s", "workspace-write", "--full-auto"],
 }
 
@@ -31,7 +33,7 @@ def codex(
     task:
         Instruction for Codex.
     mode:
-        ``"read"`` (default) — read-only sandbox, untrusted approval policy.
+        ``"read"`` (default) — read-only sandbox (``-s read-only``).
         ``"write"`` — workspace-write sandbox, full-auto (no interactive
         confirmation prompts). Ideally run inside a git repo.
     cwd:

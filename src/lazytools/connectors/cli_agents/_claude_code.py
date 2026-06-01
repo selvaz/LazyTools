@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import subprocess
-from pathlib import Path
 
 _log = logging.getLogger(__name__)
 
@@ -20,19 +18,6 @@ _TOOL_FLAGS: dict[str, list[str]] = {
     ],
     "plan": ["--permission-mode", "plan"],
 }
-
-
-def _load_claude_env() -> dict[str, str]:
-    """Return env dict with CLAUDE_CODE_OAUTH_TOKEN injected if available."""
-    env = dict(os.environ)
-    creds = Path.home() / ".claude" / ".credentials.json"
-    if creds.exists():
-        try:
-            data = json.loads(creds.read_text())
-            env["CLAUDE_CODE_OAUTH_TOKEN"] = json.dumps(data)
-        except (json.JSONDecodeError, OSError):
-            pass
-    return env
 
 
 def claude_code(
@@ -61,6 +46,16 @@ def claude_code(
         Maximum seconds for the subprocess. Set ``tool_timeout=None`` on
         ``LLMEngine`` so the engine never cancels before the subprocess
         finishes (zombie-process hazard when engine fires first).
+
+    Notes
+    -----
+    Auth is left to the Claude Code CLI itself: it reads its own on-disk
+    login (``~/.claude/.credentials.json``), and the subprocess inherits the
+    current environment, so ``CLAUDE_CODE_OAUTH_TOKEN`` (from
+    ``claude setup-token``) or ``ANTHROPIC_API_KEY`` are honoured if set. We do
+    not synthesize ``CLAUDE_CODE_OAUTH_TOKEN`` from the credentials file — that
+    env var is a token *string*, not the JSON store, and overriding it would
+    break a valid disk login.
     """
     if mode not in _TOOL_FLAGS:
         return f"[claude_code] invalid mode={mode!r}. Use 'read', 'write', or 'plan'."
@@ -75,7 +70,6 @@ def claude_code(
             capture_output=True,
             text=True,
             timeout=timeout,
-            env=_load_claude_env(),
             cwd=cwd,
         )
     except subprocess.TimeoutExpired:
