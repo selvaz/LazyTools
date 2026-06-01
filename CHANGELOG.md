@@ -37,18 +37,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - CI now enforces a coverage floor (`--cov-fail-under=70`).
 
 ### Added
-- **CLI Agents connector** (`lazytools.connectors.cli_agents`) — delegate tasks
-  to the Claude Code and Codex CLIs as subprocesses, and let them collaborate.
-  Stdlib only (`subprocess`, `json`, `shutil`) for the function tools. See the
-  [CLI Agents guide](https://tools.lazybridge.com/cli-agents/).
-  - `claude_code(task, *, mode, cwd, session_id, timeout)` — wraps
-    `claude -p ... --output-format json`. Supports `read` / `write` / `plan`
-    modes and session resumption via `--resume`. Auth is left to the CLI (its
-    own on-disk login / inherited `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY`).
-  - `codex(task, *, mode, cwd, resume_last, timeout, skip_git_check)` — wraps
-    `codex exec ...`. Supports `read` (`-s read-only`) / `write`
-    (`-s workspace-write --full-auto`) modes; `--full-auto` avoids interactive
-    confirmation prompts hanging a non-interactive subprocess.
+- **Code Support Agent connector** (`lazytools.connectors.code_support`) —
+  delegate coding work to the Claude Code and Codex CLIs, each in **CLI mode**
+  (the CLI is the agent) or **MCP mode** (the CLI exposes its tools and your
+  agent orchestrates them), and let them collaborate. Stdlib only
+  (`subprocess`, `json`, `shutil`) for the CLI-mode tools; MCP mode needs the
+  `mcp` extra. See the
+  [Code Support Agent guide](https://tools.lazybridge.com/code-support/).
+  - **Claude Code** — `claude_code(task, *, mode, cwd, session_id, timeout)`
+    (CLI mode) wraps `claude -p ... --output-format json` (`read` / `write` /
+    `plan` modes, `--resume`); `claude_code_mcp(...)` (MCP mode) runs
+    `claude mcp serve` and exposes Claude Code's own tools (View/Edit/LS/Bash/…).
+  - **Codex** — `codex(task, *, mode, cwd, resume_last, timeout, skip_git_check)`
+    (CLI mode) wraps `codex exec ...` (`read` = `-s read-only`, `write` =
+    `-s workspace-write --full-auto`); `codex_mcp(...)` (MCP mode) runs
+    `codex mcp-server` and exposes its `codex` / `codex-reply` tools
+    (experimental, per OpenAI).
   - `build_cli_collaboration(*, name, description, claude_model, codex_model,
     synthesizer_model, executor_model, execute)` — the multi-agent pipeline
     (Claude Code analyses → Codex critiques → synthesizer plans → executor
@@ -56,15 +60,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
     `Agent(tools=[...])` like the function tools. `execute=False` yields a
     read-only analyse-and-plan pipeline.
   - `check_clis_available()` — `shutil.which` check for both CLIs at startup.
-  - Both function tools use `subprocess.run` (sync) and are dispatched to a
+  - The CLI-mode tools use `subprocess.run` (sync) and are dispatched to a
     thread pool by `Tool.run`, so the event loop stays free. Set
     `tool_timeout=None` on `LLMEngine` so the engine never cancels a running
-    subprocess (which would orphan it).
-  - `claude_code_mcp(...)` / `codex_mcp(...)` — the other integration shape:
-    run each CLI as an **MCP server** (`claude mcp serve` / `codex mcp-server`)
-    so your agent orchestrates its tools, instead of delegating a whole task.
-    Thin factories over `MCP.stdio` (deny-by-default `allow=`/`deny=` required);
-    need the `mcp` extra. Codex's MCP interface is experimental.
+    subprocess (which would orphan it). The MCP-mode factories are deny-by-
+    default (`allow=`/`deny=` required), built on `MCP.stdio`.
 - `CHANGELOG.md` and `SECURITY.md`.
 - Expanded test coverage for `skills.doc_skills` (BM25 scoring, heading-aware
   chunking, `query_skill` modes, `build_skill` options) and a DOCX
