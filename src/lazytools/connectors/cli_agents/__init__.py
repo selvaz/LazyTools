@@ -11,10 +11,11 @@ Three drop-in tools for ``Agent(tools=[...])``:
       claude_code, codex, build_cli_collaboration, check_clis_available,
   )
 
-Auth notes:
-- **Claude Code**: reads ``~/.claude/.credentials.json`` for
-  ``CLAUDE_CODE_OAUTH_TOKEN``, or falls back to ``ANTHROPIC_API_KEY`` in the
-  environment. No extra setup needed if you have an active Claude Code session.
+Auth notes (left entirely to each CLI — the connector passes no custom env):
+- **Claude Code**: the CLI uses its own on-disk login
+  (``~/.claude/.credentials.json``); the inherited environment still carries
+  ``CLAUDE_CODE_OAUTH_TOKEN`` (the token string from ``claude setup-token``) or
+  ``ANTHROPIC_API_KEY`` if set. No extra setup needed with an active session.
 - **Codex**: uses the auth configured via ``codex login``; the subprocess
   inherits the current shell environment.
 
