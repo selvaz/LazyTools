@@ -26,7 +26,7 @@ def test_list_emails_no_messages() -> None:
     svc = FakeGmailService()
     provider, _ = _tools(svc)
     out = provider._list_emails()
-    assert out == "No messages found."
+    assert "No messages found." in out
 
 
 def test_list_emails_returns_ids_and_subjects() -> None:
@@ -40,6 +40,58 @@ def test_list_emails_returns_ids_and_subjects() -> None:
     out = provider._list_emails()
     assert "abc123" in out
     assert "Hello" in out
+
+
+def test_list_emails_sender_filter_builds_query() -> None:
+    svc = FakeGmailService()
+    provider, _ = _tools(svc)
+    out = provider._list_emails(sender="alice@x.com")
+    assert "from:alice@x.com" in out
+
+
+def test_list_emails_subject_filter_builds_query() -> None:
+    svc = FakeGmailService()
+    provider, _ = _tools(svc)
+    out = provider._list_emails(subject="invoice")
+    assert "subject:invoice" in out
+
+
+def test_list_emails_subject_multiword_quoted() -> None:
+    svc = FakeGmailService()
+    provider, _ = _tools(svc)
+    out = provider._list_emails(subject="monthly report")
+    assert 'subject:("monthly report")' in out
+
+
+def test_list_emails_unread_filter() -> None:
+    svc = FakeGmailService()
+    provider, _ = _tools(svc)
+    out = provider._list_emails(unread=True)
+    assert "is:unread" in out
+
+
+def test_list_emails_combined_filters() -> None:
+    svc = FakeGmailService()
+    provider, _ = _tools(svc)
+    out = provider._list_emails(sender="bob@x.com", subject="hello", unread=True)
+    assert "from:bob@x.com" in out
+    assert "subject:hello" in out
+    assert "is:unread" in out
+
+
+def test_list_emails_raw_query_appended() -> None:
+    svc = FakeGmailService()
+    provider, _ = _tools(svc)
+    out = provider._list_emails(sender="alice@x.com", query="after:2026/01/01")
+    assert "from:alice@x.com" in out
+    assert "after:2026/01/01" in out
+
+
+def test_list_emails_default_query_is_inbox() -> None:
+    svc = FakeGmailService()
+    provider, _ = _tools(svc)
+    out = provider._list_emails()
+    assert "in:inbox" in out
 
 
 def test_get_email_returns_headers_and_snippet() -> None:
