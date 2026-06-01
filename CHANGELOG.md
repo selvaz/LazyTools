@@ -39,16 +39,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Added
 - **CLI Agents connector** (`lazytools.connectors.cli_agents`) — delegate tasks
   to the Claude Code and Codex CLIs as subprocesses, and let them collaborate.
-  Stdlib only (`subprocess`, `json`, `shutil`) — no extra dependencies. See the
+  Stdlib only (`subprocess`, `json`, `shutil`) for the function tools. See the
   [CLI Agents guide](https://tools.lazybridge.com/cli-agents/).
   - `claude_code(task, *, mode, cwd, session_id, timeout)` — wraps
     `claude -p ... --output-format json`. Supports `read` / `write` / `plan`
-    modes, session resumption via `--resume`, and OAuth token injection from
-    `~/.claude/.credentials.json`.
+    modes and session resumption via `--resume`. Auth is left to the CLI (its
+    own on-disk login / inherited `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY`).
   - `codex(task, *, mode, cwd, resume_last, timeout, skip_git_check)` — wraps
-    `codex exec ...`. Supports `read` / `write` modes; `write` uses
-    `--full-auto` to avoid interactive confirmation prompts in non-interactive
-    subprocesses.
+    `codex exec ...`. Supports `read` (`-s read-only`) / `write`
+    (`-s workspace-write --full-auto`) modes; `--full-auto` avoids interactive
+    confirmation prompts hanging a non-interactive subprocess.
   - `build_cli_collaboration(*, name, description, claude_model, codex_model,
     synthesizer_model, executor_model, execute)` — the multi-agent pipeline
     (Claude Code analyses → Codex critiques → synthesizer plans → executor
@@ -60,6 +60,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
     thread pool by `Tool.run`, so the event loop stays free. Set
     `tool_timeout=None` on `LLMEngine` so the engine never cancels a running
     subprocess (which would orphan it).
+  - `claude_code_mcp(...)` / `codex_mcp(...)` — the other integration shape:
+    run each CLI as an **MCP server** (`claude mcp serve` / `codex mcp-server`)
+    so your agent orchestrates its tools, instead of delegating a whole task.
+    Thin factories over `MCP.stdio` (deny-by-default `allow=`/`deny=` required);
+    need the `mcp` extra. Codex's MCP interface is experimental.
 - `CHANGELOG.md` and `SECURITY.md`.
 - Expanded test coverage for `skills.doc_skills` (BM25 scoring, heading-aware
   chunking, `query_skill` modes, `build_skill` options) and a DOCX

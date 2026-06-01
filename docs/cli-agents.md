@@ -9,12 +9,18 @@ inside a LazyBridge agent, then let them collaborate.
 | `claude_code` | function tool | Run a task through the Claude Code CLI and get the result back. |
 | `codex` | function tool | Run a task through the Codex CLI and get the result back. |
 | `build_cli_collaboration` | pipeline factory → Agent tool | Claude Code + Codex analysing, critiquing, planning and implementing together — as **one** tool. |
+| `claude_code_mcp` / `codex_mcp` | MCP-server factory → tool provider | Expose each CLI's *own tools* over MCP, for your agent to orchestrate (the other integration shape). Needs the `mcp` extra. |
 
 !!! info "Status & install"
-    **Status: alpha.** No extra dependency — the connector is stdlib-only
-    (`subprocess`, `json`, `shutil`):
+    **Status: alpha.** The function tools (`claude_code`, `codex`,
+    `build_cli_collaboration`) are stdlib-only (`subprocess`, `json`, `shutil`):
     ```bash
     pip install lazytoolkit
+    ```
+    The **MCP-server variants** (`claude_code_mcp` / `codex_mcp`) additionally
+    need the `mcp` extra:
+    ```bash
+    pip install 'lazytoolkit[mcp]'
     ```
     The package is `lazytoolkit` (PyPI); the import root is `lazytools`. The two
     CLIs are *not* Python packages — install them separately and make sure
@@ -259,6 +265,53 @@ than the per-call `timeout` (e.g. `tool_timeout=320` with `timeout=300`).
     print(planner("Propose a refactor of the payments module").text())
     ```
 
+## MCP-server variant — `claude_code_mcp` / `codex_mcp`
+
+Both CLIs can also run as **MCP servers**, exposing their surface over the Model
+Context Protocol instead of being driven one-shot. This is a *different
+relationship*, not a different transport for the same thing:
+
+| | `claude_code` / `codex` (function tools) | `claude_code_mcp` / `codex_mcp` (MCP servers) |
+|---|---|---|
+| **Relationship** | the CLI **is** the agent | the CLI exposes primitives; **your** agent orchestrates them |
+| **One call** | a whole delegated task → final result | a single tool invocation (read a file, edit, …) |
+| **Returns** | result string (Claude: + `session_id`, cost) | per-tool MCP results |
+| **Built on** | `subprocess.run` (stdlib) | the [MCP connector](mcp.md) — needs `pip install 'lazytoolkit[mcp]'` |
+
+Each factory is a thin wrapper over [`MCP.stdio`](mcp.md) with the verified
+launch command — `claude mcp serve` / `codex mcp-server` — so deny-by-default
+filtering, namespacing and the tool-discovery cache all apply unchanged.
+
+```python
+from lazybridge import Agent, LLMEngine
+from lazytools.connectors.cli_agents import claude_code_mcp, codex_mcp
+
+# allow= is REQUIRED (deny-by-default). Patterns match the namespaced name,
+# e.g. "claude_code.View". Use allow=["*"] after auditing the surface.
+claude_mcp = claude_code_mcp(allow=["*"])          # claude mcp serve
+codex_srv = codex_mcp(allow=["*"])                 # codex mcp-server  (experimental)
+
+agent = Agent(engine=LLMEngine("claude-opus-4-8"), tools=[claude_mcp])
+```
+
+!!! warning "Codex MCP is experimental"
+    OpenAI documents the `codex mcp-server` interface as **experimental and
+    subject to change without notice**. Pin your Codex version if you depend on
+    the exposed tool shape.
+
+**Tool names aren't hardcoded.** The exposed surface (e.g. Claude's `View`,
+`Edit`, `LS`, `Bash`) belongs to the *installed* CLI version. Discover it by
+running once with `allow=["*"]` and inspecting `agent._tool_map`, then tighten
+to an explicit allow-list.
+
+| Parameter (both factories) | Type | Default | Meaning |
+|---|---|---|---|
+| `name` | `str` | `"claude_code"` / `"codex"` | Server name + default namespace prefix. |
+| `allow` / `deny` | `Iterable[str] \| None` | `None` | fnmatch globs vs the namespaced name. One is **required**. |
+| `args` | `list[str] \| None` | `None` | Extra args appended after `mcp serve` / `mcp-server`. |
+| `env` | `dict[str, str] \| None` | `None` | Extra subprocess env (auth otherwise inherited). |
+| `namespace` / `prefix` / `cache_tools_ttl` | — | — | Forwarded to `MCP.stdio` unchanged. |
+
 ## When to use it
 
 - **You already drive Claude Code / Codex by hand** and want an agent to delegate
@@ -292,6 +345,8 @@ than the per-call `timeout` (e.g. `tool_timeout=320` with `timeout=300`).
   come back as `"[claude_code] …"` / `"[codex] …"` strings (full stderr is logged
   via `logging`, truncated to 500 chars in the returned string) so the model can
   recover instead of crashing the run.
+- **MCP variant inherits the MCP guards.** `claude_code_mcp` / `codex_mcp` are
+  deny-by-default: you must pass `allow=` / `deny=`, exactly like `MCP.stdio`.
 
 ## Troubleshooting
 
@@ -303,6 +358,8 @@ than the per-call `timeout` (e.g. `tool_timeout=320` with `timeout=300`).
 | `[codex] error (exit 1): …` outside a repo | Codex's git-repo check | Keep `skip_git_check=True` (the default) |
 | `[claude_code] timeout after 300s` / `[codex] timeout …` | Task longer than `timeout` | Raise `timeout=`; set engine `tool_timeout=None` |
 | Orphaned CLI process after a run | Engine `tool_timeout` fired before the subprocess | Use `tool_timeout=None`, or `tool_timeout > timeout` |
+| `ValueError: requires an explicit allow= / deny=` | `claude_code_mcp` / `codex_mcp` called without a filter | Pass `allow=["*"]` (after auditing) or an explicit glob list |
+| `ImportError: requires the official MCP SDK` | MCP variant used without the extra | `pip install 'lazytoolkit[mcp]'` |
 
 ## Pitfalls
 
@@ -316,9 +373,12 @@ than the per-call `timeout` (e.g. `tool_timeout=320` with `timeout=300`).
 - **Shared `Memory` is sequential-only.** The pipeline's `dialogue` memory is
   safe because `Plan` steps don't overlap; don't reuse the pattern under
   parallel execution without a per-agent memory.
+- **Codex MCP is experimental.** The `codex mcp-server` tool shape can change
+  between Codex versions — pin your version if you rely on it.
 
 ## See also
 
 - [Tools overview](connectors.md) — every connector at a glance.
-- [MCP](mcp.md) — bring an existing MCP server's tools into an agent.
+- [MCP](mcp.md) — the connector the MCP variant is built on; bring any MCP
+  server's tools into an agent.
 - [Safety](safety.md) — gating dangerous tools with `Allowlist` / `ConfirmationGate`.
