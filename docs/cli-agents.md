@@ -38,7 +38,7 @@ pool automatically, so a slow CLI never blocks the event loop.
 ```
 claude_code(task, mode="read")     codex(task, mode="read")
 ───────────────────────────────   ─────────────────────────
-claude -p "…" --output-format json   codex exec "…" -s read-only -a untrusted
+claude -p "…" --output-format json   codex exec "…" -s read-only
   │ parse JSON .result                  │ stdout = final message
   ▼                                     ▼
 clean string                          clean string
@@ -79,9 +79,13 @@ claude_code(
 | `session_id` | `str \| None` | `None` | If set, resumes an existing session via `--resume`. |
 | `timeout` | `float` | `300.0` | Max seconds for the subprocess. |
 
-**Auth.** `claude_code` injects `CLAUDE_CODE_OAUTH_TOKEN` from
-`~/.claude/.credentials.json` when present, otherwise the subprocess falls back
-to `ANTHROPIC_API_KEY` from the environment.
+**Auth.** Left to the CLI. `claude_code` passes no custom environment, so the
+Claude Code CLI uses its own on-disk login (`~/.claude/.credentials.json`), and
+the inherited environment still carries `CLAUDE_CODE_OAUTH_TOKEN` (the token
+*string* from `claude setup-token`) or `ANTHROPIC_API_KEY` if you set them. The
+tool deliberately does **not** synthesize `CLAUDE_CODE_OAUTH_TOKEN` from the
+JSON credential store — that env var is a token string, not the store, and
+overriding it would break a valid disk login.
 
 ## `codex`
 
@@ -102,17 +106,18 @@ codex(
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
 | `task` | `str` | — | The instruction for Codex. |
-| `mode` | `str` | `"read"` | `read` → `-s read-only -a untrusted` (safe default). `write` → `-s workspace-write --full-auto`. |
+| `mode` | `str` | `"read"` | `read` → `-s read-only` (safe default). `write` → `-s workspace-write --full-auto`. |
 | `cwd` | `str \| None` | `None` | Working directory for the subprocess. |
 | `resume_last` | `bool` | `False` | Continue the most recent session via `exec resume --last`. |
 | `timeout` | `float` | `300.0` | Max seconds for the subprocess. |
 | `skip_git_check` | `bool` | `True` | Pass `--skip-git-repo-check`; required outside a git repo. |
 
-!!! warning "`write` mode uses `--full-auto`, not `-a on-failure`"
-    In a non-interactive subprocess, `-a on-failure` would **block waiting for
-    stdin** on the first failure and hang until the timeout fires. `write` mode
-    therefore uses `--full-auto` so the run completes without prompts. Prefer a
-    git repo for `write` so changes are reviewable.
+!!! warning "`write` mode uses `--full-auto`"
+    In a non-interactive subprocess, an approval prompt would **block waiting
+    for stdin** on the first failure and hang until the timeout fires. `write`
+    mode therefore uses `--full-auto`, which pairs `workspace-write` with a
+    non-interactive approval policy so the run completes without prompts. Prefer
+    a git repo for `write` so changes are reviewable.
 
 **Auth.** Codex uses the credentials from `codex login` (`~/.codex/auth.json`);
 the subprocess inherits the current shell environment. There is no
@@ -279,9 +284,10 @@ than the per-call `timeout` (e.g. `tool_timeout=320` with `timeout=300`).
   `Read,Bash,Grep,Glob`; Codex: `-s read-only`). Opt into writes explicitly.
 - **Writes are real.** `mode="write"` lets the CLI modify files in `cwd`. Point
   it at a repo you can review/roll back; Codex `write` runs `--full-auto`.
-- **Secrets stay in the environment.** Tokens are read from
-  `~/.claude/.credentials.json` / `ANTHROPIC_API_KEY` / `codex login` and passed
-  via the subprocess `env`; they are never echoed into tool results.
+- **Secrets stay with the CLIs.** Auth is owned by each CLI's own login
+  (`~/.claude/.credentials.json` / `ANTHROPIC_API_KEY` for Claude, `codex login`
+  for Codex), inherited via the environment; the connector never reads, rewrites,
+  or echoes tokens into tool results.
 - **Errors are returned, not raised.** Missing CLI, non-zero exit, and timeouts
   come back as `"[claude_code] …"` / `"[codex] …"` strings (full stderr is logged
   via `logging`, truncated to 500 chars in the returned string) so the model can
