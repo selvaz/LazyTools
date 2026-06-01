@@ -1,10 +1,26 @@
-"""Claude Code CLI tool — delegates a task to the claude CLI and returns the result."""
+"""Claude Code support agent — CLI and MCP-server modes.
+
+Two ways to put Claude Code behind a LazyBridge agent:
+
+* :func:`claude_code` (**CLI mode**) — shell out to ``claude -p`` and treat the
+  CLI as a whole agent: one call = one delegated task, returns a result string.
+* :func:`claude_code_mcp` (**MCP mode**) — run ``claude mcp serve`` and expose
+  Claude Code's own tools (View, Edit, LS, Bash, …) for *your* agent to
+  orchestrate. Requires the ``mcp`` extra.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
 import subprocess
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
+
+from lazytools.connectors.mcp import MCP
+
+if TYPE_CHECKING:
+    from lazytools.connectors.mcp import MCPServer
 
 _log = logging.getLogger(__name__)
 
@@ -89,3 +105,56 @@ def claude_code(
         return data.get("result", "")
     except json.JSONDecodeError:
         return proc.stdout.strip()
+
+
+def claude_code_mcp(
+    *,
+    name: str = "claude_code",
+    allow: Iterable[str] | None = None,
+    deny: Iterable[str] | None = None,
+    args: list[str] | None = None,
+    env: dict[str, str] | None = None,
+    namespace: bool = True,
+    prefix: str | None = None,
+    cache_tools_ttl: float | None = 60.0,
+) -> MCPServer:
+    """Claude Code as an MCP server (``claude mcp serve``).
+
+    Returns an :class:`~lazytools.connectors.mcp.MCPServer` exposing Claude
+    Code's own tools (View, Edit, LS, Bash, …) over stdio. Drop it straight into
+    ``Agent(tools=[claude_code_mcp(allow=["*"])])``.
+
+    ``allow=`` (or ``deny=``) is **required** — deny-by-default, the same
+    posture as :meth:`MCP.stdio`. The patterns match the *namespaced* tool
+    names, e.g. ``allow=["claude_code.View", "claude_code.LS"]`` (or
+    ``allow=["*"]`` after auditing the surface). Tool names are not hardcoded
+    here because they are owned by the Claude Code version you have installed;
+    discover them by running with ``allow=["*"]`` once and inspecting the map.
+
+    Parameters
+    ----------
+    name:
+        Server name and default namespace prefix (``"claude_code"``).
+    allow / deny:
+        fnmatch globs against the namespaced tool name (deny-by-default).
+    args:
+        Extra args appended after ``mcp serve`` (rarely needed).
+    env:
+        Extra environment for the subprocess. Auth is otherwise inherited
+        from the parent environment / the CLI's own on-disk login.
+    namespace / prefix / cache_tools_ttl:
+        Forwarded to :meth:`MCP.stdio` unchanged.
+
+    Requires the ``mcp`` extra: ``pip install lazytoolkit[mcp]``.
+    """
+    return MCP.stdio(
+        name,
+        command="claude",
+        args=["mcp", "serve", *(args or [])],
+        env=env,
+        allow=allow,
+        deny=deny,
+        namespace=namespace,
+        prefix=prefix,
+        cache_tools_ttl=cache_tools_ttl,
+    )

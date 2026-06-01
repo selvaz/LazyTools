@@ -1,24 +1,27 @@
-"""CLI Agent connectors — delegate tasks to Claude Code and Codex CLIs.
+"""Code Support Agent — delegate coding work to Claude Code and Codex.
 
-Three drop-in tools for ``Agent(tools=[...])``:
+Two agents, each with two modes:
 
-* :func:`claude_code` — delegate a task to the Claude Code CLI.
-* :func:`codex` — delegate a task to the Codex CLI.
-* :func:`build_cli_collaboration` — the two of them collaborating, packaged as a
-  single multi-agent pipeline tool.
+* **Claude Code** — :func:`claude_code` (CLI mode) and :func:`claude_code_mcp`
+  (MCP-server mode).
+* **Codex** — :func:`codex` (CLI mode) and :func:`codex_mcp` (MCP-server mode).
 
-  from lazytools.connectors.cli_agents import (
-      claude_code, codex, build_cli_collaboration, check_clis_available,
+Plus :func:`build_cli_collaboration`, which makes the two collaborate
+(Claude Code analyses → Codex critiques → synthesizer plans → executor
+implements) as a single Agent tool.
+
+  from lazytools.connectors.code_support import (
+      claude_code, claude_code_mcp,
+      codex, codex_mcp,
+      build_cli_collaboration, check_clis_available,
   )
 
-The CLI tools treat each binary as a whole *agent* (one call = one delegated
-task). For the other shape — exposing each CLI as an **MCP server** whose tools
-*your* agent orchestrates — see :func:`claude_code_mcp` / :func:`codex_mcp`
-(requires the ``mcp`` extra):
+  agent = Agent("claude-opus-4-8", tools=[claude_code, codex])
 
-  from lazytools.connectors.cli_agents import claude_code_mcp, codex_mcp
-
-  agent = Agent("claude-opus-4-8", tools=[claude_code_mcp(allow=["*"])])
+**CLI mode vs. MCP mode.** In CLI mode the binary *is* the agent: one call is
+one delegated task that returns a result string. In MCP mode the binary exposes
+its tool surface over the Model Context Protocol and *your* agent orchestrates
+it; the MCP factories need the ``mcp`` extra (``pip install lazytoolkit[mcp]``).
 
 Auth notes (left entirely to each CLI — the connector passes no custom env):
 - **Claude Code**: the CLI uses its own on-disk login
@@ -41,10 +44,9 @@ from __future__ import annotations
 
 import shutil
 
-from lazytools.connectors.cli_agents._claude_code import claude_code
-from lazytools.connectors.cli_agents._codex import codex
-from lazytools.connectors.cli_agents._collaboration import build_cli_collaboration
-from lazytools.connectors.cli_agents._mcp import claude_code_mcp, codex_mcp
+from lazytools.connectors.code_support._claude_code import claude_code, claude_code_mcp
+from lazytools.connectors.code_support._codex import codex, codex_mcp
+from lazytools.connectors.code_support._collaboration import build_cli_collaboration
 
 
 def check_clis_available() -> dict[str, bool]:
@@ -61,9 +63,9 @@ def check_clis_available() -> dict[str, bool]:
 
 __all__ = [
     "claude_code",
+    "claude_code_mcp",
     "codex",
+    "codex_mcp",
     "build_cli_collaboration",
     "check_clis_available",
-    "claude_code_mcp",
-    "codex_mcp",
 ]

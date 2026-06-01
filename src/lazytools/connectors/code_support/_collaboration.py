@@ -1,4 +1,4 @@
-"""CLI-agent collaboration pipeline — Claude Code + Codex, as a single tool.
+"""Code-support collaboration pipeline — Claude Code + Codex, as a single tool.
 
 The two connectors (:func:`claude_code`, :func:`codex`) are function tools you
 drop into ``Agent(tools=[...])``. This module packages the multi-agent *Phase 3*
@@ -33,8 +33,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from lazytools.connectors.cli_agents._claude_code import claude_code
-from lazytools.connectors.cli_agents._codex import codex
+from lazytools.connectors.code_support._claude_code import claude_code
+from lazytools.connectors.code_support._codex import codex
 
 if TYPE_CHECKING:
     from lazybridge import Agent

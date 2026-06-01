@@ -1,4 +1,4 @@
-"""Tests for the CLI agent tools (claude_code, codex, check_clis_available).
+"""Tests for the CLI-mode code-support tools (claude_code, codex, check_clis_available).
 
 All subprocess calls are mocked — no real CLIs are required.
 """
@@ -9,7 +9,7 @@ import json
 import subprocess
 from unittest.mock import MagicMock, patch
 
-from lazytools.connectors.cli_agents import check_clis_available, claude_code, codex
+from lazytools.connectors.code_support import check_clis_available, claude_code, codex
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 

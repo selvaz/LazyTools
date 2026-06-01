@@ -1,4 +1,4 @@
-"""Tests for the MCP-server variants (claude_code_mcp, codex_mcp).
+"""Tests for the MCP-mode code-support factories (claude_code_mcp, codex_mcp).
 
 These exercise the factory wiring — command, args, namespace, deny-by-default —
 without spawning a real CLI. The underlying StdioTransport connects lazily, so
@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import pytest
 
-from lazytools.connectors.cli_agents import claude_code_mcp, codex_mcp
+from lazytools.connectors.code_support import claude_code_mcp, codex_mcp
 from lazytools.connectors.mcp import MCPServer
 
-# ─── claude_code_mcp ───────────────────────────────────────────────────────
+# ─── claude_code_mcp ─────────────────────────────────────────────────
 
 
 class TestClaudeCodeMcp:
@@ -50,7 +50,7 @@ class TestClaudeCodeMcp:
         assert srv._transport._env == {"FOO": "bar"}
 
 
-# ─── codex_mcp ──────────────────────────────────────────────────────────
+# ─── codex_mcp ───────────────────────────────────────────────
 
 
 class TestCodexMcp:
