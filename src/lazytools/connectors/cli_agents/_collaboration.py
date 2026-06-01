@@ -31,7 +31,7 @@ pulls the heavier orchestration surface — matching the package's
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from lazytools.connectors.cli_agents._claude_code import claude_code
 from lazytools.connectors.cli_agents._codex import codex
@@ -146,7 +146,9 @@ def build_cli_collaboration(
         Step("codex_analyst", context=from_step("claude_analyst")),
         Step("synthesizer", context=from_step("codex_analyst")),
     ]
-    tools = [claude_analyst, codex_analyst, synthesizer]
+    # Annotated as the Agent(tools=) element type: a bare list[Agent] is
+    # rejected because list is invariant against that wider union.
+    tools: list[Any] = [claude_analyst, codex_analyst, synthesizer]
 
     if execute:
         executor = Agent(

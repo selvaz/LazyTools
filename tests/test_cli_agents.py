@@ -9,12 +9,10 @@ import json
 import subprocess
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from lazytools.connectors.cli_agents import check_clis_available, claude_code, codex
 
-
 # ─── helpers ──────────────────────────────────────────────────────────────────
+
 
 def _proc(returncode: int = 0, stdout: str = "", stderr: str = "") -> MagicMock:
     p = MagicMock()
@@ -25,6 +23,7 @@ def _proc(returncode: int = 0, stdout: str = "", stderr: str = "") -> MagicMock:
 
 
 # ─── claude_code ──────────────────────────────────────────────────────────────
+
 
 class TestClaudeCode:
     def test_read_mode_returns_result(self):
@@ -101,6 +100,7 @@ class TestClaudeCode:
 
 # ─── codex ────────────────────────────────────────────────────────────────────
 
+
 class TestCodex:
     def test_read_mode_returns_result(self):
         with patch("subprocess.run", return_value=_proc(stdout="function list: foo, bar")) as mock_run:
@@ -168,6 +168,7 @@ class TestCodex:
 
 
 # ─── check_clis_available ─────────────────────────────────────────────────────
+
 
 class TestCheckClisAvailable:
     def test_both_found(self):
