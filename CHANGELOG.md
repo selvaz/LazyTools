@@ -37,6 +37,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - CI now enforces a coverage floor (`--cov-fail-under=70`).
 
 ### Added
+- **CLI Agent connector** (`lazytools.connectors.cli_agents`) — `claude_code`
+  and `codex` tool functions that delegate tasks to the respective CLIs as
+  subprocesses. Both are plain sync callables (`subprocess.run`) usable
+  directly in `Agent(tools=[claude_code, codex])`; `Tool.run` dispatches them
+  to a thread pool so the event loop stays free. No extra dependencies —
+  stdlib only (`subprocess`, `json`, `shutil`). Includes
+  `check_clis_available()` for startup validation.
+  - `claude_code(task, *, mode, cwd, session_id, timeout)` — wraps
+    `claude -p ... --output-format json`. Supports `read` / `write` / `plan`
+    modes, session resumption via `--resume`, and OAuth token injection from
+    `~/.claude/.credentials.json`.
+  - `codex(task, *, mode, cwd, resume_last, timeout, skip_git_check)` — wraps
+    `codex exec ...`. Supports `read` / `write` modes; `write` uses
+    `--full-auto` to avoid interactive confirmation prompts in non-interactive
+    subprocesses.
 - `CHANGELOG.md` and `SECURITY.md`.
 - Expanded test coverage for `skills.doc_skills` (BM25 scoring, heading-aware
   chunking, `query_skill` modes, `build_skill` options) and a DOCX

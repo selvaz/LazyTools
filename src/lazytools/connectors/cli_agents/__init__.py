@@ -1,0 +1,48 @@
+"""CLI Agent connectors — delegate tasks to Claude Code and Codex CLIs.
+
+Both tools run as subprocesses and return plain text. Drop them directly
+into ``Agent(tools=[claude_code, codex])``.
+
+  from lazytools.connectors.cli_agents import claude_code, codex, check_clis_available
+
+Auth notes:
+- **Claude Code**: reads ``~/.claude/.credentials.json`` for
+  ``CLAUDE_CODE_OAUTH_TOKEN``, or falls back to ``ANTHROPIC_API_KEY`` in the
+  environment. No extra setup needed if you have an active Claude Code session.
+- **Codex**: uses the auth configured via ``codex login``; the subprocess
+  inherits the current shell environment.
+
+Timeout guidance:
+  Set ``tool_timeout=None`` on ``LLMEngine`` (or a value strictly greater than
+  the ``timeout`` you pass to each call). The engine's ``asyncio.wait_for``
+  cancels the coroutine but cannot interrupt a ``subprocess.run`` running in a
+  thread pool — if the engine fires first the subprocess becomes a zombie until
+  its own timeout fires. Using ``tool_timeout=None`` delegates all timeout
+  control to the subprocess.
+"""
+
+from __future__ import annotations
+
+import shutil
+
+from lazytools.connectors.cli_agents._claude_code import claude_code
+from lazytools.connectors.cli_agents._codex import codex
+
+
+def check_clis_available() -> dict[str, bool]:
+    """Return availability of 'claude' and 'codex' in PATH.
+
+    Returns a ``{"claude": bool, "codex": bool}`` dict. Call this at startup
+    to surface missing CLIs immediately rather than at the first tool call.
+    """
+    return {
+        "claude": shutil.which("claude") is not None,
+        "codex": shutil.which("codex") is not None,
+    }
+
+
+__all__ = [
+    "claude_code",
+    "codex",
+    "check_clis_available",
+]
