@@ -10,6 +10,7 @@ cheap and never fails.
 from __future__ import annotations
 
 import asyncio
+import json
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -211,18 +212,39 @@ class HttpTransport(_Transport):
 
 
 def _extract_text(result: Any) -> str:
-    """Pull text out of an MCP CallToolResult; fall back to repr for non-text."""
+    """Pull text out of an MCP ``CallToolResult``; fall back to repr for non-text.
+
+    A tool may also return ``structuredContent`` — the spec's authoritative
+    structured-output field. Servers with an ``outputSchema`` typically mirror
+    that data into a ``TextContent`` block for backwards compatibility, but some
+    (e.g. Codex's MCP server) put load-bearing fields like ``threadId`` *only*
+    in ``structuredContent``. We therefore append the JSON-serialised
+    ``structuredContent`` after the text so the model can see it — unless its
+    serialisation is already present in the text blocks (the mirrored case), to
+    avoid duplicating output for the common server.
+    """
     content = getattr(result, "content", None)
-    if not content:
-        return ""
     parts: list[str] = []
-    for block in content:
-        text = getattr(block, "text", None)
-        if text is not None:
-            parts.append(text)
-        else:
-            parts.append(repr(block))
-    return "\n".join(parts)
+    if content:
+        for block in content:
+            text = getattr(block, "text", None)
+            if text is not None:
+                parts.append(text)
+            else:
+                parts.append(repr(block))
+    text_out = "\n".join(parts)
+
+    structured = getattr(result, "structuredContent", None)
+    if structured:
+        try:
+            structured_json = json.dumps(structured, ensure_ascii=False, sort_keys=True)
+        except (TypeError, ValueError):
+            structured_json = repr(structured)
+        # Skip when the text already carries the same payload (mirrored servers).
+        if structured_json not in text_out:
+            text_out = f"{text_out}\n{structured_json}" if text_out else structured_json
+
+    return text_out
 
 
 def _run_sync(coro: Any) -> Any:
