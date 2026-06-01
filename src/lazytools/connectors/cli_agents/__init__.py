@@ -11,6 +11,15 @@ Three drop-in tools for ``Agent(tools=[...])``:
       claude_code, codex, build_cli_collaboration, check_clis_available,
   )
 
+The CLI tools treat each binary as a whole *agent* (one call = one delegated
+task). For the other shape — exposing each CLI as an **MCP server** whose tools
+*your* agent orchestrates — see :func:`claude_code_mcp` / :func:`codex_mcp`
+(requires the ``mcp`` extra):
+
+  from lazytools.connectors.cli_agents import claude_code_mcp, codex_mcp
+
+  agent = Agent("claude-opus-4-8", tools=[claude_code_mcp(allow=["*"])])
+
 Auth notes (left entirely to each CLI — the connector passes no custom env):
 - **Claude Code**: the CLI uses its own on-disk login
   (``~/.claude/.credentials.json``); the inherited environment still carries
@@ -35,6 +44,7 @@ import shutil
 from lazytools.connectors.cli_agents._claude_code import claude_code
 from lazytools.connectors.cli_agents._codex import codex
 from lazytools.connectors.cli_agents._collaboration import build_cli_collaboration
+from lazytools.connectors.cli_agents._mcp import claude_code_mcp, codex_mcp
 
 
 def check_clis_available() -> dict[str, bool]:
@@ -54,4 +64,6 @@ __all__ = [
     "codex",
     "build_cli_collaboration",
     "check_clis_available",
+    "claude_code_mcp",
+    "codex_mcp",
 ]

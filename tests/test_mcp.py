@@ -433,3 +433,79 @@ async def test_http_transport_list_tools_before_connect_raises_runtimeerror() ->
         await t.list_tools()
     with pytest.raises(RuntimeError, match="connect"):
         await t.call_tool("anything", {})
+
+
+# ---------------------------------------------------------------------------
+# _extract_text: text + structuredContent (Codex threadId case)
+# ---------------------------------------------------------------------------
+
+
+class _FakeBlock:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _FakeResult:
+    def __init__(self, content: list[Any] | None = None, structured: Any = None) -> None:
+        self.content = content
+        self.structuredContent = structured
+
+
+def test_extract_text_plain_text_only() -> None:
+    from lazytools.connectors.mcp.transports import _extract_text
+
+    r = _FakeResult(content=[_FakeBlock("hello"), _FakeBlock("world")])
+    assert _extract_text(r) == "hello\nworld"
+
+
+def test_extract_text_appends_structured_content() -> None:
+    """Codex puts the threadId only in structuredContent — it must survive."""
+    from lazytools.connectors.mcp.transports import _extract_text
+
+    r = _FakeResult(
+        content=[_FakeBlock("Hello from Codex")],
+        structured={"threadId": "abc-123", "content": "Hello from Codex"},
+    )
+    out = _extract_text(r)
+    assert "Hello from Codex" in out
+    assert "abc-123" in out  # threadId is now visible to the model
+
+
+def test_extract_text_structured_only_no_content() -> None:
+    from lazytools.connectors.mcp.transports import _extract_text
+
+    r = _FakeResult(content=[], structured={"threadId": "xyz"})
+    out = _extract_text(r)
+    assert "xyz" in out
+    assert not out.startswith("\n")  # no leading blank line when text is empty
+
+
+def test_extract_text_skips_structured_when_already_mirrored() -> None:
+    """Servers that mirror structuredContent into the text must not duplicate."""
+    import json
+
+    from lazytools.connectors.mcp.transports import _extract_text
+
+    payload = {"a": 1, "b": 2}
+    mirrored = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    r = _FakeResult(content=[_FakeBlock(mirrored)], structured=payload)
+    out = _extract_text(r)
+    assert out == mirrored  # appended copy was suppressed
+    assert out.count('"a"') == 1
+
+
+def test_extract_text_empty_result() -> None:
+    from lazytools.connectors.mcp.transports import _extract_text
+
+    assert _extract_text(_FakeResult(content=None, structured=None)) == ""
+
+
+def test_extract_text_non_serialisable_structured_falls_back_to_repr() -> None:
+    from lazytools.connectors.mcp.transports import _extract_text
+
+    sentinel = object()
+    r = _FakeResult(content=[_FakeBlock("ok")], structured={"obj": sentinel})
+    out = _extract_text(r)
+    assert "ok" in out
+    # repr fallback keeps the call from raising on non-JSON data
+    assert "obj" in out
