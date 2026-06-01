@@ -21,15 +21,23 @@ you need dynamic routing or multi-round dialogue.
 Every sub-agent engine sets ``tool_timeout=None`` so the engine never cancels a
 running CLI subprocess (which would orphan it); each subprocess enforces its own
 ``timeout`` instead.
+
+The ``lazybridge`` imports are deliberately deferred into
+:func:`build_cli_collaboration` so that merely importing this module (e.g. for
+mkdocstrings, or to grab :func:`claude_code` / :func:`codex`) never eagerly
+pulls the heavier orchestration surface — matching the package's
+"no eager heavy imports" design.
 """
 
 from __future__ import annotations
 
-from lazybridge import Agent, LLMEngine, Memory, Plan, Step, from_step
-from lazybridge.dedup_guard import DeduplicateGuard
+from typing import TYPE_CHECKING
 
 from lazytools.connectors.cli_agents._claude_code import claude_code
 from lazytools.connectors.cli_agents._codex import codex
+
+if TYPE_CHECKING:
+    from lazybridge import Agent
 
 _DEFAULT_DESCRIPTION = (
     "Delegate a coding task to a Claude Code + Codex collaboration. Claude Code "
@@ -84,6 +92,10 @@ def build_cli_collaboration(
     ``codex_analyst`` reads via ``sources=``. This is safe because ``Plan`` runs
     steps strictly sequentially — there is no concurrent writer/reader race.
     """
+    # Deferred imports: keep module import stdlib-light (see module docstring).
+    from lazybridge import Agent, LLMEngine, Memory, Plan, Step, from_step
+    from lazybridge.dedup_guard import DeduplicateGuard
+
     # Shared dialogue: claude_analyst writes (memory=), codex_analyst reads
     # (sources=). Safe under Plan's sequential execution — no parallel access.
     dialogue = Memory(strategy="summary")
