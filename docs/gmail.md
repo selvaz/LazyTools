@@ -1,9 +1,11 @@
 # Gmail
 
-Give an agent a **safe** Gmail outbox. `lazytools.connectors.gmail` ships a thin
-Gmail REST client plus a `ToolProvider` that exposes two tools — a harmless
-`gmail_create_draft` and a guarded `gmail_send` — wired to LazyTools' allow-list
-and one-shot confirmation gate so an LLM can draft freely but can never send a
+Give an agent **safe** Gmail access — structured inbox reads plus a guarded
+outbox. `lazytools.connectors.gmail` ships a thin Gmail REST client plus a
+`ToolProvider` that exposes four tools: two read tools (`gmail_list_emails`,
+`gmail_get_email`) and two write tools — a harmless `gmail_create_draft` and a
+guarded `gmail_send` — the latter wired to LazyTools' allow-list and one-shot
+confirmation gate so an LLM can read and draft freely but can never send a
 flood.
 
 !!! info "Status & install"
@@ -29,6 +31,11 @@ directly with the **dry-run-first** pattern:
   a `ConfirmationGate` (one outstanding, one-shot approval per send). A blocked
   send raises `GmailSendBlocked`.
 
+Reading is harmless and ungated: **`gmail_list_emails`** runs a structured Gmail
+search (filter by `sender` / `subject` / `contains` / `unread`, or a raw
+`query`) and **`gmail_get_email`** fetches one message's headers + snippet — so
+an agent can triage an inbox before deciding what to draft.
+
 This is the same connector LazyPulse uses to let an always-on agent answer mail —
 which is why the confirmation grants can be **bound to a task id**, so under
 concurrency an approval issued for one task can never be spent by another.
@@ -40,11 +47,13 @@ The module is two cleanly separated layers:
 ```
 GmailClient (REST wrapper)          GmailTools (ToolProvider)
 ─────────────────────────           ─────────────────────────
-from_credentials(...)               as_tools() ─┬─ gmail_create_draft  (ungated)
-list_message_ids()                              └─ gmail_send           (gated)
-get_message()                       confirm_once() / confirm_send()
-create_draft()                      ── Allowlist(allowed_recipients)
-send_message()                      ── ConfirmationGate(require_confirmation)
+from_credentials(...)               as_tools() ─┬─ gmail_list_emails    (read)
+list_message_ids()                              ├─ gmail_get_email      (read)
+get_message()                                   ├─ gmail_create_draft   (ungated)
+create_draft()                                  └─ gmail_send           (gated)
+send_message()                      confirm_once() / confirm_send()
+                                    ── Allowlist(allowed_recipients)
+                                    ── ConfirmationGate(require_confirmation)
 ```
 
 - **Duck-typed seam.** `GmailTools` depends only on the `GmailService` *protocol*
@@ -118,8 +127,18 @@ tools.require_confirmation                        # bool property
 
 | Tool | Gated? | Args | Returns | Raises |
 |---|---|---|---|---|
+| `gmail_list_emails` | No | `sender: str`, `subject: str`, `contains: str`, `unread: bool = False`, `query: str`, `max_results: int = 10` (all optional; AND-combined into one Gmail query) | Matching message ids + headers, or `"No messages found…"` | — |
+| `gmail_get_email` | No | `message_id: str` (from `gmail_list_emails`) | The message's headers + snippet | — |
 | `gmail_create_draft` | No | `to: str, subject: str, body: str` | `"draft created: <id>"` | — |
 | `gmail_send` | **Yes** | `to: str, subject: str, body: str` | `"sent: <id>"` | `GmailSendBlocked` |
+
+**Scopes.** `gmail_get_email` works on the narrow `gmail.metadata` scope — the
+client fetches messages with `format="metadata"` (headers + snippet, no body).
+`gmail_list_emails`, however, issues a Gmail search (`q=`), and the
+`users.messages.list` API **rejects `q` under `gmail.metadata`** — so a
+read-and-triage deployment that uses the search tool needs `gmail.readonly`
+(or `gmail.modify`). Use `gmail.metadata` only if you fetch known message ids
+without searching.
 
 `gmail_send` runs two checks in order: (1) `Allowlist.permits(to)` — else
 `GmailSendBlocked("… recipient … not in the allow-list")`; (2)

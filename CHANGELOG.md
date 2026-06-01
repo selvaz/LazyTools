@@ -8,6 +8,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Gmail read tools — `gmail_list_emails` and `gmail_get_email`.** `GmailTools`
+  now exposes four tools instead of two: a structured inbox search
+  (`gmail_list_emails`, filtering by `sender` / `subject` / `contains` /
+  `unread` / raw `query`, AND-combined, with `max_results`) and a single-message
+  reader (`gmail_get_email`, headers + snippet). Both are ungated and work on
+  the narrow `gmail.metadata` scope (metadata-format reads). The `GmailService`
+  protocol seam (`list_message_ids` / `get_message`) is unchanged, so existing
+  fakes keep working. `as_tools()` returns the read tools ahead of the existing
+  `gmail_create_draft` / `gmail_send`.
+- **Thread-safe `GmailClient`.** The googleapiclient-backed client guards its
+  service calls so it can be shared across an agent's concurrent tool calls.
+
 ### Security
 - **Gmail OAuth token written world-readable.** `GmailClient.from_credentials`
   persisted the cached token with the process umask, so the long-lived OAuth
