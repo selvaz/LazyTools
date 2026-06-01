@@ -64,7 +64,10 @@ plugins:
           - gmail.md
           - telegram.md
           - mcp.md
-          - cli-agents.md
+          - code-support/index.md
+          - code-support/claude-code.md
+          - code-support/codex.md
+          - code-support/collaboration.md
           - gateway.md
           - documents.md
           - skills.md
@@ -115,7 +118,11 @@ nav:
       - Gmail: gmail.md
       - Telegram: telegram.md
       - MCP: mcp.md
-      - CLI Agents: cli-agents.md
+      - Code Support Agent:
+          - Overview: code-support/index.md
+          - Claude Code: code-support/claude-code.md
+          - Codex: code-support/codex.md
+          - Collaboration: code-support/collaboration.md
       - External tool gateway: gateway.md
       - Documents: documents.md
       - Skills: skills.md
