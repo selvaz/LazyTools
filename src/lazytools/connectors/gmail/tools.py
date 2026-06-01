@@ -90,8 +90,15 @@ class GmailTools:
                 self._list_emails,
                 name="gmail_list_emails",
                 description=(
-                    "List emails from the Gmail inbox. "
-                    "Args: query (str, Gmail search query e.g. 'is:unread'), "
+                    "Search and list emails from the Gmail inbox. "
+                    "All parameters are optional and combinable. "
+                    "Args: "
+                    "sender (str) — filter by sender address or name, e.g. 'alice@example.com'; "
+                    "subject (str) — filter by subject keywords, e.g. 'invoice'; "
+                    "contains (str) — filter by text anywhere in the email; "
+                    "unread (bool, default False) — if True only return unread emails; "
+                    "query (str) — raw Gmail search string for advanced filters "
+                    "(combined with the other args if both provided); "
                     "max_results (int, default 10)."
                 ),
             ),
@@ -118,17 +125,47 @@ class GmailTools:
     # ------------------------------------------------------------------ #
     # Tool implementations
     # ------------------------------------------------------------------ #
-    def _list_emails(self, query: str = "is:unread", max_results: int = 10) -> str:
-        ids = self._client.list_message_ids(query=query, max_results=max_results)
+    def _list_emails(
+        self,
+        sender: str | None = None,
+        subject: str | None = None,
+        contains: str | None = None,
+        unread: bool = False,
+        query: str | None = None,
+        max_results: int = 10,
+    ) -> str:
+        """Search Gmail inbox with optional filters.
+
+        All parameters are combined with AND logic into a single Gmail query.
+        ``query`` can be used alongside the structured filters for advanced
+        operators (e.g. ``query="after:2026/01/01"``).
+        """
+        parts: list[str] = []
+        if sender:
+            parts.append(f"from:{sender}")
+        if subject:
+            # Quote multi-word subjects so Gmail treats them as a phrase
+            parts.append(f'subject:("{subject}")' if " " in subject else f"subject:{subject}")
+        if contains:
+            parts.append(f'"{contains}"' if " " in contains else contains)
+        if unread:
+            parts.append("is:unread")
+        if query:
+            parts.append(query)
+        # Default to inbox if no filters given
+        final_query = " ".join(parts) if parts else "in:inbox"
+
+        ids = self._client.list_message_ids(query=final_query, max_results=max_results)
         if not ids:
-            return "No messages found."
-        lines = []
+            return f"No messages found. (query: {final_query!r})"
+        lines = [f"query: {final_query!r}"]
         for msg_id in ids:
             raw = self._client.get_message(msg_id)
-            headers = _headers(raw)
-            subject = headers.get("subject", "(no subject)")
-            sender = headers.get("from", "unknown")
-            lines.append(f"- id={msg_id}  from={sender}  subject={subject}")
+            hdrs = _headers(raw)
+            lines.append(
+                f"- id={msg_id}  from={hdrs.get('from', 'unknown')}  "
+                f"subject={hdrs.get('subject', '(no subject)')}"
+            )
         return "\n".join(lines)
 
     def _get_email(self, message_id: str) -> str:
