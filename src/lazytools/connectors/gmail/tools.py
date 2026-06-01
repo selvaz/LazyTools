@@ -1,12 +1,16 @@
-"""Gmail outbound tools for the worker.
+"""Gmail tools for the worker.
 
-Exposes two tools via the lazybridge ``ToolProvider`` protocol:
+Exposes four tools via the lazybridge ``ToolProvider`` protocol:
 
-* ``gmail_create_draft`` — always allowed. Drafting is harmless; a human
-  still has to hit send in the Gmail UI.
-* ``gmail_send`` — guarded. Sending is an ``EXTERNAL_SEND`` action, so it
-  consumes a **single, explicit confirmation** and the recipient must pass
-  the optional allow-list. A blocked send raises :class:`GmailSendBlocked`.
+Read tools (always allowed):
+* ``gmail_list_emails`` — list inbox messages matching a Gmail query.
+* ``gmail_get_email``   — fetch headers + snippet of a single message.
+
+Write tools:
+* ``gmail_create_draft`` — create a draft (not sent; always allowed).
+* ``gmail_send``         — send an email. Guarded by an optional allow-list
+  and a one-shot confirmation gate so an agent can never send to arbitrary
+  recipients or flood the inbox without explicit approval.
 
 Confirmation is deliberately *not* a sticky boolean. A human approval (via the
 review queue) authorizes **one** send — either any recipient (``confirm_once``)
@@ -25,6 +29,7 @@ where ``PulseAgent`` has published the active task id.
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from lazybridge import Tool
 
@@ -37,7 +42,15 @@ class GmailSendBlocked(ActionBlocked):
 
 
 class GmailTools:
-    """A ``ToolProvider`` wrapping a :class:`GmailService` for the worker."""
+    """A ``ToolProvider`` wrapping a :class:`GmailService` for the worker.
+
+    Exposes four tools: ``gmail_list_emails``, ``gmail_get_email``,
+    ``gmail_create_draft``, and ``gmail_send``.
+
+    The underlying :class:`~lazytools.connectors.gmail.client.GmailClient`
+    is thread-safe (serialises calls through an internal lock), so all four
+    tools are safe to invoke from concurrent PulseAgent task workers.
+    """
 
     _is_lazy_tool_provider = True
 
@@ -74,6 +87,23 @@ class GmailTools:
     def as_tools(self) -> list[Tool]:
         return [
             Tool.wrap(
+                self._list_emails,
+                name="gmail_list_emails",
+                description=(
+                    "List emails from the Gmail inbox. "
+                    "Args: query (str, Gmail search query e.g. 'is:unread'), "
+                    "max_results (int, default 10)."
+                ),
+            ),
+            Tool.wrap(
+                self._get_email,
+                name="gmail_get_email",
+                description=(
+                    "Get headers and snippet of a single email by its message ID. "
+                    "Args: message_id (str, from gmail_list_emails)."
+                ),
+            ),
+            Tool.wrap(
                 self._create_draft,
                 name="gmail_create_draft",
                 description="Create a Gmail draft (not sent). Args: to, subject, body.",
@@ -81,13 +111,36 @@ class GmailTools:
             Tool.wrap(
                 self._send,
                 name="gmail_send",
-                description="Send an email via Gmail. Requires a one-shot confirmation. Args: to, subject, body.",
+                description="Send an email via Gmail. Args: to, subject, body.",
             ),
         ]
 
     # ------------------------------------------------------------------ #
     # Tool implementations
     # ------------------------------------------------------------------ #
+    def _list_emails(self, query: str = "is:unread", max_results: int = 10) -> str:
+        ids = self._client.list_message_ids(query=query, max_results=max_results)
+        if not ids:
+            return "No messages found."
+        lines = []
+        for msg_id in ids:
+            raw = self._client.get_message(msg_id)
+            headers = _headers(raw)
+            subject = headers.get("subject", "(no subject)")
+            sender = headers.get("from", "unknown")
+            lines.append(f"- id={msg_id}  from={sender}  subject={subject}")
+        return "\n".join(lines)
+
+    def _get_email(self, message_id: str) -> str:
+        raw = self._client.get_message(message_id)
+        headers = _headers(raw)
+        return (
+            f"From: {headers.get('from', 'unknown')}\n"
+            f"Date: {headers.get('date', 'unknown')}\n"
+            f"Subject: {headers.get('subject', '(no subject)')}\n\n"
+            f"Snippet: {raw.get('snippet', '')}"
+        )
+
     def _create_draft(self, to: str, subject: str, body: str) -> str:
         result = self._client.create_draft(to=to, subject=subject, body=body)
         return f"draft created: {result.get('id', '<unknown>')}"
@@ -102,3 +155,14 @@ class GmailTools:
             raise GmailSendBlocked("gmail_send blocked: no outstanding confirmation for this send")
         result = await asyncio.to_thread(self._client.send_message, to=to, subject=subject, body=body)
         return f"sent: {result.get('id', '<unknown>')}"
+
+
+def _headers(raw: dict[str, Any]) -> dict[str, str]:
+    """Flatten a Gmail message resource's header list into a lowercase dict."""
+    payload = raw.get("payload", {})
+    result: dict[str, str] = {}
+    for header in payload.get("headers", []):
+        name = header.get("name", "").lower()
+        if name and name not in result:
+            result[name] = header.get("value", "")
+    return result
