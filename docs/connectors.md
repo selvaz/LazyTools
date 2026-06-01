@@ -11,6 +11,7 @@ Treat each as its own mini-repository.
 | **Gmail** | A safe Gmail outbox: ungated `gmail_create_draft` + guarded `gmail_send`, plus inbound auth-header verification. | `pip install 'lazytoolkit[gmail]'` | [Gmail](gmail.md) |
 | **Telegram** | A guarded Telegram outbox: `telegram_send_message` with allow-list + one-shot confirmation. | `pip install 'lazytoolkit[telegram]'` | [Telegram](telegram.md) |
 | **MCP** | Drop an existing Model Context Protocol server's tool catalogue into an agent, deny-by-default. | `pip install 'lazytoolkit[mcp]'` | [MCP](mcp.md) |
+| **CLI Agents** | Delegate tasks to the Claude Code & Codex CLIs — individually, or as a single collaboration pipeline tool. | `pip install lazytoolkit` | [CLI Agents](cli-agents.md) |
 | **External tool gateway** | Adapt a remote JSON-HTTP tool registry (Composio / Pipedream / Arcade / internal) into LazyBridge tools. | `pip install lazytoolkit` | [Gateway](gateway.md) |
 | **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `pip install 'lazytoolkit[docs]'` | [Documents](documents.md) |
 | **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | `pip install lazytoolkit` | [Skills](skills.md) |
@@ -60,6 +61,21 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
         allow=["fs.read_*"],          # deny-by-default least-privilege filtering
     )
     agent = Agent("claude-opus-4-8", tools=[fs])
+    ```
+
+=== "CLI Agents"
+
+    ```python
+    from lazybridge import Agent, LLMEngine
+    from lazytools.connectors.cli_agents import claude_code, codex, build_cli_collaboration
+
+    # The two CLIs as individual tools, plus the whole Claude Code + Codex
+    # collaboration packaged as a single tool. tool_timeout=None lets each CLI
+    # subprocess own its own deadline.
+    agent = Agent(
+        engine=LLMEngine("claude-opus-4-8", tool_timeout=None),
+        tools=[claude_code, codex, build_cli_collaboration()],
+    )
     ```
 
 === "Gateway"
