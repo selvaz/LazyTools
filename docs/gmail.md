@@ -132,9 +132,13 @@ tools.require_confirmation                        # bool property
 | `gmail_create_draft` | No | `to: str, subject: str, body: str` | `"draft created: <id>"` | — |
 | `gmail_send` | **Yes** | `to: str, subject: str, body: str` | `"sent: <id>"` | `GmailSendBlocked` |
 
-Both read tools work on the narrow `gmail.metadata` scope: the client fetches
-messages with `format="metadata"` (headers + snippet, no body), so a read-and-triage
-deployment never needs a body-reading scope.
+**Scopes.** `gmail_get_email` works on the narrow `gmail.metadata` scope — the
+client fetches messages with `format="metadata"` (headers + snippet, no body).
+`gmail_list_emails`, however, issues a Gmail search (`q=`), and the
+`users.messages.list` API **rejects `q` under `gmail.metadata`** — so a
+read-and-triage deployment that uses the search tool needs `gmail.readonly`
+(or `gmail.modify`). Use `gmail.metadata` only if you fetch known message ids
+without searching.
 
 `gmail_send` runs two checks in order: (1) `Allowlist.permits(to)` — else
 `GmailSendBlocked("… recipient … not in the allow-list")`; (2)
