@@ -5,6 +5,16 @@ minimal Bot API client plus a `ToolProvider` exposing a single tool,
 `telegram_send_message`, wired to the same allow-list + one-shot confirmation
 guards as the [Gmail](gmail.md) connector.
 
+!!! warning "Compliance & liability — your responsibility"
+    This connector talks to the Telegram Bot API. **You are solely responsible
+    for ensuring your use complies with Telegram's
+    [Terms of Service](https://telegram.org/tos) and
+    [Bot Developers terms](https://telegram.org/tos/bot-developers)**, and with
+    any applicable laws (anti-spam, privacy, data protection). Automated or bulk
+    messaging can get a bot restricted or banned. LazyTools is provided **"as is",
+    without warranty, and the authors accept no liability** for how it is used
+    (see [LICENSE](https://github.com/selvaz/LazyTools/blob/main/LICENSE)).
+
 !!! info "Status & install"
     **Status: alpha.** Install the Telegram extra:
     ```bash

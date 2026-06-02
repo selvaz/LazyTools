@@ -25,12 +25,15 @@ pip install 'lazytoolkit[docs]'         # PDF/DOCX/HTML document reading
 ```
 
 > [!IMPORTANT]
-> **Compliance & liability — your responsibility.** The Gmail connector accesses
-> Gmail via Google's APIs. You are solely responsible for ensuring your use
-> complies with [Google's Terms of Service](https://policies.google.com/terms)
-> and the [API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy),
-> and with applicable laws. Provided "as is", without warranty; the authors accept
-> no liability for how it is used (see [LICENSE](LICENSE)).
+> **Compliance & liability — your responsibility.** Several connectors bridge to
+> third-party services (e.g. Gmail/Google, Telegram, MCP servers, the external
+> tool gateway, Claude Code / Codex). You are solely responsible for ensuring your
+> use complies with each provider's terms of service — in particular
+> [Google's Terms of Service](https://policies.google.com/terms) and the
+> [API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy)
+> for Gmail, and [Telegram's terms](https://telegram.org/tos/bot-developers) for
+> the bot — and with applicable laws. Provided "as is", without warranty; the
+> authors accept no liability for how it is used (see [LICENSE](LICENSE)).
 
 ## Import contract
 
