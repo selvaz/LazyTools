@@ -19,6 +19,17 @@ Treat each as its own mini-repository.
 Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
 `ConfirmationGate`, `ActionBlocked`) are what gate the dangerous outbound tools.
 
+!!! warning "Compliance & liability — your responsibility"
+    Several connectors bridge to third-party services (Gmail/Google, Telegram,
+    MCP servers, the external tool gateway, Claude Code / Codex). **You are
+    solely responsible for ensuring your use complies with each provider's terms
+    of service** and with any applicable laws. Automated, bulk, or scheduled
+    access can get an account or bot rate-limited or suspended. LazyTools is
+    provided **"as is", without warranty, and the authors accept no liability**
+    for how it is used (see
+    [LICENSE](https://github.com/selvaz/LazyTools/blob/main/LICENSE)). See each
+    connector's guide for service-specific notes.
+
 ## At a glance
 
 === "Gmail"
