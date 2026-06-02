@@ -24,6 +24,14 @@ pip install 'lazytoolkit[mcp]'          # Model Context Protocol connector
 pip install 'lazytoolkit[docs]'         # PDF/DOCX/HTML document reading
 ```
 
+> [!IMPORTANT]
+> **Compliance & liability — your responsibility.** The Gmail connector accesses
+> Gmail via Google's APIs. You are solely responsible for ensuring your use
+> complies with [Google's Terms of Service](https://policies.google.com/terms)
+> and the [API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy),
+> and with applicable laws. Provided "as is", without warranty; the authors accept
+> no liability for how it is used (see [LICENSE](LICENSE)).
+
 ## Import contract
 
 ```python

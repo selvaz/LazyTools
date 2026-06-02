@@ -8,6 +8,19 @@ guarded `gmail_send` — the latter wired to LazyTools' allow-list and one-shot
 confirmation gate so an LLM can read and draft freely but can never send a
 flood.
 
+!!! warning "Compliance & liability — your responsibility"
+    This connector accesses Gmail through Google's APIs. **You are solely
+    responsible for ensuring your use complies with Google's
+    [Terms of Service](https://policies.google.com/terms) and the
+    [API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy)**,
+    and with any applicable laws (privacy, anti-spam, data protection).
+    Automated access and bulk sending can get an account rate-limited or
+    suspended. LazyTools is provided **"as is", without warranty, and the
+    authors accept no liability** for how it is used (see
+    [LICENSE](https://github.com/selvaz/LazyTools/blob/main/LICENSE)). Use
+    least-privilege OAuth scopes and obtain the necessary consent before
+    deploying.
+
 !!! info "Status & install"
     **Status: alpha.** Install the Gmail extra:
     ```bash
