@@ -108,7 +108,7 @@ extra:
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/lazytoolkit/
     - icon: fontawesome/solid/envelope
-      link: mailto:LazyBridgeLabs@gmail.com
+      link: mailto:lazylabsllm@gmail.com
       name: Email LazyBridge Labs
 
 nav:
