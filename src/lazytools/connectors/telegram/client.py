@@ -52,14 +52,36 @@ class TelegramClient:
             ) from exc
         return cls(token, http=httpx.Client(timeout=timeout))
 
+    def close(self) -> None:
+        """Close the underlying HTTP client (its connection pool), if it has one."""
+        close = getattr(self._http, "close", None)
+        if callable(close):
+            close()
+
+    def __enter__(self) -> TelegramClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def _redact(self, text: str) -> str:
+        return text.replace(self._token, "<bot-token>") if self._token else text
+
     def _call(self, method: str, payload: dict[str, Any]) -> Any:
         if self._http is None:
             raise RuntimeError("TelegramClient has no HTTP client; use from_token() or inject http=")
-        resp = self._http.post(f"{self._base}/{method}", json=payload)
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            resp = self._http.post(f"{self._base}/{method}", json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            # The Bot API embeds the token in the URL, and httpx error
+            # messages include the URL — re-raise with the token redacted
+            # and without chaining (the original message would leak it into
+            # logged tracebacks).
+            raise RuntimeError(f"Telegram API call {method!r} failed: {self._redact(str(exc))}") from None
         if not data.get("ok", False):
-            raise RuntimeError(f"Telegram API error on {method}: {data.get('description', data)}")
+            raise RuntimeError(f"Telegram API error on {method}: {self._redact(str(data.get('description', data)))}")
         return data.get("result")
 
     # ------------------------------------------------------------------ #

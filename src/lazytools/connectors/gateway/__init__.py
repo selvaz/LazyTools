@@ -166,6 +166,15 @@ class JsonHttpExternalToolClient:
         self.timeout = timeout
         self.tools_path = tools_path
         self.call_path_template = call_path_template
+        # Never send a bearer credential in cleartext. Plain HTTP is allowed
+        # only for loopback (local development gateways).
+        parsed = urllib.parse.urlsplit(self.base_url)
+        if api_key and parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError(
+                f"JsonHttpExternalToolClient: refusing to send api_key over "
+                f"{parsed.scheme or '<no scheme>'} to {parsed.hostname!r} — use an https:// "
+                f"base_url (plain http is permitted only for localhost)."
+            )
 
     def list_tools(self) -> list[ExternalToolSpec]:
         payload = self._request("GET", self.tools_path)

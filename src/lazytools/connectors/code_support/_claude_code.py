@@ -25,7 +25,11 @@ if TYPE_CHECKING:
 _log = logging.getLogger(__name__)
 
 _TOOL_FLAGS: dict[str, list[str]] = {
-    "read": ["--allowedTools", "Read,Bash,Grep,Glob"],
+    # No Bash in read mode: --allowedTools pre-approves tools rather than
+    # sandboxing them, so an allowed Bash would hand "read" mode arbitrary
+    # command execution (writes, deletes, network). Search is covered by
+    # Grep/Glob; use mode="write" when commands are genuinely needed.
+    "read": ["--allowedTools", "Read,Grep,Glob"],
     "write": [
         "--allowedTools",
         "Read,Write,Edit,Bash,Grep,Glob",
@@ -51,8 +55,10 @@ def claude_code(
     task:
         Instruction for Claude Code.
     mode:
-        ``"read"`` (default) — read-only analysis (Read, Bash, Grep, Glob).
-        ``"write"`` — may edit files (acceptEdits permission mode).
+        ``"read"`` (default) — read-only analysis (Read, Grep, Glob; no
+        Bash, so the CLI cannot run commands or modify files).
+        ``"write"`` — may edit files and run commands (acceptEdits
+        permission mode, Bash allowed).
         ``"plan"`` — plan mode, no file modifications.
     cwd:
         Working directory for the subprocess.

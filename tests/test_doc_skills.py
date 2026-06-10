@@ -35,15 +35,39 @@ def test_public_api_smoke() -> None:
     assert DocChunk is not None and SkillManifest is not None
 
 
-def test_skill_builder_tools_returns_tools() -> None:
-    tools = skill_builder_tools()
+def test_skill_builder_tools_returns_tools(tmp_path: Path) -> None:
+    tools = skill_builder_tools(base_dir=str(tmp_path))
     assert len(tools) == 1
     assert tools[0].name == "build_doc_skill"
 
 
-def test_skill_builder_tools_custom_name() -> None:
-    tools = skill_builder_tools(name="my_builder")
+def test_skill_builder_tools_custom_name(tmp_path: Path) -> None:
+    tools = skill_builder_tools(base_dir=str(tmp_path), name="my_builder")
     assert tools[0].name == "my_builder"
+
+
+def test_skill_builder_tools_requires_base_dir() -> None:
+    with pytest.raises(ValueError, match="base_dir"):
+        skill_builder_tools(base_dir="")
+
+
+def test_skill_builder_tool_builds_inside_sandbox(tmp_path: Path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("# A\nindexed sandbox content here")
+    [tool] = skill_builder_tools(base_dir=str(tmp_path))
+    meta = tool.func(source_dirs=[str(docs)], skill_name="sandboxed")
+    # Output is pinned under <base_dir>/generated_skills — not LLM-chosen.
+    assert Path(meta["skill_dir"]).parent == (tmp_path / "generated_skills").resolve()
+
+
+def test_skill_builder_tool_rejects_source_dir_outside_sandbox(tmp_path: Path) -> None:
+    inside = tmp_path / "inside"
+    inside.mkdir()
+    outside = tmp_path.parent  # one level above the sandbox
+    [tool] = skill_builder_tools(base_dir=str(inside))
+    with pytest.raises(PermissionError, match="escapes base_dir"):
+        tool.func(source_dirs=[str(outside)], skill_name="escape")
 
 
 def test_build_then_query_roundtrip(tmp_path: Path) -> None:
@@ -273,6 +297,30 @@ def test_build_overwrite_true_replaces(tmp_path: Path) -> None:
     (docs / "b.md").write_text("# B\nsecond content")
     meta = build_skill([str(docs)], "ow-skill", output_root=out_root, overwrite=True)
     assert meta["total_chunks"] >= 2
+
+
+def test_build_overwrite_refuses_to_delete_non_bundle_directory(tmp_path: Path) -> None:
+    """overwrite=True must never rmtree a directory that is not a bundle."""
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("# A\ncontent for the guard test")
+    victim = tmp_path / "out" / "precious-data"
+    victim.mkdir(parents=True)
+    (victim / "keep.txt").write_text("precious")
+    with pytest.raises(FileExistsError, match=r"does not\s+look like a skill bundle"):
+        build_skill([str(docs)], "precious-data", output_root=str(tmp_path / "out"), overwrite=True)
+    assert (victim / "keep.txt").exists()  # nothing was deleted
+
+
+def test_build_skips_hidden_directories(tmp_path: Path) -> None:
+    """rglob descends into dot-directories; the indexer must skip them."""
+    docs = tmp_path / "docs"
+    (docs / ".git").mkdir(parents=True)
+    (docs / ".git" / "internal.md").write_text("# Internal\nshould never be indexed")
+    (docs / "real.md").write_text("# Real\nlegitimate indexed content")
+    meta = build_skill([str(docs)], "hidden-skill", output_root=str(tmp_path / "out"))
+    indexed = [Path(p).name for p in meta["indexed_files"]]
+    assert indexed == ["real.md"]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlink creation may need privileges on Windows")

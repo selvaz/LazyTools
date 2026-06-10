@@ -109,3 +109,33 @@ def test_scope_specific_grant_preferred_over_unscoped() -> None:
 
 def test_action_blocked_is_permission_error() -> None:
     assert issubclass(ActionBlocked, PermissionError)
+
+
+def test_gate_grant_is_not_double_spent_across_threads() -> None:
+    """grant/consume are atomic: N grants are spendable exactly N times even
+    under thread contention (confirm_* typically runs on a UI thread)."""
+    import threading
+
+    from lazytools.safety import ConfirmationGate
+
+    gate = ConfirmationGate()
+    grants = 50
+    for _ in range(grants):
+        gate.grant("user@example.com")
+
+    successes: list[bool] = []
+    lock = threading.Lock()
+
+    def worker() -> None:
+        for _ in range(10):
+            ok = gate.consume("user@example.com")
+            with lock:
+                successes.append(ok)
+
+    threads = [threading.Thread(target=worker) for _ in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert sum(successes) == grants

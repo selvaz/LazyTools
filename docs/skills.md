@@ -89,7 +89,7 @@ query_skill(
 ) -> str
 
 skill_tools(*, skill_dir, name=None, description=None, strict=False) -> list[Tool]
-skill_builder_tools(*, name="build_doc_skill", description=..., strict=False) -> list[Tool]
+skill_builder_tools(*, base_dir, name="build_doc_skill", description=..., strict=False) -> list[Tool]
 skill_pipeline(*, skill_dir, provider="anthropic", router_model=None,
                executor_model=None, session=None, native_tools=None) -> Tool
 ```
@@ -128,7 +128,7 @@ skill_pipeline(*, skill_dir, provider="anthropic", router_model=None,
 | `build_skill(...)` | `dict` metadata | Index folders into a bundle on disk. |
 | `query_skill(...)` | `str` brief | Retrieve grounded context for a task (no LLM call — pure retrieval). |
 | `skill_tools(skill_dir=…)` | `list[Tool]` | Hand one retrieval tool to an agent (answers only from the skill). |
-| `skill_builder_tools()` | `list[Tool]` | Let an agent *build* skill bundles on demand. |
+| `skill_builder_tools(base_dir=…)` | `list[Tool]` | Let an agent *build* skill bundles on demand, sandboxed to `base_dir`. |
 | `skill_pipeline(skill_dir=…)` | `Tool` | A router (sharpens the query, preserving identifiers) → executor (calls the skill, synthesises a grounded answer) chain, exposed as one tool. |
 
 ## When to use it
@@ -139,8 +139,11 @@ skill_pipeline(*, skill_dir, provider="anthropic", router_model=None,
   names, error codes); BM25's IDF weighting favours those rare terms.
 - **Portable, reproducible skills** you can commit-build, copy between machines,
   or ship inside a container.
-- **Agent-built skills**: expose `skill_builder_tools()` so an agent can turn a
-  folder into a queryable skill mid-task.
+- **Agent-built skills**: expose `skill_builder_tools(base_dir=…)` so an agent
+  can turn a folder into a queryable skill mid-task. `base_dir` is required —
+  source folders must live inside it and bundles are always written to
+  `<base_dir>/generated_skills`, so the LLM can neither index arbitrary host
+  files nor choose the output location.
 
 ## When NOT to use it
 
@@ -196,7 +199,9 @@ skill_pipeline(*, skill_dir, provider="anthropic", router_model=None,
     from lazybridge import Agent
     from lazytools.skills import skill_builder_tools
 
-    agent = Agent("claude-opus-4-8", tools=skill_builder_tools())
+    # base_dir is the sandbox: source dirs must resolve inside it, and
+    # bundles land in <base_dir>/generated_skills.
+    agent = Agent("claude-opus-4-8", tools=skill_builder_tools(base_dir="."))
     agent("Index ./docs and ./api into a skill called 'platform-docs'")
     ```
 

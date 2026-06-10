@@ -34,7 +34,7 @@ string rather than raised.
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
 | `task` | `str` | — | The instruction for Claude Code. |
-| `mode` | `str` | `"read"` | `read` → `Read,Bash,Grep,Glob` (analysis only, safe default). `write` → adds `Write,Edit` with `--permission-mode acceptEdits`. `plan` → `--permission-mode plan`, no edits. |
+| `mode` | `str` | `"read"` | `read` → `Read,Grep,Glob` (analysis only — no Bash, so the CLI cannot run commands or modify files; safe default). `write` → `Read,Write,Edit,Bash,Grep,Glob` with `--permission-mode acceptEdits`. `plan` → `--permission-mode plan`, no edits. |
 | `cwd` | `str \| None` | `None` | Working directory for the subprocess. |
 | `session_id` | `str \| None` | `None` | If set, resumes an existing session via `--resume`. |
 | `timeout` | `float` | `300.0` | Max seconds for the subprocess. |

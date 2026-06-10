@@ -50,7 +50,7 @@ class ExternalToolClient(Protocol):
 JsonHttpExternalToolClient(
     base_url,                      # required
     *,
-    api_key=None,                  # bearer token (auto Authorization header)
+    api_key=None,                  # bearer token (auto Authorization header; https-only)
     headers=None,                  # custom headers (merged with Authorization)
     timeout=30.0,                  # per-request HTTP timeout
     tools_path="/tools",           # override registry endpoint
@@ -92,7 +92,7 @@ registry or execution call fails. Carries `status` (HTTP code) and
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
 | `base_url` | `str` | — | Gateway base URL (trailing slash trimmed). |
-| `api_key` | `str \| None` | `None` | Bearer token; auto-sets `Authorization` unless you already provided it. |
+| `api_key` | `str \| None` | `None` | Bearer token; auto-sets `Authorization` unless you already provided it. Requires an `https://` base URL (plain `http://` is allowed only for localhost). |
 | `headers` | `Mapping[str, str] \| None` | `None` | Extra headers, merged with `Authorization`/`Accept`. |
 | `timeout` | `float` | `30.0` | Per-request HTTP timeout (seconds). |
 | `tools_path` | `str` | `"/tools"` | Registry endpoint (GET). |

@@ -113,10 +113,10 @@ read_docs_tools(
 }
 ```
 
-Parse with `json.loads` and index `["records"]`. **Two cases always return a plain
-(non-JSON) string** even when `output_format="json"`: a path that does not exist
-(`FileNotFoundError` text) and a folder with no matching files
-(`"[No documents found …]"`). Guard your `json.loads` accordingly (e.g. only parse
+Parse with `json.loads` and index `["records"]`. **One case always returns a plain
+(non-JSON) string** even when `output_format="json"`: a folder with no matching
+files (`"[No documents found …]"`). A nonexistent path raises
+`FileNotFoundError`. Guard your `json.loads` accordingly (e.g. only parse
 output starting with `"{"`).
 
 ## When to use it
@@ -217,8 +217,9 @@ output starting with `"{"`).
 - **`extensions` is ignored for single files.** Point `path` at a file and it's
   read regardless of suffix (using the matching reader, or an "unsupported
   extension" note).
-- **JSON output isn't always JSON.** The not-found and empty-folder cases return
-  plain strings — guard `json.loads`.
+- **JSON output isn't always JSON.** The empty-folder case returns a plain
+  string (and a nonexistent path raises `FileNotFoundError`) — guard
+  `json.loads`.
 - **`parsed` HTML can drop content.** trafilatura strips boilerplate aggressively;
   use `full` or `both` if you need the raw markup.
 - **Compression bombs.** The byte cap is a first line of defence, not a guarantee —

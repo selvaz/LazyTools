@@ -231,3 +231,19 @@ async def test_unbound_grant_works_in_any_scope() -> None:
     finally:
         active_scope.reset(token)
     assert len(svc.sent) == 1
+
+
+# ------------------------------------------------------------------ #
+# Header-injection guard in the MIME encoder
+# ------------------------------------------------------------------ #
+
+
+def test_encode_rejects_newlines_in_headers() -> None:
+    from lazytools.connectors.gmail.client import _encode
+
+    with pytest.raises(ValueError, match="newline"):
+        _encode("victim@example.com", "hi\nBcc: evil@example.com", "body")
+    with pytest.raises(ValueError, match="newline"):
+        _encode("victim@example.com\r\nBcc: evil@example.com", "hi", "body")
+    # Newlines in the body are fine — only header fields are constrained.
+    assert _encode("a@example.com", "ok", "line one\nline two")

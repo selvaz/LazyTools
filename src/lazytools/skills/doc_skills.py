@@ -357,7 +357,13 @@ def _iter_docs(roots: Sequence[Path], include_exts: Sequence[str]) -> Iterable[P
             # root explicitly.
             if path.is_symlink():
                 continue
-            if not path.is_file() or path.name.startswith("."):
+            if not path.is_file():
+                continue
+            # Skip hidden files AND anything under a hidden directory —
+            # rglob descends into ``.git`` / ``.venv`` / ``.tox`` etc., and
+            # indexing those pulls vendored or internal files into the
+            # bundle.
+            if any(part.startswith(".") for part in path.relative_to(root).parts):
                 continue
             if path.suffix.lower() not in extset:
                 continue
@@ -513,6 +519,16 @@ def build_skill(
     if skill_dir.exists():
         if not overwrite:
             raise FileExistsError(f"Skill already exists: {skill_dir}")
+        # Only ever delete something that is recognisably a skill bundle.
+        # ``overwrite=True`` must not become an arbitrary recursive delete
+        # when output_root/skill_name happens to collide with an unrelated
+        # directory.
+        if not (skill_dir / "manifest.json").exists():
+            raise FileExistsError(
+                f"Refusing to overwrite {skill_dir}: the directory exists but does not "
+                f"look like a skill bundle (no manifest.json). Remove it manually if "
+                f"replacing it is intended."
+            )
         shutil.rmtree(skill_dir)
     skill_dir.mkdir(parents=True)
     if copy_sources:
@@ -681,6 +697,7 @@ def skill_tools(
 
 def skill_builder_tools(
     *,
+    base_dir: Annotated[str, "Sandbox directory — required. Source dirs must resolve inside it; bundles are written to <base_dir>/generated_skills."],
     name: Annotated[str, "Tool name."] = "build_doc_skill",
     description: Annotated[str, "Tool description."] = (
         "Index documentation folders into a reusable local skill bundle. "
@@ -688,8 +705,52 @@ def skill_builder_tools(
     ),
     strict: Annotated[bool, "Strict JSON schema validation."] = False,
 ) -> list[Tool]:
-    """Return a single-element list containing a Tool that builds skill bundles."""
-    return [Tool(build_skill, name=name, description=description, strict=strict)]
+    """Return a single-element list containing a Tool that builds skill bundles.
+
+    Args:
+        base_dir: Sandbox directory — **required**. The tool's ``source_dirs``
+            argument is LLM-controlled; without a sandbox an agent could index
+            (and thus read, via ``query_skill``) arbitrary files on the host.
+            Every source dir must resolve inside ``base_dir``, and bundles are
+            always written under ``<base_dir>/generated_skills`` — the LLM
+            cannot choose the output location. Call :func:`build_skill`
+            directly from trusted code if you genuinely need an unsandboxed
+            build.
+    """
+    if not base_dir:
+        raise ValueError(
+            "skill_builder_tools(base_dir=...) is required. The tool's source_dirs "
+            "argument is LLM-controlled, so without a sandbox an agent could index "
+            "and read ANY file on the host. Pass base_dir='/safe/directory', or call "
+            "build_skill directly for trusted, non-LLM usage."
+        )
+    base = Path(base_dir).expanduser().resolve()
+    output_root = base / "generated_skills"
+
+    def _bound(
+        source_dirs: Annotated[list[str], "Documentation folders to index. Must be inside the sandbox directory."],
+        skill_name: Annotated[str, "Skill name — used as the bundle folder name and title."],
+        description: Annotated[str, "What this skill covers (used in SKILL.md and tool description)."] = "",
+        usage_notes: Annotated[str, "Extra operational rules appended to SKILL.md."] = "",
+    ) -> dict[str, Any]:
+        """Index documentation folders into a skill bundle, restricted to the sandbox."""
+        for d in source_dirs:
+            resolved = Path(d).expanduser().resolve()
+            try:
+                resolved.relative_to(base)
+            except ValueError as exc:
+                raise PermissionError(
+                    f"refused — source dir {str(resolved)!r} escapes base_dir {str(base)!r}"
+                ) from exc
+        return build_skill(
+            source_dirs,
+            skill_name,
+            output_root=str(output_root),
+            description=description,
+            usage_notes=usage_notes,
+        )
+
+    return [Tool(_bound, name=name, description=description, strict=strict)]
 
 
 def skill_pipeline(

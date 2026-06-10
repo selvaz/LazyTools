@@ -170,18 +170,23 @@ def read_folder_docs(
                 fields: "truncated" (bool), "max_files" (the cap applied), and
                 "total_found" (matches discovered before the cap). Parse the
                 output with ``json.loads`` and index ``["records"]`` for the
-                file list. Note: the not-found and empty-folder cases below
-                are reported as plain strings even when "json" is requested,
-                so guard ``json.loads`` for those (e.g. only parse output that
-                starts with "{").
+                file list. Note: the empty-folder case below is reported as a
+                plain string even when "json" is requested, so guard
+                ``json.loads`` for it (e.g. only parse output that starts
+                with "{").
 
     Returns:
         A single string. For ``output_format="text"`` this is the concatenated,
         human/LLM-readable document text; for ``output_format="json"`` it is the
-        serialized JSON object described above. Two cases always return a plain
-        (non-JSON) description string regardless of ``output_format``: when the
-        path does not exist, and when a scanned folder contains no files
-        matching ``extensions`` ("[No documents found ...]").
+        serialized JSON object described above. One case always returns a plain
+        (non-JSON) description string regardless of ``output_format``: when a
+        scanned folder contains no files matching ``extensions``
+        ("[No documents found ...]").
+
+    Raises:
+        FileNotFoundError: When ``path`` does not exist.
+        PermissionError: When ``base_dir`` is set and ``path`` resolves
+            outside it.
     """
     target = Path(path).expanduser().resolve()
 

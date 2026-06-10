@@ -157,3 +157,25 @@ def test_gateway_redirect_handler_allows_same_host_path_change() -> None:
         req, fp=None, code=302, msg="", headers={}, newurl="https://api.example.com/v2/tool"
     )
     assert new_req.full_url == "https://api.example.com/v2/tool"
+
+
+# ---------------------------------------------------------------------------
+# Cleartext credential guard
+# ---------------------------------------------------------------------------
+
+
+def test_json_http_client_refuses_api_key_over_plain_http() -> None:
+    from lazytools.connectors.gateway import JsonHttpExternalToolClient
+
+    with pytest.raises(ValueError, match="https"):
+        JsonHttpExternalToolClient("http://gateway.example.com", api_key="sk-secret")
+
+
+def test_json_http_client_allows_api_key_over_https_and_localhost() -> None:
+    from lazytools.connectors.gateway import JsonHttpExternalToolClient
+
+    JsonHttpExternalToolClient("https://gateway.example.com", api_key="sk-secret")
+    JsonHttpExternalToolClient("http://localhost:8080", api_key="sk-secret")
+    JsonHttpExternalToolClient("http://127.0.0.1:8080", api_key="sk-secret")
+    # No key, no credential to protect — plain http stays allowed.
+    JsonHttpExternalToolClient("http://gateway.example.com")

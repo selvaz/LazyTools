@@ -133,7 +133,8 @@ than the per-call `timeout` (e.g. `tool_timeout=320` with `timeout=300`).
 ## Security & safety
 
 - **Read is the default.** CLI-mode tools default to `mode="read"` (Claude:
-  `Read,Bash,Grep,Glob`; Codex: `-s read-only`). Opt into writes explicitly.
+  `Read,Grep,Glob` — no Bash, so no command execution; Codex: `-s read-only`).
+  Opt into writes explicitly.
 - **MCP mode is deny-by-default.** `claude_code_mcp` / `codex_mcp` require an
   `allow=` / `deny=` filter, exactly like `MCP.stdio` — and Claude Code's MCP
   server has **no per-call confirmation** of its own, so the allow-list is your

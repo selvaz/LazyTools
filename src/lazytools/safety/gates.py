@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+
 #: Sentinel target for a grant that is not bound to a specific recipient/chat.
 _ANY = "*"
 
@@ -27,6 +29,10 @@ class ConfirmationGate:
         # Keys are ``(target, scope)`` where target is a lowercased string or
         # ``_ANY`` and scope is an opaque binding (the task id) or ``None``.
         self._grants: dict[tuple[str, str | None], int] = {}
+        # ``grant``/``confirm_*`` typically run on a review-queue/UI thread
+        # while a worker consumes; the lock makes grant/consume atomic so a
+        # single grant can never be double-spent across threads.
+        self._mutex = threading.Lock()
 
     @property
     def enabled(self) -> bool:
@@ -41,7 +47,8 @@ class ConfirmationGate:
         self._add((_ANY, scope))
 
     def _add(self, key: tuple[str, str | None]) -> None:
-        self._grants[key] = self._grants.get(key, 0) + 1
+        with self._mutex:
+            self._grants[key] = self._grants.get(key, 0) + 1
 
     def consume(self, target: object, *, scope: str | None = None) -> bool:
         """Spend one matching grant for ``target`` in ``scope``; ``True`` if found.
@@ -59,8 +66,9 @@ class ConfirmationGate:
         if scope is not None:
             candidates.append((_ANY, scope))
         candidates.append((_ANY, None))
-        for key in candidates:
-            if self._grants.get(key, 0) > 0:
-                self._grants[key] -= 1
-                return True
+        with self._mutex:
+            for key in candidates:
+                if self._grants.get(key, 0) > 0:
+                    self._grants[key] -= 1
+                    return True
         return False

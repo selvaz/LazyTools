@@ -123,7 +123,18 @@ def test_as_tools_caches_after_first_call() -> None:
     fs = MCP.from_transport("fs", transport)
     a = fs.as_tools()
     b = fs.as_tools()
-    assert a is b  # cached identity
+    # The returned list is a fresh copy each time (mutating it must not
+    # corrupt the cache), but the Tool objects are the cached instances.
+    assert a is not b
+    assert [x.name for x in a] == [x.name for x in b]
+    assert all(x is y for x, y in zip(a, b, strict=True))
+
+
+def test_as_tools_returns_defensive_copy() -> None:
+    fs = MCP.from_transport("fs", FakeTransport())
+    a = fs.as_tools()
+    a.clear()  # caller mutation must not clobber the cache
+    assert len(fs.as_tools()) == 3
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +216,30 @@ def test_allow_and_deny_compose_allow_then_deny() -> None:
     assert names == ["fs.read_file"]
 
 
+_BAD_SCHEMA_TOOLS = [
+    {"name": "good", "description": "ok", "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "bad", "description": "broken", "inputSchema": {"type": "array"}},
+]
+
+
+def test_denied_tool_with_bad_schema_is_skipped_not_raised() -> None:
+    """``deny=`` is the documented escape hatch for a malformed upstream
+    schema, so filtering must happen BEFORE schema validation."""
+    fs = MCP.from_transport("fs", FakeTransport(tools=_BAD_SCHEMA_TOOLS), deny=["fs.bad"])
+    assert [t.name for t in fs.as_tools()] == ["fs.good"]
+
+
+def test_allow_filtered_out_bad_schema_is_skipped_not_raised() -> None:
+    fs = MCP.from_transport("fs", FakeTransport(tools=_BAD_SCHEMA_TOOLS), allow=["fs.good"])
+    assert [t.name for t in fs.as_tools()] == ["fs.good"]
+
+
+def test_permitted_tool_with_bad_schema_still_raises() -> None:
+    fs = MCP.from_transport("fs", FakeTransport(tools=_BAD_SCHEMA_TOOLS), allow=["fs.*"])
+    with pytest.raises(ValueError, match="inputSchema"):
+        fs.as_tools()
+
+
 # ---------------------------------------------------------------------------
 # Lifecycle
 # ---------------------------------------------------------------------------
@@ -244,6 +279,30 @@ def test_closed_server_cannot_reconnect() -> None:
             pass
         with pytest.raises(RuntimeError, match="closed"):
             await fs.aconnect()
+
+    asyncio.run(inner())
+
+
+def test_close_is_terminal_even_when_never_connected() -> None:
+    """Closure is terminal regardless of whether a connection happened."""
+
+    async def inner() -> None:
+        fs = MCP.from_transport("fs", FakeTransport())
+        await fs.aclose()  # never connected
+        with pytest.raises(RuntimeError, match="closed"):
+            await fs.aconnect()
+
+    asyncio.run(inner())
+
+
+def test_aclose_is_idempotent() -> None:
+    async def inner() -> None:
+        transport = FakeTransport()
+        fs = MCP.from_transport("fs", transport)
+        async with fs:
+            pass
+        await fs.aclose()  # second close is a no-op
+        assert transport.closed is True
 
     asyncio.run(inner())
 
@@ -350,14 +409,15 @@ async def test_mcp_tools_cache_expires_after_ttl() -> None:
     transport = FakeTransport()
     fs = MCP.from_transport("fs", transport, cache_tools_ttl=0.05)
     first = await fs.alist_tools()
-    # Second call within TTL hits cache — transport is not re-asked.
+    # Second call within TTL hits cache — same Tool instances come back
+    # (the list itself is a defensive copy).
     second = await fs.alist_tools()
-    assert first is second  # same cached list object
+    assert all(x is y for x, y in zip(first, second, strict=True))
 
     # Wait past TTL; the next call re-fetches (rebuilt — Tool identity differs).
     await asyncio.sleep(0.1)
     third = await fs.alist_tools()
-    assert third is not first
+    assert all(x is not y for x, y in zip(first, third, strict=True))
     assert [t.name for t in third] == [t.name for t in first]
 
 
@@ -367,7 +427,7 @@ async def test_mcp_invalidate_tools_cache_forces_refetch() -> None:
     first = await fs.alist_tools()
     fs.invalidate_tools_cache()
     second = await fs.alist_tools()
-    assert second is not first
+    assert all(x is not y for x, y in zip(first, second, strict=True))
 
 
 def test_mcp_cache_ttl_validates_value() -> None:
@@ -410,7 +470,7 @@ async def test_mcp_connect_serialises_concurrent_callers() -> None:
 
     assert all(isinstance(r, ImportError) for r in results)
     assert t._session is None
-    assert t._stack is None
+    assert t._task is None
 
 
 async def test_stdio_transport_list_tools_before_connect_raises_runtimeerror() -> None:
