@@ -95,3 +95,69 @@ async def test_scope_bound_grant_not_stolen_by_concurrent_scope() -> None:
     finally:
         active_scope.reset(token)
     assert len(svc.sent) == 1
+
+
+# ------------------------------------------------------------------ #
+# Client-level: bot-token redaction in error paths
+# ------------------------------------------------------------------ #
+
+
+def test_client_redacts_token_from_http_errors() -> None:
+    """httpx error messages embed the request URL — which contains the bot
+    token. The client must redact it before the error can reach a log."""
+    from lazytools.connectors.telegram.client import TelegramClient
+
+    class _Resp:
+        def raise_for_status(self) -> None:
+            raise RuntimeError("Client error '404' for url 'https://api.telegram.org/botSECRET-TOKEN/sendMessage'")
+
+        def json(self) -> dict:  # pragma: no cover — raise_for_status fires first
+            return {}
+
+    class _Http:
+        def post(self, url: str, json: dict | None = None) -> _Resp:
+            return _Resp()
+
+    client = TelegramClient("SECRET-TOKEN", http=_Http())
+    with pytest.raises(RuntimeError) as excinfo:
+        client.send_message(chat_id=1, text="hi")
+    assert "SECRET-TOKEN" not in str(excinfo.value)
+    assert "<bot-token>" in str(excinfo.value)
+    # No chained exception — the original message contains the token.
+    assert excinfo.value.__cause__ is None
+    assert excinfo.value.__suppress_context__ is True
+
+
+def test_client_redacts_token_from_api_error_description() -> None:
+    from lazytools.connectors.telegram.client import TelegramClient
+
+    class _Resp:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict:
+            return {"ok": False, "description": "bad request for botSECRET-TOKEN"}
+
+    class _Http:
+        def post(self, url: str, json: dict | None = None) -> _Resp:
+            return _Resp()
+
+    client = TelegramClient("SECRET-TOKEN", http=_Http())
+    with pytest.raises(RuntimeError) as excinfo:
+        client.send_message(chat_id=1, text="hi")
+    assert "SECRET-TOKEN" not in str(excinfo.value)
+
+
+def test_client_close_closes_injected_http() -> None:
+    from lazytools.connectors.telegram.client import TelegramClient
+
+    class _Http:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    http = _Http()
+    with TelegramClient("tok", http=http):
+        pass
+    assert http.closed is True

@@ -132,6 +132,13 @@ class GmailClient:
 
 
 def _encode(to: str, subject: str, body: str) -> str:
+    # Defence-in-depth against header injection: modern CPython raises on
+    # embedded newlines in header values, but validate explicitly so the
+    # failure is a clear, version-independent error rather than a stdlib
+    # internals one.
+    for field, value in (("to", to), ("subject", subject)):
+        if "\r" in value or "\n" in value:
+            raise ValueError(f"gmail {field} header must not contain newline characters")
     msg = MIMEText(body)
     msg["to"] = to
     msg["subject"] = subject

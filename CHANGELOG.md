@@ -9,6 +9,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`TelegramClient.close()` + context-manager support.** The HTTP connection
+  pool created by `from_token()` can now be released explicitly
+  (`with TelegramClient.from_token(...) as client: ...`).
+- **Real-SDK MCP integration tests.** A toy FastMCP stdio server now exercises
+  the sync-discovery → cross-loop-call path and the async context-manager
+  round-trip; the `mcp` extra is part of `[test]` so CI runs them instead of
+  silently skipping.
 - **Gmail read tools — `gmail_list_emails` and `gmail_get_email`.** `GmailTools`
   now exposes four tools instead of two: a structured inbox search
   (`gmail_list_emails`, filtering by `sender` / `subject` / `contains` /
@@ -22,6 +29,36 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   service calls so it can be shared across an agent's concurrent tool calls.
 
 ### Security
+- **`skill_builder_tools` is now sandboxed (breaking).** The builder tool used
+  to expose `build_skill` to the LLM unsandboxed: LLM-chosen `source_dirs`
+  (arbitrary file read via later queries), LLM-chosen `output_root`, and an
+  `overwrite=True` default that `rmtree`-d whatever already existed at the
+  target path. `skill_builder_tools(base_dir=...)` is now **required** — source
+  dirs must resolve inside the sandbox and bundles are always written to
+  `<base_dir>/generated_skills`. Additionally `build_skill(overwrite=True)`
+  refuses to delete a directory that does not look like a skill bundle (no
+  `manifest.json`), for direct callers too.
+- **`claude_code(mode="read")` no longer allows Bash.** `--allowedTools`
+  pre-approves tools rather than sandboxing them, so the previous
+  `Read,Bash,Grep,Glob` set gave "read" mode arbitrary command execution. Read
+  mode is now `Read,Grep,Glob`; use `mode="write"` when commands are needed.
+- **Telegram bot token no longer leaks into error messages.** The Bot API
+  embeds the token in the request URL and `httpx` error text includes the URL;
+  `TelegramClient` now redacts the token from all re-raised errors (and
+  suppresses exception chaining, which would have carried the original
+  message into logged tracebacks).
+- **Gateway refuses to send `api_key` over plain HTTP.**
+  `JsonHttpExternalToolClient` now raises at construction when a bearer key is
+  combined with a non-HTTPS `base_url` (loopback addresses excepted, for local
+  development gateways).
+- **Gmail header-injection guard.** `_encode` rejects CR/LF in `to` / `subject`
+  explicitly instead of relying on the Python version's stdlib behaviour.
+- **`ConfirmationGate` is now thread-safe.** `grant`/`consume` are guarded by a
+  lock so a grant issued from a review-queue/UI thread can never be double-spent
+  by concurrently consuming workers.
+- **Skill indexing skips hidden directories.** `build_skill` no longer descends
+  into `.git` / `.venv` / other dot-directories (previously only dot-*files*
+  were skipped), keeping vendored and internal files out of bundles.
 - **Gmail OAuth token written world-readable.** `GmailClient.from_credentials`
   persisted the cached token with the process umask, so the long-lived OAuth
   refresh token could land at mode `0644` and be read by any local user. The
@@ -29,6 +66,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   a pre-existing token file).
 
 ### Fixed
+- **MCP connector now works with the real SDK in every usage pattern.** The
+  official SDK's sessions are loop- and task-affine. Previously the sync
+  `as_tools()` facade (what `Agent(tools=[MCP.stdio(...)])` triggers) connected
+  on a throwaway `asyncio.run` loop, so discovery succeeded but **every
+  subsequent tool call failed** with `ClosedResourceError`; closing from a
+  different task also tripped anyio's "exit cancel scope in a different task"
+  error. Each `MCPServer` now owns a dedicated background event loop that all
+  transport operations are dispatched to, and each SDK transport runs its
+  session inside a single long-lived lifecycle task that both enters and exits
+  the SDK context. Sync discovery, cross-loop tool calls, and the async
+  context-manager pattern all work; covered by real-SDK integration tests.
+- **MCP `deny=` can now skip a malformed tool.** Allow/deny filtering is
+  applied to (namespaced) tool names *before* schema validation, so a denied
+  tool with a non-`object` `inputSchema` no longer raises — which is exactly
+  the escape hatch the error message recommends.
+- **`MCPServer.aclose()` is terminal even when never connected**, matching the
+  documented "closure is terminal" contract.
+- **`alist_tools()` / `as_tools()` return a defensive copy** of the cached tool
+  list; callers mutating the returned list can no longer corrupt the cache.
+- **`read_folder_docs` docstring drift.** The docstring claimed a nonexistent
+  path is reported as a plain string; it raises `FileNotFoundError` and is now
+  documented as such (docs site updated to match).
 - **DOCX table reader dropped its row filter.** `documents.read_docs` had a
   dead `or True` guard that made non-row table children (`<w:tblPr>`,
   `<w:tblGrid>`) be treated as rows; the reader now iterates only genuine
@@ -39,6 +98,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   check + refill is now guarded by the server's lock.
 
 ### Changed
+- The `[test]` extra now includes the `mcp` SDK so the real-server integration
+  tests run in CI; `test.yml` / `release.yml` action versions aligned with
+  `docs.yml` (`checkout@v6`, `setup-python@v6`).
 - Corrected the external-gateway documentation: `lazytools.connectors.gateway`
   passes each tool's JSON response through to the agent **unmodified** and does
   not sanitise results. Sanitisation is the remote gateway's responsibility

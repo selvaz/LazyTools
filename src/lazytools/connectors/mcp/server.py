@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import fnmatch
+import threading
 import time
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
@@ -26,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 from lazybridge import Tool
 
 if TYPE_CHECKING:
-    from lazytools.connectors.mcp.transports import _Transport
+    from lazytools.connectors.mcp.transports import _LoopRunner, _Transport
 
 
 class MCPServer:
@@ -92,28 +93,41 @@ class MCPServer:
         self._tools_cache_ts: float = 0.0
         self._connected = False
         self._closed = False
-        # Lazy-init the asyncio.Lock on first async use.  Constructing it
-        # inside ``__init__`` (a sync context) couples to whatever event
-        # loop happens to be running at instantiation time and warns /
-        # raises on Python ≥3.12 when there is none.  Deferring is safe
-        # because the lock only ever guards async coroutines.
+        # Lazy-init the asyncio.Lock on first async use.  It is created and
+        # only ever acquired on the runner loop (see ``_get_runner``), so it
+        # can never be bound to a caller's loop.
         self._lock: asyncio.Lock | None = None
+        # Dedicated background loop that owns the transport session.  The
+        # official SDK's sessions are loop-affine: created lazily on first
+        # use, every transport operation is dispatched onto this loop so the
+        # session is created, used, and closed on one loop regardless of
+        # which loop (or none) the caller is on.
+        self._runner: _LoopRunner | None = None
+        self._runner_guard = threading.Lock()
 
     def _get_lock(self) -> asyncio.Lock:
+        # Only ever called from coroutines running on the runner loop, so
+        # the lazy creation cannot race (single-threaded loop, no await
+        # between check and assignment).
         if self._lock is None:
             self._lock = asyncio.Lock()
         return self._lock
+
+    def _get_runner(self) -> _LoopRunner:
+        from lazytools.connectors.mcp.transports import _LoopRunner
+
+        with self._runner_guard:
+            if self._runner is None:
+                if self._closed:
+                    raise RuntimeError(f"MCPServer {self.name!r} is closed and cannot be reused")
+                self._runner = _LoopRunner(f"mcp-{self.name}")
+            return self._runner
 
     # --- lifecycle -----------------------------------------------------
 
     async def aconnect(self) -> None:
         """Connect the underlying transport. Idempotent."""
-        async with self._get_lock():
-            if not self._connected:
-                if self._closed:
-                    raise RuntimeError(f"MCPServer {self.name!r} is closed and cannot be reused")
-                await self._transport.connect()
-                self._connected = True
+        await self._get_runner().run(self._aconnect_impl())
 
     async def alist_tools(self) -> list[Tool]:
         """Discover and wrap the server's tools.
@@ -124,24 +138,43 @@ class MCPServer:
         eventually reflected in the agent's tool list.
         Pass ``cache_tools_ttl=None`` to disable expiry entirely and
         :meth:`invalidate_tools_cache` to flush explicitly.
+
+        Returns a fresh list on every call; mutating it does not affect
+        the server's internal cache.
         """
-        await self.aconnect()
+        return await self._get_runner().run(self._alist_tools_impl())
+
+    async def _aconnect_impl(self) -> None:
+        # Runs on the runner loop.
+        async with self._get_lock():
+            if not self._connected:
+                if self._closed:
+                    raise RuntimeError(f"MCPServer {self.name!r} is closed and cannot be reused")
+                await self._transport.connect()
+                self._connected = True
+
+    async def _alist_tools_impl(self) -> list[Tool]:
+        # Runs on the runner loop.
+        await self._aconnect_impl()
         # Guard the cache check + refill under the lock so two concurrent
         # callers can't both observe a miss and issue duplicate
         # ``list_tools()`` round-trips (and clobber each other's cache).
-        # ``aconnect`` already released the lock above (asyncio.Lock is not
-        # reentrant), so acquiring it here is safe.
+        # ``_aconnect_impl`` already released the lock above (asyncio.Lock
+        # is not reentrant), so acquiring it here is safe.
         async with self._get_lock():
             now = time.monotonic()
             if self._tools_cache is not None and (
                 self._cache_ttl is None or (now - self._tools_cache_ts) < self._cache_ttl
             ):
-                return self._tools_cache
+                return list(self._tools_cache)
             mcp_tools = await self._transport.list_tools()
-            wrapped = [self._wrap_tool(t) for t in mcp_tools]
-            self._tools_cache = self._filter(wrapped)
+            # Filter by (namespaced) name BEFORE wrapping, so a denied tool
+            # with a malformed schema can never raise — ``deny=`` is the
+            # documented escape hatch for exactly that case.
+            permitted = [t for t in mcp_tools if self._permits(f"{self._prefix}{t['name']}")]
+            self._tools_cache = [self._wrap_tool(t) for t in permitted]
             self._tools_cache_ts = now
-            return self._tools_cache
+            return list(self._tools_cache)
 
     def invalidate_tools_cache(self) -> None:
         """Drop the cached tool list so the next call re-fetches.
@@ -154,14 +187,30 @@ class MCPServer:
         self._tools_cache_ts = 0.0
 
     async def aclose(self) -> None:
-        """Close the underlying transport. Idempotent."""
+        """Close the underlying transport and stop the background loop.
+
+        Idempotent, and terminal even when the server was never connected:
+        any later :meth:`aconnect` / :meth:`as_tools` raises ``RuntimeError``.
+        """
+        with self._runner_guard:
+            runner = self._runner
+            self._runner = None
+            self._closed = True
+        if runner is None:
+            return
+        try:
+            await runner.run(self._aclose_impl())
+        finally:
+            await asyncio.to_thread(runner.stop)
+
+    async def _aclose_impl(self) -> None:
+        # Runs on the runner loop.
         async with self._get_lock():
-            if self._connected and not self._closed:
+            if self._connected:
                 try:
                     await self._transport.close()
                 finally:
                     self._connected = False
-                    self._closed = True
 
     async def __aenter__(self) -> MCPServer:
         await self.aconnect()
@@ -175,13 +224,12 @@ class MCPServer:
     def as_tools(self) -> list[Tool]:
         """Sync wrapper around :meth:`alist_tools`. Called by ``build_tool_map``.
 
-        Triggers a lazy connect on first use. If the call happens inside
-        an already-running event loop, the work is dispatched to a worker
-        thread (mirrors :meth:`lazybridge.Tool.run_sync`).
+        Triggers a lazy connect on first use. The work always runs on the
+        server's dedicated background loop, so it is safe to call this with
+        or without a running event loop — the session survives for later
+        tool calls either way (it is never bound to a throwaway loop).
         """
-        from lazytools.connectors.mcp.transports import _run_sync
-
-        return _run_sync(self.alist_tools())
+        return self._get_runner().run_sync(self._alist_tools_impl())
 
     # --- internal helpers ---------------------------------------------
 
@@ -212,8 +260,7 @@ class MCPServer:
             )
 
         async def _call(**kwargs: Any) -> Any:
-            await self.aconnect()
-            return await self._transport.call_tool(local_name, kwargs)
+            return await self._get_runner().run(self._acall_impl(local_name, kwargs))
 
         # Carry the MCP tool name on the wrapped function so callers can
         # introspect it (used by tests and observability hooks).
@@ -227,16 +274,19 @@ class MCPServer:
             func=_call,
         )
 
-    def _filter(self, tools: list[Tool]) -> list[Tool]:
+    async def _acall_impl(self, name: str, arguments: dict[str, Any]) -> Any:
+        # Runs on the runner loop.
+        await self._aconnect_impl()
+        return await self._transport.call_tool(name, arguments)
+
+    def _permits(self, full_name: str) -> bool:
         """Apply allow/deny glob patterns. Patterns match against the FULL
         (namespaced) tool name, so users write ``"github.delete_*"`` not
-        ``"delete_*"``."""
-        out = tools
-        if self._allow:
-            out = [t for t in out if any(fnmatch.fnmatchcase(t.name, p) for p in self._allow)]
-        if self._deny:
-            out = [t for t in out if not any(fnmatch.fnmatchcase(t.name, p) for p in self._deny)]
-        return out
+        ``"delete_*"``. Applied before wrapping, so a denied tool is never
+        schema-validated."""
+        if self._allow and not any(fnmatch.fnmatchcase(full_name, p) for p in self._allow):
+            return False
+        return not (self._deny and any(fnmatch.fnmatchcase(full_name, p) for p in self._deny))
 
 
 # ---------------------------------------------------------------------------

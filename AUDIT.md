@@ -15,6 +15,14 @@ Baseline health:
 - `ruff check src tests`: clean. `mypy src/lazytools`: clean.
 - Installs and runs against sibling LazyBridge 0.9.1 (pin `>=0.7.9,<0.10` is satisfied).
 
+> **Remediation status (2026-06-10).** All findings below — H1, H2, M1–M3, and
+> L1–L9 — have been fixed on this branch in the commits following this report.
+> See `CHANGELOG.md` (Unreleased → Security / Fixed / Changed) for the
+> user-facing summary. H1 and H2 are covered by new regression tests, including
+> real-SDK MCP integration tests that now run in CI (the `mcp` extra was added
+> to `[test]`). One deliberate API break: `skill_builder_tools` now requires
+> `base_dir=` (H2).
+
 ---
 
 ## High-severity findings
