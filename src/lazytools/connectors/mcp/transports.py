@@ -36,7 +36,17 @@ from typing import Any
 
 class _Transport(ABC):
     """Abstract MCP transport.  Sub-classes implement the JSON-RPC surface
-    LazyBridge needs (initialise + list-tools + call-tool + close)."""
+    LazyBridge needs (initialise + list-tools + call-tool + close).
+
+    **Loop contract.** :class:`~lazytools.connectors.mcp.server.MCPServer`
+    runs *every* transport method — ``connect``, ``list_tools``,
+    ``call_tool``, ``close`` — on the server's dedicated background loop,
+    never on the caller's loop. The whole lifecycle therefore sees one
+    consistent loop: create loop-affine resources (clients, sessions,
+    queues) lazily inside :meth:`connect`, not in ``__init__`` on the
+    caller's loop. (The caller's loop was never a safe home anyway — the
+    sync ``as_tools()`` facade has no caller loop at all.)
+    """
 
     @abstractmethod
     async def connect(self) -> None: ...

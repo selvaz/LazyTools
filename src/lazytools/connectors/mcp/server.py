@@ -405,6 +405,15 @@ class MCP:
         Useful for tests (in-process fake transport) or for adapters to
         non-standard MCP variants. The transport must implement the
         abstract :class:`_Transport` interface.
+
+        **Loop contract.** All transport methods run on the server's
+        dedicated background loop, never on the caller's loop — this is
+        what keeps loop-affine sessions alive across the sync
+        ``as_tools()`` facade and arbitrary caller loops. Custom
+        transports must create loop-affine resources lazily inside
+        ``connect()`` rather than binding them to the caller's loop
+        beforehand. (Pre-bound resources never worked reliably: the sync
+        facade previously ran them on a throwaway ``asyncio.run`` loop.)
         """
         return MCPServer(
             name,

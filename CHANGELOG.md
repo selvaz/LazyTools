@@ -98,6 +98,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   check + refill is now guarded by the server's lock.
 
 ### Changed
+- **Custom transports (`MCP.from_transport`) now run on the server's dedicated
+  loop.** As part of the loop-affinity fix, *all* transport methods —
+  including those of caller-supplied transports — execute on the
+  `MCPServer`'s background loop, never the caller's loop. Transports must
+  create loop-affine resources inside `connect()` rather than pre-binding
+  them to the caller's loop (a pattern that already failed under the old
+  sync `as_tools()` facade, which ran on a throwaway loop). In exchange,
+  custom transports get the same guarantee as the SDK transports: one
+  consistent loop for the whole connect → call → close lifecycle.
 - The `[test]` extra now includes the `mcp` SDK so the real-server integration
   tests run in CI; `test.yml` / `release.yml` action versions aligned with
   `docs.yml` (`checkout@v6`, `setup-python@v6`).
