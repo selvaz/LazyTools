@@ -13,6 +13,11 @@ guarded tool) compose:
 A grant may additionally be bound to an opaque **scope** (the running task id,
 in LazyPulse) read from :func:`current_scope`. Denials raise a typed
 :class:`ActionBlocked` subclass.
+
+A third, independent primitive lives in :mod:`lazytools.safety.urls`:
+:func:`validate_public_url` — a small SSRF guard for connector-constructed
+URLs (http(s)-only schemes, optional host pinning, non-global literal IPs
+refused). Denials raise :class:`UrlBlocked`.
 """
 
 from __future__ import annotations
@@ -31,10 +36,16 @@ class ActionBlocked(PermissionError):
     """
 
 
+# Imported after ActionBlocked is defined: ``urls`` subclasses it, so this
+# import must come last to avoid a circular-import failure.
+from lazytools.safety.urls import UrlBlocked, validate_public_url
+
 __all__ = [
     "Allowlist",
     "ConfirmationGate",
     "ActionBlocked",
+    "UrlBlocked",
     "active_scope",
     "current_scope",
+    "validate_public_url",
 ]

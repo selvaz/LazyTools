@@ -70,8 +70,11 @@ plugins:
           - code-support/codex.md
           - code-support/collaboration.md
           - gateway.md
+          - edgar.md
+          - marketdata.md
           - documents.md
           - skills.md
+          - report.md
         Core tools:
           - core-tools.md
           - planners/index.md
@@ -128,8 +131,11 @@ nav:
           - Codex: code-support/codex.md
           - Collaboration: code-support/collaboration.md
       - External tool gateway: gateway.md
+      - SEC EDGAR: edgar.md
+      - Market data: marketdata.md
       - Documents: documents.md
       - Skills: skills.md
+      - Report (LazyReport): report.md
   - Core tools:
       - Overview: core-tools.md
       - Planners:

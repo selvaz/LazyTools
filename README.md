@@ -22,6 +22,9 @@ pip install 'lazytoolkit[gmail]'        # Gmail client + tools
 pip install 'lazytoolkit[telegram]'     # Telegram client + tools
 pip install 'lazytoolkit[mcp]'          # Model Context Protocol connector
 pip install 'lazytoolkit[docs]'         # PDF/DOCX/HTML document reading
+pip install 'lazytoolkit[edgar]'        # SEC EDGAR filings + XBRL facts
+pip install 'lazytoolkit[marketdata]'   # free stock quotes/history (stooq)
+# lazytools.report needs no extra      # deterministic memo rendering
 ```
 
 > [!IMPORTANT]
@@ -42,6 +45,9 @@ from lazytools.connectors.gmail import GmailTools, GmailClient
 from lazytools.connectors.telegram import TelegramTools
 from lazytools.connectors.mcp import MCP
 from lazytools.connectors.gateway import ExternalToolProvider
+from lazytools.connectors.edgar import EdgarTools, EdgarClient
+from lazytools.connectors.marketdata import MarketDataTools, MarketDataClient, StooqAdapter
+from lazytools.report import Memo, Section, TableBlock, render_markdown, render_html
 from lazytools.documents import read_docs_tools
 from lazytools.skills import build_skill, skill_tools
 from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
@@ -51,16 +57,57 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 
 | Category | Modules | What lives here |
 |---|---|---|
-| `connectors/` | `gmail`, `telegram`, `mcp`, `gateway` | clients + tool providers that bridge to an external service or protocol |
+| `connectors/` | `gmail`, `telegram`, `mcp`, `gateway`, `edgar`, `marketdata` | clients + tool providers that bridge to an external service or protocol |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
+| `report/` | `models`, `render` | deterministic memo/report rendering (Markdown/HTML) — "LazyReport" |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
-| `safety/` | `allowlist`, `gates` | reusable allow-list + one-shot confirmation gate for dangerous tools |
+| `safety/` | `allowlist`, `gates`, `urls` | reusable allow-list, one-shot confirmation gate, and SSRF URL guard |
 | `testing/` | `fake_clients` | in-memory fakes for the connector Protocols |
 
 **Planned categories** (added when the first module lands, not scaffolded
 empty): more connectors (`github`, `slack`, `notion`, `calendar`,
 `filesystem`, `browser`) under `connectors/`, and additional reusable base
 tools.
+
+## Financial data & reporting
+
+Three modules give an agent an official, zero-cost financial data channel and
+a deterministic way to write it up:
+
+- **SEC EDGAR** (`lazytools.connectors.edgar`, extra `[edgar]`) — the official,
+  free SEC APIs: `edgar_resolve_company` (ticker/name → CIK),
+  `edgar_list_filings`, `edgar_get_filing` (primary document as tag-stripped
+  text, labelled `content_is_untrusted`), and `edgar_company_facts` (raw XBRL
+  JSON). The client *requires* a declared `user_agent` (SEC fair-access
+  policy), throttles to ~10 req/s, hard-caps every response body, and
+  re-validates redirects against the pinned SEC hosts.
+
+  ```python
+  from lazytools.connectors.edgar import EdgarClient, EdgarTools
+
+  client = EdgarClient("Jane Doe jane@example.com")   # declared UA — required
+  tools = EdgarTools(client)                          # Agent(tools=[tools])
+  ```
+
+- **Market data** (`lazytools.connectors.marketdata`, extra `[marketdata]`) —
+  price quotes/history through **swappable adapters** (the free, key-less
+  stooq.com adapter ships first; paid backends can drop in behind the same
+  `MarketDataAdapter` protocol). Prices are returned as **strings** so
+  downstream code can parse them with `Decimal` and never lose precision.
+
+  ```python
+  from lazytools.connectors.marketdata import MarketDataClient, MarketDataTools, StooqAdapter
+
+  client = MarketDataClient(StooqAdapter())
+  tools = MarketDataTools(client)   # prices_get / prices_history
+  ```
+
+- **Report** (`lazytools.report`, no extra — "LazyReport") — deterministic,
+  domain-agnostic memo rendering: `Memo`/`Section`/`TableBlock` models plus
+  `render_markdown` / `render_html` (same input → identical output, everything
+  HTML-escaped). An LLM writes the prose; the layout is a pure function.
+  `ReportTools` exposes `render_memo` and `render_memo_html`; PDF rendering is
+  deliberately deferred (heavy dependency).
 
 ## Safety model
 
