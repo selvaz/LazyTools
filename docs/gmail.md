@@ -301,6 +301,33 @@ hardening rules defend against forged `pass` tokens:
   still must pass `allowed_recipients`; don't combine `False` with
   `allowed_recipients=None` unless the agent is fully trusted.
 
+## History & push notifications (event-driven intake)
+
+`GmailClient` also exposes the surface for **event-driven** mail intake —
+the configuration to use when you care about API quota, since steady-state
+load drops to one `history.list` call per email received:
+
+```python
+cursor = client.get_history_id()                 # anchor "now" (users.getProfile)
+ids, cursor = client.list_history_message_ids(   # what changed since the cursor
+    start_history_id=cursor,
+)
+client.watch(topic_name="projects/p/topics/t")   # arm Gmail push -> Pub/Sub
+client.stop_watch()                              # disarm
+```
+
+- `list_history_message_ids` uses `users.history.list` with
+  `historyTypes=messageAdded` (bounded pagination, de-duplicated ids) and
+  returns `(message_ids, new_cursor)`; persist the cursor between calls.
+- A cursor older than Gmail's retention window (~a week) raises
+  `GmailHistoryExpired` — resync with `get_history_id()` and accept that
+  the gap is not replayable.
+- `watch()` responses carry `expiration` (epoch **milliseconds**); Gmail
+  expires a watch after at most 7 days, so re-arm before then.
+- The ready-made consumer is **LazyPulse's `GmailPushInbox`**, which wires
+  the Pub/Sub push endpoint, cursor persistence, watch renewal, and
+  at-least-once delivery for you — see the LazyPulse docs.
+
 ## See also
 
 - [Safety](safety.md) — the `Allowlist` + `ConfirmationGate` primitives this

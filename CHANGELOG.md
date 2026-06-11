@@ -8,6 +8,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Gmail history & push surface** (`lazytools.connectors.gmail`) — the
+  client plumbing for event-driven mail intake (consumed by LazyPulse's
+  `GmailPushInbox`): `GmailClient.get_history_id()` (cursor anchor via
+  `users.getProfile`), `GmailClient.list_history_message_ids()`
+  (`users.history.list` with `historyTypes=messageAdded`, bounded
+  pagination, de-duplication, and an HTTP 404 ->
+  `GmailHistoryExpired` mapping so callers know to resync), and
+  `GmailClient.watch()` / `stop_watch()` to arm/disarm Gmail push
+  notifications onto a Cloud Pub/Sub topic. `GmailHistoryExpired` is
+  exported from `lazytools.connectors.gmail`. `FakeGmailService` grows
+  the same surface (`add_message()` advances a fake history cursor;
+  `history_expired` simulates retention expiry) so downstream adapter
+  tests stay network-free. See *Gmail -> History & push notifications*.
+
 ### Fixed
 - **SSRF URL guard: legacy numeric IP literals.** `validate_public_url` now
   recognizes the legacy numeric host forms that resolvers normalize to an IP

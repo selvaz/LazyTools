@@ -42,7 +42,7 @@ class _StubUsers:
         self.history_calls: list[dict[str, Any]] = []
 
     # users().getProfile(...)
-    def getProfile(self, userId: str) -> _Request:  # noqa: N802 — Google API casing
+    def getProfile(self, userId: str) -> _Request:
         return _Request(self._profile)
 
     # users().history().list(...)
