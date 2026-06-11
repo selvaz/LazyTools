@@ -19,22 +19,24 @@ from lazytools.connectors.code_support import claude_code
 claude_code(
     task: str,
     *,
-    mode: str = "read",          # "read" | "write" | "plan"
+    mode: str = "read",          # "read" | "plan"  (writes: see CodeWriteTools)
     cwd: str | None = None,
     session_id: str | None = None,
     timeout: float = 300.0,
-) -> str
+) -> dict | str
 ```
 
-Wraps `claude -p "<task>" --output-format json` and returns the parsed
-`result`. The JSON envelope also carries `session_id`, `total_cost_usd`, and a
-`subtype` (`success` | `error`); an error subtype is surfaced as the returned
-string rather than raised.
+Wraps `claude -p "<task>" --output-format json`. On success returns
+`{"result": <text>, "content_is_untrusted": true}` — the result is derived
+from whatever the CLI read, so it is labelled third-party content (same
+convention as the EDGAR connector). Connector-level failures (CLI missing,
+timeout, non-zero exit, error subtype) return a plain `"[claude_code] ..."`
+string.
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
 | `task` | `str` | — | The instruction for Claude Code. |
-| `mode` | `str` | `"read"` | `read` → `Read,Grep,Glob` (analysis only — no Bash, so the CLI cannot run commands or modify files; safe default). `write` → `Read,Write,Edit,Bash,Grep,Glob` with `--permission-mode acceptEdits`. `plan` → `--permission-mode plan`, no edits. |
+| `mode` | `str` | `"read"` | `read` → `Read,Grep,Glob` (analysis only — no Bash, so the CLI cannot run commands or modify files). `plan` → `--permission-mode plan`, no edits. There is deliberately **no `write` mode here**: writes live behind [`CodeWriteTools`](index.md#writes-codewritetools) (mandatory `base_dir` sandbox + one-shot confirmation), so an orchestrating LLM cannot reach write access through an argument. |
 | `cwd` | `str \| None` | `None` | Working directory for the subprocess. |
 | `session_id` | `str \| None` | `None` | If set, resumes an existing session via `--resume`. |
 | `timeout` | `float` | `300.0` | Max seconds for the subprocess. |

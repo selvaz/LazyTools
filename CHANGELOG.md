@@ -8,6 +8,35 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [0.3.0] — 2026-06-11
 
+### Changed (breaking) — code_support write access is now a gated capability
+- **`claude_code` / `codex` are read-only by construction.** `mode="write"`
+  is no longer an argument (`claude_code` keeps `read`/`plan`; `codex` drops
+  `mode` entirely): the LLM controls tool *arguments*, so write access must
+  not be one. Writes live behind the new **`CodeWriteTools`** provider —
+  mandatory existing `base_dir` sandbox (every call's `cwd` must resolve
+  inside it; escapes raise `CodeWriteBlocked` without burning a grant),
+  one-shot `confirm_write()` gate per write call by default (task-scopable,
+  mirroring the Gmail send tools), Codex writes keep the git rail
+  (`codex_skip_git_check=False`). Exposes `claude_code_write` (and
+  `codex_write` with `codex=True`). The write tools are async so task-scoped
+  grants bind correctly.
+- **CLI results are labelled untrusted.** `claude_code` / `codex` /
+  `CodeWriteTools` successes now return
+  `{"result": ..., "content_is_untrusted": true}` (repo-derived text is a
+  prompt-injection surface); connector-level failures stay plain
+  `"[claude_code] ..."` / `"[codex] ..."` strings.
+- **`build_cli_collaboration` defaults to the read-only three-session
+  pipeline** (Claude Code analyst + Codex critic, both read-only, plus a
+  synthesizer that writes the *plan*). `execute=True` now requires
+  `base_dir=` and implements via the gated `claude_code_write` tool.
+
+### Fixed
+- **`build_cli_collaboration` crashed on released lazybridge builds.** It
+  imported `lazybridge.dedup_guard`, which does not exist in lazybridge
+  0.9.0 (PyPI) — the pipeline could not even be constructed there, and no
+  test built it. The `DeduplicateGuard` import now degrades gracefully on
+  older lazybridge, and the new tests construct the pipeline.
+
 ### Added
 - **Gmail history & push surface** (`lazytools.connectors.gmail`) — the
   client plumbing for event-driven mail intake (consumed by LazyPulse's

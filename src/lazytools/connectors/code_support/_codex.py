@@ -3,7 +3,11 @@
 Two ways to put Codex behind a LazyBridge agent:
 
 * :func:`codex` (**CLI mode**) — shell out to ``codex exec`` and treat the CLI
-  as a whole agent: one call = one delegated task, returns a result string.
+  as a whole agent: one call = one delegated task. **Read-only**: the write
+  capability lives in
+  :class:`~lazytools.connectors.code_support.CodeWriteTools`, a gated provider
+  you must construct explicitly — an orchestrating LLM cannot "choose" write
+  mode through this function.
 * :func:`codex_mcp` (**MCP mode**) — run ``codex mcp-server`` and expose Codex's
   two agent-level MCP tools (``codex`` / ``codex-reply``) for *your* agent to
   orchestrate. Requires the ``mcp`` extra; the interface is experimental.
@@ -14,7 +18,7 @@ from __future__ import annotations
 import logging
 import subprocess
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from lazytools.connectors.mcp import MCP
 
@@ -23,57 +27,32 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
-_SANDBOX_FLAGS: dict[str, list[str]] = {
-    # `codex exec` only exposes the sandbox flag (-s / --sandbox); there is no
-    # `-a` approval flag, so read-only sandbox is the whole story here.
-    "read": ["-s", "read-only"],
-    # --full-auto pairs workspace-write with a non-interactive approval policy,
-    # so a step that needs approval never blocks waiting on stdin.
-    "write": ["-s", "workspace-write", "--full-auto"],
-}
+#: ``codex exec`` only exposes the sandbox flag (-s / --sandbox); there is no
+#: `-a` approval flag, so read-only sandbox is the whole story here.
+_READ_FLAGS: list[str] = ["-s", "read-only"]
+
+#: Write-mode flags — used only by ``CodeWriteTools`` (gated, sandboxed).
+#: --full-auto pairs workspace-write with a non-interactive approval policy,
+#: so a step that needs approval never blocks waiting on stdin.
+_WRITE_FLAGS: list[str] = ["-s", "workspace-write", "--full-auto"]
 
 
-def codex(
+def _run_codex(
     task: str,
+    flags: list[str],
     *,
-    mode: str = "read",
-    cwd: str | None = None,
-    resume_last: bool = False,
-    timeout: float = 300.0,
-    skip_git_check: bool = True,
+    cwd: str | None,
+    resume_last: bool,
+    skip_git_check: bool,
+    timeout: float,
 ) -> str:
-    """Delegate a task to the Codex CLI and return the result as a string.
-
-    Parameters
-    ----------
-    task:
-        Instruction for Codex.
-    mode:
-        ``"read"`` (default) — read-only sandbox (``-s read-only``).
-        ``"write"`` — workspace-write sandbox, full-auto (no interactive
-        confirmation prompts). Ideally run inside a git repo.
-    cwd:
-        Working directory for the subprocess.
-    resume_last:
-        If True, continues the most recent Codex session in the working
-        directory via ``exec resume --last``.
-    timeout:
-        Maximum seconds for the subprocess. Set ``tool_timeout=None`` on
-        ``LLMEngine`` so the engine never cancels before the subprocess
-        finishes (zombie-process hazard when engine fires first).
-    skip_git_check:
-        Pass ``--skip-git-repo-check``. Required outside a git repo.
-        In ``mode="write"`` a git repo is recommended for reliable behaviour.
-    """
-    if mode not in _SANDBOX_FLAGS:
-        return f"[codex] invalid mode={mode!r}. Use 'read' or 'write'."
-
-    sandbox = _SANDBOX_FLAGS[mode]
-
+    """Run the ``codex`` CLI once and return its output (or an error string
+    starting with ``[codex]``). Shared by the read-only tool and the gated
+    writer."""
     if resume_last:
-        cmd = ["codex", "exec", "resume", "--last", task, *sandbox]
+        cmd = ["codex", "exec", "resume", "--last", task, *flags]
     else:
-        cmd = ["codex", "exec", task, *sandbox]
+        cmd = ["codex", "exec", task, *flags]
 
     if skip_git_check:
         cmd.append("--skip-git-repo-check")
@@ -97,6 +76,60 @@ def codex(
         return f"[codex] error (exit {proc.returncode}): {stderr[:500]}"
 
     return proc.stdout.strip()
+
+
+def codex(
+    task: str,
+    *,
+    cwd: str | None = None,
+    resume_last: bool = False,
+    timeout: float = 300.0,
+    skip_git_check: bool = True,
+) -> dict[str, Any] | str:
+    """Delegate a read-only task to the Codex CLI (``-s read-only`` sandbox).
+
+    Returns ``{"result": <text>, "content_is_untrusted": true}`` on success —
+    the result is derived from whatever code/text the CLI read, so downstream
+    consumers must treat it as third-party content. Connector-level failures
+    (CLI missing, timeout, non-zero exit) return a plain ``"[codex] ..."``
+    string.
+
+    There is deliberately no write mode here: file edits live behind
+    :class:`~lazytools.connectors.code_support.CodeWriteTools`, which requires
+    an explicit ``base_dir`` sandbox and (by default) a one-shot confirmation
+    per write call.
+
+    Parameters
+    ----------
+    task:
+        Instruction for Codex.
+    cwd:
+        Working directory for the subprocess. Read-only sandbox still reads
+        anything the process user can read — point ``cwd`` at the project and
+        prefer a low-privilege user on machines that hold secrets.
+    resume_last:
+        If True, continues the most recent Codex session in the working
+        directory via ``exec resume --last``.
+    timeout:
+        Maximum seconds for the subprocess. Set ``tool_timeout=None`` on
+        ``LLMEngine`` so the engine never cancels before the subprocess
+        finishes (zombie-process hazard when engine fires first).
+    skip_git_check:
+        Pass ``--skip-git-repo-check``. Harmless in the read-only sandbox;
+        the gated writer defaults this **off** so writes keep git as a
+        recovery rail.
+    """
+    out = _run_codex(
+        task,
+        _READ_FLAGS,
+        cwd=cwd,
+        resume_last=resume_last,
+        skip_git_check=skip_git_check,
+        timeout=timeout,
+    )
+    if out.startswith("[codex]"):
+        return out
+    return {"result": out, "content_is_untrusted": True}
 
 
 def codex_mcp(

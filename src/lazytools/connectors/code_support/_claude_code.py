@@ -3,7 +3,11 @@
 Two ways to put Claude Code behind a LazyBridge agent:
 
 * :func:`claude_code` (**CLI mode**) — shell out to ``claude -p`` and treat the
-  CLI as a whole agent: one call = one delegated task, returns a result string.
+  CLI as a whole agent: one call = one delegated task. **Read/plan only**: the
+  write capability lives in
+  :class:`~lazytools.connectors.code_support.CodeWriteTools`, a gated provider
+  you must construct explicitly — an orchestrating LLM cannot "choose" write
+  mode through this function.
 * :func:`claude_code_mcp` (**MCP mode**) — run ``claude mcp serve`` and expose
   Claude Code's own tools (View, Edit, LS, Bash, …) for *your* agent to
   orchestrate. Requires the ``mcp`` extra.
@@ -15,7 +19,7 @@ import json
 import logging
 import subprocess
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from lazytools.connectors.mcp import MCP
 
@@ -24,65 +28,37 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
+#: Read-only / plan flag sets — the only modes :func:`claude_code` exposes.
+#: No Bash in read mode: --allowedTools pre-approves tools rather than
+#: sandboxing them, so an allowed Bash would hand "read" mode arbitrary
+#: command execution (writes, deletes, network). Search is covered by
+#: Grep/Glob; writes live behind ``CodeWriteTools``.
 _TOOL_FLAGS: dict[str, list[str]] = {
-    # No Bash in read mode: --allowedTools pre-approves tools rather than
-    # sandboxing them, so an allowed Bash would hand "read" mode arbitrary
-    # command execution (writes, deletes, network). Search is covered by
-    # Grep/Glob; use mode="write" when commands are genuinely needed.
     "read": ["--allowedTools", "Read,Grep,Glob"],
-    "write": [
-        "--allowedTools",
-        "Read,Write,Edit,Bash,Grep,Glob",
-        "--permission-mode",
-        "acceptEdits",
-    ],
     "plan": ["--permission-mode", "plan"],
 }
 
+#: Write-mode flags — used only by ``CodeWriteTools`` (gated, sandboxed).
+_WRITE_FLAGS: list[str] = [
+    "--allowedTools",
+    "Read,Write,Edit,Bash,Grep,Glob",
+    "--permission-mode",
+    "acceptEdits",
+]
 
-def claude_code(
+
+def _run_claude(
     task: str,
+    flags: list[str],
     *,
-    mode: str = "read",
-    cwd: str | None = None,
-    session_id: str | None = None,
-    timeout: float = 300.0,
+    cwd: str | None,
+    session_id: str | None,
+    timeout: float,
 ) -> str:
-    """Delegate a task to Claude Code CLI and return the result as a string.
-
-    Parameters
-    ----------
-    task:
-        Instruction for Claude Code.
-    mode:
-        ``"read"`` (default) — read-only analysis (Read, Grep, Glob; no
-        Bash, so the CLI cannot run commands or modify files).
-        ``"write"`` — may edit files and run commands (acceptEdits
-        permission mode, Bash allowed).
-        ``"plan"`` — plan mode, no file modifications.
-    cwd:
-        Working directory for the subprocess.
-    session_id:
-        If given, resumes an existing Claude Code session via ``--resume``.
-    timeout:
-        Maximum seconds for the subprocess. Set ``tool_timeout=None`` on
-        ``LLMEngine`` so the engine never cancels before the subprocess
-        finishes (zombie-process hazard when engine fires first).
-
-    Notes
-    -----
-    Auth is left to the Claude Code CLI itself: it reads its own on-disk
-    login (``~/.claude/.credentials.json``), and the subprocess inherits the
-    current environment, so ``CLAUDE_CODE_OAUTH_TOKEN`` (from
-    ``claude setup-token``) or ``ANTHROPIC_API_KEY`` are honoured if set. We do
-    not synthesize ``CLAUDE_CODE_OAUTH_TOKEN`` from the credentials file — that
-    env var is a token *string*, not the JSON store, and overriding it would
-    break a valid disk login.
-    """
-    if mode not in _TOOL_FLAGS:
-        return f"[claude_code] invalid mode={mode!r}. Use 'read', 'write', or 'plan'."
-
-    cmd = ["claude", "-p", task, "--output-format", "json", *_TOOL_FLAGS[mode]]
+    """Run the ``claude`` CLI once and return its result text (or an error
+    string starting with ``[claude_code]``). Shared by the read/plan tool and
+    the gated writer."""
+    cmd = ["claude", "-p", task, "--output-format", "json", *flags]
     if session_id:
         cmd += ["--resume", session_id]
 
@@ -108,9 +84,75 @@ def claude_code(
         data = json.loads(proc.stdout)
         if data.get("subtype") == "error":
             return f"[claude_code] {data.get('result', 'unknown error')}"
-        return data.get("result", "")
+        return str(data.get("result", ""))
     except json.JSONDecodeError:
         return proc.stdout.strip()
+
+
+def claude_code(
+    task: str,
+    *,
+    mode: str = "read",
+    cwd: str | None = None,
+    session_id: str | None = None,
+    timeout: float = 300.0,
+) -> dict[str, Any] | str:
+    """Delegate a read-only task to Claude Code CLI.
+
+    Returns ``{"result": <text>, "content_is_untrusted": true}`` on success —
+    the result is derived from whatever code/text the CLI read, so downstream
+    consumers must treat it as third-party content (the same labelling
+    convention as the EDGAR connector). Connector-level failures (CLI missing,
+    timeout, non-zero exit) return a plain ``"[claude_code] ..."`` string.
+
+    Parameters
+    ----------
+    task:
+        Instruction for Claude Code.
+    mode:
+        ``"read"`` (default) — read-only analysis (Read, Grep, Glob; no
+        Bash, so the CLI cannot run commands or modify files).
+        ``"plan"`` — plan mode, no file modifications.
+
+        There is deliberately no ``"write"`` here: file edits and command
+        execution live behind
+        :class:`~lazytools.connectors.code_support.CodeWriteTools`, which
+        requires an explicit ``base_dir`` sandbox and (by default) a one-shot
+        confirmation per write call — so an orchestrating LLM can only write
+        if the developer handed it the writer tool.
+    cwd:
+        Working directory for the subprocess. Note that read mode can read
+        anything the process user can read — point ``cwd`` at the project,
+        and prefer running the whole agent under a low-privilege user if the
+        machine holds secrets.
+    session_id:
+        If given, resumes an existing Claude Code session via ``--resume``.
+    timeout:
+        Maximum seconds for the subprocess. Set ``tool_timeout=None`` on
+        ``LLMEngine`` so the engine never cancels before the subprocess
+        finishes (zombie-process hazard when engine fires first).
+
+    Notes
+    -----
+    Auth is left to the Claude Code CLI itself: it reads its own on-disk
+    login (``~/.claude/.credentials.json``), and the subprocess inherits the
+    current environment, so ``CLAUDE_CODE_OAUTH_TOKEN`` (from
+    ``claude setup-token``) or ``ANTHROPIC_API_KEY`` are honoured if set. We do
+    not synthesize ``CLAUDE_CODE_OAUTH_TOKEN`` from the credentials file — that
+    env var is a token *string*, not the JSON store, and overriding it would
+    break a valid disk login.
+    """
+    if mode not in _TOOL_FLAGS:
+        return (
+            f"[claude_code] invalid mode={mode!r}. Use 'read' or 'plan'. "
+            "Writes require the gated CodeWriteTools provider "
+            "(lazytools.connectors.code_support.CodeWriteTools)."
+        )
+
+    out = _run_claude(task, _TOOL_FLAGS[mode], cwd=cwd, session_id=session_id, timeout=timeout)
+    if out.startswith("[claude_code]"):
+        return out
+    return {"result": out, "content_is_untrusted": True}
 
 
 def claude_code_mcp(

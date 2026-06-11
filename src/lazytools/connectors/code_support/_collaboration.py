@@ -1,22 +1,28 @@
 """Code-support collaboration pipeline — Claude Code + Codex, as a single tool.
 
 The two connectors (:func:`claude_code`, :func:`codex`) are function tools you
-drop into ``Agent(tools=[...])``. This module packages the multi-agent *Phase 3*
-pipeline the same way: :func:`build_cli_collaboration` returns a named
+drop into ``Agent(tools=[...])``. This module packages the multi-agent pipeline
+the same way: :func:`build_cli_collaboration` returns a named
 :class:`lazybridge.Agent` (a ``Plan`` engine) that is itself a tool — pass it in
 ``tools=[build_cli_collaboration()]`` exactly like the connectors.
 
-Flow (four sequential steps)::
+**Default flow — three sessions, nothing is written** (two read-only CLI
+sessions plus one synthesizer that writes the *plan*, not code)::
 
     claude_analyst  — analyses with claude_code (mode='read'); proposes an approach
-    codex_analyst   — critiques/confirms with codex (mode='read'); sees claude's notes
-    synthesizer     — merges the two analyses into one concrete plan
-    executor        — implements the plan with claude_code (mode='write')
+    codex_analyst   — critiques/confirms with codex (read-only); sees claude's notes
+    synthesizer     — merges the two analyses into one concrete written plan
+
+Execution is **opt-in**: pass ``execute=True`` together with a ``base_dir``
+sandbox and a fourth step implements the plan through the gated
+:class:`~lazytools.connectors.code_support.CodeWriteTools` writer::
+
+    executor        — implements the plan (claude_code_write, sandboxed to base_dir)
 
 Why ``Plan`` and not ``AgentPool``? The flow is fixed and sequential
-(analyse → critique → synthesise → execute), so ``Plan`` with ``from_step`` is
-simpler and each step frees memory before the next. Use ``AgentPool`` only when
-you need dynamic routing or multi-round dialogue.
+(analyse → critique → synthesise [→ execute]), so ``Plan`` with ``from_step``
+is simpler and each step frees memory before the next. Use ``AgentPool`` only
+when you need dynamic routing or multi-round dialogue.
 
 Every sub-agent engine sets ``tool_timeout=None`` so the engine never cancels a
 running CLI subprocess (which would orphan it); each subprocess enforces its own
@@ -35,14 +41,16 @@ from typing import TYPE_CHECKING, Any
 
 from lazytools.connectors.code_support._claude_code import claude_code
 from lazytools.connectors.code_support._codex import codex
+from lazytools.connectors.code_support._writer import CodeWriteTools
 
 if TYPE_CHECKING:
     from lazybridge import Agent
 
 _DEFAULT_DESCRIPTION = (
     "Delegate a coding task to a Claude Code + Codex collaboration. Claude Code "
-    "analyses the codebase, Codex critiques the approach, a synthesizer merges "
-    "both into one concrete plan, and (optionally) an executor implements it. "
+    "analyses the codebase (read-only), Codex critiques the approach (read-only), "
+    "and a synthesizer merges both into one concrete written plan. Nothing is "
+    "modified unless the pipeline was built with execute=True. "
     "Input: a single natural-language task string. Returns the final result."
 )
 
@@ -55,7 +63,9 @@ def build_cli_collaboration(
     codex_model: str = "gpt-5.4",
     synthesizer_model: str = "claude-opus-4-8",
     executor_model: str = "claude-opus-4-8",
-    execute: bool = True,
+    execute: bool = False,
+    base_dir: str | None = None,
+    require_write_confirmation: bool = False,
 ) -> Agent:
     """Build the Claude Code + Codex collaboration pipeline as a reusable tool.
 
@@ -64,6 +74,10 @@ def build_cli_collaboration(
     pass the :func:`claude_code` / :func:`codex` function tools. Because an
     ``Agent`` *is* a tool in LazyBridge, the whole multi-agent pipeline appears
     to the parent agent as a single callable taking one ``task`` string.
+
+    **The default is read-only**: three sessions — two read-only CLI analysts
+    and one synthesizer that writes the *plan*. The codebase is never modified
+    unless you opt in with ``execute=True`` + ``base_dir=``.
 
     Parameters
     ----------
@@ -74,17 +88,27 @@ def build_cli_collaboration(
         Tool description shown to the parent LLM. Defaults to a summary of the
         pipeline's behaviour.
     claude_model:
-        Model driving the Claude-Code analyst (step 1).
+        Model driving the Claude-Code analyst (step 1, read-only).
     codex_model:
-        Model driving the Codex analyst/critic (step 2).
+        Model driving the Codex analyst/critic (step 2, read-only).
     synthesizer_model:
         Model that merges the two analyses into one plan (step 3).
     executor_model:
-        Model that implements the plan via ``claude_code(mode='write')`` (step 4).
+        Model that implements the plan via the gated writer (step 4, only
+        when ``execute=True``).
     execute:
-        When ``True`` (default) the pipeline ends by implementing the plan
-        (writes files). When ``False`` it stops after synthesis — a read-only
-        "analyse + plan" pipeline that never modifies the codebase.
+        Default ``False`` — the pipeline ends at the written plan. Pass
+        ``True`` (with ``base_dir=``) to append the executor step, which
+        implements the plan via ``claude_code_write`` sandboxed to
+        ``base_dir``.
+    base_dir:
+        Required when ``execute=True``: the sandbox root the executor may
+        write inside (see :class:`CodeWriteTools`). Ideally a git checkout.
+    require_write_confirmation:
+        Default ``False`` for the executor — the pipeline is autonomous, so
+        the ``base_dir`` sandbox (plus git) is the safety rail; a one-shot
+        confirmation would block mid-pipeline. Set ``True`` if a human is
+        watching and will call ``confirm_write()`` per executor write.
 
     Notes
     -----
@@ -94,7 +118,26 @@ def build_cli_collaboration(
     """
     # Deferred imports: keep module import stdlib-light (see module docstring).
     from lazybridge import Agent, LLMEngine, Memory, Plan, Step, from_step
-    from lazybridge.dedup_guard import DeduplicateGuard
+
+    # DeduplicateGuard shipped after lazybridge 0.9.0; degrade gracefully on
+    # older installs (the guard is an optimisation — it stops an analyst from
+    # re-issuing an identical CLI call — not a correctness requirement).
+    try:
+        from lazybridge import DeduplicateGuard  # type: ignore[attr-defined]
+
+        def _dedup():
+            return DeduplicateGuard(verbose=False)
+    except ImportError:  # lazybridge <= 0.9.0
+
+        def _dedup():
+            return None
+
+    if execute and base_dir is None:
+        raise ValueError(
+            "build_cli_collaboration(execute=True) requires base_dir=: the executor "
+            "writes through the CodeWriteTools sandbox and must know its root. "
+            "Omit execute (default False) for the read-only analyse+plan pipeline."
+        )
 
     # Shared dialogue: claude_analyst writes (memory=), codex_analyst reads
     # (sources=). Safe under Plan's sequential execution — no parallel access.
@@ -112,7 +155,7 @@ def build_cli_collaboration(
         ),
         tools=[claude_code],
         memory=dialogue,
-        guard=DeduplicateGuard(verbose=False),
+        guard=_dedup(),
     )
 
     codex_analyst = Agent(
@@ -121,13 +164,13 @@ def build_cli_collaboration(
             codex_model,
             tool_timeout=None,
             system=(
-                "Analyse the task using codex in mode='read'. "
+                "Analyse the task using the read-only codex tool. "
                 "Critique or confirm claude_analyst's approach. Be concise."
             ),
         ),
         tools=[codex],
         sources=[dialogue],  # sees claude_analyst's analysis as context
-        guard=DeduplicateGuard(verbose=False),
+        guard=_dedup(),
     )
 
     synthesizer = Agent(
@@ -151,14 +194,21 @@ def build_cli_collaboration(
     tools: list[Any] = [claude_analyst, codex_analyst, synthesizer]
 
     if execute:
+        assert base_dir is not None  # narrowed by the ValueError above
+        writer = CodeWriteTools(
+            base_dir=base_dir,
+            claude=True,
+            codex=False,
+            require_confirmation=require_write_confirmation,
+        )
         executor = Agent(
             name="executor",
             engine=LLMEngine(
                 executor_model,
                 tool_timeout=None,
-                system="Implement the plan you receive using claude_code in mode='write'.",
+                system="Implement the plan you receive using the claude_code_write tool.",
             ),
-            tools=[claude_code],
+            tools=[*writer.as_tools()],
         )
         steps.append(Step("executor", context=from_step("synthesizer")))
         tools.append(executor)
