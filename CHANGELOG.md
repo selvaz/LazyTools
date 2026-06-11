@@ -6,6 +6,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **SSRF URL guard: legacy numeric IP literals.** `validate_public_url` now
+  recognizes the legacy numeric host forms that resolvers normalize to an IP
+  (decimal `2130706433`, hex `0x7f000001`, octal `0177.0.0.1`, short dotted
+  `127.1`) as IP literals and applies the same non-global block, instead of
+  treating them as DNS names. Previously these could bypass the loopback/
+  private-IP refusal for callers not pinning `allowed_hosts`. The check stays
+  purely syntactic (no DNS, no I/O). (#27)
+
 ## [0.2.0] — 2026-06-10
 
 ### Added
