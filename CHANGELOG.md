@@ -6,7 +6,34 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [0.2.0] — 2026-06-10
+
+### Added
+- **SEC EDGAR connector** (`lazytools.connectors.edgar`, extra `[edgar]`) —
+  `EdgarClient` against the official, free SEC APIs (company_tickers,
+  submissions, XBRL companyfacts, Archives documents) and an `EdgarTools`
+  provider with `edgar_resolve_company`, `edgar_list_filings`,
+  `edgar_get_filing`, `edgar_company_facts`. The client requires a declared
+  `user_agent` (SEC fair-access policy), throttles requests (~10 req/s),
+  hard-caps every response body, re-validates redirects against the pinned
+  SEC hosts, and labels filing text `content_is_untrusted`.
+- **Market-data connector** (`lazytools.connectors.marketdata`, extra
+  `[marketdata]`) — `MarketDataClient` over a swappable `MarketDataAdapter`
+  protocol, with the free, key-less `StooqAdapter` (stooq.com CSV) first;
+  `MarketDataTools` exposes `prices_get` / `prices_history` (`1m`/`3m`/`6m`/
+  `1y`/`5y`). All prices are strings, so downstream `Decimal` parsing never
+  loses precision.
+- **LazyReport** (`lazytools.report`, no extra) — deterministic, generic
+  memo rendering: `Memo`/`Section`/`TableBlock` pydantic models plus
+  `render_markdown` / `render_html` (pure functions, fully HTML-escaped) and
+  a `ReportTools` provider (`render_memo`, `render_memo_html`). PDF rendering
+  is deliberately deferred (heavy dependency).
+- **SSRF URL guard** (`lazytools.safety.urls`) — `validate_public_url` /
+  `UrlBlocked`: http(s)-only schemes, optional host pinning, non-global
+  literal IPs refused; applied by the new connectors to every constructed URL
+  and every redirect target.
+- **Testing fakes** — `FakeEdgarClient` and `FakeMarketDataAdapter` in
+  `lazytools.testing` with small Apple-ish canned data.
 
 ### Added
 - **`TelegramClient.close()` + context-manager support.** The HTTP connection

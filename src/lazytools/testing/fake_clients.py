@@ -1,8 +1,8 @@
 """In-memory fake service clients for testing guarded tools.
 
-These satisfy the duck-typed ``GmailService`` / ``TelegramService`` Protocols
-without touching any network, consolidating the per-test fakes that previously
-lived in each suite.
+These satisfy the duck-typed ``GmailService`` / ``TelegramService`` /
+``EdgarService`` / ``MarketDataAdapter`` Protocols without touching any
+network, consolidating the per-test fakes that previously lived in each suite.
 """
 
 from __future__ import annotations
@@ -48,3 +48,106 @@ class FakeTelegramService:
     def send_message(self, *, chat_id: int | str, text: str) -> dict[str, Any]:
         self.sent.append({"chat_id": chat_id, "text": text})
         return {"message_id": len(self.sent)}
+
+
+class FakeEdgarClient:
+    """In-memory :class:`~lazytools.connectors.edgar.client.EdgarService`.
+
+    Ships small Apple-ish canned data (one company, one 10-K, minimal
+    us-gaap companyfacts) so tool tests have something realistic to chew on;
+    every dataset is a public attribute you can replace per test.
+    """
+
+    def __init__(self) -> None:
+        self.companies: list[dict[str, str]] = [
+            {"cik": "0000320193", "ticker": "AAPL", "title": "Apple Inc."},
+        ]
+        self.filings: list[dict[str, Any]] = [
+            {
+                "accession_no": "0000320193-24-000123",
+                "form": "10-K",
+                "filed_at": "2024-11-01",
+                "report_date": "2024-09-28",
+                "primary_document": "aapl-20240928.htm",
+                "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm",
+            },
+        ]
+        self.filing_text = "UNITED STATES SECURITIES AND EXCHANGE COMMISSION\nForm 10-K\nApple Inc."
+        self.facts: dict[str, Any] = {
+            "cik": 320193,
+            "entityName": "Apple Inc.",
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {
+                        "units": {
+                            "USD": [{"end": "2024-09-28", "val": 391_035_000_000, "form": "10-K", "fy": 2024}]
+                        }
+                    },
+                    "NetIncomeLoss": {
+                        "units": {
+                            "USD": [{"end": "2024-09-28", "val": 93_736_000_000, "form": "10-K", "fy": 2024}]
+                        }
+                    },
+                }
+            },
+        }
+        self.calls: list[tuple[str, Any]] = []
+
+    def resolve_company(self, query: str, *, limit: int = 10) -> list[dict[str, str]]:
+        self.calls.append(("resolve_company", query))
+        q = query.strip().lower()
+        exact = [dict(c) for c in self.companies if c["ticker"].lower() == q]
+        partial = [dict(c) for c in self.companies if c["ticker"].lower() != q and q in c["title"].lower()]
+        return (exact + partial)[:limit]
+
+    def list_filings(self, cik: str, *, form: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
+        self.calls.append(("list_filings", cik))
+        matches = [dict(f) for f in self.filings if form is None or f["form"].upper() == form.upper()]
+        return matches[:limit]
+
+    def get_filing(self, cik: str, accession_no: str, *, primary_document: str | None = None) -> dict[str, Any]:
+        self.calls.append(("get_filing", accession_no))
+        for filing in self.filings:
+            if filing["accession_no"] == accession_no:
+                return {
+                    "accession_no": filing["accession_no"],
+                    "form": filing["form"] if primary_document is None else None,
+                    "url": filing["url"],
+                    "content": self.filing_text,
+                    "content_is_untrusted": True,
+                }
+        raise ValueError(f"accession {accession_no!r} not found in recent filings for CIK {cik}")
+
+    def company_facts(self, cik: str) -> dict[str, Any]:
+        self.calls.append(("company_facts", cik))
+        return self.facts
+
+
+class FakeMarketDataAdapter:
+    """In-memory :class:`~lazytools.connectors.marketdata.adapters.MarketDataAdapter`.
+
+    Serves a few Apple-ish daily rows (strings throughout, Decimal-safe);
+    ``quote`` answers from the most recent row. Replace ``rows`` per test.
+    """
+
+    source = "stooq"
+
+    def __init__(self, rows: list[dict[str, str]] | None = None) -> None:
+        self.rows: list[dict[str, str]] = rows or [
+            {"date": "2026-06-05", "open": "201.50", "high": "204.10", "low": "200.90", "close": "203.10", "volume": "48211000"},
+            {"date": "2026-06-08", "open": "203.20", "high": "205.00", "low": "202.40", "close": "204.55", "volume": "45120000"},
+            {"date": "2026-06-09", "open": "204.60", "high": "206.30", "low": "203.70", "close": "203.92", "volume": "50342000"},
+        ]
+        self.quote_calls: list[str] = []
+        self.history_calls: list[tuple[str, str]] = []
+
+    def quote(self, symbol: str) -> dict[str, str]:
+        self.quote_calls.append(symbol)
+        if not self.rows:
+            raise ValueError(f"no data for {symbol!r}")
+        last = self.rows[-1]
+        return {"price": last["close"], "currency": "USD", "as_of": last["date"], "source": self.source}
+
+    def history(self, symbol: str, *, range_: str = "1y") -> list[dict[str, str]]:
+        self.history_calls.append((symbol, range_))
+        return [dict(row) for row in self.rows]

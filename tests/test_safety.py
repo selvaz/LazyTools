@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from lazytools.safety import ActionBlocked, Allowlist, ConfirmationGate
+import pytest
+
+from lazytools.safety import ActionBlocked, Allowlist, ConfirmationGate, UrlBlocked, validate_public_url
 
 # --- Allowlist --------------------------------------------------------- #
 
@@ -139,3 +141,39 @@ def test_gate_grant_is_not_double_spent_across_threads() -> None:
         t.join()
 
     assert sum(successes) == grants
+
+
+# --- validate_public_url (SSRF guard) ----------------------------------- #
+
+
+def test_validate_public_url_allows_public_https() -> None:
+    url = "https://www.sec.gov/files/company_tickers.json"
+    assert validate_public_url(url) == url
+
+
+def test_validate_public_url_blocks_non_http_schemes() -> None:
+    for url in ("ftp://example.com/x", "file:///etc/passwd", "gopher://example.com"):
+        with pytest.raises(UrlBlocked, match="not http"):
+            validate_public_url(url)
+
+
+def test_validate_public_url_blocks_non_global_ips() -> None:
+    for host in ("127.0.0.1", "10.0.0.8", "192.168.1.1", "169.254.169.254", "0.0.0.0", "[::1]"):
+        with pytest.raises(UrlBlocked, match="not globally routable"):
+            validate_public_url(f"http://{host}/latest/meta-data")
+
+
+def test_validate_public_url_pins_allowed_hosts() -> None:
+    validate_public_url("https://Data.SEC.gov/x", allowed_hosts={"data.sec.gov"})
+    with pytest.raises(UrlBlocked, match="allowed host"):
+        validate_public_url("https://evil.example.com/x", allowed_hosts={"data.sec.gov"})
+
+
+def test_validate_public_url_requires_hostname() -> None:
+    with pytest.raises(UrlBlocked, match="missing hostname"):
+        validate_public_url("https:///nohost")
+
+
+def test_url_blocked_is_action_blocked() -> None:
+    assert issubclass(UrlBlocked, ActionBlocked)
+    assert issubclass(UrlBlocked, PermissionError)

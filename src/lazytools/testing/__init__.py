@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
-from lazytools.testing.fake_clients import FakeGmailService, FakeTelegramService
+from lazytools.testing.fake_clients import (
+    FakeEdgarClient,
+    FakeGmailService,
+    FakeMarketDataAdapter,
+    FakeTelegramService,
+)
 
-__all__ = ["FakeGmailService", "FakeTelegramService"]
+__all__ = [
+    "FakeEdgarClient",
+    "FakeGmailService",
+    "FakeMarketDataAdapter",
+    "FakeTelegramService",
+]

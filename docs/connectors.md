@@ -13,8 +13,11 @@ Treat each as its own mini-repository.
 | **MCP** | Drop an existing Model Context Protocol server's tool catalogue into an agent, deny-by-default. | `pip install 'lazytoolkit[mcp]'` | [MCP](mcp.md) |
 | **Code Support Agent** | Delegate coding work to Claude Code & Codex — each in CLI or MCP mode, plus a collaboration pipeline. | `pip install lazytoolkit` | [Code Support Agent](code-support/index.md) |
 | **External tool gateway** | Adapt a remote JSON-HTTP tool registry (Composio / Pipedream / Arcade / internal) into LazyBridge tools. | `pip install lazytoolkit` | [Gateway](gateway.md) |
+| **SEC EDGAR** | Official, free SEC filings + XBRL company facts: resolve companies, list/fetch filings (`content_is_untrusted`), raw facts JSON. | `pip install 'lazytoolkit[edgar]'` | [SEC EDGAR](edgar.md) |
+| **Market data** | Stock quotes & OHLCV history via swappable adapters (free stooq backend first); prices as Decimal-safe strings. | `pip install 'lazytoolkit[marketdata]'` | [Market data](marketdata.md) |
 | **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `pip install 'lazytoolkit[docs]'` | [Documents](documents.md) |
 | **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | `pip install lazytoolkit` | [Skills](skills.md) |
+| **Report (LazyReport)** | Deterministic memo rendering: `Memo` → Markdown/HTML, no LLM, no extra deps. | `pip install lazytoolkit` | [Report](report.md) |
 
 Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
 `ConfirmationGate`, `ActionBlocked`) are what gate the dangerous outbound tools.

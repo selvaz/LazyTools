@@ -80,6 +80,27 @@ the action and reason while never leaking secrets or payloads. Connector-specifi
 subclasses — `GmailSendBlocked`, `TelegramSendBlocked` — let you catch one tool's
 denials precisely.
 
+## `validate_public_url` (SSRF guard)
+
+`lazytools.safety.urls` adds a third, independent primitive for connectors
+that fetch from the network: `validate_public_url(url, *, allowed_hosts=None)`.
+It refuses non-http(s) schemes, missing hostnames, hosts outside
+`allowed_hosts` (when given), and literal IPs that are not globally routable
+(loopback, private, link-local, multicast, reserved, unspecified). Denials
+raise `UrlBlocked`, a subclass of `ActionBlocked`.
+
+The check is purely syntactic — no DNS, no I/O — so connectors run it on
+**every** constructed URL *and* every redirect target before following it. The
+[SEC EDGAR](edgar.md) and [market data](marketdata.md) connectors pin their
+requests to their service hosts this way.
+
+```python
+from lazytools.safety import UrlBlocked, validate_public_url
+
+validate_public_url("https://data.sec.gov/x", allowed_hosts={"data.sec.gov"})  # ok
+validate_public_url("http://169.254.169.254/latest/meta-data")  # raises UrlBlocked
+```
+
 ## Ambient scope (orchestrator integration)
 
 `safety/context.py` exposes a single contextvar, `active_scope`, and a reader
