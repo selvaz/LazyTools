@@ -28,7 +28,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **`build_cli_collaboration` defaults to the read-only three-session
   pipeline** (Claude Code analyst + Codex critic, both read-only, plus a
   synthesizer that writes the *plan*). `execute=True` now requires
-  `base_dir=` and implements via the gated `claude_code_write` tool.
+  `base_dir=` (internal ungated writer, sandbox + git as rails) **or**
+  `writer=` (bring your own `CodeWriteTools` — the only way to run a
+  gate-enabled executor, since the caller must hold the instance to call
+  `confirm_write()` while the pipeline runs; post-review fix from #32).
 
 ### Fixed
 - **`build_cli_collaboration` crashed on released lazybridge builds.** It

@@ -65,7 +65,7 @@ def build_cli_collaboration(
     executor_model: str = "claude-opus-4-8",
     execute: bool = False,
     base_dir: str | None = None,
-    require_write_confirmation: bool = False,
+    writer: CodeWriteTools | None = None,
 ) -> Agent:
     """Build the Claude Code + Codex collaboration pipeline as a reusable tool.
 
@@ -102,13 +102,18 @@ def build_cli_collaboration(
         implements the plan via ``claude_code_write`` sandboxed to
         ``base_dir``.
     base_dir:
-        Required when ``execute=True``: the sandbox root the executor may
-        write inside (see :class:`CodeWriteTools`). Ideally a git checkout.
-    require_write_confirmation:
-        Default ``False`` for the executor — the pipeline is autonomous, so
-        the ``base_dir`` sandbox (plus git) is the safety rail; a one-shot
-        confirmation would block mid-pipeline. Set ``True`` if a human is
-        watching and will call ``confirm_write()`` per executor write.
+        Convenience for ``execute=True``: builds an internal
+        :class:`CodeWriteTools` sandboxed to this root with
+        ``require_confirmation=False`` — the pipeline is autonomous, so the
+        sandbox (plus a git checkout) is the safety rail. Mutually exclusive
+        with ``writer=``.
+    writer:
+        Bring your own :class:`CodeWriteTools` for the executor instead.
+        This is the only way to run the executor with confirmation gating:
+        you hold the instance, so you can call ``writer.confirm_write()``
+        (once per executor write call) while the pipeline runs — a
+        gate-enabled writer built *inside* this function would block
+        forever, since nobody could reach it to grant.
 
     Notes
     -----
@@ -132,11 +137,23 @@ def build_cli_collaboration(
         def _dedup():
             return None
 
-    if execute and base_dir is None:
+    if execute:
+        if writer is not None and base_dir is not None:
+            raise ValueError(
+                "build_cli_collaboration: pass either writer= (your own CodeWriteTools, "
+                "you keep the confirm_write() handle) or base_dir= (internal ungated "
+                "writer), not both."
+            )
+        if writer is None and base_dir is None:
+            raise ValueError(
+                "build_cli_collaboration(execute=True) requires base_dir= (internal "
+                "ungated writer sandboxed there) or writer= (your own CodeWriteTools). "
+                "Omit execute (default False) for the read-only analyse+plan pipeline."
+            )
+    elif writer is not None or base_dir is not None:
         raise ValueError(
-            "build_cli_collaboration(execute=True) requires base_dir=: the executor "
-            "writes through the CodeWriteTools sandbox and must know its root. "
-            "Omit execute (default False) for the read-only analyse+plan pipeline."
+            "build_cli_collaboration: writer=/base_dir= only apply with execute=True "
+            "(the default pipeline is read-only and never writes)."
         )
 
     # Shared dialogue: claude_analyst writes (memory=), codex_analyst reads
@@ -194,13 +211,14 @@ def build_cli_collaboration(
     tools: list[Any] = [claude_analyst, codex_analyst, synthesizer]
 
     if execute:
-        assert base_dir is not None  # narrowed by the ValueError above
-        writer = CodeWriteTools(
-            base_dir=base_dir,
-            claude=True,
-            codex=False,
-            require_confirmation=require_write_confirmation,
-        )
+        if writer is None:
+            assert base_dir is not None  # narrowed by the ValueError above
+            writer = CodeWriteTools(
+                base_dir=base_dir,
+                claude=True,
+                codex=False,
+                require_confirmation=False,
+            )
         executor = Agent(
             name="executor",
             engine=LLMEngine(

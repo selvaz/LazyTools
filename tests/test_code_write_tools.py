@@ -182,12 +182,33 @@ def test_collaboration_defaults_to_three_readonly_sessions():
     assert step_names == ["claude_analyst", "codex_analyst", "synthesizer"]  # no executor
 
 
-def test_collaboration_execute_requires_base_dir(tmp_path):
+def test_collaboration_execute_requires_base_dir_or_writer(tmp_path):
     from lazytools.connectors.code_support import build_cli_collaboration
 
-    with pytest.raises(ValueError, match="requires base_dir"):
+    with pytest.raises(ValueError, match=r"requires base_dir= .*or writer="):
         build_cli_collaboration(execute=True)
 
     pipeline = build_cli_collaboration(execute=True, base_dir=str(tmp_path))
     step_names = [s.name for s in pipeline.engine.steps]
     assert step_names == ["claude_analyst", "codex_analyst", "synthesizer", "executor"]
+
+
+def test_collaboration_gated_execution_via_caller_owned_writer(tmp_path):
+    """Codex review (#32): a gate-enabled writer must be caller-owned, so the
+    human holds the confirm_write() handle while the pipeline runs."""
+    from lazytools.connectors.code_support import build_cli_collaboration
+
+    writer = CodeWriteTools(base_dir=str(tmp_path))  # gate ON by default
+    pipeline = build_cli_collaboration(execute=True, writer=writer)
+    assert [s.name for s in pipeline.engine.steps][-1] == "executor"
+
+    # The handle works: a grant issued on the caller's instance is the one
+    # the executor's tool consumes.
+    writer.confirm_write()
+    assert writer._gate.consume("write") is True
+
+    # Mutually exclusive / read-only argument validation.
+    with pytest.raises(ValueError, match="not both"):
+        build_cli_collaboration(execute=True, writer=writer, base_dir=str(tmp_path))
+    with pytest.raises(ValueError, match="only apply with execute=True"):
+        build_cli_collaboration(base_dir=str(tmp_path))
