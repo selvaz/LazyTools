@@ -22,6 +22,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   the same surface (`add_message()` advances a fake history cursor;
   `history_expired` simulates retention expiry) so downstream adapter
   tests stay network-free. See *Gmail -> History & push notifications*.
+  Cursor safety (post-review hardening): the returned cursor never
+  advances past a message that was not returned — a capped walk resumes
+  from the last fully consumed history record, and a single oversized
+  record is consumed whole so the caller always makes progress.
 
 ### Fixed
 - **SSRF URL guard: legacy numeric IP literals.** `validate_public_url` now

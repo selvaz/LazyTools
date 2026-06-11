@@ -53,9 +53,7 @@ class GmailService(Protocol):
     def create_draft(self, *, to: str, subject: str, body: str) -> dict[str, Any]: ...
     def send_message(self, *, to: str, subject: str, body: str) -> dict[str, Any]: ...
     def get_history_id(self) -> str: ...
-    def list_history_message_ids(
-        self, *, start_history_id: str, max_results: int = 100
-    ) -> tuple[list[str], str]: ...
+    def list_history_message_ids(self, *, start_history_id: str, max_results: int = 100) -> tuple[list[str], str]: ...
     def watch(self, *, topic_name: str, label_ids: list[str] | None = None) -> dict[str, Any]: ...
     def stop_watch(self) -> None: ...
 
@@ -165,9 +163,7 @@ class GmailClient:
             profile = self._service.users().getProfile(userId="me").execute()
         return str(profile["historyId"])
 
-    def list_history_message_ids(
-        self, *, start_history_id: str, max_results: int = 100
-    ) -> tuple[list[str], str]:
+    def list_history_message_ids(self, *, start_history_id: str, max_results: int = 100) -> tuple[list[str], str]:
         """Message ids added since ``start_history_id``, plus the new cursor.
 
         Uses ``users.history.list`` with ``historyTypes=messageAdded`` —
@@ -176,13 +172,26 @@ class GmailClient:
         ``(message_ids, new_history_id)``; persist the returned cursor and
         pass it back next time.
 
+        **Cursor safety.** The returned cursor never advances past a
+        message that was not returned. When the walk stops early (the
+        ``max_results`` soft cap, or the internal page cap) while Gmail
+        still has more history, the cursor is the id of the **last fully
+        consumed history record** — so the next call resumes exactly where
+        this one stopped instead of skipping the remainder. Only when the
+        history was fully drained (no ``nextPageToken`` left) is Gmail's
+        response-level ``historyId`` ("now") returned. ``max_results`` is a
+        soft cap: a single oversized history record is always consumed
+        whole so the caller is guaranteed to make progress.
+
         Raises :class:`GmailHistoryExpired` when Gmail reports the cursor
         is older than its retention window (HTTP 404) — resynchronise via
         :meth:`get_history_id`.
         """
         ids: list[str] = []
         seen: set[str] = set()
-        new_cursor = str(start_history_id)
+        safe_cursor = str(start_history_id)  # last *fully consumed* record id
+        response_cursor: str | None = None  # Gmail's "now", valid only when drained
+        exhausted = False
         page_token: str | None = None
         for _ in range(20):  # hard page cap — a tick should never walk an unbounded mailbox
             with self._lock:
@@ -202,21 +211,35 @@ class GmailClient:
                 except Exception as exc:
                     if _http_status(exc) == 404:
                         raise GmailHistoryExpired(
-                            f"Gmail history id {start_history_id!r} has expired; "
-                            "resync with get_history_id()."
+                            f"Gmail history id {start_history_id!r} has expired; resync with get_history_id()."
                         ) from exc
                     raise
-            new_cursor = str(resp.get("historyId", new_cursor))
+            response_cursor = str(resp.get("historyId", response_cursor or safe_cursor))
+            stopped_mid_page = False
             for record in resp.get("history", []):
-                for added in record.get("messagesAdded", []):
-                    message_id = added.get("message", {}).get("id")
-                    if message_id and message_id not in seen:
-                        seen.add(message_id)
-                        ids.append(message_id)
-            page_token = resp.get("nextPageToken")
-            if not page_token or len(ids) >= max_results:
+                added_ids = [a.get("message", {}).get("id") for a in record.get("messagesAdded", [])]
+                fresh = [m for m in added_ids if m and m not in seen]
+                # Stop *between* records once the cap is reached — but always
+                # consume at least one record per call so a single oversized
+                # record cannot stall the cursor forever.
+                if ids and len(ids) + len(fresh) > max_results:
+                    stopped_mid_page = True
+                    break
+                for message_id in fresh:
+                    seen.add(message_id)
+                    ids.append(message_id)
+                record_id = record.get("id")
+                if record_id is not None:
+                    safe_cursor = str(record_id)
+            if stopped_mid_page:
                 break
-        return ids[:max_results], new_cursor
+            page_token = resp.get("nextPageToken")
+            if not page_token:
+                exhausted = True
+                break
+            if len(ids) >= max_results:
+                break
+        return ids, (response_cursor if exhausted else safe_cursor) or safe_cursor
 
     def watch(self, *, topic_name: str, label_ids: list[str] | None = None) -> dict[str, Any]:
         """Arm Gmail push notifications onto a Cloud Pub/Sub topic.

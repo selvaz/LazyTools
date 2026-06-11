@@ -168,3 +168,66 @@ def test_fake_history_surface_matches_contract():
     assert fake.watches and not fake.watch_stopped
     fake.stop_watch()
     assert fake.watch_stopped
+
+
+# --------------------------------------------------------------------------- #
+# Cursor safety under max_results capping (Codex P1: must not skip mail)
+# --------------------------------------------------------------------------- #
+
+
+def _one_page_per_record(n: int, start: int = 100) -> dict[str, Any]:
+    """A single Gmail page with n records, one messageAdded each."""
+    return {
+        "historyId": str(start + n + 1000),  # Gmail's "now" — far past the records
+        "history": [{"id": str(start + i), "messagesAdded": [{"message": {"id": f"m{i}"}}]} for i in range(1, n + 1)],
+    }
+
+
+def test_capped_run_does_not_advance_cursor_past_returned_mail():
+    users = _StubUsers([_one_page_per_record(5)])
+    client = GmailClient(_StubService(users))
+
+    ids, cursor = client.list_history_message_ids(start_history_id="100", max_results=3)
+
+    assert ids == ["m1", "m2", "m3"]
+    # NOT the response-level "1105": the cursor stops at the last record
+    # actually consumed, so m4/m5 are picked up by the next call.
+    assert cursor == "103"
+
+    ids2, cursor2 = client.list_history_message_ids(start_history_id=cursor, max_results=100)
+    assert ids2 == ["m1", "m2", "m3", "m4", "m5"]  # stub replays the page; real Gmail resumes
+    assert cursor2 == "1105"  # fully drained -> response-level cursor
+
+
+def test_oversized_single_record_is_consumed_whole():
+    """max_results is a soft cap: one giant record must not stall the cursor."""
+    page = {
+        "historyId": "9000",
+        "history": [
+            {
+                "id": "200",
+                "messagesAdded": [{"message": {"id": f"big{i}"}} for i in range(10)],
+            }
+        ],
+    }
+    users = _StubUsers([page])
+    client = GmailClient(_StubService(users))
+
+    ids, cursor = client.list_history_message_ids(start_history_id="100", max_results=3)
+
+    assert len(ids) == 10  # record consumed whole despite the cap
+    assert cursor == "9000"  # drained -> safe to jump to "now"
+
+
+def test_fake_capped_cursor_matches_contract():
+    fake = FakeGmailService()
+    start = fake.get_history_id()
+    for i in range(7):
+        fake.add_message(f"m{i}")
+
+    ids, cursor = fake.list_history_message_ids(start_history_id=start, max_results=5)
+    assert ids == [f"m{i}" for i in range(5)]
+
+    ids2, cursor2 = fake.list_history_message_ids(start_history_id=cursor, max_results=5)
+    assert ids2 == ["m5", "m6"]  # nothing skipped
+    assert cursor2 == fake.get_history_id()

@@ -54,17 +54,22 @@ class FakeGmailService:
         self.calls.append("get_history_id")
         return str(self._history_cursor)
 
-    def list_history_message_ids(
-        self, *, start_history_id: str, max_results: int = 100
-    ) -> tuple[list[str], str]:
+    def list_history_message_ids(self, *, start_history_id: str, max_results: int = 100) -> tuple[list[str], str]:
         self.calls.append("list_history")
         if self.history_expired:
             from lazytools.connectors.gmail.client import GmailHistoryExpired
 
             raise GmailHistoryExpired(f"history id {start_history_id!r} expired (fake)")
         start = int(start_history_id)
-        ids = [mid for cursor, mid in self._history if cursor > start]
-        return ids[:max_results], str(self._history_cursor)
+        pending = [(cursor, mid) for cursor, mid in self._history if cursor > start]
+        batch = pending[:max_results]
+        ids = [mid for _, mid in batch]
+        # Same cursor-safety contract as GmailClient: when capped, the
+        # cursor stops at the last *returned* entry so the next call
+        # resumes there; only a fully drained walk returns "now".
+        if len(pending) > len(batch):
+            return ids, str(batch[-1][0])
+        return ids, str(self._history_cursor)
 
     def watch(self, *, topic_name: str, label_ids: list[str] | None = None) -> dict[str, Any]:
         self.calls.append("watch")
@@ -122,14 +127,10 @@ class FakeEdgarClient:
             "facts": {
                 "us-gaap": {
                     "Revenues": {
-                        "units": {
-                            "USD": [{"end": "2024-09-28", "val": 391_035_000_000, "form": "10-K", "fy": 2024}]
-                        }
+                        "units": {"USD": [{"end": "2024-09-28", "val": 391_035_000_000, "form": "10-K", "fy": 2024}]}
                     },
                     "NetIncomeLoss": {
-                        "units": {
-                            "USD": [{"end": "2024-09-28", "val": 93_736_000_000, "form": "10-K", "fy": 2024}]
-                        }
+                        "units": {"USD": [{"end": "2024-09-28", "val": 93_736_000_000, "form": "10-K", "fy": 2024}]}
                     },
                 }
             },
@@ -177,9 +178,30 @@ class FakeMarketDataAdapter:
 
     def __init__(self, rows: list[dict[str, str]] | None = None) -> None:
         self.rows: list[dict[str, str]] = rows or [
-            {"date": "2026-06-05", "open": "201.50", "high": "204.10", "low": "200.90", "close": "203.10", "volume": "48211000"},
-            {"date": "2026-06-08", "open": "203.20", "high": "205.00", "low": "202.40", "close": "204.55", "volume": "45120000"},
-            {"date": "2026-06-09", "open": "204.60", "high": "206.30", "low": "203.70", "close": "203.92", "volume": "50342000"},
+            {
+                "date": "2026-06-05",
+                "open": "201.50",
+                "high": "204.10",
+                "low": "200.90",
+                "close": "203.10",
+                "volume": "48211000",
+            },
+            {
+                "date": "2026-06-08",
+                "open": "203.20",
+                "high": "205.00",
+                "low": "202.40",
+                "close": "204.55",
+                "volume": "45120000",
+            },
+            {
+                "date": "2026-06-09",
+                "open": "204.60",
+                "high": "206.30",
+                "low": "203.70",
+                "close": "203.92",
+                "volume": "50342000",
+            },
         ]
         self.quote_calls: list[str] = []
         self.history_calls: list[tuple[str, str]] = []
