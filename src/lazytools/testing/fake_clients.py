@@ -17,11 +17,22 @@ class FakeGmailService:
         self._messages = messages or {}
         self.drafts: list[dict[str, Any]] = []
         self.sent: list[dict[str, Any]] = []
+        # History / push surface (event-driven intake). Pre-seeded messages
+        # are "before history starts": the cursor begins past them, so only
+        # mail added via add_message() shows up in list_history_message_ids.
+        self.calls: list[str] = []
+        self.watches: list[dict[str, Any]] = []
+        self.watch_stopped = False
+        self.watch_expiration_ms = 9_999_999_999_999  # far future, override in tests
+        self.history_expired = False  # set True to simulate a 404/expired cursor
+        self._history_cursor = 1000
+        self._history: list[tuple[int, str]] = []
 
     def list_message_ids(self, *, query: str | None = None, max_results: int = 25) -> list[str]:
         return list(self._messages)[:max_results]
 
     def get_message(self, message_id: str) -> dict[str, Any]:
+        self.calls.append(f"get_message:{message_id}")
         return self._messages.get(message_id, {"id": message_id})
 
     def create_draft(self, *, to: str, subject: str, body: str) -> dict[str, Any]:
@@ -31,6 +42,38 @@ class FakeGmailService:
     def send_message(self, *, to: str, subject: str, body: str) -> dict[str, Any]:
         self.sent.append({"to": to, "subject": subject, "body": body})
         return {"id": f"sent-{len(self.sent)}"}
+
+    # -- history / push surface ----------------------------------------- #
+    def add_message(self, message_id: str, raw: dict[str, Any] | None = None) -> None:
+        """Simulate new mail arriving (advances the history cursor)."""
+        self._messages[message_id] = raw or {"id": message_id}
+        self._history_cursor += 1
+        self._history.append((self._history_cursor, message_id))
+
+    def get_history_id(self) -> str:
+        self.calls.append("get_history_id")
+        return str(self._history_cursor)
+
+    def list_history_message_ids(
+        self, *, start_history_id: str, max_results: int = 100
+    ) -> tuple[list[str], str]:
+        self.calls.append("list_history")
+        if self.history_expired:
+            from lazytools.connectors.gmail.client import GmailHistoryExpired
+
+            raise GmailHistoryExpired(f"history id {start_history_id!r} expired (fake)")
+        start = int(start_history_id)
+        ids = [mid for cursor, mid in self._history if cursor > start]
+        return ids[:max_results], str(self._history_cursor)
+
+    def watch(self, *, topic_name: str, label_ids: list[str] | None = None) -> dict[str, Any]:
+        self.calls.append("watch")
+        self.watches.append({"topic_name": topic_name, "label_ids": label_ids or ["INBOX"]})
+        return {"historyId": str(self._history_cursor), "expiration": str(self.watch_expiration_ms)}
+
+    def stop_watch(self) -> None:
+        self.calls.append("stop_watch")
+        self.watch_stopped = True
 
 
 class FakeTelegramService:

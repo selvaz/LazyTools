@@ -8,11 +8,12 @@ imports without the ``gmail`` extra and is fully testable with a fake client.
 from __future__ import annotations
 
 from lazytools.connectors.gmail.auth import parse_authentication_results
-from lazytools.connectors.gmail.client import GmailClient, GmailService
+from lazytools.connectors.gmail.client import GmailClient, GmailHistoryExpired, GmailService
 from lazytools.connectors.gmail.tools import GmailSendBlocked, GmailTools
 
 __all__ = [
     "GmailClient",
+    "GmailHistoryExpired",
     "GmailService",
     "GmailTools",
     "GmailSendBlocked",
