@@ -8,7 +8,9 @@ followed:
 
 * only ``http`` / ``https`` schemes are allowed;
 * a literal IP host must be globally routable — loopback, private (RFC 1918),
-  link-local, multicast, reserved, and unspecified addresses are refused;
+  link-local, multicast, reserved, and unspecified addresses are refused.
+  Legacy numeric forms that resolvers normalize to an IP (``2130706433``,
+  ``0x7f000001``, ``127.1``, octal) are recognized as IP literals too;
 * when ``allowed_hosts`` is given, the hostname must be in that set. This is
   what actually pins a connector to its service: a DNS name that resolves to a
   private IP is only caught here when it is written as a literal IP, so
@@ -23,6 +25,7 @@ so it is safe to call on every request without latency cost. Denials raise
 from __future__ import annotations
 
 import ipaddress
+import socket
 from collections.abc import Collection
 from urllib.parse import urlsplit
 
@@ -31,6 +34,21 @@ from lazytools.safety import ActionBlocked
 
 class UrlBlocked(ActionBlocked):
     """Raised when a URL fails the SSRF guard (scheme / host / IP check)."""
+
+
+def _legacy_ipv4_literal(host: str) -> ipaddress.IPv4Address | None:
+    """Parse legacy numeric IPv4 forms that resolvers accept but ``ipaddress`` rejects.
+
+    Hosts like ``2130706433``, ``0x7f000001``, ``0177.0.0.1`` or ``127.1`` are
+    normalized to ``127.0.0.1`` by common resolvers, so they must be treated as
+    IP literals — not DNS names — or they would bypass the non-global-IP block.
+    ``inet_aton`` is pure parsing: no DNS resolution, no I/O.
+    """
+    try:
+        packed = socket.inet_aton(host)
+    except OSError:
+        return None
+    return ipaddress.IPv4Address(packed)
 
 
 def validate_public_url(url: str, *, allowed_hosts: Collection[str] | None = None) -> str:
@@ -56,11 +74,14 @@ def validate_public_url(url: str, *, allowed_hosts: Collection[str] | None = Non
     if allowed_hosts is not None and host not in {h.lower() for h in allowed_hosts}:
         raise UrlBlocked(f"refused URL {url!r}: host {host!r} is not an allowed host")
     try:
-        ip = ipaddress.ip_address(host)
+        ip: ipaddress.IPv4Address | ipaddress.IPv6Address = ipaddress.ip_address(host)
     except ValueError:
-        # A DNS name, not a literal IP. Pinning via ``allowed_hosts`` is the
-        # real control for names; nothing more to check syntactically.
-        return url
+        legacy = _legacy_ipv4_literal(host)
+        if legacy is None:
+            # A DNS name, not a literal IP. Pinning via ``allowed_hosts`` is the
+            # real control for names; nothing more to check syntactically.
+            return url
+        ip = legacy
     if not ip.is_global:
         raise UrlBlocked(f"refused URL {url!r}: IP {host!r} is not globally routable")
     return url

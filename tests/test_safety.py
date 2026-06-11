@@ -163,6 +163,20 @@ def test_validate_public_url_blocks_non_global_ips() -> None:
             validate_public_url(f"http://{host}/latest/meta-data")
 
 
+def test_validate_public_url_blocks_legacy_numeric_ip_forms() -> None:
+    # Resolvers normalize these to 127.0.0.1 / 10.0.0.8; they must be treated
+    # as IP literals, not DNS names, or they would bypass the non-global block.
+    for host in ("2130706433", "0x7f000001", "127.1", "0177.0.0.1", "10.8"):
+        with pytest.raises(UrlBlocked, match="not globally routable"):
+            validate_public_url(f"http://{host}/latest/meta-data")
+
+
+def test_validate_public_url_legacy_global_ip_still_allowed() -> None:
+    # 0x08080808 == 8.8.8.8 — global, so legacy spelling alone is not a reason to block.
+    url = "http://0x08080808/x"
+    assert validate_public_url(url) == url
+
+
 def test_validate_public_url_pins_allowed_hosts() -> None:
     validate_public_url("https://Data.SEC.gov/x", allowed_hosts={"data.sec.gov"})
     with pytest.raises(UrlBlocked, match="allowed host"):
