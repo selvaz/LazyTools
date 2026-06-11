@@ -86,8 +86,11 @@ denials precisely.
 that fetch from the network: `validate_public_url(url, *, allowed_hosts=None)`.
 It refuses non-http(s) schemes, missing hostnames, hosts outside
 `allowed_hosts` (when given), and literal IPs that are not globally routable
-(loopback, private, link-local, multicast, reserved, unspecified). Denials
-raise `UrlBlocked`, a subclass of `ActionBlocked`.
+(loopback, private, link-local, multicast, reserved, unspecified). Legacy
+numeric forms that resolvers normalize to an IP — decimal (`2130706433`),
+hex (`0x7f000001`), octal (`0177.0.0.1`), short dotted (`127.1`) — are
+recognized as IP literals too, so they cannot slip past the check as "DNS
+names". Denials raise `UrlBlocked`, a subclass of `ActionBlocked`.
 
 The check is purely syntactic — no DNS, no I/O — so connectors run it on
 **every** constructed URL *and* every redirect target before following it. The
@@ -99,6 +102,7 @@ from lazytools.safety import UrlBlocked, validate_public_url
 
 validate_public_url("https://data.sec.gov/x", allowed_hosts={"data.sec.gov"})  # ok
 validate_public_url("http://169.254.169.254/latest/meta-data")  # raises UrlBlocked
+validate_public_url("http://0x7f000001/")  # raises UrlBlocked (hex 127.0.0.1)
 ```
 
 ## Ambient scope (orchestrator integration)
