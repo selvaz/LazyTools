@@ -29,13 +29,35 @@ from typing import Any, Protocol
 METADATA_HEADERS = ["From", "To", "Subject", "Date", "Authentication-Results"]
 
 
+class GmailHistoryExpired(RuntimeError):
+    """``startHistoryId`` is too old — Gmail expired the history window.
+
+    Gmail keeps mailbox history for a limited period (typically about a
+    week). Callers must treat this as "resynchronise": fetch a fresh
+    cursor via :meth:`GmailService.get_history_id` and accept that changes
+    inside the expired window are unknowable through the history API.
+    """
+
+
 class GmailService(Protocol):
-    """The subset of a Gmail client that LazyPulse uses."""
+    """The subset of a Gmail client that LazyPulse uses.
+
+    The history/watch methods power event-driven intake (Gmail push
+    notifications via Cloud Pub/Sub) and incremental sync; consumers that
+    only poll (``GmailInbox``) never call them, so existing duck-typed
+    fakes remain valid.
+    """
 
     def list_message_ids(self, *, query: str | None = None, max_results: int = 25) -> list[str]: ...
     def get_message(self, message_id: str) -> dict[str, Any]: ...
     def create_draft(self, *, to: str, subject: str, body: str) -> dict[str, Any]: ...
     def send_message(self, *, to: str, subject: str, body: str) -> dict[str, Any]: ...
+    def get_history_id(self) -> str: ...
+    def list_history_message_ids(
+        self, *, start_history_id: str, max_results: int = 100
+    ) -> tuple[list[str], str]: ...
+    def watch(self, *, topic_name: str, label_ids: list[str] | None = None) -> dict[str, Any]: ...
+    def stop_watch(self) -> None: ...
 
 
 class GmailClient:
@@ -129,6 +151,103 @@ class GmailClient:
         raw = _encode(to, subject, body)
         with self._lock:
             return self._service.users().messages().send(userId="me", body={"raw": raw}).execute()
+
+    # ------------------------------------------------------------------ #
+    # History-based incremental sync + push notifications
+    # ------------------------------------------------------------------ #
+    def get_history_id(self) -> str:
+        """Current mailbox history cursor (``users.getProfile``).
+
+        One quota-cheap call that anchors incremental sync: changes after
+        this point are retrievable via :meth:`list_history_message_ids`.
+        """
+        with self._lock:
+            profile = self._service.users().getProfile(userId="me").execute()
+        return str(profile["historyId"])
+
+    def list_history_message_ids(
+        self, *, start_history_id: str, max_results: int = 100
+    ) -> tuple[list[str], str]:
+        """Message ids added since ``start_history_id``, plus the new cursor.
+
+        Uses ``users.history.list`` with ``historyTypes=messageAdded`` —
+        the quota-cheap incremental alternative to re-listing the mailbox.
+        Paginates internally (bounded), de-duplicates ids, and returns
+        ``(message_ids, new_history_id)``; persist the returned cursor and
+        pass it back next time.
+
+        Raises :class:`GmailHistoryExpired` when Gmail reports the cursor
+        is older than its retention window (HTTP 404) — resynchronise via
+        :meth:`get_history_id`.
+        """
+        ids: list[str] = []
+        seen: set[str] = set()
+        new_cursor = str(start_history_id)
+        page_token: str | None = None
+        for _ in range(20):  # hard page cap — a tick should never walk an unbounded mailbox
+            with self._lock:
+                request = (
+                    self._service.users()
+                    .history()
+                    .list(
+                        userId="me",
+                        startHistoryId=start_history_id,
+                        historyTypes=["messageAdded"],
+                        maxResults=min(max_results, 500),
+                        pageToken=page_token,
+                    )
+                )
+                try:
+                    resp = request.execute()
+                except Exception as exc:
+                    if _http_status(exc) == 404:
+                        raise GmailHistoryExpired(
+                            f"Gmail history id {start_history_id!r} has expired; "
+                            "resync with get_history_id()."
+                        ) from exc
+                    raise
+            new_cursor = str(resp.get("historyId", new_cursor))
+            for record in resp.get("history", []):
+                for added in record.get("messagesAdded", []):
+                    message_id = added.get("message", {}).get("id")
+                    if message_id and message_id not in seen:
+                        seen.add(message_id)
+                        ids.append(message_id)
+            page_token = resp.get("nextPageToken")
+            if not page_token or len(ids) >= max_results:
+                break
+        return ids[:max_results], new_cursor
+
+    def watch(self, *, topic_name: str, label_ids: list[str] | None = None) -> dict[str, Any]:
+        """Arm Gmail push notifications onto a Cloud Pub/Sub topic.
+
+        Returns the API response: ``{"historyId": ..., "expiration": ...}``
+        (``expiration`` is epoch **milliseconds** as a string; Gmail expires
+        a watch after at most 7 days — re-arm before then).
+        """
+        body: dict[str, Any] = {
+            "topicName": topic_name,
+            "labelIds": label_ids or ["INBOX"],
+            "labelFilterBehavior": "INCLUDE",
+        }
+        with self._lock:
+            return self._service.users().watch(userId="me", body=body).execute()
+
+    def stop_watch(self) -> None:
+        """Disarm push notifications (``users.stop``)."""
+        with self._lock:
+            self._service.users().stop(userId="me").execute()
+
+
+def _http_status(exc: Exception) -> int | None:
+    """Best-effort HTTP status from a googleapiclient error, without
+    importing google libraries (keeps the module import-clean sans extra)."""
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int):
+        return status
+    resp = getattr(exc, "resp", None)
+    status = getattr(resp, "status", None)
+    return status if isinstance(status, int) else None
 
 
 def _encode(to: str, subject: str, body: str) -> str:
