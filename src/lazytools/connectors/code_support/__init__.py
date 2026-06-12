@@ -1,5 +1,11 @@
 """Code Support Agent — delegate coding work to Claude Code and Codex.
 
+**Capability model (read-only by default).** ``claude_code`` and ``codex``
+are read/plan-only; the LLM cannot reach write mode through an argument.
+Writes live behind :class:`CodeWriteTools` — a provider you construct
+explicitly with a mandatory ``base_dir`` sandbox and (by default) a one-shot
+``confirm_write()`` gate per write call, mirroring the Gmail send tools.
+
 Two agents, each with two modes:
 
 * **Claude Code** — :func:`claude_code` (CLI mode) and :func:`claude_code_mcp`
@@ -47,6 +53,7 @@ import shutil
 from lazytools.connectors.code_support._claude_code import claude_code, claude_code_mcp
 from lazytools.connectors.code_support._codex import codex, codex_mcp
 from lazytools.connectors.code_support._collaboration import build_cli_collaboration
+from lazytools.connectors.code_support._writer import CodeWriteBlocked, CodeWriteTools
 
 
 def check_clis_available() -> dict[str, bool]:
@@ -62,6 +69,8 @@ def check_clis_available() -> dict[str, bool]:
 
 
 __all__ = [
+    "CodeWriteBlocked",
+    "CodeWriteTools",
     "claude_code",
     "claude_code_mcp",
     "codex",

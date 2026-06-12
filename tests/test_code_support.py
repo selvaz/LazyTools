@@ -30,7 +30,7 @@ class TestClaudeCode:
         payload = json.dumps({"subtype": "success", "result": "3 .py files found"})
         with patch("subprocess.run", return_value=_proc(stdout=payload)) as mock_run:
             result = claude_code("count .py files", mode="read")
-        assert result == "3 .py files found"
+        assert result == {"result": "3 .py files found", "content_is_untrusted": True}
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "claude"
         assert "-p" in cmd
@@ -38,14 +38,13 @@ class TestClaudeCode:
         assert "json" in cmd
         assert "--allowedTools" in cmd
 
-    def test_write_mode_flags(self):
-        payload = json.dumps({"subtype": "success", "result": "done"})
-        with patch("subprocess.run", return_value=_proc(stdout=payload)) as mock_run:
-            claude_code("add docstring", mode="write")
-        cmd = mock_run.call_args[0][0]
-        assert "--permission-mode" in cmd
-        assert "acceptEdits" in cmd
-        assert "Write" in " ".join(cmd)
+    def test_write_mode_rejected_points_at_writer(self):
+        # Write capability is NOT reachable through the plain function: the
+        # LLM controls arguments, so mode='write' must not be an argument.
+        result = claude_code("add docstring", mode="write")
+        assert isinstance(result, str)
+        assert "invalid mode" in result
+        assert "CodeWriteTools" in result
 
     def test_plan_mode_flags(self):
         payload = json.dumps({"subtype": "success", "result": "plan ready"})
@@ -90,7 +89,7 @@ class TestClaudeCode:
     def test_non_json_output_returned_raw(self):
         with patch("subprocess.run", return_value=_proc(stdout="raw text output\n")):
             result = claude_code("task")
-        assert result == "raw text output"
+        assert result == {"result": "raw text output", "content_is_untrusted": True}
 
     def test_invalid_mode_returns_error(self):
         result = claude_code("task", mode="badmode")
@@ -112,8 +111,8 @@ class TestClaudeCode:
 class TestCodex:
     def test_read_mode_returns_result(self):
         with patch("subprocess.run", return_value=_proc(stdout="function list: foo, bar")) as mock_run:
-            result = codex("list functions in main.py", mode="read")
-        assert result == "function list: foo, bar"
+            result = codex("list functions in main.py")
+        assert result == {"result": "function list: foo, bar", "content_is_untrusted": True}
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "codex"
         assert "exec" in cmd
@@ -122,15 +121,11 @@ class TestCodex:
         # `codex exec` has no `-a` approval flag — it must not be emitted.
         assert "-a" not in cmd
 
-    def test_write_mode_uses_full_auto(self):
-        with patch("subprocess.run", return_value=_proc(stdout="done")) as mock_run:
-            codex("add type hints", mode="write")
-        cmd = mock_run.call_args[0][0]
-        assert "--full-auto" in cmd
-        assert "workspace-write" in cmd
-        # -a on-failure must NOT appear: it hangs waiting for stdin
-        cmd_str = " ".join(cmd)
-        assert "on-failure" not in cmd_str
+    def test_codex_has_no_write_mode_parameter(self):
+        # Write capability is NOT reachable through the plain function.
+        import inspect
+
+        assert "mode" not in inspect.signature(codex).parameters
 
     def test_skip_git_check_added_by_default(self):
         with patch("subprocess.run", return_value=_proc(stdout="ok")) as mock_run:
@@ -168,11 +163,6 @@ class TestCodex:
             result = codex("task")
         assert "[codex]" in result
         assert "exit 1" in result
-
-    def test_invalid_mode_returns_error(self):
-        result = codex("task", mode="badmode")
-        assert "[codex]" in result
-        assert "invalid mode" in result
 
 
 # ─── check_clis_available ─────────────────────────────────────────────────────

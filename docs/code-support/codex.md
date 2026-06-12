@@ -19,13 +19,18 @@ from lazytools.connectors.code_support import codex
 codex(
     task: str,
     *,
-    mode: str = "read",          # "read" | "write"
     cwd: str | None = None,
     resume_last: bool = False,
     timeout: float = 300.0,
     skip_git_check: bool = True,
-) -> str
+) -> dict | str
 ```
+
+Read-only by construction (`-s read-only`); on success returns
+`{"result": <text>, "content_is_untrusted": true}`. There is deliberately
+**no write mode here**: writes live behind
+[`CodeWriteTools`](index.md#writes-codewritetools) (mandatory `base_dir`
+sandbox + one-shot confirmation).
 
 Wraps `codex exec "<task>"` and returns the final message printed on stdout.
 Unlike Claude Code, Codex prints only the final message (not a JSON envelope),

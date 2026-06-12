@@ -132,9 +132,38 @@ than the per-call `timeout` (e.g. `tool_timeout=320` with `timeout=300`).
 
 ## Security & safety
 
-- **Read is the default.** CLI-mode tools default to `mode="read"` (Claude:
-  `Read,Grep,Glob` — no Bash, so no command execution; Codex: `-s read-only`).
-  Opt into writes explicitly.
+- **Read-only by construction.** The CLI-mode tools `claude_code` / `codex`
+  are read/plan-only — write mode is not an argument an orchestrating LLM
+  could choose (Claude: `Read,Grep,Glob` — no Bash; Codex: `-s read-only`).
+
+### Writes: CodeWriteTools
+
+Writes (file edits + command execution) live behind a gated provider you
+must construct explicitly — the same safety model as the Gmail send tools:
+
+```python
+from lazytools.connectors.code_support import CodeWriteTools, claude_code
+
+writer = CodeWriteTools(base_dir="/path/to/project")   # mandatory sandbox root
+agent = Agent(engine=..., tools=[claude_code, writer])
+
+writer.confirm_write()           # a human approves exactly ONE write call
+agent("fix the failing test")    # the agent may now call claude_code_write once
+```
+
+- **Capability, not argument** — if you don't pass the writer in `tools=`,
+  the LLM cannot write, full stop.
+- **`base_dir` sandbox** — every write call's `cwd` must resolve inside it;
+  escapes raise `CodeWriteBlocked` (and never burn a confirmation grant).
+- **One-shot confirmation** (default) — each `confirm_write()` authorizes
+  exactly one write call; grants can be task-scoped (`task_id=`). For
+  autonomous pipelines pass `require_confirmation=False` and rely on the
+  sandbox plus a git checkout.
+- **Codex writes keep the git rail** — `codex_skip_git_check` defaults to
+  `False` for the writer (unlike the harmless read-only default).
+- **Output is labelled** — all CLI results return
+  `{"result": ..., "content_is_untrusted": true}`; treat repo-derived text
+  as third-party content (prompt-injection surface).
 - **MCP mode is deny-by-default.** `claude_code_mcp` / `codex_mcp` require an
   `allow=` / `deny=` filter, exactly like `MCP.stdio` — and Claude Code's MCP
   server has **no per-call confirmation** of its own, so the allow-list is your

@@ -24,11 +24,14 @@ It returns a named `Agent` whose engine is a four-step `Plan`. Because an
 `Agent` *is* a tool in LazyBridge, the whole pipeline looks to the parent agent
 like one callable that takes a single `task` string.
 
+**Default: three sessions, nothing is written** — two read-only CLI sessions
+plus one synthesizer that writes the *plan*, not code:
+
 ```
-Step 1  claude_analyst   claude_code(read)   analyse, propose an approach
-Step 2  codex_analyst    codex(read)         critique/confirm  (sees step 1 via shared Memory)
-Step 3  synthesizer      —                   merge into one concrete plan
-Step 4  executor         claude_code(write)  implement the plan        (skipped when execute=False)
+Step 1  claude_analyst   claude_code(read)    analyse, propose an approach
+Step 2  codex_analyst    codex (read-only)    critique/confirm  (sees step 1 via shared Memory)
+Step 3  synthesizer      —                    merge into one concrete written plan
+Step 4  executor         claude_code_write    implement the plan   (ONLY with execute=True + base_dir=)
 ```
 
 | Parameter | Type | Default | Meaning |
@@ -39,18 +42,21 @@ Step 4  executor         claude_code(write)  implement the plan        (skipped 
 | `codex_model` | `str` | `"gpt-5.4"` | Model for the Codex analyst/critic (step 2). |
 | `synthesizer_model` | `str` | `"claude-opus-4-8"` | Model that merges the analyses (step 3). |
 | `executor_model` | `str` | `"claude-opus-4-8"` | Model that implements the plan (step 4). |
-| `execute` | `bool` | `True` | `True` → implement (writes files). `False` → stop after synthesis (read-only "analyse + plan"). |
+| `execute` | `bool` | `False` | `False` (default) → stop after synthesis: the read-only three-session pipeline. `True` → append the executor, which implements the plan via the gated `claude_code_write` tool. |
+| `base_dir` | `str \| None` | `None` | **Required when `execute=True`**: the sandbox root the executor may write inside (ideally a git checkout). |
+| `writer` | `CodeWriteTools \| None` | `None` | Bring your own writer for the executor (mutually exclusive with `base_dir`). This is the only way to run a **gate-enabled** executor: you hold the instance, so you can call `writer.confirm_write()` per executor write while the pipeline runs. |
 
 ## Examples
 
-=== "Implement (default)"
+=== "Analyse + plan (default)"
 
     ```python
     from lazytools.connectors.code_support import build_cli_collaboration
 
-    # The whole Claude Code + Codex pipeline as a single tool.
-    pipeline = build_cli_collaboration()
-    print(pipeline("Add rate limiting to the /api/login endpoint").text())
+    # The default three-session pipeline: two read-only CLI analysts plus a
+    # synthesizer that writes the plan. Nothing on disk is modified.
+    planner = build_cli_collaboration()
+    print(planner("Propose a refactor of the payments module").text())
     ```
 
 === "As a sub-tool"
@@ -68,27 +74,29 @@ Step 4  executor         claude_code(write)  implement the plan        (skipped 
     orchestrator("Use deep_code_task to add retries to the HTTP client")
     ```
 
-=== "Read-only (analyse + plan)"
+=== "Implement (opt-in)"
 
     ```python
     from lazytools.connectors.code_support import build_cli_collaboration
 
-    # execute=False stops after synthesis — never writes files.
-    planner = build_cli_collaboration(execute=False)
-    print(planner("Propose a refactor of the payments module").text())
+    # execute=True appends the executor: the plan is implemented through the
+    # gated claude_code_write tool, sandboxed to base_dir (use a git checkout).
+    pipeline = build_cli_collaboration(execute=True, base_dir="/path/to/project")
+    print(pipeline("Add rate limiting to the /api/login endpoint").text())
     ```
 
 ## Why `Plan`, not `AgentPool`?
 
-The flow is fixed and sequential (analyse → critique → synthesise → execute).
+The flow is fixed and sequential (analyse → critique → synthesise [→ execute]).
 `Plan` with `from_step` is simpler and more predictable, and each step frees
 memory before the next. Reach for `AgentPool` only when you need dynamic routing
 or a multi-round back-and-forth.
 
 ## Pitfalls
 
-- **Writes by default** (`execute=True`). Pass `execute=False` for an
-  analyse-and-plan-only run.
+- **The default never writes.** `execute=True` requires `base_dir=` and
+  routes all writes through the `CodeWriteTools` sandbox; keep `base_dir` a
+  git checkout so every change is reviewable.
 - **Shared `Memory` is sequential-only.** The pipeline's `dialogue` memory is
   safe because `Plan` steps don't overlap; don't reuse the pattern under
   parallel execution without a per-agent memory.
