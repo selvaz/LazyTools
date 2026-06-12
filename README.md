@@ -47,6 +47,7 @@ from lazytools.connectors.mcp import MCP
 from lazytools.connectors.gateway import ExternalToolProvider
 from lazytools.connectors.edgar import EdgarTools, EdgarClient
 from lazytools.connectors.marketdata import MarketDataTools, MarketDataClient, StooqAdapter
+from lazytools.connectors.code_support import claude_code, codex, CodeWriteTools, build_cli_collaboration
 from lazytools.report import Memo, Section, TableBlock, render_markdown, render_html
 from lazytools.documents import read_docs_tools
 from lazytools.skills import build_skill, skill_tools
@@ -57,7 +58,7 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 
 | Category | Modules | What lives here |
 |---|---|---|
-| `connectors/` | `gmail`, `telegram`, `mcp`, `gateway`, `edgar`, `marketdata` | clients + tool providers that bridge to an external service or protocol |
+| `connectors/` | `gmail`, `telegram`, `mcp`, `gateway`, `edgar`, `marketdata`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render` | deterministic memo/report rendering (Markdown/HTML) — "LazyReport" |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
@@ -111,7 +112,9 @@ a deterministic way to write it up:
 
 ## Safety model
 
-Dangerous tools (e.g. `gmail_send`, `telegram_send_message`) are gated by two
+Dangerous tools (e.g. `gmail_send`, `telegram_send_message`, and the coding
+CLIs' `claude_code_write` / `codex_write` via `CodeWriteTools` — read-only
+`claude_code` / `codex` need no gate) are gated by two
 independent, composable primitives in `lazytools.safety`:
 
 - **`Allowlist`** — case-insensitive target allow-list (`None` = allow all).
