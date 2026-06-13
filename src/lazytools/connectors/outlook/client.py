@@ -28,19 +28,24 @@ first-wins anti-spoofing property the Gmail path relies on.
 
 Thread-safety / COM affinity
 ----------------------------
-COM objects have apartment affinity: they are happiest used from the thread
-that created them. Like :class:`~lazytools.connectors.gmail.client.GmailClient`,
-this client serialises every call through a per-instance ``threading.Lock``.
-When driving it from worker threads (e.g. PulseAgent tasks offloaded via
-``asyncio.to_thread``) call :func:`pythoncom.CoInitialize` once on each such
-thread, or confine the client to a single-threaded executor.
+COM objects have apartment affinity: they must be used from the thread that
+created them. :meth:`OutlookClient.connect` therefore owns a **dedicated
+single worker thread** that calls :func:`pythoncom.CoInitialize` once; the
+``Dispatch`` and every subsequent COM call are marshalled onto it. Callers can
+hit the client from any thread — including an ``asyncio.to_thread`` executor
+thread (which merely waits on the worker) — without apartment/initialisation
+errors. Call :meth:`OutlookClient.close` to tear the worker down.
 """
 
 from __future__ import annotations
 
+import concurrent.futures
 import re
 import threading
-from typing import Any, Protocol
+from collections.abc import Callable
+from typing import Any, Protocol, TypeVar
+
+_T = TypeVar("_T")
 
 #: ``olFolderInbox`` — the default Inbox folder index for ``GetDefaultFolder``.
 _OL_FOLDER_INBOX = 6
@@ -71,21 +76,48 @@ class OutlookService(Protocol):
     def send_message(self, *, to: str, subject: str, body: str) -> dict[str, Any]: ...
 
 
+def _init_com() -> None:  # pragma: no cover — only runs on the real COM worker
+    """Initialise COM on the dedicated worker thread (best-effort)."""
+    try:
+        import pythoncom  # type: ignore[import-not-found]
+
+        pythoncom.CoInitialize()
+    except Exception:
+        # No pywin32 (non-Windows) or already initialised: the worker still
+        # runs; a genuine COM failure surfaces on the first call instead.
+        pass
+
+
 class OutlookClient:
     """Production :class:`OutlookService` backed by a local Outlook via COM.
 
-    Build one with :meth:`connect` (attaches to the running/registered
-    Outlook application). All methods acquire a per-instance lock before
-    touching COM so the client is safe to share across threads, subject to the
-    COM affinity note in the module docstring.
+    Build one with :meth:`connect`, which attaches to the running/registered
+    Outlook application **on a dedicated single worker thread** that has called
+    :func:`pythoncom.CoInitialize`. Every COM access — the initial ``Dispatch``
+    and all reads/sends — is marshalled onto that one thread, so the client is
+    safe to call from any thread (including ``asyncio.to_thread`` executor
+    threads) without apartment/initialisation errors. Call :meth:`close` to
+    shut the worker down.
     """
 
-    def __init__(self, namespace: Any, application: Any, *, folder_index: int = _OL_FOLDER_INBOX) -> None:
+    def __init__(
+        self,
+        namespace: Any,
+        application: Any,
+        *,
+        folder_index: int = _OL_FOLDER_INBOX,
+        executor: concurrent.futures.Executor | None = None,
+    ) -> None:
         # ``namespace`` is a MAPI namespace; ``application`` is the Outlook
         # Application object (kept for CreateItem on the send path).
+        #
+        # ``executor`` is the single-thread, CoInitialized COM worker. When
+        # ``None`` (direct injection, e.g. tests with fakes) calls run inline
+        # on the caller's thread — fakes have no thread affinity.
         self._namespace = namespace
         self._application = application
         self._folder_index = folder_index
+        self._executor = executor
         self._lock = threading.Lock()
 
     @classmethod
@@ -96,18 +128,45 @@ class OutlookClient:
         ``outlook`` extra (or a non-Windows platform) makes it unavailable.
         Outlook must be installed and signed in; the call reuses that session,
         so there are no separate credentials to manage.
+
+        The ``Dispatch`` runs on the dedicated CoInitialized worker thread that
+        will own every subsequent COM call — so the proxy is created and used
+        on one apartment-correct thread.
         """
         try:
-            import win32com.client  # type: ignore[import-not-found]
+            import win32com.client  # type: ignore[import-not-found]  # noqa: F401
         except ImportError as exc:  # pragma: no cover — exercised only without the extra
             raise ImportError(
                 "OutlookClient.connect requires the 'outlook' extra on Windows "
                 "(local Outlook desktop + pywin32). Install it with: "
                 "pip install 'lazytoolkit[outlook]'"
             ) from exc
-        application = win32com.client.Dispatch("Outlook.Application")
-        namespace = application.GetNamespace("MAPI")
-        return cls(namespace, application, folder_index=folder_index)
+
+        executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="outlook-com", initializer=_init_com
+        )
+
+        def _dispatch() -> tuple[Any, Any]:  # pragma: no cover — needs real COM
+            import win32com.client as _w
+
+            application = _w.Dispatch("Outlook.Application")
+            namespace = application.GetNamespace("MAPI")
+            return application, namespace
+
+        application, namespace = executor.submit(_dispatch).result()
+        return cls(namespace, application, folder_index=folder_index, executor=executor)
+
+    def close(self) -> None:
+        """Shut down the COM worker thread (no-op for injected clients)."""
+        if self._executor is not None:
+            self._executor.shutdown(wait=True)
+            self._executor = None
+
+    def _run(self, fn: Callable[[], _T]) -> _T:
+        """Run ``fn`` on the COM worker thread (or inline when none is set)."""
+        if self._executor is not None:
+            return self._executor.submit(fn).result()
+        return fn()
 
     # ------------------------------------------------------------------ #
     # OutlookService
@@ -119,46 +178,61 @@ class OutlookClient:
         ``"[Field] = 'value'"`` macro syntax), e.g. ``"[Unread] = true"``;
         ``None`` returns the whole folder (capped at ``max_results``).
         """
-        with self._lock:
-            folder = self._namespace.GetDefaultFolder(self._folder_index)
-            items = folder.Items
-            items.Sort("[ReceivedTime]", True)  # descending → newest first
-            if query:
-                items = items.Restrict(query)
-            out: list[str] = []
-            item = items.GetFirst()
-            while item is not None and len(out) < max_results:
-                entry_id = getattr(item, "EntryID", None)
-                if entry_id:
-                    out.append(entry_id)
-                item = items.GetNext()
-            return out
+
+        def _op() -> list[str]:
+            with self._lock:
+                folder = self._namespace.GetDefaultFolder(self._folder_index)
+                items = folder.Items
+                items.Sort("[ReceivedTime]", True)  # descending → newest first
+                if query:
+                    items = items.Restrict(query)
+                out: list[str] = []
+                item = items.GetFirst()
+                while item is not None and len(out) < max_results:
+                    entry_id = getattr(item, "EntryID", None)
+                    if entry_id:
+                        out.append(entry_id)
+                    item = items.GetNext()
+                return out
+
+        return self._run(_op)
 
     def get_message(self, message_id: str) -> dict[str, Any]:
-        with self._lock:
-            item = self._namespace.GetItemFromID(message_id)
-            return self._to_resource(message_id, item)
+        def _op() -> dict[str, Any]:
+            with self._lock:
+                item = self._namespace.GetItemFromID(message_id)
+                return self._to_resource(message_id, item)
+
+        return self._run(_op)
 
     def create_draft(self, *, to: str, subject: str, body: str) -> dict[str, Any]:
         _reject_header_injection(to=to, subject=subject)
-        with self._lock:
-            mail = self._application.CreateItem(_OL_MAIL_ITEM)
-            mail.To = to
-            mail.Subject = subject
-            mail.Body = body
-            mail.Save()  # lands in Drafts, not sent
-            return {"id": getattr(mail, "EntryID", "<unknown>")}
+
+        def _op() -> dict[str, Any]:
+            with self._lock:
+                mail = self._application.CreateItem(_OL_MAIL_ITEM)
+                mail.To = to
+                mail.Subject = subject
+                mail.Body = body
+                mail.Save()  # lands in Drafts, not sent
+                return {"id": getattr(mail, "EntryID", "<unknown>")}
+
+        return self._run(_op)
 
     def send_message(self, *, to: str, subject: str, body: str) -> dict[str, Any]:
         _reject_header_injection(to=to, subject=subject)
-        with self._lock:
-            mail = self._application.CreateItem(_OL_MAIL_ITEM)
-            mail.To = to
-            mail.Subject = subject
-            mail.Body = body
-            entry_id = getattr(mail, "EntryID", "<unknown>")
-            mail.Send()
-            return {"id": entry_id}
+
+        def _op() -> dict[str, Any]:
+            with self._lock:
+                mail = self._application.CreateItem(_OL_MAIL_ITEM)
+                mail.To = to
+                mail.Subject = subject
+                mail.Body = body
+                entry_id = getattr(mail, "EntryID", "<unknown>")
+                mail.Send()
+                return {"id": entry_id}
+
+        return self._run(_op)
 
     # ------------------------------------------------------------------ #
     # COM item → Gmail-shaped resource

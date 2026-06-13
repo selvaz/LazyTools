@@ -222,3 +222,38 @@ def test_send_rejects_header_injection() -> None:
     client, _ = _client([])
     with pytest.raises(ValueError, match="newline"):
         client.send_message(to="x@y.com\r\nBcc: evil@z.com", subject="s", body="b")
+
+
+# -- COM worker thread routing ------------------------------------------ #
+
+
+def test_calls_route_through_the_executor_thread() -> None:
+    import concurrent.futures
+    import threading
+
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="outlook-com")
+    item = FakeItem(EntryID="E1", SenderName="Bob", SenderEmailAddress="bob@y.com")
+    seen: list[str] = []
+
+    class RecordingNamespace(FakeNamespace):
+        def GetItemFromID(self, entry_id: str) -> FakeItem:
+            seen.append(threading.current_thread().name)
+            return super().GetItemFromID(entry_id)
+
+    client = OutlookClient(RecordingNamespace([item]), FakeApplication(), executor=executor)
+    try:
+        client.get_message("E1")
+        assert seen and seen[0].startswith("outlook-com")
+        assert seen[0] != threading.current_thread().name
+    finally:
+        client.close()
+
+
+def test_close_shuts_down_executor() -> None:
+    import concurrent.futures
+
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    client = OutlookClient(FakeNamespace([]), FakeApplication(), executor=executor)
+    client.close()
+    assert client._executor is None
+    client.close()  # idempotent
