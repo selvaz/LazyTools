@@ -81,6 +81,36 @@ class FakeGmailService:
         self.watch_stopped = True
 
 
+class FakeOutlookService:
+    """In-memory :class:`~lazytools.connectors.outlook.client.OutlookService`.
+
+    Like :class:`FakeGmailService`, but for the local-desktop Outlook surface:
+    list/get reads from a pre-seeded ``messages`` dict (entry id → Gmail-shaped
+    resource), and draft/send record their calls instead of touching COM.
+    """
+
+    def __init__(self, messages: dict[str, dict[str, Any]] | None = None) -> None:
+        self._messages = messages or {}
+        self.drafts: list[dict[str, Any]] = []
+        self.sent: list[dict[str, Any]] = []
+        self.queries: list[str | None] = []
+
+    def list_message_ids(self, *, query: str | None = None, max_results: int = 25) -> list[str]:
+        self.queries.append(query)
+        return list(self._messages)[:max_results]
+
+    def get_message(self, message_id: str) -> dict[str, Any]:
+        return self._messages.get(message_id, {"id": message_id})
+
+    def create_draft(self, *, to: str, subject: str, body: str) -> dict[str, Any]:
+        self.drafts.append({"to": to, "subject": subject, "body": body})
+        return {"id": f"draft-{len(self.drafts)}"}
+
+    def send_message(self, *, to: str, subject: str, body: str) -> dict[str, Any]:
+        self.sent.append({"to": to, "subject": subject, "body": body})
+        return {"id": f"sent-{len(self.sent)}"}
+
+
 class FakeTelegramService:
     """In-memory :class:`~lazytools.connectors.telegram.client.TelegramService`."""
 

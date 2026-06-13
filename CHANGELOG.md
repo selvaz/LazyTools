@@ -6,6 +6,30 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added — local Outlook desktop connector
+- **`lazytools.connectors.outlook`** — a `GmailClient`/`GmailTools` mirror
+  pointed at the copy of Outlook **already running and signed in** on the
+  local Windows machine, over COM (MAPI), instead of a cloud API. No OAuth,
+  no API quota, no Pub/Sub — at the cost of running where Outlook desktop
+  lives. New `outlook` extra pulls `pywin32` (Windows-only marker, so the
+  install is a no-op elsewhere; the connector imports without it and only
+  `OutlookClient.connect()` needs it).
+  - `OutlookClient` / `OutlookService` — duck-typed `list_message_ids` /
+    `get_message` / `create_draft` / `send_message`. `get_message` returns the
+    **same Gmail-shaped resource** (`payload.headers` + `snippet`), lifting the
+    genuine top-most `Authentication-Results` out of `PR_TRANSPORT_MESSAGE_HEADERS`
+    (first-wins, so a body-forged copy is ignored) and resolving Exchange
+    senders to their SMTP address. Header parsing reuses the existing
+    provider-agnostic `parse_authentication_results`.
+  - `OutlookTools` / `OutlookSendBlocked` — `outlook_list_emails` /
+    `outlook_get_email` / `outlook_create_draft` / `outlook_send`, with the
+    identical Allowlist + one-shot (task-scopable) `ConfirmationGate` guarding
+    the send path as `GmailTools`. Structured filters compile to an Outlook
+    Restrict (`@SQL=` DASL) expression.
+  - `testing.FakeOutlookService` for tests that never touch COM.
+
 ## [0.3.0] — 2026-06-11
 
 ### Changed (breaking) — code_support write access is now a gated capability
