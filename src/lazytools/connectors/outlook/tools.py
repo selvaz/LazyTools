@@ -150,6 +150,7 @@ class OutlookTools:
         if unread:
             clauses.append(f'"{_DASL_READ}" = 0')
 
+        final_query: str | None
         if clauses:
             # Structured filters compile to a DASL @SQL= restriction. A raw
             # query is folded in as an extra clause; strip a leading "@SQL="
