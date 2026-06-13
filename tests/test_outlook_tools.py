@@ -70,6 +70,30 @@ def test_list_emails_no_filters_passes_none() -> None:
     assert svc.queries[-1] is None
 
 
+def test_list_emails_raw_macro_query_passes_through_unchanged() -> None:
+    svc = FakeOutlookService()
+    provider, _ = _tools(svc)
+    provider._list_emails(query="[Unread] = true")
+    assert svc.queries[-1] == "[Unread] = true"  # not re-wrapped in @SQL=
+
+
+def test_list_emails_raw_sql_query_not_double_prefixed() -> None:
+    svc = FakeOutlookService()
+    provider, _ = _tools(svc)
+    provider._list_emails(query='@SQL="urn:schemas:httpmail:read" = 0')
+    assert svc.queries[-1] == '@SQL="urn:schemas:httpmail:read" = 0'
+
+
+def test_list_emails_structured_plus_raw_sql_dedups_prefix() -> None:
+    svc = FakeOutlookService()
+    provider, _ = _tools(svc)
+    provider._list_emails(subject="hi", query='@SQL="urn:schemas:httpmail:read" = 0')
+    query = svc.queries[-1]
+    assert query.startswith("@SQL=")
+    assert query.count("@SQL=") == 1  # raw clause's @SQL= stripped before folding
+    assert "AND" in query and "read" in query
+
+
 def test_get_email_renders_headers() -> None:
     svc = FakeOutlookService(messages={
         "AAA": {"snippet": "hi there", "payload": {"headers": [

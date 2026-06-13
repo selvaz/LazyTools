@@ -135,8 +135,10 @@ class OutlookTools:
         """Search the Outlook inbox with optional filters.
 
         Structured filters are combined with AND into a single Outlook
-        Restrict (DASL ``@SQL=``) expression; ``query`` is appended as a raw
-        clause for advanced operators.
+        Restrict (DASL ``@SQL=``) expression. A raw ``query`` is folded in as
+        an extra DASL clause when structured filters are present, or passed
+        through **unchanged** when it is the only filter (so a complete
+        macro/DASL filter is never re-wrapped into an invalid one).
         """
         clauses: list[str] = []
         if sender:
@@ -147,9 +149,21 @@ class OutlookTools:
             clauses.append(f'"{_DASL_TEXT}" LIKE \'%{_escape(contains)}%\'')
         if unread:
             clauses.append(f'"{_DASL_READ}" = 0')
-        if query:
-            clauses.append(query)
-        final_query = "@SQL=" + " AND ".join(clauses) if clauses else None
+
+        if clauses:
+            # Structured filters compile to a DASL @SQL= restriction. A raw
+            # query is folded in as an extra clause; strip a leading "@SQL="
+            # the caller may have prefixed so the combined filter isn't
+            # doubled to "@SQL=...@SQL=...".
+            if query:
+                clauses.append(query[len("@SQL="):] if query.startswith("@SQL=") else query)
+            final_query = "@SQL=" + " AND ".join(clauses)
+        else:
+            # No structured filters: pass the raw Outlook Restrict filter
+            # through untouched. It may be macro syntax (e.g. "[Unread] = true")
+            # or its own "@SQL=..." DASL — wrapping either in another "@SQL="
+            # makes Outlook reject it as an invalid filter.
+            final_query = query or None
 
         ids = self._client.list_message_ids(query=final_query, max_results=max_results)
         if not ids:
