@@ -6,6 +6,7 @@ from lazytools.testing.fake_clients import (
     FakeEdgarClient,
     FakeGmailService,
     FakeMarketDataAdapter,
+    FakeOutlookService,
     FakeTelegramService,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "FakeEdgarClient",
     "FakeGmailService",
     "FakeMarketDataAdapter",
+    "FakeOutlookService",
     "FakeTelegramService",
 ]
