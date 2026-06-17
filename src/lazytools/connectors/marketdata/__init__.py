@@ -11,7 +11,9 @@ from __future__ import annotations
 from lazytools.connectors.marketdata.adapters import (
     DEFAULT_MAX_RESPONSE_BYTES,
     RANGE_DAYS,
+    UNKNOWN_CURRENCY,
     MarketDataAdapter,
+    MarketDataUnavailable,
     StooqAdapter,
 )
 from lazytools.connectors.marketdata.client import VALID_RANGES, MarketDataClient
@@ -20,8 +22,10 @@ from lazytools.connectors.marketdata.tools import MarketDataTools
 __all__ = [
     "DEFAULT_MAX_RESPONSE_BYTES",
     "RANGE_DAYS",
+    "UNKNOWN_CURRENCY",
     "VALID_RANGES",
     "MarketDataAdapter",
+    "MarketDataUnavailable",
     "MarketDataClient",
     "MarketDataTools",
     "StooqAdapter",
