@@ -263,21 +263,25 @@ def _read_csv(text: str) -> list[dict[str, str]]:
 
 
 def _positive_decimal(value: str) -> Decimal | None:
-    """Parse ``value`` as a strictly positive :class:`Decimal`, else ``None``."""
+    """Parse ``value`` as a strictly positive, finite :class:`Decimal`, else ``None``."""
     try:
         parsed = Decimal(value)
     except (InvalidOperation, ValueError):
         return None
-    return parsed if parsed > 0 and parsed.is_finite() else None
+    # Finiteness must be checked *before* the comparison: ``Decimal("NaN")``
+    # parses cleanly but ``NaN > 0`` raises ``InvalidOperation``, so a NaN
+    # placeholder would otherwise abort the request instead of being dropped.
+    return parsed if parsed.is_finite() and parsed > 0 else None
 
 
 def _nonneg_decimal(value: str) -> Decimal | None:
-    """Parse ``value`` as a non-negative :class:`Decimal`, else ``None``."""
+    """Parse ``value`` as a non-negative, finite :class:`Decimal`, else ``None``."""
     try:
         parsed = Decimal(value)
     except (InvalidOperation, ValueError):
         return None
-    return parsed if parsed >= 0 and parsed.is_finite() else None
+    # Finiteness first — see :func:`_positive_decimal` (NaN comparisons raise).
+    return parsed if parsed.is_finite() and parsed >= 0 else None
 
 
 def _ohlc_consistent(ohlc: dict[str, Decimal | None]) -> bool:

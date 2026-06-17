@@ -155,6 +155,23 @@ def test_history_negative_price_row_dropped() -> None:
     assert [r["date"] for r in adapter.history("AAPL", range_="1m")] == ["2026-06-09"]
 
 
+def test_nan_placeholders_are_dropped_not_raised() -> None:
+    # Decimal("NaN") parses but `NaN > 0` raises — a non-finite placeholder must
+    # be treated as a bad value (row dropped / quote rejected), never abort the run.
+    hist = (
+        "Date,Open,High,Low,Close,Volume\n"
+        "2026-06-08,NaN,206.30,203.70,203.92,Infinity\n"  # non-finite OHLC/volume -> drop
+        "2026-06-09,204.60,206.30,203.70,203.92,50342000\n"
+    )
+    adapter, _ = make_adapter(hist)
+    assert [r["date"] for r in adapter.history("AAPL", range_="1m")] == ["2026-06-09"]
+
+    quote_nan = "Symbol,Date,Time,Open,High,Low,Close,Volume\naapl.us,2026-06-09,22:00,1,1,1,NaN,1\n"
+    adapter2, _ = make_adapter(quote_nan)
+    with pytest.raises(ValueError, match="non-numeric"):
+        adapter2.quote("AAPL")
+
+
 def test_history_unknown_volume_is_blank_not_fabricated_zero() -> None:
     body = (
         "Date,Open,High,Low,Close,Volume\n"
