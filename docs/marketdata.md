@@ -46,12 +46,24 @@ history(symbol, range_=…)               prices_history(ticker,      prices_his
 - **Symbol mapping.** US tickers map to stooq's `{ticker}.us` convention
   (`AAPL` → `aapl.us`); a ticker that already carries a market suffix
   (`sap.de`) passes through unchanged.
+- **Currency, no guessing.** The trading currency is inferred from the stooq
+  suffix (`.de` → EUR, `.ch` → CHF, …). A suffix we don't recognise returns
+  `currency: "UNKNOWN"` — deliberately *not* a silent USD guess, so a typed
+  consumer (e.g. LazyFin `Money`) rejects it rather than valuing a foreign
+  price 1:1 as USD.
 - **CSV parsing, defensively.** Stdlib `csv`; malformed rows (bad dates,
-  missing OHLC, `N/D` placeholders) are skipped, not fatal. An unknown symbol
-  raises `ValueError`.
+  missing/`N/D`/non-numeric/non-positive OHLC, or internally inconsistent rows
+  where `high < low` or open/close fall outside `[low, high]`) are skipped, not
+  fatal. Unknown volume is left **blank** (never fabricated as `"0"`). An
+  unknown symbol raises `ValueError`; a rate-limited / non-CSV body raises the
+  **retryable** `MarketDataUnavailable` (so a throttle is never misreported as
+  a bad ticker).
 - **Range filtering.** `range_` is one of `1m`/`3m`/`6m`/`1y`/`5y`, filtered
   by date, anchored to the most recent row (deterministic — no wall-clock
-  dependency).
+  dependency). The quote's `as_of` is returned verbatim; **freshness is the
+  consumer's call** — a halted/delisted symbol can keep returning its last
+  close, so callers that drive decisions should gate on `as_of` recency (see
+  LazyFin's daily monitor `max_price_age_days`).
 - **Caps & SSRF guard.** Responses are hard-capped (`max_response_bytes`,
   default ~5 MB) and every URL/redirect is re-checked by the
   [SSRF guard](safety.md), pinned to the stooq hosts.

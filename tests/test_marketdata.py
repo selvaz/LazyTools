@@ -7,7 +7,12 @@ import json
 import httpx
 import pytest
 
-from lazytools.connectors.marketdata import MarketDataClient, MarketDataTools, StooqAdapter
+from lazytools.connectors.marketdata import (
+    MarketDataClient,
+    MarketDataTools,
+    MarketDataUnavailable,
+    StooqAdapter,
+)
 from lazytools.safety import UrlBlocked
 from lazytools.testing import FakeMarketDataAdapter
 
@@ -59,6 +64,29 @@ def test_quote_unknown_symbol_raises() -> None:
         adapter.quote("NOPE")
 
 
+def test_quote_non_numeric_price_raises() -> None:
+    bad = "Symbol,Date,Time,Open,High,Low,Close,Volume\naapl.us,2026-06-09,22:00,1,1,1,oops,1\n"
+    adapter, _ = make_adapter(bad)
+    with pytest.raises(ValueError, match="non-numeric"):
+        adapter.quote("AAPL")
+
+
+def test_unmapped_suffix_currency_is_unknown_not_usd() -> None:
+    # A ticker on a market we can't map must NOT be silently labelled USD —
+    # fail closed instead so downstream typed-money construction rejects it.
+    adapter, _ = make_adapter(QUOTE_CSV)
+    assert adapter.quote("foo.za")["currency"] == "UNKNOWN"  # unmapped suffix
+    assert adapter.quote("nesn.ch")["currency"] == "CHF"  # newly mapped
+    assert adapter.quote("shop.ca")["currency"] == "CAD"  # newly mapped
+
+
+def test_rate_limited_html_body_raises_unavailable_not_unknown_symbol() -> None:
+    # stooq answers HTTP 200 with a throttle message when rate-limiting.
+    adapter, _ = make_adapter("Exceeded the daily hits limit\n")
+    with pytest.raises(MarketDataUnavailable, match="non-CSV"):
+        adapter.quote("AAPL")
+
+
 def test_empty_ticker_rejected() -> None:
     adapter, _ = make_adapter(QUOTE_CSV)
     with pytest.raises(ValueError, match="non-empty"):
@@ -104,6 +132,37 @@ def test_history_invalid_range_raises() -> None:
 def test_history_empty_body_returns_empty_list() -> None:
     adapter, _ = make_adapter("Date,Open,High,Low,Close,Volume\n")
     assert adapter.history("AAPL", range_="1y") == []
+
+
+def test_history_drops_internally_inconsistent_ohlc() -> None:
+    # high < low is impossible — the row is dropped, not surfaced as data.
+    body = (
+        "Date,Open,High,Low,Close,Volume\n"
+        "2026-06-08,100,90,110,105,1000\n"  # high(90) < low(110) -> drop
+        "2026-06-09,204.60,206.30,203.70,203.92,50342000\n"
+    )
+    adapter, _ = make_adapter(body)
+    assert [r["date"] for r in adapter.history("AAPL", range_="1m")] == ["2026-06-09"]
+
+
+def test_history_negative_price_row_dropped() -> None:
+    body = (
+        "Date,Open,High,Low,Close,Volume\n"
+        "2026-06-08,-1,5,-2,3,1000\n"  # negative prices -> drop
+        "2026-06-09,204.60,206.30,203.70,203.92,50342000\n"
+    )
+    adapter, _ = make_adapter(body)
+    assert [r["date"] for r in adapter.history("AAPL", range_="1m")] == ["2026-06-09"]
+
+
+def test_history_unknown_volume_is_blank_not_fabricated_zero() -> None:
+    body = (
+        "Date,Open,High,Low,Close,Volume\n"
+        "2026-06-09,204.60,206.30,203.70,203.92,N/D\n"  # OHLC valid, volume unknown
+    )
+    adapter, _ = make_adapter(body)
+    rows = adapter.history("AAPL", range_="1m")
+    assert rows[0]["volume"] == ""  # blank, never "0"
 
 
 # --- caps & redirects ------------------------------------------------------ #
