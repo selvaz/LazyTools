@@ -19,6 +19,7 @@ lazypulse    always-on orchestration (tick loop, adapters, policy, ledger)
 ```bash
 pip install lazytoolkit                 # core (just lazybridge)
 pip install 'lazytoolkit[gmail]'        # Gmail client + tools
+pip install 'lazytoolkit[outlook]'      # Outlook client + tools (Windows desktop, COM)
 pip install 'lazytoolkit[telegram]'     # Telegram client + tools
 pip install 'lazytoolkit[mcp]'          # Model Context Protocol connector
 pip install 'lazytoolkit[docs]'         # PDF/DOCX/HTML document reading
@@ -44,6 +45,7 @@ pip install 'lazytoolkit[web]'          # LazyCrawler search/crawl as LLM tools
 
 ```python
 from lazytools.connectors.gmail import GmailTools, GmailClient
+from lazytools.connectors.outlook import OutlookTools, OutlookClient
 from lazytools.connectors.telegram import TelegramTools
 from lazytools.connectors.mcp import MCP
 from lazytools.connectors.gateway import ExternalToolProvider
@@ -62,7 +64,7 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 
 | Category | Modules | What lives here |
 |---|---|---|
-| `connectors/` | `gmail`, `telegram`, `mcp`, `gateway`, `edgar`, `marketdata`, `datahub`, `web`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
+| `connectors/` | `gmail`, `outlook`, `telegram`, `mcp`, `gateway`, `edgar`, `marketdata`, `datahub`, `web`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render` | deterministic memo/report rendering (Markdown/HTML) — "LazyReport" |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
