@@ -60,7 +60,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     ```python
     from lazytools.connectors.outlook import OutlookClient, OutlookTools
 
-    client = OutlookClient()            # attaches to the running Outlook desktop (COM)
+    client = OutlookClient.connect()    # attaches to the running Outlook desktop (COM)
     # outlook_create_draft is always allowed; outlook_send is gated (allow-list +
     # one-shot confirmation), mirroring Gmail.
     tools = OutlookTools(client, allowed_recipients=["teammate@example.com"])
