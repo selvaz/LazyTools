@@ -15,6 +15,8 @@ Treat each as its own mini-repository.
 | **External tool gateway** | Adapt a remote JSON-HTTP tool registry (Composio / Pipedream / Arcade / internal) into LazyBridge tools. | `pip install lazytoolkit` | [Gateway](gateway.md) |
 | **SEC EDGAR** | Official, free SEC filings + XBRL company facts: resolve companies, list/fetch filings (`content_is_untrusted`), raw facts JSON. | `pip install 'lazytoolkit[edgar]'` | [SEC EDGAR](edgar.md) |
 | **Market data** | Stock quotes & OHLCV history via swappable adapters (free stooq backend first); prices as Decimal-safe strings. | `pip install 'lazytoolkit[marketdata]'` | [Market data](marketdata.md) |
+| **market-data-hub** | Discovery + extraction over the official market-data-hub: 11 `datahub_*` tools (list/search/describe domains, pull analysis-ready series, returns & coverage). | `pip install 'lazytoolkit[datahub]'` | — |
+| **Web** | LazyCrawler's search/crawl/get-page surfaced as LLM tools (interface only — the crawler engine stays standalone). | `pip install 'lazytoolkit[web]'` | — |
 | **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `pip install 'lazytoolkit[docs]'` | [Documents](documents.md) |
 | **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | `pip install lazytoolkit` | [Skills](skills.md) |
 | **Report (LazyReport)** | Deterministic memo rendering: `Memo` → Markdown/HTML, no LLM, no extra deps. | `pip install lazytoolkit` | [Report](report.md) |
@@ -100,6 +102,26 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     provider = ExternalToolProvider(
         JsonHttpExternalToolClient(base_url="https://gateway.example.com"),
     )
+    ```
+
+=== "market-data-hub"
+
+    ```python
+    from lazybridge import Agent
+    from lazytools.connectors.datahub import DataHubTools
+
+    # 11 datahub_* tools; MarketDataHubBackend imports market_data_hub lazily.
+    agent = Agent("claude-opus-4-8", tools=[DataHubTools()])
+    ```
+
+=== "Web"
+
+    ```python
+    from lazybridge import Agent
+    from lazytools.connectors.web import WebTools
+
+    # Thin pass-through over lazycrawler.CrawlerTools — LLM tool interface only.
+    agent = Agent("claude-opus-4-8", tools=[WebTools()])
     ```
 
 === "Documents"
