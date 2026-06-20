@@ -24,6 +24,8 @@ pip install 'lazytoolkit[mcp]'          # Model Context Protocol connector
 pip install 'lazytoolkit[docs]'         # PDF/DOCX/HTML document reading
 pip install 'lazytoolkit[edgar]'        # SEC EDGAR filings + XBRL facts
 pip install 'lazytoolkit[marketdata]'   # free stock quotes/history (stooq)
+pip install 'lazytoolkit[datahub]'      # market-data-hub discovery + extraction
+pip install 'lazytoolkit[web]'          # LazyCrawler search/crawl as LLM tools
 # lazytools.report needs no extra      # deterministic memo rendering
 ```
 
@@ -47,6 +49,8 @@ from lazytools.connectors.mcp import MCP
 from lazytools.connectors.gateway import ExternalToolProvider
 from lazytools.connectors.edgar import EdgarTools, EdgarClient
 from lazytools.connectors.marketdata import MarketDataTools, MarketDataClient, StooqAdapter
+from lazytools.connectors.datahub import DataHubTools, MarketDataHubBackend
+from lazytools.connectors.web import WebTools
 from lazytools.connectors.code_support import claude_code, codex, CodeWriteTools, build_cli_collaboration
 from lazytools.report import Memo, Section, TableBlock, render_markdown, render_html
 from lazytools.documents import read_docs_tools
@@ -58,7 +62,7 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 
 | Category | Modules | What lives here |
 |---|---|---|
-| `connectors/` | `gmail`, `telegram`, `mcp`, `gateway`, `edgar`, `marketdata`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
+| `connectors/` | `gmail`, `telegram`, `mcp`, `gateway`, `edgar`, `marketdata`, `datahub`, `web`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render` | deterministic memo/report rendering (Markdown/HTML) — "LazyReport" |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
@@ -103,12 +107,43 @@ a deterministic way to write it up:
   tools = MarketDataTools(client)   # prices_get / prices_history
   ```
 
+- **market-data-hub** (`lazytools.connectors.datahub`, extra `[datahub]`) — a
+  thin `ToolProvider` over the official market-data-hub `tool_*` surface,
+  exposing 11 `datahub_*` discovery + extraction tools (`datahub_list_datasets`,
+  `datahub_list_symbols`, `datahub_search`, `datahub_describe`,
+  `datahub_get_series`, `datahub_get_returns`, `datahub_get_coverage`, …). The
+  `MarketDataHubBackend` lazily imports `market_data_hub.agent_tools`, so the
+  provider and protocol import without the extra and a `FakeDataHubBackend`
+  (`lazytools.testing`) drives tests offline.
+
+  ```python
+  from lazytools.connectors.datahub import DataHubTools
+
+  tools = DataHubTools()   # datahub_* discovery + time-series extraction
+  ```
+
 - **Report** (`lazytools.report`, no extra — "LazyReport") — deterministic,
   domain-agnostic memo rendering: `Memo`/`Section`/`TableBlock` models plus
   `render_markdown` / `render_html` (same input → identical output, everything
   HTML-escaped). An LLM writes the prose; the layout is a pure function.
   `ReportTools` exposes `render_memo` and `render_memo_html`; PDF rendering is
   deliberately deferred (heavy dependency).
+
+## Web
+
+- **Web** (`lazytools.connectors.web`, extra `[web]`) — surfaces
+  [LazyCrawler](https://github.com/selvaz/LazyCrawler) as an **LLM tool
+  interface only**. `WebTools` is a thin pass-through over
+  `lazycrawler.CrawlerTools.as_tools()` (search/crawl/get-page tools); the
+  crawler engine is *not* vendored and no `WebCrawler` class is re-exported.
+  `lazycrawler` is imported lazily, so the connector imports without the extra.
+
+  ```python
+  from lazytools.connectors.web import WebTools
+
+  tools = WebTools()                       # delegates to lazycrawler.CrawlerTools
+  tools = WebTools(name_prefix="web_")      # optionally prefix tool names
+  ```
 
 ## Safety model
 
