@@ -27,6 +27,7 @@ pip install 'lazytoolkit[marketdata]'   # free stock quotes/history (stooq)
 pip install 'lazytoolkit[datahub]'      # market-data-hub discovery + extraction
 pip install 'lazytoolkit[web]'          # LazyCrawler search/crawl as LLM tools
 # lazytools.report needs no extra      # deterministic memo rendering
+# lazytools.lazyquant needs no extra   # float return/risk primitives (pure-Python)
 ```
 
 > [!IMPORTANT]
@@ -53,6 +54,7 @@ from lazytools.connectors.datahub import DataHubTools, MarketDataHubBackend
 from lazytools.connectors.web import WebTools
 from lazytools.connectors.code_support import claude_code, codex, CodeWriteTools, build_cli_collaboration
 from lazytools.report import Memo, Section, TableBlock, render_markdown, render_html
+from lazytools.lazyquant import log_returns, simple_returns, annualized_volatility, max_drawdown
 from lazytools.documents import read_docs_tools
 from lazytools.skills import build_skill, skill_tools
 from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
@@ -65,6 +67,7 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 | `connectors/` | `gmail`, `telegram`, `mcp`, `gateway`, `edgar`, `marketdata`, `datahub`, `web`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render` | deterministic memo/report rendering (Markdown/HTML) — "LazyReport" |
+| `lazyquant/` | `returns`, `risk` | shared float return/risk primitives (log/simple returns, vol, drawdown) — one impl across the ecosystem |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
 | `safety/` | `allowlist`, `gates`, `urls` | reusable allow-list, one-shot confirmation gate, and SSRF URL guard |
 | `testing/` | `fake_clients` | in-memory fakes for the connector Protocols |
