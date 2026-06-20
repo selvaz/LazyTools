@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from lazytools.testing.fake_clients import (
+    FakeDataHubBackend,
     FakeEdgarClient,
     FakeGmailService,
     FakeMarketDataAdapter,
@@ -11,6 +12,7 @@ from lazytools.testing.fake_clients import (
 )
 
 __all__ = [
+    "FakeDataHubBackend",
     "FakeEdgarClient",
     "FakeGmailService",
     "FakeMarketDataAdapter",

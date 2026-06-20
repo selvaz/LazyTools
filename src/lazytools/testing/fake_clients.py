@@ -7,6 +7,7 @@ network, consolidating the per-test fakes that previously lived in each suite.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 
@@ -246,3 +247,77 @@ class FakeMarketDataAdapter:
     def history(self, symbol: str, *, range_: str = "1y") -> list[dict[str, str]]:
         self.history_calls.append((symbol, range_))
         return [dict(row) for row in self.rows]
+
+
+class FakeDataHubBackend:
+    """In-memory :class:`~lazytools.connectors.datahub.backend.DataHubBackend`.
+
+    Returns canned JSON strings for every method (echoing the call name and
+    arguments) so :class:`~lazytools.connectors.datahub.tools.DataHubTools` can
+    be exercised with no real ``market_data_hub`` dependency. Every call is
+    recorded in :attr:`calls` as ``(method, kwargs)`` for assertions.
+    """
+
+    def __init__(self, responses: dict[str, Any] | None = None) -> None:
+        # Optional per-method override payloads (any JSON-serialisable object).
+        self.responses = responses or {}
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def _emit(self, method: str, **kwargs: Any) -> str:
+        self.calls.append((method, kwargs))
+        if method in self.responses:
+            payload = self.responses[method]
+        else:
+            payload = {"tool": method, "args": kwargs, "fake": True}
+        return json.dumps(payload, ensure_ascii=False, default=str)
+
+    def list_datasets(self) -> str:
+        return self._emit("list_datasets")
+
+    def list_symbols(self, asset_class: str = "", area: str = "", sector: str = "", group: str = "") -> str:
+        return self._emit("list_symbols", asset_class=asset_class, area=area, sector=sector, group=group)
+
+    def list_sectors(self, area: str = "") -> str:
+        return self._emit("list_sectors", area=area)
+
+    def list_macro(self, frequency: str = "", category: str = "") -> str:
+        return self._emit("list_macro", frequency=frequency, category=category)
+
+    def list_indicators(self, pillar: str = "") -> str:
+        return self._emit("list_indicators", pillar=pillar)
+
+    def list_countries(self, region: str = "", income: str = "") -> str:
+        return self._emit("list_countries", region=region, income=income)
+
+    def describe(self, symbol_or_id: str) -> str:
+        return self._emit("describe", symbol_or_id=symbol_or_id)
+
+    def search(self, query: str) -> str:
+        return self._emit("search", query=query)
+
+    def get_series(
+        self,
+        symbols: str,
+        start: str = "",
+        end: str = "",
+        domain: str = "prices",
+        field: str = "adj_close",
+        transform: str = "level",
+        frequency: str = "",
+    ) -> str:
+        return self._emit(
+            "get_series",
+            symbols=symbols,
+            start=start,
+            end=end,
+            domain=domain,
+            field=field,
+            transform=transform,
+            frequency=frequency,
+        )
+
+    def get_returns(self, symbols: str, start: str = "", end: str = "", frequency: str = "W") -> str:
+        return self._emit("get_returns", symbols=symbols, start=start, end=end, frequency=frequency)
+
+    def get_coverage(self, symbols: str = "") -> str:
+        return self._emit("get_coverage", symbols=symbols)
