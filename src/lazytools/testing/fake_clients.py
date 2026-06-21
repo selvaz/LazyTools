@@ -128,6 +128,19 @@ class FakeTelegramService:
         self.sent.append({"chat_id": chat_id, "text": text})
         return {"message_id": len(self.sent)}
 
+    def send_document(
+        self,
+        *,
+        chat_id: int | str,
+        document: bytes,
+        filename: str = "document",
+        caption: str | None = None,
+    ) -> dict[str, Any]:
+        self.sent.append(
+            {"chat_id": chat_id, "document": document, "filename": filename, "caption": caption}
+        )
+        return {"message_id": len(self.sent)}
+
 
 class FakeEdgarClient:
     """In-memory :class:`~lazytools.connectors.edgar.client.EdgarService`.

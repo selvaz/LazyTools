@@ -18,11 +18,22 @@ Two common setups:
 from __future__ import annotations
 
 import asyncio
+import os
 
 from lazybridge import Tool
 
 from lazytools.connectors.telegram.client import TelegramService
 from lazytools.safety import ActionBlocked, Allowlist, ConfirmationGate, current_scope
+
+#: Telegram Bot API ``sendDocument`` hard limit for uploads.
+_MAX_DOCUMENT_BYTES = 50 * 1024 * 1024
+#: Telegram caption hard limit.
+_MAX_CAPTION_CHARS = 1024
+
+
+def _read_file(path: str) -> bytes:
+    with open(path, "rb") as fh:
+        return fh.read()
 
 
 class TelegramSendBlocked(ActionBlocked):
@@ -71,6 +82,14 @@ class TelegramTools:
                 name="telegram_send_message",
                 description="Send a Telegram message. Requires a one-shot confirmation. Args: chat_id, text.",
             ),
+            Tool.wrap(
+                self._send_document,
+                name="telegram_send_document",
+                description=(
+                    "Send a Telegram document/file attachment (e.g. a rendered report). "
+                    "Requires a one-shot confirmation. Args: chat_id, file_path, caption (optional)."
+                ),
+            ),
         ]
 
     # ------------------------------------------------------------------ #
@@ -86,4 +105,32 @@ class TelegramTools:
         if not self._gate.consume(chat_id, scope=current_scope()):
             raise TelegramSendBlocked("telegram_send_message blocked: no outstanding confirmation for this send")
         result = await asyncio.to_thread(self._client.send_message, chat_id=chat_id, text=text)
+        return f"sent: message_id={result.get('message_id', '<unknown>')}"
+
+    async def _send_document(self, chat_id: int | str, file_path: str, caption: str = "") -> str:
+        # Same two guards as _send_message: allow-list then one-shot grant. The
+        # file read and the blocking Bot API upload are offloaded to threads so
+        # they never stall the tick loop.
+        key = str(chat_id)
+        if not self._allowlist.permits(chat_id):
+            raise TelegramSendBlocked(f"telegram_send_document blocked: chat {key!r} is not in the allow-list")
+        if not self._gate.consume(chat_id, scope=current_scope()):
+            raise TelegramSendBlocked("telegram_send_document blocked: no outstanding confirmation for this send")
+        path = os.fspath(file_path)
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"telegram_send_document: file not found: {path!r}")
+        size = os.path.getsize(path)
+        if size > _MAX_DOCUMENT_BYTES:
+            raise ValueError(
+                f"telegram_send_document: {path!r} is {size} bytes, over Telegram's {_MAX_DOCUMENT_BYTES}-byte limit"
+            )
+        blob = await asyncio.to_thread(_read_file, path)
+        cap = caption[:_MAX_CAPTION_CHARS] if caption else None
+        result = await asyncio.to_thread(
+            self._client.send_document,
+            chat_id=chat_id,
+            document=blob,
+            filename=os.path.basename(path),
+            caption=cap,
+        )
         return f"sent: message_id={result.get('message_id', '<unknown>')}"

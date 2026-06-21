@@ -107,11 +107,19 @@ tools.require_confirmation                            # bool property
 | Tool | Gated? | Args | Returns | Raises |
 |---|---|---|---|---|
 | `telegram_send_message` | **Yes** | `chat_id: int \| str, text: str` | `"sent: message_id=<id>"` | `TelegramSendBlocked` |
+| `telegram_send_document` | **Yes** | `chat_id: int \| str, file_path: str, caption: str = ""` | `"sent: message_id=<id>"` | `TelegramSendBlocked`, `FileNotFoundError`, `ValueError` (>50 MB) |
 
-The send runs two checks in order: (1) `Allowlist.permits(chat_id)` — else
-`TelegramSendBlocked("… chat … not in the allow-list")`; (2)
+Both sends run the same two checks in order: (1) `Allowlist.permits(chat_id)` —
+else `TelegramSendBlocked("… chat … not in the allow-list")`; (2)
 `ConfirmationGate.consume(chat_id, scope=current_scope())` — else
 `TelegramSendBlocked("… no outstanding confirmation …")`.
+
+`telegram_send_document` additionally requires the file to exist and be ≤50 MB
+(the Bot API `sendDocument` limit); the file is read and uploaded off the event
+loop (`asyncio.to_thread`), and `caption` is truncated to 1024 chars. It needs a
+client implementing `send_document` (the production `TelegramClient` does);
+pair it with `report.ReportFiles.save_report` to deliver rendered reports as
+attachments.
 
 ## When to use it
 
