@@ -39,7 +39,7 @@ def test_refuses_symlink_escape(tmp_path: Path) -> None:
     target = tmp_path / "outside.md"
     (base / "r.md").symlink_to(target)  # pre-existing symlink escaping the sandbox
     files = ReportFiles(base_dir=base)
-    with pytest.raises(ValueError, match="symlink|sandbox"):
+    with pytest.raises(ValueError, match=r"symlink|sandbox"):
         files._save_report("r.md", "pwned")
     assert not target.exists()
 
