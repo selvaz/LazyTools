@@ -24,6 +24,9 @@ class TelegramService(Protocol):
 
     def get_updates(self, *, offset: int, timeout: int = 0, limit: int = 100) -> list[dict[str, Any]]: ...
     def send_message(self, *, chat_id: int | str, text: str) -> dict[str, Any]: ...
+    def send_document(
+        self, *, chat_id: int | str, document: bytes, filename: str = "document", caption: str | None = None
+    ) -> dict[str, Any]: ...
 
 
 class TelegramClient:
@@ -84,6 +87,21 @@ class TelegramClient:
             raise RuntimeError(f"Telegram API error on {method}: {self._redact(str(data.get('description', data)))}")
         return data.get("result")
 
+    def _call_multipart(self, method: str, data: dict[str, Any], files: dict[str, Any]) -> Any:
+        """Like :meth:`_call` but for a ``multipart/form-data`` upload
+        (``sendDocument``). Same token-redaction-on-error contract."""
+        if self._http is None:
+            raise RuntimeError("TelegramClient has no HTTP client; use from_token() or inject http=")
+        try:
+            resp = self._http.post(f"{self._base}/{method}", data=data, files=files)
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception as exc:
+            raise RuntimeError(f"Telegram API call {method!r} failed: {self._redact(str(exc))}") from None
+        if not payload.get("ok", False):
+            raise RuntimeError(f"Telegram API error on {method}: {self._redact(str(payload.get('description', payload)))}")
+        return payload.get("result")
+
     # ------------------------------------------------------------------ #
     # TelegramService
     # ------------------------------------------------------------------ #
@@ -93,3 +111,22 @@ class TelegramClient:
 
     def send_message(self, *, chat_id: int | str, text: str) -> dict[str, Any]:
         return dict(self._call("sendMessage", {"chat_id": chat_id, "text": text}) or {})
+
+    def send_document(
+        self,
+        *,
+        chat_id: int | str,
+        document: bytes,
+        filename: str = "document",
+        caption: str | None = None,
+    ) -> dict[str, Any]:
+        """Upload ``document`` (raw bytes) to ``chat_id`` via ``sendDocument``.
+
+        ``filename`` is the name shown in Telegram; ``caption`` is optional
+        (≤1024 chars, enforced by the caller). Returns the Bot API ``result``.
+        """
+        data: dict[str, Any] = {"chat_id": chat_id}
+        if caption:
+            data["caption"] = caption
+        files = {"document": (filename, document)}
+        return dict(self._call_multipart("sendDocument", data, files) or {})

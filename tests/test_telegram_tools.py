@@ -15,7 +15,7 @@ def test_provider_is_tool_provider() -> None:
 
 def test_as_tools_exposes_send() -> None:
     by_name = {t.name for t in TelegramTools(FakeTelegramService()).as_tools()}
-    assert by_name == {"telegram_send_message"}
+    assert by_name == {"telegram_send_message", "telegram_send_document"}
 
 
 def test_send_blocked_is_action_blocked() -> None:
@@ -95,6 +95,76 @@ async def test_scope_bound_grant_not_stolen_by_concurrent_scope() -> None:
     finally:
         active_scope.reset(token)
     assert len(svc.sent) == 1
+
+
+# ------------------------------------------------------------------ #
+# telegram_send_document (attachment) — same guards as the text send
+# ------------------------------------------------------------------ #
+
+
+async def test_send_document_blocked_without_confirmation(tmp_path) -> None:
+    f = tmp_path / "r.md"
+    f.write_text("# report", encoding="utf-8")
+    svc = FakeTelegramService()
+    with pytest.raises(TelegramSendBlocked, match="no outstanding confirmation"):
+        await TelegramTools(svc)._send_document(chat_id=42, file_path=str(f))
+    assert svc.sent == []
+
+
+async def test_send_document_uploads_after_confirm(tmp_path) -> None:
+    f = tmp_path / "report.md"
+    f.write_text("# hello", encoding="utf-8")
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, allowed_chat_ids=[42], require_confirmation=False)
+    out = await tools._send_document(chat_id=42, file_path=str(f), caption="ciao")
+    assert "message_id=" in out
+    assert len(svc.sent) == 1
+    sent = svc.sent[0]
+    assert sent["chat_id"] == 42
+    assert sent["filename"] == "report.md"
+    assert sent["document"] == b"# hello"
+    assert sent["caption"] == "ciao"
+
+
+async def test_send_document_allow_list_enforced(tmp_path) -> None:
+    f = tmp_path / "r.md"
+    f.write_text("x", encoding="utf-8")
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, allowed_chat_ids=[42], require_confirmation=False)
+    with pytest.raises(TelegramSendBlocked, match="allow-list"):
+        await tools._send_document(chat_id=99, file_path=str(f))
+    assert svc.sent == []
+
+
+async def test_send_document_sandbox_allows_inside(tmp_path) -> None:
+    d = tmp_path / "reports"
+    d.mkdir()
+    f = d / "r.md"
+    f.write_text("x", encoding="utf-8")
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, allowed_chat_ids=[42], require_confirmation=False, attachments_dir=str(d))
+    await tools._send_document(chat_id=42, file_path=str(f))
+    assert len(svc.sent) == 1
+
+
+async def test_send_document_sandbox_blocks_outside(tmp_path) -> None:
+    d = tmp_path / "reports"
+    d.mkdir()
+    outside = tmp_path / "secret.txt"
+    outside.write_text("s", encoding="utf-8")
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, allowed_chat_ids=[42], require_confirmation=False, attachments_dir=str(d))
+    with pytest.raises(TelegramSendBlocked, match="attachments directory"):
+        await tools._send_document(chat_id=42, file_path=str(outside))
+    assert svc.sent == []
+
+
+async def test_send_document_missing_file_raises(tmp_path) -> None:
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, require_confirmation=False)
+    with pytest.raises(FileNotFoundError):
+        await tools._send_document(chat_id=42, file_path=str(tmp_path / "nope.md"))
+    assert svc.sent == []
 
 
 # ------------------------------------------------------------------ #

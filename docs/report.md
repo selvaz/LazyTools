@@ -2,8 +2,11 @@
 
 Deterministic, domain-agnostic memo rendering. `lazytools.report` ships
 pydantic models (`Memo` / `Section` / `TableBlock`), two pure-function
-renderers (`render_markdown`, `render_html`), and a `ToolProvider`
-(`ReportTools`) exposing `render_memo` and `render_memo_html`.
+renderers (`render_markdown`, `render_html`), a `ToolProvider` (`ReportTools`)
+exposing `render_memo` and `render_memo_html`, and a file-writing
+`ToolProvider` (`ReportFiles`) exposing `save_report` — materialise a rendered
+report to disk so it can then be sent as an attachment (e.g. with the Telegram
+connector's `telegram_send_document`).
 
 The split of responsibilities is deliberate: **an LLM writes the prose** (the
 section bodies); **the layout is deterministic** — the same memo always
@@ -75,7 +78,28 @@ agent = Agent("claude-opus-4-8", tools=[ReportTools()])
 
 ## Tools it exposes
 
+`ReportTools` (rendering):
+
 | Tool | Gated? | Args | Returns |
 |---|---|---|---|
 | `render_memo` | No | `memo` (Memo-shaped JSON object) | Markdown string |
 | `render_memo_html` | No | `memo` (Memo-shaped JSON object) | HTML string |
+
+`ReportFiles(base_dir="reports")` (persistence):
+
+| Tool | Gated? | Args | Returns |
+|---|---|---|---|
+| `save_report` | No | `filename` (basename — any directory part is ignored), `content` (full text) | absolute path of the written file |
+
+`save_report` reduces `filename` to its basename and strips unsafe characters
+(no path traversal); the extension must be one of
+`md/markdown/html/htm/csv/txt/json` or `.md` is appended. Files are written
+under `base_dir` (created on first write). Typical flow: `render_memo` →
+`save_report` → `telegram_send_document`.
+
+```python
+from lazybridge import Agent
+from lazytools.report import ReportTools, ReportFiles
+
+agent = Agent("claude-opus-4-8", tools=[ReportTools(), ReportFiles(base_dir="/data/reports")])
+```
