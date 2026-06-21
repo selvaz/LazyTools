@@ -136,6 +136,29 @@ async def test_send_document_allow_list_enforced(tmp_path) -> None:
     assert svc.sent == []
 
 
+async def test_send_document_sandbox_allows_inside(tmp_path) -> None:
+    d = tmp_path / "reports"
+    d.mkdir()
+    f = d / "r.md"
+    f.write_text("x", encoding="utf-8")
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, allowed_chat_ids=[42], require_confirmation=False, attachments_dir=str(d))
+    await tools._send_document(chat_id=42, file_path=str(f))
+    assert len(svc.sent) == 1
+
+
+async def test_send_document_sandbox_blocks_outside(tmp_path) -> None:
+    d = tmp_path / "reports"
+    d.mkdir()
+    outside = tmp_path / "secret.txt"
+    outside.write_text("s", encoding="utf-8")
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, allowed_chat_ids=[42], require_confirmation=False, attachments_dir=str(d))
+    with pytest.raises(TelegramSendBlocked, match="attachments directory"):
+        await tools._send_document(chat_id=42, file_path=str(outside))
+    assert svc.sent == []
+
+
 async def test_send_document_missing_file_raises(tmp_path) -> None:
     svc = FakeTelegramService()
     tools = TelegramTools(svc, require_confirmation=False)

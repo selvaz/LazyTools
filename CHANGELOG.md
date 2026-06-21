@@ -16,13 +16,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   exposes `telegram_send_document(chat_id, file_path, caption)` behind the
   **identical Allowlist + one-shot `ConfirmationGate`** as `telegram_send_message`.
   Enforces the 50 MB Bot API limit, truncates captions to 1024 chars, and reads
-  the file + uploads off the event loop (`asyncio.to_thread`).
+  the file + uploads off the event loop (`asyncio.to_thread`). Because
+  `file_path` is typically model-controlled, `TelegramTools(attachments_dir=…)`
+  confines uploads to a directory (symlinks resolved) — set it whenever the tool
+  is exposed to an LLM so an agent can't attach arbitrary host files.
 - **`lazytools.report.ReportFiles`** — a `ToolProvider` exposing `save_report`
   (filename, content) → writes the report to a file under a sandboxed `base_dir`
   and returns the absolute path. Filenames are reduced to their basename and
   hardened (no path traversal); the extension must be one of
-  `md/markdown/html/htm/csv/txt/json` (else `.md` is appended). Pairs with
-  `render_memo` and `telegram_send_document` to render → persist → attach.
+  `md/markdown/html/htm/csv/txt/json` (else `.md` is appended). Refuses to write
+  through a pre-existing symlink or any path that resolves outside `base_dir`.
+  Pairs with `render_memo` and `telegram_send_document` to render → persist → attach.
 
 ### Added — local Outlook desktop connector
 - **`lazytools.connectors.outlook`** — a `GmailClient`/`GmailTools` mirror

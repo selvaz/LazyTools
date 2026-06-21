@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from lazytools.report import ReportFiles
 
 
@@ -29,6 +31,17 @@ def test_traversal_is_reduced_to_basename(tmp_path: Path) -> None:
     path = Path(files._save_report("../../etc/passwd.md", "x"))
     assert path.parent == (tmp_path / "out").resolve()
     assert path.name == "passwd.md"
+
+
+def test_refuses_symlink_escape(tmp_path: Path) -> None:
+    base = tmp_path / "reports"
+    base.mkdir()
+    target = tmp_path / "outside.md"
+    (base / "r.md").symlink_to(target)  # pre-existing symlink escaping the sandbox
+    files = ReportFiles(base_dir=base)
+    with pytest.raises(ValueError, match="symlink|sandbox"):
+        files._save_report("r.md", "pwned")
+    assert not target.exists()
 
 
 def test_disallowed_extension_gets_md(tmp_path: Path) -> None:

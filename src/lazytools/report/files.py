@@ -64,7 +64,14 @@ class ReportFiles:
 
     def _save_report(self, filename: str, content: str) -> str:
         name = self._safe_name(filename)
-        self._base.mkdir(parents=True, exist_ok=True)
-        path = (self._base / name).resolve()
+        base = self._base.resolve()
+        base.mkdir(parents=True, exist_ok=True)
+        path = base / name
+        # Defence in depth: ``name`` is already a basename, but the target may
+        # be a pre-existing symlink pointing outside ``base`` — writing through
+        # it would escape the sandbox. Refuse symlinks and any path that does
+        # not resolve to a direct child of ``base``.
+        if path.is_symlink() or path.resolve().parent != base:
+            raise ValueError(f"save_report: refusing to write through a symlink or out-of-sandbox path: {name!r}")
         path.write_text(content, encoding="utf-8")
         return str(path)

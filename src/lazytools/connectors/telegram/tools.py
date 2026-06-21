@@ -51,10 +51,18 @@ class TelegramTools:
         *,
         allowed_chat_ids: list[int | str] | None = None,
         require_confirmation: bool = True,
+        attachments_dir: str | os.PathLike[str] | None = None,
     ) -> None:
         self._client = client
         self._allowlist = Allowlist(allowed_chat_ids)
         self._gate = ConfirmationGate(enabled=require_confirmation)
+        # When set, ``telegram_send_document`` may only upload files resolving
+        # *under* this directory. ``file_path`` is typically model-controlled,
+        # so confining it stops an agent from exfiltrating arbitrary host files.
+        # ``None`` permits any path (trusted-caller mode) — mirrors how
+        # ``allowed_chat_ids=None`` permits any chat. Set it whenever the tool
+        # is exposed to an LLM (e.g. to the directory ``save_report`` writes to).
+        self._attachments_dir = os.path.realpath(os.fspath(attachments_dir)) if attachments_dir is not None else None
 
     @property
     def require_confirmation(self) -> bool:
@@ -110,20 +118,26 @@ class TelegramTools:
     async def _send_document(self, chat_id: int | str, file_path: str, caption: str = "") -> str:
         # Same two guards as _send_message: allow-list then one-shot grant. The
         # file read and the blocking Bot API upload are offloaded to threads so
-        # they never stall the tick loop.
+        # they never stall the tick loop. Path/sandbox/size are validated BEFORE
+        # consuming the grant, so a rejected send never burns an approval.
         key = str(chat_id)
         if not self._allowlist.permits(chat_id):
             raise TelegramSendBlocked(f"telegram_send_document blocked: chat {key!r} is not in the allow-list")
-        if not self._gate.consume(chat_id, scope=current_scope()):
-            raise TelegramSendBlocked("telegram_send_document blocked: no outstanding confirmation for this send")
-        path = os.fspath(file_path)
+        # Resolve symlinks so the sandbox check can't be bypassed via a link.
+        path = os.path.realpath(os.fspath(file_path))
+        if self._attachments_dir is not None and os.path.commonpath([self._attachments_dir, path]) != self._attachments_dir:
+            raise TelegramSendBlocked(
+                f"telegram_send_document blocked: {file_path!r} is outside the allowed attachments directory"
+            )
         if not os.path.isfile(path):
-            raise FileNotFoundError(f"telegram_send_document: file not found: {path!r}")
+            raise FileNotFoundError(f"telegram_send_document: file not found: {file_path!r}")
         size = os.path.getsize(path)
         if size > _MAX_DOCUMENT_BYTES:
             raise ValueError(
-                f"telegram_send_document: {path!r} is {size} bytes, over Telegram's {_MAX_DOCUMENT_BYTES}-byte limit"
+                f"telegram_send_document: {file_path!r} is {size} bytes, over Telegram's {_MAX_DOCUMENT_BYTES}-byte limit"
             )
+        if not self._gate.consume(chat_id, scope=current_scope()):
+            raise TelegramSendBlocked("telegram_send_document blocked: no outstanding confirmation for this send")
         blob = await asyncio.to_thread(_read_file, path)
         cap = caption[:_MAX_CAPTION_CHARS] if caption else None
         result = await asyncio.to_thread(

@@ -121,6 +121,14 @@ client implementing `send_document` (the production `TelegramClient` does);
 pair it with `report.ReportFiles.save_report` to deliver rendered reports as
 attachments.
 
+!!! warning "Confine uploads when exposing the tool to an LLM"
+    `file_path` is usually model-controlled, and only `chat_id` is allow-listed
+    / confirmed — so by default an agent could attach **any readable host
+    file**. Pass `TelegramTools(attachments_dir="/path/to/reports")` to restrict
+    uploads to files resolving under that directory (symlinks resolved before
+    the check). Point it at the directory `save_report` writes to. `None`
+    (default) permits any path — trusted-caller mode only.
+
 ## When to use it
 
 - **A personal or ops bot** that pushes notifications/answers to a known chat.
