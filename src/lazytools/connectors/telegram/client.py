@@ -24,6 +24,9 @@ class TelegramService(Protocol):
 
     def get_updates(self, *, offset: int, timeout: int = 0, limit: int = 100) -> list[dict[str, Any]]: ...
     def send_message(self, *, chat_id: int | str, text: str) -> dict[str, Any]: ...
+    def send_document(
+        self, *, chat_id: int | str, document: bytes, filename: str = "document", caption: str | None = None
+    ) -> dict[str, Any]: ...
 
 
 class TelegramClient:
