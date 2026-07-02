@@ -37,14 +37,19 @@ def split_message(text: str, *, limit: int = MAX_MESSAGE_CHARS) -> list[str]:
     while len(text) > limit:
         window = text[:limit]
         cut = -1
+        sep_len = 0
         for sep in ("\n\n", "\n", " "):
             cut = window.rfind(sep)
             if cut > 0:
+                sep_len = len(sep)
                 break
         if cut <= 0:
-            cut = limit  # no natural break — hard cut
-        chunks.append(text[:cut].rstrip())
-        text = text[cut:].lstrip()
+            cut, sep_len = limit, 0  # no natural break — hard cut
+        # Drop exactly the separator, nothing more: stripping further would
+        # eat significant whitespace (e.g. the indentation of a code block
+        # that happens to start the next chunk) and alter the relayed text.
+        chunks.append(text[:cut])
+        text = text[cut + sep_len :]
     if text:
         chunks.append(text)
     return chunks

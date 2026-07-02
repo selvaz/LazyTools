@@ -278,3 +278,14 @@ async def test_send_message_chunks_long_text() -> None:
     assert [len(s["text"]) for s in svc.sent] == [3000, 3000]
     assert all(s["chat_id"] == 42 for s in svc.sent)
     assert out == "sent: message_id=1,2"
+
+
+def test_split_message_preserves_indentation_across_chunks() -> None:
+    # Splitting must drop exactly the separator: indentation that starts the
+    # next chunk (e.g. a code block after a paragraph) is significant.
+    from lazytools.connectors.telegram import split_message
+
+    para = "p" * 4090
+    code = "    indented code line\n    second line"
+    chunks = split_message(f"{para}\n\n{code}")
+    assert chunks == [para, code]
