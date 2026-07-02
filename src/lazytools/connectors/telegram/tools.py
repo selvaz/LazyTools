@@ -22,7 +22,7 @@ import os
 
 from lazybridge import Tool
 
-from lazytools.connectors.telegram.client import TelegramService
+from lazytools.connectors.telegram.client import TelegramService, split_message
 from lazytools.safety import ActionBlocked, Allowlist, ConfirmationGate, current_scope
 
 #: Telegram Bot API ``sendDocument`` hard limit for uploads.
@@ -112,8 +112,13 @@ class TelegramTools:
             raise TelegramSendBlocked(f"telegram_send_message blocked: chat {key!r} is not in the allow-list")
         if not self._gate.consume(chat_id, scope=current_scope()):
             raise TelegramSendBlocked("telegram_send_message blocked: no outstanding confirmation for this send")
-        result = await asyncio.to_thread(self._client.send_message, chat_id=chat_id, text=text)
-        return f"sent: message_id={result.get('message_id', '<unknown>')}"
+        # One grant covers one logical message; text over the Bot API's 4096-
+        # char limit is chunked (the API rejects oversized payloads outright).
+        message_ids = []
+        for chunk in split_message(text):
+            result = await asyncio.to_thread(self._client.send_message, chat_id=chat_id, text=chunk)
+            message_ids.append(str(result.get("message_id", "<unknown>")))
+        return f"sent: message_id={','.join(message_ids) if message_ids else '<empty>'}"
 
     async def _send_document(self, chat_id: int | str, file_path: str, caption: str = "") -> str:
         # Same two guards as _send_message: allow-list then one-shot grant. The

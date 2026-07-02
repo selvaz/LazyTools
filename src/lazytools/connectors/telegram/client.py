@@ -18,6 +18,37 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+#: Telegram Bot API hard limit on ``sendMessage`` text length.
+MAX_MESSAGE_CHARS = 4096
+
+
+def split_message(text: str, *, limit: int = MAX_MESSAGE_CHARS) -> list[str]:
+    """Split ``text`` into chunks the Bot API will accept (each ≤ ``limit``).
+
+    Telegram rejects ``sendMessage`` payloads over 4096 characters outright,
+    so any caller relaying model output must chunk. Splits prefer paragraph
+    breaks, then line breaks, then spaces, and hard-cut only as a last resort,
+    so chunks stay readable. Returns ``[]`` for empty text.
+    """
+    text = text.strip()
+    if not text:
+        return []
+    chunks: list[str] = []
+    while len(text) > limit:
+        window = text[:limit]
+        cut = -1
+        for sep in ("\n\n", "\n", " "):
+            cut = window.rfind(sep)
+            if cut > 0:
+                break
+        if cut <= 0:
+            cut = limit  # no natural break — hard cut
+        chunks.append(text[:cut].rstrip())
+        text = text[cut:].lstrip()
+    if text:
+        chunks.append(text)
+    return chunks
+
 
 class TelegramService(Protocol):
     """The subset of a Telegram Bot API client that LazyPulse uses."""

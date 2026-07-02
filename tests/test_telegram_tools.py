@@ -231,3 +231,50 @@ def test_client_close_closes_injected_http() -> None:
     with TelegramClient("tok", http=http):
         pass
     assert http.closed is True
+
+
+# --- split_message (4096-char Bot API limit) ---------------------------- #
+
+
+def test_split_message_short_text_single_chunk() -> None:
+    from lazytools.connectors.telegram import split_message
+
+    assert split_message("hello") == ["hello"]
+    assert split_message("x" * 4096) == ["x" * 4096]
+    assert split_message("   ") == []
+
+
+def test_split_message_prefers_natural_breaks() -> None:
+    from lazytools.connectors.telegram import split_message
+
+    para_a = "a" * 3000
+    para_b = "b" * 3000
+    chunks = split_message(f"{para_a}\n\n{para_b}")
+    assert chunks == [para_a, para_b]
+
+
+def test_split_message_hard_cuts_unbreakable_text() -> None:
+    from lazytools.connectors.telegram import split_message
+
+    chunks = split_message("y" * 9000)
+    assert [len(c) for c in chunks] == [4096, 4096, 808]
+    assert "".join(chunks) == "y" * 9000
+
+
+def test_split_message_never_exceeds_limit_and_loses_nothing() -> None:
+    from lazytools.connectors.telegram import split_message
+
+    text = "\n".join(f"line {i} " + "z" * (i % 200) for i in range(300))
+    chunks = split_message(text)
+    assert all(len(c) <= 4096 for c in chunks)
+    # Nothing but whitespace at the split points is lost.
+    assert "".join(c.replace("\n", "").replace(" ", "") for c in chunks) == text.replace("\n", "").replace(" ", "")
+
+
+async def test_send_message_chunks_long_text() -> None:
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, require_confirmation=False)
+    out = await tools._send_message(chat_id=42, text="a" * 3000 + "\n\n" + "b" * 3000)
+    assert [len(s["text"]) for s in svc.sent] == [3000, 3000]
+    assert all(s["chat_id"] == 42 for s in svc.sent)
+    assert out == "sent: message_id=1,2"
