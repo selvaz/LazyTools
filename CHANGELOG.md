@@ -8,6 +8,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — Telegram 4096-char message chunking (0.3.1)
+- **`split_message` / `MAX_MESSAGE_CHARS`** in
+  `lazytools.connectors.telegram`: splits text into Bot-API-acceptable
+  chunks (≤4096 chars), preferring paragraph → line → space breaks and
+  hard-cutting only as a last resort.
+- **`telegram_send_message` now chunks long text** instead of failing: the
+  Bot API rejects `sendMessage` payloads over 4096 characters outright, so
+  a long model answer previously errored the whole send. One confirmation
+  grant still covers the one logical message (all its chunks). The tool's
+  return value lists every sent `message_id`, comma-separated.
+
 ### Added — Telegram document attachments + report file output
 - **`telegram_send_document`** — the Telegram connector can now send file
   attachments, not just text. `TelegramClient.send_document(chat_id, document,
