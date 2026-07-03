@@ -42,6 +42,7 @@ class DataHubBackend(Protocol):
     ) -> str: ...
     def get_returns(self, symbols: str, start: str = "", end: str = "", frequency: str = "W") -> str: ...
     def get_coverage(self, symbols: str = "") -> str: ...
+    def refresh_prices(self, symbols: str, start: str = "2010-01-01") -> str: ...
 
 
 class MarketDataHubBackend:
@@ -58,9 +59,9 @@ class MarketDataHubBackend:
             from market_data_hub import agent_tools
         except ImportError as exc:  # pragma: no cover - exercised only without the extra
             raise ImportError(
-                "MarketDataHubBackend requires market-data-hub. "
-                "Install it with: pip install market-data-hub "
-                "(or: pip install 'lazytoolkit[datahub]')."
+                "MarketDataHubBackend requires market-data-hub (a private, "
+                "git-installed package): pip install "
+                "'market-data-hub @ git+https://github.com/selvaz/market-data-hub.git'"
             ) from exc
         self._mdh: Any = agent_tools
 
@@ -107,3 +108,6 @@ class MarketDataHubBackend:
 
     def get_coverage(self, symbols: str = "") -> str:
         return self._mdh.tool_get_coverage(symbols)
+
+    def refresh_prices(self, symbols: str, start: str = "2010-01-01") -> str:
+        return self._mdh.tool_refresh_prices(symbols, start=start)

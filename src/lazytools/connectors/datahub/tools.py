@@ -20,12 +20,20 @@ from lazytools.connectors.datahub.backend import DataHubBackend
 
 
 class DataHubTools:
-    """A ``ToolProvider`` exposing market-data-hub's tools, prefixed ``datahub_``."""
+    """A ``ToolProvider`` exposing market-data-hub's tools, prefixed ``datahub_``.
+
+    The surface is **read-only by default** (the hub's data is kept fresh by a
+    separate downloader). Pass ``allow_refresh=True`` to additionally expose
+    the write tool ``datahub_refresh_prices`` so an agent can download and
+    persist missing price series on demand.
+    """
 
     _is_lazy_tool_provider = True
 
-    def __init__(self, backend: DataHubBackend | None = None) -> None:
+    def __init__(self, backend: DataHubBackend | None = None, *,
+                 allow_refresh: bool = False) -> None:
         self._backend = backend
+        self._allow_refresh = allow_refresh
 
     # ------------------------------------------------------------------ #
     # Backend resolution (lazy: never import market_data_hub until used)
@@ -141,7 +149,24 @@ class DataHubTools:
                     "symbols (comma-separated string, optional)."
                 ),
             ),
-        ]
+        ] + (
+            [
+                Tool.wrap(
+                    self._refresh_prices,
+                    name="datahub_refresh_prices",
+                    description=(
+                        "WRITE tool: download price series from Yahoo and persist them into "
+                        "the hub DB, then rebuild coverage. Use only when the hub has no (or "
+                        "insufficient) data for a symbol; afterwards datahub_get_series / "
+                        "datahub_get_returns will see it. Args: symbols (comma-separated, "
+                        "e.g. 'SPY,QQQ'); start (history start date 'YYYY-MM-DD', default "
+                        "2010-01-01). Not concurrency-safe: serialise calls."
+                    ),
+                )
+            ]
+            if self._allow_refresh
+            else []
+        )
 
     # ------------------------------------------------------------------ #
     # Tool implementations (each returns the backend's JSON string verbatim)
@@ -189,3 +214,6 @@ class DataHubTools:
 
     def _get_coverage(self, symbols: str = "") -> str:
         return self._resolve().get_coverage(symbols)
+
+    def _refresh_prices(self, symbols: str, start: str = "2010-01-01") -> str:
+        return self._resolve().refresh_prices(symbols, start=start)

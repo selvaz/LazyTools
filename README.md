@@ -25,7 +25,8 @@ pip install 'lazytoolkit[mcp]'          # Model Context Protocol connector
 pip install 'lazytoolkit[docs]'         # PDF/DOCX/HTML document reading
 pip install 'lazytoolkit[edgar]'        # SEC EDGAR filings + XBRL facts
 pip install 'lazytoolkit[marketdata]'   # free stock quotes/history (stooq)
-pip install 'lazytoolkit[datahub]'      # market-data-hub discovery + extraction
+# datahub connector: install the private hub directly (no PyPI extra):
+#   pip install 'market-data-hub @ git+https://github.com/selvaz/market-data-hub.git'
 pip install 'lazytoolkit[web]'          # LazyCrawler search/crawl as LLM tools
 # lazytools.report needs no extra      # deterministic memo rendering
 ```
@@ -109,14 +110,17 @@ a deterministic way to write it up:
   tools = MarketDataTools(client)   # prices_get / prices_history
   ```
 
-- **market-data-hub** (`lazytools.connectors.datahub`, extra `[datahub]`) — a
-  thin `ToolProvider` over the official market-data-hub `tool_*` surface,
-  exposing 11 `datahub_*` discovery + extraction tools (`datahub_list_datasets`,
-  `datahub_list_symbols`, `datahub_search`, `datahub_describe`,
-  `datahub_get_series`, `datahub_get_returns`, `datahub_get_coverage`, …). The
+- **market-data-hub** (`lazytools.connectors.datahub`) — a thin `ToolProvider`
+  over the official market-data-hub `tool_*` surface, exposing 11 `datahub_*`
+  discovery + extraction tools (`datahub_list_datasets`, `datahub_list_symbols`,
+  `datahub_search`, `datahub_describe`, `datahub_get_series`,
+  `datahub_get_returns`, `datahub_get_coverage`, …) plus an opt-in write tool
+  (`DataHubTools(allow_refresh=True)` adds `datahub_refresh_prices`). The
   `MarketDataHubBackend` lazily imports `market_data_hub.agent_tools`, so the
-  provider and protocol import without the extra and a `FakeDataHubBackend`
-  (`lazytools.testing`) drives tests offline.
+  provider and protocol import without market-data-hub installed and a
+  `FakeDataHubBackend` (`lazytools.testing`) drives tests offline. There is no
+  PyPI extra: market-data-hub is private, install it from git
+  (`market-data-hub @ git+https://github.com/selvaz/market-data-hub.git`).
 
   ```python
   from lazytools.connectors.datahub import DataHubTools
