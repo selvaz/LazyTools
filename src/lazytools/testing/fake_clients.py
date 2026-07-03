@@ -334,3 +334,6 @@ class FakeDataHubBackend:
 
     def get_coverage(self, symbols: str = "") -> str:
         return self._emit("get_coverage", symbols=symbols)
+
+    def refresh_prices(self, symbols: str, start: str = "2010-01-01") -> str:
+        return self._emit("refresh_prices", symbols=symbols, start=start)

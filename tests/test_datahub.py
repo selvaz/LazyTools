@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from lazytools.connectors.datahub import DataHubTools
 from lazytools.testing import FakeDataHubBackend
 
@@ -82,3 +84,56 @@ def test_default_backend_is_lazy_and_unused_without_calls() -> None:
     provider = DataHubTools()
     names = {t.name for t in provider.as_tools()}
     assert names == EXPECTED_NAMES
+
+
+def test_refresh_tool_hidden_by_default_and_gated() -> None:
+    backend = FakeDataHubBackend()
+    _, by_name = _tools(backend)
+    assert "datahub_refresh_prices" not in by_name
+
+    provider = DataHubTools(backend, allow_refresh=True)
+    by_name = {t.name: t for t in provider.as_tools()}
+    assert "datahub_refresh_prices" in by_name
+    out = json.loads(by_name["datahub_refresh_prices"].run_sync(symbols="SPY,QQQ"))
+    assert out["tool"] == "refresh_prices"
+    assert out["args"] == {"symbols": "SPY,QQQ", "start": "2010-01-01"}
+
+
+# --------------------------------------------------------------------------- #
+# Contract tests against the real market_data_hub (skipped when not installed)
+# --------------------------------------------------------------------------- #
+def test_backend_protocol_matches_mdh_tool_signatures() -> None:
+    """Every DataHubBackend method must mirror the matching ``tool_*`` signature
+    in market_data_hub.agent_tools — this is the drift guard between the two
+    repos (the Protocol is otherwise hand-maintained)."""
+    import inspect
+
+    mdh_tools = pytest.importorskip("market_data_hub.agent_tools")
+    from lazytools.connectors.datahub.backend import DataHubBackend
+
+    methods = [
+        name
+        for name, fn in vars(DataHubBackend).items()
+        if not name.startswith("_") and callable(fn)
+    ]
+    assert methods, "Protocol unexpectedly empty"
+    for name in methods:
+        mdh_fn = getattr(mdh_tools, f"tool_{name}")
+        proto_params = list(inspect.signature(getattr(DataHubBackend, name)).parameters.values())[1:]  # drop self
+        mdh_params = list(inspect.signature(mdh_fn).parameters.values())
+        assert [(p.name, p.default) for p in proto_params] == [
+            (p.name, p.default) for p in mdh_params
+        ], f"signature drift on {name!r}"
+
+
+def test_real_backend_end_to_end(tmp_path, monkeypatch) -> None:
+    """MarketDataHubBackend forwards to the real tool_* functions (fresh DB)."""
+    pytest.importorskip("market_data_hub")
+    monkeypatch.setenv("MARKET_DATA_DB", str(tmp_path / "hub.duckdb"))
+    from lazytools.connectors.datahub.backend import MarketDataHubBackend
+
+    backend = MarketDataHubBackend()
+    datasets = json.loads(backend.list_datasets())
+    assert isinstance(datasets, list) and datasets
+    coverage = json.loads(backend.get_coverage())
+    assert coverage == []  # fresh DB: no series yet, but the call round-trips

@@ -16,7 +16,7 @@ Treat each as its own mini-repository.
 | **External tool gateway** | Adapt a remote JSON-HTTP tool registry (Composio / Pipedream / Arcade / internal) into LazyBridge tools. | `pip install lazytoolkit` | [Gateway](gateway.md) |
 | **SEC EDGAR** | Official, free SEC filings + XBRL company facts: resolve companies, list/fetch filings (`content_is_untrusted`), raw facts JSON. | `pip install 'lazytoolkit[edgar]'` | [SEC EDGAR](edgar.md) |
 | **Market data** | Stock quotes & OHLCV history via swappable adapters (free stooq backend first); prices as Decimal-safe strings. | `pip install 'lazytoolkit[marketdata]'` | [Market data](marketdata.md) |
-| **market-data-hub** | Discovery + extraction over the official market-data-hub: 11 `datahub_*` tools (list/search/describe domains, pull analysis-ready series, returns & coverage). | `pip install 'lazytoolkit[datahub]'` | — |
+| **market-data-hub** | Discovery + extraction over the official market-data-hub: 11 read-only `datahub_*` tools (list/search/describe domains, pull analysis-ready series, returns & coverage) + opt-in `datahub_refresh_prices` write tool (`allow_refresh=True`). | `pip install 'market-data-hub @ git+...'` (private, git-only) | — |
 | **Web** | LazyCrawler's search/crawl/get-page surfaced as LLM tools (interface only — the crawler engine stays standalone). | `pip install 'lazytoolkit[web]'` | — |
 | **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `pip install 'lazytoolkit[docs]'` | [Documents](documents.md) |
 | **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | `pip install lazytoolkit` | [Skills](skills.md) |
@@ -122,7 +122,9 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     from lazybridge import Agent
     from lazytools.connectors.datahub import DataHubTools
 
-    # 11 datahub_* tools; MarketDataHubBackend imports market_data_hub lazily.
+    # 11 read-only datahub_* tools; MarketDataHubBackend imports
+    # market_data_hub lazily (private package, installed from git).
+    # DataHubTools(allow_refresh=True) adds the datahub_refresh_prices write tool.
     agent = Agent("claude-opus-4-8", tools=[DataHubTools()])
     ```
 

@@ -8,6 +8,25 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — datahub connector: opt-in `datahub_refresh_prices` write tool
+- **`DataHubTools(allow_refresh=True)`** now exposes market-data-hub's
+  `tool_refresh_prices` as the write tool `datahub_refresh_prices` (download
+  prices from Yahoo, persist into the hub DB, rebuild coverage). The surface
+  stays read-only by default. This restores full parity with the (now removed)
+  ToolProvider that market-data-hub used to ship — this connector is the one
+  LazyBridge binding for the hub.
+- **Contract tests against the real hub** (skip when it is not installed): a
+  signature-parity guard between the `DataHubBackend` Protocol and
+  `market_data_hub.agent_tools.tool_*` (the drift the hand-mirrored Protocol
+  could not detect), plus an end-to-end call through `MarketDataHubBackend`.
+
+### Removed — `datahub` PyPI extra (dependency-confusion hardening)
+- Dropped `lazytoolkit[datahub]`: market-data-hub is a private, git-installed
+  package, so the bare PyPI name could never resolve — and could be squatted.
+  Install the hub directly:
+  `pip install 'market-data-hub @ git+https://github.com/selvaz/market-data-hub.git'`.
+  The connector still imports lazily and raises a clear `ImportError` hint.
+
 ### Added — Telegram 4096-char message chunking (0.3.1)
 - **`split_message` / `MAX_MESSAGE_CHARS`** in
   `lazytools.connectors.telegram`: splits text into Bot-API-acceptable
