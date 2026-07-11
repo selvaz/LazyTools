@@ -335,5 +335,32 @@ class FakeDataHubBackend:
     def get_coverage(self, symbols: str = "") -> str:
         return self._emit("get_coverage", symbols=symbols)
 
+    def resolve_instrument(self, query: str, exchange: str = "", currency: str = "") -> str:
+        return self._emit("resolve_instrument", query=query, exchange=exchange, currency=currency)
+
+    def get_price_summary(self, query: str, start: str = "", end: str = "") -> str:
+        return self._emit("get_price_summary", query=query, start=start, end=end)
+
+    def get_financials_coverage(self, query: str = "") -> str:
+        return self._emit("get_financials_coverage", query=query)
+
+    def get_financial_facts(self, query: str, line: str = "", forms: str = "", limit: int = 25) -> str:
+        return self._emit("get_financial_facts", query=query, line=line, forms=forms, limit=limit)
+
+    def get_statement(self, query: str, statement: str = "", periods: int = 8) -> str:
+        return self._emit("get_statement", query=query, statement=statement, periods=periods)
+
+    def get_job_status(self, job_id: str) -> str:
+        return self._emit("get_job_status", job_id=job_id)
+
+    def get_ingestion_health(self) -> str:
+        return self._emit("get_ingestion_health")
+
     def refresh_prices(self, symbols: str, start: str = "2010-01-01") -> str:
         return self._emit("refresh_prices", symbols=symbols, start=start)
+
+    def ensure_price_history(self, query: str, start: str = "", end: str = "") -> str:
+        return self._emit("ensure_price_history", query=query, start=start, end=end)
+
+    def ensure_financials(self, query: str) -> str:
+        return self._emit("ensure_financials", query=query)

@@ -16,7 +16,7 @@ SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "lazytools"
 
 
 def _offending_imports(path: pathlib.Path) -> list[str]:
-    tree = ast.parse(path.read_text(), filename=str(path))
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     offenders: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):

@@ -8,6 +8,31 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `connectors/fin`: LazyFin's agentic surface moves here (plan v3.1 Fase 5)
+- **`lazytools.connectors.fin`**: the five LazyFin tool providers
+  (`PortfolioTools`, `RiskTools`, `OptimizerTools`, `ScoringTools`,
+  `ResolveTools`) and the five agent factories (`pm_supervisor`,
+  `filing_analyst`, `value_selection`, `macro_analyst`, `geo_risk_analyst`)
+  now live in LazyTools — the single LLM bridge. LazyFin keeps the pure
+  kernel; its own copies are one-release deprecation shims. Requires
+  `lazyfin` (git-installed, no PyPI extra by design).
+
+### Added — datahub connector: hub identity/financials/health tools
+- New read tools mirroring market-data-hub's plan-v3.1 surface:
+  `datahub_resolve_instrument`, `datahub_get_price_summary`,
+  `datahub_get_financials_coverage`, `datahub_get_financial_facts`,
+  `datahub_get_statement`, `datahub_get_job_status`,
+  `datahub_get_ingestion_health`.
+- New gated write tools (only with `allow_refresh=True`):
+  `datahub_ensure_price_history`, `datahub_ensure_financials`. The backend
+  passes the hub-side `allow_write=True` itself — gating stays in the
+  provider construction.
+
+### Deprecated — direct-fetch financial tools
+- **`MarketDataTools`** and **`EdgarTools`** now emit a `DeprecationWarning`
+  at construction: market-data-hub is the sole data owner; use the hub-backed
+  `DataHubTools` instead. Kept for one compatibility release.
+
 ### Added — datahub connector: opt-in `datahub_refresh_prices` write tool
 - **`DataHubTools(allow_refresh=True)`** now exposes market-data-hub's
   `tool_refresh_prices` as the write tool `datahub_refresh_prices` (download
