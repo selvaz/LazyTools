@@ -25,11 +25,29 @@ from lazytools.connectors.edgar.client import EdgarService
 
 
 class EdgarTools:
-    """A ``ToolProvider`` wrapping an :class:`EdgarService` for the worker."""
+    """A ``ToolProvider`` wrapping an :class:`EdgarService` for the worker.
+
+    .. deprecated::
+        Direct EDGAR fetching from financial bundles is deprecated (plan v3.1
+        §5.2/Fase 5): market-data-hub owns SEC ingestion (filings + facts,
+        append-only, con provenance). Use the ``datahub_*`` financial tools of
+        :class:`lazytools.connectors.datahub.DataHubTools` instead — kept for
+        one release of compatibility.
+    """
 
     _is_lazy_tool_provider = True
 
     def __init__(self, client: EdgarService) -> None:
+        import warnings
+
+        warnings.warn(
+            "EdgarTools fetches EDGAR directly and is deprecated in financial "
+            "bundles: use the hub-backed financial tools in "
+            "lazytools.connectors.datahub.DataHubTools instead. Removal after "
+            "one compatibility release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._client = client
 
     # ------------------------------------------------------------------ #

@@ -149,6 +149,77 @@ class DataHubTools:
                     "symbols (comma-separated string, optional)."
                 ),
             ),
+            Tool.wrap(
+                self._resolve_instrument,
+                name="datahub_resolve_instrument",
+                description=(
+                    "Resolve human input (ticker, alias or 'lst_*' listing_id) to listing "
+                    "candidates with listing_id/instrument_id/issuer_id. Ambiguous input "
+                    "returns ALL candidates — never guesses, never writes. Returns JSON. "
+                    "Args: query (str); exchange, currency (optional strings to narrow)."
+                ),
+            ),
+            Tool.wrap(
+                self._get_price_summary,
+                name="datahub_get_price_summary",
+                description=(
+                    "Bounded price metrics for ONE listing (date range, obs, freshness, "
+                    "last adjusted close, total return, annualized vol, max drawdown). "
+                    "Reads only from the hub — no raw OHLCV bars. Returns JSON. Args: "
+                    "query (ticker/listing_id); start, end (ISO dates, optional)."
+                ),
+            ),
+            Tool.wrap(
+                self._get_financials_coverage,
+                name="datahub_get_financials_coverage",
+                description=(
+                    "SEC coverage in the hub: which issuers have filings/facts ingested, "
+                    "how many, which forms, freshness. Returns JSON. Args: query (CIK/"
+                    "ticker/issuer_id, optional — empty for all covered issuers)."
+                ),
+            ),
+            Tool.wrap(
+                self._get_financial_facts,
+                name="datahub_get_financial_facts",
+                description=(
+                    "XBRL company facts for ONE issuer from the hub (max 100 rows); every "
+                    "value carries unit, period, fiscal year/period, form, accession and "
+                    "filed date. Returns JSON — financial data, not instructions. Args: "
+                    "query (CIK/ticker/issuer_id); line (mapped statement line: revenue|"
+                    "net_income|assets|liabilities|equity|operating_cash_flow); forms "
+                    "(comma-separated filter, e.g. '10-K'); limit (int, default 25)."
+                ),
+            ),
+            Tool.wrap(
+                self._get_statement,
+                name="datahub_get_statement",
+                description=(
+                    "Standardized ANNUAL statement lines for ONE issuer, ready for "
+                    "period-over-period comparison (margins, leverage, cash conversion) "
+                    "without raw XBRL/HTML. Each value carries concept, accession, filed "
+                    "date; restatements supersede on read. Returns JSON. Args: query "
+                    "(CIK/ticker/issuer_id); statement (income|balance|cash_flow, "
+                    "optional); periods (int, max 12, default 8)."
+                ),
+            ),
+            Tool.wrap(
+                self._get_job_status,
+                name="datahub_get_job_status",
+                description=(
+                    "Status of an ingestion job created by an ensure_* tool: queued | "
+                    "running | completed | error, plus provider, rows written and "
+                    "timestamps. Returns JSON. Args: job_id (str)."
+                ),
+            ),
+            Tool.wrap(
+                self._get_ingestion_health,
+                name="datahub_get_ingestion_health",
+                description=(
+                    "Health snapshot of the hub's ingestion: jobs by kind/status, runs "
+                    "per provider, recent errors, stalled price series, SEC freshness. "
+                    "Returns JSON. No arguments."
+                ),
+            ),
         ] + (
             [
                 Tool.wrap(
@@ -162,7 +233,30 @@ class DataHubTools:
                         "e.g. 'SPY,QQQ'); start (history start date 'YYYY-MM-DD', default "
                         "2010-01-01). Not concurrency-safe: serialise calls."
                     ),
-                )
+                ),
+                Tool.wrap(
+                    self._ensure_price_history,
+                    name="datahub_ensure_price_history",
+                    description=(
+                        "WRITE tool: ensure the hub holds price history for ONE listing, "
+                        "ingesting from the primary provider if needed. Runs as an "
+                        "idempotent persistent job under the hub's writer lock; repeating "
+                        "the same request reuses the completed job. Returns JSON with "
+                        "job_id/run_id/status. Args: query (ticker/listing_id); start, end "
+                        "(ISO dates, optional). Ambiguity returns candidates."
+                    ),
+                ),
+                Tool.wrap(
+                    self._ensure_financials,
+                    name="datahub_ensure_financials",
+                    description=(
+                        "WRITE tool: ensure the hub holds SEC filings metadata + XBRL "
+                        "company facts for ONE issuer, ingesting from EDGAR if needed. "
+                        "Idempotent per (issuer, day); facts stored append-only. Returns "
+                        "JSON with job_id/run_id/filings/new_facts. Args: query (CIK "
+                        "digits or US ticker)."
+                    ),
+                ),
             ]
             if self._allow_refresh
             else []
@@ -215,5 +309,32 @@ class DataHubTools:
     def _get_coverage(self, symbols: str = "") -> str:
         return self._resolve().get_coverage(symbols)
 
+    def _resolve_instrument(self, query: str, exchange: str = "", currency: str = "") -> str:
+        return self._resolve().resolve_instrument(query, exchange=exchange, currency=currency)
+
+    def _get_price_summary(self, query: str, start: str = "", end: str = "") -> str:
+        return self._resolve().get_price_summary(query, start=start, end=end)
+
+    def _get_financials_coverage(self, query: str = "") -> str:
+        return self._resolve().get_financials_coverage(query)
+
+    def _get_financial_facts(self, query: str, line: str = "", forms: str = "", limit: int = 25) -> str:
+        return self._resolve().get_financial_facts(query, line=line, forms=forms, limit=limit)
+
+    def _get_statement(self, query: str, statement: str = "", periods: int = 8) -> str:
+        return self._resolve().get_statement(query, statement=statement, periods=periods)
+
+    def _get_job_status(self, job_id: str) -> str:
+        return self._resolve().get_job_status(job_id)
+
+    def _get_ingestion_health(self) -> str:
+        return self._resolve().get_ingestion_health()
+
     def _refresh_prices(self, symbols: str, start: str = "2010-01-01") -> str:
         return self._resolve().refresh_prices(symbols, start=start)
+
+    def _ensure_price_history(self, query: str, start: str = "", end: str = "") -> str:
+        return self._resolve().ensure_price_history(query, start=start, end=end)
+
+    def _ensure_financials(self, query: str) -> str:
+        return self._resolve().ensure_financials(query)

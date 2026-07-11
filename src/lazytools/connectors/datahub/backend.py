@@ -42,7 +42,16 @@ class DataHubBackend(Protocol):
     ) -> str: ...
     def get_returns(self, symbols: str, start: str = "", end: str = "", frequency: str = "W") -> str: ...
     def get_coverage(self, symbols: str = "") -> str: ...
+    def resolve_instrument(self, query: str, exchange: str = "", currency: str = "") -> str: ...
+    def get_price_summary(self, query: str, start: str = "", end: str = "") -> str: ...
+    def get_financials_coverage(self, query: str = "") -> str: ...
+    def get_financial_facts(self, query: str, line: str = "", forms: str = "", limit: int = 25) -> str: ...
+    def get_statement(self, query: str, statement: str = "", periods: int = 8) -> str: ...
+    def get_job_status(self, job_id: str) -> str: ...
+    def get_ingestion_health(self) -> str: ...
     def refresh_prices(self, symbols: str, start: str = "2010-01-01") -> str: ...
+    def ensure_price_history(self, query: str, start: str = "", end: str = "") -> str: ...
+    def ensure_financials(self, query: str) -> str: ...
 
 
 class MarketDataHubBackend:
@@ -109,5 +118,35 @@ class MarketDataHubBackend:
     def get_coverage(self, symbols: str = "") -> str:
         return self._mdh.tool_get_coverage(symbols)
 
+    def resolve_instrument(self, query: str, exchange: str = "", currency: str = "") -> str:
+        return self._mdh.tool_resolve_instrument(query, exchange=exchange, currency=currency)
+
+    def get_price_summary(self, query: str, start: str = "", end: str = "") -> str:
+        return self._mdh.tool_get_price_summary(query, start=start, end=end)
+
+    def get_financials_coverage(self, query: str = "") -> str:
+        return self._mdh.tool_get_financials_coverage(query)
+
+    def get_financial_facts(self, query: str, line: str = "", forms: str = "", limit: int = 25) -> str:
+        return self._mdh.tool_get_financial_facts(query, line=line, forms=forms, limit=limit)
+
+    def get_statement(self, query: str, statement: str = "", periods: int = 8) -> str:
+        return self._mdh.tool_get_statement(query, statement=statement, periods=periods)
+
+    def get_job_status(self, job_id: str) -> str:
+        return self._mdh.tool_get_job_status(job_id)
+
+    def get_ingestion_health(self) -> str:
+        return self._mdh.tool_get_ingestion_health()
+
+    # Write capabilities: the hub gates every write behind allow_write; this
+    # backend passes it explicitly because DataHubTools only surfaces these
+    # methods when the provider itself was built with the write flag on.
     def refresh_prices(self, symbols: str, start: str = "2010-01-01") -> str:
-        return self._mdh.tool_refresh_prices(symbols, start=start)
+        return self._mdh.tool_refresh_prices(symbols, start=start, allow_write=True)
+
+    def ensure_price_history(self, query: str, start: str = "", end: str = "") -> str:
+        return self._mdh.tool_ensure_price_history(query, start=start, end=end, allow_write=True)
+
+    def ensure_financials(self, query: str) -> str:
+        return self._mdh.tool_ensure_financials(query, allow_write=True)

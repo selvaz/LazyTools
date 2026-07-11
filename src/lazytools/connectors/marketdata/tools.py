@@ -20,11 +20,28 @@ from lazytools.connectors.marketdata.client import MarketDataClient
 
 
 class MarketDataTools:
-    """A ``ToolProvider`` wrapping a :class:`MarketDataClient` for the worker."""
+    """A ``ToolProvider`` wrapping a :class:`MarketDataClient` for the worker.
+
+    .. deprecated::
+        Direct provider fetching from financial bundles is deprecated (plan
+        v3.1 §5.2/Fase 5): market-data-hub is the sole data owner. Use
+        :class:`lazytools.connectors.datahub.DataHubTools` instead — kept for
+        one release of compatibility.
+    """
 
     _is_lazy_tool_provider = True
 
     def __init__(self, client: MarketDataClient) -> None:
+        import warnings
+
+        warnings.warn(
+            "MarketDataTools fetches prices directly from the provider and is "
+            "deprecated in financial bundles: use "
+            "lazytools.connectors.datahub.DataHubTools (hub-backed) instead. "
+            "Removal after one compatibility release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._client = client
 
     # ------------------------------------------------------------------ #

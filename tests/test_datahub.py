@@ -21,6 +21,19 @@ EXPECTED_NAMES = {
     "datahub_get_series",
     "datahub_get_returns",
     "datahub_get_coverage",
+    "datahub_resolve_instrument",
+    "datahub_get_price_summary",
+    "datahub_get_financials_coverage",
+    "datahub_get_financial_facts",
+    "datahub_get_statement",
+    "datahub_get_job_status",
+    "datahub_get_ingestion_health",
+}
+
+WRITE_NAMES = {
+    "datahub_refresh_prices",
+    "datahub_ensure_price_history",
+    "datahub_ensure_financials",
 }
 
 
@@ -89,14 +102,29 @@ def test_default_backend_is_lazy_and_unused_without_calls() -> None:
 def test_refresh_tool_hidden_by_default_and_gated() -> None:
     backend = FakeDataHubBackend()
     _, by_name = _tools(backend)
-    assert "datahub_refresh_prices" not in by_name
+    assert not WRITE_NAMES & set(by_name)
 
     provider = DataHubTools(backend, allow_refresh=True)
     by_name = {t.name: t for t in provider.as_tools()}
-    assert "datahub_refresh_prices" in by_name
+    assert set(by_name) >= WRITE_NAMES
     out = json.loads(by_name["datahub_refresh_prices"].run_sync(symbols="SPY,QQQ"))
     assert out["tool"] == "refresh_prices"
     assert out["args"] == {"symbols": "SPY,QQQ", "start": "2010-01-01"}
+    out = json.loads(by_name["datahub_ensure_financials"].run_sync(query="AAPL"))
+    assert out["tool"] == "ensure_financials"
+
+
+def test_financial_read_tools_forward_arguments() -> None:
+    backend = FakeDataHubBackend()
+    _, by_name = _tools(backend)
+    out = json.loads(by_name["datahub_get_statement"].run_sync(
+        query="AAPL", statement="income", periods=4))
+    assert out["args"] == {"query": "AAPL", "statement": "income", "periods": 4}
+    out = json.loads(by_name["datahub_get_financial_facts"].run_sync(
+        query="0000320193", line="revenue", forms="10-K"))
+    assert out["args"]["line"] == "revenue"
+    out = json.loads(by_name["datahub_resolve_instrument"].run_sync(query="NVDA"))
+    assert out["tool"] == "resolve_instrument"
 
 
 # --------------------------------------------------------------------------- #
@@ -120,7 +148,13 @@ def test_backend_protocol_matches_mdh_tool_signatures() -> None:
     for name in methods:
         mdh_fn = getattr(mdh_tools, f"tool_{name}")
         proto_params = list(inspect.signature(getattr(DataHubBackend, name)).parameters.values())[1:]  # drop self
-        mdh_params = list(inspect.signature(mdh_fn).parameters.values())
+        # allow_write is the hub-side write gate: the backend deliberately
+        # omits it and passes allow_write=True itself, because DataHubTools
+        # only surfaces write methods when built with allow_refresh=True.
+        mdh_params = [
+            p for p in inspect.signature(mdh_fn).parameters.values()
+            if p.name != "allow_write"
+        ]
         assert [(p.name, p.default) for p in proto_params] == [
             (p.name, p.default) for p in mdh_params
         ], f"signature drift on {name!r}"
