@@ -178,9 +178,9 @@ class StatisticalAnalysisTools:
             z_scores[instrument] = None if sigma == 0 else (statistics.fmean(values), sigma)
 
         outliers: list[dict[str, Any]] = []
-        for date, values in _series_observations(dataset):
+        for date, observation_values in _series_observations(dataset):
             for instrument in dataset.instruments:
-                value = values.get(instrument)
+                value = observation_values.get(instrument)
                 params = z_scores[instrument]
                 if value is None or params is None:
                     continue
@@ -246,7 +246,7 @@ def _series_observations(dataset: ReturnDataset) -> list[tuple[str, dict[str, fl
 
 
 def _series_values(dataset: ReturnDataset) -> dict[str, list[float]]:
-    values = {instrument: [] for instrument in dataset.instruments}
+    values: dict[str, list[float]] = {instrument: [] for instrument in dataset.instruments}
     for _, row_values in _series_observations(dataset):
         for instrument, value in row_values.items():
             values[instrument].append(value)
