@@ -53,6 +53,7 @@ from lazytools.connectors.gateway import ExternalToolProvider
 from lazytools.connectors.edgar import EdgarTools, EdgarClient
 from lazytools.connectors.marketdata import MarketDataTools, MarketDataClient, StooqAdapter
 from lazytools.connectors.datahub import DataHubTools, MarketDataHubBackend
+from lazytools.statistical_analysis import StatisticalAnalysisTools
 from lazytools.connectors.web import WebTools
 from lazytools.connectors.code_support import claude_code, codex, CodeWriteTools, build_cli_collaboration
 from lazytools.report import Memo, Section, TableBlock, render_markdown, render_html
@@ -66,6 +67,7 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 | Category | Modules | What lives here |
 |---|---|---|
 | `connectors/` | `gmail`, `outlook`, `telegram`, `mcp`, `gateway`, `edgar`, `marketdata`, `datahub`, `web`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
+| `statistical_analysis/` | `StatisticalAnalysisTools` | read-only volatility, return-correlation and z-score-outlier analysis backed only by market-data-hub |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render` | deterministic memo/report rendering (Markdown/HTML) — "LazyReport" |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
@@ -126,6 +128,19 @@ a deterministic way to write it up:
   from lazytools.connectors.datahub import DataHubTools
 
   tools = DataHubTools()   # datahub_* discovery + time-series extraction
+  ```
+
+- **Statistical analysis** (`lazytools.statistical_analysis`) — three read-only
+  `statistical_return_*` tools that calculate volatility, pairwise return
+  correlation and absolute-z-score return outliers from the complete
+  `market-data-hub` return history. Outputs are `lazydatacore.AnalysisResult`
+  JSON and outliers use `abs(z_score) >= 2` by default. See
+  [Statistical analysis](docs/statistical-analysis.md).
+
+  ```python
+  from lazytools.statistical_analysis import StatisticalAnalysisTools
+
+  tools = StatisticalAnalysisTools()
   ```
 
 - **Report** (`lazytools.report`, no extra — "LazyReport") — deterministic,

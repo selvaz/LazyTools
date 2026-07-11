@@ -72,6 +72,7 @@ plugins:
           - gateway.md
           - edgar.md
           - marketdata.md
+          - statistical-analysis.md
           - documents.md
           - skills.md
           - report.md
@@ -133,6 +134,7 @@ nav:
       - External tool gateway: gateway.md
       - SEC EDGAR: edgar.md
       - Market data: marketdata.md
+      - Statistical analysis: statistical-analysis.md
       - Documents: documents.md
       - Skills: skills.md
       - Report (LazyReport): report.md
