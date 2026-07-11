@@ -33,7 +33,7 @@ pip install 'market-data-hub @ git+https://github.com/selvaz/market-data-hub.git
 ```
 
 For a real end-to-end DeepSeek tool-call smoke test from Spyder, run
-[`examples/run_statistical_analysis_deepseek.py`](../examples/run_statistical_analysis_deepseek.py).
+`examples/run_statistical_analysis_deepseek.py` from the repository checkout.
 It defaults to the low-cost `deepseek-v4-flash` model, reads the API key from
 `DEEPSEEK_API_KEY` or the workspace `deepseek.env`, and asserts that the agent
 actually invoked each of the three statistical tools.

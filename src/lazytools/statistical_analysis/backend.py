@@ -88,7 +88,7 @@ class MarketDataHubStatisticsBackend:
             frequency=frequency,
         )
         labels = [str(item) for item in parsed]
-        symbol_to_label = dict(zip(symbols, labels))
+        symbol_to_label = dict(zip(symbols, labels, strict=True))
 
         rows: list[dict[str, Any]] = []
         for timestamp, values in frame.iterrows():

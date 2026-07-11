@@ -66,7 +66,7 @@ class StatisticalAnalysisTools:
                 name="statistical_return_outliers",
                 description=(
                     "Find outlier observations in log returns read only from market-data-hub. "
-                    "For each instrument, z-score = (return - selected-period mean) / selected-" 
+                    "For each instrument, z-score = (return - selected-period mean) / selected-"
                     "period sample standard deviation; flags abs(z-score) >= threshold. Args: "
                     "instruments, start/end (YYYY-MM-DD, optional), frequency (D|W|M|Q, default "
                     "D), threshold (absolute z-score, default 2), max_results (default 1000). "
@@ -257,7 +257,7 @@ def _pearson(pairs: Iterable[tuple[float, float]]) -> float | None:
     values = list(pairs)
     if len(values) < 2:
         return None
-    left, right = zip(*values)
+    left, right = zip(*values, strict=True)
     left_mean = statistics.fmean(left)
     right_mean = statistics.fmean(right)
     numerator = sum((x - left_mean) * (y - right_mean) for x, y in values)
