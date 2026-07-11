@@ -19,13 +19,13 @@ READ_NAMES = {
     "regime_params_list", "regime_params_load", "regime_db_list_series",
     "regime_db_get_series_info", "regime_db_list_results",
     "regime_db_get_result_summary", "regime_db_list_plots",
-    "regime_db_export_plot", "regime_db_compare_results",
-    "regime_db_get_state_sequence",
+    "regime_db_compare_results", "regime_db_get_state_sequence",
 }
 WRITE_NAMES = {
     "regime_load_time_series", "regime_fit", "regime_fit_categorical",
     "regime_fit_window", "regime_apply_params", "regime_store_delete",
-    "regime_params_save", "regime_db_delete_series", "regime_db_delete_result",
+    "regime_params_save", "regime_db_export_plot",
+    "regime_db_delete_series", "regime_db_delete_result",
 }
 
 

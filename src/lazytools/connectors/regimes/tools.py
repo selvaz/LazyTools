@@ -83,7 +83,6 @@ class RegimeTools:
             (db.db_list_results, "regime_db_list_results"),
             (db.db_get_result_summary, "regime_db_get_result_summary"),
             (db.db_list_plots, "regime_db_list_plots"),
-            (db.db_export_plot, "regime_db_export_plot"),
             (db.db_compare_results, "regime_db_compare_results"),
             (db.db_get_state_sequence, "regime_db_get_state_sequence"),
         ]
@@ -97,7 +96,9 @@ class RegimeTools:
             # -- store / params mutation
             (r.regime_store_delete, "regime_store_delete"),
             (r.regime_params_save, "regime_params_save"),
-            # -- SQLite depot mutation
+            # -- SQLite depot mutation (db_export_plot writes a PNG to an
+            # arbitrary filesystem path — a filesystem write, not read-only)
+            (db.db_export_plot, "regime_db_export_plot"),
             (db.db_delete_series, "regime_db_delete_series"),
             (db.db_delete_result, "regime_db_delete_result"),
         ]
