@@ -8,6 +8,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `connectors/regimes`: closes the last LLM-callability gap (plan v3.1 Fase 6)
+- New `RegimeTools` provider wraps `lazystats.regimes`'s ~27 HMM/MS
+  regime-detection functions (`fit_regimes`, `get_current_regime`,
+  `get_regime_changes`, `regime_store_*`, `regime_params_*`, `db_*` depot
+  inspection/mutation, ...) as LazyBridge tools — before this connector,
+  none of them were reachable by an agent through LazyTools. Uses
+  `Tool.wrap`'s native `Annotated[type, "description"]` support directly on
+  the migrated functions, no reimplementation.
+- 18 read tools always exposed; 9 write tools (fit, persist, delete) gated
+  by `RegimeTools(allow_write=True)`.
+
+### Fixed — statistical_analysis no longer duplicates lazystats' math
+- `StatisticalAnalysisTools` now delegates volatility/correlation/outlier
+  computation to `lazystats.core.returns` instead of carrying a second,
+  independent implementation of the same formulas (drift risk: a future fix
+  in one repo would silently not propagate to the other). Tool signatures,
+  output shape and golden numbers are unchanged.
+
 ### Added — `connectors/fin`: LazyFin's agentic surface moves here (plan v3.1 Fase 5)
 - **`lazytools.connectors.fin`**: the five LazyFin tool providers
   (`PortfolioTools`, `RiskTools`, `OptimizerTools`, `ScoringTools`,
