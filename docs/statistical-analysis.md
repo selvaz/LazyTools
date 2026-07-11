@@ -72,5 +72,6 @@ Outlier z-scores are cross-sectional in time **within each instrument's selected
 period**, not rolling: `z = (return - period_mean) / sample_standard_deviation`.
 An observation is flagged when `abs(z) >= threshold`; `threshold=2.0` is the
 default. The result gives the date, canonical instrument, log return, signed
-z-score and direction. `max_results` defaults to 1000 and, if reached, the
-result preserves the true `total_outliers` and sets `truncated: true`.
+z-score and direction. `max_results` defaults to 100 and has a hard cap of 250;
+the result preserves the true `total_outliers` and sets `truncated: true` when
+the selected output limit is reached.

@@ -120,6 +120,28 @@ def test_outliers_reject_invalid_threshold_and_result_limit(dataset: ReturnDatas
         tools["statistical_return_outliers"].run_sync(instruments="ticker:SPY", max_results=0)
 
 
+def test_outlier_results_are_hard_capped_for_llm_context_safety() -> None:
+    dataset = ReturnDataset(
+        instruments=["ticker:SPY"],
+        rows=[
+            {"date": f"2024-day-{index:03d}", "ticker:SPY": float(index)}
+            for index in range(300)
+        ],
+        metadata={"source": "market-data-hub"},
+    )
+    _, tools = _tools(dataset)
+    result = json.loads(
+        tools["statistical_return_outliers"].run_sync(
+            instruments="ticker:SPY", threshold=0.0001, max_results=10_000
+        )
+    )
+
+    payload = result["payload"]
+    assert payload["total_outliers"] == 300
+    assert payload["returned_outliers"] == 250
+    assert payload["truncated"] is True
+
+
 def test_tool_results_never_include_raw_return_rows() -> None:
     dataset = ReturnDataset(
         instruments=["ticker:SPY"],

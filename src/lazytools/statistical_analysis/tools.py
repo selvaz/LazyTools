@@ -18,6 +18,8 @@ from lazytools.statistical_analysis.backend import (
 
 _TOOL_VERSION = "lazytools.statistical_analysis.v1"
 _PERIODS_PER_YEAR = {"D": 252, "W": 52, "M": 12, "Q": 4}
+_DEFAULT_OUTLIER_RESULTS = 100
+_MAX_OUTLIER_RESULTS = 250
 
 
 class StatisticalAnalysisTools:
@@ -69,7 +71,8 @@ class StatisticalAnalysisTools:
                     "For each instrument, z-score = (return - selected-period mean) / selected-"
                     "period sample standard deviation; flags abs(z-score) >= threshold. Args: "
                     "instruments, start/end (YYYY-MM-DD, optional), frequency (D|W|M|Q, default "
-                    "D), threshold (absolute z-score, default 2), max_results (default 1000). "
+                    "D), threshold (absolute z-score, default 2), max_results (default 100, "
+                    "hard cap 250). "
                     "Returns an AnalysisResult JSON including dates, returns and z-scores."
                 ),
             ),
@@ -161,7 +164,7 @@ class StatisticalAnalysisTools:
         end: str = "",
         frequency: str = "D",
         threshold: float = 2.0,
-        max_results: int = 1000,
+        max_results: int = _DEFAULT_OUTLIER_RESULTS,
     ) -> str:
         if not math.isfinite(threshold) or threshold <= 0:
             raise ValueError("threshold must be a finite value greater than zero")
@@ -199,7 +202,7 @@ class StatisticalAnalysisTools:
 
         outliers.sort(key=lambda item: (-abs(float(item["z_score"])), item["date"], item["instrument"]))
         total_outliers = len(outliers)
-        returned = outliers[:max_results]
+        returned = outliers[: min(max_results, _MAX_OUTLIER_RESULTS)]
         return _analysis_json(
             kind="signal",
             produced_by="lazytools.statistical_analysis.return_outliers",
