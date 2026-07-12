@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from lazytools.report import ArtifactResolvers, FigureBlock, Memo, Section, render_html
+from lazytools.report import FigureBlock, Memo, Section, render_html
 from lazytools.report.charts import parse_chart_spec
 from lazytools.report.resolvers import (
     chart_resolver,
