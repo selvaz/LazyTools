@@ -9,9 +9,9 @@ sandboxed agent tool, or as a one-shot CLI.
     **Status: alpha.** Plain text and Markdown need no extra dependencies. For
     PDF / DOCX / HTML parsing:
     ```bash
-    pip install 'lazytoolkit[docs]'   # adds pypdf, python-docx, trafilatura
+    pip install "lazytoolkit[docs] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"   # adds pypdf, python-docx, trafilatura
     ```
-    The package is `lazytoolkit` (PyPI); the import root is `lazytools`. Each
+    The package is `lazytoolkit` (installed from GitHub — see Install); the import root is `lazytools`. Each
     format reader degrades gracefully — a missing optional dependency yields a
     `"[… unavailable — pip install …]"` placeholder per file rather than an
     exception, so a folder of mixed types still reads what it can.
@@ -205,7 +205,7 @@ output starting with `"{"`).
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `"[PDF unavailable — pip install pypdf]"` (and similar) | Optional dep missing | `pip install 'lazytoolkit[docs]'` |
+| `"[PDF unavailable — pip install pypdf]"` (and similar) | Optional dep missing | `pip install "lazytoolkit[docs] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"` |
 | `PermissionError: … escapes base_dir …` | `path` resolved outside the sandbox | Pass a `path` inside `base_dir`, or widen `base_dir` for trusted code |
 | `ValueError: read_docs_tools(base_dir=...) is required` | Built the tool without a sandbox | Pass `base_dir="/safe/dir"`, or use `read_folder_docs` directly for trusted use |
 | `"[No documents found … matching extensions: …]"` | No files matched in folder mode | Check `extensions` and `recursive`; remember `html` also matches `.htm` |

@@ -152,7 +152,7 @@ smoke test that the CLI launches and authenticates.
 | `[codex] timeout after 300s` | Task longer than `timeout` | Raise `timeout=`; set engine `tool_timeout=None` |
 | Orphaned `codex` process after a run | Engine `tool_timeout` fired before the subprocess | Use `tool_timeout=None`, or `tool_timeout > timeout` |
 | `ValueError: requires an explicit allow= / deny=` | `codex_mcp` called without a filter | Pass `allow=["*"]` (after auditing) or an explicit glob list |
-| `ImportError: requires the official MCP SDK` | MCP mode used without the extra | `pip install 'lazytoolkit[mcp]'` |
+| `ImportError: requires the official MCP SDK` | MCP mode used without the extra | `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"` |
 
 ## Pitfalls
 

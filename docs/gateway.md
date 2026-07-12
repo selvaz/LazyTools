@@ -1,6 +1,6 @@
 # External tool gateway
 
-> **Ships in `lazytoolkit`.** Install: `pip install lazytoolkit`. Part of the
+> **Ships in `lazytoolkit`.** Install: `pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"`. Part of the
 > [LazyTools capabilities](index.md) package, not the core runtime.
 
 `lazytools.connectors.gateway` integrates remote tool catalogues hosted as

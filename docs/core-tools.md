@@ -14,7 +14,7 @@ and human-in-the-loop primitives that ship inside the
     alongside the connectors, so you have one place to look when you ask *"what
     can I drop into `Agent(tools=[...])`?"* — but the code, the version, and the
     CHANGELOG are LazyBridge's. Install LazyBridge (it comes transitively with
-    `pip install lazytoolkit`).
+    `pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"`).
 
 | Core tool | What it gives an agent | Import | Guide |
 |---|---|---|---|

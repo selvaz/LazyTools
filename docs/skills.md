@@ -9,9 +9,9 @@ the standard library**.
 !!! info "Status & install"
     **Status: alpha.** No extra needed:
     ```bash
-    pip install lazytoolkit
+    pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"
     ```
-    The package is `lazytoolkit` (PyPI); the import root is `lazytools`. Add
+    The package is `lazytoolkit` (installed from GitHub — see Install); the import root is `lazytools`. Add
     `generated_skills/` to your `.gitignore` — `build_skill()` writes there by
     default.
 

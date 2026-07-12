@@ -6,21 +6,24 @@ own deep guide — what it does, how it works internally, every parameter and
 exposed tool function, runnable examples, the safety model, and troubleshooting.
 Treat each as its own mini-repository.
 
-| Tool | What it gives an agent | Install | Guide |
+LazyTools installs from GitHub at a release tag (only LazyBridge is on PyPI).
+Add an extra to the base direct reference — e.g.
+`pip install "lazytoolkit[gmail] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"`.
+The **Extra** column below is what goes in the brackets (`—` = no extra needed).
+
+| Tool | What it gives an agent | Extra | Guide |
 |---|---|---|---|
-| **Gmail** | Safe Gmail access: ungated reads (`gmail_list_emails` structured search, `gmail_get_email`) + ungated `gmail_create_draft` + guarded `gmail_send`, plus inbound auth-header verification. | `pip install 'lazytoolkit[gmail]'` | [Gmail](gmail.md) |
-| **Outlook** | Safe Outlook access on the user's signed-in Windows desktop (over COM): ungated reads (`outlook_list_emails`, `outlook_get_email`) + ungated `outlook_create_draft` + guarded `outlook_send` — the same allow-list + confirmation model as Gmail. | `pip install 'lazytoolkit[outlook]'` | — |
-| **Telegram** | A guarded Telegram outbox: `telegram_send_message` with allow-list + one-shot confirmation. | `pip install 'lazytoolkit[telegram]'` | [Telegram](telegram.md) |
-| **MCP** | Drop an existing Model Context Protocol server's tool catalogue into an agent, deny-by-default. | `pip install 'lazytoolkit[mcp]'` | [MCP](mcp.md) |
-| **Code Support Agent** | Delegate coding work to Claude Code & Codex — each in CLI or MCP mode, plus a collaboration pipeline. | `pip install lazytoolkit` | [Code Support Agent](code-support/index.md) |
-| **External tool gateway** | Adapt a remote JSON-HTTP tool registry (Composio / Pipedream / Arcade / internal) into LazyBridge tools. | `pip install lazytoolkit` | [Gateway](gateway.md) |
-| **SEC EDGAR** | Official, free SEC filings + XBRL company facts: resolve companies, list/fetch filings (`content_is_untrusted`), raw facts JSON. | `pip install 'lazytoolkit[edgar]'` | [SEC EDGAR](edgar.md) |
-| **Market data** | Stock quotes & OHLCV history via swappable adapters (free stooq backend first); prices as Decimal-safe strings. | `pip install 'lazytoolkit[marketdata]'` | [Market data](marketdata.md) |
-| **market-data-hub** | Discovery + extraction over the official market-data-hub: 11 read-only `datahub_*` tools (list/search/describe domains, pull analysis-ready series, returns & coverage) + opt-in `datahub_refresh_prices` write tool (`allow_refresh=True`). | `pip install 'market-data-hub @ git+...'` (private, git-only) | — |
-| **Web** | LazyCrawler's search/crawl/get-page surfaced as LLM tools (interface only — the crawler engine stays standalone). | `pip install 'lazytoolkit[web]'` | — |
-| **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `pip install 'lazytoolkit[docs]'` | [Documents](documents.md) |
-| **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | `pip install lazytoolkit` | [Skills](skills.md) |
-| **Report (LazyReport)** | Deterministic memo rendering: `Memo` → Markdown/HTML, no LLM, no extra deps. | `pip install lazytoolkit` | [Report](report.md) |
+| **Gmail** | Safe Gmail access: ungated reads (`gmail_list_emails` structured search, `gmail_get_email`) + ungated `gmail_create_draft` + guarded `gmail_send`, plus inbound auth-header verification. | `[gmail]` | [Gmail](gmail.md) |
+| **Outlook** | Safe Outlook access on the user's signed-in Windows desktop (over COM): ungated reads (`outlook_list_emails`, `outlook_get_email`) + ungated `outlook_create_draft` + guarded `outlook_send` — the same allow-list + confirmation model as Gmail. | `[outlook]` | — |
+| **Telegram** | A guarded Telegram outbox: `telegram_send_message` with allow-list + one-shot confirmation. | `[telegram]` | [Telegram](telegram.md) |
+| **MCP** | Drop an existing Model Context Protocol server's tool catalogue into an agent, deny-by-default. | `[mcp]` | [MCP](mcp.md) |
+| **Code Support Agent** | Delegate coding work to Claude Code & Codex — each in CLI or MCP mode, plus a collaboration pipeline. | — | [Code Support Agent](code-support/index.md) |
+| **External tool gateway** | Adapt a remote JSON-HTTP tool registry (Composio / Pipedream / Arcade / internal) into LazyBridge tools. | — | [Gateway](gateway.md) |
+| **market-data-hub** | The single source of financial data: `datahub_*` discovery, instrument resolution, financial facts and coverage. Raw series are off the default surface (`allow_raw_series=True` to add capped `datahub_get_series`/`datahub_get_returns`); `allow_refresh=True` adds the `datahub_ensure_*` ingestion write tools. | — (needs the hub installed from git) | [Financial data](datahub.md) |
+| **Web** | LazyCrawler's search/crawl/get-page surfaced as LLM tools (interface only — the crawler engine stays standalone). | `[web]` | — |
+| **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `[docs]` | [Documents](documents.md) |
+| **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | — | [Skills](skills.md) |
+| **Report (LazyReport)** | Deterministic memo rendering: `Memo` → Markdown/HTML, no LLM, no extra deps. | — | [Report](report.md) |
 
 Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
 `ConfirmationGate`, `ActionBlocked`) are what gate the dangerous outbound tools.
@@ -122,9 +125,9 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     from lazybridge import Agent
     from lazytools.connectors.datahub import DataHubTools
 
-    # 11 read-only datahub_* tools; MarketDataHubBackend imports
-    # market_data_hub lazily (private package, installed from git).
-    # DataHubTools(allow_refresh=True) adds the datahub_refresh_prices write tool.
+    # datahub_* discovery + resolution + extraction. MarketDataHubBackend
+    # imports market_data_hub lazily (GitHub-only package). Raw series are
+    # opt-in (allow_raw_series=True); allow_refresh=True adds the write tool.
     agent = Agent("claude-opus-4-8", tools=[DataHubTools()])
     ```
 

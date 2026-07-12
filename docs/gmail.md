@@ -24,9 +24,9 @@ flood.
 !!! info "Status & install"
     **Status: alpha.** Install the Gmail extra:
     ```bash
-    pip install 'lazytoolkit[gmail]'   # adds google-api-python-client, google-auth, google-auth-oauthlib
+    pip install "lazytoolkit[gmail] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"   # adds google-api-python-client, google-auth, google-auth-oauthlib
     ```
-    The package is `lazytoolkit` (PyPI); the import root is `lazytools`. Only
+    The package is `lazytoolkit` (installed from GitHub — see Install); the import root is `lazytools`. Only
     building a real `GmailClient.from_credentials(...)` needs the extra — every
     other symbol (`GmailTools`, `parse_authentication_results`, the
     `GmailService` protocol) imports cleanly without Google libraries, so tests
@@ -281,7 +281,7 @@ hardening rules defend against forged `pass` tokens:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `ImportError: requires the 'gmail' extra` | Google libs not installed | `pip install 'lazytoolkit[gmail]'` |
+| `ImportError: requires the 'gmail' extra` | Google libs not installed | `pip install "lazytoolkit[gmail] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"` |
 | `GmailSendBlocked: recipient … not in the allow-list` | `to` not in `allowed_recipients` | Add the address, or use `allowed_recipients=None` for trusted contexts |
 | `GmailSendBlocked: no outstanding confirmation` | No grant, or it was already spent / scope-mismatched | Call `confirm_once()` / `confirm_send(to=…)` before sending; match `task_id` under concurrency |
 | All `parse_authentication_results` values `False` | Header missing, or `trusted_authserv_id` didn't match exactly | Pass the top-most header; check the pinned authserv-id equals your MTA's exactly |

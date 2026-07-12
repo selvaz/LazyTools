@@ -10,12 +10,16 @@ agents built on [LazyBridge](https://github.com/selvaz/LazyBridge) (and
     world. See the [ecosystem overview](https://lazybridge.com/) for
     how the three packages stack.
 
+LazyTools is distributed from GitHub at a release tag (only LazyBridge is on
+PyPI). Add an extra to the direct reference:
+
 ```bash
-pip install lazytoolkit                 # core (just lazybridge)
-pip install 'lazytoolkit[gmail]'        # Gmail client + guarded draft/send tools
-pip install 'lazytoolkit[telegram]'     # Telegram client + guarded send tool
-pip install 'lazytoolkit[mcp]'          # Model Context Protocol connector
-pip install 'lazytoolkit[docs]'         # PDF/DOCX/HTML document reading
+G="git+https://github.com/selvaz/LazyTools.git@v0.3.2"
+pip install "lazytoolkit @ $G"                 # core (just lazybridge)
+pip install "lazytoolkit[gmail] @ $G"          # Gmail client + guarded draft/send tools
+pip install "lazytoolkit[telegram] @ $G"       # Telegram client + guarded send tool
+pip install "lazytoolkit[mcp] @ $G"            # Model Context Protocol connector
+pip install "lazytoolkit[docs] @ $G"           # PDF/DOCX/HTML document reading
 ```
 
 ## Import contract
@@ -42,6 +46,7 @@ safety model, and troubleshooting. Start at the [Tools overview](connectors.md).
 | **Telegram** | `connectors/telegram` — guarded send tool | [Telegram](telegram.md) |
 | **MCP** | `connectors/mcp` — Model Context Protocol connector | [MCP](mcp.md) |
 | **External tool gateway** | `connectors/gateway` — remote JSON-HTTP tool registries | [Gateway](gateway.md) |
+| **Financial data** | `connectors/datahub` — market-data-hub as the single finance source (`datahub_*`) | [Financial data](datahub.md) |
 | **Documents** | `documents/read_docs` — read `.txt/.md/.pdf/.docx/.html` from a folder/file | [Documents](documents.md) |
 | **Skills** | `skills/doc_skills` — build/query portable BM25 doc skills | [Skills](skills.md) |
 | **Safety** | `safety/{allowlist,gates}` — reusable allow-list + one-shot confirmation gate | [Safety](safety.md) |

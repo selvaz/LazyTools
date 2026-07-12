@@ -16,19 +16,23 @@ lazypulse    always-on orchestration (tick loop, adapters, policy, ledger)
 
 ## Install
 
+LazyTools is distributed from GitHub at an immutable release tag (only
+LazyBridge lives on PyPI). Install `lazytoolkit` and its extras with a PEP 508
+direct reference:
+
 ```bash
-pip install lazytoolkit                 # core (just lazybridge)
-pip install 'lazytoolkit[gmail]'        # Gmail client + tools
-pip install 'lazytoolkit[outlook]'      # Outlook client + tools (Windows desktop, COM)
-pip install 'lazytoolkit[telegram]'     # Telegram client + tools
-pip install 'lazytoolkit[mcp]'          # Model Context Protocol connector
-pip install 'lazytoolkit[docs]'         # PDF/DOCX/HTML document reading
-pip install 'lazytoolkit[edgar]'        # SEC EDGAR filings + XBRL facts
-pip install 'lazytoolkit[marketdata]'   # free stock quotes/history (stooq)
-# datahub connector: install the private hub directly (no PyPI extra):
-#   pip install 'market-data-hub @ git+https://github.com/selvaz/market-data-hub.git'
-pip install 'lazytoolkit[web]'          # LazyCrawler search/crawl as LLM tools
-# lazytools.report needs no extra      # deterministic memo rendering
+G="git+https://github.com/selvaz/LazyTools.git@v0.3.2"
+pip install "lazytoolkit @ $G"                 # core (just lazybridge)
+pip install "lazytoolkit[gmail] @ $G"          # Gmail client + tools
+pip install "lazytoolkit[outlook] @ $G"        # Outlook client + tools (Windows desktop, COM)
+pip install "lazytoolkit[telegram] @ $G"       # Telegram client + tools
+pip install "lazytoolkit[mcp] @ $G"            # Model Context Protocol connector
+pip install "lazytoolkit[docs] @ $G"           # PDF/DOCX/HTML document reading
+pip install "lazytoolkit[web] @ $G"            # LazyCrawler search/crawl as LLM tools
+# Financial data is served by market-data-hub (also GitHub-only); the datahub
+# connector needs no extra — install the hub alongside:
+#   pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@<ref>"
+# lazytools.report needs no extra              # deterministic memo rendering
 ```
 
 > [!IMPORTANT]
@@ -50,8 +54,6 @@ from lazytools.connectors.outlook import OutlookTools, OutlookClient
 from lazytools.connectors.telegram import TelegramTools
 from lazytools.connectors.mcp import MCP
 from lazytools.connectors.gateway import ExternalToolProvider
-from lazytools.connectors.edgar import EdgarTools, EdgarClient
-from lazytools.connectors.marketdata import MarketDataTools, MarketDataClient, StooqAdapter
 from lazytools.connectors.datahub import DataHubTools, MarketDataHubBackend
 from lazytools.statistical_analysis import StatisticalAnalysisTools
 from lazytools.connectors.web import WebTools
@@ -66,7 +68,7 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 
 | Category | Modules | What lives here |
 |---|---|---|
-| `connectors/` | `gmail`, `outlook`, `telegram`, `mcp`, `gateway`, `edgar`, `marketdata`, `datahub`, `web`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
+| `connectors/` | `gmail`, `outlook`, `telegram`, `mcp`, `gateway`, `datahub`, `web`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
 | `statistical_analysis/` | `StatisticalAnalysisTools` | read-only volatility, return-correlation and z-score-outlier analysis backed only by market-data-hub |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render` | deterministic memo/report rendering (Markdown/HTML) — "LazyReport" |
@@ -81,54 +83,38 @@ tools.
 
 ## Financial data & reporting
 
-Three modules give an agent an official, zero-cost financial data channel and
-a deterministic way to write it up:
-
-- **SEC EDGAR** (`lazytools.connectors.edgar`, extra `[edgar]`) — the official,
-  free SEC APIs: `edgar_resolve_company` (ticker/name → CIK),
-  `edgar_list_filings`, `edgar_get_filing` (primary document as tag-stripped
-  text, labelled `content_is_untrusted`), and `edgar_company_facts` (raw XBRL
-  JSON). The client *requires* a declared `user_agent` (SEC fair-access
-  policy), throttles to ~10 req/s, hard-caps every response body, and
-  re-validates redirects against the pinned SEC hosts.
-
-  ```python
-  from lazytools.connectors.edgar import EdgarClient, EdgarTools
-
-  client = EdgarClient("Jane Doe jane@example.com")   # declared UA — required
-  tools = EdgarTools(client)                          # Agent(tools=[tools])
-  ```
-
-- **Market data** (`lazytools.connectors.marketdata`, extra `[marketdata]`) —
-  price quotes/history through **swappable adapters** (the free, key-less
-  stooq.com adapter ships first; paid backends can drop in behind the same
-  `MarketDataAdapter` protocol). Prices are returned as **strings** so
-  downstream code can parse them with `Decimal` and never lose precision.
-
-  ```python
-  from lazytools.connectors.marketdata import MarketDataClient, MarketDataTools, StooqAdapter
-
-  client = MarketDataClient(StooqAdapter())
-  tools = MarketDataTools(client)   # prices_get / prices_history
-  ```
+**market-data-hub is the single source of financial data for agents.** All
+discovery, resolution, extraction and analysis flow through it — there is no
+direct-fetch finance connector on the agent surface.
 
 - **market-data-hub** (`lazytools.connectors.datahub`) — a thin `ToolProvider`
-  over the official market-data-hub `tool_*` surface, exposing 11 `datahub_*`
-  discovery + extraction tools (`datahub_list_datasets`, `datahub_list_symbols`,
-  `datahub_search`, `datahub_describe`, `datahub_get_series`,
-  `datahub_get_returns`, `datahub_get_coverage`, …) plus an opt-in write tool
-  (`DataHubTools(allow_refresh=True)` adds `datahub_refresh_prices`). The
-  `MarketDataHubBackend` lazily imports `market_data_hub.agent_tools`, so the
-  provider and protocol import without market-data-hub installed and a
-  `FakeDataHubBackend` (`lazytools.testing`) drives tests offline. There is no
-  PyPI extra: market-data-hub is private, install it from git
-  (`market-data-hub @ git+https://github.com/selvaz/market-data-hub.git`).
+  over the official market-data-hub `tool_*` surface: `datahub_*` discovery,
+  instrument resolution, financial facts and coverage tools
+  (`datahub_list_datasets`, `datahub_list_symbols`, `datahub_search`,
+  `datahub_describe`, `datahub_resolve_instrument`,
+  `datahub_get_financial_facts`, `datahub_get_coverage`, …). Raw time-series
+  matrices are **off the default surface** — an agent passes ids in and gets
+  bounded results out; `DataHubTools(allow_raw_series=True)` adds the capped
+  `datahub_get_series` / `datahub_get_returns` for explicit spot-checking, and
+  `DataHubTools(allow_refresh=True)` adds the on-demand ingestion write tools
+  `datahub_ensure_price_history` / `datahub_ensure_financials`. The
+  `MarketDataHubBackend` lazily imports
+  `market_data_hub.agent_tools`, so the provider and protocol import without
+  market-data-hub installed and a `FakeDataHubBackend` (`lazytools.testing`)
+  drives tests offline. market-data-hub is GitHub-only, install it from git
+  (`market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@<ref>`).
 
   ```python
   from lazytools.connectors.datahub import DataHubTools
 
-  tools = DataHubTools()   # datahub_* discovery + time-series extraction
+  tools = DataHubTools()   # datahub_* discovery + resolution + extraction
   ```
+
+  The low-level transport clients `EdgarClient`
+  (`lazytools.connectors.edgar`) and `MarketDataClient`
+  (`lazytools.connectors.marketdata`) still ship as injectable plumbing for
+  non-agent code, but they are **not** agent tools — agents reach SEC and
+  market data through the hub-backed `datahub_*` tools above.
 
 - **Statistical analysis** (`lazytools.statistical_analysis`) — three read-only
   `statistical_return_*` tools that calculate volatility, pairwise return

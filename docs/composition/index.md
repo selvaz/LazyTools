@@ -16,7 +16,7 @@ fan-out. Conceptually they're the *scripted* cousins of the [Planners](../planne
 > live under `lazybridge.ext.*`), `chain` and `parallel` are **classmethods on
 > `Agent`** in the core runtime: `from lazybridge import Agent` →
 > `Agent.chain(...)` / `Agent.parallel(...)`. LazyBridge comes transitively with
-> `pip install lazytoolkit`.
+> `pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"`.
 
 ## When to use which
 
