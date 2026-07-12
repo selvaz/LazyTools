@@ -422,14 +422,17 @@ def build_specialists(
                 "'lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git'"
             ) from exc
 
-    def _engine_for() -> Any:
-        # a fresh engine per specialist (own turn budget); or the shared instance
+    def _engine_for(skill: Skill) -> Any:
+        # a fresh engine per specialist, carrying the shared prefix PLUS the
+        # skill's own system prompt (its know-how) — the whole point of a skill.
+        # The engine= instance path is for construction/tests only; there the
+        # per-skill prompt cannot be injected, so use model= to run.
         if engine is not None:
             return engine
         assert model is not None  # guaranteed above
-        return LLMEngine(model, system=system, max_turns=max_turns)
+        return LLMEngine(model, system=f"{system}\n\n{skill.system}", max_turns=max_turns)
 
-    return {s.name: s.agent(_engine_for(), cfg, blackboard, session=session) for s in skills}
+    return {s.name: s.agent(_engine_for(s), cfg, blackboard, session=session) for s in skills}
 
 
 def roster(skills: tuple[Skill, ...] = SKILLS) -> str:
