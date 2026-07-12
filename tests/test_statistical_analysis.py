@@ -6,6 +6,9 @@ import json
 
 import pytest
 
+pytest.importorskip("lazystats", reason="statistical_analysis now delegates "
+                    "its math to lazystats.core (plan v3.1 Fase 6)")
+
 from lazytools.statistical_analysis import ReturnDataset, StatisticalAnalysisTools
 
 
@@ -159,3 +162,21 @@ def test_tool_results_never_include_raw_return_rows() -> None:
 
     assert result["payload"]["data"] == {"source": "market-data-hub", "n_rows": 2}
     assert "raw_return_rows" not in json.dumps(result)
+
+
+def test_missing_lazystats_raises_clear_import_error(monkeypatch, dataset):
+    """Without lazystats installed, the tool must fail with an install hint,
+    not a bare ModuleNotFoundError."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _blocked(name, *args, **kwargs):
+        if name == "lazystats" or name.startswith("lazystats."):
+            raise ModuleNotFoundError(name)
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _blocked)
+    _, tools = _tools(dataset)
+    with pytest.raises(ImportError, match="lazystats"):
+        tools["statistical_return_volatility"].run_sync(instruments="ticker:SPY")

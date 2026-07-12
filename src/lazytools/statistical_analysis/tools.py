@@ -1,11 +1,14 @@
-"""Volatility, correlation and return-outlier tools for LazyBridge agents."""
+"""Volatility, correlation and return-outlier tools for LazyBridge agents.
+
+The math itself lives in ``lazystats.core.returns`` (plan v3.1 Fase 6): this
+module is pure wrapping — LLM-facing signatures, output caps, serialization —
+so the two repos never drift into two different implementations of the same
+formulas. ``lazystats`` is imported lazily with a clear install hint.
+"""
 
 from __future__ import annotations
 
 import json
-import math
-import statistics
-from collections.abc import Iterable
 from typing import Any
 
 from lazybridge import Tool
@@ -20,6 +23,25 @@ _TOOL_VERSION = "lazytools.statistical_analysis.v1"
 _PERIODS_PER_YEAR = {"D": 252, "W": 52, "M": 12, "Q": 4}
 _DEFAULT_OUTLIER_RESULTS = 100
 _MAX_OUTLIER_RESULTS = 250
+
+
+def _lazystats():
+    try:
+        from lazystats import core as _core
+        from lazystats import models as _models
+    except ImportError as exc:  # pragma: no cover - exercised without lazystats
+        raise ImportError(
+            "lazytools.statistical_analysis requires lazystats: pip install "
+            "'lazystats @ git+https://github.com/selvaz/LazyStats.git'"
+        ) from exc
+    return _core, _models
+
+
+def _as_lazystats_dataset(dataset: ReturnDataset) -> Any:
+    _, models = _lazystats()
+    return models.ReturnDataset(
+        instruments=dataset.instruments, rows=dataset.rows, metadata=dataset.metadata
+    )
 
 
 class StatisticalAnalysisTools:
@@ -85,37 +107,15 @@ class StatisticalAnalysisTools:
         end: str = "",
         frequency: str = "D",
     ) -> str:
+        core, _ = _lazystats()
         dataset = self._load(instruments, start=start, end=end, frequency=frequency)
-        period_factor = _periods_per_year(frequency)
-        volatility: dict[str, dict[str, float | int | None]] = {}
-        for instrument, values in _series_values(dataset).items():
-            n = len(values)
-            if n < 2:
-                volatility[instrument] = {
-                    "observations": n,
-                    "mean_log_return": None,
-                    "period_volatility": None,
-                    "annualized_volatility": None,
-                }
-                continue
-            sigma = statistics.stdev(values)
-            volatility[instrument] = {
-                "observations": n,
-                "mean_log_return": _round(statistics.fmean(values)),
-                "period_volatility": _round(sigma),
-                "annualized_volatility": _round(sigma * math.sqrt(period_factor)),
-            }
+        payload = core.return_volatility(_as_lazystats_dataset(dataset), frequency=frequency)
+        payload["data"] = _data_metadata(dataset)
         return _analysis_json(
             kind="report",
             produced_by="lazytools.statistical_analysis.return_volatility",
             instruments=dataset.instruments,
-            payload={
-                "metric": "sample standard deviation of log returns",
-                "frequency": frequency,
-                "periods_per_year": period_factor,
-                "volatility": volatility,
-                "data": _data_metadata(dataset),
-            },
+            payload=payload,
         )
 
     def _return_correlation(
@@ -126,35 +126,17 @@ class StatisticalAnalysisTools:
         frequency: str = "D",
         min_periods: int = 2,
     ) -> str:
-        if min_periods < 2:
-            raise ValueError("min_periods must be at least 2")
+        core, _ = _lazystats()
         dataset = self._load(instruments, start=start, end=end, frequency=frequency)
-        observations = _series_observations(dataset)
-        correlation: dict[str, dict[str, float | None]] = {}
-        pair_counts: dict[str, dict[str, int]] = {}
-        for left in dataset.instruments:
-            correlation[left] = {}
-            pair_counts[left] = {}
-            for right in dataset.instruments:
-                paired = [
-                    (values[left], values[right])
-                    for _, values in observations
-                    if left in values and right in values
-                ]
-                pair_counts[left][right] = len(paired)
-                correlation[left][right] = _pearson(paired) if len(paired) >= min_periods else None
+        payload = core.return_correlation(
+            _as_lazystats_dataset(dataset), frequency=frequency, min_periods=min_periods
+        )
+        payload["data"] = _data_metadata(dataset)
         return _analysis_json(
             kind="report",
             produced_by="lazytools.statistical_analysis.return_correlation",
             instruments=dataset.instruments,
-            payload={
-                "metric": "Pearson correlation of log returns",
-                "frequency": frequency,
-                "min_periods": min_periods,
-                "correlation": correlation,
-                "pairwise_observations": pair_counts,
-                "data": _data_metadata(dataset),
-            },
+            payload=payload,
         )
 
     def _return_outliers(
@@ -166,116 +148,36 @@ class StatisticalAnalysisTools:
         threshold: float = 2.0,
         max_results: int = _DEFAULT_OUTLIER_RESULTS,
     ) -> str:
-        if not math.isfinite(threshold) or threshold <= 0:
-            raise ValueError("threshold must be a finite value greater than zero")
         if max_results < 1:
             raise ValueError("max_results must be at least 1")
+        core, _ = _lazystats()
         dataset = self._load(instruments, start=start, end=end, frequency=frequency)
-        series = _series_values(dataset)
-        z_scores: dict[str, tuple[float, float] | None] = {}
-        for instrument, values in series.items():
-            if len(values) < 2:
-                z_scores[instrument] = None
-                continue
-            sigma = statistics.stdev(values)
-            z_scores[instrument] = None if sigma == 0 else (statistics.fmean(values), sigma)
-
-        outliers: list[dict[str, Any]] = []
-        for date, observation_values in _series_observations(dataset):
-            for instrument in dataset.instruments:
-                value = observation_values.get(instrument)
-                params = z_scores[instrument]
-                if value is None or params is None:
-                    continue
-                mean, sigma = params
-                z_score = (value - mean) / sigma
-                if abs(z_score) >= threshold:
-                    outliers.append(
-                        {
-                            "date": date,
-                            "instrument": instrument,
-                            "log_return": _round(value),
-                            "z_score": _round(z_score),
-                            "direction": "positive" if z_score > 0 else "negative",
-                        }
-                    )
-
-        outliers.sort(key=lambda item: (-abs(float(item["z_score"])), item["date"], item["instrument"]))
-        total_outliers = len(outliers)
+        # lazystats.core returns EVERY outlier; the LLM-context cap is applied
+        # here, at the bridge, not in the pure library.
+        result = core.return_outliers(
+            _as_lazystats_dataset(dataset), frequency=frequency, threshold=threshold
+        )
+        outliers = result["outliers"]
+        total_outliers = result["total_outliers"]
         returned = outliers[: min(max_results, _MAX_OUTLIER_RESULTS)]
+        payload = {
+            **result,
+            "returned_outliers": len(returned),
+            "truncated": total_outliers > len(returned),
+            "outliers": returned,
+            "data": _data_metadata(dataset),
+        }
         return _analysis_json(
             kind="signal",
             produced_by="lazytools.statistical_analysis.return_outliers",
             instruments=dataset.instruments,
-            payload={
-                "metric": "period z-score of log returns",
-                "frequency": frequency,
-                "threshold": threshold,
-                "comparison": "abs(z_score) >= threshold",
-                "total_outliers": total_outliers,
-                "returned_outliers": len(returned),
-                "truncated": total_outliers > len(returned),
-                "outliers": returned,
-                "data": _data_metadata(dataset),
-            },
+            payload=payload,
         )
 
     def _load(self, instruments: str, *, start: str, end: str, frequency: str) -> ReturnDataset:
         if frequency not in _PERIODS_PER_YEAR:
             raise ValueError("frequency must be one of D, W, M, Q")
         return self._resolve().load_returns(instruments, start=start, end=end, frequency=frequency)
-
-
-def _series_observations(dataset: ReturnDataset) -> list[tuple[str, dict[str, float]]]:
-    """Validate backend rows and discard missing values, preserving date ordering."""
-    observations: list[tuple[str, dict[str, float]]] = []
-    for row in dataset.rows:
-        date = row.get("date")
-        if not isinstance(date, str) or not date:
-            raise ValueError("market-data-hub return data must contain a non-empty date")
-        values: dict[str, float] = {}
-        for instrument in dataset.instruments:
-            value = row.get(instrument)
-            if value is None:
-                continue
-            try:
-                number = float(value)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(f"non-numeric return for {instrument!r} at {date}") from exc
-            if math.isfinite(number):
-                values[instrument] = number
-        observations.append((date, values))
-    return observations
-
-
-def _series_values(dataset: ReturnDataset) -> dict[str, list[float]]:
-    values: dict[str, list[float]] = {instrument: [] for instrument in dataset.instruments}
-    for _, row_values in _series_observations(dataset):
-        for instrument, value in row_values.items():
-            values[instrument].append(value)
-    return values
-
-
-def _pearson(pairs: Iterable[tuple[float, float]]) -> float | None:
-    values = list(pairs)
-    if len(values) < 2:
-        return None
-    left, right = zip(*values, strict=True)
-    left_mean = statistics.fmean(left)
-    right_mean = statistics.fmean(right)
-    numerator = sum((x - left_mean) * (y - right_mean) for x, y in values)
-    left_scale = math.sqrt(sum((x - left_mean) ** 2 for x in left))
-    right_scale = math.sqrt(sum((y - right_mean) ** 2 for y in right))
-    if left_scale == 0 or right_scale == 0:
-        return None
-    return _round(numerator / (left_scale * right_scale))
-
-
-def _periods_per_year(frequency: str) -> int:
-    try:
-        return _PERIODS_PER_YEAR[frequency]
-    except KeyError as exc:
-        raise ValueError("frequency must be one of D, W, M, Q") from exc
 
 
 def _data_metadata(dataset: ReturnDataset) -> dict[str, Any]:
