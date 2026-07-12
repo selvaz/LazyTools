@@ -10,12 +10,15 @@ deferred (heavy dependency) — see :mod:`lazytools.report.tools`.
 
 from __future__ import annotations
 
+from lazytools.report.artifacts import ArtifactResolvers
 from lazytools.report.files import ReportFiles
-from lazytools.report.models import Memo, Section, TableBlock
+from lazytools.report.models import FigureBlock, Memo, Section, TableBlock
 from lazytools.report.render import render_html, render_markdown
 from lazytools.report.tools import ReportTools
 
 __all__ = [
+    "ArtifactResolvers",
+    "FigureBlock",
     "Memo",
     "ReportFiles",
     "ReportTools",

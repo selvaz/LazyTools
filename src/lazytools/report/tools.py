@@ -20,20 +20,32 @@ from typing import Any
 
 from lazybridge import Tool
 
+from lazytools.report.artifacts import ArtifactResolvers
 from lazytools.report.models import Memo
 from lazytools.report.render import render_html, render_markdown
 
 _MEMO_SHAPE = (
     "Args: memo (object) — {title: str, as_of: ISO datetime (optional), "
     "sections: [{title: str, body: markdown str, tables: "
-    "[{columns: [str], rows: [[str]]}]}], metadata: {str: str}}."
+    "[{columns: [str], rows: [[str]]}], figures: "
+    "[{ref: 'scheme:key' artifact ref, caption: str}]}], metadata: {str: str}}."
 )
 
 
 class ReportTools:
-    """A ``ToolProvider`` exposing the deterministic memo renderers."""
+    """A ``ToolProvider`` exposing the deterministic memo renderers.
+
+    ``artifacts`` configures how figure refs are resolved when rendering
+    HTML; the default registry handles only ``file:`` and ``bytes:``.
+    Pass a registry with source resolvers (``regimes:``, ``crawler:``,
+    ``chart:``) registered — and, since the memo comes from an agent,
+    prefer one constructed with a ``file_base_dir`` sandbox.
+    """
 
     _is_lazy_tool_provider = True
+
+    def __init__(self, *, artifacts: ArtifactResolvers | None = None) -> None:
+        self._artifacts = artifacts
 
     # ------------------------------------------------------------------ #
     # ToolProvider
@@ -65,4 +77,4 @@ class ReportTools:
         return render_markdown(Memo.model_validate(memo))
 
     def _render_memo_html(self, memo: dict[str, Any]) -> str:
-        return render_html(Memo.model_validate(memo))
+        return render_html(Memo.model_validate(memo), artifacts=self._artifacts)

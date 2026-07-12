@@ -21,12 +21,26 @@ class TableBlock(BaseModel):
     rows: list[list[str]]
 
 
+class FigureBlock(BaseModel):
+    """A figure named by artifact ref; bytes are resolved only at render time.
+
+    ``ref`` is a canonical ``"scheme:key"`` string — the ecosystem's shared
+    artifact identity (``lazydatacore.ArtifactRef``): ``regimes:<plot_key>``,
+    ``crawler:<content_hash>``, ``chart:<spec>``, ``file:<path>``,
+    ``bytes:<base64>``. See :mod:`lazytools.report.artifacts` for resolution.
+    """
+
+    ref: str = Field(min_length=3, pattern=r"^[a-z][a-z0-9_-]*:.+")
+    caption: str = ""
+
+
 class Section(BaseModel):
-    """One memo section: a title, optional Markdown prose, optional tables."""
+    """One memo section: a title, optional Markdown prose, optional tables and figures."""
 
     title: str
     body: str = ""
     tables: list[TableBlock] = Field(default_factory=list)
+    figures: list[FigureBlock] = Field(default_factory=list)
 
 
 class Memo(BaseModel):
