@@ -133,6 +133,9 @@ class RegimeTools:
             # -- data loading: ONLY the hub-backed loader (audit CA-11). Never
             # lazystats.regimes.tools.load_time_series (arbitrary file_path).
             (r.load_from_datahub, "regime_load_from_datahub"),
+            # -- chart generation into the depot (writes PNG blobs there;
+            # export to disk stays behind regime_db_export_plot)
+            (r.generate_regime_plots, "regime_generate_plots"),
             # -- fitting that persists a new result / consumes fitting time
             (r.fit_regimes, "regime_fit"),
             (r.fit_categorical_regimes, "regime_fit_categorical"),
