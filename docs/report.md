@@ -143,6 +143,20 @@ than rendering a silently incomplete report.
 |---|---|---|---|
 | `render_memo` | No | `memo` (Memo-shaped JSON object) | Markdown string |
 | `render_memo_html` | No | `memo` (Memo-shaped JSON object) | HTML string |
+| `save_memo_html` | No¹ | `memo`, `filename` (basename) | absolute path |
+| `save_memo_markdown` | No¹ | `memo`, `filename` (basename) | absolute path |
+
+¹ `save_memo_html` / `save_memo_markdown` appear **only** when `ReportTools` is
+built with a `files=ReportFiles(...)`. They render **and** write in a single
+call, returning just the path.
+
+!!! warning "For reports with figures, an agent must use `save_memo_html`"
+    `render_memo_html` returns the HTML *string*. A self-contained HTML with
+    embedded base64 images is hundreds of KB — far too large for a model to
+    faithfully copy from one tool result into a `save_report(content=…)`
+    argument (it truncates). `save_memo_html` keeps the bytes out of the LLM's
+    token stream entirely: memo in, path out. Build `ReportTools` with a
+    `files=` and point the agent at `save_memo_html`.
 
 `ReportFiles(base_dir="reports")` (persistence):
 
@@ -153,12 +167,15 @@ than rendering a silently incomplete report.
 `save_report` reduces `filename` to its basename and strips unsafe characters
 (no path traversal); the extension must be one of
 `md/markdown/html/htm/csv/txt/json` or `.md` is appended. Files are written
-under `base_dir` (created on first write). Typical flow: `render_memo` →
-`save_report` → `telegram_send_document`.
+under `base_dir` (created on first write). Use it for text you already have;
+for a memo (especially with figures) prefer the one-step `save_memo_html`.
 
 ```python
 from lazybridge import Agent
-from lazytools.report import ReportTools, ReportFiles
+from lazytools.report import ReportTools, ReportFiles, ecosystem_resolvers
 
-agent = Agent("claude-opus-4-8", tools=[ReportTools(), ReportFiles(base_dir="/data/reports")])
+files = ReportFiles(base_dir="/data/reports")
+# figures resolve at render time; save_memo_html writes the full HTML to disk
+report = ReportTools(artifacts=ecosystem_resolvers(datahub_db_path="…/hub.duckdb"), files=files)
+agent = Agent("claude-opus-4-8", tools=[report, files])
 ```

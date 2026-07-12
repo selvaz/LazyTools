@@ -62,7 +62,13 @@ class ReportFiles:
             name += ".md"
         return name
 
-    def _save_report(self, filename: str, content: str) -> str:
+    def save(self, filename: str, content: str) -> str:
+        """Write ``content`` to a sandboxed file and return its absolute path.
+
+        Public entry point (also used by :class:`~lazytools.report.tools.ReportTools`'s
+        render-and-save tools, which must write large HTML without routing it
+        back through the LLM).
+        """
         name = self._safe_name(filename)
         base = self._base.resolve()
         base.mkdir(parents=True, exist_ok=True)
@@ -75,3 +81,6 @@ class ReportFiles:
             raise ValueError(f"save_report: refusing to write through a symlink or out-of-sandbox path: {name!r}")
         path.write_text(content, encoding="utf-8")
         return str(path)
+
+    #: Backwards-compatible alias for the tool wrapper.
+    _save_report = save
