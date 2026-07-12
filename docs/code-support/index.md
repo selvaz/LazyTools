@@ -15,12 +15,12 @@ collaboration pipeline that combines them.
     **Status: alpha.** The CLI-mode tools (`claude_code`, `codex`,
     `build_cli_collaboration`) are stdlib-only (`subprocess`, `json`, `shutil`):
     ```bash
-    pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"
+    pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git"
     ```
     The **MCP-mode** factories (`claude_code_mcp` / `codex_mcp`) additionally
     need the `mcp` extra:
     ```bash
-    pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"
+    pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"
     ```
     The package is `lazytoolkit` (installed from GitHub — see Install); the import root is `lazytools`. The two
     CLIs are *not* Python packages — install them separately and make sure

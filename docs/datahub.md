@@ -43,7 +43,7 @@ market-data-hub is distributed from GitHub (only LazyBridge is on PyPI), so
 install both the toolkit and the hub from git:
 
 ```bash
-G="git+https://github.com/selvaz/LazyTools.git@v0.3.2"
+G="git+https://github.com/selvaz/LazyTools.git"
 pip install "lazytoolkit @ $G"
 pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@<ref>"
 ```

@@ -10,11 +10,12 @@ agents built on [LazyBridge](https://github.com/selvaz/LazyBridge) (and
     world. See the [ecosystem overview](https://lazybridge.com/) for
     how the three packages stack.
 
-LazyTools is distributed from GitHub at a release tag (only LazyBridge is on
-PyPI). Add an extra to the direct reference:
+LazyTools is distributed from GitHub (only LazyBridge is on PyPI). Add an
+extra to the direct reference — this pulls the current `main`; append
+`@vX.Y.Z` to pin a release tag:
 
 ```bash
-G="git+https://github.com/selvaz/LazyTools.git@v0.3.2"
+G="git+https://github.com/selvaz/LazyTools.git"
 pip install "lazytoolkit @ $G"                 # core (just lazybridge)
 pip install "lazytoolkit[gmail] @ $G"          # Gmail client + guarded draft/send tools
 pip install "lazytoolkit[telegram] @ $G"       # Telegram client + guarded send tool

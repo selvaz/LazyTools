@@ -16,7 +16,7 @@ produces byte-identical output, so reports are reproducible and auditable.
     **Status: alpha. No extra needed** — stdlib + the pydantic that ships with
     `lazybridge`:
     ```bash
-    pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"
+    pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git"
     ```
     **PDF rendering is deliberately deferred**: it would pull a heavy
     dependency (weasyprint / reportlab) into an otherwise stdlib-only module.
