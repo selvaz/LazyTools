@@ -10,13 +10,32 @@ are emitted in sorted order so the output does not depend on insertion order.
 * :func:`render_html` — minimal clean HTML with **everything escaped** via
   :func:`html.escape`. Section bodies are treated as plain text here (split
   into paragraphs on blank lines), not parsed as Markdown.
+
+Figures: :func:`render_html` embeds each ``FigureBlock`` as a base64 data URI
+(``<img src="data:...">``) so the output is one self-contained file — refs are
+resolved through an :class:`~lazytools.report.artifacts.ArtifactResolvers`
+(defaults to the core ``file:``/``bytes:`` registry). Determinism then extends
+over the resolved artifact bytes: same memo + same artifact content, identical
+output. :func:`render_markdown` stays text-only and degrades a figure to an
+italic ``Figure:`` line carrying the caption and ref.
 """
 
 from __future__ import annotations
 
+import base64
 import html
+import re
 
+from lazytools.report.artifacts import ArtifactResolvers
 from lazytools.report.models import Memo
+
+#: A strict image MIME token: ``image/`` plus RFC-6838 subtype characters only.
+#: Deliberately excludes the space and quote in an injection payload such as
+#: ``image/png" onerror="alert(1)`` — a resolver MIME can originate from an
+#: untrusted remote ``Content-Type`` (e.g. a ``crawler:`` artifact), and it is
+#: interpolated into the ``src`` attribute, so a permissive ``startswith``
+#: check would let attribute injection through.
+_IMAGE_MIME_RE = re.compile(r"^image/[A-Za-z0-9][A-Za-z0-9.+-]*$")
 
 
 def render_markdown(memo: Memo) -> str:
@@ -34,6 +53,9 @@ def render_markdown(memo: Memo) -> str:
             for row in table.rows:
                 lines.append("| " + " | ".join(_md_cell(cell) for cell in row) + " |")
             lines.append("")
+        for figure in section.figures:
+            caption = f"{figure.caption} " if figure.caption else ""
+            lines += [f"_Figure: {caption}({figure.ref})_", ""]
     if memo.metadata:
         lines += ["---", ""]
         lines += [f"- {key}: {memo.metadata[key]}" for key in sorted(memo.metadata)]
@@ -41,8 +63,16 @@ def render_markdown(memo: Memo) -> str:
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
-def render_html(memo: Memo) -> str:
-    """Render a :class:`Memo` to minimal HTML; every value is escaped."""
+def render_html(memo: Memo, *, artifacts: ArtifactResolvers | None = None) -> str:
+    """Render a :class:`Memo` to minimal, self-contained HTML; every value is escaped.
+
+    Figures are resolved through ``artifacts`` (core ``file:``/``bytes:``
+    registry when omitted) and embedded as base64 data URIs; only image MIME
+    types may be embedded. An unresolvable ref raises rather than rendering
+    a silently incomplete report.
+    """
+    if artifacts is None:
+        artifacts = ArtifactResolvers()
     parts: list[str] = [
         "<!DOCTYPE html>",
         '<html lang="en">',
@@ -70,6 +100,19 @@ def render_html(memo: Memo) -> str:
                 parts.append("<tr>" + "".join(f"<td>{html.escape(cell)}</td>" for cell in row) + "</tr>")
             parts.append("</tbody>")
             parts.append("</table>")
+        for figure in section.figures:
+            data, mime = artifacts.resolve(figure.ref)
+            if not _IMAGE_MIME_RE.match(mime):
+                raise ValueError(
+                    f"figure {figure.ref!r} resolved to non-image or unsafe MIME {mime!r}; "
+                    "only a strict image/* MIME can be embedded in an HTML report"
+                )
+            src = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
+            parts.append("<figure>")
+            parts.append(f'<img src="{src}" alt="{html.escape(figure.caption)}">')
+            if figure.caption:
+                parts.append(f"<figcaption>{html.escape(figure.caption)}</figcaption>")
+            parts.append("</figure>")
     if memo.metadata:
         parts.append("<dl>")
         for key in sorted(memo.metadata):
