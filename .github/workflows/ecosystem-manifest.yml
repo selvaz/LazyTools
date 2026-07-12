@@ -1,0 +1,25 @@
+name: ecosystem-manifest
+
+# Anti-drift gate for the canonical compatibility manifest
+# (ecosystem/compatibility.toml). Fails when the generated views are stale,
+# when any Git direct reference in this repo disagrees with the manifest,
+# or when the package's lazybridge range no longer admits the verified
+# version. See tools/render_compatibility.py.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Drift check
+        run: |
+          python -m pip install --upgrade pip packaging
+          python tools/render_compatibility.py --check

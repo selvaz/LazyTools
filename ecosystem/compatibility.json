@@ -1,0 +1,45 @@
+{
+  "minimums": {
+    "lazybridge": ">=1.0.1,<2.0"
+  },
+  "pending": {
+    "lazyray": {
+      "reason": "pins market-data-hub @42ed9ea while the verified combination uses @54bc884; two direct URLs for the same package are not co-installable. Re-align LazyRay's pin (finance train, ECO-007), then move it to [verified.github].",
+      "repo": "https://github.com/selvaz/LazyRay"
+    }
+  },
+  "schema_version": 1,
+  "verified": {
+    "github": {
+      "lazycrawler": {
+        "ref": "8b6462187093b33ef162b6d8147302b34eab9f5a",
+        "repo": "https://github.com/selvaz/LazyCrawler"
+      },
+      "lazypulse": {
+        "ref": "v0.3.1",
+        "repo": "https://github.com/selvaz/LazyPulse"
+      },
+      "lazystats": {
+        "extras": [
+          "regimes"
+        ],
+        "ref": "ffcda62f94a02a56192f7b55a223d701bf85f143",
+        "repo": "https://github.com/selvaz/LazyStats"
+      },
+      "lazytoolkit": {
+        "ref": "v0.3.2",
+        "repo": "https://github.com/selvaz/LazyTools"
+      },
+      "market-data-hub": {
+        "ref": "54bc8849e82ad8d1a65a94be0621b5d37740447c",
+        "repo": "https://github.com/selvaz/market-data-hub"
+      }
+    },
+    "lazybridge": "1.0.1",
+    "python": [
+      "3.11",
+      "3.12",
+      "3.13"
+    ]
+  }
+}
