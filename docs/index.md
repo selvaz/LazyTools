@@ -78,6 +78,7 @@ Everything below installs from GitHub (only `lazybridge` is on PyPI):
 | [market-data-hub](https://github.com/selvaz/market-data-hub) | **The single source of financial data** | `datahub_*` tools (discovery/resolution/facts/extraction) |
 | [LazyStats](https://github.com/selvaz/LazyStats) | Statistics + HMM/MS regime engines | `statistical_*` tools and `regime_*` tools (`[regimes]` extra of lazystats) |
 | [LazyRay](https://github.com/selvaz/LazyRay) | Debt-cycle & regime engine | reads market-data-hub directly; no LazyTools connector (not an agent surface) |
+| [LazyFin](https://github.com/selvaz/LazyFin) (private) | Portfolio Manager AI — the finance **domain layer** (canonical models, deterministic kernel, scoring, optimizer, PM agents) | consumes LazyTools' connectors and the `datahub_*`/`regime_*` surfaces; `LazyFin → {LazyPulse, LazyCrawler, LazyTools} → LazyBridge`, never the reverse |
 
 ## Dependency rules
 
