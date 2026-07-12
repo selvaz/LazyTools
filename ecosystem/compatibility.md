@@ -7,9 +7,9 @@ Python: 3.11, 3.12, 3.13
 | Component | Channel | Verified ref |
 |---|---|---|
 | lazybridge | PyPI | `1.0.1` |
-| lazytoolkit | GitHub | `v0.3.2` |
+| lazytoolkit | GitHub | `3845ad1e8c77b4822538db1266429e944fdd6d34` |
 | lazypulse | GitHub | `v0.3.1` |
-| lazycrawler | GitHub | `v0.15.0` |
-| market-data-hub | GitHub | `0eb286e4e931c089ae9d4383f5f6f615d9b4d5e4` |
-| lazystats | GitHub | `ffcda62f94a02a56192f7b55a223d701bf85f143` |
+| lazycrawler | GitHub | `54ecfbc3508ea168d45d52b50dbe9500adf1f2c1` |
+| market-data-hub | GitHub | `594928b8eb9aed52c5226b65d6a910c9dfd7a9f2` |
+| lazystats | GitHub | `dea66211c9ff617685daa1a69062ab61e395f16e` |
 | lazyray | GitHub | *excluded* — LazyRay now pins the same market-data-hub revision as the verified combination (re-aligned, ECO-007), so the earlier pin conflict is gone. It stays pending only because the ecosystem-released CI does not yet install and smoke it; move it to [verified.github] once that job exercises it. |
