@@ -356,9 +356,6 @@ class FakeDataHubBackend:
     def get_ingestion_health(self) -> str:
         return self._emit("get_ingestion_health")
 
-    def refresh_prices(self, symbols: str, start: str = "2010-01-01") -> str:
-        return self._emit("refresh_prices", symbols=symbols, start=start)
-
     def ensure_price_history(self, query: str, start: str = "", end: str = "") -> str:
         return self._emit("ensure_price_history", query=query, start=start, end=end)
 

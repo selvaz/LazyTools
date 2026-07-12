@@ -1,4 +1,9 @@
-"""Market-data connector: swappable price adapters, client, and tools.
+"""Market-data connector: swappable price adapters and CLIENT only.
+
+The LLM-facing ``MarketDataTools`` provider was REMOVED (audit CA-03, no
+compatibility window needed): agents get prices exclusively through the
+hub-backed ``datahub_*`` tools. The client/adapters stay as injectable
+plumbing for non-agent code (e.g. LazyFin's PriceSource protocol).
 
 Only the concrete :class:`StooqAdapter` needs the ``marketdata`` extra
 (``httpx``); the :class:`MarketDataAdapter` protocol, :class:`MarketDataClient`,
@@ -17,7 +22,6 @@ from lazytools.connectors.marketdata.adapters import (
     StooqAdapter,
 )
 from lazytools.connectors.marketdata.client import VALID_RANGES, MarketDataClient
-from lazytools.connectors.marketdata.tools import MarketDataTools
 
 __all__ = [
     "DEFAULT_MAX_RESPONSE_BYTES",
@@ -27,6 +31,5 @@ __all__ = [
     "MarketDataAdapter",
     "MarketDataUnavailable",
     "MarketDataClient",
-    "MarketDataTools",
     "StooqAdapter",
 ]

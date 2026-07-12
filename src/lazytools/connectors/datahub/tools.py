@@ -30,9 +30,11 @@ class DataHubTools:
     ``allow_raw_series=True``; they remain capped at 500 rows either way.
 
     Pass ``allow_refresh=True`` to additionally expose the WRITE tools
-    (``datahub_refresh_prices``, ``datahub_ensure_price_history``,
-    ``datahub_ensure_financials``) so an agent can ingest missing data on
-    demand.
+    (``datahub_ensure_price_history``, ``datahub_ensure_financials``) so an
+    agent can ingest missing data on demand. The legacy
+    ``datahub_refresh_prices`` was REMOVED (audit CA-07): it bypassed the
+    identity model and the job ledger; the ensure_* capabilities are the one
+    ingestion path.
     """
 
     _is_lazy_tool_provider = True
@@ -242,18 +244,6 @@ class DataHubTools:
         ) + (
             [
                 Tool.wrap(
-                    self._refresh_prices,
-                    name="datahub_refresh_prices",
-                    description=(
-                        "WRITE tool: download price series from Yahoo and persist them into "
-                        "the hub DB, then rebuild coverage. Use only when the hub has no (or "
-                        "insufficient) data for a symbol; afterwards datahub_get_series / "
-                        "datahub_get_returns will see it. Args: symbols (comma-separated, "
-                        "e.g. 'SPY,QQQ'); start (history start date 'YYYY-MM-DD', default "
-                        "2010-01-01). Not concurrency-safe: serialise calls."
-                    ),
-                ),
-                Tool.wrap(
                     self._ensure_price_history,
                     name="datahub_ensure_price_history",
                     description=(
@@ -348,9 +338,6 @@ class DataHubTools:
 
     def _get_ingestion_health(self) -> str:
         return self._resolve().get_ingestion_health()
-
-    def _refresh_prices(self, symbols: str, start: str = "2010-01-01") -> str:
-        return self._resolve().refresh_prices(symbols, start=start)
 
     def _ensure_price_history(self, query: str, start: str = "", end: str = "") -> str:
         return self._resolve().ensure_price_history(query, start=start, end=end)

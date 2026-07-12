@@ -1,15 +1,15 @@
-"""EdgarClient (httpx MockTransport, no network) + EdgarTools provider."""
+"""EdgarClient (httpx MockTransport, no network) — transport client only.
+
+The EdgarTools ToolProvider was removed (audit CA-03): agents reach SEC data
+through datahub_* tools; the client remains as injectable plumbing."""
 
 from __future__ import annotations
-
-import json
 
 import httpx
 import pytest
 
-from lazytools.connectors.edgar import EdgarClient, EdgarTools
+from lazytools.connectors.edgar import EdgarClient
 from lazytools.safety import UrlBlocked
-from lazytools.testing import FakeEdgarClient
 
 # --- canned SEC payloads ------------------------------------------------ #
 
@@ -246,32 +246,3 @@ def test_same_host_redirect_is_followed() -> None:
     http = httpx.Client(transport=httpx.MockTransport(handler))
     client = EdgarClient("Test test@example.com", http=http, min_request_interval=0.0)
     assert client.company_facts("320193") == COMPANY_FACTS
-
-
-# --- EdgarTools (ToolProvider over the fake) ------------------------------ #
-
-
-def test_provider_is_tool_provider() -> None:
-    assert EdgarTools(FakeEdgarClient())._is_lazy_tool_provider is True
-
-
-def test_as_tools_exposes_expected_names() -> None:
-    names = {t.name for t in EdgarTools(FakeEdgarClient()).as_tools()}
-    assert names == {"edgar_resolve_company", "edgar_list_filings", "edgar_get_filing", "edgar_company_facts"}
-
-
-def test_tools_run_sync_against_fake() -> None:
-    tools = {t.name: t for t in EdgarTools(FakeEdgarClient()).as_tools()}
-
-    resolved = json.loads(tools["edgar_resolve_company"].run_sync(query="AAPL"))
-    assert resolved == [{"cik": "0000320193", "ticker": "AAPL", "title": "Apple Inc."}]
-
-    filings = json.loads(tools["edgar_list_filings"].run_sync(cik="0000320193", form="10-K"))
-    assert filings[0]["accession_no"] == "0000320193-24-000123"
-
-    filing = json.loads(tools["edgar_get_filing"].run_sync(cik="0000320193", accession_no="0000320193-24-000123"))
-    assert filing["content_is_untrusted"] is True
-    assert "Apple Inc." in filing["content"]
-
-    facts = json.loads(tools["edgar_company_facts"].run_sync(cik="0000320193"))
-    assert facts["facts"]["us-gaap"]["Revenues"]["units"]["USD"][0]["val"] == 391_035_000_000

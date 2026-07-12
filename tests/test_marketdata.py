@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import json
-
 import httpx
 import pytest
 
 from lazytools.connectors.marketdata import (
     MarketDataClient,
-    MarketDataTools,
     MarketDataUnavailable,
     StooqAdapter,
 )
@@ -237,28 +234,3 @@ def test_client_rejects_empty_ticker() -> None:
     client = MarketDataClient(FakeMarketDataAdapter())
     with pytest.raises(ValueError, match="non-empty"):
         client.prices_get("")
-
-
-# --- MarketDataTools (ToolProvider) ----------------------------------------- #
-
-
-def test_provider_is_tool_provider() -> None:
-    tools = MarketDataTools(MarketDataClient(FakeMarketDataAdapter()))
-    assert tools._is_lazy_tool_provider is True
-
-
-def test_as_tools_exposes_expected_names() -> None:
-    tools = MarketDataTools(MarketDataClient(FakeMarketDataAdapter()))
-    assert {t.name for t in tools.as_tools()} == {"prices_get", "prices_history"}
-
-
-def test_tools_run_sync_against_fake() -> None:
-    provider = MarketDataTools(MarketDataClient(FakeMarketDataAdapter()))
-    tools = {t.name: t for t in provider.as_tools()}
-
-    quote = json.loads(tools["prices_get"].run_sync(ticker="AAPL"))
-    assert quote["ticker"] == "AAPL"
-    assert quote["price"] == "203.92"
-
-    rows = json.loads(tools["prices_history"].run_sync(ticker="AAPL", range_="1y"))
-    assert [r["date"] for r in rows] == ["2026-06-05", "2026-06-08", "2026-06-09"]

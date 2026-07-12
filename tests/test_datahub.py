@@ -29,7 +29,6 @@ EXPECTED_NAMES = {
 }
 
 WRITE_NAMES = {
-    "datahub_refresh_prices",
     "datahub_ensure_price_history",
     "datahub_ensure_financials",
 }
@@ -116,9 +115,10 @@ def test_refresh_tool_hidden_by_default_and_gated() -> None:
     provider = DataHubTools(backend, allow_refresh=True)
     by_name = {t.name: t for t in provider.as_tools()}
     assert set(by_name) >= WRITE_NAMES
-    out = json.loads(by_name["datahub_refresh_prices"].run_sync(symbols="SPY,QQQ"))
-    assert out["tool"] == "refresh_prices"
-    assert out["args"] == {"symbols": "SPY,QQQ", "start": "2010-01-01"}
+    # audit CA-07: the legacy refresh (bypassed identity + job ledger) is gone
+    assert "datahub_refresh_prices" not in by_name
+    out = json.loads(by_name["datahub_ensure_price_history"].run_sync(query="SPY"))
+    assert out["tool"] == "ensure_price_history"
     out = json.loads(by_name["datahub_ensure_financials"].run_sync(query="AAPL"))
     assert out["tool"] == "ensure_financials"
 

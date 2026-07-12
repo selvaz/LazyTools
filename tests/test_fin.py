@@ -9,7 +9,6 @@ lazyfin = pytest.importorskip("lazyfin", reason="fin connector requires lazyfin"
 from lazytools.connectors.fin import (
     OptimizerTools,
     PortfolioTools,
-    ResolveTools,
     RiskTools,
     ScoringTools,
     pm_supervisor,
@@ -39,19 +38,6 @@ def test_providers_expose_expected_tool_names() -> None:
         assert {t.name for t in provider.as_tools()} == expected
 
 
-def test_resolve_tools_requires_only_a_client_protocol() -> None:
-    class FakeEdgar:
-        def resolve(self, query):  # pragma: no cover - shape only
-            raise NotImplementedError
-
-        def company_facts(self, cik):  # pragma: no cover - shape only
-            raise NotImplementedError
-
-    provider = ResolveTools(FakeEdgar())
-    assert {t.name for t in provider.as_tools()} == {
-        "resolve_security", "get_financial_facts"}
-
-
 def test_pm_supervisor_builds_agent_with_kernel_tools() -> None:
     from lazybridge import Agent
 
@@ -78,15 +64,13 @@ def test_lazyfin_shims_still_work_but_warn() -> None:
         "compute_drift"}
 
 
-def test_marketdata_and_edgar_tools_are_deprecated() -> None:
-    from lazytools.connectors.edgar import EdgarTools
-    from lazytools.connectors.marketdata import MarketDataTools
+def test_direct_provider_tools_are_gone() -> None:
+    """Audit CA-03, final state (single user, no compatibility window): the
+    direct-fetch ToolProviders are REMOVED, not just deprecated."""
+    import lazytools.connectors.edgar as edgar
+    import lazytools.connectors.fin as fin
+    import lazytools.connectors.marketdata as marketdata
 
-    class FakeClient:
-        pass
-
-    with pytest.warns(DeprecationWarning, match="DataHubTools"):
-        MarketDataTools(FakeClient())
-    with pytest.warns(DeprecationWarning, match="DataHubTools"):
-        EdgarTools(FakeClient())
-
+    assert not hasattr(edgar, "EdgarTools")
+    assert not hasattr(marketdata, "MarketDataTools")
+    assert not hasattr(fin, "ResolveTools")

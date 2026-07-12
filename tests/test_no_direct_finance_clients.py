@@ -4,17 +4,15 @@ sole data owner (audit finding CA-03, plan v3.1 §5.2/Fase 5).
 
 This is a STATIC guard: the finance agent factories (`connectors/fin/agents.py`
 and anything that becomes a "financial bundle" assembly point) must not
-import `connectors.edgar` / `connectors.marketdata`, and must not construct
-`ResolveTools` by default. It does not (and cannot) forbid a caller from
-manually wiring a deprecated provider in — that path already emits a
-DeprecationWarning at construction — but it guarantees no bundled/"default"
-finance agent silently bypasses the hub.
+import `connectors.edgar` / `connectors.marketdata`. The direct-fetch
+ToolProviders (EdgarTools, MarketDataTools, ResolveTools) are REMOVED
+outright; the transport clients remain as injectable plumbing for non-agent
+code, but no bundled/"default" finance agent can silently bypass the hub.
 """
 
 from __future__ import annotations
 
 import ast
-import warnings
 from pathlib import Path
 
 import pytest
@@ -79,23 +77,12 @@ def test_pm_supervisor_defaults_never_include_a_direct_provider() -> None:
     assert "MarketDataTools" not in tool_types
 
 
-def test_resolve_tools_is_deprecated() -> None:
-    """ResolveTools remains importable for one compatibility release, but
-    must warn at construction (audit CA-03: it bypasses the hub)."""
+def test_resolve_tools_is_removed() -> None:
+    """Audit CA-03 final: ResolveTools fetched EDGAR directly and is removed
+    outright (sole user, no compatibility release needed). The hub-backed
+    datahub_* tools are the only financial resolution/facts surface."""
     __import__("pytest").importorskip("lazyfin")
-    from lazytools.connectors.fin.tools import ResolveTools
+    import lazytools.connectors.fin.tools as fin_tools
 
-    class _FakeClient:
-        def resolve(self, query):  # pragma: no cover - shape only
-            raise NotImplementedError
-
-        def company_facts(self, cik):  # pragma: no cover - shape only
-            raise NotImplementedError
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        ResolveTools(_FakeClient())
-    assert any(
-        issubclass(w.category, DeprecationWarning) and "datahub" in str(w.message)
-        for w in caught
-    )
+    assert not hasattr(fin_tools, "ResolveTools")
+    assert "ResolveTools" not in getattr(fin_tools, "__all__", [])

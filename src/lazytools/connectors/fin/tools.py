@@ -3,8 +3,13 @@
 Each provider wraps deterministic LazyFin functions with ``Tool.wrap`` so an
 ``Agent(tools=[PortfolioTools(ledger)])`` can call them. The computation stays
 in lazyfin; only the LLM-facing wrapping lives here (plan v3.1, Fase 5 — the
-same classes in ``lazyfin.kernel``/``lazyfin.scoring``/``lazyfin.resolve`` are
-deprecated shims for one release).
+same classes in ``lazyfin.kernel``/``lazyfin.scoring`` are deprecated shims).
+
+``ResolveTools`` was REMOVED (audit CA-03, no compatibility window needed):
+it fetched raw EDGAR company facts directly through its injected client,
+bypassing market-data-hub. Agents resolve and read financials through the
+hub-backed ``datahub_*`` tools; ``ScoringTools``' ``get_facts`` callable can
+be fed from those.
 """
 
 from __future__ import annotations
@@ -33,13 +38,6 @@ try:
         RiskReport,
         SecurityScore,
     )
-    from lazyfin.resolve import (
-        EdgarClientLike,
-        Resolution,
-        normalize_company_facts,
-        resolve_security,
-    )
-    from lazyfin.resolve._resolver import _cik_for
     from lazyfin.scoring import score_security
 except ImportError as exc:  # pragma: no cover - clear hint over bare failure
     raise ImportError(
@@ -55,7 +53,6 @@ __all__ = [
     "RiskTools",
     "OptimizerTools",
     "ScoringTools",
-    "ResolveTools",
 ]
 
 
@@ -206,78 +203,3 @@ class ScoringTools:
                 ),
             )
         ]
-
-
-class ResolveTools:
-    """LazyBridge tool provider for resolution + fact retrieval.
-
-    .. deprecated::
-        ``get_financial_facts`` fetches RAW EDGAR company facts directly
-        through the injected client, bypassing market-data-hub entirely — no
-        DB, no coverage, no run ledger, no provenance (audit finding CA-03).
-        Use ``datahub_resolve_instrument`` + ``datahub_get_financial_facts`` /
-        ``datahub_ensure_financials`` (``connectors.datahub.DataHubTools``)
-        instead. Kept for one compatibility release.
-
-    ``get_financial_facts`` accepts canonical ids (``ticker:AAPL`` /
-    ``cik:0000320193``) or a bare query, fetches the raw EDGAR company facts
-    through the client and returns them normalised with provenance.
-    """
-
-    _is_lazy_tool_provider = True
-
-    def __init__(
-        self,
-        client: EdgarClientLike,
-        *,
-        tool_version: str | None = None,
-        concepts: Callable[[], list[str] | None] | list[str] | None = None,
-    ) -> None:
-        import warnings
-
-        warnings.warn(
-            "ResolveTools.get_financial_facts fetches EDGAR directly and "
-            "bypasses market-data-hub (no DB, coverage, run ledger or "
-            "provenance): use lazytools.connectors.datahub.DataHubTools "
-            "(datahub_resolve_instrument + datahub_get_financial_facts / "
-            "datahub_ensure_financials) instead. Removal after one "
-            "compatibility release.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self._client = client
-        self._tool_version = tool_version
-        self._concepts = concepts
-
-    def _resolve_security(self, query: str) -> Resolution:
-        return resolve_security(query, self._client)
-
-    def _get_financial_facts(self, security_id: str) -> list[FinancialFact]:
-        cik = _cik_for(security_id, self._client)
-        concepts = self._concepts() if callable(self._concepts) else self._concepts
-        return normalize_company_facts(
-            self._client.company_facts(cik),
-            concepts=concepts,
-            tool_version=self._tool_version,
-        )
-
-    def as_tools(self) -> list[Tool]:
-        return [
-            Tool.wrap(
-                self._resolve_security,
-                name="resolve_security",
-                description=(
-                    "Resolve a ticker, CIK or company name to the canonical "
-                    "Company + Security pair via SEC EDGAR."
-                ),
-            ),
-            Tool.wrap(
-                self._get_financial_facts,
-                name="get_financial_facts",
-                description=(
-                    "Fetch and normalise SEC EDGAR XBRL company facts for a security "
-                    "(canonical id or query) into FinancialFact records with provenance."
-                ),
-            ),
-        ]
-

@@ -1,4 +1,9 @@
-"""SEC EDGAR connector: client and read-only filing/facts tools.
+"""SEC EDGAR connector: transport CLIENT only.
+
+The LLM-facing ``EdgarTools`` provider was REMOVED (audit CA-03, no
+compatibility window needed): agents reach SEC data exclusively through the
+hub-backed ``datahub_*`` financial tools. The client stays as injectable
+plumbing for non-agent code (e.g. LazyFin's EdgarClientLike protocol).
 
 Only building a real :class:`EdgarClient` needs the ``edgar`` extra
 (``httpx``); the rest of the surface imports without it and is fully testable
@@ -16,12 +21,10 @@ from lazytools.connectors.edgar.client import (
     EdgarClient,
     EdgarService,
 )
-from lazytools.connectors.edgar.tools import EdgarTools
 
 __all__ = [
     "DEFAULT_MAX_RESPONSE_BYTES",
     "DEFAULT_MIN_REQUEST_INTERVAL",
     "EdgarClient",
     "EdgarService",
-    "EdgarTools",
 ]
