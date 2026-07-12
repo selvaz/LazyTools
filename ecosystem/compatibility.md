@@ -10,6 +10,6 @@ Python: 3.11, 3.12, 3.13
 | lazytoolkit | GitHub | `v0.3.2` |
 | lazypulse | GitHub | `v0.3.1` |
 | lazycrawler | GitHub | `v0.15.0` |
-| market-data-hub | GitHub | `54bc8849e82ad8d1a65a94be0621b5d37740447c` |
+| market-data-hub | GitHub | `0eb286e4e931c089ae9d4383f5f6f615d9b4d5e4` |
 | lazystats | GitHub | `ffcda62f94a02a56192f7b55a223d701bf85f143` |
-| lazyray | GitHub | *excluded* — pins market-data-hub @42ed9ea while the verified combination uses @54bc884; two direct URLs for the same package are not co-installable. Re-align LazyRay's pin (finance train, ECO-007), then move it to [verified.github]. |
+| lazyray | GitHub | *excluded* — LazyRay now pins the same market-data-hub revision as the verified combination (re-aligned, ECO-007), so the earlier pin conflict is gone. It stays pending only because the ecosystem-released CI does not yet install and smoke it; move it to [verified.github] once that job exercises it. |

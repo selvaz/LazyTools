@@ -132,7 +132,7 @@ def check_lazybridge_range(m: dict) -> list[str]:
 # ecosystem package as a bare (non-URL) name in docs is a distribution-model
 # violation (they are GitHub-only) and a dependency-confusion footgun.
 GITHUB_ONLY_NAMES = frozenset(
-    ("lazytoolkit", "lazypulse", "lazycrawler", "lazystats", "lazyray")
+    ("lazytoolkit", "lazypulse", "lazycrawler", "lazystats", "lazyray", "market-data-hub")
 )
 # Capture the install argument after ``pip install`` (optionally quoted): the
 # package name, an optional [extras] group, and an optional `` @ <url>`` direct
