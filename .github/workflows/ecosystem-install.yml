@@ -1,0 +1,56 @@
+name: ecosystem-install
+
+# Audit CA-04: install the WHOLE ecosystem from zero at current revisions and
+# smoke-test the composed finance surface. pip check green on stale pins can
+# lie; this proves the graph that a fresh machine actually gets.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"   # weekly drift check
+
+jobs:
+  install-from-zero:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the full ecosystem from scratch
+        run: |
+          python -m pip install -U pip
+          pip install -e .
+          pip install \
+            "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git" \
+            "lazyfin @ git+https://github.com/selvaz/LazyFin.git" \
+            "lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git"
+          pip check
+      - name: Smoke -- versions and composed finance surface
+        run: |
+          python - << 'EOF'
+          import importlib.metadata as md
+
+          import lazybridge
+
+          print("lazybridge", lazybridge.__version__)
+          for pkg in ("lazytoolkit", "lazyfin", "lazystats", "market-data-hub"):
+              print(pkg, md.version(pkg))
+          assert lazybridge.__version__.split(".")[0] >= "1", "not on stable 1.x"
+
+          # composed finance surface mounts and respects the audit invariants
+          from lazytools.connectors.datahub import DataHubTools
+          from lazytools.connectors.regimes import RegimeTools
+          from lazytools.statistical_analysis import StatisticalAnalysisTools
+
+          names = {t.name for t in DataHubTools().as_tools()}
+          names |= {t.name for t in StatisticalAnalysisTools().as_tools()}
+          names |= {t.name for t in RegimeTools().as_tools()}
+          assert "datahub_get_series" not in names          # CA-02
+          assert "datahub_refresh_prices" not in names      # CA-07
+          assert not any("load_time_series" in n for n in names)  # CA-11
+          print(f"finance surface OK: {len(names)} read tools mounted")
+          EOF
