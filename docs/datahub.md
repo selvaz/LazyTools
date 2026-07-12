@@ -21,7 +21,7 @@ bounded-results-only:
   `datahub_list_macro`, `datahub_list_countries`, `datahub_list_indicators`,
   `datahub_list_sectors`, `datahub_search`, `datahub_describe`;
 - **resolution** — `datahub_resolve_instrument` (human input → listing
-  candidates with `instrument_id`), `datahub_register_listing`;
+  candidates with `instrument_id`);
 - **facts & summaries** — `datahub_get_financial_facts`,
   `datahub_get_statement`, `datahub_get_price_summary`, `datahub_get_coverage`,
   `datahub_get_financials_coverage`;
@@ -35,7 +35,10 @@ Two opt-in switches widen the surface:
   silently corrupt a long-window result — statistics read the full matrix
   in-process instead (see [Statistical analysis](statistical-analysis.md)).
 - `DataHubTools(allow_refresh=True)` adds the on-demand ingestion **write**
-  tools `datahub_ensure_price_history` and `datahub_ensure_financials`.
+  tools `datahub_ensure_price_history`, `datahub_ensure_financials`, and
+  `datahub_register_listing` (register an arbitrary new name the hub does not
+  know yet). These are off the default surface — a plain `DataHubTools()` is
+  read-only.
 
 ## Install and add to an agent
 

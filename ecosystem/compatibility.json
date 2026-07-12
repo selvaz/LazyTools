@@ -4,7 +4,7 @@
   },
   "pending": {
     "lazyray": {
-      "reason": "pins market-data-hub @42ed9ea while the verified combination uses @54bc884; two direct URLs for the same package are not co-installable. Re-align LazyRay's pin (finance train, ECO-007), then move it to [verified.github].",
+      "reason": "LazyRay now pins the same market-data-hub revision as the verified combination (re-aligned, ECO-007), so the earlier pin conflict is gone. It stays pending only because the ecosystem-released CI does not yet install and smoke it; move it to [verified.github] once that job exercises it.",
       "repo": "https://github.com/selvaz/LazyRay"
     }
   },
@@ -31,7 +31,7 @@
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
-        "ref": "54bc8849e82ad8d1a65a94be0621b5d37740447c",
+        "ref": "0eb286e4e931c089ae9d4383f5f6f615d9b4d5e4",
         "repo": "https://github.com/selvaz/market-data-hub"
       }
     },

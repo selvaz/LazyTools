@@ -38,7 +38,7 @@ ref = "v0.15.0"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "54bc8849e82ad8d1a65a94be0621b5d37740447c"  # pre-tag pin; finance train replaces with a release tag
+ref = "0eb286e4e931c089ae9d4383f5f6f615d9b4d5e4"  # pre-tag pin (lazydatacore schema v1 + contract fixtures); finance train replaces with a release tag
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
@@ -51,7 +51,7 @@ extras = ["regimes"]
 # of the verified stack.
 [pending.lazyray]
 repo = "https://github.com/selvaz/LazyRay"
-reason = "pins market-data-hub @42ed9ea while the verified combination uses @54bc884; two direct URLs for the same package are not co-installable. Re-align LazyRay's pin (finance train, ECO-007), then move it to [verified.github]."
+reason = "LazyRay now pins the same market-data-hub revision as the verified combination (re-aligned, ECO-007), so the earlier pin conflict is gone. It stays pending only because the ecosystem-released CI does not yet install and smoke it; move it to [verified.github] once that job exercises it."
 
 [minimums]
 lazybridge = ">=1.0.1,<2.0"
