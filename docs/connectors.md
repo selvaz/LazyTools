@@ -27,7 +27,7 @@ The **Extra** column below is what goes in the brackets (`—` = no extra needed
 | **Web** | LazyCrawler's search/crawl/get-page surfaced as LLM tools (interface only — the crawler engine stays standalone). | `[web]` | — |
 | **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `[docs]` | [Documents](documents.md) |
 | **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | — | [Skills](skills.md) |
-| **Report (LazyReport)** | Deterministic memo rendering: `Memo` → Markdown/HTML, no LLM, no extra deps. | — | [Report](report.md) |
+| **Report (LazyReport)** | Deterministic memo rendering: `Memo` → Markdown/HTML, no LLM. Embeds figures (charts/images) into self-contained HTML via artifact refs. Core needs no extra; the `chart:` figure scheme needs `[charts]`. | `[charts]` (figures only) | [Report](report.md) |
 
 Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
 `ConfirmationGate`, `ActionBlocked`) are what gate the dangerous outbound tools.

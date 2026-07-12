@@ -36,10 +36,13 @@ pip install "lazytoolkit[telegram] @ $G"       # Telegram client + tools
 pip install "lazytoolkit[mcp] @ $G"            # Model Context Protocol connector
 pip install "lazytoolkit[docs] @ $G"           # PDF/DOCX/HTML document reading
 pip install "lazytoolkit[web] @ $G"            # LazyCrawler search/crawl as LLM tools
+pip install "lazytoolkit[charts] @ $G"         # report figures: on-demand charts from datahub series (matplotlib)
 # Financial data is served by market-data-hub (also GitHub-only); the datahub
 # connector needs no extra — install the hub alongside:
 #   pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git"
-# lazytools.report needs no extra              # deterministic memo rendering
+# lazytools.report core needs no extra (Markdown/HTML). Figures embed images:
+# file:/bytes: schemes are stdlib; chart: needs [charts] (+ the hub), regimes:
+# needs lazystats[regimes], crawler: needs [web].
 ```
 
 > [!IMPORTANT]
@@ -66,7 +69,10 @@ from lazytools.connectors.regimes import RegimeTools
 from lazytools.statistical_analysis import StatisticalAnalysisTools
 from lazytools.connectors.web import WebTools
 from lazytools.connectors.code_support import claude_code, codex, CodeWriteTools, build_cli_collaboration
-from lazytools.report import Memo, Section, TableBlock, render_markdown, render_html
+from lazytools.report import (
+    Memo, Section, TableBlock, FigureBlock, render_markdown, render_html,
+    ReportTools, ReportFiles, ArtifactResolvers, ecosystem_resolvers,
+)
 from lazytools.documents import read_docs_tools
 from lazytools.skills import build_skill, skill_tools
 from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
@@ -79,7 +85,7 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 | `connectors/` | `gmail`, `outlook`, `telegram`, `mcp`, `gateway`, `datahub`, `regimes`, `web`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
 | `statistical_analysis/` | `StatisticalAnalysisTools` | read-only volatility, return-correlation and z-score-outlier analysis backed only by market-data-hub |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
-| `report/` | `models`, `render` | deterministic memo/report rendering (Markdown/HTML) — "LazyReport" |
+| `report/` | `models`, `render`, `artifacts`, `resolvers`, `charts`, `tools`, `files` | deterministic memo/report rendering (Markdown/HTML) with embedded figures (charts/images) — "LazyReport" |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
 | `safety/` | `allowlist`, `gates`, `urls` | reusable allow-list, one-shot confirmation gate, and SSRF URL guard |
 | `testing/` | `fake_clients` | in-memory fakes for the connector Protocols |
@@ -155,12 +161,19 @@ direct-fetch finance connector on the agent surface.
   tools = RegimeTools(allow_write=True)  # + load/fit/persist/delete
   ```
 
-- **Report** (`lazytools.report`, no extra — "LazyReport") — deterministic,
-  domain-agnostic memo rendering: `Memo`/`Section`/`TableBlock` models plus
-  `render_markdown` / `render_html` (same input → identical output, everything
-  HTML-escaped). An LLM writes the prose; the layout is a pure function.
-  `ReportTools` exposes `render_memo` and `render_memo_html`; PDF rendering is
-  deliberately deferred (heavy dependency).
+- **Report** (`lazytools.report` — "LazyReport") — deterministic,
+  domain-agnostic memo rendering: `Memo`/`Section`/`TableBlock`/`FigureBlock`
+  models plus `render_markdown` / `render_html` (same input → identical
+  output, everything HTML-escaped). An LLM writes the prose; the layout is a
+  pure function. `ReportTools` exposes `render_memo` and `render_memo_html`;
+  `ReportFiles` exposes `save_report`.
+  **Figures**: a `FigureBlock` names an image by canonical `scheme:key`
+  artifact ref; `render_html` embeds it as a base64 data URI, producing one
+  self-contained HTML file. `ArtifactResolvers` / `ecosystem_resolvers()`
+  resolve the schemes — `file:`/`bytes:` (core, stdlib), `chart:` (on-demand
+  charts from any market-data-hub series, extra `[charts]`), `regimes:`
+  (LazyStats regime plots), `crawler:` (LazyCrawler artifacts, extra `[web]`).
+  PDF rendering is deliberately deferred (heavy dependency).
 
 ## Web
 

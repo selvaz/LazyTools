@@ -89,11 +89,19 @@ provider; agents use `datahub_*`.
 
 ::: lazytools.report.TableBlock
 
+::: lazytools.report.FigureBlock
+
 ::: lazytools.report.render_markdown
 
 ::: lazytools.report.render_html
 
+::: lazytools.report.ArtifactResolvers
+
+::: lazytools.report.ecosystem_resolvers
+
 ::: lazytools.report.ReportTools
+
+::: lazytools.report.ReportFiles
 
 ## Documents
 

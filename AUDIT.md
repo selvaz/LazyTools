@@ -14,6 +14,7 @@ Baseline health:
 - `pytest`: **187 passed, 3 skipped** (mcp/docx extras absent), 77% coverage (CI floor 70%).
 - `ruff check src tests`: clean. `mypy src/lazytools`: clean.
 - Installs and runs against sibling LazyBridge 0.9.1 (pin `>=0.7.9,<0.10` is satisfied).
+  *(Superseded: as of v0.3.3 the pin is `lazybridge>=1.0.1,<2.0`; this line reflects the 2026-06-10 snapshot only.)*
 
 > **Remediation status (2026-06-10).** All findings below — H1, H2, M1–M3, and
 > L1–L9 — have been fixed on this branch in the commits following this report.

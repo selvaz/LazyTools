@@ -13,14 +13,22 @@ section bodies); **the layout is deterministic** — the same memo always
 produces byte-identical output, so reports are reproducible and auditable.
 
 !!! info "Status & install"
-    **Status: alpha. No extra needed** — stdlib + the pydantic that ships with
+    **Status: alpha.** The core (Markdown/HTML rendering, `file:`/`bytes:`
+    figures) needs **no extra** — stdlib + the pydantic that ships with
     `lazybridge`:
     ```bash
     pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git"
     ```
+    **Figure schemes add optional dependencies only when used**: `chart:`
+    (on-demand charts from datahub series) needs the `[charts]` extra
+    (matplotlib) plus `market-data-hub`; `crawler:` needs `[web]`; `regimes:`
+    needs `lazystats[regimes]`. See [Figures](#figures-charts-and-images-in-a-memo).
+    ```bash
+    pip install "lazytoolkit[charts] @ git+https://github.com/selvaz/LazyTools.git"
+    ```
     **PDF rendering is deliberately deferred**: it would pull a heavy
-    dependency (weasyprint / reportlab) into an otherwise stdlib-only module.
-    Render to HTML and convert externally (or print-to-PDF) until a
+    dependency (weasyprint / reportlab). Render to HTML (self-contained, with
+    embedded figures) and convert externally, or print-to-PDF, until a
     `heavy_render`-style extra lands.
 
 ## Synopsis
@@ -119,10 +127,13 @@ A `chart:` spec accepts `symbols` (comma-separated, required), `start`,
 `end`, `domain` (`prices`/`macro`/`custom`/`crypto`/`factors`), `field`,
 `transform` (`level`/`log_return`/`pct_change`/`diff`), `frequency`
 (`D`/`W`/`M`/`Q`) and `title` — the same vocabulary as the hub's
-`extract_series`. `chart_series(...)` in `lazytools.report.charts` is the
-plain-Python equivalent returning PNG bytes. An unresolvable ref (unknown
-scheme, missing plot, absent package) **raises** rather than rendering a
-silently incomplete report.
+`extract_series`. In `lazytools.report.charts`, `chart_series(...)` is the
+plain-Python equivalent returning PNG bytes, `render_series_png(df, ...)` is
+the pure DataFrame → PNG renderer under it (headless, deterministic), and
+`parse_chart_spec(spec)` decodes a `chart:` querystring key into
+`chart_series` kwargs. An unresolvable ref (unknown scheme, missing plot,
+absent package, or a MIME that isn't a strict `image/*`) **raises** rather
+than rendering a silently incomplete report.
 
 ## Tools it exposes
 
