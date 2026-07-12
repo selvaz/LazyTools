@@ -8,6 +8,30 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-07-12
+
+First tagged public release. Version `0.3.1` was a source-only bump: it was
+never published anywhere (no Git tag, no PyPI artifact) and is superseded by
+this release without a changelog entry of its own.
+
+### Distribution
+- lazytoolkit is distributed **exclusively via GitHub**: install with
+  `pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"`
+  or from the wheel attached to the GitHub Release (SHA-256 checksums
+  published alongside). Only LazyBridge lives on PyPI; `lazytoolkit` is not
+  and will not be a PyPI package.
+- The release workflow now builds wheel + sdist, verifies the built wheel's
+  `Requires-Dist` metadata, smoke-installs the wheel in a clean venv, and
+  attaches the artifacts with checksums to a GitHub Release (it no longer
+  targets PyPI).
+
+### Fixed — distribution metadata
+- The `web` extra declared a bare `lazycrawler>=0.14` requirement: LazyCrawler
+  is not on PyPI, so the name could never resolve and was a
+  dependency-confusion exposure (the PyPI name is unregistered). It is now an
+  immutable direct reference to the LazyCrawler repository.
+- Dependencies confirmed on the stable core line: `lazybridge>=1.0.1,<2.0`.
+
 ### Fixed — raw series, file loading and unbounded output out of the default agent surface (audit CA-02/CA-11/CA-12)
 Architectural invariant restated by the user and applied across the board:
 an agent never carries a time series through its own context — it passes
