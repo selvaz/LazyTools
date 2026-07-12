@@ -41,7 +41,7 @@ matplotlib.use("Agg")  # rendering headless dei grafici dei regimi
 TICKER = "AMZN"
 COMPANY = "Amazon.com Inc"
 
-GITHUB = Path(r"C:\Users\Administrator\Documents\GitHub")
+GITHUB = Path(__file__).resolve().parents[2]  # the workspace root (LazyTools/..)
 HUB_DB = str(GITHUB / "market-data-hub" / "market_data.duckdb")
 os.environ.setdefault("MARKET_DATA_DB", HUB_DB)
 

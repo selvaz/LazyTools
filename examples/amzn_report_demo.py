@@ -41,7 +41,7 @@ START = "2015-01-01"          # inizio campione completo
 YTD_START = "2026-01-01"      # inizio analisi vola/outlier
 LAST_MONTH_START = "2026-06-12"
 
-GITHUB = Path(r"C:\Users\Administrator\Documents\GitHub")
+GITHUB = Path(__file__).resolve().parents[2]  # the workspace root (LazyTools/..)
 HUB_DB = str(GITHUB / "market-data-hub" / "market_data.duckdb")
 os.environ.setdefault("MARKET_DATA_DB", HUB_DB)
 

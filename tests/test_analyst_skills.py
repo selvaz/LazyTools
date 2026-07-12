@@ -124,6 +124,17 @@ def test_blackboard_scoping_enforces_reads() -> None:
 # --- orchestrators (same specialists, three strategies) --------------------- #
 
 
+def test_specialist_engine_carries_its_skill_system() -> None:
+    # the model= path must wire each Skill.system into that specialist's engine —
+    # otherwise the skill's know-how is declared but never delivered to the model.
+    specs = build_specialists(model=ORCH_MODEL, skills=NON_REGIME)
+    assert "market-data specialist" in specs["market_data"].engine.system
+    assert "reporting specialist" in specs["report"].engine.system
+    assert "statistics specialist" in specs["stats"].engine.system
+    # the shared prefix is kept alongside the skill prompt
+    assert "one at a time" in specs["report"].engine.system
+
+
 def test_three_orchestrators_build_over_the_same_specialists() -> None:
     from lazybridge import Agent, Store
 

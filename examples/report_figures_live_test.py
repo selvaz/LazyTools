@@ -44,7 +44,7 @@ _REQUIRED_PACKAGES: dict[str, str] = {
     "openai": "openai>=1.70.0,<3.0.0",
 }
 
-_GITHUB_ROOT = Path(__file__).resolve().parent.parent
+_GITHUB_ROOT = Path(__file__).resolve().parents[2]  # workspace root (LazyTools/examples/.. /..)
 _LAZYBRIDGE_ROOT = _GITHUB_ROOT / "LazyBridge"
 _LAZYTOOLS_ROOT = _GITHUB_ROOT / "LazyTools"
 _MDH_ROOT = _GITHUB_ROOT / "market-data-hub"
