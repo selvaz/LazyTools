@@ -11,6 +11,7 @@ from lazytools.report import (
     ArtifactResolvers,
     FigureBlock,
     Memo,
+    ReportFiles,
     ReportTools,
     Section,
     render_html,
@@ -139,6 +140,37 @@ def test_render_markdown_degrades_figure_to_text() -> None:
 
 
 # --- ReportTools -------------------------------------------------------------- #
+
+
+def test_save_memo_html_writes_full_embedded_html(tmp_path) -> None:
+    # The render-and-save tool must persist the COMPLETE self-contained HTML —
+    # with the base64 figure — without the bytes ever leaving the process. This
+    # is what lets an agent produce an image report (render_memo_html's string
+    # is far too large to route back through the model into save_report).
+    resolvers = ArtifactResolvers()
+    resolvers.register("regimes", lambda key: (PNG_BYTES, "image/png"))
+    tools = {
+        t.name: t
+        for t in ReportTools(
+            artifacts=resolvers, files=ReportFiles(base_dir=str(tmp_path))
+        ).as_tools()
+    }
+    assert "save_memo_html" in tools and "save_memo_markdown" in tools
+    payload = _memo_with_figure("regimes:plot_1").model_dump(mode="json")
+
+    path = tools["save_memo_html"].run_sync(memo=payload, filename="r.html")
+    written = (tmp_path / "r.html").read_text(encoding="utf-8")
+    assert path.endswith("r.html")
+    assert written.rstrip().endswith("</html>")               # complete document
+    assert f"data:image/png;base64,{PNG_B64}" in written      # full figure embedded
+
+    md_path = tools["save_memo_markdown"].run_sync(memo=payload, filename="r.md")
+    assert md_path.endswith("r.md") and (tmp_path / "r.md").exists()
+
+
+def test_report_tools_without_files_has_no_save_tools() -> None:
+    names = {t.name for t in ReportTools().as_tools()}
+    assert names == {"render_memo", "render_memo_html"}
 
 
 def test_report_tools_renders_figures_with_custom_registry() -> None:

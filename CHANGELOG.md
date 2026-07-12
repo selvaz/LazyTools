@@ -8,6 +8,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — one-step render-and-save report tools
+- `ReportTools(files=ReportFiles(...))` now also exposes `save_memo_html` and
+  `save_memo_markdown`: they render a memo AND write it to the sandboxed
+  `base_dir` in a single tool call, returning just the path. This is required
+  for an autonomous agent to produce a report **with figures** — a
+  self-contained HTML embeds base64 images and is far too large to route back
+  through the model from `render_memo_html` into `save_report(content=…)`
+  (the model truncates it). The bytes now never enter the LLM's token stream.
+- `ReportFiles.save(filename, content)` is the public write method (the
+  `save_report` tool and the new render-and-save tools share it).
+
 ## [0.3.3] — 2026-07-12
 
 ### Added — report figures (charts and images in memos)
