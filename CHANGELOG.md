@@ -8,6 +8,40 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — raw series, file loading and unbounded output out of the default agent surface (audit CA-02/CA-11/CA-12)
+Architectural invariant restated by the user and applied across the board:
+an agent never carries a time series through its own context — it passes
+symbols/ids in and gets bounded results out; tools run inside the process
+and read from market-data-hub, never the other way around.
+
+- **CA-02** — `datahub_get_series`/`datahub_get_returns` (raw matrices) are
+  no longer in `DataHubTools`'s default profile. New `allow_raw_series=True`
+  opt-in for explicit verification/spot-checking, still capped at 500 rows.
+  Mirrored in market-data-hub itself: `agent_tools.TOOL_FUNCTIONS` no longer
+  includes `tool_get_series`/`tool_get_returns`; they moved to
+  `RAW_SERIES_TOOL_FUNCTIONS` (opt-in, same cap).
+- **CA-11** — `RegimeTools` no longer exposes `lazystats.regimes.tools.
+  load_time_series` (arbitrary `file_path` read from disk) at all, gated or
+  not. Replaced with `regime_load_from_datahub` — symbols/dates/frequency/
+  data_key in, a bounded summary out, market-data-hub as the sole source.
+- **CA-12** — `regime_get_changes` and `regime_db_get_state_sequence` now
+  hard-cap their output (200 changes / 500 timesteps) at the bridge even
+  when the caller passes `last_n=0` ("return everything"); both report a
+  `truncated` flag and the applied `hard_cap`.
+
+### Fixed — `ResolveTools` deprecated: it bypassed market-data-hub (audit CA-03)
+- `connectors.fin.ResolveTools.get_financial_facts` fetched RAW EDGAR company
+  facts directly through its injected client — no DB, no coverage, no run
+  ledger, no provenance, exactly the direct-fetch pattern `EdgarTools`/
+  `MarketDataTools` were already deprecated for. Now warns at construction
+  with the same one-release-compatibility discipline, pointing to
+  `datahub_resolve_instrument` + `datahub_get_financial_facts` /
+  `datahub_ensure_financials`.
+- New cross-repo boundary test (`test_no_direct_finance_clients.py`):
+  asserts `connectors/fin/agents.py` never imports `connectors.edgar` /
+  `connectors.marketdata`, and that `pm_supervisor`'s default tool list never
+  silently grows to include a direct-fetch provider.
+
 ### Added — `connectors/regimes`: closes the last LLM-callability gap (plan v3.1 Fase 6)
 - New `RegimeTools` provider wraps `lazystats.regimes`'s ~27 HMM/MS
   regime-detection functions (`fit_regimes`, `get_current_regime`,
