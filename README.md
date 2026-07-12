@@ -17,6 +17,8 @@ market-data-hub  the single source of financial data — surfaced via datahub_*
 lazystats        statistics + HMM/MS regime engines — surfaced via
                  statistical_* and regime_* tools
 lazyray          debt-cycle & regime engine on top of market-data-hub
+lazyfin          Portfolio Manager AI — the finance domain layer on top of
+                 the whole stack (private repo)
 ```
 
 ## Install
