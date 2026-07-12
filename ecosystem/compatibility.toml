@@ -26,7 +26,7 @@ lazybridge = "1.0.1"
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.3.2"
+ref = "v0.3.3"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
@@ -34,15 +34,15 @@ ref = "v0.3.1"
 
 [verified.github.lazycrawler]
 repo = "https://github.com/selvaz/LazyCrawler"
-ref = "v0.15.0"
+ref = "v0.16.0"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "0eb286e4e931c089ae9d4383f5f6f615d9b4d5e4"  # pre-tag pin (lazydatacore schema v1 + contract fixtures); finance train replaces with a release tag
+ref = "594928b8eb9aed52c5226b65d6a910c9dfd7a9f2"  # pre-tag pin (lazydatacore ArtifactRef contract, #43); finance train replaces with a release tag
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
-ref = "ffcda62f94a02a56192f7b55a223d701bf85f143"  # pre-tag pin; finance train replaces with a release tag
+ref = "dea66211c9ff617685daa1a69062ab61e395f16e"  # pre-tag pin (RegimeDB.get_plot, #7); finance train replaces with a release tag
 extras = ["regimes"]
 
 # Components excluded from the installable combination, with the reason.
