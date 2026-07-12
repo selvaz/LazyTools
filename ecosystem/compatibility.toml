@@ -1,0 +1,57 @@
+# Canonical compatibility manifest for the LazyBridge ecosystem.
+#
+# This file is the SINGLE source of truth for the supported combination.
+# CI, documentation and requirements/verified.txt are generated from it
+# (tools/render_compatibility.py); nothing else may hard-code a version
+# or a Git ref.
+#
+# Distribution model: only LazyBridge lives on PyPI. Every other component
+# installs from GitHub at the immutable ref recorded here (release tags
+# once a repo publishes them, commit SHAs until then). Version ranges are
+# only meaningful for PyPI packages — pip cannot resolve ranges across
+# direct references — so [minimums] contains lazybridge alone.
+#
+# Promotion rule (stabilization plan §2.4): this file changes only via a
+# dedicated PR opened AFTER a release's post-publish test succeeded; the
+# ecosystem-released workflow green on that PR is what promotes the new
+# combination.
+
+schema_version = 1
+
+[verified]
+python = ["3.11", "3.12", "3.13"]
+lazybridge = "1.0.1"
+
+# Immutable GitHub refs of the verified, co-installable combination.
+# ``extras`` are the extras exercised by the released-artifact CI.
+[verified.github.lazytoolkit]
+repo = "https://github.com/selvaz/LazyTools"
+ref = "v0.3.2"
+
+[verified.github.lazypulse]
+repo = "https://github.com/selvaz/LazyPulse"
+ref = "v0.3.1"
+
+[verified.github.lazycrawler]
+repo = "https://github.com/selvaz/LazyCrawler"
+ref = "8b6462187093b33ef162b6d8147302b34eab9f5a"  # pre-tag pin; Train B replaces with a release tag
+
+[verified.github.market-data-hub]
+repo = "https://github.com/selvaz/market-data-hub"
+ref = "54bc8849e82ad8d1a65a94be0621b5d37740447c"  # pre-tag pin; finance train replaces with a release tag
+
+[verified.github.lazystats]
+repo = "https://github.com/selvaz/LazyStats"
+ref = "ffcda62f94a02a56192f7b55a223d701bf85f143"  # pre-tag pin; finance train replaces with a release tag
+extras = ["regimes"]
+
+# Components excluded from the installable combination, with the reason.
+# An exclusion here is a declared gap, not a silent one: the released CI
+# does not install these, and the website must not present them as part
+# of the verified stack.
+[pending.lazyray]
+repo = "https://github.com/selvaz/LazyRay"
+reason = "pins market-data-hub @42ed9ea while the verified combination uses @54bc884; two direct URLs for the same package are not co-installable. Re-align LazyRay's pin (finance train, ECO-007), then move it to [verified.github]."
+
+[minimums]
+lazybridge = ">=1.0.1,<2.0"
