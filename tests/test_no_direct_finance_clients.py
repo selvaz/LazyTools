@@ -17,6 +17,8 @@ import ast
 import warnings
 from pathlib import Path
 
+import pytest
+
 SRC = Path(__file__).resolve().parent.parent / "src" / "lazytools"
 FIN_AGENT_ASSEMBLY_FILES = [SRC / "connectors" / "fin" / "agents.py"]
 FORBIDDEN_MODULES = (
@@ -54,8 +56,7 @@ def test_pm_supervisor_defaults_never_include_a_direct_provider() -> None:
     """pm_supervisor's own default tool list (PortfolioTools + RiskTools) must
     never grow to include EdgarTools/MarketDataTools/ResolveTools without a
     caller explicitly opting in via extra_tools."""
-    pytest_lazyfin = __import__("pytest").importorskip("lazyfin")
-    del pytest_lazyfin
+    pytest.importorskip("lazyfin")
     from lazyfin.kernel import Mandate, PortfolioLedger
 
     from lazytools.connectors.fin.agents import pm_supervisor
@@ -81,6 +82,7 @@ def test_pm_supervisor_defaults_never_include_a_direct_provider() -> None:
 def test_resolve_tools_is_deprecated() -> None:
     """ResolveTools remains importable for one compatibility release, but
     must warn at construction (audit CA-03: it bypasses the hub)."""
+    __import__("pytest").importorskip("lazyfin")
     from lazytools.connectors.fin.tools import ResolveTools
 
     class _FakeClient:
