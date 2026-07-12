@@ -8,6 +8,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.3] — 2026-07-12
+
 ### Added — report figures (charts and images in memos)
 - `FigureBlock` on `Section`: a figure named by canonical `scheme:key`
   artifact ref (the `lazydatacore.ArtifactRef` string shape, parsed with
