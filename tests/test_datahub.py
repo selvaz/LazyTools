@@ -18,8 +18,6 @@ EXPECTED_NAMES = {
     "datahub_list_countries",
     "datahub_describe",
     "datahub_search",
-    "datahub_get_series",
-    "datahub_get_returns",
     "datahub_get_coverage",
     "datahub_resolve_instrument",
     "datahub_get_price_summary",
@@ -31,10 +29,12 @@ EXPECTED_NAMES = {
 }
 
 WRITE_NAMES = {
-    "datahub_refresh_prices",
+    "datahub_register_listing",
     "datahub_ensure_price_history",
     "datahub_ensure_financials",
 }
+
+RAW_SERIES_NAMES = {"datahub_get_series", "datahub_get_returns"}
 
 
 def _tools(backend: FakeDataHubBackend | None = None):
@@ -68,9 +68,18 @@ def test_each_tool_returns_backend_json() -> None:
     assert out["args"]["area"] == "USA"
 
 
-def test_get_series_forwards_all_arguments() -> None:
+def test_raw_series_tools_hidden_by_default_and_opt_in() -> None:
+    """Audit CA-02: raw matrices are NOT in the standard profile — an agent
+    gets bounded results, never a full series, unless a caller explicitly
+    opts in for verification/spot-checking."""
     backend = FakeDataHubBackend()
     _, by_name = _tools(backend)
+    assert not RAW_SERIES_NAMES & set(by_name)
+
+    provider = DataHubTools(backend, allow_raw_series=True)
+    by_name = {t.name: t for t in provider.as_tools()}
+    assert set(by_name) >= RAW_SERIES_NAMES
+
     out = json.loads(
         by_name["datahub_get_series"].run_sync(
             symbols="SPY,TLT", start="2020-01-01", domain="prices", transform="log_return", frequency="W"
@@ -79,14 +88,14 @@ def test_get_series_forwards_all_arguments() -> None:
     assert out["args"]["symbols"] == "SPY,TLT"
     assert out["args"]["transform"] == "log_return"
     assert out["args"]["frequency"] == "W"
-    # And the backend recorded the call.
     assert backend.calls[-1][0] == "get_series"
 
 
 def test_canned_response_override_is_passed_through_verbatim() -> None:
     payload = {"meta": {"n_rows": 3}, "data": [{"date": "2026-06-09", "SPY": "1.0"}]}
     backend = FakeDataHubBackend(responses={"get_returns": payload})
-    _, by_name = _tools(backend)
+    provider = DataHubTools(backend, allow_raw_series=True)
+    by_name = {t.name: t for t in provider.as_tools()}
     out = json.loads(by_name["datahub_get_returns"].run_sync(symbols="SPY"))
     assert out == payload
 
@@ -107,9 +116,10 @@ def test_refresh_tool_hidden_by_default_and_gated() -> None:
     provider = DataHubTools(backend, allow_refresh=True)
     by_name = {t.name: t for t in provider.as_tools()}
     assert set(by_name) >= WRITE_NAMES
-    out = json.loads(by_name["datahub_refresh_prices"].run_sync(symbols="SPY,QQQ"))
-    assert out["tool"] == "refresh_prices"
-    assert out["args"] == {"symbols": "SPY,QQQ", "start": "2010-01-01"}
+    # audit CA-07: the legacy refresh (bypassed identity + job ledger) is gone
+    assert "datahub_refresh_prices" not in by_name
+    out = json.loads(by_name["datahub_ensure_price_history"].run_sync(query="SPY"))
+    assert out["tool"] == "ensure_price_history"
     out = json.loads(by_name["datahub_ensure_financials"].run_sync(query="AAPL"))
     assert out["tool"] == "ensure_financials"
 

@@ -37,7 +37,13 @@ def test_refuses_symlink_escape(tmp_path: Path) -> None:
     base = tmp_path / "reports"
     base.mkdir()
     target = tmp_path / "outside.md"
-    (base / "r.md").symlink_to(target)  # pre-existing symlink escaping the sandbox
+    try:
+        # pre-existing symlink escaping the sandbox. On a standard Windows
+        # account, creating symlinks requires a privilege the local test run
+        # may not have (audit CA-10): skip there — Linux CI always runs this.
+        (base / "r.md").symlink_to(target)
+    except OSError as exc:  # pragma: no cover - Windows without the privilege
+        pytest.skip(f"cannot create symlinks on this account: {exc}")
     files = ReportFiles(base_dir=base)
     with pytest.raises(ValueError, match=r"symlink|sandbox"):
         files._save_report("r.md", "pwned")
