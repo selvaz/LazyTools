@@ -92,11 +92,33 @@ def test_specialists_share_one_blackboard_store() -> None:
 
     store = Store()
     specs = build_specialists(engine=_StubEngine(), store=store, skills=NON_REGIME)
-    # a value written to the shared store is visible to every specialist's blackboard
     store.write("prices_ready", "AMZN daily from 2015")
+    # each specialist reads via bb_get and produces via one typed publish
     for agent in specs.values():
-        assert {"bb_put", "bb_get", "bb_list"} <= set(agent._tool_map)
-        assert agent._tool_map["bb_get"].run_sync(key="prices_ready") == "AMZN daily from 2015"
+        assert {"bb_get", "bb_list", "publish"} <= set(agent._tool_map)
+    # stats declares prices_ready in its reads → may read it
+    assert specs["stats"]._tool_map["bb_get"].run_sync(key="prices_ready") == "AMZN daily from 2015"
+    # market_data reads nothing (it produces prices_ready) → the scoped tool refuses it
+    assert "not permitted" in specs["market_data"]._tool_map["bb_get"].run_sync(key="prices_ready")
+
+
+def test_publish_tool_writes_the_declared_handles() -> None:
+    from lazybridge import Store
+
+    store = Store()
+    specs = build_specialists(engine=_StubEngine(), store=store, skills=NON_REGIME)
+    # the report skill's publish exposes exactly its writes as parameters
+    specs["report"]._tool_map["publish"].run_sync(report_path="/tmp/report.html")
+    assert store.read("report_path") == "/tmp/report.html"
+
+
+def test_blackboard_scoping_enforces_reads() -> None:
+    from lazybridge import Store
+
+    tools = {t.name: t for t in Blackboard(Store()).as_tools(readable={"a"}, writable={"b"})}
+    assert "not permitted" in tools["bb_put"].run_sync(key="a", value="x")  # a is read-only here
+    assert tools["bb_put"].run_sync(key="b", value="x").startswith("blackboard: wrote")
+    assert "not permitted" in tools["bb_get"].run_sync(key="z")
 
 
 # --- orchestrators (same specialists, three strategies) --------------------- #

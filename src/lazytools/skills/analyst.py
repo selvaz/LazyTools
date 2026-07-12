@@ -27,6 +27,7 @@ See ``examples/`` for a runnable end-to-end (a quantitative equity report).
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -52,45 +53,98 @@ class Blackboard:
     def __init__(self, store: Any) -> None:
         self.store = store
 
-    def as_tools(self) -> list[Any]:
+    def as_tools(self, *, readable: set[str] | None = None, writable: set[str] | None = None) -> list[Any]:
+        """Blackboard tools, optionally SCOPED to a skill's contract.
+
+        ``writable`` / ``readable`` restrict which handles this specialist may
+        write / read (its declared ``writes`` / ``reads``). Enforcing the
+        contract at the tool boundary — not just suggesting it in the prompt —
+        is what stops a small model from inventing ad-hoc key names: a
+        disallowed key returns a corrective message naming the permitted keys,
+        so the model retries with the right handle. ``None`` = unrestricted.
+        """
         from lazybridge import Tool
+
+        store = self.store
+        w_hint = f" You may write ONLY: {sorted(writable)}." if writable is not None else ""
+        r_hint = f" You may read ONLY: {sorted(readable)}." if readable is not None else ""
+
+        def bb_put(key: str, value: str) -> str:
+            if writable is not None and key not in writable:
+                return f"blackboard: key {key!r} not permitted. You may write ONLY: {sorted(writable)}"
+            store.write(key, value)
+            return f"blackboard: wrote {key!r}"
+
+        def bb_get(key: str) -> str:
+            if readable is not None and key not in readable:
+                return f"blackboard: key {key!r} not permitted. You may read ONLY: {sorted(readable)}"
+            val = store.read(key, "")
+            return "" if val is None else str(val)
+
+        def bb_list() -> str:
+            keys = store.keys()
+            return ", ".join(keys) if keys else "(blackboard empty)"
 
         return [
             Tool.wrap(
-                self._put,
+                bb_put,
                 name="bb_put",
                 description=(
                     "Write a short handle/value to the shared blackboard for other "
-                    "specialists to read. Args: key (str), value (a SHORT string — a "
-                    "key, path, number, or compact JSON; never bulk data)."
+                    "specialists. Args: key (str), value (a SHORT string — a key, path, "
+                    "number, or compact JSON; never bulk data)." + w_hint
                 ),
             ),
             Tool.wrap(
-                self._get,
+                bb_get,
                 name="bb_get",
                 description=(
-                    "Read a value from the shared blackboard. Args: key (str). "
-                    "Returns the value, or an empty string if absent."
+                    "Read a value from the shared blackboard. Args: key (str). Returns "
+                    "the value, or empty if absent." + r_hint
                 ),
             ),
-            Tool.wrap(
-                self._list,
-                name="bb_list",
-                description="List the keys currently on the shared blackboard.",
-            ),
+            Tool.wrap(bb_list, name="bb_list", description="List the keys currently on the shared blackboard."),
         ]
 
-    def _put(self, key: str, value: str) -> str:
-        self.store.write(key, value)
-        return f"blackboard: wrote {key!r}"
+    def read_tools(self, readable: set[str] | None = None) -> list[Any]:
+        """Only the read side of the blackboard (bb_get scoped to ``readable`` + bb_list)."""
+        return [t for t in self.as_tools(readable=readable, writable=set()) if t.name in {"bb_get", "bb_list"}]
 
-    def _get(self, key: str) -> str:
-        val = self.store.read(key, "")
-        return "" if val is None else str(val)
+    def publish_tool(self, fields: tuple[str, ...]) -> Any:
+        """A single typed tool that writes a skill's declared output handles.
 
-    def _list(self) -> str:
-        keys = self.store.keys()
-        return ", ".join(keys) if keys else "(blackboard empty)"
+        Turning the ``writes`` set into named parameters of one ``publish`` call
+        makes producing the contract handles a single structured step the model
+        can't misname or forget — far more reliable with a small model than
+        remembering a separate free-form write per handle.
+        """
+        from lazybridge import Tool
+
+        store = self.store
+
+        def publish(**handles: str) -> str:
+            written = []
+            for k in fields:
+                v = handles.get(k)
+                if v not in (None, ""):
+                    store.write(k, v)
+                    written.append(k)
+            missing = [k for k in fields if k not in written]
+            msg = f"blackboard: published {written}"
+            return msg + (f"; still missing {missing}" if missing else "")
+
+        publish.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
+            [inspect.Parameter(f, inspect.Parameter.KEYWORD_ONLY, annotation=str) for f in fields]
+        )
+        return Tool.wrap(
+            publish,
+            name="publish",
+            description=(
+                "Publish your result handles to the shared blackboard in ONE call — "
+                "this is how downstream specialists receive your output. Call it as "
+                f"your final step. Fields (all required): {list(fields)}."
+            ),
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -129,10 +183,12 @@ class Skill:
         """Build the specialist :class:`~lazybridge.Agent` for this skill."""
         from lazybridge import Agent
 
+        # read inputs via a scoped bb_get; produce outputs via one typed publish.
+        board_tools = [*blackboard.read_tools(readable=set(self.reads)), blackboard.publish_tool(self.writes)]
         return Agent(
             name=self.name,
             engine=engine,
-            tools=[*self.build_tools(cfg), *blackboard.as_tools()],
+            tools=[*self.build_tools(cfg), *board_tools],
             description=self.description(),
             store=blackboard.store,
             session=session,
@@ -209,8 +265,8 @@ MARKET_DATA = Skill(
         "call datahub_register_listing (exchange + currency required), THEN "
         "datahub_ensure_price_history. If ensure fails with an unknown-instrument "
         "error, register first and retry.\n"
-        "- When the data is in place, write the handle 'prices_ready' to the "
-        "blackboard with a short value like '<TICKER> daily from <start>'.\n"
+        "- When the data is in place, call publish(prices_ready='<TICKER> daily "
+        "from <start>').\n"
         "Do not fetch raw price rows into your context; only confirm availability."
     ),
     build_tools=_market_data_tools,
@@ -228,8 +284,8 @@ FINANCIALS = Skill(
         "the standardized annual balance sheet (datahub_get_statement with "
         "statement='balance') and the income lines (datahub_get_statement without a "
         "statement filter: revenue, net_income, operating_cash_flow).\n"
-        "Write a COMPACT JSON handle 'balance_sheet' to the blackboard with the main "
-        "items and the period, e.g. "
+        "Call publish(balance_sheet=<COMPACT JSON with the main items and the "
+        "period>), e.g. "
         "{\"period\":\"2025-12-31\",\"assets\":..,\"liabilities\":..,\"equity\":..,"
         "\"revenue\":..,\"net_income\":..,\"operating_cash_flow\":..}. Numbers only, "
         "no prose."
@@ -249,9 +305,9 @@ STATS = Skill(
         "(daily frequency) with statistical_return_volatility and "
         "statistical_return_outliers. These tools read the series from the warehouse "
         "themselves, so confirm 'prices_ready' is on the blackboard first.\n"
-        "Write a compact JSON handle 'vola_outlier' with the key numbers "
-        "(annualized_volatility, period_volatility, observations, total_outliers, and "
-        "the few most extreme outliers)."
+        "Call publish(vola_outlier=<compact JSON with annualized_volatility, "
+        "period_volatility, observations, total_outliers, and the few most extreme "
+        "outliers>)."
     ),
     build_tools=_stats_tools,
 )
@@ -275,9 +331,13 @@ REGIME = Skill(
         "'__series_with_regimes__' (the price-with-regime-bands chart).\n"
         "4. regime_params_load and regime_get_current for the estimated parameters "
         "and current regime.\n"
-        "Write handles: 'regime_result_key'='hmm', 'regime_plot_key'=<that plot_key>, "
-        "and 'regime_summary'=<compact JSON: per-regime mean/vol/occupancy, current "
-        "regime and its probability, BIC>."
+        "Do NOT export any plot to disk (do not call regime_db_export_plot): the "
+        "report embeds the chart straight from the depot via its plot_key.\n"
+        "As your FINAL step call publish(regime_result_key='hmm', "
+        "regime_plot_key=<the __series_with_regimes__ plot_key from step 3>, "
+        "regime_summary=<compact JSON: per-regime mean/vol/occupancy, current regime "
+        "and its probability, BIC>). This single call is how the report receives your "
+        "output."
     ),
     build_tools=_regime_tools,
 )
@@ -290,10 +350,12 @@ REPORT = Skill(
     writes=("report_path",),
     system=(
         "You are the reporting specialist. Read the handles balance_sheet, "
-        "vola_outlier, regime_summary and regime_plot_key from the blackboard, then "
-        "compose a memo and SAVE it in one step with save_memo_html(memo=<memo>, "
-        "filename='report.html'). Never use render_memo_html then save_report: an "
-        "embedded-image HTML is too large to pass on and would be truncated.\n"
+        "vola_outlier, regime_summary and regime_plot_key from the blackboard (use "
+        "bb_get with those exact key names), then compose a memo and SAVE it in ONE "
+        "step with save_memo_html(memo=<memo>, filename='report.html'). Always use "
+        "the filename 'report.html'. Never use render_memo_html then save_report, and "
+        "never save to Markdown: an embedded-image HTML is too large to pass on and "
+        "would be truncated.\n"
         "The memo shape is {title, as_of, sections:[{title, body, tables:[{columns, "
         "rows}], figures:[{ref, caption}]}], metadata}. Include:\n"
         "- an overview section with a figure of last month's price, ref "
@@ -301,11 +363,12 @@ REPORT = Skill(
         "transform=level&frequency=D';\n"
         "- a volatility/outlier section (table from vola_outlier);\n"
         "- a regime section: a table of the three regimes and the transition matrix "
-        "from regime_summary, plus a figure with ref 'regimes:<regime_plot_key>';\n"
+        "from regime_summary, plus a figure whose ref is exactly 'regimes:' followed "
+        "by the regime_plot_key handle value (never a file: ref);\n"
         "- a balance-sheet section (table from balance_sheet) with a short comment on "
         "solidity, profitability and liquidity.\n"
-        "All table cells must be strings. Finally write the returned path to the "
-        "blackboard as 'report_path'."
+        "All table cells must be strings. Finally call publish(report_path=<the path "
+        "returned by save_memo_html>)."
     ),
     build_tools=_report_tools,
 )
@@ -318,7 +381,10 @@ SKILLS: tuple[Skill, ...] = (MARKET_DATA, FINANCIALS, STATS, REGIME, REPORT)
 # --------------------------------------------------------------------------- #
 def build_specialists(
     *,
-    engine: Any,
+    model: str | None = None,
+    engine: Any = None,
+    system: str = "Follow your skill's instructions exactly; be terse and call tools one at a time.",
+    max_turns: int = 30,
     cfg: AnalystConfig | None = None,
     store: Any = None,
     session: Any = None,
@@ -326,12 +392,20 @@ def build_specialists(
 ) -> dict[str, Any]:
     """Build the specialist agents, all sharing one blackboard (Store).
 
-    ``engine`` is used for every specialist (typically a cheap tier — each has a
-    narrow job). Returns a name→Agent dict. The regime depot is initialised here
-    so the regime tools and the ``regimes:`` figure resolver point at the same
-    file.
+    Pass ``model`` (a cheap tier is fine — each specialist has a narrow job) and
+    every specialist gets its OWN engine — important, because a single shared
+    engine instance would share one turn budget across the whole pipeline and
+    starve the last specialists. ``max_turns`` bounds each specialist's tool loop
+    (the regime specialist legitimately needs a dozen calls). Pass ``engine=`` an
+    engine *instance* only for construction/tests (it is reused as-is).
+
+    Returns a name→Agent dict. The regime depot is initialised here so the regime
+    tools and the ``regimes:`` figure resolver point at the same file.
     """
-    from lazybridge import Store
+    from lazybridge import LLMEngine, Store
+
+    if engine is None and model is None:
+        raise ValueError("build_specialists needs either model= (recommended) or engine=")
 
     cfg = cfg or AnalystConfig()
     store = store if store is not None else Store()
@@ -348,7 +422,14 @@ def build_specialists(
                 "'lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git'"
             ) from exc
 
-    return {s.name: s.agent(engine, cfg, blackboard, session=session) for s in skills}
+    def _engine_for() -> Any:
+        # a fresh engine per specialist (own turn budget); or the shared instance
+        if engine is not None:
+            return engine
+        assert model is not None  # guaranteed above
+        return LLMEngine(model, system=system, max_turns=max_turns)
+
+    return {s.name: s.agent(_engine_for(), cfg, blackboard, session=session) for s in skills}
 
 
 def roster(skills: tuple[Skill, ...] = SKILLS) -> str:
