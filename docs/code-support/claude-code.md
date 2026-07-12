@@ -149,7 +149,7 @@ print(sorted(agent._tool_map))   # ['claude_code.Bash', 'claude_code.Edit', ...]
 | `[claude_code] timeout after 300s` | Task longer than `timeout` | Raise `timeout=`; set engine `tool_timeout=None` |
 | Orphaned `claude` process after a run | Engine `tool_timeout` fired before the subprocess | Use `tool_timeout=None`, or `tool_timeout > timeout` |
 | `ValueError: requires an explicit allow= / deny=` | `claude_code_mcp` called without a filter | Pass `allow=["*"]` (after auditing) or an explicit glob list |
-| `ImportError: requires the official MCP SDK` | MCP mode used without the extra | `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"` |
+| `ImportError: requires the official MCP SDK` | MCP mode used without the extra | `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"` |
 
 ## See also
 

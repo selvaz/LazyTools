@@ -71,6 +71,7 @@ plugins:
           - code-support/collaboration.md
           - gateway.md
           - datahub.md
+          - regimes.md
           - statistical-analysis.md
           - documents.md
           - skills.md
@@ -130,6 +131,7 @@ nav:
           - Collaboration: code-support/collaboration.md
       - External tool gateway: gateway.md
       - Financial data (market-data-hub): datahub.md
+      - Regime detection: regimes.md
       - Statistical analysis: statistical-analysis.md
       - Documents: documents.md
       - Skills: skills.md

@@ -28,9 +28,9 @@ future backend change.
 from its approved Git source:
 
 ```bash
-G="git+https://github.com/selvaz/LazyTools.git@v0.3.2"
+G="git+https://github.com/selvaz/LazyTools.git"
 pip install "lazytoolkit @ $G"
-pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@<ref>"
+pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git"
 ```
 
 For a real end-to-end DeepSeek tool-call smoke test from Spyder, run

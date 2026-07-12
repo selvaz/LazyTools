@@ -6,7 +6,7 @@ expands the server into one `Tool` per advertised tool, namespaces
 the names to avoid collisions, and respects allow / deny lists for
 sensitive surfaces.
 
-> **Status: alpha.** Install: `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"`.
+> **Status: alpha.** Install: `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"`.
 
 ## Signature
 
@@ -57,7 +57,7 @@ SDK is an optional dependency — `import lazytools.connectors.mcp` is cheap;
 constructing an `MCP.stdio(...)` or `MCP.http(...)` is what triggers
 the SDK import (and a clean `ImportError` if missing).
 
-> **Status: alpha.** Install: `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"`. The package is
+> **Status: alpha.** Install: `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"`. The package is
 > `lazytoolkit` (installed from GitHub — see Install); the import root is `lazytools`.
 
 ## Parameters
@@ -215,7 +215,7 @@ async def use_fs():
 | Symptom | Cause | Fix |
 |---|---|---|
 | `ValueError: requires an explicit allow= / deny=` | Constructed `stdio`/`http` without a filter | Pass `allow=[...]` (or `allow=["*"]` after auditing) |
-| `ImportError` on `MCP.stdio(...)` / `MCP.http(...)` | MCP SDK not installed | `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"` |
+| `ImportError` on `MCP.stdio(...)` / `MCP.http(...)` | MCP SDK not installed | `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"` |
 | Error during `Agent(tools=[server])`, not at query time | Lazy connect fails fast at construction | Wrap construction in try/except for graceful degradation |
 | Allow/deny glob never matches | Pattern written without the namespace | Use the full namespaced name, e.g. `"github.delete_*"` |
 | `ValueError: cache_tools_ttl must be > 0 or None` | Non-positive TTL | Pass a positive float, or `None` to disable expiry |

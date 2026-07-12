@@ -16,12 +16,12 @@ lazypulse    always-on orchestration (tick loop, adapters, policy, ledger)
 
 ## Install
 
-LazyTools is distributed from GitHub at an immutable release tag (only
-LazyBridge lives on PyPI). Install `lazytoolkit` and its extras with a PEP 508
-direct reference:
+LazyTools is distributed from GitHub (only LazyBridge lives on PyPI). Install
+`lazytoolkit` and its extras with a PEP 508 direct reference — this pulls the
+current `main`; append `@vX.Y.Z` to the URL to pin a release tag instead:
 
 ```bash
-G="git+https://github.com/selvaz/LazyTools.git@v0.3.2"
+G="git+https://github.com/selvaz/LazyTools.git"
 pip install "lazytoolkit @ $G"                 # core (just lazybridge)
 pip install "lazytoolkit[gmail] @ $G"          # Gmail client + tools
 pip install "lazytoolkit[outlook] @ $G"        # Outlook client + tools (Windows desktop, COM)
@@ -31,7 +31,7 @@ pip install "lazytoolkit[docs] @ $G"           # PDF/DOCX/HTML document reading
 pip install "lazytoolkit[web] @ $G"            # LazyCrawler search/crawl as LLM tools
 # Financial data is served by market-data-hub (also GitHub-only); the datahub
 # connector needs no extra — install the hub alongside:
-#   pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@<ref>"
+#   pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git"
 # lazytools.report needs no extra              # deterministic memo rendering
 ```
 
@@ -55,6 +55,7 @@ from lazytools.connectors.telegram import TelegramTools
 from lazytools.connectors.mcp import MCP
 from lazytools.connectors.gateway import ExternalToolProvider
 from lazytools.connectors.datahub import DataHubTools, MarketDataHubBackend
+from lazytools.connectors.regimes import RegimeTools
 from lazytools.statistical_analysis import StatisticalAnalysisTools
 from lazytools.connectors.web import WebTools
 from lazytools.connectors.code_support import claude_code, codex, CodeWriteTools, build_cli_collaboration
@@ -68,7 +69,7 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 
 | Category | Modules | What lives here |
 |---|---|---|
-| `connectors/` | `gmail`, `outlook`, `telegram`, `mcp`, `gateway`, `datahub`, `web`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
+| `connectors/` | `gmail`, `outlook`, `telegram`, `mcp`, `gateway`, `datahub`, `regimes`, `web`, `code_support` | clients + tool providers that bridge to an external service or protocol (incl. the Claude Code / Codex coding CLIs) |
 | `statistical_analysis/` | `StatisticalAnalysisTools` | read-only volatility, return-correlation and z-score-outlier analysis backed only by market-data-hub |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render` | deterministic memo/report rendering (Markdown/HTML) — "LazyReport" |
@@ -102,7 +103,7 @@ direct-fetch finance connector on the agent surface.
   `market_data_hub.agent_tools`, so the provider and protocol import without
   market-data-hub installed and a `FakeDataHubBackend` (`lazytools.testing`)
   drives tests offline. market-data-hub is GitHub-only, install it from git
-  (`market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@<ref>`).
+  (`market-data-hub @ git+https://github.com/selvaz/market-data-hub.git`).
 
   ```python
   from lazytools.connectors.datahub import DataHubTools
@@ -127,6 +128,24 @@ direct-fetch finance connector on the agent surface.
   from lazytools.statistical_analysis import StatisticalAnalysisTools
 
   tools = StatisticalAnalysisTools()
+  ```
+
+- **Regime detection** (`lazytools.connectors.regimes`) — HMM/Markov-switching
+  regime tools from `lazystats.regimes` as `regime_*` LazyBridge tools:
+  fitting, state scans, current-regime/changes/summaries, window comparison,
+  plot generation, and the SQLite depot + parameter store. Read tools are
+  always exposed; fitting/persistence/deletion require
+  `RegimeTools(allow_write=True)`. Data loads only through market-data-hub
+  (`regime_load_from_datahub`) — no file-path loader on the agent surface.
+  Needs `lazystats[regimes]` installed
+  (`"lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git"`).
+  See [Regime detection](docs/regimes.md).
+
+  ```python
+  from lazytools.connectors.regimes import RegimeTools
+
+  tools = RegimeTools()                  # read-only inspection
+  tools = RegimeTools(allow_write=True)  # + load/fit/persist/delete
   ```
 
 - **Report** (`lazytools.report`, no extra — "LazyReport") — deterministic,
