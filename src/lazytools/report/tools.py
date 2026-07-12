@@ -124,9 +124,11 @@ class ReportTools:
         return render_html(Memo.model_validate(memo), artifacts=self._artifacts)
 
     def _save_memo_html(self, memo: dict[str, Any], filename: str = "report.html") -> str:
+        assert self._files is not None  # registered only when files was provided
         html = render_html(Memo.model_validate(memo), artifacts=self._artifacts)
         return self._files.save(filename, html)
 
     def _save_memo_markdown(self, memo: dict[str, Any], filename: str = "report.md") -> str:
+        assert self._files is not None  # registered only when files was provided
         md = render_markdown(Memo.model_validate(memo))
         return self._files.save(filename, md)
