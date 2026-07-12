@@ -47,8 +47,12 @@ jobs:
           import lazybridge
 
           print("lazybridge", lazybridge.__version__)
-          for pkg in ("lazytoolkit", "lazyfin", "lazystats", "market-data-hub"):
+          for pkg in ("lazytoolkit", "lazystats", "market-data-hub"):
               print(pkg, md.version(pkg))
+          try:
+              print("lazyfin", md.version("lazyfin"))
+          except md.PackageNotFoundError:
+              print("lazyfin: not installed (private repo, ECOSYSTEM_PAT unset)")
           assert lazybridge.__version__.split(".")[0] >= "1", "not on stable 1.x"
 
           # composed finance surface mounts and respects the audit invariants
