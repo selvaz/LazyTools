@@ -21,13 +21,23 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install the full ecosystem from scratch
+        env:
+          # LazyFin is the one PRIVATE sibling: the workflow GITHUB_TOKEN is
+          # scoped to this repo only, so installing it needs a PAT with repo
+          # read access stored as the ECOSYSTEM_PAT secret. Without it the
+          # job still validates the public graph (hub + lazystats + bridge).
+          ECOSYSTEM_PAT: ${{ secrets.ECOSYSTEM_PAT }}
         run: |
           python -m pip install -U pip
           pip install -e .
           pip install \
             "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git" \
-            "lazyfin @ git+https://github.com/selvaz/LazyFin.git" \
             "lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git"
+          if [ -n "$ECOSYSTEM_PAT" ]; then
+            pip install "lazyfin @ git+https://x-access-token:${ECOSYSTEM_PAT}@github.com/selvaz/LazyFin.git"
+          else
+            echo "::notice::ECOSYSTEM_PAT not set: skipping the private lazyfin install"
+          fi
           pip check
       - name: Smoke -- versions and composed finance surface
         run: |
