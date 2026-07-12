@@ -1,0 +1,132 @@
+name: ecosystem-released
+
+# Verify what a user can ACTUALLY install today: the verified combination
+# from ecosystem/compatibility.toml, resolved exclusively from distributed
+# artifacts — lazybridge from PyPI, everything else from immutable GitHub
+# refs. No editable installs, no branches, no local checkout of the
+# packages under test (the checkout is only used to read the manifest).
+#
+# A regression in a distributed artifact (bad PyPI wheel, moved tag,
+# corrupted Release asset) fails HERE even when every main branch is
+# mutually compatible. Runs weekly, on demand, and as the promotion gate
+# on any PR that changes the manifest or the generated requirements.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ecosystem/**"
+      - "requirements/verified.txt"
+      - ".github/workflows/ecosystem-released.yml"
+  pull_request:
+    paths:
+      - "ecosystem/**"
+      - "requirements/verified.txt"
+      - ".github/workflows/ecosystem-released.yml"
+  schedule:
+    - cron: "0 7 * * 1"   # weekly, after ecosystem-source-head
+  workflow_dispatch:
+
+jobs:
+  released:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the verified combination (distributed artifacts only)
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements/verified.txt
+          pip check
+      - name: Record the resolved environment
+        run: |
+          pip freeze > pip-freeze.txt
+          python -m pip inspect > pip-inspect.json
+      - name: Upload environment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: released-env-py${{ matrix.python-version }}
+          path: |
+            pip-freeze.txt
+            pip-inspect.json
+      - name: Import smoke + minimal composition
+        run: |
+          python - << 'EOF'
+          import importlib.metadata as md
+
+          import lazybridge
+          import lazycrawler
+          import lazypulse
+          import lazytools
+
+          for pkg in ("lazybridge", "lazytoolkit", "lazypulse", "lazycrawler",
+                      "market-data-hub", "lazystats"):
+              print(pkg, md.version(pkg))
+
+          from lazytools.connectors.datahub import DataHubTools
+          from lazytools.statistical_analysis import StatisticalAnalysisTools
+
+          # minimal cross-package composition
+          from lazybridge import Agent
+          from lazypulse import PulseAgent
+          from lazytools.safety import ConfirmationGate
+
+          names = {t.name for t in DataHubTools().as_tools()}
+          names |= {t.name for t in StatisticalAnalysisTools().as_tools()}
+          assert names, "finance surface mounted empty"
+          print(f"released combination OK: {len(names)} finance tools mounted")
+          EOF
+
+  released-wheels:
+    # The direct-reference install above builds from the tag's sdist tree.
+    # This job verifies the OTHER artifact users consume: the wheels attached
+    # to GitHub Releases, checked against their published SHA-256 checksums.
+    # Only tag-released components carry Release wheels; components still on
+    # pre-tag commit pins are skipped explicitly by the manifest ref shape.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Download Release wheels, verify checksums, install
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -m pip install -U pip
+          mkdir -p wheels && cd wheels
+
+          python - << 'EOF' > components.txt
+          import tomllib, pathlib
+          m = tomllib.loads(pathlib.Path("../ecosystem/compatibility.toml").read_text(encoding="utf-8"))
+          for name, entry in m["verified"]["github"].items():
+              ref = entry["ref"]
+              if ref.startswith("v"):  # tag => has a GitHub Release with wheels
+                  repo = entry["repo"].removeprefix("https://github.com/")
+                  print(f"{name} {repo} {ref}")
+              else:
+                  print(f"::notice::{name} still on a commit pin ({ref[:12]}…): no Release wheels to verify", flush=True)
+          EOF
+
+          grep -v '^::notice' components.txt | while read -r name repo ref; do
+            echo "== $name $repo@$ref"
+            gh release download "$ref" -R "$repo" -p "*.whl" -p "SHA256SUMS.txt"
+            grep '\.whl$' SHA256SUMS.txt | sha256sum -c -
+            rm SHA256SUMS.txt
+          done
+
+          if ls *.whl >/dev/null 2>&1; then
+            pip install *.whl
+            pip check
+            python -c "import lazytools, lazypulse; print('release wheels import OK')"
+          else
+            echo "::warning::no Release wheels found for any manifest component"
+          fi
