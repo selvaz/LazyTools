@@ -31,7 +31,7 @@ pip install "lazytoolkit[docs] @ $G"           # PDF/DOCX/HTML document reading
 pip install "lazytoolkit[web] @ $G"            # LazyCrawler search/crawl as LLM tools
 # Financial data is served by market-data-hub (also GitHub-only); the datahub
 # connector needs no extra — install the hub alongside:
-#   pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@<ref>"
+#   pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git"
 # lazytools.report needs no extra              # deterministic memo rendering
 ```
 
@@ -103,7 +103,7 @@ direct-fetch finance connector on the agent surface.
   `market_data_hub.agent_tools`, so the provider and protocol import without
   market-data-hub installed and a `FakeDataHubBackend` (`lazytools.testing`)
   drives tests offline. market-data-hub is GitHub-only, install it from git
-  (`market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@<ref>`).
+  (`market-data-hub @ git+https://github.com/selvaz/market-data-hub.git`).
 
   ```python
   from lazytools.connectors.datahub import DataHubTools

@@ -45,7 +45,7 @@ install both the toolkit and the hub from git:
 ```bash
 G="git+https://github.com/selvaz/LazyTools.git"
 pip install "lazytoolkit @ $G"
-pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@<ref>"
+pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git"
 ```
 
 ```python
