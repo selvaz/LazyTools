@@ -15,7 +15,7 @@ Two factories, same input shape (`agents: list[Agent]`), different trade-offs:
 
 > **Ships in `lazybridge` (core), not `lazytoolkit`.** Import from
 > `lazybridge.ext.planners`. LazyBridge comes transitively with
-> `pip install lazytoolkit`, or install it directly with `pip install lazybridge`.
+> `pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"`, or install it directly with `pip install lazybridge`.
 
 !!! note "Naming: orchestrator vs planner"
     `orchestrator_agent` is the **canonical** name; it avoids the verbal

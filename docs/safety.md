@@ -6,7 +6,7 @@ either or both. They carry no orchestration dependency, hold no process-global
 state, and are fully unit-testable on their own.
 
 !!! info "Ships in the core package"
-    No extra needed — `pip install lazytoolkit`. Import root is `lazytools`.
+    No extra needed — `pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"`. Import root is `lazytools`.
     ```python
     from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked, current_scope
     ```
@@ -94,8 +94,8 @@ names". Denials raise `UrlBlocked`, a subclass of `ActionBlocked`.
 
 The check is purely syntactic — no DNS, no I/O — so connectors run it on
 **every** constructed URL *and* every redirect target before following it. The
-[SEC EDGAR](edgar.md) and [market data](marketdata.md) connectors pin their
-requests to their service hosts this way.
+`EdgarClient` and `MarketDataClient` transport clients pin their requests to
+their service hosts this way.
 
 ```python
 from lazytools.safety import UrlBlocked, validate_public_url

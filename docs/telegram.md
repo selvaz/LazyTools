@@ -18,9 +18,9 @@ guards as the [Gmail](gmail.md) connector.
 !!! info "Status & install"
     **Status: alpha.** Install the Telegram extra:
     ```bash
-    pip install 'lazytoolkit[telegram]'   # adds httpx
+    pip install "lazytoolkit[telegram] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"   # adds httpx
     ```
-    The package is `lazytoolkit` (PyPI); the import root is `lazytools`. Only
+    The package is `lazytoolkit` (installed from GitHub — see Install); the import root is `lazytools`. Only
     `TelegramClient.from_token(...)` needs `httpx` — `TelegramTools` and the
     `TelegramService` protocol import without it, so tests inject a fake client
     and never touch the network.
@@ -203,7 +203,7 @@ attachments.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `ImportError: requires the 'telegram' extra` | `httpx` not installed | `pip install 'lazytoolkit[telegram]'` |
+| `ImportError: requires the 'telegram' extra` | `httpx` not installed | `pip install "lazytoolkit[telegram] @ git+https://github.com/selvaz/LazyTools.git@v0.3.2"` |
 | `TelegramSendBlocked: chat … not in the allow-list` | `chat_id` not in `allowed_chat_ids` | Add the chat id, or use `allowed_chat_ids=None` for trusted contexts |
 | `TelegramSendBlocked: no outstanding confirmation` | No grant, already spent, or scope mismatch | Call `confirm_once()` / `confirm_send(chat_id=…)` first; match `task_id` under concurrency |
 | `RuntimeError: Telegram API error on sendMessage: …` | Bot API returned `ok=false` (bad chat id, bot blocked, etc.) | Check the `description` in the error; ensure the bot can message that chat |

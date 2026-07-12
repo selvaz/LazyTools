@@ -3,8 +3,9 @@ name: ecosystem-manifest
 # Anti-drift gate for the canonical compatibility manifest
 # (ecosystem/compatibility.toml). Fails when the generated views are stale,
 # when any Git direct reference in this repo disagrees with the manifest,
-# or when the package's lazybridge range no longer admits the verified
-# version. See tools/render_compatibility.py.
+# when the package's lazybridge range no longer admits the verified version,
+# or when any doc `pip install`s a GitHub-only package as a bare PyPI name
+# (distribution-model violation). See tools/render_compatibility.py.
 
 on:
   push:

@@ -128,6 +128,39 @@ def check_lazybridge_range(m: dict) -> list[str]:
     return []
 
 
+# Only lazybridge is a real PyPI package; a ``pip install`` of any other
+# ecosystem package as a bare (non-URL) name in docs is a distribution-model
+# violation (they are GitHub-only) and a dependency-confusion footgun.
+GITHUB_ONLY_NAMES = frozenset(
+    ("lazytoolkit", "lazypulse", "lazycrawler", "lazystats", "lazyray")
+)
+# Capture the install argument after ``pip install`` (optionally quoted): the
+# package name, an optional [extras] group, and an optional `` @ <url>`` direct
+# reference. The token-based check below then decides per requirement, avoiding
+# the backtracking a single all-in-one regex is prone to.
+_PIP_ARG_RE = re.compile(
+    r"""pip install\s+['"]?([A-Za-z0-9_.-]+(?:\[[a-z,]+\])?(?:\s*@\s*\S+)?)"""
+)
+# Documentation surfaces scanned for the violation.
+DOC_GLOBS = ["README.md", "docs/**/*.md", "mkdocs.yml"]
+
+
+def check_no_pypi_install_in_docs() -> list[str]:
+    errors = []
+    for glob in DOC_GLOBS:
+        for path in REPO_ROOT.glob(glob):
+            for i, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                for spec in _PIP_ARG_RE.findall(line):
+                    name = spec.split("[")[0].split("@")[0].strip().lower()
+                    if name in GITHUB_ONLY_NAMES and "@" not in spec:
+                        rel = path.relative_to(REPO_ROOT).as_posix()
+                        errors.append(
+                            f"{rel}:{i}: `pip install {name}` as a bare PyPI name — "
+                            f"{name} is GitHub-only, use the git+ direct reference"
+                        )
+    return errors
+
+
 def main() -> int:
     m = load_manifest()
     views = {
@@ -146,6 +179,7 @@ def main() -> int:
                 errors.append(f"{rel}: stale — run tools/render_compatibility.py")
         errors += scan_repo_refs(m)
         errors += check_lazybridge_range(m)
+        errors += check_no_pypi_install_in_docs()
         if errors:
             print("compatibility manifest drift detected:")
             for e in errors:

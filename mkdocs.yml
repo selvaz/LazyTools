@@ -70,8 +70,7 @@ plugins:
           - code-support/codex.md
           - code-support/collaboration.md
           - gateway.md
-          - edgar.md
-          - marketdata.md
+          - datahub.md
           - statistical-analysis.md
           - documents.md
           - skills.md
@@ -110,8 +109,6 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/selvaz/LazyTools
-    - icon: fontawesome/brands/python
-      link: https://pypi.org/project/lazytoolkit/
     - icon: fontawesome/solid/envelope
       link: mailto:LazyBridgeLabs@gmail.com
       name: Email LazyBridge Labs
@@ -132,8 +129,7 @@ nav:
           - Codex: code-support/codex.md
           - Collaboration: code-support/collaboration.md
       - External tool gateway: gateway.md
-      - SEC EDGAR: edgar.md
-      - Market data: marketdata.md
+      - Financial data (market-data-hub): datahub.md
       - Statistical analysis: statistical-analysis.md
       - Documents: documents.md
       - Skills: skills.md
