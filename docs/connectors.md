@@ -1,10 +1,12 @@
 # Tools overview
 
 Every tool in LazyTools is a `ToolProvider` (or a function/`Tool` factory) you drop
-straight into `Agent(tools=[...])` (or `PulseAgent(tools=[...])`). Each one has its
-own deep guide — what it does, how it works internally, every parameter and
-exposed tool function, runnable examples, the safety model, and troubleshooting.
-Treat each as its own mini-repository.
+straight into `Agent(tools=[...])` — or into
+[LazyPulse](https://github.com/selvaz/LazyPulse)'s `PulseAgent(tools=[...])`
+for always-on agents. Each one has its own deep guide — what it does, how it
+works internally, every parameter and exposed tool function, runnable
+examples, the safety model, and troubleshooting. Treat each as its own
+mini-repository.
 
 LazyTools installs from GitHub (only LazyBridge is on PyPI). Add an extra to
 the base direct reference — e.g.

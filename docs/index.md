@@ -48,6 +48,9 @@ safety model, and troubleshooting. Start at the [Tools overview](connectors.md).
 | **MCP** | `connectors/mcp` — Model Context Protocol connector | [MCP](mcp.md) |
 | **External tool gateway** | `connectors/gateway` — remote JSON-HTTP tool registries | [Gateway](gateway.md) |
 | **Financial data** | `connectors/datahub` — market-data-hub as the single finance source (`datahub_*`) | [Financial data](datahub.md) |
+| **Regime detection** | `connectors/regimes` — `lazystats.regimes` HMM/MS engines as `regime_*` tools | [Regime detection](regimes.md) |
+| **Statistical analysis** | `statistical_analysis` — volatility/correlation/outliers over hub returns | [Statistical analysis](statistical-analysis.md) |
+| **Web** | `connectors/web` — [LazyCrawler](https://github.com/selvaz/LazyCrawler) search/crawl as LLM tools (extra `[web]`) | — |
 | **Documents** | `documents/read_docs` — read `.txt/.md/.pdf/.docx/.html` from a folder/file | [Documents](documents.md) |
 | **Skills** | `skills/doc_skills` — build/query portable BM25 doc skills | [Skills](skills.md) |
 | **Safety** | `safety/{allowlist,gates}` — reusable allow-list + one-shot confirmation gate | [Safety](safety.md) |
@@ -62,6 +65,19 @@ and additional base tools.
     itself rather than in `lazytoolkit` — [Planners](planners/index.md) (LLM-built
     pipelines), [Composition sugar](composition/index.md) (`chain` / `parallel`),
     and [Human-in-the-loop](hil/index.md) (`HumanEngine` / `SupervisorEngine`).
+
+## The ecosystem around LazyTools
+
+Everything below installs from GitHub (only `lazybridge` is on PyPI):
+
+| Package | Role | How LazyTools uses it |
+|---|---|---|
+| [LazyBridge](https://github.com/selvaz/LazyBridge) | Agent runtime (core) | the substrate — every provider here plugs into `Agent(tools=[...])` |
+| [LazyPulse](https://github.com/selvaz/LazyPulse) | Always-on orchestration | consumes LazyTools' clients/tools for its adapters (Gmail, Telegram, Outlook) |
+| [LazyCrawler](https://github.com/selvaz/LazyCrawler) | Web crawl & search | surfaced as LLM tools via the `[web]` extra (`WebTools`) |
+| [market-data-hub](https://github.com/selvaz/market-data-hub) | **The single source of financial data** | `datahub_*` tools (discovery/resolution/facts/extraction) |
+| [LazyStats](https://github.com/selvaz/LazyStats) | Statistics + HMM/MS regime engines | `statistical_*` tools and `regime_*` tools (`[regimes]` extra of lazystats) |
+| [LazyRay](https://github.com/selvaz/LazyRay) | Debt-cycle & regime engine | reads market-data-hub directly; no LazyTools connector (not an agent surface) |
 
 ## Dependency rules
 

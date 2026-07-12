@@ -9,9 +9,14 @@ tools live here. Anything you add to `Agent(tools=[...])` or
 `PulseAgent(tools=[...])` that talks to the outside world belongs in LazyTools.
 
 ```
-lazybridge   minimal agent runtime — core abstractions only
-lazytools    reusable tool providers + connector clients + safety wrappers
-lazypulse    always-on orchestration (tick loop, adapters, policy, ledger)
+lazybridge       minimal agent runtime — core abstractions only (PyPI)
+lazytools        reusable tool providers + connector clients + safety wrappers
+lazypulse        always-on orchestration (tick loop, adapters, policy, ledger)
+lazycrawler      web crawl & search — surfaced here via the [web] extra
+market-data-hub  the single source of financial data — surfaced via datahub_*
+lazystats        statistics + HMM/MS regime engines — surfaced via
+                 statistical_* and regime_* tools
+lazyray          debt-cycle & regime engine on top of market-data-hub
 ```
 
 ## Install
