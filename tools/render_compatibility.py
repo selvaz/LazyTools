@@ -44,6 +44,11 @@ MD_OUT = REPO_ROOT / "ecosystem" / "compatibility.md"
 # Files scanned for Git direct references that must agree with the manifest.
 SCAN_GLOBS = ["pyproject.toml", ".github/workflows/*.yml", "README.md"]
 
+# The source-head workflow is the ONE place allowed to reference branches:
+# it deliberately tests unreleased sibling revisions (anticipatory job).
+# Every other file must pin the manifest refs.
+SCAN_EXCLUDE = {".github/workflows/ecosystem-source-head.yml"}
+
 GIT_REF_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?@([A-Za-z0-9_.\-/]+)")
 
 
@@ -99,6 +104,8 @@ def scan_repo_refs(m: dict) -> list[str]:
     errors = []
     for glob in SCAN_GLOBS:
         for path in REPO_ROOT.glob(glob):
+            if path.relative_to(REPO_ROOT).as_posix() in SCAN_EXCLUDE:
+                continue
             text = path.read_text(encoding="utf-8", errors="replace")
             for repo, ref in GIT_REF_RE.findall(text):
                 want = by_repo.get(repo.lower())

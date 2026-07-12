@@ -1,8 +1,13 @@
-name: ecosystem-install
+name: ecosystem-source-head
 
-# Audit CA-04: install the WHOLE ecosystem from zero at current revisions and
-# smoke-test the composed finance surface. pip check green on stale pins can
-# lie; this proves the graph that a fresh machine actually gets.
+# Anticipatory compatibility check: install THIS checkout in editable mode
+# plus the sibling repos at their main branches, and smoke the composed
+# finance surface. This deliberately tests unreleased source revisions to
+# surface incoming incompatibilities early — it says nothing about what a
+# user can install today (that is ecosystem-released.yml's job).
+#
+# Successor of ecosystem-install.yml (audit CA-04), which mixed the two
+# concerns.
 
 on:
   push:
@@ -10,17 +15,18 @@ on:
   pull_request:
   schedule:
     - cron: "0 6 * * 1"   # weekly drift check
+  workflow_dispatch:
 
 jobs:
-  install-from-zero:
+  source-head:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install the full ecosystem from scratch
+      - name: Install ecosystem at source HEAD
         env:
           # LazyFin is the one PRIVATE sibling: the workflow GITHUB_TOKEN is
           # scoped to this repo only, so installing it needs a PAT with repo
@@ -31,10 +37,10 @@ jobs:
           python -m pip install -U pip
           pip install -e .
           pip install \
-            "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git" \
-            "lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git"
+            "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@main" \
+            "lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@main"
           if [ -n "$ECOSYSTEM_PAT" ]; then
-            pip install "lazyfin @ git+https://x-access-token:${ECOSYSTEM_PAT}@github.com/selvaz/LazyFin.git"
+            pip install "lazyfin @ git+https://x-access-token:${ECOSYSTEM_PAT}@github.com/selvaz/LazyFin.git@main"
           else
             echo "::notice::ECOSYSTEM_PAT not set: skipping the private lazyfin install"
           fi
