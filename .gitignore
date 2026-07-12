@@ -10,3 +10,4 @@ dist/
 site/
 .venv/
 generated_skills/
+.pytest-tmp/
