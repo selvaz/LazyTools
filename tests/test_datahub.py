@@ -29,6 +29,7 @@ EXPECTED_NAMES = {
 }
 
 WRITE_NAMES = {
+    "datahub_register_listing",
     "datahub_ensure_price_history",
     "datahub_ensure_financials",
 }

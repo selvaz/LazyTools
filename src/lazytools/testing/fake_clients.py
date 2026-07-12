@@ -356,6 +356,11 @@ class FakeDataHubBackend:
     def get_ingestion_health(self) -> str:
         return self._emit("get_ingestion_health")
 
+    def register_listing(self, symbol: str, exchange: str, currency: str, kind: str = "EQUITY", name: str = "", provider: str = "yahoo", provider_symbol: str = "") -> str:
+        return self._emit("register_listing", symbol=symbol, exchange=exchange,
+                          currency=currency, kind=kind, name=name,
+                          provider=provider, provider_symbol=provider_symbol)
+
     def ensure_price_history(self, query: str, start: str = "", end: str = "") -> str:
         return self._emit("ensure_price_history", query=query, start=start, end=end)
 

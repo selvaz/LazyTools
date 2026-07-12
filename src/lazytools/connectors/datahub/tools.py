@@ -244,6 +244,20 @@ class DataHubTools:
         ) + (
             [
                 Tool.wrap(
+                    self._register_listing,
+                    name="datahub_register_listing",
+                    description=(
+                        "WRITE tool: register an ARBITRARY single name the hub does not "
+                        "know yet (identity is explicit, never guessed): symbol, exchange "
+                        "and currency are REQUIRED; provider_symbol when the provider key "
+                        "differs. Idempotent per (symbol, provider, exchange); a second "
+                        "venue gets its own listing_id. After registering, call "
+                        "datahub_ensure_price_history with the returned listing_id. "
+                        "Args: symbol, exchange, currency (required); kind (default "
+                        "EQUITY); name; provider (default yahoo); provider_symbol."
+                    ),
+                ),
+                Tool.wrap(
                     self._ensure_price_history,
                     name="datahub_ensure_price_history",
                     description=(
@@ -338,6 +352,13 @@ class DataHubTools:
 
     def _get_ingestion_health(self) -> str:
         return self._resolve().get_ingestion_health()
+
+    def _register_listing(self, symbol: str, exchange: str, currency: str,
+                          kind: str = "EQUITY", name: str = "",
+                          provider: str = "yahoo", provider_symbol: str = "") -> str:
+        return self._resolve().register_listing(
+            symbol, exchange, currency, kind=kind, name=name,
+            provider=provider, provider_symbol=provider_symbol)
 
     def _ensure_price_history(self, query: str, start: str = "", end: str = "") -> str:
         return self._resolve().ensure_price_history(query, start=start, end=end)
