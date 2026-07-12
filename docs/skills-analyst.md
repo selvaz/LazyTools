@@ -71,13 +71,14 @@ starve the last specialist.
 
 ## Runnable example + visualization
 
-- [`examples/analyst_report.py`](../examples/analyst_report.py) — builds the
-  specialists and runs any orchestrator (`LB_ORCH=plan|blackboard|replan`),
-  producing a self-contained HTML report with an embedded regime chart.
-- [`examples/analyst_viz.py`](../examples/analyst_viz.py) — renders the flow as a
-  self-contained HTML diagram: the specialists and the blackboard from the skill
-  contracts, with a real run's order, timing and produced handles overlaid from
-  the shared `Session` event log.
+- [`examples/analyst_report.py`](https://github.com/selvaz/LazyTools/blob/main/examples/analyst_report.py)
+  — builds the specialists and runs any orchestrator
+  (`LB_ORCH=plan|blackboard|replan`), producing a self-contained HTML report
+  with an embedded regime chart.
+- [`examples/analyst_viz.py`](https://github.com/selvaz/LazyTools/blob/main/examples/analyst_viz.py)
+  — renders the flow as a self-contained HTML diagram: the specialists and the
+  blackboard from the skill contracts, with a real run's order, timing and
+  produced handles overlaid from the shared `Session` event log.
 
 ## Why this matters
 
