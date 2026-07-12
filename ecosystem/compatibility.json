@@ -12,7 +12,7 @@
   "verified": {
     "github": {
       "lazycrawler": {
-        "ref": "54ecfbc3508ea168d45d52b50dbe9500adf1f2c1",
+        "ref": "v0.16.0",
         "repo": "https://github.com/selvaz/LazyCrawler"
       },
       "lazypulse": {
@@ -27,7 +27,7 @@
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
-        "ref": "3845ad1e8c77b4822538db1266429e944fdd6d34",
+        "ref": "v0.3.3",
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {

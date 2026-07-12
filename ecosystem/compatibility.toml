@@ -26,7 +26,7 @@ lazybridge = "1.0.1"
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "3845ad1e8c77b4822538db1266429e944fdd6d34"  # post-v0.3.2 main SHA (report figures / artifact refs, #61); tag at next release
+ref = "v0.3.3"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
@@ -34,7 +34,7 @@ ref = "v0.3.1"
 
 [verified.github.lazycrawler]
 repo = "https://github.com/selvaz/LazyCrawler"
-ref = "54ecfbc3508ea168d45d52b50dbe9500adf1f2c1"  # post-v0.15.0 main SHA (get_artifacts content_hash filter, #36); tag at next release
+ref = "v0.16.0"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
