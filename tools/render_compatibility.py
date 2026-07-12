@@ -32,6 +32,7 @@ import sys
 import tomllib
 
 from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import Version
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -131,8 +132,11 @@ def check_lazybridge_range(m: dict) -> list[str]:
 # Only lazybridge is a real PyPI package; a ``pip install`` of any other
 # ecosystem package as a bare (non-URL) name in docs is a distribution-model
 # violation (they are GitHub-only) and a dependency-confusion footgun.
+# Stored canonicalized so that pip-equivalent spellings (market_data_hub,
+# market.data.hub, ...) all match — pip normalizes '_' and '.' to '-'.
 GITHUB_ONLY_NAMES = frozenset(
-    ("lazytoolkit", "lazypulse", "lazycrawler", "lazystats", "lazyray", "market-data-hub")
+    canonicalize_name(n)
+    for n in ("lazytoolkit", "lazypulse", "lazycrawler", "lazystats", "lazyray", "market-data-hub")
 )
 # Capture the install argument after ``pip install`` (optionally quoted): the
 # package name, an optional [extras] group, and an optional `` @ <url>`` direct
@@ -151,7 +155,8 @@ def check_no_pypi_install_in_docs() -> list[str]:
         for path in REPO_ROOT.glob(glob):
             for i, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
                 for spec in _PIP_ARG_RE.findall(line):
-                    name = spec.split("[")[0].split("@")[0].strip().lower()
+                    raw_name = spec.split("[")[0].split("@")[0].strip()
+                    name = canonicalize_name(raw_name)
                     if name in GITHUB_ONLY_NAMES and "@" not in spec:
                         rel = path.relative_to(REPO_ROOT).as_posix()
                         errors.append(
