@@ -211,6 +211,14 @@ class ScoringTools:
 class ResolveTools:
     """LazyBridge tool provider for resolution + fact retrieval.
 
+    .. deprecated::
+        ``get_financial_facts`` fetches RAW EDGAR company facts directly
+        through the injected client, bypassing market-data-hub entirely — no
+        DB, no coverage, no run ledger, no provenance (audit finding CA-03).
+        Use ``datahub_resolve_instrument`` + ``datahub_get_financial_facts`` /
+        ``datahub_ensure_financials`` (``connectors.datahub.DataHubTools``)
+        instead. Kept for one compatibility release.
+
     ``get_financial_facts`` accepts canonical ids (``ticker:AAPL`` /
     ``cik:0000320193``) or a bare query, fetches the raw EDGAR company facts
     through the client and returns them normalised with provenance.
@@ -225,6 +233,18 @@ class ResolveTools:
         tool_version: str | None = None,
         concepts: Callable[[], list[str] | None] | list[str] | None = None,
     ) -> None:
+        import warnings
+
+        warnings.warn(
+            "ResolveTools.get_financial_facts fetches EDGAR directly and "
+            "bypasses market-data-hub (no DB, coverage, run ledger or "
+            "provenance): use lazytools.connectors.datahub.DataHubTools "
+            "(datahub_resolve_instrument + datahub_get_financial_facts / "
+            "datahub_ensure_financials) instead. Removal after one "
+            "compatibility release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._client = client
         self._tool_version = tool_version
         self._concepts = concepts

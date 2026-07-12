@@ -8,6 +8,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `ResolveTools` deprecated: it bypassed market-data-hub (audit CA-03)
+- `connectors.fin.ResolveTools.get_financial_facts` fetched RAW EDGAR company
+  facts directly through its injected client — no DB, no coverage, no run
+  ledger, no provenance, exactly the direct-fetch pattern `EdgarTools`/
+  `MarketDataTools` were already deprecated for. Now warns at construction
+  with the same one-release-compatibility discipline, pointing to
+  `datahub_resolve_instrument` + `datahub_get_financial_facts` /
+  `datahub_ensure_financials`.
+- New cross-repo boundary test (`test_no_direct_finance_clients.py`):
+  asserts `connectors/fin/agents.py` never imports `connectors.edgar` /
+  `connectors.marketdata`, and that `pm_supervisor`'s default tool list never
+  silently grows to include a direct-fetch provider.
+
 ### Added — `connectors/regimes`: closes the last LLM-callability gap (plan v3.1 Fase 6)
 - New `RegimeTools` provider wraps `lazystats.regimes`'s ~27 HMM/MS
   regime-detection functions (`fit_regimes`, `get_current_regime`,
