@@ -117,8 +117,18 @@ def test_render_html_escapes_caption() -> None:
 def test_render_html_rejects_non_image(tmp_path) -> None:
     p = tmp_path / "notes.txt"
     p.write_text("hello")
-    with pytest.raises(ValueError, match="non-image MIME"):
+    with pytest.raises(ValueError, match="non-image or unsafe MIME"):
         render_html(_memo_with_figure(f"file:{p}"))
+
+
+def test_render_html_rejects_mime_attribute_injection() -> None:
+    # A resolver MIME can come from an untrusted remote Content-Type (crawler:).
+    # It must never break out of the src="data:..." attribute.
+    resolvers = ArtifactResolvers()
+    resolvers.register("evil", lambda key: (PNG_BYTES, 'image/png" onerror="alert(1)'))
+    memo = _memo_with_figure("evil:x")
+    with pytest.raises(ValueError, match="non-image or unsafe MIME"):
+        render_html(memo, artifacts=resolvers)
 
 
 def test_render_markdown_degrades_figure_to_text() -> None:

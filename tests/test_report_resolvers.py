@@ -63,6 +63,15 @@ def test_crawler_resolver_fails_loudly() -> None:
         crawler_resolver(db)("nb")
 
 
+def test_crawler_resolver_skips_bytesless_duplicate() -> None:
+    # Same hash on two pages: one row lacks the downloaded blob, one has it.
+    db = _StubCrawlerDB([
+        {"content_hash": "h1", "blob": None, "mime": "image/png"},
+        {"content_hash": "h1", "blob": PNG, "mime": "image/png"},
+    ])
+    assert crawler_resolver(db)("h1") == (PNG, "image/png")
+
+
 # --- chart spec ---------------------------------------------------------------- #
 
 

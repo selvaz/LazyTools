@@ -24,9 +24,18 @@ from __future__ import annotations
 
 import base64
 import html
+import re
 
 from lazytools.report.artifacts import ArtifactResolvers
 from lazytools.report.models import Memo
+
+#: A strict image MIME token: ``image/`` plus RFC-6838 subtype characters only.
+#: Deliberately excludes the space and quote in an injection payload such as
+#: ``image/png" onerror="alert(1)`` — a resolver MIME can originate from an
+#: untrusted remote ``Content-Type`` (e.g. a ``crawler:`` artifact), and it is
+#: interpolated into the ``src`` attribute, so a permissive ``startswith``
+#: check would let attribute injection through.
+_IMAGE_MIME_RE = re.compile(r"^image/[A-Za-z0-9][A-Za-z0-9.+-]*$")
 
 
 def render_markdown(memo: Memo) -> str:
@@ -93,10 +102,10 @@ def render_html(memo: Memo, *, artifacts: ArtifactResolvers | None = None) -> st
             parts.append("</table>")
         for figure in section.figures:
             data, mime = artifacts.resolve(figure.ref)
-            if not mime.startswith("image/"):
+            if not _IMAGE_MIME_RE.match(mime):
                 raise ValueError(
-                    f"figure {figure.ref!r} resolved to non-image MIME {mime!r}; "
-                    "only images can be embedded in an HTML report"
+                    f"figure {figure.ref!r} resolved to non-image or unsafe MIME {mime!r}; "
+                    "only a strict image/* MIME can be embedded in an HTML report"
                 )
             src = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
             parts.append("<figure>")

@@ -48,9 +48,15 @@ def crawler_resolver(db: Any) -> Resolver:
     """Resolve ``crawler:<content_hash>`` to the blob in a LazyCrawler DB.
 
     ``db`` may be a path to the crawler SQLite file or any object with
-    ``get_artifacts(content_hash=..., include_blob=True, limit=1)`` (a
+    ``get_artifacts(content_hash=..., include_blob=True)`` (a
     ``lazycrawler.CrawlerDB``). Only artifacts whose bytes were downloaded
     (``download_artifact_bytes=True`` at crawl time) are resolvable.
+
+    A ``content_hash`` is unique only per page, so the same image on several
+    crawled pages matches multiple rows — some possibly without a downloaded
+    blob. All rows share the same underlying content, so any one carrying
+    bytes is correct; this picks the first such row rather than a blind
+    ``limit=1`` that could land on a bytesless duplicate.
     """
 
     def _resolve(key: str) -> tuple[bytes, str]:
@@ -65,17 +71,17 @@ def crawler_resolver(db: Any) -> Resolver:
                     "git+https://github.com/selvaz/LazyCrawler.git'"
                 ) from exc
             store = CrawlerDB(DBConfig(db_path=store))
-        rows = store.get_artifacts(content_hash=key, include_blob=True, limit=1)
+        rows = store.get_artifacts(content_hash=key, include_blob=True)
         if not rows:
             raise KeyError(f"crawler artifact {key!r} not found")
-        blob = rows[0].get("blob")
-        if not blob:
+        row = next((r for r in rows if r.get("blob")), None)
+        if row is None:
             raise ValueError(
-                f"crawler artifact {key!r} has no stored bytes "
+                f"crawler artifact {key!r} has no stored bytes on any page "
                 "(crawl with download_artifact_bytes=True to persist them)"
             )
-        data = bytes(blob)
-        return data, rows[0].get("mime") or sniff_image_mime(data)
+        data = bytes(row["blob"])
+        return data, row.get("mime") or sniff_image_mime(data)
 
     return _resolve
 
