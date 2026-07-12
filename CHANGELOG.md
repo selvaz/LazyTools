@@ -8,6 +8,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — report figures (charts and images in memos)
+- `FigureBlock` on `Section`: a figure named by canonical `scheme:key`
+  artifact ref (the `lazydatacore.ArtifactRef` string shape, parsed with
+  stdlib only). `render_html` embeds each figure as a base64 data URI —
+  one self-contained HTML file; `render_markdown` degrades to an italic
+  `Figure: caption (ref)` line.
+- `ArtifactResolvers` (`report/artifacts.py`): per-scheme registry →
+  `(bytes, mime)`. Core schemes `file:` (optional `file_base_dir` sandbox)
+  and `bytes:` (inline base64, MIME sniffed); unregistered schemes fail
+  loudly at resolve time.
+- `ecosystem_resolvers()` (`report/resolvers.py`): registers `regimes:`
+  (LazyStats depot plots, needs `RegimeDB.get_plot` — LazyStats#7),
+  `crawler:` (LazyCrawler artifact blobs by `content_hash` —
+  LazyCrawler#36) and `chart:`; every producer imported lazily at resolve
+  time, duck-typed stores injectable.
+- `report/charts.py` + new `charts` extra (matplotlib): on-demand PNG
+  charts from any market-data-hub series. `chart_series()` (fetch via
+  `extract_series` + headless render), `render_series_png()` (pure
+  DataFrame → PNG), `parse_chart_spec()` for `chart:` querystring refs.
+- `ReportTools(artifacts=...)` threads a resolver registry into
+  `render_memo_html`; memo shape in tool descriptions documents `figures`.
+
 ## [0.3.2] — 2026-07-12
 
 First tagged public release. Version `0.3.1` was a source-only bump: it was

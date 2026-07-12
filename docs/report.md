@@ -1,12 +1,12 @@
 # Report (LazyReport)
 
 Deterministic, domain-agnostic memo rendering. `lazytools.report` ships
-pydantic models (`Memo` / `Section` / `TableBlock`), two pure-function
-renderers (`render_markdown`, `render_html`), a `ToolProvider` (`ReportTools`)
-exposing `render_memo` and `render_memo_html`, and a file-writing
-`ToolProvider` (`ReportFiles`) exposing `save_report` — materialise a rendered
-report to disk so it can then be sent as an attachment (e.g. with the Telegram
-connector's `telegram_send_document`).
+pydantic models (`Memo` / `Section` / `TableBlock` / `FigureBlock`), two
+pure-function renderers (`render_markdown`, `render_html`), a `ToolProvider`
+(`ReportTools`) exposing `render_memo` and `render_memo_html`, and a
+file-writing `ToolProvider` (`ReportFiles`) exposing `save_report` —
+materialise a rendered report to disk so it can then be sent as an attachment
+(e.g. with the Telegram connector's `telegram_send_document`).
 
 The split of responsibilities is deliberate: **an LLM writes the prose** (the
 section bodies); **the layout is deterministic** — the same memo always
@@ -73,8 +73,56 @@ agent = Agent("claude-opus-4-8", tools=[ReportTools()])
 | Model | Fields |
 |---|---|
 | `TableBlock` | `columns: list[str]`, `rows: list[list[str]]` |
-| `Section` | `title: str`, `body: str = ""` (markdown prose), `tables: list[TableBlock] = []` |
+| `FigureBlock` | `ref: str` (canonical `scheme:key` artifact ref), `caption: str = ""` |
+| `Section` | `title: str`, `body: str = ""` (markdown prose), `tables: list[TableBlock] = []`, `figures: list[FigureBlock] = []` |
 | `Memo` | `title: str`, `as_of: datetime \| None = None`, `sections: list[Section] = []`, `metadata: dict[str, str] = {}` |
+
+## Figures: charts and images in a memo
+
+A `FigureBlock` names its image with a canonical **artifact ref** — the
+ecosystem's shared identity (`lazydatacore.ArtifactRef`, shape
+`"scheme:key"`). `render_html` resolves each ref through an
+`ArtifactResolvers` registry and embeds the image as a **base64 data URI**,
+so the output stays a single self-contained file (Telegram/email/browser
+ready); `render_markdown` stays text-only and degrades a figure to an italic
+`Figure: caption (ref)` line.
+
+| Scheme | Key | Source | Needs |
+|---|---|---|---|
+| `regimes:` | `plot_key` | PNG in the LazyStats regime depot (from `regime_generate_plots`) | `lazystats[regimes]` |
+| `crawler:` | `content_hash` | blob in a LazyCrawler artifacts DB (crawl with `download_artifact_bytes=True`) | `lazycrawler` |
+| `chart:` | querystring spec | rendered on demand from market-data-hub series | `lazytoolkit[charts]` + `market-data-hub` |
+| `file:` | path | local file (optionally sandboxed via `file_base_dir`) | — |
+| `bytes:` | base64 | inline payload | — |
+
+The core registry (`ArtifactResolvers()`) resolves only `file:`/`bytes:` and
+keeps the module stdlib-only; `ecosystem_resolvers()` registers the source
+schemes, importing each producer lazily **at resolve time**:
+
+```python
+from lazytools.report import Memo, Section, FigureBlock, render_html, ecosystem_resolvers
+
+memo = Memo(
+    title="Weekly Regimes",
+    sections=[Section(
+        title="SPY",
+        figures=[
+            FigureBlock(ref="regimes:plotfit__series__SPY__20260710T070000", caption="SPY with regime bands"),
+            FigureBlock(ref="chart:symbols=SPY,^VIX&start=2024-01-01&frequency=W", caption="SPY vs VIX"),
+        ],
+    )],
+)
+html = render_html(memo, artifacts=ecosystem_resolvers())  # one self-contained file
+```
+
+A `chart:` spec accepts `symbols` (comma-separated, required), `start`,
+`end`, `domain` (`prices`/`macro`/`custom`/`crypto`/`factors`), `field`,
+`transform` (`level`/`log_return`/`pct_change`/`diff`), `frequency`
+(`D`/`W`/`M`/`Q`) and `title` — the same vocabulary as the hub's
+`extract_series`. `chart_series(...)` in `lazytools.report.charts` is the
+plain-Python equivalent returning PNG bytes. An unresolvable ref (unknown
+scheme, missing plot, absent package) **raises** rather than rendering a
+silently incomplete report.
 
 ## Tools it exposes
 
