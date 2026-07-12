@@ -9,7 +9,7 @@ Python: 3.11, 3.12, 3.13
 | lazybridge | PyPI | `1.0.1` |
 | lazytoolkit | GitHub | `v0.3.2` |
 | lazypulse | GitHub | `v0.3.1` |
-| lazycrawler | GitHub | `8b6462187093b33ef162b6d8147302b34eab9f5a` |
+| lazycrawler | GitHub | `v0.14.1` |
 | market-data-hub | GitHub | `54bc8849e82ad8d1a65a94be0621b5d37740447c` |
 | lazystats | GitHub | `ffcda62f94a02a56192f7b55a223d701bf85f143` |
 | lazyray | GitHub | *excluded* — pins market-data-hub @42ed9ea while the verified combination uses @54bc884; two direct URLs for the same package are not co-installable. Re-align LazyRay's pin (finance train, ECO-007), then move it to [verified.github]. |

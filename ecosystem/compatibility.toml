@@ -34,7 +34,7 @@ ref = "v0.3.1"
 
 [verified.github.lazycrawler]
 repo = "https://github.com/selvaz/LazyCrawler"
-ref = "8b6462187093b33ef162b6d8147302b34eab9f5a"  # pre-tag pin; Train B replaces with a release tag
+ref = "v0.14.1"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"

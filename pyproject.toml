@@ -43,10 +43,10 @@ marketdata = ["httpx>=0.27,<1.0"]
 # LazyCrawler surfaced as an LLM tool interface only (thin pass-through).
 # LazyCrawler is NOT on PyPI (the bare name is unregistered — a bare
 # ``lazycrawler>=0.14`` requirement could never resolve and is a
-# dependency-confusion exposure, same as market-data-hub above). Pinned to an
-# immutable commit until LazyCrawler publishes release tags; the ref is
-# governed by ecosystem/compatibility.toml.
-web        = ["lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@8b6462187093b33ef162b6d8147302b34eab9f5a"]
+# dependency-confusion exposure, same as market-data-hub above). Pinned to
+# the immutable release tag; the ref is governed by
+# ecosystem/compatibility.toml.
+web        = ["lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@v0.14.1"]
 # ``mcp`` is included so the real-SDK integration tests (loop-affinity
 # regression coverage) run in CI instead of silently skipping.
 test       = ["pytest>=7.0", "pytest-asyncio>=0.23", "pytest-cov>=4.0", "httpx>=0.27,<1.0", "mcp>=1.0,<2.0", "ruff>=0.6", "mypy>=1.10"]
