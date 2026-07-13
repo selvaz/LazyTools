@@ -51,7 +51,7 @@ safety model, and troubleshooting. Start at the [Tools overview](connectors.md).
 | **External tool gateway** | `connectors/gateway` — remote JSON-HTTP tool registries | [Gateway](gateway.md) |
 | **Financial data** | `connectors/datahub` — market-data-hub as the single finance source (`datahub_*`) | [Financial data](datahub.md) |
 | **Regime detection** | `connectors/regimes` — `lazystats.regimes` HMM/MS engines as `regime_*` tools | [Regime detection](regimes.md) |
-| **Statistical analysis** | `statistical_analysis` — volatility/correlation/outliers over hub returns | [Statistical analysis](statistical-analysis.md) |
+| **Statistical analysis** | `statistical_analysis` — volatility/correlation/outliers plus OLS/Ridge/Lasso regression over any hub series (returns, levels, factors, macro) | [Statistical analysis](statistical-analysis.md) |
 | **Web** | `connectors/web` — [LazyCrawler](https://github.com/selvaz/LazyCrawler) search/crawl as LLM tools (extra `[web]`) | — |
 | **Documents** | `documents/read_docs` — read `.txt/.md/.pdf/.docx/.html` from a folder/file | [Documents](documents.md) |
 | **Skills** | `skills/doc_skills` — build/query portable BM25 doc skills | [Skills](skills.md) |
