@@ -57,26 +57,35 @@ pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git
 ### Quickstart scripts
 
 The minimal, zero-boilerplate shape — one tool provider, one natural-language
-question, no bootstrap scaffolding:
+question, no bootstrap scaffolding. Both read `LB_MODEL` (default
+`claude-haiku-4-5`) and need a matching provider API key (e.g.
+`ANTHROPIC_API_KEY`) plus market-data-hub reachable (`MARKET_DATA_DB`
+optional). `agent(...)` never raises — a failed call comes back as an error
+envelope, so both scripts check `result.ok` before trusting `result.text()`
+and print `result.error` otherwise (missing key, missing package, etc.). The
+code below is embedded straight from `examples/` — it is the actual,
+currently-passing script, not a copy that can drift out of sync.
 
-- `examples/statistical_analysis_quickstart.py` — volatility, correlation and
-  outliers over a ticker pair.
-- `examples/regression_quickstart.py` — OLS/Ridge/Lasso across domains (a
-  ticker return regressed on another ticker, a Fama-French factor and a
-  macro level in the same call).
+**Volatility, correlation and outliers** (`examples/statistical_analysis_quickstart.py`):
 
-Both read `LB_MODEL` (default `claude-haiku-4-5`) and need a matching
-provider API key (e.g. `ANTHROPIC_API_KEY`) plus market-data-hub reachable
-(`MARKET_DATA_DB` optional). Run directly:
+```python
+--8<-- "examples/statistical_analysis_quickstart.py"
+```
+
+**OLS / Ridge / Lasso across domains** (`examples/regression_quickstart.py`) —
+a ticker return regressed on another ticker, a Fama-French factor and a
+macro level in the same call:
+
+```python
+--8<-- "examples/regression_quickstart.py"
+```
+
+Run either directly:
 
 ```bash
 python examples/statistical_analysis_quickstart.py
 python examples/regression_quickstart.py
 ```
-
-`agent(...)` never raises — a failed call comes back as an error envelope, so
-both scripts check `result.ok` before trusting `result.text()` and print
-`result.error` otherwise (missing key, missing package, etc.).
 
 For a real end-to-end DeepSeek tool-call smoke test from Spyder that also
 *asserts* the tools were actually called (rather than just printing the
