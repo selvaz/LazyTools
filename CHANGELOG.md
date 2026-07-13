@@ -8,6 +8,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — series transformation layer + OLS/Ridge/Lasso regression tools
+- `statistical_analysis` gains a generic `load_series` data path: any
+  instrument argument now accepts `'<id>[|level|log_return|pct_change|diff]'`
+  specs across ticker/factor/macro domains (default transform per domain:
+  ticker `log_return`, factor `level`, macro `diff`), so the existing
+  volatility/correlation/outlier tools can analyse prices in level, Fama-
+  French factors or FRED macro series, not just ticker returns. Mixed-domain
+  panels are outer-joined on dates; `load_returns` keeps its original
+  behaviour for backward compatibility.
+- Three new tools — `statistical_regression_ols`, `statistical_regression_ridge`,
+  `statistical_regression_lasso` — fit univariate/multivariate OLS
+  (statsmodels, robust/HAC standard errors) and Ridge/Lasso (scikit-learn,
+  cross-validated alpha by default) between any hub series read only through
+  market-data-hub. Max 10 regressors; results are coefficients and
+  diagnostics only, never the raw series. Requires `lazystats[regression]`.
+
 ### Added — one-step render-and-save report tools
 - `ReportTools(files=ReportFiles(...))` now also exposes `save_memo_html` and
   `save_memo_markdown`: they render a memo AND write it to the sandboxed
