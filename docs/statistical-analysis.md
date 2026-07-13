@@ -54,11 +54,37 @@ pip install "lazytoolkit @ $G"
 pip install "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git"
 ```
 
-For a real end-to-end DeepSeek tool-call smoke test from Spyder, run
-`examples/run_statistical_analysis_deepseek.py` from the repository checkout.
-It defaults to the low-cost `deepseek-v4-flash` model, reads the API key from
-`DEEPSEEK_API_KEY` or the workspace `deepseek.env`, and asserts that the agent
-actually invoked each of the three statistical tools.
+### Quickstart scripts
+
+The minimal, zero-boilerplate shape — one tool provider, one natural-language
+question, no bootstrap scaffolding:
+
+- `examples/statistical_analysis_quickstart.py` — volatility, correlation and
+  outliers over a ticker pair.
+- `examples/regression_quickstart.py` — OLS/Ridge/Lasso across domains (a
+  ticker return regressed on another ticker, a Fama-French factor and a
+  macro level in the same call).
+
+Both read `LB_MODEL` (default `claude-haiku-4-5`) and need a matching
+provider API key (e.g. `ANTHROPIC_API_KEY`) plus market-data-hub reachable
+(`MARKET_DATA_DB` optional). Run directly:
+
+```bash
+python examples/statistical_analysis_quickstart.py
+python examples/regression_quickstart.py
+```
+
+`agent(...)` never raises — a failed call comes back as an error envelope, so
+both scripts check `result.ok` before trusting `result.text()` and print
+`result.error` otherwise (missing key, missing package, etc.).
+
+For a real end-to-end DeepSeek tool-call smoke test from Spyder that also
+*asserts* the tools were actually called (rather than just printing the
+answer), run `examples/run_statistical_analysis_deepseek.py` from the
+repository checkout. It defaults to the low-cost `deepseek-v4-flash` model,
+reads the API key from `DEEPSEEK_API_KEY` or the workspace `deepseek.env`,
+and asserts that the agent actually invoked each of the three statistical
+tools.
 
 ```python
 from lazybridge import Agent
