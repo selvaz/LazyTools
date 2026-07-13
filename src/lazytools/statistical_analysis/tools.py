@@ -174,6 +174,27 @@ class StatisticalAnalysisTools:
         end: str = "",
         frequency: str = "D",
     ) -> str:
+        """Per-instrument sample standard deviation, annualised for return series.
+
+        Reads every series exclusively from market-data-hub inside this tool —
+        never pass raw price or return data as an argument. Annualised
+        volatility (period std * sqrt(periods_per_year)) is only meaningful
+        for a return-flavoured transform; for level/diff it is reported as
+        null instead of a misleading number.
+
+        Args:
+            instruments: comma-separated '<id>[|transform]' specs, see tool description for syntax.
+            start: inclusive start date YYYY-MM-DD, empty for the earliest available date.
+            end: inclusive end date YYYY-MM-DD, empty for the most recent available date.
+            frequency: resample frequency, one of D, W, M, Q; defaults to D (native daily grid).
+
+        Returns:
+            AnalysisResult JSON. payload.volatility maps each instrument to
+            observations, mean/period statistics and annualized_volatility
+            (null for non-return transforms). payload.data carries bounded
+            provenance only (source, per-series transform, date range) —
+            never the raw observations.
+        """
         core, _ = _lazystats()
         dataset = self._load(instruments, start=start, end=end, frequency=frequency)
         payload = core.return_volatility(_as_lazystats_dataset(dataset), frequency=frequency)
@@ -194,6 +215,24 @@ class StatisticalAnalysisTools:
         frequency: str = "D",
         min_periods: int = 2,
     ) -> str:
+        """Pairwise Pearson correlation between series read only from market-data-hub.
+
+        Each coefficient uses only the dates where both instruments have an
+        observation; the accompanying pairwise_observations matrix reports
+        that shared sample size so a thin overlap is visible, not hidden.
+
+        Args:
+            instruments: comma-separated '<id>[|transform]' specs, see tool description for syntax.
+            start: inclusive start date YYYY-MM-DD, empty for the earliest available date.
+            end: inclusive end date YYYY-MM-DD, empty for the most recent available date.
+            frequency: resample frequency, one of D, W, M, Q; defaults to D (native daily grid).
+            min_periods: minimum shared observations required for a pair, else null; default 2.
+
+        Returns:
+            AnalysisResult JSON with payload.correlation (instrument x
+            instrument Pearson matrix) and payload.pairwise_observations
+            (shared-sample-size matrix) — never the raw series.
+        """
         core, _ = _lazystats()
         dataset = self._load(instruments, start=start, end=end, frequency=frequency)
         payload = core.return_correlation(
@@ -216,6 +255,26 @@ class StatisticalAnalysisTools:
         threshold: float = 2.0,
         max_results: int = _DEFAULT_OUTLIER_RESULTS,
     ) -> str:
+        """Dates where a series' z-score exceeds a threshold, read only from market-data-hub.
+
+        z-score = (value - selected-period mean) / selected-period sample
+        standard deviation, computed once per instrument over the whole
+        requested window (not a rolling window). An observation is flagged
+        when abs(z-score) >= threshold.
+
+        Args:
+            instruments: comma-separated '<id>[|transform]' specs, see tool description for syntax.
+            start: inclusive start date YYYY-MM-DD, empty for the earliest available date.
+            end: inclusive end date YYYY-MM-DD, empty for the most recent available date.
+            frequency: resample frequency, one of D, W, M, Q; defaults to D (native daily grid).
+            threshold: absolute z-score cutoff to flag an observation; default 2.0.
+            max_results: cap on returned outliers, default 100, hard cap 250 regardless of input.
+
+        Returns:
+            AnalysisResult JSON with payload.total_outliers (true count) and
+            payload.outliers (date, instrument, value, z_score, direction),
+            truncated to max_results with payload.truncated set when capped.
+        """
         if max_results < 1:
             raise ValueError("max_results must be at least 1")
         core, _ = _lazystats()
@@ -253,6 +312,31 @@ class StatisticalAnalysisTools:
         hac_lags: int = 0,
         standardize: bool = False,
     ) -> str:
+        """Univariate or multivariate OLS (statsmodels) between series from market-data-hub.
+
+        The dependent variable and every regressor are read exclusively from
+        market-data-hub inside this tool — never pass raw series as an
+        argument. Univariate regression is simply the one-regressor case,
+        no separate tool exists for it. Rows where any series is missing
+        after alignment are dropped (complete-case); n_dropped reports how
+        many.
+
+        Args:
+            dependent: exactly one instrument spec '<id>[|transform]', see tool description.
+            regressors: comma-separated instrument specs, 1 to 10, see tool description for syntax.
+            start: inclusive start date YYYY-MM-DD, empty for the earliest available date.
+            end: inclusive end date YYYY-MM-DD, empty for the most recent available date.
+            frequency: resample frequency, one of D, W, M, Q; defaults to D (native daily grid).
+            robust_se: nonrobust, HC0, HC1, HC2, HC3, or HAC (Newey-West); default nonrobust.
+            hac_lags: HAC lag count; 0 selects the automatic Newey-West rule; ignored otherwise.
+            standardize: z-score dependent and regressors before fitting; default false.
+
+        Returns:
+            AnalysisResult JSON with payload.coefficients (per name: coef,
+            std_err, t_stat, p_value, ci_low, ci_high), r_squared,
+            adj_r_squared, f_stat, aic, bic, durbin_watson and
+            residual_diagnostics — never the raw series or residuals.
+        """
         if hac_lags < 0:
             raise ValueError("hac_lags must be zero (automatic) or positive")
         dataset, dep_label, reg_labels = self._load_regression(
@@ -284,6 +368,29 @@ class StatisticalAnalysisTools:
         alpha: str = "",
         cv_folds: int = 5,
     ) -> str:
+        """Ridge regression (scikit-learn, standardized regressors) between hub series.
+
+        The dependent variable and every regressor are read exclusively from
+        market-data-hub inside this tool — never pass raw series as an
+        argument. Regressors are standardized before fitting and coefficients
+        are back-transformed to original units; standardized_coefficients in
+        the result are the ones actually shrunk by the penalty.
+
+        Args:
+            dependent: exactly one instrument spec '<id>[|transform]', see tool description.
+            regressors: comma-separated instrument specs, 1 to 10, see tool description for syntax.
+            start: inclusive start date YYYY-MM-DD, empty for the earliest available date.
+            end: inclusive end date YYYY-MM-DD, empty for the most recent available date.
+            frequency: resample frequency, one of D, W, M, Q; defaults to D (native daily grid).
+            alpha: fixed penalty strength, or empty to select it by cross-validation (default).
+            cv_folds: number of folds used only when alpha is empty; default 5.
+
+        Returns:
+            AnalysisResult JSON with payload.alpha, payload.alpha_selection
+            (fixed or cv), payload.coefficients (original units),
+            payload.standardized_coefficients and r_squared — never the raw
+            series.
+        """
         dataset, dep_label, reg_labels = self._load_regression(
             dependent, regressors, start=start, end=end, frequency=frequency
         )
@@ -312,6 +419,29 @@ class StatisticalAnalysisTools:
         alpha: str = "",
         cv_folds: int = 5,
     ) -> str:
+        """Lasso regression (scikit-learn, variable selection) between hub series.
+
+        The dependent variable and every regressor are read exclusively from
+        market-data-hub inside this tool — never pass raw series as an
+        argument. Regressors are standardized before fitting; regressors
+        the penalty shrinks exactly to zero are dropped from
+        selected_regressors, which is how this tool answers "which of these
+        actually matter".
+
+        Args:
+            dependent: exactly one instrument spec '<id>[|transform]', see tool description.
+            regressors: comma-separated instrument specs, 1 to 10, see tool description for syntax.
+            start: inclusive start date YYYY-MM-DD, empty for the earliest available date.
+            end: inclusive end date YYYY-MM-DD, empty for the most recent available date.
+            frequency: resample frequency, one of D, W, M, Q; defaults to D (native daily grid).
+            alpha: fixed penalty strength, or empty to select it by cross-validation (default).
+            cv_folds: number of folds used only when alpha is empty; default 5.
+
+        Returns:
+            AnalysisResult JSON with payload.alpha, payload.alpha_selection
+            (fixed or cv), payload.coefficients, payload.n_nonzero,
+            payload.selected_regressors and r_squared — never the raw series.
+        """
         dataset, dep_label, reg_labels = self._load_regression(
             dependent, regressors, start=start, end=end, frequency=frequency
         )
