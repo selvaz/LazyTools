@@ -130,12 +130,18 @@ direct-fetch finance connector on the agent surface.
   non-agent code, but they are **not** agent tools — agents reach SEC and
   market data through the hub-backed `datahub_*` tools above.
 
-- **Statistical analysis** (`lazytools.statistical_analysis`) — three read-only
-  `statistical_return_*` tools that calculate volatility, pairwise return
-  correlation and absolute-z-score return outliers from the complete
-  `market-data-hub` return history. Outputs are `lazydatacore.AnalysisResult`
-  JSON and outliers use `abs(z_score) >= 2` by default. See
-  [Statistical analysis](docs/statistical-analysis.md).
+- **Statistical analysis** (`lazytools.statistical_analysis`) — read-only
+  `statistical_*` tools backed exclusively by `market-data-hub`: volatility,
+  pairwise correlation and absolute-z-score outliers, plus OLS / Ridge /
+  Lasso regression (`statistical_regression_*`, statsmodels + scikit-learn
+  via `lazystats[regression]`, cross-validated alpha by default, max 10
+  regressors). Every tool accepts per-instrument transformation specs
+  (`'<id>[|level|log_return|pct_change|diff]'` — defaults: ticker
+  `log_return`, factor `level`, macro `diff`), so any hub series (prices,
+  Fama-French factors, FRED macro) can be analysed as returns or levels; the
+  raw series never enters the agent context. Outputs are
+  `lazydatacore.AnalysisResult` JSON and outliers use `abs(z_score) >= 2` by
+  default. See [Statistical analysis](docs/statistical-analysis.md).
 
   ```python
   from lazytools.statistical_analysis import StatisticalAnalysisTools

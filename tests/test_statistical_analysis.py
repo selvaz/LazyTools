@@ -51,13 +51,16 @@ def _tools(dataset: ReturnDataset):
     return backend, by_name
 
 
-def test_provider_exposes_the_three_read_only_statistics_tools(dataset: ReturnDataset) -> None:
+def test_provider_exposes_the_read_only_statistics_tools(dataset: ReturnDataset) -> None:
     provider = StatisticalAnalysisTools(_FakeHubBackend(dataset))
     assert provider._is_lazy_tool_provider is True
     assert {tool.name for tool in provider.as_tools()} == {
         "statistical_return_volatility",
         "statistical_return_correlation",
         "statistical_return_outliers",
+        "statistical_regression_ols",
+        "statistical_regression_ridge",
+        "statistical_regression_lasso",
     }
 
 

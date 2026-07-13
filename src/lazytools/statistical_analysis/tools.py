@@ -23,6 +23,17 @@ _TOOL_VERSION = "lazytools.statistical_analysis.v1"
 _PERIODS_PER_YEAR = {"D": 252, "W": 52, "M": 12, "Q": 4}
 _DEFAULT_OUTLIER_RESULTS = 100
 _MAX_OUTLIER_RESULTS = 250
+_MAX_REGRESSORS = 10
+# transforms whose per-period standard deviation can meaningfully be
+# annualized with sqrt(periods_per_year)
+_RETURN_TRANSFORMS = {"log_return", "pct_change"}
+
+_SPEC_SYNTAX = (
+    "each instrument is '<id>[|<transform>]' with transform in "
+    "level|log_return|pct_change|diff (defaults: ticker log_return, "
+    "factor level, macro diff), e.g. 'ticker:SPY, ticker:AAPL|level, "
+    "macro:FEDFUNDS|diff, factor:FF5_daily/Mkt-RF'"
+)
 
 
 def _lazystats():
@@ -35,6 +46,17 @@ def _lazystats():
             "'lazystats @ git+https://github.com/selvaz/LazyStats.git'"
         ) from exc
     return _core, _models
+
+
+def _lazyregression():
+    try:
+        from lazystats import regression as _regression
+    except ImportError as exc:  # pragma: no cover - exercised without lazystats
+        raise ImportError(
+            "the regression tools require lazystats with its regression extra: pip install "
+            "'lazystats[regression] @ git+https://github.com/selvaz/LazyStats.git'"
+        ) from exc
+    return _regression
 
 
 def _as_lazystats_dataset(dataset: ReturnDataset) -> Any:
@@ -69,33 +91,78 @@ class StatisticalAnalysisTools:
                 self._return_volatility,
                 name="statistical_return_volatility",
                 description=(
-                    "Calculate per-instrument standard deviation of log returns and annualised "
-                    "volatility from market-data-hub only. Args: instruments (comma-separated "
-                    "canonical IDs, e.g. 'ticker:SPY,ticker:TLT'), start/end (YYYY-MM-DD, "
-                    "optional), frequency (D|W|M|Q, default D). Returns an AnalysisResult JSON."
+                    "Calculate per-instrument standard deviation (and, for return series, "
+                    "annualised volatility) from market-data-hub only. Args: instruments "
+                    f"(comma-separated; {_SPEC_SYNTAX}), start/end (YYYY-MM-DD, optional), "
+                    "frequency (D|W|M|Q, default D). Returns an AnalysisResult JSON."
                 ),
             ),
             Tool.wrap(
                 self._return_correlation,
                 name="statistical_return_correlation",
                 description=(
-                    "Calculate pairwise Pearson correlations between log returns read only from "
-                    "market-data-hub. Args: instruments, start/end (YYYY-MM-DD, optional), "
-                    "frequency (D|W|M|Q, default D), min_periods (default 2). Returns an "
-                    "AnalysisResult JSON with correlation and pairwise-observation matrices."
+                    "Calculate pairwise Pearson correlations between series read only from "
+                    f"market-data-hub. Args: instruments (comma-separated; {_SPEC_SYNTAX}), "
+                    "start/end (YYYY-MM-DD, optional), frequency (D|W|M|Q, default D), "
+                    "min_periods (default 2). Returns an AnalysisResult JSON with correlation "
+                    "and pairwise-observation matrices."
                 ),
             ),
             Tool.wrap(
                 self._return_outliers,
                 name="statistical_return_outliers",
                 description=(
-                    "Find outlier observations in log returns read only from market-data-hub. "
-                    "For each instrument, z-score = (return - selected-period mean) / selected-"
+                    "Find outlier observations in series read only from market-data-hub. "
+                    "For each instrument, z-score = (value - selected-period mean) / selected-"
                     "period sample standard deviation; flags abs(z-score) >= threshold. Args: "
-                    "instruments, start/end (YYYY-MM-DD, optional), frequency (D|W|M|Q, default "
-                    "D), threshold (absolute z-score, default 2), max_results (default 100, "
-                    "hard cap 250). "
-                    "Returns an AnalysisResult JSON including dates, returns and z-scores."
+                    f"instruments (comma-separated; {_SPEC_SYNTAX}), start/end (YYYY-MM-DD, "
+                    "optional), frequency (D|W|M|Q, default D), threshold (absolute z-score, "
+                    "default 2), max_results (default 100, hard cap 250). "
+                    "Returns an AnalysisResult JSON including dates, values and z-scores."
+                ),
+            ),
+            Tool.wrap(
+                self._regression_ols,
+                name="statistical_regression_ols",
+                description=(
+                    "Fit an OLS regression (univariate or multivariate, statsmodels) between "
+                    "series read only from market-data-hub — never pass raw data. Args: "
+                    f"dependent (one instrument spec; {_SPEC_SYNTAX}), regressors (comma-"
+                    f"separated specs, max {_MAX_REGRESSORS}), start/end (YYYY-MM-DD, "
+                    "optional), frequency (D|W|M|Q, default D), robust_se (nonrobust|HC0|HC1|"
+                    "HC2|HC3|HAC, default nonrobust; HAC = Newey-West), hac_lags (HAC only, "
+                    "0 = automatic), standardize (z-score all series first, default false). "
+                    "Returns an AnalysisResult JSON with coefficients (std errors, t-stats, "
+                    "p-values, confidence intervals), R², F, AIC/BIC, Durbin-Watson and "
+                    "residual diagnostics — never the raw series or residuals."
+                ),
+            ),
+            Tool.wrap(
+                self._regression_ridge,
+                name="statistical_regression_ridge",
+                description=(
+                    "Fit a Ridge regression (scikit-learn, standardized regressors) between "
+                    "series read only from market-data-hub. Args: dependent (one instrument "
+                    f"spec; {_SPEC_SYNTAX}), regressors (comma-separated specs, max "
+                    f"{_MAX_REGRESSORS}), start/end (YYYY-MM-DD, optional), frequency "
+                    "(D|W|M|Q, default D), alpha (empty = automatic cross-validated "
+                    "selection), cv_folds (default 5). Returns an AnalysisResult JSON with "
+                    "the chosen alpha, coefficients in original and standardized units and "
+                    "R² — never the raw series."
+                ),
+            ),
+            Tool.wrap(
+                self._regression_lasso,
+                name="statistical_regression_lasso",
+                description=(
+                    "Fit a Lasso regression (scikit-learn, standardized regressors, variable "
+                    "selection) between series read only from market-data-hub. Args: "
+                    f"dependent (one instrument spec; {_SPEC_SYNTAX}), regressors (comma-"
+                    f"separated specs, max {_MAX_REGRESSORS}), start/end (YYYY-MM-DD, "
+                    "optional), frequency (D|W|M|Q, default D), alpha (empty = automatic "
+                    "cross-validated selection), cv_folds (default 5). Returns an "
+                    "AnalysisResult JSON with the chosen alpha, coefficients, the surviving "
+                    "(non-zero) regressors and R² — never the raw series."
                 ),
             ),
         ]
@@ -110,6 +177,7 @@ class StatisticalAnalysisTools:
         core, _ = _lazystats()
         dataset = self._load(instruments, start=start, end=end, frequency=frequency)
         payload = core.return_volatility(_as_lazystats_dataset(dataset), frequency=frequency)
+        _drop_meaningless_annualization(payload, dataset)
         payload["data"] = _data_metadata(dataset)
         return _analysis_json(
             kind="report",
@@ -174,10 +242,134 @@ class StatisticalAnalysisTools:
             payload=payload,
         )
 
+    def _regression_ols(
+        self,
+        dependent: str,
+        regressors: str,
+        start: str = "",
+        end: str = "",
+        frequency: str = "D",
+        robust_se: str = "nonrobust",
+        hac_lags: int = 0,
+        standardize: bool = False,
+    ) -> str:
+        if hac_lags < 0:
+            raise ValueError("hac_lags must be zero (automatic) or positive")
+        dataset, dep_label, reg_labels = self._load_regression(
+            dependent, regressors, start=start, end=end, frequency=frequency
+        )
+        payload = _lazyregression().fit_ols(
+            _as_lazystats_dataset(dataset),
+            dep_label,
+            reg_labels,
+            cov=robust_se,
+            hac_lags=hac_lags or None,
+            standardize=standardize,
+        )
+        payload["data"] = _data_metadata(dataset)
+        return _analysis_json(
+            kind="report",
+            produced_by="lazytools.statistical_analysis.regression_ols",
+            instruments=dataset.instruments,
+            payload=payload,
+        )
+
+    def _regression_ridge(
+        self,
+        dependent: str,
+        regressors: str,
+        start: str = "",
+        end: str = "",
+        frequency: str = "D",
+        alpha: str = "",
+        cv_folds: int = 5,
+    ) -> str:
+        dataset, dep_label, reg_labels = self._load_regression(
+            dependent, regressors, start=start, end=end, frequency=frequency
+        )
+        payload = _lazyregression().fit_ridge(
+            _as_lazystats_dataset(dataset),
+            dep_label,
+            reg_labels,
+            alpha=_parse_alpha(alpha),
+            cv_folds=cv_folds,
+        )
+        payload["data"] = _data_metadata(dataset)
+        return _analysis_json(
+            kind="report",
+            produced_by="lazytools.statistical_analysis.regression_ridge",
+            instruments=dataset.instruments,
+            payload=payload,
+        )
+
+    def _regression_lasso(
+        self,
+        dependent: str,
+        regressors: str,
+        start: str = "",
+        end: str = "",
+        frequency: str = "D",
+        alpha: str = "",
+        cv_folds: int = 5,
+    ) -> str:
+        dataset, dep_label, reg_labels = self._load_regression(
+            dependent, regressors, start=start, end=end, frequency=frequency
+        )
+        payload = _lazyregression().fit_lasso(
+            _as_lazystats_dataset(dataset),
+            dep_label,
+            reg_labels,
+            alpha=_parse_alpha(alpha),
+            cv_folds=cv_folds,
+        )
+        payload["data"] = _data_metadata(dataset)
+        return _analysis_json(
+            kind="report",
+            produced_by="lazytools.statistical_analysis.regression_lasso",
+            instruments=dataset.instruments,
+            payload=payload,
+        )
+
+    def _load_regression(
+        self, dependent: str, regressors: str, *, start: str, end: str, frequency: str
+    ) -> tuple[ReturnDataset, str, list[str]]:
+        """One hub fetch for dependent + regressors; returns canonical labels.
+
+        The dataset column labels are the backend's canonicalised instrument
+        ids (bare symbols become ``ticker:<SYM>``), so the fit is called with
+        the labels actually present in the panel, in request order:
+        dependent first, then each regressor.
+        """
+        dependent = dependent.strip()
+        if not dependent or "," in dependent:
+            raise ValueError("dependent must be exactly one instrument spec")
+        requested = [item.strip() for item in regressors.split(",") if item.strip()]
+        if not requested:
+            raise ValueError("regressors must contain at least one instrument spec")
+        if len(requested) > _MAX_REGRESSORS:
+            raise ValueError(f"at most {_MAX_REGRESSORS} regressors are supported")
+        labels = [_spec_label(item) for item in [dependent, *requested]]
+        if len(set(labels)) != len(labels):
+            raise ValueError("dependent and regressors must be unique")
+        dataset = self._load(
+            ",".join([dependent, *requested]), start=start, end=end, frequency=frequency
+        )
+        return dataset, labels[0], labels[1:]
+
     def _load(self, instruments: str, *, start: str, end: str, frequency: str) -> ReturnDataset:
         if frequency not in _PERIODS_PER_YEAR:
             raise ValueError("frequency must be one of D, W, M, Q")
-        return self._resolve().load_returns(instruments, start=start, end=end, frequency=frequency)
+        backend = self._resolve()
+        loader = getattr(backend, "load_series", None)
+        if loader is None:
+            # legacy backend (pre-transformation-layer): plain return specs only
+            if any("|" in item for item in instruments.split(",")):
+                raise ValueError(
+                    "this data backend does not support '|<transform>' specs; "
+                    "pass plain instrument ids"
+                )
+            return backend.load_returns(instruments, start=start, end=end, frequency=frequency)
+        return loader(instruments, start=start, end=end, frequency=frequency)
 
 
 def _data_metadata(dataset: ReturnDataset) -> dict[str, Any]:
@@ -192,6 +384,7 @@ def _data_metadata(dataset: ReturnDataset) -> dict[str, Any]:
         "domain",
         "field",
         "transform",
+        "series",
         "frequency",
         "return_kind",
         "n_rows",
@@ -207,6 +400,46 @@ def _data_metadata(dataset: ReturnDataset) -> dict[str, Any]:
         "instruments",
     )
     return {key: dataset.metadata[key] for key in allowed if key in dataset.metadata}
+
+
+def _spec_label(spec: str) -> str:
+    """Canonical column label of a '<id>[|<transform>]' spec.
+
+    Mirrors the backend's bare-symbol canonicalisation (``SPY`` →
+    ``ticker:SPY``) so regression labels always match the panel columns.
+    """
+    identifier = spec.partition("|")[0].strip()
+    return identifier if ":" in identifier else f"ticker:{identifier}"
+
+
+def _parse_alpha(alpha: str) -> float | None:
+    """LLM-facing alpha: empty string selects cross-validation."""
+    text = alpha.strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError as exc:
+        raise ValueError("alpha must be a number or empty for cross-validation") from exc
+
+
+def _drop_meaningless_annualization(payload: dict[str, Any], dataset: ReturnDataset) -> None:
+    """Null the sqrt-of-time annualization for non-return series.
+
+    The core statistic annualizes every column; scaling the standard
+    deviation of a level/diff series by sqrt(periods_per_year) is not a
+    volatility, so it is dropped here at the bridge. Datasets without
+    per-series transform metadata (legacy backends) are all returns.
+    """
+    series_info = dataset.metadata.get("series")
+    if not isinstance(series_info, dict):
+        return
+    for instrument, stats in payload.get("volatility", {}).items():
+        transform = series_info.get(instrument, {}).get("transform")
+        if transform not in _RETURN_TRANSFORMS:
+            stats["annualized_volatility"] = None
+            stats["mean_value"] = stats.pop("mean_log_return", None)
+            stats["period_std"] = stats.pop("period_volatility", None)
 
 
 def _round(value: float) -> float:

@@ -1,14 +1,35 @@
 # Statistical analysis
 
-`lazytools.statistical_analysis` gives a LazyBridge agent three read-only tools
-for analysing historical **log returns**:
+`lazytools.statistical_analysis` gives a LazyBridge agent read-only tools for
+analysing historical hub series (by default as **log returns**):
 
-- `statistical_return_volatility` — sample standard deviation and annualised
-  volatility per instrument;
+- `statistical_return_volatility` — sample standard deviation and (for return
+  series) annualised volatility per instrument;
 - `statistical_return_correlation` — pairwise Pearson-correlation matrix and
   the number of shared observations for every pair;
-- `statistical_return_outliers` — dates where the absolute z-score of a return
-  is at least a threshold (default `2`).
+- `statistical_return_outliers` — dates where the absolute z-score of a value
+  is at least a threshold (default `2`);
+- `statistical_regression_ols` — univariate/multivariate OLS via statsmodels
+  (robust `HC0`–`HC3` or Newey-West `HAC` standard errors, confidence
+  intervals, R², F, AIC/BIC, Durbin-Watson, residual diagnostics);
+- `statistical_regression_ridge` / `statistical_regression_lasso` — regularised
+  fits via scikit-learn; `alpha` empty selects it by cross-validation, Lasso
+  also reports the surviving (non-zero) regressors. At most 10 regressors.
+  These need `lazystats[regression]` installed.
+
+### Series specs and transforms
+
+Every instrument argument accepts `'<id>[|<transform>]'` specs, comma-separated:
+`ticker:SPY, ticker:AAPL|level, macro:FEDFUNDS|diff, factor:FF5_daily/Mkt-RF`.
+Transforms are the hub's own (`level`, `log_return`, `pct_change`, `diff`);
+when omitted the default is per-domain: tickers `log_return`, Fama-French
+factors `level` (they are stored as decimal returns — weekly/monthly requests
+compound them correctly instead of taking the last print) and macro series
+`diff` (log/pct are undefined on series that cross zero). Mixed-domain panels
+are outer-joined on dates; pairwise statistics and regression alignment use
+the shared dates downstream. A regression dependent variable can therefore be
+any hub series — a ticker return, a price level (`ticker:AAPL|level`) or a
+macro series.
 
 The tools have one data path: they read the full return matrix through
 `market_data_hub.extract.extract_returns`. They do not call the Stooq connector,
@@ -52,10 +73,10 @@ agent = Agent(
 
 Use canonical `lazydatacore` identities such as `ticker:SPY,ticker:TLT`.
 Bare symbols remain a convenience input and are canonicalised by the hub. The
-current return-statistics surface intentionally supports `ticker:` instruments:
-these map to the shared `prices_daily` warehouse and use the hub's
-`extract_returns` semantics. All outputs are `lazydatacore.AnalysisResult` JSON
-with source/provenance set to `market-data-hub`.
+statistics surface supports `ticker:`, `factor:` and `macro:` instruments
+(`crypto:` and `macro_panel:` are rejected with a clear error). All outputs
+are `lazydatacore.AnalysisResult` JSON with source/provenance set to
+`market-data-hub`.
 
 ## Parameters and interpretation
 
