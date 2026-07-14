@@ -73,6 +73,8 @@ plugins:
           - datahub.md
           - regimes.md
           - statistical-analysis.md
+          - portfolio-optimization.md
+          - portfolio-optimization-methodology.md
           - documents.md
           - skills.md
           - skills-analyst.md
@@ -138,6 +140,8 @@ nav:
       - Financial data (market-data-hub): datahub.md
       - Regime detection: regimes.md
       - Statistical analysis: statistical-analysis.md
+      - Portfolio optimization: portfolio-optimization.md
+      - Portfolio optimization methodology: portfolio-optimization-methodology.md
       - Documents: documents.md
       - Skills: skills.md
       - Analyst skills: skills-analyst.md

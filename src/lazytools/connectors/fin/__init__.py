@@ -25,6 +25,7 @@ from lazytools.connectors.fin.agents import (
 )
 from lazytools.connectors.fin.tools import (
     OptimizerTools,
+    PortfolioOptimizationTools,
     PortfolioTools,
     RiskTools,
     ScoringTools,
@@ -34,6 +35,7 @@ __all__ = [
     "PortfolioTools",
     "RiskTools",
     "OptimizerTools",
+    "PortfolioOptimizationTools",
     "ScoringTools",
     "pm_supervisor",
     "filing_analyst",

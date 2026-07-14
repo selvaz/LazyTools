@@ -14,7 +14,11 @@ be fed from those.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from lazybridge import Tool
@@ -38,6 +42,16 @@ try:
         RiskReport,
         SecurityScore,
     )
+    from lazyfin.optimization import (
+        BacktestSpec,
+        MarketDataHubOptimizationBackend,
+        ModelPortfolio,
+        OptimizationDataBackend,
+        OptimizationMethod,
+        OptimizationSpec,
+        OptimizationStore,
+        SkfolioOptimizer,
+    )
     from lazyfin.scoring import score_security
 except ImportError as exc:  # pragma: no cover - clear hint over bare failure
     raise ImportError(
@@ -52,6 +66,7 @@ __all__ = [
     "PortfolioTools",
     "RiskTools",
     "OptimizerTools",
+    "PortfolioOptimizationTools",
     "ScoringTools",
 ]
 
@@ -142,9 +157,7 @@ class OptimizerTools:
     def __init__(self, constraints: OptimizationConstraints) -> None:
         self._constraints = constraints
 
-    def _optimize_target_weights(
-        self, scores: list[SecurityScore], as_of: datetime
-    ) -> OptimizationRun:
+    def _optimize_target_weights(self, scores: list[SecurityScore], as_of: datetime) -> OptimizationRun:
         return optimize_target_weights(scores, self._constraints, as_of=as_of)
 
     def as_tools(self) -> list[Tool]:
@@ -159,6 +172,301 @@ class OptimizerTools:
                 ),
             )
         ]
+
+
+class PortfolioOptimizationTools:
+    """Safe LLM surface over the Skfolio-backed LazyFin optimizer.
+
+    Historical returns are loaded internally by the injected data backend. The
+    model receives only instrument identifiers, constraints and compact
+    diagnostics; neither tool argument nor result can carry raw observations.
+    """
+
+    _is_lazy_tool_provider = True
+
+    def __init__(
+        self,
+        store: OptimizationStore,
+        *,
+        backend: OptimizationDataBackend | None = None,
+        optimizer: SkfolioOptimizer | None = None,
+        artifacts_dir: str | Path | None = None,
+    ) -> None:
+        self._store = store
+        self._backend = backend
+        self._optimizer = optimizer or SkfolioOptimizer(store)
+        self._artifacts_dir = Path(artifacts_dir).expanduser().resolve() if artifacts_dir else None
+
+    def _resolve_backend(self) -> OptimizationDataBackend:
+        if self._backend is None:
+            self._backend = MarketDataHubOptimizationBackend()
+        return self._backend
+
+    def as_tools(self) -> list[Tool]:
+        return [
+            Tool.wrap(
+                self._list_methods,
+                name="portfolio_optimizer_list_methods",
+                description="List Skfolio portfolio methods and their supported LazyFin constraints.",
+            ),
+            Tool.wrap(
+                self._create_model_portfolio,
+                name="portfolio_optimizer_create_benchmark",
+                description=(
+                    "Persist a versioned long-only model benchmark from canonical instrument weights. "
+                    "Example weights: {'ticker:ACWI': 0.7, 'ticker:AGG': 0.3}."
+                ),
+            ),
+            Tool.wrap(
+                self._list_benchmarks,
+                name="portfolio_optimizer_list_benchmarks",
+                description="List persisted model benchmark metadata and weights.",
+            ),
+            Tool.wrap(
+                self._optimize,
+                name="portfolio_optimizer_run",
+                description=(
+                    "Run a Skfolio portfolio optimization over market-data-hub returns. Never pass "
+                    "prices or returns: use comma-separated tickers (SPY,TLT) or canonical IDs "
+                    "(ticker:SPY,ticker:TLT), a date range, method and constraints only. Groups map "
+                    "canonical IDs to labels, e.g. {'ticker:SPY': ['equity']}."
+                ),
+            ),
+            Tool.wrap(
+                self._get_run,
+                name="portfolio_optimizer_get_run",
+                description="Read a bounded persisted point-in-time optimization run by id, not a backtest id.",
+            ),
+            Tool.wrap(
+                self._get_backtest,
+                name="portfolio_optimizer_get_backtest",
+                description=(
+                    "Read bounded aggregate metrics for a persisted walk-forward backtest by its backtest: id. "
+                    "Use this for a backtest id; it never returns return observations."
+                ),
+            ),
+            Tool.wrap(
+                self._backtest,
+                name="portfolio_optimizer_backtest",
+                description=(
+                    "Run a Skfolio walk-forward backtest over hub returns. Returns only aggregate "
+                    "metrics and provenance, never return observations. Instruments accept SPY,TLT or "
+                    "ticker:SPY,ticker:TLT; groups use canonical IDs. When this provider has an "
+                    "artifacts_dir, chart_filename='name.png' also returns a sandboxed file: reference "
+                    "to an OOS cumulative-return chart for use in ReportTools."
+                ),
+            ),
+        ]
+
+    def _list_methods(self) -> str:
+        return _json(
+            {
+                "methods": {
+                    "min_variance_shrinkage": [
+                        "bounds",
+                        "groups",
+                        "linear_constraints",
+                        "costs",
+                        "max_turnover",
+                        "tracking_error",
+                    ],
+                    "min_cvar": ["bounds", "groups", "linear_constraints", "costs", "max_turnover", "tracking_error"],
+                    "max_sharpe_shrinkage": [
+                        "bounds",
+                        "groups",
+                        "linear_constraints",
+                        "costs",
+                        "max_turnover",
+                        "tracking_error",
+                    ],
+                    "max_utility_shrinkage": [
+                        "bounds",
+                        "groups",
+                        "linear_constraints",
+                        "costs",
+                        "max_turnover",
+                        "tracking_error",
+                        "risk_aversion",
+                    ],
+                    "risk_budget_cvar": ["bounds", "groups", "linear_constraints", "costs"],
+                    "hrp_cvar": ["bounds", "costs"],
+                },
+                "engine": "skfolio",
+            }
+        )
+
+    def _create_model_portfolio(
+        self,
+        benchmark_id: str,
+        name: str,
+        weights: dict[str, float],
+        version: int = 1,
+    ) -> str:
+        model = ModelPortfolio(
+            id=benchmark_id,
+            name=name,
+            weights={instrument: Decimal(str(weight)) for instrument, weight in weights.items()},
+            version=version,
+            valid_from=datetime.now(tz=UTC).date(),
+        )
+        self._store.save_model_portfolio(model)
+        return _json({"benchmark": model.model_dump(mode="json")})
+
+    def _list_benchmarks(self) -> str:
+        return _json({"benchmarks": [model.model_dump(mode="json") for model in self._store.list_model_portfolios()]})
+
+    def _optimize(
+        self,
+        instruments: str,
+        method: str = "min_variance_shrinkage",
+        start: str = "",
+        end: str = "",
+        frequency: str = "D",
+        max_weight: float = 1.0,
+        min_cash_weight: float = 0.0,
+        transaction_cost_bps: float = 0.0,
+        max_turnover: str = "",
+        max_tracking_error: str = "",
+        benchmark_id: str = "",
+        groups: dict[str, list[str]] | None = None,
+        linear_constraints: list[str] | None = None,
+        risk_aversion: float = 1.0,
+    ) -> str:
+        spec, benchmark = self._request(
+            instruments=instruments,
+            method=method,
+            start=start,
+            end=end,
+            frequency=frequency,
+            max_weight=max_weight,
+            min_cash_weight=min_cash_weight,
+            transaction_cost_bps=transaction_cost_bps,
+            max_turnover=max_turnover,
+            max_tracking_error=max_tracking_error,
+            benchmark_id=benchmark_id,
+            groups=groups,
+            linear_constraints=linear_constraints,
+            risk_aversion=risk_aversion,
+        )
+        dataset = self._resolve_backend().load_returns(spec.universe, start=start, end=end, frequency=frequency)
+        run = self._optimizer.optimize(spec, dataset, benchmark=benchmark)
+        return _json(_run_summary(run))
+
+    def _get_run(self, run_id: str) -> str:
+        return _json(_run_summary(self._store.get_run(run_id)))
+
+    def _get_backtest(self, backtest_id: str) -> str:
+        return _json(self._store.get_backtest(backtest_id).model_dump(mode="json"))
+
+    def _backtest(
+        self,
+        instruments: str,
+        method: str = "min_variance_shrinkage",
+        start: str = "",
+        end: str = "",
+        frequency: str = "D",
+        max_weight: float = 1.0,
+        min_cash_weight: float = 0.0,
+        transaction_cost_bps: float = 0.0,
+        max_turnover: str = "",
+        max_tracking_error: str = "",
+        benchmark_id: str = "",
+        groups: dict[str, list[str]] | None = None,
+        linear_constraints: list[str] | None = None,
+        risk_aversion: float = 1.0,
+        train_size: int = 252,
+        test_size: int = 5,
+        purged_size: int = 1,
+        chart_filename: str = "",
+    ) -> str:
+        spec, benchmark = self._request(
+            instruments=instruments,
+            method=method,
+            start=start,
+            end=end,
+            frequency=frequency,
+            max_weight=max_weight,
+            min_cash_weight=min_cash_weight,
+            transaction_cost_bps=transaction_cost_bps,
+            max_turnover=max_turnover,
+            max_tracking_error=max_tracking_error,
+            benchmark_id=benchmark_id,
+            groups=groups,
+            linear_constraints=linear_constraints,
+            risk_aversion=risk_aversion,
+        )
+        dataset = self._resolve_backend().load_returns(spec.universe, start=start, end=end, frequency=frequency)
+        chart_path = self._chart_path(chart_filename) if chart_filename else None
+        result = self._optimizer.backtest(
+            spec,
+            BacktestSpec(
+                id=f"backtest:{spec.id}",
+                train_size=train_size,
+                test_size=test_size,
+                purged_size=purged_size,
+            ),
+            dataset,
+            benchmark=benchmark,
+            chart_path=chart_path,
+        )
+        payload = result.model_dump(mode="json")
+        if chart_path is not None and result.status == "optimal":
+            payload["chart"] = {
+                "ref": f"file:{chart_path}",
+                "caption": f"{method} walk-forward cumulative return versus benchmark",
+            }
+        return _json(payload)
+
+    def _request(
+        self,
+        *,
+        instruments: str,
+        method: str,
+        start: str,
+        end: str,
+        frequency: str,
+        max_weight: float,
+        min_cash_weight: float,
+        transaction_cost_bps: float,
+        max_turnover: str,
+        max_tracking_error: str,
+        benchmark_id: str,
+        groups: dict[str, list[str]] | None,
+        linear_constraints: list[str] | None,
+        risk_aversion: float,
+    ) -> tuple[OptimizationSpec, ModelPortfolio | None]:
+        universe = _canonical_ticker_instruments(instruments)
+        benchmark = self._store.get_model_portfolio(benchmark_id) if benchmark_id else None
+        spec_id = f"opt:{datetime.now(tz=UTC).strftime('%Y%m%d%H%M%S%f')}"
+        spec = OptimizationSpec(
+            id=spec_id,
+            method=OptimizationMethod(method),
+            universe=universe,
+            start=_optional_date(start),
+            end=_optional_date(end),
+            frequency=frequency,
+            max_weights={instrument: Decimal(str(max_weight)) for instrument in universe},
+            min_cash_weight=Decimal(str(min_cash_weight)),
+            transaction_cost_bps={instrument: Decimal(str(transaction_cost_bps)) for instrument in universe},
+            max_turnover=Decimal(max_turnover) if max_turnover else None,
+            max_tracking_error=Decimal(max_tracking_error) if max_tracking_error else None,
+            risk_aversion=Decimal(str(risk_aversion)),
+            benchmark_id=benchmark_id or None,
+            groups=_canonical_group_keys(groups),
+            linear_constraints=linear_constraints or [],
+        )
+        return spec, benchmark
+
+    def _chart_path(self, filename: str) -> Path:
+        if self._artifacts_dir is None:
+            raise ValueError("backtest chart requested but PortfolioOptimizationTools has no artifacts_dir")
+        name = Path(filename).name
+        if not name or name != filename or Path(name).suffix.lower() != ".png":
+            raise ValueError("chart_filename must be a PNG basename")
+        path = (self._artifacts_dir / name).resolve()
+        if path.parent != self._artifacts_dir:
+            raise ValueError("chart_filename resolves outside artifacts_dir")
+        return path
 
 
 class ScoringTools:
@@ -203,3 +511,39 @@ class ScoringTools:
                 ),
             )
         ]
+
+
+def _run_summary(run: OptimizationRun) -> dict[str, object]:
+    """Allow-list an optimization response before it enters model context."""
+    return {
+        "id": run.id,
+        "as_of": run.as_of.isoformat(),
+        "objective": run.objective,
+        "status": run.status.value,
+        "portfolio_id": run.portfolio_id,
+        "target_weights": [target.model_dump(mode="json") for target in run.target_weights],
+        "expected_return": str(run.expected_return) if run.expected_return is not None else None,
+        "expected_risk": str(run.expected_risk) if run.expected_risk is not None else None,
+        "solver": run.solver,
+        "reason_codes": run.reason_codes,
+    }
+
+
+def _json(payload: object) -> str:
+    return json.dumps(payload, default=str, sort_keys=True)
+
+
+def _optional_date(value: str) -> date | None:
+    return date.fromisoformat(value) if value else None
+
+
+def _canonical_ticker_instruments(instruments: str) -> list[str]:
+    requested = [item.strip() for item in instruments.split(",") if item.strip()]
+    return [item if ":" in item else f"ticker:{item}" for item in requested]
+
+
+def _canonical_group_keys(groups: dict[str, list[str]] | None) -> dict[str, list[str]]:
+    return {
+        instrument if ":" in instrument else f"ticker:{instrument}": labels
+        for instrument, labels in (groups or {}).items()
+    }
