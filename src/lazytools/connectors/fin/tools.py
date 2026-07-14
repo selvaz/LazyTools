@@ -42,16 +42,6 @@ try:
         RiskReport,
         SecurityScore,
     )
-    from lazyfin.optimization import (
-        BacktestSpec,
-        MarketDataHubOptimizationBackend,
-        ModelPortfolio,
-        OptimizationDataBackend,
-        OptimizationMethod,
-        OptimizationSpec,
-        OptimizationStore,
-        SkfolioOptimizer,
-    )
     from lazyfin.scoring import score_security
 except ImportError as exc:  # pragma: no cover - clear hint over bare failure
     raise ImportError(
@@ -61,6 +51,14 @@ except ImportError as exc:  # pragma: no cover - clear hint over bare failure
 
 if TYPE_CHECKING:
     from datetime import datetime
+
+    from lazyfin.optimization import (
+        ModelPortfolio,
+        OptimizationDataBackend,
+        OptimizationSpec,
+        OptimizationStore,
+        SkfolioOptimizer,
+    )
 
 __all__ = [
     "PortfolioTools",
@@ -192,14 +190,32 @@ class PortfolioOptimizationTools:
         optimizer: SkfolioOptimizer | None = None,
         artifacts_dir: str | Path | None = None,
     ) -> None:
+        try:
+            from lazyfin.optimization import (
+                BacktestSpec,
+                MarketDataHubOptimizationBackend,
+                ModelPortfolio,
+                OptimizationMethod,
+                OptimizationSpec,
+                SkfolioOptimizer,
+            )
+        except ImportError as exc:  # pragma: no cover - version/extra boundary
+            raise ImportError(
+                "PortfolioOptimizationTools requires LazyFin with the optimizer extra: pip install 'lazyfin[optimizer]'"
+            ) from exc
         self._store = store
         self._backend = backend
+        self._backtest_spec = BacktestSpec
+        self._market_data_backend = MarketDataHubOptimizationBackend
+        self._model_portfolio = ModelPortfolio
+        self._optimization_method = OptimizationMethod
+        self._optimization_spec = OptimizationSpec
         self._optimizer = optimizer or SkfolioOptimizer(store)
         self._artifacts_dir = Path(artifacts_dir).expanduser().resolve() if artifacts_dir else None
 
     def _resolve_backend(self) -> OptimizationDataBackend:
         if self._backend is None:
-            self._backend = MarketDataHubOptimizationBackend()
+            self._backend = self._market_data_backend()
         return self._backend
 
     def as_tools(self) -> list[Tool]:
@@ -302,7 +318,7 @@ class PortfolioOptimizationTools:
         weights: dict[str, float],
         version: int = 1,
     ) -> str:
-        model = ModelPortfolio(
+        model = self._model_portfolio(
             id=benchmark_id,
             name=name,
             weights={instrument: Decimal(str(weight)) for instrument, weight in weights.items()},
@@ -399,7 +415,7 @@ class PortfolioOptimizationTools:
         chart_path = self._chart_path(chart_filename) if chart_filename else None
         result = self._optimizer.backtest(
             spec,
-            BacktestSpec(
+            self._backtest_spec(
                 id=f"backtest:{spec.id}",
                 train_size=train_size,
                 test_size=test_size,
@@ -438,9 +454,9 @@ class PortfolioOptimizationTools:
         universe = _canonical_ticker_instruments(instruments)
         benchmark = self._store.get_model_portfolio(benchmark_id) if benchmark_id else None
         spec_id = f"opt:{datetime.now(tz=UTC).strftime('%Y%m%d%H%M%S%f')}"
-        spec = OptimizationSpec(
+        spec = self._optimization_spec(
             id=spec_id,
-            method=OptimizationMethod(method),
+            method=self._optimization_method(method),
             universe=universe,
             start=_optional_date(start),
             end=_optional_date(end),
