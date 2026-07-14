@@ -37,6 +37,20 @@ from lazytools.skills.doc_skills import (
     skill_pipeline,
     skill_tools,
 )
+from lazytools.skills.stats_agents import (
+    regime_analyst,
+    regression_analyst,
+    stats_supervisor,
+    volatility_correlation_analyst,
+)
+from lazytools.skills.stats_report import (
+    REGRESSION,
+    STATS_REPORT,
+    STATS_REPORT_SKILLS,
+    VOL_CORR,
+    build_stats_report_specialists,
+    stats_report_pipeline,
+)
 
 __all__ = [
     # documentation skills
@@ -62,4 +76,16 @@ __all__ = [
     "plan_orchestrator",
     "blackboard_orchestrator",
     "replan_orchestrator",
+    # focused statistical specialists + supervisor (agent-as-tool)
+    "volatility_correlation_analyst",
+    "regime_analyst",
+    "regression_analyst",
+    "stats_supervisor",
+    # charted statistical report (blackboard pipeline)
+    "VOL_CORR",
+    "REGRESSION",
+    "STATS_REPORT",
+    "STATS_REPORT_SKILLS",
+    "build_stats_report_specialists",
+    "stats_report_pipeline",
 ]
