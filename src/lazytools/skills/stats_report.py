@@ -29,6 +29,7 @@ from typing import Any
 
 from lazytools.skills.analyst import REGIME, AnalystConfig, Blackboard, Skill
 
+
 # --------------------------------------------------------------------------- #
 # Domain-tool builders
 # --------------------------------------------------------------------------- #

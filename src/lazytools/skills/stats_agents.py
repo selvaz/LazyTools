@@ -126,13 +126,14 @@ def volatility_correlation_analyst(
 
     from lazytools.statistical_analysis import StatisticalAnalysisTools
 
+    tools: list[Any] = [StatisticalAnalysisTools(backend)]
     return Agent(
         name=name,
         engine=_engine(
             model, engine, VOLATILITY_CORRELATION_ANALYST_SYSTEM,
             max_turns=max_turns, max_tool_calls_per_turn=max_tool_calls_per_turn,
         ),
-        tools=[StatisticalAnalysisTools(backend)],
+        tools=tools,
         description=(
             "Quantifies annualised volatility, pairwise correlations and return "
             "outliers for a set of instruments over a window (market-data-hub only). "
@@ -162,13 +163,14 @@ def regime_analyst(
 
     from lazytools.connectors.regimes import RegimeTools
 
+    tools: list[Any] = [RegimeTools(allow_write=allow_write)]
     return Agent(
         name=name,
         engine=_engine(
             model, engine, REGIME_ANALYST_SYSTEM,
             max_turns=max_turns, max_tool_calls_per_turn=max_tool_calls_per_turn,
         ),
-        tools=[RegimeTools(allow_write=allow_write)],
+        tools=tools,
         description=(
             "Detects and interprets hidden-Markov volatility regimes for an "
             "instrument (market-data-hub only): how many regimes, each regime's "
@@ -207,7 +209,9 @@ def regression_analyst(
 
     from lazytools.statistical_analysis import StatisticalAnalysisTools
 
-    tools = [t for t in StatisticalAnalysisTools(backend).as_tools() if t.name in _REGRESSION_TOOL_NAMES]
+    tools: list[Any] = [
+        t for t in StatisticalAnalysisTools(backend).as_tools() if t.name in _REGRESSION_TOOL_NAMES
+    ]
     return Agent(
         name=name,
         engine=_engine(
@@ -254,9 +258,14 @@ def stats_supervisor(
             regression_analyst(sub_model, backend=backend, session=session),
         ]
 
-    from lazybridge import LLMEngine
+    if engine is not None:
+        sup_engine = engine
+    else:
+        if model is None:
+            raise ValueError("provide model= (recommended, e.g. 'deepseek-v4-flash') or engine=")
+        from lazybridge import LLMEngine
 
-    sup_engine = engine or LLMEngine(model, system=STATS_SUPERVISOR_SYSTEM, max_turns=max_turns)
+        sup_engine = LLMEngine(model, system=STATS_SUPERVISOR_SYSTEM, max_turns=max_turns)
     return Agent(
         name=name,
         engine=sup_engine,
