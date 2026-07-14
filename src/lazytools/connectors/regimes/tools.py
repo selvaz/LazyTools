@@ -151,6 +151,178 @@ class RegimeTools:
             (db.db_delete_result, "regime_db_delete_result"),
         ]
         descriptions = {
+            "regime_scan_state_counts": (
+                "Scan candidate regime counts (S) and return BIC/AIC/HQIC selection "
+                "scores without fitting a final model — run this before regime_fit "
+                "to audit which S values are viable and spot the BIC elbow. Args: "
+                "data (Txk nested list), series_names, model ('panel' scans each "
+                "series independently; 'joint_diag'/'joint_full' scan jointly), "
+                "S_max (default 6), S_min (default 1), criterion, n_starts."
+            ),
+            "regime_get_current": (
+                "Return the current (most recent timestep) regime for one series: "
+                "state index/label, posterior probabilities, mean/volatility, "
+                "expected remaining duration, and the one-step transition "
+                "probability to the high-vol regime. Args: result_key (preferred, "
+                "from regime_fit) or fit_result; series_name."
+            ),
+            "regime_get_summary": (
+                "Return a human-readable, plain-text summary of all fitted regimes "
+                "for a stored result — per-regime mean/volatility/occupancy/duration "
+                "and the current regime per series. Designed for direct LLM "
+                "consumption (text, not structured data). Args: result_key (from "
+                "regime_fit) or fit_result."
+            ),
+            "regime_compare_emission_models": (
+                "Fit and compare three emission-model variants at a fixed regime "
+                "count S — 'full' (per-regime mean and covariance), 'diag' "
+                "(per-regime mean and diagonal variance), 'diag_shared_mean' "
+                "(shared mean, variance-only regimes) — to choose the right model "
+                "before calling regime_fit. Args: data, series_names, S (fixed "
+                "regime count, pick from regime_scan_state_counts), model "
+                "('panel'|'joint_diag'|'joint_full'), n_starts, random_state."
+            ),
+            "regime_compare_windows": (
+                "Fit independent regime models on multiple date-sliced observation "
+                "windows and compare regime counts, per-regime stats, transition "
+                "persistence and BIC across them — use to detect parameter drift or "
+                "regime-count changes across historical sub-periods. Args: data, "
+                "series_names, windows (list of {label, start, end} dicts), model, "
+                "S_max (default 4), S_min (default 1), criterion, n_starts, "
+                "shared_mean, sticky, random_state."
+            ),
+            "regime_store_list": (
+                "List all keys currently held in the in-process regime store (fit "
+                "results, loaded data, parameter records) with a total count. "
+                "Takes no arguments."
+            ),
+            "regime_store_load": (
+                "Peek at an object stored in the regime store — its Python type, "
+                "shape/size and a human-readable summary — without loading or "
+                "returning the full object. Args: key (store key to inspect)."
+            ),
+            "regime_params_list": (
+                "Discover trained model parameters already saved in the store — "
+                "call this before regime_fit to check whether a ready-to-use model "
+                "already exists and avoid refitting; returns compact provenance "
+                "metadata only, no parameter arrays. Args: data_key (optional "
+                "filter; empty = all)."
+            ),
+            "regime_params_load": (
+                "Load a stored parameter record (startprob/transmat/means/"
+                "covariances plus data provenance) for reuse via "
+                "regime_apply_params, without refitting. Args: params_key "
+                "('<result_key>::params' or the params_key returned by regime_fit)."
+            ),
+            "regime_generate_plots": (
+                "Render every regime chart for a stored fit result — one series-"
+                "with-regimes plot per series, plus two barcode charts — into the "
+                "SQLite depot as PNGs, headlessly. Use regime_db_list_plots to "
+                "enumerate them and regime_db_export_plot to save one to disk. "
+                "Requires an active depot. Args: result_key; data_key (optional, "
+                "defaults to the data_key recorded in the fit); theme "
+                "('dark'|'light'|'minimal'); last_years (default 20); "
+                "points_per_year (default 52)."
+            ),
+            "regime_fit": (
+                "Fit a Gaussian HMM to detect volatility regimes in financial time "
+                "series, automatically selecting the regime count via BIC/AIC/HQIC "
+                "(regimes always ordered by volatility, state 0 = calmest). Before "
+                "calling this, check regime_params_list(data_key=...) for an "
+                "existing trained model and prefer regime_apply_params over "
+                "refitting when one exists — fitting is expensive. When result_key "
+                "is given, this auto-persists the parameters for reuse. Args: "
+                "data_key (preferred, from regime_load_from_datahub) or "
+                "data/series_names; result_key (store key for downstream tools); "
+                "model ('panel'|'joint_diag'|'joint_full'); S_max (default 4), "
+                "S_min (default 1), criterion, n_starts, shared_mean, sticky, "
+                "random_state."
+            ),
+            "regime_fit_categorical": (
+                "Fit a discrete-emission HMM on categorical/integer observations "
+                "(e.g. quantile buckets, sentiment scores, volatility tiers) instead "
+                "of continuous returns — the emission model is a learned "
+                "probability table per state, and the regime count is selected "
+                "automatically via BIC. Args: observations (0-indexed ints, or a "
+                "Txn_features nested list for multiple features); S_max (default "
+                "5), S_min (default 1), n_starts, n_iter, random_state."
+            ),
+            "regime_fit_window": (
+                "Fit regime detection on a specific contiguous date-sliced window "
+                "of the data — identical to regime_fit but scoped to "
+                "[window_start:window_end], useful for a historical sub-period or "
+                "for feeding regime_compare_windows. Args: data, series_names, "
+                "window_start (inclusive, negative = from end), window_end "
+                "(exclusive, 0 = end of data), model, S_max, S_min, criterion, "
+                "n_starts, shared_mean, sticky, random_state."
+            ),
+            "regime_apply_params": (
+                "Apply previously-fitted, stored model parameters to (new) data via "
+                "fixed-parameter inference — decodes regimes and posteriors without "
+                "refitting; series are matched to the trained model by name. Args: "
+                "params_key (from regime_fit or regime_params_save); data, "
+                "series_names (or data_key); result_key (optional, to store the "
+                "output)."
+            ),
+            "regime_store_delete": (
+                "Delete one key from the in-process regime store to free memory. "
+                "Args: key."
+            ),
+            "regime_params_save": (
+                "Explicitly (re)persist the parameter record for an existing fit "
+                "result — regime_fit already auto-saves when given a result_key, so "
+                "use this only to save under a different key or after manual edits. "
+                "Args: result_key (existing fit result); params_key (optional, "
+                "defaults to '<result_key>::params')."
+            ),
+            "regime_db_list_series": (
+                "List every time series stored in the SQLite regime depot, with "
+                "per-series row/column counts and date range, plus a total count. "
+                "Takes no arguments."
+            ),
+            "regime_db_get_series_info": (
+                "Return detailed metadata for one stored time series in the depot "
+                "— columns, row/date range, fill policy and per-column ticker "
+                "provenance when loaded via a ticker loader. Args: data_key (get "
+                "keys from regime_db_list_series)."
+            ),
+            "regime_db_list_results": (
+                "List every stored HMM fit result in the depot, with per-series "
+                "regime count/BIC/current-regime summaries and a total count. "
+                "Takes no arguments."
+            ),
+            "regime_db_get_result_summary": (
+                "Return a compact regime summary for one stored fit result — regime "
+                "stats, transition matrix, BIC, current regime per series — without "
+                "the underlying T-length state sequence; use "
+                "regime_db_get_state_sequence for the full sequence. Args: "
+                "result_key (get keys from regime_db_list_results)."
+            ),
+            "regime_db_list_plots": (
+                "List every plot stored in the depot, with per-plot type, title, "
+                "dimensions and the result/data key it was generated from, plus a "
+                "total count. Takes no arguments."
+            ),
+            "regime_db_compare_results": (
+                "Compare regime statistics — regime count, BIC, current regime "
+                "label, per-regime stats — across multiple stored fit results, "
+                "aligned by series name. Args: result_keys (list of stored result "
+                "keys to compare, e.g. ['spy_2y', 'spy_5y'])."
+            ),
+            "regime_db_export_plot": (
+                "Save one stored plot PNG from the depot to a filesystem path — the "
+                "only tool in this connector that writes to disk. Args: plot_key "
+                "(get keys from regime_db_list_plots); output_path (directory must "
+                "already exist)."
+            ),
+            "regime_db_delete_series": (
+                "Delete one stored time series (and its data) from the SQLite "
+                "depot. Args: data_key."
+            ),
+            "regime_db_delete_result": (
+                "Delete one stored fit result, including its state-sequence rows, "
+                "from the SQLite depot. Args: result_key."
+            ),
             "regime_get_changes": (
                 "Dates of regime changes for one series, hard-capped at "
                 f"{_MAX_REGIME_CHANGES} most recent changes (summary fields "

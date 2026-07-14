@@ -181,3 +181,17 @@ def test_missing_lazystats_regimes_raises_clear_import_error(monkeypatch) -> Non
     monkeypatch.setattr(builtins, "__import__", _blocked)
     with pytest.raises(ImportError, match=r"lazystats\[regimes\]"):
         RegimeTools().as_tools()
+
+
+def test_every_tool_has_an_explicit_schema_description() -> None:
+    """Every one of the 28 tools must carry a real, explicit description in
+    its compiled schema — not a fallback derived from the wrapped lazystats
+    function's docstring. Uniform with every other connector in this package
+    (statistical_analysis, datahub, gmail, ...), which all pass description=
+    explicitly rather than relying on docstring auto-derivation."""
+    tools = {t.name: t for t in RegimeTools(allow_write=True).as_tools()}
+    assert set(tools) == READ_NAMES | WRITE_NAMES
+    for name, tool in tools.items():
+        description = tool.definition().description
+        assert description, f"{name} has no description in its schema"
+        assert len(description) >= 15, f"{name} description is too thin: {description!r}"
