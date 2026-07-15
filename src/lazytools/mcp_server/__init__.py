@@ -36,7 +36,7 @@ safety model.
 
 from __future__ import annotations
 
-from lazytools.mcp_server.providers import READ_ONLY_PROVIDERS, default_providers
+from lazytools.mcp_server.providers import PROVIDER_FACTORIES, default_providers
 from lazytools.mcp_server.server import (
     UNSAFE_TOOL_PATTERNS,
     build_server,
@@ -46,7 +46,7 @@ from lazytools.mcp_server.server import (
 )
 
 __all__ = [
-    "READ_ONLY_PROVIDERS",
+    "PROVIDER_FACTORIES",
     "UNSAFE_TOOL_PATTERNS",
     "build_server",
     "default_providers",

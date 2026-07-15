@@ -13,7 +13,7 @@ import logging
 import os
 
 from lazytools import __version__
-from lazytools.mcp_server.providers import READ_ONLY_PROVIDERS, default_providers
+from lazytools.mcp_server.providers import PROVIDER_FACTORIES, default_providers
 from lazytools.mcp_server.server import build_server, serve_stdio
 
 
@@ -25,13 +25,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "providers",
         nargs="*",
-        help=f"Provider ids to serve (default: all). Known: {', '.join(READ_ONLY_PROVIDERS)}.",
+        help=f"Provider ids to serve (default: all). Known: {', '.join(PROVIDER_FACTORIES)}.",
     )
     parser.add_argument(
         "--allow-unsafe",
         action="store_true",
-        help="Disable the read-only guard and expose mutating tools too. "
-        "Only use with your own confirmation/allow-list gating in place.",
+        help="Construct providers in write-enabled mode AND disable the read-only "
+        "name guard, exposing mutating tools (datahub refresh/register, regime "
+        "fit/persist/delete). No MCP confirmation gating is applied — use only "
+        "when you accept full responsibility for the writes.",
     )
     parser.add_argument(
         "--log-level",
@@ -53,7 +55,7 @@ def main(argv: list[str] | None = None) -> None:
         if env:
             ids = [part.strip() for part in env.split(",") if part.strip()]
 
-    providers = default_providers(ids)
+    providers = default_providers(ids, allow_write=args.allow_unsafe)
     server = build_server(
         providers,
         name="lazytools",

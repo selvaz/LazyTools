@@ -70,8 +70,30 @@ def test_read_only_drops_mutating_tools():
 
 
 def test_unsafe_patterns_cover_known_writers():
-    for name in ("gmail_send", "telegram_send_message", "codex_write", "datahub_ensure_price_history"):
+    for name in (
+        "gmail_send",
+        "telegram_send_message",
+        "codex_write",
+        "datahub_ensure_price_history",
+        "datahub_register_listing",
+    ):
         assert any(p in name for p in UNSAFE_TOOL_PATTERNS)
+
+
+def test_plain_callable_is_wrapped_not_skipped():
+    # A bare function must be exposed under its __name__, not silently dropped
+    # (Tool.wrap would require an explicit name and raise).
+    def datahub_ping() -> str:
+        return "pong"
+
+    tool_map = expand_tools([datahub_ping])
+    assert set(tool_map) == {"datahub_ping"}
+
+
+def test_bare_tool_passed_through():
+    t = _tool("datahub_search")
+    tool_map = expand_tools([t])
+    assert tool_map["datahub_search"] is t
 
 
 def test_collision_last_wins():
@@ -163,6 +185,30 @@ def test_default_providers_builds_readonly_datahub():
     providers = default_providers(["datahub", "statistical"])
     # Both construct without their heavy extras; expansion is what needs them.
     assert len(providers) == 2
+
+
+def test_allow_write_emits_writers_that_read_only_hides():
+    # allow_write=True builds DataHubTools(allow_refresh=True), which emits the
+    # ingestion writers; read_only=True must still drop them, read_only=False
+    # must serve them.
+    providers = default_providers(["datahub"], allow_write=True)
+    served = expand_tools(providers, read_only=False)
+    assert "datahub_register_listing" in served
+    assert "datahub_ensure_price_history" in served
+
+    guarded = expand_tools(providers, read_only=True)
+    assert "datahub_register_listing" not in guarded
+    assert "datahub_ensure_price_history" not in guarded
+    # ...while the read tools survive the guard.
+    assert "datahub_search" in guarded
+
+
+def test_default_providers_readonly_omits_writers():
+    providers = default_providers(["datahub"])  # allow_write=False
+    served = expand_tools(providers, read_only=False)  # guard off, still no writers
+    assert "datahub_register_listing" not in served
+    assert "datahub_ensure_price_history" not in served
+    assert "datahub_search" in served
 
 
 @pytest.fixture

@@ -65,6 +65,7 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "_send",
     "_write",
     "_delete",
+    "_register",
     "_ensure_",
     "_refresh",
     "_persist",
@@ -106,8 +107,18 @@ def expand_tools(
         try:
             if getattr(provider, "_is_lazy_tool_provider", False):
                 tools = list(provider.as_tools())
+            elif isinstance(provider, Tool):
+                tools = [provider]
+            elif getattr(provider, "_is_lazy_agent", False):
+                tools = [Tool.wrap(provider)]  # agents carry their own name
+            elif callable(provider):
+                # Plain function: the Tool constructor defaults the name to
+                # ``func.__name__``. (``Tool.wrap`` *requires* an explicit
+                # name for callables and would raise here, silently dropping
+                # the function via the except below.)
+                tools = [Tool(provider)]
             else:
-                tools = [Tool.wrap(provider) if not isinstance(provider, Tool) else provider]
+                raise TypeError(f"cannot expose {type(provider).__name__!r} as a tool")
         except Exception as exc:
             logger.warning("Skipping tool provider %s: %s", label, exc)
             continue

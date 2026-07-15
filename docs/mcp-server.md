@@ -66,11 +66,16 @@ The server is **read-only by default**, enforced in two layers:
    coarse net for the case where a write-enabled provider is passed in by
    mistake.
 
-There is no interactive `ConfirmationGate` over MCP, so mutating tools
-(`gmail_send`, `telegram_send_message`, the coding-CLI `*_write` tools) are
-intentionally **not** on the default menu. To expose them you must opt in
-explicitly with `--allow-unsafe` (CLI) or `read_only=False`
-(programmatic) — and only after wiring your own gating around them.
+There is no interactive `ConfirmationGate` over MCP, so mutating tools stay
+off the default surface. To expose them you must opt in explicitly:
+
+* **CLI** — `--allow-unsafe` constructs the providers in write-enabled mode
+  (`default_providers(ids, allow_write=True)`) *and* disables the name
+  guard, so the menu's writers (datahub refresh/register, regime
+  fit/persist/delete) are emitted and served. No gating is applied.
+* **Programmatic** — build write-enabled providers yourself and pass
+  `read_only=False` to `build_server`, ideally with your own allow-list /
+  confirmation wrapper around the mutating tools.
 
 ## Programmatic use
 
@@ -107,5 +112,5 @@ server = build_server(
         - default_providers
         - expand_tools
         - result_to_text
-        - READ_ONLY_PROVIDERS
+        - PROVIDER_FACTORIES
         - UNSAFE_TOOL_PATTERNS
