@@ -12,10 +12,12 @@ This page documents the LLM tool boundary and operational usage.
 
 The agent supplies comma-separated ticker symbols (`SPY,TLT`) or canonical
 instruments (`ticker:SPY,ticker:TLT`), a date window, a method and constraints.
-The complete return matrix is loaded privately from
-`market-data-hub` by LazyFin. Tool results are deliberately limited to weights,
-risk metrics, costs, tracking error, bounded provenance and persistent ids;
-prices, return rows and covariance matrices never enter LLM context.
+Canonical daily **simple returns** are loaded privately from `market-data-hub`
+by LazyFin. The tool's `frequency` parameter selects the fitting grid
+(`D`/`W`/`M`/`Q`), not the data extraction grid. Tool results are deliberately
+limited to weights, risk metrics, costs, tracking error, bounded provenance and
+persistent ids; prices, return rows and covariance matrices never enter LLM
+context.
 
 ## Setup
 
@@ -47,6 +49,10 @@ agent = Agent("claude-opus-4-8", tools=[optimizer_tools])
   constraints and transaction costs.
 - `hrp_cvar` uses `HierarchicalRiskParity`; it supports bounds and transaction
   costs. Its CVaR confidence is Skfolio's fixed 95%.
+- `max_return_benchmark_vol` uses `MeanRisk` to maximise expected return under
+  a volatility cap dynamically measured from the declared `benchmark_id` in
+  each fitting window. It needs a benchmark; it does not use future or realised
+  OOS benchmark volatility as its target.
 
 The provider rejects an unsupported method/constraint combination rather than
 altering the generated weights after the solve.
@@ -63,10 +69,18 @@ allocation, before referencing it by `benchmark_id`. It is always available as
 a performance comparator; `MeanRisk` policies can also enforce an optional
 tracking-error budget against it.
 
-`portfolio_optimizer_backtest` uses Skfolio `WalkForward` and
-`cross_val_predict`. The default protocol fits on 252 return observations,
-rebalances every five and purges one observation between fit and test to reduce
-look-ahead bias. The store records benchmark versions, specifications, weights
+`portfolio_optimizer_backtest` fits Skfolio on the requested return frequency
+and values the resulting holding periods on daily simple returns. Its
+`train_size` is measured in fitting-return observations; its
+`rebalance_frequency` (`D`/`W`/`M`/`Q`) independently controls when weights are
+renewed. A fit ending at a rebalance endpoint is applied beginning with the
+following daily observation, so there is no look-ahead or artificial extra
+execution delay. OOS NAV, costs, drawdown, CAGR and annualised realised metrics
+therefore use daily data and factor 252, even when fitting is weekly or monthly.
+
+Tool results distinguish `annualized_mean` from geometric `cagr`; the latter
+comes from the compounded daily OOS wealth curve. The store records benchmark
+versions, specifications, weights
 at each out-of-sample rebalance, aggregate metrics and data provenance—but not
 historical observations.
 

@@ -43,10 +43,17 @@ and the optional turnover constraint is
 
 ### Returns and moments
 
-The data backend resamples price history to the requested frequency and creates
-returns internally. The LLM never receives the return matrix, covariance matrix
-or individual observations. The empirical prior estimates expected returns
-\(\hat\mu\) and covariance from the fitting window.
+The data backend creates canonical daily simple returns from adjusted prices.
+For a requested fitting frequency, it compounds those daily returns rather than
+passing log returns to Skfolio:
+
+\[
+r_k^{(f)}=\prod_{t\in k}(1+r_t^{(D)})-1.
+\]
+
+The LLM never receives the return matrix, covariance matrix or individual
+observations. The empirical prior estimates expected returns \(\hat\mu\) and
+covariance from the fitting window.
 
 For the `MeanRisk` policies, LazyFin uses Skfolio's `EmpiricalPrior` with
 `ShrunkCovariance(shrinkage=0.1)`. With sample covariance \(S\) and
@@ -84,6 +91,7 @@ short rolling windows.
 | `min_cvar` | `MeanRisk` | minimize 95% CVaR | drawdown/tail-risk focus | number and representativeness of tail observations |
 | `max_sharpe_shrinkage` | `MeanRisk` | maximize return/risk ratio | strong expected-return conviction | expected returns; can be unstable |
 | `max_utility_shrinkage` | `MeanRisk` | maximize mean minus risk penalty | explicit risk-aversion trade-off | calibration of risk aversion |
+| `max_return_benchmark_vol` | `MeanRisk` | maximize expected return at benchmark volatility | return-seeking allocation with declared risk anchor | expected returns and benchmark representativeness |
 | `risk_budget_cvar` | `RiskBudgeting` | equalize CVaR risk contributions | diversified tail-risk allocation | nonlinear risk attribution and tail sample |
 | `hrp_cvar` | `HierarchicalRiskParity` | cluster then recursively allocate tail risk | correlated/ill-conditioned assets | clustering distance and tree stability |
 
@@ -144,6 +152,30 @@ mean-minus-\(\lambda\) times risk form. Larger \(\lambda\) favors lower-risk
 allocations. Its numeric scale depends on return frequency, so \(\lambda\)
 must be calibrated consistently with the data frequency.
 
+### Maximum return at benchmark volatility
+
+`max_return_benchmark_vol` requires a declared model benchmark and solves
+
+\[
+\max_{w\in\mathcal W}\quad w^\top\hat\mu-c^\top\lvert w-w^-\rvert
+\quad\text{subject to}\quad
+\sqrt{w^\top\hat\Sigma w}\leq\hat\sigma_b.
+\]
+
+At every fit, \(\hat\sigma_b\) is computed from the benchmark returns in the
+active fitting window at the same return frequency. It is not derived from
+future observations or the eventual OOS benchmark volatility. The constraint
+uses Skfolio's shrunk covariance \(\hat\Sigma\); OOS realised volatility can
+therefore differ slightly from the benchmark even when every ex-ante constraint
+is satisfied.
+
+As a concrete reproducible example, SPY/GLD/TLT/BCI from 2018--2026, weekly
+fitting with a 156-week rolling window, monthly rebalancing, 60% asset caps and
+10-bps costs produced 67 OOS periods. The strategy recorded 10.29% CAGR,
+13.27% annualised volatility and 0.80 annualised Sharpe, compared with 8.13%,
+13.00% and 0.67 for a 70/30 SPY/TLT benchmark. These are historical research
+results, not a forecast or recommendation.
+
 ### CVaR risk budgeting
 
 For a positively homogeneous risk measure \(\rho(w)\), marginal risk
@@ -195,46 +227,29 @@ are used for every strategy and benchmark.
 
 ## Walk-forward evaluation
 
-The backtest is Skfolio `WalkForward` plus `cross_val_predict`. For rolling
-window length \(L\), out-of-sample block length \(H\), and purge \(P\), fold
-\(k\) fits on returns available before time \(t_k\), estimates \(w_k\), then
-evaluates on the following out-of-sample block. No return row is emitted to the
-LLM.
-
-For the current weekly/monthly convention:
-
-\[
-L=156\text{ weeks},\qquad H=4\text{ weeks},\qquad P=0.
-\]
-
-Thus the weights estimated at a rebalance date apply to the immediately
-following weekly return and are held for four weeks. `P=0` is not a look-ahead
-violation: it means there is no artificial extra delay between the end of the
-information set and the first out-of-sample observation. A nonzero purge is a
-separate anti-leakage protocol choice.
+`train_size` is measured in fitting-frequency observations and
+`rebalance_frequency` independently controls the rebalance calendar. Skfolio
+fits \(w_k\) using only returns ending at the rebalance endpoint. LazyFin then
+uses Skfolio `Portfolio` to apply \(w_k\) to every following **daily** return
+until the next endpoint. The first holding return is the following daily
+observation: this prevents look-ahead without an artificial extra weekly lag.
+No return row is emitted to the LLM.
 
 The persistent store saves only the specification, versions, OOS weights,
 aggregate metrics, reason codes and bounded data provenance. It does not save
 the raw historical return series.
 
-## Metric interpretation and current caveat
+## Metric interpretation
 
-`annualized_return` currently maps to Skfolio's `annualized_mean`; it is an
-annualized arithmetic mean, **not CAGR**. CAGR requires compounded portfolio
-returns, \((\prod_t(1+r_{p,t}))^{A/T}-1\), and must not be substituted by the
-arithmetic annualized mean in a report.
+OOS performance is a compounded daily `MultiPeriodPortfolio`: CAGR, daily
+CVaR, drawdown, costs and annualised performance use factor 252. Fitting
+portfolios receive the factor matching their data grid: daily 252, weekly 52,
+monthly 12 and quarterly 4.
 
-Also, Skfolio `Portfolio` defaults to `annualized_factor=252`. The current
-adapter does not yet set a frequency-specific factor. Therefore, for weekly
-backtests, annualized return, volatility and annualized Sharpe should not be
-treated as correctly annualized until the adapter passes \(A=52\) (and 12 for
-monthly, 252 for daily). Raw period Sharpe and maximum drawdown remain useful
-within a fixed-frequency comparison, but labels must make the frequency clear.
-
-This caveat applies to the live reports already generated: their ranking within
-the same weekly protocol can be informative, but any annualized labels or
-claims expressed as CAGR need frequency-aware recomputation before investment
-use.
+`annualized_mean` is Skfolio's arithmetic annualised mean. It is distinct from
+`cagr`, which is calculated from the compounded and costed daily OOS series:
+\((\prod_t(1+r_{p,t}))^{252/T}-1\). Charts convert the compounded wealth index
+to return percent with \((W_t-1)\times100\).
 
 ## Scientific use and model risk
 
