@@ -76,6 +76,7 @@ from lazytools.report import (
 from lazytools.documents import read_docs_tools
 from lazytools.skills import build_skill, skill_tools
 from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
+from lazytools.mcp_server import build_server, serve_stdio, default_providers
 ```
 
 ## Package layout
@@ -86,6 +87,7 @@ from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 | `statistical_analysis/` | `StatisticalAnalysisTools` | read-only volatility, return-correlation and z-score-outlier analysis backed only by market-data-hub |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render`, `artifacts`, `resolvers`, `charts`, `tools`, `files` | deterministic memo/report rendering (Markdown/HTML) with embedded figures (charts/images) — "LazyReport" |
+| `mcp_server/` | `server`, `providers` | expose LazyTools' read-only providers over MCP (the `lazytools-mcp` command) — mirror of the `connectors/mcp` client |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
 | `safety/` | `allowlist`, `gates`, `urls` | reusable allow-list, one-shot confirmation gate, and SSRF URL guard |
 | `testing/` | `fake_clients` | in-memory fakes for the connector Protocols |
@@ -196,6 +198,42 @@ direct-fetch finance connector on the agent surface.
   tools = WebTools()                       # delegates to lazycrawler.CrawlerTools
   tools = WebTools(name_prefix="web_")      # optionally prefix tool names
   ```
+
+## MCP server
+
+The mirror of the MCP connector: where `lazytools.connectors.mcp` turns an
+**external** MCP server into tools, `lazytools.mcp_server` **exposes
+LazyTools' own providers over MCP** so any MCP host (Claude Desktop, Claude
+Code, Codex) can call `datahub_*`, `statistical_*`, `regime_*` and web
+search/crawl as native tools. The bridge is thin — each `lazybridge.Tool`
+already carries the JSON Schema (`tool.definition()`) and an async dispatch
+(`tool.run()`) MCP needs. Needs the `[mcp]` extra.
+
+```bash
+lazytools-mcp                       # all read-only providers, over stdio
+lazytools-mcp datahub statistical   # a subset
+```
+
+```json
+{ "mcpServers": { "lazytools": { "command": "lazytools-mcp" } } }
+```
+
+**Read-only by default.** Providers are constructed in their read-only shape
+(`DataHubTools()` without refresh, `RegimeTools(allow_write=False)`), and a
+secondary name guard drops anything matching `*_send` / `*_write` /
+`*_delete` / … There is no interactive confirmation over MCP, so mutating
+tools stay off the default surface — opt in with `--allow-unsafe` only after
+wiring your own gating. Providers whose extra is missing are skipped, so a
+bare `[mcp]` install serves `datahub` + `statistical`; add
+`lazystats[regimes]` / `[web]` to light up the rest.
+
+```python
+from lazytools.mcp_server import build_server, serve_stdio, default_providers
+
+server = build_server(default_providers())   # read-only by default
+```
+
+See [MCP server](docs/mcp-server.md).
 
 ## Safety model
 
