@@ -26,19 +26,29 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install ecosystem at source HEAD
-        env:
-          # LazyFin is the one PRIVATE sibling: the workflow GITHUB_TOKEN is
-          # scoped to this repo only, so installing it needs a PAT with repo
-          # read access stored as the ECOSYSTEM_PAT secret. Without it the
-          # job still validates the public graph (hub + lazystats + bridge).
-          ECOSYSTEM_PAT: ${{ secrets.ECOSYSTEM_PAT }}
+      - name: Install this checkout + public ecosystem siblings at source HEAD
+        # No secret in scope here: this step runs `pip install -e .` against
+        # the PR's own, potentially untrusted, build backend/setup hooks.
+        # market-data-hub and lazystats are public repos, so cloning them
+        # needs no credential either.
         run: |
           python -m pip install -U pip
           pip install -e .
           pip install \
             "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@main" \
             "lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@main"
+      - name: Install private LazyFin sibling (optional)
+        # LazyFin is the one PRIVATE sibling: the workflow GITHUB_TOKEN is
+        # scoped to this repo only, so installing it needs a PAT with repo
+        # read access stored as the ECOSYSTEM_PAT secret. Without it the
+        # job still validates the public graph (hub + lazystats + bridge).
+        #
+        # ECOSYSTEM_PAT is scoped to ONLY this step, run after the PR's own
+        # code and the public siblings are already installed, so the PAT is
+        # never present while an untrusted build hook could read it.
+        env:
+          ECOSYSTEM_PAT: ${{ secrets.ECOSYSTEM_PAT }}
+        run: |
           if [ -n "$ECOSYSTEM_PAT" ]; then
             pip install "lazyfin @ git+https://x-access-token:${ECOSYSTEM_PAT}@github.com/selvaz/LazyFin.git@main"
           else
