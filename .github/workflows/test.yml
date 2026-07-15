@@ -22,17 +22,24 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        env:
-          # LazyFin is the one private sibling gating the portfolio-optimizer
-          # connector tests (tests/test_portfolio_optimization_tools.py does
-          # pytest.importorskip("lazyfin")). Without ECOSYSTEM_PAT those tests
-          # silently skip rather than fail — install it here, same PAT/pattern
-          # ecosystem-source-head.yml already uses, so this job actually runs
-          # them instead of a green check that never executed the assertions.
-          ECOSYSTEM_PAT: ${{ secrets.ECOSYSTEM_PAT }}
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[test]"
+      - name: Install lazyfin (optional, for portfolio-optimizer connector tests)
+        # LazyFin is the one private sibling gating the portfolio-optimizer
+        # connector tests (tests/test_portfolio_optimization_tools.py does
+        # pytest.importorskip("lazyfin")). Without ECOSYSTEM_PAT those tests
+        # silently skip rather than fail — install it here, same PAT/pattern
+        # ecosystem-source-head.yml already uses, so this job actually runs
+        # them instead of a green check that never executed the assertions.
+        #
+        # ECOSYSTEM_PAT is scoped to ONLY this step (a separate step from the
+        # editable install above) so it is never present in the environment
+        # while `pip install -e ".[test]"` runs the PR's own, potentially
+        # untrusted, build backend/setup hooks.
+        env:
+          ECOSYSTEM_PAT: ${{ secrets.ECOSYSTEM_PAT }}
+        run: |
           if [ -n "$ECOSYSTEM_PAT" ]; then
             pip install "lazyfin[optimizer] @ git+https://x-access-token:${ECOSYSTEM_PAT}@github.com/selvaz/LazyFin.git@main"
           else
