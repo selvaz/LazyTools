@@ -8,6 +8,25 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — MCP server (`lazytools.mcp_server`, `lazytools-mcp`)
+- New `lazytools.mcp_server` package and `lazytools-mcp` console script that
+  **expose** LazyTools' tool providers over the Model Context Protocol — the
+  mirror of the `connectors/mcp` client. Any MCP host (Claude Desktop, Claude
+  Code, Codex) can now call `datahub_*`, `statistical_*`, `regime_*` and web
+  search/crawl as native tools. The bridge is thin: each `lazybridge.Tool`
+  already carries the JSON Schema (`tool.definition()`) MCP wants for
+  `inputSchema` and an async dispatch (`tool.run()`) for `call_tool`.
+- `build_server(providers, *, read_only=True, ...)` wires `list_tools` /
+  `call_tool` on a low-level MCP `Server`; `serve_stdio(server)` runs it over
+  the stdio transport MCP hosts launch; `default_providers(ids=None)` is the
+  read-only provider menu (`datahub`, `statistical`, `regimes`, `web`).
+- **Read-only by default.** Providers are built in their read-only shape and a
+  secondary name guard (`UNSAFE_TOOL_PATTERNS`) drops obvious writers; mutating
+  tools require explicit `--allow-unsafe` / `read_only=False`. Providers whose
+  optional extra is absent are skipped at expansion time, so a bare `[mcp]`
+  install serves datahub + statistical and regimes/web light up with their
+  extras. Reuses the existing `[mcp]` extra (`mcp>=1.0,<2.0`).
+
 ### Added — series transformation layer + OLS/Ridge/Lasso regression tools
 - `statistical_analysis` gains a generic `load_series` data path: any
   instrument argument now accepts `'<id>[|level|log_return|pct_change|diff]'`

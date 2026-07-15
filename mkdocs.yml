@@ -65,6 +65,7 @@ plugins:
           - gmail.md
           - telegram.md
           - mcp.md
+          - mcp-server.md
           - code-support/index.md
           - code-support/claude-code.md
           - code-support/codex.md
@@ -131,6 +132,7 @@ nav:
       - Gmail: gmail.md
       - Telegram: telegram.md
       - MCP: mcp.md
+      - MCP server: mcp-server.md
       - Code Support Agent:
           - Overview: code-support/index.md
           - Claude Code: code-support/claude-code.md
