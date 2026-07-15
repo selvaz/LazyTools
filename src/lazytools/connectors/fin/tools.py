@@ -242,7 +242,9 @@ class PortfolioOptimizationTools:
                 self._optimize,
                 name="portfolio_optimizer_run",
                 description=(
-                    "Run a Skfolio portfolio optimization over market-data-hub returns. Never pass "
+                    "Run a Skfolio portfolio optimization over canonical daily market-data-hub "
+                    "simple returns. frequency selects the fitting-return frequency (D|W|M|Q), "
+                    "not the data source. Never pass "
                     "prices or returns: use comma-separated tickers (SPY,TLT) or canonical IDs "
                     "(ticker:SPY,ticker:TLT), a date range, method and constraints only. Groups map "
                     "canonical IDs to labels, e.g. {'ticker:SPY': ['equity']}."
@@ -265,8 +267,10 @@ class PortfolioOptimizationTools:
                 self._backtest,
                 name="portfolio_optimizer_backtest",
                 description=(
-                    "Run a Skfolio walk-forward backtest over hub returns. Returns only aggregate "
-                    "metrics and provenance, never return observations. Instruments accept SPY,TLT or "
+                    "Run a Skfolio walk-forward backtest using daily simple-return OOS valuation. "
+                    "frequency selects the fitting-return grid (D|W|M|Q); rebalance_frequency "
+                    "selects when weights are renewed (D|W|M|Q). Returns only aggregate metrics "
+                    "and provenance, never return observations. Instruments accept SPY,TLT or "
                     "ticker:SPY,ticker:TLT; groups use canonical IDs. When this provider has an "
                     "artifacts_dir, chart_filename='name.png' also returns a sandboxed file: reference "
                     "to an OOS cumulative-return chart for use in ReportTools."
@@ -303,6 +307,14 @@ class PortfolioOptimizationTools:
                         "max_turnover",
                         "tracking_error",
                         "risk_aversion",
+                    ],
+                    "max_return_benchmark_vol": [
+                        "benchmark",
+                        "bounds",
+                        "groups",
+                        "linear_constraints",
+                        "costs",
+                        "max_turnover",
                     ],
                     "risk_budget_cvar": ["bounds", "groups", "linear_constraints", "costs"],
                     "hrp_cvar": ["bounds", "costs"],
@@ -364,7 +376,7 @@ class PortfolioOptimizationTools:
             linear_constraints=linear_constraints,
             risk_aversion=risk_aversion,
         )
-        dataset = self._resolve_backend().load_returns(spec.universe, start=start, end=end, frequency=frequency)
+        dataset = self._resolve_backend().load_returns(spec.universe, start=start, end=end, frequency="D")
         run = self._optimizer.optimize(spec, dataset, benchmark=benchmark)
         return _json(_run_summary(run))
 
@@ -391,8 +403,7 @@ class PortfolioOptimizationTools:
         linear_constraints: list[str] | None = None,
         risk_aversion: float = 1.0,
         train_size: int = 252,
-        test_size: int = 5,
-        purged_size: int = 1,
+        rebalance_frequency: str = "W",
         chart_filename: str = "",
     ) -> str:
         spec, benchmark = self._request(
@@ -411,15 +422,14 @@ class PortfolioOptimizationTools:
             linear_constraints=linear_constraints,
             risk_aversion=risk_aversion,
         )
-        dataset = self._resolve_backend().load_returns(spec.universe, start=start, end=end, frequency=frequency)
+        dataset = self._resolve_backend().load_returns(spec.universe, start=start, end=end, frequency="D")
         chart_path = self._chart_path(chart_filename) if chart_filename else None
         result = self._optimizer.backtest(
             spec,
             self._backtest_spec(
                 id=f"backtest:{spec.id}",
                 train_size=train_size,
-                test_size=test_size,
-                purged_size=purged_size,
+                rebalance_frequency=rebalance_frequency,
             ),
             dataset,
             benchmark=benchmark,

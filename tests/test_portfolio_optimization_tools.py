@@ -36,6 +36,9 @@ def test_benchmark_tool_persists_a_declared_model_portfolio(tmp_path) -> None:
     listed = tools["portfolio_optimizer_list_benchmarks"].run_sync()
     assert "balanced" in listed
 
+    methods = json.loads(tools["portfolio_optimizer_list_methods"].run_sync())
+    assert "max_return_benchmark_vol" in methods["methods"]
+
 
 class _FakeOptimizationBackend:
     def __init__(self, frame) -> None:
@@ -57,7 +60,8 @@ def test_run_accepts_bare_tickers_and_exercises_group_constraints(tmp_path) -> N
         {
             "ticker:SPY": [0.001 * ((index % 7) - 3) for index in range(60)],
             "ticker:TLT": [0.0005 * ((index % 5) - 2) for index in range(60)],
-        }
+        },
+        index=pd.date_range("2024-01-02", periods=60, freq="B"),
     )
     backend = _FakeOptimizationBackend(frame)
     provider = PortfolioOptimizationTools(OptimizationStore(str(tmp_path / "optimizer.sqlite")), backend=backend)
@@ -71,6 +75,7 @@ def test_run_accepts_bare_tickers_and_exercises_group_constraints(tmp_path) -> N
         )
     )
     assert backend.calls[0]["instruments"] == ["ticker:SPY", "ticker:TLT"]
+    assert backend.calls[0]["frequency"] == "D"
     assert payload["status"] == "optimal"
     assert "raw_rows" not in json.dumps(payload)
     weights = {item["security_id"]: item["weight"] for item in payload["target_weights"]}
@@ -82,9 +87,10 @@ def test_backtest_runs_through_connector_without_return_rows(tmp_path) -> None:
     pytest.importorskip("skfolio")
     frame = pd.DataFrame(
         {
-            "ticker:SPY": [0.001 * ((index % 7) - 3) for index in range(80)],
-            "ticker:TLT": [0.0005 * ((index % 5) - 2) for index in range(80)],
-        }
+            "ticker:SPY": [0.001 * ((index % 7) - 3) for index in range(160)],
+            "ticker:TLT": [0.0005 * ((index % 5) - 2) for index in range(160)],
+        },
+        index=pd.date_range("2024-01-02", periods=160, freq="B"),
     )
     backend = _FakeOptimizationBackend(frame)
     provider = PortfolioOptimizationTools(
@@ -94,14 +100,53 @@ def test_backtest_runs_through_connector_without_return_rows(tmp_path) -> None:
 
     payload = json.loads(
         tools["portfolio_optimizer_backtest"].run_sync(
-            instruments="SPY,TLT", train_size=20, test_size=5, chart_filename="walk-forward.png"
+            instruments="SPY,TLT",
+            frequency="W",
+            train_size=10,
+            rebalance_frequency="M",
+            chart_filename="walk-forward.png",
         )
     )
     assert payload["status"] == "optimal"
     assert payload["n_folds"] > 0
+    assert payload["provenance"]["estimation_frequency"] == "W"
+    assert payload["provenance"]["rebalance_frequency"] == "M"
+    assert payload["provenance"]["performance_annualized_factor"] == 252.0
+    assert "cagr" in payload["metrics"]
     assert "raw_rows" not in json.dumps(payload)
     assert payload["chart"]["ref"].startswith("file:")
     assert (tmp_path / "walk-forward.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     reread = json.loads(tools["portfolio_optimizer_get_backtest"].run_sync(backtest_id=payload["id"]))
     assert reread["status"] == "optimal"
     assert "raw_rows" not in json.dumps(reread)
+
+
+def test_target_volatility_policy_requires_and_uses_a_benchmark(tmp_path) -> None:
+    pd = pytest.importorskip("pandas")
+    pytest.importorskip("skfolio")
+    frame = pd.DataFrame(
+        {
+            "ticker:SPY": [0.001 * ((index % 7) - 3) for index in range(180)],
+            "ticker:TLT": [0.0005 * ((index % 5) - 2) for index in range(180)],
+        },
+        index=pd.date_range("2024-01-02", periods=180, freq="B"),
+    )
+    store = OptimizationStore(str(tmp_path / "optimizer.sqlite"))
+    backend = _FakeOptimizationBackend(frame)
+    provider = PortfolioOptimizationTools(store, backend=backend)
+    tools = {tool.name: tool for tool in provider.as_tools()}
+    tools["portfolio_optimizer_create_benchmark"].run_sync(
+        benchmark_id="balanced", name="70/30", weights={"ticker:SPY": 0.7, "ticker:TLT": 0.3}
+    )
+    payload = json.loads(
+        tools["portfolio_optimizer_backtest"].run_sync(
+            instruments="SPY,TLT",
+            method="max_return_benchmark_vol",
+            benchmark_id="balanced",
+            frequency="W",
+            train_size=10,
+            rebalance_frequency="M",
+        )
+    )
+    assert payload["status"] == "optimal"
+    assert payload["method"] == "max_return_benchmark_vol"
