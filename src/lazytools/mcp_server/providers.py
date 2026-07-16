@@ -29,10 +29,11 @@ def _data_home() -> str:
     """Per-user directory for LazyTools-owned SQLite stores / artifacts.
 
     Overridable with ``LAZYTOOLS_DATA_DIR``; defaults to ``~/.lazytools``.
+    This only computes the path — it never creates the directory, so merely
+    listing the (read-only) provider menu never touches the filesystem. Callers
+    that actually write create it under an ``allow_write`` branch.
     """
-    base = os.environ.get("LAZYTOOLS_DATA_DIR") or os.path.join(os.path.expanduser("~"), ".lazytools")
-    os.makedirs(base, exist_ok=True)
-    return base
+    return os.environ.get("LAZYTOOLS_DATA_DIR") or os.path.join(os.path.expanduser("~"), ".lazytools")
 
 #: id → factory(allow_write) returning a ToolProvider. Order here is the
 #: order tools are listed to the client. Read-only by default; a factory
@@ -98,13 +99,24 @@ def _fin(allow_write: bool = False) -> Any:
     store — never market observations. The mutating tools (run / backtest /
     create_benchmark) are dropped in read-only server mode by the name guard.
     """
+    # Read-only menu listing must not touch the filesystem. The optimizer's
+    # SQLite store creates its file (and WAL sidecars) on construction, and its
+    # only meaningful tools (run / backtest / create_benchmark) are write tools
+    # gated behind --allow-unsafe anyway — so the provider is only constructed
+    # in write mode. In read-only mode it is skipped (no store, no directory).
+    if not allow_write:
+        raise RuntimeError(
+            "fin optimizer is write-only (needs --allow-unsafe); skipped in read-only mode."
+        )
+
     from lazyfin.optimization import OptimizationStore
 
     from lazytools.connectors.fin.tools import PortfolioOptimizationTools
 
-    home = _data_home()
-    store_path = os.environ.get("LAZYTOOLS_OPTIMIZER_STORE") or os.path.join(home, "optimizer_store.db")
-    artifacts = os.environ.get("LAZYTOOLS_OPTIMIZER_ARTIFACTS") or os.path.join(home, "optimizer_artifacts")
+    base = _data_home()
+    os.makedirs(base, exist_ok=True)
+    store_path = os.environ.get("LAZYTOOLS_OPTIMIZER_STORE") or os.path.join(base, "optimizer_store.db")
+    artifacts = os.environ.get("LAZYTOOLS_OPTIMIZER_ARTIFACTS") or os.path.join(base, "optimizer_artifacts")
     os.makedirs(artifacts, exist_ok=True)
     return PortfolioOptimizationTools(OptimizationStore(store_path), artifacts_dir=artifacts)
 
@@ -127,8 +139,20 @@ def _telegram(allow_write: bool = False) -> Any:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not set; telegram connector skipped.")
     chat = os.environ.get("TELEGRAM_CHAT_ID")
     allow: list[int | str] | None = [chat] if chat else None
+    # Confine document uploads to a controlled reports directory so
+    # telegram_send_document can never exfiltrate arbitrary readable host files
+    # (SSH keys, secrets) even when the confirmation gate is disabled. Only
+    # create the directory when send is actually enabled (write mode).
+    attachments = os.environ.get("LAZYTOOLS_ATTACHMENTS_DIR") or os.path.join(_data_home(), "reports")
+    if allow_write:
+        os.makedirs(attachments, exist_ok=True)
     client = TelegramClient.from_token(token)
-    return TelegramTools(client, allowed_chat_ids=allow, require_confirmation=allow is None)
+    return TelegramTools(
+        client,
+        allowed_chat_ids=allow,
+        require_confirmation=allow is None,
+        attachments_dir=attachments,
+    )
 
 
 @_register("gmail")
@@ -148,9 +172,30 @@ def _gmail(allow_write: bool = False) -> Any:
             "Gmail not configured (need LAZYTOOLS_GMAIL_CREDENTIALS and an existing "
             "LAZYTOOLS_GMAIL_TOKEN file); gmail connector skipped."
         )
+    scopes = ["https://www.googleapis.com/auth/gmail.modify"]
+    # Guard against an interactive OAuth flow at server startup: a token file
+    # can exist yet be expired without a usable refresh token, in which case
+    # GmailClient.from_credentials would fall through to run_local_server and
+    # block the stdio server. Pre-validate (and refresh) the cached token here,
+    # non-interactively, and skip the provider if it can't be made valid.
+    try:
+        from google.auth.transport.requests import Request
+        from google.oauth2.credentials import Credentials
+    except ImportError as exc:
+        raise RuntimeError("Gmail extra not installed; gmail connector skipped.") from exc
+    cached = Credentials.from_authorized_user_file(token, scopes)
+    if not cached.valid:
+        if cached.expired and cached.refresh_token:
+            cached.refresh(Request())  # non-interactive
+        else:
+            raise RuntimeError(
+                "Gmail token is invalid and not refreshable without an interactive "
+                "flow; gmail connector skipped."
+            )
     from lazytools.connectors.gmail import GmailClient, GmailTools
 
-    scopes = ["https://www.googleapis.com/auth/gmail.modify"]
+    # Token is now valid (or refreshable), so from_credentials takes its
+    # non-interactive branch and never opens a local server.
     client = GmailClient.from_credentials(credentials_path=creds, token_path=token, scopes=scopes)
     allow_env = os.environ.get("LAZYTOOLS_EMAIL_ALLOWLIST")
     allow = [a.strip() for a in allow_env.split(",") if a.strip()] if allow_env else None
