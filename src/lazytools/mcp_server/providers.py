@@ -35,6 +35,31 @@ def _data_home() -> str:
     """
     return os.environ.get("LAZYTOOLS_DATA_DIR") or os.path.join(os.path.expanduser("~"), ".lazytools")
 
+
+class _LazyOptimizationStore:
+    """Defer ``OptimizationStore`` creation (and its SQLite file) until first
+    use.
+
+    ``OptimizationStore.__init__`` opens/creates its file eagerly, so building
+    it just to list the provider menu would mutate the filesystem even on a
+    read-only server. ``SkfolioOptimizer(store)`` and
+    ``PortfolioOptimizationTools`` only stash the reference at construction, so
+    this proxy lets the optimizer's read tools stay available while no file is
+    touched until a tool that actually reads/writes the store is called.
+    """
+
+    def __init__(self, factory: Callable[[], Any]) -> None:
+        self.__dict__["_factory"] = factory
+        self.__dict__["_real"] = None
+
+    def _resolve(self) -> Any:
+        if self.__dict__["_real"] is None:
+            self.__dict__["_real"] = self.__dict__["_factory"]()
+        return self.__dict__["_real"]
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._resolve(), name)
+
 #: id → factory(allow_write) returning a ToolProvider. Order here is the
 #: order tools are listed to the client. Read-only by default; a factory
 #: only emits write tools when called with ``allow_write=True``.
@@ -99,26 +124,27 @@ def _fin(allow_write: bool = False) -> Any:
     store — never market observations. The mutating tools (run / backtest /
     create_benchmark) are dropped in read-only server mode by the name guard.
     """
-    # Read-only menu listing must not touch the filesystem. The optimizer's
-    # SQLite store creates its file (and WAL sidecars) on construction, and its
-    # only meaningful tools (run / backtest / create_benchmark) are write tools
-    # gated behind --allow-unsafe anyway — so the provider is only constructed
-    # in write mode. In read-only mode it is skipped (no store, no directory).
-    if not allow_write:
-        raise RuntimeError(
-            "fin optimizer is write-only (needs --allow-unsafe); skipped in read-only mode."
-        )
-
     from lazyfin.optimization import OptimizationStore
 
     from lazytools.connectors.fin.tools import PortfolioOptimizationTools
 
+    # The store's file is created lazily (see _LazyOptimizationStore), so the
+    # read tools stay available in read-only mode without any provider
+    # construction touching disk — the file appears only when a store-backed
+    # tool is actually used. Chart artifacts (a write path) are enabled only in
+    # write mode.
     base = _data_home()
-    os.makedirs(base, exist_ok=True)
     store_path = os.environ.get("LAZYTOOLS_OPTIMIZER_STORE") or os.path.join(base, "optimizer_store.db")
-    artifacts = os.environ.get("LAZYTOOLS_OPTIMIZER_ARTIFACTS") or os.path.join(base, "optimizer_artifacts")
-    os.makedirs(artifacts, exist_ok=True)
-    return PortfolioOptimizationTools(OptimizationStore(store_path), artifacts_dir=artifacts)
+
+    def _make_store() -> Any:
+        os.makedirs(os.path.dirname(store_path) or ".", exist_ok=True)
+        return OptimizationStore(store_path)
+
+    artifacts: str | None = None
+    if allow_write:
+        artifacts = os.environ.get("LAZYTOOLS_OPTIMIZER_ARTIFACTS") or os.path.join(base, "optimizer_artifacts")
+        os.makedirs(artifacts, exist_ok=True)
+    return PortfolioOptimizationTools(_LazyOptimizationStore(_make_store), artifacts_dir=artifacts)
 
 
 @_register("telegram")
