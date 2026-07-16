@@ -22,6 +22,7 @@ READ_NAMES = {
     "regime_db_compare_results", "regime_db_get_state_sequence",
 }
 WRITE_NAMES = {
+    "regime_init_db",
     "regime_load_from_datahub", "regime_generate_plots",
     "regime_fit", "regime_fit_categorical",
     "regime_fit_window", "regime_apply_params", "regime_store_delete",
