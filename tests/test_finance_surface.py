@@ -62,6 +62,7 @@ def test_write_finance_surface_is_the_ensure_register_fit_set() -> None:
         "datahub_register_listing",
         "datahub_ensure_price_history",
         "datahub_ensure_financials",
+        "regime_init_db",
         "regime_load_from_datahub", "regime_generate_plots",
         "regime_fit", "regime_fit_categorical", "regime_fit_window",
         "regime_apply_params", "regime_store_delete", "regime_params_save",

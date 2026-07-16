@@ -72,6 +72,11 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "_save",
     "_export_",
     "_fit",
+    "_init_db",
+    "optimizer_run",
+    "optimizer_backtest",
+    "optimizer_create",
+    "_create_draft",
 )
 
 

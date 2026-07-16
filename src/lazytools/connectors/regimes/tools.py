@@ -51,8 +51,38 @@ class RegimeTools:
 
     _is_lazy_tool_provider = True
 
-    def __init__(self, *, allow_write: bool = False) -> None:
+    def __init__(self, *, allow_write: bool = False, db_path: str | None = None) -> None:
         self._allow_write = allow_write
+        self._db_path = db_path
+        # The SQLite depot backs chart storage (regime_generate_plots) and every
+        # regime_db_* tool. In write mode, open a default depot up-front so that
+        # pipeline works out of the box; callers can re-point it via
+        # regime_init_db. Never fatal — if the extra is missing the provider is
+        # skipped later at as_tools() anyway.
+        if allow_write:
+            try:
+                self._db().init_regime_db(self._resolve_db_path())
+            except Exception:  # pragma: no cover - depot is best-effort at construction
+                pass
+
+    def _resolve_db_path(self) -> str:
+        import os
+
+        if self._db_path:
+            return self._db_path
+        env = os.environ.get("LAZYTOOLS_REGIME_DB")
+        if env:
+            return env
+        base = os.environ.get("LAZYTOOLS_DATA_DIR") or os.path.join(os.path.expanduser("~"), ".lazytools")
+        os.makedirs(base, exist_ok=True)
+        return os.path.join(base, "regime_depot.db")
+
+    def _init_db(self, db_path: str = "") -> dict:
+        """Create / open the SQLite depot that backs regime_generate_plots and
+        the regime_db_* tools. Returns the resolved path."""
+        path = db_path or self._resolve_db_path()
+        self._db().init_regime_db(path)
+        return {"status": "ok", "db_path": path}
 
     # ------------------------------------------------------------------ #
     # Lazy access to lazystats.regimes (never imported at module level)
@@ -130,6 +160,10 @@ class RegimeTools:
             (self._get_state_sequence, "regime_db_get_state_sequence"),
         ]
         write = [
+            # -- depot lifecycle: create/open the SQLite depot that backs chart
+            # storage and every regime_db_* tool (write mode auto-opens a default
+            # one at construction; this re-points it).
+            (self._init_db, "regime_init_db"),
             # -- data loading: ONLY the hub-backed loader (audit CA-11). Never
             # lazystats.regimes.tools.load_time_series (arbitrary file_path).
             (r.load_from_datahub, "regime_load_from_datahub"),
@@ -151,6 +185,12 @@ class RegimeTools:
             (db.db_delete_result, "regime_db_delete_result"),
         ]
         descriptions = {
+            "regime_init_db": (
+                "Create or open the SQLite depot that backs regime_generate_plots "
+                "and every regime_db_* tool. Write mode opens a default depot at "
+                "startup; call this only to re-point it. Args: db_path (optional; "
+                "empty uses LAZYTOOLS_REGIME_DB or ~/.lazytools/regime_depot.db)."
+            ),
             "regime_scan_state_counts": (
                 "Scan candidate regime counts (S) and return BIC/AIC/HQIC selection "
                 "scores without fitting a final model — run this before regime_fit "
