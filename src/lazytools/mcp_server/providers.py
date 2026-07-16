@@ -107,10 +107,22 @@ def _regimes(allow_write: bool = False) -> Any:
 
 @_register("web")
 def _web(allow_write: bool = False) -> Any:
-    """LazyCrawler search / crawl / get-page as tools (needs the [web] extra)."""
+    """LazyCrawler search / crawl / get-page as tools (needs the [web] extra).
+
+    Smart-mode (content="smart") extraction runs an LLM via LazyBridge. The
+    provider is inferred from the model string; on this deployment DeepSeek is
+    the configured provider, so the crawler's default OpenAI ``gpt-4o-mini`` is
+    overridden here. Override the model with ``LAZYTOOLS_WEB_MODEL``. The
+    matching provider key (e.g. ``DEEPSEEK_API_KEY``) must be present in the
+    server's environment or every smart-mode page fails with ``llm_error``;
+    the zero-token ``*_ml`` presets need no key.
+    """
+    from lazycrawler import LLMConfig
+
     from lazytools.connectors.web import WebTools
 
-    return WebTools()  # read-only surface only
+    model = os.environ.get("LAZYTOOLS_WEB_MODEL", "deepseek-v4-flash")
+    return WebTools(llm_cfg=LLMConfig(model=model))  # read-only surface only
 
 
 @_register("fin")
