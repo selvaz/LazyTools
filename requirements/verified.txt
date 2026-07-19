@@ -7,5 +7,5 @@ lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.3.3
 lazypulse @ git+https://github.com/selvaz/LazyPulse.git@v0.3.1
 lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@v0.16.0
 market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@594928b8eb9aed52c5226b65d6a910c9dfd7a9f2
-lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@dea66211c9ff617685daa1a69062ab61e395f16e
+lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@cb6e36878372b0dd5c82b26b51fe3acda154e744
 # EXCLUDED lazyray: LazyRay now pins the same market-data-hub revision as the verified combination (re-aligned, ECO-007), so the earlier pin conflict is gone. It stays pending only because the ecosystem-released CI does not yet install and smoke it; move it to [verified.github] once that job exercises it.

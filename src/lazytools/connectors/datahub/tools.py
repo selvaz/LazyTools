@@ -126,8 +126,13 @@ class DataHubTools:
                 name="datahub_search",
                 description=(
                     "Free-text search across all domains (symbol/name/sector/area/indicator) "
-                    "to resolve a natural-language request into concrete keys. Returns JSON. "
-                    "Args: query (str)."
+                    "to resolve a natural-language request into concrete keys. It matches "
+                    "against stored symbol/name/sector fields and can return [] for loose "
+                    "multi-word queries (e.g. 'SPY S&P 500 ETF') even when the instrument "
+                    "exists — for a known ticker/alias use datahub_resolve_instrument, and to "
+                    "browse a universe use the datahub_list_* tools; reach for search only for "
+                    "genuine discovery. Try a single distinctive token if a phrase returns []. "
+                    "Returns JSON. Args: query (str)."
                 ),
             ),
             Tool.wrap(

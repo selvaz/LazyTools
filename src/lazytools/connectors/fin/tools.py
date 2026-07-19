@@ -243,8 +243,13 @@ class PortfolioOptimizationTools:
                 name="portfolio_optimizer_run",
                 description=(
                     "Run a Skfolio portfolio optimization over canonical daily market-data-hub "
-                    "simple returns. frequency selects the fitting-return frequency (D|W|M|Q), "
-                    "not the data source. Never pass "
+                    "simple returns. method MUST be one of exactly these 7 (there is no plain "
+                    "'max_sharpe'/'min_variance' — the mean-based ones carry the '_shrinkage' "
+                    "suffix): min_variance_shrinkage (default), max_sharpe_shrinkage, "
+                    "max_utility_shrinkage, min_cvar, hrp_cvar, risk_budget_cvar, "
+                    "max_return_benchmark_vol; call portfolio_optimizer_list_methods for the "
+                    "authoritative list and each method's supported constraints. frequency selects "
+                    "the fitting-return frequency (D|W|M|Q), not the data source. Never pass "
                     "prices or returns: use comma-separated tickers (SPY,TLT) or canonical IDs "
                     "(ticker:SPY,ticker:TLT), a date range, method and constraints only. Groups map "
                     "canonical IDs to labels, e.g. {'ticker:SPY': ['equity']}."
@@ -268,6 +273,10 @@ class PortfolioOptimizationTools:
                 name="portfolio_optimizer_backtest",
                 description=(
                     "Run a Skfolio walk-forward backtest using daily simple-return OOS valuation. "
+                    "method MUST be one of the same 7 as portfolio_optimizer_run: "
+                    "min_variance_shrinkage (default), max_sharpe_shrinkage, max_utility_shrinkage, "
+                    "min_cvar, hrp_cvar, risk_budget_cvar, max_return_benchmark_vol (no plain "
+                    "'max_sharpe'); see portfolio_optimizer_list_methods. "
                     "frequency selects the fitting-return grid (D|W|M|Q); rebalance_frequency "
                     "selects when weights are renewed (D|W|M|Q). Returns only aggregate metrics "
                     "and provenance, never return observations. Instruments accept SPY,TLT or "
