@@ -42,7 +42,7 @@ ref = "594928b8eb9aed52c5226b65d6a910c9dfd7a9f2"  # pre-tag pin (lazydatacore Ar
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
-ref = "dea66211c9ff617685daa1a69062ab61e395f16e"  # pre-tag pin (RegimeDB.get_plot, #7); finance train replaces with a release tag
+ref = "cb6e36878372b0dd5c82b26b51fe3acda154e744"  # pre-tag pin (comma/semicolon-separated symbols string in load_from_datahub, #9); finance train replaces with a release tag
 extras = ["regimes"]
 
 # Components excluded from the installable combination, with the reason.
