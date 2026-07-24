@@ -60,6 +60,26 @@ class DataHubTools:
     # ToolProvider
     # ------------------------------------------------------------------ #
     def as_tools(self) -> list[Tool]:
+        # market-data-hub is the recommended default source of record for
+        # price/financials data -- when it's missing a name entirely (not
+        # just stale), the ensure_* backfill path is how an agent should
+        # respond, not give up. Only worth saying when those tools are
+        # actually present on this instance (allow_refresh=True); otherwise
+        # it would point at tools that don't exist here.
+        backfill_note = (
+            " If the query isn't found or has no history yet, register it "
+            "with datahub_register_listing (skip if it already resolves via "
+            "datahub_resolve_instrument), call datahub_ensure_price_history, "
+            "then retry this call."
+            if self._allow_refresh
+            else ""
+        )
+        financials_backfill_note = (
+            " If the issuer has no coverage yet, call datahub_ensure_financials "
+            "then retry this call."
+            if self._allow_refresh
+            else ""
+        )
         return [
             Tool.wrap(
                 self._list_datasets,
@@ -162,6 +182,7 @@ class DataHubTools:
                     "last adjusted close, total return, annualized vol, max drawdown). "
                     "Reads only from the hub — no raw OHLCV bars. Returns JSON. Args: "
                     "query (ticker/listing_id); start, end (ISO dates, optional)."
+                    + backfill_note
                 ),
             ),
             Tool.wrap(
@@ -183,6 +204,7 @@ class DataHubTools:
                     "query (CIK/ticker/issuer_id); line (mapped statement line: revenue|"
                     "net_income|assets|liabilities|equity|operating_cash_flow); forms "
                     "(comma-separated filter, e.g. '10-K'); limit (int, default 25)."
+                    + financials_backfill_note
                 ),
             ),
             Tool.wrap(
@@ -195,6 +217,7 @@ class DataHubTools:
                     "date; restatements supersede on read. Returns JSON. Args: query "
                     "(CIK/ticker/issuer_id); statement (income|balance|cash_flow, "
                     "optional); periods (int, max 12, default 8)."
+                    + financials_backfill_note
                 ),
             ),
             Tool.wrap(
