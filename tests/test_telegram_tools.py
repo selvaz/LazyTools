@@ -76,6 +76,36 @@ async def test_require_confirmation_false_allows_reply() -> None:
     assert len(svc.sent) == 1
 
 
+async def test_single_allowed_chat_id_is_optional_and_defaults() -> None:
+    # The single-owner-bot deployment: chat_id can only ever be one value, so
+    # an LLM caller shouldn't have to supply (and potentially get wrong) an
+    # argument with exactly one legal answer.
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, allowed_chat_ids=[42], require_confirmation=False)
+    await tools._send_message(text="hi")  # no chat_id at all
+    assert svc.sent == [{"chat_id": 42, "text": "hi"}]
+
+
+async def test_default_chat_id_is_overridable() -> None:
+    svc = FakeTelegramService()
+    tools = TelegramTools(svc, allowed_chat_ids=[42], require_confirmation=False)
+    with pytest.raises(TelegramSendBlocked, match="allow-list"):
+        await tools._send_message(chat_id=99, text="not the default")
+
+
+async def test_chat_id_required_without_a_single_default() -> None:
+    svc = FakeTelegramService()
+    # No allow-list configured at all -> no single default to fall back to.
+    tools = TelegramTools(svc, require_confirmation=False)
+    with pytest.raises(TelegramSendBlocked, match="chat_id is required"):
+        await tools._send_message(text="hi")
+
+    # Two or more allowed chats -> still ambiguous, still required.
+    tools = TelegramTools(svc, allowed_chat_ids=[42, 43], require_confirmation=False)
+    with pytest.raises(TelegramSendBlocked, match="chat_id is required"):
+        await tools._send_message(text="hi")
+
+
 async def test_scope_bound_grant_not_stolen_by_concurrent_scope() -> None:
     svc = FakeTelegramService()
     tools = TelegramTools(svc)

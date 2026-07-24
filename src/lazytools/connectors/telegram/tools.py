@@ -63,6 +63,18 @@ class TelegramTools:
         # ``allowed_chat_ids=None`` permits any chat. Set it whenever the tool
         # is exposed to an LLM (e.g. to the directory ``save_report`` writes to).
         self._attachments_dir = os.path.realpath(os.fspath(attachments_dir)) if attachments_dir is not None else None
+        # The single-owner-bot deployment (the docstring's "reply freely to a
+        # known chat" case) has exactly one possible destination -- making an
+        # LLM supply a chat_id argument that can only ever be one value is
+        # just a chance for it to get it wrong instead of reusing the one
+        # it's already talking in (observed in practice: a cheaper model
+        # drifted to a different id after enough turns and every send then
+        # failed the allow-list). When allowed_chat_ids has exactly one
+        # entry, chat_id becomes optional on the outbound tools and defaults
+        # to it; multi-chat or unrestricted deployments still require it
+        # explicitly.
+        ids = list(allowed_chat_ids) if allowed_chat_ids is not None else []
+        self._default_chat_id: int | str | None = ids[0] if len(ids) == 1 else None
 
     @property
     def require_confirmation(self) -> bool:
@@ -84,18 +96,36 @@ class TelegramTools:
     # ToolProvider
     # ------------------------------------------------------------------ #
     def as_tools(self) -> list[Tool]:
+        confirm_note = (
+            " Requires a one-shot confirmation (confirm_send/confirm_once) before this "
+            "call succeeds."
+            if self._gate.enabled
+            else ""
+        )
+        if self._default_chat_id is not None:
+            chat_id_note = (
+                f" chat_id is optional here and defaults to the only configured chat "
+                f"({self._default_chat_id!r}) -- omit it rather than guessing or reusing "
+                f"an id seen elsewhere in the conversation."
+            )
+        else:
+            chat_id_note = " Args include chat_id (required — no single default chat is configured)."
         return [
             Tool.wrap(
                 self._send_message,
                 name="telegram_send_message",
-                description="Send a Telegram message. Requires a one-shot confirmation. Args: chat_id, text.",
+                description=(
+                    "Send a Telegram message." + confirm_note + chat_id_note + " Also args: text."
+                ),
             ),
             Tool.wrap(
                 self._send_document,
                 name="telegram_send_document",
                 description=(
-                    "Send a Telegram document/file attachment (e.g. a rendered report). "
-                    "Requires a one-shot confirmation. Args: chat_id, file_path, caption (optional)."
+                    "Send a Telegram document/file attachment (e.g. a rendered report)."
+                    + confirm_note
+                    + chat_id_note
+                    + " Also args: file_path, caption (optional)."
                 ),
             ),
         ]
@@ -103,10 +133,20 @@ class TelegramTools:
     # ------------------------------------------------------------------ #
     # Tool implementation
     # ------------------------------------------------------------------ #
-    async def _send_message(self, chat_id: int | str, text: str) -> str:
+    def _resolve_chat_id(self, chat_id: int | str | None, tool_name: str) -> int | str:
+        if chat_id is not None and chat_id != "":
+            return chat_id
+        if self._default_chat_id is not None:
+            return self._default_chat_id
+        raise TelegramSendBlocked(
+            f"{tool_name} blocked: chat_id is required (no single default chat is configured)"
+        )
+
+    async def _send_message(self, text: str, chat_id: int | str | None = None) -> str:
         # Async so the task-bound grant check can read the worker's task
         # context (lazybridge runs async tools in-context). The blocking Bot
         # API call is offloaded to a thread so it never stalls the tick loop.
+        chat_id = self._resolve_chat_id(chat_id, "telegram_send_message")
         key = str(chat_id)
         if not self._allowlist.permits(chat_id):
             raise TelegramSendBlocked(f"telegram_send_message blocked: chat {key!r} is not in the allow-list")
@@ -120,11 +160,14 @@ class TelegramTools:
             message_ids.append(str(result.get("message_id", "<unknown>")))
         return f"sent: message_id={','.join(message_ids) if message_ids else '<empty>'}"
 
-    async def _send_document(self, chat_id: int | str, file_path: str, caption: str = "") -> str:
+    async def _send_document(
+        self, file_path: str, caption: str = "", chat_id: int | str | None = None
+    ) -> str:
         # Same two guards as _send_message: allow-list then one-shot grant. The
         # file read and the blocking Bot API upload are offloaded to threads so
         # they never stall the tick loop. Path/sandbox/size are validated BEFORE
         # consuming the grant, so a rejected send never burns an approval.
+        chat_id = self._resolve_chat_id(chat_id, "telegram_send_document")
         key = str(chat_id)
         if not self._allowlist.permits(chat_id):
             raise TelegramSendBlocked(f"telegram_send_document blocked: chat {key!r} is not in the allow-list")
