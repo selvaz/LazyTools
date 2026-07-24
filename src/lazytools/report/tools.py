@@ -37,7 +37,19 @@ _MEMO_SHAPE = (
     "Args: memo (object) — {title: str, as_of: ISO datetime (optional), "
     "sections: [{title: str, body: markdown str, tables: "
     "[{columns: [str], rows: [[str]]}], figures: "
-    "[{ref: 'scheme:key' artifact ref, caption: str}]}], metadata: {str: str}}."
+    "[{ref: 'scheme:key' artifact ref, caption: str}]}], metadata: {str: str}}. "
+    "To include an image, put it in a section's figures list as "
+    "{ref: 'file:my_chart.png', caption: '...'} -- 'file:' is the built-in "
+    "scheme for a PNG/JPEG/SVG already saved to disk (e.g. by a chart-export "
+    "tool); the filename is looked up relative to whatever sandbox directory "
+    "this ReportTools instance was configured with, so pass the bare "
+    "filename, never a path like 'reports/my_chart.png'. Do NOT write "
+    '<img src="..."> by hand inside a section\'s body text -- a hand-written '
+    "path only resolves on the machine that wrote it and breaks the moment "
+    "the rendered file is opened anywhere else (e.g. downloaded as a "
+    "standalone attachment); figures in the figures list get embedded as "
+    "base64 straight into the HTML by save_memo_html, so the file is "
+    "self-contained and portable."
 )
 
 
@@ -71,8 +83,7 @@ class ReportTools:
                 self._render_memo,
                 name="render_memo",
                 description=(
-                    "Render a structured memo to GitHub-flavoured Markdown "
-                    "(deterministic, no LLM). " + _MEMO_SHAPE
+                    "Render a structured memo to GitHub-flavoured Markdown (deterministic, no LLM). " + _MEMO_SHAPE
                 ),
             ),
             Tool.wrap(
@@ -88,6 +99,14 @@ class ReportTools:
             ),
         ]
         if self._files is not None:
+            if self._artifacts is not None:
+                schemes_note = f"Figure refs resolvable in this deployment: {', '.join(self._artifacts.schemes())}. "
+            else:
+                schemes_note = (
+                    "NOTE: no artifact resolver is configured here, so any "
+                    "figures list is silently unable to embed images -- omit "
+                    "figures entirely (tables and body text still work fine). "
+                )
             tools += [
                 Tool.wrap(
                     self._save_memo_html,
@@ -97,7 +116,7 @@ class ReportTools:
                         "as base64) AND write it to a file in one step, returning "
                         "the absolute path. Use this for any report with figures: "
                         "the HTML never passes back through you, so embedded "
-                        "images are never truncated. Args: memo (object, same "
+                        "images are never truncated. " + schemes_note + "Args: memo (object, same "
                         "shape as render_memo_html), filename (basename like "
                         "'report.html'). " + _MEMO_SHAPE
                     ),
