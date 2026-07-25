@@ -54,11 +54,14 @@ def _run_claude(
     cwd: str | None,
     session_id: str | None,
     timeout: float,
+    model: str | None = None,
 ) -> str:
     """Run the ``claude`` CLI once and return its result text (or an error
     string starting with ``[claude_code]``). Shared by the read/plan tool and
     the gated writer."""
     cmd = ["claude", "-p", task, "--output-format", "json", *flags]
+    if model:
+        cmd += ["--model", model]
     if session_id:
         cmd += ["--resume", session_id]
 
@@ -96,6 +99,7 @@ def claude_code(
     cwd: str | None = None,
     session_id: str | None = None,
     timeout: float = 300.0,
+    model: str | None = "claude-sonnet-5",
 ) -> dict[str, Any] | str:
     """Delegate a read-only task to Claude Code CLI.
 
@@ -131,6 +135,12 @@ def claude_code(
         Maximum seconds for the subprocess. Set ``tool_timeout=None`` on
         ``LLMEngine`` so the engine never cancels before the subprocess
         finishes (zombie-process hazard when engine fires first).
+    model:
+        ``--model`` passed to the CLI. Defaults to ``"claude-sonnet-5"`` so
+        the delegated session has a pinned, predictable model regardless of
+        the CLI's own interactive default; pass an alias (``"opus"``,
+        ``"sonnet"``) or a full model name, or ``None`` to omit the flag and
+        let the CLI decide.
 
     Notes
     -----
@@ -149,7 +159,9 @@ def claude_code(
             "(lazytools.connectors.code_support.CodeWriteTools)."
         )
 
-    out = _run_claude(task, _TOOL_FLAGS[mode], cwd=cwd, session_id=session_id, timeout=timeout)
+    out = _run_claude(
+        task, _TOOL_FLAGS[mode], cwd=cwd, session_id=session_id, timeout=timeout, model=model
+    )
     if out.startswith("[claude_code]"):
         return out
     return {"result": out, "content_is_untrusted": True}
