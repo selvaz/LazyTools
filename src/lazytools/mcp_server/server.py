@@ -80,6 +80,7 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "tree_estimate",
     "tree_backtest",
     "_create_draft",
+    "-specialist",
 )
 
 

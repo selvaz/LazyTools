@@ -202,6 +202,97 @@ def _fin(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     ]
 
 
+@_register("optimizer_agent")
+def _optimizer_agent(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """LLM specialist agent over the ``fin`` tool surface, exposed as ONE MCP tool.
+
+    Unlike every other provider here, this constructs a ``lazybridge.Agent`` —
+    ``expand_tools`` wraps any ``_is_lazy_agent`` object into a single tool
+    (``portfolio-optimizer-specialist``) taking one ``task: str`` argument;
+    calling it runs the agent's own internal tool loop and returns only its
+    final text. That is a real LLM call (cost, non-determinism, its own
+    multi-step tool sequencing a per-name safety net can't inspect from
+    outside) — qualitatively different from this server's other, deterministic
+    tools. So unlike ``fin`` itself, this provider is **opt-in only**: it
+    raises (skipped by :func:`default_providers`'s existing broad except,
+    same as a missing optional dependency) unless ``allow_write=True``, and
+    again if the configured model's API key isn't set.
+
+    Model: ``LAZYTOOLS_OPTIMIZER_AGENT_MODEL``, default ``deepseek-v4-flash``
+    (needs ``DEEPSEEK_API_KEY`` — same convention as the ``web`` provider).
+    """
+    if not allow_write:
+        raise RuntimeError("optimizer_agent is opt-in only: pass allow_write=True (--allow-unsafe).")
+    model = os.environ.get("LAZYTOOLS_OPTIMIZER_AGENT_MODEL", "deepseek-v4-flash")
+    if model.startswith("deepseek") and not os.environ.get("DEEPSEEK_API_KEY"):
+        raise RuntimeError("optimizer_agent needs DEEPSEEK_API_KEY for its default model; skipped.")
+
+    from lazybridge import LLMEngine
+    from lazyportfolio import MarketDataHubOptimizationBackend
+
+    from lazytools.connectors.datahub import DataHubTools
+    from lazytools.connectors.fin.optimizer_agent import (
+        OPTIMIZER_SPECIALIST_SYSTEM,
+        optimizer_specialist,
+    )
+    from lazytools.connectors.fin.tools import PortfolioOptimizationTools
+    from lazytools.connectors.fin.tree_tools import PortfolioTreeTools
+
+    backend = MarketDataHubOptimizationBackend(db_path=(data_source or {}).get("path"))
+    tools: list[Any] = [
+        DataHubTools(),
+        PortfolioOptimizationTools(backend=backend),
+        PortfolioTreeTools(
+            backend=backend,
+            allow_write=True,
+            store_dir=(data_source or {}).get("tree_store_dir"),
+        ),
+    ]
+    engine = LLMEngine(model, system=OPTIMIZER_SPECIALIST_SYSTEM, max_tool_calls_per_turn=16)
+    return optimizer_specialist(engine, tools=tools)
+
+
+@_register("report_agent")
+def _report_agent(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """LLM specialist agent over the ``report`` tool surface, one MCP tool.
+
+    Same opt-in gating and rationale as ``optimizer_agent``. Deliberately
+    narrow tool list — render/save only (``ReportTools``/``ReportFiles``,
+    same ``ecosystem_resolvers``/shared ``reports/`` directory as the
+    ``report`` provider) — no direct ``datahub_*``/``statistical_*``/
+    ``regime_*`` access; the caller supplies the content to structure.
+
+    Model: ``LAZYTOOLS_REPORT_AGENT_MODEL``, default ``deepseek-v4-flash``
+    (needs ``DEEPSEEK_API_KEY``).
+    """
+    if not allow_write:
+        raise RuntimeError("report_agent is opt-in only: pass allow_write=True (--allow-unsafe).")
+    model = os.environ.get("LAZYTOOLS_REPORT_AGENT_MODEL", "deepseek-v4-flash")
+    if model.startswith("deepseek") and not os.environ.get("DEEPSEEK_API_KEY"):
+        raise RuntimeError("report_agent needs DEEPSEEK_API_KEY for its default model; skipped.")
+
+    from lazybridge import LLMEngine
+
+    from lazytools.report import (
+        REPORT_SPECIALIST_SYSTEM,
+        ReportFiles,
+        ReportTools,
+        ecosystem_resolvers,
+        report_specialist,
+    )
+
+    reports_dir = os.path.join(_data_home(), "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    resolvers = ecosystem_resolvers(
+        regimes_db=_regime_db_path(data_source),
+        datahub_db_path=(data_source or {}).get("path"),
+        file_base_dir=reports_dir,
+    )
+    tools: list[Any] = [ReportTools(artifacts=resolvers, files=ReportFiles(base_dir=reports_dir))]
+    engine = LLMEngine(model, system=REPORT_SPECIALIST_SYSTEM, max_tool_calls_per_turn=16)
+    return report_specialist(engine, tools=tools)
+
+
 @_register("telegram")
 def _telegram(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Telegram send (message + document), bounded to an allow-listed chat.

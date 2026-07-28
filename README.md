@@ -213,6 +213,25 @@ direct-fetch finance connector on the agent surface.
   (LazyStats regime plots), `crawler:` (LazyCrawler artifacts, extra `[web]`).
   PDF rendering is deliberately deferred (heavy dependency).
 
+- **Specialist agents** — two LLM-driven experts wrapping the tool surfaces
+  above, each a plain factory `(engine, *, tools, name=...) -> lazybridge.Agent`
+  (same shape as `connectors/fin/agents.py`'s PM agents):
+  `optimizer_specialist` (`connectors/fin/optimizer_agent.py`) drives
+  `portfolio_optimizer_*`/`portfolio_tree_*` (plus `DataHubTools` for ticker
+  discovery) — picks flat vs. tree, validates before saving, never overrides
+  the tree's own mode derivation. `report_specialist` (`report/agents.py`)
+  drives `ReportTools`/`ReportFiles` **only** — deliberately not wired to any
+  data-gathering tool, so it structures/renders what it's given rather than
+  fetching data itself. Mounted in the MCP server as `optimizer_agent` /
+  `report_agent`: each becomes exactly **one** tool
+  (`portfolio-optimizer-specialist` / `report-specialist`, taking a single
+  `task: string` argument) via `lazybridge.Agent`'s `_is_lazy_agent` → `Tool`
+  mechanism — see [MCP server](#mcp-server). Both are **opt-in only** (need
+  `--allow-unsafe` *and* `DEEPSEEK_API_KEY`, since a real LLM call is a
+  different risk/cost profile than this server's deterministic tools);
+  override the model with `LAZYTOOLS_OPTIMIZER_AGENT_MODEL` /
+  `LAZYTOOLS_REPORT_AGENT_MODEL` (default `deepseek-v4-flash`).
+
 ## Web
 
 - **Web** (`lazytools.connectors.web`, extra `[web]`) — surfaces
