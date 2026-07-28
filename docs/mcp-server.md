@@ -51,6 +51,7 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `statistical` | `StatisticalAnalysisTools()` | volatility, correlation, outliers, regression | `market-data-hub` installed |
 | `regimes` | `RegimeTools()` | `regime_*` read-only inspection | `lazystats[regimes]` |
 | `web` | `WebTools()` | search / crawl / get-page | `[web]` extra |
+| `fin` | `PortfolioOptimizationTools()` + `PortfolioTreeTools()` | `portfolio_optimizer_*` (flat node) + `portfolio_tree_*` (multi-node, interoperable with LazyPortfolio's Tree Studio) | `lazyfin`, `lazyportfolio` |
 
 ## Safety model
 

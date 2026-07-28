@@ -8,6 +8,73 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `portfolio_tree_*` MCP tools (hierarchical tree over MCP, interoperable with Tree Studio)
+- `PortfolioOptimizationTools` (`portfolio_optimizer_*`) only ever wrapped a
+  single flat node — its own docstring said the full node-tree (parent/child
+  hierarchies, per-node proxies) was "only exposed through Tree Studio /
+  `V2Model.from_config` directly, not through this LLM-facing surface." Added
+  a sibling provider, `PortfolioTreeTools` (`lazytools/connectors/fin/tree_tools.py`),
+  closing that gap: `portfolio_tree_validate`/`_list`/`_load` (always on) and,
+  in write mode, `_save`/`_delete`/`_estimate`/`_backtest`.
+- **Real interop with Tree Studio, not an export/import translation.** A tree
+  saved via `portfolio_tree_save` is a LazyPortfolio V2 config JSON file
+  written to the exact directory and through the exact validate-before-write
+  logic Tree Studio's own save endpoint uses (`lazyportfolio.v2.store`, new
+  this release, extracted out of `tree_studio.py` so both processes call
+  identical code) — it appears in Tree Studio's saved-model list immediately,
+  and a tree built/edited in the GUI loads via `portfolio_tree_load`/`_list`.
+  Shared via the `LAZYPORTFOLIO_TREE_MODELS_DIR` env var (both sides must
+  point at the same directory for interop; each `list`/`save` response
+  reports the resolved directory so a mismatch is visible, not silent).
+- `portfolio_tree_estimate`/`_backtest` derive `flat`/`forward`/
+  `forward_backward` from the tree's own `backtest.forward_enabled`/
+  `hierarchy_mode` via `lazyportfolio.v2.mode.mode_from_config` (also new,
+  promoted out of Tree Studio's `_v2_mode` so the two processes can't
+  silently disagree on a saved tree's mode) — never chosen ad hoc. Both
+  accept either an inline `config` or a saved `name`; optional
+  `estimation_frequency`/`train_size`/`rebalance_frequency`/
+  `transaction_cost_bps` override the tree's own values for that call only,
+  without touching the saved file. Neither tool's response ever includes
+  `synthetic_returns` or backtest curves — only weights, aggregate metrics,
+  and provenance, matching this connector's existing no-raw-observations rule.
+- `PortfolioTreeTools` gates its own write tools at construction
+  (`allow_write`), unlike its sibling `PortfolioOptimizationTools` (which
+  relies solely on the server's read-only name guard) — a deliberate,
+  acknowledged inconsistency within the `fin` provider, not an oversight.
+- Fixed a read-only guard gap: `portfolio_tree_estimate`/`_backtest` matched
+  none of the existing `UNSAFE_TOOL_PATTERNS` (`optimizer_run`/
+  `optimizer_backtest` require that literal substring); added `tree_estimate`/
+  `tree_backtest` patterns.
+- Fixed a stale contract test: `test_fin_optimizer_contract` asserted a
+  7-tool set and an `OptimizationStore`-based constructor from
+  `lazyfin.optimization`, both removed by the earlier V1→V2 port — silently
+  asserting nothing every run since `lazyfin.optimization` doesn't exist and
+  `pytest.importorskip` always skipped it. Replaced with
+  `test_fin_provider_contract`, built through `default_providers(["fin"], ...)`
+  against the real, live tool set.
+
+### Added — `report` MCP provider (mount LazyReport on the server)
+- LazyReport (`lazytools.report`) existed as a fully-built, tested module
+  (`Memo`/`Section`/`TableBlock`/`FigureBlock`, `render_markdown`/`render_html`,
+  `ArtifactResolvers`/`ecosystem_resolvers`, `ReportTools`, `ReportFiles`) but
+  was never registered in `PROVIDER_FACTORIES` — it was unreachable over MCP.
+  Added the `report` provider: always emits `render_memo` / `render_memo_html`;
+  in write mode (`--allow-unsafe`) also emits `save_memo_html` /
+  `save_memo_markdown` / `save_report` against a sandboxed `reports/`
+  directory under the data home. Figures resolve from the regime depot
+  (`regimes:`, same path `RegimeTools` writes to), on-demand market-data-hub
+  charts (`chart:`), or a local file (`file:`) — no extra credentials needed,
+  so `report` is always constructed like `datahub`/`statistical`.
+- `default_providers()` now flattens a factory that returns a `list`/`tuple`
+  of providers, not just a single one — `report` needs two
+  (`ReportTools` + `ReportFiles`, the same pairing `lazytools.skills` already
+  wires for agents) so `save_report` is reachable without colliding with
+  `ReportTools`' own `save_memo_*` tool names.
+- Fixed a read-only guard gap: `UNSAFE_TOOL_PATTERNS` matched `_save` (a
+  writer *ending* in `save`, e.g. `regime_params_save`) but not a tool
+  *starting* with `save_` — the shape of the new `save_memo_*` / `save_report`
+  tools. Added a `save_` pattern so these stay off the read-only surface.
+
 ### Added — MCP server (`lazytools.mcp_server`, `lazytools-mcp`)
 - New `lazytools.mcp_server` package and `lazytools-mcp` console script that
   **expose** LazyTools' tool providers over the Model Context Protocol — the

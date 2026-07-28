@@ -30,12 +30,14 @@ from lazytools.connectors.fin.tools import (
     RiskTools,
     ScoringTools,
 )
+from lazytools.connectors.fin.tree_tools import PortfolioTreeTools
 
 __all__ = [
     "PortfolioTools",
     "RiskTools",
     "OptimizerTools",
     "PortfolioOptimizationTools",
+    "PortfolioTreeTools",
     "ScoringTools",
     "pm_supervisor",
     "filing_analyst",

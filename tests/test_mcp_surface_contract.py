@@ -35,6 +35,7 @@ EXPECTED_PROVIDER_IDS = {
     "datahub",
     "statistical",
     "regimes",
+    "report",
     "web",
     "fin",
     "telegram",
@@ -91,17 +92,22 @@ STATISTICAL_TOOLS = {
     "statistical_regression_lasso",
 }
 
-# The optimizer connector emits all seven regardless of mode; the read/write
-# split is applied by the server name guard (see section 3), not the connector.
-FIN_TOOLS = {
-    "portfolio_optimizer_list_methods",
-    "portfolio_optimizer_create_benchmark",
-    "portfolio_optimizer_list_benchmarks",
-    "portfolio_optimizer_run",
-    "portfolio_optimizer_get_run",
-    "portfolio_optimizer_get_backtest",
-    "portfolio_optimizer_backtest",
+# PortfolioOptimizationTools emits all three regardless of mode; the
+# read/write split is applied by the server name guard (see section 3), not
+# the connector. PortfolioTreeTools, its "fin" sibling, gates its own write
+# tools at construction (see test_fin_provider_contract below).
+FIN_READ = {"portfolio_optimizer_list_objectives"}
+FIN_WRITE = {"portfolio_optimizer_run", "portfolio_optimizer_backtest"}
+PORTFOLIO_TREE_READ = {"portfolio_tree_validate", "portfolio_tree_list", "portfolio_tree_load"}
+PORTFOLIO_TREE_WRITE = {
+    "portfolio_tree_save",
+    "portfolio_tree_delete",
+    "portfolio_tree_estimate",
+    "portfolio_tree_backtest",
 }
+
+REPORT_READ = {"render_memo", "render_memo_html"}
+REPORT_WRITE = {"save_memo_html", "save_memo_markdown", "save_report"}
 
 TELEGRAM_TOOLS = {"telegram_send_message", "telegram_send_document"}
 GMAIL_TOOLS = {"gmail_list_emails", "gmail_get_email", "gmail_create_draft", "gmail_send"}
@@ -110,6 +116,13 @@ OUTLOOK_TOOLS = {"outlook_list_emails", "outlook_get_email", "outlook_create_dra
 
 def _names(provider) -> set[str]:
     return {t.name for t in provider.as_tools()}
+
+
+def _names_multi(providers) -> set[str]:
+    out: set[str] = set()
+    for p in providers:
+        out |= _names(p)
+    return out
 
 
 def test_datahub_read_write_contract() -> None:
@@ -126,15 +139,36 @@ def test_statistical_contract() -> None:
     assert _names(StatisticalAnalysisTools()) == STATISTICAL_TOOLS
 
 
-def test_fin_optimizer_contract(tmp_path) -> None:
-    pytest.importorskip("lazyfin.optimization", reason="fin connector needs lazyfin[optimizer]")
-    pytest.importorskip("skfolio")
-    from lazyfin.optimization import OptimizationStore
+def test_fin_provider_contract(monkeypatch) -> None:
+    # "fin"'s factory returns a *list* ([PortfolioOptimizationTools,
+    # PortfolioTreeTools]) — go through default_providers so the
+    # list-flattening it relies on is exercised too, not just the individual
+    # provider classes. PortfolioOptimizationTools doesn't gate at
+    # construction (see the note above FIN_READ/FIN_WRITE), so its write
+    # tools only disappear in read-only mode via the server name guard —
+    # exercised here through expand_tools, not default_providers alone.
+    from lazytools.mcp_server.server import expand_tools
 
-    from lazytools.connectors.fin import PortfolioOptimizationTools
+    pytest.importorskip("lazyfin")
+    pytest.importorskip("lazyportfolio")
+    monkeypatch.delenv("LAZYPORTFOLIO_TREE_MODELS_DIR", raising=False)
 
-    store = OptimizationStore(str(tmp_path / "opt.db"))
-    assert _names(PortfolioOptimizationTools(store)) == FIN_TOOLS
+    ro_providers = default_providers(["fin"], allow_write=False)
+    wr_providers = default_providers(["fin"], allow_write=True)
+    assert set(expand_tools(ro_providers, read_only=True)) == FIN_READ | PORTFOLIO_TREE_READ
+    assert (
+        set(expand_tools(wr_providers, read_only=False))
+        == FIN_READ | FIN_WRITE | PORTFOLIO_TREE_READ | PORTFOLIO_TREE_WRITE
+    )
+
+
+def test_report_contract(tmp_path, monkeypatch) -> None:
+    # report's factory returns a *list* ([ReportTools, ReportFiles]) in write
+    # mode — go through default_providers so the list-flattening it relies on
+    # is exercised too, not just the individual provider classes.
+    monkeypatch.setenv("LAZYTOOLS_DATA_DIR", str(tmp_path))
+    assert _names_multi(default_providers(["report"], allow_write=False)) == REPORT_READ
+    assert _names_multi(default_providers(["report"], allow_write=True)) == REPORT_READ | REPORT_WRITE
 
 
 def test_comms_connectors_contract() -> None:
@@ -196,6 +230,9 @@ _DANGER_SUBSTRINGS = (
     "optimizer_backtest",
     "optimizer_create",
     "generate_plots",
+    "save_",
+    "tree_estimate",
+    "tree_backtest",
 )
 
 
@@ -225,7 +262,23 @@ def test_unsafe_patterns_cover_the_optimizer_and_depot_writers() -> None:
         "portfolio_optimizer_create_benchmark",
         "regime_init_db",
         "telegram_send_message",
+        "save_memo_html",
+        "save_memo_markdown",
+        "save_report",
+        "portfolio_tree_save",
+        "portfolio_tree_delete",
+        "portfolio_tree_estimate",
+        "portfolio_tree_backtest",
     ):
         assert unsafe(mutating), f"{mutating} no longer matches an unsafe pattern"
-    for read in ("portfolio_optimizer_list_methods", "portfolio_optimizer_get_run", "portfolio_optimizer_get_backtest"):
+    for read in (
+        "portfolio_optimizer_list_methods",
+        "portfolio_optimizer_get_run",
+        "portfolio_optimizer_get_backtest",
+        "render_memo",
+        "render_memo_html",
+        "portfolio_tree_validate",
+        "portfolio_tree_list",
+        "portfolio_tree_load",
+    ):
         assert not unsafe(read), f"{read} wrongly matches an unsafe pattern"
