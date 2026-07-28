@@ -11,6 +11,9 @@ without the ``datahub`` extra and is fully testable against a fake backend.
 
 from __future__ import annotations
 
+import os
+import threading
+from contextlib import contextmanager
 from typing import Any, Protocol
 
 
@@ -63,7 +66,7 @@ class MarketDataHubBackend:
     JSON string.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         try:
             from market_data_hub import agent_tools
         except ImportError as exc:  # pragma: no cover - exercised only without the extra
@@ -73,30 +76,51 @@ class MarketDataHubBackend:
                 "'market-data-hub @ git+https://github.com/selvaz/market-data-hub.git'"
             ) from exc
         self._mdh: Any = agent_tools
+        self._db_path = db_path
+        self._lock = threading.RLock()
+
+    @contextmanager
+    def _db_context(self):
+        if not self._db_path:
+            yield
+            return
+        previous = os.environ.get("MARKET_DATA_DB")
+        os.environ["MARKET_DATA_DB"] = self._db_path
+        try:
+            yield
+        finally:
+            if previous is None:
+                os.environ.pop("MARKET_DATA_DB", None)
+            else:
+                os.environ["MARKET_DATA_DB"] = previous
+
+    def _call(self, method: str, *args: Any, **kwargs: Any) -> Any:
+        with self._lock, self._db_context():
+            return getattr(self._mdh, method)(*args, **kwargs)
 
     def list_datasets(self) -> str:
-        return self._mdh.tool_list_datasets()
+        return self._call("tool_list_datasets")
 
     def list_symbols(self, asset_class: str = "", area: str = "", sector: str = "", group: str = "") -> str:
-        return self._mdh.tool_list_symbols(asset_class=asset_class, area=area, sector=sector, group=group)
+        return self._call("tool_list_symbols", asset_class=asset_class, area=area, sector=sector, group=group)
 
     def list_sectors(self, area: str = "") -> str:
-        return self._mdh.tool_list_sectors(area=area)
+        return self._call("tool_list_sectors", area=area)
 
     def list_macro(self, frequency: str = "", category: str = "") -> str:
-        return self._mdh.tool_list_macro(frequency=frequency, category=category)
+        return self._call("tool_list_macro", frequency=frequency, category=category)
 
     def list_indicators(self, pillar: str = "") -> str:
-        return self._mdh.tool_list_indicators(pillar=pillar)
+        return self._call("tool_list_indicators", pillar=pillar)
 
     def list_countries(self, region: str = "", income: str = "") -> str:
-        return self._mdh.tool_list_countries(region=region, income=income)
+        return self._call("tool_list_countries", region=region, income=income)
 
     def describe(self, symbol_or_id: str) -> str:
-        return self._mdh.tool_describe(symbol_or_id)
+        return self._call("tool_describe", symbol_or_id)
 
     def search(self, query: str) -> str:
-        return self._mdh.tool_search(query)
+        return self._call("tool_search", query)
 
     def get_series(
         self,
@@ -108,47 +132,47 @@ class MarketDataHubBackend:
         transform: str = "level",
         frequency: str = "",
     ) -> str:
-        return self._mdh.tool_get_series(
+        return self._call("tool_get_series",
             symbols, start=start, end=end, domain=domain, field=field, transform=transform, frequency=frequency
         )
 
     def get_returns(self, symbols: str, start: str = "", end: str = "", frequency: str = "W") -> str:
-        return self._mdh.tool_get_returns(symbols, start=start, end=end, frequency=frequency)
+        return self._call("tool_get_returns", symbols, start=start, end=end, frequency=frequency)
 
     def get_coverage(self, symbols: str = "") -> str:
-        return self._mdh.tool_get_coverage(symbols)
+        return self._call("tool_get_coverage", symbols)
 
     def resolve_instrument(self, query: str, exchange: str = "", currency: str = "") -> str:
-        return self._mdh.tool_resolve_instrument(query, exchange=exchange, currency=currency)
+        return self._call("tool_resolve_instrument", query, exchange=exchange, currency=currency)
 
     def get_price_summary(self, query: str, start: str = "", end: str = "") -> str:
-        return self._mdh.tool_get_price_summary(query, start=start, end=end)
+        return self._call("tool_get_price_summary", query, start=start, end=end)
 
     def get_financials_coverage(self, query: str = "") -> str:
-        return self._mdh.tool_get_financials_coverage(query)
+        return self._call("tool_get_financials_coverage", query)
 
     def get_financial_facts(self, query: str, line: str = "", forms: str = "", limit: int = 25) -> str:
-        return self._mdh.tool_get_financial_facts(query, line=line, forms=forms, limit=limit)
+        return self._call("tool_get_financial_facts", query, line=line, forms=forms, limit=limit)
 
     def get_statement(self, query: str, statement: str = "", periods: int = 8) -> str:
-        return self._mdh.tool_get_statement(query, statement=statement, periods=periods)
+        return self._call("tool_get_statement", query, statement=statement, periods=periods)
 
     def get_job_status(self, job_id: str) -> str:
-        return self._mdh.tool_get_job_status(job_id)
+        return self._call("tool_get_job_status", job_id)
 
     def get_ingestion_health(self) -> str:
-        return self._mdh.tool_get_ingestion_health()
+        return self._call("tool_get_ingestion_health")
 
     # Write capabilities: the hub gates every write behind allow_write; this
     # backend passes it explicitly because DataHubTools only surfaces these
     # methods when the provider itself was built with the write flag on.
     def register_listing(self, symbol: str, exchange: str, currency: str, kind: str = "EQUITY", name: str = "", provider: str = "yahoo", provider_symbol: str = "") -> str:
-        return self._mdh.tool_register_listing(
+        return self._call("tool_register_listing",
             symbol, exchange, currency, kind=kind, name=name,
             provider=provider, provider_symbol=provider_symbol, allow_write=True)
 
     def ensure_price_history(self, query: str, start: str = "", end: str = "") -> str:
-        return self._mdh.tool_ensure_price_history(query, start=start, end=end, allow_write=True)
+        return self._call("tool_ensure_price_history", query, start=start, end=end, allow_write=True)
 
     def ensure_financials(self, query: str) -> str:
-        return self._mdh.tool_ensure_financials(query, allow_write=True)
+        return self._call("tool_ensure_financials", query, allow_write=True)

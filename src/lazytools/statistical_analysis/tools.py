@@ -77,12 +77,13 @@ class StatisticalAnalysisTools:
 
     _is_lazy_tool_provider = True
 
-    def __init__(self, backend: StatisticalDataBackend | None = None) -> None:
+    def __init__(self, backend: StatisticalDataBackend | None = None, *, db_path: str | None = None) -> None:
         self._backend = backend
+        self._db_path = db_path
 
     def _resolve(self) -> StatisticalDataBackend:
         if self._backend is None:
-            self._backend = MarketDataHubStatisticsBackend()
+            self._backend = MarketDataHubStatisticsBackend(db_path=self._db_path)
         return self._backend
 
     def as_tools(self) -> list[Tool]:
