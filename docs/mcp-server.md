@@ -52,6 +52,17 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `regimes` | `RegimeTools()` | `regime_*` read-only inspection | `lazystats[regimes]` |
 | `web` | `WebTools()` | search / crawl / get-page | `[web]` extra |
 | `fin` | `PortfolioOptimizationTools()` + `PortfolioTreeTools()` | `portfolio_optimizer_*` (flat node) + `portfolio_tree_*` (multi-node, interoperable with LazyPortfolio's Tree Studio) | `lazyfin`, `lazyportfolio` |
+| `optimizer_agent` | `optimizer_specialist(...)` — a `lazybridge.Agent` | one tool, `portfolio-optimizer-specialist(task: str)` | `--allow-unsafe` + `DEEPSEEK_API_KEY` (opt-in only, see below) |
+| `report_agent` | `report_specialist(...)` — a `lazybridge.Agent` | one tool, `report-specialist(task: str)` | `--allow-unsafe` + `DEEPSEEK_API_KEY` (opt-in only, see below) |
+
+`optimizer_agent`/`report_agent` are the two providers that construct a real
+`lazybridge.Agent` instead of a deterministic `ToolProvider` — calling their
+tool runs a live LLM-driven loop (its own internal tool calls) and returns
+only the final text. Unlike everything else on this menu, they are never
+served in the default read-only surface, and won't construct even with
+`--allow-unsafe` unless the configured model's API key is set (default model
+`deepseek-v4-flash`, override with `LAZYTOOLS_OPTIMIZER_AGENT_MODEL` /
+`LAZYTOOLS_REPORT_AGENT_MODEL`).
 
 ## Safety model
 

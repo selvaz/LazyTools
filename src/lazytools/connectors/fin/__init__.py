@@ -23,6 +23,10 @@ from lazytools.connectors.fin.agents import (
     pm_supervisor,
     value_selection,
 )
+from lazytools.connectors.fin.optimizer_agent import (
+    OPTIMIZER_SPECIALIST_SYSTEM,
+    optimizer_specialist,
+)
 from lazytools.connectors.fin.tools import (
     OptimizerTools,
     PortfolioOptimizationTools,
@@ -44,9 +48,11 @@ __all__ = [
     "value_selection",
     "macro_analyst",
     "geo_risk_analyst",
+    "optimizer_specialist",
     "PM_SUPERVISOR_SYSTEM",
     "FILING_ANALYST_SYSTEM",
     "VALUE_SELECTION_SYSTEM",
     "MACRO_ANALYST_SYSTEM",
     "GEO_RISK_SYSTEM",
+    "OPTIMIZER_SPECIALIST_SYSTEM",
 ]

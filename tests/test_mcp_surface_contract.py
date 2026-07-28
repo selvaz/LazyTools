@@ -38,6 +38,8 @@ EXPECTED_PROVIDER_IDS = {
     "report",
     "web",
     "fin",
+    "optimizer_agent",
+    "report_agent",
     "telegram",
     "gmail",
     "outlook",
@@ -171,6 +173,29 @@ def test_report_contract(tmp_path, monkeypatch) -> None:
     assert _names_multi(default_providers(["report"], allow_write=True)) == REPORT_READ | REPORT_WRITE
 
 
+def test_specialist_agents_are_opt_in_only(tmp_path, monkeypatch) -> None:
+    # Unlike every other provider, these construct a real lazybridge.Agent —
+    # they must be entirely absent unless BOTH allow_write=True AND the
+    # configured model's API key are present, never just present-but-limited.
+    pytest.importorskip("lazybridge")
+    pytest.importorskip("lazyfin")
+    pytest.importorskip("lazyportfolio")
+    monkeypatch.setenv("LAZYTOOLS_DATA_DIR", str(tmp_path))
+    ids = ["optimizer_agent", "report_agent"]
+
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    assert default_providers(ids, allow_write=False) == []
+    assert default_providers(ids, allow_write=True) == []  # key still missing
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key-not-a-real-secret")
+    assert default_providers(ids, allow_write=False) == []  # allow_write still required
+
+    providers = default_providers(ids, allow_write=True)
+    names = {getattr(p, "name", None) for p in providers}
+    assert names == {"portfolio-optimizer-specialist", "report-specialist"}
+    assert all(getattr(p, "_is_lazy_agent", False) for p in providers)
+
+
 def test_comms_connectors_contract() -> None:
     from lazytools.connectors.gmail import GmailTools
     from lazytools.connectors.outlook import OutlookTools
@@ -199,7 +224,10 @@ def test_comms_connectors_contract() -> None:
 
 def _clear_comms_env(monkeypatch) -> None:
     # Make the env-gated connectors skip deterministically, independent of the
-    # host machine, so the mounted surface is reproducible.
+    # host machine, so the mounted surface is reproducible. Includes
+    # DEEPSEEK_API_KEY so optimizer_agent/report_agent skip here too — their
+    # own opt-in gating is exercised deterministically (key present AND
+    # absent) by test_specialist_agents_are_opt_in_only instead.
     for var in (
         "TELEGRAM_BOT_TOKEN",
         "TELEGRAM_CHAT_ID",
@@ -207,6 +235,7 @@ def _clear_comms_env(monkeypatch) -> None:
         "LAZYTOOLS_GMAIL_TOKEN",
         "LAZYTOOLS_ENABLE_OUTLOOK",
         "LAZYTOOLS_EMAIL_ALLOWLIST",
+        "DEEPSEEK_API_KEY",
     ):
         monkeypatch.delenv(var, raising=False)
 
@@ -233,6 +262,7 @@ _DANGER_SUBSTRINGS = (
     "save_",
     "tree_estimate",
     "tree_backtest",
+    "-specialist",
 )
 
 
@@ -269,6 +299,8 @@ def test_unsafe_patterns_cover_the_optimizer_and_depot_writers() -> None:
         "portfolio_tree_delete",
         "portfolio_tree_estimate",
         "portfolio_tree_backtest",
+        "portfolio-optimizer-specialist",
+        "report-specialist",
     ):
         assert unsafe(mutating), f"{mutating} no longer matches an unsafe pattern"
     for read in (

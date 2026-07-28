@@ -8,6 +8,33 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — two specialist agents, exposed as single MCP tools
+- `optimizer_agent` (`portfolio-optimizer-specialist`) and `report_agent`
+  (`report-specialist`): LLM-driven experts wrapping the `fin`/`report` tool
+  surfaces, each exposed over MCP as **one tool** taking a single `task:
+  string` argument — `lazybridge.Agent`'s existing `_is_lazy_agent` → `Tool`
+  mechanism (`mcp_server/server.py::expand_tools`) already did this
+  automatically; no server changes needed to wire it up.
+- `optimizer_specialist` (`connectors/fin/optimizer_agent.py`, new — no
+  `lazyfin` dependency, unlike the LazyFin-domain `connectors/fin/agents.py`)
+  drives `DataHubTools` + `portfolio_optimizer_*` + `portfolio_tree_*`: picks
+  flat vs. tree, validates before persisting, never overrides the tree's own
+  mode derivation, only states figures that came from a tool result.
+- `report_specialist` (`report/agents.py`, new) drives `ReportTools`/
+  `ReportFiles` only — deliberately **not** wired to `datahub_*`/
+  `statistical_*`/`regime_*`, so it structures/renders what a caller supplies
+  rather than gathering data itself.
+- **Both are opt-in only**, unlike every other provider here: the factory
+  raises unless `allow_write=True` *and* the configured model's API key is
+  present (`LAZYTOOLS_OPTIMIZER_AGENT_MODEL`/`LAZYTOOLS_REPORT_AGENT_MODEL`,
+  default `deepseek-v4-flash`, needs `DEEPSEEK_API_KEY`) — so the tool is
+  entirely absent from the surface, not present-but-limited, matching the
+  `telegram`/`gmail`/`outlook` precedent. A real LLM call is a different
+  risk profile than this server's other deterministic tools (cost,
+  non-determinism, its own multi-step tool sequencing a per-name guard can't
+  inspect from outside), hence the stricter default. Added a `-specialist`
+  `UNSAFE_TOOL_PATTERNS` entry as a second-layer guard regardless.
+
 ### Added — `portfolio_tree_*` MCP tools (hierarchical tree over MCP, interoperable with Tree Studio)
 - `PortfolioOptimizationTools` (`portfolio_optimizer_*`) only ever wrapped a
   single flat node — its own docstring said the full node-tree (parent/child
