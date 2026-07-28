@@ -36,30 +36,6 @@ def _data_home() -> str:
     return os.environ.get("LAZYTOOLS_DATA_DIR") or os.path.join(os.path.expanduser("~"), ".lazytools")
 
 
-class _LazyOptimizationStore:
-    """Defer ``OptimizationStore`` creation (and its SQLite file) until first
-    use.
-
-    ``OptimizationStore.__init__`` opens/creates its file eagerly, so building
-    it just to list the provider menu would mutate the filesystem even on a
-    read-only server. ``SkfolioOptimizer(store)`` and
-    ``PortfolioOptimizationTools`` only stash the reference at construction, so
-    this proxy lets the optimizer's read tools stay available while no file is
-    touched until a tool that actually reads/writes the store is called.
-    """
-
-    def __init__(self, factory: Callable[[], Any]) -> None:
-        self.__dict__["_factory"] = factory
-        self.__dict__["_real"] = None
-
-    def _resolve(self) -> Any:
-        if self.__dict__["_real"] is None:
-            self.__dict__["_real"] = self.__dict__["_factory"]()
-        return self.__dict__["_real"]
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._resolve(), name)
-
 #: id → factory(allow_write) returning a ToolProvider. Order here is the
 #: order tools are listed to the client. Read-only by default; a factory
 #: only emits write tools when called with ``allow_write=True``.
@@ -75,7 +51,7 @@ def _register(provider_id: str) -> Callable[[Callable[[bool], Any]], Callable[[b
 
 
 @_register("datahub")
-def _datahub(allow_write: bool = False) -> Any:
+def _datahub(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """market-data-hub discovery / resolution / financial facts.
 
     ``allow_write`` enables ``allow_refresh`` (the on-demand ingestion
@@ -83,30 +59,38 @@ def _datahub(allow_write: bool = False) -> Any:
     """
     from lazytools.connectors.datahub import DataHubTools
 
-    return DataHubTools(allow_refresh=allow_write)
+    from lazytools.connectors.datahub.backend import MarketDataHubBackend
+    db_path = (data_source or {}).get("path")
+    if db_path:
+        os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+    backend = MarketDataHubBackend(db_path=db_path) if db_path else None
+    return DataHubTools(backend=backend, allow_refresh=allow_write)
 
 
 @_register("statistical")
-def _statistical(allow_write: bool = False) -> Any:
+def _statistical(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Volatility, correlation, outliers and regression over hub series (read-only)."""
     from lazytools.statistical_analysis import StatisticalAnalysisTools
 
-    return StatisticalAnalysisTools()  # no write surface
+    return StatisticalAnalysisTools(db_path=(data_source or {}).get("path"))  # no write surface
 
 
 @_register("regimes")
-def _regimes(allow_write: bool = False) -> Any:
+def _regimes(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """HMM / Markov-switching regimes (needs lazystats[regimes]).
 
     ``allow_write`` enables the fitting / persistence / deletion tools.
     """
     from lazytools.connectors.regimes import RegimeTools
 
-    return RegimeTools(allow_write=allow_write)
+    return RegimeTools(
+        allow_write=allow_write,
+        market_data_path=(data_source or {}).get("path"),
+    )
 
 
 @_register("web")
-def _web(allow_write: bool = False) -> Any:
+def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """LazyCrawler search / crawl / get-page as tools (needs the [web] extra).
 
     Smart-mode (content="smart") extraction runs an LLM via LazyBridge. The
@@ -117,50 +101,41 @@ def _web(allow_write: bool = False) -> Any:
     server's environment or every smart-mode page fails with ``llm_error``;
     the zero-token ``*_ml`` presets need no key.
     """
-    from lazycrawler import LLMConfig
+    from lazycrawler import CrawlerDB, CrawlerTools, DBConfig, LLMConfig
 
     from lazytools.connectors.web import WebTools
 
     model = os.environ.get("LAZYTOOLS_WEB_MODEL", "deepseek-v4-flash")
-    return WebTools(llm_cfg=LLMConfig(model=model))  # read-only surface only
+    db_path = (data_source or {}).get("path")
+    if db_path:
+        os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+    db = CrawlerDB(DBConfig(db_path=db_path)) if db_path else None
+    provider = CrawlerTools(db=db, llm_cfg=LLMConfig(model=model))
+    return WebTools(provider=provider)
 
 
 @_register("fin")
-def _fin(allow_write: bool = False) -> Any:
-    """LazyFin Skfolio-backed portfolio optimizer + walk-forward backtest.
+def _fin(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """LazyPortfolio hierarchical (V2) optimizer + walk-forward backtest.
 
-    Exposes ``portfolio_optimizer_*`` over market-data-hub returns. Needs
-    ``lazyfin`` with the optimizer extra (skfolio); if that is missing the
-    server skips this provider (its ``as_tools()`` raises and expansion is
-    per-provider). Runs and benchmarks persist to a private SQLite *audit*
-    store — never market observations. The mutating tools (run / backtest /
-    create_benchmark) are dropped in read-only server mode by the name guard.
+    Exposes ``portfolio_optimizer_*`` over market-data-hub returns. Needs the
+    ``lazyportfolio`` package; if that is missing the server skips this
+    provider (its ``as_tools()`` raises and expansion is per-provider). Stateless:
+    no persisted store, unlike the removed Skfolio-direct engine this replaced.
+    The mutating tools (run / backtest) are dropped in read-only server mode by
+    the name guard.
     """
-    from lazyfin.optimization import OptimizationStore
+    from lazyportfolio import MarketDataHubOptimizationBackend
 
     from lazytools.connectors.fin.tools import PortfolioOptimizationTools
 
-    # The store's file is created lazily (see _LazyOptimizationStore), so the
-    # read tools stay available in read-only mode without any provider
-    # construction touching disk — the file appears only when a store-backed
-    # tool is actually used. Chart artifacts (a write path) are enabled only in
-    # write mode.
-    base = _data_home()
-    store_path = os.environ.get("LAZYTOOLS_OPTIMIZER_STORE") or os.path.join(base, "optimizer_store.db")
-
-    def _make_store() -> Any:
-        os.makedirs(os.path.dirname(store_path) or ".", exist_ok=True)
-        return OptimizationStore(store_path)
-
-    artifacts: str | None = None
-    if allow_write:
-        artifacts = os.environ.get("LAZYTOOLS_OPTIMIZER_ARTIFACTS") or os.path.join(base, "optimizer_artifacts")
-        os.makedirs(artifacts, exist_ok=True)
-    return PortfolioOptimizationTools(_LazyOptimizationStore(_make_store), artifacts_dir=artifacts)
+    return PortfolioOptimizationTools(
+        backend=MarketDataHubOptimizationBackend(db_path=(data_source or {}).get("path")),
+    )
 
 
 @_register("telegram")
-def _telegram(allow_write: bool = False) -> Any:
+def _telegram(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Telegram send (message + document), bounded to an allow-listed chat.
 
     Lights up when ``TELEGRAM_BOT_TOKEN`` is set (needs the ``telegram`` extra,
@@ -194,7 +169,7 @@ def _telegram(allow_write: bool = False) -> Any:
 
 
 @_register("gmail")
-def _gmail(allow_write: bool = False) -> Any:
+def _gmail(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Gmail read / draft / send. Opt-in and non-interactive only.
 
     Requires ``LAZYTOOLS_GMAIL_CREDENTIALS`` (OAuth client secret) and an
@@ -241,7 +216,7 @@ def _gmail(allow_write: bool = False) -> Any:
 
 
 @_register("outlook")
-def _outlook(allow_write: bool = False) -> Any:
+def _outlook(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Outlook (local desktop, COM) read / draft / send. Opt-in.
 
     Enable with ``LAZYTOOLS_ENABLE_OUTLOOK=1`` (needs ``pywin32`` and a running,
