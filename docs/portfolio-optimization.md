@@ -1,5 +1,16 @@
 # Portfolio optimization
 
+> **Stale content below (2026-07-28):** `PortfolioOptimizationTools` was ported
+> to LazyPortfolio's hierarchical (V2) engine — `lazyfin.optimization`,
+> `OptimizationStore`, `ModelPortfolio`, `SkfolioOptimizer` and the 7 named
+> methods described below no longer exist. The current tool surface is
+> `portfolio_optimizer_list_objectives` / `_run` / `_backtest` over
+> `lazyportfolio`'s objectives (`min_risk`, `max_return`, `max_ratio`,
+> `max_utility`, `hrp`) with no persisted store. See
+> `src/lazytools/connectors/fin/tools.py`'s `PortfolioOptimizationTools`
+> docstring for the current contract; this page and
+> `portfolio-optimization-methodology.md` need a full rewrite to match.
+
 `PortfolioOptimizationTools` is the LLM-facing, auditable surface over the
 Skfolio-backed LazyFin optimizer. It is for decision support: it returns target
 weights and diagnostics, never submits trades.

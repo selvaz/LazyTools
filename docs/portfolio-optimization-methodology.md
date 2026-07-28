@@ -1,5 +1,11 @@
 # Portfolio optimization methodology
 
+> **Stale content below (2026-07-28):** the optimizer this describes moved to
+> [LazyPortfolio](https://github.com/selvaz/LazyPortfolio); see that repo's
+> `docs/hierarchical-v2.md` for the current methodology (V2 objectives,
+> moment estimation, Black-Litterman views, rf/funding regimes). This page
+> needs a full rewrite.
+
 This note specifies the mathematics and empirical protocol behind the policies
 exposed by `PortfolioOptimizationTools`. It describes the implementation, not a
 recommendation to invest. The optimizer is an auditable decision-support
