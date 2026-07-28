@@ -75,7 +75,7 @@ class PortfolioTreeTools:
         self,
         *,
         allow_write: bool = False,
-        backend: "OptimizationDataBackend | None" = None,
+        backend: OptimizationDataBackend | None = None,
         store_dir: str | None = None,
     ) -> None:
         try:
@@ -113,7 +113,7 @@ class PortfolioTreeTools:
         self._annualization_factor = _annualization_factor
         self._resample_simple_returns = _resample_simple_returns
 
-    def _resolve_backend(self) -> "OptimizationDataBackend":
+    def _resolve_backend(self) -> OptimizationDataBackend:
         if self._backend is None:
             self._backend = self._market_data_backend()
         return self._backend
