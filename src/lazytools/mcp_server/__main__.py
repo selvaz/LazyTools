@@ -64,10 +64,12 @@ def main(argv: list[str] | None = None) -> None:
         instructions=(
             "LazyTools ecosystem tools: market-data-hub discovery/financials (datahub_*), "
             "statistical analysis (statistical_*), regime detection (regime_*), Skfolio "
-            "portfolio optimization/backtest (portfolio_optimizer_*), web search/crawl, and "
-            "guarded messaging (telegram_*/gmail_*/outlook_* when configured). Read-only "
-            "unless started with --allow-unsafe. Messaging/email connectors light up only "
-            "when their credentials/opt-in env vars are set; sends are allow-listed."
+            "portfolio optimization/backtest (portfolio_optimizer_*), deterministic memo/report "
+            "rendering (render_memo*, save_memo_*, save_report — figures embed from regime "
+            "plots, on-demand hub charts, or local files), web search/crawl, and guarded "
+            "messaging (telegram_*/gmail_*/outlook_* when configured). Read-only unless "
+            "started with --allow-unsafe. Messaging/email connectors light up only when their "
+            "credentials/opt-in env vars are set; sends are allow-listed."
         ),
     )
     asyncio.run(serve_stdio(server))

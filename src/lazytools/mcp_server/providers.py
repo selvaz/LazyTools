@@ -89,6 +89,56 @@ def _regimes(allow_write: bool = False, *, data_source: dict[str, Any] | None = 
     )
 
 
+def _regime_db_path(data_source: dict[str, Any] | None) -> str:
+    """Mirror ``RegimeTools._resolve_db_path`` so the report's ``regimes:``
+    figure resolver reads the same depot the ``regimes`` provider writes to,
+    regardless of construction order (both live in the same server process).
+    """
+    explicit = (data_source or {}).get("regime_db_path")
+    if explicit:
+        return explicit
+    env = os.environ.get("LAZYTOOLS_REGIME_DB")
+    if env:
+        return env
+    return os.path.join(_data_home(), "regime_depot.db")
+
+
+@_register("report")
+def _report(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """LazyReport — deterministic memo rendering ("LazyReport").
+
+    Always emits the pure renderers (``render_memo``, ``render_memo_html``);
+    figures resolve from the regime depot (``regimes:``), on-demand
+    market-data-hub charts (``chart:``), or a local file (``file:``).
+    ``allow_write`` additionally sandboxes a ``reports/`` directory under the
+    data home and emits the persisting tools (``save_memo_html``,
+    ``save_memo_markdown`` from ``ReportTools``, ``save_report`` from
+    ``ReportFiles``) so a rendered report can be written to disk and then
+    handed to an outbound tool (e.g. ``telegram_send_document``); dropped in
+    read-only server mode by the name guard, same as the other writers.
+
+    Returns a *list* of two providers in write mode — the same
+    ``[ReportTools(artifacts=..., files=files), files]`` shape
+    ``lazytools.skills`` already uses to wire an agent's report tools, so
+    ``save_report`` (a distinct tool on ``ReportFiles`` itself, not merged
+    into ``ReportTools``) is reachable without a name collision. See
+    :func:`default_providers`, which flattens a list-returning factory.
+    """
+    from lazytools.report import ReportFiles, ReportTools, ecosystem_resolvers
+
+    reports_dir = os.path.join(_data_home(), "reports")
+    resolvers = ecosystem_resolvers(
+        regimes_db=_regime_db_path(data_source),
+        datahub_db_path=(data_source or {}).get("path"),
+        file_base_dir=reports_dir,
+    )
+    if not allow_write:
+        return ReportTools(artifacts=resolvers)
+    os.makedirs(reports_dir, exist_ok=True)
+    files = ReportFiles(base_dir=reports_dir)
+    return [ReportTools(artifacts=resolvers, files=files), files]
+
+
 @_register("web")
 def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """LazyCrawler search / crawl / get-page as tools (needs the [web] extra).
@@ -118,20 +168,38 @@ def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
 def _fin(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """LazyPortfolio hierarchical (V2) optimizer + walk-forward backtest.
 
-    Exposes ``portfolio_optimizer_*`` over market-data-hub returns. Needs the
-    ``lazyportfolio`` package; if that is missing the server skips this
-    provider (its ``as_tools()`` raises and expansion is per-provider). Stateless:
-    no persisted store, unlike the removed Skfolio-direct engine this replaced.
-    The mutating tools (run / backtest) are dropped in read-only server mode by
-    the name guard.
+    Two providers share one data backend:
+
+    * ``PortfolioOptimizationTools`` — ``portfolio_optimizer_*``, a single flat
+      node over market-data-hub returns. Stateless: no persisted store, unlike
+      the removed Skfolio-direct engine this replaced. Emits all its tools
+      regardless of ``allow_write``; the mutating ones (run / backtest) are
+      dropped in read-only server mode by the name guard alone.
+    * ``PortfolioTreeTools`` — ``portfolio_tree_*``, the full node-tree
+      (parent/child hierarchies, per-node proxies, flat/forward/
+      forward_backward modes), persisted through the same shared store Tree
+      Studio (LazyPortfolio's local visual editor) reads and writes — a tree
+      built via one is immediately visible in the other. Gates its own
+      mutating tools (save/delete/estimate/backtest) at construction via
+      ``allow_write``, on top of the name guard.
+
+    Needs the ``lazyportfolio`` package; if that is missing the server skips
+    this provider (each ``as_tools()`` raises and expansion is per-provider).
     """
     from lazyportfolio import MarketDataHubOptimizationBackend
 
     from lazytools.connectors.fin.tools import PortfolioOptimizationTools
+    from lazytools.connectors.fin.tree_tools import PortfolioTreeTools
 
-    return PortfolioOptimizationTools(
-        backend=MarketDataHubOptimizationBackend(db_path=(data_source or {}).get("path")),
-    )
+    backend = MarketDataHubOptimizationBackend(db_path=(data_source or {}).get("path"))
+    return [
+        PortfolioOptimizationTools(backend=backend),
+        PortfolioTreeTools(
+            backend=backend,
+            allow_write=allow_write,
+            store_dir=(data_source or {}).get("tree_store_dir"),
+        ),
+    ]
 
 
 @_register("telegram")
@@ -242,7 +310,10 @@ def default_providers(ids: list[str] | None = None, *, allow_write: bool = False
     write-enabled shapes (the CLI's ``--allow-unsafe`` path). A factory that
     raises at construction time (rare — most only fail later, at
     ``as_tools()``) is skipped so one missing dependency never sinks the
-    server.
+    server. A factory may return a single provider, or a ``list``/``tuple``
+    of several (e.g. ``report``'s ``[ReportTools(...), ReportFiles(...)]`` —
+    the same shape ``lazytools.skills`` uses to wire the same two providers
+    for an agent) — either shape is flattened into the returned list.
     """
     selected = list(PROVIDER_FACTORIES) if ids is None else ids
     unknown = [i for i in selected if i not in PROVIDER_FACTORIES]
@@ -254,11 +325,16 @@ def default_providers(ids: list[str] | None = None, *, allow_write: bool = False
     providers: list[Any] = []
     for provider_id in selected:
         try:
-            providers.append(PROVIDER_FACTORIES[provider_id](allow_write))
+            built = PROVIDER_FACTORIES[provider_id](allow_write)
         except Exception as exc:  # construction failure is non-fatal
             import logging
 
             logging.getLogger("lazytools.mcp_server").warning(
                 "Could not construct provider %r: %s", provider_id, exc
             )
+            continue
+        if isinstance(built, (list, tuple)):
+            providers.extend(built)
+        else:
+            providers.append(built)
     return providers

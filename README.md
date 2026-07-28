@@ -169,12 +169,42 @@ direct-fetch finance connector on the agent surface.
   tools = RegimeTools(allow_write=True)  # + load/fit/persist/delete
   ```
 
+- **Portfolio optimization** (`lazytools.connectors.fin`) — two providers
+  over [LazyPortfolio](https://github.com/selvaz/LazyPortfolio)'s hierarchical
+  (V2) engine, sharing one market-data-hub-backed data source:
+  `PortfolioOptimizationTools` (`portfolio_optimizer_list_objectives` /
+  `_run` / `_backtest`) wraps a single flat node — the simplest path for "just
+  optimize these tickers". `PortfolioTreeTools`
+  (`portfolio_tree_validate` / `_list` / `_load`, plus `_save` / `_delete` /
+  `_estimate` / `_backtest` in write mode) exposes the full multi-node tree
+  (parent/child hierarchies, per-node proxies, `flat`/`forward`/
+  `forward_backward` modes) that the flat surface deliberately can't reach.
+  A tree is the *same* JSON config
+  [Tree Studio](https://github.com/selvaz/LazyPortfolio#readme) (LazyPortfolio's
+  local visual editor) saves and loads — both go through
+  `lazyportfolio.v2.store`, sharing one directory via the
+  `LAZYPORTFOLIO_TREE_MODELS_DIR` env var, so a tree built here shows up in
+  the GUI and vice versa, never a one-off export/import translation. Needs
+  `lazyportfolio` (and, for the whole `fin` connector, `lazyfin` — see
+  `connectors/fin/tools.py`'s module docstring). See
+  [Portfolio optimization](docs/portfolio-optimization.md).
+
+  ```python
+  from lazytools.connectors.fin.tree_tools import PortfolioTreeTools
+
+  tools = PortfolioTreeTools()                  # validate/list/load
+  tools = PortfolioTreeTools(allow_write=True)  # + save/delete/estimate/backtest
+  ```
+
 - **Report** (`lazytools.report` — "LazyReport") — deterministic,
   domain-agnostic memo rendering: `Memo`/`Section`/`TableBlock`/`FigureBlock`
   models plus `render_markdown` / `render_html` (same input → identical
   output, everything HTML-escaped). An LLM writes the prose; the layout is a
-  pure function. `ReportTools` exposes `render_memo` and `render_memo_html`;
-  `ReportFiles` exposes `save_report`.
+  pure function. `ReportTools` exposes `render_memo` and `render_memo_html`
+  always, plus `save_memo_html` / `save_memo_markdown` (render-and-write in
+  one step) once constructed with `files=ReportFiles(...)`; `ReportFiles`
+  itself exposes `save_report` (write already-rendered text). Mounted in
+  the MCP server as the `report` provider — see [MCP server](#mcp-server).
   **Figures**: a `FigureBlock` names an image by canonical `scheme:key`
   artifact ref; `render_html` embeds it as a base64 data URI, producing one
   self-contained HTML file. `ArtifactResolvers` / `ecosystem_resolvers()`
@@ -204,8 +234,10 @@ direct-fetch finance connector on the agent surface.
 The mirror of the MCP connector: where `lazytools.connectors.mcp` turns an
 **external** MCP server into tools, `lazytools.mcp_server` **exposes
 LazyTools' own providers over MCP** so any MCP host (Claude Desktop, Claude
-Code, Codex) can call `datahub_*`, `statistical_*`, `regime_*` and web
-search/crawl as native tools. The bridge is thin — each `lazybridge.Tool`
+Code, Codex) can call `datahub_*`, `statistical_*`, `regime_*`, the
+LazyReport memo renderers (`render_memo*`, and — in write mode —
+`save_memo_*` / `save_report`), and web search/crawl as native tools. The
+bridge is thin — each `lazybridge.Tool`
 already carries the JSON Schema (`tool.definition()`) and an async dispatch
 (`tool.run()`) MCP needs. Needs the `[mcp]` extra.
 
@@ -224,8 +256,10 @@ secondary name guard drops anything matching `*_send` / `*_write` /
 `*_delete` / … There is no interactive confirmation over MCP, so mutating
 tools stay off the default surface — opt in with `--allow-unsafe` only after
 wiring your own gating. Providers whose extra is missing are skipped, so a
-bare `[mcp]` install serves `datahub` + `statistical`; add
-`lazystats[regimes]` / `[web]` to light up the rest.
+bare `[mcp]` install serves `datahub` + `statistical` + `report` (its
+`chart:`/`regimes:` figure schemes degrade gracefully — they only need
+matplotlib / `lazystats[regimes]` at the moment a figure of that scheme is
+actually resolved); add `lazystats[regimes]` / `[web]` to light up the rest.
 
 ```python
 from lazytools.mcp_server import build_server, serve_stdio, default_providers
