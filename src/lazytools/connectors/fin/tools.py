@@ -450,8 +450,6 @@ class ScoringTools:
         self._now = now
 
     def _score_security(self, security_id: str) -> SecurityScore:
-        from datetime import UTC, datetime
-
         facts = self._get_facts(security_id)
         market_cap = self._get_market_cap(security_id) if self._get_market_cap else None
         as_of = self._now() if self._now else datetime.now(tz=UTC)
