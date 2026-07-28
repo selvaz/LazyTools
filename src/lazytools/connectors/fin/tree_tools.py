@@ -314,7 +314,8 @@ class PortfolioTreeTools:
                 ]
             )
         )
-        data = merged.get("data") if isinstance(merged.get("data"), dict) else {}
+        data_raw = merged.get("data")
+        data = data_raw if isinstance(data_raw, dict) else {}
         dataset = self._resolve_backend().load_returns(
             instruments, start=str(data.get("start") or ""), end=str(data.get("end") or "")
         )
@@ -374,7 +375,8 @@ class PortfolioTreeTools:
                 ]
             )
         )
-        data = merged.get("data") if isinstance(merged.get("data"), dict) else {}
+        data_raw = merged.get("data")
+        data = data_raw if isinstance(data_raw, dict) else {}
         dataset = self._resolve_backend().load_returns(
             instruments, start=str(data.get("start") or ""), end=str(data.get("end") or "")
         )
