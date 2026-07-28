@@ -12,6 +12,11 @@ from __future__ import annotations
 import pytest
 
 pytest.importorskip("lazybridge")
+# connectors/fin/__init__.py unconditionally imports .agents, which requires
+# lazyfin -- so importing optimizer_agent (even though the module itself has
+# no lazyfin dependency) still needs it available, same as
+# test_fin_tree_tools.py/test_portfolio_optimization_tools.py.
+pytest.importorskip("lazyfin", reason="connectors.fin requires lazyfin")
 
 from lazybridge import LLMEngine
 

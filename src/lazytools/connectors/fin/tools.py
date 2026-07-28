@@ -1,9 +1,23 @@
-"""LazyBridge tool providers over LazyFin's pure kernel (moved from lazyfin).
+"""LazyBridge tool providers for the finance domain — two different sources.
 
-Each provider wraps deterministic LazyFin functions with ``Tool.wrap`` so an
+``PortfolioTools``, ``RiskTools``, ``OptimizerTools`` and ``ScoringTools`` wrap
+deterministic LazyFin functions with ``Tool.wrap`` so an
 ``Agent(tools=[PortfolioTools(ledger)])`` can call them. The computation stays
 in lazyfin; only the LLM-facing wrapping lives here (plan v3.1, Fase 5 — the
 same classes in ``lazyfin.kernel``/``lazyfin.scoring`` are deprecated shims).
+``OptimizerTools`` in particular wraps ``lazyfin.kernel.optimize_target_weights``
+— a simple score-ranked greedy weight solver, the one LazyFin optimizer that
+was *not* part of the hierarchical-engine extraction below (see LazyFin's own
+README: "unrelated and unaffected").
+
+``PortfolioOptimizationTools`` (this file) and ``PortfolioTreeTools``
+(``tree_tools.py``) are the odd ones out: they wrap LazyPortfolio's
+hierarchical (V2) engine — a separate package with **no** LazyFin dependency
+of its own — lazily imported inside each class's own ``__init__``, never at
+this module's top level. Do not confuse the two "optimizer" surfaces: if
+you're looking for the hierarchical/tree engine, it is in ``lazyportfolio``,
+never in ``lazyfin.kernel`` or ``lazyfin.optimization`` (the latter no longer
+exists — see ``docs/portfolio-optimization.md``'s stale-content banner).
 
 ``ResolveTools`` was REMOVED (audit CA-03, no compatibility window needed):
 it fetched raw EDGAR company facts directly through its injected client,

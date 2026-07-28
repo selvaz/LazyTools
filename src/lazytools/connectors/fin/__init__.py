@@ -1,14 +1,26 @@
-"""LazyFin agentic surface — tool providers + agent factories (plan v3.1 Fase 5).
+"""Finance-domain agentic surface — tool providers + agent factories.
 
-LazyFin is a pure Python library (kernel, model, scoring, resolve, workflows);
-everything that touches lazybridge — ``Tool`` wrapping and ``Agent`` factories
-— lives HERE, in the single LLM bridge. The providers wrap LazyFin's pure
-functions; the factories wire them to an engine.
+Two distinct sources live in this package, both wired to lazybridge here:
 
-Requires ``lazyfin`` (private git package, not a declared extra by design —
-same dependency-confusion rationale as market-data-hub):
+* **LazyFin** (``PortfolioTools``, ``RiskTools``, ``OptimizerTools``,
+  ``ScoringTools``, and every agent factory in ``agents.py`` — the PM
+  supervisor, filing analyst, macro/geo-risk/value-selection analysts): a
+  pure Python library (kernel, model, scoring, resolve, workflows). Needs
+  ``lazyfin`` (private git package, not a declared extra by design — same
+  dependency-confusion rationale as market-data-hub):
+  ``pip install "lazyfin @ git+https://github.com/selvaz/LazyFin.git"``.
+* **LazyPortfolio** (``PortfolioOptimizationTools``, ``tree_tools.py``'s
+  ``PortfolioTreeTools``, ``optimizer_agent.py``'s ``optimizer_specialist``):
+  the hierarchical (V2) optimization engine, a *separate* package with no
+  LazyFin dependency of its own — see each module's own docstring. If
+  you're looking for the hierarchical/tree optimizer specifically, it lives
+  in ``lazyportfolio``, not ``lazyfin``.
 
-    pip install "lazyfin @ git+https://github.com/selvaz/LazyFin.git"
+This package's own ``__init__.py`` unconditionally imports ``agents.py``, so
+importing anything from ``lazytools.connectors.fin`` — even a
+LazyPortfolio-only name — currently requires ``lazyfin`` to be installed too
+(a pre-existing coupling, not fixed by this note; guard tests with
+``pytest.importorskip("lazyfin")`` before importing from this package).
 """
 
 from lazytools.connectors.fin.agents import (
