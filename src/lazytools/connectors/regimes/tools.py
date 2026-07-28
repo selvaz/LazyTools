@@ -51,9 +51,16 @@ class RegimeTools:
 
     _is_lazy_tool_provider = True
 
-    def __init__(self, *, allow_write: bool = False, db_path: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        allow_write: bool = False,
+        db_path: str | None = None,
+        market_data_path: str | None = None,
+    ) -> None:
         self._allow_write = allow_write
         self._db_path = db_path
+        self._market_data_path = market_data_path
         # The SQLite depot backs chart storage (regime_generate_plots) and every
         # regime_db_* tool. In write mode, open a default depot up-front so that
         # pipeline works out of the box; callers can re-point it via
@@ -83,6 +90,28 @@ class RegimeTools:
         path = db_path or self._resolve_db_path()
         self._db().init_regime_db(path)
         return {"status": "ok", "db_path": path}
+
+    def _load_from_datahub(
+        self,
+        symbols: str | list[str],
+        start: str | None = None,
+        end: str | None = None,
+        frequency: str = "W",
+        field: str = "adj_close",
+        fillna: str = "none",
+        data_key: str = "datahub",
+    ) -> dict:
+        """Load through the configured Market Data Hub connection."""
+        return self._regimes().load_from_datahub(
+            symbols,
+            start=start,
+            end=end,
+            frequency=frequency,
+            field=field,
+            fillna=fillna,
+            data_key=data_key,
+            db_path=self._market_data_path,
+        )
 
     # ------------------------------------------------------------------ #
     # Lazy access to lazystats.regimes (never imported at module level)
@@ -166,7 +195,7 @@ class RegimeTools:
             (self._init_db, "regime_init_db"),
             # -- data loading: ONLY the hub-backed loader (audit CA-11). Never
             # lazystats.regimes.tools.load_time_series (arbitrary file_path).
-            (r.load_from_datahub, "regime_load_from_datahub"),
+            (self._load_from_datahub, "regime_load_from_datahub"),
             # -- chart generation into the depot (writes PNG blobs there;
             # export to disk stays behind regime_db_export_plot)
             (r.generate_regime_plots, "regime_generate_plots"),

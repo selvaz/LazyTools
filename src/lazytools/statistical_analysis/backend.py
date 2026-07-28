@@ -55,6 +55,9 @@ class MarketDataHubStatisticsBackend:
     would make volatility, correlation and z-scores mathematically incorrect.
     """
 
+    def __init__(self, db_path: str | None = None) -> None:
+        self._db_path = db_path
+
     def load_returns(
         self,
         instruments: str,
@@ -95,6 +98,7 @@ class MarketDataHubStatisticsBackend:
             start=start or None,
             end=end or None,
             frequency=frequency,
+            db_path=self._db_path,
         )
         labels = [str(item) for item in parsed]
         symbol_to_label = dict(zip(symbols, labels, strict=True))
@@ -173,6 +177,7 @@ class MarketDataHubStatisticsBackend:
             frame, _ = extract.extract_returns(
                 [item.instrument.key for item in return_tickers],
                 frequency=frequency,
+                db_path=self._db_path,
                 **window,
             )
             for item in return_tickers:
@@ -188,6 +193,7 @@ class MarketDataHubStatisticsBackend:
                 domain="prices",
                 transform=transform,
                 frequency=frequency,
+                db_path=self._db_path,
                 **window,
             )
             for item in group:
@@ -201,6 +207,7 @@ class MarketDataHubStatisticsBackend:
                 domain="macro",
                 transform=transform,
                 frequency=frequency,
+                db_path=self._db_path,
                 **window,
             )
             for item in group:
@@ -212,7 +219,7 @@ class MarketDataHubStatisticsBackend:
             group = [item for item in factors if item.instrument.key.startswith(f"{factor_set}/")]
             names = [item.instrument.key.split("/", 1)[1] for item in group]
             frame = reader.read_factors(
-                factors=names, factor_set=factor_set, wide=True, **window
+                factors=names, factor_set=factor_set, wide=True, db_path=self._db_path, **window
             )
             frame = _compound_factor_returns(frame, frequency, pd)
             for item, name in zip(group, names, strict=True):
