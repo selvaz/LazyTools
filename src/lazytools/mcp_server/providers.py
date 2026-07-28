@@ -58,8 +58,8 @@ def _datahub(allow_write: bool = False, *, data_source: dict[str, Any] | None = 
     writers ``datahub_ensure_*`` and ``datahub_register_listing``).
     """
     from lazytools.connectors.datahub import DataHubTools
-
     from lazytools.connectors.datahub.backend import MarketDataHubBackend
+
     db_path = (data_source or {}).get("path")
     if db_path:
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
