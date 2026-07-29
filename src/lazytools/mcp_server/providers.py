@@ -100,10 +100,22 @@ def _regime_db_path(data_source: dict[str, Any] | None) -> str:
     the exact bug that made a freshly-generated regime plot resolve as "not
     found" elsewhere in this codebase. Delegates to lazystats' canonical
     resolver so there is exactly one such chain in the whole ecosystem.
-    """
-    from lazystats.regimes import resolve_depot_path
 
+    ``report`` must keep working even when lazystats isn't installed (it only
+    needs a path string for figure resolution, not the regimes package itself)
+    -- falls back to the same env/default chain lazystats' resolver uses when
+    the import is unavailable.
+    """
     explicit = (data_source or {}).get("regime_db_path")
+    try:
+        from lazystats.regimes import resolve_depot_path
+    except ImportError:
+        if explicit:
+            return explicit
+        env = os.environ.get("LAZYTOOLS_REGIME_DB")
+        if env:
+            return env
+        return os.path.join(_data_home(), "regime_depot.db")
     return resolve_depot_path(explicit)
 
 
