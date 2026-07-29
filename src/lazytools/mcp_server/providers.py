@@ -168,7 +168,6 @@ def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     the zero-token ``*_ml`` presets need no key.
     """
     from lazycrawler import CrawlerDB, CrawlerTools, DBConfig, LLMConfig
-    from lazycrawler.config import resolve_news_db_path
 
     from lazytools.connectors.web import WebTools
 
@@ -182,8 +181,16 @@ def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     # (LAZYCRAWLER_NEWS_DB env, the same one its setup_first_run.ps1 persists)
     # -- not a second, independent env-var chain. CrawlerTools itself now
     # warns (never silently) if this still resolves to nothing and it falls
-    # back to ":memory:".
-    db_path = (data_source or {}).get("news_db_path") or resolve_news_db_path()
+    # back to ":memory:". resolve_news_db_path() only exists from LazyCrawler
+    # v0.17.0 (#41); the pinned [web] extra is still v0.16.0 pending its own
+    # dedicated compatibility.toml promotion PR, so fall back to the same
+    # env var directly until that pin moves.
+    try:
+        from lazycrawler.config import resolve_news_db_path
+    except ImportError:
+        db_path = (data_source or {}).get("news_db_path") or os.environ.get("LAZYCRAWLER_NEWS_DB")
+    else:
+        db_path = (data_source or {}).get("news_db_path") or resolve_news_db_path()
     if db_path:
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
     db = CrawlerDB(DBConfig(db_path=db_path)) if db_path else None
