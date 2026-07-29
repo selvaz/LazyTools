@@ -27,12 +27,16 @@ class _NullStatsBackend:
         raise NotImplementedError
 
 
-def _mounted_names(*, write: bool = False) -> set[str]:
+def _mounted_names(*, write: bool = False, regime_db_path: str) -> set[str]:
     pytest.importorskip("lazystats.regimes")
     providers = [
         DataHubTools(FakeDataHubBackend(), allow_refresh=write),
         StatisticalAnalysisTools(_NullStatsBackend()),
-        RegimeTools(allow_write=write),
+        # db_path=regime_db_path: RegimeTools(allow_write=True) re-inits the
+        # process-wide regime depot at construction time -- without an
+        # explicit path here every run of this test used to repoint it at
+        # the shared default depot (~/.lazytools/regime_depot.db).
+        RegimeTools(allow_write=write, db_path=regime_db_path),
     ]
     names: list[str] = []
     for p in providers:
@@ -41,8 +45,8 @@ def _mounted_names(*, write: bool = False) -> set[str]:
     return set(names)
 
 
-def test_default_finance_surface_has_no_raw_no_direct_no_file_tools() -> None:
-    names = _mounted_names(write=False)
+def test_default_finance_surface_has_no_raw_no_direct_no_file_tools(tmp_path) -> None:
+    names = _mounted_names(write=False, regime_db_path=str(tmp_path / "t.db"))
     # CA-02: no raw matrices by default
     assert "datahub_get_series" not in names
     assert "datahub_get_returns" not in names
@@ -56,8 +60,10 @@ def test_default_finance_surface_has_no_raw_no_direct_no_file_tools() -> None:
                                  "regime_fit", "regime_load")) for n in names)
 
 
-def test_write_finance_surface_is_the_ensure_register_fit_set() -> None:
-    write_only = _mounted_names(write=True) - _mounted_names(write=False)
+def test_write_finance_surface_is_the_ensure_register_fit_set(tmp_path) -> None:
+    write_only = _mounted_names(write=True, regime_db_path=str(tmp_path / "w.db")) - _mounted_names(
+        write=False, regime_db_path=str(tmp_path / "r.db")
+    )
     assert write_only == {
         "datahub_register_listing",
         "datahub_ensure_price_history",
@@ -71,12 +77,12 @@ def test_write_finance_surface_is_the_ensure_register_fit_set() -> None:
     }
 
 
-def test_mounted_read_names_match_hub_read_bundle() -> None:
+def test_mounted_read_names_match_hub_read_bundle(tmp_path) -> None:
     """The datahub_* read names must map 1:1 onto the hub's TOOL_FUNCTIONS —
     the cross-repo drift guard on the actual mounted surface."""
     mdh = pytest.importorskip("market_data_hub.agent_tools")
     hub_read = {f.__name__.replace("tool_", "datahub_")
                 for f in mdh.TOOL_FUNCTIONS}
-    mounted = {n for n in _mounted_names(write=False)
+    mounted = {n for n in _mounted_names(write=False, regime_db_path=str(tmp_path / "t.db"))
                if n.startswith("datahub_")}
     assert mounted == hub_read

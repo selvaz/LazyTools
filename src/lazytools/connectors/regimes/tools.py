@@ -73,16 +73,14 @@ class RegimeTools:
                 pass
 
     def _resolve_db_path(self) -> str:
-        import os
+        # Delegates to lazystats' own resolver instead of reimplementing the
+        # same chain here -- two independent copies of "explicit -> env ->
+        # default" is exactly how a caller's explicit init_regime_db() used to
+        # get silently overridden by a different caller's default elsewhere in
+        # the same process (found while wiring Black-Litterman views).
+        from lazystats.regimes import resolve_depot_path
 
-        if self._db_path:
-            return self._db_path
-        env = os.environ.get("LAZYTOOLS_REGIME_DB")
-        if env:
-            return env
-        base = os.environ.get("LAZYTOOLS_DATA_DIR") or os.path.join(os.path.expanduser("~"), ".lazytools")
-        os.makedirs(base, exist_ok=True)
-        return os.path.join(base, "regime_depot.db")
+        return resolve_depot_path(self._db_path)
 
     def _init_db(self, db_path: str = "") -> dict:
         """Create / open the SQLite depot that backs regime_generate_plots and

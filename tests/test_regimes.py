@@ -40,26 +40,26 @@ def test_read_tools_exposed_by_default() -> None:
     assert names == READ_NAMES
 
 
-def test_write_tools_gated_by_allow_write() -> None:
-    names = {t.name for t in RegimeTools(allow_write=True).as_tools()}
+def test_write_tools_gated_by_allow_write(tmp_path) -> None:
+    names = {t.name for t in RegimeTools(allow_write=True, db_path=str(tmp_path / "t.db")).as_tools()}
     assert names == READ_NAMES | WRITE_NAMES
 
 
-def test_data_loading_is_hub_only_never_file_based() -> None:
+def test_data_loading_is_hub_only_never_file_based(tmp_path) -> None:
     """Audit CA-11: an agent must never choose a filesystem path to load data
     from. The connector wraps ONLY the hub-backed loader; the file loader
     (lazystats.regimes.tools.load_time_series) is not reachable at all, gated
     or not."""
-    all_names = {t.name for t in RegimeTools(allow_write=True).as_tools()}
+    all_names = {t.name for t in RegimeTools(allow_write=True, db_path=str(tmp_path / "t.db")).as_tools()}
     assert "regime_load_from_datahub" in all_names
     assert "regime_load_time_series" not in all_names
     assert not any("load_time_series" in n for n in all_names)
 
 
-def test_load_from_datahub_tool_has_no_file_path_parameter() -> None:
+def test_load_from_datahub_tool_has_no_file_path_parameter(tmp_path) -> None:
     import inspect
 
-    tools = {t.name: t for t in RegimeTools(allow_write=True).as_tools()}
+    tools = {t.name: t for t in RegimeTools(allow_write=True, db_path=str(tmp_path / "t.db")).as_tools()}
     sig = inspect.signature(tools["regime_load_from_datahub"].func)
     assert "file_path" not in sig.parameters
     assert set(sig.parameters) >= {"symbols", "data_key"}
@@ -75,7 +75,7 @@ def _synthetic_two_state_series(n: int = 240, seed: int = 0) -> list[float]:
     return [float(v) for v in x]
 
 
-def test_load_from_datahub_tool_round_trips_through_the_hub_stub(monkeypatch) -> None:
+def test_load_from_datahub_tool_round_trips_through_the_hub_stub(monkeypatch, tmp_path) -> None:
     """End-to-end: symbols/dates in, bounded summary out (data_key, n_rows,
     ...) — never a raw series through the tool result."""
     import lazystats.regimes.datasources.datahub as _datahub_loader
@@ -88,7 +88,7 @@ def test_load_from_datahub_tool_round_trips_through_the_hub_stub(monkeypatch) ->
 
     monkeypatch.setattr(_datahub_loader, "extract_returns", fake_extract_returns)
 
-    tools = {t.name: t for t in RegimeTools(allow_write=True).as_tools()}
+    tools = {t.name: t for t in RegimeTools(allow_write=True, db_path=str(tmp_path / "t.db")).as_tools()}
     out = tools["regime_load_from_datahub"].run_sync(
         symbols=["SPY"], data_key="test_hub_load")
     assert out["data_key"] == "test_hub_load"
@@ -97,11 +97,17 @@ def test_load_from_datahub_tool_round_trips_through_the_hub_stub(monkeypatch) ->
     assert "Y" not in out and "values" not in out  # bounded summary only
 
 
-def test_fit_and_query_round_trip_through_wrapped_tools() -> None:
+def test_fit_and_query_round_trip_through_wrapped_tools(tmp_path) -> None:
     """End-to-end: Tool.wrap's native Annotated-signature support is enough
     to make lazystats.regimes functions callable with no lazytools-side
-    reimplementation of their schemas."""
-    tools = {t.name: t for t in RegimeTools(allow_write=True).as_tools()}
+    reimplementation of their schemas.
+
+    db_path is a tmp_path depot, not the shared default -- RegimeTools
+    (allow_write=True) re-inits the process-wide regime depot at construction
+    time, so leaving this unset here used to fit_regimes() a real model
+    straight into ~/.lazytools/regime_depot.db (the same depot production
+    processes read from) every time this test ran."""
+    tools = {t.name: t for t in RegimeTools(allow_write=True, db_path=str(tmp_path / "t.db")).as_tools()}
 
     # documented LLM workflow: fit with a result_key, then query by that key
     # (the compact fit_result returned inline strips per-timestep arrays;
@@ -143,7 +149,7 @@ def test_state_sequence_and_changes_are_hard_capped(tmp_path) -> None:
         data = [float(1.0 if i % 2 == 0 else -1.0) * (5.0 if i % 20 < 10 else 0.5)
                 for i in range(n)]
 
-        tools = {t.name: t for t in RegimeTools(allow_write=True).as_tools()}
+        tools = {t.name: t for t in RegimeTools(allow_write=True, db_path=str(tmp_path / "test_capped.db")).as_tools()}
         fit_result = tools["regime_fit"].run_sync(
             data=data, series_names=["X"], result_key="test_capped",
             S_max=2, n_starts=1, random_state=0,
@@ -184,13 +190,13 @@ def test_missing_lazystats_regimes_raises_clear_import_error(monkeypatch) -> Non
         RegimeTools().as_tools()
 
 
-def test_every_tool_has_an_explicit_schema_description() -> None:
+def test_every_tool_has_an_explicit_schema_description(tmp_path) -> None:
     """Every one of the 28 tools must carry a real, explicit description in
     its compiled schema — not a fallback derived from the wrapped lazystats
     function's docstring. Uniform with every other connector in this package
     (statistical_analysis, datahub, gmail, ...), which all pass description=
     explicitly rather than relying on docstring auto-derivation."""
-    tools = {t.name: t for t in RegimeTools(allow_write=True).as_tools()}
+    tools = {t.name: t for t in RegimeTools(allow_write=True, db_path=str(tmp_path / "t.db")).as_tools()}
     assert set(tools) == READ_NAMES | WRITE_NAMES
     for name, tool in tools.items():
         description = tool.definition().description
