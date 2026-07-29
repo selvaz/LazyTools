@@ -3,12 +3,20 @@
 Serves the read-only LazyTools providers over stdio. Positional args (or the
 ``LAZYTOOLS_MCP_PROVIDERS`` env var, comma-separated) select a subset of
 provider ids; with none given, all read-only providers are served.
+
+``--config <path.json>`` (or ``LAZYTOOLS_MCP_CONFIG``) points at a JSON file
+that becomes every provider factory's ``data_source`` dict -- e.g. ``{"path":
+"...", "regime_db_path": "...", "tree_store_dir": "..."}``. Without it, each
+provider falls back to its own individual env var (``MARKET_DATA_DB``,
+``LAZYTOOLS_REGIME_DB``, ``LAZYCRAWLER_NEWS_DB``, ...); this is only for
+overriding several at once from one file.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 
@@ -40,7 +48,27 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=os.environ.get("LAZYTOOLS_MCP_LOG_LEVEL", "INFO"),
         help="Logging level for stderr diagnostics (default: INFO).",
     )
+    parser.add_argument(
+        "--config",
+        default=os.environ.get("LAZYTOOLS_MCP_CONFIG"),
+        help="Path to a JSON file populating each provider factory's data_source dict "
+        "(e.g. {\"path\": \"...\", \"regime_db_path\": \"...\", \"tree_store_dir\": \"...\"}). "
+        "Without this, every provider falls back to its own individual env-var/default "
+        "resolution (MARKET_DATA_DB, LAZYTOOLS_REGIME_DB, LAZYCRAWLER_NEWS_DB, ...) -- this "
+        "flag is for overriding several at once from one file instead of setting each env "
+        "var separately. Also settable via LAZYTOOLS_MCP_CONFIG.",
+    )
     return parser.parse_args(argv)
+
+
+def _load_data_source(config_path: str | None) -> dict[str, object] | None:
+    if not config_path:
+        return None
+    with open(config_path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    if not isinstance(data, dict):
+        raise ValueError(f"--config {config_path!r} must contain a JSON object, got {type(data).__name__}")
+    return data
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -55,7 +83,8 @@ def main(argv: list[str] | None = None) -> None:
         if env:
             ids = [part.strip() for part in env.split(",") if part.strip()]
 
-    providers = default_providers(ids, allow_write=args.allow_unsafe)
+    data_source = _load_data_source(args.config)
+    providers = default_providers(ids, allow_write=args.allow_unsafe, data_source=data_source)
     server = build_server(
         providers,
         name="lazytools",

@@ -36,14 +36,15 @@ def _data_home() -> str:
     return os.environ.get("LAZYTOOLS_DATA_DIR") or os.path.join(os.path.expanduser("~"), ".lazytools")
 
 
-#: id → factory(allow_write) returning a ToolProvider. Order here is the
-#: order tools are listed to the client. Read-only by default; a factory
-#: only emits write tools when called with ``allow_write=True``.
-PROVIDER_FACTORIES: dict[str, Callable[[bool], Any]] = {}
+#: id → factory(allow_write, *, data_source=None) returning a ToolProvider.
+#: Order here is the order tools are listed to the client. Read-only by
+#: default; a factory only emits write tools when called with
+#: ``allow_write=True``.
+PROVIDER_FACTORIES: dict[str, Callable[..., Any]] = {}
 
 
-def _register(provider_id: str) -> Callable[[Callable[[bool], Any]], Callable[[bool], Any]]:
-    def deco(factory: Callable[[bool], Any]) -> Callable[[bool], Any]:
+def _register(provider_id: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def deco(factory: Callable[..., Any]) -> Callable[..., Any]:
         PROVIDER_FACTORIES[provider_id] = factory
         return factory
 
@@ -85,22 +86,25 @@ def _regimes(allow_write: bool = False, *, data_source: dict[str, Any] | None = 
 
     return RegimeTools(
         allow_write=allow_write,
+        db_path=_regime_db_path(data_source),
         market_data_path=(data_source or {}).get("path"),
     )
 
 
 def _regime_db_path(data_source: dict[str, Any] | None) -> str:
-    """Mirror ``RegimeTools._resolve_db_path`` so the report's ``regimes:``
-    figure resolver reads the same depot the ``regimes`` provider writes to,
-    regardless of construction order (both live in the same server process).
+    """The one depot path used by BOTH the ``regimes`` provider and the
+    ``report`` provider's ``regimes:`` figure resolver -- previously each
+    computed its own default independently (this function had its own
+    explicit/env/default chain, ``_regimes`` above had none at all and just
+    let ``RegimeTools`` fall through to ITS OWN chain), a dormant version of
+    the exact bug that made a freshly-generated regime plot resolve as "not
+    found" elsewhere in this codebase. Delegates to lazystats' canonical
+    resolver so there is exactly one such chain in the whole ecosystem.
     """
+    from lazystats.regimes import resolve_depot_path
+
     explicit = (data_source or {}).get("regime_db_path")
-    if explicit:
-        return explicit
-    env = os.environ.get("LAZYTOOLS_REGIME_DB")
-    if env:
-        return env
-    return os.path.join(_data_home(), "regime_depot.db")
+    return resolve_depot_path(explicit)
 
 
 @_register("report")
@@ -152,17 +156,17 @@ def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     the zero-token ``*_ml`` presets need no key.
     """
     from lazycrawler import CrawlerDB, CrawlerTools, DBConfig, LLMConfig
+    from lazycrawler.config import resolve_news_db_path
 
     from lazytools.connectors.web import WebTools
 
     model = os.environ.get("LAZYTOOLS_WEB_MODEL", "deepseek-v4-flash")
-    # Mirrors _regime_db_path's fallback chain: explicit data_source, then an
-    # env var, else CrawlerTools(db=None) silently opens a fresh ":memory:" db
-    # -- always empty, no matter how often the real crawler ran elsewhere.
-    # (Unlike _regime_db_path there's no generic _data_home() default here:
-    # the real news.db lives at a specific project path, not a shared depot,
-    # so an unset LAZYTOOLS_NEWS_DB means "no cache available", not a guess.)
-    db_path = (data_source or {}).get("path") or os.environ.get("LAZYTOOLS_NEWS_DB")
+    # Explicit data_source override, else LazyCrawler's own canonical resolver
+    # (LAZYCRAWLER_NEWS_DB env, the same one its setup_first_run.ps1 persists)
+    # -- not a second, independent env-var chain. CrawlerTools itself now
+    # warns (never silently) if this still resolves to nothing and it falls
+    # back to ":memory:".
+    db_path = (data_source or {}).get("path") or resolve_news_db_path()
     if db_path:
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
     db = CrawlerDB(DBConfig(db_path=db_path)) if db_path else None
@@ -425,15 +429,28 @@ def _outlook(allow_write: bool = False, *, data_source: dict[str, Any] | None = 
     return OutlookTools(client, allowed_recipients=allow, require_confirmation=allow is None)
 
 
-def default_providers(ids: list[str] | None = None, *, allow_write: bool = False) -> list[Any]:
+def default_providers(
+    ids: list[str] | None = None,
+    *,
+    allow_write: bool = False,
+    data_source: dict[str, Any] | None = None,
+) -> list[Any]:
     """Instantiate the default providers.
 
     ``ids`` selects a subset (validated against :data:`PROVIDER_FACTORIES`);
     ``None`` builds them all. ``allow_write`` is threaded to every factory —
     ``False`` (default) yields read-only providers, ``True`` yields the
-    write-enabled shapes (the CLI's ``--allow-unsafe`` path). A factory that
-    raises at construction time (rare — most only fail later, at
-    ``as_tools()``) is skipped so one missing dependency never sinks the
+    write-enabled shapes (the CLI's ``--allow-unsafe`` path). ``data_source``
+    is ALSO threaded to every factory (each already accepts it -- ``path``
+    for market-data-hub, ``regime_db_path`` for the regime depot, etc.) --
+    until this was wired up here, every factory's ``data_source`` parameter
+    was silent dead code: nothing ever called ``default_providers`` with one,
+    so it was always ``None`` no matter what a factory's own docstring
+    implied was configurable. See ``__main__.py``'s ``--config`` flag for
+    where a caller actually populates this now.
+
+    A factory that raises at construction time (rare — most only fail later,
+    at ``as_tools()``) is skipped so one missing dependency never sinks the
     server. A factory may return a single provider, or a ``list``/``tuple``
     of several (e.g. ``report``'s ``[ReportTools(...), ReportFiles(...)]`` —
     the same shape ``lazytools.skills`` uses to wire the same two providers
@@ -449,7 +466,7 @@ def default_providers(ids: list[str] | None = None, *, allow_write: bool = False
     providers: list[Any] = []
     for provider_id in selected:
         try:
-            built = PROVIDER_FACTORIES[provider_id](allow_write)
+            built = PROVIDER_FACTORIES[provider_id](allow_write, data_source=data_source)
         except Exception as exc:  # construction failure is non-fatal
             import logging
 
