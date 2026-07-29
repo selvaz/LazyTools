@@ -12,7 +12,7 @@
   "verified": {
     "github": {
       "lazycrawler": {
-        "ref": "v0.16.0",
+        "ref": "v0.17.0",
         "repo": "https://github.com/selvaz/LazyCrawler"
       },
       "lazypulse": {
