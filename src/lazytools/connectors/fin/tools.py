@@ -242,7 +242,9 @@ class PortfolioOptimizationTools:
                     "(ticker:SPY,ticker:TLT), a date range, objective and constraints only. "
                     "benchmark_weights (e.g. {'ticker:SPY': 0.7, 'ticker:TLT': 0.3}) is required "
                     "when mean_estimator='equilibrium' or objective='max_utility' with 'auto'; it "
-                    "defaults to an equal-weight benchmark otherwise."
+                    "defaults to an equal-weight benchmark otherwise. This tool has NO Black-"
+                    "Litterman view support -- for views, use portfolio_tree_estimate/_backtest "
+                    "instead (a single node with no children is a valid flat portfolio there too)."
                 ),
             ),
             Tool.wrap(

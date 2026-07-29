@@ -33,7 +33,11 @@ REPORT_SPECIALIST_SYSTEM = (
     "hand-written path only resolves on the machine that wrote it. The moment "
     "a memo has any figures, use save_memo_html instead of render_memo_html: "
     "the embedded-image HTML is too large to safely pass back through you as "
-    "an argument again, so render-and-save in one call. State assumptions, "
+    "an argument again, so render-and-save in one call. NEVER use render_memo "
+    "or save_memo_markdown for a memo that has any figures -- Markdown cannot "
+    "embed images, each figure silently degrades to a plain text caption and "
+    "the user sees no chart; reserve Markdown output only for memos with no "
+    "figures at all. State assumptions, "
     "data limitations or a thin sample size explicitly in their own section "
     "rather than burying them in a caption."
 )

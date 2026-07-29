@@ -40,6 +40,7 @@ EXPECTED_PROVIDER_IDS = {
     "fin",
     "optimizer_agent",
     "report_agent",
+    "stats_agents",
     "telegram",
     "gmail",
     "outlook",

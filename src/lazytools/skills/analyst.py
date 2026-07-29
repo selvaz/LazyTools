@@ -202,12 +202,20 @@ class AnalystConfig:
     ``hub_db`` is the market-data-hub DuckDB (``None`` = its default);
     ``regime_db`` is the LazyStats depot file (created on first use);
     ``out_dir`` is the sandbox for saved reports and the base for the
-    ``chart:`` / ``regimes:`` figure resolvers.
+    ``chart:`` / ``regimes:`` figure resolvers. ``news_db`` is LazyCrawler's
+    news DuckDB/SQLite path (``None`` = a skill needing it just skips news
+    search and works off macro/indicator data alone). ``telegram_token``/
+    ``telegram_chat_id`` wire a delivery skill's Telegram send tools (``None``
+    = that skill just has no send tool available and reports why in its
+    published status instead of sending).
     """
 
     hub_db: str | None = None
     regime_db: str = "analyst_regimes.db"
     out_dir: str = "reports"
+    news_db: str | None = None
+    telegram_token: str | None = None
+    telegram_chat_id: str | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -234,16 +242,27 @@ def _stats_tools(cfg: AnalystConfig) -> list[Any]:
 def _regime_tools(cfg: AnalystConfig) -> list[Any]:
     from lazytools.connectors.regimes import RegimeTools
 
-    return [RegimeTools(allow_write=True)]
+    # RegimeTools(allow_write=True) with no db_path init's its OWN default depot
+    # at construction time, silently overriding build_specialists' earlier
+    # init_regime_db(cfg.regime_db) call -- pass db_path explicitly so cfg.regime_db
+    # is the depot actually in use (confirmed live in the sibling macro_views
+    # pipeline: without this, plots ended up in ~/.lazytools/regime_depot.db while
+    # cfg.regime_db pointed at a different, empty file).
+    return [RegimeTools(allow_write=True, db_path=cfg.regime_db)]
 
 
 def _report_tools(cfg: AnalystConfig) -> list[Any]:
     from lazytools.report import ReportFiles, ReportTools, ecosystem_resolvers
 
     files = ReportFiles(base_dir=cfg.out_dir)
+    # regimes_db=None -> reuse the shared module-global depot connection
+    # (lazystats.regimes.db.get_db()) that init_regime_db()/the "regime" skill's
+    # regime_generate_plots already write through in this process, instead of a
+    # second connection to the path string that can miss a plot just written in
+    # this same run (observed live in the macro_views pipeline this mirrors).
     resolvers = ecosystem_resolvers(
         datahub_db_path=cfg.hub_db,
-        regimes_db=cfg.regime_db,
+        regimes_db=None,
         file_base_dir=cfg.out_dir,
     )
     return [ReportTools(artifacts=resolvers, files=files), files]

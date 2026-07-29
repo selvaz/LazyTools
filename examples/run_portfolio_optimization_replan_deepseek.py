@@ -74,11 +74,12 @@ def main() -> None:
     missing = [name for name in required if not os.environ.get(name)]
     if missing:
         raise RuntimeError(f"missing required environment configuration: {', '.join(missing)}")
-    os.environ["MARKET_DATA_DB"] = str(_resolve_hub_db())
+    hub_db = _resolve_hub_db()
+    os.environ["MARKET_DATA_DB"] = str(hub_db)
 
     from lazybridge import Agent, LLMEngine, ReplanEngine, Session
     from lazybridge.engines.replan import PlanRound
-    from lazyfin.optimization import OptimizationStore
+    from lazyportfolio import MarketDataHubOptimizationBackend
 
     from lazytools.connectors.datahub import DataHubTools
     from lazytools.connectors.fin import PortfolioOptimizationTools
@@ -112,7 +113,8 @@ using one defensible walk-forward protocol: roughly three years rolling
 estimation, quarterly rebalancing, one-observation execution lag, long-only,
 and no position above 60%. Ensure any required data is available. Produce a
 self-contained Italian HTML report with aggregate comparison, limitations and
-at least one optimizer-generated OOS backtest chart. Then send one concise
+at least one price/return chart for the test window (via the reporting tool's
+chart: scheme). Then send one concise
 summary and the HTML attachment to Telegram chat {chat_id}. End with a compact
 Italian conclusion containing only aggregate results.
 """.strip()
@@ -131,7 +133,7 @@ Italian conclusion containing only aggregate results.
                         planner,
                         DataHubTools(allow_refresh=True),
                         PortfolioOptimizationTools(
-                            OptimizationStore(str(output_dir / "optimizer.sqlite")), artifacts_dir=output_dir
+                            backend=MarketDataHubOptimizationBackend(db_path=str(hub_db))
                         ),
                         report_tools,
                         TelegramTools(
