@@ -1,4 +1,4 @@
-"""Live DeepSeek smoke test for the Skfolio portfolio-optimizer tools.
+"""Live DeepSeek smoke test for the LazyPortfolio (V2) optimizer tools.
 
 Run from the LazyTools checkout::
 
@@ -79,7 +79,7 @@ def main() -> None:
     os.environ["MARKET_DATA_DB"] = str(hub_db)
 
     from lazybridge import Agent, LLMEngine, Session
-    from lazyfin.optimization import OptimizationStore
+    from lazyportfolio import MarketDataHubOptimizationBackend
 
     from lazytools.connectors.datahub import DataHubTools
     from lazytools.connectors.fin import PortfolioOptimizationTools
@@ -107,7 +107,9 @@ tracking error, salvo tu possa motivarlo nel report.
 
 Prepara un report HTML auto-contenuto in italiano: metodo e protocollo,
 confronto delle metriche aggregate con il benchmark, limiti del test e almeno
-un grafico OOS di backtesting ottenuto dai tool. Salvalo nell'area consentita.
+un grafico (tramite lo strumento di reporting con schema chart:) dei livelli di
+prezzo o dei rendimenti cumulati degli strumenti nella finestra di test, a
+supporto delle metriche di backtest. Salvalo nell'area consentita.
 Manda alla chat Telegram '{chat_id}' un singolo messaggio di sintesi, poi
 allega il report HTML. Non includere dati grezzi, serie, immagini codificate o
 report intero nel messaggio o nella risposta finale.
@@ -135,7 +137,7 @@ report intero nel messaggio o nella risposta finale.
                     tools=[
                         DataHubTools(allow_refresh=True),
                         PortfolioOptimizationTools(
-                            OptimizationStore(str(output_dir / "optimizer.sqlite")), artifacts_dir=output_dir
+                            backend=MarketDataHubOptimizationBackend(db_path=str(hub_db))
                         ),
                         report_tools,
                         TelegramTools(

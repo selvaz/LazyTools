@@ -83,7 +83,10 @@ class ReportTools:
                 self._render_memo,
                 name="render_memo",
                 description=(
-                    "Render a structured memo to GitHub-flavoured Markdown (deterministic, no LLM). " + _MEMO_SHAPE
+                    "Render a structured memo to GitHub-flavoured Markdown (deterministic, no LLM). "
+                    "WARNING: any figure in the memo degrades to a plain italic text caption here -- "
+                    "no image is embedded. For a memo with figures the user should actually see, use "
+                    "render_memo_html or save_memo_html instead. " + _MEMO_SHAPE
                 ),
             ),
             Tool.wrap(
@@ -126,7 +129,12 @@ class ReportTools:
                     name="save_memo_markdown",
                     description=(
                         "Render a memo to Markdown AND write it to a file in one "
-                        "step, returning the absolute path. Args: memo (object), "
+                        "step, returning the absolute path. WARNING: Markdown "
+                        "CANNOT embed images -- any figure in the memo degrades to "
+                        "a plain italic text caption, no picture. If the memo has "
+                        "ANY figures and the user should actually see them, use "
+                        "save_memo_html instead; reach for this tool only for "
+                        "reports with no figures at all. Args: memo (object), "
                         "filename (basename like 'report.md')."
                     ),
                 ),

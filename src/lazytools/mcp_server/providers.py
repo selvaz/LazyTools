@@ -156,7 +156,13 @@ def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     from lazytools.connectors.web import WebTools
 
     model = os.environ.get("LAZYTOOLS_WEB_MODEL", "deepseek-v4-flash")
-    db_path = (data_source or {}).get("path")
+    # Mirrors _regime_db_path's fallback chain: explicit data_source, then an
+    # env var, else CrawlerTools(db=None) silently opens a fresh ":memory:" db
+    # -- always empty, no matter how often the real crawler ran elsewhere.
+    # (Unlike _regime_db_path there's no generic _data_home() default here:
+    # the real news.db lives at a specific project path, not a shared depot,
+    # so an unset LAZYTOOLS_NEWS_DB means "no cache available", not a guess.)
+    db_path = (data_source or {}).get("path") or os.environ.get("LAZYTOOLS_NEWS_DB")
     if db_path:
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
     db = CrawlerDB(DBConfig(db_path=db_path)) if db_path else None
@@ -291,6 +297,33 @@ def _report_agent(allow_write: bool = False, *, data_source: dict[str, Any] | No
     tools: list[Any] = [ReportTools(artifacts=resolvers, files=ReportFiles(base_dir=reports_dir))]
     engine = LLMEngine(model, system=REPORT_SPECIALIST_SYSTEM, max_tool_calls_per_turn=16)
     return report_specialist(engine, tools=tools)
+
+
+@_register("stats_agents")
+def _stats_agents(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Expose the statistical specialists and supervisor as MCP tools."""
+    model = os.environ.get("LAZYTOOLS_STATS_AGENT_MODEL", "deepseek-v4-flash")
+
+    from lazytools.skills.stats_agents import (
+        regime_analyst,
+        regression_analyst,
+        stats_supervisor,
+        volatility_correlation_analyst,
+    )
+
+    specialists = [
+        volatility_correlation_analyst(model=model),
+        regime_analyst(model=model, allow_write=allow_write),
+        regression_analyst(model=model),
+    ]
+    return [
+        *specialists,
+        stats_supervisor(
+            model=model,
+            specialists=specialists,
+            regime_allow_write=allow_write,
+        ),
+    ]
 
 
 @_register("telegram")

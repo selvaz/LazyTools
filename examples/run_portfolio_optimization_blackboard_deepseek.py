@@ -68,11 +68,12 @@ def main() -> None:
     missing = [name for name in required if not os.environ.get(name)]
     if missing:
         raise RuntimeError(f"missing required environment configuration: {', '.join(missing)}")
-    os.environ["MARKET_DATA_DB"] = str(_resolve_hub_db())
+    hub_db = _resolve_hub_db()
+    os.environ["MARKET_DATA_DB"] = str(hub_db)
 
     from lazybridge import Agent, LLMEngine, Session, Tool
     from lazybridge.ext.planners import make_blackboard_planner
-    from lazyfin.optimization import OptimizationStore
+    from lazyportfolio import MarketDataHubOptimizationBackend
 
     from lazytools.connectors.datahub import DataHubTools
     from lazytools.connectors.fin import PortfolioOptimizationTools
@@ -96,7 +97,8 @@ portfolio_optimizer_backtest in this task must use transaction_cost_bps=10.0,
 uniformly for every instrument; do not run a zero-cost variant. State that this
 is a 10 bps per-turnover modelling assumption and do not invent realized costs
 not returned by the optimizer. The final report must be Italian HTML with
-aggregate results, limitations, OOS chart(s), and a "Costi" section. That
+aggregate results, limitations, at least one price/return chart for the test
+window (via the reporting tool's chart: scheme), and a "Costi" section. That
 section must separate the modeled portfolio transaction-cost assumptions from
 the verified LLM/API usage obtained through get_session_usage.
 Telegram chat id is {chat_id}; send one summary and the HTML attachment.
@@ -111,13 +113,13 @@ Telegram chat id is {chat_id}; send one summary and the HTML attachment.
             with TelegramClient.from_token(os.environ["TELEGRAM_BOT_TOKEN"]) as telegram_client:
                 researcher = Agent(
                     name="portfolio_researcher",
-                    description="Uses DataHub and Skfolio tools for bounded portfolio research and OOS charts.",
+                    description="Uses DataHub and LazyPortfolio optimizer tools for bounded portfolio research.",
                     session=session,
                     engine=LLMEngine(
                         model,
                         system=(
                             "You are the portfolio specialist. Use only your supplied data and optimizer tools. "
-                            "Choose appropriate available methods; never invent a method id. Keep returns internal. "
+                            "Choose appropriate available objectives; never invent an objective id. Keep returns internal. "
                             "Return a concise Italian handoff containing aggregate metrics, limitations and every "
                             "exact chart.ref needed by a report specialist. Do not create reports or send messages."
                         ),
@@ -126,7 +128,7 @@ Telegram chat id is {chat_id}; send one summary and the HTML attachment.
                     tools=[
                         DataHubTools(allow_refresh=True),
                         PortfolioOptimizationTools(
-                            OptimizationStore(str(output_dir / "optimizer.sqlite")), artifacts_dir=output_dir
+                            backend=MarketDataHubOptimizationBackend(db_path=str(hub_db))
                         ),
                     ],
                 )
