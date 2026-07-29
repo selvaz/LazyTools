@@ -43,7 +43,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from lazytools.skills.analyst import AnalystConfig, Blackboard, Skill, build_specialists
+from lazytools.skills.analyst import AnalystConfig, Skill, build_specialists
 
 __all__ = [
     "MacroView",
