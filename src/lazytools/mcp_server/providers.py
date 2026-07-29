@@ -173,12 +173,17 @@ def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     from lazytools.connectors.web import WebTools
 
     model = os.environ.get("LAZYTOOLS_WEB_MODEL", "deepseek-v4-flash")
+    # A dedicated ``news_db_path`` key -- NOT the shared ``path`` key every
+    # other provider here uses for the market-data-hub db, which this is
+    # unrelated to. Reusing "path" would mean a single --config JSON setting
+    # it for the datahub/statistical/regimes/fin providers silently redirects
+    # the crawler's cache at the wrong file too.
     # Explicit data_source override, else LazyCrawler's own canonical resolver
     # (LAZYCRAWLER_NEWS_DB env, the same one its setup_first_run.ps1 persists)
     # -- not a second, independent env-var chain. CrawlerTools itself now
     # warns (never silently) if this still resolves to nothing and it falls
     # back to ":memory:".
-    db_path = (data_source or {}).get("path") or resolve_news_db_path()
+    db_path = (data_source or {}).get("news_db_path") or resolve_news_db_path()
     if db_path:
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
     db = CrawlerDB(DBConfig(db_path=db_path)) if db_path else None

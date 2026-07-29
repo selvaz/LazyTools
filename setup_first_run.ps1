@@ -108,9 +108,12 @@ Write-Host ""
 Write-Host "Verifying MCP server configuration..."
 & $Python -c @"
 import os
-from lazystats.regimes import resolve_depot_path
+try:
+    from lazystats.regimes import resolve_depot_path
+    print('regime depot ->', resolve_depot_path())
+except ImportError:
+    print('regime depot ->', '(lazystats not installed -- it is a separate sibling repo, not a LazyTools extra; regime tools stay unavailable until it is installed)')
 from lazycrawler.config import resolve_news_db_path
-print('regime depot ->', resolve_depot_path())
 print('news cache   ->', resolve_news_db_path() or '(unset -- falls back to :memory:)')
 print('DEEPSEEK_API_KEY present:', bool(os.environ.get('DEEPSEEK_API_KEY')))
 print('TELEGRAM_BOT_TOKEN present:', bool(os.environ.get('TELEGRAM_BOT_TOKEN')))
