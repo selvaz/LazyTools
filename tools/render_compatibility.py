@@ -136,7 +136,10 @@ def check_lazybridge_range(m: dict) -> list[str]:
 # market.data.hub, ...) all match — pip normalizes '_' and '.' to '-'.
 GITHUB_ONLY_NAMES = frozenset(
     canonicalize_name(n)
-    for n in ("lazytoolkit", "lazypulse", "lazycrawler", "lazystats", "lazyray", "market-data-hub")
+    for n in (
+        "lazytoolkit", "lazypulse", "lazycrawler", "lazystats", "lazyray",
+        "market-data-hub", "lazyportfolio", "lazyfin",
+    )
 )
 # Capture the install argument after ``pip install`` (optionally quoted): the
 # package name, an optional [extras] group, and an optional `` @ <url>`` direct

@@ -42,7 +42,7 @@ Install LazyFin's optional quantitative dependency and configure a durable
 audit database:
 
 ```bash
-pip install "lazyfin[optimizer]"
+pip install "lazyfin[optimizer] @ git+https://github.com/selvaz/LazyFin.git"
 ```
 
 ```python
