@@ -170,6 +170,7 @@ def test_build_all_five_specialists(tmp_path) -> None:
 
 
 def test_market_data_and_financials_tools_use_configured_hub_db(tmp_path) -> None:
+    pytest.importorskip("market_data_hub")
     from lazytools.skills.analyst import _financials_tools, _market_data_tools
 
     hub_db = str(tmp_path / "hub.duckdb")
@@ -267,6 +268,7 @@ def test_report_resolver_isolated_across_two_regime_depots_in_one_process(tmp_pa
 
 def test_macro_views_macro_and_market_tools_use_configured_hub_db(tmp_path) -> None:
     pytest.importorskip("lazystats.regimes", reason="regime tool needs lazystats[regimes]")
+    pytest.importorskip("market_data_hub")
     from lazytools.skills.macro_views import _macro_tools, _market_tools
 
     hub_db = str(tmp_path / "hub.duckdb")
