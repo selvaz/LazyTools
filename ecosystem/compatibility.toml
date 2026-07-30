@@ -26,7 +26,7 @@ lazybridge = "1.0.1"
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.3.3"
+ref = "v0.4.0"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
@@ -47,12 +47,12 @@ extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "d14bf3f2099f23859a5126ebd49b2536f09a48c0"  # pre-tag pin (share tree-config persistence with external callers, #4); no release tags yet
+ref = "ad45ff5b4657f824cdd8ad0f3988c11f62293ab7"  # pre-tag pin (pin market-data-hub setup fallback + datacore extra, #5); no release tags yet
 extras = ["datacore"]
 
 [verified.github.lazyfin]
 repo = "https://github.com/selvaz/LazyFin"
-ref = "4185d87dc6646be51acd4845f85f17421857977e"  # pre-tag pin (packaged lazyfin-setup command, #41); no release tags yet
+ref = "cbe84693f0313bccc207df2c09a3b0813d68cce6"  # pre-tag pin (pin market-data-hub setup fallback, #42); no release tags yet
 # Deliberately NOT "tools"/"crawler"/"regime"/"all": those extras pin their
 # OWN older lazytoolkit/lazycrawler/lazystats revisions (a known, separate
 # staleness gap -- LazyFin's audit follow-up), which would conflict with the

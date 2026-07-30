@@ -100,8 +100,12 @@ jobs:
           # -- 1. Tree optimizer + Black-Litterman views, end to end (synthetic data) --
           from lazyportfolio.hierarchical_v2 import V2Constraints, V2LocalOptimizer, V2Model, V2View
 
-          rng = np.random.default_rng(20260730)
-          idx = pd.bdate_range("2020-01-01", periods=260)
+          # Same fixture LazyPortfolio's own test_hierarchical_v2.py::_returns uses
+          # for its "a strong view shifts the allocation" test -- HIGH's sample mean
+          # dominates baseline (max_return picks it as a 100% corner solution), so
+          # only a real BL blend from the view can flip it to LOW.
+          rng = np.random.default_rng(20260720)
+          idx = pd.bdate_range("2020-01-01", periods=520)
           returns = pd.DataFrame(
               {
                   "ticker:HIGH": rng.normal(0.00065, 0.0120, len(idx)),
@@ -116,7 +120,6 @@ jobs:
                   "id": "root", "proxy": "", "instruments": ["HIGH", "LOW"],
                   "constraints": {
                       "views": [{"instruments": {"LOW": 1.0}, "expected_return": 0.5, "confidence": 0.95}],
-                      "view_tau": 0.1,
                   },
               }],
               "backtest": {"benchmark": {"weights": {"HIGH": 0.5, "LOW": 0.5}}},
