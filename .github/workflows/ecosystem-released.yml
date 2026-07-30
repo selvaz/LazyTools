@@ -205,7 +205,11 @@ jobs:
       - name: Packaged setup commands are installed and invokable
         run: |
           lazyportfolio-setup --help > /dev/null
-          lazyfin-setup --help > /dev/null
+          if command -v lazyfin-setup > /dev/null; then
+            lazyfin-setup --help > /dev/null
+          else
+            echo "lazyfin-setup not installed (ECOSYSTEM_PAT not set) -- skipping"
+          fi
           echo "packaged setup commands: OK"
 
   released-wheels:
