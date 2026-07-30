@@ -8,6 +8,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-07-30
+
 ### Added — two specialist agents, exposed as single MCP tools
 - `optimizer_agent` (`portfolio-optimizer-specialist`) and `report_agent`
   (`report-specialist`): LLM-driven experts wrapping the `fin`/`report` tool
@@ -147,6 +149,45 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   (the model truncates it). The bytes now never enter the LLM's token stream.
 - `ReportFiles.save(filename, content)` is the public write method (the
   `save_report` tool and the new render-and-save tools share it).
+
+### Added — Black-Litterman views wired into the tree optimizer
+- `portfolio_tree_estimate` accepts `constraints.views`/`view_tau`/
+  `view_covariance_policy` per node — an LLM can now express macro views
+  (e.g. "SPY: +8% expected return, 60% confidence") and have them blended
+  into the tree's expected-return estimates via Idzorek confidence-scaled
+  Black-Litterman, not just consume a fixed benchmark allocation.
+- Fixed a LazyBridge MCP schema bug that rejected real tree configs: a
+  `dict[K, Any]`-typed nested value (e.g. `constraints.views`) was forced
+  to `{"type": "string"}` by the `Any` fallback instead of `{"type":
+  "object"}`, silently corrupting any config containing one.
+- Fixed the `web` (LazyCrawler) provider defaulting to an always-empty
+  `:memory:` cache with no indication when no explicit `db=`/env var was
+  set — now resolves through `LAZYCRAWLER_NEWS_DB` and warns instead of
+  staying silent.
+
+### Changed — centralized DB path resolution, `--config` for the MCP server
+- The regime depot path (used by both the `regimes` provider and the
+  `report` provider's `regimes:` figure resolver) and the news cache path
+  now resolve through one canonical chain each (`lazystats.regimes.
+  resolve_depot_path()`, `lazycrawler.config.resolve_news_db_path()`)
+  instead of each caller computing its own default independently — the
+  exact class of bug that let one caller's explicit path get silently
+  overridden by another's default elsewhere in the same process.
+- `lazytools-mcp --config <path.json>` (or `LAZYTOOLS_MCP_CONFIG`)
+  populates every provider factory's `data_source` dict from one file,
+  instead of setting each env var separately.
+- **Fixed after external audit**: `stats_agents` constructed real
+  `lazybridge.Agent` instances unconditionally, with no `allow_write`/
+  credential gate — unlike `optimizer_agent`/`report_agent`, which already
+  required both. `AnalystConfig.hub_db` was only threaded into the report
+  specialist's resolver; every other tool builder (`DataHubTools`,
+  `StatisticalAnalysisTools`, `RegimeTools.market_data_path`) silently fell
+  back to market-data-hub's own default, risking a single run reading two
+  different databases. `RegimeTools`' write/read tools only re-pointed the
+  shared regime depot at construction time, not before each call — building
+  a second `RegimeTools` instance for a different depot elsewhere in the
+  same process could silently redirect an earlier instance's writes; every
+  tool call now re-asserts its own depot immediately before delegating.
 
 ## [0.3.3] — 2026-07-12
 
