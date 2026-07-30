@@ -63,11 +63,13 @@ jobs:
 
           import lazybridge
           import lazycrawler
+          import lazyfin
+          import lazyportfolio
           import lazypulse
           import lazytools
 
           for pkg in ("lazybridge", "lazytoolkit", "lazypulse", "lazycrawler",
-                      "market-data-hub", "lazystats"):
+                      "market-data-hub", "lazystats", "lazyportfolio", "lazyfin"):
               print(pkg, md.version(pkg))
 
           from lazytools.connectors.datahub import DataHubTools
@@ -83,6 +85,90 @@ jobs:
           assert names, "finance surface mounted empty"
           print(f"released combination OK: {len(names)} finance tools mounted")
           EOF
+      - name: Six-repo composition — tree optimizer BL views, specialist gating, report resolution
+        # No live market-data-hub data in this ephemeral runner, so this
+        # exercises the actual wiring with synthetic data (same technique
+        # LazyPortfolio's own unit tests use for the local solver) rather
+        # than claiming a full live-data integration test.
+        run: |
+          python - << 'EOF'
+          import base64
+
+          import numpy as np
+          import pandas as pd
+
+          # -- 1. Tree optimizer + Black-Litterman views, end to end (synthetic data) --
+          from lazyportfolio.hierarchical_v2 import V2Constraints, V2LocalOptimizer, V2Model, V2View
+
+          rng = np.random.default_rng(20260730)
+          idx = pd.bdate_range("2020-01-01", periods=260)
+          returns = pd.DataFrame(
+              {
+                  "ticker:HIGH": rng.normal(0.00065, 0.0120, len(idx)),
+                  "ticker:LOW": rng.normal(0.00010, 0.0030, len(idx)),
+              },
+              index=idx,
+          )
+
+          config = {
+              "root_id": "root",
+              "nodes": [{
+                  "id": "root", "proxy": "", "instruments": ["HIGH", "LOW"],
+                  "constraints": {
+                      "views": [{"instruments": {"LOW": 1.0}, "expected_return": 0.5, "confidence": 0.95}],
+                      "view_tau": 0.1,
+                  },
+              }],
+              "backtest": {"benchmark": {"weights": {"HIGH": 0.5, "LOW": 0.5}}},
+          }
+          model = V2Model.from_config(config)
+          assert len(model.root.constraints.views) == 1
+          views = model.root.constraints.views
+
+          def solve(v):
+              weights, _ = V2LocalOptimizer().solve(
+                  returns, objective="max_return", constraints=V2Constraints(views=v),
+                  periods_per_year=252.0, target_reference_series=None,
+                  cap_reference_series=None, tracking_reference_series=None,
+                  reference_weights=None,
+              )
+              return weights
+
+          baseline = solve(())
+          with_view = solve(tuple(views))
+          assert with_view["ticker:LOW"] > baseline["ticker:LOW"], "BL view did not shift the allocation"
+          print("tree optimizer + BL views: OK (view shifted LOW "
+                f"{baseline['ticker:LOW']:.4f} -> {with_view['ticker:LOW']:.4f})")
+
+          # -- 2. Specialist-agent safety gates (audit finding: stats_agents once
+          #    had none) -- absent without BOTH allow_write=True and a credential. --
+          from lazytools.mcp_server.providers import default_providers
+
+          gated_ids = ["optimizer_agent", "report_agent", "stats_agents"]
+          assert default_providers(gated_ids, allow_write=False) == [], "specialist agent leaked without allow_write"
+          print("specialist-agent gating: OK (absent without allow_write)")
+
+          # -- 3. Report figure resolution: render a memo referencing a bytes: ref
+          #    (self-contained, no external db/file needed) through the real
+          #    ecosystem_resolvers()/ReportTools composition. --
+          from lazytools.report import ReportTools, ecosystem_resolvers
+
+          payload = b"\x89PNG\r\n\x1a\nsmoke-test-not-a-real-png"
+          ref = "bytes:" + base64.b64encode(payload).decode("ascii")
+          resolvers = ecosystem_resolvers()
+          resolved_bytes, mime = resolvers.resolve(ref)
+          assert resolved_bytes == payload, "report resolver returned the wrong payload"
+          report_tools = ReportTools(artifacts=resolvers)
+          assert {t.name for t in report_tools.as_tools()}, "report tool surface mounted empty"
+          print(f"report figure resolution: OK ({mime}, {len(resolved_bytes)} bytes)")
+
+          print("six-repo composition OK")
+          EOF
+      - name: Packaged setup commands are installed and invokable
+        run: |
+          lazyportfolio-setup --help > /dev/null
+          lazyfin-setup --help > /dev/null
+          echo "packaged setup commands: OK"
 
   released-wheels:
     # The direct-reference install above builds from the tag's sdist tree.

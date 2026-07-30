@@ -15,6 +15,21 @@
         "ref": "v0.17.0",
         "repo": "https://github.com/selvaz/LazyCrawler"
       },
+      "lazyfin": {
+        "extras": [
+          "bridge",
+          "datacore"
+        ],
+        "ref": "4185d87dc6646be51acd4845f85f17421857977e",
+        "repo": "https://github.com/selvaz/LazyFin"
+      },
+      "lazyportfolio": {
+        "extras": [
+          "datacore"
+        ],
+        "ref": "d14bf3f2099f23859a5126ebd49b2536f09a48c0",
+        "repo": "https://github.com/selvaz/LazyPortfolio"
+      },
       "lazypulse": {
         "ref": "v0.3.1",
         "repo": "https://github.com/selvaz/LazyPulse"

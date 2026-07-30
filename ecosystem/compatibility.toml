@@ -45,6 +45,22 @@ repo = "https://github.com/selvaz/LazyStats"
 ref = "cb6e36878372b0dd5c82b26b51fe3acda154e744"  # pre-tag pin (comma/semicolon-separated symbols string in load_from_datahub, #9); finance train replaces with a release tag
 extras = ["regimes"]
 
+[verified.github.lazyportfolio]
+repo = "https://github.com/selvaz/LazyPortfolio"
+ref = "d14bf3f2099f23859a5126ebd49b2536f09a48c0"  # pre-tag pin (share tree-config persistence with external callers, #4); no release tags yet
+extras = ["datacore"]
+
+[verified.github.lazyfin]
+repo = "https://github.com/selvaz/LazyFin"
+ref = "4185d87dc6646be51acd4845f85f17421857977e"  # pre-tag pin (packaged lazyfin-setup command, #41); no release tags yet
+# Deliberately NOT "tools"/"crawler"/"regime"/"all": those extras pin their
+# OWN older lazytoolkit/lazycrawler/lazystats revisions (a known, separate
+# staleness gap -- LazyFin's audit follow-up), which would conflict with the
+# newer lazytoolkit/lazycrawler/lazystats pins already installed above by
+# this same manifest. bridge+datacore is what LazyFin's own portfolio/BL
+# surface actually needs; LazyTools' newer pin already covers the rest.
+extras = ["bridge", "datacore"]
+
 # Components excluded from the installable combination, with the reason.
 # An exclusion here is a declared gap, not a silent one: the released CI
 # does not install these, and the website must not present them as part
