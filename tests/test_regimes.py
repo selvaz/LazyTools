@@ -175,6 +175,64 @@ def test_state_sequence_and_changes_are_hard_capped(tmp_path) -> None:
         rdb._DB = None
 
 
+def test_two_instances_built_before_either_writes_stay_isolated(tmp_path) -> None:
+    """The exact interleaving hazard an external audit found (P1, against
+    lazytools.skills.macro_views/analyst's newly-pinned report resolver):
+    TWO RegimeTools instances for different depots are both CONSTRUCTED
+    (each construction reassigns the process-global lazystats.regimes.db._DB)
+    BEFORE either one's write tools are actually invoked -- by the time
+    either fits/writes anything, the global points at whichever depot was
+    built LAST. Without per-call re-assertion, instance A's write would
+    silently land in instance B's depot. Every tool call must be
+    self-correcting regardless of what happened after construction."""
+    db1 = str(tmp_path / "depot1.db")
+    db2 = str(tmp_path / "depot2.db")
+
+    # Both instances constructed up front -- global _DB now points at db2,
+    # not db1, exactly the ordering the reviewer described.
+    regime1 = RegimeTools(allow_write=True, db_path=db1)
+    regime2 = RegimeTools(allow_write=True, db_path=db2)
+    tools1 = {t.name: t for t in regime1.as_tools()}
+    tools2 = {t.name: t for t in regime2.as_tools()}
+
+    # regime_generate_plots needs the fit's data_key (it re-renders from the
+    # stored raw series, not the inline fit) -- seed one on each depot via
+    # the SAME _scoped mechanism under test, not a hub connection.
+    def _seed(regime_tools, data_key, values):
+        regime_tools._scoped(
+            lambda: regime_tools._db().swrite(data_key, {"Y": [[v] for v in values], "columns": ["X"]})
+        )()
+
+    _seed(regime1, "series_a", _synthetic_two_state_series(seed=1))
+    _seed(regime2, "series_b", _synthetic_two_state_series(seed=2))
+
+    # Fit + plot depot1 FIRST, even though the global currently points at db2.
+    tools1["regime_fit"].run_sync(
+        data_key="series_a", result_key="k1", S_max=3, n_starts=2, random_state=0,
+    )
+    tools1["regime_generate_plots"].run_sync(result_key="k1")
+
+    # Then depot2.
+    tools2["regime_fit"].run_sync(
+        data_key="series_b", result_key="k2", S_max=3, n_starts=2, random_state=0,
+    )
+    tools2["regime_generate_plots"].run_sync(result_key="k2")
+
+    plots1 = tools1["regime_db_list_plots"].run_sync()
+    plots2 = tools2["regime_db_list_plots"].run_sync()
+    result_keys1 = {p["result_key"] for p in plots1["plots"]}
+    result_keys2 = {p["result_key"] for p in plots2["plots"]}
+
+    assert result_keys1 == {"k1"}, f"depot1 must contain only k1's plots, got {result_keys1}"
+    assert result_keys2 == {"k2"}, f"depot2 must contain only k2's plots, got {result_keys2}"
+
+    # And fit results, not just plots: k1's series must never leak into depot2.
+    results1 = tools1["regime_db_list_results"].run_sync()
+    results2 = tools2["regime_db_list_results"].run_sync()
+    assert {r["result_key"] for r in results1["results"]} == {"k1"}
+    assert {r["result_key"] for r in results2["results"]} == {"k2"}
+
+
 def test_missing_lazystats_regimes_raises_clear_import_error(monkeypatch) -> None:
     import builtins
 

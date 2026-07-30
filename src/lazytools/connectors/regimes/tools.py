@@ -27,6 +27,7 @@ with the ``[regimes]`` extra install hint.
 
 from __future__ import annotations
 
+import functools
 from typing import Any
 
 # Hard caps enforced at the bridge (audit CA-12): the underlying lazystats
@@ -87,7 +88,41 @@ class RegimeTools:
         the regime_db_* tools. Returns the resolved path."""
         path = db_path or self._resolve_db_path()
         self._db().init_regime_db(path)
+        # Update self._db_path (not just the global) so _scoped's
+        # re-assertion (below) keeps pointing THIS instance at the depot an
+        # agent just explicitly re-pointed it to via this tool, rather than
+        # snapping back to the construction-time path on the very next call.
+        self._db_path = path
         return {"status": "ok", "db_path": path}
+
+    def _scoped(self, fn: Any) -> Any:
+        """Wrap fn so it re-asserts THIS instance's depot as the active
+        process-global lazystats.regimes.db._DB immediately before every
+        call.
+
+        None of the wrapped lazystats.regimes / lazystats.regimes.db
+        functions take a db_path argument -- they all implicitly operate
+        against whatever depot is CURRENTLY active. Re-pointing only at
+        __init__ time is not enough: constructing a SECOND RegimeTools
+        instance for a different depot elsewhere in the same process (a
+        second pipeline, sequential or interleaved) reassigns that same
+        global, so this instance's tools would silently start reading and
+        writing the wrong file when actually invoked later (found via
+        external audit: a report resolver newly pinned to an explicit
+        depot path raised KeyError because the plot it expected had, in
+        fact, been written into a different pipeline's depot). Re-asserting
+        immediately before each individual call keeps the window where the
+        wrong depot is active as short as possible, which is sufficient for
+        this ecosystem's actual usage pattern -- one LLM tool call executes
+        at a time, never truly concurrently within a process.
+        """
+
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            self._db().init_regime_db(self._resolve_db_path())
+            return fn(*args, **kwargs)
+
+        return wrapper
 
     def _load_from_datahub(
         self,
@@ -427,9 +462,15 @@ class RegimeTools:
                 "source."
             ),
         }
-        tools = [Tool.wrap(fn, name=name, description=descriptions.get(name))
+        # Every one of these (fit/store/depot tools alike -- the "in-process
+        # regime store" is itself backed by the same SQLite depot's generic
+        # key/value table, not a separate structure) implicitly reads/writes
+        # whatever depot is CURRENTLY globally active. _scoped re-asserts
+        # THIS instance's depot immediately before each call so it's never
+        # at the mercy of another RegimeTools instance built afterward.
+        tools = [Tool.wrap(self._scoped(fn), name=name, description=descriptions.get(name))
                  for fn, name in read]
         if self._allow_write:
-            tools += [Tool.wrap(fn, name=name, description=descriptions.get(name))
+            tools += [Tool.wrap(self._scoped(fn), name=name, description=descriptions.get(name))
                      for fn, name in write]
         return tools
