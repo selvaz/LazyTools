@@ -41,9 +41,32 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install the verified combination (distributed artifacts only)
+        # LazyFin is excluded here and installed separately below with a
+        # scoped PAT -- it's the one PRIVATE sibling in the manifest, and
+        # this step's plain `pip install` runs every package's own,
+        # potentially untrusted, build backend/setup hooks with whatever is
+        # in scope at the time.
         run: |
           python -m pip install -U pip
-          pip install -r requirements/verified.txt
+          grep -v '^lazyfin' requirements/verified.txt > /tmp/verified-no-lazyfin.txt
+          pip install -r /tmp/verified-no-lazyfin.txt
+      - name: Install private LazyFin sibling
+        # LazyFin is the one PRIVATE sibling in the manifest: the workflow's
+        # default GITHUB_TOKEN is scoped to this repo only, so cloning it
+        # needs a PAT with repo read access (ECOSYSTEM_PAT secret) -- same
+        # pattern test.yml/ecosystem-source-head.yml already use (#72):
+        # scoped to ONLY this step, which runs after the PR's own code and
+        # every public sibling are already installed, so the PAT is never in
+        # scope while an untrusted build hook could read it.
+        env:
+          ECOSYSTEM_PAT: ${{ secrets.ECOSYSTEM_PAT }}
+        run: |
+          LAZYFIN_LINE=$(grep '^lazyfin' requirements/verified.txt)
+          if [ -n "$ECOSYSTEM_PAT" ]; then
+            pip install "$(echo "$LAZYFIN_LINE" | sed "s#https://github.com/#https://x-access-token:${ECOSYSTEM_PAT}@github.com/#")"
+          else
+            echo "::warning::ECOSYSTEM_PAT not set -- skipping private LazyFin install; released combination validated without it"
+          fi
           pip check
       - name: Record the resolved environment
         run: |
