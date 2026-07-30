@@ -159,3 +159,126 @@ def test_build_all_five_specialists(tmp_path) -> None:
     specs = build_specialists(engine=_StubEngine(), store=Store(), cfg=cfg)
     assert set(specs) == {"market_data", "financials", "stats", "regime", "report"}
     assert all(isinstance(a, Agent) for a in specs.values())
+
+
+# --------------------------------------------------------------------------- #
+# AnalystConfig.hub_db must reach every tool builder that reads market data --
+# audit finding: only the report builder's ecosystem_resolvers() got it, so a
+# run with a custom hub_db could read macro/stats/regime data from the
+# hub's own default db while the report resolved figures from cfg.hub_db.
+# --------------------------------------------------------------------------- #
+
+
+def test_market_data_and_financials_tools_use_configured_hub_db(tmp_path) -> None:
+    pytest.importorskip("market_data_hub")
+    from lazytools.skills.analyst import _financials_tools, _market_data_tools
+
+    hub_db = str(tmp_path / "hub.duckdb")
+    cfg = AnalystConfig(hub_db=hub_db, out_dir=str(tmp_path / "out"))
+
+    (market,) = _market_data_tools(cfg)
+    (financials,) = _financials_tools(cfg)
+    assert market._resolve()._db_path == hub_db
+    assert financials._resolve()._db_path == hub_db
+
+
+def test_market_data_tools_default_backend_when_hub_db_unset(tmp_path) -> None:
+    from lazytools.skills.analyst import _market_data_tools
+
+    cfg = AnalystConfig(out_dir=str(tmp_path / "out"))
+    (market,) = _market_data_tools(cfg)
+    assert market._backend is None  # unresolved -- MarketDataHubBackend()'s own default, unchanged behavior
+
+
+def test_stats_tools_use_configured_hub_db(tmp_path) -> None:
+    from lazytools.skills.analyst import _stats_tools
+
+    hub_db = str(tmp_path / "hub.duckdb")
+    cfg = AnalystConfig(hub_db=hub_db, out_dir=str(tmp_path / "out"))
+    (stats,) = _stats_tools(cfg)
+    assert stats._db_path == hub_db
+
+
+def test_regime_tools_receive_both_regime_db_and_hub_db(tmp_path) -> None:
+    pytest.importorskip("lazystats.regimes", reason="regime skill needs lazystats[regimes]")
+    from lazytools.skills.analyst import _regime_tools
+
+    hub_db = str(tmp_path / "hub.duckdb")
+    regime_db = str(tmp_path / "r.db")
+    cfg = AnalystConfig(hub_db=hub_db, regime_db=regime_db, out_dir=str(tmp_path / "out"))
+    (regime,) = _regime_tools(cfg)
+    assert regime._db_path == regime_db
+    assert regime._market_data_path == hub_db
+
+
+def test_report_resolver_isolated_across_two_regime_depots_in_one_process(tmp_path) -> None:
+    """The isolation hazard itself: two pipelines, two different regime
+    depots, interleaved in one process -- each pipeline's report resolver
+    must read its OWN depot's plot, never whichever depot happened to be
+    "active" globally most recently.
+
+    Also demonstrates why the old regimes_db=None approach was unsafe: at
+    the point cfg1's report is built, the global depot has already been
+    reassigned to cfg2's file by building cfg2's regime tools."""
+    pytest.importorskip("lazystats.regimes", reason="regime skill needs lazystats[regimes]")
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from lazytools.skills.analyst import _regime_tools, _report_tools
+
+    cfg1 = AnalystConfig(regime_db=str(tmp_path / "depot1.db"), out_dir=str(tmp_path / "out1"))
+    cfg2 = AnalystConfig(regime_db=str(tmp_path / "depot2.db"), out_dir=str(tmp_path / "out2"))
+
+    # Build cfg1's regime tools (init_regime_db(depot1) -> global _DB = depot1),
+    # write a plot into depot1.
+    (regime1,) = _regime_tools(cfg1)
+    fig1, ax1 = plt.subplots(figsize=(1, 1))
+    ax1.set_title("depot1")
+    key1 = regime1._db().get_db().write_plot(fig1, result_key="depot1_key", series_name="S", title="depot1")
+    plt.close(fig1)
+
+    # Build cfg2's regime tools (init_regime_db(depot2) -> global _DB REASSIGNED
+    # to depot2, exactly the hazard the audit flagged), write a DIFFERENT
+    # figure into depot2, under a different result_key so the two plot keys
+    # can never collide regardless of same-second timestamp granularity.
+    (regime2,) = _regime_tools(cfg2)
+    fig2, ax2 = plt.subplots(figsize=(1, 1))
+    ax2.set_title("depot2")
+    key2 = regime2._db().get_db().write_plot(fig2, result_key="depot2_key", series_name="S", title="depot2")
+    plt.close(fig2)
+
+    assert key1 != key2
+
+    # At this point the global depot is depot2. Building cfg1's report tools
+    # must still resolve depot1's plot, not depot2's -- this is the fix.
+    report1, _files1 = _report_tools(cfg1)
+    png1, _mime1 = report1._artifacts.resolve(f"regimes:{key1}")
+
+    report2, _files2 = _report_tools(cfg2)
+    png2, _mime2 = report2._artifacts.resolve(f"regimes:{key2}")
+
+    assert png1 != png2  # different figures, proving no cross-contamination
+    # depot1's report resolver must NOT be able to see depot2's key (proves
+    # it's reading depot1's file specifically, not just "whatever key exists").
+    with pytest.raises(KeyError):
+        report1._artifacts.resolve(f"regimes:{key2}")
+
+
+def test_macro_views_macro_and_market_tools_use_configured_hub_db(tmp_path) -> None:
+    pytest.importorskip("lazystats.regimes", reason="regime tool needs lazystats[regimes]")
+    pytest.importorskip("market_data_hub")
+    from lazytools.skills.macro_views import _macro_tools, _market_tools
+
+    hub_db = str(tmp_path / "hub.duckdb")
+    regime_db = str(tmp_path / "r.db")
+    cfg = AnalystConfig(hub_db=hub_db, regime_db=regime_db, out_dir=str(tmp_path / "out"))
+
+    (macro_datahub,) = _macro_tools(cfg)
+    assert macro_datahub._resolve()._db_path == hub_db
+
+    stats, regime = _market_tools(cfg)
+    assert stats._db_path == hub_db
+    assert regime._market_data_path == hub_db
+    assert regime._db_path == regime_db

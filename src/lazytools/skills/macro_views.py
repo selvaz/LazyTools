@@ -125,8 +125,14 @@ def views_json_to_tree_constraints(views_json: str) -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------- #
 def _macro_tools(cfg: AnalystConfig) -> list[Any]:
     from lazytools.connectors.datahub import DataHubTools
+    from lazytools.connectors.datahub.backend import MarketDataHubBackend
 
-    tools: list[Any] = [DataHubTools(allow_raw_series=True)]
+    # A None backend lazily resolves to MarketDataHubBackend() -- its OWN
+    # default db path, silently ignoring cfg.hub_db. Without this, the macro
+    # stage and the report stage (which DOES pass cfg.hub_db, below) can end
+    # up reading two different market-data-hub databases in one run.
+    backend = MarketDataHubBackend(db_path=cfg.hub_db) if cfg.hub_db else None
+    tools: list[Any] = [DataHubTools(backend=backend, allow_raw_series=True)]
     if cfg.news_db:
         from lazycrawler import CrawlerDB, DBConfig
         from lazycrawler.tools import CrawlerTools
@@ -147,7 +153,13 @@ def _market_tools(cfg: AnalystConfig) -> list[Any]:
     # init_regime_db(cfg.regime_db) call. Pass db_path explicitly so cfg.regime_db
     # is the depot actually in use (confirmed live: without this, plots ended up
     # in the default depot while cfg.regime_db pointed at an empty file).
-    return [StatisticalAnalysisTools(), RegimeTools(allow_write=True, db_path=cfg.regime_db)]
+    #
+    # market_data_path=cfg.hub_db: without it RegimeTools has no idea cfg.hub_db
+    # exists either, same class of bug as StatisticalAnalysisTools() below.
+    return [
+        StatisticalAnalysisTools(db_path=cfg.hub_db),
+        RegimeTools(allow_write=True, db_path=cfg.regime_db, market_data_path=cfg.hub_db),
+    ]
 
 
 def _view_synthesis_tools(cfg: AnalystConfig) -> list[Any]:
@@ -160,14 +172,21 @@ def _report_tools(cfg: AnalystConfig) -> list[Any]:
     from lazytools.report import ReportFiles, ReportTools, ecosystem_resolvers
 
     files = ReportFiles(base_dir=cfg.out_dir)
-    # regimes_db=None -> the 'regimes:' resolver reuses the SAME shared
-    # module-global depot connection that init_regime_db()/regime_generate_plots
-    # write through in this process (lazystats.regimes.db.get_db()), instead of
-    # opening a second, separate connection to the path string -- which can miss
-    # a plot the "market" skill just wrote in this same run (observed live: a
-    # freshly-generated regime plot resolved as "not found" through a second
-    # connection to the same file).
-    resolvers = ecosystem_resolvers(datahub_db_path=cfg.hub_db, regimes_db=None, file_base_dir=cfg.out_dir)
+    # regimes_db=cfg.regime_db (an explicit path), NOT None: the earlier fix
+    # here relied on regimes_db=None reusing the shared module-global depot
+    # connection (lazystats.regimes.db.get_db()) -- correct for a single
+    # pipeline, but a process-global is not isolated across pipelines using
+    # different depots (sequential runs with different cfg.regime_db, or
+    # concurrent ones), since ANY later init_regime_db()/RegimeTools(db_path=X)
+    # call in the process reassigns what get_db() returns for every resolver
+    # already registered. A fresh RegimeDB(cfg.regime_db) connection reads
+    # exactly the depot this pipeline's own _market_tools() writes to (same
+    # db_path=cfg.regime_db passed there) -- confirmed live that a fresh
+    # connection to the SAME file sees a plot written moments earlier via the
+    # global connection, so the original "not found" bug was the db_path
+    # mismatch this session's threading fixes already closed, not a same-file
+    # cross-connection visibility issue.
+    resolvers = ecosystem_resolvers(datahub_db_path=cfg.hub_db, regimes_db=cfg.regime_db, file_base_dir=cfg.out_dir)
     return [ReportTools(artifacts=resolvers, files=files), files]
 
 

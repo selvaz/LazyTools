@@ -322,8 +322,22 @@ def _report_agent(allow_write: bool = False, *, data_source: dict[str, Any] | No
 
 @_register("stats_agents")
 def _stats_agents(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
-    """Expose the statistical specialists and supervisor as MCP tools."""
+    """Expose the statistical specialists and supervisor as MCP tools.
+
+    Same opt-in gating and rationale as ``optimizer_agent``/``report_agent``:
+    these construct real ``lazybridge.Agent`` instances (LLM calls, cost,
+    non-determinism), so they must be entirely absent unless BOTH
+    ``allow_write=True`` AND the configured model's API key are present —
+    never just present-but-limited.
+
+    Model: ``LAZYTOOLS_STATS_AGENT_MODEL``, default ``deepseek-v4-flash``
+    (needs ``DEEPSEEK_API_KEY``).
+    """
+    if not allow_write:
+        raise RuntimeError("stats_agents is opt-in only: pass allow_write=True (--allow-unsafe).")
     model = os.environ.get("LAZYTOOLS_STATS_AGENT_MODEL", "deepseek-v4-flash")
+    if model.startswith("deepseek") and not os.environ.get("DEEPSEEK_API_KEY"):
+        raise RuntimeError("stats_agents needs DEEPSEEK_API_KEY for its default model; skipped.")
 
     from lazytools.skills.stats_agents import (
         regime_analyst,

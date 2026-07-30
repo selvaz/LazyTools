@@ -178,11 +178,13 @@ def test_specialist_agents_are_opt_in_only(tmp_path, monkeypatch) -> None:
     # Unlike every other provider, these construct a real lazybridge.Agent —
     # they must be entirely absent unless BOTH allow_write=True AND the
     # configured model's API key are present, never just present-but-limited.
+    # stats_agents is included here because it once had no gating at all (an
+    # audit finding): it must behave identically to optimizer_agent/report_agent.
     pytest.importorskip("lazybridge")
     pytest.importorskip("lazyfin")
     pytest.importorskip("lazyportfolio")
     monkeypatch.setenv("LAZYTOOLS_DATA_DIR", str(tmp_path))
-    ids = ["optimizer_agent", "report_agent"]
+    ids = ["optimizer_agent", "report_agent", "stats_agents"]
 
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     assert default_providers(ids, allow_write=False) == []
@@ -192,9 +194,41 @@ def test_specialist_agents_are_opt_in_only(tmp_path, monkeypatch) -> None:
     assert default_providers(ids, allow_write=False) == []  # allow_write still required
 
     providers = default_providers(ids, allow_write=True)
-    names = {getattr(p, "name", None) for p in providers}
-    assert names == {"portfolio-optimizer-specialist", "report-specialist"}
-    assert all(getattr(p, "_is_lazy_agent", False) for p in providers)
+    # stats_agents' factory returns a *list* (3 specialists + 1 supervisor) —
+    # flatten the same way default_providers/expand_tools do downstream.
+    flat = []
+    for p in providers:
+        flat.extend(p if isinstance(p, list) else [p])
+    names = {getattr(p, "name", None) for p in flat}
+    assert names == {
+        "portfolio-optimizer-specialist",
+        "report-specialist",
+        "volatility-correlation-analyst",
+        "regime-analyst",
+        "regression-analyst",
+        "stats-supervisor",
+    }
+    assert all(getattr(p, "_is_lazy_agent", False) for p in flat)
+
+
+def test_stats_agents_absent_without_write_or_credential(tmp_path, monkeypatch) -> None:
+    """Narrower regression for the specific audit finding: stats_agents used
+    to construct its agents unconditionally, regardless of allow_write or
+    DEEPSEEK_API_KEY -- assert the raw factory itself raises, not just that
+    default_providers' try/except happens to swallow it."""
+    pytest.importorskip("lazybridge")
+    monkeypatch.setenv("LAZYTOOLS_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+
+    from lazytools.mcp_server.providers import PROVIDER_FACTORIES
+
+    factory = PROVIDER_FACTORIES["stats_agents"]
+    with pytest.raises(RuntimeError, match="opt-in"):
+        factory(allow_write=False)
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key-not-a-real-secret")
+    with pytest.raises(RuntimeError, match="opt-in"):
+        factory(allow_write=False)
 
 
 def test_comms_connectors_contract() -> None:
