@@ -86,13 +86,25 @@ jobs:
 
           import lazybridge
           import lazycrawler
-          import lazyfin
           import lazyportfolio
           import lazypulse
           import lazytools
 
-          for pkg in ("lazybridge", "lazytoolkit", "lazypulse", "lazycrawler",
-                      "market-data-hub", "lazystats", "lazyportfolio", "lazyfin"):
+          # lazyfin is the one PRIVATE manifest component: without
+          # ECOSYSTEM_PAT (a repo secret, not configured in every
+          # environment this workflow runs in) the install step above skips
+          # it gracefully -- match that here instead of hard-failing.
+          try:
+              import lazyfin
+              _have_lazyfin = True
+          except ImportError:
+              _have_lazyfin = False
+              print("lazyfin not installed (ECOSYSTEM_PAT not set) -- skipping its checks")
+
+          pkgs = ["lazybridge", "lazytoolkit", "lazypulse", "lazycrawler", "market-data-hub", "lazystats", "lazyportfolio"]
+          if _have_lazyfin:
+              pkgs.append("lazyfin")
+          for pkg in pkgs:
               print(pkg, md.version(pkg))
 
           from lazytools.connectors.datahub import DataHubTools
