@@ -282,9 +282,14 @@ class OperationsCatalog:
             ).fetchone()
             if existing:
                 artifact_id = existing["artifact_id"]
+            # SQLite treats NULL as distinct from NULL in a UNIQUE/PRIMARY KEY
+            # check, so a bare NULL role would never trigger INSERT OR IGNORE
+            # and every re-registration would add another run_artifacts row.
+            # Normalize to "" (still means "no role") so the same artifact
+            # attached to the same run under the same role only appears once.
             con.execute(
                 "INSERT OR IGNORE INTO run_artifacts(run_id, artifact_id, role) VALUES (?, ?, ?)",
-                (run_id, artifact_id, role),
+                (run_id, artifact_id, role or ""),
             )
             row = con.execute("SELECT * FROM artifacts WHERE artifact_id=?", (artifact_id,)).fetchone()
         return ArtifactRecord(artifact_id, run_id, row["name"], row["kind"], row["mime_type"],
@@ -357,4 +362,4 @@ class OperationsCatalog:
             rows = con.execute("""SELECT a.*, ra.role FROM artifacts a JOIN run_artifacts ra
                          ON ra.artifact_id=a.artifact_id WHERE ra.run_id=? ORDER BY a.created_at""", (run_id,)).fetchall()
         return [ArtifactRecord(r["artifact_id"], run_id, r["name"], r["kind"], r["mime_type"],
-                               r["size_bytes"], r["storage_path"], r["sha256"], r["role"]) for r in rows]
+                               r["size_bytes"], r["storage_path"], r["sha256"], r["role"] or None) for r in rows]

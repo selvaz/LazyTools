@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from lazytools.operations import OperationsCatalog
@@ -37,6 +38,20 @@ def test_identical_artifacts_are_deduplicated(tmp_path: Path) -> None:
     assert len(list((tmp_path / "artifacts").rglob("*.txt"))) == 1
 
 
+def test_null_role_artifacts_still_dedupe(tmp_path: Path) -> None:
+    """SQLite treats NULL != NULL in a UNIQUE index, so a bare NULL role used
+    to defeat INSERT OR IGNORE and create a duplicate run_artifacts row on
+    every re-registration of the same content without an explicit role."""
+    catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
+    run_id = catalog.start_run("task-x")
+    a = catalog.register_text(run_id, "same.txt", "same-content", kind="result")
+    b = catalog.register_text(run_id, "same.txt", "same-content", kind="result")
+
+    assert a.artifact_id == b.artifact_id
+    assert a.role is None  # normalized "" is still reported as None to callers
+    assert len(catalog.artifacts_for_run(run_id)) == 1
+
+
 def test_failed_run_is_recorded(tmp_path: Path) -> None:
     catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
     run_id = catalog.start_run("failing-task")
@@ -70,6 +85,56 @@ def test_portfolio_outputs_store_weights_and_described_nodes(tmp_path: Path, mon
     # Still shows up under `reports` (title = task name), pointing at the
     # same artifact_id as the "result" entry -- no bytes duplicated.
     assert tuple(report) == ("portfolio_tree_estimate", result_artifact.artifact_id)
+
+
+def test_publish_marks_run_failed_when_a_later_step_raises(tmp_path: Path, monkeypatch) -> None:
+    """If start_run() succeeds but a later catalog write raises, the run must
+    end up "failed", not stuck "running" forever -- publish() itself still
+    reports failure to its caller by returning None."""
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "operations.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+
+    def _boom(self, *args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(OperationsCatalog, "register_node", _boom)
+
+    run_id = publish_portfolio_run(
+        "portfolio_tree_estimate",
+        parameters={"name": "demo"},
+        result={"terminal_weights": {"ticker:SPY": 1.0}},
+        config={"nodes": [{"id": "n1", "name": "N1"}]},
+    )
+
+    assert run_id is None
+    catalog = OperationsCatalog()
+    runs = catalog.list_runs(task_name="portfolio_tree_estimate")
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
+    assert "boom" in (runs[0].error or "")
+
+
+def test_publish_persists_resolved_backtest_settings(tmp_path: Path, monkeypatch) -> None:
+    """config["backtest"] carries the settings actually used (saved-tree
+    defaults + call-time overrides already merged) -- `parameters` alone can
+    hold 0/""/None placeholders whenever the caller relied on those
+    defaults instead of passing explicit overrides."""
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "operations.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+
+    resolved_backtest = {"train_size": 104, "rebalance_frequency": "M", "transaction_cost_bps": 5.0}
+    run_id = publish_portfolio_run(
+        "portfolio_tree_backtest",
+        parameters={"name": "demo", "train_size": 0, "rebalance_frequency": ""},
+        result={"ok": True},
+        config={"backtest": resolved_backtest},
+    )
+
+    assert run_id is not None
+    catalog = OperationsCatalog()
+    settings_artifact = next(a for a in catalog.artifacts_for_run(run_id) if a.kind == "config")
+    stored = json.loads(Path(settings_artifact.storage_path).read_text(encoding="utf-8"))
+    assert stored == resolved_backtest
 
 
 def test_publish_portfolio_run_is_skipped_when_disabled(tmp_path: Path, monkeypatch) -> None:
