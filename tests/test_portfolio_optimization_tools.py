@@ -103,10 +103,15 @@ def test_backtest_runs_through_connector_without_return_rows() -> None:
     assert "raw_rows" not in json.dumps(payload)
 
 
-def test_run_publishes_to_operations_catalog(monkeypatch) -> None:
+def test_run_publishes_to_operations_catalog(tmp_path, monkeypatch) -> None:
     """Covers the actual wiring in tools.py, not just publish() in isolation."""
     pd = pytest.importorskip("pandas")
     pytest.importorskip("skfolio")
+    # Mocking publish() alone still leaves the real integration.start() call
+    # active, which would otherwise write a permanently "running" record
+    # into the developer's actual ~/.lazytools/operations.sqlite.
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "operations.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
     frame = pd.DataFrame(
         {
             "ticker:SPY": [0.001 * ((index % 7) - 3) for index in range(180)],

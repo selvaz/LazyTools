@@ -234,8 +234,13 @@ def test_backtest_override_changes_the_run_without_mutating_the_saved_file(tmp_p
     assert reloaded["backtest"]["rebalance_frequency"] == "M"
 
 
-def test_estimate_publishes_to_operations_catalog(frame, monkeypatch) -> None:
+def test_estimate_publishes_to_operations_catalog(frame, tmp_path, monkeypatch) -> None:
     """Covers the actual wiring in tree_tools.py, not just publish() in isolation."""
+    # Mocking publish() alone still leaves the real integration.start() call
+    # active, which would otherwise write a permanently "running" record
+    # into the developer's actual ~/.lazytools/operations.sqlite.
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "operations.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
     backend = _FakeTreeBackend(frame)
     tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend).as_tools()}
 
@@ -253,7 +258,12 @@ def test_estimate_publishes_to_operations_catalog(frame, monkeypatch) -> None:
     assert calls[0]["config"]["root_id"] == "root"
 
 
-def test_backtest_publishes_to_operations_catalog(frame, monkeypatch) -> None:
+def test_backtest_publishes_to_operations_catalog(frame, tmp_path, monkeypatch) -> None:
+    # Mocking publish() alone still leaves the real integration.start() call
+    # active, which would otherwise write a permanently "running" record
+    # into the developer's actual ~/.lazytools/operations.sqlite.
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "operations.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
     backend = _FakeTreeBackend(frame)
     tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend).as_tools()}
 
