@@ -2,27 +2,24 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from typing import Any
 
 from lazytools.operations.catalog import OperationsCatalog
+from lazytools.operations.integration import is_disabled
 
 
 def publish(task_name: str, *, parameters: dict[str, Any], result: dict[str, Any],
             config: dict[str, Any] | None = None) -> str | None:
     """Publish an optimizer result, weights and constructed nodes if enabled."""
+    if is_disabled():
+        return None
     try:
         catalog = OperationsCatalog()
         run_id = catalog.start_run(task_name, parameters=parameters, source_repo="LazyTools")
-        catalog.register_json(run_id, "optimizer-result.json", result, kind="result", role="optimizer-result")
-        catalog.register_report(
-            run_id,
-            task_name,
-            json.dumps(result, indent=2, sort_keys=True, default=str),
-            name="optimizer-report.json",
-            mime_type="application/json",
-        )
+        result_artifact = catalog.register_json(run_id, "optimizer-result.json", result,
+                                                 kind="result", role="optimizer-result")
+        catalog.link_report(run_id, task_name, result_artifact)
         weights = result.get("target_weights") or result.get("terminal_weights")
         if weights is not None:
             catalog.register_json(run_id, "portfolio-weights.json", weights, kind="weights", role="weights")

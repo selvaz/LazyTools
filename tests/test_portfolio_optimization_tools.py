@@ -101,3 +101,32 @@ def test_backtest_runs_through_connector_without_return_rows() -> None:
     assert payload["provenance"]["rebalance_frequency"] == "M"
     assert "cagr" in payload["metrics"]
     assert "raw_rows" not in json.dumps(payload)
+
+
+def test_run_publishes_to_operations_catalog(monkeypatch) -> None:
+    """Covers the actual wiring in tools.py, not just publish() in isolation."""
+    pd = pytest.importorskip("pandas")
+    pytest.importorskip("skfolio")
+    frame = pd.DataFrame(
+        {
+            "ticker:SPY": [0.001 * ((index % 7) - 3) for index in range(180)],
+            "ticker:TLT": [0.0005 * ((index % 5) - 2) for index in range(180)],
+        },
+        index=pd.date_range("2024-01-02", periods=180, freq="B"),
+    )
+    backend = _FakeOptimizationBackend(frame)
+    provider = PortfolioOptimizationTools(backend=backend)
+    tools = {tool.name: tool for tool in provider.as_tools()}
+
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "lazytools.operations.portfolio.publish",
+        lambda task_name, **kwargs: calls.append({"task_name": task_name, **kwargs}),
+    )
+
+    tools["portfolio_optimizer_run"].run_sync(instruments="SPY, TLT", objective="min_risk", frequency="W")
+
+    assert len(calls) == 1
+    assert calls[0]["task_name"] == "portfolio_optimizer_run"
+    assert calls[0]["parameters"]["instruments"] == ["ticker:SPY", "ticker:TLT"]
+    assert calls[0]["result"]["status"] == "optimal"

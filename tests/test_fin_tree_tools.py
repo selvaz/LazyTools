@@ -232,3 +232,39 @@ def test_backtest_override_changes_the_run_without_mutating_the_saved_file(tmp_p
 
     reloaded = json.loads(tools["portfolio_tree_load"].run_sync(name="saved"))
     assert reloaded["backtest"]["rebalance_frequency"] == "M"
+
+
+def test_estimate_publishes_to_operations_catalog(frame, monkeypatch) -> None:
+    """Covers the actual wiring in tree_tools.py, not just publish() in isolation."""
+    backend = _FakeTreeBackend(frame)
+    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend).as_tools()}
+
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "lazytools.operations.portfolio.publish",
+        lambda task_name, **kwargs: calls.append({"task_name": task_name, **kwargs}),
+    )
+
+    tools["portfolio_tree_estimate"].run_sync(config=_tree_config())
+
+    assert len(calls) == 1
+    assert calls[0]["task_name"] == "portfolio_tree_estimate"
+    assert calls[0]["result"]["ok"] is True
+    assert calls[0]["config"]["root_id"] == "root"
+
+
+def test_backtest_publishes_to_operations_catalog(frame, monkeypatch) -> None:
+    backend = _FakeTreeBackend(frame)
+    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend).as_tools()}
+
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "lazytools.operations.portfolio.publish",
+        lambda task_name, **kwargs: calls.append({"task_name": task_name, **kwargs}),
+    )
+
+    tools["portfolio_tree_backtest"].run_sync(config=_tree_config())
+
+    assert len(calls) == 1
+    assert calls[0]["task_name"] == "portfolio_tree_backtest"
+    assert calls[0]["result"]["ok"] is True

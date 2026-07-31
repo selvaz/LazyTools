@@ -14,10 +14,11 @@ import os
 import re
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tasks (
@@ -160,10 +161,26 @@ class OperationsCatalog:
         con.execute("PRAGMA busy_timeout=30000")
         return con
 
+    @contextmanager
+    def _session(self) -> Iterator[sqlite3.Connection]:
+        """Open a connection, commit/rollback like ``sqlite3.Connection`` does, and always close it.
+
+        ``with self._session() as con:`` alone never closes the connection --
+        sqlite3's own context manager only commits or rolls back. Every
+        catalog call (including the ones wired into interactive MCP tool
+        calls) would otherwise leak a connection per call.
+        """
+        con = self._connect()
+        try:
+            with con:
+                yield con
+        finally:
+            con.close()
+
     def initialize(self) -> None:
         """Create or upgrade the catalog schema idempotently."""
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
-        with self._connect() as con:
+        with self._session() as con:
             con.executescript(SCHEMA)
 
     def start_run(self, task_name: str, *, parameters: dict[str, Any] | None = None,
@@ -174,7 +191,7 @@ class OperationsCatalog:
         self.initialize()
         run_id = f"run_{uuid.uuid4().hex}"
         now = _now()
-        with self._connect() as con:
+        with self._session() as con:
             con.execute(
                 """INSERT INTO tasks(task_name, description, schedule, owner_repo, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?)
@@ -195,7 +212,7 @@ class OperationsCatalog:
     def finish_run(self, run_id: str, status: str = "succeeded", *, error: str | None = None) -> None:
         if status not in {"succeeded", "failed", "skipped"}:
             raise ValueError("status must be succeeded, failed, or skipped")
-        with self._connect() as con:
+        with self._session() as con:
             updated = con.execute(
                 "UPDATE runs SET status=?, finished_at=?, error=? WHERE run_id=? AND status='running'",
                 (status, _now(), error, run_id),
@@ -207,7 +224,7 @@ class OperationsCatalog:
         self.finish_run(run_id, "failed", error=error)
 
     def get_run(self, run_id: str) -> RunRecord | None:
-        with self._connect() as con:
+        with self._session() as con:
             row = con.execute("SELECT * FROM runs WHERE run_id=?", (run_id,)).fetchone()
         if row is None:
             return None
@@ -223,7 +240,7 @@ class OperationsCatalog:
             params.append(task_name)
         query += " ORDER BY started_at DESC LIMIT ?"
         params.append(max(1, min(limit, 1000)))
-        with self._connect() as con:
+        with self._session() as con:
             rows = con.execute(query, params).fetchall()
         records: list[RunRecord] = []
         for row in rows:
@@ -248,7 +265,7 @@ class OperationsCatalog:
             temporary.replace(target)
         artifact_id = f"artifact_{uuid.uuid4().hex}"
         now = _now()
-        with self._connect() as con:
+        with self._session() as con:
             # INSERT OR IGNORE makes the content-addressed identity safe when
             # two scheduled processes publish the same payload concurrently.
             con.execute(
@@ -286,17 +303,26 @@ class OperationsCatalog:
     def register_report(self, run_id: str, title: str, content: str, *, name: str = "report.md",
                         mime_type: str = "text/markdown") -> ArtifactRecord:
         artifact = self.register_text(run_id, name, content, kind="report", mime_type=mime_type, role="report")
-        with self._connect() as con:
+        self.link_report(run_id, title, artifact)
+        return artifact
+
+    def link_report(self, run_id: str, title: str, artifact: ArtifactRecord) -> None:
+        """Index an already-registered artifact in the ``reports`` table.
+
+        Use this instead of ``register_report`` when the content was already
+        persisted (e.g. via ``register_json``) and a second, byte-identical
+        artifact would just be bookkeeping noise.
+        """
+        with self._session() as con:
             con.execute("INSERT INTO reports(report_id, run_id, title, artifact_id, created_at) VALUES (?, ?, ?, ?, ?)",
                          (f"report_{uuid.uuid4().hex}", run_id, title, artifact.artifact_id, _now()))
-        return artifact
 
     def register_model(self, run_id: str, model_name: str, content: bytes, *, version: str | None = None,
                        name: str = "model.bin", mime_type: str = "application/octet-stream",
                        metadata: dict[str, Any] | None = None) -> ArtifactRecord:
         artifact = self.register_bytes(run_id, name, content, kind="model", mime_type=mime_type,
                                        role="model", metadata=metadata)
-        with self._connect() as con:
+        with self._session() as con:
             con.execute("""INSERT INTO models(model_id, run_id, model_name, version, artifact_id,
                          metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)""",
                          (f"model_{uuid.uuid4().hex}", run_id, model_name, version, artifact.artifact_id,
@@ -315,7 +341,7 @@ class OperationsCatalog:
                 kind="node_config", role="node-config", metadata=metadata,
             )
         record_id = f"node_{uuid.uuid4().hex}"
-        with self._connect() as con:
+        with self._session() as con:
             con.execute(
                 """INSERT INTO portfolio_nodes(record_id, run_id, node_key, name, description,
                    node_type, config_artifact_id, metadata_json, created_at)
@@ -326,7 +352,7 @@ class OperationsCatalog:
         return record_id
 
     def artifacts_for_run(self, run_id: str) -> list[ArtifactRecord]:
-        with self._connect() as con:
+        with self._session() as con:
             rows = con.execute("""SELECT a.*, ra.role FROM artifacts a JOIN run_artifacts ra
                          ON ra.artifact_id=a.artifact_id WHERE ra.run_id=? ORDER BY a.created_at""", (run_id,)).fetchall()
         return [ArtifactRecord(r["artifact_id"], run_id, r["name"], r["kind"], r["mime_type"],
