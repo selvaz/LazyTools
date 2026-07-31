@@ -35,7 +35,7 @@ def start(task_name: str, *, source_repo: str, parameters: dict[str, Any],
     try:
         catalog = OperationsCatalog()
         run_id = catalog.start_run(task_name, parameters=parameters, source_repo=source_repo, source_db=source_db)
-    except Exception as exc:  # noqa: BLE001 - central catalog is optional
+    except Exception as exc:
         print(f"Operations catalog unavailable; continuing without registration: {exc}", file=sys.stderr)
         return None, None
     print(f"OPERATIONS_RUN_ID={run_id}")
@@ -47,7 +47,7 @@ def finish(catalog: Any, run_id: str | None, *, ok: bool, error: str | None = No
         return
     try:
         catalog.finish_run(run_id, "succeeded" if ok else "failed", error=error)
-    except Exception as exc:  # noqa: BLE001 - cataloging must not break the job
+    except Exception as exc:
         print(f"Operations catalog update failed: {exc}", file=sys.stderr)
 
 
@@ -57,7 +57,7 @@ def register_file(catalog: Any, run_id: str | None, path: str | Path, *, kind: s
         return
     try:
         catalog.register_file(run_id, path, kind=kind, role=role)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"Operations artifact registration failed for {path}: {exc}", file=sys.stderr)
 
 
@@ -66,5 +66,5 @@ def register_json(catalog: Any, run_id: str | None, name: str, value: Any, *, ki
         return
     try:
         catalog.register_json(run_id, name, value, kind=kind, role=kind)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"Operations JSON registration failed for {name}: {exc}", file=sys.stderr)
