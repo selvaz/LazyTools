@@ -81,6 +81,7 @@ plugins:
           - skills-analyst.md
           - skills-stats.md
           - report.md
+          - operations.md
         Core tools:
           - core-tools.md
           - planners/index.md
@@ -149,6 +150,7 @@ nav:
       - Analyst skills: skills-analyst.md
       - Statistical agents: skills-stats.md
       - Report (LazyReport): report.md
+      - Operations catalog: operations.md
   - Core tools:
       - Overview: core-tools.md
       - Planners:

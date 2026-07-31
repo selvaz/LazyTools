@@ -62,6 +62,7 @@ site       = ["mkdocs-material>=9.5,<10.0", "mkdocstrings[python]>=0.24,<1.0", "
 # ``mcp`` extra (pip install 'lazytoolkit[mcp]'); the command errors with a
 # clear install hint if the SDK is absent.
 lazytools-mcp = "lazytools.mcp_server.__main__:main"
+lazytools-operations = "lazytools.operations.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/selvaz/LazyTools"
