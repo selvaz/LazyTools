@@ -363,25 +363,32 @@ class PortfolioOptimizationTools:
             periods_per_year=self._annualization_factor(frequency),
         )
         result = next(iter(estimate.node_results.values()))
-        return _json(
-            {
-                "status": "optimal",
-                "objective": objective,
-                "target_weights": [
-                    {"security_id": instrument, "weight": weight}
-                    for instrument, weight in estimate.terminal_weights.items()
-                ],
-                "expected_return_annualized": result.audit.expected_return_annualized,
-                "actual_volatility": result.audit.actual_volatility,
-                "resolved_mean_estimator": result.audit.resolved_mean_estimator,
-                "solver_message": result.audit.solver_message,
-                "provenance": {
-                    "source": dataset.metadata.get("source"),
-                    "n_rows": dataset.metadata.get("n_rows"),
-                    "frequency": frequency,
-                },
-            }
-        )
+        payload = {
+            "status": "optimal",
+            "objective": objective,
+            "target_weights": [
+                {"security_id": instrument, "weight": weight}
+                for instrument, weight in estimate.terminal_weights.items()
+            ],
+            "expected_return_annualized": result.audit.expected_return_annualized,
+            "actual_volatility": result.audit.actual_volatility,
+            "resolved_mean_estimator": result.audit.resolved_mean_estimator,
+            "solver_message": result.audit.solver_message,
+            "provenance": {
+                "source": dataset.metadata.get("source"),
+                "n_rows": dataset.metadata.get("n_rows"),
+                "frequency": frequency,
+            },
+        }
+        from lazytools.operations.portfolio import publish
+        publish("portfolio_optimizer_run", parameters={
+            "instruments": universe, "objective": objective, "start": start, "end": end,
+            "frequency": frequency, "min_weight": min_weight, "max_weight": max_weight,
+            "cash_enabled": cash_enabled, "max_leverage": max_leverage,
+            "mean_estimator": mean_estimator, "risk_aversion": risk_aversion,
+            "risk_free_rate": risk_free_rate, "benchmark_weights": benchmark_weights,
+        }, result=payload)
+        return _json(payload)
 
     def _backtest(
         self,
@@ -425,22 +432,31 @@ class PortfolioOptimizationTools:
             rebalance_frequency=rebalance_frequency,
             transaction_cost_bps=transaction_cost_bps,
         )
-        return _json(
-            {
-                "status": "optimal",
-                "objective": objective,
-                "n_folds": len(report.folds),
-                "metrics": report.metrics.get("FINAL"),
-                "benchmark_metrics": report.metrics.get("B0"),
-                "transaction_cost_paid": report.transaction_cost_paid.get("FINAL"),
-                "provenance": {
-                    "source": dataset.metadata.get("source"),
-                    "n_rows": dataset.metadata.get("n_rows"),
-                    "estimation_frequency": frequency,
-                    "rebalance_frequency": rebalance_frequency,
-                },
-            }
-        )
+        payload = {
+            "status": "optimal",
+            "objective": objective,
+            "n_folds": len(report.folds),
+            "metrics": report.metrics.get("FINAL"),
+            "benchmark_metrics": report.metrics.get("B0"),
+            "transaction_cost_paid": report.transaction_cost_paid.get("FINAL"),
+            "provenance": {
+                "source": dataset.metadata.get("source"),
+                "n_rows": dataset.metadata.get("n_rows"),
+                "estimation_frequency": frequency,
+                "rebalance_frequency": rebalance_frequency,
+            },
+        }
+        from lazytools.operations.portfolio import publish
+        publish("portfolio_optimizer_backtest", parameters={
+            "instruments": universe, "objective": objective, "start": start, "end": end,
+            "frequency": frequency, "min_weight": min_weight, "max_weight": max_weight,
+            "cash_enabled": cash_enabled, "max_leverage": max_leverage,
+            "mean_estimator": mean_estimator, "risk_aversion": risk_aversion,
+            "risk_free_rate": risk_free_rate, "benchmark_weights": benchmark_weights,
+            "train_size": train_size, "rebalance_frequency": rebalance_frequency,
+            "transaction_cost_bps": transaction_cost_bps,
+        }, result=payload)
+        return _json(payload)
 
 
 class ScoringTools:

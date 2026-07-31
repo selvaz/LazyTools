@@ -79,6 +79,18 @@ CREATE TABLE IF NOT EXISTS reports (
     artifact_id TEXT NOT NULL REFERENCES artifacts(artifact_id),
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS portfolio_nodes (
+    record_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    node_key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    node_type TEXT NOT NULL DEFAULT 'portfolio',
+    config_artifact_id TEXT REFERENCES artifacts(artifact_id),
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_portfolio_nodes_run ON portfolio_nodes(run_id);
 """
 
 
@@ -290,6 +302,28 @@ class OperationsCatalog:
                          (f"model_{uuid.uuid4().hex}", run_id, model_name, version, artifact.artifact_id,
                           _json(metadata), _now()))
         return artifact
+
+    def register_node(self, run_id: str, node_key: str, *, name: str | None = None,
+                      description: str | None = None, node_type: str = "portfolio",
+                      config: dict[str, Any] | None = None,
+                      metadata: dict[str, Any] | None = None) -> str:
+        """Register a constructed portfolio/free node and its full config."""
+        config_artifact = None
+        if config is not None:
+            config_artifact = self.register_json(
+                run_id, f"node-{_safe_name(node_key)}.json", config,
+                kind="node_config", role="node-config", metadata=metadata,
+            )
+        record_id = f"node_{uuid.uuid4().hex}"
+        with self._connect() as con:
+            con.execute(
+                """INSERT INTO portfolio_nodes(record_id, run_id, node_key, name, description,
+                   node_type, config_artifact_id, metadata_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (record_id, run_id, node_key, name or node_key, description, node_type,
+                 config_artifact.artifact_id if config_artifact else None, _json(metadata), _now()),
+            )
+        return record_id
 
     def artifacts_for_run(self, run_id: str) -> list[ArtifactRecord]:
         with self._connect() as con:

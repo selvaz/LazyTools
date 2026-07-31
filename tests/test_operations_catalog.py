@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from lazytools.operations import OperationsCatalog
+from lazytools.operations.portfolio import publish as publish_portfolio_run
 
 
 def test_run_and_artifacts_round_trip(tmp_path: Path) -> None:
@@ -43,3 +44,21 @@ def test_failed_run_is_recorded(tmp_path: Path) -> None:
     assert run is not None
     assert run.status == "failed"
     assert run.error == "network timeout"
+
+
+def test_portfolio_outputs_store_weights_and_described_nodes(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "operations.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+    run_id = publish_portfolio_run(
+        "portfolio_tree_estimate",
+        parameters={"name": "free-node-demo"},
+        result={"terminal_weights": {"ticker:SPY": 0.6, "ticker:TLT": 0.4}},
+        config={"nodes": [{"id": "free_1", "name": "Free node", "description": "Unrestricted sleeve"}]},
+    )
+    assert run_id is not None
+    catalog = OperationsCatalog()
+    artifacts = catalog.artifacts_for_run(run_id)
+    assert {a.kind for a in artifacts} == {"result", "weights", "node_config"}
+    with catalog._connect() as con:
+        node = con.execute("SELECT name, description FROM portfolio_nodes WHERE run_id=?", (run_id,)).fetchone()
+    assert tuple(node) == ("Free node", "Unrestricted sleeve")

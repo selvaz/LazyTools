@@ -342,23 +342,27 @@ class PortfolioTreeTools:
         estimate = self._estimator.estimate(
             model, train, mode=mode, periods_per_year=self._annualization_factor(frequency)
         )
-        return _json(
-            {
-                "ok": True,
-                "engine": "hierarchical-v2",
-                "mode": mode,
-                "terminal_weights": estimate.terminal_weights,
-                "synthetic_benchmark_weights": estimate.synthetic_benchmark_weights,
-                "nodes": _node_payload(estimate.node_results),
-                "forward_nodes": _node_payload(estimate.forward_node_results),
-                "provenance": {
-                    "source": dataset.metadata.get("source"),
-                    "n_rows": dataset.metadata.get("n_rows"),
-                    "estimation_frequency": frequency,
-                    "train_size": window,
-                },
-            }
-        )
+        payload = {
+            "ok": True,
+            "engine": "hierarchical-v2",
+            "mode": mode,
+            "terminal_weights": estimate.terminal_weights,
+            "synthetic_benchmark_weights": estimate.synthetic_benchmark_weights,
+            "nodes": _node_payload(estimate.node_results),
+            "forward_nodes": _node_payload(estimate.forward_node_results),
+            "provenance": {
+                "source": dataset.metadata.get("source"),
+                "n_rows": dataset.metadata.get("n_rows"),
+                "estimation_frequency": frequency,
+                "train_size": window,
+            },
+        }
+        from lazytools.operations.portfolio import publish
+        publish("portfolio_tree_estimate", parameters={
+            "name": name, "estimation_frequency": estimation_frequency, "train_size": train_size,
+            "resolved_mode": mode,
+        }, result=payload, config=merged)
+        return _json(payload)
 
     def _backtest(
         self,
@@ -405,23 +409,28 @@ class PortfolioTreeTools:
             rebalance_frequency=str(backtest.get("rebalance_frequency") or "M"),
             transaction_cost_bps=float(backtest.get("transaction_cost_bps") or 0),
         )
-        return _json(
-            {
-                "ok": True,
-                "engine": "hierarchical-v2",
-                "mode": mode,
-                "n_folds": len(report.folds),
-                "metrics": report.metrics.get("FINAL"),
-                "benchmark_metrics": report.metrics.get(model.benchmark.name),
-                "transaction_cost_paid": report.transaction_cost_paid.get("FINAL"),
-                "provenance": {
-                    "source": dataset.metadata.get("source"),
-                    "n_rows": dataset.metadata.get("n_rows"),
-                    "estimation_frequency": frequency,
-                    "rebalance_frequency": str(backtest.get("rebalance_frequency") or "M"),
-                },
-            }
-        )
+        payload = {
+            "ok": True,
+            "engine": "hierarchical-v2",
+            "mode": mode,
+            "n_folds": len(report.folds),
+            "metrics": report.metrics.get("FINAL"),
+            "benchmark_metrics": report.metrics.get(model.benchmark.name),
+            "transaction_cost_paid": report.transaction_cost_paid.get("FINAL"),
+            "provenance": {
+                "source": dataset.metadata.get("source"),
+                "n_rows": dataset.metadata.get("n_rows"),
+                "estimation_frequency": frequency,
+                "rebalance_frequency": str(backtest.get("rebalance_frequency") or "M"),
+            },
+        }
+        from lazytools.operations.portfolio import publish
+        publish("portfolio_tree_backtest", parameters={
+            "name": name, "estimation_frequency": estimation_frequency, "train_size": train_size,
+            "rebalance_frequency": rebalance_frequency, "transaction_cost_bps": transaction_cost_bps,
+            "resolved_mode": mode,
+        }, result=payload, config=merged)
+        return _json(payload)
 
 
 __all__ = ["PortfolioTreeTools"]
