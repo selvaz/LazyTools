@@ -58,7 +58,7 @@ def test_portfolio_outputs_store_weights_and_described_nodes(tmp_path: Path, mon
     assert run_id is not None
     catalog = OperationsCatalog()
     artifacts = catalog.artifacts_for_run(run_id)
-    assert {a.kind for a in artifacts} == {"result", "weights", "node_config"}
+    assert {a.kind for a in artifacts} == {"result", "report", "weights", "node_config"}
     with catalog._connect() as con:
         node = con.execute("SELECT name, description FROM portfolio_nodes WHERE run_id=?", (run_id,)).fetchone()
     assert tuple(node) == ("Free node", "Unrestricted sleeve")
