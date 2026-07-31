@@ -330,38 +330,49 @@ class PortfolioTreeTools:
                 ]
             )
         )
-        data_raw = merged.get("data")
-        data = data_raw if isinstance(data_raw, dict) else {}
-        dataset = self._resolve_backend().load_returns(
-            instruments, start=str(data.get("start") or ""), end=str(data.get("end") or "")
-        )
-        estimation = self._resample_simple_returns(dataset.returns, frequency)
-        train = estimation.tail(window)
-        if len(train) < window:
-            raise ValueError("not enough observations for the requested estimation window")
-        estimate = self._estimator.estimate(
-            model, train, mode=mode, periods_per_year=self._annualization_factor(frequency)
-        )
-        payload = {
-            "ok": True,
-            "engine": "hierarchical-v2",
-            "mode": mode,
-            "terminal_weights": estimate.terminal_weights,
-            "synthetic_benchmark_weights": estimate.synthetic_benchmark_weights,
-            "nodes": _node_payload(estimate.node_results),
-            "forward_nodes": _node_payload(estimate.forward_node_results),
-            "provenance": {
-                "source": dataset.metadata.get("source"),
-                "n_rows": dataset.metadata.get("n_rows"),
-                "estimation_frequency": frequency,
-                "train_size": window,
-            },
-        }
-        from lazytools.operations.portfolio import publish
-        publish("portfolio_tree_estimate", parameters={
+        parameters = {
             "name": name, "estimation_frequency": estimation_frequency, "train_size": train_size,
             "resolved_mode": mode,
-        }, result=payload, config=merged)
+        }
+        from lazytools.operations import integration as _ops
+        from lazytools.operations.portfolio import publish
+        # Register the run before load_returns/estimation, not after: those
+        # are the fallible, expensive steps, and a failure there used to
+        # leave no catalog record at all instead of one marked "failed".
+        catalog, run_id = _ops.start("portfolio_tree_estimate", source_repo="LazyTools", parameters=parameters)
+        try:
+            data_raw = merged.get("data")
+            data = data_raw if isinstance(data_raw, dict) else {}
+            dataset = self._resolve_backend().load_returns(
+                instruments, start=str(data.get("start") or ""), end=str(data.get("end") or "")
+            )
+            estimation = self._resample_simple_returns(dataset.returns, frequency)
+            train = estimation.tail(window)
+            if len(train) < window:
+                raise ValueError("not enough observations for the requested estimation window")
+            estimate = self._estimator.estimate(
+                model, train, mode=mode, periods_per_year=self._annualization_factor(frequency)
+            )
+            payload = {
+                "ok": True,
+                "engine": "hierarchical-v2",
+                "mode": mode,
+                "terminal_weights": estimate.terminal_weights,
+                "synthetic_benchmark_weights": estimate.synthetic_benchmark_weights,
+                "nodes": _node_payload(estimate.node_results),
+                "forward_nodes": _node_payload(estimate.forward_node_results),
+                "provenance": {
+                    "source": dataset.metadata.get("source"),
+                    "n_rows": dataset.metadata.get("n_rows"),
+                    "estimation_frequency": frequency,
+                    "train_size": window,
+                },
+            }
+        except Exception as exc:
+            _ops.finish(catalog, run_id, ok=False, error=str(exc))
+            raise
+        publish("portfolio_tree_estimate", parameters=parameters, result=payload, config=merged,
+               catalog=catalog, run_id=run_id)
         return _json(payload)
 
     def _backtest(
@@ -395,41 +406,49 @@ class PortfolioTreeTools:
                 ]
             )
         )
-        data_raw = merged.get("data")
-        data = data_raw if isinstance(data_raw, dict) else {}
-        dataset = self._resolve_backend().load_returns(
-            instruments, start=str(data.get("start") or ""), end=str(data.get("end") or "")
-        )
-        report = self._backtester.run(
-            model,
-            dataset.returns,
-            mode=mode,
-            train_size=int(backtest.get("train_size") or 104),
-            estimation_frequency=frequency,
-            rebalance_frequency=str(backtest.get("rebalance_frequency") or "M"),
-            transaction_cost_bps=float(backtest.get("transaction_cost_bps") or 0),
-        )
-        payload = {
-            "ok": True,
-            "engine": "hierarchical-v2",
-            "mode": mode,
-            "n_folds": len(report.folds),
-            "metrics": report.metrics.get("FINAL"),
-            "benchmark_metrics": report.metrics.get(model.benchmark.name),
-            "transaction_cost_paid": report.transaction_cost_paid.get("FINAL"),
-            "provenance": {
-                "source": dataset.metadata.get("source"),
-                "n_rows": dataset.metadata.get("n_rows"),
-                "estimation_frequency": frequency,
-                "rebalance_frequency": str(backtest.get("rebalance_frequency") or "M"),
-            },
-        }
-        from lazytools.operations.portfolio import publish
-        publish("portfolio_tree_backtest", parameters={
+        parameters = {
             "name": name, "estimation_frequency": estimation_frequency, "train_size": train_size,
             "rebalance_frequency": rebalance_frequency, "transaction_cost_bps": transaction_cost_bps,
             "resolved_mode": mode,
-        }, result=payload, config=merged)
+        }
+        from lazytools.operations import integration as _ops
+        from lazytools.operations.portfolio import publish
+        catalog, run_id = _ops.start("portfolio_tree_backtest", source_repo="LazyTools", parameters=parameters)
+        try:
+            data_raw = merged.get("data")
+            data = data_raw if isinstance(data_raw, dict) else {}
+            dataset = self._resolve_backend().load_returns(
+                instruments, start=str(data.get("start") or ""), end=str(data.get("end") or "")
+            )
+            report = self._backtester.run(
+                model,
+                dataset.returns,
+                mode=mode,
+                train_size=int(backtest.get("train_size") or 104),
+                estimation_frequency=frequency,
+                rebalance_frequency=str(backtest.get("rebalance_frequency") or "M"),
+                transaction_cost_bps=float(backtest.get("transaction_cost_bps") or 0),
+            )
+            payload = {
+                "ok": True,
+                "engine": "hierarchical-v2",
+                "mode": mode,
+                "n_folds": len(report.folds),
+                "metrics": report.metrics.get("FINAL"),
+                "benchmark_metrics": report.metrics.get(model.benchmark.name),
+                "transaction_cost_paid": report.transaction_cost_paid.get("FINAL"),
+                "provenance": {
+                    "source": dataset.metadata.get("source"),
+                    "n_rows": dataset.metadata.get("n_rows"),
+                    "estimation_frequency": frequency,
+                    "rebalance_frequency": str(backtest.get("rebalance_frequency") or "M"),
+                },
+            }
+        except Exception as exc:
+            _ops.finish(catalog, run_id, ok=False, error=str(exc))
+            raise
+        publish("portfolio_tree_backtest", parameters=parameters, result=payload, config=merged,
+               catalog=catalog, run_id=run_id)
         return _json(payload)
 
 

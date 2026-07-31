@@ -342,52 +342,62 @@ class PortfolioOptimizationTools:
         benchmark_weights: dict[str, float] | None = None,
     ) -> str:
         universe = _canonical_ticker_instruments(instruments)
-        model = self._build_model(
-            universe,
-            objective=objective,
-            min_weight=min_weight,
-            max_weight=max_weight,
-            cash_enabled=cash_enabled,
-            max_leverage=max_leverage,
-            mean_estimator=mean_estimator,
-            risk_aversion=risk_aversion,
-            risk_free_rate=risk_free_rate,
-            benchmark_weights=benchmark_weights,
-        )
-        dataset = self._resolve_backend().load_returns(universe, start=start, end=end, frequency="D")
-        estimation = self._resample_simple_returns(dataset.returns, frequency)
-        estimate = self._estimator.estimate(
-            model,
-            estimation,
-            mode="flat",
-            periods_per_year=self._annualization_factor(frequency),
-        )
-        result = next(iter(estimate.node_results.values()))
-        payload = {
-            "status": "optimal",
-            "objective": objective,
-            "target_weights": [
-                {"security_id": instrument, "weight": weight}
-                for instrument, weight in estimate.terminal_weights.items()
-            ],
-            "expected_return_annualized": result.audit.expected_return_annualized,
-            "actual_volatility": result.audit.actual_volatility,
-            "resolved_mean_estimator": result.audit.resolved_mean_estimator,
-            "solver_message": result.audit.solver_message,
-            "provenance": {
-                "source": dataset.metadata.get("source"),
-                "n_rows": dataset.metadata.get("n_rows"),
-                "frequency": frequency,
-            },
-        }
-        from lazytools.operations.portfolio import publish
-        publish("portfolio_optimizer_run", parameters={
+        parameters = {
             "instruments": universe, "objective": objective, "start": start, "end": end,
             "frequency": frequency, "min_weight": min_weight, "max_weight": max_weight,
             "cash_enabled": cash_enabled, "max_leverage": max_leverage,
             "mean_estimator": mean_estimator, "risk_aversion": risk_aversion,
             "risk_free_rate": risk_free_rate, "benchmark_weights": benchmark_weights,
-        }, result=payload)
+        }
+        from lazytools.operations import integration as _ops
+        from lazytools.operations.portfolio import publish
+        # Register the run before load_returns/estimation, not after: those
+        # are the fallible, expensive steps, and a failure there used to
+        # leave no catalog record at all instead of one marked "failed".
+        catalog, run_id = _ops.start("portfolio_optimizer_run", source_repo="LazyTools", parameters=parameters)
+        try:
+            model = self._build_model(
+                universe,
+                objective=objective,
+                min_weight=min_weight,
+                max_weight=max_weight,
+                cash_enabled=cash_enabled,
+                max_leverage=max_leverage,
+                mean_estimator=mean_estimator,
+                risk_aversion=risk_aversion,
+                risk_free_rate=risk_free_rate,
+                benchmark_weights=benchmark_weights,
+            )
+            dataset = self._resolve_backend().load_returns(universe, start=start, end=end, frequency="D")
+            estimation = self._resample_simple_returns(dataset.returns, frequency)
+            estimate = self._estimator.estimate(
+                model,
+                estimation,
+                mode="flat",
+                periods_per_year=self._annualization_factor(frequency),
+            )
+            result = next(iter(estimate.node_results.values()))
+            payload = {
+                "status": "optimal",
+                "objective": objective,
+                "target_weights": [
+                    {"security_id": instrument, "weight": weight}
+                    for instrument, weight in estimate.terminal_weights.items()
+                ],
+                "expected_return_annualized": result.audit.expected_return_annualized,
+                "actual_volatility": result.audit.actual_volatility,
+                "resolved_mean_estimator": result.audit.resolved_mean_estimator,
+                "solver_message": result.audit.solver_message,
+                "provenance": {
+                    "source": dataset.metadata.get("source"),
+                    "n_rows": dataset.metadata.get("n_rows"),
+                    "frequency": frequency,
+                },
+            }
+        except Exception as exc:
+            _ops.finish(catalog, run_id, ok=False, error=str(exc))
+            raise
+        publish("portfolio_optimizer_run", parameters=parameters, result=payload, catalog=catalog, run_id=run_id)
         return _json(payload)
 
     def _backtest(
@@ -410,44 +420,7 @@ class PortfolioOptimizationTools:
         transaction_cost_bps: float = 0.0,
     ) -> str:
         universe = _canonical_ticker_instruments(instruments)
-        model = self._build_model(
-            universe,
-            objective=objective,
-            min_weight=min_weight,
-            max_weight=max_weight,
-            cash_enabled=cash_enabled,
-            max_leverage=max_leverage,
-            mean_estimator=mean_estimator,
-            risk_aversion=risk_aversion,
-            risk_free_rate=risk_free_rate,
-            benchmark_weights=benchmark_weights,
-        )
-        dataset = self._resolve_backend().load_returns(universe, start=start, end=end, frequency="D")
-        report = self._backtester.run(
-            model,
-            dataset.returns,
-            mode="flat",
-            train_size=train_size,
-            estimation_frequency=frequency,
-            rebalance_frequency=rebalance_frequency,
-            transaction_cost_bps=transaction_cost_bps,
-        )
-        payload = {
-            "status": "optimal",
-            "objective": objective,
-            "n_folds": len(report.folds),
-            "metrics": report.metrics.get("FINAL"),
-            "benchmark_metrics": report.metrics.get("B0"),
-            "transaction_cost_paid": report.transaction_cost_paid.get("FINAL"),
-            "provenance": {
-                "source": dataset.metadata.get("source"),
-                "n_rows": dataset.metadata.get("n_rows"),
-                "estimation_frequency": frequency,
-                "rebalance_frequency": rebalance_frequency,
-            },
-        }
-        from lazytools.operations.portfolio import publish
-        publish("portfolio_optimizer_backtest", parameters={
+        parameters = {
             "instruments": universe, "objective": objective, "start": start, "end": end,
             "frequency": frequency, "min_weight": min_weight, "max_weight": max_weight,
             "cash_enabled": cash_enabled, "max_leverage": max_leverage,
@@ -455,7 +428,52 @@ class PortfolioOptimizationTools:
             "risk_free_rate": risk_free_rate, "benchmark_weights": benchmark_weights,
             "train_size": train_size, "rebalance_frequency": rebalance_frequency,
             "transaction_cost_bps": transaction_cost_bps,
-        }, result=payload)
+        }
+        from lazytools.operations import integration as _ops
+        from lazytools.operations.portfolio import publish
+        catalog, run_id = _ops.start("portfolio_optimizer_backtest", source_repo="LazyTools", parameters=parameters)
+        try:
+            model = self._build_model(
+                universe,
+                objective=objective,
+                min_weight=min_weight,
+                max_weight=max_weight,
+                cash_enabled=cash_enabled,
+                max_leverage=max_leverage,
+                mean_estimator=mean_estimator,
+                risk_aversion=risk_aversion,
+                risk_free_rate=risk_free_rate,
+                benchmark_weights=benchmark_weights,
+            )
+            dataset = self._resolve_backend().load_returns(universe, start=start, end=end, frequency="D")
+            report = self._backtester.run(
+                model,
+                dataset.returns,
+                mode="flat",
+                train_size=train_size,
+                estimation_frequency=frequency,
+                rebalance_frequency=rebalance_frequency,
+                transaction_cost_bps=transaction_cost_bps,
+            )
+            payload = {
+                "status": "optimal",
+                "objective": objective,
+                "n_folds": len(report.folds),
+                "metrics": report.metrics.get("FINAL"),
+                "benchmark_metrics": report.metrics.get("B0"),
+                "transaction_cost_paid": report.transaction_cost_paid.get("FINAL"),
+                "provenance": {
+                    "source": dataset.metadata.get("source"),
+                    "n_rows": dataset.metadata.get("n_rows"),
+                    "estimation_frequency": frequency,
+                    "rebalance_frequency": rebalance_frequency,
+                },
+            }
+        except Exception as exc:
+            _ops.finish(catalog, run_id, ok=False, error=str(exc))
+            raise
+        publish("portfolio_optimizer_backtest", parameters=parameters, result=payload,
+               catalog=catalog, run_id=run_id)
         return _json(payload)
 
 

@@ -10,15 +10,24 @@ from lazytools.operations.integration import is_disabled
 
 
 def publish(task_name: str, *, parameters: dict[str, Any], result: dict[str, Any],
-            config: dict[str, Any] | None = None) -> str | None:
-    """Publish an optimizer result, weights and constructed nodes if enabled."""
+            config: dict[str, Any] | None = None,
+            catalog: OperationsCatalog | None = None, run_id: str | None = None) -> str | None:
+    """Publish an optimizer result, weights and constructed nodes if enabled.
+
+    Pass `catalog`/`run_id` from a prior `lazytools.operations.integration.
+    start()` call to attach to an already-registered run instead of starting
+    a new one here -- lets the caller register the run *before* the fallible
+    work that produces `result`, so a failure there still shows up in the
+    catalog as "failed" instead of leaving no record at all.
+    """
     if is_disabled():
         return None
-    catalog: OperationsCatalog | None = None
-    run_id: str | None = None
+    owns_run = catalog is None or run_id is None
     try:
-        catalog = OperationsCatalog()
-        run_id = catalog.start_run(task_name, parameters=parameters, source_repo="LazyTools")
+        if owns_run:
+            catalog = OperationsCatalog()
+            run_id = catalog.start_run(task_name, parameters=parameters, source_repo="LazyTools")
+        assert catalog is not None and run_id is not None
         result_artifact = catalog.register_json(run_id, "optimizer-result.json", result,
                                                  kind="result", role="optimizer-result")
         catalog.link_report(run_id, task_name, result_artifact)

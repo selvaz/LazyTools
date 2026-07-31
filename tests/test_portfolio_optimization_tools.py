@@ -130,3 +130,27 @@ def test_run_publishes_to_operations_catalog(monkeypatch) -> None:
     assert calls[0]["task_name"] == "portfolio_optimizer_run"
     assert calls[0]["parameters"]["instruments"] == ["ticker:SPY", "ticker:TLT"]
     assert calls[0]["result"]["status"] == "optimal"
+
+
+def test_run_records_a_failed_catalog_run_when_load_returns_raises(tmp_path, monkeypatch) -> None:
+    """The run must be registered *before* load_returns/estimation, so a
+    failure there still shows up in the catalog as "failed" instead of no
+    record existing at all."""
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "operations.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+
+    class _BrokenBackend:
+        def load_returns(self, *args, **kwargs):
+            raise RuntimeError("hub unavailable")
+
+    provider = PortfolioOptimizationTools(backend=_BrokenBackend())
+    tools = {tool.name: tool for tool in provider.as_tools()}
+
+    with pytest.raises(Exception, match="hub unavailable"):
+        tools["portfolio_optimizer_run"].run_sync(instruments="SPY, TLT", objective="min_risk")
+
+    from lazytools.operations import OperationsCatalog
+    runs = OperationsCatalog().list_runs(task_name="portfolio_optimizer_run")
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
+    assert "hub unavailable" in (runs[0].error or "")

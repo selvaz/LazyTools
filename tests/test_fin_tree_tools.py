@@ -268,3 +268,26 @@ def test_backtest_publishes_to_operations_catalog(frame, monkeypatch) -> None:
     assert len(calls) == 1
     assert calls[0]["task_name"] == "portfolio_tree_backtest"
     assert calls[0]["result"]["ok"] is True
+
+
+def test_estimate_records_a_failed_catalog_run_when_load_returns_raises(tmp_path, monkeypatch) -> None:
+    """The run must be registered *before* load_returns/estimation, so a
+    failure there still shows up in the catalog as "failed" instead of no
+    record existing at all."""
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "operations.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+
+    class _BrokenBackend:
+        def load_returns(self, *args, **kwargs):
+            raise RuntimeError("hub unavailable")
+
+    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, backend=_BrokenBackend()).as_tools()}
+
+    with pytest.raises(Exception, match="hub unavailable"):
+        tools["portfolio_tree_estimate"].run_sync(config=_tree_config())
+
+    from lazytools.operations import OperationsCatalog
+    runs = OperationsCatalog().list_runs(task_name="portfolio_tree_estimate")
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
+    assert "hub unavailable" in (runs[0].error or "")
