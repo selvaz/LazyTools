@@ -38,7 +38,10 @@ def start(task_name: str, *, source_repo: str, parameters: dict[str, Any],
     except Exception as exc:
         print(f"Operations catalog unavailable; continuing without registration: {exc}", file=sys.stderr)
         return None, None
-    print(f"OPERATIONS_RUN_ID={run_id}")
+    # stderr, not stdout: this also runs inside the MCP stdio request handler
+    # (lazytools-mcp --allow-unsafe), which reserves stdout for JSON-RPC --
+    # a stray stdout line there would corrupt the protocol stream.
+    print(f"OPERATIONS_RUN_ID={run_id}", file=sys.stderr)
     return catalog, run_id
 
 

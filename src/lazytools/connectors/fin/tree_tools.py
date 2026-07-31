@@ -311,36 +311,34 @@ class PortfolioTreeTools:
         estimation_frequency: str = "",
         train_size: int = 0,
     ) -> str:
-        resolved = self._resolve_config(config, name)
-        backtest = self._effective_backtest(
-            resolved, estimation_frequency=estimation_frequency, train_size=train_size
-        )
-        merged = {**resolved, "backtest": backtest}
-        model = self._v2_model.from_config(merged)
-        mode = self._mode_from_config(merged)
-        frequency = str(backtest.get("estimation_frequency") or "W")
-        window = int(backtest.get("train_size") or 104)
-
-        instruments = list(
-            dict.fromkeys(
-                [
-                    *model.root.terminal_instruments(),
-                    *(node.proxy for node in model.root.walk() if node.proxy),
-                    *model.benchmark.weights,
-                ]
-            )
-        )
-        parameters = {
-            "name": name, "estimation_frequency": estimation_frequency, "train_size": train_size,
-            "resolved_mode": mode,
-        }
+        parameters = {"name": name, "estimation_frequency": estimation_frequency, "train_size": train_size}
         from lazytools.operations import integration as _ops
         from lazytools.operations.portfolio import publish
-        # Register the run before load_returns/estimation, not after: those
-        # are the fallible, expensive steps, and a failure there used to
-        # leave no catalog record at all instead of one marked "failed".
+        # Register the run before resolving/parsing the supplied config, not
+        # after: an invalid inline or saved tree is exactly the kind of
+        # scheduled failure the catalog exists to surface, and used to leave
+        # no record at all instead of one marked "failed".
         catalog, run_id = _ops.start("portfolio_tree_estimate", source_repo="LazyTools", parameters=parameters)
         try:
+            resolved = self._resolve_config(config, name)
+            backtest = self._effective_backtest(
+                resolved, estimation_frequency=estimation_frequency, train_size=train_size
+            )
+            merged = {**resolved, "backtest": backtest}
+            model = self._v2_model.from_config(merged)
+            mode = self._mode_from_config(merged)
+            frequency = str(backtest.get("estimation_frequency") or "W")
+            window = int(backtest.get("train_size") or 104)
+
+            instruments = list(
+                dict.fromkeys(
+                    [
+                        *model.root.terminal_instruments(),
+                        *(node.proxy for node in model.root.walk() if node.proxy),
+                        *model.benchmark.weights,
+                    ]
+                )
+            )
             data_raw = merged.get("data")
             data = data_raw if isinstance(data_raw, dict) else {}
             dataset = self._resolve_backend().load_returns(
@@ -384,37 +382,40 @@ class PortfolioTreeTools:
         rebalance_frequency: str = "",
         transaction_cost_bps: float | None = None,
     ) -> str:
-        resolved = self._resolve_config(config, name)
-        backtest = self._effective_backtest(
-            resolved,
-            estimation_frequency=estimation_frequency,
-            train_size=train_size,
-            rebalance_frequency=rebalance_frequency,
-            transaction_cost_bps=transaction_cost_bps,
-        )
-        merged = {**resolved, "backtest": backtest}
-        model = self._v2_model.from_config(merged)
-        mode = self._mode_from_config(merged)
-        frequency = str(backtest.get("estimation_frequency") or "W")
-
-        instruments = list(
-            dict.fromkeys(
-                [
-                    *model.root.terminal_instruments(),
-                    *(node.proxy for node in model.root.walk() if node.proxy),
-                    *model.benchmark.weights,
-                ]
-            )
-        )
         parameters = {
             "name": name, "estimation_frequency": estimation_frequency, "train_size": train_size,
             "rebalance_frequency": rebalance_frequency, "transaction_cost_bps": transaction_cost_bps,
-            "resolved_mode": mode,
         }
         from lazytools.operations import integration as _ops
         from lazytools.operations.portfolio import publish
+        # Register the run before resolving/parsing the supplied config, not
+        # after: an invalid inline or saved tree is exactly the kind of
+        # scheduled failure the catalog exists to surface, and used to leave
+        # no record at all instead of one marked "failed".
         catalog, run_id = _ops.start("portfolio_tree_backtest", source_repo="LazyTools", parameters=parameters)
         try:
+            resolved = self._resolve_config(config, name)
+            backtest = self._effective_backtest(
+                resolved,
+                estimation_frequency=estimation_frequency,
+                train_size=train_size,
+                rebalance_frequency=rebalance_frequency,
+                transaction_cost_bps=transaction_cost_bps,
+            )
+            merged = {**resolved, "backtest": backtest}
+            model = self._v2_model.from_config(merged)
+            mode = self._mode_from_config(merged)
+            frequency = str(backtest.get("estimation_frequency") or "W")
+
+            instruments = list(
+                dict.fromkeys(
+                    [
+                        *model.root.terminal_instruments(),
+                        *(node.proxy for node in model.root.walk() if node.proxy),
+                        *model.benchmark.weights,
+                    ]
+                )
+            )
             data_raw = merged.get("data")
             data = data_raw if isinstance(data_raw, dict) else {}
             dataset = self._resolve_backend().load_returns(

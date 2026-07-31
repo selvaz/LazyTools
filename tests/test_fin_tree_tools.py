@@ -291,3 +291,23 @@ def test_estimate_records_a_failed_catalog_run_when_load_returns_raises(tmp_path
     assert len(runs) == 1
     assert runs[0].status == "failed"
     assert "hub unavailable" in (runs[0].error or "")
+
+
+def test_estimate_records_a_failed_catalog_run_when_config_is_invalid(tmp_path, monkeypatch) -> None:
+    """The run must be registered *before* resolving/parsing the tree config
+    too -- an invalid inline/saved tree is exactly the kind of scheduled
+    failure the catalog exists to surface."""
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "operations.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+
+    config = _tree_config()
+    config["nodes"][0]["children"] = ["missing-child"]
+    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True).as_tools()}
+
+    with pytest.raises(Exception, match="unknown child id"):
+        tools["portfolio_tree_estimate"].run_sync(config=config)
+
+    from lazytools.operations import OperationsCatalog
+    runs = OperationsCatalog().list_runs(task_name="portfolio_tree_estimate")
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
