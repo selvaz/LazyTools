@@ -26,6 +26,23 @@ def test_run_and_artifacts_round_trip(tmp_path: Path) -> None:
     assert {a.name for a in catalog.artifacts_for_run(run_id)} == {"report.md", "result.json"}
 
 
+def test_get_run_and_list_runs_expose_parent_run_id(tmp_path: Path) -> None:
+    catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
+    parent_id = catalog.start_run("parent-task")
+    child_id = catalog.start_run("child-task", parent_run_id=parent_id)
+
+    child = catalog.get_run(child_id)
+    assert child is not None
+    assert child.parent_run_id == parent_id
+
+    [listed_child] = catalog.list_runs(task_name="child-task")
+    assert listed_child.parent_run_id == parent_id
+
+    parent = catalog.get_run(parent_id)
+    assert parent is not None
+    assert parent.parent_run_id is None
+
+
 def test_identical_artifacts_are_deduplicated(tmp_path: Path) -> None:
     catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
     first = catalog.start_run("task-a")
@@ -75,8 +92,10 @@ def test_portfolio_outputs_store_weights_and_described_nodes(tmp_path: Path, mon
     catalog = OperationsCatalog()
     artifacts = catalog.artifacts_for_run(run_id)
     # No separate "report" artifact: it used to duplicate the exact same JSON
-    # already stored under "result", just under a second name/kind.
-    assert {a.kind for a in artifacts} == {"result", "weights", "node_config"}
+    # already stored under "result", just under a second name/kind. "config"
+    # is the full resolved tree config (here, just the nodes list) kept
+    # alongside it.
+    assert {a.kind for a in artifacts} == {"result", "weights", "node_config", "config"}
     result_artifact = next(a for a in artifacts if a.kind == "result")
     with catalog._session() as con:
         node = con.execute("SELECT name, description FROM portfolio_nodes WHERE run_id=?", (run_id,)).fetchone()
@@ -114,27 +133,32 @@ def test_publish_marks_run_failed_when_a_later_step_raises(tmp_path: Path, monke
     assert "boom" in (runs[0].error or "")
 
 
-def test_publish_persists_resolved_backtest_settings(tmp_path: Path, monkeypatch) -> None:
-    """config["backtest"] carries the settings actually used (saved-tree
-    defaults + call-time overrides already merged) -- `parameters` alone can
-    hold 0/""/None placeholders whenever the caller relied on those
-    defaults instead of passing explicit overrides."""
+def test_publish_persists_the_full_resolved_config(tmp_path: Path, monkeypatch) -> None:
+    """`config` carries the tree actually used (saved-tree/data defaults +
+    call-time overrides already merged) -- `parameters` alone can hold
+    0/""/None placeholders whenever the caller relied on those defaults,
+    and never carries the resolved `data`/`root_id` fields at all, so two
+    runs over different date ranges could look identical in the catalog."""
     monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "operations.sqlite"))
     monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
 
-    resolved_backtest = {"train_size": 104, "rebalance_frequency": "M", "transaction_cost_bps": 5.0}
+    resolved_config = {
+        "root_id": "root",
+        "data": {"start": "2020-01-01", "end": "2026-01-01"},
+        "backtest": {"train_size": 104, "rebalance_frequency": "M", "transaction_cost_bps": 5.0},
+    }
     run_id = publish_portfolio_run(
         "portfolio_tree_backtest",
         parameters={"name": "demo", "train_size": 0, "rebalance_frequency": ""},
         result={"ok": True},
-        config={"backtest": resolved_backtest},
+        config=resolved_config,
     )
 
     assert run_id is not None
     catalog = OperationsCatalog()
-    settings_artifact = next(a for a in catalog.artifacts_for_run(run_id) if a.kind == "config")
-    stored = json.loads(Path(settings_artifact.storage_path).read_text(encoding="utf-8"))
-    assert stored == resolved_backtest
+    config_artifact = next(a for a in catalog.artifacts_for_run(run_id) if a.kind == "config")
+    stored = json.loads(Path(config_artifact.storage_path).read_text(encoding="utf-8"))
+    assert stored == resolved_config
 
 
 def test_publish_portfolio_run_is_skipped_when_disabled(tmp_path: Path, monkeypatch) -> None:

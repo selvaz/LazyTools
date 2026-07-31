@@ -129,6 +129,7 @@ class RunRecord:
     metadata: dict[str, Any]
     source_repo: str | None
     source_db: str | None
+    parent_run_id: str | None
     error: str | None
 
 
@@ -231,7 +232,7 @@ class OperationsCatalog:
             return None
         return RunRecord(row["run_id"], row["task_name"], row["status"], row["started_at"], row["finished_at"],
                          json.loads(row["parameters_json"]), json.loads(row["metadata_json"]),
-                         row["source_repo"], row["source_db"], row["error"])
+                         row["source_repo"], row["source_db"], row["parent_run_id"], row["error"])
 
     def list_runs(self, *, task_name: str | None = None, limit: int = 50) -> list[RunRecord]:
         query = "SELECT * FROM runs"

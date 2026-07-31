@@ -34,15 +34,16 @@ def publish(task_name: str, *, parameters: dict[str, Any], result: dict[str, Any
         weights = result.get("target_weights") or result.get("terminal_weights")
         if weights is not None:
             catalog.register_json(run_id, "portfolio-weights.json", weights, kind="weights", role="weights")
-        backtest_settings = (config or {}).get("backtest")
-        if isinstance(backtest_settings, dict) and backtest_settings:
-            # config["backtest"] carries the *resolved* settings (saved-tree
-            # defaults + call-time overrides already merged) -- persisting
-            # `parameters` alone would record 0/""/None placeholders whenever
-            # the caller relied on config/saved-tree defaults instead of
-            # passing explicit overrides.
-            catalog.register_json(run_id, "resolved-backtest-settings.json", backtest_settings,
-                                  kind="config", role="backtest-settings")
+        if config:
+            # `config` carries the *resolved* tree (saved-tree/data defaults
+            # + call-time overrides already merged), not just its "backtest"
+            # block -- persisting `parameters` alone would record 0/""/None
+            # placeholders whenever the caller relied on those defaults, and
+            # would drop the resolved `data`/`root_id` fields entirely, so
+            # two runs over different date ranges could look identical in
+            # the catalog. Persist the whole thing.
+            catalog.register_json(run_id, "resolved-tree-config.json", config,
+                                  kind="config", role="tree-config")
         for node in (config or {}).get("nodes", []):
             if not isinstance(node, dict):
                 continue
