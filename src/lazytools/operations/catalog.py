@@ -196,7 +196,7 @@ class OperationsCatalog:
             con.close()
 
     def initialize(self) -> None:
-        """Create or upgrade the catalog schema idempotently."""
+        """Create the catalog schema idempotently."""
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
         with self._session() as con:
             con.executescript(SCHEMA)
