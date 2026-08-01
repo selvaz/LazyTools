@@ -51,6 +51,13 @@ KNOWN_DBS: tuple[DBEntry, ...] = (
     DBEntry("pulse_state", "STORE_DB", "lazypulse", True, "Telegram bot state"),
     DBEntry("crawler_raw", "LAZYCRAWLER_NEWS_DB", "lazycrawler", True, "News crawl page cache"),
     DBEntry(
+        "lazystats_depot",
+        "LAZYSTATS_RESULT_DEPOT_DB",
+        "lazystats",
+        True,
+        "LazyStats analysis result depot (regime, regression, ...)",
+    ),
+    DBEntry(
         "market_data_artifacts",
         "MARKET_DATA_ARTIFACTS_DB",
         "market-data-hub",
