@@ -311,7 +311,14 @@ class PortfolioTreeTools:
         estimation_frequency: str = "",
         train_size: int = 0,
     ) -> str:
-        parameters = {"name": name, "estimation_frequency": estimation_frequency, "train_size": train_size}
+        parameters = {
+            "name": name, "estimation_frequency": estimation_frequency, "train_size": train_size,
+            # Raw, as supplied -- not `merged`, which doesn't exist yet if
+            # parsing fails below. Without this, a run that fails resolving/
+            # parsing the config is recorded as "failed" but with no way to
+            # tell which configuration actually caused it.
+            "config": config,
+        }
         from lazytools.operations import integration as _ops
         from lazytools.operations.portfolio import publish
         # Register the run before resolving/parsing the supplied config, not
@@ -385,6 +392,11 @@ class PortfolioTreeTools:
         parameters = {
             "name": name, "estimation_frequency": estimation_frequency, "train_size": train_size,
             "rebalance_frequency": rebalance_frequency, "transaction_cost_bps": transaction_cost_bps,
+            # Raw, as supplied -- not `merged`, which doesn't exist yet if
+            # parsing fails below. Without this, a run that fails resolving/
+            # parsing the config is recorded as "failed" but with no way to
+            # tell which configuration actually caused it.
+            "config": config,
         }
         from lazytools.operations import integration as _ops
         from lazytools.operations.portfolio import publish

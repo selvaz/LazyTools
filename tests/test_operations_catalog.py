@@ -10,6 +10,17 @@ from lazytools.operations import integration as ops_integration
 from lazytools.operations.portfolio import publish as publish_portfolio_run
 
 
+def test_relative_paths_are_resolved_to_absolute(tmp_path: Path, monkeypatch) -> None:
+    """A relative db_path/artifact_dir stays tied to the process's cwd at
+    connection time -- a later os.chdir() would silently point the same
+    instance at a different database. Resolve once at construction."""
+    monkeypatch.chdir(tmp_path)
+    catalog = OperationsCatalog("relative.sqlite", "relative-artifacts")
+    assert catalog.db_path.is_absolute()
+    assert catalog.artifact_dir.is_absolute()
+    assert catalog.db_path == (tmp_path / "relative.sqlite").resolve()
+
+
 def test_run_and_artifacts_round_trip(tmp_path: Path) -> None:
     catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
     run_id = catalog.start_run("crawler_3x_daily", parameters={"preset": "news_scan"}, source_repo="LazyCrawler")

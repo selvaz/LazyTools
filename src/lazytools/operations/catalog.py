@@ -151,8 +151,16 @@ class OperationsCatalog:
 
     def __init__(self, db_path: str | os.PathLike[str] | None = None,
                  artifact_dir: str | os.PathLike[str] | None = None) -> None:
-        self.db_path = Path(db_path).expanduser() if db_path else default_db_path()
-        self.artifact_dir = Path(artifact_dir).expanduser() if artifact_dir else default_artifact_dir()
+        # Resolved to absolute at construction time: a relative path stays
+        # tied to the process's current working directory at the moment
+        # each connection opens, so a later os.chdir() would silently point
+        # this same instance at a different database (or "no such table:
+        # runs" if the new cwd doesn't have one), and any stored
+        # storage_path would be relative and unusable from elsewhere.
+        self.db_path = (Path(db_path).expanduser().resolve() if db_path
+                        else default_db_path().resolve())
+        self.artifact_dir = (Path(artifact_dir).expanduser().resolve() if artifact_dir
+                             else default_artifact_dir().resolve())
 
     def _connect(self) -> sqlite3.Connection:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)

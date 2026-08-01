@@ -321,3 +321,6 @@ def test_estimate_records_a_failed_catalog_run_when_config_is_invalid(tmp_path, 
     runs = OperationsCatalog().list_runs(task_name="portfolio_tree_estimate")
     assert len(runs) == 1
     assert runs[0].status == "failed"
+    # The supplied config must survive even though _resolve_config() never
+    # got to `merged` -- otherwise a failed run can't say what caused it.
+    assert runs[0].parameters["config"] == config
