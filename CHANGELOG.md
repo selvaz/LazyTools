@@ -8,6 +8,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `lazytools.registry`: core, always-installed module for the ecosystem's
+  DB registry + artifact catalog. `KNOWN_DBS`/`resolve_db()`/`status()` map
+  a logical DB name to the env var that names it, per repo, declared in
+  code (PR-reviewable, no shared config file). `register_artifact()`/
+  `search_artifacts()`/`get_artifact()` give every repo an optional,
+  stdlib-sqlite3-only per-repo artifact catalog (`*_ARTIFACTS_DB`);
+  `search_everywhere()`/`get_everywhere()` fan out across all of them.
+  `RegistryTools` exposes it as a LazyBridge tool provider. See
+  `docs/registry.md`.
+- `KNOWN_DBS` entries: `lazystats_depot` (`LAZYSTATS_RESULT_DEPOT_DB`) and
+  `lazyportfolio_artifacts` (`LAZYPORTFOLIO_ARTIFACTS_DB`).
+
+### Fixed
+- `KNOWN_DBS`'s `crawler_raw` entry pointed at `CRAWLER_DB`, which
+  LazyCrawler itself never reads (a LazyPulse-local convention for a
+  different file) — corrected to `LAZYCRAWLER_NEWS_DB`.
+
 ## [0.4.0] — 2026-07-30
 
 ### Added — two specialist agents, exposed as single MCP tools
