@@ -6,16 +6,15 @@ import pytest
 
 from lazytools.registry import RegistryTools
 
-EXPECTED_NAMES = {
-    "registry_status",
-    "artifact_register",
-    "artifact_search",
-    "artifact_get",
-}
+READ_ONLY_NAMES = {"registry_status", "artifact_search", "artifact_get"}
+EXPECTED_NAMES = READ_ONLY_NAMES | {"artifact_register"}
 
 
-def _tools():
-    provider = RegistryTools()
+def _tools(*, allow_write: bool = True):
+    """Tests default to allow_write=True so existing artifact_register
+    exercises keep working -- test_as_tools_is_read_only_by_default below
+    covers the actual default."""
+    provider = RegistryTools(allow_write=allow_write)
     by_name = {t.name: t for t in provider.as_tools()}
     return provider, by_name
 
@@ -24,8 +23,18 @@ def test_provider_is_tool_provider() -> None:
     assert RegistryTools()._is_lazy_tool_provider is True
 
 
-def test_as_tools_exposes_expected_names() -> None:
-    _, by_name = _tools()
+def test_as_tools_is_read_only_by_default() -> None:
+    """Matches every other MCP-exposed provider's convention
+    (DataHubTools(allow_refresh=...), RegimeTools(allow_write=...), ...):
+    a write tool (artifact_register) must not be emitted unless the caller
+    explicitly opts in."""
+    by_name = {t.name: t for t in RegistryTools().as_tools()}
+    assert set(by_name) == READ_ONLY_NAMES
+    assert "artifact_register" not in by_name
+
+
+def test_as_tools_exposes_expected_names_when_write_enabled() -> None:
+    _, by_name = _tools(allow_write=True)
     assert set(by_name) == EXPECTED_NAMES
 
 

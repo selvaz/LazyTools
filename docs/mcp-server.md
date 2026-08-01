@@ -47,6 +47,7 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 
 | id | Provider | Tools | Needs |
 |---|---|---|---|
+| `registry` | `RegistryTools()` | `registry_status`, `artifact_search`, `artifact_get` (+ `artifact_register` with `--allow-unsafe`) | none (core) |
 | `datahub` | `DataHubTools()` | `datahub_*` discovery, resolution, financial facts | `market-data-hub` installed |
 | `statistical` | `StatisticalAnalysisTools()` | volatility, correlation, outliers, regression | `market-data-hub` installed |
 | `regimes` | `RegimeTools()` | `regime_*` read-only inspection | `lazystats[regimes]` |

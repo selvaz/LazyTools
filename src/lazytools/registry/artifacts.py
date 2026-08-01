@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
+import urllib.request
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -71,9 +73,41 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _connect(db_path: str) -> sqlite3.Connection:
+def _connect_write(db_path: str) -> sqlite3.Connection:
+    """Open (creating the file/schema if needed) for a mutating call."""
     conn = sqlite3.connect(db_path)
     conn.executescript(_SCHEMA)
+    return conn
+
+
+def _connect_read(db_path: str) -> sqlite3.Connection | None:
+    """Open ``db_path`` read-only for a search/get call, without ever
+    creating the file or its schema.
+
+    A search/get against a repo whose artifact DB hasn't been written to
+    yet (or whose deployment mounts the filesystem read-only) must return
+    an empty result, not silently create a database file nor raise on a
+    read-only mount -- so a missing file short-circuits to ``None`` before
+    ``sqlite3.connect`` ever touches disk. Likewise a file that exists but
+    predates the first ``register_artifact`` call (so it has no
+    ``artifacts`` table yet) is an empty catalog, not an error.
+
+    ``?``/``#`` are structurally significant in a ``file:`` URI (query
+    string / fragment delimiters) -- both are valid filename characters on
+    Linux, where this ships (see the Coolify/VPS deploy docs), so a literal
+    ``db_path`` can't be interpolated into the URI directly without
+    truncating or misrouting it. ``pathname2url`` percent-encodes it correctly.
+    """
+    if not os.path.exists(db_path):
+        return None
+    uri = "file:" + urllib.request.pathname2url(os.path.abspath(db_path)) + "?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
+    has_table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='artifacts'"
+    ).fetchone()
+    if has_table is None:
+        conn.close()
+        return None
     return conn
 
 
@@ -122,7 +156,7 @@ def register_artifact(
         expires_at = (datetime.now(UTC) + timedelta(days=ttl_days)).isoformat()
     content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest() if content is not None else None
 
-    with _connect(db_path) as conn:
+    with _connect_write(db_path) as conn:
         conn.execute(
             """
             INSERT INTO artifacts (
@@ -179,7 +213,11 @@ def search_artifacts(
     if limit < 1:
         raise ValueError(f"limit must be a positive integer, got {limit!r}")
 
-    with _connect(db_path) as conn:
+    conn = _connect_read(db_path)
+    if conn is None:
+        return []
+
+    with conn:
         clauses = ["(expires_at IS NULL OR expires_at > ?)"]
         params: list[object] = [_now_iso()]
 
@@ -263,7 +301,11 @@ def get_artifact(db_path: str, artifact_id: str) -> dict | None:
         The full record, or ``None`` if not found or if its ``expires_at``
         has already passed.
     """
-    with _connect(db_path) as conn:
+    conn = _connect_read(db_path)
+    if conn is None:
+        return None
+
+    with conn:
         row = conn.execute(
             f"SELECT {', '.join(_ROW_COLUMNS)} FROM artifacts WHERE artifact_id = ?",
             (artifact_id,),

@@ -122,9 +122,11 @@ record = get_everywhere("market-data-hub", results[0]["artifact_id"])
 from lazybridge import Agent
 from lazytools.registry import RegistryTools
 
-# registry_status, artifact_register, artifact_search, artifact_get —
-# no constructor arguments, no credentials, no optional dependency.
-agent = Agent("claude-opus-4-8", tools=[RegistryTools()])
+# registry_status, artifact_search, artifact_get — no credentials, no
+# optional dependency. Read-only by default: pass allow_write=True to
+# also emit artifact_register (matches every other MCP-exposed provider's
+# convention, e.g. DataHubTools(allow_refresh=...)).
+agent = Agent("claude-opus-4-8", tools=[RegistryTools(allow_write=True)])
 ```
 
 ## See also

@@ -279,6 +279,38 @@ def test_get_artifact_returns_none_for_nonexistent_id(tmp_path) -> None:
     assert get_artifact(db_path, "does-not-exist") is None
 
 
+def test_search_artifacts_on_missing_db_file_returns_empty_and_creates_nothing(tmp_path) -> None:
+    db_path = str(tmp_path / "never_written.db")
+    assert search_artifacts(db_path) == []
+    assert not (tmp_path / "never_written.db").exists()
+
+
+def test_get_artifact_on_missing_db_file_returns_none_and_creates_nothing(tmp_path) -> None:
+    db_path = str(tmp_path / "never_written.db")
+    assert get_artifact(db_path, "anything") is None
+    assert not (tmp_path / "never_written.db").exists()
+
+
+def test_search_artifacts_on_uninitialized_existing_file_returns_empty(tmp_path) -> None:
+    # A file that exists but predates any register_artifact() call has no
+    # `artifacts` table yet -- must read as an empty catalog, not raise.
+    db_path = tmp_path / "uninitialized.db"
+    db_path.touch()
+    assert search_artifacts(str(db_path)) == []
+    assert get_artifact(str(db_path), "anything") is None
+
+
+def test_search_artifacts_handles_path_with_uri_metacharacters(tmp_path) -> None:
+    # '#' is a valid filename character on both Windows and Linux (this
+    # ships on Coolify/VPS) but is structurally significant in a file: URI
+    # (fragment delimiter) -- interpolating the raw path must not truncate
+    # or misroute it. ('?' is the other URI metacharacter of concern but
+    # isn't a legal Windows filename char, so it's covered on Linux CI only.)
+    db_path = str(tmp_path / "weird#name.sqlite")
+    register_artifact(db_path, repo="r", kind="k", title="t", summary="s")
+    assert len(search_artifacts(db_path)) == 1
+
+
 # --------------------------------------------------------------------------- #
 # router.search_everywhere / get_everywhere
 # --------------------------------------------------------------------------- #

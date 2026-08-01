@@ -11,7 +11,11 @@ one ``Tool.wrap`` per surfaced function) exposing:
 
 Unlike the connector ``ToolProvider``\\ s, this one needs no external
 credentials or optional dependency — it is stdlib-only (``sqlite3``) and
-ships in the core package, so it needs no constructor arguments either.
+ships in the core package. It does, however, follow the same
+read-only-by-default convention every other MCP-exposed provider in this
+package uses (``DataHubTools(allow_refresh=...)``, ``RegimeTools(allow_write=...)``,
+...): ``artifact_register`` is a write, so it is only emitted when
+constructed with ``allow_write=True``.
 """
 
 from __future__ import annotations
@@ -24,15 +28,25 @@ from lazytools.registry.router import get_everywhere, search_everywhere
 
 
 class RegistryTools:
-    """A ``ToolProvider`` exposing the DB registry and artifact catalog."""
+    """A ``ToolProvider`` exposing the DB registry and artifact catalog.
+
+    Args:
+        allow_write: If ``False`` (the default), only the read-only tools
+            (``registry_status``, ``artifact_search``, ``artifact_get``) are
+            emitted. ``artifact_register`` is a write and is only emitted
+            when this is ``True``.
+    """
 
     _is_lazy_tool_provider = True
+
+    def __init__(self, *, allow_write: bool = False) -> None:
+        self._allow_write = allow_write
 
     # ------------------------------------------------------------------ #
     # ToolProvider
     # ------------------------------------------------------------------ #
     def as_tools(self) -> list[Tool]:
-        return [
+        tools = [
             Tool.wrap(
                 self._registry_status,
                 name="registry_status",
@@ -43,23 +57,28 @@ class RegistryTools:
                     "is currently set in this environment. Returns JSON. No arguments."
                 ),
             ),
-            Tool.wrap(
-                self._artifact_register,
-                name="artifact_register",
-                description=(
-                    "Save an artifact (an analysis/report produced by an agent or "
-                    "job) to its repo's artifact catalog, so it can be found later "
-                    "without re-running the work or carrying its full payload "
-                    "through an LLM's context. Returns the new artifact_id. Args: "
-                    "repo (str, which repo owns the artifact DB to write into, "
-                    "e.g. 'market-data-hub' — must have a configured artifact DB, "
-                    "see registry_status); kind (str, free-text category e.g. "
-                    "'backtest_report'); title (str); summary (str, cheap-to-read "
-                    "description — do not put the full payload here); tags "
-                    "(comma-separated string, optional); content (str, optional "
-                    "full payload); ttl_days (int, optional expiry in days)."
-                ),
-            ),
+        ]
+        if self._allow_write:
+            tools.append(
+                Tool.wrap(
+                    self._artifact_register,
+                    name="artifact_register",
+                    description=(
+                        "Save an artifact (an analysis/report produced by an agent or "
+                        "job) to its repo's artifact catalog, so it can be found later "
+                        "without re-running the work or carrying its full payload "
+                        "through an LLM's context. Returns the new artifact_id. Args: "
+                        "repo (str, which repo owns the artifact DB to write into, "
+                        "e.g. 'market-data-hub' — must have a configured artifact DB, "
+                        "see registry_status); kind (str, free-text category e.g. "
+                        "'backtest_report'); title (str); summary (str, cheap-to-read "
+                        "description — do not put the full payload here); tags "
+                        "(comma-separated string, optional); content (str, optional "
+                        "full payload); ttl_days (int, optional expiry in days)."
+                    ),
+                )
+            )
+        tools += [
             Tool.wrap(
                 self._artifact_search,
                 name="artifact_search",
@@ -86,6 +105,7 @@ class RegistryTools:
                 ),
             ),
         ]
+        return tools
 
     # ------------------------------------------------------------------ #
     # Internal helpers
