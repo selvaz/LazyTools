@@ -14,6 +14,19 @@ from lazyportfolio import OptimizationDataset
 from lazytools.connectors.fin import PortfolioOptimizationTools
 
 
+@pytest.fixture(autouse=True)
+def _isolated_operations_catalog(tmp_path, monkeypatch):
+    """Every portfolio_optimizer_run/backtest call in this file publishes to
+    the operations catalog as a side effect (unconditionally, since round 2
+    of the operations-catalog work) -- autouse so no test here, present or
+    future, can slip through and write into the developer's real
+    ~/.lazytools/operations.sqlite the way the individually-patched wiring
+    tests alone did not catch.
+    """
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "auto-ops.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "auto-ops-artifacts"))
+
+
 def test_portfolio_optimizer_provider_exposes_no_raw_data_tool() -> None:
     provider = PortfolioOptimizationTools()
     assert {tool.name for tool in provider.as_tools()} == {
