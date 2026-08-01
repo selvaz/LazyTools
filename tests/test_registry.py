@@ -279,6 +279,18 @@ def test_get_artifact_returns_none_for_nonexistent_id(tmp_path) -> None:
     assert get_artifact(db_path, "does-not-exist") is None
 
 
+def test_search_artifacts_on_missing_db_file_returns_empty_and_creates_nothing(tmp_path) -> None:
+    db_path = str(tmp_path / "never_written.db")
+    assert search_artifacts(db_path) == []
+    assert not (tmp_path / "never_written.db").exists()
+
+
+def test_get_artifact_on_missing_db_file_returns_none_and_creates_nothing(tmp_path) -> None:
+    db_path = str(tmp_path / "never_written.db")
+    assert get_artifact(db_path, "anything") is None
+    assert not (tmp_path / "never_written.db").exists()
+
+
 # --------------------------------------------------------------------------- #
 # router.search_everywhere / get_everywhere
 # --------------------------------------------------------------------------- #

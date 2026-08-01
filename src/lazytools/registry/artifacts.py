@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -71,10 +72,26 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _connect(db_path: str) -> sqlite3.Connection:
+def _connect_write(db_path: str) -> sqlite3.Connection:
+    """Open (creating the file/schema if needed) for a mutating call."""
     conn = sqlite3.connect(db_path)
     conn.executescript(_SCHEMA)
     return conn
+
+
+def _connect_read(db_path: str) -> sqlite3.Connection | None:
+    """Open ``db_path`` read-only for a search/get call, without ever
+    creating the file or its schema.
+
+    A search/get against a repo whose artifact DB hasn't been written to
+    yet (or whose deployment mounts the filesystem read-only) must return
+    an empty result, not silently create a database file nor raise on a
+    read-only mount -- so a missing file short-circuits to ``None`` before
+    ``sqlite3.connect`` ever touches disk.
+    """
+    if not os.path.exists(db_path):
+        return None
+    return sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
 
 
 def _row_to_dict(row: tuple, columns: tuple[str, ...]) -> dict:
@@ -122,7 +139,7 @@ def register_artifact(
         expires_at = (datetime.now(UTC) + timedelta(days=ttl_days)).isoformat()
     content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest() if content is not None else None
 
-    with _connect(db_path) as conn:
+    with _connect_write(db_path) as conn:
         conn.execute(
             """
             INSERT INTO artifacts (
@@ -179,7 +196,11 @@ def search_artifacts(
     if limit < 1:
         raise ValueError(f"limit must be a positive integer, got {limit!r}")
 
-    with _connect(db_path) as conn:
+    conn = _connect_read(db_path)
+    if conn is None:
+        return []
+
+    with conn:
         clauses = ["(expires_at IS NULL OR expires_at > ?)"]
         params: list[object] = [_now_iso()]
 
@@ -263,7 +284,11 @@ def get_artifact(db_path: str, artifact_id: str) -> dict | None:
         The full record, or ``None`` if not found or if its ``expires_at``
         has already passed.
     """
-    with _connect(db_path) as conn:
+    conn = _connect_read(db_path)
+    if conn is None:
+        return None
+
+    with conn:
         row = conn.execute(
             f"SELECT {', '.join(_ROW_COLUMNS)} FROM artifacts WHERE artifact_id = ?",
             (artifact_id,),
