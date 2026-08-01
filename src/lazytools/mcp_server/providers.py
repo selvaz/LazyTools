@@ -460,6 +460,18 @@ def _outlook(allow_write: bool = False, *, data_source: dict[str, Any] | None = 
     return OutlookTools(client, allowed_recipients=allow, require_confirmation=allow is None)
 
 
+@_register("registry")
+def _registry(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Ecosystem DB registry + cross-repo artifact catalog. Core, no extra needed.
+
+    ``allow_write`` enables ``artifact_register``; ``registry_status``/
+    ``artifact_search``/``artifact_get`` are always read-only regardless.
+    """
+    from lazytools.registry import RegistryTools
+
+    return RegistryTools(allow_write=allow_write)
+
+
 def default_providers(
     ids: list[str] | None = None,
     *,

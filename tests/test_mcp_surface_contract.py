@@ -44,6 +44,7 @@ EXPECTED_PROVIDER_IDS = {
     "telegram",
     "gmail",
     "outlook",
+    "registry",
 }
 
 
