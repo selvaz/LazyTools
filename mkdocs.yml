@@ -94,6 +94,8 @@ plugins:
           - hil/supervisor.md
         Safety:
           - safety.md
+        DB registry & artifacts:
+          - registry.md
 
 markdown_extensions:
   - admonition
@@ -164,6 +166,7 @@ nav:
           - Human approval: hil/human.md
           - Supervisor REPL: hil/supervisor.md
   - Safety: safety.md
+  - DB registry & artifacts: registry.md
   - Reference: reference.md
   - Ecosystem:
       - lazybridge.com: https://lazybridge.com/
