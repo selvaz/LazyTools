@@ -166,12 +166,19 @@ def search_artifacts(
         kind: Exact match on ``kind``.
         tags: Every tag in this list must be present on the artifact's tags.
         since: ISO8601 timestamp; only artifacts with ``created_at >= since``.
-        limit: Maximum rows to return.
+        limit: Maximum rows to return. Must be a positive integer.
 
     Returns:
         Matching records (no ``content``/``content_uri``/``content_hash``),
         ordered by ``created_at`` descending, excluding expired artifacts.
+
+    Raises:
+        ValueError: ``limit`` is not a positive integer.
     """
+    limit = int(limit)
+    if limit < 1:
+        raise ValueError(f"limit must be a positive integer, got {limit!r}")
+
     with _connect(db_path) as conn:
         clauses = ["(expires_at IS NULL OR expires_at > ?)"]
         params: list[object] = [_now_iso()]
@@ -214,7 +221,7 @@ def search_artifacts(
                 f"SELECT {', '.join(_METADATA_COLUMNS)} FROM artifacts "
                 f"WHERE {where} ORDER BY created_at DESC LIMIT ?"
             )
-            rows = conn.execute(sql, [*params, max(1, int(limit))]).fetchall()
+            rows = conn.execute(sql, [*params, limit]).fetchall()
             return [_row_to_dict(row, _METADATA_COLUMNS) for row in rows]
 
         # `query`/`tags` need a Python-side check (substring match against
@@ -223,7 +230,7 @@ def search_artifacts(
         # are found or the table is exhausted, rather than unconditionally
         # decoding every row.
         matched: list[dict] = []
-        batch_size = max(int(limit) * 5, 100)
+        batch_size = max(limit * 5, 100)
         offset = 0
         while len(matched) < limit:
             sql = (

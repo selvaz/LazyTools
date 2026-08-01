@@ -229,6 +229,21 @@ def test_search_artifacts_respects_limit_and_orders_created_at_desc(tmp_path) ->
     assert results[1]["title"] == "item-3"
 
 
+def test_search_artifacts_rejects_non_positive_limit(tmp_path) -> None:
+    """limit<=0 previously behaved inconsistently: the no-filter branch
+    silently clamped it up to 1 result, while a query/tags-filtered branch
+    returned zero or applied Python's negative-slice semantics. Both must
+    now raise instead."""
+    db_path = str(tmp_path / "artifacts.db")
+    register_artifact(db_path, repo="r", kind="k", title="a", summary="s")
+
+    for bad_limit in (0, -1):
+        with pytest.raises(ValueError, match="limit"):
+            search_artifacts(db_path, limit=bad_limit)
+        with pytest.raises(ValueError, match="limit"):
+            search_artifacts(db_path, tags=["x"], limit=bad_limit)
+
+
 def test_search_artifacts_excludes_expired(tmp_path) -> None:
     db_path = str(tmp_path / "artifacts.db")
     expired_id = register_artifact(
