@@ -309,12 +309,20 @@ class OperationsCatalog:
             if existing:
                 artifact_id = existing["artifact_id"]
             # SQLite treats NULL as distinct from NULL in a UNIQUE/PRIMARY KEY
-            # check, so a bare NULL role would never trigger INSERT OR IGNORE
-            # and every re-registration would add another run_artifacts row.
+            # check, so a bare NULL role would never match on conflict and
+            # every re-registration would add another run_artifacts row.
             # Normalize to "" (still means "no role") so the same artifact
             # attached to the same run under the same role only appears once.
+            #
+            # Upsert, not INSERT OR IGNORE: this same run can legitimately
+            # re-register identical content under the same name/kind/role
+            # more than once (e.g. a retry that enriches an attachment) --
+            # IGNORE would keep the first metadata forever, silently
+            # disagreeing with the ArtifactRecord this call returns (which
+            # reports the metadata just passed in).
             con.execute(
-                "INSERT OR IGNORE INTO run_artifacts(run_id, artifact_id, role, metadata_json) VALUES (?, ?, ?, ?)",
+                """INSERT INTO run_artifacts(run_id, artifact_id, role, metadata_json) VALUES (?, ?, ?, ?)
+                   ON CONFLICT(run_id, artifact_id, role) DO UPDATE SET metadata_json=excluded.metadata_json""",
                 (run_id, artifact_id, role or "", _json(metadata)),
             )
             row = con.execute("SELECT * FROM artifacts WHERE artifact_id=?", (artifact_id,)).fetchone()

@@ -47,6 +47,25 @@ def test_metadata_is_preserved_per_attachment_not_lost_to_content_dedup(tmp_path
     assert from_backtest.metadata == {"task": "portfolio_tree_backtest"}
 
 
+def test_reregistering_within_the_same_run_updates_metadata(tmp_path: Path) -> None:
+    """The *same* run can legitimately re-register identical content under
+    the same name/kind/role more than once (e.g. a retry that enriches an
+    attachment) -- the latest metadata must win, not the first, and
+    artifacts_for_run() must agree with what register_json() just returned."""
+    catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
+    run_id = catalog.start_run("task-a")
+
+    first = catalog.register_json(run_id, "node.json", {"weight": 0.5}, kind="node_config",
+                                  metadata={"attempt": 1})
+    second = catalog.register_json(run_id, "node.json", {"weight": 0.5}, kind="node_config",
+                                   metadata={"attempt": 2})
+
+    assert first.artifact_id == second.artifact_id
+    assert second.metadata == {"attempt": 2}
+    [attached] = catalog.artifacts_for_run(run_id)
+    assert attached.metadata == {"attempt": 2}
+
+
 def test_run_and_artifacts_round_trip(tmp_path: Path) -> None:
     catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
     run_id = catalog.start_run("crawler_3x_daily", parameters={"preset": "news_scan"}, source_repo="LazyCrawler")
