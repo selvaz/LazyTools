@@ -21,6 +21,32 @@ def test_relative_paths_are_resolved_to_absolute(tmp_path: Path, monkeypatch) ->
     assert catalog.db_path == (tmp_path / "relative.sqlite").resolve()
 
 
+def test_metadata_is_preserved_per_attachment_not_lost_to_content_dedup(tmp_path: Path) -> None:
+    """Identical content registered by two different runs (e.g. an unchanged
+    portfolio node published by both estimate and backtest) shares one
+    physical artifact row, but each run's own metadata for that attachment
+    must survive -- not just whichever run registered the content first."""
+    catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
+    estimate_run = catalog.start_run("portfolio_tree_estimate")
+    backtest_run = catalog.start_run("portfolio_tree_backtest")
+
+    a = catalog.register_json(estimate_run, "node.json", {"weight": 0.5}, kind="node_config",
+                              metadata={"task": "portfolio_tree_estimate"})
+    b = catalog.register_json(backtest_run, "node.json", {"weight": 0.5}, kind="node_config",
+                              metadata={"task": "portfolio_tree_backtest"})
+
+    assert a.artifact_id == b.artifact_id  # same content -> one physical artifact
+    assert a.metadata == {"task": "portfolio_tree_estimate"}
+    assert b.metadata == {"task": "portfolio_tree_backtest"}
+
+    # artifacts_for_run() must report each run's own metadata too, not
+    # whichever one happened to insert the shared artifacts row first.
+    [from_estimate] = catalog.artifacts_for_run(estimate_run)
+    [from_backtest] = catalog.artifacts_for_run(backtest_run)
+    assert from_estimate.metadata == {"task": "portfolio_tree_estimate"}
+    assert from_backtest.metadata == {"task": "portfolio_tree_backtest"}
+
+
 def test_run_and_artifacts_round_trip(tmp_path: Path) -> None:
     catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
     run_id = catalog.start_run("crawler_3x_daily", parameters={"preset": "news_scan"}, source_repo="LazyCrawler")

@@ -14,6 +14,11 @@ if (!(Test-Path $Python)) {
     $Python = $found.Source
 }
 if (!$DataRoot) { $DataRoot = Join-Path $env:USERPROFILE ".lazytools" }
+# A relative -DataRoot resolves fine right here (cwd is $Root, set above),
+# but $db/$artifacts get persisted as permanent User environment variables
+# below -- a later scheduled process has its own cwd and would resolve the
+# same relative string to a different location. Resolve once, now.
+$DataRoot = [System.IO.Path]::GetFullPath($DataRoot)
 $db = Join-Path $DataRoot "operations.sqlite"
 $artifacts = Join-Path $DataRoot "artifacts"
 New-Item -ItemType Directory -Force -Path $DataRoot, $artifacts | Out-Null

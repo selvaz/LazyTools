@@ -54,7 +54,6 @@ CREATE TABLE IF NOT EXISTS artifacts (
     mime_type TEXT NOT NULL,
     size_bytes INTEGER NOT NULL,
     storage_path TEXT NOT NULL,
-    metadata_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL,
     UNIQUE(sha256, name, kind)
 );
@@ -63,6 +62,14 @@ CREATE TABLE IF NOT EXISTS run_artifacts (
     run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE CASCADE,
     artifact_id TEXT NOT NULL REFERENCES artifacts(artifact_id),
     role TEXT,
+    -- Per-attachment, not per-content: content is deduped by sha256+name+kind
+    -- on `artifacts` above, but the same content can legitimately be
+    -- attached to different runs (e.g. an unchanged portfolio node
+    -- published by both estimate and backtest) with different metadata for
+    -- each attachment. Living on `artifacts` instead, an INSERT OR IGNORE
+    -- on the second attachment would silently discard its metadata in
+    -- favor of whichever run registered this content first.
+    metadata_json TEXT NOT NULL DEFAULT '{}',
     PRIMARY KEY(run_id, artifact_id, role)
 );
 CREATE TABLE IF NOT EXISTS models (
@@ -144,6 +151,7 @@ class ArtifactRecord:
     storage_path: str
     sha256: str
     role: str | None
+    metadata: dict[str, Any]
 
 
 class OperationsCatalog:
@@ -284,12 +292,15 @@ class OperationsCatalog:
         with self._session() as con:
             # INSERT OR IGNORE makes the content-addressed identity safe when
             # two scheduled processes publish the same payload concurrently.
+            # metadata is NOT stored here: it belongs to this particular
+            # attachment (see run_artifacts below), not to the shared,
+            # deduped content.
             con.execute(
                 """INSERT OR IGNORE INTO artifacts(artifact_id, sha256, name, kind, mime_type, size_bytes,
-                   storage_path, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   storage_path, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (artifact_id, digest, safe_name, kind,
                  mime_type or mimetypes.guess_type(safe_name)[0] or "application/octet-stream",
-                 len(content), str(target), _json(metadata), now),
+                 len(content), str(target), now),
             )
             existing = con.execute(
                 "SELECT artifact_id FROM artifacts WHERE sha256=? AND name=? AND kind=?",
@@ -303,12 +314,12 @@ class OperationsCatalog:
             # Normalize to "" (still means "no role") so the same artifact
             # attached to the same run under the same role only appears once.
             con.execute(
-                "INSERT OR IGNORE INTO run_artifacts(run_id, artifact_id, role) VALUES (?, ?, ?)",
-                (run_id, artifact_id, role or ""),
+                "INSERT OR IGNORE INTO run_artifacts(run_id, artifact_id, role, metadata_json) VALUES (?, ?, ?, ?)",
+                (run_id, artifact_id, role or "", _json(metadata)),
             )
             row = con.execute("SELECT * FROM artifacts WHERE artifact_id=?", (artifact_id,)).fetchone()
         return ArtifactRecord(artifact_id, run_id, row["name"], row["kind"], row["mime_type"],
-                              row["size_bytes"], row["storage_path"], row["sha256"], role)
+                              row["size_bytes"], row["storage_path"], row["sha256"], role, metadata or {})
 
     def register_text(self, run_id: str, name: str, content: str, **kwargs: Any) -> ArtifactRecord:
         return self.register_bytes(run_id, name, content.encode("utf-8"), **kwargs)
@@ -374,7 +385,11 @@ class OperationsCatalog:
 
     def artifacts_for_run(self, run_id: str) -> list[ArtifactRecord]:
         with self._session() as con:
-            rows = con.execute("""SELECT a.*, ra.role FROM artifacts a JOIN run_artifacts ra
-                         ON ra.artifact_id=a.artifact_id WHERE ra.run_id=? ORDER BY a.created_at""", (run_id,)).fetchall()
+            rows = con.execute(
+                """SELECT a.*, ra.role, ra.metadata_json FROM artifacts a JOIN run_artifacts ra
+                   ON ra.artifact_id=a.artifact_id WHERE ra.run_id=? ORDER BY a.created_at""",
+                (run_id,),
+            ).fetchall()
         return [ArtifactRecord(r["artifact_id"], run_id, r["name"], r["kind"], r["mime_type"],
-                               r["size_bytes"], r["storage_path"], r["sha256"], r["role"] or None) for r in rows]
+                               r["size_bytes"], r["storage_path"], r["sha256"], r["role"] or None,
+                               json.loads(r["metadata_json"])) for r in rows]
