@@ -328,6 +328,13 @@ class PortfolioTreeTools:
         catalog, run_id = _ops.start("portfolio_tree_estimate", source_repo="LazyTools", parameters=parameters)
         try:
             resolved = self._resolve_config(config, name)
+            # `parameters["config"]` above is null when the caller used
+            # `name=` (a saved tree) instead of an inline config -- capture
+            # the resolved tree right after it loads, before from_config()
+            # gets a chance to reject it, so a failure there still says
+            # what it was rejecting even if the saved file is later edited
+            # or deleted.
+            _ops.register_json(catalog, run_id, "resolved-tree-config.json", resolved, kind="config")
             backtest = self._effective_backtest(
                 resolved, estimation_frequency=estimation_frequency, train_size=train_size
             )
@@ -407,6 +414,13 @@ class PortfolioTreeTools:
         catalog, run_id = _ops.start("portfolio_tree_backtest", source_repo="LazyTools", parameters=parameters)
         try:
             resolved = self._resolve_config(config, name)
+            # `parameters["config"]` above is null when the caller used
+            # `name=` (a saved tree) instead of an inline config -- capture
+            # the resolved tree right after it loads, before from_config()
+            # gets a chance to reject it, so a failure there still says
+            # what it was rejecting even if the saved file is later edited
+            # or deleted.
+            _ops.register_json(catalog, run_id, "resolved-tree-config.json", resolved, kind="config")
             backtest = self._effective_backtest(
                 resolved,
                 estimation_frequency=estimation_frequency,

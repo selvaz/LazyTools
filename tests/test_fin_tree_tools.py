@@ -7,6 +7,7 @@ sibling flat-node connector.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -324,3 +325,39 @@ def test_estimate_records_a_failed_catalog_run_when_config_is_invalid(tmp_path, 
     # The supplied config must survive even though _resolve_config() never
     # got to `merged` -- otherwise a failed run can't say what caused it.
     assert runs[0].parameters["config"] == config
+
+
+def test_estimate_records_resolved_named_config_before_parsing_fails(tmp_path, monkeypatch) -> None:
+    """When called with `name=` instead of an inline config, parameters
+    only has the (mutable, editable-later) name -- the resolved tree must
+    still be captured right after it loads from disk, before from_config()
+    can reject it, or a failure here is unrecoverable once the saved file
+    changes."""
+    monkeypatch.setenv("LAZYTOOLS_OPERATIONS_DB", str(tmp_path / "ops.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_ARTIFACTS_DIR", str(tmp_path / "ops-artifacts"))
+    store_dir = tmp_path / "store"
+    store_dir.mkdir()
+    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, store_dir=str(store_dir)).as_tools()}
+    tools["portfolio_tree_save"].run_sync(name="saved", config=_tree_config())
+
+    # Corrupt the saved file directly, bypassing portfolio_tree_save's own
+    # validation, so _resolve_config() loads it fine but from_config()
+    # rejects it later.
+    [saved_file] = list(store_dir.glob("*.json"))
+    broken_config = _tree_config()
+    broken_config["nodes"][0]["children"] = ["missing-child"]
+    saved_file.write_text(json.dumps(broken_config), encoding="utf-8")
+
+    with pytest.raises(Exception, match="unknown child id"):
+        tools["portfolio_tree_estimate"].run_sync(name="saved")
+
+    from lazytools.operations import OperationsCatalog
+    catalog = OperationsCatalog()
+    runs = catalog.list_runs(task_name="portfolio_tree_estimate")
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
+    assert runs[0].parameters["config"] is None  # loaded by name, not inline
+
+    config_artifact = next(a for a in catalog.artifacts_for_run(runs[0].run_id) if a.kind == "config")
+    stored = json.loads(Path(config_artifact.storage_path).read_text(encoding="utf-8"))
+    assert stored == broken_config
