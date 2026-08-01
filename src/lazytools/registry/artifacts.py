@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import urllib.request
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -87,11 +88,27 @@ def _connect_read(db_path: str) -> sqlite3.Connection | None:
     yet (or whose deployment mounts the filesystem read-only) must return
     an empty result, not silently create a database file nor raise on a
     read-only mount -- so a missing file short-circuits to ``None`` before
-    ``sqlite3.connect`` ever touches disk.
+    ``sqlite3.connect`` ever touches disk. Likewise a file that exists but
+    predates the first ``register_artifact`` call (so it has no
+    ``artifacts`` table yet) is an empty catalog, not an error.
+
+    ``?``/``#`` are structurally significant in a ``file:`` URI (query
+    string / fragment delimiters) -- both are valid filename characters on
+    Linux, where this ships (see the Coolify/VPS deploy docs), so a literal
+    ``db_path`` can't be interpolated into the URI directly without
+    truncating or misrouting it. ``pathname2url`` percent-encodes it correctly.
     """
     if not os.path.exists(db_path):
         return None
-    return sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    uri = "file:" + urllib.request.pathname2url(os.path.abspath(db_path)) + "?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
+    has_table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='artifacts'"
+    ).fetchone()
+    if has_table is None:
+        conn.close()
+        return None
+    return conn
 
 
 def _row_to_dict(row: tuple, columns: tuple[str, ...]) -> dict:
