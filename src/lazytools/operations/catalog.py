@@ -258,8 +258,14 @@ class OperationsCatalog:
         self.initialize()
         safe_name = _safe_name(name)
         digest = hashlib.sha256(content).hexdigest()
-        suffix = Path(safe_name).suffix
-        target = self.artifact_dir / digest[:2] / digest[2:4] / f"{digest}{suffix}"
+        # Keyed by digest alone, not digest+suffix: the same bytes registered
+        # under two different names/extensions (e.g. "model.bin" then
+        # "checkpoint.pt") must land on the same physical file, or dedup
+        # silently stops working for exactly the case it exists for. `name`
+        # and `mime_type` (guessed from `name`) are still recorded per
+        # artifact row in the DB -- only the on-disk filename is extension-
+        # free.
+        target = self.artifact_dir / digest[:2] / digest[2:4] / digest
         target.parent.mkdir(parents=True, exist_ok=True)
         if not target.exists():
             temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")

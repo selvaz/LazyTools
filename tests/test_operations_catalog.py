@@ -43,6 +43,10 @@ def test_get_run_and_list_runs_expose_parent_run_id(tmp_path: Path) -> None:
     assert parent.parent_run_id is None
 
 
+def _artifact_files(artifact_dir: Path) -> list[Path]:
+    return [p for p in artifact_dir.rglob("*") if p.is_file()]
+
+
 def test_identical_artifacts_are_deduplicated(tmp_path: Path) -> None:
     catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
     first = catalog.start_run("task-a")
@@ -52,7 +56,22 @@ def test_identical_artifacts_are_deduplicated(tmp_path: Path) -> None:
 
     assert a.artifact_id == b.artifact_id
     assert len(list((tmp_path / "artifacts").rglob("*same*"))) == 0
-    assert len(list((tmp_path / "artifacts").rglob("*.txt"))) == 1
+    assert len(_artifact_files(tmp_path / "artifacts")) == 1
+
+
+def test_identical_bytes_dedupe_across_different_extensions(tmp_path: Path) -> None:
+    """Same content registered as "model.bin" then "checkpoint.pt" must land
+    on one physical file, not two -- storage is keyed by digest alone, not
+    digest+suffix, so a caller-chosen extension can't defeat content-address
+    dedup."""
+    catalog = OperationsCatalog(tmp_path / "operations.sqlite", tmp_path / "artifacts")
+    run_id = catalog.start_run("task-a")
+    a = catalog.register_bytes(run_id, "model.bin", b"weights", kind="model")
+    b = catalog.register_bytes(run_id, "checkpoint.pt", b"weights", kind="model")
+
+    assert a.artifact_id != b.artifact_id  # distinct rows (different name/kind identity)...
+    assert a.storage_path == b.storage_path  # ...but exactly one physical file
+    assert len(_artifact_files(tmp_path / "artifacts")) == 1
 
 
 def test_null_role_artifacts_still_dedupe(tmp_path: Path) -> None:
