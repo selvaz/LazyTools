@@ -326,15 +326,9 @@ class PortfolioTreeTools:
         # scheduled failure the catalog exists to surface, and used to leave
         # no record at all instead of one marked "failed".
         catalog, run_id = _ops.start("portfolio_tree_estimate", source_repo="LazyTools", parameters=parameters)
+        resolved: dict[str, Any] | None = None
         try:
             resolved = self._resolve_config(config, name)
-            # `parameters["config"]` above is null when the caller used
-            # `name=` (a saved tree) instead of an inline config -- capture
-            # the resolved tree right after it loads, before from_config()
-            # gets a chance to reject it, so a failure there still says
-            # what it was rejecting even if the saved file is later edited
-            # or deleted.
-            _ops.register_json(catalog, run_id, "resolved-tree-config.json", resolved, kind="config")
             backtest = self._effective_backtest(
                 resolved, estimation_frequency=estimation_frequency, train_size=train_size
             )
@@ -381,6 +375,16 @@ class PortfolioTreeTools:
                 },
             }
         except Exception as exc:
+            if resolved is not None:
+                # `parameters["config"]` above is null when the caller used
+                # `name=` (a saved tree); this is what from_config()/the
+                # data-loading and estimation steps actually got, before
+                # they raised. Only registered on failure -- on success,
+                # publish(..., config=merged) below already records the
+                # (more complete, override-aware) resolved config, so
+                # registering this too would attach the same tree config
+                # to the run twice.
+                _ops.register_json(catalog, run_id, "resolved-tree-config.json", resolved, kind="config")
             _ops.finish(catalog, run_id, ok=False, error=str(exc))
             raise
         publish("portfolio_tree_estimate", parameters=parameters, result=payload, config=merged,
@@ -412,15 +416,9 @@ class PortfolioTreeTools:
         # scheduled failure the catalog exists to surface, and used to leave
         # no record at all instead of one marked "failed".
         catalog, run_id = _ops.start("portfolio_tree_backtest", source_repo="LazyTools", parameters=parameters)
+        resolved: dict[str, Any] | None = None
         try:
             resolved = self._resolve_config(config, name)
-            # `parameters["config"]` above is null when the caller used
-            # `name=` (a saved tree) instead of an inline config -- capture
-            # the resolved tree right after it loads, before from_config()
-            # gets a chance to reject it, so a failure there still says
-            # what it was rejecting even if the saved file is later edited
-            # or deleted.
-            _ops.register_json(catalog, run_id, "resolved-tree-config.json", resolved, kind="config")
             backtest = self._effective_backtest(
                 resolved,
                 estimation_frequency=estimation_frequency,
@@ -472,6 +470,16 @@ class PortfolioTreeTools:
                 },
             }
         except Exception as exc:
+            if resolved is not None:
+                # `parameters["config"]` above is null when the caller used
+                # `name=` (a saved tree); this is what from_config()/the
+                # data-loading and backtest steps actually got, before they
+                # raised. Only registered on failure -- on success,
+                # publish(..., config=merged) below already records the
+                # (more complete, override-aware) resolved config, so
+                # registering this too would attach the same tree config
+                # to the run twice.
+                _ops.register_json(catalog, run_id, "resolved-tree-config.json", resolved, kind="config")
             _ops.finish(catalog, run_id, ok=False, error=str(exc))
             raise
         publish("portfolio_tree_backtest", parameters=parameters, result=payload, config=merged,

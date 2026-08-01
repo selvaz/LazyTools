@@ -195,6 +195,22 @@ def test_estimate_runs_forward_mode_and_never_leaks_synthetic_returns(frame) -> 
     assert "raw_rows" not in dumped
 
 
+def test_estimate_registers_the_resolved_config_exactly_once_on_success(frame) -> None:
+    """Round-8 added an early config snapshot to cover the failure path; it
+    must not also get registered again by publish() on success, or the same
+    tree config ends up attached to the run twice."""
+    backend = _FakeTreeBackend(frame)
+    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend).as_tools()}
+
+    tools["portfolio_tree_estimate"].run_sync(config=_tree_config())
+
+    from lazytools.operations import OperationsCatalog
+    catalog = OperationsCatalog()
+    [run] = catalog.list_runs(task_name="portfolio_tree_estimate")
+    config_artifacts = [a for a in catalog.artifacts_for_run(run.run_id) if a.kind == "config"]
+    assert len(config_artifacts) == 1
+
+
 def test_estimate_config_wins_over_name_when_both_given(tmp_path, frame) -> None:
     backend = _FakeTreeBackend(frame)
     tools = {
@@ -227,6 +243,22 @@ def test_backtest_runs_and_never_leaks_curves_or_return_rows(frame) -> None:
     assert "curves" not in payload
     dumped = json.dumps(payload)
     assert "raw_rows" not in dumped
+
+
+def test_backtest_registers_the_resolved_config_exactly_once_on_success(frame) -> None:
+    """Round-8 added an early config snapshot to cover the failure path; it
+    must not also get registered again by publish() on success, or the same
+    tree config ends up attached to the run twice."""
+    backend = _FakeTreeBackend(frame)
+    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend).as_tools()}
+
+    tools["portfolio_tree_backtest"].run_sync(config=_tree_config())
+
+    from lazytools.operations import OperationsCatalog
+    catalog = OperationsCatalog()
+    [run] = catalog.list_runs(task_name="portfolio_tree_backtest")
+    config_artifacts = [a for a in catalog.artifacts_for_run(run.run_id) if a.kind == "config"]
+    assert len(config_artifacts) == 1
 
 
 def test_backtest_override_changes_the_run_without_mutating_the_saved_file(tmp_path, frame) -> None:
