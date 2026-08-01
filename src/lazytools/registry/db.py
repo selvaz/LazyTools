@@ -66,6 +66,13 @@ KNOWN_DBS: tuple[DBEntry, ...] = (
     ),
     DBEntry("pulse_artifacts", "PULSE_ARTIFACTS_DB", "lazypulse", False, "Artifacts produced by LazyPulse"),
     DBEntry("crawler_artifacts", "CRAWLER_ARTIFACTS_DB", "lazycrawler", False, "Artifacts produced by LazyCrawler"),
+    DBEntry(
+        "lazyportfolio_artifacts",
+        "LAZYPORTFOLIO_ARTIFACTS_DB",
+        "lazyportfolio",
+        False,
+        "Artifacts (reports) produced by LazyPortfolio",
+    ),
 )
 
 _BY_NAME: dict[str, DBEntry] = {entry.name: entry for entry in KNOWN_DBS}

@@ -55,6 +55,7 @@ for entry in KNOWN_DBS:
 | `market_data_artifacts` | `MARKET_DATA_ARTIFACTS_DB` | market-data-hub | no | Artifacts produced by market-data-hub |
 | `pulse_artifacts` | `PULSE_ARTIFACTS_DB` | lazypulse | no | Artifacts produced by LazyPulse |
 | `crawler_artifacts` | `CRAWLER_ARTIFACTS_DB` | lazycrawler | no | Artifacts produced by LazyCrawler |
+| `lazyportfolio_artifacts` | `LAZYPORTFOLIO_ARTIFACTS_DB` | lazyportfolio | no | Artifacts (reports) produced by LazyPortfolio |
 
 **Adding a new DB is a PR**, not a runtime registration: append a `DBEntry`
 to `KNOWN_DBS` in `lazytools/registry/db.py`. That's the entire mechanism —
