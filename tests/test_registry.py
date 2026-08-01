@@ -146,6 +146,19 @@ def test_search_artifacts_escapes_like_wildcards_in_query(tmp_path) -> None:
     assert {r["title"] for r in results} == {"a_b special"}
 
 
+def test_search_artifacts_query_matches_decoded_tag_values(tmp_path) -> None:
+    """A query must match a tag's actual text, not its json.dumps() bytes --
+    non-ASCII characters and quotes are escaped in the serialized column
+    (e.g. "café" -> "caf\\u00e9"), so a literal-text query against that
+    serialized form would never find an exact tag match."""
+    db_path = str(tmp_path / "artifacts.db")
+    register_artifact(db_path, repo="r", kind="k", title="t", summary="s", tags=["café"])
+    register_artifact(db_path, repo="r", kind="k", title="unrelated", summary="s", tags=["other"])
+
+    results = search_artifacts(db_path, query="café")
+    assert {r["title"] for r in results} == {"t"}
+
+
 def test_search_artifacts_filters_by_tags_all_must_be_present(tmp_path) -> None:
     db_path = str(tmp_path / "artifacts.db")
     register_artifact(db_path, repo="r", kind="k", title="a", summary="s", tags=["x", "y"])

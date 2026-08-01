@@ -176,17 +176,6 @@ def search_artifacts(
         clauses = ["(expires_at IS NULL OR expires_at > ?)"]
         params: list[object] = [_now_iso()]
 
-        if query:
-            # Escape LIKE's own wildcards in the literal search text -- a
-            # query containing "%" or "_" (e.g. "5% return") must be matched
-            # as a literal substring, not interpreted as a SQL wildcard.
-            escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            clauses.append(
-                "(title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' "
-                "OR tags LIKE ? ESCAPE '\\')"
-            )
-            like = f"%{escaped}%"
-            params.extend([like, like, like])
         if kind:
             clauses.append("kind = ?")
             params.append(kind)
@@ -201,8 +190,24 @@ def search_artifacts(
             params.append(since_dt.astimezone(UTC).isoformat())
 
         where = " AND ".join(clauses)
+        query_lower = query.lower() if query else None
+        wanted = set(tags) if tags else None
 
-        if not tags:
+        def _matches(record: dict) -> bool:
+            # Matched against the *decoded* tag values, not the raw
+            # json.dumps() bytes -- a tag like "café" is escaped to
+            # "café" (and one containing quotes gains backslashes) in
+            # the serialized column, so a literal-text query would never
+            # find it there even though it's an exact tag match.
+            if query_lower is not None and not (
+                query_lower in record["title"].lower()
+                or query_lower in record["summary"].lower()
+                or any(query_lower in t.lower() for t in record["tags"])
+            ):
+                return False
+            return wanted is None or wanted.issubset(set(record["tags"]))
+
+        if query_lower is None and wanted is None:
             # No Python-side filter needed -- bound the fetch in SQL itself
             # instead of pulling the whole catalog and discarding excess.
             sql = (
@@ -212,11 +217,11 @@ def search_artifacts(
             rows = conn.execute(sql, [*params, max(1, int(limit))]).fetchall()
             return [_row_to_dict(row, _METADATA_COLUMNS) for row in rows]
 
-        # `tags` needs a Python-side subset check (stored as a JSON list),
-        # so SQL can't bound the result directly. Fetch in growing batches
-        # until `limit` tag-matching rows are found or the table is
-        # exhausted, rather than unconditionally decoding every row.
-        wanted = set(tags)
+        # `query`/`tags` need a Python-side check (substring match against
+        # decoded tags, or a tag-set subset check), so SQL can't bound the
+        # result directly. Fetch in growing batches until `limit` matches
+        # are found or the table is exhausted, rather than unconditionally
+        # decoding every row.
         matched: list[dict] = []
         batch_size = max(int(limit) * 5, 100)
         offset = 0
@@ -230,7 +235,7 @@ def search_artifacts(
                 break
             for row in rows:
                 record = _row_to_dict(row, _METADATA_COLUMNS)
-                if wanted.issubset(set(record["tags"])):
+                if _matches(record):
                     matched.append(record)
                     if len(matched) >= limit:
                         break
