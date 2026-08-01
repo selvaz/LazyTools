@@ -52,6 +52,7 @@ for entry in KNOWN_DBS:
 | `pulse_state` | `STORE_DB` | lazypulse | yes | Telegram bot state |
 | `crawler_raw` | `LAZYCRAWLER_NEWS_DB` | lazycrawler | yes | News crawl page cache |
 | `lazystats_depot` | `LAZYSTATS_RESULT_DEPOT_DB` | lazystats | yes | LazyStats analysis result depot (regime, regression, ...) |
+| `regime_tools_db` | `LAZYTOOLS_REGIME_DB` | lazystats | no | LazyHMM regime-fitting tool depot (fitted params/figures/state sequences) backing LazyTools' `regime_*` MCP tools — separate from `lazystats_depot`, which holds market-data-hub's persisted regime *run results* |
 | `market_data_artifacts` | `MARKET_DATA_ARTIFACTS_DB` | market-data-hub | no | Artifacts produced by market-data-hub |
 | `pulse_artifacts` | `PULSE_ARTIFACTS_DB` | lazypulse | no | Artifacts produced by LazyPulse |
 | `crawler_artifacts` | `CRAWLER_ARTIFACTS_DB` | lazycrawler | no | Artifacts produced by LazyCrawler |

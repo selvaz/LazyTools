@@ -58,6 +58,16 @@ KNOWN_DBS: tuple[DBEntry, ...] = (
         "LazyStats analysis result depot (regime, regression, ...)",
     ),
     DBEntry(
+        "regime_tools_db",
+        "LAZYTOOLS_REGIME_DB",
+        "lazystats",
+        False,
+        "LazyHMM regime-fitting tool depot (fitted params, figures, state "
+        "sequences) backing LazyTools' regime_* MCP tools -- a separate "
+        "store from lazystats_depot, which holds market-data-hub's "
+        "persisted regime *run results*, not the fitting tools' own state",
+    ),
+    DBEntry(
         "market_data_artifacts",
         "MARKET_DATA_ARTIFACTS_DB",
         "market-data-hub",

@@ -51,6 +51,19 @@ def test_resolve_db_set_returns_env_value(monkeypatch) -> None:
     assert db.resolve_db("market_data") == "/tmp/market.duckdb"
 
 
+def test_regime_tools_db_is_distinct_from_lazystats_depot() -> None:
+    # lazystats_depot (LAZYSTATS_RESULT_DEPOT_DB) is market-data-hub's
+    # persisted regime *run results* (see market_data_hub/regime/estimate.py);
+    # regime_tools_db (LAZYTOOLS_REGIME_DB) is LazyStats' RegimeDB -- separate
+    # storage for LazyTools' regime_* MCP tools (fitted params/figures/state
+    # sequences). Two different env vars, two different DBs -- must not collapse.
+    entries = {e.name: e for e in db.KNOWN_DBS}
+    assert entries["lazystats_depot"].env_var == "LAZYSTATS_RESULT_DEPOT_DB"
+    assert entries["regime_tools_db"].env_var == "LAZYTOOLS_REGIME_DB"
+    assert entries["regime_tools_db"].required is False
+    assert entries["regime_tools_db"].owner_repo == "lazystats"
+
+
 def test_status_reflects_set_env_vars(monkeypatch) -> None:
     monkeypatch.delenv("MARKET_DATA_DB", raising=False)
     monkeypatch.setenv("STORE_DB", "/tmp/pulse.db")
