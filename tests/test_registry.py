@@ -11,6 +11,22 @@ from lazytools.registry.artifacts import get_artifact, register_artifact, search
 from lazytools.registry.router import get_everywhere, search_everywhere
 
 
+@pytest.fixture(autouse=True)
+def _clear_artifact_db_env_vars(monkeypatch):
+    """Every test here that inspects artifact_dbs()/fan-out behavior must
+    start from a clean slate -- an ambient env var (from the real
+    deployment, or left set by another test) would silently add an
+    unexpected entry and break assertions about exactly which DBs are
+    "configured". Derived from KNOWN_DBS itself so a newly added
+    *_artifacts entry is automatically covered here, never requiring this
+    fixture to be updated by hand. Tests that want a specific one active
+    still `monkeypatch.setenv(...)` it themselves, which runs after (and so
+    overrides) this autouse clear."""
+    for entry in db.KNOWN_DBS:
+        if entry.name.endswith("_artifacts"):
+            monkeypatch.delenv(entry.env_var, raising=False)
+
+
 # --------------------------------------------------------------------------- #
 # db.resolve_db / db.status / db.artifact_dbs
 # --------------------------------------------------------------------------- #
