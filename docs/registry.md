@@ -50,7 +50,7 @@ for entry in KNOWN_DBS:
 |---|---|---|---|---|
 | `market_data` | `MARKET_DATA_DB` | market-data-hub | yes | Prices and historical series |
 | `pulse_state` | `STORE_DB` | lazypulse | yes | Telegram bot state |
-| `crawler_raw` | `CRAWLER_DB` | lazycrawler | yes | Crawling cache |
+| `crawler_raw` | `LAZYCRAWLER_NEWS_DB` | lazycrawler | yes | News crawl page cache |
 | `market_data_artifacts` | `MARKET_DATA_ARTIFACTS_DB` | market-data-hub | no | Artifacts produced by market-data-hub |
 | `pulse_artifacts` | `PULSE_ARTIFACTS_DB` | lazypulse | no | Artifacts produced by LazyPulse |
 | `crawler_artifacts` | `CRAWLER_ARTIFACTS_DB` | lazycrawler | no | Artifacts produced by LazyCrawler |

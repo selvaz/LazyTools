@@ -38,7 +38,7 @@ def test_resolve_db_set_returns_env_value(monkeypatch) -> None:
 def test_status_reflects_set_env_vars(monkeypatch) -> None:
     monkeypatch.delenv("MARKET_DATA_DB", raising=False)
     monkeypatch.setenv("STORE_DB", "/tmp/pulse.db")
-    monkeypatch.delenv("CRAWLER_DB", raising=False)
+    monkeypatch.delenv("LAZYCRAWLER_NEWS_DB", raising=False)
 
     rows = {row["name"]: row for row in db.status()}
     assert rows["market_data"]["set"] is False

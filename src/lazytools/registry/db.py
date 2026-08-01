@@ -49,7 +49,7 @@ class DBEntry:
 KNOWN_DBS: tuple[DBEntry, ...] = (
     DBEntry("market_data", "MARKET_DATA_DB", "market-data-hub", True, "Prices and historical series"),
     DBEntry("pulse_state", "STORE_DB", "lazypulse", True, "Telegram bot state"),
-    DBEntry("crawler_raw", "CRAWLER_DB", "lazycrawler", True, "Crawling cache"),
+    DBEntry("crawler_raw", "LAZYCRAWLER_NEWS_DB", "lazycrawler", True, "News crawl page cache"),
     DBEntry(
         "market_data_artifacts",
         "MARKET_DATA_ARTIFACTS_DB",
