@@ -177,29 +177,67 @@ def search_artifacts(
         params: list[object] = [_now_iso()]
 
         if query:
-            clauses.append("(title LIKE ? OR summary LIKE ? OR tags LIKE ?)")
-            like = f"%{query}%"
+            # Escape LIKE's own wildcards in the literal search text -- a
+            # query containing "%" or "_" (e.g. "5% return") must be matched
+            # as a literal substring, not interpreted as a SQL wildcard.
+            escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            clauses.append(
+                "(title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' "
+                "OR tags LIKE ? ESCAPE '\\')"
+            )
+            like = f"%{escaped}%"
             params.extend([like, like, like])
         if kind:
             clauses.append("kind = ?")
             params.append(kind)
         if since:
+            # created_at is always stored as a UTC isoformat string; a valid
+            # non-UTC offset in `since` (e.g. "...+02:00") must compare as
+            # the same instant, not as mismatched string spellings.
+            since_dt = datetime.fromisoformat(since)
+            if since_dt.tzinfo is None:
+                since_dt = since_dt.replace(tzinfo=UTC)
             clauses.append("created_at >= ?")
-            params.append(since)
+            params.append(since_dt.astimezone(UTC).isoformat())
 
-        sql = (
-            f"SELECT {', '.join(_METADATA_COLUMNS)} FROM artifacts "
-            f"WHERE {' AND '.join(clauses)} ORDER BY created_at DESC"
-        )
-        rows = conn.execute(sql, params).fetchall()
+        where = " AND ".join(clauses)
 
-    records = [_row_to_dict(row, _METADATA_COLUMNS) for row in rows]
+        if not tags:
+            # No Python-side filter needed -- bound the fetch in SQL itself
+            # instead of pulling the whole catalog and discarding excess.
+            sql = (
+                f"SELECT {', '.join(_METADATA_COLUMNS)} FROM artifacts "
+                f"WHERE {where} ORDER BY created_at DESC LIMIT ?"
+            )
+            rows = conn.execute(sql, [*params, max(1, int(limit))]).fetchall()
+            return [_row_to_dict(row, _METADATA_COLUMNS) for row in rows]
 
-    if tags:
+        # `tags` needs a Python-side subset check (stored as a JSON list),
+        # so SQL can't bound the result directly. Fetch in growing batches
+        # until `limit` tag-matching rows are found or the table is
+        # exhausted, rather than unconditionally decoding every row.
         wanted = set(tags)
-        records = [r for r in records if wanted.issubset(set(r["tags"]))]
-
-    return records[:limit]
+        matched: list[dict] = []
+        batch_size = max(int(limit) * 5, 100)
+        offset = 0
+        while len(matched) < limit:
+            sql = (
+                f"SELECT {', '.join(_METADATA_COLUMNS)} FROM artifacts "
+                f"WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?"
+            )
+            rows = conn.execute(sql, [*params, batch_size, offset]).fetchall()
+            if not rows:
+                break
+            for row in rows:
+                record = _row_to_dict(row, _METADATA_COLUMNS)
+                if wanted.issubset(set(record["tags"])):
+                    matched.append(record)
+                    if len(matched) >= limit:
+                        break
+            if len(rows) < batch_size:
+                break  # exhausted the table
+            offset += batch_size
+        return matched[:limit]
 
 
 def get_artifact(db_path: str, artifact_id: str) -> dict | None:

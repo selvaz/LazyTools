@@ -129,6 +129,23 @@ def test_search_artifacts_filters_by_query_on_title_summary_tags(tmp_path) -> No
     assert {r["title"] for r in search_artifacts(db_path, query="equities")} == {"SPY momentum"}
 
 
+def test_search_artifacts_escapes_like_wildcards_in_query(tmp_path) -> None:
+    """A literal "%" or "_" in the search text must be matched literally,
+    not interpreted as a SQL LIKE wildcard."""
+    db_path = str(tmp_path / "artifacts.db")
+    register_artifact(db_path, repo="r", kind="k", title="5% return", summary="s")
+    register_artifact(db_path, repo="r", kind="k", title="unrelated", summary="s")
+
+    results = search_artifacts(db_path, query="5% return")
+    assert {r["title"] for r in results} == {"5% return"}
+
+    # "_" is also a LIKE wildcard (matches any single char) -- must be literal too.
+    register_artifact(db_path, repo="r", kind="k", title="a_b special", summary="s")
+    register_artifact(db_path, repo="r", kind="k", title="axb should not match", summary="s")
+    results = search_artifacts(db_path, query="a_b")
+    assert {r["title"] for r in results} == {"a_b special"}
+
+
 def test_search_artifacts_filters_by_tags_all_must_be_present(tmp_path) -> None:
     db_path = str(tmp_path / "artifacts.db")
     register_artifact(db_path, repo="r", kind="k", title="a", summary="s", tags=["x", "y"])
@@ -138,6 +155,21 @@ def test_search_artifacts_filters_by_tags_all_must_be_present(tmp_path) -> None:
     assert {r["title"] for r in results} == {"a"}
 
 
+def test_search_artifacts_respects_limit_with_tags_filter(tmp_path) -> None:
+    """limit must still be honored when a Python-side tags filter is
+    involved, even when most rows don't match the tags (i.e. more rows
+    exist than would satisfy `limit` on the first SQL page)."""
+    db_path = str(tmp_path / "artifacts.db")
+    for i in range(30):
+        register_artifact(db_path, repo="r", kind="k", title=f"noise-{i}", summary="s", tags=["other"])
+    for i in range(3):
+        register_artifact(db_path, repo="r", kind="k", title=f"match-{i}", summary="s", tags=["wanted"])
+
+    results = search_artifacts(db_path, tags=["wanted"], limit=2)
+    assert len(results) == 2
+    assert all("wanted" in r["tags"] for r in results)
+
+
 def test_search_artifacts_filters_by_since(tmp_path) -> None:
     db_path = str(tmp_path / "artifacts.db")
     register_artifact(db_path, repo="r", kind="k", title="old", summary="s")
@@ -145,6 +177,31 @@ def test_search_artifacts_filters_by_since(tmp_path) -> None:
     future = "2999-01-01T00:00:00+00:00"
     assert search_artifacts(db_path, since=future) == []
     assert len(search_artifacts(db_path, since="2000-01-01T00:00:00+00:00")) == 1
+
+
+def test_search_artifacts_filters_by_since_normalizes_non_utc_offset(tmp_path) -> None:
+    """A `since` with a non-UTC offset must compare as the same instant as
+    created_at (always stored in UTC), not as mismatched string spellings.
+
+    A naive string comparison would put a "+02:00"-offset timestamp *after*
+    a same-instant (or even later) UTC one, because the local hour is 2
+    higher than the UTC hour for the same moment -- e.g. 10:00 UTC is
+    12:00+02:00, and "12:00...+02:00" > "10:00...+00:00" as raw strings
+    despite being the same instant.
+    """
+    db_path = str(tmp_path / "artifacts.db")
+    register_artifact(db_path, repo="r", kind="k", title="recent", summary="s")
+
+    from datetime import UTC, datetime, timedelta, timezone
+
+    # An instant 5 seconds before "now", expressed in the +02:00 zone --
+    # still <= created_at (which is ~now, in UTC), but its raw string sorts
+    # later than a UTC "now" timestamp would.
+    since_instant = datetime.now(UTC) - timedelta(seconds=5)
+    since = since_instant.astimezone(timezone(timedelta(hours=2))).isoformat()
+
+    results = search_artifacts(db_path, since=since)
+    assert {r["title"] for r in results} == {"recent"}
 
 
 def test_search_artifacts_respects_limit_and_orders_created_at_desc(tmp_path) -> None:
