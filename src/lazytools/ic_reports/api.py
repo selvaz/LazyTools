@@ -18,6 +18,7 @@ Typical flow for a producer::
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 from lazytools.ic_reports import db
 from lazytools.ic_reports.models import ReportEnvelope, ReportScope, ReportStatus, validate_envelope
@@ -43,9 +44,17 @@ def _flatten_scope(scope: ReportScope) -> tuple[str | None, str | None]:
     """Reduce a (possibly two-dimensional) scope to the single
     ``(scope_type, scope_key)`` pair the DB indexes on. Deterministic and
     reversible -- a scope with both dimensions set gets a composite key
-    rather than silently dropping one."""
+    rather than silently dropping one.
+
+    The composite key percent-encodes each component before joining with
+    ``:`` (which ``quote`` never leaves unescaped) so a literal ``:`` inside
+    ``region``/``asset_class`` can't make two distinct scopes collide on the
+    same flattened key -- e.g. ``region="us:large", asset_class="cap"`` and
+    ``region="us", asset_class="large:cap"`` must not both flatten to
+    ``"us:large:cap"``.
+    """
     if scope.region and scope.asset_class:
-        return "region+asset_class", f"{scope.region}:{scope.asset_class}"
+        return "region+asset_class", f"{quote(scope.region, safe='')}:{quote(scope.asset_class, safe='')}"
     if scope.region:
         return "region", scope.region
     if scope.asset_class:
@@ -149,6 +158,23 @@ def validate_report_version(db_path: str, version_id: str) -> None:
 
 
 def reject_report_version(db_path: str, version_id: str) -> None:
+    """Mark a pre-publication version ``'rejected'``. Refuses (raises) on a
+    version that has already moved past ``'validated'`` -- rejecting a
+    ``'published'``/``'superseded'`` version would leave the report's
+    ``current_version_id`` pointing at a now-rejected version while the
+    report row itself still says ``'published'``. Rejecting an
+    already-``'rejected'`` version is a no-op.
+    """
+    row = db.get_version(db_path, version_id)
+    if row is None:
+        raise KeyError(f"no such version_id: {version_id!r}")
+    if row["status"] == "rejected":
+        return
+    if row["status"] in _TERMINAL_STATUSES:
+        raise ValueError(
+            f"version {version_id!r} has status {row['status']!r} -- cannot reject a version "
+            "that has already moved past 'validated'"
+        )
     db.set_version_status(db_path, version_id=version_id, status="rejected")
 
 

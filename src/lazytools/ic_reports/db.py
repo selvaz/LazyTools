@@ -45,7 +45,12 @@ CREATE TABLE IF NOT EXISTS reports (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_reports_type_scope ON reports(report_type, scope_type, scope_key);
+-- IFNULL(...,'') normalizes NULL scope_type/scope_key for uniqueness purposes
+-- only (the stored values stay NULL) -- SQLite treats every NULL as distinct
+-- in a plain UNIQUE constraint, which would let concurrent get_or_create_report
+-- calls for the SAME unscoped report_type each insert their own row.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_identity
+    ON reports(report_type, IFNULL(scope_type, ''), IFNULL(scope_key, ''));
 
 CREATE TABLE IF NOT EXISTS report_versions (
     version_id TEXT PRIMARY KEY,
@@ -136,28 +141,29 @@ def _new_id() -> str:
 def get_or_create_report(db_path: str, *, report_type: str, scope_type: str | None, scope_key: str | None, title: str) -> str:
     """The logical report identity for (report_type, scope) -- idempotent:
     a second call with the same (report_type, scope_type, scope_key) returns
-    the SAME report_id rather than creating a second series. ``title`` is
+    the SAME report_id rather than creating a second series, even under
+    concurrent callers (the insert-then-select happens as one atomic
+    transaction against ``idx_reports_identity``, so two callers racing on a
+    previously-unseen scope can't each create a separate row). ``title`` is
     only used on first creation; call sites that want to rename an existing
     series should update it explicitly, not rely on this to do it silently.
     """
+    report_id = _new_id()
+    now = _now_iso()
     with _connect_write(db_path) as conn:
-        row = conn.execute(
-            "SELECT report_id FROM reports WHERE report_type = ? AND scope_type IS ? AND scope_key IS ?",
-            (report_type, scope_type, scope_key),
-        ).fetchone()
-        if row is not None:
-            return str(row["report_id"])
-
-        report_id = _new_id()
-        now = _now_iso()
         conn.execute(
             """
             INSERT INTO reports (report_id, report_type, scope_type, scope_key, title, current_version_id, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
+            ON CONFLICT (report_type, IFNULL(scope_type, ''), IFNULL(scope_key, '')) DO NOTHING
             """,
             (report_id, report_type, scope_type, scope_key, title, "draft", now, now),
         )
-    return report_id
+        row = conn.execute(
+            "SELECT report_id FROM reports WHERE report_type = ? AND scope_type IS ? AND scope_key IS ?",
+            (report_type, scope_type, scope_key),
+        ).fetchone()
+    return str(row["report_id"])
 
 
 def create_version(

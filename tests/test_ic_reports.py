@@ -6,6 +6,7 @@ for DB logic, matching lazytools.registry's own test conventions.
 from __future__ import annotations
 
 import json
+import threading
 from datetime import UTC, datetime
 
 import pytest
@@ -506,3 +507,81 @@ def test_validate_report_version_refuses_a_rejected_version(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="cannot re-validate"):
         api.validate_report_version(db_path, version_id)
+
+
+# --------------------------------------------------------------------------- #
+# reject_report_version must not move a published/superseded version
+# backward either, and must be idempotent when already rejected.
+# --------------------------------------------------------------------------- #
+def test_reject_report_version_is_a_noop_when_already_rejected(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    version_id = api.submit_report_version(db_path, _envelope(report_id=report_id))
+    api.reject_report_version(db_path, version_id)
+    api.reject_report_version(db_path, version_id)  # must not raise
+    assert db.get_version(db_path, version_id)["status"] == "rejected"
+
+
+def test_reject_report_version_refuses_a_published_version(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    version_id = api.submit_report_version(db_path, _envelope(report_id=report_id))
+    api.validate_report_version(db_path, version_id)
+    api.publish_report_version(db_path, version_id)
+
+    with pytest.raises(ValueError, match="cannot reject"):
+        api.reject_report_version(db_path, version_id)
+    assert db.get_version(db_path, version_id)["status"] == "published"
+
+
+def test_reject_report_version_raises_for_unknown_version(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    with pytest.raises(KeyError):
+        api.reject_report_version(db_path, "not-a-real-version")
+
+
+# --------------------------------------------------------------------------- #
+# Composite scope-key encoding must be injective -- a literal ":" inside
+# region/asset_class must not make two distinct scopes collide.
+# --------------------------------------------------------------------------- #
+def test_composite_scope_encoding_does_not_collide_on_embedded_delimiter(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    id_a = api.resolve_report_id(
+        db_path, report_type="regional_report",
+        scope=ReportScope(region="us:large", asset_class="cap"), title="A",
+    )
+    id_b = api.resolve_report_id(
+        db_path, report_type="regional_report",
+        scope=ReportScope(region="us", asset_class="large:cap"), title="B",
+    )
+    assert id_a != id_b
+
+
+# --------------------------------------------------------------------------- #
+# get_or_create_report must be atomic: two concurrent callers racing on the
+# same previously-unseen (report_type, scope) must converge on one report_id.
+# --------------------------------------------------------------------------- #
+def test_get_or_create_report_is_atomic_under_concurrent_callers(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    barrier = threading.Barrier(8)
+    results: list[str] = []
+    lock = threading.Lock()
+
+    def _resolve() -> None:
+        barrier.wait()
+        report_id = db.get_or_create_report(
+            db_path, report_type="regional_report", scope_type="region", scope_key="europe", title="Europe"
+        )
+        with lock:
+            results.append(report_id)
+
+    threads = [threading.Thread(target=_resolve) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(results) == 8
+    assert len(set(results)) == 1  # every caller converged on the same report_id
+    rows = db.search_reports(db_path, report_type="regional_report", scope_key="europe")
+    assert len(rows) == 1  # no duplicate report row was created
