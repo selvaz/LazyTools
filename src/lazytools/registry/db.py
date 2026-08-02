@@ -83,6 +83,17 @@ KNOWN_DBS: tuple[DBEntry, ...] = (
         False,
         "Artifacts (reports) produced by LazyPortfolio",
     ),
+    DBEntry(
+        "ic_reports",
+        "IC_REPORTS_DB",
+        "investmentcommittee",
+        False,
+        "Investment Committee Report Registry (lazytools.ic_reports) -- "
+        "versioned regional/quantitative/asset-class/challenge/final "
+        "reports. A separate store from the *_artifacts entries above: "
+        "those catalog files, this tracks report semantics/versions/"
+        "changes and links to the artifacts that hold the rendered output.",
+    ),
 )
 
 _BY_NAME: dict[str, DBEntry] = {entry.name: entry for entry in KNOWN_DBS}

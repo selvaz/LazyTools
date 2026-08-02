@@ -135,3 +135,5 @@ agent = Agent("claude-opus-4-8", tools=[RegistryTools(allow_write=True)])
 - [Tools overview](connectors.md) — every connector at a glance (this module
   is deliberately not in that table — it isn't a connector).
 - [Safety](safety.md) — the other cross-cutting, stdlib-only feature module.
+- [IC Report Registry](ic-reports.md) — a separate, versioned registry for
+  structured Investment Committee reports, built on top of this one.
