@@ -47,7 +47,7 @@ extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "5eb0761d72ec62d5cd0e587bdec8a7903a26fc5e"  # pre-tag pin; no release tags yet
+ref = "f4963dd26d95c1650493fd8bd007f077078344be"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
 extras = ["datacore"]
 
 [verified.github.lazyfin]
