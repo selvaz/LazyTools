@@ -233,6 +233,12 @@ def compare_report_versions(db_path: str, version_a: str, version_b: str) -> dic
     if row_a is None or row_b is None:
         missing = version_a if row_a is None else version_b
         raise KeyError(f"no such version_id: {missing!r}")
+    if row_a["report_id"] != row_b["report_id"]:
+        raise ValueError(
+            f"version {version_a!r} (report {row_a['report_id']!r}) and version {version_b!r} "
+            f"(report {row_b['report_id']!r}) belong to different reports -- compare_report_versions "
+            "only compares versions of the same report"
+        )
 
     env_a = _envelope_from_row(row_a)
     env_b = _envelope_from_row(row_b)

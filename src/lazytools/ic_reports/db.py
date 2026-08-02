@@ -234,19 +234,37 @@ def publish_version(db_path: str, *, version_id: str) -> None:
     at it, and mark the previously-current published version (if any)
     ``superseded``. Never mutates a published version's content -- only its
     status, and only forward (published -> superseded), never back.
+
+    Refuses (raises) to publish ``version_id`` if the currently-published
+    version is a LATER version (by ``version_number``) -- e.g. a
+    delayed/out-of-order approval publishing v1 after v2 is already
+    published must not supersede v2's content, since ``superseded`` is
+    documented to mean "a newer version was published", not "some other
+    version was published later in wall-clock time".
     """
     with _connect_write(db_path) as conn:
         row = conn.execute(
-            "SELECT report_id FROM report_versions WHERE version_id = ?", (version_id,)
+            "SELECT report_id, version_number FROM report_versions WHERE version_id = ?", (version_id,)
         ).fetchone()
         if row is None:
             raise KeyError(f"no such version_id: {version_id!r}")
         report_id = row["report_id"]
 
         previous = conn.execute(
-            "SELECT current_version_id FROM reports WHERE report_id = ?", (report_id,)
+            """
+            SELECT rv.version_id AS version_id, rv.version_number AS version_number
+            FROM reports r JOIN report_versions rv ON rv.version_id = r.current_version_id
+            WHERE r.report_id = ?
+            """,
+            (report_id,),
         ).fetchone()
-        previous_version_id = previous["current_version_id"] if previous else None
+        previous_version_id = previous["version_id"] if previous else None
+        if previous is not None and previous["version_number"] > row["version_number"]:
+            raise ValueError(
+                f"cannot publish version {version_id!r} (version_number={row['version_number']}) -- "
+                f"a newer version {previous_version_id!r} (version_number={previous['version_number']}) "
+                "is already published"
+            )
 
         now = _now_iso()
         conn.execute("UPDATE report_versions SET status = 'published' WHERE version_id = ?", (version_id,))

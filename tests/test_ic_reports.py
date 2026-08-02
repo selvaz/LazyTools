@@ -585,3 +585,38 @@ def test_get_or_create_report_is_atomic_under_concurrent_callers(tmp_path) -> No
     assert len(set(results)) == 1  # every caller converged on the same report_id
     rows = db.search_reports(db_path, report_type="regional_report", scope_key="europe")
     assert len(rows) == 1  # no duplicate report row was created
+
+
+# --------------------------------------------------------------------------- #
+# publish_version must not let an out-of-order publish supersede a newer
+# already-published version.
+# --------------------------------------------------------------------------- #
+def test_publish_version_refuses_to_supersede_a_newer_published_version(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = db.get_or_create_report(db_path, report_type="regional_report", scope_type="region", scope_key="europe", title="Europe")
+    v1, _ = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+    v2, _ = db.create_version(db_path, report_id=report_id, run_id="run-2", as_of="2026-08-02T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+
+    db.publish_version(db_path, version_id=v2)
+    with pytest.raises(ValueError, match="already published"):
+        db.publish_version(db_path, version_id=v1)
+
+    assert db.get_version(db_path, v2)["status"] == "published"
+    assert db.get_version(db_path, v1)["status"] != "published"
+    assert db.get_report(db_path, report_id)["current_version_id"] == v2
+
+
+# --------------------------------------------------------------------------- #
+# compare_report_versions must refuse to diff versions from different
+# reports -- a plausible-looking diff across unrelated series is worse than
+# an explicit error.
+# --------------------------------------------------------------------------- #
+def test_compare_report_versions_refuses_versions_from_different_reports(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    europe_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    asia_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="asia"), title="Asia")
+    v_europe = api.submit_report_version(db_path, _envelope(report_id=europe_id))
+    v_asia = api.submit_report_version(db_path, _envelope(report_id=asia_id, scope=ReportScope(region="asia")))
+
+    with pytest.raises(ValueError, match="different reports"):
+        api.compare_report_versions(db_path, v_europe, v_asia)
