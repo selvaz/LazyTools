@@ -108,15 +108,17 @@ def test_get_or_create_report_distinguishes_different_scopes(tmp_path) -> None:
 def test_create_version_is_idempotent_on_run_id(tmp_path) -> None:
     db_path = str(tmp_path / "ic.db")
     report_id = db.get_or_create_report(db_path, report_type="regional_report", scope_type="region", scope_key="europe", title="Europe")
-    first = db.create_version(
+    first, first_created = db.create_version(
         db_path, report_id=report_id, run_id="run-1", as_of="2026-08-02T00:00:00+00:00",
         content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[],
     )
-    second = db.create_version(
+    second, second_created = db.create_version(
         db_path, report_id=report_id, run_id="run-1", as_of="2026-08-02T00:00:00+00:00",
         content_json='{"different": "content"}', agent_id="a", model=None, prompt_version=None, input_refs=[],
     )
     assert first == second
+    assert first_created is True
+    assert second_created is False
     # The second call's different content must NOT have overwritten the first.
     stored = db.get_version(db_path, first)
     assert stored["content_json"] == "{}"
@@ -125,8 +127,8 @@ def test_create_version_is_idempotent_on_run_id(tmp_path) -> None:
 def test_create_version_increments_version_number(tmp_path) -> None:
     db_path = str(tmp_path / "ic.db")
     report_id = db.get_or_create_report(db_path, report_type="regional_report", scope_type="region", scope_key="europe", title="Europe")
-    v1 = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
-    v2 = db.create_version(db_path, report_id=report_id, run_id="run-2", as_of="2026-08-02T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+    v1, _ = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+    v2, _ = db.create_version(db_path, report_id=report_id, run_id="run-2", as_of="2026-08-02T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
     assert db.get_version(db_path, v1)["version_number"] == 1
     assert db.get_version(db_path, v2)["version_number"] == 2
 
@@ -134,8 +136,8 @@ def test_create_version_increments_version_number(tmp_path) -> None:
 def test_publish_version_supersedes_the_previous_published_version(tmp_path) -> None:
     db_path = str(tmp_path / "ic.db")
     report_id = db.get_or_create_report(db_path, report_type="regional_report", scope_type="region", scope_key="europe", title="Europe")
-    v1 = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
-    v2 = db.create_version(db_path, report_id=report_id, run_id="run-2", as_of="2026-08-02T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+    v1, _ = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+    v2, _ = db.create_version(db_path, report_id=report_id, run_id="run-2", as_of="2026-08-02T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
 
     db.publish_version(db_path, version_id=v1)
     assert db.get_version(db_path, v1)["status"] == "published"
@@ -156,7 +158,7 @@ def test_publish_version_raises_for_unknown_version(tmp_path) -> None:
 def test_get_latest_version_filters_by_status(tmp_path) -> None:
     db_path = str(tmp_path / "ic.db")
     report_id = db.get_or_create_report(db_path, report_type="regional_report", scope_type="region", scope_key="europe", title="Europe")
-    v1 = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+    v1, _ = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
     db.create_version(db_path, report_id=report_id, run_id="run-2", as_of="2026-08-02T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
 
     db.publish_version(db_path, version_id=v1)
@@ -170,8 +172,8 @@ def test_get_latest_version_filters_by_status(tmp_path) -> None:
 def test_get_previous_version(tmp_path) -> None:
     db_path = str(tmp_path / "ic.db")
     report_id = db.get_or_create_report(db_path, report_type="regional_report", scope_type="region", scope_key="europe", title="Europe")
-    v1 = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
-    v2 = db.create_version(db_path, report_id=report_id, run_id="run-2", as_of="2026-08-02T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+    v1, _ = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+    v2, _ = db.create_version(db_path, report_id=report_id, run_id="run-2", as_of="2026-08-02T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
 
     assert db.get_previous_version(db_path, v2)["version_id"] == v1
     assert db.get_previous_version(db_path, v1) is None
@@ -199,8 +201,8 @@ def test_search_reports_rejects_non_positive_limit(tmp_path) -> None:
 def test_record_changes_and_list_changes(tmp_path) -> None:
     db_path = str(tmp_path / "ic.db")
     report_id = db.get_or_create_report(db_path, report_type="regional_report", scope_type="region", scope_key="europe", title="Europe")
-    v1 = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
-    v2 = db.create_version(db_path, report_id=report_id, run_id="run-2", as_of="2026-08-02T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+    v1, _ = db.create_version(db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
+    v2, _ = db.create_version(db_path, report_id=report_id, run_id="run-2", as_of="2026-08-02T00:00:00+00:00", content_json="{}", agent_id="a", model=None, prompt_version=None, input_refs=[])
 
     db.record_changes(db_path, current_version_id=v2, previous_version_id=v1, changes=[
         {"change_type": "new_risk", "description": "energy prices spiked", "drivers": ["oil supply"]},
@@ -213,7 +215,7 @@ def test_record_changes_and_list_changes(tmp_path) -> None:
 def test_link_artifact_and_list_inputs(tmp_path) -> None:
     db_path = str(tmp_path / "ic.db")
     report_id = db.get_or_create_report(db_path, report_type="regional_report", scope_type="region", scope_key="europe", title="Europe")
-    v1 = db.create_version(
+    v1, _ = db.create_version(
         db_path, report_id=report_id, run_id="run-1", as_of="2026-08-01T00:00:00+00:00", content_json="{}",
         agent_id="a", model=None, prompt_version=None,
         input_refs=[{"input_type": "artifact", "input_id": "abc123", "source_repo": "lazycrawler", "role": "primary_source"}],
@@ -308,7 +310,7 @@ def test_validate_report_version_raises_on_bad_content_without_changing_status(t
     # tightened).
     bad_envelope_dict = _envelope(report_id=report_id).model_dump(mode="json")
     bad_envelope_dict["content"] = {"key_events": "not a list"}
-    version_id = db.create_version(
+    version_id, _ = db.create_version(
         db_path, report_id=report_id, run_id="bad-run", as_of="2026-08-02T00:00:00+00:00",
         content_json=json.dumps(bad_envelope_dict), agent_id="a", model=None, prompt_version=None, input_refs=[],
     )
@@ -379,3 +381,128 @@ def test_search_reports_is_metadata_only(tmp_path) -> None:
     results = api.search_reports(db_path, report_type="regional_report")
     assert len(results) == 1
     assert "content_json" not in results[0]  # metadata table row, not version content
+
+
+# --------------------------------------------------------------------------- #
+# Lifecycle-status overlay: getters must reflect the DB row's real status,
+# not the (frozen at submit time) status embedded in content_json.
+# --------------------------------------------------------------------------- #
+def test_get_report_version_reflects_current_status_not_stale_embedded_one(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    version_id = api.submit_report_version(db_path, _envelope(report_id=report_id))
+    assert api.get_report_version(db_path, version_id).status == "generated"
+
+    api.validate_report_version(db_path, version_id)
+    assert api.get_report_version(db_path, version_id).status == "validated"
+
+    api.publish_report_version(db_path, version_id)
+    assert api.get_report_version(db_path, version_id).status == "published"
+
+
+def test_get_latest_report_version_reflects_current_status(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    version_id = api.submit_report_version(db_path, _envelope(report_id=report_id))
+    api.validate_report_version(db_path, version_id)
+    api.publish_report_version(db_path, version_id)
+    assert api.get_latest_report_version(db_path, report_id).status == "published"
+
+
+def test_get_previous_report_version_reflects_current_status(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    v1 = api.submit_report_version(db_path, _envelope(report_id=report_id, run_id="run-1"))
+    api.validate_report_version(db_path, v1)
+    api.publish_report_version(db_path, v1)
+    v2 = api.submit_report_version(db_path, _envelope(report_id=report_id, run_id="run-2"))
+
+    previous = api.get_previous_report_version(db_path, v2)
+    assert previous.status == "published"
+
+
+def test_compare_report_versions_scalar_diff_reflects_current_statuses(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    v1 = api.submit_report_version(db_path, _envelope(report_id=report_id, run_id="run-1"))
+    v2 = api.submit_report_version(db_path, _envelope(report_id=report_id, run_id="run-2"))
+    api.validate_report_version(db_path, v1)
+    api.publish_report_version(db_path, v1)
+
+    diff = api.compare_report_versions(db_path, v1, v2)
+    assert diff["scalar_diff"]["status"] == ("published", "generated")
+
+
+# --------------------------------------------------------------------------- #
+# submit_report_version must verify report identity, and must skip the
+# denormalized changes/artifact inserts when a run_id is resubmitted.
+# --------------------------------------------------------------------------- #
+def test_submit_report_version_rejects_report_type_mismatch(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    env = _envelope(report_id=report_id, report_type="quantitative_report", content={})
+    with pytest.raises(ValueError, match="doesn't match report"):
+        api.submit_report_version(db_path, env)
+
+
+def test_submit_report_version_rejects_scope_mismatch(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    env = _envelope(report_id=report_id, scope=ReportScope(region="asia"))
+    with pytest.raises(ValueError, match="doesn't match report"):
+        api.submit_report_version(db_path, env)
+
+
+def test_submit_report_version_skips_duplicate_inserts_on_resubmitted_run_id(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    env = _envelope(
+        report_id=report_id,
+        run_id="run-1",
+        changes=[ReportChange(change_type="new_risk", description="energy spike", drivers=["oil"])],
+        artifact_refs=[ArtifactRef(artifact_id="html-1", repo="lazytools", role="html_render")],
+    )
+    v1 = api.submit_report_version(db_path, env)
+    assert len(api.list_report_changes(db_path, v1)) == 1
+
+    # Resubmitting the same run_id must return the same version_id and must
+    # NOT insert a second copy of the changes/artifact rows.
+    v1_again = api.submit_report_version(db_path, env)
+    assert v1_again == v1
+    assert len(api.list_report_changes(db_path, v1)) == 1
+
+
+# --------------------------------------------------------------------------- #
+# validate_report_version must not move a version backward out of a
+# terminal/post-validation state, and must be idempotent when already
+# validated.
+# --------------------------------------------------------------------------- #
+def test_validate_report_version_is_a_noop_when_already_validated(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    version_id = api.submit_report_version(db_path, _envelope(report_id=report_id))
+    api.validate_report_version(db_path, version_id)
+    api.validate_report_version(db_path, version_id)  # must not raise
+    assert db.get_version(db_path, version_id)["status"] == "validated"
+
+
+def test_validate_report_version_refuses_to_move_a_published_version_backward(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    version_id = api.submit_report_version(db_path, _envelope(report_id=report_id))
+    api.validate_report_version(db_path, version_id)
+    api.publish_report_version(db_path, version_id)
+
+    with pytest.raises(ValueError, match="cannot re-validate"):
+        api.validate_report_version(db_path, version_id)
+    assert db.get_version(db_path, version_id)["status"] == "published"
+
+
+def test_validate_report_version_refuses_a_rejected_version(tmp_path) -> None:
+    db_path = str(tmp_path / "ic.db")
+    report_id = api.resolve_report_id(db_path, report_type="regional_report", scope=ReportScope(region="europe"), title="Europe")
+    version_id = api.submit_report_version(db_path, _envelope(report_id=report_id))
+    api.reject_report_version(db_path, version_id)
+
+    with pytest.raises(ValueError, match="cannot re-validate"):
+        api.validate_report_version(db_path, version_id)

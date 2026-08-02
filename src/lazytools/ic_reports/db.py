@@ -171,19 +171,25 @@ def create_version(
     model: str | None,
     prompt_version: str | None,
     input_refs: list[dict],
-) -> str:
+) -> tuple[str, bool]:
     """Create a new version of ``report_id``. Idempotent on ``(report_id,
     run_id)``: a repeated run with the same run_id returns the EXISTING
     version_id (and does NOT touch its content) rather than creating a
     duplicate -- callers that need to force a genuinely new attempt must
-    pass a new run_id."""
+    pass a new run_id.
+
+    Returns ``(version_id, created)`` -- ``created`` is ``False`` when an
+    existing version was returned, so callers know whether to also (re-)run
+    any denormalized inserts keyed off this version (changes, artifact
+    links) or skip them since they'd already be in place.
+    """
     with _connect_write(db_path) as conn:
         existing = conn.execute(
             "SELECT version_id FROM report_versions WHERE report_id = ? AND run_id = ?",
             (report_id, run_id),
         ).fetchone()
         if existing is not None:
-            return str(existing["version_id"])
+            return str(existing["version_id"]), False
 
         version_id = _new_id()
         content_hash = hashlib.sha256(content_json.encode("utf-8")).hexdigest()
@@ -209,7 +215,7 @@ def create_version(
                 (version_id, ref["input_type"], ref["input_id"], ref.get("source_repo"), ref["role"]),
             )
         conn.execute("UPDATE reports SET updated_at = ? WHERE report_id = ?", (now, report_id))
-    return version_id
+    return version_id, True
 
 
 def set_version_status(db_path: str, *, version_id: str, status: str) -> None:

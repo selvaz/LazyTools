@@ -88,8 +88,14 @@ publish_report_version(IC_REPORTS_DB, version_id)    # requires "validated"; sup
 Statuses: `draft → generated → validated → published`, with `superseded`
 (a newer version was published), `rejected`, and `failed` as terminal/side
 states. A version only ever moves forward — nothing here mutates a
-published version's content, and `publish_report_version` refuses anything
-that isn't already `validated`.
+published version's content, `publish_report_version` refuses anything
+that isn't already `validated`, and `validate_report_version` refuses to
+run on a version that has already moved past `validated` (re-validating an
+already-`validated` version is a no-op). Every getter (`get_report_version`,
+`get_latest_report_version`, `get_previous_report_version`,
+`compare_report_versions`) returns the version's *current* status from the
+database, not whatever status was in effect when it was originally
+submitted.
 
 ## Retrieval and comparison
 

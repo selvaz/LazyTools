@@ -20,7 +20,23 @@ from __future__ import annotations
 from typing import Any
 
 from lazytools.ic_reports import db
-from lazytools.ic_reports.models import ReportEnvelope, ReportScope, validate_envelope
+from lazytools.ic_reports.models import ReportEnvelope, ReportScope, ReportStatus, validate_envelope
+
+#: Statuses a version can no longer be moved backward out of by
+#: (re-)validating -- publishing, superseding, rejection, and failure are
+#: all meant to be one-way past this point.
+_TERMINAL_STATUSES = frozenset({"published", "superseded", "rejected", "failed"})
+
+
+def _envelope_from_row(row: dict) -> ReportEnvelope:
+    """Reconstruct the envelope stored in ``row['content_json']``, overlaid
+    with the row's own ``status`` -- the DB row, not the (possibly stale)
+    frozen JSON, is the source of truth for a version's current lifecycle
+    status, since ``validate_report_version``/``publish_report_version``/
+    ``reject_report_version`` only ever update the row, never the stored
+    JSON."""
+    envelope = ReportEnvelope.model_validate_json(row["content_json"])
+    return envelope.model_copy(update={"status": ReportStatus(row["status"])})
 
 
 def _flatten_scope(scope: ReportScope) -> tuple[str | None, str | None]:
@@ -48,21 +64,36 @@ def resolve_report_id(db_path: str, *, report_type: str, scope: ReportScope, tit
 def submit_report_version(db_path: str, envelope: ReportEnvelope) -> str:
     """Validate ``envelope`` and persist it as a new version. Idempotent on
     ``envelope.run_id``: resubmitting the same run returns the existing
-    version_id instead of creating a duplicate.
+    version_id instead of creating a duplicate, and does NOT re-insert the
+    denormalized ``changes``/``artifact_refs`` rows a second time.
 
     Raises:
         ValueError / pydantic.ValidationError: the envelope or its
             report_type-specific content is invalid.
         KeyError: ``envelope.report_id`` doesn't exist -- call
             :func:`resolve_report_id` first.
+        ValueError: ``envelope.report_type``/``envelope.scope`` don't match
+            the report_id's own logical identity (a stale or copy-pasted
+            report_id attached to the wrong series).
     """
     validate_envelope(envelope)
-    if db.get_report(db_path, envelope.report_id) is None:
+    report = db.get_report(db_path, envelope.report_id)
+    if report is None:
         raise KeyError(
             f"no such report_id {envelope.report_id!r} -- call resolve_report_id() first "
             "to allocate the logical report identity before submitting a version"
         )
-    version_id = db.create_version(
+    scope_type, scope_key = _flatten_scope(envelope.scope)
+    if envelope.report_type != report["report_type"] or (scope_type, scope_key) != (
+        report["scope_type"],
+        report["scope_key"],
+    ):
+        raise ValueError(
+            f"envelope report_type/scope ({envelope.report_type!r}, {scope_type!r}, {scope_key!r}) "
+            f"doesn't match report {envelope.report_id!r}'s own identity "
+            f"({report['report_type']!r}, {report['scope_type']!r}, {report['scope_key']!r})"
+        )
+    version_id, created = db.create_version(
         db_path,
         report_id=envelope.report_id,
         run_id=envelope.run_id,
@@ -73,6 +104,8 @@ def submit_report_version(db_path: str, envelope: ReportEnvelope) -> str:
         prompt_version=envelope.prompt_version,
         input_refs=[ref.model_dump() for ref in envelope.input_refs],
     )
+    if not created:
+        return version_id
     if envelope.changes:
         previous = db.get_previous_version(db_path, version_id)
         db.record_changes(
@@ -92,10 +125,24 @@ def validate_report_version(db_path: str, version_id: str) -> None:
     without changing status -- the caller decides whether to mark it
     ``'rejected'`` (via :func:`reject_report_version`) or leave it as-is
     for a retry.
+
+    Refuses to run (raises) if the version has already moved past
+    ``'validated'`` -- ``'published'``, ``'superseded'``, ``'rejected'``, and
+    ``'failed'`` are all one-way terminal states, and re-validating a
+    published version would move it backward out of
+    :func:`get_latest_report_version`'s default ``status="published"``
+    filter. Re-validating an already-``'validated'`` version is a no-op.
     """
     row = db.get_version(db_path, version_id)
     if row is None:
         raise KeyError(f"no such version_id: {version_id!r}")
+    if row["status"] == "validated":
+        return
+    if row["status"] in _TERMINAL_STATUSES:
+        raise ValueError(
+            f"version {version_id!r} has status {row['status']!r} -- cannot re-validate a version "
+            "that has already moved past 'validated'"
+        )
     envelope = ReportEnvelope.model_validate_json(row["content_json"])
     validate_envelope(envelope)  # raises on invalid content
     db.set_version_status(db_path, version_id=version_id, status="validated")
@@ -131,21 +178,21 @@ def get_report_version(db_path: str, version_id: str) -> ReportEnvelope | None:
     row = db.get_version(db_path, version_id)
     if row is None:
         return None
-    return ReportEnvelope.model_validate_json(row["content_json"])
+    return _envelope_from_row(row)
 
 
 def get_latest_report_version(db_path: str, report_id: str, *, status: str | None = "published") -> ReportEnvelope | None:
     row = db.get_latest_version(db_path, report_id=report_id, status=status)
     if row is None:
         return None
-    return ReportEnvelope.model_validate_json(row["content_json"])
+    return _envelope_from_row(row)
 
 
 def get_previous_report_version(db_path: str, version_id: str) -> ReportEnvelope | None:
     row = db.get_previous_version(db_path, version_id)
     if row is None:
         return None
-    return ReportEnvelope.model_validate_json(row["content_json"])
+    return _envelope_from_row(row)
 
 
 def compare_report_versions(db_path: str, version_a: str, version_b: str) -> dict[str, Any]:
@@ -161,8 +208,8 @@ def compare_report_versions(db_path: str, version_a: str, version_b: str) -> dic
         missing = version_a if row_a is None else version_b
         raise KeyError(f"no such version_id: {missing!r}")
 
-    env_a = ReportEnvelope.model_validate_json(row_a["content_json"])
-    env_b = ReportEnvelope.model_validate_json(row_b["content_json"])
+    env_a = _envelope_from_row(row_a)
+    env_b = _envelope_from_row(row_b)
 
     scalar_diff: dict[str, tuple[Any, Any]] = {}
     for field in ("title", "summary", "status", "confidence"):
