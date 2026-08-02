@@ -12,7 +12,7 @@
   "verified": {
     "github": {
       "lazycrawler": {
-        "ref": "v0.17.0",
+        "ref": "v0.18.0",
         "repo": "https://github.com/selvaz/LazyCrawler"
       },
       "lazyfin": {
@@ -20,33 +20,33 @@
           "bridge",
           "datacore"
         ],
-        "ref": "cbe84693f0313bccc207df2c09a3b0813d68cce6",
+        "ref": "8cf5f836fb21fc70b49c5124d176621d145b8fcf",
         "repo": "https://github.com/selvaz/LazyFin"
       },
       "lazyportfolio": {
         "extras": [
           "datacore"
         ],
-        "ref": "ad45ff5b4657f824cdd8ad0f3988c11f62293ab7",
+        "ref": "5eb0761d72ec62d5cd0e587bdec8a7903a26fc5e",
         "repo": "https://github.com/selvaz/LazyPortfolio"
       },
       "lazypulse": {
-        "ref": "v0.3.1",
+        "ref": "v0.3.2",
         "repo": "https://github.com/selvaz/LazyPulse"
       },
       "lazystats": {
         "extras": [
           "regimes"
         ],
-        "ref": "cb6e36878372b0dd5c82b26b51fe3acda154e744",
+        "ref": "b9f67d9cf89c7fbc21a005c2f4951352e8c7b9c1",
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
-        "ref": "v0.4.0",
+        "ref": "v0.5.0",
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
-        "ref": "594928b8eb9aed52c5226b65d6a910c9dfd7a9f2",
+        "ref": "f4a0a29e4d5d1e712926bb848f022f5c2756664a",
         "repo": "https://github.com/selvaz/market-data-hub"
       }
     },
