@@ -97,6 +97,17 @@ Read-OptionalSecret "DeepSeek API key (default model for the optimizer/report/st
 Read-OptionalSecret "Telegram bot token" "TELEGRAM_BOT_TOKEN"
 Read-OptionalSecret "Telegram chat id / @channel" "TELEGRAM_CHAT_ID"
 
+# --- Ecosystem DB registry (lazytools.registry) -----------------------------
+# These are each individually resolved by their owning repo if left unset
+# (registry_status()/artifact_* fall back to "not configured", not an error),
+# but the datahub/statistical MCP providers need MARKET_DATA_DB, and the
+# artifact catalog is otherwise invisible to anyone running just this script.
+Read-OptionalSecret "market-data-hub DB (needed by the datahub/statistical MCP providers)" "MARKET_DATA_DB"
+Read-OptionalSecret "market-data-hub artifact catalog DB" "MARKET_DATA_ARTIFACTS_DB"
+Read-OptionalSecret "LazyPulse artifact catalog DB" "PULSE_ARTIFACTS_DB"
+Read-OptionalSecret "LazyCrawler artifact catalog DB" "CRAWLER_ARTIFACTS_DB"
+Read-OptionalSecret "LazyPortfolio artifact catalog DB" "LAZYPORTFOLIO_ARTIFACTS_DB"
+
 if (!$SkipInstall) {
     Write-Host ""
     Write-Host "Installing/updating LazyTools + extras (web, telegram, mcp, dev)..."
