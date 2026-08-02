@@ -26,39 +26,40 @@ lazybridge = "1.0.1"
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.4.0"
+ref = "v0.5.0"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
-ref = "v0.3.1"
+ref = "v0.3.2"
 
 [verified.github.lazycrawler]
 repo = "https://github.com/selvaz/LazyCrawler"
-ref = "v0.17.0"
+ref = "v0.18.0"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "594928b8eb9aed52c5226b65d6a910c9dfd7a9f2"  # pre-tag pin (lazydatacore ArtifactRef contract, #43); finance train replaces with a release tag
+ref = "f4a0a29e4d5d1e712926bb848f022f5c2756664a"  # pre-tag pin; finance train replaces with a release tag
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
-ref = "cb6e36878372b0dd5c82b26b51fe3acda154e744"  # pre-tag pin (comma/semicolon-separated symbols string in load_from_datahub, #9); finance train replaces with a release tag
+ref = "b9f67d9cf89c7fbc21a005c2f4951352e8c7b9c1"  # pre-tag pin; finance train replaces with a release tag
 extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "ad45ff5b4657f824cdd8ad0f3988c11f62293ab7"  # pre-tag pin (pin market-data-hub setup fallback + datacore extra, #5); no release tags yet
+ref = "f4963dd26d95c1650493fd8bd007f077078344be"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
 extras = ["datacore"]
 
 [verified.github.lazyfin]
 repo = "https://github.com/selvaz/LazyFin"
-ref = "cbe84693f0313bccc207df2c09a3b0813d68cce6"  # pre-tag pin (pin market-data-hub setup fallback, #42); no release tags yet
-# Deliberately NOT "tools"/"crawler"/"regime"/"all": those extras pin their
-# OWN older lazytoolkit/lazycrawler/lazystats revisions (a known, separate
-# staleness gap -- LazyFin's audit follow-up), which would conflict with the
-# newer lazytoolkit/lazycrawler/lazystats pins already installed above by
-# this same manifest. bridge+datacore is what LazyFin's own portfolio/BL
-# surface actually needs; LazyTools' newer pin already covers the rest.
+ref = "8cf5f836fb21fc70b49c5124d176621d145b8fcf"  # pre-tag pin; no release tags yet
+# bridge+datacore is what LazyFin's own portfolio/BL surface actually needs;
+# LazyTools' pin already covers the rest. "tools"/"crawler"/"regime"/"all"
+# now point at current lazytoolkit/lazycrawler/lazystats too (the staleness
+# gap that excluded them is closed, ECO-0xx follow-up), but they aren't added
+# here without the ecosystem-released job actually installing/smoking that
+# combination -- expanding verified extras is a separate decision from
+# re-pinning to current.
 extras = ["bridge", "datacore"]
 
 # Components excluded from the installable combination, with the reason.
