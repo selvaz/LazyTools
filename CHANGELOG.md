@@ -8,6 +8,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-08-02
+
 ### Added
 - `lazytools.registry`: core, always-installed module for the ecosystem's
   DB registry + artifact catalog. `KNOWN_DBS`/`resolve_db()`/`status()` map
@@ -20,11 +22,34 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   `docs/registry.md`.
 - `KNOWN_DBS` entries: `lazystats_depot` (`LAZYSTATS_RESULT_DEPOT_DB`) and
   `lazyportfolio_artifacts` (`LAZYPORTFOLIO_ARTIFACTS_DB`).
+- `KNOWN_DBS`'s `regime_tools_db` entry (`LAZYTOOLS_REGIME_DB`) — LazyStats'
+  own `RegimeDB` depot (fitted HMM params/figures/state sequences) backing
+  the `regime_*` MCP tools. A separate store from `lazystats_depot`, which
+  holds market-data-hub's persisted regime *run results*.
+- `mcp_server`: the `registry` provider, exposing `RegistryTools` over MCP
+  — read-only by default (`registry_status`/`artifact_search`/
+  `artifact_get`); `artifact_register` only under `allow_write=True`/
+  `--allow-unsafe`. Already in the default provider set (core, no extra).
+- `setup_first_run.ps1`: prompts for `MARKET_DATA_DB` and all four
+  artifact-registry DBs (`MARKET_DATA_ARTIFACTS_DB`, `PULSE_ARTIFACTS_DB`,
+  `CRAWLER_ARTIFACTS_DB`, `LAZYPORTFOLIO_ARTIFACTS_DB`), previously
+  invisible to this installer.
 
 ### Fixed
 - `KNOWN_DBS`'s `crawler_raw` entry pointed at `CRAWLER_DB`, which
   LazyCrawler itself never reads (a LazyPulse-local convention for a
   different file) — corrected to `LAZYCRAWLER_NEWS_DB`.
+- `registry.artifacts`: `search_artifacts`/`get_artifact` shared a
+  connection helper with `register_artifact` that ran `CREATE TABLE`/
+  `CREATE INDEX` schema DDL on every call — a read against an
+  unconfigured/empty catalog silently created the DB file, and could raise
+  on a read-only-mounted filesystem. Reads now use a genuinely read-only
+  connection that never touches disk when the file is absent, correctly
+  treats an existing-but-uninitialized file as an empty catalog, and
+  percent-encodes the path (`?`/`#` are valid Linux filename characters
+  but structurally significant in a `file:` URI).
+- `docs/registry.md`'s quickstart example still showed `RegistryTools()`
+  promising `artifact_register`, despite the new `allow_write` gate.
 
 ## [0.4.0] — 2026-07-30
 
