@@ -84,6 +84,33 @@ KNOWN_DBS: tuple[DBEntry, ...] = (
         "Artifacts (reports) produced by LazyPortfolio",
     ),
     DBEntry(
+        "lazyportfolio_store",
+        "LAZYPORTFOLIO_TREE_DB",
+        "lazyportfolio",
+        False,
+        "Tree Studio's primary store (lazyportfolio.v2.db): saved tree "
+        "configs, and structured run history/artifacts (weights, metrics, "
+        "data-as-of, config hash) for every estimate/backtest/report run. "
+        "A separate store from lazyportfolio_artifacts above: that one is "
+        "the opt-in cross-repo artifact catalog entry for the rendered "
+        "HTML report; this one is LazyPortfolio's own primary data, works "
+        "with no env var set at all (falls back to a repo-relative default "
+        "path) -- registering it here only makes that path discoverable "
+        "via resolve_db()/status() like every other ecosystem DB.",
+    ),
+    DBEntry(
+        "anomaly_explanations",
+        "ANOMALY_EXPLANATIONS_DB",
+        "lazystats",
+        False,
+        "LLM-generated causal explanations for statistical anomalies "
+        "(return outliers, volatility/correlation shifts) flagged in "
+        "lazystats_depot's etf_daily_stats series, plus the Saturday "
+        "weekly review that verifies them and looks for emerging trends -- "
+        "narrative/evidence content, kept in its own store separate from "
+        "lazystats_depot's deterministic quantitative results.",
+    ),
+    DBEntry(
         "ic_reports",
         "IC_REPORTS_DB",
         "investmentcommittee",

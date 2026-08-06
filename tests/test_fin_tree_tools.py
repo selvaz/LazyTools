@@ -7,6 +7,7 @@ sibling flat-node connector.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -133,7 +134,8 @@ def test_validate_reports_a_clear_error_for_an_invalid_tree_without_raising() ->
 
 
 def test_save_list_load_delete_round_trip(tmp_path) -> None:
-    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, store_dir=str(tmp_path)).as_tools()}
+    store_path = tmp_path / "store.sqlite3"
+    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, store_path=str(store_path)).as_tools()}
     config = _tree_config()
 
     saved = json.loads(tools["portfolio_tree_save"].run_sync(name="My Tree", config=config))
@@ -142,7 +144,7 @@ def test_save_list_load_delete_round_trip(tmp_path) -> None:
 
     listed = json.loads(tools["portfolio_tree_list"].run_sync())
     assert [item["name"] for item in listed["items"]] == ["My Tree"]
-    assert listed["directory"] == saved["directory"]
+    assert Path(listed["database"]) == store_path.resolve()
 
     loaded = json.loads(tools["portfolio_tree_load"].run_sync(name="My Tree"))
     assert loaded == config
@@ -153,13 +155,14 @@ def test_save_list_load_delete_round_trip(tmp_path) -> None:
 
 
 def test_save_rejects_an_invalid_tree_and_writes_nothing(tmp_path) -> None:
-    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, store_dir=str(tmp_path)).as_tools()}
+    store_path = tmp_path / "store.sqlite3"
+    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, store_path=str(store_path)).as_tools()}
     config = _tree_config()
     config["nodes"][1]["proxy"] = ""  # a child with no proxy fails validation
 
     with pytest.raises(Exception, match="proxy is required"):
         tools["portfolio_tree_save"].run_sync(name="bad", config=config)
-    assert list(tmp_path.glob("*.json")) == []
+    assert json.loads(tools["portfolio_tree_list"].run_sync())["items"] == []
 
 
 # --------------------------------------------------------------------------- #
@@ -184,7 +187,7 @@ def test_estimate_runs_forward_mode_and_never_leaks_synthetic_returns(frame) -> 
 def test_estimate_config_wins_over_name_when_both_given(tmp_path, frame) -> None:
     backend = _FakeTreeBackend(frame)
     tools = {
-        t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend, store_dir=str(tmp_path)).as_tools()
+        t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend, store_path=str(tmp_path / "store.sqlite3")).as_tools()
     }
     saved_config = _tree_config(hierarchy_mode="proxy")
     tools["portfolio_tree_save"].run_sync(name="saved", config=saved_config)
@@ -218,7 +221,7 @@ def test_backtest_runs_and_never_leaks_curves_or_return_rows(frame) -> None:
 def test_backtest_override_changes_the_run_without_mutating_the_saved_file(tmp_path, frame) -> None:
     backend = _FakeTreeBackend(frame)
     tools = {
-        t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend, store_dir=str(tmp_path)).as_tools()
+        t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend, store_path=str(tmp_path / "store.sqlite3")).as_tools()
     }
     config = _tree_config(train_size=20, rebalance_frequency="M")
     tools["portfolio_tree_save"].run_sync(name="saved", config=config)

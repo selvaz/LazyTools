@@ -92,7 +92,7 @@ class PortfolioTreeTools:
         *,
         allow_write: bool = False,
         backend: OptimizationDataBackend | None = None,
-        store_dir: str | None = None,
+        store_path: str | None = None,
     ) -> None:
         try:
             from lazyportfolio import (
@@ -104,7 +104,7 @@ class PortfolioTreeTools:
                 list_saved_models,
                 mode_from_config,
                 read_model,
-                resolve_models_dir,
+                resolve_store_path,
                 write_model,
             )
             from lazyportfolio.calendar import _annualization_factor, _resample_simple_returns
@@ -115,7 +115,7 @@ class PortfolioTreeTools:
             ) from exc
         self._allow_write = allow_write
         self._backend = backend
-        self._store_dir = store_dir
+        self._store_path = store_path
         self._market_data_backend = MarketDataHubOptimizationBackend
         self._v2_model = V2Model
         self._estimator = HierarchicalV2Estimator()
@@ -125,7 +125,7 @@ class PortfolioTreeTools:
         self._read_model = read_model
         self._write_model = write_model
         self._delete_model = delete_model
-        self._resolve_models_dir = resolve_models_dir
+        self._resolve_store_path = resolve_store_path
         self._annualization_factor = _annualization_factor
         self._resample_simple_returns = _resample_simple_returns
 
@@ -154,10 +154,10 @@ class PortfolioTreeTools:
                 self._list,
                 name="portfolio_tree_list",
                 description=(
-                    "List saved tree configurations (name, filename, last-modified) "
-                    "in the shared store -- the same directory Tree Studio (the "
-                    "local visual editor) reads and writes, so this reflects trees "
-                    "built there too. Response includes the resolved directory."
+                    "List saved tree configurations (name, last-updated) in the "
+                    "shared store -- the same database Tree Studio (the local "
+                    "visual editor) reads and writes, so this reflects trees "
+                    "built there too. Response includes the resolved database path."
                 ),
             ),
             Tool.wrap(
@@ -258,19 +258,19 @@ class PortfolioTreeTools:
         )
 
     def _list(self) -> str:
-        directory = self._resolve_models_dir(self._store_dir)
-        return _json({"ok": True, "directory": str(directory), "items": self._list_saved_models(store_dir=self._store_dir)})
+        database = self._resolve_store_path(self._store_path)
+        return _json({"ok": True, "database": str(database), "items": self._list_saved_models(store_path=self._store_path)})
 
     def _load(self, name: str) -> str:
-        return _json(self._read_model(name, store_dir=self._store_dir))
+        return _json(self._read_model(name, store_path=self._store_path))
 
     def _save(self, name: str, config: dict[str, Any]) -> str:
-        path = self._write_model(name, config, store_dir=self._store_dir)
-        return _json({"ok": True, "name": path.stem, "path": str(path), "directory": str(path.parent)})
+        stored_name = self._write_model(name, config, store_path=self._store_path)
+        return _json({"ok": True, "name": stored_name})
 
     def _delete(self, name: str) -> str:
-        path = self._delete_model(name, store_dir=self._store_dir)
-        return _json({"ok": True, "name": path.stem})
+        deleted_name = self._delete_model(name, store_path=self._store_path)
+        return _json({"ok": True, "name": deleted_name})
 
     # ------------------------------------------------------------------ #
     # Engine-backed tools
@@ -279,7 +279,7 @@ class PortfolioTreeTools:
         if config is not None:
             return config
         if name:
-            return self._read_model(name, store_dir=self._store_dir)
+            return self._read_model(name, store_path=self._store_path)
         raise ValueError("either config or name must be given")
 
     @staticmethod

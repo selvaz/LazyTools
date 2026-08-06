@@ -57,6 +57,7 @@ for entry in KNOWN_DBS:
 | `pulse_artifacts` | `PULSE_ARTIFACTS_DB` | lazypulse | no | Artifacts produced by LazyPulse |
 | `crawler_artifacts` | `CRAWLER_ARTIFACTS_DB` | lazycrawler | no | Artifacts produced by LazyCrawler |
 | `lazyportfolio_artifacts` | `LAZYPORTFOLIO_ARTIFACTS_DB` | lazyportfolio | no | Artifacts (reports) produced by LazyPortfolio |
+| `lazyportfolio_store` | `LAZYPORTFOLIO_TREE_DB` | lazyportfolio | no | Tree Studio's saved trees + run history/artifacts |
 
 **Adding a new DB is a PR**, not a runtime registration: append a `DBEntry`
 to `KNOWN_DBS` in `lazytools/registry/db.py`. That's the entire mechanism —
