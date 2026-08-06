@@ -224,7 +224,7 @@ def _fin(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
         PortfolioTreeTools(
             backend=backend,
             allow_write=allow_write,
-            store_dir=(data_source or {}).get("tree_store_dir"),
+            store_path=(data_source or {}).get("tree_store_db"),
         ),
     ]
 
@@ -272,7 +272,7 @@ def _optimizer_agent(allow_write: bool = False, *, data_source: dict[str, Any] |
         PortfolioTreeTools(
             backend=backend,
             allow_write=True,
-            store_dir=(data_source or {}).get("tree_store_dir"),
+            store_path=(data_source or {}).get("tree_store_db"),
         ),
     ]
     engine = LLMEngine(model, system=OPTIMIZER_SPECIALIST_SYSTEM, max_tool_calls_per_turn=16)

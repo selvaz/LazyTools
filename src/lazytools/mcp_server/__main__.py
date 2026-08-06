@@ -6,7 +6,7 @@ provider ids; with none given, all read-only providers are served.
 
 ``--config <path.json>`` (or ``LAZYTOOLS_MCP_CONFIG``) points at a JSON file
 that becomes every provider factory's ``data_source`` dict -- e.g. ``{"path":
-"...", "regime_db_path": "...", "news_db_path": "...", "tree_store_dir":
+"...", "regime_db_path": "...", "news_db_path": "...", "tree_store_db":
 "..."}``. Without it, each provider falls back to its own individual env var
 (``MARKET_DATA_DB``, ``LAZYTOOLS_REGIME_DB``, ``LAZYCRAWLER_NEWS_DB``, ...);
 this is only for overriding several at once from one file.
@@ -53,7 +53,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=os.environ.get("LAZYTOOLS_MCP_CONFIG"),
         help="Path to a JSON file populating each provider factory's data_source dict "
         "(e.g. {\"path\": \"...\", \"regime_db_path\": \"...\", \"news_db_path\": \"...\", "
-        "\"tree_store_dir\": \"...\"}). "
+        "\"tree_store_db\": \"...\"}). "
         "Without this, every provider falls back to its own individual env-var/default "
         "resolution (MARKET_DATA_DB, LAZYTOOLS_REGIME_DB, LAZYCRAWLER_NEWS_DB, ...) -- this "
         "flag is for overriding several at once from one file instead of setting each env "
