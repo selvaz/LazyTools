@@ -22,6 +22,7 @@ from lazytools.connectors.fin.tree_tools import PortfolioTreeTools
 def _tree_config(**backtest_overrides: object) -> dict[str, object]:
     return {
         "root_id": "root",
+        "currency": "USD",
         "nodes": [
             {
                 "id": "root",
@@ -62,8 +63,10 @@ class _FakeTreeBackend:
         self.frame = frame
         self.calls: list[dict[str, object]] = []
 
-    def load_returns(self, instruments, *, start="", end="", frequency="D"):
-        self.calls.append({"instruments": instruments, "start": start, "end": end, "frequency": frequency})
+    def load_returns(self, instruments, *, start="", end="", frequency="D", currency=None):
+        self.calls.append(
+            {"instruments": instruments, "start": start, "end": end, "frequency": frequency, "currency": currency}
+        )
         return OptimizationDataset(
             returns=self.frame.loc[:, instruments],
             metadata={"source": "fake-hub", "n_rows": len(self.frame), "raw_rows": "never expose"},

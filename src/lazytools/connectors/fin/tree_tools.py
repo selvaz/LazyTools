@@ -333,7 +333,10 @@ class PortfolioTreeTools:
         data_raw = merged.get("data")
         data = data_raw if isinstance(data_raw, dict) else {}
         dataset = self._resolve_backend().load_returns(
-            instruments, start=str(data.get("start") or ""), end=str(data.get("end") or "")
+            instruments,
+            start=str(data.get("start") or ""),
+            end=str(data.get("end") or ""),
+            currency=model.reference_currency,
         )
         estimation = self._resample_simple_returns(dataset.returns, frequency)
         train = estimation.tail(window)
@@ -394,7 +397,10 @@ class PortfolioTreeTools:
         data_raw = merged.get("data")
         data = data_raw if isinstance(data_raw, dict) else {}
         dataset = self._resolve_backend().load_returns(
-            instruments, start=str(data.get("start") or ""), end=str(data.get("end") or "")
+            instruments,
+            start=str(data.get("start") or ""),
+            end=str(data.get("end") or ""),
+            currency=model.reference_currency,
         )
         report = self._backtester.run(
             model,

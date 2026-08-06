@@ -297,6 +297,12 @@ class PortfolioOptimizationTools:
         equal_weight = 1.0 / len(universe)
         config = {
             "root_id": "root",
+            # This flat-only tool surface doesn't expose currency selection to
+            # its own callers (unlike PortfolioTreeTools' full config, which
+            # carries a caller-declared reference currency) -- USD matches
+            # today's behavior (no conversion) for the overwhelmingly
+            # USD-denominated instruments this tool is used with.
+            "currency": "USD",
             "nodes": [
                 {
                     "id": "root",
@@ -354,7 +360,9 @@ class PortfolioOptimizationTools:
             risk_free_rate=risk_free_rate,
             benchmark_weights=benchmark_weights,
         )
-        dataset = self._resolve_backend().load_returns(universe, start=start, end=end, frequency="D")
+        dataset = self._resolve_backend().load_returns(
+            universe, start=start, end=end, frequency="D", currency=model.reference_currency
+        )
         estimation = self._resample_simple_returns(dataset.returns, frequency)
         estimate = self._estimator.estimate(
             model,
@@ -415,7 +423,9 @@ class PortfolioOptimizationTools:
             risk_free_rate=risk_free_rate,
             benchmark_weights=benchmark_weights,
         )
-        dataset = self._resolve_backend().load_returns(universe, start=start, end=end, frequency="D")
+        dataset = self._resolve_backend().load_returns(
+            universe, start=start, end=end, frequency="D", currency=model.reference_currency
+        )
         report = self._backtester.run(
             model,
             dataset.returns,
