@@ -93,10 +93,13 @@ KNOWN_DBS: tuple[DBEntry, ...] = (
         "data-as-of, config hash) for every estimate/backtest/report run. "
         "A separate store from lazyportfolio_artifacts above: that one is "
         "the opt-in cross-repo artifact catalog entry for the rendered "
-        "HTML report; this one is LazyPortfolio's own primary data, works "
-        "with no env var set at all (falls back to a repo-relative default "
-        "path) -- registering it here only makes that path discoverable "
-        "via resolve_db()/status() like every other ecosystem DB.",
+        "HTML report; this one is LazyPortfolio's own primary data. Like "
+        "every optional entry here, resolve_db() only returns a path when "
+        "LAZYPORTFOLIO_TREE_DB is actually set -- LazyPortfolio itself "
+        "still works with it unset (falls back to a repo-relative default "
+        "path), but that fallback path is NOT visible through resolve_db()/"
+        "status(); call lazyportfolio.v2.store.resolve_store_path() "
+        "directly to see the path actually in use in that case.",
     ),
     DBEntry(
         "anomaly_explanations",
