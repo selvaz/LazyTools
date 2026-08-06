@@ -182,8 +182,8 @@ direct-fetch finance connector on the agent surface.
   A tree is the *same* JSON config
   [Tree Studio](https://github.com/selvaz/LazyPortfolio#readme) (LazyPortfolio's
   local visual editor) saves and loads — both go through
-  `lazyportfolio.v2.store`, sharing one directory via the
-  `LAZYPORTFOLIO_TREE_MODELS_DIR` env var, so a tree built here shows up in
+  `lazyportfolio.v2.store`, sharing one SQLite database via the
+  `LAZYPORTFOLIO_TREE_DB` env var, so a tree built here shows up in
   the GUI and vice versa, never a one-off export/import translation. Needs
   `lazyportfolio` (and, for the whole `fin` connector, `lazyfin` — see
   `connectors/fin/tools.py`'s module docstring). See

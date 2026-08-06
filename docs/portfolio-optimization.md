@@ -163,10 +163,10 @@ argument, so a saved tree always estimates the same way wherever it runs.
 
 **This is the same format [Tree Studio](https://github.com/selvaz/LazyPortfolio)
 (LazyPortfolio's local visual editor) edits and saves** — both go through
-`lazyportfolio.v2.store`, sharing one directory via the
-`LAZYPORTFOLIO_TREE_MODELS_DIR` env var (set it the same way for both
+`lazyportfolio.v2.store`, sharing one SQLite database via the
+`LAZYPORTFOLIO_TREE_DB` env var (set it the same way for both
 processes; every `portfolio_tree_list`/`_save` response reports the resolved
-directory so a mismatch is visible rather than silent). A tree built via
+database path so a mismatch is visible rather than silent). A tree built via
 `portfolio_tree_save` appears in Tree Studio's saved-model list immediately;
 a tree built/edited in the GUI loads via `portfolio_tree_load`/`_list`.
 
