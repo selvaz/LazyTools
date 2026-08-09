@@ -642,7 +642,10 @@ def deepseek_claude_news_council(
             engine=LLMEngine(
                 "deepseek-v4-flash",
                 provider="deepseek",
-                thinking=thinking,
+                # str thinking values ("max", "adaptive", ...) need a LazyBridge
+                # release beyond the 1.0.1 currently on PyPI; LLMEngine.thinking
+                # is still typed `bool` there. Same floor issue as ClaudeCodeEngine.
+                thinking=thinking,  # type: ignore[arg-type]
                 system=system,
                 max_turns=max_turns,
             ),
