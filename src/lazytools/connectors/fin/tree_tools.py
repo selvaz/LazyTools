@@ -79,10 +79,18 @@ class PortfolioTreeTools:
     """A ``ToolProvider`` over LazyPortfolio's tree store, mode derivation and engine.
 
     ``portfolio_tree_validate``/``_list``/``_load`` are pure reads, always
-    emitted. ``allow_write`` additionally emits ``_save``/``_delete`` (persist
-    to the shared store) and ``_estimate``/``_backtest`` (run the engine —
-    gated like the rest of this connector's compute-cost writers, not because
-    they mutate anything themselves).
+    emitted. Three independent privileges gate the rest, instead of one
+    combined ``allow_write`` (docs/node-copilot-operational-plan.md §7.2:
+    estimate/backtest are compute-cost, not persistence, and delete is a
+    distinct, more dangerous privilege than either):
+
+    * ``allow_compute`` — ``_estimate``/``_backtest`` (runs the engine,
+      writes nothing).
+    * ``allow_persist`` — ``_save`` (writes to the shared store).
+    * ``allow_delete`` — ``_delete``. Never granted to the Node Copilot's
+      own read-only tool profile (``NodeCopilotReadTools``) — this class
+      still supports it for callers (e.g. the general-purpose ``fin``
+      provider) that need full read-write access.
     """
 
     _is_lazy_tool_provider = True
@@ -90,7 +98,9 @@ class PortfolioTreeTools:
     def __init__(
         self,
         *,
-        allow_write: bool = False,
+        allow_compute: bool = False,
+        allow_persist: bool = False,
+        allow_delete: bool = False,
         backend: OptimizationDataBackend | None = None,
         store_path: str | None = None,
     ) -> None:
@@ -113,7 +123,9 @@ class PortfolioTreeTools:
                 "PortfolioTreeTools requires the lazyportfolio package: "
                 "pip install 'lazyportfolio @ git+https://github.com/selvaz/LazyPortfolio.git'"
             ) from exc
-        self._allow_write = allow_write
+        self._allow_compute = allow_compute
+        self._allow_persist = allow_persist
+        self._allow_delete = allow_delete
         self._backend = backend
         self._store_path = store_path
         self._market_data_backend = MarketDataHubOptimizationBackend
@@ -170,8 +182,8 @@ class PortfolioTreeTools:
                 ),
             ),
         ]
-        if self._allow_write:
-            tools += [
+        if self._allow_persist:
+            tools.append(
                 Tool.wrap(
                     self._save,
                     name="portfolio_tree_save",
@@ -182,12 +194,18 @@ class PortfolioTreeTools:
                         "if the config fails validation (same check as "
                         "portfolio_tree_validate). Args: name, config. " + _TREE_SHAPE
                     ),
-                ),
+                )
+            )
+        if self._allow_delete:
+            tools.append(
                 Tool.wrap(
                     self._delete,
                     name="portfolio_tree_delete",
                     description="Delete a saved tree config by name. Args: name.",
-                ),
+                )
+            )
+        if self._allow_compute:
+            tools += [
                 Tool.wrap(
                     self._estimate,
                     name="portfolio_tree_estimate",

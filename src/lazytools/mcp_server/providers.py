@@ -223,7 +223,14 @@ def _fin(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
         PortfolioOptimizationTools(backend=backend),
         PortfolioTreeTools(
             backend=backend,
-            allow_write=allow_write,
+            # This provider's own single allow_write switch still maps onto
+            # all three of PortfolioTreeTools' privileges together -- the
+            # split (docs/node-copilot-operational-plan.md §7.2) exists so a
+            # *different* caller (NodeCopilotReadTools) can grant none of
+            # them, not to change this general-purpose provider's behavior.
+            allow_compute=allow_write,
+            allow_persist=allow_write,
+            allow_delete=allow_write,
             store_path=(data_source or {}).get("tree_store_db"),
         ),
     ]
@@ -271,7 +278,9 @@ def _optimizer_agent(allow_write: bool = False, *, data_source: dict[str, Any] |
         PortfolioOptimizationTools(backend=backend),
         PortfolioTreeTools(
             backend=backend,
-            allow_write=True,
+            allow_compute=True,
+            allow_persist=True,
+            allow_delete=True,
             store_path=(data_source or {}).get("tree_store_db"),
         ),
     ]

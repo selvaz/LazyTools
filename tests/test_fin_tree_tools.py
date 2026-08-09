@@ -104,8 +104,32 @@ def test_read_only_provider_exposes_only_reads() -> None:
     assert {t.name for t in PortfolioTreeTools().as_tools()} == READ_TOOLS
 
 
-def test_write_enabled_provider_exposes_everything() -> None:
-    assert {t.name for t in PortfolioTreeTools(allow_write=True).as_tools()} == READ_TOOLS | WRITE_TOOLS
+def test_all_three_privileges_together_expose_everything() -> None:
+    tools = PortfolioTreeTools(allow_compute=True, allow_persist=True, allow_delete=True)
+    assert {t.name for t in tools.as_tools()} == READ_TOOLS | WRITE_TOOLS
+
+
+def test_allow_compute_alone_exposes_only_estimate_and_backtest() -> None:
+    """docs/node-copilot-operational-plan.md §7.2: estimate/backtest are
+    compute-cost, not persistence -- must be grantable independently of
+    save/delete, e.g. for a research-only tool profile."""
+
+    tools = {t.name for t in PortfolioTreeTools(allow_compute=True).as_tools()}
+    assert tools == READ_TOOLS | {"portfolio_tree_estimate", "portfolio_tree_backtest"}
+
+
+def test_allow_persist_alone_exposes_only_save() -> None:
+    tools = {t.name for t in PortfolioTreeTools(allow_persist=True).as_tools()}
+    assert tools == READ_TOOLS | {"portfolio_tree_save"}
+
+
+def test_allow_delete_alone_exposes_only_delete() -> None:
+    """delete is never bundled with compute or persist -- it is the one
+    privilege the Node Copilot's own read-only tool profile must never be
+    handed, so it has to be independently withholdable."""
+
+    tools = {t.name for t in PortfolioTreeTools(allow_delete=True).as_tools()}
+    assert tools == READ_TOOLS | {"portfolio_tree_delete"}
 
 
 # --------------------------------------------------------------------------- #
@@ -138,7 +162,12 @@ def test_validate_reports_a_clear_error_for_an_invalid_tree_without_raising() ->
 
 def test_save_list_load_delete_round_trip(tmp_path) -> None:
     store_path = tmp_path / "store.sqlite3"
-    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, store_path=str(store_path)).as_tools()}
+    tools = {
+        t.name: t
+        for t in PortfolioTreeTools(
+            allow_persist=True, allow_delete=True, store_path=str(store_path)
+        ).as_tools()
+    }
     config = _tree_config()
 
     saved = json.loads(tools["portfolio_tree_save"].run_sync(name="My Tree", config=config))
@@ -159,7 +188,10 @@ def test_save_list_load_delete_round_trip(tmp_path) -> None:
 
 def test_save_rejects_an_invalid_tree_and_writes_nothing(tmp_path) -> None:
     store_path = tmp_path / "store.sqlite3"
-    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, store_path=str(store_path)).as_tools()}
+    tools = {
+        t.name: t
+        for t in PortfolioTreeTools(allow_persist=True, store_path=str(store_path)).as_tools()
+    }
     config = _tree_config()
     config["nodes"][1]["proxy"] = ""  # a child with no proxy fails validation
 
@@ -175,7 +207,9 @@ def test_save_rejects_an_invalid_tree_and_writes_nothing(tmp_path) -> None:
 
 def test_estimate_runs_forward_mode_and_never_leaks_synthetic_returns(frame) -> None:
     backend = _FakeTreeBackend(frame)
-    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend).as_tools()}
+    tools = {
+        t.name: t for t in PortfolioTreeTools(allow_compute=True, backend=backend).as_tools()
+    }
 
     payload = json.loads(tools["portfolio_tree_estimate"].run_sync(config=_tree_config()))
     assert payload["ok"] is True
@@ -190,7 +224,13 @@ def test_estimate_runs_forward_mode_and_never_leaks_synthetic_returns(frame) -> 
 def test_estimate_config_wins_over_name_when_both_given(tmp_path, frame) -> None:
     backend = _FakeTreeBackend(frame)
     tools = {
-        t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend, store_path=str(tmp_path / "store.sqlite3")).as_tools()
+        t.name: t
+        for t in PortfolioTreeTools(
+            allow_compute=True,
+            allow_persist=True,
+            backend=backend,
+            store_path=str(tmp_path / "store.sqlite3"),
+        ).as_tools()
     }
     saved_config = _tree_config(hierarchy_mode="proxy")
     tools["portfolio_tree_save"].run_sync(name="saved", config=saved_config)
@@ -203,14 +243,16 @@ def test_estimate_config_wins_over_name_when_both_given(tmp_path, frame) -> None
 
 
 def test_estimate_requires_config_or_name() -> None:
-    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True).as_tools()}
+    tools = {t.name: t for t in PortfolioTreeTools(allow_compute=True).as_tools()}
     with pytest.raises(Exception, match="either config or name must be given"):
         tools["portfolio_tree_estimate"].run_sync()
 
 
 def test_backtest_runs_and_never_leaks_curves_or_return_rows(frame) -> None:
     backend = _FakeTreeBackend(frame)
-    tools = {t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend).as_tools()}
+    tools = {
+        t.name: t for t in PortfolioTreeTools(allow_compute=True, backend=backend).as_tools()
+    }
 
     payload = json.loads(tools["portfolio_tree_backtest"].run_sync(config=_tree_config()))
     assert payload["ok"] is True
@@ -224,7 +266,13 @@ def test_backtest_runs_and_never_leaks_curves_or_return_rows(frame) -> None:
 def test_backtest_override_changes_the_run_without_mutating_the_saved_file(tmp_path, frame) -> None:
     backend = _FakeTreeBackend(frame)
     tools = {
-        t.name: t for t in PortfolioTreeTools(allow_write=True, backend=backend, store_path=str(tmp_path / "store.sqlite3")).as_tools()
+        t.name: t
+        for t in PortfolioTreeTools(
+            allow_compute=True,
+            allow_persist=True,
+            backend=backend,
+            store_path=str(tmp_path / "store.sqlite3"),
+        ).as_tools()
     }
     config = _tree_config(train_size=20, rebalance_frequency="M")
     tools["portfolio_tree_save"].run_sync(name="saved", config=config)
