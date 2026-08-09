@@ -355,18 +355,6 @@ class WizengAImot:
             session=self.session,
         )
 
-    @staticmethod
-    def _assistant_texts(memory: Memory | None) -> list[str]:
-        texts: list[str] = []
-        if memory is None:
-            return texts
-        for message in memory.messages():
-            role = getattr(message.role, "value", message.role)
-            if role == "assistant":
-                content = message.content
-                texts.append(content if isinstance(content, str) else str(content))
-        return texts
-
     def run(self, question: str | None = None) -> CouncilResult:
         q = self.question if question is None else question
         if not q.strip():
@@ -398,6 +386,19 @@ class WizengAImot:
 
         vote_store = Store()
         member_names = [member.name for member in members]
+        memory_summarizer = self._memory_summarizer or self._default_memory_summarizer()
+
+        # Single, non-duplicated record of the debate, visible to every
+        # participant via sources=[...] (a live, re-read-every-call view —
+        # see Memory's "shared use" mode). Bounded the same way private
+        # memories are: Memory.text() only ever renders a running summary
+        # plus the last 5 exchanges, regardless of how long the debate
+        # runs, so sharing it doesn't reopen the unbounded-growth problem.
+        # Debaters no longer need to recap each other from memory — they
+        # can see the real thing — which is what the previous per-agent-
+        # private-memory design forced them to do, at real token cost.
+        history = Memory(strategy="summary", summarizer=memory_summarizer)
+        transcript_log: list[dict] = []
 
         def latest_votes() -> dict[str, dict]:
             latest: dict[str, dict] = {}
@@ -448,14 +449,30 @@ class WizengAImot:
             "cast_vote whenever your position changes or becomes clearer. aligned=true "
             "means you can endorse the emerging recommendation without a material "
             "reservation. Route to the moderator when the council may be ready to close. "
-            "Only the moderator can close the discussion. Do not follow a fixed order."
+            "Only the moderator can close the discussion. Do not follow a fixed order. "
+            "DEBATE HISTORY below shows the exchanges so far and stays up to date "
+            "automatically — do not restate or summarize it yourself; read it and "
+            "respond directly to the latest points."
         )
 
-        memory_summarizer = self._memory_summarizer or self._default_memory_summarizer()
         memories = [
             Memory(strategy="summary", summarizer=memory_summarizer) for _ in members
         ]
         debaters: list[Agent] = []
+
+        def make_route_tool(caller_name: str) -> Tool:
+            async def route(agent_name: str, task: str) -> str:
+                """Delegate task to the named specialist agent and return its answer.
+
+                The exchange is recorded to the shared debate history so every
+                participant can see it without you needing to recap it yourself.
+                """
+                response = await pool.route(agent_name, task)
+                history.add(f"{caller_name} -> {agent_name}: {task}", f"{agent_name}: {response}")
+                transcript_log.append({"member": agent_name, "text": response})
+                return response
+
+            return Tool.wrap(route, name="route")
 
         def make_vote_tool(member_name: str) -> Tool:
             def cast_vote(
@@ -489,9 +506,9 @@ class WizengAImot:
             debaters.append(
                 self._derive(
                     member,
-                    tools=[pool.as_tool(), make_vote_tool(member.name)],
+                    tools=[make_route_tool(member.name), make_vote_tool(member.name)],
                     memory=memory,
-                    sources=[*member.sources, protocol],
+                    sources=[*member.sources, protocol, history],
                 )
             )
 
@@ -500,13 +517,13 @@ class WizengAImot:
             moderator_base,
             tools=[
                 *kb_tools,
-                pool.as_tool(),
+                make_route_tool("moderator"),
                 Tool.wrap(check_quorum, name="check_quorum"),
                 Tool.wrap(close_discussion, name="close_discussion"),
             ],
             name="moderator",
             memory=Memory(strategy="summary", summarizer=memory_summarizer),
-            sources=[*moderator_base.sources, protocol],
+            sources=[*moderator_base.sources, protocol, history],
         )
         pool.register(*debaters, moderator)
 
@@ -517,19 +534,14 @@ class WizengAImot:
             "claim, update your vote when ready, and route to whoever should respond next."
         )
         discussion_outcome = self._result_text(opening_result, "discussion")
+        history.add("(council opens the debate)", f"{debaters[0].name}: {discussion_outcome}")
+        transcript_log.insert(0, {"member": debaters[0].name, "text": discussion_outcome})
 
-        transcript: list[dict] = []
-        for debater, memory in zip(debaters, memories, strict=True):
-            transcript.extend(
-                {"member": debater.name, "text": text}
-                for text in self._assistant_texts(memory)
-            )
-        transcript.extend(
-            {"member": "moderator", "text": text}
-            for text in self._assistant_texts(moderator.memory)
-        )
-        if not transcript:
-            transcript.append({"member": debaters[0].name, "text": discussion_outcome})
+        # transcript_log was appended to in real time as route() calls
+        # resolved, so it's already in true chronological order — unlike
+        # reconstructing it after the fact from each agent's own memory,
+        # which only reflects that agent's own turn order, not the debate's.
+        transcript = transcript_log
 
         quorum_reached, latest = quorum_status()
         votes = []
