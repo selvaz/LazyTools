@@ -16,7 +16,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   confirms quorum and closes. Includes `standard_council()` (four-member,
   multi-provider) and `deepseek_claude_news_council()` (DeepSeek + Claude
   Code subscription preset sharing a LazyCrawler news database), plus
-  optional `knowledge()` grounding (static text or BM25 skill mode).
+  optional `knowledge()` grounding (static text or BM25 skill mode). A
+  `reasoning` parameter controls extended-thinking effort throughout:
+  a bool on `WizengAImot`'s default moderator/synthesiser and on
+  `standard_council()`'s members; a graduated `"low"`–`"max"` level on
+  `deepseek_claude_news_council()`'s debater/moderator/synthesiser (its
+  two fast analysts stay reasoning-disabled by design).
 
 ## [0.5.0] — 2026-08-02
 

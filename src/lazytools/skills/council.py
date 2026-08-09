@@ -90,8 +90,13 @@ class WizengAImot:
         max_depth: int | None = None,
         synthesiser: Agent | None = None,
         moderator: Agent | None = None,
+        reasoning: bool = False,
         session: Session | None = None,
     ) -> None:
+        """``reasoning`` enables extended thinking on the *default* moderator
+        and synthesiser only (ignored once ``moderator=``/``synthesiser=``
+        supply your own agents — configure their engines directly instead).
+        """
         if not 0.0 < quorum <= 1.0:
             raise ValueError("quorum must be greater than 0 and at most 1.")
         if max_rounds < 1:
@@ -103,6 +108,7 @@ class WizengAImot:
         self.quorum = quorum
         self.max_rounds = max_rounds
         self.max_depth = max_depth
+        self.reasoning = reasoning
         self.session = session
         self._members: list[Agent] = []
         self._researchers: list[Agent] = []
@@ -168,7 +174,7 @@ class WizengAImot:
             question=question or data.get("question", ""),
             **{
                 key: data[key]
-                for key in ("quorum", "max_rounds", "max_depth")
+                for key in ("quorum", "max_rounds", "max_depth", "reasoning")
                 if key in data
             },
         )
@@ -179,6 +185,7 @@ class WizengAImot:
             "quorum": self.quorum,
             "max_rounds": self.max_rounds,
             "max_depth": self.max_depth,
+            "reasoning": self.reasoning,
         }
         Path(path).write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -274,6 +281,7 @@ class WizengAImot:
                 ),
                 max_turns=5,
                 max_tool_calls_per_turn=1,
+                thinking=self.reasoning,
             ),
             name="moderator",
             session=self.session,
@@ -291,6 +299,7 @@ class WizengAImot:
                     "when dissent remains."
                 ),
                 max_turns=3,
+                thinking=self.reasoning,
             ),
             name="synth",
             session=self.session,
@@ -509,8 +518,15 @@ class WizengAImot:
         )
 
 
-def standard_council(question: str = "", **kwargs) -> WizengAImot:
-    """Return a ready-made four-member, multi-provider council."""
+def standard_council(
+    question: str = "", *, reasoning: bool = False, **kwargs
+) -> WizengAImot:
+    """Return a ready-made four-member, multi-provider council.
+
+    ``reasoning`` enables extended thinking on the four debating members
+    (not their researchers, which stay fast/cheap) and on the default
+    moderator and synthesiser.
+    """
     gpt_search = Agent(
         engine=LLMEngine(
             "super_cheap",
@@ -534,7 +550,11 @@ def standard_council(question: str = "", **kwargs) -> WizengAImot:
     ) -> tuple[Agent, Agent]:
         member = Agent(
             engine=LLMEngine(
-                "medium", provider=council_provider, system=system, max_turns=6
+                "medium",
+                provider=council_provider,
+                system=system,
+                max_turns=6,
+                thinking=reasoning,
             ),
             name=name,
         )
@@ -572,16 +592,36 @@ def standard_council(question: str = "", **kwargs) -> WizengAImot:
         ),
     ]
 
-    council = WizengAImot(question, **kwargs)
+    council = WizengAImot(question, reasoning=reasoning, **kwargs)
     for member, researcher in pairs:
         council.add(member, researcher=researcher)
     return council
+
+
+_REASONING_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+
+def _reasoning_settings(level: str) -> tuple[bool | str, str, str]:
+    """Map one external reasoning level to each engine's own vocabulary.
+
+    Returns ``(deepseek_thinking, claude_reasoning_effort, claude_thinking)``.
+    DeepSeek's ``thinking`` only distinguishes off/on here (no graduated
+    scale is used elsewhere in this codebase); Claude's ``reasoning_effort``
+    passes the level straight through, since ``ClaudeCodeEngine`` supports
+    the full scale natively.
+    """
+    if level not in _REASONING_LEVELS:
+        raise ValueError(f"reasoning must be one of {_REASONING_LEVELS}, got {level!r}.")
+    deepseek_thinking: bool | str = False if level == "low" else "max"
+    claude_thinking = "disabled" if level == "low" else "adaptive"
+    return deepseek_thinking, level, claude_thinking
 
 
 def deepseek_claude_news_council(
     question: str = "",
     *,
     news_db: str | Path | None = None,
+    reasoning: str = "medium",
     **kwargs,
 ) -> WizengAImot:
     """Build the DeepSeek + Claude Code subscription council.
@@ -597,10 +637,19 @@ def deepseek_claude_news_council(
     tools backed by the same current-news database. Claude uses the local
     Claude Code/Claude.ai subscription login, never ``ANTHROPIC_API_KEY``.
 
+    ``reasoning`` (one of ``"low"``, ``"medium"``, ``"high"``, ``"xhigh"``,
+    ``"max"``) controls the debater, moderator, and synthesiser only — the
+    two fast evidence/risk analysts always run with reasoning disabled,
+    by design.
+
     Requires current LazyBridge with the ``claude-code`` extra, LazyTools with
     the ``web`` extra, an authenticated Claude Code CLI, ``DEEPSEEK_API_KEY``,
     and either ``news_db=...`` or ``LAZYCRAWLER_NEWS_DB``.
     """
+    deepseek_thinking, claude_reasoning_effort, claude_thinking = _reasoning_settings(
+        reasoning
+    )
+
     try:
         from lazybridge import ClaudeCodeEngine
         from lazycrawler import CrawlerDB, CrawlerTools, DBConfig, LLMConfig
@@ -681,14 +730,14 @@ def deepseek_claude_news_council(
     deepseek_debater = deepseek_agent(
         "deepseek_max_debater",
         "Senior debater. Integrate the evidence, challenge weak claims, and revise openly.",
-        thinking="max",
+        thinking=deepseek_thinking,
         max_turns=12,
     )
     claude_debater = Agent(
         engine=ClaudeCodeEngine(
             model="sonnet",
-            reasoning_effort="medium",
-            thinking="adaptive",
+            reasoning_effort=claude_reasoning_effort,
+            thinking=claude_thinking,
             web=True,
             system=(
                 "Senior final-stage debater. Integrate the full discussion, challenge "
@@ -703,14 +752,14 @@ def deepseek_claude_news_council(
     moderator = deepseek_agent(
         "news_council_moderator",
         "Neutral moderator. Preserve dissent, check genuine convergence, and avoid premature closure.",
-        thinking="max",
+        thinking=deepseek_thinking,
         max_turns=10,
     )
     synthesiser = Agent(
         engine=ClaudeCodeEngine(
             model="sonnet",
-            reasoning_effort="medium",
-            thinking="adaptive",
+            reasoning_effort=claude_reasoning_effort,
+            thinking=claude_thinking,
             web=True,
             system=(
                 "Council scribe. Produce a sourced, decision-ready synthesis that "
