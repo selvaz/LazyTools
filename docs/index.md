@@ -55,6 +55,7 @@ safety model, and troubleshooting. Start at the [Tools overview](connectors.md).
 | **Web** | `connectors/web` — [LazyCrawler](https://github.com/selvaz/LazyCrawler) search/crawl as LLM tools (extra `[web]`) | — |
 | **Documents** | `documents/read_docs` — read `.txt/.md/.pdf/.docx/.html` from a folder/file | [Documents](documents.md) |
 | **Skills** | `skills/doc_skills` — build/query portable BM25 doc skills | [Skills](skills.md) |
+| **AI councils** | `skills/council` — spontaneous `AgentPool` deliberation, structured voting, quorum, and DeepSeek + Claude subscription preset | [Spontaneous AI councils](skills-council.md) |
 | **Report (LazyReport)** | `report` — deterministic `Memo` → Markdown/HTML with embedded figures (charts/images) via artifact refs; core no extra, `chart:` needs `[charts]` | [Report](report.md) |
 | **Safety** | `safety/{allowlist,gates}` — reusable allow-list + one-shot confirmation gate | [Safety](safety.md) |
 

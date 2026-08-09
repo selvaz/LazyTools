@@ -8,6 +8,8 @@ Two flavours live here:
   tailored system prompt = a skill) that share a blackboard, plus three
   orchestrators (deterministic Plan, blackboard, replan) that compose them.
   These build on ``lazybridge`` agents.
+* **Council skills** (``council``) — spontaneous multi-agent deliberation via
+  ``AgentPool``, including a DeepSeek + Claude Code current-news preset.
 """
 
 from __future__ import annotations
@@ -27,6 +29,12 @@ from lazytools.skills.analyst import (
     plan_orchestrator,
     replan_orchestrator,
     roster,
+)
+from lazytools.skills.council import (
+    CouncilResult,
+    WizengAImot,
+    deepseek_claude_news_council,
+    standard_council,
 )
 from lazytools.skills.doc_skills import (
     DocChunk,
@@ -61,6 +69,11 @@ __all__ = [
     "skill_builder_tools",
     "skill_pipeline",
     "skill_tools",
+    # spontaneous councils
+    "CouncilResult",
+    "WizengAImot",
+    "standard_council",
+    "deepseek_claude_news_council",
     # analyst skills
     "Skill",
     "Blackboard",

@@ -80,6 +80,7 @@ plugins:
           - skills.md
           - skills-analyst.md
           - skills-stats.md
+          - skills-council.md
           - report.md
         Core tools:
           - core-tools.md
@@ -152,6 +153,7 @@ nav:
       - Skills: skills.md
       - Analyst skills: skills-analyst.md
       - Statistical agents: skills-stats.md
+      - Spontaneous AI councils: skills-council.md
       - Report (LazyReport): report.md
   - Core tools:
       - Overview: core-tools.md

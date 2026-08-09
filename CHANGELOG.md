@@ -8,6 +8,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `lazytools.skills.council`: `WizengAImot`, a spontaneous multi-agent
+  council built on LazyBridge `AgentPool`. Members research and open in
+  parallel, then debate freely — routing to whoever should speak next,
+  revising positions, and casting structured votes — until the moderator
+  confirms quorum and closes. Includes `standard_council()` (four-member,
+  multi-provider) and `deepseek_claude_news_council()` (DeepSeek + Claude
+  Code subscription preset sharing a LazyCrawler news database), plus
+  optional `knowledge()` grounding (static text or BM25 skill mode).
+
 ## [0.5.0] — 2026-08-02
 
 ### Added
