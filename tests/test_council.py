@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import types
 from pathlib import Path
@@ -104,16 +105,66 @@ def test_council_default_memory_summarizer_is_cheap_non_reasoning() -> None:
     assert summarizer.engine.model == "super_cheap"
     assert summarizer.engine.provider == "deepseek"
     assert summarizer.engine.thinking is False
-    # Small hard cap: each compression call is self-contained and must
-    # not accumulate history across unrelated calls.
+    # Zero retained turns: shared across every debater's and the
+    # moderator's Memory, so each compression call must be stateless or
+    # one member's summary would leak into another's.
     assert summarizer.memory.strategy == "none"
-    assert summarizer.memory.max_turns == 4
+    assert summarizer.memory.max_turns == 0
 
 
 def test_council_custom_memory_summarizer_is_stored() -> None:
     custom = _agent("custom_summarizer")
     council = WizengAImot("question", memory_summarizer=custom)
     assert council._memory_summarizer is custom
+
+
+def test_council_knowledge_rebuilds_skill_cache_when_paths_change(tmp_path: Path) -> None:
+    """Same name/output_root but different paths must not reuse a stale index."""
+    dir_a = tmp_path / "docs_a"
+    dir_a.mkdir()
+    (dir_a / "a.md").write_text("Alpha content about apples.", encoding="utf-8")
+    dir_b = tmp_path / "docs_b"
+    dir_b.mkdir()
+    (dir_b / "b.md").write_text("Beta content about bananas.", encoding="utf-8")
+    output_root = tmp_path / "skills_out"
+
+    WizengAImot("question").knowledge(
+        str(dir_a), name="shared", output_root=str(output_root)
+    )._prepare_knowledge()
+    WizengAImot("question").knowledge(
+        str(dir_b), name="shared", output_root=str(output_root)
+    )._prepare_knowledge()
+
+    manifest = json.loads((output_root / "shared" / "manifest.json").read_text(encoding="utf-8"))
+    assert str(dir_b.resolve()) in manifest["source_dirs"]
+    assert str(dir_a.resolve()) not in manifest["source_dirs"]
+
+
+def test_council_knowledge_reuses_skill_cache_when_config_matches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same name/output_root/paths/extensions must NOT rebuild every call."""
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("Alpha content about apples.", encoding="utf-8")
+    output_root = tmp_path / "skills_out"
+
+    WizengAImot("question").knowledge(
+        str(docs), name="shared", output_root=str(output_root)
+    )._prepare_knowledge()
+
+    import lazytools.skills as skills_package
+
+    def _fail_if_called(*args, **kwargs):
+        raise AssertionError("build_skill should not run on an unchanged cache hit")
+
+    # ``_prepare_knowledge`` does a local ``from lazytools.skills import
+    # build_skill`` on every call, so patching the package attribute (not
+    # the council module) is what actually intercepts it.
+    monkeypatch.setattr(skills_package, "build_skill", _fail_if_called)
+    WizengAImot("question").knowledge(
+        str(docs), name="shared", output_root=str(output_root)
+    )._prepare_knowledge()
 
 
 def test_news_preset_reasoning_rejects_unknown_level() -> None:
