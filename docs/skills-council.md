@@ -1,0 +1,159 @@
+# Spontaneous AI councils
+
+`lazytools.skills.council` provides a free-form multi-agent council built on
+LazyBridge `AgentPool`. It is intended for questions where several independent
+perspectives should challenge one another before a recommendation is written.
+
+Unlike a fixed debate pipeline, the council does not schedule speakers or
+manufacture rounds. Members choose whom to engage next, may update their vote
+at any point, and invite the moderator when they believe the discussion can
+close. Only the moderator receives the closing tool, and that tool refuses to
+close until the configured quorum is actually present.
+
+## Generic council
+
+```python
+from lazybridge import Agent, LLMEngine
+from lazytools.skills import WizengAImot
+
+optimist = Agent(
+    name="optimist",
+    engine=LLMEngine(
+        "medium",
+        provider="anthropic",
+        system="Find opportunities without concealing risks.",
+    ),
+)
+critic = Agent(
+    name="critic",
+    engine=LLMEngine(
+        "medium",
+        provider="deepseek",
+        system="Test assumptions and surface material downside.",
+    ),
+)
+
+result = (
+    WizengAImot("Should we enter this market?", quorum=0.7)
+    .add(optimist)
+    .add(critic)
+    .run()
+)
+print(result.text())
+```
+
+Research and opening positions use `Agent.parallel`. The discussion itself is
+an `AgentPool`: participants call `route(agent_name, task)` based on the
+conversation rather than a predetermined order.
+
+## DeepSeek + Claude subscription news council
+
+The current-news preset combines API-backed DeepSeek models with Claude Code
+agents authenticated through a Claude.ai subscription:
+
+```python
+from lazytools.skills import deepseek_claude_news_council
+
+council = deepseek_claude_news_council(
+    "How could the latest geopolitical developments affect European energy?",
+    news_db="/data/news.db",
+)
+result = council.run()
+```
+
+The roster is:
+
+| Role | Engine | Reasoning |
+| --- | --- | --- |
+| Evidence analyst | DeepSeek V4 Flash | disabled |
+| Risk analyst | DeepSeek V4 Flash | disabled |
+| Fast analyst | Claude Code Haiku | disabled |
+| Senior debater | DeepSeek V4 Flash | `max` |
+| Senior debater | Claude Code Sonnet | `medium`, adaptive thinking |
+| Moderator | DeepSeek V4 Flash | `max` |
+| Synthesiser | Claude Code Sonnet | `medium`, adaptive thinking |
+
+Every participant receives the same LazyCrawler tool set backed by the same
+SQLite news database. Claude Code agents additionally have native
+`WebSearch`/`WebFetch` enabled.
+
+### Requirements
+
+Install current LazyBridge with Claude Code support and LazyTools with web
+support:
+
+```bash
+pip install "lazybridge[claude-code]"
+pip install "lazytoolkit[web] @ git+https://github.com/selvaz/LazyTools.git"
+```
+
+!!! warning "ClaudeCodeEngine release status"
+
+    `ClaudeCodeEngine` is merged to LazyBridge `main` but not yet in a
+    tagged PyPI release as of this writing (the latest tag, `1.0.2`,
+    predates it). Until a release ships, install LazyBridge from source —
+    e.g. `pip install "lazybridge[claude-code] @ git+https://github.com/selvaz/LazyBridge.git@main"`
+    — or pin to whichever tag first includes it once released.
+
+Configure DeepSeek normally:
+
+```bash
+export DEEPSEEK_API_KEY="..."
+```
+
+For Claude, do **not** set `ANTHROPIC_API_KEY` when subscription billing is
+intended. Install Claude Code, run `claude`, and choose the Claude App / Claude.ai
+subscription login. `ClaudeCodeEngine` then reuses that local login through the
+Claude Agent SDK.
+
+Set the news database path or pass it explicitly:
+
+```bash
+export LAZYCRAWLER_NEWS_DB="/absolute/path/news.db"
+```
+
+The preset fails loudly when the database is missing; it never replaces the
+requested current-news source with an empty in-memory cache.
+
+!!! note "Haiku availability"
+
+    Claude Code exposes the `haiku` alias through the Agent SDK, but actual
+    availability depends on the installed Claude Code version and subscription.
+    Validate it with the target account before production use.
+
+## Knowledge bases
+
+Use `knowledge(..., mode="static")` for direct document context or
+`mode="skill"` for a BM25 documentation bundle:
+
+```python
+council.knowledge("./briefing", name="briefing", mode="skill")
+```
+
+Static mode supports text, PDF, DOCX, and HTML through LazyTools document
+readers. Skill mode indexes text-oriented formats and exposes the resulting
+retriever to every participant.
+
+## Result contract
+
+`CouncilResult` contains:
+
+- `synthesis`: final decision-ready report;
+- `quorum_reached`: whether the latest votes meet the configured threshold;
+- `votes`: latest structured vote from each member that voted;
+- `transcript`: assistant contributions captured from council memories;
+- `question`: the original question.
+
+The recursion `max_depth` is a safety brake, not a debate schedule. The legacy
+`max_rounds` option is retained only to derive a default depth when
+`max_depth` is omitted.
+
+## API reference
+
+::: lazytools.skills.council.WizengAImot
+
+::: lazytools.skills.council.CouncilResult
+
+::: lazytools.skills.council.standard_council
+
+::: lazytools.skills.council.deepseek_claude_news_council
