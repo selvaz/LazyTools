@@ -110,7 +110,7 @@ def test_all_three_privileges_together_expose_everything() -> None:
 
 
 def test_allow_compute_alone_exposes_only_estimate_and_backtest() -> None:
-    """docs/node-copilot-operational-plan.md §7.2: estimate/backtest are
+    """docs/node-advisor-operational-plan.md §7.2: estimate/backtest are
     compute-cost, not persistence -- must be grantable independently of
     save/delete, e.g. for a research-only tool profile."""
 
@@ -125,7 +125,7 @@ def test_allow_persist_alone_exposes_only_save() -> None:
 
 def test_allow_delete_alone_exposes_only_delete() -> None:
     """delete is never bundled with compute or persist -- it is the one
-    privilege the Node Copilot's own read-only tool profile must never be
+    privilege the Node Advisor's own read-only tool profile must never be
     handed, so it has to be independently withholdable."""
 
     tools = {t.name for t in PortfolioTreeTools(allow_delete=True).as_tools()}
