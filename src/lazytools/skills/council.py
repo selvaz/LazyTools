@@ -91,11 +91,19 @@ class WizengAImot:
         synthesiser: Agent | None = None,
         moderator: Agent | None = None,
         reasoning: bool = False,
+        memory_summarizer: Agent | None = None,
         session: Session | None = None,
     ) -> None:
         """``reasoning`` enables extended thinking on the *default* moderator
         and synthesiser only (ignored once ``moderator=``/``synthesiser=``
         supply your own agents — configure their engines directly instead).
+
+        ``memory_summarizer`` compresses the free-form debate as it runs
+        (every debater's memory and the moderator's memory use
+        ``Memory(strategy="summary", summarizer=...)``). A long, unscripted
+        debate has no fixed number of turns, so leaving it uncompressed
+        risks the final synthesis call exceeding the model's context
+        window. Defaults to a cheap, non-reasoning DeepSeek agent.
         """
         if not 0.0 < quorum <= 1.0:
             raise ValueError("quorum must be greater than 0 and at most 1.")
@@ -115,6 +123,7 @@ class WizengAImot:
         self._kbs: list[dict] = []
         self._synthesiser = synthesiser
         self._moderator = moderator
+        self._memory_summarizer = memory_summarizer
 
     def add(self, member: Agent, *, researcher: Agent | None = None) -> WizengAImot:
         """Add a member and, optionally, a separate research agent."""
@@ -269,6 +278,27 @@ class WizengAImot:
             raise RuntimeError(f"{stage} returned an empty result.")
         return text
 
+    def _default_memory_summarizer(self) -> Agent:
+        """Cheap, non-reasoning DeepSeek agent used to compress debate memory.
+
+        Called repeatedly (once per compression event, across every
+        debater's Memory) so it carries its own small, hard-capped memory
+        rather than the default 1000-turn cap — each call is a
+        self-contained summarization request with no need for history
+        from earlier, unrelated calls.
+        """
+        return Agent(
+            engine=LLMEngine(
+                "super_cheap",
+                provider="deepseek",
+                thinking=False,
+                system="Summarize conversations concisely.",
+                max_turns=1,
+            ),
+            memory=Memory(strategy="none", max_turns=4),
+            name="council_memory_summarizer",
+        )
+
     def _default_moderator(self) -> Agent:
         return Agent(
             engine=LLMEngine(
@@ -401,7 +431,10 @@ class WizengAImot:
             "Only the moderator can close the discussion. Do not follow a fixed order."
         )
 
-        memories = [Memory(strategy="none", max_turns=None) for _ in members]
+        memory_summarizer = self._memory_summarizer or self._default_memory_summarizer()
+        memories = [
+            Memory(strategy="summary", summarizer=memory_summarizer) for _ in members
+        ]
         debaters: list[Agent] = []
 
         def make_vote_tool(member_name: str) -> Tool:
@@ -452,7 +485,7 @@ class WizengAImot:
                 Tool.wrap(close_discussion, name="close_discussion"),
             ],
             name="moderator",
-            memory=Memory(strategy="none", max_turns=None),
+            memory=Memory(strategy="summary", summarizer=memory_summarizer),
             sources=[*moderator_base.sources, protocol],
         )
         pool.register(*debaters, moderator)
