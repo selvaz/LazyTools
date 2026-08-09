@@ -21,7 +21,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   a bool on `WizengAImot`'s default moderator/synthesiser and on
   `standard_council()`'s members; a graduated `"low"`–`"max"` level on
   `deepseek_claude_news_council()`'s debater/moderator/synthesiser (its
-  two fast analysts stay reasoning-disabled by design).
+  two fast analysts stay reasoning-disabled by design). Debater and
+  moderator memory now runs `Memory(strategy="summary", ...)`, compressing
+  the free-form debate as it runs so a long discussion can't push the
+  final synthesis call past the model's context window; the summarizer
+  defaults to a cheap, non-reasoning DeepSeek agent and is overridable
+  via `memory_summarizer=`.
 
 ## [0.5.0] — 2026-08-02
 

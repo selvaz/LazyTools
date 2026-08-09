@@ -146,6 +146,27 @@ requested current-news source with an empty in-memory cache.
     availability depends on the installed Claude Code version and subscription.
     Validate it with the target account before production use.
 
+## Debate memory
+
+A free-form debate has no fixed number of turns — `route()` hops until the
+moderator closes it. Left uncompressed, that can push the final synthesis
+call past the model's context window on a long debate. Every debater's
+memory and the moderator's memory therefore run
+`Memory(strategy="summary", summarizer=...)`, compressing older turns once
+past 10 while keeping the last 10 verbatim. The summarizer defaults to a
+cheap, non-reasoning DeepSeek agent (`WizengAImot._default_memory_summarizer`);
+pass your own with `memory_summarizer=`:
+
+```python
+from lazybridge import Agent, LLMEngine
+
+fast_summarizer = Agent(
+    engine=LLMEngine("super_cheap", provider="deepseek", thinking=False),
+    name="summarizer",
+)
+council = WizengAImot(question, memory_summarizer=fast_summarizer)
+```
+
 ## Knowledge bases
 
 Use `knowledge(..., mode="static")` for direct document context or

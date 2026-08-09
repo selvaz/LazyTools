@@ -99,6 +99,23 @@ def test_standard_council_reasoning_propagates_to_members_and_moderator() -> Non
     assert council._default_moderator().engine.thinking is True
 
 
+def test_council_default_memory_summarizer_is_cheap_non_reasoning() -> None:
+    summarizer = WizengAImot("question")._default_memory_summarizer()
+    assert summarizer.engine.model == "super_cheap"
+    assert summarizer.engine.provider == "deepseek"
+    assert summarizer.engine.thinking is False
+    # Small hard cap: each compression call is self-contained and must
+    # not accumulate history across unrelated calls.
+    assert summarizer.memory.strategy == "none"
+    assert summarizer.memory.max_turns == 4
+
+
+def test_council_custom_memory_summarizer_is_stored() -> None:
+    custom = _agent("custom_summarizer")
+    council = WizengAImot("question", memory_summarizer=custom)
+    assert council._memory_summarizer is custom
+
+
 def test_news_preset_reasoning_rejects_unknown_level() -> None:
     with pytest.raises(ValueError, match="reasoning"):
         deepseek_claude_news_council("question", reasoning="ultra")
