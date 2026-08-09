@@ -1,5 +1,5 @@
-"""Tool schema and behavior tests for the Node Copilot's read-only tool
-profile over lazyportfolio.copilot (docs/node-copilot-operational-plan.md §7.2).
+"""Tool schema and behavior tests for the Node Advisor's read-only tool
+profile over lazyportfolio.advisor (docs/node-advisor-operational-plan.md §7.2).
 
 Mirrors test_fin_tree_tools.py's fake-backend pattern.
 """
@@ -10,13 +10,13 @@ import json
 
 import pytest
 
-pytest.importorskip("lazyportfolio", reason="node copilot tools require lazyportfolio")
+pytest.importorskip("lazyportfolio", reason="node advisor tools require lazyportfolio")
 
 from lazyportfolio import OptimizationDataset
-from lazyportfolio.copilot.repository import create_tree
+from lazyportfolio.advisor.repository import create_tree
 from lazyportfolio.v2 import run_history
 
-from lazytools.connectors.fin.node_copilot_tools import NodeCopilotReadTools
+from lazytools.connectors.fin.node_advisor_tools import NodeAdvisorReadTools
 
 
 def _tree_config() -> dict[str, object]:
@@ -122,7 +122,7 @@ def frame():
 
 
 def test_as_tools_exposes_exactly_the_seven_read_only_tools(tree_id, store_path) -> None:
-    tools = {t.name for t in NodeCopilotReadTools(store_path=store_path).as_tools()}
+    tools = {t.name for t in NodeAdvisorReadTools(store_path=store_path).as_tools()}
     assert tools == {
         "tree_get_node_context",
         "tree_get_parent_context",
@@ -135,7 +135,7 @@ def test_as_tools_exposes_exactly_the_seven_read_only_tools(tree_id, store_path)
 
 
 def test_get_node_context_for_an_interior_node(tree_id, store_path) -> None:
-    tools = {t.name: t for t in NodeCopilotReadTools(store_path=store_path).as_tools()}
+    tools = {t.name: t for t in NodeAdvisorReadTools(store_path=store_path).as_tools()}
     payload = json.loads(
         tools["tree_get_node_context"].run_sync(tree_id=tree_id, node_id="equity")
     )
@@ -148,13 +148,13 @@ def test_get_node_context_for_an_interior_node(tree_id, store_path) -> None:
 
 
 def test_get_node_context_for_unknown_tree_raises(store_path) -> None:
-    tools = {t.name: t for t in NodeCopilotReadTools(store_path=store_path).as_tools()}
+    tools = {t.name: t for t in NodeAdvisorReadTools(store_path=store_path).as_tools()}
     with pytest.raises(Exception, match="no revisions yet"):
         tools["tree_get_node_context"].run_sync(tree_id="does-not-exist", node_id="equity")
 
 
 def test_get_parent_context_resolves_the_immediate_parent(tree_id, store_path) -> None:
-    tools = {t.name: t for t in NodeCopilotReadTools(store_path=store_path).as_tools()}
+    tools = {t.name: t for t in NodeAdvisorReadTools(store_path=store_path).as_tools()}
     payload = json.loads(
         tools["tree_get_parent_context"].run_sync(tree_id=tree_id, node_id="equity_us")
     )
@@ -165,7 +165,7 @@ def test_get_parent_context_resolves_the_immediate_parent(tree_id, store_path) -
 def test_get_parent_context_for_the_root_returns_ok_false_not_an_error(
     tree_id, store_path
 ) -> None:
-    tools = {t.name: t for t in NodeCopilotReadTools(store_path=store_path).as_tools()}
+    tools = {t.name: t for t in NodeAdvisorReadTools(store_path=store_path).as_tools()}
     payload = json.loads(
         tools["tree_get_parent_context"].run_sync(tree_id=tree_id, node_id="root")
     )
@@ -174,7 +174,7 @@ def test_get_parent_context_for_the_root_returns_ok_false_not_an_error(
 
 
 def test_get_child_summaries_lists_direct_children_only(tree_id, store_path) -> None:
-    tools = {t.name: t for t in NodeCopilotReadTools(store_path=store_path).as_tools()}
+    tools = {t.name: t for t in NodeAdvisorReadTools(store_path=store_path).as_tools()}
     payload = json.loads(
         tools["tree_get_child_summaries"].run_sync(tree_id=tree_id, node_id="equity")
     )
@@ -184,7 +184,7 @@ def test_get_child_summaries_lists_direct_children_only(tree_id, store_path) -> 
 
 
 def test_get_revision_returns_head_metadata(tree_id, store_path) -> None:
-    tools = {t.name: t for t in NodeCopilotReadTools(store_path=store_path).as_tools()}
+    tools = {t.name: t for t in NodeAdvisorReadTools(store_path=store_path).as_tools()}
     payload = json.loads(tools["tree_get_revision"].run_sync(tree_id=tree_id))
     assert payload["ok"] is True
     assert payload["revision_id"]
@@ -207,7 +207,7 @@ def test_get_recent_runs_reflects_recorded_history(tree_id, store_path) -> None:
         payload={"ok": True},
         db_path=store_path,
     )
-    tools = {t.name: t for t in NodeCopilotReadTools(store_path=store_path).as_tools()}
+    tools = {t.name: t for t in NodeAdvisorReadTools(store_path=store_path).as_tools()}
     payload = json.loads(tools["tree_get_recent_runs"].run_sync(name="My Tree"))
     assert payload["ok"] is True
     assert len(payload["runs"]) == 1
@@ -215,7 +215,7 @@ def test_get_recent_runs_reflects_recorded_history(tree_id, store_path) -> None:
 
 
 def test_validate_views_accepts_a_view_inside_the_universe(tree_id, store_path) -> None:
-    tools = {t.name: t for t in NodeCopilotReadTools(store_path=store_path).as_tools()}
+    tools = {t.name: t for t in NodeAdvisorReadTools(store_path=store_path).as_tools()}
     payload = json.loads(
         tools["portfolio_tree_validate_views"].run_sync(
             tree_id=tree_id,
@@ -235,7 +235,7 @@ def test_validate_views_accepts_a_view_inside_the_universe(tree_id, store_path) 
 
 
 def test_validate_views_rejects_an_instrument_outside_the_universe(tree_id, store_path) -> None:
-    tools = {t.name: t for t in NodeCopilotReadTools(store_path=store_path).as_tools()}
+    tools = {t.name: t for t in NodeAdvisorReadTools(store_path=store_path).as_tools()}
     payload = json.loads(
         tools["portfolio_tree_validate_views"].run_sync(
             tree_id=tree_id,
@@ -263,7 +263,7 @@ def test_estimate_counterfactual_returns_a_diff_never_raw_returns(
     backend = _FakeBackend(frame)
     tools = {
         t.name: t
-        for t in NodeCopilotReadTools(backend=backend, store_path=store_path).as_tools()
+        for t in NodeAdvisorReadTools(backend=backend, store_path=store_path).as_tools()
     }
     payload = json.loads(
         tools["portfolio_tree_estimate_counterfactual"].run_sync(

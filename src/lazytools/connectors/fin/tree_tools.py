@@ -80,15 +80,15 @@ class PortfolioTreeTools:
 
     ``portfolio_tree_validate``/``_list``/``_load`` are pure reads, always
     emitted. Three independent privileges gate the rest, instead of one
-    combined ``allow_write`` (docs/node-copilot-operational-plan.md §7.2:
+    combined ``allow_write`` (docs/node-advisor-operational-plan.md §7.2:
     estimate/backtest are compute-cost, not persistence, and delete is a
     distinct, more dangerous privilege than either):
 
     * ``allow_compute`` — ``_estimate``/``_backtest`` (runs the engine,
       writes nothing).
     * ``allow_persist`` — ``_save`` (writes to the shared store).
-    * ``allow_delete`` — ``_delete``. Never granted to the Node Copilot's
-      own read-only tool profile (``NodeCopilotReadTools``) — this class
+    * ``allow_delete`` — ``_delete``. Never granted to the Node Advisor's
+      own read-only tool profile (``NodeAdvisorReadTools``) — this class
       still supports it for callers (e.g. the general-purpose ``fin``
       provider) that need full read-write access.
     """

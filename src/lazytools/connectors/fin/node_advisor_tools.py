@@ -1,6 +1,6 @@
-"""Node Copilot's read-only tool profile over LazyPortfolio's copilot package.
+"""Node Advisor's read-only tool profile over LazyPortfolio's advisor package.
 
-docs/node-copilot-operational-plan.md §7.2: a strictly read-only surface —
+docs/node-advisor-operational-plan.md §7.2: a strictly read-only surface —
 node context, parent/children summaries, recent runs, view validation, and
 counterfactual estimation. No save, no delete, no apply: this provider
 never gets ``allow_persist``/``allow_delete`` (unlike ``PortfolioTreeTools``,
@@ -35,10 +35,10 @@ def _json(payload: object) -> str:
     return json.dumps(payload, default=str, sort_keys=True)
 
 
-class NodeCopilotReadTools:
-    """A ``ToolProvider`` over ``lazyportfolio.copilot``'s node-scoped services.
+class NodeAdvisorReadTools:
+    """A ``ToolProvider`` over ``lazyportfolio.advisor``'s node-scoped services.
 
-    Every tool takes a ``tree_id`` (the UUID ``lazyportfolio.copilot.repository``
+    Every tool takes a ``tree_id`` (the UUID ``lazyportfolio.advisor.repository``
     assigns a tree, not its display name) and resolves against that tree's
     current head revision -- never a client-supplied config, so a stale or
     tampered inline config can never substitute for the tree's real state.
@@ -53,21 +53,21 @@ class NodeCopilotReadTools:
         store_path: str | None = None,
     ) -> None:
         try:
-            from lazyportfolio.copilot import counterfactual as _counterfactual
-            from lazyportfolio.copilot import node_universe as _node_universe
-            from lazyportfolio.copilot import repository as _repository
-            from lazyportfolio.copilot import snapshot as _snapshot
-            from lazyportfolio.copilot.contracts import ProposedView
+            from lazyportfolio.advisor import counterfactual as _counterfactual
+            from lazyportfolio.advisor import node_universe as _node_universe
+            from lazyportfolio.advisor import repository as _repository
+            from lazyportfolio.advisor import snapshot as _snapshot
+            from lazyportfolio.advisor.contracts import ProposedView
             from lazyportfolio.v2 import run_history as _run_history
             from lazyportfolio.v2.mode import mode_from_config
         except ImportError as exc:  # pragma: no cover - optional dependency boundary
             raise ImportError(
-                "NodeCopilotReadTools requires the lazyportfolio package: "
+                "NodeAdvisorReadTools requires the lazyportfolio package: "
                 "pip install 'lazyportfolio @ git+https://github.com/selvaz/LazyPortfolio.git'"
             ) from exc
         # backend=None is a valid, meaningful value here (not "not yet
         # resolved"): it is forwarded as-is to
-        # lazyportfolio.copilot.snapshot.load_snapshot, which falls back to
+        # lazyportfolio.advisor.snapshot.load_snapshot, which falls back to
         # the real Market Data Hub backend itself -- this class never needs
         # its own copy of that fallback.
         self._backend = backend
@@ -294,4 +294,4 @@ class NodeCopilotReadTools:
         return _json({"ok": True, "counterfactual": result.model_dump(mode="json")})
 
 
-__all__ = ["NodeCopilotReadTools"]
+__all__ = ["NodeAdvisorReadTools"]

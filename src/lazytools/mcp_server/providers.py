@@ -225,8 +225,8 @@ def _fin(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
             backend=backend,
             # This provider's own single allow_write switch still maps onto
             # all three of PortfolioTreeTools' privileges together -- the
-            # split (docs/node-copilot-operational-plan.md §7.2) exists so a
-            # *different* caller (NodeCopilotReadTools) can grant none of
+            # split (docs/node-advisor-operational-plan.md §7.2) exists so a
+            # *different* caller (NodeAdvisorReadTools) can grant none of
             # them, not to change this general-purpose provider's behavior.
             allow_compute=allow_write,
             allow_persist=allow_write,
