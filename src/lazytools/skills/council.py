@@ -220,23 +220,43 @@ class WizengAImot:
         context_sections: list[str] = []
         for kb in self._kbs:
             if kb["mode"] == "skill":
+                supported = {
+                    ".md", ".mdx", ".txt", ".rst", ".adoc",
+                    ".py", ".json", ".yaml", ".yml", ".toml",
+                }
+                requested = {
+                    f".{ext.strip().lstrip('.').lower()}"
+                    for ext in kb["extensions"].split(",")
+                    if ext.strip()
+                }
+                indexable = sorted(requested & supported)
+                if not indexable:
+                    raise ValueError(
+                        "skill mode needs a text-indexable extension from "
+                        f"{sorted(supported)}; use mode='static' for PDF/DOCX/HTML."
+                    )
+
                 skill_dir = Path(kb["output_root"]) / self._slug(kb["name"])
-                if kb["rebuild"] or not (skill_dir / "manifest.json").exists():
-                    supported = {
-                        ".md", ".mdx", ".txt", ".rst", ".adoc",
-                        ".py", ".json", ".yaml", ".yml", ".toml",
-                    }
-                    requested = {
-                        f".{ext.strip().lstrip('.').lower()}"
-                        for ext in kb["extensions"].split(",")
-                        if ext.strip()
-                    }
-                    indexable = sorted(requested & supported)
-                    if not indexable:
-                        raise ValueError(
-                            "skill mode needs a text-indexable extension from "
-                            f"{sorted(supported)}; use mode='static' for PDF/DOCX/HTML."
+                manifest_path = skill_dir / "manifest.json"
+                needs_rebuild = kb["rebuild"] or not manifest_path.exists()
+                if not needs_rebuild:
+                    # Same name/output_root can still mean different content —
+                    # rebuild if the cached bundle doesn't match what was asked
+                    # for, instead of silently grounding on stale documents.
+                    try:
+                        cached = json.loads(manifest_path.read_text(encoding="utf-8"))
+                        cached_paths = set(cached.get("source_dirs", []))
+                        cached_extensions = set(cached.get("extensions", []))
+                        requested_paths = {
+                            str(Path(p).expanduser().resolve()) for p in kb["paths"]
+                        }
+                        needs_rebuild = (
+                            cached_paths != requested_paths
+                            or cached_extensions != set(indexable)
                         )
+                    except (OSError, ValueError):
+                        needs_rebuild = True
+                if needs_rebuild:
                     metadata = build_skill(
                         kb["paths"],
                         kb["name"],
@@ -281,11 +301,11 @@ class WizengAImot:
     def _default_memory_summarizer(self) -> Agent:
         """Cheap, non-reasoning DeepSeek agent used to compress debate memory.
 
-        Called repeatedly (once per compression event, across every
-        debater's Memory) so it carries its own small, hard-capped memory
-        rather than the default 1000-turn cap — each call is a
-        self-contained summarization request with no need for history
-        from earlier, unrelated calls.
+        Called repeatedly (once per compression event) and shared across
+        every debater's Memory and the moderator's, so its own memory is
+        capped to 0 retained turns: each call must be stateless, or one
+        member's compression request would leak into another's, or the
+        moderator's, as unrelated prior "conversation" history.
         """
         return Agent(
             engine=LLMEngine(
@@ -295,7 +315,7 @@ class WizengAImot:
                 system="Summarize conversations concisely.",
                 max_turns=1,
             ),
-            memory=Memory(strategy="none", max_turns=4),
+            memory=Memory(strategy="none", max_turns=0),
             name="council_memory_summarizer",
         )
 
