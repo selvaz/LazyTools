@@ -32,7 +32,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   what others said instead of having to recap it themselves — reducing
   duplicated content across private memories — and the final transcript
   reflects the debate's real chronological order instead of each agent's
-  own turn order.
+  own turn order. Fixed a gap found via live-testing: closing the debate
+  raises `ConcludeSignal` (a `BaseException`, by design, so any nested
+  agent can end the whole discussion instantly), which was unwinding
+  straight past the transcript-recording code at every nesting level
+  between the close and the top, leaving the recorded transcript with
+  only its first entry. `route()` now records the propagated closing
+  message before re-raising the signal, instead of losing it.
 
 ## [0.5.0] — 2026-08-02
 

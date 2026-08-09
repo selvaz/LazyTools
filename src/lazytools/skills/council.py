@@ -467,7 +467,24 @@ class WizengAImot:
                 The exchange is recorded to the shared debate history so every
                 participant can see it without you needing to recap it yourself.
                 """
-                response = await pool.route(agent_name, task)
+                # conclude() (close_discussion) raises ConcludeSignal, a
+                # BaseException that unwinds straight past this call —
+                # deliberately, so any nested agent can end the whole debate
+                # instantly (see lazybridge.signals). Left unhandled, that
+                # skips the recording below at every nesting level between
+                # here and the close, not just the last one. Record what we
+                # have (the propagated closing message) before re-raising —
+                # never swallow the signal, only observe it on the way past.
+                from lazybridge.signals import ConcludeSignal
+
+                try:
+                    response = await pool.route(agent_name, task)
+                except ConcludeSignal as sig:
+                    history.add(
+                        f"{caller_name} -> {agent_name}: {task}", f"{agent_name}: {sig.message}"
+                    )
+                    transcript_log.append({"member": agent_name, "text": sig.message})
+                    raise
                 history.add(f"{caller_name} -> {agent_name}: {task}", f"{agent_name}: {response}")
                 transcript_log.append({"member": agent_name, "text": response})
                 return response
