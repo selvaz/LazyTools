@@ -26,7 +26,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   the free-form debate as it runs so a long discussion can't push the
   final synthesis call past the model's context window; the summarizer
   defaults to a cheap, non-reasoning DeepSeek agent and is overridable
-  via `memory_summarizer=`.
+  via `memory_summarizer=`. `route()` now records every exchange once to
+  a shared debate history (a `Memory` in LazyBridge's "shared use" mode,
+  attached to every participant's `sources=[...]`), so members can see
+  what others said instead of having to recap it themselves — reducing
+  duplicated content across private memories — and the final transcript
+  reflects the debate's real chronological order instead of each agent's
+  own turn order.
 
 ## [0.5.0] — 2026-08-02
 

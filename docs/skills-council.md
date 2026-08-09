@@ -46,6 +46,25 @@ Research and opening positions use `Agent.parallel`. The discussion itself is
 an `AgentPool`: participants call `route(agent_name, task)` based on the
 conversation rather than a predetermined order.
 
+## Shared debate history
+
+Every debater and the moderator has a *private* `Memory` for their own
+engine turns, but that alone would force them to recap each other from
+scratch — nobody automatically sees what anyone else said, so the natural
+move is to restate it, which duplicates the same content across several
+members' memories and inflates cost on a long debate.
+
+`route()` is wrapped per member so every exchange is also recorded once to
+a single shared `Memory` (`strategy="summary"`, same summarizer as the
+private memories). That shared history is attached to every participant's
+`sources=[...]` — LazyBridge's "shared use" mode for `Memory`/`Store`,
+read live on every call, never a stale snapshot. The council protocol
+tells members not to restate it. `Memory.text()` only ever renders a
+running summary plus the last 5 exchanges, so sharing it doesn't reopen
+unbounded growth. The final transcript is built from this same recording
+as it happens, so it reflects the debate's real chronological order —
+not just each agent's own turn order.
+
 ## Reasoning level
 
 Every member's engine is your own `Agent`, so you control its reasoning
