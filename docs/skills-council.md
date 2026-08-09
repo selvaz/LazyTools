@@ -46,6 +46,26 @@ Research and opening positions use `Agent.parallel`. The discussion itself is
 an `AgentPool`: participants call `route(agent_name, task)` based on the
 conversation rather than a predetermined order.
 
+## Reasoning level
+
+Every member's engine is your own `Agent`, so you control its reasoning
+directly (`LLMEngine(thinking=...)`, `ClaudeCodeEngine(reasoning_effort=...)`).
+For the *default* moderator and synthesiser — used whenever you don't pass
+`moderator=`/`synthesiser=` yourself — `WizengAImot(..., reasoning=True)`
+enables extended thinking on both. It's ignored once you supply your own
+moderator/synthesiser agents; configure their engines directly instead.
+
+`standard_council(..., reasoning=True)` forwards the same switch to its four
+built-in members (not their researchers, which stay fast/cheap) and to the
+default moderator/synthesiser.
+
+`deepseek_claude_news_council(..., reasoning="high")` takes a graduated level
+— `"low"`, `"medium"` (default), `"high"`, `"xhigh"`, or `"max"` — applied to
+the debater, moderator, and synthesiser only; the two fast evidence/risk
+analysts always run with reasoning disabled, by design. DeepSeek's `thinking`
+only distinguishes off (`"low"`) from on (everything else); Claude's
+`reasoning_effort` receives the level directly.
+
 ## DeepSeek + Claude subscription news council
 
 The current-news preset combines API-backed DeepSeek models with Claude Code
@@ -72,6 +92,11 @@ The roster is:
 | Senior debater | Claude Code Sonnet | `medium`, adaptive thinking |
 | Moderator | DeepSeek V4 Flash | `max` |
 | Synthesiser | Claude Code Sonnet | `medium`, adaptive thinking |
+
+The debater/moderator/synthesiser rows reflect the default `reasoning="medium"`
+— pass `reasoning="low"`/`"high"`/`"xhigh"`/`"max"` to `deepseek_claude_news_council`
+to change all four at once; the two analyst rows never change (see
+[Reasoning level](#reasoning-level)).
 
 Every participant receives the same LazyCrawler tool set backed by the same
 SQLite news database. Claude Code agents additionally have native
