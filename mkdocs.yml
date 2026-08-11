@@ -97,7 +97,6 @@ plugins:
           - safety.md
         DB registry & artifacts:
           - registry.md
-        IC Report Registry:
 
 markdown_extensions:
   - admonition
