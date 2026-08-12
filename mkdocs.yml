@@ -97,8 +97,6 @@ plugins:
           - safety.md
         DB registry & artifacts:
           - registry.md
-        IC Report Registry:
-          - ic-reports.md
 
 markdown_extensions:
   - admonition
@@ -171,7 +169,6 @@ nav:
           - Supervisor REPL: hil/supervisor.md
   - Safety: safety.md
   - DB registry & artifacts: registry.md
-  - IC Report Registry: ic-reports.md
   - Reference: reference.md
   - Ecosystem:
       - lazybridge.com: https://lazybridge.com/

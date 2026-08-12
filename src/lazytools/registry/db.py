@@ -113,17 +113,11 @@ KNOWN_DBS: tuple[DBEntry, ...] = (
         "narrative/evidence content, kept in its own store separate from "
         "lazystats_depot's deterministic quantitative results.",
     ),
-    DBEntry(
-        "ic_reports",
-        "IC_REPORTS_DB",
-        "investmentcommittee",
-        False,
-        "Investment Committee Report Registry (lazytools.ic_reports) -- "
-        "versioned regional/quantitative/asset-class/challenge/final "
-        "reports. A separate store from the *_artifacts entries above: "
-        "those catalog files, this tracks report semantics/versions/"
-        "changes and links to the artifacts that hold the rendered output.",
-    ),
+    # ``ic_reports`` used to be declared here, pointing at code that lived in
+    # ``lazytools.ic_reports``. Both moved to the private investmentcommittee
+    # repository, which now owns the database and resolves IC_REPORTS_DB
+    # itself. A general-purpose package should not carry another project's
+    # domain model, nor declare a database it does not own.
 )
 
 _BY_NAME: dict[str, DBEntry] = {entry.name: entry for entry in KNOWN_DBS}
