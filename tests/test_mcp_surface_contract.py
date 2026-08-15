@@ -34,6 +34,8 @@ from lazytools.mcp_server.server import UNSAFE_TOOL_PATTERNS, expand_tools
 EXPECTED_PROVIDER_IDS = {
     "datahub",
     "statistical",
+    "econ_calendar",
+    "calendar_agent",
     "regimes",
     "report",
     "web",

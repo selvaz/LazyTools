@@ -21,7 +21,7 @@ substance where it is maintained.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 MACRO_CALENDAR_ANALYST_SYSTEM = """\
 You are a macro calendar analyst. You answer questions about economic releases
@@ -120,14 +120,20 @@ def macro_calendar_analyst(
         engine = LLMEngine(
             model,
             system=MACRO_CALENDAR_ANALYST_SYSTEM,
-            thinking=thinking,
+            # An effort level ('low' ... 'max') as well as a bool; the installed
+            # stub narrows it to bool, so the cast keeps mypy honest without
+            # pretending the runtime is narrower than it is.
+            thinking=cast(Any, thinking),
             max_turns=max_turns,
             max_tool_calls_per_turn=max_tool_calls_per_turn,
         )
+    # A ToolProvider, expanded by Agent at construction -- same shape as
+    # stats_agents.py, and annotated the same way for the same reason.
+    tools: list[Any] = [EconCalendarTools(db_path=db_path)]
     return Agent(
         name=name,
         engine=engine,
-        tools=[EconCalendarTools(db_path=db_path)],
+        tools=tools,
         description=(
             "Answers questions about scheduled and past economic releases from "
             "market-data-hub's calendar: which indicators are covered for a "
