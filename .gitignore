@@ -11,3 +11,13 @@ site/
 .venv/
 generated_skills/
 .pytest-tmp/
+
+# Uscite delle prove dal vivo: i grafici che i tool di regime salvano nella
+# directory di lavoro, il database che si creano, e la cartella dei report.
+# Nessun PNG e' tracciato in questo repository, quindi il pattern alla radice
+# non nasconde nulla; le immagini della documentazione stanno sotto docs/.
+/*.png
+*.db
+*.db-shm
+*.db-wal
+reports_live_test/
