@@ -79,6 +79,12 @@ packages = ["src/lazytools"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Without this, `lazytools` resolves through whatever editable install the
+# machine carries, which can be a different checkout entirely: a suite run in
+# this tree then answers for code that is not in it. Found on 15 August, when
+# tests in a worktree loaded the canonical checkout and reported failures that
+# belonged to neither tree.
+pythonpath = ["src"]
 asyncio_mode = "auto"
 
 [tool.ruff]

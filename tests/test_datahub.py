@@ -26,6 +26,8 @@ EXPECTED_NAMES = {
     "datahub_get_statement",
     "datahub_get_job_status",
     "datahub_get_ingestion_health",
+    "datahub_calendar_vocabulary",
+    "datahub_calendar_series",
 }
 
 WRITE_NAMES = {

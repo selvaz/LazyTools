@@ -238,6 +238,33 @@ class DataHubTools:
                     "Returns JSON. No arguments."
                 ),
             ),
+            Tool.wrap(
+                self._calendar_vocabulary,
+                name="datahub_calendar_vocabulary",
+                description=(
+                    "The values the economic-calendar filters actually match, with "
+                    "counts: country, area, category, data_type, criticality, tags. "
+                    "Call this BEFORE datahub_calendar_series -- the filters are a "
+                    "closed vocabulary, and a wrong spelling returns an empty list "
+                    "that looks exactly like a legitimate 'nothing matched'. "
+                    "Returns JSON. No arguments."
+                ),
+            ),
+            Tool.wrap(
+                self._calendar_series,
+                name="datahub_calendar_series",
+                description=(
+                    "What the economic calendar can answer about, along the axes a "
+                    "question is actually asked in -- no indicator_key needed. With no "
+                    "arguments it says what exists; with a window, what came out in it. "
+                    "'events' counts releases in the window, so an empty answer is "
+                    "distinguishable from an untracked one; 'with_reference_date' says "
+                    "how many carry a period, which is what a join against macro_panel "
+                    "stands on. Returns JSON. Args: day, from_day, to_day (YYYY-MM-DD), "
+                    "country (ISO3), area, category, tags (comma-separated), data_type, "
+                    "criticality -- all optional strings -- and released_only (bool)."
+                ),
+            ),
         ] + (
             [
                 Tool.wrap(
@@ -380,6 +407,19 @@ class DataHubTools:
 
     def _get_ingestion_health(self) -> str:
         return self._resolve().get_ingestion_health()
+
+    def _calendar_vocabulary(self) -> str:
+        return self._resolve().calendar_vocabulary()
+
+    def _calendar_series(self, day: str = "", from_day: str = "", to_day: str = "",
+                         country: str = "", area: str = "", category: str = "",
+                         tags: str = "", data_type: str = "", criticality: str = "",
+                         released_only: bool = False) -> str:
+        return self._resolve().calendar_series(
+            day=day, from_day=from_day, to_day=to_day, country=country, area=area,
+            category=category, tags=tags, data_type=data_type,
+            criticality=criticality, released_only=released_only,
+        )
 
     def _register_listing(self, symbol: str, exchange: str, currency: str,
                           kind: str = "EQUITY", name: str = "",
