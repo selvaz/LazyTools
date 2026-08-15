@@ -52,6 +52,11 @@ class DataHubBackend(Protocol):
     def get_statement(self, query: str, statement: str = "", periods: int = 8) -> str: ...
     def get_job_status(self, job_id: str) -> str: ...
     def get_ingestion_health(self) -> str: ...
+    def calendar_vocabulary(self) -> str: ...
+    def calendar_series(self, day: str = "", from_day: str = "", to_day: str = "",
+                        country: str = "", area: str = "", category: str = "",
+                        tags: str = "", data_type: str = "", criticality: str = "",
+                        released_only: bool = False) -> str: ...
     def register_listing(self, symbol: str, exchange: str, currency: str, kind: str = "EQUITY", name: str = "", provider: str = "yahoo", provider_symbol: str = "") -> str: ...
     def ensure_price_history(self, query: str, start: str = "", end: str = "") -> str: ...
     def ensure_financials(self, query: str) -> str: ...
@@ -162,6 +167,18 @@ class MarketDataHubBackend:
 
     def get_ingestion_health(self) -> str:
         return self._call("tool_get_ingestion_health")
+
+    def calendar_vocabulary(self) -> str:
+        return self._call("tool_calendar_vocabulary")
+
+    def calendar_series(self, day: str = "", from_day: str = "", to_day: str = "",
+                        country: str = "", area: str = "", category: str = "",
+                        tags: str = "", data_type: str = "", criticality: str = "",
+                        released_only: bool = False) -> str:
+        return self._call("tool_calendar_series", day=day, from_day=from_day,
+                          to_day=to_day, country=country, area=area,
+                          category=category, tags=tags, data_type=data_type,
+                          criticality=criticality, released_only=released_only)
 
     # Write capabilities: the hub gates every write behind allow_write; this
     # backend passes it explicitly because DataHubTools only surfaces these

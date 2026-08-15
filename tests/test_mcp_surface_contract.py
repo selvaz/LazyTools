@@ -82,6 +82,8 @@ DATAHUB_READ = {
     "datahub_get_statement",
     "datahub_get_job_status",
     "datahub_get_ingestion_health",
+    "datahub_calendar_vocabulary",
+    "datahub_calendar_series",
 }
 DATAHUB_WRITE = {
     "datahub_register_listing",

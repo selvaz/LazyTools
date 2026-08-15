@@ -356,6 +356,18 @@ class FakeDataHubBackend:
     def get_ingestion_health(self) -> str:
         return self._emit("get_ingestion_health")
 
+    def calendar_vocabulary(self) -> str:
+        return self._emit("calendar_vocabulary")
+
+    def calendar_series(self, day: str = "", from_day: str = "", to_day: str = "",
+                        country: str = "", area: str = "", category: str = "",
+                        tags: str = "", data_type: str = "", criticality: str = "",
+                        released_only: bool = False) -> str:
+        return self._emit("calendar_series", day=day, from_day=from_day,
+                          to_day=to_day, country=country, area=area,
+                          category=category, tags=tags, data_type=data_type,
+                          criticality=criticality, released_only=released_only)
+
     def register_listing(self, symbol: str, exchange: str, currency: str, kind: str = "EQUITY", name: str = "", provider: str = "yahoo", provider_symbol: str = "") -> str:
         return self._emit("register_listing", symbol=symbol, exchange=exchange,
                           currency=currency, kind=kind, name=name,
