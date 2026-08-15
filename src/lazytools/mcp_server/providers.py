@@ -76,6 +76,20 @@ def _statistical(allow_write: bool = False, *, data_source: dict[str, Any] | Non
     return StatisticalAnalysisTools(db_path=(data_source or {}).get("path"))  # no write surface
 
 
+@_register("econ_calendar")
+def _econ_calendar(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """The economic release calendar in market-data-hub (read-only).
+
+    No write surface at all, so ``allow_write`` is accepted and ignored: the
+    calendar is written by the ingestion job, and a tool that let an agent
+    edit a published figure would defeat the point of recording who published
+    it.
+    """
+    from lazytools.connectors.econ_calendar import EconCalendarTools
+
+    return EconCalendarTools(db_path=(data_source or {}).get("path"))
+
+
 @_register("regimes")
 def _regimes(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """HMM / Markov-switching regimes (needs lazystats[regimes]).
@@ -368,6 +382,34 @@ def _stats_agents(allow_write: bool = False, *, data_source: dict[str, Any] | No
             regime_allow_write=allow_write,
         ),
     ]
+
+
+@_register("calendar_agent")
+def _calendar_agent(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Expose the macro calendar specialist as an MCP tool.
+
+    Same opt-in gating as the other agent providers: this constructs a real
+    ``lazybridge.Agent`` -- LLM calls, cost, non-determinism -- so it is
+    entirely absent unless BOTH ``allow_write=True`` AND the model's API key
+    are present, never present-but-limited.
+
+    The agent itself only reads. ``allow_write`` gates it because running an
+    LLM is the side effect, not because the calendar could be changed.
+
+    Model: ``LAZYTOOLS_CALENDAR_AGENT_MODEL``, default ``deepseek-v4-flash``
+    with medium thinking (needs ``DEEPSEEK_API_KEY``).
+    """
+    if not allow_write:
+        raise RuntimeError(
+            "calendar_agent is opt-in only: pass allow_write=True (--allow-unsafe).")
+    model = os.environ.get("LAZYTOOLS_CALENDAR_AGENT_MODEL", "deepseek-v4-flash")
+    if model.startswith("deepseek") and not os.environ.get("DEEPSEEK_API_KEY"):
+        raise RuntimeError(
+            "calendar_agent needs DEEPSEEK_API_KEY for its default model; skipped.")
+
+    from lazytools.skills.calendar_agent import macro_calendar_analyst
+
+    return macro_calendar_analyst(model=model, db_path=(data_source or {}).get("path"))
 
 
 @_register("telegram")

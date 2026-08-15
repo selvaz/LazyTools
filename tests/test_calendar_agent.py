@@ -66,3 +66,28 @@ def test_a_relative_db_path_is_resolved_where_the_caller_stands(tmp_path) -> Non
     atteso = str(Path(tmp_path, "calendario.duckdb").resolve())
     # resolution happens at connect time, against the caller's directory
     assert str(Path(t._db_path).expanduser().resolve()) == atteso
+
+
+def test_registered_on_the_mcp_server() -> None:
+    """Importable from Python was only half of it: without a provider entry the
+    tools are invisible to any agent outside this process, which is most of
+    the point of putting them in LazyTools."""
+    from lazytools.mcp_server.providers import PROVIDER_FACTORIES
+
+    assert "econ_calendar" in PROVIDER_FACTORIES
+    assert "calendar_agent" in PROVIDER_FACTORIES
+
+    lette = PROVIDER_FACTORIES["econ_calendar"]()
+    assert {t.name for t in lette.as_tools()} == {
+        "calendar_vocabulary", "calendar_list_series",
+        "calendar_explain_indicator", "calendar_recent_releases",
+    }
+
+
+def test_the_agent_provider_is_opt_in() -> None:
+    """Running an LLM is the side effect that needs gating, not any risk to the
+    calendar -- which these tools cannot write to at all."""
+    from lazytools.mcp_server.providers import PROVIDER_FACTORIES
+
+    with pytest.raises(RuntimeError, match="opt-in only"):
+        PROVIDER_FACTORIES["calendar_agent"]()
