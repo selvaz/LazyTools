@@ -91,3 +91,133 @@ def test_the_agent_provider_is_opt_in() -> None:
 
     with pytest.raises(RuntimeError, match="opt-in only"):
         PROVIDER_FACTORIES["calendar_agent"]()
+
+
+# --- the translation layer, which is this class's whole job ------------------
+class _FintoCatalogo:
+    """Stands in for market_data_hub so the argument translation is testable.
+
+    The hub is git-installed with no extra and is absent from CI, so the tool
+    bodies would otherwise be exercised only by a live LLM run. What they
+    actually *do* -- turn LLM-shaped arguments into the hub's Python ones -- is
+    exactly what a fake can check, and is the reason the class re-declares
+    signatures at all.
+    """
+
+    def __init__(self) -> None:
+        self.chiamate: list[dict] = []
+        self.sql: list = []
+        self.riga: tuple | None = None
+        self.righe: list = []
+
+    def available_series(self, con, **kw):
+        self.chiamate.append(kw)
+        return [{"indicator_key": "us_cpi_yy"}]
+
+    def catalogue_vocabulary(self, con):
+        return {"category": {"Inflation": 29}}
+
+
+@pytest.fixture()
+def finto(monkeypatch):
+    """Mount a fake market_data_hub for the duration of one test."""
+    import sys
+    import types
+
+    catalogo = _FintoCatalogo()
+
+    mod_cat = types.ModuleType("market_data_hub.econ_calendar.catalog")
+    mod_cat.available_series = catalogo.available_series
+    mod_cat.catalogue_vocabulary = catalogo.catalogue_vocabulary
+
+    class _Con:
+        def __init__(self) -> None:
+            self.sql: list = []
+
+        def execute(self, q, p=None):
+            self.sql.append((q, p))
+            catalogo.sql.append((q, p))
+            return self
+
+        def fetchone(self):
+            return catalogo.riga
+
+        def fetchall(self):
+            return catalogo.righe
+
+        def close(self) -> None:
+            pass
+
+    mod_conn = types.ModuleType("market_data_hub.db.connection")
+    mod_conn.get_conn = lambda path=None, read_only=False: _Con()
+
+    for nome, mod in (
+        ("market_data_hub", types.ModuleType("market_data_hub")),
+        ("market_data_hub.db", types.ModuleType("market_data_hub.db")),
+        ("market_data_hub.db.connection", mod_conn),
+        ("market_data_hub.econ_calendar",
+         types.ModuleType("market_data_hub.econ_calendar")),
+        ("market_data_hub.econ_calendar.catalog", mod_cat),
+    ):
+        monkeypatch.setitem(sys.modules, nome, mod)
+    sys.modules["market_data_hub.db"].connection = mod_conn
+    return catalogo
+
+
+def test_empty_strings_become_absent_not_empty_filters(finto) -> None:
+    """A model omitting an argument and a model passing '' are the same thing,
+    and neither means 'match the empty string'."""
+    EconCalendarTools().calendar_list_series(country="USA")
+    kw = finto.chiamate[-1]
+    assert kw["country"] == "USA"
+    assert kw["category"] is None and kw["criticality"] is None
+    assert kw["tags"] is None
+
+
+def test_a_comma_string_becomes_a_list_of_tags(finto) -> None:
+    """The hub wants Optional[Iterable[str]]; a tool schema expresses that
+    badly, so tags cross the boundary as 'a,b'."""
+    EconCalendarTools().calendar_list_series(tags="flash_final, revision_prone")
+    assert finto.chiamate[-1]["tags"] == ["flash_final", "revision_prone"]
+
+
+def test_vocabulary_is_forwarded_unchanged(finto) -> None:
+    assert EconCalendarTools().calendar_vocabulary() == {"category": {"Inflation": 29}}
+
+
+def test_an_unknown_key_says_how_to_find_the_right_one(finto) -> None:
+    """A bare 'not found' leaves a model guessing; the error names the tool
+    that lists the keys."""
+    finto.riga = None
+    esito = EconCalendarTools().calendar_explain_indicator("us_nonexistent")
+    assert "no indicator" in esito["error"]
+    assert "calendar_list_series" in esito["error"]
+
+
+def test_explain_returns_the_catalogue_s_own_words(finto) -> None:
+    finto.riga = (
+        "in_cpi_yy", "CPI y/y", "IN", "IND", "Inflation", "hard", None,
+        "policy_input", "M", "T1", "coincident", "MoSPI",
+        "Headline consumer inflation.", "Fixed-weight basket.",
+        "The RBI's formal target since 2016.", None,
+    )
+    d = EconCalendarTools().calendar_explain_indicator("IN_CPI_YY")
+    assert d["rationale"].startswith("The RBI's formal target")
+    assert d["tags"] == "policy_input" and d["criticality"] == "T1"
+    # the key is matched case-insensitively, so a model need not know the casing
+    assert "lower(indicator_key) = lower(?)" in finto.sql[-1][0]
+
+
+def test_releases_filter_by_country_and_tier(finto) -> None:
+    finto.righe = [(
+        "us_cpi_yy", "CPI y/y", "US", "T1", "Inflation", "2026-08-12 12:30",
+        "minute", "Jul", None, "source", "3.4%", "2.7%", "3.5%", 0.7,
+        False, 2.7, 2.7, 3, True, None,
+    )]
+    r = EconCalendarTools().calendar_recent_releases(
+        "2026-08-01", to_day="2026-08-31", country="usa", criticality="T1")
+    assert r[0]["indicator_key"] == "us_cpi_yy" and r[0]["surprise"] == 0.7
+    q, p = finto.sql[-1]
+    assert p == ["2026-08-01", "2026-08-31", "usa", "T1"]
+    # the surprise is withheld in SQL where the sources disagreed, not here
+    assert "NOT e.consensus_disputed" in q
