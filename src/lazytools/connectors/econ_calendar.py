@@ -29,7 +29,31 @@ _HUB_MISSING = (
 
 
 class EconCalendarTools:
-    """A LazyBridge ``ToolProvider`` over the hub's economic calendar."""
+    """A LazyBridge ``ToolProvider`` over the hub's economic calendar.
+
+    **Why these methods restate their arguments instead of wrapping the hub's
+    functions directly.** ``RegimeTools`` is the house pattern and it hands
+    ``Tool.wrap`` the library's own bound methods, adding no signature of its
+    own; the rule that comes with it is not to write bridge classes that
+    re-declare parameter lists, because two copies of a signature drift.
+
+    Two things stop that working here, and both are about what an LLM can
+    actually call rather than about taste:
+
+    - ``available_series(con, ...)`` takes an open connection as its first
+      parameter. A model cannot supply one, and a partial that hides it loses
+      the signature the tool schema is generated from.
+    - the hub's parameters are typed for Python — ``Optional[Iterable[str]]``
+      for tags, ``None`` for absent. A tool schema expresses neither well: a
+      model omitting an optional argument and a model passing null are not
+      reliably distinguishable downstream. So tags arrive as ``"a,b"`` and
+      absence as ``""``, and this class is where that translation lives.
+
+    It is a translation layer, then, not a second API: every method forwards
+    to exactly one hub function and adds no behaviour. If the hub ever grows
+    an entry point that binds a connection and speaks in LLM-shaped types,
+    these should collapse into direct wraps and this note should go with them.
+    """
 
     _is_lazy_tool_provider = True
 
