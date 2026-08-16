@@ -8,6 +8,8 @@ is exercised by hand (see docs/code-support/codex.md).
 
 from __future__ import annotations
 
+import importlib
+
 import pytest
 
 from lazytools.connectors.code_support import (
@@ -22,12 +24,42 @@ from lazytools.connectors.code_support import (
 from lazytools.connectors.code_support._review import _confine_paths, _resolve_repo, _scope_block
 
 pytest.importorskip("lazybridge")
-# The coding engines these tools are built on are unreleased: a lazybridge
-# installed from PyPI has no ``engines.codex`` / ``engines.claude_code`` yet,
-# and the providers themselves degrade the same way — their factories raise and
-# the MCP server skips them, exactly like a missing optional extra.
-pytest.importorskip("lazybridge.engines.codex")
-pytest.importorskip("lazybridge.engines.claude_code")
+
+
+@pytest.fixture(autouse=True)
+def _coding_engines(monkeypatch):
+    """Stand in for the coding engines when the installed lazybridge lacks them.
+
+    ``engines.codex`` / ``engines.claude_code`` are unreleased, so a lazybridge
+    from PyPI does not have them and every test here would skip — leaving the
+    two modules they cover unmeasured. Nothing in this file exercises a real
+    engine anyway (the fixtures below replace them), so a stub keeps the tests
+    meaningful wherever they run. Delete once lazybridge ships the engines.
+    """
+    import sys
+    import types
+
+    def stub(name: str, **attrs):
+        try:
+            importlib.import_module(name)
+        except ImportError:
+            module = types.ModuleType(name)
+            module.__dict__.update(attrs)
+            monkeypatch.setitem(sys.modules, name, module)
+
+    class _Engine:
+        def __init__(self, **kwargs):
+            self.thread_id = kwargs.get("thread_id")
+            self.session_id = kwargs.get("session_id")
+
+    class _Config:
+        @classmethod
+        def reviewer(cls):
+            return cls()
+
+    stub("lazybridge.engines.codex", CodexEngine=_Engine, codex_executable=lambda: "codex")
+    stub("lazybridge.engines.claude_code", ClaudeCodeEngine=_Engine)
+    stub("lazybridge.engines.coding", CodingAgentConfig=_Config)
 
 
 @pytest.fixture(autouse=True)
