@@ -20,6 +20,7 @@ declarative and import-light.
 
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Callable
 from typing import Any
@@ -410,6 +411,124 @@ def _calendar_agent(allow_write: bool = False, *, data_source: dict[str, Any] | 
     from lazytools.skills.calendar_agent import macro_calendar_analyst
 
     return macro_calendar_analyst(model=model, db_path=(data_source or {}).get("path"))
+
+
+@_register("code_review")
+def _code_review(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Codex-backed reviewer + design partner (``codex_code_review``, ``codex_ask``).
+
+    A ``lazybridge.Agent`` whose engine is ``CodexEngine`` (JSON-RPC to the
+    locally authenticated ``codex app-server`` — no API key, the CLI's own
+    login), pinned to a reviewer system prompt. Same opt-in gating and
+    rationale as ``optimizer_agent``/``report_agent``/``stats_agents``: calling
+    it runs a real model loop (cost, latency, non-determinism), so it is
+    entirely absent unless ``allow_write=True`` (``--allow-unsafe``). It is
+    also skipped when the ``codex`` CLI can't be located, the same way a
+    provider whose optional extra is missing is skipped.
+
+    Despite the ``allow_write`` gate the reviewer itself **cannot write**: the
+    engine keeps ``CodexPolicy``'s ``sandbox="read-only"`` /
+    ``approval_policy="never"`` defaults. The gate is there because running an
+    LLM is the side effect, exactly as for ``calendar_agent``.
+
+    Configuration:
+
+    * ``code_root`` in ``--config`` (else ``LAZYTOOLS_CODE_ROOT``, else the
+      server process' cwd) — the directory every call's ``repo_path`` is
+      confined to;
+    * ``LAZYTOOLS_CODE_REVIEW_MODEL`` / ``LAZYTOOLS_CODE_REVIEW_EFFORT`` —
+      left unset, the local Codex config (``~/.codex/config.toml``) decides;
+    * ``LAZYTOOLS_CODE_REVIEW_TIMEOUT`` — seconds per review (default:
+      ``DEFAULT_REVIEW_TIMEOUT``, 900).
+      A host-side MCP tool timeout shorter than this cancels the call first.
+    """
+    if not allow_write:
+        raise RuntimeError("code_review is opt-in only: pass allow_write=True (--allow-unsafe).")
+
+    from lazytools.connectors.code_support import (
+        DEFAULT_REVIEW_TIMEOUT,
+        codex_consultant,
+        codex_native_reviewer,
+        codex_reviewer,
+    )
+
+    raw_timeout = os.environ.get("LAZYTOOLS_CODE_REVIEW_TIMEOUT")
+    try:
+        timeout = float(raw_timeout) if raw_timeout else DEFAULT_REVIEW_TIMEOUT
+    except ValueError as exc:
+        raise RuntimeError(f"LAZYTOOLS_CODE_REVIEW_TIMEOUT is not a number: {raw_timeout!r}") from exc
+    # Reject here, at construction, rather than let it through: a negative
+    # value would build a provider whose every call dies inside CodexEngine,
+    # and `inf` would quietly remove the deadline this setting advertises.
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise RuntimeError(f"LAZYTOOLS_CODE_REVIEW_TIMEOUT must be a positive finite number: {raw_timeout!r}")
+
+    settings: dict[str, Any] = {
+        "root": (data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
+        "model": os.environ.get("LAZYTOOLS_CODE_REVIEW_MODEL") or None,
+        "effort": os.environ.get("LAZYTOOLS_CODE_REVIEW_EFFORT") or None,
+        "timeout": timeout,
+    }
+    # Two tools, one engine: `codex_code_review` finds defects in code you
+    # point it at, `codex_ask` answers a design question about it. Splitting
+    # them is not cosmetic — the reviewer's instructions turn every question
+    # into a findings list, which is the wrong shape for "should I do X".
+    return [
+        codex_reviewer(**settings),
+        codex_consultant(**settings),
+        codex_native_reviewer(**settings),
+    ]
+
+
+@_register("claude_review")
+def _claude_review(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Claude Code as reviewer + design partner (``claude_code_review``, ``claude_ask``).
+
+    The twin of ``code_review``, on the other model family, with the same
+    arguments and the same durable-handle protocol — so one diff can be given
+    to both and the answers compared. Registered separately rather than merged
+    into that provider so a missing ``codex`` CLI cannot take these down with
+    it (a factory that raises loses everything it would have returned).
+
+    Same opt-in gating: absent unless ``allow_write=True`` (``--allow-unsafe``),
+    because each call runs a real model loop. Read-only regardless — the engine
+    grants ``Read``/``Glob``/``Grep`` scoped to the reviewed repository and no
+    shell, with ``git_diff``/``git_status`` supplied as ordinary tools.
+
+    Configuration: ``code_root`` / ``LAZYTOOLS_CODE_ROOT`` (the confinement
+    root, shared with ``code_review``), ``LAZYTOOLS_CLAUDE_REVIEW_MODEL``
+    (default ``sonnet``), ``LAZYTOOLS_CLAUDE_REVIEW_THINKING``, and
+    ``LAZYTOOLS_CODE_REVIEW_TIMEOUT`` (shared, seconds per call).
+    """
+    if not allow_write:
+        raise RuntimeError("claude_review is opt-in only: pass allow_write=True (--allow-unsafe).")
+
+    import shutil
+
+    from lazytools.connectors.code_support import (
+        DEFAULT_REVIEW_TIMEOUT,
+        claude_consultant,
+        claude_reviewer,
+    )
+
+    if not shutil.which("claude"):
+        raise RuntimeError("claude CLI not found on PATH; claude_review skipped.")
+
+    raw_timeout = os.environ.get("LAZYTOOLS_CODE_REVIEW_TIMEOUT")
+    try:
+        timeout = float(raw_timeout) if raw_timeout else DEFAULT_REVIEW_TIMEOUT
+    except ValueError as exc:
+        raise RuntimeError(f"LAZYTOOLS_CODE_REVIEW_TIMEOUT is not a number: {raw_timeout!r}") from exc
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise RuntimeError(f"LAZYTOOLS_CODE_REVIEW_TIMEOUT must be a positive finite number: {raw_timeout!r}")
+
+    settings: dict[str, Any] = {
+        "root": (data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
+        "model": os.environ.get("LAZYTOOLS_CLAUDE_REVIEW_MODEL") or "sonnet",
+        "thinking": os.environ.get("LAZYTOOLS_CLAUDE_REVIEW_THINKING") or None,
+        "timeout": timeout,
+    }
+    return [claude_reviewer(**settings), claude_consultant(**settings)]
 
 
 @_register("telegram")

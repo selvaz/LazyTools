@@ -9,6 +9,64 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `lazytools.connectors.code_support.codex_reviewer` and the MCP provider
+  `code_review`: Codex as the **engine of a LazyBridge agent**
+  (`lazybridge.engines.codex.CodexEngine` over `codex app-server`, reusing the
+  CLI's own login — no API key), pinned to a reviewer system prompt and served
+  as a single `codex_code_review(task, repo_path, diff_ref, paths)` tool. An
+  MCP host can now hand a code review of a local repository to Codex, which
+  reads the files and runs `git` itself. Read-only by construction
+  (`CodexPolicy`'s `sandbox="read-only"` / `approval_policy="never"`, so it
+  reports but never patches and no approval prompt can block the
+  non-interactive transport) and confined: `repo_path` must resolve inside
+  `code_root` / `LAZYTOOLS_CODE_ROOT` (default: the server's cwd). Opt-in like
+  the other agent providers (`--allow-unsafe`) because each call spends a real
+  model turn, and skipped entirely when the `codex` CLI can't be located.
+  Model / effort / per-review timeout via `LAZYTOOLS_CODE_REVIEW_MODEL`,
+  `LAZYTOOLS_CODE_REVIEW_EFFORT`, `LAZYTOOLS_CODE_REVIEW_TIMEOUT` (900 s).
+  See `docs/code-support/codex.md` and `docs/mcp-server.md`.
+  Every entry of `paths` is confined to `repo_path` too — read-only stops
+  writes, not reads elsewhere on the host — and the reviewer prompt forbids
+  reading outside the working directory (an instruction, not a sandbox: the
+  free-text `task` cannot be checked structurally).
+- Both tools run on a **durable Codex thread** and report `thread_id=<repo>#<id>`
+  in their reply header; passing it back continues that conversation instead of
+  starting cold, so a follow-up does not re-read the repository (measured live:
+  141 s for the review, 10.6 s for the follow-up on its thread). Requires
+  LazyBridge's `CodexEngine(persist_thread=...)`. The handle names its
+  repository and is refused against a different one — path confinement says
+  nothing about a thread, so a mis-pasted id would otherwise splice another
+  repository's transcript into the answer.
+- **The same surface on Claude Code**: `claude_reviewer` / `claude_consultant`
+  (`lazytools.connectors.code_support`) and the MCP provider `claude_review`,
+  serving `claude_code_review` and `claude_ask` — identical arguments and the
+  identical durable-handle protocol (`session_id=<repo>#<id>`) as their Codex
+  twins, on `ClaudeCodeEngine`, so one diff can be given to both and the
+  answers compared. Verified live: a session resumed from a *different process*
+  still knew what it had read (21 s first call, 9 s follow-up). Two differences
+  are forced by the runtime — the engine grants `Read`/`Glob`/`Grep` and **no
+  shell**, so read-only `git_diff`/`git_status` are supplied as ordinary tools;
+  and the Agent SDK has no `review/start`, so there is no counterpart to
+  `codex_review_changes`. Registered as its own provider so a missing CLI on
+  one side cannot take the other's tools down.
+- `lazytools.connectors.code_support.codex_native_reviewer` — the third tool,
+  `codex_review_changes(repo_path, scope, ref)`: Codex' **own** review harness
+  through the App Server's `review/start`, with a typed target
+  (`uncommitted` / `branch` + ref / `commit` + ref) instead of a prompt. No
+  instructions are sent — the target is the instruction — so it cannot be
+  steered; that is the trade for its findings being Codex' own, severity-tagged
+  with file:line. Verified against codex-cli 0.148.0 on a repo with a planted
+  defect: all three targets find and rank it. Runs inline on a durable thread,
+  so the `thread_id` it returns can be handed to `codex_ask` to interrogate the
+  findings without re-running the review. Detached delivery is deliberately not
+  wired: it completes on a different thread and raises an approval request the
+  parent never sees.
+- `lazytools.connectors.code_support.codex_consultant` — the second tool,
+  `codex_ask(question, repo_path, thread_id)`: same engine and confinement,
+  but instructed as a design partner rather than a reviewer (separate verified
+  from inferred; "I don't know, here is the experiment" beats a guess). The
+  reviewer prompt answers a design question with a findings list, which is why
+  this is a separate surface rather than a phrasing convention.
 - `lazytools.skills.council`: `WizengAImot`, a spontaneous multi-agent
   council built on LazyBridge `AgentPool`. Members research and open in
   parallel, then debate freely — routing to whoever should speak next,

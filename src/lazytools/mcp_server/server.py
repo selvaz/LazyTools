@@ -81,6 +81,14 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "tree_backtest",
     "_create_draft",
     "-specialist",
+    # Not writers (both coding runtimes are configured read-only), but each
+    # call spends a real model turn — same reason "-specialist" is here: an
+    # LLM-driven tool has no place on the default, deterministic surface.
+    # Covers codex_code_review / codex_ask / codex_review_changes and the
+    # Claude Code twins.
+    "codex_",
+    "claude_code_review",
+    "claude_ask",
 )
 
 
