@@ -22,6 +22,12 @@ from lazytools.connectors.code_support import (
 from lazytools.connectors.code_support._review import _confine_paths, _resolve_repo, _scope_block
 
 pytest.importorskip("lazybridge")
+# The coding engines these tools are built on are unreleased: a lazybridge
+# installed from PyPI has no ``engines.codex`` / ``engines.claude_code`` yet,
+# and the providers themselves degrade the same way — their factories raise and
+# the MCP server skips them, exactly like a missing optional extra.
+pytest.importorskip("lazybridge.engines.codex")
+pytest.importorskip("lazybridge.engines.claude_code")
 
 
 @pytest.fixture(autouse=True)
@@ -614,5 +620,5 @@ class TestHandleHygiene:
         (tmp_path / "repo").mkdir()
         tool = codex_reviewer(root=str(tmp_path))
 
-        with pytest.raises(ValueError, match="malformed|belongs to"):
+        with pytest.raises(ValueError, match=r"malformed|belongs to"):
             await tool.run(task="x", repo_path="repo", thread_id=bad)
