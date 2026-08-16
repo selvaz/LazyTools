@@ -12,6 +12,13 @@ Two agents, each with two modes:
   (MCP-server mode).
 * **Codex** — :func:`codex` (CLI mode) and :func:`codex_mcp` (MCP-server mode).
 
+Plus :func:`codex_reviewer` — Codex as the *engine* of a LazyBridge agent
+(``CodexEngine`` over ``codex app-server``) pinned to a reviewer prompt and
+exposed as a single ``codex_code_review(task, repo_path, ...)`` tool. This is
+the shape the LazyTools MCP server mounts (provider id ``code_review``) so an
+MCP host can hand a review to Codex; unlike the two functions above it takes a
+repository path per call, since a review has to happen somewhere.
+
 Plus :func:`build_cli_collaboration`, which makes the two collaborate
 (Claude Code analyses → Codex critiques → synthesizer plans → executor
 implements) as a single Agent tool.
@@ -51,8 +58,22 @@ from __future__ import annotations
 import shutil
 
 from lazytools.connectors.code_support._claude_code import claude_code, claude_code_mcp
+from lazytools.connectors.code_support._claude_review import (
+    CLAUDE_CONSULTANT_SYSTEM,
+    CLAUDE_REVIEWER_SYSTEM,
+    claude_consultant,
+    claude_reviewer,
+)
 from lazytools.connectors.code_support._codex import codex, codex_mcp
 from lazytools.connectors.code_support._collaboration import build_cli_collaboration
+from lazytools.connectors.code_support._review import (
+    CODE_CONSULTANT_SYSTEM,
+    CODE_REVIEWER_SYSTEM,
+    DEFAULT_REVIEW_TIMEOUT,
+    codex_consultant,
+    codex_native_reviewer,
+    codex_reviewer,
+)
 from lazytools.connectors.code_support._writer import CodeWriteBlocked, CodeWriteTools
 
 
@@ -69,12 +90,22 @@ def check_clis_available() -> dict[str, bool]:
 
 
 __all__ = [
+    "CLAUDE_CONSULTANT_SYSTEM",
+    "CLAUDE_REVIEWER_SYSTEM",
+    "CODE_CONSULTANT_SYSTEM",
+    "CODE_REVIEWER_SYSTEM",
+    "DEFAULT_REVIEW_TIMEOUT",
     "CodeWriteBlocked",
     "CodeWriteTools",
     "claude_code",
     "claude_code_mcp",
+    "claude_consultant",
+    "claude_reviewer",
     "codex",
+    "codex_consultant",
     "codex_mcp",
+    "codex_native_reviewer",
+    "codex_reviewer",
     "build_cli_collaboration",
     "check_clis_available",
 ]

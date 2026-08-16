@@ -99,7 +99,10 @@ def main(argv: list[str] | None = None) -> None:
             "plots, on-demand hub charts, or local files), web search/crawl, and guarded "
             "messaging (telegram_*/gmail_*/outlook_* when configured). Read-only unless "
             "started with --allow-unsafe. Messaging/email connectors light up only when their "
-            "credentials/opt-in env vars are set; sends are allow-listed."
+            "credentials/opt-in env vars are set; sends are allow-listed. With --allow-unsafe "
+            "and a local Codex login, codex_code_review(task, repo_path, diff_ref, paths) "
+            "delegates a read-only code review of a local repository to Codex (minutes, one "
+            "model turn per call)."
         ),
     )
     asyncio.run(serve_stdio(server))

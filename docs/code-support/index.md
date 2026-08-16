@@ -8,7 +8,7 @@ collaboration pipeline that combines them.
 | Agent | CLI mode | MCP mode | Guide |
 |---|---|---|---|
 | **Claude Code** | `claude_code` | `claude_code_mcp` | [Claude Code](claude-code.md) |
-| **Codex** | `codex` | `codex_mcp` | [Codex](codex.md) |
+| **Codex** | `codex` | `codex_mcp` | [Codex](codex.md) (+ `codex_reviewer`, review mode) |
 | **Collaboration** | — | — | [Collaboration](collaboration.md) (`build_cli_collaboration`) |
 
 !!! info "Status & install"
