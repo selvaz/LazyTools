@@ -45,6 +45,7 @@ def _coding_engines(monkeypatch):
         except ImportError:
             module = types.ModuleType(name)
             module.__dict__.update(attrs)
+            module.__lazytools_stub__ = True  # ...so a test needing the real thing can skip
             monkeypatch.setitem(sys.modules, name, module)
 
     class _Engine:
@@ -209,6 +210,11 @@ class TestCodexReviewer:
             codex_reviewer(root=str(tmp_path), timeout=timeout)
 
     def test_missing_codex_cli_raises(self, tmp_path, monkeypatch):
+        # Exercises the real resolver, so it cannot run against the stub.
+        import lazybridge.engines.codex as codex_mod
+
+        if getattr(codex_mod, "__lazytools_stub__", False):
+            pytest.skip("needs the real lazybridge.engines.codex resolver")
         # No CODEX_BIN, nothing on PATH, no desktop install directory.
         monkeypatch.delenv("CODEX_BIN", raising=False)
         monkeypatch.setattr("shutil.which", lambda _name: None)
@@ -626,6 +632,9 @@ class TestClaudeReviewProvider:
         from lazytools.mcp_server.providers import default_providers
         from lazytools.mcp_server.server import expand_tools
 
+        # The provider skips itself without the CLI (asserted separately); this
+        # test is about the surface it serves when the CLI is there.
+        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/claude")
         monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(tmp_path))
         providers = default_providers(["claude_review"], allow_write=True)
 
