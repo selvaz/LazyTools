@@ -345,6 +345,7 @@ async def _turn(
     effort: str | None,
     timeout: float,
     review_target: dict[str, Any] | None = None,
+    tools: list[Any] | None = None,
 ) -> str:
     """Run one Codex turn on a durable thread and render it for an MCP caller.
 
@@ -369,7 +370,7 @@ async def _turn(
         persist_thread=True,
         review_target=review_target,
     )
-    env: Any = await Agent(engine, name=agent_name).run(prompt)
+    env: Any = await Agent(engine, name=agent_name, tools=tools or []).run(prompt)
     handle = _encode_handle(cwd, base, engine.thread_id or resumed or "")
     if not env.ok:
         message = env.error.message if env.error else "unknown error"
@@ -387,6 +388,7 @@ def codex_consultant(
     timeout: float = DEFAULT_REVIEW_TIMEOUT,
     name: str = "codex_ask",
     system: str = CODE_CONSULTANT_SYSTEM,
+    tools: list[Any] | None = None,
 ) -> Tool:
     """Build the ``codex_ask`` tool: Codex as a design partner, not a reviewer.
 
@@ -400,6 +402,13 @@ def codex_consultant(
 
     It exists because the reviewer prompt is the wrong instrument for a design
     conversation: asked a question, it answers with a findings list.
+
+    ``model``/``effort`` here are the *defaults*; each ``codex_ask`` call may
+    override them, because a consultation is exactly the place where "same
+    question, stronger model" is a legitimate move. ``tools`` are extra
+    LazyBridge tools handed to the agent as Codex dynamic tools (e.g. the
+    LazyCrawler web tools) — a consultant may need to read the world, where a
+    reviewer only needs to read the repository.
     """
     from lazybridge import Tool
     from lazybridge.engines.codex import codex_executable
@@ -409,18 +418,24 @@ def codex_consultant(
     codex_executable()
 
     base = Path(root or os.environ.get("LAZYTOOLS_CODE_ROOT") or Path.cwd()).expanduser().resolve()
+    default_model, default_effort = model, effort
+    extra_tools = list(tools or [])
 
     async def codex_ask(
         question: str,
         repo_path: str | None = None,
         thread_id: str | None = None,
+        model: str | None = None,
+        effort: str | None = None,
     ) -> str:
         """Ask Codex a technical question about a local repository.
 
         A second opinion from a different model that reads the code itself:
         design trade-offs, "is this protocol/API able to do X", "what would
-        break if I changed Y". Read-only — it answers, it never edits. Slow
-        (tens of seconds to several minutes) and it costs a Codex turn.
+        break if I changed Y". Read-only on the repository — it answers, it
+        never edits — but it can also search and read the web when its tools
+        include them. Slow (tens of seconds to several minutes) and it costs a
+        Codex turn.
 
         It has none of your conversation context, so state the question
         self-containedly: what you are building, what you already know, and
@@ -437,6 +452,10 @@ def codex_consultant(
             thread_id: Continue an earlier conversation, from the `thread_id=`
                 in its reply. A thread belongs to the repository it was opened
                 on — don't reuse one against a different repo.
+            model: Codex model override for this call (e.g. "gpt-5.6-sol").
+                Defaults to the server's configured model.
+            effort: Reasoning effort override for this call ("low", "medium",
+                "high", "xhigh"). Defaults to the server's configured effort.
         """
         cwd = _resolve_repo(repo_path, base)
         return await _turn(
@@ -447,9 +466,10 @@ def codex_consultant(
             system=system,
             agent_name="codex-design-partner",
             thread_id=thread_id,
-            model=model,
-            effort=effort,
+            model=model or default_model,
+            effort=effort or default_effort,
             timeout=timeout,
+            tools=extra_tools,
         )
 
     return Tool(codex_ask, name=name)

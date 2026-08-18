@@ -392,8 +392,34 @@ class TestCodexConsultant:
         tool = codex_consultant(root=str(tmp_path))
         assert tool.name == "codex_ask"
         params = tool.definition().parameters
-        assert set(params["properties"]) == {"question", "repo_path", "thread_id"}
+        assert set(params["properties"]) == {"question", "repo_path", "thread_id", "model", "effort"}
         assert params["required"] == ["question"]
+
+    @pytest.mark.asyncio
+    async def test_per_call_model_and_effort_override_the_defaults(self, tmp_path, faked):
+        tool = codex_consultant(root=str(tmp_path), model="gpt-base", effort="low")
+
+        await tool.run(question="?")
+        assert _FakeEngine.last_kwargs["model"] == "gpt-base"
+        assert _FakeEngine.last_kwargs["reasoning_effort"] == "low"
+
+        await tool.run(question="?", model="gpt-big", effort="high")
+        assert _FakeEngine.last_kwargs["model"] == "gpt-big"
+        assert _FakeEngine.last_kwargs["reasoning_effort"] == "high"
+
+    @pytest.mark.asyncio
+    async def test_extra_tools_reach_the_agent(self, tmp_path, faked):
+        # A consultant may need to read the world — the reviewer never gets
+        # these, so the factory takes them explicitly.
+        def probe() -> str:
+            """Sentinel tool."""
+            return "probed"
+
+        tool = codex_consultant(root=str(tmp_path), tools=[probe])
+
+        await tool.run(question="?")
+
+        assert _FakeAgent.last_tools == [probe]
 
     def test_it_does_not_use_the_reviewer_instructions(self, tmp_path):
         # The reviewer prompt turns every question into a findings list, which
@@ -570,7 +596,13 @@ class TestClaudeTools:
             "session_id",
         }
         assert ask.name == "claude_ask"
-        assert set(ask.definition().parameters["properties"]) == {"question", "repo_path", "session_id"}
+        assert set(ask.definition().parameters["properties"]) == {
+            "question",
+            "repo_path",
+            "session_id",
+            "model",
+            "thinking",
+        }
 
     @pytest.mark.parametrize("timeout", [0, -1.0, float("inf"), float("nan")])
     def test_rejects_a_non_positive_or_infinite_timeout(self, timeout, tmp_path):
@@ -619,6 +651,41 @@ class TestClaudeTools:
         await tool.run(question="?", repo_path="repo-a", session_id="repo-a#sess-1")
 
         assert _FakeClaudeEngine.last_kwargs["session_id"] == "sess-1"
+
+    @pytest.mark.asyncio
+    async def test_the_consultant_gets_the_web_where_the_reviewer_does_not(self, tmp_path, faked_claude):
+        ask = claude_consultant(root=str(tmp_path))
+        await ask.run(question="?")
+        assert _FakeClaudeEngine.last_kwargs["web"] is True
+
+        review = claude_reviewer(root=str(tmp_path))
+        await review.run(task="look")
+        assert _FakeClaudeEngine.last_kwargs["web"] is False
+
+    @pytest.mark.asyncio
+    async def test_per_call_model_and_thinking_override_the_defaults(self, tmp_path, faked_claude):
+        tool = claude_consultant(root=str(tmp_path), model="sonnet", thinking="disabled")
+
+        await tool.run(question="?")
+        assert _FakeClaudeEngine.last_kwargs["model"] == "sonnet"
+        assert _FakeClaudeEngine.last_kwargs["thinking"] == "disabled"
+
+        await tool.run(question="?", model="opus", thinking="adaptive")
+        assert _FakeClaudeEngine.last_kwargs["model"] == "opus"
+        assert _FakeClaudeEngine.last_kwargs["thinking"] == "adaptive"
+
+    @pytest.mark.asyncio
+    async def test_extra_tools_ride_alongside_the_git_tools(self, tmp_path, faked_claude):
+        def probe() -> str:
+            """Sentinel tool."""
+            return "probed"
+
+        tool = claude_consultant(root=str(tmp_path), tools=[probe])
+
+        await tool.run(question="?")
+
+        names = [getattr(t, "__name__", None) for t in _FakeAgent.last_tools]
+        assert names == ["git_diff", "git_status", "probe"]
 
 
 class TestClaudeReviewProvider:

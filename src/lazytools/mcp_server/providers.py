@@ -413,6 +413,30 @@ def _calendar_agent(allow_write: bool = False, *, data_source: dict[str, Any] | 
     return macro_calendar_analyst(model=model, db_path=(data_source or {}).get("path"))
 
 
+def _consultant_web_tools() -> list[Any]:
+    """The LazyCrawler tools for the two ``*_ask`` consultants, or nothing.
+
+    Built the same way the ``web`` provider builds them (same
+    ``LAZYTOOLS_WEB_MODEL`` smart-mode model, same news-db resolution) so a
+    consultant that searches the web hits the same cache the ``web_search`` /
+    ``web_crawl`` MCP tools populate. Missing ``lazycrawler`` degrades to an
+    empty list rather than taking the consultant down with it: web access is
+    an enhancement to a consultation, not a precondition for one.
+    """
+    try:
+        from lazycrawler import CrawlerDB, CrawlerTools, DBConfig, LLMConfig
+        from lazycrawler.config import resolve_news_db_path
+
+        from lazytools.connectors.web import WebTools
+    except ImportError:
+        return []
+
+    model = os.environ.get("LAZYTOOLS_WEB_MODEL", "deepseek-v4-flash")
+    db_path = resolve_news_db_path()
+    db = CrawlerDB(DBConfig(db_path=db_path)) if db_path else None
+    return list(WebTools(provider=CrawlerTools(db=db, llm_cfg=LLMConfig(model=model))).as_tools())
+
+
 @_register("code_review")
 def _code_review(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Codex-backed reviewer + design partner (``codex_code_review``, ``codex_ask``).
@@ -475,7 +499,7 @@ def _code_review(allow_write: bool = False, *, data_source: dict[str, Any] | Non
     # into a findings list, which is the wrong shape for "should I do X".
     return [
         codex_reviewer(**settings),
-        codex_consultant(**settings),
+        codex_consultant(**settings, tools=_consultant_web_tools()),
         codex_native_reviewer(**settings),
     ]
 
@@ -528,7 +552,7 @@ def _claude_review(allow_write: bool = False, *, data_source: dict[str, Any] | N
         "thinking": os.environ.get("LAZYTOOLS_CLAUDE_REVIEW_THINKING") or None,
         "timeout": timeout,
     }
-    return [claude_reviewer(**settings), claude_consultant(**settings)]
+    return [claude_reviewer(**settings), claude_consultant(**settings, tools=_consultant_web_tools())]
 
 
 @_register("telegram")
