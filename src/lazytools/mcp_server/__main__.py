@@ -22,7 +22,7 @@ import os
 
 from lazytools import __version__
 from lazytools.mcp_server.providers import PROVIDER_FACTORIES, default_providers
-from lazytools.mcp_server.server import build_server, serve_stdio
+from lazytools.mcp_server.server import build_server, serve_http, serve_stdio
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -47,6 +47,31 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--log-level",
         default=os.environ.get("LAZYTOOLS_MCP_LOG_LEVEL", "INFO"),
         help="Logging level for stderr diagnostics (default: INFO).",
+    )
+    parser.add_argument(
+        "--http",
+        action="store_true",
+        help="Serve over Streamable HTTP instead of stdio. The practical difference is "
+        "whose process it is: a stdio server is spawned by the client, so its tool list "
+        "is fixed for that client's lifetime and picking up a changed tool means "
+        "restarting the editor. Over HTTP the process is its own, and a client that "
+        "reconnects re-reads the tool list -- so a tool change costs a restart of this "
+        "server rather than of the editor. Configure it in .mcp.json with "
+        '{\"type\": \"http\", \"url\": \"http://127.0.0.1:8787/mcp\"} (a url without a '
+        "type is read as a stdio entry and skipped).",
+    )
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("LAZYTOOLS_MCP_HOST", "127.0.0.1"),
+        help="Interface to bind with --http (default: 127.0.0.1). Loopback by default "
+        "deliberately: these tools read, and with --allow-unsafe write, local production "
+        "databases.",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("LAZYTOOLS_MCP_PORT", "8787")),
+        help="Port to bind with --http (default: 8787).",
     )
     parser.add_argument(
         "--config",
@@ -105,7 +130,10 @@ def main(argv: list[str] | None = None) -> None:
             "model turn per call)."
         ),
     )
-    asyncio.run(serve_stdio(server))
+    if args.http:
+        serve_http(server, host=args.host, port=args.port)
+    else:
+        asyncio.run(serve_stdio(server))
 
 
 if __name__ == "__main__":  # pragma: no cover

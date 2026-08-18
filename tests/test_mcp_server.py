@@ -214,3 +214,56 @@ def test_default_providers_readonly_omits_writers():
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+# --------------------------------------------------------------------------- #
+# Streamable HTTP transport
+#
+# Why this transport exists alongside stdio: a stdio server belongs to the
+# client that spawned it, so its tool list is fixed for that client's
+# lifetime, and Claude Code does not restart a stdio server that exits
+# ("stdio servers are local processes and are not reconnected
+# automatically"). Over HTTP the process is its own and a reconnecting client
+# re-reads the tool list, so picking up a changed tool costs a restart of the
+# server rather than of the editor.
+# --------------------------------------------------------------------------- #
+def test_http_app_mounts_the_server_without_binding_a_port():
+    """`http_app` returns the ASGI app rather than running it, so the wiring
+    is testable without a live port -- and so a caller can mount it inside a
+    larger app."""
+    from lazytools.connectors.datahub import DataHubTools
+    from lazytools.mcp_server.server import http_app
+    from lazytools.testing import FakeDataHubBackend
+
+    server = build_server([DataHubTools(backend=FakeDataHubBackend())], name="lazytools-test")
+    app = http_app(server, path="/mcp")
+
+    mounted = [r for r in app.routes if getattr(r, "path", None) == "/mcp"]
+    assert mounted, f"no route mounted at /mcp; got {[getattr(r, 'path', r) for r in app.routes]}"
+
+
+def test_http_app_path_is_configurable():
+    from lazytools.connectors.datahub import DataHubTools
+    from lazytools.mcp_server.server import http_app
+    from lazytools.testing import FakeDataHubBackend
+
+    server = build_server([DataHubTools(backend=FakeDataHubBackend())], name="lazytools-test")
+    app = http_app(server, path="/tools")
+    assert any(getattr(r, "path", None) == "/tools" for r in app.routes)
+
+
+def test_cli_accepts_http_flags_without_starting_a_server():
+    """--http/--host/--port parse, and default to loopback: these tools read
+    and (with --allow-unsafe) write local production databases, so a default
+    reachable from the network would be the wrong one."""
+    from lazytools.mcp_server.__main__ import _parse_args
+
+    args = _parse_args(["--http"])
+    assert args.http is True
+    assert args.host == "127.0.0.1"
+    assert args.port == 8787
+
+    args = _parse_args(["--http", "--host", "0.0.0.0", "--port", "9999"])
+    assert (args.host, args.port) == ("0.0.0.0", 9999)
+
+    assert _parse_args([]).http is False

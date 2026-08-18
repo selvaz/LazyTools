@@ -281,3 +281,62 @@ async def serve_stdio(server: Server) -> None:
     init_options = server.create_initialization_options()
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, init_options)
+
+
+def http_app(server: Server, *, path: str = "/mcp", json_response: bool = False):
+    """A Starlette app serving ``server`` over MCP's Streamable HTTP transport.
+
+    Why this exists alongside ``serve_stdio``: a stdio server's lifetime is
+    the client's. The host spawns it, so the tool list is fixed at spawn and
+    picking up a changed tool means restarting the *client*. Worse, a stdio
+    server that exits is not restarted -- Claude Code reconnects HTTP and SSE
+    servers automatically (five attempts, exponential backoff from one
+    second) but states plainly that "stdio servers are local processes and
+    are not reconnected automatically".
+
+    Over HTTP the process is independent of the client, and a reconnect
+    performs a fresh ``initialize`` + ``tools/list``. So a tool change is
+    picked up by restarting this process -- seconds -- rather than the
+    editor, and no in-process module reloading is involved, which is the part
+    that would have been fragile: re-importing a package to pick up new tool
+    definitions leaves stale references behind, while a new process cannot.
+
+    Returned rather than run, so a caller can mount it, wrap it, or test it
+    without a live port.
+    """
+    import contextlib
+
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+    from starlette.applications import Starlette
+    from starlette.routing import Mount
+
+    manager = StreamableHTTPSessionManager(app=server, json_response=json_response)
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_app):
+        # The manager's own task group. It is single-use by contract -- the
+        # instance cannot be reused once this exits -- which is another
+        # reason a code change restarts the process rather than rebuilding
+        # the server in place.
+        async with manager.run():
+            yield
+
+    return Starlette(routes=[Mount(path, app=manager.handle_request)], lifespan=lifespan)
+
+
+def serve_http(server: Server, *, host: str = "127.0.0.1", port: int = 8787,
+               path: str = "/mcp", json_response: bool = False) -> None:
+    """Serve ``server`` over Streamable HTTP until interrupted.
+
+    Binds to loopback by default: these tools read (and with
+    ``--allow-unsafe`` write) local production databases, so the default must
+    not be reachable from the network.
+    """
+    import uvicorn
+
+    uvicorn.run(
+        http_app(server, path=path, json_response=json_response),
+        host=host,
+        port=port,
+        log_level="info",
+    )
