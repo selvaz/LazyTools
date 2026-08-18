@@ -169,7 +169,16 @@ async def _claude_turn(
         stream_idle_timeout=max(timeout * 2 / 3, 30.0),
         session_id=resumed,
         persist_session=True,
-        config=CodingAgentConfig.reviewer(),
+        # The default profile, NOT ``CodingAgentConfig.reviewer()``: the
+        # reviewer profile sets ``preapprove_application_tools=False``, and
+        # with no approval gate configured the SDK's ``can_use_tool`` then
+        # fail-closes EVERY application tool — including the read-only
+        # ``git_diff``/``git_status`` and the LazyTools toolset these agents
+        # are explicitly handed. The tools passed here are the granted
+        # surface; pre-approving exactly them is the intent. Confinement does
+        # not depend on the profile: ``file_roots`` is enforced by a
+        # ``PreToolUse`` hook regardless, and the engine still has no shell.
+        config=CodingAgentConfig(),
     )
     agent = Agent(
         engine,

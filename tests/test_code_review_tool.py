@@ -687,6 +687,55 @@ class TestClaudeTools:
         names = [getattr(t, "__name__", None) for t in _FakeAgent.last_tools]
         assert names == ["git_diff", "git_status", "probe"]
 
+    @pytest.mark.asyncio
+    async def test_handed_tools_are_preapproved(self, tmp_path, faked_claude):
+        # The reviewer() profile sets preapprove_application_tools=False and,
+        # with no approval gate, the SDK fail-closes EVERY application tool —
+        # git_diff/git_status and the LazyTools toolset included. The tools we
+        # hand ARE the granted surface, so the engines must run the default
+        # (pre-approving) profile.
+        import lazybridge.engines.coding as coding
+
+        if getattr(coding, "__lazytools_stub__", False):
+            pytest.skip("needs the real CodingAgentConfig")
+
+        tool = claude_consultant(root=str(tmp_path))
+        await tool.run(question="?")
+        config = _FakeClaudeEngine.last_kwargs["config"]
+        assert config.claude.preapprove_application_tools is True
+
+        review = claude_reviewer(root=str(tmp_path))
+        await review.run(task="look")
+        config = _FakeClaudeEngine.last_kwargs["config"]
+        assert config.claude.preapprove_application_tools is True
+
+
+class TestConsultantToolset:
+    """The read-only LazyTools surface handed to both ``*_ask`` consultants."""
+
+    def test_excludes_recursion_and_side_effects(self):
+        from lazytools.mcp_server.providers import _CONSULTANT_PROVIDER_IDS, _consultant_toolset
+
+        # The id list is the contract: never the code_review providers
+        # themselves, never messaging, never the slow-to-import regimes.
+        assert "code_review" not in _CONSULTANT_PROVIDER_IDS
+        assert "claude_review" not in _CONSULTANT_PROVIDER_IDS
+        assert "telegram" not in _CONSULTANT_PROVIDER_IDS
+        assert "regimes" not in _CONSULTANT_PROVIDER_IDS
+
+        names = {getattr(t, "name", None) or getattr(t, "__name__", "") for t in _consultant_toolset()}
+        assert "codex_ask" not in names
+        assert "claude_ask" not in names
+        assert not any(str(n).startswith("telegram_") for n in names)
+
+    def test_serves_the_compute_surface_when_extras_are_present(self):
+        pytest.importorskip("lazyportfolio")
+        from lazytools.mcp_server.providers import _consultant_toolset
+
+        names = {getattr(t, "name", None) or getattr(t, "__name__", "") for t in _consultant_toolset()}
+        assert "portfolio_optimizer_run" in names
+        assert "portfolio_tree_estimate" in names
+
 
 class TestClaudeReviewProvider:
     def test_opt_in_only(self):

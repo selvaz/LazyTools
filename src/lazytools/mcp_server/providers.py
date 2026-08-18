@@ -413,28 +413,51 @@ def _calendar_agent(allow_write: bool = False, *, data_source: dict[str, Any] | 
     return macro_calendar_analyst(model=model, db_path=(data_source or {}).get("path"))
 
 
-def _consultant_web_tools() -> list[Any]:
-    """The LazyCrawler tools for the two ``*_ask`` consultants, or nothing.
+#: Provider ids whose tools the two ``*_ask`` consultants receive as their
+#: own toolset — the read-only compute/discovery surface of this server.
+#: Deliberately excluded: ``regimes`` (its import alone costs ~8 s at server
+#: start, and the consultants are built at startup), the agent providers and
+#: messaging/report (each call is a side effect), and the two code_review
+#: providers themselves (recursion).
+_CONSULTANT_PROVIDER_IDS = ("web", "datahub", "statistical", "fin", "econ_calendar")
 
-    Built the same way the ``web`` provider builds them (same
-    ``LAZYTOOLS_WEB_MODEL`` smart-mode model, same news-db resolution) so a
-    consultant that searches the web hits the same cache the ``web_search`` /
-    ``web_crawl`` MCP tools populate. Missing ``lazycrawler`` degrades to an
-    empty list rather than taking the consultant down with it: web access is
-    an enhancement to a consultation, not a precondition for one.
+#: Compute tools are on ``UNSAFE_TOOL_PATTERNS`` because they spend real
+#: resources on the *default deterministic* MCP surface — but a consultant is
+#: an LLM turn already, and running the optimizer is precisely what it is
+#: consulted for. So its filter keeps the writers/senders barred and lets
+#: the compute names through.
+_CONSULTANT_COMPUTE_ALLOWED = ("optimizer_run", "optimizer_backtest", "tree_estimate", "tree_backtest")
+
+
+def _consultant_toolset(data_source: dict[str, Any] | None = None) -> list[Any]:
+    """The read-only-plus-compute LazyTools toolset for the ``*_ask`` consultants.
+
+    Built from the same provider factories the MCP server itself serves
+    (same env-var configuration, same ``data_source`` threading), so a
+    consultant that searches the web or runs the optimizer hits the same
+    databases and caches as the equivalent MCP tools. Providers are built
+    write-enabled — that is the only shape that carries the compute tools
+    (``portfolio_tree_estimate``/``_backtest``) — and the writers/senders
+    they gain are then stripped by name, so the served surface is: every
+    reader, plus compute, minus anything that mutates or sends.
+
+    Handed to the engines as *dynamic tools*: for Codex they ride the
+    app-server ``dynamicTools`` channel (pre-approved by the default
+    ``CodexPolicy``), for Claude Code they become the in-process MCP server —
+    neither path depends on the participant runtime's own MCP configuration
+    or approval policy, which is exactly what broke when Codex tried to
+    reach this server through its own ``config.toml`` registration
+    (``approval_policy="never"`` rejects MCP calls before execution;
+    observed live 2026-08-18).
+
+    Every provider expands defensively (missing extras skip, they don't
+    sink the consultant), mirroring the server's own startup behavior.
     """
-    try:
-        from lazycrawler import CrawlerDB, CrawlerTools, DBConfig, LLMConfig
-        from lazycrawler.config import resolve_news_db_path
+    from lazytools.mcp_server.server import UNSAFE_TOOL_PATTERNS, expand_tools
 
-        from lazytools.connectors.web import WebTools
-    except ImportError:
-        return []
-
-    model = os.environ.get("LAZYTOOLS_WEB_MODEL", "deepseek-v4-flash")
-    db_path = resolve_news_db_path()
-    db = CrawlerDB(DBConfig(db_path=db_path)) if db_path else None
-    return list(WebTools(provider=CrawlerTools(db=db, llm_cfg=LLMConfig(model=model))).as_tools())
+    providers = default_providers(list(_CONSULTANT_PROVIDER_IDS), allow_write=True, data_source=data_source)
+    patterns = tuple(p for p in UNSAFE_TOOL_PATTERNS if p not in _CONSULTANT_COMPUTE_ALLOWED)
+    return list(expand_tools(providers, read_only=True, unsafe_patterns=patterns).values())
 
 
 @_register("code_review")
@@ -499,7 +522,7 @@ def _code_review(allow_write: bool = False, *, data_source: dict[str, Any] | Non
     # into a findings list, which is the wrong shape for "should I do X".
     return [
         codex_reviewer(**settings),
-        codex_consultant(**settings, tools=_consultant_web_tools()),
+        codex_consultant(**settings, tools=_consultant_toolset(data_source)),
         codex_native_reviewer(**settings),
     ]
 
@@ -552,7 +575,7 @@ def _claude_review(allow_write: bool = False, *, data_source: dict[str, Any] | N
         "thinking": os.environ.get("LAZYTOOLS_CLAUDE_REVIEW_THINKING") or None,
         "timeout": timeout,
     }
-    return [claude_reviewer(**settings), claude_consultant(**settings, tools=_consultant_web_tools())]
+    return [claude_reviewer(**settings), claude_consultant(**settings, tools=_consultant_toolset(data_source))]
 
 
 @_register("telegram")

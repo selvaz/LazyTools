@@ -92,11 +92,16 @@ because the protocol has no prompt slot for it.
 The consultant differs from the reviewers in two more ways. `codex_ask` takes
 per-call `model` / `effort` overrides ("same question, stronger model" is a
 legitimate consulting move; the env-var settings below remain the defaults).
-And it carries the LazyCrawler web tools (`web_search`, `web_crawl`,
-`get_page`, …) as Codex dynamic tools when `lazycrawler` is installed — built
-against the same news db and smart-mode model as the `web` provider, so
-whatever it fetches lands in the shared cache. The reviewers stay deliberately
-offline: reading the web is not what a code review is for.
+And it carries the server's own **read-only LazyTools toolset** as Codex
+dynamic tools — the `web`, `datahub`, `statistical`, `fin` and
+`econ_calendar` providers, built from the same factories and configuration
+the MCP server serves, so a consultant that searches the web or runs the
+optimizer hits the same databases and caches as the equivalent MCP tools.
+(Dynamic tools ride the app-server channel and need no MCP registration on
+the participant's side — a Codex thread reaching this server through its own
+`config.toml` MCP entry gets rejected by `approval_policy="never"` before
+execution, which is exactly the path this avoids.) The reviewers stay
+deliberately offline: reading the web is not what a code review is for.
 
 Codex reads the files and runs `git` itself, so a call is "point it at a
 repository and say what to look at":
@@ -141,8 +146,9 @@ claude_ask(question, repo_path=None, session_id=None, model=None, thinking=None)
 ```
 
 `claude_ask` mirrors `codex_ask`'s consulting extras too: per-call `model` /
-`thinking` overrides, the LazyCrawler web tools, and additionally the engine's
-own WebSearch/WebFetch (`web=True`). `claude_code_review` stays offline like
+`thinking` overrides, the same read-only LazyTools toolset (served to the
+engine as its in-process MCP server), and additionally the engine's own
+WebSearch/WebFetch (`web=True`). `claude_code_review` stays offline like
 its Codex twin.
 
 Identical arguments and the identical durable-handle protocol (`session_id=`
