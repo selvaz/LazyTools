@@ -9,6 +9,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- The two `*_ask` consultants now carry the server's own **read-only
+  LazyTools toolset** (`web`, `datahub`, `statistical`, `fin`,
+  `econ_calendar` providers) as dynamic tools, built from the same factories
+  and configuration the MCP server serves — replacing the web-only toolset.
+  Handed over the engine channels (Codex `dynamicTools` / Claude in-process
+  MCP), so no participant-side MCP registration or approval policy is
+  involved: a Codex thread calling this server through its own `config.toml`
+  MCP entry is rejected by `approval_policy="never"` before execution
+  (observed live 2026-08-18), which is the path this bypasses.
+
+### Fixed
+- The Claude review/consult agents ran with `CodingAgentConfig.reviewer()`,
+  whose `preapprove_application_tools=False` plus the absent approval gate
+  made the SDK fail-close **every** application tool — the read-only
+  `git_diff`/`git_status` the reviewer is documented to have, and the entire
+  toolset handed to `claude_ask`. They now run the default (pre-approving)
+  profile; confinement is unchanged (`file_roots` is enforced by a
+  `PreToolUse` hook regardless, and the engine grants no shell).
 - The two `*_ask` consultants grew consulting-grade options the reviewers
   deliberately don't have. `codex_ask` and `claude_ask` now take per-call
   `model` and `effort` / `thinking` overrides (the env-var settings remain the
