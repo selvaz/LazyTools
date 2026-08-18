@@ -151,6 +151,9 @@ jobs:
 
           config = {
               "root_id": "root",
+              # Required since lazyportfolio #27 threaded the tree's reference
+              # currency through to load_returns: every tree must declare one.
+              "currency": "USD",
               "nodes": [{
                   "id": "root", "proxy": "", "instruments": ["HIGH", "LOW"],
                   "constraints": {
