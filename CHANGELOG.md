@@ -8,6 +8,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- The two `*_ask` consultants grew consulting-grade options the reviewers
+  deliberately don't have. `codex_ask` and `claude_ask` now take per-call
+  `model` and `effort` / `thinking` overrides (the env-var settings remain the
+  defaults), and both consultant agents receive the LazyCrawler web tools
+  (`web_search`, `web_crawl`, `get_page`, …) — built against the same news db
+  and smart-mode model as the `web` provider, degrading to no web tools when
+  `lazycrawler` is missing. `claude_ask` additionally runs with the engine's
+  own `web=True` (WebSearch/WebFetch). The reviewers (`codex_code_review`,
+  `claude_code_review`, `codex_review_changes`) are unchanged and stay
+  offline: reading the web is not what a code review is for.
+  `codex_consultant` / `claude_consultant` expose the same via `tools=` /
+  `web=` factory parameters.
+
 ## [0.6.0] — 2026-08-18
 
 ### Added

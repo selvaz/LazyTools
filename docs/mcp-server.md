@@ -77,7 +77,7 @@ key, only the CLI's own login — served as two tools:
 
 ```text
 codex_code_review(task, repo_path=None, diff_ref=None, paths=None, thread_id=None) -> str
-codex_ask(question, repo_path=None, thread_id=None) -> str
+codex_ask(question, repo_path=None, thread_id=None, model=None, effort=None) -> str
 codex_review_changes(repo_path=None, scope="uncommitted", ref=None) -> str
 ```
 
@@ -88,6 +88,15 @@ target (`uncommitted` / `branch` + ref / `commit` + ref) with no instructions
 from us at all. The split is not cosmetic: the reviewer's instructions turn
 every question into a findings list, and the native harness cannot be steered
 because the protocol has no prompt slot for it.
+
+The consultant differs from the reviewers in two more ways. `codex_ask` takes
+per-call `model` / `effort` overrides ("same question, stronger model" is a
+legitimate consulting move; the env-var settings below remain the defaults).
+And it carries the LazyCrawler web tools (`web_search`, `web_crawl`,
+`get_page`, …) as Codex dynamic tools when `lazycrawler` is installed — built
+against the same news db and smart-mode model as the `web` provider, so
+whatever it fetches lands in the shared cache. The reviewers stay deliberately
+offline: reading the web is not what a code review is for.
 
 Codex reads the files and runs `git` itself, so a call is "point it at a
 repository and say what to look at":
@@ -128,8 +137,13 @@ Codex answers.
 
 ```text
 claude_code_review(task, repo_path=None, diff_ref=None, paths=None, session_id=None) -> str
-claude_ask(question, repo_path=None, session_id=None) -> str
+claude_ask(question, repo_path=None, session_id=None, model=None, thinking=None) -> str
 ```
+
+`claude_ask` mirrors `codex_ask`'s consulting extras too: per-call `model` /
+`thinking` overrides, the LazyCrawler web tools, and additionally the engine's
+own WebSearch/WebFetch (`web=True`). `claude_code_review` stays offline like
+its Codex twin.
 
 Identical arguments and the identical durable-handle protocol (`session_id=`
 instead of `thread_id=`), on `ClaudeCodeEngine` — so the same diff can go to

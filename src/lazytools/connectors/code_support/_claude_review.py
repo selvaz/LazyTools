@@ -146,6 +146,8 @@ async def _claude_turn(
     thinking: str | int | None,
     timeout: float,
     with_git: bool,
+    web: bool = False,
+    tools: list[Any] | None = None,
 ) -> str:
     """One Claude Code turn on a durable session, rendered for an MCP caller."""
     from lazybridge import Agent
@@ -157,9 +159,10 @@ async def _claude_turn(
         model=model,
         cwd=str(cwd),
         file_roots=[str(cwd)],
-        # Reading the web is not what a code review is for, and it is the one
-        # capability here that reaches outside the machine.
-        web=False,
+        # Off for reviews (reading the web is not what a code review is for);
+        # on for consultations, where checking a claim against the world is
+        # part of answering the question.
+        web=web,
         system=system,
         thinking=thinking,
         request_timeout=timeout,
@@ -168,7 +171,11 @@ async def _claude_turn(
         persist_session=True,
         config=CodingAgentConfig.reviewer(),
     )
-    agent = Agent(engine, name=agent_name, tools=_git_tools(cwd) if with_git else [])
+    agent = Agent(
+        engine,
+        name=agent_name,
+        tools=[*(_git_tools(cwd) if with_git else []), *(tools or [])],
+    )
     env: Any = await agent.run(prompt)
     handle = _encode_handle(cwd, base, engine.session_id or resumed or "")
     if not env.ok:
@@ -265,28 +272,41 @@ def claude_consultant(
     timeout: float = DEFAULT_REVIEW_TIMEOUT,
     name: str = "claude_ask",
     system: str = CLAUDE_CONSULTANT_SYSTEM,
+    web: bool = True,
+    tools: list[Any] | None = None,
 ) -> Tool:
     """Build ``claude_ask``: Claude Code as a design partner.
 
     Counterpart of :func:`~lazytools.connectors.code_support.codex_consultant`,
     for the same reason it exists there: asked a design question, a reviewer
     prompt answers with a findings list.
+
+    ``model``/``thinking`` are the *defaults*; each ``claude_ask`` call may
+    override them. ``web=True`` (the default) grants the engine's own
+    WebSearch/WebFetch — a consultant may need to read the world, where the
+    reviewer stays deliberately offline. ``tools`` are extra LazyBridge tools
+    for the agent (e.g. the LazyCrawler web tools).
     """
     from lazybridge import Tool
 
     _check_timeout(timeout)
     base = _build_root(root)
+    default_model, default_thinking = model, thinking
+    extra_tools = list(tools or [])
 
     async def claude_ask(
         question: str,
         repo_path: str | None = None,
         session_id: str | None = None,
+        model: str | None = None,
+        thinking: str | None = None,
     ) -> str:
         """Ask Claude Code a technical question about a local repository.
 
         A second opinion from the other model family: design trade-offs, "is
-        this API able to do X", "what breaks if I change Y". Read-only — it
-        answers, it never edits. Slow (minutes) and costs a Claude Code turn.
+        this API able to do X", "what breaks if I change Y". Read-only on the
+        repository — it answers, it never edits — and it can search and read
+        the web. Slow (minutes) and costs a Claude Code turn.
 
         It has none of your conversation context, so state the question
         self-containedly. The header carries `session_id=<handle>`; pass it
@@ -298,6 +318,10 @@ def claude_consultant(
                 to the server's code root. Defaults to the root.
             session_id: Continue an earlier conversation, from the
                 `session_id=` in its reply.
+            model: Claude Code model alias override for this call ("sonnet",
+                "opus", "haiku"). Defaults to the server's configured model.
+            thinking: Extended-thinking override for this call (e.g.
+                "adaptive", "disabled"). Defaults to the server's setting.
         """
         cwd = _resolve_repo(repo_path, base)
         return await _claude_turn(
@@ -308,10 +332,12 @@ def claude_consultant(
             system=system,
             agent_name="claude-design-partner",
             session_id=session_id,
-            model=model,
-            thinking=thinking,
+            model=model or default_model,
+            thinking=thinking if thinking is not None else default_thinking,
             timeout=timeout,
             with_git=True,
+            web=web,
+            tools=extra_tools,
         )
 
     return Tool(claude_ask, name=name)
