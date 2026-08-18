@@ -26,28 +26,28 @@ lazybridge = "1.0.1"
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.5.0"
+ref = "v0.6.0"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
-ref = "v0.3.2"
+ref = "v0.4.0"
 
 [verified.github.lazycrawler]
 repo = "https://github.com/selvaz/LazyCrawler"
-ref = "v0.18.0"
+ref = "v0.19.0"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "f4a0a29e4d5d1e712926bb848f022f5c2756664a"  # pre-tag pin; finance train replaces with a release tag
+ref = "636b38a7f9039113b935315fbf5f205ff9180160"  # pre-tag pin; finance train replaces with a release tag
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
-ref = "b9f67d9cf89c7fbc21a005c2f4951352e8c7b9c1"  # pre-tag pin; finance train replaces with a release tag
+ref = "a2456fb320e19cf0e24e8a1a565c794c4147e84c"  # pre-tag pin; finance train replaces with a release tag
 extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "f4963dd26d95c1650493fd8bd007f077078344be"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
+ref = "70f46005d8ecd5a2165ba5ac497e4b250c160a21"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
 extras = ["datacore"]
 
 [verified.github.lazyfin]
