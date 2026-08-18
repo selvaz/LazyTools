@@ -736,6 +736,22 @@ class TestConsultantToolset:
         assert "portfolio_optimizer_run" in names
         assert "portfolio_tree_estimate" in names
 
+    def test_datahub_read_tools_do_not_advertise_stripped_writers(self):
+        # A write-enabled DataHubTools decorates its read tools' descriptions
+        # with a datahub_register_listing / datahub_ensure_* recovery path;
+        # the consultant filter strips exactly those tools, so the notes must
+        # not be there — an advertised-but-unavailable tool wastes the
+        # consultant's turns. Found by Codex reviewing PR #122.
+        pytest.importorskip("market_data_hub")
+        from lazytools.mcp_server.providers import _consultant_toolset
+
+        tools = {getattr(t, "name", None) or getattr(t, "__name__", ""): t for t in _consultant_toolset()}
+        assert "datahub_ensure_price_history" not in tools  # the filter still bars writers
+        summary = tools["datahub_get_price_summary"]
+        description = getattr(summary, "description", None) or (summary.__doc__ or "")
+        assert "datahub_ensure_price_history" not in description
+        assert "datahub_register_listing" not in description
+
 
 class TestClaudeReviewProvider:
     def test_opt_in_only(self):
