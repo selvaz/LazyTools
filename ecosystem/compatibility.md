@@ -12,6 +12,6 @@ Python: 3.11, 3.12, 3.13
 | lazycrawler | GitHub | `v0.19.0` |
 | market-data-hub | GitHub | `636b38a7f9039113b935315fbf5f205ff9180160` |
 | lazystats | GitHub | `a2456fb320e19cf0e24e8a1a565c794c4147e84c` |
-| lazyportfolio | GitHub | `70f46005d8ecd5a2165ba5ac497e4b250c160a21` |
-| lazyfin | GitHub | `8cf5f836fb21fc70b49c5124d176621d145b8fcf` |
+| lazyportfolio | GitHub | `be712bd3c13d3847ec0338bea8a688617bc6f56f` |
+| lazyfin | GitHub | `d5ef4cbccf8c688144dd7f9dc4a7a3e80e49347d` |
 | lazyray | GitHub | *excluded* — LazyRay now pins the same market-data-hub revision as the verified combination (re-aligned, ECO-007), so the earlier pin conflict is gone. It stays pending only because the ecosystem-released CI does not yet install and smoke it; move it to [verified.github] once that job exercises it. |
