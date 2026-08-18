@@ -77,6 +77,38 @@ KNOWN_DBS: tuple[DBEntry, ...] = (
     DBEntry("pulse_artifacts", "PULSE_ARTIFACTS_DB", "lazypulse", False, "Artifacts produced by LazyPulse"),
     DBEntry("crawler_artifacts", "CRAWLER_ARTIFACTS_DB", "lazycrawler", False, "Artifacts produced by LazyCrawler"),
     DBEntry(
+        "crawler_econ_state",
+        "ECON_STATE_DB",
+        "lazycrawler",
+        False,
+        "Economic-release monitor cursor state (which releases have already "
+        "been reported). NOT append-only history: two copies each advance "
+        "their own cursor, so never union them -- take the one the live "
+        "producer most recently advanced.",
+    ),
+    DBEntry(
+        "crawler_digests",
+        "DIGESTS_DB",
+        "lazycrawler",
+        False,
+        "Full text of every executive news digest (make_news_report.py), "
+        "keyed UNIQUE(session_id, engine) -- crawler_artifacts holds the "
+        "catalogue entry and file pointer, this holds the prose itself. "
+        "make_news_report.py reads this variable and only falls back to a "
+        "checkout-relative reports/news/digests.db when it is unset, which "
+        "is how a pinned runtime worktree once split the history.",
+    ),
+    DBEntry(
+        "lazyray_db",
+        "LAZYRAY_DB",
+        "lazyray",
+        False,
+        "LazyRay's own DuckDB output (Dalio-style scores, regimes, "
+        "classifications). LazyRay resolves its own settings-based default "
+        "when this is unset -- that silent fallback split a deployment's "
+        "history once, so deployments should wire it explicitly.",
+    ),
+    DBEntry(
         "lazyportfolio_artifacts",
         "LAZYPORTFOLIO_ARTIFACTS_DB",
         "lazyportfolio",
