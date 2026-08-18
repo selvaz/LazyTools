@@ -8,6 +8,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-08-18
+
 ### Added
 - `lazytools.connectors.code_support.codex_reviewer` and the MCP provider
   `code_review`: Codex as the **engine of a LazyBridge agent**
