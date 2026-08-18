@@ -47,12 +47,12 @@ extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "70f46005d8ecd5a2165ba5ac497e4b250c160a21"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
+ref = "be712bd3c13d3847ec0338bea8a688617bc6f56f"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
 extras = ["datacore"]
 
 [verified.github.lazyfin]
 repo = "https://github.com/selvaz/LazyFin"
-ref = "8cf5f836fb21fc70b49c5124d176621d145b8fcf"  # pre-tag pin; no release tags yet
+ref = "d5ef4cbccf8c688144dd7f9dc4a7a3e80e49347d"  # pre-tag pin; no release tags yet
 # bridge+datacore is what LazyFin's own portfolio/BL surface actually needs;
 # LazyTools' pin already covers the rest. "tools"/"crawler"/"regime"/"all"
 # now point at current lazytoolkit/lazycrawler/lazystats too (the staleness
