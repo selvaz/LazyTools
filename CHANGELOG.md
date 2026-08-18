@@ -20,6 +20,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   (observed live 2026-08-18), which is the path this bypasses.
 
 ### Fixed
+- The consultant toolset built every provider write-enabled, which made
+  `DataHubTools` decorate its READ tools' descriptions with a recovery path
+  through `datahub_register_listing` / `datahub_ensure_*` — tools the
+  consultant filter then strips, leaving the agents advertised tools they
+  cannot call. Only `fin` (the one provider whose compute tools need it) is
+  built write-enabled now. Found by Codex reviewing PR #122.
 - The Claude review/consult agents ran with `CodingAgentConfig.reviewer()`,
   whose `preapprove_application_tools=False` plus the absent approval gate
   made the SDK fail-close **every** application tool — the read-only

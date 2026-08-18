@@ -455,7 +455,17 @@ def _consultant_toolset(data_source: dict[str, Any] | None = None) -> list[Any]:
     """
     from lazytools.mcp_server.server import UNSAFE_TOOL_PATTERNS, expand_tools
 
-    providers = default_providers(list(_CONSULTANT_PROVIDER_IDS), allow_write=True, data_source=data_source)
+    # Only ``fin`` is built write-enabled — that is the one shape carrying
+    # the tree compute tools. Everything else is built read-only: a
+    # write-enabled ``DataHubTools`` decorates its READ tools' descriptions
+    # with a recovery path through ``datahub_register_listing`` /
+    # ``datahub_ensure_*``, which the filter below then strips — leaving the
+    # consultant advertised tools it cannot call. Found by Codex reviewing
+    # PR #122.
+    providers = default_providers(
+        [i for i in _CONSULTANT_PROVIDER_IDS if i != "fin"], allow_write=False, data_source=data_source
+    )
+    providers += default_providers(["fin"], allow_write=True, data_source=data_source)
     patterns = tuple(p for p in UNSAFE_TOOL_PATTERNS if p not in _CONSULTANT_COMPUTE_ALLOWED)
     return list(expand_tools(providers, read_only=True, unsafe_patterns=patterns).values())
 
