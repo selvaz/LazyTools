@@ -267,3 +267,105 @@ def test_cli_accepts_http_flags_without_starting_a_server():
     assert (args.host, args.port) == ("0.0.0.0", 9999)
 
     assert _parse_args([]).http is False
+
+
+def _security_settings_of(app):
+    """Dig the transport's security settings out of the mounted ASGI app."""
+    mount = next(r for r in app.routes if getattr(r, "path", None) == "/mcp")
+    handler = mount.app
+    manager = getattr(handler, "__self__", None)  # bound handle_request
+    assert manager is not None, "expected the mounted app to be a bound method of the session manager"
+    return manager.security_settings
+
+
+def test_http_app_enables_dns_rebinding_protection():
+    """Not optional hardening. The SDK turns this OFF when a transport is
+    built without security settings -- "If not specified, disable DNS
+    rebinding protection by default for backwards compatibility" -- and a
+    loopback bind is not a defence: any page open in a browser on the same
+    machine can POST to 127.0.0.1, and with --allow-unsafe these tools write
+    production databases and send messages."""
+    from lazytools.connectors.datahub import DataHubTools
+    from lazytools.mcp_server.server import http_app
+    from lazytools.testing import FakeDataHubBackend
+
+    server = build_server([DataHubTools(backend=FakeDataHubBackend())], name="lazytools-test")
+    settings = _security_settings_of(http_app(server, allowed_hosts=["127.0.0.1:8787"]))
+
+    assert settings is not None, "no security settings: protection would be silently disabled"
+    assert settings.enable_dns_rebinding_protection is True
+    assert "127.0.0.1:8787" in settings.allowed_hosts
+
+
+@pytest.mark.parametrize("url_path", ["/mcp", "/mcp/"])
+def test_http_rejects_foreign_host_and_origin_on_either_spelling(url_path):
+    """The security check must run for both spellings of the path.
+
+    Left to the router's own slash handling, a request to "/mcp" is answered
+    with a 307 to "/mcp/" BEFORE the mounted app runs -- so the Host check
+    never sees that request, and the redirect's Location echoes back whatever
+    Host the caller sent. Mounting both spellings means a route matches
+    directly and the transport does the validating.
+
+    Asserted against real requests rather than the route table, because
+    "a route exists" is not the claim that matters -- "a rebound host is
+    refused" is.
+    """
+    from starlette.testclient import TestClient
+
+    from lazytools.connectors.datahub import DataHubTools
+    from lazytools.mcp_server.server import http_app
+    from lazytools.testing import FakeDataHubBackend
+
+    server = build_server([DataHubTools(backend=FakeDataHubBackend())], name="lazytools-test")
+    app = http_app(server, allowed_hosts=["testserver"])
+
+    body = {
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {"protocolVersion": "2025-06-18", "capabilities": {},
+                   "clientInfo": {"name": "probe", "version": "0"}},
+    }
+    headers = {"Content-Type": "application/json",
+               "Accept": "application/json, text/event-stream"}
+
+    with TestClient(app) as client:
+        # A rebound DNS name reaches the loopback socket with its own Host.
+        rebound = client.post(url_path, json=body,
+                              headers={**headers, "Host": "evil.example.com"})
+        assert rebound.status_code == 421, (
+            f"foreign Host answered {rebound.status_code} on {url_path}; "
+            "a 307 here means the check was skipped by a slash redirect"
+        )
+
+        # A page in a browser sends its own Origin; a native client sends none.
+        cross_origin = client.post(url_path, json=body,
+                                   headers={**headers, "Origin": "https://evil.example.com"})
+        assert cross_origin.status_code == 403
+
+
+def test_serve_http_defaults_allowed_hosts_to_what_it_binds(monkeypatch):
+    """The caller should not have to remember to pass allowed_hosts: an empty
+    list with protection enabled rejects every request, and forgetting the
+    argument entirely is what silently disables the protection."""
+    from lazytools.connectors.datahub import DataHubTools
+    from lazytools.mcp_server import server as server_mod
+    from lazytools.testing import FakeDataHubBackend
+
+    captured = {}
+
+    def fake_run(app, **kwargs):
+        captured["settings"] = _security_settings_of(app)
+        captured["kwargs"] = kwargs
+
+    import sys
+    import types
+
+    monkeypatch.setitem(sys.modules, "uvicorn", types.SimpleNamespace(run=fake_run))
+    srv = build_server([DataHubTools(backend=FakeDataHubBackend())], name="lazytools-test")
+    server_mod.serve_http(srv, host="127.0.0.1", port=9191)
+
+    settings = captured["settings"]
+    assert settings.enable_dns_rebinding_protection is True
+    assert "127.0.0.1:9191" in settings.allowed_hosts
+    assert "localhost:9191" in settings.allowed_hosts
+    assert captured["kwargs"]["host"] == "127.0.0.1"

@@ -283,7 +283,14 @@ async def serve_stdio(server: Server) -> None:
         await server.run(read_stream, write_stream, init_options)
 
 
-def http_app(server: Server, *, path: str = "/mcp", json_response: bool = False):
+def http_app(
+    server: Server,
+    *,
+    path: str = "/mcp",
+    json_response: bool = False,
+    allowed_hosts: Sequence[str] | None = None,
+    allowed_origins: Sequence[str] | None = None,
+):
     """A Starlette app serving ``server`` over MCP's Streamable HTTP transport.
 
     Why this exists alongside ``serve_stdio``: a stdio server's lifetime is
@@ -303,14 +310,33 @@ def http_app(server: Server, *, path: str = "/mcp", json_response: bool = False)
 
     Returned rather than run, so a caller can mount it, wrap it, or test it
     without a live port.
+
+    ``allowed_hosts``/``allowed_origins`` drive DNS-rebinding protection, and
+    are not optional hardening. The SDK turns that protection OFF when a
+    transport is constructed without security settings -- ``"If not
+    specified, disable DNS rebinding protection by default for backwards
+    compatibility"`` -- and a bare loopback bind is not a defence: any page
+    open in a browser on this machine can POST to 127.0.0.1, and with
+    ``--allow-unsafe`` these tools write production databases and send
+    messages. Origin is validated when present and absent Origin is allowed,
+    which is what lets a native client through while a cross-origin browser
+    request is refused.
     """
     import contextlib
 
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+    from mcp.server.transport_security import TransportSecuritySettings
     from starlette.applications import Starlette
     from starlette.routing import Mount
 
-    manager = StreamableHTTPSessionManager(app=server, json_response=json_response)
+    security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=list(allowed_hosts or []),
+        allowed_origins=list(allowed_origins or []),
+    )
+    manager = StreamableHTTPSessionManager(
+        app=server, json_response=json_response, security_settings=security
+    )
 
     @contextlib.asynccontextmanager
     async def lifespan(_app):
@@ -321,21 +347,52 @@ def http_app(server: Server, *, path: str = "/mcp", json_response: bool = False)
         async with manager.run():
             yield
 
-    return Starlette(routes=[Mount(path, app=manager.handle_request)], lifespan=lifespan)
+    # Both spellings mount the transport directly. Left to Starlette's own
+    # slash handling, a request to "/mcp" is answered with a 307 to "/mcp/"
+    # BEFORE the mounted app runs, so the Host check never sees it and the
+    # redirect's Location echoes back whatever Host the caller sent. That is
+    # not a bypass -- a rebound name still meets 421 on the redirected
+    # request -- but it spends a round trip and reflects an attacker's host,
+    # neither of which a server that only ever answers one path needs to do.
+    return Starlette(
+        routes=[
+            Mount(path, app=manager.handle_request),
+            Mount(path + "/", app=manager.handle_request),
+        ],
+        lifespan=lifespan,
+    )
 
 
 def serve_http(server: Server, *, host: str = "127.0.0.1", port: int = 8787,
-               path: str = "/mcp", json_response: bool = False) -> None:
+               path: str = "/mcp", json_response: bool = False,
+               allowed_hosts: Sequence[str] | None = None,
+               allowed_origins: Sequence[str] | None = None) -> None:
     """Serve ``server`` over Streamable HTTP until interrupted.
 
     Binds to loopback by default: these tools read (and with
     ``--allow-unsafe`` write) local production databases, so the default must
     not be reachable from the network.
+
+    ``allowed_hosts`` defaults to the address actually bound, plus the
+    ``localhost`` spelling of it, since a client may use either. Anything
+    else is refused with 421 -- which is the point: a Host header this server
+    did not expect is how a rebound DNS name reaches a loopback socket.
     """
     import uvicorn
 
+    if allowed_hosts is None:
+        allowed_hosts = [f"{host}:{port}", f"localhost:{port}"]
+        if host == "127.0.0.1":
+            allowed_hosts.append(f"[::1]:{port}")
+
     uvicorn.run(
-        http_app(server, path=path, json_response=json_response),
+        http_app(
+            server,
+            path=path,
+            json_response=json_response,
+            allowed_hosts=allowed_hosts,
+            allowed_origins=allowed_origins,
+        ),
         host=host,
         port=port,
         log_level="info",
