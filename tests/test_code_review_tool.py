@@ -741,8 +741,10 @@ class TestConsultantToolset:
         # with a datahub_register_listing / datahub_ensure_* recovery path;
         # the consultant filter strips exactly those tools, so the notes must
         # not be there — an advertised-but-unavailable tool wastes the
-        # consultant's turns. Found by Codex reviewing PR #122.
-        pytest.importorskip("market_data_hub")
+        # consultant's turns. Found by Codex reviewing PR #122. No importorskip:
+        # DataHubTools resolves market_data_hub lazily, so the definitions are
+        # buildable everywhere — a skip here would disable this guard in the
+        # routine CI matrix, which doesn't install the hub.
         from lazytools.mcp_server.providers import _consultant_toolset
 
         tools = {getattr(t, "name", None) or getattr(t, "__name__", ""): t for t in _consultant_toolset()}
