@@ -1,6 +1,6 @@
 {
   "minimums": {
-    "lazybridge": ">=1.0.1,<2.0"
+    "lazybridge": ">=1.2.0,<2.0"
   },
   "pending": {
     "lazyray": {
@@ -27,7 +27,7 @@
         "extras": [
           "datacore"
         ],
-        "ref": "be712bd3c13d3847ec0338bea8a688617bc6f56f",
+        "ref": "3f2d4cd40c2deaaa7c93748dc004a9e0718f051f",
         "repo": "https://github.com/selvaz/LazyPortfolio"
       },
       "lazypulse": {
@@ -42,7 +42,7 @@
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
-        "ref": "v0.6.0",
+        "ref": "v0.7.0",
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
@@ -50,7 +50,7 @@
         "repo": "https://github.com/selvaz/market-data-hub"
       }
     },
-    "lazybridge": "1.0.1",
+    "lazybridge": "1.2.0",
     "python": [
       "3.11",
       "3.12",
