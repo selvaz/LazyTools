@@ -671,6 +671,30 @@ class TestClaudeTools:
         assert _FakeClaudeEngine.last_kwargs["web"] is False
 
     @pytest.mark.asyncio
+    async def test_the_prompt_only_claims_web_access_when_web_is_granted(self, tmp_path, faked_claude):
+        # An offline agent told "you have web access" chases WebSearch calls
+        # it does not have — so the addendum is composed in, not baked into
+        # the constant. Found by Codex reviewing PR #125.
+        from lazytools.connectors.code_support import WEB_ADDENDUM
+
+        online = claude_reviewer(root=str(tmp_path))
+        await online.run(task="look")
+        assert WEB_ADDENDUM in _FakeClaudeEngine.last_kwargs["system"]
+
+        offline = claude_reviewer(root=str(tmp_path), web=False)
+        await offline.run(task="look")
+        assert WEB_ADDENDUM not in _FakeClaudeEngine.last_kwargs["system"]
+
+        offline_ask = claude_consultant(root=str(tmp_path), web=False)
+        await offline_ask.run(question="?")
+        assert WEB_ADDENDUM not in _FakeClaudeEngine.last_kwargs["system"]
+
+        # An explicit system= opts out of composition entirely.
+        custom = claude_reviewer(root=str(tmp_path), system="just this", web=True)
+        await custom.run(task="look")
+        assert _FakeClaudeEngine.last_kwargs["system"] == "just this"
+
+    @pytest.mark.asyncio
     async def test_per_call_model_and_thinking_override_the_defaults(self, tmp_path, faked_claude):
         tool = claude_consultant(root=str(tmp_path), model="sonnet", thinking="disabled")
 
