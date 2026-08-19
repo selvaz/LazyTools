@@ -620,7 +620,7 @@ class TestClaudeTools:
         assert kwargs["cwd"] == str((tmp_path / "repo").resolve())
         assert kwargs["file_roots"] == [str((tmp_path / "repo").resolve())]
         assert kwargs["model"] == "opus"
-        assert kwargs["web"] is False  # a review has no business off-machine
+        assert kwargs["web"] is True  # 2026-08-19: reviewers may verify against the web too
         assert kwargs["persist_session"] is True
         assert "session_id=repo#sess-new" in out
 
@@ -653,13 +653,21 @@ class TestClaudeTools:
         assert _FakeClaudeEngine.last_kwargs["session_id"] == "sess-1"
 
     @pytest.mark.asyncio
-    async def test_the_consultant_gets_the_web_where_the_reviewer_does_not(self, tmp_path, faked_claude):
+    async def test_both_the_consultant_and_the_reviewer_get_the_web(self, tmp_path, faked_claude):
+        # 2026-08-19: the reviewer's offline-by-default choice cost real
+        # findings (a review can need to check a CVE or a library's current
+        # API) — both roles now default to web=True. The factory still
+        # accepts web=False for a caller that wants the old behavior.
         ask = claude_consultant(root=str(tmp_path))
         await ask.run(question="?")
         assert _FakeClaudeEngine.last_kwargs["web"] is True
 
         review = claude_reviewer(root=str(tmp_path))
         await review.run(task="look")
+        assert _FakeClaudeEngine.last_kwargs["web"] is True
+
+        offline_review = claude_reviewer(root=str(tmp_path), web=False)
+        await offline_review.run(task="look")
         assert _FakeClaudeEngine.last_kwargs["web"] is False
 
     @pytest.mark.asyncio

@@ -71,7 +71,14 @@ Report, in this order and nothing else:
 Rules: no praise, no summary of what the code does, no style nits, no
 speculation presented as fact. If you find nothing in a section, omit it. If
 the whole review is clean, say so in one line. Be concise — this output is
-read by another agent, not rendered as a document."""
+read by another agent, not rendered as a document.
+
+You have web access. Use it to verify things the repository cannot tell you
+on its own — a CVE, whether an API is actually deprecated, a library's
+current documented behavior — but only when it changes a finding. Mark
+anything sourced from the web as such (e.g. "per <source>: ..."); never
+blend it into the repo-verified findings as if you had read it in the
+code."""
 
 #: Consulting counterpart, same contract as ``CODE_CONSULTANT_SYSTEM``.
 CLAUDE_CONSULTANT_SYSTEM = """You are a technical design partner with read-only access to a repository.
@@ -159,9 +166,9 @@ async def _claude_turn(
         model=model,
         cwd=str(cwd),
         file_roots=[str(cwd)],
-        # Off for reviews (reading the web is not what a code review is for);
-        # on for consultations, where checking a claim against the world is
-        # part of answering the question.
+        # web=True by default for both roles since 2026-08-19 — a review can
+        # need to check a CVE or a library's current behavior too. The caller
+        # (claude_reviewer/claude_consultant) still decides per factory call.
         web=web,
         system=system,
         thinking=thinking,
@@ -210,6 +217,7 @@ def claude_reviewer(
     timeout: float = DEFAULT_REVIEW_TIMEOUT,
     name: str = "claude_code_review",
     system: str = CLAUDE_REVIEWER_SYSTEM,
+    web: bool = True,
 ) -> Tool:
     """Build ``claude_code_review``: Claude Code as a review agent.
 
@@ -217,6 +225,16 @@ def claude_reviewer(
     same confinement — so the two can be pointed at one diff and compared.
     ``model`` is a Claude Code alias ("sonnet", "opus", …); ``thinking`` takes
     the engine's extended-thinking setting.
+
+    ``web=True`` (the default, since 2026-08-19) grants the engine's own
+    WebSearch/WebFetch: a review can need to check a CVE, a library's current
+    API, or whether a pattern is actually deprecated — the earlier
+    offline-by-design choice cost real findings. The reviewer prompt
+    (:data:`CLAUDE_REVIEWER_SYSTEM`) still requires marking anything sourced
+    from the web as such and keeping it out of the repo-verified findings
+    list. Codex's reviewers were never code-gated this way: the native
+    Codex web tool (``web__run``) is an account-level capability, on
+    whenever ``~/.codex/config.toml`` enables it, independent of role.
     """
     from lazybridge import Tool
 
@@ -268,6 +286,7 @@ def claude_reviewer(
             thinking=thinking,
             timeout=timeout,
             with_git=True,
+            web=web,
         )
 
     return Tool(claude_code_review, name=name)
@@ -292,9 +311,9 @@ def claude_consultant(
 
     ``model``/``thinking`` are the *defaults*; each ``claude_ask`` call may
     override them. ``web=True`` (the default) grants the engine's own
-    WebSearch/WebFetch — a consultant may need to read the world, where the
-    reviewer stays deliberately offline. ``tools`` are extra LazyBridge tools
-    for the agent (e.g. the LazyCrawler web tools).
+    WebSearch/WebFetch — same default as :func:`claude_reviewer` since
+    2026-08-19. ``tools`` are extra LazyBridge tools for the agent (e.g. the
+    LazyCrawler web tools).
     """
     from lazybridge import Tool
 
