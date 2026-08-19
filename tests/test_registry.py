@@ -64,6 +64,23 @@ def test_regime_tools_db_is_distinct_from_lazystats_depot() -> None:
     assert entries["regime_tools_db"].owner_repo == "lazystats"
 
 
+def test_pulse_state_is_optional_so_scheduler_only_deployments_stay_clean(monkeypatch) -> None:
+    # STORE_DB holds LazyPulse's always-on PulseAgent/Telegram bot state. A
+    # deployment that schedules its jobs externally (Windows Task Scheduler)
+    # runs no PulseAgent and has nothing to persist, so an unset STORE_DB is
+    # correct there, not a misconfiguration. Declared required=True it made
+    # status() report a missing *required* DB forever, which is exactly the
+    # false alarm that teaches the reader to ignore the registry.
+    entries = {e.name: e for e in db.KNOWN_DBS}
+    assert entries["pulse_state"].required is False
+
+    monkeypatch.delenv("STORE_DB", raising=False)
+    assert db.resolve_db("pulse_state") is None  # returns None, does not raise
+
+    rows = {row["name"]: row for row in db.status()}
+    assert rows["pulse_state"]["required"] is False
+
+
 def test_status_reflects_set_env_vars(monkeypatch) -> None:
     monkeypatch.delenv("MARKET_DATA_DB", raising=False)
     monkeypatch.setenv("STORE_DB", "/tmp/pulse.db")
