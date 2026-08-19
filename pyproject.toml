@@ -27,7 +27,7 @@ dependencies = ["lazybridge>=1.0.1,<2.0"]
 [project.optional-dependencies]
 gmail      = ["google-api-python-client>=2.0,<3.0", "google-auth>=2.0,<3.0", "google-auth-oauthlib>=1.0,<2.0"]
 # Local Outlook desktop connector (COM/MAPI). pywin32 is Windows-only, so the
-# marker keeps `pip install lazytoolkit[outlook]` a no-op-ish success on other
+# marker keeps `pip install "lazytoolkit[outlook] @ git+https://github.com/selvaz/LazyTools.git"` a no-op-ish success on other
 # platforms (the connector imports without it; only OutlookClient.connect needs it).
 outlook    = ["pywin32>=306; sys_platform == 'win32'"]
 telegram   = ["httpx>=0.27,<1.0"]
@@ -59,7 +59,7 @@ site       = ["mkdocs-material>=9.5,<10.0", "mkdocstrings[python]>=0.24,<1.0", "
 
 [project.scripts]
 # MCP server entry point — mirror of the MCP client connector. Requires the
-# ``mcp`` extra (pip install 'lazytoolkit[mcp]'); the command errors with a
+# ``mcp`` extra (pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"); the command errors with a
 # clear install hint if the SDK is absent.
 lazytools-mcp = "lazytools.mcp_server.__main__:main"
 

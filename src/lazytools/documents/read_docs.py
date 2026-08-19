@@ -21,7 +21,7 @@ Usage — as a Tool:
     )
 
 Optional dependencies (graceful degradation if missing):
-    pip install 'lazytoolkit[docs]'   # installs pypdf, python-docx, trafilatura
+    pip install "lazytoolkit[docs] @ git+https://github.com/selvaz/LazyTools.git"   # installs pypdf, python-docx, trafilatura
 """
 
 from __future__ import annotations

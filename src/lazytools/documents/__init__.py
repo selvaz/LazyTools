@@ -5,7 +5,7 @@ single file and return their text ready for LLM consumption.
 
 Optional dependencies (PDF/DOCX/HTML parsing)::
 
-    pip install lazytoolkit[docs]
+    pip install "lazytoolkit[docs] @ git+https://github.com/selvaz/LazyTools.git"
 """
 
 from __future__ import annotations

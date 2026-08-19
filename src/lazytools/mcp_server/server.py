@@ -111,7 +111,7 @@ def expand_tools(
     ``ImportError`` because its optional extra is not installed (e.g.
     ``RegimeTools`` without ``lazystats[regimes]``) — it is skipped with a
     warning and the rest still load. This is what lets a bare
-    ``pip install lazytoolkit[mcp]`` serve datahub + statistical while
+    ``pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"`` serve datahub + statistical while
     regimes/web light up only once their extras are present.
 
     On a name collision the last registration wins (with a warning),
@@ -230,14 +230,14 @@ def build_server(
       serialized via :func:`result_to_text`. Tool errors are returned as
       MCP error results (``isError=True``) instead of crashing the session.
 
-    Requires the ``mcp`` extra (``pip install lazytoolkit[mcp]``).
+    Requires the ``mcp`` extra (``pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"``).
     """
     try:
         import mcp.types as types
         from mcp.server.lowlevel import Server
     except ImportError as exc:  # pragma: no cover - exercised without the extra
         raise ImportError(
-            "lazytools.mcp_server requires the MCP SDK: pip install 'lazytoolkit[mcp]'"
+            'lazytools.mcp_server requires the MCP SDK: pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"'
         ) from exc
 
     tool_map = expand_tools(providers, read_only=read_only, unsafe_patterns=unsafe_patterns)

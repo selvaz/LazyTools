@@ -48,8 +48,8 @@ class WebTools:
             except ImportError as exc:
                 raise ImportError(
                     "WebTools requires lazycrawler. "
-                    "Install it with: pip install lazycrawler "
-                    "(or: pip install 'lazytoolkit[web]')."
+                    'Install it with: pip install "lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git" '
+                    '(or: pip install "lazytoolkit[web] @ git+https://github.com/selvaz/LazyTools.git").'
                 ) from exc
             self._provider = CrawlerTools(**self._crawler_kwargs)
         return self._provider

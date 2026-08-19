@@ -148,14 +148,28 @@ GITHUB_ONLY_NAMES = frozenset(
 _PIP_ARG_RE = re.compile(
     r"""pip install\s+['"]?([A-Za-z0-9_.-]+(?:\[[a-z,]+\])?(?:\s*@\s*\S+)?)"""
 )
-# Documentation surfaces scanned for the violation.
-DOC_GLOBS = ["README.md", "docs/**/*.md", "mkdocs.yml"]
+# Surfaces scanned for the violation. Source files are included because a
+# bare-name hint raised from an ImportError reaches the user exactly like a
+# doc line does — an install hint is an install hint wherever it lives, and
+# the ETF Telegram failure showed the src/ hints drifting while docs stayed
+# correct. ``site/`` is generated (gitignored) and regenerates from these.
+SCANNED_GLOBS = [
+    "README.md",
+    "docs/**/*.md",
+    "mkdocs.yml",
+    "pyproject.toml",
+    "src/**/*.py",
+    "examples/**/*.py",
+    "tools/*.py",
+]
 
 
-def check_no_pypi_install_in_docs() -> list[str]:
+def check_no_pypi_install_anywhere() -> list[str]:
     errors = []
-    for glob in DOC_GLOBS:
+    for glob in SCANNED_GLOBS:
         for path in REPO_ROOT.glob(glob):
+            if path.name == "render_compatibility.py":
+                continue  # this file documents the violation it detects
             for i, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
                 for spec in _PIP_ARG_RE.findall(line):
                     raw_name = spec.split("[")[0].split("@")[0].strip()
@@ -187,7 +201,7 @@ def main() -> int:
                 errors.append(f"{rel}: stale — run tools/render_compatibility.py")
         errors += scan_repo_refs(m)
         errors += check_lazybridge_range(m)
-        errors += check_no_pypi_install_in_docs()
+        errors += check_no_pypi_install_anywhere()
         if errors:
             print("compatibility manifest drift detected:")
             for e in errors:

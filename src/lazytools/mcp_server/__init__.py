@@ -28,7 +28,7 @@ Programmatic use::
 
 Install with::
 
-    pip install lazytoolkit[mcp]
+    pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"
 
 The server is **read-only by default**; see :func:`build_server` for the
 safety model.

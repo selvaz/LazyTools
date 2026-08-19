@@ -252,7 +252,8 @@ class StdioTransport(_SdkTransport):
             from mcp.client.stdio import stdio_client
         except ImportError as e:  # pragma: no cover — exercised only without [mcp]
             raise ImportError(
-                "lazytools.connectors.mcp.MCP.stdio requires the official MCP SDK. Install with: pip install lazytoolkit[mcp]"
+                'lazytools.connectors.mcp.MCP.stdio requires the official MCP SDK. '
+                'Install with: pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"'
             ) from e
         params = StdioServerParameters(command=self._command, args=self._args, env=self._env)
         return stdio_client(params)
@@ -276,7 +277,8 @@ class HttpTransport(_SdkTransport):
             from mcp.client.streamable_http import streamablehttp_client
         except ImportError as e:  # pragma: no cover
             raise ImportError(
-                "lazytools.connectors.mcp.MCP.http requires the official MCP SDK. Install with: pip install lazytoolkit[mcp]"
+                'lazytools.connectors.mcp.MCP.http requires the official MCP SDK. '
+                'Install with: pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"'
             ) from e
         return streamablehttp_client(self._url, headers=self._headers)
 

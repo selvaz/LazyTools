@@ -215,7 +215,7 @@ class EdgarClient:
             except ImportError as exc:  # pragma: no cover — exercised only without the extra
                 raise ImportError(
                     "EdgarClient requires the 'edgar' extra. "
-                    "Install it with: pip install 'lazytoolkit[edgar]'"
+                    'Install it with: pip install "lazytoolkit[edgar] @ git+https://github.com/selvaz/LazyTools.git"'
                 ) from exc
             self._http = httpx.Client(timeout=self._timeout)
         return self._http

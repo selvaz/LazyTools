@@ -139,7 +139,7 @@ class OutlookClient:
             raise ImportError(
                 "OutlookClient.connect requires the 'outlook' extra on Windows "
                 "(local Outlook desktop + pywin32). Install it with: "
-                "pip install 'lazytoolkit[outlook]'"
+                'pip install "lazytoolkit[outlook] @ git+https://github.com/selvaz/LazyTools.git"'
             ) from exc
 
         executor = concurrent.futures.ThreadPoolExecutor(

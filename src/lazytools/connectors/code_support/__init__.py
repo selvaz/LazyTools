@@ -34,7 +34,8 @@ implements) as a single Agent tool.
 **CLI mode vs. MCP mode.** In CLI mode the binary *is* the agent: one call is
 one delegated task that returns a result string. In MCP mode the binary exposes
 its tool surface over the Model Context Protocol and *your* agent orchestrates
-it; the MCP factories need the ``mcp`` extra (``pip install lazytoolkit[mcp]``).
+it; the MCP factories need the ``mcp`` extra
+(``pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"``).
 
 Auth notes (left entirely to each CLI — the connector passes no custom env):
 - **Claude Code**: the CLI uses its own on-disk login

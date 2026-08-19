@@ -173,7 +173,7 @@ def codex_mcp(
     namespace / prefix / cache_tools_ttl:
         Forwarded to :meth:`MCP.stdio` unchanged.
 
-    Requires the ``mcp`` extra: ``pip install lazytoolkit[mcp]``.
+    Requires the ``mcp`` extra: ``pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"``.
     """
     return MCP.stdio(
         name,

@@ -67,5 +67,7 @@ def test_missing_lazycrawler_raises_helpful_import_error(monkeypatch: pytest.Mon
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
     web = WebTools()  # no provider -> must lazily import lazycrawler on use
-    with pytest.raises(ImportError, match="pip install lazycrawler"):
+    # The hint must be the git+ direct reference: lazycrawler is GitHub-only,
+    # so a bare PyPI name would be a dependency-confusion footgun.
+    with pytest.raises(ImportError, match=r"pip install \"lazycrawler @ git\+"):
         web.as_tools()
