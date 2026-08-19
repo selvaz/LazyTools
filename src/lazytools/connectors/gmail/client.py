@@ -93,7 +93,7 @@ class GmailClient:
         except ImportError as exc:  # pragma: no cover — exercised only without the extra
             raise ImportError(
                 "GmailClient.from_credentials requires the 'gmail' extra. "
-                "Install it with: pip install 'lazytoolkit[gmail]'"
+                'Install it with: pip install "lazytoolkit[gmail] @ git+https://github.com/selvaz/LazyTools.git"'
             ) from exc
 
         import os

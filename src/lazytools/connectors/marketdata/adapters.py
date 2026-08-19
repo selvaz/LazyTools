@@ -195,7 +195,7 @@ class StooqAdapter:
             except ImportError as exc:  # pragma: no cover — exercised only without the extra
                 raise ImportError(
                     "StooqAdapter requires the 'marketdata' extra. "
-                    "Install it with: pip install 'lazytoolkit[marketdata]'"
+                    'Install it with: pip install "lazytoolkit[marketdata] @ git+https://github.com/selvaz/LazyTools.git"'
                 ) from exc
             self._http = httpx.Client(timeout=self._timeout)
         return self._http

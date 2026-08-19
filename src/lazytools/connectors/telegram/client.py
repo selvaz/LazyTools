@@ -87,7 +87,7 @@ class TelegramClient:
         except ImportError as exc:  # pragma: no cover — exercised only without the extra
             raise ImportError(
                 "TelegramClient.from_token requires the 'telegram' extra. "
-                "Install it with: pip install 'lazytoolkit[telegram]'"
+                'Install it with: pip install "lazytoolkit[telegram] @ git+https://github.com/selvaz/LazyTools.git"'
             ) from exc
         return cls(token, http=httpx.Client(timeout=timeout))
 

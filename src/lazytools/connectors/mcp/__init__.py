@@ -18,7 +18,7 @@ Quick start::
 
 Install with::
 
-    pip install lazytoolkit[mcp]
+    pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"
 """
 
 from __future__ import annotations

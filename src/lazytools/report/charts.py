@@ -59,7 +59,7 @@ def render_series_png(
         from matplotlib.figure import Figure
     except ImportError as exc:  # pragma: no cover - exercised without the extra
         raise ImportError(
-            "report charts require matplotlib: pip install 'lazytoolkit[charts]'"
+            'report charts require matplotlib: pip install "lazytoolkit[charts] @ git+https://github.com/selvaz/LazyTools.git"'
         ) from exc
 
     if df.empty:
