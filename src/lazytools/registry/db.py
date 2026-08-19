@@ -48,7 +48,21 @@ class DBEntry:
 
 KNOWN_DBS: tuple[DBEntry, ...] = (
     DBEntry("market_data", "MARKET_DATA_DB", "market-data-hub", True, "Prices and historical series"),
-    DBEntry("pulse_state", "STORE_DB", "lazypulse", True, "Telegram bot state"),
+    DBEntry(
+        "pulse_state",
+        "STORE_DB",
+        "lazypulse",
+        False,
+        "LazyPulse's always-on PulseAgent/Telegram bot state store. "
+        "Optional, not required: a deployment that schedules its jobs "
+        "externally (e.g. the Windows Task Scheduler) runs no PulseAgent "
+        "and so has nothing to persist here. It was declared required=True, "
+        "which made status() report a missing required DB in every such "
+        "deployment -- a permanent false alarm that trains the reader to "
+        "ignore the one signal the registry exists to give. No caller "
+        "resolves this entry; set STORE_DB only when actually running the "
+        "always-on agent.",
+    ),
     DBEntry("crawler_raw", "LAZYCRAWLER_NEWS_DB", "lazycrawler", True, "News crawl page cache"),
     DBEntry(
         "lazystats_depot",
