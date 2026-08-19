@@ -8,6 +8,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-19
+
 ### Changed
 - **The reviewers may now read the web too.** `claude_code_review` runs with
   `web=True` (the engine's own WebSearch/WebFetch) instead of the previous
@@ -58,6 +60,30 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   offline: reading the web is not what a code review is for.
   `codex_consultant` / `claude_consultant` expose the same via `tools=` /
   `web=` factory parameters.
+- Every install hint raised from source pointed at a **bare PyPI name**
+  (`pip install 'lazytoolkit[telegram]'`). `lazytoolkit` is GitHub-only and
+  the PyPI name is unregistered, so the command sent the reader at a name
+  nobody owns — the dependency-confusion footgun this repo already treats as
+  a distribution-model violation. Surfaced by the ETF daily-stats job, whose
+  Telegram send failed during a venv rebuild and printed exactly that. All 19
+  hints in `src/`, two `pyproject.toml` comments and the bare
+  `pip install lazycrawler` in `WebTools` now use the
+  `@ git+https://github.com/...` direct reference the docs already used.
+  The guard existed but scanned only `README`/`docs`/`mkdocs.yml`; an
+  `ImportError` hint reaches a user exactly like a doc line does, so
+  `check_no_pypi_install_anywhere()` now also covers `src/`, `examples/`,
+  `tools/` and `pyproject.toml`.
+
+### Changed
+- `pulse_state` (`STORE_DB`) is **no longer a required DB**. It holds
+  LazyPulse's always-on `PulseAgent`/Telegram bot state, and a deployment
+  that schedules its jobs externally runs no `PulseAgent` and has nothing to
+  persist — so an unset `STORE_DB` is correct there, not a misconfiguration.
+  Declared required it made `status()` report a missing required database
+  forever, the permanent false alarm that teaches a reader to ignore the one
+  signal the registry exists to give. `resolve_db("pulse_state")` now returns
+  `None` instead of raising `RuntimeError`; `artifact_dbs()` is unaffected
+  (it filters on the `_artifacts` suffix, not on `required`).
 
 ## [0.6.0] — 2026-08-18
 
