@@ -20,13 +20,13 @@ schema_version = 1
 
 [verified]
 python = ["3.11", "3.12", "3.13"]
-lazybridge = "1.0.1"
+lazybridge = "1.2.0"
 
 # Immutable GitHub refs of the verified, co-installable combination.
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.6.0"
+ref = "v0.7.0"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
@@ -47,7 +47,7 @@ extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "be712bd3c13d3847ec0338bea8a688617bc6f56f"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
+ref = "3f2d4cd40c2deaaa7c93748dc004a9e0718f051f"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
 extras = ["datacore"]
 
 [verified.github.lazyfin]
@@ -71,4 +71,4 @@ repo = "https://github.com/selvaz/LazyRay"
 reason = "LazyRay now pins the same market-data-hub revision as the verified combination (re-aligned, ECO-007), so the earlier pin conflict is gone. It stays pending only because the ecosystem-released CI does not yet install and smoke it; move it to [verified.github] once that job exercises it."
 
 [minimums]
-lazybridge = ">=1.0.1,<2.0"
+lazybridge = ">=1.2.0,<2.0"

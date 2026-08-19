@@ -8,6 +8,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **The verified combination moves to current releases.** `lazytoolkit`
+  `v0.6.0` → `v0.7.0`, `lazyportfolio` → `3f2d4cd4` (docs-only, and its
+  `datacore` extra still pins the same market-data-hub revision as the
+  manifest, so the coupled refs stay in agreement), and `lazybridge`
+  `1.0.1` → `1.2.0`.
+- **The `lazybridge` floor is raised to `>=1.2.0,<2.0`** (was `>=1.0.1`), in
+  `pyproject.toml` and `[minimums]` alike. This is deliberately breaking: the
+  InvestmentCommittee environments were found running a `lazybridge 1.0.2`
+  installed from a local working-tree path — a version that does not exist on
+  PyPI — and a floor that admitted it let an unreproducible build satisfy the
+  dependency silently. Installs on `lazybridge < 1.2.0` now fail loudly
+  instead.
+
 ## [0.7.0] — 2026-08-19
 
 ### Changed
