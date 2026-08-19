@@ -77,7 +77,14 @@ Report, in this order and nothing else:
 Rules: no praise, no summary of what the code does, no style nits, no
 speculation presented as fact. If you find nothing in a section, omit it. If
 the whole review is clean, say so in one line. Be concise — this output is
-read by another agent, not rendered as a document."""
+read by another agent, not rendered as a document.
+
+If your native web tool is available, use it to verify something the
+repository cannot tell you on its own — a CVE, whether an API is actually
+deprecated, a library's current documented behavior — but only when it
+changes a finding. Mark anything sourced from the web as such (e.g. "per
+<source>: ..."); never blend it into the repo-verified findings as if you
+had read it in the code."""
 
 #: Developer instructions for the *consulting* mode. A reviewer is asked "what
 #: is wrong with this"; a consultant is asked "how should this work" — and the

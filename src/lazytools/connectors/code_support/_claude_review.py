@@ -73,6 +73,21 @@ speculation presented as fact. If you find nothing in a section, omit it. If
 the whole review is clean, say so in one line. Be concise — this output is
 read by another agent, not rendered as a document."""
 
+#: Appended to a reviewer/consultant prompt ONLY when the engine actually
+#: grants web tools. Kept separate rather than folded into the prompt above
+#: because a prompt that asserts web access to an agent built with
+#: ``web=False`` sends it chasing tools it does not have — the offline
+#: escape hatch would then not really be offline. Found by Codex reviewing
+#: PR #125.
+WEB_ADDENDUM = """
+
+You have web access (WebSearch/WebFetch). Use it to verify things the
+repository cannot tell you on its own — a CVE, whether an API is actually
+deprecated, a library's current documented behavior — but only when it
+changes a finding. Mark anything sourced from the web as such (e.g. "per
+<source>: ..."); never blend it into the repo-verified findings as if you
+had read it in the code."""
+
 #: Consulting counterpart, same contract as ``CODE_CONSULTANT_SYSTEM``.
 CLAUDE_CONSULTANT_SYSTEM = """You are a technical design partner with read-only access to a repository.
 
@@ -159,9 +174,9 @@ async def _claude_turn(
         model=model,
         cwd=str(cwd),
         file_roots=[str(cwd)],
-        # Off for reviews (reading the web is not what a code review is for);
-        # on for consultations, where checking a claim against the world is
-        # part of answering the question.
+        # web=True by default for both roles since 2026-08-19 — a review can
+        # need to check a CVE or a library's current behavior too. The caller
+        # (claude_reviewer/claude_consultant) still decides per factory call.
         web=web,
         system=system,
         thinking=thinking,
@@ -197,6 +212,18 @@ def _build_root(root: str | None) -> Path:
     return Path(root or os.environ.get("LAZYTOOLS_CODE_ROOT") or Path.cwd()).expanduser().resolve()
 
 
+def _compose_system(system: str | None, base: str, web: bool) -> str:
+    """Resolve a factory's system prompt against its actual web grant.
+
+    ``None`` (the default) composes ``base`` with :data:`WEB_ADDENDUM` only
+    when the engine really gets web tools. An explicit ``system`` is returned
+    untouched: the caller owns what their prompt claims.
+    """
+    if system is not None:
+        return system
+    return base + WEB_ADDENDUM if web else base
+
+
 def _check_timeout(timeout: float) -> None:
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError(f"timeout must be a positive finite number of seconds, got {timeout!r}")
@@ -209,7 +236,8 @@ def claude_reviewer(
     thinking: str | int | None = None,
     timeout: float = DEFAULT_REVIEW_TIMEOUT,
     name: str = "claude_code_review",
-    system: str = CLAUDE_REVIEWER_SYSTEM,
+    system: str | None = None,
+    web: bool = True,
 ) -> Tool:
     """Build ``claude_code_review``: Claude Code as a review agent.
 
@@ -217,8 +245,23 @@ def claude_reviewer(
     same confinement — so the two can be pointed at one diff and compared.
     ``model`` is a Claude Code alias ("sonnet", "opus", …); ``thinking`` takes
     the engine's extended-thinking setting.
+
+    ``web=True`` (the default, since 2026-08-19) grants the engine's own
+    WebSearch/WebFetch: a review can need to check a CVE, a library's current
+    API, or whether a pattern is actually deprecated — the earlier
+    offline-by-design choice cost real findings. Leaving ``system`` unset
+    composes the prompt to match: :data:`CLAUDE_REVIEWER_SYSTEM` plus
+    :data:`WEB_ADDENDUM` when ``web=True``, and the bare prompt when it is
+    ``False``, so an offline reviewer is never told it can browse. Passing
+    an explicit ``system`` opts out of that composition entirely — the
+    caller then owns what the prompt claims. Codex's reviewers were never
+    code-gated this way: the native Codex web tool (``web__run``) is an
+    account-level capability, on whenever ``~/.codex/config.toml`` enables
+    it, independent of role.
     """
     from lazybridge import Tool
+
+    system = _compose_system(system, CLAUDE_REVIEWER_SYSTEM, web)
 
     _check_timeout(timeout)
     base = _build_root(root)
@@ -268,6 +311,7 @@ def claude_reviewer(
             thinking=thinking,
             timeout=timeout,
             with_git=True,
+            web=web,
         )
 
     return Tool(claude_code_review, name=name)
@@ -280,7 +324,7 @@ def claude_consultant(
     thinking: str | int | None = None,
     timeout: float = DEFAULT_REVIEW_TIMEOUT,
     name: str = "claude_ask",
-    system: str = CLAUDE_CONSULTANT_SYSTEM,
+    system: str | None = None,
     web: bool = True,
     tools: list[Any] | None = None,
 ) -> Tool:
@@ -292,13 +336,15 @@ def claude_consultant(
 
     ``model``/``thinking`` are the *defaults*; each ``claude_ask`` call may
     override them. ``web=True`` (the default) grants the engine's own
-    WebSearch/WebFetch — a consultant may need to read the world, where the
-    reviewer stays deliberately offline. ``tools`` are extra LazyBridge tools
-    for the agent (e.g. the LazyCrawler web tools).
+    WebSearch/WebFetch — same default as :func:`claude_reviewer` since
+    2026-08-19, and composed the same way (see there): the prompt only
+    claims web access when the engine actually grants it. ``tools`` are
+    extra LazyBridge tools for the agent (e.g. the LazyCrawler web tools).
     """
     from lazybridge import Tool
 
     _check_timeout(timeout)
+    system = _compose_system(system, CLAUDE_CONSULTANT_SYSTEM, web)
     base = _build_root(root)
     default_model, default_thinking = model, thinking
     extra_tools = list(tools or [])

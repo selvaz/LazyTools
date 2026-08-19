@@ -8,6 +8,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **The reviewers may now read the web too.** `claude_code_review` runs with
+  `web=True` (the engine's own WebSearch/WebFetch) instead of the previous
+  offline-by-design default, and both reviewer prompts (Codex's and
+  Claude's) now permit web lookups — a review can legitimately need to check
+  a CVE, whether an API is really deprecated, or a library's current
+  documented behavior, and the offline default was costing real findings.
+  Both prompts require web-sourced claims to be marked as such and kept out
+  of the repo-verified findings list. `claude_reviewer(web=False)` restores
+  the old behavior. Codex's reviewers were never gated in code here: its
+  native web tool (`web__run`) is an account-level capability governed by
+  `~/.codex/config.toml`, independent of role.
+
 ### Added
 - The two `*_ask` consultants now carry the server's own **read-only
   LazyTools toolset** (`web`, `datahub`, `statistical`, `fin`,

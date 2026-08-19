@@ -100,8 +100,10 @@ optimizer hits the same databases and caches as the equivalent MCP tools.
 (Dynamic tools ride the app-server channel and need no MCP registration on
 the participant's side — a Codex thread reaching this server through its own
 `config.toml` MCP entry gets rejected by `approval_policy="never"` before
-execution, which is exactly the path this avoids.) The reviewers stay
-deliberately offline: reading the web is not what a code review is for.
+execution, which is exactly the path this avoids.) The reviewers get the
+web too (since 2026-08-19 — a review can need to check a CVE or whether an
+API is really deprecated), but not the LazyTools toolset: a reviewer reads
+code, it does not run the optimizer.
 
 Codex reads the files and runs `git` itself, so a call is "point it at a
 repository and say what to look at":
@@ -147,9 +149,10 @@ claude_ask(question, repo_path=None, session_id=None, model=None, thinking=None)
 
 `claude_ask` mirrors `codex_ask`'s consulting extras too: per-call `model` /
 `thinking` overrides, the same read-only LazyTools toolset (served to the
-engine as its in-process MCP server), and additionally the engine's own
-WebSearch/WebFetch (`web=True`). `claude_code_review` stays offline like
-its Codex twin.
+engine as its in-process MCP server), and the engine's own WebSearch/WebFetch
+(`web=True`). `claude_code_review` gets that same web access — build it with
+`claude_reviewer(web=False)` for the old offline behavior — but not the
+LazyTools toolset.
 
 Identical arguments and the identical durable-handle protocol (`session_id=`
 instead of `thread_id=`), on `ClaudeCodeEngine` — so the same diff can go to

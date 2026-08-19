@@ -61,6 +61,7 @@ from lazytools.connectors.code_support._claude_code import claude_code, claude_c
 from lazytools.connectors.code_support._claude_review import (
     CLAUDE_CONSULTANT_SYSTEM,
     CLAUDE_REVIEWER_SYSTEM,
+    WEB_ADDENDUM,
     claude_consultant,
     claude_reviewer,
 )
@@ -92,6 +93,7 @@ def check_clis_available() -> dict[str, bool]:
 __all__ = [
     "CLAUDE_CONSULTANT_SYSTEM",
     "CLAUDE_REVIEWER_SYSTEM",
+    "WEB_ADDENDUM",
     "CODE_CONSULTANT_SYSTEM",
     "CODE_REVIEWER_SYSTEM",
     "DEFAULT_REVIEW_TIMEOUT",
