@@ -13,13 +13,13 @@ import pytest
 
 pytest.importorskip("market_data_hub")
 
-from market_data_hub.db import connection as cx  # noqa: E402
-from market_data_hub.earnings_calendar import (  # noqa: E402
+from market_data_hub.db import connection as cx
+from market_data_hub.earnings_calendar import (
     EarningsObservation,
     ingest_observations,
 )
 
-from lazytools.connectors.earnings_calendar import EarningsCalendarTools  # noqa: E402
+from lazytools.connectors.earnings_calendar import EarningsCalendarTools
 
 
 def _oss(symbol: str, giorno: str, **kw) -> EarningsObservation:
