@@ -35,6 +35,7 @@ EXPECTED_PROVIDER_IDS = {
     "datahub",
     "statistical",
     "econ_calendar",
+    "earnings_calendar",
     "calendar_agent",
     "regimes",
     "report",
@@ -116,6 +117,14 @@ PORTFOLIO_TREE_WRITE = {
     "portfolio_tree_backtest",
 }
 
+EARNINGS_TOOLS = {
+    "earnings_vocabulary",
+    "earnings_week",
+    "earnings_for_day",
+    "earnings_aggregate",
+    "earnings_event",
+}
+
 REPORT_READ = {"render_memo", "render_memo_html"}
 REPORT_WRITE = {"save_memo_html", "save_memo_markdown", "save_report"}
 
@@ -147,6 +156,13 @@ def test_statistical_contract() -> None:
     from lazytools.statistical_analysis import StatisticalAnalysisTools
 
     assert _names(StatisticalAnalysisTools()) == STATISTICAL_TOOLS
+
+
+def test_earnings_calendar_contract() -> None:
+    """Read-only: the calendar is written by its ingestion job, never by an agent."""
+    from lazytools.connectors.earnings_calendar import EarningsCalendarTools
+
+    assert _names(EarningsCalendarTools()) == EARNINGS_TOOLS
 
 
 def test_fin_provider_contract(monkeypatch) -> None:
