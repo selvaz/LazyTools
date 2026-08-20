@@ -91,6 +91,19 @@ def _econ_calendar(allow_write: bool = False, *, data_source: dict[str, Any] | N
     return EconCalendarTools(db_path=(data_source or {}).get("path"))
 
 
+@_register("earnings_calendar")
+def _earnings_calendar(allow_write: bool = False, *,
+                       data_source: dict[str, Any] | None = None) -> Any:
+    """The corporate earnings calendar in market-data-hub (read-only).
+
+    Written by its ingestion job, like the economic calendar, so there is no
+    write surface and ``allow_write`` is accepted and ignored.
+    """
+    from lazytools.connectors.earnings_calendar import EarningsCalendarTools
+
+    return EarningsCalendarTools(db_path=(data_source or {}).get("path"))
+
+
 @_register("regimes")
 def _regimes(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """HMM / Markov-switching regimes (needs lazystats[regimes]).
