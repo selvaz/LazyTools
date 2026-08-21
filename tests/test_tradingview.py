@@ -11,6 +11,8 @@ runtime, and what a live spot-check is for before a release.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from lazytools.connectors.tradingview import (
@@ -697,3 +699,67 @@ def test_a_total_count_smaller_than_the_page_is_refused() -> None:
     client = ScreenerClient(transport=_Inconsistent(), min_interval=0)
     with pytest.raises(ScreenerError, match="returned 2 rows"):
         client.scan("america", ["name"])
+
+
+def test_every_catalogued_field_can_actually_be_requested() -> None:
+    """A bundle is the only way to ask for a field.
+
+    So a field in the catalogue that no bundle carries is a dead end dressed
+    as an answer: tradingview_fields tells the caller it exists and to request
+    its bundle, and no such request is possible. 36 of the 100 fields were in
+    that state.
+    """
+    carried = {f for names in BUNDLES.values() for f in names}
+    orphans = sorted(set(FIELDS) - carried)
+    assert not orphans, f"no bundle returns {orphans}"
+
+
+def test_field_discovery_names_the_bundle_that_returns_it() -> None:
+    out = _tools(_Stub()).tradingview_fields(search="flow")
+    for name, spec in out["fields"].items():
+        assert spec["in_bundles"], f"{name} is discoverable but unrequestable"
+
+
+def test_the_budget_holds_when_two_threads_share_one_client() -> None:
+    """An MCP server drives every tool on one provider, hence one client.
+
+    Checking the budget and counting the call in two steps let both threads
+    past a budget of one, and let through exactly the burst the interval guard
+    exists to prevent.
+    """
+    import threading
+
+    class _Slow:
+        def __init__(self):
+            self.calls = 0
+            self.lock = threading.Lock()
+
+        def post(self, url, json=None):
+            with self.lock:
+                self.calls += 1
+            time.sleep(0.05)
+            return _Response({"totalCount": 1, "data": []})
+
+        def get(self, url):  # pragma: no cover - not reached
+            raise AssertionError
+
+    slow = _Slow()
+    client = ScreenerClient(transport=slow, max_calls=1, min_interval=0)
+    errors: list[Exception] = []
+
+    def _go():
+        try:
+            client.count("america", [])
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=_go) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert slow.calls == 1, f"budget of 1 let {slow.calls} requests out"
+    assert client.calls_made == 1
+    assert len(errors) == 3
+    assert all(isinstance(e, ScreenerBudgetExceeded) for e in errors)

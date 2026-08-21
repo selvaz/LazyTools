@@ -15,6 +15,7 @@ harder. Transient network failures get exactly one retry.
 from __future__ import annotations
 
 import random
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -67,10 +68,10 @@ class ScreenerClient:
         min_interval: floor on the gap between two requests, with jitter, so a
             burst of tool calls does not arrive as a burst of traffic.
 
-    Not thread-safe, and not meant to be: the budget check and the counter
-    increment are separate steps, so two threads sharing one client could
-    together exceed ``max_calls``. Give each agent its own client, which is
-    what the tool provider does.
+    Safe to share between threads: a request is claimed under a lock, so a
+    budget of N stays N even when an MCP server drives several tools at once,
+    and the minimum interval really spaces the traffic instead of being
+    something every thread reads at the same moment.
     """
 
     def __init__(
@@ -89,6 +90,7 @@ class ScreenerClient:
         self._transport = transport  # tests inject a stub here
         self._calls = 0
         self._last_call = 0.0
+        self._gate = threading.Lock()
         self._metainfo: dict[str, dict] = {}
 
     # ------------------------------------------------------------------ http
@@ -106,15 +108,27 @@ class ScreenerClient:
             raise ScreenerError(_HTTPX_MISSING) from exc
         return httpx.Client(timeout=self._timeout, headers={"User-Agent": USER_AGENT})
 
-    def _throttle(self) -> None:
-        if self._max_calls is not None and self._calls >= self._max_calls:
-            raise ScreenerBudgetExceeded(
-                f"call budget of {self._max_calls} spent. Widen the question rather "
-                f"than iterating: one scan can carry hundreds of instruments."
-            )
-        wait = self._min_interval - (time.monotonic() - self._last_call)
-        if wait > 0:
-            time.sleep(wait + random.uniform(0, 0.05))
+    def _reserve(self) -> None:
+        """Claim one request: check the budget, space it, count it — atomically.
+
+        Checking and counting in two steps is fine for one agent and wrong for
+        the MCP server, where every tool on the provider shares this client and
+        parallel calls can all pass the check before any of them increments. A
+        budget of one would then issue two requests, and the interval guard
+        would let exactly the burst it exists to prevent. The wait happens
+        inside the lock on purpose: serialising the requests IS the spacing.
+        """
+        with self._gate:
+            if self._max_calls is not None and self._calls >= self._max_calls:
+                raise ScreenerBudgetExceeded(
+                    f"call budget of {self._max_calls} spent. Widen the question rather "
+                    f"than iterating: one scan can carry hundreds of instruments."
+                )
+            wait = self._min_interval - (time.monotonic() - self._last_call)
+            if wait > 0:
+                time.sleep(wait + random.uniform(0, 0.05))
+            self._calls += 1
+            self._last_call = time.monotonic()
 
     def _request(self, verb: str, path: str, body: dict | None = None) -> dict:
         """One request, retried once on a transient failure, always a dict.
@@ -130,7 +144,7 @@ class ScreenerClient:
                 # Per attempt, not per call: a retry is a request like any
                 # other, and checking only once would let the budget be
                 # exceeded by however many retries were in flight.
-                self._throttle()
+                self._reserve()
                 try:
                     response = (
                         client.post(f"{self._base}{path}", json=body)
@@ -142,9 +156,6 @@ class ScreenerClient:
                         raise ScreenerError(f"could not reach the screener: {exc}") from exc
                     time.sleep(0.4 + random.uniform(0, 0.3))
                     continue
-                finally:
-                    self._calls += 1
-                    self._last_call = time.monotonic()
 
                 status = getattr(response, "status_code", 0)
                 if status in (429, 403):

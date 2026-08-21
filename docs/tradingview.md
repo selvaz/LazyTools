@@ -56,6 +56,12 @@ A fourth is subtler and is why `tradingview_vocabulary` says *call this first*:
 an unknown **value** — a sector spelled another vendor's way — does not raise.
 It returns an empty result indistinguishable from a real "nothing matched".
 
+The catalogue is the whole surface: 100 fields, each with its unit and one line
+of meaning, grouped into 13 bundles — and every field belongs to at least one,
+because a bundle is the only way to ask for one. A field the catalogue lists and
+no bundle returns is a dead end dressed as an answer, so a test asserts there are
+none. `tradingview_fields` reports each field's `in_bundles` for that reason.
+
 Three vendor fields are withheld outright. `asset_class`, `category` and
 `holdings_region` come back as opaque 32-character hashes even with `lang=en`; a
 model shown one would treat it as a label. Classification belongs to your own

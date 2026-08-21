@@ -648,8 +648,18 @@ class TradingViewTools:
                 f"unknown unit {unit!r}; the units in use are {sorted(known_units)}"
             )
         needle = search.strip().lower()
+        # Which bundle returns it, because a bundle is the only way to ask for
+        # a field: telling a caller a field exists without telling it how to
+        # request one is a dead end dressed as an answer.
+        carried_by: dict[str, list[str]] = {}
+        for bundle, names in BUNDLES.items():
+            for name in names:
+                carried_by.setdefault(name, []).append(bundle)
         found = {
-            name: {"unit": f.unit, "note": f.note, "timeframed": f.timeframed}
+            name: {
+                "unit": f.unit, "note": f.note, "timeframed": f.timeframed,
+                "in_bundles": carried_by.get(name, []),
+            }
             for name, f in FIELDS.items()
             if (not needle or needle in name.lower() or needle in f.note.lower())
             and (not unit or f.unit == unit)
@@ -657,8 +667,8 @@ class TradingViewTools:
         return self._envelope(
             matched=len(found), fields=found, withheld=dict(WITHHELD),
             units_in_use=sorted(known_units),
-            note="a bundle is the only way to request fields; ask for the bundle "
-                 "that contains what you need.",
+            note="a bundle is the only way to request fields: ask tradingview_quote "
+                 "for one of the bundles listed in 'in_bundles'.",
         )
 
     # ---------------------------------------------------------------- wiring
