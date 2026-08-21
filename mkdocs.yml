@@ -72,6 +72,7 @@ plugins:
           - code-support/collaboration.md
           - gateway.md
           - datahub.md
+          - tradingview.md
           - regimes.md
           - statistical-analysis.md
           - portfolio-optimization.md
@@ -143,6 +144,7 @@ nav:
           - Collaboration: code-support/collaboration.md
       - External tool gateway: gateway.md
       - Financial data (market-data-hub): datahub.md
+      - TradingView screener: tradingview.md
       - Regime detection: regimes.md
       - Statistical analysis: statistical-analysis.md
       - Portfolio optimization: portfolio-optimization.md

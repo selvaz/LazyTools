@@ -8,6 +8,9 @@ Two flavours live here:
   tailored system prompt = a skill) that share a blackboard, plus three
   orchestrators (deterministic Plan, blackboard, replan) that compose them.
   These build on ``lazybridge`` agents.
+* **Screener skill** (``screener``) — a specialist over the live TradingView
+  screener: market breadth, ranked screens, fund flows. Snapshot only, and
+  third-party data, so it is never in a default roster.
 * **Council skills** (``council``) — spontaneous multi-agent deliberation via
   ``AgentPool``, including a DeepSeek + Claude Code current-news preset.
 """
@@ -44,6 +47,11 @@ from lazytools.skills.doc_skills import (
     skill_builder_tools,
     skill_pipeline,
     skill_tools,
+)
+from lazytools.skills.screener import (
+    SCREENER_SYSTEM,
+    screener_analyst,
+    screener_skill,
 )
 from lazytools.skills.stats_agents import (
     regime_analyst,
@@ -89,6 +97,10 @@ __all__ = [
     "plan_orchestrator",
     "blackboard_orchestrator",
     "replan_orchestrator",
+    # live market screener (TradingView)
+    "SCREENER_SYSTEM",
+    "screener_analyst",
+    "screener_skill",
     # focused statistical specialists + supervisor (agent-as-tool)
     "volatility_correlation_analyst",
     "regime_analyst",
