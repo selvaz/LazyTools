@@ -144,9 +144,9 @@ class TestCodexMcp:
         with (
             patch("lazytools.connectors.code_support._codex.resolve_codex_bin", return_value="/parent/env/codex"),
             patch("shutil.which", return_value=None),
+            pytest.raises(FileNotFoundError, match="/empty/dir"),
         ):
-            with pytest.raises(FileNotFoundError, match="/empty/dir"):
-                codex_mcp(allow=["*"], env={"PATH": "/empty/dir"})
+            codex_mcp(allow=["*"], env={"PATH": "/empty/dir"})
 
     def test_extra_args_appended(self):
         srv = codex_mcp(allow=["*"], args=["--foo"])
