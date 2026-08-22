@@ -58,8 +58,9 @@ class CodeWriteTools:
     Tools exposed by :meth:`as_tools`:
 
     * ``claude_code_write`` — Claude Code with edits + Bash (``acceptEdits``).
-    * ``codex_write`` — Codex with the ``workspace-write --full-auto`` sandbox
-      (only when ``codex=True``).
+    * ``codex_write`` — Codex with the ``workspace-write`` sandbox (only when
+      ``codex=True``). ``codex exec`` is non-interactive by construction and
+      has no separate approval flag to pair with the sandbox.
 
     Parameters
     ----------
@@ -174,7 +175,7 @@ class CodeWriteTools:
                     name="codex_write",
                     description=(
                         "Delegate a coding task to Codex WITH write access "
-                        "(workspace-write sandbox, full-auto), sandboxed to the "
+                        "(workspace-write sandbox), sandboxed to the "
                         "configured project directory. Requires an outstanding write "
                         "confirmation unless the provider was built with "
                         "require_confirmation=False. Omitting cwd runs in the provider's "

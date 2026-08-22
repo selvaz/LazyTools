@@ -128,9 +128,9 @@ def main(argv: list[str] | None = None) -> None:
             "and a local Codex login, codex_code_review(task, repo_path, diff_ref, paths) "
             "delegates a read-only code review of a local repository to Codex (minutes, one "
             "model turn per call). With --allow-unsafe, codex_write(task, cwd, resume_last) "
-            "delegates a coding task to Codex WITH write access (workspace-write, full-auto "
-            "sandbox), confined to the same root, with no per-call confirmation gate -- treat "
-            "it as fully trusted within that scope."
+            "delegates a coding task to Codex WITH write access (workspace-write sandbox), "
+            "confined to the same root, with no per-call confirmation gate -- treat it as "
+            "fully trusted within that scope."
         ),
     )
     if args.http:
