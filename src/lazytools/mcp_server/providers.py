@@ -104,6 +104,35 @@ def _earnings_calendar(allow_write: bool = False, *,
     return EarningsCalendarTools(db_path=(data_source or {}).get("path"))
 
 
+@_register("tradingview")
+def _tradingview(allow_write: bool = False, *,
+                 data_source: dict[str, Any] | None = None) -> Any:
+    """The live TradingView screener: breadth, ranked screens, fund snapshots.
+
+    The only provider on this menu that reads a third-party service in real
+    time instead of a database this project owns. It has no write surface —
+    the endpoint has none, and nothing here persists — so ``allow_write`` is
+    accepted and ignored.
+
+    Two environment knobs, because the sensible budget for a long-lived MCP
+    server is not the sensible budget for one agent: ``LAZYTOOLS_TV_MARKET``
+    (default ``america``) and ``LAZYTOOLS_TV_MAX_CALLS`` (default 500 here,
+    ``0`` to remove the guard).
+    """
+    from lazytools.connectors.tradingview import TradingViewTools
+
+    raw = os.environ.get("LAZYTOOLS_TV_MAX_CALLS", "500")
+    try:
+        budget: int | None = int(raw)
+    except ValueError:
+        budget = 500
+    if budget is not None and budget <= 0:
+        budget = None
+    return TradingViewTools(
+        market=os.environ.get("LAZYTOOLS_TV_MARKET", "america"), max_calls=budget
+    )
+
+
 @_register("regimes")
 def _regimes(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """HMM / Markov-switching regimes (needs lazystats[regimes]).

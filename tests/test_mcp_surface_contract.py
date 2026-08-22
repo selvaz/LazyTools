@@ -36,6 +36,7 @@ EXPECTED_PROVIDER_IDS = {
     "statistical",
     "econ_calendar",
     "earnings_calendar",
+    "tradingview",
     "calendar_agent",
     "regimes",
     "report",
@@ -125,6 +126,15 @@ EARNINGS_TOOLS = {
     "earnings_event",
 }
 
+TRADINGVIEW_TOOLS = {
+    "tradingview_vocabulary",
+    "tradingview_fields",
+    "tradingview_resolve",
+    "tradingview_quote",
+    "tradingview_screen",
+    "tradingview_breadth",
+}
+
 REPORT_READ = {"render_memo", "render_memo_html"}
 REPORT_WRITE = {"save_memo_html", "save_memo_markdown", "save_report"}
 
@@ -163,6 +173,18 @@ def test_earnings_calendar_contract() -> None:
     from lazytools.connectors.earnings_calendar import EarningsCalendarTools
 
     assert _names(EarningsCalendarTools()) == EARNINGS_TOOLS
+
+
+def test_tradingview_contract() -> None:
+    """Read-only: the endpoint has no write surface and nothing is persisted.
+
+    Constructed with a client that has no transport, so building the tool list
+    reaches no network -- the contract is about the surface, not the service.
+    """
+    from lazytools.connectors.tradingview import ScreenerClient, TradingViewTools
+
+    provider = TradingViewTools(client=ScreenerClient(transport=object()))
+    assert _names(provider) == TRADINGVIEW_TOOLS
 
 
 def test_fin_provider_contract(monkeypatch) -> None:
