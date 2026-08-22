@@ -154,9 +154,21 @@ async def test_claude_write_uses_accept_edits_flags(tmp_path):
 
 async def test_codex_write_uses_workspace_write_and_keeps_git_rail(tmp_path):
     writer = _writer(tmp_path, codex=True, require_confirmation=False)
-    with patch("subprocess.run", return_value=_proc(stdout="done")) as mock_run:
+    with (
+        # Mocked at resolve_codex_bin()'s defining module, not at
+        # lazybridge.engines.codex directly — that submodule is absent on
+        # the declared/verified minimum lazybridge version (see
+        # test_code_review_tool.py's compatibility fixture), where patching
+        # it would raise ModuleNotFoundError before this test body runs.
+        patch(
+            "lazytools.connectors.code_support._codex.resolve_codex_bin",
+            return_value="/resolved/codex",
+        ),
+        patch("subprocess.run", return_value=_proc(stdout="done")) as mock_run,
+    ):
         out = await writer._codex_write("edit")
     cmd = mock_run.call_args[0][0]
+    assert cmd[0] == "/resolved/codex"
     assert "--full-auto" in cmd
     assert "workspace-write" in cmd
     # Writes keep git as the recovery rail by default.

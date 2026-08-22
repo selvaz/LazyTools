@@ -8,6 +8,8 @@ config directly.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from lazytools.connectors.code_support import claude_code_mcp, codex_mcp
@@ -59,10 +61,22 @@ class TestCodexMcp:
         assert isinstance(srv, MCPServer)
 
     def test_launches_codex_mcp_server(self):
-        srv = codex_mcp(allow=["*"])
+        # command is resolve_codex_bin() (falls back to the bare "codex"
+        # literal only when nothing resolves) — mocked so this doesn't
+        # depend on whether Codex is actually installed on this machine.
+        with patch(
+            "lazytools.connectors.code_support._codex.resolve_codex_bin",
+            return_value="/resolved/codex",
+        ):
+            srv = codex_mcp(allow=["*"])
         t = srv._transport
-        assert t._command == "codex"
+        assert t._command == "/resolved/codex"
         assert t._args == ["mcp-server"]
+
+    def test_falls_back_to_bare_codex_when_unresolved(self):
+        with patch("lazytools.connectors.code_support._codex.resolve_codex_bin", return_value=None):
+            srv = codex_mcp(allow=["*"])
+        assert srv._transport._command == "codex"
 
     def test_extra_args_appended(self):
         srv = codex_mcp(allow=["*"], args=["--foo"])

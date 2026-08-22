@@ -9,6 +9,8 @@ import json
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from lazytools.connectors.code_support import check_clis_available, claude_code, codex
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
@@ -109,12 +111,28 @@ class TestClaudeCode:
 
 
 class TestCodex:
+    #: resolve_codex_bin() is mocked at its defining module, not at
+    #: lazybridge.engines.codex directly — that submodule is absent on
+    #: lazybridge==1.2.0 (the declared/verified minimum, see
+    #: test_code_review_tool.py's compatibility fixture), where patching it
+    #: would raise ModuleNotFoundError before the test body even runs.
+    #: resolve_codex_bin() itself already handles that absence (falls back to
+    #: shutil.which), so mocking it directly also exercises less incidental
+    #: surface per test.
+    @pytest.fixture(autouse=True)
+    def _fake_codex_executable(self):
+        with patch(
+            "lazytools.connectors.code_support._codex.resolve_codex_bin",
+            return_value="/resolved/codex",
+        ):
+            yield
+
     def test_read_mode_returns_result(self):
         with patch("subprocess.run", return_value=_proc(stdout="function list: foo, bar")) as mock_run:
             result = codex("list functions in main.py")
         assert result == {"result": "function list: foo, bar", "content_is_untrusted": True}
         cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "codex"
+        assert cmd[0] == "/resolved/codex"
         assert "exec" in cmd
         assert "-s" in cmd
         assert "read-only" in cmd
@@ -146,11 +164,21 @@ class TestCodex:
         assert "resume" in cmd
         assert "--last" in cmd
 
-    def test_cli_not_found_returns_error(self):
-        with patch("subprocess.run", side_effect=FileNotFoundError()):
+    def test_executable_not_found_returns_error(self):
+        # resolve_codex_bin() itself finds nothing (no PATH, no CODEX_BIN, no
+        # desktop-app install dir) — subprocess.run is never even attempted.
+        with patch("lazytools.connectors.code_support._codex.resolve_codex_bin", return_value=None):
             result = codex("task")
         assert "[codex]" in result
         assert "not found" in result
+
+    def test_resolved_binary_missing_at_exec_returns_error(self):
+        # resolve_codex_bin() resolved a path, but the subprocess call itself
+        # still fails (e.g. removed after resolution, permissions).
+        with patch("subprocess.run", side_effect=FileNotFoundError()):
+            result = codex("task")
+        assert "[codex]" in result
+        assert "could not be executed" in result
 
     def test_timeout_returns_error(self):
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("codex", 300)):
@@ -169,14 +197,24 @@ class TestCodex:
 
 
 class TestCheckClisAvailable:
+    # codex's own availability goes through resolve_codex_bin() — mocked at
+    # its defining module (see TestCodex's fixture for why, not at
+    # lazybridge.engines.codex directly) so these stay deterministic
+    # regardless of whether this machine has Codex installed.
     def test_both_found(self):
-        with patch("shutil.which", return_value="/usr/local/bin/claude"):
+        with (
+            patch("shutil.which", return_value="/usr/local/bin/claude"),
+            patch("lazytools.connectors.code_support.resolve_codex_bin", return_value="/resolved/codex"),
+        ):
             result = check_clis_available()
         assert result["claude"] is True
         assert result["codex"] is True
 
     def test_none_found(self):
-        with patch("shutil.which", return_value=None):
+        with (
+            patch("shutil.which", return_value=None),
+            patch("lazytools.connectors.code_support.resolve_codex_bin", return_value=None),
+        ):
             result = check_clis_available()
         assert result["claude"] is False
         assert result["codex"] is False
@@ -185,7 +223,10 @@ class TestCheckClisAvailable:
         def _which(name: str) -> str | None:
             return "/usr/bin/claude" if name == "claude" else None
 
-        with patch("shutil.which", side_effect=_which):
+        with (
+            patch("shutil.which", side_effect=_which),
+            patch("lazytools.connectors.code_support.resolve_codex_bin", return_value=None),
+        ):
             result = check_clis_available()
         assert result["claude"] is True
         assert result["codex"] is False

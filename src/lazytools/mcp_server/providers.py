@@ -667,13 +667,12 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
     if not allow_write:
         raise RuntimeError("code_write is opt-in only: pass allow_write=True (--allow-unsafe).")
 
-    import shutil
     from pathlib import Path
 
-    from lazytools.connectors.code_support import CodeWriteTools
+    from lazytools.connectors.code_support import CodeWriteTools, resolve_codex_bin
 
-    if not shutil.which("codex"):
-        raise RuntimeError("codex CLI not found on PATH; code_write skipped.")
+    if resolve_codex_bin() is None:
+        raise RuntimeError("codex CLI not found on PATH or in the Codex app install directory; code_write skipped.")
 
     root = (data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT")
     base_dir = str(Path(root or Path.cwd()).expanduser().resolve())
