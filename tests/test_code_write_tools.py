@@ -169,8 +169,14 @@ async def test_codex_write_uses_workspace_write_and_keeps_git_rail(tmp_path):
         out = await writer._codex_write("edit")
     cmd = mock_run.call_args[0][0]
     assert cmd[0] == "/resolved/codex"
-    assert "--full-auto" in cmd
+    # `codex exec` has no `--full-auto`/`-a` flag on current CLI builds
+    # (verified live against `codex exec --help`; passing it is a hard
+    # argument-parsing error). `-c approval_policy=never` pins the same
+    # non-interactive guarantee `--full-auto` used to (verified live,
+    # including a task that runs a shell command).
+    assert "--full-auto" not in cmd
     assert "workspace-write" in cmd
+    assert "approval_policy=never" in cmd
     # Writes keep git as the recovery rail by default.
     assert "--skip-git-repo-check" not in cmd
     assert out == {"result": "done", "content_is_untrusted": True}

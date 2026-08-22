@@ -63,11 +63,14 @@ agent = Agent(
 print(agent("List the public functions in main.py and describe each").text())
 ```
 
-!!! warning "`write` mode uses `--full-auto`, not `-a on-failure`"
+!!! warning "`write` mode pins `-c approval_policy=never`, not `--full-auto`"
     In a non-interactive subprocess, an approval prompt would **block waiting
-    for stdin** on the first failure and hang until the timeout fires. `write`
-    mode therefore uses `--full-auto`, which pairs `workspace-write` with a
-    non-interactive approval policy. (`codex exec` has no `-a` approval flag.)
+    for stdin** on the first failure and hang until the timeout fires.
+    Current `codex exec` builds have no `--full-auto`/`-a` flag at all
+    (passing either is a hard argument-parsing error) — only `-s/--sandbox`
+    and generic `-c key=value` config overrides. `write` mode therefore pairs
+    `-s workspace-write` with `-c approval_policy=never`, pinning the same
+    non-interactive guarantee `--full-auto` used to provide on older builds.
     Prefer a git repo for `write` so changes are reviewable.
 
 **Auth.** Codex uses the credentials from `codex login` (`~/.codex/auth.json`);

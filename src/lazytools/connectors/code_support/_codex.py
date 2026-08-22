@@ -34,9 +34,17 @@ _log = logging.getLogger(__name__)
 _READ_FLAGS: list[str] = ["-s", "read-only"]
 
 #: Write-mode flags — used only by ``CodeWriteTools`` (gated, sandboxed).
-#: --full-auto pairs workspace-write with a non-interactive approval policy,
-#: so a step that needs approval never blocks waiting on stdin.
-_WRITE_FLAGS: list[str] = ["-s", "workspace-write", "--full-auto"]
+#: ``codex exec`` has no ``--full-auto``/``-a`` flag at all on current Codex
+#: CLI builds (verified live against ``codex exec --help``: it exposes only
+#: ``-s/--sandbox`` and generic ``-c key=value`` overrides; passing
+#: ``--full-auto`` is a hard argument-parsing error). ``exec`` defaults to
+#: ``approval_policy=never`` on its own — verified live, including a task
+#: that runs a shell command, which completed without blocking — but that
+#: default could differ on another CLI version or a user's own
+#: ``~/.codex/config.toml``. ``-c approval_policy=never`` pins it explicitly,
+#: which is what ``--full-auto`` was originally meant to guarantee: pairing
+#: the sandbox with a policy that never blocks waiting on stdin.
+_WRITE_FLAGS: list[str] = ["-s", "workspace-write", "-c", "approval_policy=never"]
 
 
 def resolve_codex_bin() -> str | None:
