@@ -47,6 +47,7 @@ EXPECTED_PROVIDER_IDS = {
     "stats_agents",
     "code_review",
     "claude_review",
+    "code_write",
     "telegram",
     "gmail",
     "outlook",

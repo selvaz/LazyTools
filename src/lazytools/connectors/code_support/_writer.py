@@ -64,8 +64,16 @@ class CodeWriteTools:
     Parameters
     ----------
     base_dir:
-        Mandatory sandbox root. Must exist. Every write call's ``cwd``
-        (default: ``base_dir`` itself) must resolve inside it.
+        Mandatory sandbox root. Must exist. Every write call's ``cwd`` must
+        resolve inside it.
+    default_cwd:
+        Where a write call runs when its own ``cwd`` argument is omitted.
+        Relative to ``base_dir``, same resolution/confinement rules as a
+        per-call ``cwd``. Defaults to ``base_dir`` itself — set this when
+        writes should land in a specific project by default (e.g. the one
+        the orchestrating agent is actually working in) rather than the
+        (possibly much wider) sandbox root, so a caller that forgets to pass
+        ``cwd`` doesn't silently operate somewhere unexpected.
     claude / codex:
         Which writer tools :meth:`as_tools` exposes (default: Claude Code
         only — add Codex deliberately).
@@ -88,6 +96,7 @@ class CodeWriteTools:
         self,
         *,
         base_dir: str,
+        default_cwd: str | None = None,
         claude: bool = True,
         codex: bool = False,
         require_confirmation: bool = True,
@@ -98,6 +107,13 @@ class CodeWriteTools:
         if not root.is_dir():
             raise ValueError(f"CodeWriteTools(base_dir={base_dir!r}): not an existing directory")
         self._base_dir = root
+        # Stored as the raw, unresolved component (not a cached resolved Path):
+        # _checked_cwd re-resolves it against base_dir on every call, so a
+        # symlink swapped in after construction can't bypass the sandbox check
+        # with a stale resolution. Validate eagerly so bad config fails fast.
+        self._default_cwd = default_cwd
+        if default_cwd:
+            self._checked_cwd(default_cwd)
         self._claude = claude
         self._codex = codex
         self._gate = ConfirmationGate(enabled=require_confirmation)
@@ -142,7 +158,10 @@ class CodeWriteTools:
                         "Delegate a coding task to Claude Code WITH write access "
                         "(file edits + commands), sandboxed to the configured project "
                         "directory. Requires an outstanding write confirmation unless "
-                        "the provider was built with require_confirmation=False. "
+                        "the provider was built with require_confirmation=False. Omitting "
+                        "cwd runs in the provider's configured default directory, not "
+                        "necessarily the sandbox root — pass cwd explicitly to target a "
+                        "specific project when the sandbox spans more than one. "
                         "Args: task (str); cwd (str, optional — must stay inside the "
                         "sandbox); session_id (str, optional — resume a session)."
                     ),
@@ -158,7 +177,10 @@ class CodeWriteTools:
                         "(workspace-write sandbox, full-auto), sandboxed to the "
                         "configured project directory. Requires an outstanding write "
                         "confirmation unless the provider was built with "
-                        "require_confirmation=False. Args: task (str); cwd (str, "
+                        "require_confirmation=False. Omitting cwd runs in the provider's "
+                        "configured default directory, not necessarily the sandbox root — "
+                        "pass cwd explicitly to target a specific project when the sandbox "
+                        "spans more than one. Args: task (str); cwd (str, "
                         "optional — must stay inside the sandbox); resume_last (bool)."
                     ),
                 )
@@ -169,11 +191,21 @@ class CodeWriteTools:
     # Guarded implementations
     # ------------------------------------------------------------------ #
     def _checked_cwd(self, cwd: str | None) -> str:
-        resolved = (self._base_dir / cwd).resolve() if cwd else self._base_dir
+        # No per-call cwd: fall back to the configured default_cwd (itself
+        # base_dir when unset) rather than always resolving to base_dir — so a
+        # caller that omits cwd lands where the writer was pointed at
+        # construction time, not implicitly at the (possibly much wider)
+        # sandbox root. Resolved fresh here rather than cached, so a symlink
+        # swapped in after construction is caught by the check below instead
+        # of silently trusting a stale resolution.
+        component = cwd or getattr(self, "_default_cwd", None)
+        resolved = (self._base_dir / component).resolve() if component else self._base_dir
         if not resolved.is_relative_to(self._base_dir):
-            raise CodeWriteBlocked(f"write blocked: cwd {cwd!r} resolves outside base_dir {str(self._base_dir)!r}")
+            raise CodeWriteBlocked(
+                f"write blocked: cwd {component!r} resolves outside base_dir {str(self._base_dir)!r}"
+            )
         if not resolved.is_dir():
-            raise CodeWriteBlocked(f"write blocked: cwd {cwd!r} is not a directory inside the sandbox")
+            raise CodeWriteBlocked(f"write blocked: cwd {component!r} is not a directory inside the sandbox")
         return str(resolved)
 
     def _consume_grant(self, tool_name: str) -> None:

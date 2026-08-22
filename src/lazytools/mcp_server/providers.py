@@ -630,6 +630,73 @@ def _claude_review(allow_write: bool = False, *, data_source: dict[str, Any] | N
     return [claude_reviewer(**settings), claude_consultant(**settings, tools=_consultant_toolset(data_source))]
 
 
+@_register("code_write")
+def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Codex with write access (``codex_write``), sandboxed to the code root.
+
+    A thin ``CodeWriteTools(codex=True, claude=False)`` wrapper: Codex runs in
+    its CLI's workspace-write, full-auto sandbox, confined to the configured
+    code root — the same root ``code_review`` confines its ``repo_path``
+    argument to.
+
+    Same opt-in gating as ``code_review``/``claude_review``: absent unless
+    ``allow_write=True`` (``--allow-unsafe``), and skipped when the ``codex``
+    CLI can't be located.
+
+    Unlike ``CodeWriteTools``'s own default, the one-shot ``confirm_write()``
+    gate is disabled here (``require_confirmation=False``). That gate exists
+    to require a human grant *outside* the calling agent's reach before each
+    write; this server has no such out-of-band channel (there is no MCP tool
+    that calls ``confirm_write()``, and adding one here would let the same
+    caller grant its own permission, which defeats the point). Leaving the
+    gate enabled would therefore make the tool permanently unusable, not
+    safer — ``--allow-unsafe`` is the accepted-responsibility gate instead,
+    exactly as documented at the top of this module.
+
+    Configuration: ``code_root`` in ``--config`` (else ``LAZYTOOLS_CODE_ROOT``,
+    else the server process' cwd) — same fallback chain ``code_review`` uses
+    for its confinement root. Unlike a review call, a write has no per-call
+    ``repo_path``, so this is resolved once, at provider construction.
+    ``LAZYTOOLS_CODE_WRITE_TIMEOUT`` — seconds per call (default: 300).
+    ``LAZYTOOLS_CODE_WRITE_DEFAULT_CWD`` — subdirectory (relative to the code
+    root) a call runs in when it omits ``cwd`` (default: the code root
+    itself). Set this to whichever project the calling agent is actually
+    working in, so a call that forgets ``cwd`` still lands there instead of
+    at the root of every repo under the sandbox.
+    """
+    if not allow_write:
+        raise RuntimeError("code_write is opt-in only: pass allow_write=True (--allow-unsafe).")
+
+    import shutil
+    from pathlib import Path
+
+    from lazytools.connectors.code_support import CodeWriteTools
+
+    if not shutil.which("codex"):
+        raise RuntimeError("codex CLI not found on PATH; code_write skipped.")
+
+    root = (data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT")
+    base_dir = str(Path(root or Path.cwd()).expanduser().resolve())
+
+    raw_timeout = os.environ.get("LAZYTOOLS_CODE_WRITE_TIMEOUT")
+    try:
+        timeout = float(raw_timeout) if raw_timeout else 300.0
+    except ValueError as exc:
+        raise RuntimeError(f"LAZYTOOLS_CODE_WRITE_TIMEOUT is not a number: {raw_timeout!r}") from exc
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise RuntimeError(f"LAZYTOOLS_CODE_WRITE_TIMEOUT must be a positive finite number: {raw_timeout!r}")
+
+    writer = CodeWriteTools(
+        base_dir=base_dir,
+        default_cwd=os.environ.get("LAZYTOOLS_CODE_WRITE_DEFAULT_CWD") or None,
+        claude=False,
+        codex=True,
+        require_confirmation=False,
+        timeout=timeout,
+    )
+    return writer.as_tools()
+
+
 @_register("telegram")
 def _telegram(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Telegram send (message + document), bounded to an allow-listed chat.
