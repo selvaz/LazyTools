@@ -220,13 +220,43 @@ def codex_mcp(
 
     Requires the ``mcp`` extra: ``pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"``.
     """
+    # resolve_codex_bin() also finds the Codex desktop app's un-PATH'd install
+    # dir, but it resolves against *this* process's environment. A caller
+    # passing env={"PATH": ...} to MCP.stdio is explicitly selecting which
+    # Codex install the child subprocess should see, so that override must be
+    # searched explicitly rather than resolved from the parent's environment
+    # -- and, on Windows, rather than left for the child to resolve on its
+    # own: CreateProcess resolves a bare command name against the *calling*
+    # process's PATH/search rules, not the child env's PATH, so a bare
+    # "codex" would silently launch whatever this process's real PATH finds
+    # instead of failing, ignoring the override either way. Verified live:
+    # subprocess.run(["foo"], env={"PATH": <dir containing only foo.cmd>})
+    # raises FileNotFoundError on this platform. The same reasoning applies
+    # if the override itself finds nothing: falling back to a bare "codex"
+    # would let CreateProcess silently resolve a *different* install from
+    # this process's real PATH, so that failure is raised instead.
+    #
+    # PATH's key is matched case-insensitively only on Windows, where env var
+    # names are themselves case-insensitive and "Path" is the common
+    # spelling: on POSIX, names are case-sensitive, so an unrelated "Path"
+    # entry must not be misread as a PATH override.
+    key_matches = (lambda k: k.upper() == "PATH") if os.name == "nt" else (lambda k: k == "PATH")
+    path_override = next((v for k, v in (env or {}).items() if key_matches(k)), None)
+    if path_override is not None:
+        resolved = shutil.which("codex", path=path_override)
+        if resolved is None:
+            raise FileNotFoundError(f"codex CLI not found on the overridden PATH {path_override!r}")
+        # shutil.which() can return a relative path when path_override itself
+        # has a relative entry (e.g. "tools" or "."). MCP.stdio launches the
+        # subprocess lazily, so a relative command's meaning could change if
+        # the process's cwd changes between now and the first tool call --
+        # normalize against *this* moment's cwd instead.
+        command = os.path.abspath(resolved)
+    else:
+        command = resolve_codex_bin() or "codex"
     return MCP.stdio(
         name,
-        # resolve_codex_bin() also finds the Codex desktop app's un-PATH'd
-        # install dir; falls back to the bare "codex" literal (the
-        # pre-existing behavior) when nothing resolves, so MCP.stdio's own
-        # launch failure still surfaces a normal "command not found" error.
-        command=resolve_codex_bin() or "codex",
+        command=command,
         args=["mcp-server", *(args or [])],
         env=env,
         allow=allow,

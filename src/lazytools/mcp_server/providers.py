@@ -635,7 +635,8 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
     """Codex with write access (``codex_write``), sandboxed to the code root.
 
     A thin ``CodeWriteTools(codex=True, claude=False)`` wrapper: Codex runs in
-    its CLI's workspace-write, full-auto sandbox, confined to the configured
+    its CLI's ``workspace-write`` sandbox (with ``approval_policy=never``
+    pinned so it never blocks waiting on stdin), confined to the configured
     code root — the same root ``code_review`` confines its ``repo_path``
     argument to.
 

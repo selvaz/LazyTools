@@ -46,7 +46,6 @@ and the session id is not on stdout — to continue, use `resume_last=True`
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
 | `task` | `str` | — | The instruction for Codex. |
-| `mode` | `str` | `"read"` | `read` → `-s read-only` (safe default). `write` → `-s workspace-write --full-auto`. |
 | `cwd` | `str \| None` | `None` | Working directory for the subprocess. |
 | `resume_last` | `bool` | `False` | Continue the most recent session via `exec resume --last`. |
 | `timeout` | `float` | `300.0` | Max seconds for the subprocess. |
