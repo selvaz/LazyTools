@@ -16,6 +16,8 @@ Two ways to put Codex behind a LazyBridge agent:
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 import subprocess
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
@@ -37,6 +39,33 @@ _READ_FLAGS: list[str] = ["-s", "read-only"]
 _WRITE_FLAGS: list[str] = ["-s", "workspace-write", "--full-auto"]
 
 
+def resolve_codex_bin() -> str | None:
+    """Best-effort resolve the ``codex`` binary; ``None`` if none can be found.
+
+    Prefers :func:`lazybridge.engines.codex.codex_executable` — it also finds
+    the Codex desktop app's versioned install directory, which is never added
+    to ``PATH`` (``%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\<hash>\\codex.exe``) —
+    over a bare :func:`shutil.which`, which only ever checked ``PATH``.
+
+    Falls back to ``CODEX_BIN`` then :func:`shutil.which` when the resolver
+    itself can't be imported: ``lazybridge.engines.codex`` is not available on
+    every LazyBridge version this package supports (older pins lack it), and
+    every caller here — including ``check_clis_available()`` and the MCP
+    ``code_write`` provider — must keep working on those versions, just
+    without the desktop-app-install-dir case. The error message below tells
+    the user to set ``CODEX_BIN``, so this fallback must actually honor it
+    too, not only the full resolver.
+    """
+    try:
+        from lazybridge.engines.codex import codex_executable
+    except ImportError:
+        return os.environ.get("CODEX_BIN") or shutil.which("codex")
+    try:
+        return codex_executable()
+    except FileNotFoundError:
+        return None
+
+
 def _run_codex(
     task: str,
     flags: list[str],
@@ -48,11 +77,19 @@ def _run_codex(
 ) -> str:
     """Run the ``codex`` CLI once and return its output (or an error string
     starting with ``[codex]``). Shared by the read-only tool and the gated
-    writer."""
+    writer.
+    """
+    codex_bin = resolve_codex_bin()
+    if codex_bin is None:
+        return (
+            "[codex] CLI not found on PATH or in the Codex app install directory — "
+            "install it (`npm install -g @openai/codex`) or set CODEX_BIN to its full path."
+        )
+
     if resume_last:
-        cmd = ["codex", "exec", "resume", "--last", task, *flags]
+        cmd = [codex_bin, "exec", "resume", "--last", task, *flags]
     else:
-        cmd = ["codex", "exec", task, *flags]
+        cmd = [codex_bin, "exec", task, *flags]
 
     if skip_git_check:
         cmd.append("--skip-git-repo-check")
@@ -68,7 +105,7 @@ def _run_codex(
     except subprocess.TimeoutExpired:
         return f"[codex] timeout after {timeout}s"
     except FileNotFoundError:
-        return "[codex] CLI 'codex' not found in PATH — install OpenAI Codex CLI first"
+        return f"[codex] resolved binary {codex_bin!r} could not be executed"
 
     if proc.returncode != 0:
         stderr = proc.stderr.strip()
@@ -177,7 +214,11 @@ def codex_mcp(
     """
     return MCP.stdio(
         name,
-        command="codex",
+        # resolve_codex_bin() also finds the Codex desktop app's un-PATH'd
+        # install dir; falls back to the bare "codex" literal (the
+        # pre-existing behavior) when nothing resolves, so MCP.stdio's own
+        # launch failure still surfaces a normal "command not found" error.
+        command=resolve_codex_bin() or "codex",
         args=["mcp-server", *(args or [])],
         env=env,
         allow=allow,

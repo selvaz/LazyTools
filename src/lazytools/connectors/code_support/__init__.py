@@ -66,7 +66,7 @@ from lazytools.connectors.code_support._claude_review import (
     claude_consultant,
     claude_reviewer,
 )
-from lazytools.connectors.code_support._codex import codex, codex_mcp
+from lazytools.connectors.code_support._codex import codex, codex_mcp, resolve_codex_bin
 from lazytools.connectors.code_support._collaboration import build_cli_collaboration
 from lazytools.connectors.code_support._review import (
     CODE_CONSULTANT_SYSTEM,
@@ -80,14 +80,19 @@ from lazytools.connectors.code_support._writer import CodeWriteBlocked, CodeWrit
 
 
 def check_clis_available() -> dict[str, bool]:
-    """Return availability of 'claude' and 'codex' in PATH.
+    """Return availability of the 'claude' and 'codex' CLIs.
 
     Returns a ``{"claude": bool, "codex": bool}`` dict. Call this at startup
     to surface missing CLIs immediately rather than at the first tool call.
+
+    ``codex`` is resolved via :func:`resolve_codex_bin` — not a bare
+    ``shutil.which("codex")`` — so a Codex install reachable only through its
+    desktop app's un-``PATH``'d directory is correctly reported as available,
+    matching what ``codex()``/``codex_write`` will actually be able to run.
     """
     return {
         "claude": shutil.which("claude") is not None,
-        "codex": shutil.which("codex") is not None,
+        "codex": resolve_codex_bin() is not None,
     }
 
 
@@ -111,4 +116,5 @@ __all__ = [
     "codex_reviewer",
     "build_cli_collaboration",
     "check_clis_available",
+    "resolve_codex_bin",
 ]
