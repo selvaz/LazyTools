@@ -31,6 +31,7 @@ SUBMISSIONS = {
             "form": ["10-K", "8-K", "10-K"],
             "filingDate": ["2024-11-01", "2024-08-02", "2023-11-03"],
             "reportDate": ["2024-09-28", "", "2023-09-30"],
+            "items": ["", "2.02,9.01", ""],
             "primaryDocument": ["aapl-20240928.htm", "aapl-8k.htm", "aapl-20230930.htm"],
         }
     },
@@ -132,6 +133,7 @@ def test_list_filings_form_filter_and_contract() -> None:
         "form": "10-K",
         "filed_at": "2024-11-01",
         "report_date": "2024-09-28",
+        "items": [],
         "primary_document": "aapl-20240928.htm",
         "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm",
     }
@@ -141,6 +143,132 @@ def test_list_filings_empty_report_date_becomes_none() -> None:
     client, _ = make_client()
     by_form = {f["form"]: f for f in client.list_filings("320193")}
     assert by_form["8-K"]["report_date"] is None
+
+
+def test_fake_edgar_client_matches_the_real_filing_contract() -> None:
+    """A real Codex-review finding: a consumer testing against the packaged
+    FakeEdgarClient (lazytools.testing) instead of mocking EdgarClient
+    directly must see the SAME keys the real client now returns -- code that
+    reads filing["items"] should not KeyError only under the fake."""
+    from lazytools.testing import FakeEdgarClient
+
+    fake = FakeEdgarClient()
+    for filing in fake.list_filings("320193"):
+        assert "items" in filing
+    by_form = {f["form"]: f for f in fake.list_filings("320193")}
+    assert by_form["8-K"]["items"] == ["2.02", "9.01"]
+    assert by_form["10-K"]["items"] == []
+
+
+def test_fake_edgar_client_returns_each_filings_own_text() -> None:
+    """A real Codex-review finding: the fake's get_filing() returned one
+    shared string regardless of accession, so fetching the 8-K fixture came
+    back saying 'Form 10-K'."""
+    from lazytools.testing import FakeEdgarClient
+
+    fake = FakeEdgarClient()
+    dieci_k = fake.get_filing("320193", "0000320193-24-000123")
+    otto_k = fake.get_filing("320193", "0000320193-24-000100")
+    assert "10-K" in dieci_k["content"]
+    assert "8-K" in otto_k["content"]
+    assert dieci_k["content"] != otto_k["content"]
+
+
+def test_fake_edgar_client_normalizes_accession_numbers() -> None:
+    """A real Codex-review finding: the documented dashless accession form
+    (that the real client accepts) raised ValueError against the fake."""
+    from lazytools.testing import FakeEdgarClient
+
+    fake = FakeEdgarClient()
+    assert fake.get_filing("320193", "0000320193-24-000123") == \
+        fake.get_filing("320193", "000032019324000123")
+
+
+def test_fake_edgar_client_honors_an_explicit_primary_document() -> None:
+    """A real Codex-review finding: a caller-supplied primary_document was
+    silently ignored when building the returned url."""
+    from lazytools.testing import FakeEdgarClient
+
+    fake = FakeEdgarClient()
+    filing = fake.get_filing("320193", "0000320193-24-000123",
+                             primary_document="alternate.htm")
+    assert filing["url"].endswith("/alternate.htm")
+    assert filing["form"] is None
+
+
+def test_fake_edgar_client_skips_the_filings_list_when_given_a_primary_document() -> None:
+    """A real Codex-review finding: the real client never looks an accession
+    up against list_filings when primary_document is supplied directly --
+    the fake requiring a list match rejected calls the real client accepts."""
+    from lazytools.testing import FakeEdgarClient
+
+    fake = FakeEdgarClient()
+    filing = fake.get_filing("320193", "0000320193-24-999999",
+                             primary_document="unlisted.htm")
+    assert filing["url"].endswith("/unlisted.htm")
+
+
+def test_fake_edgar_client_returns_the_normalized_accession() -> None:
+    """A real Codex-review finding: the real client always returns the
+    normalized (dashed) accession, whatever form the caller passed in."""
+    from lazytools.testing import FakeEdgarClient
+
+    fake = FakeEdgarClient()
+    filing = fake.get_filing("320193", "000032019324000123")
+    assert filing["accession_no"] == "0000320193-24-000123"
+
+
+def test_fake_edgar_client_does_not_return_apple_for_a_different_cik() -> None:
+    """A real Codex-review finding: filings/facts used to be one flat blob
+    served regardless of which CIK was asked for -- a caller's own bug (the
+    wrong CIK, a copy-paste from a different company) silently returned
+    Apple's data anyway, exactly the kind of mistake a fake exists to catch
+    rather than hide. A validly-shaped but unregistered CIK (Microsoft's
+    real one, not seeded here) must come back empty, not as Apple."""
+    from lazytools.testing import FakeEdgarClient
+
+    fake = FakeEdgarClient()
+    assert fake.list_filings("789019") == []
+    assert fake.company_facts("789019") == {}
+    with pytest.raises(ValueError, match="not found"):
+        fake.get_filing("789019", "0000320193-24-000123")
+
+
+def test_fake_edgar_client_rejects_a_bad_cik() -> None:
+    """A real Codex-review finding: none of the fake's CIK-taking methods
+    validated their input, so a caller's own bug (a ticker passed where a
+    CIK belongs) silently returned Apple data instead of failing the way the
+    real client does."""
+    from lazytools.testing import FakeEdgarClient
+
+    fake = FakeEdgarClient()
+    with pytest.raises(ValueError, match="invalid CIK"):
+        fake.list_filings("not-a-cik")
+    with pytest.raises(ValueError, match="invalid CIK"):
+        fake.company_facts("not-a-cik")
+    with pytest.raises(ValueError, match="invalid CIK"):
+        fake.get_filing("not-a-cik", "0000320193-24-000123")
+
+
+def test_fake_edgar_client_rejects_an_empty_query() -> None:
+    """A real Codex-review finding: the real client raises on a blank query;
+    the fake silently returned Apple regardless."""
+    from lazytools.testing import FakeEdgarClient
+
+    fake = FakeEdgarClient()
+    with pytest.raises(ValueError, match="non-empty"):
+        fake.resolve_company("   ")
+
+
+def test_list_filings_parses_an_8ks_item_codes() -> None:
+    """Item 2.02 ('Results of Operations and Financial Condition') is how a
+    caller tells an earnings 8-K apart from one filed for something else
+    entirely (an acquisition, an executive change) -- EDGAR's own submissions
+    JSON carries this as a comma-separated string; every other form has none."""
+    client, _ = make_client()
+    by_form = {f["form"]: f for f in client.list_filings("320193")}
+    assert by_form["8-K"]["items"] == ["2.02", "9.01"]
+    assert by_form["10-K"]["items"] == []
 
 
 def test_list_filings_limit() -> None:
