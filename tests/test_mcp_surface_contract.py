@@ -52,6 +52,7 @@ EXPECTED_PROVIDER_IDS = {
     "gmail",
     "outlook",
     "registry",
+    "pulse",
 }
 
 
@@ -138,6 +139,12 @@ TRADINGVIEW_TOOLS = {
 
 REPORT_READ = {"render_memo", "render_memo_html"}
 REPORT_WRITE = {"save_memo_html", "save_memo_markdown", "save_report"}
+
+PULSE_TOOLS = {
+    "pulse_list_backlog",
+    "pulse_list_pending_approvals",
+    "pulse_state_snapshot",
+}
 
 TELEGRAM_TOOLS = {"telegram_send_message", "telegram_send_document"}
 GMAIL_TOOLS = {"gmail_list_emails", "gmail_get_email", "gmail_create_draft", "gmail_send"}
@@ -275,6 +282,14 @@ def test_stats_agents_absent_without_write_or_credential(tmp_path, monkeypatch) 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key-not-a-real-secret")
     with pytest.raises(RuntimeError, match="opt-in"):
         factory(allow_write=False)
+
+
+def test_pulse_contract() -> None:
+    """Read-only regardless of allow_write -- no writer exists to gate."""
+    pytest.importorskip("lazyceo")
+    from lazytools.connectors.pulse import PulseTools
+
+    assert _names(PulseTools()) == PULSE_TOOLS
 
 
 def test_comms_connectors_contract() -> None:

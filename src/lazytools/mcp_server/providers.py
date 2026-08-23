@@ -796,6 +796,29 @@ def _outlook(allow_write: bool = False, *, data_source: dict[str, Any] | None = 
     return OutlookTools(client, allowed_recipients=allow, require_confirmation=allow is None)
 
 
+@_register("pulse")
+def _pulse(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Read-only visibility into a LazyCEO deployment's shared state (backlog,
+    approval tickets) -- NOT its PulseAgent task schedules, which would
+    require importing lazypulse (forbidden; see the connector's docstring).
+
+    Needs the ``lazyceo`` package (an application built on lazypulse/
+    lazybridge, not a LazyTools extra) -- skipped like any other provider
+    whose optional dependency is missing. No write surface: ``allow_write``
+    is accepted and ignored, same convention as ``econ_calendar`` -- this
+    provider's tools are inherently read-only in v1.0 of the CEO blueprint's
+    phased rollout, not read-only-by-default.
+
+    ``data_source`` key: ``ceo_state_db`` (path to the shared CEO state
+    SQLite store; defaults to an in-memory Store if omitted, which is only
+    useful for tests -- a real deployment must set it).
+    """
+    from lazytools.connectors.pulse import PulseTools
+
+    ds = data_source or {}
+    return PulseTools(ceo_state_db=ds.get("ceo_state_db"))
+
+
 @_register("registry")
 def _registry(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Ecosystem DB registry + cross-repo artifact catalog. Core, no extra needed.
