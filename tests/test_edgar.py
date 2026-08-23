@@ -297,6 +297,15 @@ def test_sec_get_filing_text_stays_untrusted_and_carries_the_url() -> None:
     assert out["truncated"] is False
 
 
+def test_sec_get_filing_text_carries_the_untrusted_note_beside_the_content() -> None:
+    """A boolean flag is easy for a caller's own prompt to reinforce and just
+    as easy to never read -- the warning should not depend solely on that."""
+    client, _ = make_client()
+    provider = EdgarTools(client=client)
+    out = provider.sec_get_filing_text("320193", "0000320193-24-000123")
+    assert "instruction" in out["note"].lower()
+
+
 def test_sec_get_filing_text_truncates_long_filings_and_says_so() -> None:
     from lazytools.connectors.edgar.tools import MAX_FILING_CHARS
 
