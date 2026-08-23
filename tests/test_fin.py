@@ -66,11 +66,18 @@ def test_lazyfin_shims_still_work_but_warn() -> None:
 
 def test_direct_provider_tools_are_gone() -> None:
     """Audit CA-03, final state (single user, no compatibility window): the
-    direct-fetch ToolProviders are REMOVED, not just deprecated."""
-    import lazytools.connectors.edgar as edgar
+    direct-fetch FACTS/price ToolProviders are REMOVED, not just deprecated.
+
+    EdgarTools is deliberately excluded from this assertion: it was
+    reintroduced (filing TEXT, not financial facts -- see
+    lazytools.connectors.edgar's module docstring) for explicit opt-in
+    research use. The part of CA-03 that still holds -- no bundled finance
+    agent gains it silently -- is covered by
+    test_pm_supervisor_defaults_never_include_a_direct_provider in
+    test_no_direct_finance_clients.py, which does assert EdgarTools stays out
+    of pm_supervisor's own default tool list."""
     import lazytools.connectors.fin as fin
     import lazytools.connectors.marketdata as marketdata
 
-    assert not hasattr(edgar, "EdgarTools")
     assert not hasattr(marketdata, "MarketDataTools")
     assert not hasattr(fin, "ResolveTools")

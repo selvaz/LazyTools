@@ -1,14 +1,17 @@
-"""EdgarClient (httpx MockTransport, no network) — transport client only.
+"""EdgarClient (httpx MockTransport, no network) — transport client, and the
+EdgarTools ToolProvider reintroduced over it for filing text/citation use.
 
-The EdgarTools ToolProvider was removed (audit CA-03): agents reach SEC data
-through datahub_* tools; the client remains as injectable plumbing."""
+Audit CA-03 removed the original EdgarTools because it exposed financial
+FACTS directly, bypassing market-data-hub; that stands (company_facts is not
+on EdgarTools). Filing text is not a fact market-data-hub tracks, and this
+provider is opt-in, not part of any bundled finance agent's default tools."""
 
 from __future__ import annotations
 
 import httpx
 import pytest
 
-from lazytools.connectors.edgar import EdgarClient
+from lazytools.connectors.edgar import EdgarClient, EdgarTools
 from lazytools.safety import UrlBlocked
 
 # --- canned SEC payloads ------------------------------------------------ #
@@ -246,3 +249,67 @@ def test_same_host_redirect_is_followed() -> None:
     http = httpx.Client(transport=httpx.MockTransport(handler))
     client = EdgarClient("Test test@example.com", http=http, min_request_interval=0.0)
     assert client.company_facts("320193") == COMPANY_FACTS
+
+
+# --- EdgarTools (LazyBridge ToolProvider) -------------------------------- #
+
+
+def test_edgar_tools_is_a_lazy_tool_provider() -> None:
+    client, _ = make_client()
+    provider = EdgarTools(client=client)
+    assert provider._is_lazy_tool_provider is True
+    assert {t.name for t in provider.as_tools()} == {
+        "sec_resolve_company", "sec_list_filings", "sec_get_filing_text"}
+
+
+def test_edgar_tools_does_not_expose_company_facts() -> None:
+    """CA-03's actual finding: financial FACTS must stay hub-only. This
+    provider must never grow a facts tool, even as a convenience."""
+    client, _ = make_client()
+    provider = EdgarTools(client=client)
+    names = {t.name for t in provider.as_tools()}
+    assert not any("fact" in n for n in names)
+    assert not hasattr(provider, "sec_company_facts")
+
+
+def test_sec_resolve_company_matches_the_client() -> None:
+    client, _ = make_client()
+    provider = EdgarTools(client=client)
+    out = provider.sec_resolve_company("aapl")
+    assert out["matches"][0]["ticker"] == "AAPL"
+
+
+def test_sec_list_filings_passes_the_form_filter() -> None:
+    client, _ = make_client()
+    provider = EdgarTools(client=client)
+    out = provider.sec_list_filings("320193", form="10-K")
+    assert out["cik"] == "320193"
+    assert [f["form"] for f in out["filings"]] == ["10-K", "10-K"]
+
+
+def test_sec_get_filing_text_stays_untrusted_and_carries_the_url() -> None:
+    client, _ = make_client()
+    provider = EdgarTools(client=client)
+    out = provider.sec_get_filing_text("320193", "0000320193-24-000123")
+    assert out["content_is_untrusted"] is True
+    assert out["url"].endswith("aapl-20240928.htm")
+    assert "Apple Inc." in out["content"]
+    assert out["truncated"] is False
+
+
+def test_sec_get_filing_text_truncates_long_filings_and_says_so() -> None:
+    from lazytools.connectors.edgar.tools import MAX_FILING_CHARS
+
+    long_html = "<html><body>" + ("Apple Inc. results. " * (MAX_FILING_CHARS // 10)) + "</body></html>"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/submissions/CIK0000320193.json":
+            return httpx.Response(200, json=SUBMISSIONS)
+        return httpx.Response(200, text=long_html)
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = EdgarClient("Test test@example.com", http=http, min_request_interval=0.0)
+    provider = EdgarTools(client=client)
+    out = provider.sec_get_filing_text("320193", "0000320193-24-000123")
+    assert out["truncated"] is True
+    assert len(out["content"]) == MAX_FILING_CHARS
