@@ -131,7 +131,11 @@ class EdgarClient:
 
         Reads the ``filings.recent`` arrays of the submissions JSON. Each
         entry carries ``accession_no``, ``form``, ``filed_at``, ``report_date``
-        (``None`` when EDGAR reports an empty string), ``primary_document``,
+        (``None`` when EDGAR reports an empty string -- and note this is the
+        covered PERIOD, e.g. a quarter-end, not the submission date; it is
+        not a substitute for ``filed_at`` when checking filing recency),
+        ``items`` (an 8-K's own item codes, e.g. ``["2.02", "9.01"]`` for a
+        results-of-operations 8-K; empty for every other form), ``primary_document``,
         and the Archives ``url`` of the primary document.
         """
         padded = _pad_cik(cik)
@@ -141,6 +145,7 @@ class EdgarClient:
         forms = recent.get("form", [])
         filed = recent.get("filingDate", [])
         reports = recent.get("reportDate", [])
+        items = recent.get("items", [])
         documents = recent.get("primaryDocument", [])
 
         def _at(values: list[Any], i: int) -> str:
@@ -158,6 +163,7 @@ class EdgarClient:
                     "form": form_i,
                     "filed_at": _at(filed, i),
                     "report_date": _at(reports, i) or None,
+                    "items": [c.strip() for c in _at(items, i).split(",") if c.strip()],
                     "primary_document": primary,
                     "url": _archives_url(padded, str(accession), primary),
                 }

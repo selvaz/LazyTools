@@ -31,6 +31,7 @@ SUBMISSIONS = {
             "form": ["10-K", "8-K", "10-K"],
             "filingDate": ["2024-11-01", "2024-08-02", "2023-11-03"],
             "reportDate": ["2024-09-28", "", "2023-09-30"],
+            "items": ["", "2.02,9.01", ""],
             "primaryDocument": ["aapl-20240928.htm", "aapl-8k.htm", "aapl-20230930.htm"],
         }
     },
@@ -132,6 +133,7 @@ def test_list_filings_form_filter_and_contract() -> None:
         "form": "10-K",
         "filed_at": "2024-11-01",
         "report_date": "2024-09-28",
+        "items": [],
         "primary_document": "aapl-20240928.htm",
         "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm",
     }
@@ -141,6 +143,17 @@ def test_list_filings_empty_report_date_becomes_none() -> None:
     client, _ = make_client()
     by_form = {f["form"]: f for f in client.list_filings("320193")}
     assert by_form["8-K"]["report_date"] is None
+
+
+def test_list_filings_parses_an_8ks_item_codes() -> None:
+    """Item 2.02 ('Results of Operations and Financial Condition') is how a
+    caller tells an earnings 8-K apart from one filed for something else
+    entirely (an acquisition, an executive change) -- EDGAR's own submissions
+    JSON carries this as a comma-separated string; every other form has none."""
+    client, _ = make_client()
+    by_form = {f["form"]: f for f in client.list_filings("320193")}
+    assert by_form["8-K"]["items"] == ["2.02", "9.01"]
+    assert by_form["10-K"]["items"] == []
 
 
 def test_list_filings_limit() -> None:
