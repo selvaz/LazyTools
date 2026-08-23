@@ -142,17 +142,54 @@ class FakeTelegramService:
         return {"message_id": len(self.sent)}
 
 
+def _fake_edgar_pad_cik(cik: str) -> str:
+    """Same validation as the real EdgarClient's own ``_pad_cik``: a fake
+    that never rejects a malformed CIK would let a caller's own bug (a
+    ticker passed where a CIK was expected, a typo) pass silently in every
+    test, then fail only against the real client in production."""
+    raw = str(cik).strip().upper().removeprefix("CIK").strip()
+    if not raw.isdigit() or len(raw) > 10:
+        raise ValueError(f"invalid CIK: {cik!r}")
+    return raw.zfill(10)
+
+
+def _fake_edgar_normalize_accession(accession_no: str) -> str:
+    """Same normalization as the real client: with or without dashes."""
+    raw = str(accession_no).strip().replace("-", "")
+    if not raw.isdigit() or len(raw) != 18:
+        raise ValueError(f"invalid accession number: {accession_no!r}")
+    return f"{raw[:10]}-{raw[10:12]}-{raw[12:]}"
+
+
+#: The one company self.filings/self.facts represent by default -- a
+#: constant so it can be compared against, not just documentation.
+_FAKE_EDGAR_DEFAULT_CIK = "0000320193"
+
+
 class FakeEdgarClient:
     """In-memory :class:`~lazytools.connectors.edgar.client.EdgarService`.
 
-    Ships small Apple-ish canned data (one company, one 10-K, minimal
-    us-gaap companyfacts) so tool tests have something realistic to chew on;
-    every dataset is a public attribute you can replace per test.
+    Ships small Apple-ish canned data (one company, a 10-K and an 8-K,
+    minimal us-gaap companyfacts) so tool tests have something realistic to
+    chew on; every dataset is a public attribute you can replace per test --
+    kept in the SAME flat shapes (``filings: list[dict]``, ``facts: dict``)
+    a first version of this class shipped with, so `fake.filings = [...]` /
+    `fake.facts = {...}` keeps working unchanged; only ``default_cik``
+    (which CIK that flat data represents) is new.
+
+    Validates its CIK/accession arguments and normalizes accession numbers
+    the same way the real client does, so code exercised against this fake
+    fails here too, not only in production against the real EdgarClient --
+    including a CIK that does not match ``default_cik``: a real Codex-review
+    finding caught this fake serving Apple's data regardless of which CIK
+    was asked for, exactly the kind of bug (a caller's own copy-paste from a
+    different company) a fake exists to catch, not hide.
     """
 
     def __init__(self) -> None:
+        self.default_cik = _FAKE_EDGAR_DEFAULT_CIK
         self.companies: list[dict[str, str]] = [
-            {"cik": "0000320193", "ticker": "AAPL", "title": "Apple Inc."},
+            {"cik": _FAKE_EDGAR_DEFAULT_CIK, "ticker": "AAPL", "title": "Apple Inc."},
         ]
         self.filings: list[dict[str, Any]] = [
             {
@@ -160,11 +197,31 @@ class FakeEdgarClient:
                 "form": "10-K",
                 "filed_at": "2024-11-01",
                 "report_date": "2024-09-28",
+                "items": [],
                 "primary_document": "aapl-20240928.htm",
                 "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm",
             },
+            {
+                "accession_no": "0000320193-24-000100",
+                "form": "8-K",
+                "filed_at": "2024-08-02",
+                "report_date": None,
+                "items": ["2.02", "9.01"],
+                "primary_document": "aapl-8k.htm",
+                "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019324000100/aapl-8k.htm",
+            },
         ]
+        # filing_text is the DEFAULT for any accession with no specific entry
+        # below -- kept as a single public attribute so `fake.filing_text =
+        # "custom"` (the original, and still simplest, per-test override)
+        # keeps working unchanged. filing_texts differentiates specific
+        # accessions from it -- added because the 8-K fixture above, without
+        # one, silently returned the 10-K's own "Form 10-K" text.
         self.filing_text = "UNITED STATES SECURITIES AND EXCHANGE COMMISSION\nForm 10-K\nApple Inc."
+        self.filing_texts: dict[str, str] = {
+            "0000320193-24-000100": ("UNITED STATES SECURITIES AND EXCHANGE COMMISSION\nForm 8-K\n"
+                                     "Apple Inc. reports quarterly results."),
+        }
         self.facts: dict[str, Any] = {
             "cik": 320193,
             "entityName": "Apple Inc.",
@@ -184,31 +241,53 @@ class FakeEdgarClient:
     def resolve_company(self, query: str, *, limit: int = 10) -> list[dict[str, str]]:
         self.calls.append(("resolve_company", query))
         q = query.strip().lower()
+        if not q:
+            raise ValueError("resolve_company requires a non-empty query")
         exact = [dict(c) for c in self.companies if c["ticker"].lower() == q]
         partial = [dict(c) for c in self.companies if c["ticker"].lower() != q and q in c["title"].lower()]
         return (exact + partial)[:limit]
 
     def list_filings(self, cik: str, *, form: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
         self.calls.append(("list_filings", cik))
-        matches = [dict(f) for f in self.filings if form is None or f["form"].upper() == form.upper()]
+        padded = _fake_edgar_pad_cik(cik)
+        filings = self.filings if padded == _fake_edgar_pad_cik(self.default_cik) else []
+        matches = [dict(f) for f in filings if form is None or f["form"].upper() == form.upper()]
         return matches[:limit]
 
     def get_filing(self, cik: str, accession_no: str, *, primary_document: str | None = None) -> dict[str, Any]:
+        """Mirrors the real client's own get_filing(): when primary_document
+        is supplied directly, the accession is NEVER looked up against
+        self.filings (matching EdgarClient, which just builds the Archives
+        URL) -- a real Codex-review finding caught this fake requiring a
+        list match even in that case, rejecting calls the real client would
+        accept."""
         self.calls.append(("get_filing", accession_no))
-        for filing in self.filings:
-            if filing["accession_no"] == accession_no:
-                return {
-                    "accession_no": filing["accession_no"],
-                    "form": filing["form"] if primary_document is None else None,
-                    "url": filing["url"],
-                    "content": self.filing_text,
-                    "content_is_untrusted": True,
-                }
-        raise ValueError(f"accession {accession_no!r} not found in recent filings for CIK {cik}")
+        padded = _fake_edgar_pad_cik(cik)
+        normalizzato = _fake_edgar_normalize_accession(accession_no)
+        form = None
+        documento = primary_document
+        if documento is None:
+            filings = self.filings if padded == _fake_edgar_pad_cik(self.default_cik) else []
+            for filing in filings:
+                if _fake_edgar_normalize_accession(filing["accession_no"]) == normalizzato:
+                    documento = filing["primary_document"]
+                    form = filing["form"]
+                    break
+            if documento is None:
+                raise ValueError(f"accession {accession_no!r} not found in recent filings for CIK {cik}")
+        url = f"https://www.sec.gov/Archives/edgar/data/{int(padded)}/{normalizzato.replace('-', '')}/{documento}"
+        return {
+            "accession_no": normalizzato,
+            "form": form,
+            "url": url,
+            "content": self.filing_texts.get(normalizzato, self.filing_text),
+            "content_is_untrusted": True,
+        }
 
     def company_facts(self, cik: str) -> dict[str, Any]:
         self.calls.append(("company_facts", cik))
-        return self.facts
+        padded = _fake_edgar_pad_cik(cik)
+        return self.facts if padded == _fake_edgar_pad_cik(self.default_cik) else {}
 
 
 class FakeMarketDataAdapter:
