@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = ["lazybridge>=1.2.0,<2.0"]
+dependencies = ["lazybridge>=1.2.1,<2.0"]
 
 [project.optional-dependencies]
 gmail      = ["google-api-python-client>=2.0,<3.0", "google-auth>=2.0,<3.0", "google-auth-oauthlib>=1.0,<2.0"]
