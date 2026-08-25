@@ -20,7 +20,7 @@ schema_version = 1
 
 [verified]
 python = ["3.11", "3.12", "3.13"]
-lazybridge = "1.2.0"
+lazybridge = "1.2.1"
 
 # Immutable GitHub refs of the verified, co-installable combination.
 # ``extras`` are the extras exercised by the released-artifact CI.
@@ -71,4 +71,4 @@ repo = "https://github.com/selvaz/LazyRay"
 reason = "LazyRay now pins the same market-data-hub revision as the verified combination (re-aligned, ECO-007), so the earlier pin conflict is gone. It stays pending only because the ecosystem-released CI does not yet install and smoke it; move it to [verified.github] once that job exercises it."
 
 [minimums]
-lazybridge = ">=1.2.0,<2.0"
+lazybridge = ">=1.2.1,<2.0"

@@ -6,7 +6,7 @@ Python: 3.11, 3.12, 3.13
 
 | Component | Channel | Verified ref |
 |---|---|---|
-| lazybridge | PyPI | `1.2.0` |
+| lazybridge | PyPI | `1.2.1` |
 | lazytoolkit | GitHub | `v0.7.0` |
 | lazypulse | GitHub | `v0.4.0` |
 | lazycrawler | GitHub | `v0.19.2` |
