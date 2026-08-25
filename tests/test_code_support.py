@@ -164,6 +164,41 @@ class TestCodex:
         assert "resume" in cmd
         assert "--last" in cmd
 
+    def test_resume_last_places_exec_flags_before_the_resume_subcommand(self):
+        # Found live: `-s`/`-c`/`--skip-git-repo-check` are `codex exec`'s
+        # OWN flags, not `resume`'s -- once `resume` is on the command line
+        # the CLI parses everything after it with `resume`'s own (much
+        # smaller) grammar, so a flag placed after `resume --last <task>`
+        # is rejected immediately ("unexpected argument '-s'"). The
+        # pre-fix code appended every flag AFTER `resume --last <task>`;
+        # this asserts the actual argv ORDER, which the older
+        # presence-only assertions above would not have caught.
+        with patch("subprocess.run", return_value=_proc(stdout="resumed")) as mock_run:
+            codex("continue analysis", resume_last=True)
+        cmd = mock_run.call_args[0][0]
+        resume_index = cmd.index("resume")
+        for flag in ("-s", "read-only", "--skip-git-repo-check"):
+            assert cmd.index(flag) < resume_index, f"{flag!r} must appear before 'resume', got {cmd!r}"
+
+    def test_resume_last_appends_task_after_last_flag(self):
+        with patch("subprocess.run", return_value=_proc(stdout="resumed")) as mock_run:
+            codex("continue analysis", resume_last=True)
+        cmd = mock_run.call_args[0][0]
+        assert cmd[cmd.index("--last") + 1] == "continue analysis"
+
+    def test_subprocess_stdin_is_devnull(self):
+        # Found live: without this, `codex exec` inherits the MCP server's
+        # own stdin. Nothing is ever there to answer a prompt a given CLI
+        # build might emit (auth, a config migration notice, a trust
+        # dialog) -- the subprocess blocks on a read that never completes,
+        # burning the full timeout with zero output, indistinguishable
+        # from the process being slow. This is what actually explained a
+        # `codex_write` call hanging for the full 300s on a completely
+        # trivial task with an otherwise-healthy CLI install.
+        with patch("subprocess.run", return_value=_proc(stdout="ok")) as mock_run:
+            codex("task")
+        assert mock_run.call_args.kwargs["stdin"] == subprocess.DEVNULL
+
     def test_executable_not_found_returns_error(self):
         # resolve_codex_bin() itself finds nothing (no PATH, no CODEX_BIN, no
         # desktop-app install dir) — subprocess.run is never even attempted.

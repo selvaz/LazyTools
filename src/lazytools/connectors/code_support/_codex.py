@@ -94,13 +94,26 @@ def _run_codex(
             "install it (`npm install -g @openai/codex`) or set CODEX_BIN to its full path."
         )
 
+    # `-s`/`-c`/`--skip-git-repo-check` are flags of `codex exec` ITSELF, not
+    # of its `resume` subcommand. `codex exec <task> -s ... --skip...` works
+    # because `exec`'s own parser accepts them after the positional task —
+    # verified live. But once `resume` is on the command line, the CLI hands
+    # remaining argv to `resume`'s OWN parser, which has none of these flags:
+    # `codex exec resume --last <task> -s workspace-write` fails immediately
+    # with "unexpected argument '-s'" (found live — this is why resume_last
+    # looked like a hang from the caller's side: the actual failure was
+    # instant, but arrived shaped like every other error string, easy to
+    # miss next to the *real* hang below). Every exec-level flag therefore
+    # has to be placed BEFORE the `resume` subcommand, never after.
     if resume_last:
-        cmd = [codex_bin, "exec", "resume", "--last", task, *flags]
+        cmd = [codex_bin, "exec", *flags]
+        if skip_git_check:
+            cmd.append("--skip-git-repo-check")
+        cmd += ["resume", "--last", task]
     else:
         cmd = [codex_bin, "exec", task, *flags]
-
-    if skip_git_check:
-        cmd.append("--skip-git-repo-check")
+        if skip_git_check:
+            cmd.append("--skip-git-repo-check")
 
     try:
         proc = subprocess.run(
@@ -109,6 +122,18 @@ def _run_codex(
             text=True,
             timeout=timeout,
             cwd=cwd,
+            # Found live: without this, `codex exec` inherits this process's
+            # stdin. In a non-interactive MCP server, nothing is ever there
+            # to answer a prompt this CLI build might emit (auth, a config
+            # migration notice, a trust dialog, anything version-specific)
+            # — the subprocess blocks on a read that can never complete,
+            # burning the full `timeout` with zero output and no partial
+            # result, indistinguishable from the process just being slow.
+            # DEVNULL makes any such read fail/return EOF immediately
+            # instead of hanging, so a real prompt surfaces as a fast error
+            # (or a `--skip-git-repo-check`-style CLI question about how to
+            # proceed) rather than a silent full-timeout hang.
+            stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired:
         return f"[codex] timeout after {timeout}s"
