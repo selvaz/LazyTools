@@ -198,6 +198,8 @@ class FakeEdgarClient:
                 "filed_at": "2024-11-01",
                 "report_date": "2024-09-28",
                 "items": [],
+                "accepted_at": "2024-11-01T18:01:14.000Z",
+                "primary_doc_description": "10-K",
                 "primary_document": "aapl-20240928.htm",
                 "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm",
             },
@@ -207,6 +209,8 @@ class FakeEdgarClient:
                 "filed_at": "2024-08-02",
                 "report_date": None,
                 "items": ["2.02", "9.01"],
+                "accepted_at": "2024-08-02T16:30:00.000Z",
+                "primary_doc_description": "8-K",
                 "primary_document": "aapl-8k.htm",
                 "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019324000100/aapl-8k.htm",
             },
@@ -221,6 +225,32 @@ class FakeEdgarClient:
         self.filing_texts: dict[str, str] = {
             "0000320193-24-000100": ("UNITED STATES SECURITIES AND EXCHANGE COMMISSION\nForm 8-K\n"
                                      "Apple Inc. reports quarterly results."),
+        }
+        # The documents each filing contains. The 8-K carries its earnings
+        # release as an exhibit, which is the shape the document tools exist
+        # for: the primary document states the result, the exhibit has the
+        # numbers.
+        self.filing_documents: dict[str, list[dict[str, Any]]] = {
+            "0000320193-24-000100": [
+                {"sequence": "1", "type": "8-K", "description": "8-K",
+                 "filename": "aapl-8k.htm", "media_type": "text/html",
+                 "url": "https://www.sec.gov/Archives/edgar/data/320193/"
+                        "000032019324000100/aapl-8k.htm"},
+                {"sequence": "2", "type": "EX-99.1", "description": "EX-99.1",
+                 "filename": "aapl-ex991.htm", "media_type": "text/html",
+                 "url": "https://www.sec.gov/Archives/edgar/data/320193/"
+                        "000032019324000100/aapl-ex991.htm"},
+                # Deliberately unreadable, so a caller's handling of that is
+                # exercised by the fake rather than only in production.
+                {"sequence": "3", "type": "GRAPHIC", "description": None,
+                 "filename": "logo.jpg", "media_type": "image/jpeg",
+                 "url": "https://www.sec.gov/Archives/edgar/data/320193/"
+                        "000032019324000100/logo.jpg"},
+            ],
+        }
+        self.document_texts: dict[str, str] = {
+            "aapl-ex991.htm": ("Apple Inc. reports fourth quarter results. "
+                               "Revenue of $94.9 billion, up 6 percent."),
         }
         self.facts: dict[str, Any] = {
             "cik": 320193,
@@ -253,6 +283,53 @@ class FakeEdgarClient:
         filings = self.filings if padded == _fake_edgar_pad_cik(self.default_cik) else []
         matches = [dict(f) for f in filings if form is None or f["form"].upper() == form.upper()]
         return matches[:limit]
+
+    def list_filing_documents(self, cik: str, accession_no: str) -> list[dict[str, Any]]:
+        """The documents one filing contains, from ``filing_documents``.
+
+        Validates its arguments the same way the real client does, and an
+        accession with no entry returns an empty inventory rather than
+        another filing's documents -- a fake that answers for the wrong
+        filing hides exactly the copy-paste this one exists to catch.
+        """
+        self.calls.append(("list_filing_documents", accession_no))
+        padded = _fake_edgar_pad_cik(cik)
+        normalizzato = _fake_edgar_normalize_accession(accession_no)
+        if padded != _fake_edgar_pad_cik(self.default_cik):
+            return []
+        return [dict(d) for d in self.filing_documents.get(normalizzato, [])]
+
+    def get_filing_document(self, cik: str, accession_no: str, filename: str) -> dict[str, Any]:
+        """One named document, refused unless this filing contains it.
+
+        The refusal is the real client's own: a caller names a document, not
+        a URL. A fake that fetched anything asked of it would let a caller's
+        path-building bug pass here and fail only in production.
+        """
+        self.calls.append(("get_filing_document", (accession_no, filename)))
+        normalizzato = _fake_edgar_normalize_accession(accession_no)
+        inventario = {d["filename"]: d for d in self.list_filing_documents(cik, accession_no)}
+        voce = inventario.get(filename)
+        if voce is None:
+            raise ValueError(
+                f"{filename!r} is not a document of filing {normalizzato}; "
+                f"choose one of: {sorted(inventario)[:10]}"
+            )
+        leggibile = voce["media_type"] in {"text/html", "text/plain",
+                                           "application/xml", "application/json"}
+        contenuto = self.document_texts.get(filename, "") if leggibile else ""
+        return {
+            "accession_no": normalizzato,
+            "filename": filename,
+            "type": voce["type"],
+            "description": voce["description"],
+            "url": voce["url"],
+            "media_type": voce["media_type"],
+            "content": contenuto,
+            "extraction_status": "ok" if leggibile else "unsupported",
+            "size_bytes": len(contenuto.encode("utf-8")) or 1024,
+            "content_is_untrusted": True,
+        }
 
     def get_filing(self, cik: str, accession_no: str, *, primary_document: str | None = None) -> dict[str, Any]:
         """Mirrors the real client's own get_filing(): when primary_document

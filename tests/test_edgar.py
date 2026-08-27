@@ -605,3 +605,40 @@ def test_an_unrecognised_format_is_unsupported_rather_than_decoded() -> None:
     got = client.get_filing_document("320193", "0000320193-24-000123", "results.xlsx")
     assert got["extraction_status"] == "unsupported"
     assert got["content"] == ""
+
+
+def test_the_packaged_fake_satisfies_the_expanded_service() -> None:
+    """The fake is shipped for consumers to inject.
+
+    Review caught it left behind by this change: EdgarTools' new document
+    tools raised AttributeError against it, and its filings omitted the
+    fields the real client had started returning -- so code written against
+    the fake passed and the same code failed in production, which is the one
+    thing a test double must never do.
+    """
+    from lazytools.connectors.edgar.tools import EdgarTools
+    from lazytools.testing.fake_clients import FakeEdgarClient
+
+    tools = EdgarTools(client=FakeEdgarClient())
+
+    filing = tools.sec_list_filings("0000320193", form="8-K")["filings"][0]
+    assert filing["accepted_at"] == "2024-08-02T16:30:00.000Z"
+    assert filing["primary_doc_description"] == "8-K"
+
+    docs = tools.sec_list_filing_documents("0000320193", "0000320193-24-000100")["documents"]
+    assert [d["type"] for d in docs] == ["8-K", "EX-99.1", "GRAPHIC"]
+
+    exhibit = tools.sec_get_filing_document(
+        "0000320193", "0000320193-24-000100", "aapl-ex991.htm")
+    assert exhibit["extraction_status"] == "ok"
+    assert "Revenue" in exhibit["content"]
+
+    # And it refuses what the real client refuses, rather than serving it.
+    import pytest
+
+    with pytest.raises(ValueError, match="not a document of filing"):
+        tools.sec_get_filing_document("0000320193", "0000320193-24-000100", "elsewhere.htm")
+
+    # Unreadable media behaves the same way here as in production.
+    logo = tools.sec_get_filing_document("0000320193", "0000320193-24-000100", "logo.jpg")
+    assert logo["extraction_status"] == "unsupported"
