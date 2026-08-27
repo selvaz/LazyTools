@@ -288,6 +288,17 @@ class EdgarClient:
                 "media_type": _media_type(filename),
                 "url": _archives_url(padded, dashed, filename),
             })
+        if not documents:
+            # A real submission always contains at least its own primary
+            # document, so an empty inventory is this parse failing, not the
+            # filing being empty -- and returning [] would tell the caller
+            # the second. Review found one shape where the header 404s
+            # instead (a 1994 accession), which raises on its own; this
+            # covers a 200 whose body we could not read.
+            raise RuntimeError(
+                f"no documents parsed from the submission header for {dashed}; "
+                f"the filing index at {_archives_url(padded, dashed, '')} lists them"
+            )
         return documents
 
     def get_filing_document(self, cik: str, accession_no: str, filename: str) -> dict[str, Any]:

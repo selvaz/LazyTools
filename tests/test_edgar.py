@@ -642,3 +642,28 @@ def test_the_packaged_fake_satisfies_the_expanded_service() -> None:
     # Unreadable media behaves the same way here as in production.
     logo = tools.sec_get_filing_document("0000320193", "0000320193-24-000100", "logo.jpg")
     assert logo["extraction_status"] == "unsupported"
+
+
+def test_an_unparseable_header_fails_instead_of_reporting_an_empty_filing() -> None:
+    """A submission always contains at least its primary document.
+
+    So an empty inventory is this parse failing, and returning [] would tell
+    the caller the opposite -- that the filing has no documents. Review
+    surfaced a 1994 accession whose header 404s (which raises on its own);
+    this covers a 200 whose body we cannot read.
+    """
+    import httpx
+    import pytest
+
+    from lazytools.connectors.edgar.client import EdgarClient
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("-index-headers.html"):
+            return httpx.Response(200, text="<html><body>nothing here</body></html>")
+        return httpx.Response(404)
+
+    client = EdgarClient("Test Suite test@example.com",
+                         http=httpx.Client(transport=httpx.MockTransport(handler)),
+                         min_request_interval=0.0)
+    with pytest.raises(RuntimeError, match="no documents parsed"):
+        client.list_filing_documents("320193", "0000320193-24-000123")
