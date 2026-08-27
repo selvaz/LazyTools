@@ -272,18 +272,13 @@ class EdgarClient:
         raw = _html_unescape(self._get(url).decode("utf-8", errors="replace"))
         documents: list[dict[str, Any]] = []
         for block in re.findall(r"<DOCUMENT>(.*?)</DOCUMENT>", raw, re.S | re.I):
-            def _field(name: str) -> str | None:
-                m = re.search(rf"<{name}>([^\r\n<]*)", block, re.I)
-                value = m.group(1).strip() if m else ""
-                return value or None
-
-            filename = _field("FILENAME")
+            filename = _sgml_field(block, "FILENAME")
             if not filename:
                 continue
             documents.append({
-                "sequence": _field("SEQUENCE"),
-                "type": _field("TYPE"),
-                "description": _field("DESCRIPTION"),
+                "sequence": _sgml_field(block, "SEQUENCE"),
+                "type": _sgml_field(block, "TYPE"),
+                "description": _sgml_field(block, "DESCRIPTION"),
                 "filename": filename,
                 "media_type": _media_type(filename),
                 "url": _archives_url(padded, dashed, filename),
@@ -324,17 +319,21 @@ class EdgarClient:
                 f"choose one of: {sorted(inventory)[:10]}"
             )
         media = entry["media_type"]
-        body = self._get(entry["url"])
         if media not in _TEXT_MEDIA:
+            # Not fetched at all. The inventory already says this is a JPEG or
+            # a PDF, so downloading it to discard it spends a request against
+            # the SEC's rate limit and the caller's deadline to learn what we
+            # already knew. size_bytes is the inventory's, or None.
             return {
                 "accession_no": dashed, "filename": filename,
                 "type": entry["type"], "description": entry["description"],
                 "url": entry["url"], "media_type": media,
                 "content": "",
                 "extraction_status": "unsupported",
-                "size_bytes": len(body),
+                "size_bytes": entry.get("size_bytes"),
                 "content_is_untrusted": True,
             }
+        body = self._get(entry["url"])
         raw = body.decode("utf-8", errors="replace")
         content = _html_to_text(raw) if _looks_like_html(filename, raw) else raw
         return {
@@ -458,6 +457,15 @@ class _TextExtractor(HTMLParser):
     def handle_data(self, data: str) -> None:
         if not self._skip_depth and data.strip():
             self.chunks.append(" ".join(data.split()))
+
+
+def _sgml_field(block: str, name: str) -> str | None:
+    """One field of a submission-header ``<DOCUMENT>`` block, ``None`` when
+    absent OR empty -- an unlabelled exhibit has no description, and "" would
+    read as one it simply left blank."""
+    m = re.search(rf"<{name}>([^\r\n<]*)", block, re.I)
+    value = m.group(1).strip() if m else ""
+    return value or None
 
 
 def _media_type(filename: str) -> str:

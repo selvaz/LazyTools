@@ -254,7 +254,17 @@ class FakeEdgarClient:
                         "000032019324000100/logo.jpg"},
             ],
         }
+        # Every readable document in the inventory has text. Review caught
+        # only the exhibit having any, so fetching a primary document came
+        # back empty with extraction_status "ok" -- a shape neither the real
+        # client nor this fake's own get_filing() can produce, and one a
+        # consumer could write a branch for.
         self.document_texts: dict[str, str] = {
+            "aapl-20240928.htm": (
+                "UNITED STATES SECURITIES AND EXCHANGE COMMISSION\nForm 10-K\nApple Inc."),
+            "aapl-8k.htm": (
+                "UNITED STATES SECURITIES AND EXCHANGE COMMISSION\nForm 8-K\n"
+                "Apple Inc. reports quarterly results."),
             "aapl-ex991.htm": ("Apple Inc. reports fourth quarter results. "
                                "Revenue of $94.9 billion, up 6 percent."),
         }

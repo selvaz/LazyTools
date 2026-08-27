@@ -544,13 +544,22 @@ def test_a_filename_the_filing_does_not_contain_is_refused() -> None:
 
 def test_a_binary_document_is_reported_unsupported_not_mangled() -> None:
     """Decoding a JPEG as UTF-8 yields a page of replacement characters that
-    reads like a broken document rather than an unreadable one."""
-    client, _ = make_client()
+    reads like a broken document rather than an unreadable one.
+
+    And it is not downloaded at all: the inventory already said it was an
+    image, so fetching it to throw it away would spend a request against the
+    SEC's rate limit and the caller's deadline to learn what we knew. Its
+    size is therefore unknown rather than invented -- review asked for the
+    fetch to be skipped, and a fabricated size would be the same kind of
+    claim-without-evidence this whole change is about.
+    """
+    client, requested = make_client()
     got = client.get_filing_document("320193", "0000320193-24-000123", "logo.jpg")
     assert got["extraction_status"] == "unsupported"
     assert got["media_type"] == "image/jpeg"
     assert got["content"] == ""
-    assert got["size_bytes"] > 0
+    assert got["size_bytes"] is None
+    assert not any("logo.jpg" in url for url in requested)
 
 
 def test_the_document_tools_cap_their_text_and_say_when_they_did() -> None:
