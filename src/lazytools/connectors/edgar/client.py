@@ -68,13 +68,14 @@ _MEDIA_TYPES = {
     ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
     ".gif": "image/gif", ".zip": "application/zip",
 }
-#: Media types no text extraction is attempted for. A PDF is listed here on
-#: purpose: this connector has no PDF reader, and decoding one as UTF-8 would
-#: hand a caller a page of replacement characters that looks like a failed
-#: document rather than an unsupported one.
-_BINARY_MEDIA = frozenset({
-    "application/pdf", "application/zip",
-    "image/jpeg", "image/png", "image/gif",
+#: Media types text IS extracted from. An allowlist, not a list of binaries
+#: to skip: review caught the inverse letting an unlisted format through --
+#: a .xlsx resolves to application/octet-stream, which was in no denylist, so
+#: it was decoded as UTF-8 and returned as successfully extracted text made
+#: of replacement characters. Anything not named here is reported unsupported,
+#: which is true of a format we have never seen as well as of a PDF.
+_TEXT_MEDIA = frozenset({
+    "text/html", "text/plain", "application/xml", "application/json",
 })
 
 
@@ -313,7 +314,7 @@ class EdgarClient:
             )
         media = entry["media_type"]
         body = self._get(entry["url"])
-        if media in _BINARY_MEDIA:
+        if media not in _TEXT_MEDIA:
             return {
                 "accession_no": dashed, "filename": filename,
                 "type": entry["type"], "description": entry["description"],

@@ -576,3 +576,32 @@ def test_the_document_tools_cap_their_text_and_say_when_they_did() -> None:
     assert out["content_is_untrusted"] is True
     # No raw bytes anywhere in a model-facing result.
     assert all(not isinstance(v, (bytes, bytearray)) for v in out.values())
+
+
+def test_an_unrecognised_format_is_unsupported_rather_than_decoded() -> None:
+    """A denylist of known binaries lets the next format through.
+
+    Review caught a .xlsx resolving to application/octet-stream, which was in
+    no list of binaries, so it was decoded as UTF-8 and returned as
+    successfully extracted text made entirely of replacement characters. The
+    check is an allowlist now, so a format nobody anticipated is reported
+    unreadable rather than mangled.
+    """
+    from lazytools.connectors.edgar.client import _media_type
+
+    assert _media_type("results.xlsx") == "application/octet-stream"
+
+    class _Foglio:
+        def list_filing_documents(self, cik, accession_no):
+            return [{"filename": "results.xlsx", "type": "EX-99.2",
+                     "description": None, "sequence": "3",
+                     "media_type": "application/octet-stream",
+                     "url": "https://www.sec.gov/x/results.xlsx"}]
+
+    client, _ = make_client()
+    client.list_filing_documents = _Foglio().list_filing_documents  # type: ignore[method-assign]
+    client._get = lambda url: bytes([0x50, 0x4B, 0x03, 0x04]) + b"zipbody"  # type: ignore[method-assign]
+
+    got = client.get_filing_document("320193", "0000320193-24-000123", "results.xlsx")
+    assert got["extraction_status"] == "unsupported"
+    assert got["content"] == ""
