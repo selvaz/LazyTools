@@ -33,9 +33,42 @@ SUBMISSIONS = {
             "reportDate": ["2024-09-28", "", "2023-09-30"],
             "items": ["", "2.02,9.01", ""],
             "primaryDocument": ["aapl-20240928.htm", "aapl-8k.htm", "aapl-20230930.htm"],
+            # Present in the real submissions JSON (verified live against
+            # CIK0000320193), and the only field that answers "had this been
+            # filed by the time the report claims to cover".
+            "acceptanceDateTime": ["2024-11-01T18:01:14.000Z",
+                                   "2024-08-02T16:30:00.000Z",
+                                   "2023-11-03T18:08:05.000Z"],
+            "primaryDocDescription": ["10-K", "8-K", "10-K"],
         }
     },
 }
+
+#: Transcribed from a real submission header (Apple's 2026 earnings 8-K):
+#: the SGML tags arrive HTML-escaped inside an HTML page, which is why a
+#: naive <DOCUMENT> parse of the raw bytes finds nothing at all.
+INDEX_HEADERS = """<html><body><pre>
+&lt;SEC-HEADER&gt;0000320193-24-000123.hdr.sgml
+ACCESSION NUMBER: 0000320193-24-000123
+&lt;DOCUMENT&gt;
+&lt;TYPE&gt;8-K
+&lt;SEQUENCE&gt;1
+&lt;FILENAME&gt;aapl-8k.htm
+&lt;DESCRIPTION&gt;8-K
+&lt;/DOCUMENT&gt;
+&lt;DOCUMENT&gt;
+&lt;TYPE&gt;EX-99.1
+&lt;SEQUENCE&gt;2
+&lt;FILENAME&gt;a8-kex991.htm
+&lt;DESCRIPTION&gt;EX-99.1
+&lt;/DOCUMENT&gt;
+&lt;DOCUMENT&gt;
+&lt;TYPE&gt;GRAPHIC
+&lt;SEQUENCE&gt;3
+&lt;FILENAME&gt;logo.jpg
+&lt;DESCRIPTION&gt;
+&lt;/DOCUMENT&gt;
+</pre></body></html>"""
 
 COMPANY_FACTS = {
     "cik": 320193,
@@ -62,6 +95,12 @@ def make_client(**kwargs) -> tuple[EdgarClient, list[str]]:
             return httpx.Response(200, json=SUBMISSIONS)
         if path == "/api/xbrl/companyfacts/CIK0000320193.json":
             return httpx.Response(200, json=COMPANY_FACTS)
+        if path.endswith("-index-headers.html"):
+            return httpx.Response(200, text=INDEX_HEADERS)
+        if path.endswith("logo.jpg"):
+            # A real JPEG's magic bytes, built from ints: a literal here
+            # picks up the file's own encoding and stops being a JPEG.
+            return httpx.Response(200, content=bytes([0xFF, 0xD8, 0xFF, 0xE0]) + b"jpegbody")
         if path.startswith("/Archives/edgar/data/320193/"):
             return httpx.Response(200, text=FILING_HTML)
         return httpx.Response(404, text="not found")
@@ -136,6 +175,10 @@ def test_list_filings_form_filter_and_contract() -> None:
         "items": [],
         "primary_document": "aapl-20240928.htm",
         "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm",
+        # Added with the document-inventory work: the acceptance INSTANT,
+        # which a date cannot answer "was this filed by 22:30?" with.
+        "accepted_at": "2024-11-01T18:01:14.000Z",
+        "primary_doc_description": "10-K",
     }
 
 
@@ -387,6 +430,8 @@ def test_edgar_tools_is_a_lazy_tool_provider() -> None:
     provider = EdgarTools(client=client)
     assert provider._is_lazy_tool_provider is True
     assert {t.name for t in provider.as_tools()} == {
+        "sec_list_filing_documents",
+        "sec_get_filing_document",
         "sec_resolve_company", "sec_list_filings", "sec_get_filing_text"}
 
 
@@ -450,3 +495,84 @@ def test_sec_get_filing_text_truncates_long_filings_and_says_so() -> None:
     out = provider.sec_get_filing_text("320193", "0000320193-24-000123")
     assert out["truncated"] is True
     assert len(out["content"]) == MAX_FILING_CHARS
+
+
+def test_list_filing_documents_reads_exhibit_types_from_the_sgml_header() -> None:
+    """index.json cannot do this job.
+
+    Measured live against Apple's 2026 earnings 8-K: index.json's ``type``
+    field is the directory ICON name ("text.gif", "image2.gif") and there is
+    no description at all, so an exhibit cannot be identified from it. The
+    submission header carries the real TYPE/SEQUENCE/FILENAME/DESCRIPTION.
+    """
+    client, requested = make_client()
+    docs = client.list_filing_documents("320193", "0000320193-24-000123")
+    assert [d["type"] for d in docs] == ["8-K", "EX-99.1", "GRAPHIC"]
+    assert [d["sequence"] for d in docs] == ["1", "2", "3"]
+    assert any("-index-headers.html" in u for u in requested)
+    exhibit = docs[1]
+    assert exhibit["filename"] == "a8-kex991.htm"
+    assert exhibit["media_type"] == "text/html"
+    assert exhibit["url"].startswith("https://www.sec.gov/Archives/edgar/data/320193/")
+    # An empty DESCRIPTION is None, not "" -- absent is not the same as blank.
+    assert docs[2]["description"] is None
+
+
+def test_the_earnings_release_is_reachable_where_the_primary_document_is_not() -> None:
+    """The whole reason this exists: an earnings 8-K's primary document is
+    the cover and the Item 2.02 statement; the revenue is in the exhibit."""
+    client, _ = make_client()
+    got = client.get_filing_document("320193", "0000320193-24-000123", "a8-kex991.htm")
+    assert got["type"] == "EX-99.1"
+    assert got["extraction_status"] == "ok"
+    assert got["content_is_untrusted"] is True
+    assert got["content"]
+
+
+def test_a_filename_the_filing_does_not_contain_is_refused() -> None:
+    """The caller names a document; it does not get to name a URL."""
+    import pytest
+
+    client, requested = make_client()
+    before = len(requested)
+    with pytest.raises(ValueError, match="not a document of filing"):
+        client.get_filing_document("320193", "0000320193-24-000123",
+                                   "../../../../etc/passwd")
+    # It was rejected against the inventory, never fetched.
+    assert not any("passwd" in u for u in requested[before:])
+
+
+def test_a_binary_document_is_reported_unsupported_not_mangled() -> None:
+    """Decoding a JPEG as UTF-8 yields a page of replacement characters that
+    reads like a broken document rather than an unreadable one."""
+    client, _ = make_client()
+    got = client.get_filing_document("320193", "0000320193-24-000123", "logo.jpg")
+    assert got["extraction_status"] == "unsupported"
+    assert got["media_type"] == "image/jpeg"
+    assert got["content"] == ""
+    assert got["size_bytes"] > 0
+
+
+def test_the_document_tools_cap_their_text_and_say_when_they_did() -> None:
+    from lazytools.connectors.edgar.tools import MAX_FILING_CHARS, EdgarTools
+
+    class _Lungo:
+        def list_filing_documents(self, cik, accession_no):
+            return [{"filename": "big.htm", "type": "EX-99.1", "description": None,
+                     "sequence": "2", "media_type": "text/html", "url": "https://www.sec.gov/x"}]
+
+        def get_filing_document(self, cik, accession_no, filename):
+            return {"accession_no": accession_no, "filename": filename,
+                    "type": "EX-99.1", "description": None,
+                    "url": "https://www.sec.gov/x", "media_type": "text/html",
+                    "content": "a" * (MAX_FILING_CHARS + 500),
+                    "extraction_status": "ok", "size_bytes": 999,
+                    "content_is_untrusted": True}
+
+    tools = EdgarTools(client=_Lungo())
+    out = tools.sec_get_filing_document("320193", "0000320193-24-000123", "big.htm")
+    assert out["truncated"] is True
+    assert len(out["content"]) == MAX_FILING_CHARS
+    assert out["content_is_untrusted"] is True
+    # No raw bytes anywhere in a model-facing result.
+    assert all(not isinstance(v, (bytes, bytearray)) for v in out.values())

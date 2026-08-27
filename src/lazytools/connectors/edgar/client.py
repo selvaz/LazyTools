@@ -25,7 +25,9 @@ Filing content comes from public documents written by third parties, so
 from __future__ import annotations
 
 import json
+import re
 import time
+from html import unescape as _html_unescape
 from html.parser import HTMLParser
 from typing import Any, Protocol
 from urllib.parse import urljoin
@@ -39,6 +41,15 @@ _COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 _SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 _COMPANY_FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
 _ARCHIVES_URL = "https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession}/{document}"
+#: The submission's SGML header. Chosen over ``index.json`` deliberately:
+#: measured against a real Apple earnings 8-K, index.json's ``type`` field is
+#: the directory ICON name ("text.gif", "image2.gif") and carries no exhibit
+#: type or description at all, so an exhibit cannot be identified from it.
+#: This file has the real ``<TYPE>``/``<SEQUENCE>``/``<FILENAME>``/
+#: ``<DESCRIPTION>`` per document -- HTML-escaped, hence the unescape below.
+_INDEX_HEADERS_URL = (
+    "https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession}/{dashed}-index-headers.html"
+)
 
 #: Default hard cap on every response body (bytes) — ~5 MB.
 DEFAULT_MAX_RESPONSE_BYTES = 5_000_000
@@ -49,6 +60,23 @@ _MAX_REDIRECTS = 3
 #: HTTP statuses treated as redirects when following manually.
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 
+#: Extension -> media type, for the documents a filing actually contains.
+_MEDIA_TYPES = {
+    ".htm": "text/html", ".html": "text/html", ".txt": "text/plain",
+    ".xml": "application/xml", ".xsd": "application/xml",
+    ".json": "application/json", ".pdf": "application/pdf",
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+    ".gif": "image/gif", ".zip": "application/zip",
+}
+#: Media types no text extraction is attempted for. A PDF is listed here on
+#: purpose: this connector has no PDF reader, and decoding one as UTF-8 would
+#: hand a caller a page of replacement characters that looks like a failed
+#: document rather than an unsupported one.
+_BINARY_MEDIA = frozenset({
+    "application/pdf", "application/zip",
+    "image/jpeg", "image/png", "image/gif",
+})
+
 
 class EdgarService(Protocol):
     """The subset of an EDGAR client that :class:`EdgarTools` uses."""
@@ -56,6 +84,8 @@ class EdgarService(Protocol):
     def resolve_company(self, query: str, *, limit: int = 10) -> list[dict[str, str]]: ...
     def list_filings(self, cik: str, *, form: str | None = None, limit: int = 20) -> list[dict[str, Any]]: ...
     def get_filing(self, cik: str, accession_no: str, *, primary_document: str | None = None) -> dict[str, Any]: ...
+    def list_filing_documents(self, cik: str, accession_no: str) -> list[dict[str, Any]]: ...
+    def get_filing_document(self, cik: str, accession_no: str, filename: str) -> dict[str, Any]: ...
     def company_facts(self, cik: str) -> dict[str, Any]: ...
 
 
@@ -147,6 +177,8 @@ class EdgarClient:
         reports = recent.get("reportDate", [])
         items = recent.get("items", [])
         documents = recent.get("primaryDocument", [])
+        accepted = recent.get("acceptanceDateTime", [])
+        descriptions = recent.get("primaryDocDescription", [])
 
         def _at(values: list[Any], i: int) -> str:
             return str(values[i]) if i < len(values) and values[i] is not None else ""
@@ -164,6 +196,12 @@ class EdgarClient:
                     "filed_at": _at(filed, i),
                     "report_date": _at(reports, i) or None,
                     "items": [c.strip() for c in _at(items, i).split(",") if c.strip()],
+                    # The instant EDGAR accepted the submission, not just the
+                    # day: "was this filing available at 22:30?" cannot be
+                    # answered from a date, and a caller reporting on one
+                    # evening needs to answer exactly that.
+                    "accepted_at": _at(accepted, i) or None,
+                    "primary_doc_description": _at(descriptions, i) or None,
                     "primary_document": primary,
                     "url": _archives_url(padded, str(accession), primary),
                 }
@@ -203,6 +241,97 @@ class EdgarClient:
             "form": form,
             "url": url,
             "content": content,
+            "content_is_untrusted": True,
+        }
+
+    def list_filing_documents(self, cik: str, accession_no: str) -> list[dict[str, Any]]:
+        """Every document in one submission, with its exhibit type.
+
+        The primary document is only ever part of a filing. An earnings 8-K
+        typically states its result in Item 2.02 and carries the release
+        itself as an exhibit, so a caller that can reach only the primary
+        document can reach the announcement but not the numbers.
+
+        Read from the submission's SGML header rather than ``index.json``:
+        measured against a real Apple earnings 8-K, index.json's ``type`` is
+        the directory icon ("text.gif") and there is no description field at
+        all, so nothing there identifies an exhibit.
+
+        Each entry carries ``sequence``, ``type`` (e.g. ``"EX-99.1"``),
+        ``description`` (often as uninformative as the type -- Apple's
+        earnings release describes itself as "EX-99.1"), ``filename``,
+        ``url``, and ``media_type`` guessed from the extension.
+        """
+        padded = _pad_cik(cik)
+        dashed = _normalize_accession(accession_no)
+        url = _INDEX_HEADERS_URL.format(
+            cik_int=int(padded), accession=dashed.replace("-", ""), dashed=dashed)
+        # Unescaped first: the header is served inside an HTML page, so its
+        # SGML tags arrive as &lt;TYPE&gt; and a naive parse finds nothing.
+        raw = _html_unescape(self._get(url).decode("utf-8", errors="replace"))
+        documents: list[dict[str, Any]] = []
+        for block in re.findall(r"<DOCUMENT>(.*?)</DOCUMENT>", raw, re.S | re.I):
+            def _field(name: str) -> str | None:
+                m = re.search(rf"<{name}>([^\r\n<]*)", block, re.I)
+                value = m.group(1).strip() if m else ""
+                return value or None
+
+            filename = _field("FILENAME")
+            if not filename:
+                continue
+            documents.append({
+                "sequence": _field("SEQUENCE"),
+                "type": _field("TYPE"),
+                "description": _field("DESCRIPTION"),
+                "filename": filename,
+                "media_type": _media_type(filename),
+                "url": _archives_url(padded, dashed, filename),
+            })
+        return documents
+
+    def get_filing_document(self, cik: str, accession_no: str, filename: str) -> dict[str, Any]:
+        """Fetch one named document from a submission, as text.
+
+        ``filename`` must be one this submission actually contains: it is
+        checked against :meth:`list_filing_documents` rather than pasted into
+        an Archives URL. A caller-supplied path would otherwise decide what
+        this client fetches, which is not a decision a caller gets to make
+        even against a host we pin.
+
+        Binary documents are not decoded into text -- an image or a PDF comes
+        back with ``extraction_status`` saying so and empty ``content``,
+        rather than a page of replacement characters pretending to be prose.
+        """
+        padded = _pad_cik(cik)
+        dashed = _normalize_accession(accession_no)
+        inventory = {d["filename"]: d for d in self.list_filing_documents(padded, dashed)}
+        entry = inventory.get(filename)
+        if entry is None:
+            raise ValueError(
+                f"{filename!r} is not a document of filing {dashed}; "
+                f"choose one of: {sorted(inventory)[:10]}"
+            )
+        media = entry["media_type"]
+        body = self._get(entry["url"])
+        if media in _BINARY_MEDIA:
+            return {
+                "accession_no": dashed, "filename": filename,
+                "type": entry["type"], "description": entry["description"],
+                "url": entry["url"], "media_type": media,
+                "content": "",
+                "extraction_status": "unsupported",
+                "size_bytes": len(body),
+                "content_is_untrusted": True,
+            }
+        raw = body.decode("utf-8", errors="replace")
+        content = _html_to_text(raw) if _looks_like_html(filename, raw) else raw
+        return {
+            "accession_no": dashed, "filename": filename,
+            "type": entry["type"], "description": entry["description"],
+            "url": entry["url"], "media_type": media,
+            "content": content,
+            "extraction_status": "ok",
+            "size_bytes": len(body),
             "content_is_untrusted": True,
         }
 
@@ -317,6 +446,20 @@ class _TextExtractor(HTMLParser):
     def handle_data(self, data: str) -> None:
         if not self._skip_depth and data.strip():
             self.chunks.append(" ".join(data.split()))
+
+
+def _media_type(filename: str) -> str:
+    """Media type from the filename's extension, ``application/octet-stream``
+    when it has none we know."""
+    lowered = filename.lower()
+    for ext, media in _MEDIA_TYPES.items():
+        if lowered.endswith(ext):
+            return media
+    return "application/octet-stream"
+
+
+def _looks_like_html(filename: str, raw: str) -> bool:
+    return filename.lower().endswith((".htm", ".html")) or raw.lstrip().startswith("<")
 
 
 def _html_to_text(raw: str) -> str:
