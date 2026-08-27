@@ -231,6 +231,12 @@ class FakeEdgarClient:
         # for: the primary document states the result, the exhibit has the
         # numbers.
         self.filing_documents: dict[str, list[dict[str, Any]]] = {
+            "0000320193-24-000123": [
+                {"sequence": "1", "type": "10-K", "description": "10-K",
+                 "filename": "aapl-20240928.htm", "media_type": "text/html",
+                 "url": "https://www.sec.gov/Archives/edgar/data/320193/"
+                        "000032019324000123/aapl-20240928.htm"},
+            ],
             "0000320193-24-000100": [
                 {"sequence": "1", "type": "8-K", "description": "8-K",
                  "filename": "aapl-8k.htm", "media_type": "text/html",
@@ -295,9 +301,19 @@ class FakeEdgarClient:
         self.calls.append(("list_filing_documents", accession_no))
         padded = _fake_edgar_pad_cik(cik)
         normalizzato = _fake_edgar_normalize_accession(accession_no)
-        if padded != _fake_edgar_pad_cik(self.default_cik):
-            return []
-        return [dict(d) for d in self.filing_documents.get(normalizzato, [])]
+        documenti = (self.filing_documents.get(normalizzato, [])
+                     if padded == _fake_edgar_pad_cik(self.default_cik) else [])
+        if not documenti:
+            # Mirrors the real client, which raises rather than describe a
+            # filing as documentless -- no submission is. Returning [] here
+            # would let a consumer write a branch for "a valid filing with no
+            # documents", pass against this fake, and meet either documents
+            # or an exception in production.
+            raise RuntimeError(
+                f"no documents parsed from the submission header for {normalizzato}; "
+                f"FakeEdgarClient.filing_documents has no entry for it"
+            )
+        return [dict(d) for d in documenti]
 
     def get_filing_document(self, cik: str, accession_no: str, filename: str) -> dict[str, Any]:
         """One named document, refused unless this filing contains it.

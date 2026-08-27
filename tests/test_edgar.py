@@ -667,3 +667,21 @@ def test_an_unparseable_header_fails_instead_of_reporting_an_empty_filing() -> N
                          min_request_interval=0.0)
     with pytest.raises(RuntimeError, match="no documents parsed"):
         client.list_filing_documents("320193", "0000320193-24-000123")
+
+
+def test_the_fake_cannot_describe_a_filing_as_documentless() -> None:
+    """The real client raises rather than return an empty inventory, because
+    no submission has zero documents. Review caught the fake still returning
+    [] -- so a consumer could write a branch for a shape production never
+    produces, and pass here."""
+    import pytest
+
+    from lazytools.testing.fake_clients import FakeEdgarClient
+
+    fake = FakeEdgarClient()
+    # Every canned filing has an inventory, including the 10-K.
+    assert fake.list_filing_documents("0000320193", "0000320193-24-000123")
+    assert fake.list_filing_documents("0000320193", "0000320193-24-000100")
+
+    with pytest.raises(RuntimeError, match="no documents parsed"):
+        fake.list_filing_documents("0000320193", "9999999999-99-999999")
