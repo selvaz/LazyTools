@@ -55,7 +55,7 @@ Look up one known market by its exact, stable slug with
 |---|---|---|
 | `polymarket_list_markets` | a ranked page of markets — question, outcomes, last-published prices, volume, the per-outcome `clob_token_ids` needed by every CLOB tool; `offset` pages past the first `limit` rows | Gamma |
 | `polymarket_get_market` | one market's full record by its exact slug; `found=False` rather than an error on a typo | Gamma |
-| `polymarket_order_book` | the live bids/asks for one outcome token | CLOB |
+| `polymarket_order_book` | the live bids/asks for one outcome token, capped to `depth` levels per side (default 20, max 50) | CLOB |
 | `polymarket_price` | the current best bid (`side='buy'`) or best ask (`side='sell'`) for one outcome token | CLOB |
 | `polymarket_midpoint` | the book midpoint for one outcome token — cheaper than the full book when only one number is needed | CLOB |
 
@@ -95,6 +95,11 @@ removes the guard).
   `side='sell'` returns the best *ask* — the opposite of "the price you'd pay
   to buy". Verified live against the vendor 2026-08-28. `polymarket_midpoint`
   sidesteps the question entirely when one number is enough.
+* **The order book comes worst-to-best, not best-to-worst.** Bids arrive
+  ascending (0.01 → 0.49), asks descending (0.99 → 0.50) — verified live
+  2026-08-28. `polymarket_order_book` truncates each side from the *end* of
+  the vendor's list to keep the best prices; a naive front-truncation would
+  silently return the least useful ones.
 * **No history, no series.** These are snapshot tools — a price a week ago, or
   a time series, is not here.
 * **Rate limits are real but soft.** Gamma is fronted by Cloudflare with a

@@ -26,6 +26,18 @@ from lazytools.connectors.polymarket.client import Market, PolymarketClient, Pol
 #: into its own context in one step.
 MAX_ROWS = 100
 
+#: Hard ceiling on price levels returned per side of an order book. A liquid
+#: token's book has no vendor-side cap, so an unbounded read is the one call
+#: in this module that could hand back an unbounded reply -- capped for the
+#: same reason MAX_ROWS caps a listing.
+MAX_BOOK_DEPTH = 50
+
+_STALE_NOTE = (
+    "outcome_prices are Gamma's last-published prices, not a live quote; "
+    "call polymarket_price/polymarket_midpoint on a clob_token_ids entry "
+    "for the current book."
+)
+
 _SOURCE = "Polymarket Gamma (gamma-api.polymarket.com) + CLOB (clob.polymarket.com), public read endpoints"
 
 
@@ -134,9 +146,7 @@ class PolymarketTools:
             offset=offset,
             returned=len(markets),
             markets=[_market_dict(m) for m in markets],
-            note="outcome_prices are Gamma's last-published prices, not a live "
-                 "quote; call polymarket_price/polymarket_midpoint on a "
-                 "clob_token_ids entry for the current book.",
+            note=_STALE_NOTE,
         )
 
     def polymarket_get_market(self, slug: str) -> dict:
@@ -154,22 +164,40 @@ class PolymarketTools:
         market = self._client.market(slug.strip())
         if market is None:
             return self._envelope(slug=slug, found=False)
-        return self._envelope(slug=slug, found=True, market=_market_dict(market))
+        return self._envelope(slug=slug, found=True, market=_market_dict(market), note=_STALE_NOTE)
 
-    def polymarket_order_book(self, token_id: str) -> dict:
+    def polymarket_order_book(self, token_id: str, depth: int = 20) -> dict:
         """The live CLOB order book (bids and asks) for one outcome token.
         Needs a token id, not a market slug -- get one from
         ``clob_token_ids`` on ``polymarket_list_markets``/
         ``polymarket_get_market``: each outcome (Yes, No, or one candidate in
-        a multi-outcome event) has its own token id and its own book.
+        a multi-outcome event) has its own token id and its own book. The
+        vendor returns both sides worst-to-best (bids ascending, asks
+        descending) -- verified live 2026-08-28 -- so a naive from-the-front
+        truncation would silently keep the WORST prices; this takes each
+        side from the end instead, and the reply carries
+        ``levels_available`` per side so truncation stays visible rather
+        than looking like a thin book.
 
         Args:
             token_id: the ERC-1155 token id string for one outcome.
+            depth: price levels per side, at most 50; a liquid token's book
+                has no vendor-side cap, so this is capped here.
         """
         if not token_id or not token_id.strip():
             raise ValueError("token_id is required")
+        levels_wanted = max(1, min(int(depth), MAX_BOOK_DEPTH))
         book = self._client.book(token_id.strip())
-        return self._envelope(token_id=token_id, book=book)
+        bids = book.get("bids") or []
+        asks = book.get("asks") or []
+        out = dict(book)
+        out["bids"] = bids[-levels_wanted:]
+        out["asks"] = asks[-levels_wanted:]
+        return self._envelope(
+            token_id=token_id,
+            book=out,
+            levels_available={"bids": len(bids), "asks": len(asks)},
+        )
 
     def polymarket_price(self, token_id: str, side: str = "buy") -> dict:
         """The current best price on one side of the book for one outcome token.

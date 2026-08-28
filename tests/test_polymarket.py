@@ -17,6 +17,7 @@ from lazytools.connectors.polymarket import (
     PolymarketError,
     PolymarketTools,
 )
+from lazytools.connectors.polymarket.tools import _STALE_NOTE, MAX_BOOK_DEPTH
 
 
 class _Response:
@@ -170,6 +171,10 @@ def test_get_market_finds_exact_slug_match() -> None:
     out = tools.polymarket_get_market("election-2028")
     assert out["found"] is True
     assert out["market"]["slug"] == "election-2028"
+    # The same staleness note polymarket_list_markets carries -- omitting it
+    # here let a caller who already knows the slug see Gamma's lagging price
+    # with no warning attached (Codex PR review finding).
+    assert out["note"] == _STALE_NOTE
 
 
 def test_malformed_json_field_degrades_to_empty_list_not_a_crash() -> None:
@@ -192,6 +197,33 @@ def test_order_book_passes_token_id_through() -> None:
     assert out["book"] == {"bids": [], "asks": []}
     _, params = stub.gets[0]
     assert params["token_id"] == "111"
+
+
+def test_order_book_caps_depth_keeping_the_best_prices() -> None:
+    # Verified live 2026-08-28: the vendor returns both sides worst-to-best
+    # -- bids ascending (0.01 .. 0.49), asks descending (0.99 .. 0.50) -- so
+    # truncating from the front would silently keep the WORST prices instead
+    # of the best ones (Codex PR review finding: depth was unbounded at all).
+    bids = [{"price": f"0.{i:02d}", "size": "1"} for i in range(1, 61)]  # worst..best
+    asks = [{"price": f"0.{99 - i:02d}", "size": "1"} for i in range(60)]  # worst..best
+    stub = _Stub(routes={"/book": {"bids": bids, "asks": asks}})
+    tools = _tools(stub)
+
+    out = tools.polymarket_order_book("111", depth=5)
+    assert out["levels_available"] == {"bids": 60, "asks": 60}
+    assert out["book"]["bids"] == bids[-5:]
+    assert out["book"]["asks"] == asks[-5:]
+    # The best bid/ask (last element of each vendor-ordered list) must survive.
+    assert out["book"]["bids"][-1] == bids[-1]
+    assert out["book"]["asks"][-1] == asks[-1]
+
+
+def test_order_book_depth_is_bounded_even_when_caller_asks_for_more() -> None:
+    bids = [{"price": "0.5", "size": "1"}] * (MAX_BOOK_DEPTH + 20)
+    stub = _Stub(routes={"/book": {"bids": bids, "asks": []}})
+    tools = _tools(stub)
+    out = tools.polymarket_order_book("111", depth=MAX_BOOK_DEPTH + 20)
+    assert len(out["book"]["bids"]) == MAX_BOOK_DEPTH
 
 
 def test_price_rejects_unknown_side() -> None:
