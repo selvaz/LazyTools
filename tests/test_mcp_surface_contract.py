@@ -37,6 +37,7 @@ EXPECTED_PROVIDER_IDS = {
     "econ_calendar",
     "earnings_calendar",
     "tradingview",
+    "polymarket",
     "calendar_agent",
     "regimes",
     "report",
@@ -136,6 +137,14 @@ TRADINGVIEW_TOOLS = {
     "tradingview_breadth",
 }
 
+POLYMARKET_TOOLS = {
+    "polymarket_list_markets",
+    "polymarket_get_market",
+    "polymarket_order_book",
+    "polymarket_price",
+    "polymarket_midpoint",
+}
+
 REPORT_READ = {"render_memo", "render_memo_html"}
 REPORT_WRITE = {"save_memo_html", "save_memo_markdown", "save_report"}
 
@@ -186,6 +195,19 @@ def test_tradingview_contract() -> None:
 
     provider = TradingViewTools(client=ScreenerClient(transport=object()))
     assert _names(provider) == TRADINGVIEW_TOOLS
+
+
+def test_polymarket_contract() -> None:
+    """Read-only: no write surface at all, order placement needs a wallet.
+
+    Constructed with a client that has no transport, so building the tool
+    list reaches no network -- the contract is about the surface, not the
+    service.
+    """
+    from lazytools.connectors.polymarket import PolymarketClient, PolymarketTools
+
+    provider = PolymarketTools(client=PolymarketClient(transport=object()))
+    assert _names(provider) == POLYMARKET_TOOLS
 
 
 def test_fin_provider_contract(monkeypatch) -> None:

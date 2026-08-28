@@ -25,6 +25,7 @@ The **Extra** column below is what goes in the brackets (`—` = no extra needed
 | **market-data-hub** | The single source of financial data: `datahub_*` discovery, instrument resolution, financial facts and coverage. Raw series are off the default surface (`allow_raw_series=True` to add capped `datahub_get_series`/`datahub_get_returns`); `allow_refresh=True` adds the `datahub_ensure_*` ingestion write tools. | — (needs the hub installed from git) | [Financial data](datahub.md) |
 | **Regime detection** | `lazystats.regimes` HMM/MS engines as `regime_*` tools: fit, state scans, summaries/changes, window comparison, plots, SQLite depot. Reads always on; `allow_write=True` gates fit/persist/delete. Data loads only via market-data-hub. | — (needs `lazystats[regimes]` from git) | [Regime detection](regimes.md) |
 | **TradingView screener** | Live market cross-section as six read-only tools: breadth counts, named ranked screens, and fund/fundamental/technical/consensus snapshots. Closed vocabularies — the model never composes a filter — with units and provenance on every reply. Snapshot only: no history, nothing stored. | `[tradingview]` | [TradingView screener](tradingview.md) |
+| **Polymarket** | Prediction-market data as five read-only tools: market discovery/metadata (Gamma) plus live order book, best price, and midpoint (CLOB), keyed by outcome token id. No wallet, no order placement. | `[polymarket]` | [Polymarket](polymarket.md) |
 | **Web** | LazyCrawler's search/crawl/get-page surfaced as LLM tools (interface only — the crawler engine stays standalone). | `[web]` | — |
 | **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `[docs]` | [Documents](documents.md) |
 | **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | — | [Skills](skills.md) |
@@ -134,6 +135,18 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     # imports market_data_hub lazily (GitHub-only package). Raw series are
     # opt-in (allow_raw_series=True); allow_refresh=True adds the write tool.
     agent = Agent("claude-opus-4-8", tools=[DataHubTools()])
+    ```
+
+=== "Polymarket"
+
+    ```python
+    from lazybridge import Agent
+    from lazytools.connectors.polymarket import PolymarketTools
+
+    # polymarket_list_markets/_get_market read Gamma (the catalog);
+    # polymarket_order_book/_price/_midpoint read CLOB, keyed by the
+    # clob_token_ids a market listing returns. Public, keyless, read-only.
+    agent = Agent("claude-opus-4-8", tools=[PolymarketTools()])
     ```
 
 === "Web"
