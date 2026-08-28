@@ -39,6 +39,10 @@ marketdata = ["httpx>=0.27,<1.0"]
 # endpoint is undocumented and public, which is also why this connector is the
 # only one here that can stop working without a deprecation notice.
 tradingview = ["httpx>=0.27,<1.0"]
+# Polymarket Gamma (catalog) + CLOB (order book) read connector. Both are
+# public, documented, and keyless for these endpoints; no API key to
+# configure.
+polymarket = ["httpx>=0.27,<1.0"]
 # Report figure charts (report/charts.py): matplotlib only — the series data
 # comes from market-data-hub, which stays git-installed with no extra (below).
 charts     = ["matplotlib>=3.8,<4.0"]

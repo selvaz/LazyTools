@@ -133,6 +133,31 @@ def _tradingview(allow_write: bool = False, *,
     )
 
 
+@_register("polymarket")
+def _polymarket(allow_write: bool = False, *,
+                data_source: dict[str, Any] | None = None) -> Any:
+    """Polymarket's public Gamma (catalog) + CLOB (order book) read endpoints.
+
+    Public and keyless, like ``tradingview``: no write surface at all (order
+    placement needs a wallet signature this connector does not carry), so
+    ``allow_write`` is accepted and ignored.
+
+    One environment knob, same convention as ``tradingview``:
+    ``LAZYTOOLS_POLYMARKET_MAX_CALLS`` (default 200 here, ``0`` to remove the
+    guard).
+    """
+    from lazytools.connectors.polymarket import PolymarketTools
+
+    raw = os.environ.get("LAZYTOOLS_POLYMARKET_MAX_CALLS", "200")
+    try:
+        budget: int | None = int(raw)
+    except ValueError:
+        budget = 200
+    if budget is not None and budget <= 0:
+        budget = None
+    return PolymarketTools(max_calls=budget)
+
+
 @_register("regimes")
 def _regimes(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """HMM / Markov-switching regimes (needs lazystats[regimes]).

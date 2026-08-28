@@ -73,6 +73,7 @@ plugins:
           - gateway.md
           - datahub.md
           - tradingview.md
+          - polymarket.md
           - regimes.md
           - statistical-analysis.md
           - portfolio-optimization.md
@@ -145,6 +146,7 @@ nav:
       - External tool gateway: gateway.md
       - Financial data (market-data-hub): datahub.md
       - TradingView screener: tradingview.md
+      - Polymarket: polymarket.md
       - Regime detection: regimes.md
       - Statistical analysis: statistical-analysis.md
       - Portfolio optimization: portfolio-optimization.md
