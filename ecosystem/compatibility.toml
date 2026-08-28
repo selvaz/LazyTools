@@ -42,7 +42,7 @@ ref = "636b38a7f9039113b935315fbf5f205ff9180160"  # pre-tag pin; finance train r
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
-ref = "a2456fb320e19cf0e24e8a1a565c794c4147e84c"  # pre-tag pin; finance train replaces with a release tag
+ref = "e1b1f4f0eb2c44e5f3987bf406ff01a26bb33eea"  # pre-tag pin; finance train replaces with a release tag
 extras = ["regimes"]
 
 [verified.github.lazyportfolio]
