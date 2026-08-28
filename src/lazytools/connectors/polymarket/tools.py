@@ -92,6 +92,7 @@ class PolymarketTools:
         order: str = "volume24hr",
         ascending: bool = False,
         limit: int = 20,
+        offset: int = 0,
     ) -> dict:
         """A ranked page of Polymarket prediction markets from the Gamma catalog.
         There is no free-text search on this endpoint: passing a keyword is
@@ -100,13 +101,15 @@ class PolymarketTools:
         but is silently ignored too (verified live 2026-08-28); only the
         numeric ``tag_id`` actually narrows results. Look up one market by
         its exact slug with ``polymarket_get_market`` instead of guessing.
+        Beyond the first page, call again with a larger ``offset``.
 
         Args:
             closed: False (default) returns open/unresolved markets only.
             tag_id: restrict to one numeric category tag; 0 (default) returns every category.
             order: sort key, e.g. 'volume24hr' (default), 'volume', 'endDate'.
             ascending: False (default) puts the highest value first, best for volume orderings.
-            limit: rows, at most 100.
+            limit: rows per page, at most 100.
+            offset: rows to skip; page 2 of a 20-row listing is offset=20.
 
         The ``outcome_prices`` returned here are Gamma's last-published
         prices, not a live quote -- they update less often than the order
@@ -116,16 +119,19 @@ class PolymarketTools:
         rows_wanted = max(1, min(int(limit), MAX_ROWS))
         markets = self._client.markets(
             closed=closed,
+            active=True if not closed else None,
             tag_id=tag_id or None,
             order=order,
             ascending=ascending,
             limit=rows_wanted,
+            offset=max(0, int(offset)),
         )
         return self._envelope(
             closed=closed,
             tag_id=tag_id or None,
             order=order,
             ascending=ascending,
+            offset=offset,
             returned=len(markets),
             markets=[_market_dict(m) for m in markets],
             note="outcome_prices are Gamma's last-published prices, not a live "

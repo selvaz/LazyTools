@@ -128,6 +128,34 @@ def test_list_markets_sends_tag_id_when_given() -> None:
     assert "tag_id" not in params2
 
 
+def test_list_markets_defaults_to_active_only_when_open() -> None:
+    """The docstring promises 'open/unresolved markets only' for closed=False --
+    that requires active=true too, or a disabled/draft market (closed=False,
+    active=False) reads as tradable when it is not (Codex PR review finding)."""
+    stub = _Stub(routes={"/markets": []})
+    _tools(stub).polymarket_list_markets()
+    _, params = stub.gets[0]
+    assert params["active"] == "true"
+
+    # closed=True has no such promise, and resolved markets are not
+    # necessarily active -- forcing the filter there could hide legitimate
+    # results, so it is left unconstrained.
+    stub2 = _Stub(routes={"/markets": []})
+    _tools(stub2).polymarket_list_markets(closed=True)
+    _, params2 = stub2.gets[0]
+    assert "active" not in params2
+
+
+def test_list_markets_offset_enables_pagination() -> None:
+    """Without offset, anything past the first page was unreachable (Codex
+    PR review finding) -- a caller had to already know a market's slug."""
+    stub = _Stub(routes={"/markets": []})
+    tools = _tools(stub)
+    tools.polymarket_list_markets(limit=20, offset=20)
+    _, params = stub.gets[0]
+    assert params["offset"] == 20
+
+
 def test_get_market_reports_not_found_without_raising() -> None:
     stub = _Stub(routes={"/markets": []})
     tools = _tools(stub)

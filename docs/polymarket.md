@@ -53,7 +53,7 @@ Look up one known market by its exact, stable slug with
 
 | Tool | What it does | Reads |
 |---|---|---|
-| `polymarket_list_markets` | a ranked page of markets — question, outcomes, last-published prices, volume, the per-outcome `clob_token_ids` needed by every CLOB tool | Gamma |
+| `polymarket_list_markets` | a ranked page of markets — question, outcomes, last-published prices, volume, the per-outcome `clob_token_ids` needed by every CLOB tool; `offset` pages past the first `limit` rows | Gamma |
 | `polymarket_get_market` | one market's full record by its exact slug; `found=False` rather than an error on a typo | Gamma |
 | `polymarket_order_book` | the live bids/asks for one outcome token | CLOB |
 | `polymarket_price` | the current best bid (`side='buy'`) or best ask (`side='sell'`) for one outcome token | CLOB |
