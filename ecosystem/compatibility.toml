@@ -34,7 +34,7 @@ ref = "v0.4.0"
 
 [verified.github.lazycrawler]
 repo = "https://github.com/selvaz/LazyCrawler"
-ref = "v0.19.2"
+ref = "v0.19.3"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"

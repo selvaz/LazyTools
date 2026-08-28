@@ -9,7 +9,7 @@ Python: 3.11, 3.12, 3.13
 | lazybridge | PyPI | `1.2.1` |
 | lazytoolkit | GitHub | `v0.7.0` |
 | lazypulse | GitHub | `v0.4.0` |
-| lazycrawler | GitHub | `v0.19.2` |
+| lazycrawler | GitHub | `v0.19.3` |
 | market-data-hub | GitHub | `636b38a7f9039113b935315fbf5f205ff9180160` |
 | lazystats | GitHub | `e1b1f4f0eb2c44e5f3987bf406ff01a26bb33eea` |
 | lazyportfolio | GitHub | `3f2d4cd40c2deaaa7c93748dc004a9e0718f051f` |
