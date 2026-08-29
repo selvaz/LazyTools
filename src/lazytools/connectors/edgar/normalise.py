@@ -398,8 +398,18 @@ def _derive(elements: dict[str, Element]) -> None:
              {"operating_income": 1, "operating_da_total": 1})
     _combine(elements, "house_ffo",
              {"house_operating_ebitda": 1, "cash_interest_paid": -1, "cash_taxes_paid": -1})
-    _combine(elements, "house_capex", {"capex_ppe": 1, "capex_intangibles": 1},
-             optional=("capex_intangibles",))
+    # Fleet investment is summed in, not excluded: it is cash the group really
+    # spent, and CFO above it carries the lessor's operating flows too, so
+    # netting one side without the other would overstate free cash flow for
+    # every lessor. What it must not do is hide. Deere's 2,868m of equipment
+    # bought to lease out was reaching the base as "capex_intangibles", which
+    # named a fleet of machines after software; the analyst caught it from the
+    # route label. Now it arrives under its own name and is visible as a
+    # component, which is what lets a reader see that this capex is not the
+    # industrial business's own.
+    _combine(elements, "house_capex",
+             {"capex_ppe": 1, "capex_intangibles": 1, "lease_fleet_investment": 1},
+             optional=("capex_intangibles", "lease_fleet_investment"))
     _combine(elements, "focf", {"cfo": 1, "house_capex": -1})
     _combine(elements, "dcf", {"focf": 1, "dividends_paid": -1, "share_repurchases": -1},
              optional=("share_repurchases",))
