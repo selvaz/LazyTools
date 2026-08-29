@@ -21,10 +21,14 @@ from packaging.requirements import Requirement
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-# Requirements that MUST appear verbatim in the wheel's Requires-Dist.
-REQUIRED = [
-    "lazybridge>=1.0.1,<2.0",
-]
+# Package names whose requirement must appear in the wheel's Requires-Dist,
+# with the SAME specifier the source declares. The specifier is read from
+# pyproject rather than written here: a hardcoded copy silently goes stale the
+# first time the floor moves, and then fails every release afterwards while
+# pointing at the wheel instead of at itself. That is exactly what happened
+# when the lazybridge floor was raised to >=1.2.1 and this list still demanded
+# >=1.0.1 verbatim.
+REQUIRED_NAMES = ["lazybridge"]
 
 # Package names that must never appear as bare (non-URL) requirements: they
 # are not on PyPI, so a bare name is unresolvable and a dependency-confusion
@@ -57,12 +61,25 @@ def main() -> int:
 
     parsed = [Requirement(r) for r in requires]
 
-    for req in REQUIRED:
-        want = Requirement(req)
+    declared = {}
+    for raw in pyproject["project"].get("dependencies", []):
+        d = Requirement(raw)
+        declared[d.name] = d
+
+    for name in REQUIRED_NAMES:
+        want = declared.get(name)
+        if want is None:
+            errors.append(
+                f"pyproject declares no {name!r} dependency, but one is required"
+            )
+            continue
         # Compare parsed name + specifier set: metadata writers normalize
         # specifier order, so string equality would spuriously fail.
         if not any(p.name == want.name and set(p.specifier) == set(want.specifier) for p in parsed):
-            errors.append(f"missing required Requires-Dist entry: {req!r}")
+            errors.append(
+                f"wheel's {name!r} requirement does not match the one pyproject "
+                f"declares: {str(want)!r}"
+            )
 
     for p in parsed:
         if p.name.lower().replace("_", "-") in {n.replace("_", "-") for n in GITHUB_ONLY} and p.url is None:
