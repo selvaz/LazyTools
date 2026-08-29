@@ -14,8 +14,11 @@ from __future__ import annotations
 import sys
 import types
 
-import pandas as pd
 import pytest
+
+pytest.importorskip("market_data_hub")
+
+import pandas as pd  # must follow the importorskip above
 
 from lazytools.connectors.cftc_cot import CFTCPositioningTools
 
