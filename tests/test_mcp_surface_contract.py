@@ -40,6 +40,7 @@ EXPECTED_PROVIDER_IDS = {
     "tradingview",
     "polymarket",
     "gleif",
+    "manifold",
     "calendar_agent",
     "regimes",
     "report",
@@ -160,6 +161,14 @@ GLEIF_TOOLS = {
     "gleif_fuzzy_search",
 }
 
+MANIFOLD_TOOLS = {
+    "manifold_list_markets",
+    "manifold_search_markets",
+    "manifold_get_market",
+    "manifold_probability",
+    "manifold_recent_bets",
+}
+
 REPORT_READ = {"render_memo", "render_memo_html"}
 REPORT_WRITE = {"save_memo_html", "save_memo_markdown", "save_report"}
 
@@ -243,6 +252,19 @@ def test_gleif_contract() -> None:
 
     provider = GLEIFTools(client=GLEIFClient(transport=object()))
     assert _names(provider) == GLEIF_TOOLS
+
+
+def test_manifold_contract() -> None:
+    """Read-only: no write surface at all, betting needs an API key.
+
+    Constructed with a client that has no transport, so building the tool
+    list reaches no network -- the contract is about the surface, not the
+    service.
+    """
+    from lazytools.connectors.manifold import ManifoldClient, ManifoldTools
+
+    provider = ManifoldTools(client=ManifoldClient(transport=object()))
+    assert _names(provider) == MANIFOLD_TOOLS
 
 
 def test_fin_provider_contract(monkeypatch) -> None:
