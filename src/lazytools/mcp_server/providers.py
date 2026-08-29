@@ -104,6 +104,19 @@ def _earnings_calendar(allow_write: bool = False, *,
     return EarningsCalendarTools(db_path=(data_source or {}).get("path"))
 
 
+@_register("cftc_cot")
+def _cftc_cot(allow_write: bool = False, *,
+             data_source: dict[str, Any] | None = None) -> Any:
+    """CFTC Commitments of Traders positioning (TFF + Legacy) in market-data-hub.
+
+    Written by the hub's ingestion job, like the economic/earnings calendars,
+    so there is no write surface and ``allow_write`` is accepted and ignored.
+    """
+    from lazytools.connectors.cftc_cot import CFTCPositioningTools
+
+    return CFTCPositioningTools(db_path=(data_source or {}).get("path"))
+
+
 @_register("tradingview")
 def _tradingview(allow_write: bool = False, *,
                  data_source: dict[str, Any] | None = None) -> Any:
