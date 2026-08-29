@@ -432,6 +432,19 @@ class FakeEdgarClient:
         padded = _fake_edgar_pad_cik(cik)
         return self.fye if padded == _fake_edgar_pad_cik(self.default_cik) else None
 
+    def issuer_profile(self, cik: str) -> dict[str, Any]:
+        """Identity + calendar for one CIK; empty name/tickers for a stranger."""
+        self.calls.append(("issuer_profile", cik))
+        padded = _fake_edgar_pad_cik(cik)
+        if padded != _fake_edgar_pad_cik(self.default_cik):
+            return {"cik": padded, "name": "", "tickers": [], "fiscal_year_end": None}
+        return {
+            "cik": padded,
+            "name": self.companies[0]["title"],
+            "tickers": [self.companies[0]["ticker"]],
+            "fiscal_year_end": self.fye,
+        }
+
 
 class FakeMarketDataAdapter:
     """In-memory :class:`~lazytools.connectors.marketdata.adapters.MarketDataAdapter`.

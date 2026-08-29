@@ -105,6 +105,7 @@ class EdgarService(Protocol):
     def company_facts(self, cik: str) -> dict[str, Any]: ...
     def company_concept(self, cik: str, taxonomy: str, tag: str) -> dict[str, Any]: ...
     def fiscal_year_end(self, cik: str) -> str | None: ...
+    def issuer_profile(self, cik: str) -> dict[str, Any]: ...
 
 
 class EdgarClient:
@@ -450,9 +451,32 @@ class EdgarClient:
         2026" cannot be told apart from calendar Q2 2026.
         """
         padded = _pad_cik(cik)
-        value = self._get_json(_SUBMISSIONS_URL.format(cik=padded)).get("fiscalYearEnd")
-        text = str(value).strip() if value is not None else ""
-        return text or None
+        return self.issuer_profile(cik).get("fiscal_year_end")
+
+    def issuer_profile(self, cik: str) -> dict[str, Any]:
+        """Identity and reporting calendar for one CIK, in one request.
+
+        Returns ``cik``, ``name``, ``tickers`` (possibly empty -- a filer with no
+        listed security still files) and ``fiscal_year_end`` as ``MMDD`` or
+        ``None``. Reads the submissions JSON, which carries all of it, so a
+        caller that needs the year end AND the registrant's name does not pay
+        for two round trips to learn one document.
+
+        This is also the only path that accepts a CIK directly:
+        ``resolve_company`` matches tickers and titles, so a bare CIK finds
+        nothing there even though it is the least ambiguous identifier EDGAR has.
+        """
+        padded = _pad_cik(cik)
+        data = self._get_json(_SUBMISSIONS_URL.format(cik=padded))
+        raw_fye = data.get("fiscalYearEnd")
+        fye = str(raw_fye).strip() if raw_fye is not None else ""
+        tickers = [str(t) for t in (data.get("tickers") or []) if t]
+        return {
+            "cik": padded,
+            "name": str(data.get("name") or ""),
+            "tickers": tickers,
+            "fiscal_year_end": fye or None,
+        }
 
     # ------------------------------------------------------------------ #
     # HTTP plumbing
