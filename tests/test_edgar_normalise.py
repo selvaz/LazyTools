@@ -13,7 +13,14 @@ from datetime import date
 
 import pytest
 
-from lazytools.connectors.edgar.normalise import _settle, normalise
+from lazytools.financials.normalised import Element
+from lazytools.connectors.edgar.normalise import (
+    _DEBT_SCOPED,
+    _LEASE_TABLE,
+    _combine,
+    _settle,
+    normalise,
+)
 
 M = 1_000_000
 
@@ -322,3 +329,68 @@ def test_two_totals_on_one_line_are_a_conflict_like_any_other() -> None:
 
 def test_an_uncontested_claim_is_left_alone() -> None:
     assert _settle(["revenue"]) == set()
+
+
+# --- scope, not just resolution ---------------------------------------------- #
+
+
+def test_a_debt_maturity_is_not_read_off_a_lease_table() -> None:
+    # NVIDIA files no debt maturity schedule at all, so the model took the
+    # lease commitment schedule: the years line up, the labels look right, and
+    # the result was a $2.1bn maturity ladder for an issuer with $8.5bn of
+    # debt. Every figure was real, correctly scaled and from the filing. Only
+    # the scope was wrong, which is why nothing downstream could catch it.
+    assert "debt_maturity_y1" in _DEBT_SCOPED
+    assert _LEASE_TABLE.search("Leases - Schedule of Future Minimum Lease Payments")
+    assert not _LEASE_TABLE.search("Debt - Schedule of Debt")
+
+
+def test_a_combined_capex_line_survives_being_claimed_by_two_kinds_of_capex() -> None:
+    # NVIDIA presents one "Purchases related to property and equipment and
+    # intangible assets" line. Claimed as both, both were dropped, and free
+    # cash flow went with them. The parts sum into house_capex with equal
+    # weight, so awarding it to one leaves the total identical.
+    assert _settle(["capex_ppe", "capex_intangibles"]) == {"capex_intangibles"}
+    assert _settle(["capex_intangibles", "capex_ppe"]) == {"capex_intangibles"}
+
+
+def test_two_parts_of_DIFFERENT_wholes_are_still_a_conflict() -> None:
+    # The equal-weight rule must not become a general licence to keep one of
+    # any two claimants.
+    assert _settle(["capex_ppe", "depreciation"]) == {"capex_ppe", "depreciation"}
+
+
+def test_a_missing_addend_makes_a_sum_a_floor_rather_than_nothing() -> None:
+    # NVIDIA has no finance leases at all, and requiring them made its adjusted
+    # debt unavailable: the analysis lost a figure because a real company had
+    # none of something.
+    elements = {
+        "reported_financial_debt": Element("reported_financial_debt", 8463.0, "reported",
+                                           sources=("Debt schedule",)),
+        "operating_lease_total": Element("operating_lease_total", 1807.0, "derived",
+                                         route="current + noncurrent"),
+    }
+    _combine(elements, "house_adjusted_debt",
+             {"reported_financial_debt": 1, "finance_lease_total": 1,
+              "operating_lease_total": 1},
+             floor_when_missing=("finance_lease_total", "operating_lease_total"))
+    result = elements["house_adjusted_debt"]
+    assert result.value == 10270.0
+    assert result.state == "lower_bound"
+    assert "finance_lease_total" in result.blocked_reason
+
+
+def test_a_complete_sum_is_not_downgraded_to_a_floor() -> None:
+    elements = {
+        "reported_financial_debt": Element("reported_financial_debt", 8463.0, "reported",
+                                           sources=("Debt schedule",)),
+        "operating_lease_total": Element("operating_lease_total", 1807.0, "derived",
+                                         route="current + noncurrent"),
+        "finance_lease_total": Element("finance_lease_total", 500.0, "derived",
+                                       route="current + noncurrent"),
+    }
+    _combine(elements, "house_adjusted_debt",
+             {"reported_financial_debt": 1, "finance_lease_total": 1,
+              "operating_lease_total": 1},
+             floor_when_missing=("finance_lease_total", "operating_lease_total"))
+    assert elements["house_adjusted_debt"].state == "derived"

@@ -61,6 +61,31 @@ _TOTALS: dict[str, tuple[str, ...]] = {
     "finance_lease_total": ("finance_lease_current", "finance_lease_noncurrent"),
 }
 
+#: Wholes the model never sees, because they are computed here, but which still
+#: settle a line their parts both claim. Every part must enter its whole with
+#: weight +1, which is what makes awarding a combined line to any one of them
+#: harmless: the whole comes out identical either way.
+_EQUAL_WEIGHT_WHOLES: dict[str, tuple[str, ...]] = {
+    "house_capex": ("capex_ppe", "capex_intangibles", "lease_fleet_investment"),
+}
+
+#: Every whole/part relation the resolver knows, presented or computed.
+_WHOLES: dict[str, tuple[str, ...]] = {**_TOTALS, **_EQUAL_WEIGHT_WHOLES}
+
+#: Elements that measure DEBT and must never be read off a lease table.
+#:
+#: NVIDIA files no debt maturity schedule at all, so the model took the lease
+#: commitment schedule instead: the years line up, the labels look right, and
+#: the result was a $2.1bn maturity ladder for an issuer with $8.5bn of debt.
+#: Nothing downstream could have caught it — the figures were real, correctly
+#: scaled, and from the filing. Only their scope was wrong.
+_DEBT_SCOPED = frozenset({
+    "debt_maturity_y1", "debt_maturity_y2", "debt_maturity_y3", "debt_maturity_y4",
+    "debt_maturity_y5", "debt_maturity_thereafter", "reported_financial_debt",
+    "short_term_borrowings", "current_long_term_debt", "long_term_debt_noncurrent",
+})
+_LEASE_TABLE = re.compile(r"\blease", re.I)
+
 
 @dataclass(frozen=True)
 class _Column:
@@ -257,6 +282,10 @@ def _resolve_refs(mapping: Mapping, columns: list[_Column]) -> dict[str, _Presen
       conflict — settling that by which claim the model happened to emit first
       is the same coin flip. A total claimed alongside its own declared
       components is NOT such a conflict; see :func:`_settle`.
+
+    And one is dropped for its SCOPE rather than its resolution: a debt figure
+    read off a lease table. The value is real and the label is plausible, which
+    is exactly why nothing downstream would question it.
     """
     hits: dict[str, tuple[_Column, Any]] = {}
     claims: dict[tuple[str, str], list[str]] = {}
@@ -273,6 +302,8 @@ def _resolve_refs(mapping: Mapping, columns: list[_Column]) -> dict[str, _Presen
         if len(found) != 1:
             continue
         column, line = found[0]
+        if ref.element_id in _DEBT_SCOPED and _LEASE_TABLE.search(column.statement.title):
+            continue
         hits[ref.element_id] = (column, line)
         claims.setdefault((column.statement.report.short_name, line.label), []).append(ref.element_id)
 
@@ -301,14 +332,29 @@ def _settle(claimants: list[str]) -> set[str]:
     parts go. That is settled from the registry, which already declares the
     whole/part relation, rather than from the model. Dropping both instead
     cost Walmart its entire D&A, and EBITDA and FFO fell with it.
+
+    Some wholes are computed and so are never offered to the model, which
+    leaves a combined line claimed only by parts and no whole to award it to.
+    NVIDIA presents one "Purchases related to property and equipment and
+    intangible assets" line; it was claimed as both kinds of capital spend and
+    both were dropped, taking free cash flow and the residual with them. Those
+    parts sum into their whole with equal weight, so awarding the line to any
+    one of them leaves the whole identical — the arithmetic cannot be changed
+    by the choice, and the route carries the combined label, so a reader sees
+    what the figure covers. The first part in declared order takes it.
     """
     if len(claimants) < 2:
         return set()
-    totals = [c for c in claimants if c in _TOTALS]
-    if len(totals) == 1:
-        parts = [c for c in claimants if c != totals[0]]
-        if all(part in _TOTALS[totals[0]] for part in parts):
+    wholes = [c for c in claimants if c in _WHOLES]
+    if len(wholes) == 1:
+        parts = [c for c in claimants if c != wholes[0]]
+        if all(part in _WHOLES[wholes[0]] for part in parts):
             return set(parts)
+    if not wholes:
+        for whole, parts in _EQUAL_WEIGHT_WHOLES.items():
+            if all(claimant in parts for claimant in claimants):
+                keeps = next(part for part in parts if part in claimants)
+                return {c for c in claimants if c != keeps}
     return set(claimants)
 
 # --------------------------------------------------------------------------- #
@@ -415,6 +461,7 @@ def _derive(elements: dict[str, Element]) -> None:
              optional=("share_repurchases",))
     _combine(elements, "house_adjusted_debt",
              {"reported_financial_debt": 1, "finance_lease_total": 1, "operating_lease_total": 1},
+             floor_when_missing=("finance_lease_total", "operating_lease_total"),
              note="reported debt plus both lease liabilities (house convention: leases "
                   "capitalised). Finance leases are added as presented; where an issuer "
                   "already includes them in reported debt this double counts, and the "
@@ -453,28 +500,47 @@ def _combine(
     terms: dict[str, int],
     *,
     optional: tuple[str, ...] = (),
+    floor_when_missing: tuple[str, ...] = (),
     note: str = "",
 ) -> None:
     """A signed sum of other elements, blocked when a required term is not usable.
 
     Every target is a computed element, which a model may not claim, so this is
     the only thing that ever writes one.
+
+    ``optional`` terms are simply left out. ``floor_when_missing`` terms are
+    left out too, but their absence makes the result a FLOOR rather than the
+    figure: an addend that could not be established can only push the sum up.
+    NVIDIA has no finance leases at all, and requiring them made its adjusted
+    debt unavailable — the analysis lost a figure because a real company had
+    none of something. Treating the sum as "at least" says what is true without
+    either blocking it or quietly presenting a partial total as a whole one.
     """
     values: dict[str, float] = {}
+    missing: list[str] = []
     for key, sign in terms.items():
         element = elements.get(key)
         if element is not None and element.usable:
             values[key] = sign * (element.value or 0.0)
+        elif key in floor_when_missing:
+            missing.append(key)
         elif key not in optional:
             elements[target] = Element(
                 target, None, "unavailable",
                 blocked_reason=f"{key} is not usable, so everything built on it falls with it")
             return
-    elements[target] = Element(
-        target, sum(values.values()), "derived",
-        route=note or " ".join(f"{'+' if v >= 0 else '-'} {k}"
-                               for k, v in values.items()).lstrip("+ "),
-        contributions=tuple(Contribution(k, v) for k, v in values.items()))
+    route = note or " ".join(f"{'+' if v >= 0 else '-'} {k}"
+                             for k, v in values.items()).lstrip("+ ")
+    contributions = tuple(Contribution(k, v) for k, v in values.items())
+    if missing:
+        elements[target] = Element(
+            target, sum(values.values()), "lower_bound", route=route,
+            contributions=contributions,
+            blocked_reason=f"a floor, not the figure: {', '.join(missing)} could not be "
+                           "established, and an addend that is missing can only raise the sum")
+        return
+    elements[target] = Element(target, sum(values.values()), "derived",
+                               route=route, contributions=contributions)
 
 
 __all__ = ["normalise"]
