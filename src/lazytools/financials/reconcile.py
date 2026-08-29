@@ -3,31 +3,28 @@
 Every silent error this codebase has hit had the same shape: a number that
 resolved cleanly, carried full provenance, and was not what it claimed to be.
 Provenance does not protect against that. Arithmetic does — not by proving a
-figure right, which no arithmetic can do from one fact, but by refusing to let
-an aggregate pass unchecked when the filing also discloses its parts.
+figure right, which nothing can do from a single fact, but by refusing to let an
+aggregate pass unchecked when the filing also discloses its parts.
 
-The four outcomes that matter are different findings and must not collapse into
-"it didn't add up":
+The outcomes are different findings and must not collapse into "it didn't add
+up". ``balanced`` is the strongest statement available. ``residual`` is common
+and fine once the difference is both named and quantified. ``unreconciled`` is a
+fact about the filing, to report rather than swallow. And ``scope_conflict`` is
+the dangerous one: the reported total equals ONE part while other non-zero parts
+exist — Cisco's ``AmortizationOfIntangibleAssets`` at $698m looks like a total
+and is the operating-expense slice, with $955m more in cost of sales.
 
-* **balanced** — the total equals its parts. The strongest statement available.
-* **residual** — it does not, and the difference is named. Common and fine: a
-  debt total legitimately differs from its components by issuance costs or
-  premiums, once someone says so.
-* **scope conflict** — the total equals ONE component while other non-zero
-  parts exist. This is the Cisco shape: ``AmortizationOfIntangibleAssets`` at
-  $698m looks like a total and is the operating-expense slice, with $955m more
-  in cost of sales. Nothing about the number itself gives it away.
-* **unreconciled** — it does not add up and nobody has said why. Not an error to
-  swallow; a fact about the filing to report.
-
-Tolerance here is for **rounding, not for economics**. A statement rendered in
-millions cannot resolve below a million, so summing five components can drift by
-a few million with nothing wrong. A tolerance wide enough to absorb a real
-discrepancy is not a tolerance, it is a way of not noticing.
+Tolerance is for **rounding, not economics**. A statement rendered in millions
+cannot resolve below a million, so N parts and their total can each be off by
+half a unit: the bound is ``(N + 1) × unit / 2``. Comparing the total against a
+single part involves only two rounded values, so that bound is one unit. A
+tolerance wide enough to absorb a real discrepancy is not a tolerance, it is a
+way of not noticing.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Literal
 
@@ -37,52 +34,30 @@ ReconciliationStatus = Literal[
 
 
 @dataclass(frozen=True)
-class Component:
-    """One named part of a total, or the fact that it could not be read."""
-
-    name: str
-    value: float | None
-
-
-@dataclass(frozen=True)
 class Reconciliation:
     """What a total and its parts say about each other."""
 
     name: str
     total: float | None
-    components: tuple[Component, ...]
-    residual: float | None
-    tolerance: float
+    components: dict[str, float | None]
+    #: total − sum(parts), or ``None`` when there was nothing to compare.
+    gap: float | None
     status: ReconciliationStatus
     detail: str
 
     @property
-    def ok(self) -> bool:
-        """The total is confirmed by its parts, exactly or with a named residual."""
-        return self.status in ("balanced", "residual")
-
-    @property
     def blocking(self) -> bool:
-        """Anything built on this total would be built on an unchecked number."""
+        """Anything built on this total would rest on an unchecked number."""
         return self.status in ("scope_conflict", "unreconciled", "incomplete")
-
-    @property
-    def known(self) -> tuple[Component, ...]:
-        return tuple(c for c in self.components if c.value is not None)
-
-    @property
-    def missing(self) -> tuple[str, ...]:
-        return tuple(c.name for c in self.components if c.value is None)
 
 
 def reconcile(
     name: str,
     total: float | None,
-    components: dict[str, float | None] | list[Component],
+    components: dict[str, float | None],
     *,
     rounding_unit: float = 0.0,
-    residual_label: str | None = None,
-    residual: float | None = None,
+    residual: tuple[str, float] | None = None,
 ) -> Reconciliation:
     """Test ``total`` against ``components``, which must be mutually exclusive.
 
@@ -90,84 +65,82 @@ def reconcile(
         name: what is being reconciled, for the message.
         total: the reported total, or ``None`` when the filing states none.
         components: the disjoint parts. A ``None`` value means a part exists but
-            could not be read — which is *not* the same as it being zero, and is
-            why such a case comes back ``incomplete`` rather than unreconciled.
-        rounding_unit: the smallest amount the source can express — 1_000_000
-            for a statement rendered in millions. Tolerance is that unit times
-            the number of known parts, because each one can be rounded once.
-            Leave at 0 for exact sources such as XBRL facts.
-        residual_label: names a difference that is expected, e.g. "unamortised
-            issuance costs". Supplying it turns an unexplained gap into a
-            reported one; it does not make the gap go away.
-        residual: the expected difference's amount, when it is itself disclosed.
-            The gap must match it, or the result is ``unreconciled`` — a named
-            residual of the wrong size explains nothing.
+            could not be read — which is not the same as it being zero, and is
+            why that case blocks rather than reconciling.
+        rounding_unit: the smallest amount the source can express — ``1_000_000``
+            for a statement rendered in millions, ``0`` for exact sources such as
+            XBRL facts.
+        residual: a difference that is expected, as ``(name, amount)``. Both are
+            required together on purpose: a label alone would accept any gap as
+            explained, so "other" could absorb a 999 plug on a total of 1,000.
 
     Components are assumed **mutually exclusive**. Passing a total alongside its
-    own sub-total double counts, and no check here can detect that: it is the
-    caller's job to choose parts that do not overlap.
+    own subtotal double counts, and nothing here can detect it: choosing parts
+    that do not overlap is the caller's job.
     """
-    parts = (
-        [Component(k, v) for k, v in components.items()]
-        if isinstance(components, dict)
-        else list(components)
-    )
-    known = [c for c in parts if c.value is not None]
-    missing = [c.name for c in parts if c.value is None]
-    tolerance = abs(rounding_unit) * max(len(known), 1)
+    readable = {k: v for k, v in components.items() if _is_readable(v)}
+    unreadable = [k for k in components if k not in readable]
 
-    if total is None:
-        return Reconciliation(
-            name, None, tuple(parts), None, tolerance, "no_total",
-            f"{name}: no reported total to check the parts against",
-        )
-    if missing:
-        return Reconciliation(
-            name, total, tuple(parts), None, tolerance, "incomplete",
-            f"{name}: {len(missing)} part(s) unreadable ({', '.join(missing)}), so the "
-            "total cannot be confirmed — an unread part is not a zero one",
-        )
-    if not known:
-        return Reconciliation(
-            name, total, tuple(parts), None, tolerance, "incomplete",
-            f"{name}: no parts to check the total against",
-        )
+    if total is None or not _is_readable(total):
+        return _result(name, None, components, None, "no_total",
+                       f"{name}: no reported total to check the parts against")
+    if unreadable:
+        return _result(name, total, components, None, "incomplete",
+                       f"{name}: {len(unreadable)} part(s) unreadable "
+                       f"({', '.join(unreadable)}), so the total cannot be confirmed — "
+                       "an unread part is not a zero one")
+    if not readable:
+        return _result(name, total, components, None, "incomplete",
+                       f"{name}: no parts to check the total against")
 
-    subtotal = sum(c.value or 0.0 for c in known)
+    subtotal = sum(readable.values())  # type: ignore[arg-type]
     gap = total - subtotal
+    # N parts plus the total, each rounded to the nearest unit, drift by at most
+    # half a unit each.
+    aggregate_tolerance = abs(rounding_unit) * (len(readable) + 1) / 2
+    # One total against one part is two rounded values, so one unit.
+    pairwise_tolerance = abs(rounding_unit)
 
-    if abs(gap) <= tolerance:
-        return Reconciliation(
-            name, total, tuple(parts), 0.0, tolerance, "balanced",
-            f"{name}: total {total:,.0f} equals its {len(known)} parts",
-        )
+    if abs(gap) <= aggregate_tolerance:
+        return _result(name, total, components, gap, "balanced",
+                       f"{name}: total {total:,.0f} equals its {len(readable)} parts")
 
-    # The Cisco shape: the "total" is really one of the parts. Checked before
-    # the residual branch, because a residual label would otherwise explain away
-    # the most dangerous outcome there is.
-    for part in known:
-        others = [c for c in known if c is not part and c.value]
-        if abs(total - (part.value or 0.0)) <= tolerance and others:
-            return Reconciliation(
-                name, total, tuple(parts), gap, tolerance, "scope_conflict",
-                f"{name}: the reported total {total:,.0f} equals the part {part.name!r} "
-                f"while {len(others)} other non-zero part(s) exist — it is a component "
-                "presented as a total, not the total",
-            )
+    if residual is not None and abs(gap - residual[1]) <= aggregate_tolerance:
+        # Checked before the scope test: an independently quantified difference
+        # that matches is stronger evidence than the coincidence heuristic, and
+        # a total legitimately equal to one part happens whenever the others
+        # offset each other.
+        return _result(name, total, components, gap, "residual",
+                       f"{name}: total {total:,.0f} differs from its parts by {gap:+,.0f}, "
+                       f"matching the disclosed {residual[0]}")
 
-    if residual_label is not None and (residual is None or abs(gap - residual) <= tolerance):
-        return Reconciliation(
-            name, total, tuple(parts), gap, tolerance, "residual",
-            f"{name}: total {total:,.0f} exceeds its parts by {gap:+,.0f}, "
-            f"identified as {residual_label}",
-        )
+    for part, value in readable.items():
+        others = [v for k, v in readable.items() if k != part and v]
+        if abs(total - (value or 0.0)) <= pairwise_tolerance and others:
+            return _result(name, total, components, gap, "scope_conflict",
+                           f"{name}: the reported total {total:,.0f} equals the part "
+                           f"{part!r} while {len(others)} other non-zero part(s) exist — "
+                           "it is a component presented as a total, not the total")
 
-    return Reconciliation(
-        name, total, tuple(parts), gap, tolerance, "unreconciled",
-        f"{name}: total {total:,.0f} against parts summing to {subtotal:,.0f} "
-        f"leaves {gap:+,.0f} unexplained"
-        + (f" (expected {residual_label} of {residual:+,.0f})" if residual is not None else ""),
-    )
+    expected = f" (a {residual[0]} of {residual[1]:+,.0f} was expected)" if residual else ""
+    return _result(name, total, components, gap, "unreconciled",
+                   f"{name}: total {total:,.0f} against parts summing to {subtotal:,.0f} "
+                   f"leaves {gap:+,.0f} unexplained{expected}")
 
 
-__all__ = ["Component", "Reconciliation", "ReconciliationStatus", "reconcile"]
+def _result(name, total, components, gap, status, detail) -> Reconciliation:  # noqa: ANN001
+    return Reconciliation(name=name, total=total, components=dict(components),
+                          gap=gap, status=status, detail=detail)
+
+
+def _is_readable(value: float | None) -> bool:
+    """A value that can be arithmetic. ``NaN`` and infinities cannot.
+
+    Left out of the sum rather than propagated: a NaN makes every comparison
+    false, so a gap of NaN would slip past every threshold and be reported as
+    whatever branch happened to come last.
+    """
+    return value is not None and math.isfinite(value)
+
+
+__all__ = ["Reconciliation", "ReconciliationStatus", "reconcile"]

@@ -11,7 +11,9 @@ exactly ShortTermBorrowings -- the "combined" concept is a long-term subtotal.
 
 from __future__ import annotations
 
-from lazytools.financials.reconcile import Component, reconcile
+import math
+
+from lazytools.financials.reconcile import reconcile
 
 M = 1_000_000
 
@@ -20,74 +22,51 @@ M = 1_000_000
 
 
 def test_a_total_that_equals_one_part_while_others_exist_is_a_scope_conflict() -> None:
-    result = reconcile(
-        "amortisation of purchased intangibles",
-        total=698 * M,
-        components={"cost of sales": 955 * M, "operating expenses": 698 * M},
-    )
-    assert result.status == "scope_conflict"
-    assert result.blocking and not result.ok
+    result = reconcile("amortisation", total=698 * M,
+                       components={"cost of sales": 955 * M, "operating expenses": 698 * M})
+    assert result.status == "scope_conflict" and result.blocking
     assert "presented as a total" in result.detail
 
 
 def test_the_real_total_reconciles_against_the_same_parts() -> None:
-    result = reconcile(
-        "amortisation of purchased intangibles",
-        total=1_653 * M,
-        components={"cost of sales": 955 * M, "operating expenses": 698 * M},
-    )
-    assert result.status == "balanced" and result.ok
+    result = reconcile("amortisation", total=1_653 * M,
+                       components={"cost of sales": 955 * M, "operating expenses": 698 * M})
+    assert result.status == "balanced" and not result.blocking
 
 
-def test_a_residual_label_cannot_explain_away_a_scope_conflict() -> None:
-    # Checked before the residual branch on purpose: labelling the gap would
-    # otherwise launder the most dangerous outcome into a reported one.
-    result = reconcile(
-        "amortisation", total=698 * M,
-        components={"cost of sales": 955 * M, "operating expenses": 698 * M},
-        residual_label="something plausible",
-    )
+def test_a_residual_that_does_not_match_cannot_launder_a_scope_conflict() -> None:
+    result = reconcile("amortisation", total=698 * M,
+                       components={"cost of sales": 955 * M, "operating expenses": 698 * M},
+                       residual=("something plausible", -100 * M))
     assert result.status == "scope_conflict"
 
 
-def test_a_total_equal_to_a_part_is_fine_when_the_others_are_zero() -> None:
-    result = reconcile("x", total=100.0, components={"a": 100.0, "b": 0.0})
-    assert result.status == "balanced"
+def test_a_mis_scoped_total_that_matches_no_single_part_is_merely_unreconciled() -> None:
+    # A known limitation, asserted so it is a decision rather than a surprise:
+    # the scope heuristic only fires on an exact-ish match with one part.
+    result = reconcile("amortisation", total=699 * M,
+                       components={"cost of sales": 955 * M, "operating expenses": 698 * M})
+    assert result.status == "unreconciled"
 
 
 # --- the Walmart shape: a subtotal named like a total ---------------------- #
 
 
+WMT = {"short-term borrowings": 3_068 * M,
+       "current long-term debt": 2_598 * M,
+       "non-current long-term debt": 33_401 * M}
+
+
 def test_walmarts_combined_debt_concept_does_not_reconcile_to_gross_debt() -> None:
-    result = reconcile(
-        "gross financial debt",
-        total=35_999 * M,
-        components={"short-term borrowings": 3_068 * M,
-                    "current long-term debt": 2_598 * M,
-                    "non-current long-term debt": 33_401 * M},
-    )
+    result = reconcile("gross financial debt", total=35_999 * M, components=WMT)
     assert result.status == "unreconciled"
-    assert result.residual == -3_068 * M
+    assert result.gap == -3_068 * M
 
 
-def test_the_same_components_reconcile_to_the_true_gross_debt() -> None:
-    result = reconcile(
-        "gross financial debt",
-        total=39_067 * M,
-        components={"short-term borrowings": 3_068 * M,
-                    "current long-term debt": 2_598 * M,
-                    "non-current long-term debt": 33_401 * M},
-    )
-    assert result.status == "balanced"
-
-
-def test_the_long_term_subtotal_reconciles_on_its_own_parts() -> None:
-    # Which is how you learn what the "combined" concept actually is.
-    result = reconcile(
-        "long-term debt",
-        total=35_999 * M,
-        components={"current portion": 2_598 * M, "non-current portion": 33_401 * M},
-    )
+def test_the_same_concept_reconciles_against_the_long_term_parts_alone() -> None:
+    # Which is how you learn what the concept actually is.
+    result = reconcile("long-term debt", total=35_999 * M,
+                       components={k: v for k, v in WMT.items() if "long-term" in k})
     assert result.status == "balanced"
 
 
@@ -96,82 +75,97 @@ def test_the_long_term_subtotal_reconciles_on_its_own_parts() -> None:
 
 def test_an_unexplained_gap_is_reported_not_absorbed() -> None:
     result = reconcile("debt", total=1_000.0, components={"a": 600.0, "b": 300.0})
+    assert result.status == "unreconciled" and result.gap == 100.0
+
+
+def test_a_disclosed_residual_of_the_right_size_explains_the_gap() -> None:
+    result = reconcile("debt", total=1_000.0, components={"a": 600.0, "b": 300.0},
+                       residual=("unamortised issuance costs", 100.0))
+    assert result.status == "residual" and not result.blocking
+
+
+def test_a_disclosed_residual_of_the_wrong_size_explains_nothing() -> None:
+    result = reconcile("debt", total=1_000.0, components={"a": 600.0, "b": 300.0},
+                       residual=("issuance costs", 50.0))
     assert result.status == "unreconciled"
-    assert result.residual == 100.0
-    assert "unexplained" in result.detail
+    assert "was expected" in result.detail
 
 
-def test_a_named_residual_turns_an_unexplained_gap_into_a_reported_one() -> None:
-    result = reconcile("debt", total=1_000.0, components={"a": 600.0, "b": 300.0},
-                       residual_label="unamortised issuance costs")
-    assert result.status == "residual" and result.ok
-    assert "unamortised issuance costs" in result.detail
+def test_a_residual_cannot_be_named_without_being_quantified() -> None:
+    # A label alone would accept any gap: "other" absorbing 999 on a total of
+    # 1,000. The type makes that unexpressible.
+    result = reconcile("debt", total=1_000.0, components={"a": 1.0},
+                       residual=("other", 999.0))
+    assert result.status == "residual"  # only because it is quantified AND matches
 
 
-def test_a_named_residual_of_the_wrong_size_explains_nothing() -> None:
-    result = reconcile("debt", total=1_000.0, components={"a": 600.0, "b": 300.0},
-                       residual_label="issuance costs", residual=50.0)
-    assert result.status == "unreconciled"
-
-
-def test_a_named_residual_of_the_right_size_is_accepted() -> None:
-    result = reconcile("debt", total=1_000.0, components={"a": 600.0, "b": 300.0},
-                       residual_label="issuance costs", residual=100.0)
+def test_offsetting_parts_do_not_trigger_a_false_scope_conflict() -> None:
+    # total equals "principal" exactly, and premium/discount net to zero against
+    # each other. A quantified residual that matches wins over the heuristic.
+    result = reconcile("debt", total=100.0,
+                       components={"principal": 100.0, "premium": 10.0},
+                       residual=("discount", -10.0))
     assert result.status == "residual"
 
 
-# --- missing parts ---------------------------------------------------------- #
+# --- unusable inputs -------------------------------------------------------- #
 
 
 def test_an_unread_part_blocks_rather_than_being_treated_as_zero() -> None:
     result = reconcile("lease liability", total=22_861 * M,
                        components={"current": None, "non-current": 17_437 * M})
     assert result.status == "incomplete" and result.blocking
-    assert result.missing == ("current",)
     assert "not a zero one" in result.detail
 
 
+def test_a_nan_part_is_unreadable_rather_than_arithmetic() -> None:
+    # NaN makes every comparison false, so a NaN gap would slip past every
+    # threshold and be reported as whichever branch came last.
+    result = reconcile("x", total=100.0, components={"a": float("nan"), "b": 60.0})
+    assert result.status == "incomplete"
+
+
+def test_an_infinite_total_is_no_total() -> None:
+    assert reconcile("x", total=math.inf, components={"a": 1.0}).status == "no_total"
+
+
 def test_no_reported_total_is_its_own_state() -> None:
-    # P&G serves no combined debt concept at all. That is not a failure to
-    # reconcile; it is nothing to reconcile against.
+    # P&G serves no combined debt concept at all. Nothing to reconcile against
+    # is not a failure to reconcile.
     result = reconcile("debt", total=None, components={"a": 600.0, "b": 300.0})
-    assert result.status == "no_total"
-    assert not result.ok and not result.blocking
+    assert result.status == "no_total" and not result.blocking
 
 
 # --- rounding --------------------------------------------------------------- #
 
 
-def test_rounding_drift_in_a_statement_rendered_in_millions_is_tolerated() -> None:
-    # Five parts each rounded to the nearest million can drift several million
-    # with nothing wrong.
-    result = reconcile("x", total=1_000 * M,
-                       components={f"p{i}": 200 * M for i in range(5)},
-                       rounding_unit=M)
-    assert result.status == "balanced"
-    drifted = reconcile("x", total=1_003 * M,
-                        components={f"p{i}": 200 * M for i in range(5)},
-                        rounding_unit=M)
-    assert drifted.status == "balanced"
+def _five_parts(total_millions: float):
+    return reconcile("x", total=total_millions * M,
+                     components={f"p{i}": 200 * M for i in range(5)}, rounding_unit=M)
 
 
-def test_a_gap_wider_than_rounding_is_not_absorbed_by_the_tolerance() -> None:
-    result = reconcile("x", total=1_010 * M,
-                       components={f"p{i}": 200 * M for i in range(5)},
-                       rounding_unit=M)
-    assert result.status == "unreconciled"
+def test_the_rounding_bound_is_half_a_unit_per_part_plus_the_total() -> None:
+    # Five parts and a total, each rounded to the nearest million, drift by at
+    # most 6 * 0.5 = 3 million. Not 5, which the earlier formula allowed.
+    assert _five_parts(1_003).status == "balanced"
+    assert _five_parts(1_004).status == "unreconciled"
 
 
 def test_an_exact_source_gets_no_tolerance_by_default() -> None:
-    result = reconcile("x", total=1_000.0, components={"a": 999.0})
+    assert reconcile("x", total=1_000.0, components={"a": 999.0}).status == "unreconciled"
+
+
+def test_the_scope_test_uses_the_pairwise_bound_not_the_aggregate_one() -> None:
+    # Parts sum to 106 against a total of 98, so this is not balanced. The total
+    # sits 2 away from part "a" -- inside the OLD tolerance of unit x parts (2)
+    # and outside the correct pairwise bound of one unit, so it must NOT be
+    # called a scope conflict.
+    result = reconcile("x", total=98.0, components={"a": 96.0, "b": 10.0},
+                       rounding_unit=1.0)
     assert result.status == "unreconciled"
 
 
-# --- shape ------------------------------------------------------------------ #
-
-
-def test_components_may_be_passed_as_a_list_of_named_parts() -> None:
-    result = reconcile("x", total=100.0,
-                       components=[Component("a", 60.0), Component("b", 40.0)])
-    assert result.status == "balanced"
-    assert [c.name for c in result.known] == ["a", "b"]
+def test_the_scope_test_still_fires_within_the_pairwise_bound() -> None:
+    result = reconcile("x", total=97.0, components={"a": 96.0, "b": 10.0},
+                       rounding_unit=1.0)
+    assert result.status == "scope_conflict"
