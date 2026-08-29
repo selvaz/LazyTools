@@ -74,6 +74,8 @@ def _to_market(raw: dict[str, Any]) -> Market:
 
     def _timestamp(key: str) -> str | None:
         value = raw.get(key)
+        if value is None:
+            return None
         try:
             return datetime.fromtimestamp(float(value) / 1000, tz=UTC).isoformat()
         except (OSError, OverflowError, TypeError, ValueError):
