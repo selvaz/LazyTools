@@ -13,7 +13,7 @@ from datetime import date
 
 import pytest
 
-from lazytools.connectors.edgar.period import (
+from lazytools.financials.period import (
     PeriodParseError,
     interpret,
     resolve,

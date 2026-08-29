@@ -23,16 +23,12 @@ from datetime import date
 import pytest
 
 from lazytools.connectors.edgar.facts import (
-    AmbiguousFactError,
-    Fact,
-    FactParseError,
     facts_from_company_facts,
     facts_from_concept,
     parse_concept,
-    pick,
-    select,
 )
-from lazytools.connectors.edgar.period import interpret, resolve
+from lazytools.financials.facts import AmbiguousFactError, Fact, FactParseError, pick, select
+from lazytools.financials.period import interpret, resolve
 
 MSFT_FYE = "0630"
 MSFT_ACCN = "0001193125-26-027207"

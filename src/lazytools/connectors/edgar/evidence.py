@@ -28,14 +28,9 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from lazytools.connectors.edgar.client import EdgarService
-from lazytools.connectors.edgar.facts import (
-    Fact,
-    FactParseError,
-    ParseResult,
-    parse_concept,
-    select,
-)
-from lazytools.connectors.edgar.period import (
+from lazytools.connectors.edgar.facts import parse_concept
+from lazytools.financials.facts import Fact, FactParseError, ParseResult, select
+from lazytools.financials.period import (
     PeriodParseError,
     ResolvedWindow,
     interpret,
