@@ -13,7 +13,7 @@ from datetime import date
 
 import pytest
 
-from lazytools.connectors.edgar.normalise import normalise
+from lazytools.connectors.edgar.normalise import _settle, normalise
 
 M = 1_000_000
 
@@ -285,9 +285,40 @@ def test_one_presented_line_cannot_become_two_different_elements() -> None:
                {"element_id": "amortisation_intangibles", "statement": "Cash Flows",
                 "label": "Depreciation and amortization"}]
     base = _run(doubled)
-    # EVERY claim to the contested line is rejected, not just the losers.
-    # Keeping whichever the model emitted first settles a real ambiguity by the
-    # order of a list.
+    # The figure is admitted ONCE, as the whole. The registry says the other two
+    # claimants are parts of it, so a combined line is the total and the parts
+    # are not separable from it — settled from the registry rather than from
+    # whichever claim the model emitted first.
     placed = [k for k in ("operating_da_total", "depreciation", "amortisation_intangibles")
               if k in base.elements and base.elements[k].usable]
-    assert placed == []
+    assert placed == ["operating_da_total"]
+
+
+# --- a total contested by its own components -------------------------------- #
+
+
+def test_a_total_wins_the_line_its_own_components_also_claimed() -> None:
+    # Walmart shows ONE combined "Depreciation and amortization" line. The model
+    # claimed it as both the total and as depreciation; dropping both left the
+    # issuer with no D&A at all, and EBITDA and FFO fell with it. The registry
+    # already says which of the two is the whole, so this is not a coin flip.
+    assert _settle(["operating_da_total", "depreciation"]) == {"depreciation"}
+
+
+def test_two_unrelated_elements_on_one_line_both_go() -> None:
+    assert _settle(["revenue", "cfo"]) == {"revenue", "cfo"}
+
+
+def test_a_total_contested_by_something_that_is_not_its_component_still_goes() -> None:
+    # "Total debt" claimed as both reported_financial_debt and cash is a real
+    # conflict; being a total does not entitle it to win one.
+    assert _settle(["reported_financial_debt", "cash"]) == {"reported_financial_debt", "cash"}
+
+
+def test_two_totals_on_one_line_are_a_conflict_like_any_other() -> None:
+    assert _settle(["operating_da_total", "reported_financial_debt"]) == {
+        "operating_da_total", "reported_financial_debt"}
+
+
+def test_an_uncontested_claim_is_left_alone() -> None:
+    assert _settle(["revenue"]) == set()

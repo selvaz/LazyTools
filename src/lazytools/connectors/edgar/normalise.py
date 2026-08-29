@@ -253,9 +253,10 @@ def _resolve_refs(mapping: Mapping, columns: list[_Column]) -> dict[str, _Presen
       there, and inventing a value for it is what this design prevents;
     * a reference matching several lines — the ambiguity is real, and taking the
       first resolves it by luck;
-    * a LINE claimed by more than one element — "Depreciation and amortization"
-      was claimed as both depreciation and its own total, and settling that by
-      which claim the model happened to emit first is the same coin flip.
+    * a LINE claimed by more than one element, where the claims genuinely
+      conflict — settling that by which claim the model happened to emit first
+      is the same coin flip. A total claimed alongside its own declared
+      components is NOT such a conflict; see :func:`_settle`.
     """
     hits: dict[str, tuple[_Column, Any]] = {}
     claims: dict[tuple[str, str], list[str]] = {}
@@ -275,8 +276,8 @@ def _resolve_refs(mapping: Mapping, columns: list[_Column]) -> dict[str, _Presen
         hits[ref.element_id] = (column, line)
         claims.setdefault((column.statement.report.short_name, line.label), []).append(ref.element_id)
 
-    contested = {element_id for claimants in claims.values() if len(claimants) > 1
-                 for element_id in claimants}
+    contested = {element_id for claimants in claims.values()
+                 for element_id in _settle(claimants)}
     return {
         element_id: _Presented(
             element_id=element_id, value=line.values[column.index],
@@ -286,6 +287,29 @@ def _resolve_refs(mapping: Mapping, columns: list[_Column]) -> dict[str, _Presen
         if element_id not in contested
     }
 
+
+def _settle(claimants: list[str]) -> set[str]:
+    """Which claimants on one contested line to drop.
+
+    A line claimed by two unrelated elements is genuinely ambiguous, and every
+    claim on it goes: resolving a real conflict by which claim the model emitted
+    first decides it with the order of a list.
+
+    But a total and its own declared components are not in conflict. A filer
+    showing one combined "Depreciation and amortization" line has presented the
+    TOTAL, and the parts are not separable from it — so the total stands and the
+    parts go. That is settled from the registry, which already declares the
+    whole/part relation, rather than from the model. Dropping both instead
+    cost Walmart its entire D&A, and EBITDA and FFO fell with it.
+    """
+    if len(claimants) < 2:
+        return set()
+    totals = [c for c in claimants if c in _TOTALS]
+    if len(totals) == 1:
+        parts = [c for c in claimants if c != totals[0]]
+        if all(part in _TOTALS[totals[0]] for part in parts):
+            return set(parts)
+    return set(claimants)
 
 # --------------------------------------------------------------------------- #
 # Checks and derivations, which the model has no part in
