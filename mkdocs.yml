@@ -77,6 +77,7 @@ plugins:
           - gleif.md
           - cftc-cot.md
           - manifold.md
+          - treasury-fiscal.md
           - regimes.md
           - statistical-analysis.md
           - portfolio-optimization.md
@@ -153,6 +154,7 @@ nav:
       - GLEIF (LEI lookup): gleif.md
       - CFTC Commitments of Traders: cftc-cot.md
       - Manifold Markets: manifold.md
+      - Treasury Fiscal Data: treasury-fiscal.md
       - Regime detection: regimes.md
       - Statistical analysis: statistical-analysis.md
       - Portfolio optimization: portfolio-optimization.md

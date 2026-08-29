@@ -37,6 +37,7 @@ EXPECTED_PROVIDER_IDS = {
     "econ_calendar",
     "earnings_calendar",
     "cftc_cot",
+    "treasury_fiscal",
     "tradingview",
     "polymarket",
     "gleif",
@@ -136,6 +137,12 @@ CFTC_COT_TOOLS = {
     "cftc_positioning_commodities",
 }
 
+TREASURY_FISCAL_TOOLS = {
+    "treasury_cash_balance",
+    "treasury_debt",
+    "treasury_auctions",
+}
+
 TRADINGVIEW_TOOLS = {
     "tradingview_vocabulary",
     "tradingview_fields",
@@ -214,6 +221,13 @@ def test_cftc_cot_contract() -> None:
     from lazytools.connectors.cftc_cot import CFTCPositioningTools
 
     assert _names(CFTCPositioningTools()) == CFTC_COT_TOOLS
+
+
+def test_treasury_fiscal_contract() -> None:
+    """Read-only: the data is written by the hub's ingestion job, never by an agent."""
+    from lazytools.connectors.treasury_fiscal import TreasuryFiscalTools
+
+    assert _names(TreasuryFiscalTools()) == TREASURY_FISCAL_TOOLS
 
 
 def test_tradingview_contract() -> None:
