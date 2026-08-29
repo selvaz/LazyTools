@@ -29,16 +29,17 @@ about the issuer and not noise to be smoothed away.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from lazytools.connectors.edgar.client import EdgarService
 from lazytools.connectors.edgar.mapping import DEFAULT_MODEL
 from lazytools.connectors.edgar.mapping_store import MappingStore
 from lazytools.connectors.edgar.normalise import (
-    _annual_filing,
+    ANNUAL_FORMS,
     _columns_for,
     _elements_for,
+    _header_date,
     _mapping_for,
     _read_statements,
 )
@@ -152,39 +153,30 @@ def normalise_series(
     collected: dict[date, NormalisedBase] = {}
     restatements: list[Restatement] = []
     accessions: list[str] = []
-    cutoff = as_of
 
-    while len(collected) < years:
-        # The first filing is always in EDGAR's recent block; anything earlier
-        # may not be, and looking only there makes an issuer appear to have
-        # stopped filing.
-        filing = _annual_filing(client, cik, cutoff, deep=bool(accessions))
-        if filing is None:
+    for filing in _annual_filings(client, cik, as_of, wanted=years):
+        if len(collected) >= years:
             break
         accession = filing["accession_no"]
-        if accession in accessions:
-            break
-        accessions.append(accession)
-
         statements = _read_statements(client, cik, accession)
         windows = _windows_in(statements, year_end)
         if not windows:
-            break
-
-        gate = classify(client, cik, accession)
-        # One mapping for the whole filing, taken against its most recent
-        # column: the refs name lines, and a line is the same line in every
-        # column. Mapping per period would pay per year for one document.
+            continue
+        # An unreadable filing is skipped, not fatal. Breaking the walk here
+        # ended a six-year series at whatever the last good filing covered, and
+        # said nothing about having done so.
         primary = _columns_for(statements, windows[0])
         if not primary:
-            break
+            continue
+
+        accessions.append(accession)
+        gate = classify(client, cik, accession)
         mapping = _mapping_for(primary, accession, agent, model, store)
 
         for window in windows:
             columns = _columns_for(statements, window)
             if not columns:
                 continue
-            elements = _elements_for(mapping, columns, accession)
             base = NormalisedBase(
                 issuer_name=str(profile.get("name") or company),
                 cik=cik,
@@ -197,31 +189,16 @@ def normalise_series(
                 information_cutoff=as_of or datetime.now(timezone.utc).date(),
                 perimeter_status="unavailable",
                 accession=accession,
-                elements=elements,
+                elements=_elements_for(mapping, columns, accession),
             )
             existing = collected.get(window.end)
             if existing is None:
                 if len(collected) < years:
                     collected[window.end] = base
             else:
-                # The period is already held from a NEWER filing, so `existing`
-                # is the later presentation and `base` the original one.
+                # Filings are walked newest first, so anything already held came
+                # from a LATER filing than this one.
                 restatements.extend(_disagreements(earlier=base, later=existing))
-
-        # Step back to the filing that reported our oldest year as its OWN most
-        # recent year, rather than to the one before this filing's whole span.
-        #
-        # Jumping the whole span is cheaper — two filings cover six years — but
-        # it lands on a filing that shares no period with what we hold, so the
-        # two are never compared and a restatement can never be found. Landing
-        # one year back overlaps by a year, which is what makes the comparison
-        # real; it costs a filing per two years instead of per three.
-        #
-        # An annual report is filed within about three months of its year end,
-        # and the next one about fifteen months after that, so a cutoff 300 days
-        # past the year end selects that year's filing and not the following
-        # one.
-        cutoff = min(windows, key=lambda w: w.end).end + timedelta(days=300)
 
     ordered = tuple(collected[key] for key in sorted(collected))
     return Series(
@@ -231,6 +208,29 @@ def normalise_series(
         restatements=tuple(restatements),
         accessions=tuple(accessions),
     )
+
+
+def _annual_filings(
+    client: EdgarService, cik: str, as_of: date | None, *, wanted: int
+) -> list[dict[str, Any]]:
+    """Every annual filing on or before ``as_of``, newest first.
+
+    Fetched once. Re-querying with a moving cutoff meant a request per step —
+    and each step past the first had to enable EDGAR's paginated history, so a
+    six-year series walked the history three times to find three filings.
+
+    Sorted across forms rather than within them. Taking all 10-Ks before any
+    20-F puts a filer that changed form out of date order, and the newest-first
+    invariant is what makes an already-held period the LATER presentation.
+    """
+    filings: dict[str, dict[str, Any]] = {}
+    for form in ANNUAL_FORMS:
+        for filing in client.list_filings(cik, form=form, limit=max(4, wanted + 2),
+                                          include_history=True):
+            filed = filing.get("filed_at", "")
+            if as_of is None or (filed and filed <= as_of.isoformat()):
+                filings[filing["accession_no"]] = filing
+    return sorted(filings.values(), key=lambda f: f.get("filed_at", ""), reverse=True)
 
 
 def _windows_in(statements: list[Any], year_end: str | None) -> list[ResolvedWindow]:
@@ -263,15 +263,6 @@ def _windows_in(statements: list[Any], year_end: str | None) -> list[ResolvedWin
     return [windows[key] for key in sorted(windows, reverse=True)]
 
 
-def _header_date(header: str) -> date | None:
-    for fmt in ("%b. %d, %Y", "%B %d, %Y", "%b %d, %Y"):
-        try:
-            return datetime.strptime(header.strip(), fmt).date()
-        except ValueError:
-            continue
-    return None
-
-
 def _disagreements(*, earlier: NormalisedBase, later: NormalisedBase) -> list[Restatement]:
     """Elements the two filings give different values for, same period.
 
@@ -282,7 +273,14 @@ def _disagreements(*, earlier: NormalisedBase, later: NormalisedBase) -> list[Re
     found: list[Restatement] = []
     for element_id, first in earlier.elements.items():
         second = later.elements.get(element_id)
-        if not (first.usable and second is not None and second.usable):
+        if second is None:
+            continue
+        # Only figures both filings actually READ from a statement. A derived
+        # element inherits its inputs, so one restated line would be reported
+        # again as a restatement of EBITDA, of FFO, of free cash flow and of the
+        # residual — four findings where the issuer made one change, and the
+        # real one buried among its own consequences.
+        if {first.state, second.state} - {"reported", "verified"}:
             continue
         if first.value is None or second.value is None:
             continue

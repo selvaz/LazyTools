@@ -85,12 +85,21 @@ class Mapping:
     rejected: tuple[str, ...] = ()
 
 
-def statements_as_prompt(statements: list[RenderedStatement], *, column: int) -> str:
+def statements_as_prompt(statements: list[RenderedStatement]) -> str:
     """The statements as the model sees them: labels and concepts, no values.
 
     Values are withheld from the prompt as well as from the answer. The model's
     job is to recognise what a line IS, and a figure it never saw is a figure it
     cannot anchor a wrong answer to.
+
+    Every line that reports anything is offered, whatever period it reports it
+    for. Filtering to one period's column was wrong twice over. It applied a
+    single index to every statement, when a balance sheet showing two dates and
+    an income statement showing three do not put a period at the same index. And
+    it made the mapping a property of the period when it is a property of the
+    document — which is what lets one mapping serve every year a filing
+    presents. A line the requested period leaves blank is dropped later, at
+    resolution, where the per-statement column is actually known.
     """
     payload = [
         {
@@ -98,8 +107,7 @@ def statements_as_prompt(statements: list[RenderedStatement], *, column: int) ->
             "lines": [
                 {"label": line.label, "concept": line.tag}
                 for line in s.lines
-                if not line.is_label_only and column < len(line.values)
-                and line.values[column] is not None
+                if not line.is_label_only and any(v is not None for v in line.values)
             ],
         }
         for s in statements
@@ -174,7 +182,6 @@ def _as_list(payload: Any, *keys: str) -> list[dict[str, Any]]:
 def propose(
     statements: list[RenderedStatement],
     *,
-    column: int,
     agent: Any | None = None,
     model: str = DEFAULT_MODEL,
 ) -> Mapping:
@@ -195,7 +202,7 @@ def propose(
     """
     task = (
         f"{_system()}\n\nThe normalised elements:\n{elements_as_prompt()}\n\n"
-        f"The statements as presented:\n{statements_as_prompt(statements, column=column)}\n\n"
+        f"The statements as presented:\n{statements_as_prompt(statements)}\n\n"
         'Answer as JSON: {"mapped": [{"element_id": ..., "statement": ..., "label": ...}], '
         '"absent": [{"element_id": ..., "reason": ...}]}'
     )

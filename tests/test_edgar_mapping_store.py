@@ -19,21 +19,28 @@ MAPPING = Mapping(
 
 def test_a_stored_mapping_comes_back_intact() -> None:
     store = MappingStore()
-    store.put("0000858877-24-000017", 0, MAPPING, model="test-model")
-    cached = store.get("0000858877-24-000017", 0)
+    store.put("0000858877-24-000017", MAPPING, model="test-model")
+    cached = store.get("0000858877-24-000017")
     assert cached is not None
     assert cached.mapping == MAPPING
     assert cached.model == "test-model" and cached.created_at
 
 
 def test_an_unknown_filing_is_simply_absent() -> None:
-    assert MappingStore().get("nope", 0) is None
+    assert MappingStore().get("nope") is None
 
 
-def test_a_different_column_is_a_different_mapping() -> None:
+def test_one_mapping_serves_the_filing_whatever_period_is_asked_for() -> None:
+    # This test used to assert the opposite: that a different column was a
+    # different mapping. It was wrong, and the cost showed up in the series --
+    # a mapping names LABELS, and a label is the same line in every column, so
+    # keying by column made one document map twice whenever two callers wanted
+    # different years out of it. One filing, one model call.
     store = MappingStore()
-    store.put("x", 0, MAPPING, model="m")
-    assert store.get("x", 1) is None
+    store.put("x", MAPPING, model="m")
+    cached = store.get("x")
+    assert cached is not None and cached.mapping == MAPPING
+    assert len(store) == 1
 
 
 def test_a_mapping_from_another_registry_version_is_not_reused() -> None:
@@ -42,44 +49,44 @@ def test_a_mapping_from_another_registry_version_is_not_reused() -> None:
     import lazytools.connectors.edgar.mapping_store as module
 
     store = MappingStore()
-    store.put("x", 0, MAPPING, model="m")
+    store.put("x", MAPPING, model="m")
     original = module.SCHEMA_VERSION
     try:
         module.SCHEMA_VERSION = original + 1
-        assert store.get("x", 0) is None
+        assert store.get("x") is None
     finally:
         module.SCHEMA_VERSION = original
-    assert store.get("x", 0) is not None
+    assert store.get("x") is not None
 
 
 def test_remapping_the_same_filing_replaces_rather_than_duplicates() -> None:
     store = MappingStore()
-    store.put("x", 0, MAPPING, model="first")
-    store.put("x", 0, MAPPING, model="second")
+    store.put("x", MAPPING, model="first")
+    store.put("x", MAPPING, model="second")
     assert len(store) == 1
-    assert store.get("x", 0).model == "second"
+    assert store.get("x").model == "second"
 
 
 def test_the_cache_can_be_cleared_when_a_model_mapped_badly() -> None:
     # Rows from a bad model look exactly like good ones; the model that made
     # each row travels with it, so which to distrust is answerable.
     store = MappingStore()
-    store.put("a", 0, MAPPING, model="good")
-    store.put("b", 0, MAPPING, model="bad")
+    store.put("a", MAPPING, model="good")
+    store.put("b", MAPPING, model="bad")
     assert store.forget() == 2
-    assert store.get("a", 0) is None
+    assert store.get("a") is None
 
 
 def test_the_cache_holds_no_figures_at_all() -> None:
     # A stale cache may cost a re-read; it may never supply a wrong number.
     store = MappingStore()
-    store.put("x", 0, MAPPING, model="m")
-    ref = store.get("x", 0).mapping.refs[0]
+    store.put("x", MAPPING, model="m")
+    ref = store.get("x").mapping.refs[0]
     assert not hasattr(ref, "value")
     assert set(vars(ref)) == {"element_id", "statement", "label"}
 
 
 def test_a_file_backed_store_survives_being_reopened(tmp_path) -> None:
     path = tmp_path / "nested" / "mappings.sqlite"
-    MappingStore(path).put("x", 0, MAPPING, model="m")
-    assert MappingStore(path).get("x", 0).mapping == MAPPING
+    MappingStore(path).put("x", MAPPING, model="m")
+    assert MappingStore(path).get("x").mapping == MAPPING

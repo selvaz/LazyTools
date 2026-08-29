@@ -61,6 +61,10 @@ _TOTALS: dict[str, tuple[str, ...]] = {
     "finance_lease_total": ("finance_lease_current", "finance_lease_noncurrent"),
 }
 
+#: The forms an issuer reports a full year on: domestic, foreign private
+#: issuer, and Canadian under the multijurisdictional system.
+ANNUAL_FORMS = ("10-K", "20-F", "40-F")
+
 #: Wholes the model never sees, because they are computed here, but which still
 #: settle a line their parts both claim. Every part must enter its whole with
 #: weight +1, which is what makes awarding a combined line to any one of them
@@ -210,21 +214,16 @@ def _elements_for(
 # --------------------------------------------------------------------------- #
 # Reading the filing
 # --------------------------------------------------------------------------- #
-def _annual_filing(
-    client: EdgarService, cik: str, as_of: date | None, *, deep: bool = False
-) -> dict[str, Any] | None:
+def _annual_filing(client: EdgarService, cik: str, as_of: date | None) -> dict[str, Any] | None:
     """The most recent annual filing on or before ``as_of``.
 
-    ``deep`` reaches past EDGAR's recent-filings block into the paginated
-    history. Off by default because it costs extra requests and the newest
-    filing is always in the recent block; on when walking backwards, where
-    leaving it off makes an issuer look as though it stopped filing. Walmart
-    returns three 10-Ks without it and its whole record with it, which is how a
-    six-year series quietly came back with three years.
+    Looks only at EDGAR's recent-filings block, which always holds the newest
+    filing. Reaching further back is a series' problem, and it belongs there —
+    a ``deep`` flag here leaked series traversal into a single-filing helper and
+    made it re-walk the paginated history once per step.
     """
-    for form in ("10-K", "20-F", "40-F"):
-        for filing in client.list_filings(cik, form=form, limit=10 if not deep else 40,
-                                          include_history=deep):
+    for form in ANNUAL_FORMS:
+        for filing in client.list_filings(cik, form=form, limit=10):
             filed = filing.get("filed_at", "")
             if as_of is None or (filed and filed <= as_of.isoformat()):
                 return filing
@@ -278,20 +277,22 @@ def _mapping_for(
     columns: list[_Column], accession: str, agent: Any | None, model: str,
     store: MappingStore | None,
 ) -> Mapping:
-    """The mapping, from the cache when it is there and from a model when not."""
-    # The cache key needs one column index; the statements are all at the same
-    # period, so the first is representative of the request.
-    key_index = columns[0].index
+    """The mapping, from the cache when it is there and from a model when not.
+
+    Keyed by the filing alone. A mapping names labels, and a label is the same
+    line whichever period is being asked about — so one mapping serves every
+    year a filing presents, and keying by column made the same document map
+    twice whenever two callers wanted different years out of it.
+    """
     if store is not None:
-        cached = store.get(accession, key_index)
+        cached = store.get(accession)
         if cached is not None:
             return cached.mapping
-    mapping = propose([c.statement for c in columns], column=key_index,
-                      agent=agent, model=model)
+    mapping = propose([c.statement for c in columns], agent=agent, model=model)
     if store is not None and mapping.refs:
         # Only a mapping that placed something is worth keeping: caching a failed
         # model run would make its failure permanent.
-        store.put(accession, key_index, mapping, model=model)
+        store.put(accession, mapping, model=model)
     return mapping
 
 

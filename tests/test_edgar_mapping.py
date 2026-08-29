@@ -43,7 +43,7 @@ def _statements():
 
 def test_the_prompt_shows_labels_and_concepts_but_never_values() -> None:
     # A figure the model never saw is a figure it cannot anchor a wrong answer to.
-    prompt = statements_as_prompt(_statements(), column=0)
+    prompt = statements_as_prompt(_statements())
     assert "Total revenue" in prompt and "OperatingIncomeLoss" in prompt
     assert "53,803" not in prompt and "53803" not in prompt
 
@@ -52,7 +52,7 @@ def test_the_registry_is_offered_with_its_meanings() -> None:
     # The meaning is what makes an element mappable at all.
     prompt = elements_as_prompt()
     assert "revenue:" in prompt
-    assert "revenue-recognition policy" in prompt
+    assert "recognition policy" in prompt
 
 
 # --- what the model may say ------------------------------------------------- #
@@ -98,7 +98,7 @@ def test_an_answer_that_is_not_an_object_yields_nothing_rather_than_raising() ->
 
 
 def test_a_model_returning_prose_yields_an_empty_mapping_not_a_crash() -> None:
-    mapping = propose(_statements(), column=0, agent=lambda task: "I could not do this.")
+    mapping = propose(_statements(), agent=lambda task: "I could not do this.")
     assert mapping.refs == () and mapping.rejected
 
 
@@ -106,7 +106,7 @@ def test_a_model_that_raises_yields_an_empty_mapping() -> None:
     def broken(task: str) -> str:
         raise RuntimeError("no model configured")
 
-    mapping = propose(_statements(), column=0, agent=broken)
+    mapping = propose(_statements(), agent=broken)
     assert mapping.refs == ()
     assert "unusable" in mapping.rejected[0]
 
@@ -117,7 +117,7 @@ def test_json_wrapped_in_prose_is_still_read() -> None:
                 '{"mapped": [{"element_id": "revenue", "statement": "Operations", '
                 '"label": "Total revenue"}], "absent": []}\n```\nHope that helps.')
 
-    mapping = propose(_statements(), column=0, agent=chatty)
+    mapping = propose(_statements(), agent=chatty)
     assert [r.element_id for r in mapping.refs] == ["revenue"]
 
 

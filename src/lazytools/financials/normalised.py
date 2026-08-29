@@ -39,7 +39,9 @@ from typing import Any, Literal, get_args
 #:
 #: 2: added ``lease_fleet_investment``. Equipment bought to lease out was
 #:    arriving as ``capex_intangibles``.
-SCHEMA_VERSION = 2
+#: 3: ``revenue`` now asks for the TOTAL rather than a revenue subtotal.
+#:    Walmart was mapping to 'Net sales', which omits membership income.
+SCHEMA_VERSION = 3
 
 #: What is known about an element, in decreasing order of confidence.
 #:
@@ -126,7 +128,7 @@ class Contribution:
 #: issuer disclosed them, so two producers cannot encode different periods.
 ELEMENTS: dict[str, ElementSpec] = {
     # --- what the business earns ------------------------------------------ #
-    "revenue": ElementSpec("duration", "What the business sold in the period, on the issuer's own revenue-recognition policy.", sign="magnitude"),
+    "revenue": ElementSpec("duration", "TOTAL revenue for the period, on the issuer's own recognition policy. Where a filer shows a revenue subtotal and a total - 'Net sales' above 'Total revenues' - take the TOTAL: the subtotal omits income the business really earned.", sign="magnitude"),
     "operating_income": ElementSpec("duration", "Profit after the cost of running the business, before financing and tax. Not EBIT: what an issuer places above this line varies, and recurring non-operating items may sit outside it."),
     "depreciation": ElementSpec("duration", "The charge for consuming physical assets. A non-cash charge, but a business that keeps operating must eventually spend the cash again.", sign="magnitude"),
     "amortisation_intangibles": ElementSpec("duration", "The charge for consuming acquired intangibles. Can be split across cost of sales and operating expenses, so a figure from one location is not the total.", sign="magnitude"),

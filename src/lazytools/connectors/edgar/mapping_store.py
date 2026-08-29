@@ -1,6 +1,9 @@
 """Remembering which line was which, because a filed document never changes.
 
-A mapping is a property of the document, not of the day it was read. Once a
+A mapping is a property of the document, not of the day it was read, and not
+of the period being asked about: it names LABELS, and a label is the same line
+in every column. Keying it by column as well made the same filing map twice
+whenever two callers wanted different years out of it. Once a
 filing is accepted by EDGAR its statements are fixed for good, so asking a model
 twice which line is revenue is paying twice for the same answer — and, worse,
 risking two different ones. Two runs over Cisco's FY2024 filing produced
@@ -32,14 +35,14 @@ from lazytools.connectors.edgar.mapping import Absence, LineRef, Mapping
 from lazytools.financials.normalised import SCHEMA_VERSION
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS statement_mapping (
+DROP TABLE IF EXISTS statement_mapping;
+CREATE TABLE IF NOT EXISTS filing_mapping (
     accession       TEXT    NOT NULL,
-    column_index    INTEGER NOT NULL,
     schema_version  INTEGER NOT NULL,
     model           TEXT    NOT NULL,
     created_at      TEXT    NOT NULL,
     payload         TEXT    NOT NULL,
-    PRIMARY KEY (accession, column_index, schema_version)
+    PRIMARY KEY (accession, schema_version)
 );
 """
 
@@ -92,7 +95,7 @@ class MappingStore:
         finally:
             connection.close()
 
-    def get(self, accession: str, column: int) -> CachedMapping | None:
+    def get(self, accession: str) -> CachedMapping | None:
         """The stored mapping for this filing, or ``None``.
 
         Returns nothing for a mapping made against a different element registry:
@@ -101,9 +104,9 @@ class MappingStore:
         """
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT model, created_at, payload FROM statement_mapping "
-                "WHERE accession = ? AND column_index = ? AND schema_version = ?",
-                (accession, column, SCHEMA_VERSION),
+                "SELECT model, created_at, payload FROM filing_mapping "
+                "WHERE accession = ? AND schema_version = ?",
+                (accession, SCHEMA_VERSION),
             ).fetchone()
         if row is None:
             return None
@@ -111,14 +114,14 @@ class MappingStore:
         return CachedMapping(mapping=_from_payload(json.loads(payload)),
                              model=model, created_at=created_at)
 
-    def put(self, accession: str, column: int, mapping: Mapping, *, model: str) -> None:
+    def put(self, accession: str, mapping: Mapping, *, model: str) -> None:
         """Store a mapping. Replaces any earlier one for the same keys."""
         with self._connect() as connection:
             connection.execute(
-                "INSERT OR REPLACE INTO statement_mapping "
-                "(accession, column_index, schema_version, model, created_at, payload) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (accession, column, SCHEMA_VERSION, model,
+                "INSERT OR REPLACE INTO filing_mapping "
+                "(accession, schema_version, model, created_at, payload) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (accession, SCHEMA_VERSION, model,
                  datetime.now(timezone.utc).isoformat(timespec="seconds"),
                  json.dumps(_to_payload(mapping))),
             )
@@ -134,13 +137,13 @@ class MappingStore:
         until something needs one.
         """
         with self._connect() as connection:
-            cursor = connection.execute("DELETE FROM statement_mapping")
+            cursor = connection.execute("DELETE FROM filing_mapping")
             connection.commit()
             return cursor.rowcount
 
     def __len__(self) -> int:
         with self._connect() as connection:
-            return connection.execute("SELECT COUNT(*) FROM statement_mapping").fetchone()[0]
+            return connection.execute("SELECT COUNT(*) FROM filing_mapping").fetchone()[0]
 
 
 def _to_payload(mapping: Mapping) -> dict:
