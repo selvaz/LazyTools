@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
 from lazytools.financials.normalised import Check, Element, NormalisedBase
 from lazytools.skills.credit import (
+    SECTOR_LIBRARIES,
     base_as_context,
     load_common_library,
     system_prompt,
@@ -104,3 +107,60 @@ def test_a_blocked_figure_travels_with_the_reason_it_is_blocked() -> None:
 
 def test_the_open_signals_reach_the_agent() -> None:
     assert "captive_finance" in base_as_context(_base())
+
+
+# --- the sector libraries ---------------------------------------------------- #
+
+
+def test_every_shipped_sector_library_composes_with_the_common_one() -> None:
+    # load_library validates as it composes: duplicate block ids, a `requires`
+    # naming a block nobody ships, and dependency cycles all raise here. So
+    # loading each one IS the structural test.
+    for sector in SECTOR_LIBRARIES:
+        library = load_common_library(sector)
+        assert "core/identity" in library.blocks, sector
+        assert len(library.blocks) > len(load_common_library().blocks), sector
+
+
+def test_an_unknown_sector_refuses_rather_than_silently_using_the_common_layer() -> None:
+    # Falling back would answer a sector question with sector-neutral
+    # instructions and say nothing about having done so.
+    with pytest.raises(KeyError, match="no library for sector"):
+        load_common_library("shipbuilding")
+
+
+def test_every_sector_library_says_when_NOT_to_use_itself() -> None:
+    # A sector library applied to the wrong issuer is worse than none: it
+    # supplies confident instructions for a business that does not work that
+    # way. Each one carries its own exclusions.
+    for sector in SECTOR_LIBRARIES:
+        library = load_common_library(sector)
+        applies = library.blocks[f"sector/{sector}/applies"]
+        assert "do **not** use" in applies.body.lower(), sector
+
+
+def test_no_sector_library_ships_a_threshold_table() -> None:
+    # The load-bearing finding behind this whole design: 4,405 pages of rating
+    # agency methodology filed with the SEC contain the framework and no ratio
+    # calibration at all. The levels are not available from a free, citable
+    # source, so a library that shipped them would be shipping remembered
+    # numbers dressed as standards.
+    for sector in SECTOR_LIBRARIES:
+        library = load_common_library(sector)
+        levels = library.blocks[f"sector/{sector}/levels"]
+        # Whitespace is collapsed before matching because the prose wraps: the
+        # retail block writes "your own\n  judgement", and a per-line match
+        # would report a missing commitment that is plainly there. This has
+        # now caught the same test out three times.
+        body = " ".join(levels.body.lower().split())
+        assert "no threshold table" in body, sector
+        assert "your own judgement" in body, sector
+
+
+def test_a_sector_library_reaches_the_agent_through_the_catalogue() -> None:
+    # The sector blocks are loadable, not loaded: they must be listed in the
+    # catalogue the static prompt carries, but their bodies must not be in it.
+    library = load_common_library("utilities")
+    prompt = system_prompt(library, sector="utilities")
+    assert "sector/utilities/rate_base" in prompt
+    assert "regulatory asset base" not in prompt

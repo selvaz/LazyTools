@@ -21,3 +21,4 @@ generated_skills/
 *.db-shm
 *.db-wal
 reports_live_test/
+research/

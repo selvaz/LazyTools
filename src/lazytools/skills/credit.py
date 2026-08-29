@@ -24,7 +24,19 @@ _LIBRARY_DIR = Path(__file__).parent / "library"
 #: The common, sector-neutral library that ships with this package.
 COMMON_LIBRARY = _LIBRARY_DIR / "credit_analyst.md"
 #: Sector libraries that ship with it, by the name a caller passes as ``sector``.
-SECTOR_LIBRARIES = {"retail": _LIBRARY_DIR / "sector_retail.md"}
+#:
+#: A sector earns a library when its methodology genuinely departs from the
+#: common layer — not to cover the economy. Retail overrides a convention
+#: (leases), utilities replace the earnings question with a regulatory one,
+#: industrials can make a consolidated ratio meaningless (captive finance), and
+#: healthcare's defining risk has a date that no statement carries.
+SECTOR_LIBRARIES = {
+    "retail": _LIBRARY_DIR / "sector_retail.md",
+    "utilities": _LIBRARY_DIR / "sector_utilities.md",
+    "software": _LIBRARY_DIR / "sector_software.md",
+    "industrials": _LIBRARY_DIR / "sector_industrials.md",
+    "healthcare": _LIBRARY_DIR / "sector_healthcare.md",
+}
 
 
 def load_common_library(sector: str | None = None) -> Library:
