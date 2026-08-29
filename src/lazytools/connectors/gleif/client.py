@@ -309,15 +309,33 @@ class GLEIFClient:
 
     def _children(self, path: str, limit: int) -> list[LEIRecord]:
         params = {"page[size]": max(1, min(int(limit), 200)), "page[number]": 1}
-        payload = self._get(path, params, allow_404=True)
+        # strict_404, same reasoning as the parent lookups: a real entity
+        # with no reported children normally answers 200 with an empty
+        # list, not 404, so a 404 here that doesn't carry GLEIF's own JSON
+        # error body most likely means the LEI itself was never found --
+        # silently reporting count=0 for it would be a confidently wrong
+        # answer, not a helpful one.
+        payload = self._get(path, params, allow_404=True, strict_404=True)
         if payload is None:
             return []
         rows = payload.get("data")
         return [_to_record(row) for row in rows or [] if isinstance(row, dict)]
 
     def fuzzy_search(self, query: str, *, limit: int = 10) -> list[dict]:
-        """Return legal-name completions paired with their resolved LEIs."""
-        params = {"field": "entity.legalName", "q": query}
+        """Return legal-name completions, with a resolved LEI where GLEIF gives one.
+
+        A completion is not always tied to exactly one entity -- a generic
+        or ambiguous name (verified live, e.g. querying "John Sm" returns
+        "John GmbH" with no ``relationships`` key at all) carries no
+        resolvable LEI. Those completions are still returned, with
+        ``lei: None``, rather than silently dropped: the suggestion text
+        itself is still useful even without a single matching record.
+        """
+        params = {
+            "field": "entity.legalName",
+            "q": query,
+            "page[size]": max(1, min(int(limit), 200)),
+        }
         payload = self._get("/fuzzycompletions", params)
         rows = payload.get("data") if isinstance(payload, dict) else None
         results: list[dict] = []
@@ -329,9 +347,10 @@ class GLEIFClient:
             lei_records = _mapping(relationships.get("lei-records"))
             relationship_data = _mapping(lei_records.get("data"))
             suggestion = attributes.get("value")
+            if not isinstance(suggestion, str):
+                continue
             lei = relationship_data.get("id")
-            if isinstance(suggestion, str) and isinstance(lei, str):
-                results.append({"suggestion": suggestion, "lei": lei})
+            results.append({"suggestion": suggestion, "lei": lei if isinstance(lei, str) else None})
             if len(results) >= max(1, int(limit)):
                 break
         return results

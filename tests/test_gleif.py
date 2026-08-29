@@ -292,6 +292,17 @@ def test_children_empty_list_case() -> None:
     assert out["children"] == []
 
 
+def test_children_lookup_on_a_nonexistent_lei_raises_instead_of_lying() -> None:
+    # Same regression as the parent lookups (Codex PR review finding): a
+    # real entity with no reported children normally answers 200 with an
+    # empty list, not 404, so a bare 404 here most likely means the LEI
+    # itself was never found -- must raise, not silently report count=0.
+    stub = _Stub()  # default route -> 404, body is not GLEIF's JSON error shape
+    tools = _tools(stub)
+    with pytest.raises(GLEIFError):
+        tools.gleif_children("00000000000000000000")
+
+
 def test_children_requires_a_lei() -> None:
     stub = _Stub()
     tools = _tools(stub)
@@ -325,6 +336,28 @@ def test_fuzzy_search_happy_path() -> None:
     ]
     _, params = stub.gets[0]
     assert params["q"] == "appl"
+
+
+def test_fuzzy_search_keeps_completions_with_no_resolved_lei() -> None:
+    # Verified live: a generic/ambiguous name (e.g. "John GmbH" from a real
+    # "John Sm" query) has no `relationships` key at all -- no single entity
+    # to point at. The suggestion text is still useful and must not be
+    # silently dropped (Codex PR review finding).
+    stub = _Stub(routes={"/fuzzycompletions": {"data": [{"attributes": {"value": "John GmbH"}}]}})
+    tools = _tools(stub)
+    out = tools.gleif_fuzzy_search("John Sm")
+    assert out["suggestions"] == [{"suggestion": "John GmbH", "lei": None}]
+
+
+def test_fuzzy_search_forwards_the_limit_upstream() -> None:
+    # Without page[size], the vendor's own default page cannot be widened,
+    # so a limit above that default was silently unreachable (Codex PR
+    # review finding).
+    stub = _Stub(routes={"/fuzzycompletions": {"data": []}})
+    tools = _tools(stub)
+    tools.gleif_fuzzy_search("appl", limit=50)
+    _, params = stub.gets[0]
+    assert params["page[size]"] == 50
 
 
 def test_fuzzy_search_requires_a_query() -> None:
