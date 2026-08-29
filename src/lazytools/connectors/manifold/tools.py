@@ -90,19 +90,21 @@ class ManifoldTools:
             markets=[_market_dict(market) for market in markets],
         )
 
-    def manifold_search_markets(self, term: str, limit: int = 20) -> dict:
-        """Search Manifold markets by a required full-text term and return matching market summaries.
+    def manifold_search_markets(self, term: str, limit: int = 20, offset: int = 0) -> dict:
+        """Search Manifold markets by a required full-text term and return matching market summaries; pass offset to page past the first limit matches when a term has more results than fit on one page.
 
         Args:
             term: non-empty full-text search phrase for market questions.
             limit: maximum number of matching markets to return, at most 100.
+            offset: matches to skip -- page 2 of a 20-result search is offset=20.
         """
         if not term or not term.strip():
             raise ValueError("term is required")
         rows_wanted = max(1, min(int(limit), MAX_ROWS))
-        markets = self._client.search_markets(term.strip(), limit=rows_wanted)
+        markets = self._client.search_markets(term.strip(), limit=rows_wanted, offset=max(0, int(offset)))
         return self._envelope(
             term=term,
+            offset=offset,
             returned=len(markets),
             markets=[_market_dict(market) for market in markets],
         )

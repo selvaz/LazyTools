@@ -234,9 +234,17 @@ class ManifoldClient:
         rows = payload if isinstance(payload, list) else []
         return [_to_market(row) for row in rows if isinstance(row, dict)]
 
-    def search_markets(self, term: str, *, limit: int = 20) -> list[Market]:
-        """Search markets by full-text term."""
-        payload = self._get("/search-markets", {"term": term, "limit": limit})
+    def search_markets(self, term: str, *, limit: int = 20, offset: int = 0) -> list[Market]:
+        """Search markets by full-text term.
+
+        Verified live: the endpoint accepts ``offset`` for pagination past
+        the first page of matches, same as ``/markets``' ``before`` cursor
+        serves ``list_markets``.
+        """
+        params: dict[str, Any] = {"term": term, "limit": limit}
+        if offset:
+            params["offset"] = offset
+        payload = self._get("/search-markets", params)
         rows = payload if isinstance(payload, list) else []
         return [_to_market(row) for row in rows if isinstance(row, dict)]
 

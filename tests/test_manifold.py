@@ -197,6 +197,22 @@ def test_search_markets_happy_path() -> None:
     assert params["limit"] == 5
 
 
+def test_search_markets_forwards_offset_for_pagination() -> None:
+    # Codex PR review finding: a term with more than MAX_ROWS matches was
+    # stuck on the same first page forever without this.
+    stub = _Stub(routes={"/search-markets": []})
+    tools = _tools(stub)
+    tools.manifold_search_markets("election", offset=20)
+    _, params = stub.gets[0]
+    assert params["offset"] == 20
+
+    # 0 (the default) must not be sent as a literal offset upstream.
+    stub2 = _Stub(routes={"/search-markets": []})
+    _tools(stub2).manifold_search_markets("election")
+    _, params2 = stub2.gets[0]
+    assert "offset" not in params2
+
+
 def test_search_markets_rejects_empty_term_before_any_call() -> None:
     stub = _Stub()
     tools = _tools(stub)
