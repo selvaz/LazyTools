@@ -133,14 +133,30 @@ def _treasury_fiscal(allow_write: bool = False, *,
 @_register("alfred")
 def _alfred(allow_write: bool = False, *,
            data_source: dict[str, Any] | None = None) -> Any:
-    """ALFRED point-in-time/vintage FRED data in market-data-hub.
+    """ALFRED, FRED's point-in-time view: what a series said on a past date.
 
-    Written by the hub's ingestion job, like the economic/earnings calendars,
-    so there is no write surface and ``allow_write`` is accepted and ignored.
+    Reads FRED live rather than a warehoused copy. Vintage data is asked for
+    one series and one date at a time, when a backtest reaches a decision
+    point -- it is not a series anyone sweeps daily, so ingesting it would
+    mean choosing in advance which series and which vintages might be wanted.
+    Asking at call time has no such guess in it.
+
+    No write surface at all, so ``allow_write`` is accepted and ignored.
+    Needs ``FRED_API_KEY``, resolved lazily: the provider constructs without
+    it and only a call fails. One environment knob, same convention as the
+    other live connectors: ``LAZYTOOLS_ALFRED_MAX_CALLS`` (default 200,
+    ``0`` to remove the guard).
     """
     from lazytools.connectors.alfred import ALFREDTools
 
-    return ALFREDTools(db_path=(data_source or {}).get("path"))
+    raw = os.environ.get("LAZYTOOLS_ALFRED_MAX_CALLS", "200")
+    try:
+        budget: int | None = int(raw)
+    except ValueError:
+        budget = 200
+    if budget is not None and budget <= 0:
+        budget = None
+    return ALFREDTools(max_calls=budget)
 
 
 @_register("tradingview")
