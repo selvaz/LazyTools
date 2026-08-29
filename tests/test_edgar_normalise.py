@@ -228,3 +228,48 @@ def test_an_unresolvable_company_raises_rather_than_returning_an_empty_base() ->
     stub.resolve_company = lambda q, *, limit=10: []  # type: ignore[assignment]
     with pytest.raises(ValueError, match="matched no EDGAR filer"):
         normalise(stub, company="nope", period="FY2024")
+
+
+# --- the mapping cache ------------------------------------------------------ #
+
+
+def test_a_cached_mapping_means_the_model_is_not_asked_again() -> None:
+    from lazytools.connectors.edgar.mapping_store import MappingStore
+
+    calls = []
+
+    def counting(task: str) -> str:
+        calls.append(task)
+        return json.dumps({"mapped": GOOD, "absent": []})
+
+    store = MappingStore()
+    first = normalise(_Stub(), company="TST", period="FY2024", as_of=date(2025, 3, 1),
+                      agent=counting, store=store)
+    second = normalise(_Stub(), company="TST", period="FY2024", as_of=date(2025, 3, 1),
+                       agent=counting, store=store)
+    assert len(calls) == 1
+    assert first.value("revenue") == second.value("revenue") == 53_803 * M
+
+
+def test_two_runs_over_one_filing_agree_when_the_mapping_is_cached() -> None:
+    # The failure this exists for: two live runs over Cisco's FY2024 filing
+    # placed different elements, so the same question answered differently.
+    from lazytools.connectors.edgar.mapping_store import MappingStore
+
+    answers = iter([json.dumps({"mapped": GOOD, "absent": []}),
+                    json.dumps({"mapped": GOOD[:1], "absent": []})])
+    store = MappingStore()
+    kw = dict(company="TST", period="FY2024", as_of=date(2025, 3, 1), store=store)
+    first = normalise(_Stub(), agent=lambda t: next(answers), **kw)
+    second = normalise(_Stub(), agent=lambda t: next(answers), **kw)
+    assert set(first.elements) == set(second.elements)
+
+
+def test_a_model_that_placed_nothing_is_not_cached_as_an_answer() -> None:
+    # Caching a failed run would make its failure permanent.
+    from lazytools.connectors.edgar.mapping_store import MappingStore
+
+    store = MappingStore()
+    normalise(_Stub(), company="TST", period="FY2024", as_of=date(2025, 3, 1),
+              agent=lambda t: "the model gave up", store=store)
+    assert len(store) == 0

@@ -28,6 +28,7 @@ from typing import Any
 
 from lazytools.connectors.edgar.client import EdgarService
 from lazytools.connectors.edgar.mapping import DEFAULT_MODEL, Mapping, propose
+from lazytools.connectors.edgar.mapping_store import MappingStore
 from lazytools.connectors.edgar.ontology import classify
 from lazytools.connectors.edgar.statements import (
     RenderedStatement,
@@ -82,6 +83,7 @@ def normalise(
     currency: str = "USD",
     agent: Any | None = None,
     model: str = DEFAULT_MODEL,
+    store: MappingStore | None = None,
 ) -> NormalisedBase:
     """Produce the normalised base for one issuer and one annual period.
 
@@ -93,6 +95,9 @@ def normalise(
         currency: recorded on the base; the statements carry their own scale.
         agent: an injected mapping callable, mostly for tests.
         model: the model used for mapping when no agent is injected.
+        store: a mapping cache. A filed document never changes, so its mapping
+            is a property of the document: caching it makes a second run over
+            the same filing both free and identical to the first.
 
     Classification rides on the result rather than stopping it: a caller needs
     to know that Cisco has a finance business, not to be refused an answer.
@@ -119,7 +124,15 @@ def normalise(
         mapping = Mapping(refs=(), absences=(), rejected=(
             f"no rendered column covers {window.start}..{window.end}",))
     else:
-        mapping = propose(statements, column=column, agent=agent, model=model)
+        cached = store.get(accession, column) if store is not None else None
+        if cached is not None:
+            mapping = cached.mapping
+        else:
+            mapping = propose(statements, column=column, agent=agent, model=model)
+            if store is not None and mapping.refs:
+                # Only a mapping that placed something is worth keeping: caching
+                # a failed model run would make its failure permanent.
+                store.put(accession, column, mapping, model=model)
         presented = _resolve_refs(mapping, statements, column)
         for element_id, line in presented.items():
             value, note = _apply_sign(element_id, line.value)
