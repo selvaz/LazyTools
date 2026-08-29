@@ -164,3 +164,34 @@ def test_a_sector_library_reaches_the_agent_through_the_catalogue() -> None:
     prompt = system_prompt(library, sector="utilities")
     assert "sector/utilities/rate_base" in prompt
     assert "regulatory asset base" not in prompt
+
+
+# --- the shape of a finished note -------------------------------------------- #
+
+
+def test_the_note_shape_is_reachable_and_the_agent_is_told_to_load_it() -> None:
+    # A shape block nobody loads shapes nothing. The identity block is inlined
+    # in every prompt, so the instruction to fetch this one has to live there.
+    library = load_common_library()
+    assert "output/scheda" in library.blocks
+    identity = " ".join(library.blocks["core/identity"].body.split())
+    assert "load `output/scheda`" in identity
+
+
+def test_the_note_shape_refuses_to_emit_a_rating_symbol() -> None:
+    # The whole point of borrowing the agencies' section structure without
+    # their conclusion: 4,405 pages of methodology filed with the SEC contain
+    # no mapping from a ratio to a rating category, so a symbol here would be
+    # borrowed authority with nothing behind it.
+    library = load_common_library()
+    body = " ".join(library.blocks["output/scheda"].body.lower().split())
+    assert "does not include is a rating or an outlook" in body
+    assert "borrowed authority" in body
+
+
+def test_the_note_shape_keeps_liquidity_as_its_own_section() -> None:
+    # Liquidity is the section a summary-shaped note drops first, and it is the
+    # one that decides whether the issuer survives the year.
+    body = load_common_library().blocks["output/scheda"].body.lower()
+    assert "liquidity and debt structure" in body
+    assert "its own section, always" in " ".join(body.split())
