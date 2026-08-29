@@ -146,6 +146,7 @@ TREASURY_FISCAL_TOOLS = {
 
 ALFRED_TOOLS = {
     "alfred_vintage",
+    "alfred_vintage_dates",
 }
 
 TRADINGVIEW_TOOLS = {
