@@ -87,7 +87,7 @@ _MEDIA_TYPES = {
 #: it was decoded as UTF-8 and returned as successfully extracted text made
 #: of replacement characters. Anything not named here is reported unsupported,
 #: which is true of a format we have never seen as well as of a PDF.
-_TEXT_MEDIA = frozenset({
+TEXT_MEDIA = frozenset({
     "text/html", "text/plain", "application/xml", "application/json",
 })
 
@@ -386,7 +386,7 @@ class EdgarClient:
                 f"choose one of: {sorted(inventory)[:10]}"
             )
         media = entry["media_type"]
-        if media not in _TEXT_MEDIA:
+        if media not in TEXT_MEDIA:
             # Not fetched at all. The inventory already says this is a JPEG or
             # a PDF, so downloading it to discard it spends a request against
             # the SEC's rate limit and the caller's deadline to learn what we
