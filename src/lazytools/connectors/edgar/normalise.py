@@ -26,6 +26,7 @@ from typing import Any
 from lazytools.connectors.edgar.client import EdgarService
 from lazytools.connectors.edgar.facts import facts_from_concept
 from lazytools.connectors.edgar.ontology import classify
+from lazytools.connectors.edgar.statements import list_reports, read_statement
 from lazytools.financials.facts import Fact, select
 from lazytools.financials.normalised import (
     Check,
@@ -47,6 +48,7 @@ _ROUTES: dict[str, tuple[Route, ...]] = {
                 ("RevenueFromContractWithCustomerIncludingAssessedTax",)),
     "operating_income": (("OperatingIncomeLoss",),),
     "depreciation": (("Depreciation",), ("DepreciationNonproduction",)),
+
     "amortisation_intangibles": (("AmortizationOfIntangibleAssets",),),
     "impairment": (("AssetImpairmentCharges",), ("GoodwillImpairmentLoss",)),
     "gross_interest_expense": (("InterestExpense",), ("InterestExpenseDebt",),
@@ -81,6 +83,18 @@ _ROUTES: dict[str, tuple[Route, ...]] = {
     "debt_maturity_y5": (("LongTermDebtMaturitiesRepaymentsOfPrincipalInYearFive",),),
     "debt_maturity_thereafter": (("LongTermDebtMaturitiesRepaymentsOfPrincipalAfterYearFive",),),
 }
+#: Routes that feed a derivation rather than an element of the base. Kept apart
+#: because everything in _ROUTES becomes an Element, and the contract rightly
+#: refuses an id that is not in the registry.
+_INTERNAL_ROUTES: dict[str, tuple[Route, ...]] = {
+    # Walmart tags total D&A as DepreciationAmortizationAndAccretionNet. The
+    # accretion it also contains is immaterial for most filers but IS a scope
+    # difference, which is why the route that answered is recorded on the figure.
+    "combined_da": (("DepreciationDepletionAndAmortization",),
+                    ("DepreciationAndAmortization",),
+                    ("DepreciationAmortizationAndAccretionNet",)),
+}
+
 #: Only annual figures are read from annual forms; an instant is dated, not
 #: covered, so it needs no form filter.
 _ANNUAL_FORMS = ("10-K", "10-K/A", "20-F", "20-F/A", "40-F")
@@ -102,8 +116,11 @@ class _Resolver:
     currency: str
     as_of: date | None = None
 
+    accession: str = ""
+
     def __post_init__(self) -> None:
         self._cache: dict[str, list[Fact]] = {}
+        self._statements: list[Any] | None = None
 
     def facts(self, tag: str) -> list[Fact]:
         if tag not in self._cache:
@@ -124,10 +141,54 @@ class _Resolver:
             return None
         return sorted(hits, key=lambda f: (f.filed or f.end))[-1].value
 
+    def from_statement(self, pattern: str, *, column: int = 0) -> tuple[float | None, str]:
+        """Read a line out of the filing's own rendered primary statements.
+
+        The last resort, and the one an analyst reaches for first: a figure the
+        fact APIs do not serve entity-wide is usually presented plainly on the
+        face of a statement, with the label the filer chose. Returns the value
+        and a description of where it was read, or ``(None, "")``.
+        """
+        import re
+
+        if self._statements is None:
+            self._statements = []
+            try:
+                reports = [r for r in list_reports(self.client, self.cik, self.accession)
+                           if r.is_primary_statement]
+                for report in reports:
+                    self._statements.append(read_statement(self.client, self.cik,
+                                                           self.accession, report))
+            except Exception:  # noqa: BLE001 - no rendered statements is a fact, not a fault
+                self._statements = []
+        for statement in self._statements:
+            index = self._column_for(statement)
+            if index is None:
+                continue
+            for line in statement.lines:
+                if line.is_label_only or index >= len(line.values):
+                    continue
+                if line.values[index] is not None and re.fullmatch(pattern, line.label, re.I):
+                    return line.values[index], f"{statement.report.short_name}: {line.label!r}"
+        return None, ""
+
+    def _column_for(self, statement: Any) -> int | None:
+        """Which rendered column covers this window, matched on its end date."""
+        for index, header in enumerate(statement.columns):
+            for fmt in ("%b. %d, %Y", "%B %d, %Y"):
+                try:
+                    parsed = datetime.strptime(header.strip(), fmt).date()
+                except ValueError:
+                    continue
+                if abs((parsed - self.window.end).days) <= self.window.tolerance_days:
+                    return index
+        return None
+
     def route(self, element_id: str) -> tuple[float | None, str]:
         """The first complete route, and its name. ``(None, "")`` when none is."""
         duration = element_id in _DURATION_ELEMENTS
-        for candidate in _ROUTES.get(element_id, ()):
+        routes = _ROUTES.get(element_id) or _INTERNAL_ROUTES.get(element_id, ())
+        for candidate in routes:
             parts = [self.one(tag, duration=duration) for tag in candidate]
             if all(p is not None for p in parts):
                 return sum(parts), " + ".join(candidate)  # type: ignore[arg-type]
@@ -158,7 +219,7 @@ def normalise(
 
     gate = classify(client, cik, accession or None)
     window = resolve(interpret(period)[0], fiscal_year_end=profile.get("fiscal_year_end"))
-    resolver = _Resolver(client, cik, window, currency, as_of)
+    resolver = _Resolver(client, cik, window, currency, as_of, accession)
 
     elements: dict[str, Element] = {}
     for element_id in _ROUTES:
@@ -208,9 +269,12 @@ def _derive_da(elements: dict[str, Element], resolver: _Resolver) -> None:
     rather than ``scope_conflict``, and every non-conflict outcome was being
     treated as confirmation. Only ``balanced`` confirms anything.
     """
-    combined = resolver.one("DepreciationDepletionAndAmortization", duration=True)
+    combined, combined_route = resolver.route("combined_da")
+    from_statement = ""
     if combined is None:
-        combined = resolver.one("DepreciationAndAmortization", duration=True)
+        combined, from_statement = resolver.from_statement(
+            r"depreciation[ ,&]+(and )?amorti[sz]ation.*")
+        combined_route = f"rendered statement — {from_statement}" if combined is not None else ""
     depreciation = elements["depreciation"].value if elements["depreciation"].usable else None
     amortisation = (elements["amortisation_intangibles"].value
                     if elements["amortisation_intangibles"].usable else None)
@@ -222,7 +286,7 @@ def _derive_da(elements: dict[str, Element], resolver: _Resolver) -> None:
         check = reconcile("D&A", combined, components)
         if check.status == "balanced":
             element = Element("operating_da_total", combined, "verified",
-                              route="DepreciationDepletionAndAmortization",
+                              route=combined_route,
                               checks=(Check("components", True, check.detail),))
         else:
             element = Element(
@@ -242,7 +306,7 @@ def _derive_da(elements: dict[str, Element], resolver: _Resolver) -> None:
         if abs(combined - only_value) <= _PROXIMITY * abs(combined or 1):
             element = Element(
                 "operating_da_total", combined, "unreconciled",
-                route="DepreciationDepletionAndAmortization",
+                route=combined_route,
                 checks=(Check("combined tag scope", False,
                               f"the combined figure {combined:,.0f} barely exceeds "
                               f"{only_name} alone ({only_value:,.0f}), so it does not "
@@ -251,12 +315,12 @@ def _derive_da(elements: dict[str, Element], resolver: _Resolver) -> None:
                                f"except {only_name}")
         else:
             element = Element("operating_da_total", combined, "reported",
-                              route="DepreciationDepletionAndAmortization",
-                              sources=("us-gaap:DepreciationDepletionAndAmortization",))
+                              route=combined_route,
+                              sources=(from_statement or f"us-gaap via {combined_route}",))
     elif combined is not None:
         element = Element("operating_da_total", combined, "reported",
-                          route="DepreciationDepletionAndAmortization",
-                          sources=("us-gaap:DepreciationDepletionAndAmortization",))
+                          route=combined_route,
+                          sources=(from_statement or f"us-gaap via {combined_route}",))
     elif len(known) == len(components):
         element = Element(
             "operating_da_total", depreciation + amortisation, "derived",

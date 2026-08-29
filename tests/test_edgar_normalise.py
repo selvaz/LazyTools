@@ -219,3 +219,60 @@ def test_an_unresolvable_company_raises_rather_than_returning_an_empty_base() ->
     stub.resolve_company = lambda q, *, limit=10: []  # type: ignore[assignment]
     with pytest.raises(ValueError, match="matched no EDGAR filer"):
         normalise(stub, company="nope", period="FY2024")
+
+
+# --- the rendered-statement fallback ---------------------------------------- #
+
+
+_CF_STATEMENT = (
+    '<html><body><table class="report">'
+    '<tr><th class="tl" colspan="1" rowspan="2"><div><strong>'
+    'Consolidated Statements of Cash Flows - USD ($) $ in Millions</strong></div></th>'
+    '<th class="th" colspan="1">12 Months Ended</th></tr>'
+    '<tr><th class="th">Dec. 31, 2024</th></tr>'
+    '<tr><td class="pl"><a class="a" href="javascript:void(0);" '
+    "onclick=\"Show.showAR( this, 'defref_us-gaap_SomeFilerSpecificTag', window );\">"
+    'Depreciation and amortization</a></td>'
+    '<td class="nump">12,973<span></span></td></tr>'
+    '</table></body></html>')
+
+_SUMMARY = ('<FilingSummary><Report><HtmlFileName>R8.htm</HtmlFileName>'
+            '<ShortName>Consolidated Statements of Cash Flows</ShortName>'
+            '<MenuCategory>Statements</MenuCategory></Report></FilingSummary>')
+
+
+class _StubWithStatements(_Stub):
+    """No D&A concept at all, but the figure is on the face of a statement."""
+
+    def get_filing_document(self, cik, accession_no, filename, *, raw=False):
+        return {"content": _SUMMARY if filename.endswith(".xml") else _CF_STATEMENT}
+
+
+def test_da_absent_from_every_concept_is_read_off_the_rendered_statement() -> None:
+    # This is what an analyst does first and the fact APIs cannot do at all.
+    base = normalise(_StubWithStatements(BASE_CONCEPTS), company="TST", period="FY2024",
+                     as_of=date(2024, 9, 5))
+    da = base.elements["operating_da_total"]
+    assert da.value == 12_973 * M
+    assert da.state == "reported"
+    assert "Cash Flows" in da.route and "Depreciation and amortization" in da.route
+
+
+def test_the_statement_figure_carries_the_scale_the_table_declared() -> None:
+    # The table says 12,973 and means millions. Reading it unscaled beside an
+    # XBRL fact is a factor-of-a-million error that looks like data.
+    base = normalise(_StubWithStatements(BASE_CONCEPTS), company="TST", period="FY2024",
+                     as_of=date(2024, 9, 5))
+    assert base.value("house_operating_ebitda") == (12_181 + 12_973) * M
+
+
+def test_a_statement_column_for_another_period_is_not_used() -> None:
+    class _WrongPeriod(_StubWithStatements):
+        def get_filing_document(self, cik, accession_no, filename, *, raw=False):
+            content = (_SUMMARY if filename.endswith(".xml")
+                       else _CF_STATEMENT.replace("Dec. 31, 2024", "Dec. 31, 2019"))
+            return {"content": content}
+
+    base = normalise(_WrongPeriod(BASE_CONCEPTS), company="TST", period="FY2024",
+                     as_of=date(2024, 9, 5))
+    assert base.elements["operating_da_total"].state == "unavailable"
