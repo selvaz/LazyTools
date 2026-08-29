@@ -197,6 +197,33 @@ def _gleif(allow_write: bool = False, *,
     return GLEIFTools(max_calls=budget)
 
 
+@_register("manifold")
+def _manifold(allow_write: bool = False, *,
+              data_source: dict[str, Any] | None = None) -> Any:
+    """Manifold Markets' public, keyless prediction-market read endpoints.
+
+    A second prediction-market connector alongside ``polymarket``: mostly
+    play-money, so its probabilities are a crowd-forecast signal rather than
+    Polymarket's real-money price. No write surface at all (placing a bet
+    needs an API key and account this connector does not carry), so
+    ``allow_write`` is accepted and ignored.
+
+    One environment knob, same convention as ``polymarket``:
+    ``LAZYTOOLS_MANIFOLD_MAX_CALLS`` (default 200 here, ``0`` to remove the
+    guard).
+    """
+    from lazytools.connectors.manifold import ManifoldTools
+
+    raw = os.environ.get("LAZYTOOLS_MANIFOLD_MAX_CALLS", "200")
+    try:
+        budget: int | None = int(raw)
+    except ValueError:
+        budget = 200
+    if budget is not None and budget <= 0:
+        budget = None
+    return ManifoldTools(max_calls=budget)
+
+
 @_register("regimes")
 def _regimes(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """HMM / Markov-switching regimes (needs lazystats[regimes]).

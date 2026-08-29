@@ -46,6 +46,9 @@ polymarket = ["httpx>=0.27,<1.0"]
 # GLEIF LEI (legal-entity identifier) lookup connector. Public JSON:API,
 # keyless, no API key to configure.
 gleif = ["httpx>=0.27,<1.0"]
+# Manifold Markets prediction-market connector. Public, keyless read API,
+# no key to configure.
+manifold = ["httpx>=0.27,<1.0"]
 # Report figure charts (report/charts.py): matplotlib only — the series data
 # comes from market-data-hub, which stays git-installed with no extra (below).
 charts     = ["matplotlib>=3.8,<4.0"]

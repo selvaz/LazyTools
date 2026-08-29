@@ -76,6 +76,7 @@ plugins:
           - polymarket.md
           - gleif.md
           - cftc-cot.md
+          - manifold.md
           - regimes.md
           - statistical-analysis.md
           - portfolio-optimization.md
@@ -151,6 +152,7 @@ nav:
       - Polymarket: polymarket.md
       - GLEIF (LEI lookup): gleif.md
       - CFTC Commitments of Traders: cftc-cot.md
+      - Manifold Markets: manifold.md
       - Regime detection: regimes.md
       - Statistical analysis: statistical-analysis.md
       - Portfolio optimization: portfolio-optimization.md
