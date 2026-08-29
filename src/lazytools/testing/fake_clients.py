@@ -332,7 +332,9 @@ class FakeEdgarClient:
             )
         return [dict(d) for d in documenti]
 
-    def get_filing_document(self, cik: str, accession_no: str, filename: str) -> dict[str, Any]:
+    def get_filing_document(
+        self, cik: str, accession_no: str, filename: str, *, raw: bool = False
+    ) -> dict[str, Any]:
         """One named document, refused unless this filing contains it.
 
         The refusal is the real client's own: a caller names a document, not

@@ -101,7 +101,9 @@ class EdgarService(Protocol):
     ) -> list[dict[str, Any]]: ...
     def get_filing(self, cik: str, accession_no: str, *, primary_document: str | None = None) -> dict[str, Any]: ...
     def list_filing_documents(self, cik: str, accession_no: str) -> list[dict[str, Any]]: ...
-    def get_filing_document(self, cik: str, accession_no: str, filename: str) -> dict[str, Any]: ...
+    def get_filing_document(
+        self, cik: str, accession_no: str, filename: str, *, raw: bool = False
+    ) -> dict[str, Any]: ...
     def company_facts(self, cik: str) -> dict[str, Any]: ...
     def company_concept(self, cik: str, taxonomy: str, tag: str) -> dict[str, Any]: ...
     def fiscal_year_end(self, cik: str) -> str | None: ...
@@ -363,8 +365,16 @@ class EdgarClient:
             )
         return documents
 
-    def get_filing_document(self, cik: str, accession_no: str, filename: str) -> dict[str, Any]:
+    def get_filing_document(
+        self, cik: str, accession_no: str, filename: str, *, raw: bool = False
+    ) -> dict[str, Any]:
         """Fetch one named document from a submission, as text.
+
+        ``raw=True`` skips the tag-stripping and returns the document as served.
+        Needed for anything that must be PARSED rather than read: EDGAR's
+        rendered statement tables carry each line's concept id in an attribute,
+        and stripping the markup throws away exactly the part that says what the
+        numbers are.
 
         ``filename`` must be one this submission actually contains: it is
         checked against :meth:`list_filing_documents` rather than pasted into
@@ -401,8 +411,10 @@ class EdgarClient:
                 "content_is_untrusted": True,
             }
         body = self._get(entry["url"])
-        raw = body.decode("utf-8", errors="replace")
-        content = _html_to_text(raw) if _looks_like_html(filename, raw) else raw
+        decoded = body.decode("utf-8", errors="replace")
+        content = decoded if raw else (
+            _html_to_text(decoded) if _looks_like_html(filename, decoded) else decoded
+        )
         return {
             "accession_no": dashed, "filename": filename,
             "type": entry["type"], "description": entry["description"],
@@ -606,7 +618,20 @@ def _media_type(filename: str) -> str:
 
 
 def _looks_like_html(filename: str, raw: str) -> bool:
-    return filename.lower().endswith((".htm", ".html")) or raw.lstrip().startswith("<")
+    """Should this document have its tags stripped to plain text?
+
+    Only HTML should. The old rule also caught anything merely STARTING with
+    "<", which is every XML document EDGAR serves -- including FilingSummary.xml,
+    the index of a filing's rendered statements. Stripping its tags leaves the
+    values in place and destroys the structure that says what they are, so a
+    caller gets a page of orphaned strings and no way to tell a report's name
+    from its filename. XML and JSON are structured formats: they come back
+    intact for a parser to read.
+    """
+    lowered = filename.lower()
+    if lowered.endswith((".xml", ".xsd", ".json")):
+        return False
+    return lowered.endswith((".htm", ".html")) or raw.lstrip().startswith("<")
 
 
 def _html_to_text(raw: str) -> str:
