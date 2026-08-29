@@ -190,6 +190,9 @@ class FakeEdgarClient:
         self.default_cik = _FAKE_EDGAR_DEFAULT_CIK
         #: MMDD fiscal year end, matching the canned Apple data above.
         self.fye: str | None = "0928"
+        #: Apple files under 3571, Electronic Computers.
+        self.sic: str | None = "3571"
+        self.sic_description: str | None = "Electronic Computers"
         self.companies: list[dict[str, str]] = [
             {"cik": _FAKE_EDGAR_DEFAULT_CIK, "ticker": "AAPL", "title": "Apple Inc."},
         ]
@@ -445,6 +448,8 @@ class FakeEdgarClient:
             "name": self.companies[0]["title"],
             "tickers": [self.companies[0]["ticker"]],
             "fiscal_year_end": self.fye,
+            "sic": self.sic,
+            "sic_description": self.sic_description,
         }
 
 

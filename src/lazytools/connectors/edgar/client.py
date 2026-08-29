@@ -488,6 +488,11 @@ class EdgarClient:
             "name": str(data.get("name") or ""),
             "tickers": tickers,
             "fiscal_year_end": fye or None,
+            # The SIC is how an issuer is classified before anything is fetched.
+            # Necessary and not sufficient: Deere files under 3523, Farm
+            # Machinery, and runs a captive finance business the code cannot see.
+            "sic": str(data.get("sic") or "") or None,
+            "sic_description": str(data.get("sicDescription") or "") or None,
         }
 
     # ------------------------------------------------------------------ #
