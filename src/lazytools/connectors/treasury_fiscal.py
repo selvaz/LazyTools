@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 def _records(frame: pd.DataFrame) -> list[dict]:
@@ -16,7 +17,14 @@ def _records(frame: pd.DataFrame) -> list[dict]:
     many numeric/date columns only apply to some ``security_type``s) --
     neither is JSON-serializable as-is. Dates become ISO ``YYYY-MM-DD``
     strings; every other null becomes ``None``.
+
+    ``pandas`` is imported here, not at module level: this module must stay
+    importable (e.g. by the MCP surface-contract test) even where
+    market-data-hub -- and therefore pandas -- isn't installed, matching
+    the local ``from market_data_hub.reader import ...`` imports below.
     """
+    import pandas as pd
+
     frame = frame.copy()
     for column in frame.columns:
         if pd.api.types.is_datetime64_any_dtype(frame[column]):
