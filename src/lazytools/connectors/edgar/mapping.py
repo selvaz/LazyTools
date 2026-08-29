@@ -42,9 +42,6 @@ Rules, in order of importance:
 3. A concept name can appear several times in one statement with different
    meanings. Choose by the label and by where the line sits, not by the concept.
 4. Prefer the consolidated total over any segment or product breakdown.
-5. A line presented inside a netted block may carry a sign opposite to the
-   convention its element expects. Say so in the note rather than adjusting it.
-
 Return one entry per element you can place, and one absence per element you
 cannot."""
 
@@ -56,7 +53,6 @@ class LineRef:
     element_id: str
     statement: str
     label: str
-    note: str = ""
 
 
 @dataclass(frozen=True)
@@ -141,8 +137,7 @@ def parse_mapping(payload: Any) -> Mapping:
             continue
         refs.append(LineRef(element_id=element_id,
                             statement=str(entry.get("statement") or "").strip(),
-                            label=label,
-                            note=str(entry.get("note") or "").strip()))
+                            label=label))
 
     for entry in _as_list(payload, "absent", "absences", "missing"):
         element_id = str(entry.get("element_id") or "").strip()
@@ -190,8 +185,8 @@ def propose(
     task = (
         f"{_SYSTEM}\n\nThe normalised elements:\n{elements_as_prompt()}\n\n"
         f"The statements as presented:\n{statements_as_prompt(statements, column=column)}\n\n"
-        'Answer as JSON: {"mapped": [{"element_id": ..., "statement": ..., "label": ..., '
-        '"note": ...}], "absent": [{"element_id": ..., "reason": ...}]}'
+        'Answer as JSON: {"mapped": [{"element_id": ..., "statement": ..., "label": ...}], '
+        '"absent": [{"element_id": ..., "reason": ...}]}'
     )
     try:
         text = agent(task) if agent is not None else _default_agent(model)(task)

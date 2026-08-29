@@ -60,7 +60,6 @@ class Library:
     """Every block of one agent, validated on construction."""
 
     blocks: dict[str, Block]
-    source: str
 
     def catalogue(self) -> str:
         """One line per block: what exists, and when it applies.
@@ -166,7 +165,7 @@ def load_library(*paths: str | Path) -> Library:
             raise BlockError(f"{origin[block.id]}: block {block.id!r} requires "
                              f"{', '.join(missing)}, which do not exist")
 
-    library = Library(blocks=blocks, source=", ".join(str(p) for p in paths))
+    library = Library(blocks=blocks)
     for block_id in blocks:
         library.resolve([block_id])  # raises on a cycle
     return library

@@ -285,6 +285,9 @@ def test_one_presented_line_cannot_become_two_different_elements() -> None:
                {"element_id": "amortisation_intangibles", "statement": "Cash Flows",
                 "label": "Depreciation and amortization"}]
     base = _run(doubled)
+    # EVERY claim to the contested line is rejected, not just the losers.
+    # Keeping whichever the model emitted first settles a real ambiguity by the
+    # order of a list.
     placed = [k for k in ("operating_da_total", "depreciation", "amortisation_intangibles")
               if k in base.elements and base.elements[k].usable]
-    assert len(placed) == 1
+    assert placed == []

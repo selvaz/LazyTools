@@ -12,9 +12,8 @@ from lazytools.connectors.edgar.mapping import Absence, LineRef, Mapping
 from lazytools.connectors.edgar.mapping_store import MappingStore
 
 MAPPING = Mapping(
-    refs=(LineRef("revenue", "Operations", "Total revenue", "consolidated"),),
+    refs=(LineRef("revenue", "Operations", "Total revenue"),),
     absences=(Absence("depreciation", "not broken out"),),
-    rejected=("adjusted_ebitda: not an element of the base",),
 )
 
 
@@ -61,13 +60,14 @@ def test_remapping_the_same_filing_replaces_rather_than_duplicates() -> None:
     assert store.get("x", 0).model == "second"
 
 
-def test_one_models_mappings_can_be_cleared_without_touching_the_others() -> None:
-    # A model that mapped badly leaves rows that look exactly like good ones.
+def test_the_cache_can_be_cleared_when_a_model_mapped_badly() -> None:
+    # Rows from a bad model look exactly like good ones; the model that made
+    # each row travels with it, so which to distrust is answerable.
     store = MappingStore()
     store.put("a", 0, MAPPING, model="good")
     store.put("b", 0, MAPPING, model="bad")
-    assert store.forget(model="bad") == 1
-    assert store.get("a", 0) is not None and store.get("b", 0) is None
+    assert store.forget() == 2
+    assert store.get("a", 0) is None
 
 
 def test_the_cache_holds_no_figures_at_all() -> None:
@@ -76,7 +76,7 @@ def test_the_cache_holds_no_figures_at_all() -> None:
     store.put("x", 0, MAPPING, model="m")
     ref = store.get("x", 0).mapping.refs[0]
     assert not hasattr(ref, "value")
-    assert set(vars(ref)) == {"element_id", "statement", "label", "note"}
+    assert set(vars(ref)) == {"element_id", "statement", "label"}
 
 
 def test_a_file_backed_store_survives_being_reopened(tmp_path) -> None:

@@ -3,10 +3,10 @@
 The division of labour is the point. A model decides **which presented line is
 which element**, because that is semantic and a table of XBRL concepts does it
 badly — guessed filer by filer, and wrong for the next one. Code decides
-**everything else**: which column covers the period, what scale applies, whether
-an aggregate survives its own components, and what state a figure is allowed to
-carry. The model never supplies a number; it names a line, and the value is read
-out of the parsed statement.
+**everything else**: which column of which statement covers the period, what
+scale applies, whether an aggregate survives its own components, and what state
+a figure is allowed to carry. The model never supplies a number; it names a
+line, and the value is read out of the parsed statement.
 
 So a fabricated figure is not something to detect here. It is something the
 interface between the two cannot express.
@@ -14,9 +14,7 @@ interface between the two cannot express.
 The order is not negotiable. Classification runs before anything is fetched — a
 run that trusted the SIC spent twenty requests on Deere's debt before finding it
 had been reading a captive-finance group as an ordinary industrial. Checks run
-before a figure is admitted, because the failure that matters does not error:
-Cisco's entity-wide amortisation resolves cleanly, carries perfect provenance,
-and is a third of the real number.
+before a figure is admitted, because the failure that matters does not error.
 """
 
 from __future__ import annotations
@@ -45,26 +43,37 @@ from lazytools.financials.normalised import (
 from lazytools.financials.period import ResolvedWindow, interpret, resolve
 from lazytools.financials.reconcile import reconcile
 
-#: Reports whose lines are offered for mapping. The primary statements always;
-#: the notes only when their name suggests they carry a figure the base wants,
-#: because a 10-K renders well over a hundred reports and most are prose.
+#: Reports offered for mapping: the primary statements always, and the notes
+#: whose name suggests they carry a figure the base wants. A 10-K renders well
+#: over a hundred reports and most of them are prose.
 _NOTE_PATTERN = re.compile(
     r"lease|debt|borrowing|maturit|cash|restricted|intangible|amorti|depreciat|"
     r"credit facilit|revolv",
     re.I,
 )
-#: How much of a figure's own components may go missing before the figure is a
-#: floor rather than the figure.
+#: Totals whose components the base also carries. A total is only as good as the
+#: components that confirm it, and one presented without them is a claim.
 _TOTALS: dict[str, tuple[str, ...]] = {
     "reported_financial_debt": ("short_term_borrowings", "current_long_term_debt",
                                 "long_term_debt_noncurrent"),
     "operating_da_total": ("depreciation", "amortisation_intangibles"),
-    # Split for the same reason as debt: a model reading the current line alone
-    # reported a fifth of a retailer's lease liability as the whole of it, and
-    # nothing downstream could tell.
     "operating_lease_total": ("operating_lease_current", "operating_lease_noncurrent"),
     "finance_lease_total": ("finance_lease_current", "finance_lease_noncurrent"),
 }
+
+
+@dataclass(frozen=True)
+class _Column:
+    """One statement and the column index within it that covers the period.
+
+    Resolved per statement rather than once. A balance sheet shows two dates and
+    an income statement three, and nothing makes the period sit at the same
+    index in both — one global index silently reads revenue from one year and
+    cash flow from another.
+    """
+
+    statement: RenderedStatement
+    index: int
 
 
 @dataclass(frozen=True)
@@ -76,7 +85,6 @@ class _Presented:
     statement: str
     label: str
     concept: str | None
-    note: str
 
 
 def normalise(
@@ -115,30 +123,20 @@ def normalise(
 
     filing = _annual_filing(client, cik, as_of)
     if filing is None:
-        raise ValueError(f"no annual filing for {company!r} on or before "
-                         f"{as_of or 'today'}")
+        raise ValueError(f"no annual filing for {company!r} on or before {as_of or 'today'}")
     accession = filing["accession_no"]
 
     gate = classify(client, cik, accession)
     window = resolve(interpret(period)[0], fiscal_year_end=profile.get("fiscal_year_end"))
-    statements = _read_statements(client, cik, accession)
-    column = _column_for(statements, window)
+    columns = _columns_for(_read_statements(client, cik, accession), window)
 
     elements: dict[str, Element] = {}
-    if column is None:
+    if not columns:
         mapping = Mapping(refs=(), absences=(), rejected=(
             f"no rendered column covers {window.start}..{window.end}",))
     else:
-        cached = store.get(accession, column) if store is not None else None
-        if cached is not None:
-            mapping = cached.mapping
-        else:
-            mapping = propose(statements, column=column, agent=agent, model=model)
-            if store is not None and mapping.refs:
-                # Only a mapping that placed something is worth keeping: caching
-                # a failed model run would make its failure permanent.
-                store.put(accession, column, mapping, model=model)
-        presented = _resolve_refs(mapping, statements, column)
+        mapping = _mapping_for(columns, accession, agent, model, store)
+        presented = _resolve_refs(mapping, columns)
         for element_id, line in presented.items():
             value, note = _apply_sign(element_id, line.value)
             elements[element_id] = Element(
@@ -146,7 +144,7 @@ def normalise(
                 route=f"{line.statement}: {line.label!r}" + (f" ({note})" if note else ""),
                 sources=(f"{accession} / {line.statement}"
                          + (f" / us-gaap:{line.concept}" if line.concept else ""),))
-        _check_totals(elements, presented)
+        _check_totals(elements, columns)
         _derive(elements)
 
     for absence in mapping.absences:
@@ -188,10 +186,10 @@ def _read_statements(client: EdgarService, cik: str, accession: str) -> list[Ren
         reports = list_reports(client, cik, accession)
     except ValueError:
         return []
-    wanted = [r for r in reports
-              if r.is_primary_statement or _NOTE_PATTERN.search(r.short_name)]
     statements: list[RenderedStatement] = []
-    for report in wanted:
+    for report in reports:
+        if not (report.is_primary_statement or _NOTE_PATTERN.search(report.short_name)):
+            continue
         try:
             statements.append(read_statement(client, cik, accession, report))
         except Exception:  # noqa: BLE001 - one unreadable report is not a failed filing
@@ -199,14 +197,21 @@ def _read_statements(client: EdgarService, cik: str, accession: str) -> list[Ren
     return statements
 
 
-def _column_for(statements: list[RenderedStatement], window: ResolvedWindow) -> int | None:
-    """The column whose end date covers the window, agreed across statements."""
+def _columns_for(statements: list[RenderedStatement], window: ResolvedWindow) -> list[_Column]:
+    """Each statement paired with ITS column covering the window.
+
+    A statement with no such column is dropped rather than read at some other
+    index: its figures are for another period, and mixing them with the right
+    ones is the error this replaced.
+    """
+    columns: list[_Column] = []
     for statement in statements:
         for index, header in enumerate(statement.columns):
             parsed = _header_date(header)
             if parsed and abs((parsed - window.end).days) <= window.tolerance_days:
-                return index
-    return None
+                columns.append(_Column(statement, index))
+                break
+    return columns
 
 
 def _header_date(header: str) -> date | None:
@@ -218,42 +223,68 @@ def _header_date(header: str) -> date | None:
     return None
 
 
-def _resolve_refs(
-    mapping: Mapping, statements: list[RenderedStatement], column: int
-) -> dict[str, _Presented]:
+def _mapping_for(
+    columns: list[_Column], accession: str, agent: Any | None, model: str,
+    store: MappingStore | None,
+) -> Mapping:
+    """The mapping, from the cache when it is there and from a model when not."""
+    # The cache key needs one column index; the statements are all at the same
+    # period, so the first is representative of the request.
+    key_index = columns[0].index
+    if store is not None:
+        cached = store.get(accession, key_index)
+        if cached is not None:
+            return cached.mapping
+    mapping = propose([c.statement for c in columns], column=key_index,
+                      agent=agent, model=model)
+    if store is not None and mapping.refs:
+        # Only a mapping that placed something is worth keeping: caching a failed
+        # model run would make its failure permanent.
+        store.put(accession, key_index, mapping, model=model)
+    return mapping
+
+
+def _resolve_refs(mapping: Mapping, columns: list[_Column]) -> dict[str, _Presented]:
     """Read each referenced line's value out of the parsed statement.
 
-    A reference that matches no line is dropped: the model named something that
-    is not there, and inventing a value for it is the one thing this design
-    exists to prevent. A reference matching several lines is dropped too — the
-    ambiguity is real, and picking the first would resolve it by luck.
+    Three things are dropped rather than resolved, and each was a real error:
+
+    * a reference matching no line — the model named something that is not
+      there, and inventing a value for it is what this design prevents;
+    * a reference matching several lines — the ambiguity is real, and taking the
+      first resolves it by luck;
+    * a LINE claimed by more than one element — "Depreciation and amortization"
+      was claimed as both depreciation and its own total, and settling that by
+      which claim the model happened to emit first is the same coin flip.
     """
-    resolved: dict[str, _Presented] = {}
-    claimed: set[tuple[str, str]] = set()
+    hits: dict[str, tuple[_Column, Any]] = {}
+    claims: dict[tuple[str, str], list[str]] = {}
     for ref in mapping.refs:
-        hits = [
-            (s, line) for s in statements
-            if not ref.statement or ref.statement.lower() in s.title.lower()
-            for line in s.lines
+        if ref.element_id in hits:
+            continue
+        found = [
+            (column, line) for column in columns
+            if not ref.statement or ref.statement.lower() in column.statement.title.lower()
+            for line in column.statement.lines
             if line.label.strip().lower() == ref.label.strip().lower()
-            and column < len(line.values) and line.values[column] is not None
+            and column.index < len(line.values) and line.values[column.index] is not None
         ]
-        if len(hits) != 1 or ref.element_id in resolved:
+        if len(found) != 1:
             continue
-        statement, line = hits[0]
-        # One presented line cannot be two different elements. A model mapped
-        # "Depreciation and amortization" to BOTH depreciation and amortisation
-        # of intangibles, which then failed its own reconciliation -- correctly,
-        # but only after the figure had been admitted twice.
-        fingerprint = (statement.report.short_name, line.label)
-        if fingerprint in claimed:
-            continue
-        claimed.add(fingerprint)
-        resolved[ref.element_id] = _Presented(
-            element_id=ref.element_id, value=line.values[column],  # type: ignore[arg-type]
-            statement=statement.report.short_name, label=line.label,
-            concept=line.tag, note=ref.note)
-    return resolved
+        column, line = found[0]
+        hits[ref.element_id] = (column, line)
+        claims.setdefault((column.statement.report.short_name, line.label), []).append(ref.element_id)
+
+    contested = {element_id for claimants in claims.values() if len(claimants) > 1
+                 for element_id in claimants}
+    return {
+        element_id: _Presented(
+            element_id=element_id, value=line.values[column.index],
+            statement=column.statement.report.short_name, label=line.label,
+            concept=line.tag)
+        for element_id, (column, line) in hits.items()
+        if element_id not in contested
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -262,39 +293,77 @@ def _resolve_refs(
 def _apply_sign(element_id: str, value: float) -> tuple[float, str]:
     """Put a magnitude element on the sign its definition expects.
 
-    A rendered cash-flow statement shows capex, dividends and buybacks as
-    negative because they are outflows in that presentation; the same figures
-    arrive positive as XBRL facts. Neither is wrong, and an element that sums
-    them cannot state its own signs unless the inputs agree on one. Elements
-    whose sign IS information -- operating income, free cash flow, a
-    working-capital movement -- are left exactly as presented.
+    A rendered cash-flow statement shows capex, dividends and buybacks negative
+    because they are outflows in that presentation; the same figures arrive
+    positive as XBRL facts. Neither is wrong, and an element that sums them
+    cannot state its own signs unless the inputs agree on one. Elements whose
+    sign IS information are left exactly as presented.
     """
     if ELEMENTS[element_id].sign != "magnitude" or value >= 0:
         return value, ""
     return -value, "presented as an outflow; stored as a magnitude"
 
 
-def _check_totals(elements: dict[str, Element], presented: dict[str, _Presented]) -> None:
-    """Reconcile every mapped total against its mapped components."""
+def _rounding_unit(columns: list[_Column]) -> float:
+    """The coarsest scale any statement was rendered at.
+
+    Reconciling with no tolerance calls a table rendered in millions
+    unreconciled whenever its own rounding does not sum exactly, which is often.
+    """
+    scales = [c.statement.money_scale for c in columns if c.statement.money_scale]
+    return float(max(scales)) if scales else 0.0
+
+
+def _check_totals(elements: dict[str, Element], columns: list[_Column]) -> None:
+    """Reconcile every presented total against its components.
+
+    A presented total whose components are missing is NOT left alone. It is
+    exactly the shape that understated adjusted debt by 45%: a model mapped the
+    current portion of a lease liability as the whole of it, the total looked
+    reported and complete, and nothing downstream could tell.
+    """
+    unit = _rounding_unit(columns)
     for total_id, component_ids in _TOTALS.items():
-        if total_id not in elements:
+        current = elements.get(total_id)
+        if current is None or not current.usable:
             continue
-        components = {cid: presented[cid].value if cid in presented else None
-                      for cid in component_ids}
-        if not any(v is not None for v in components.values()):
+        known = {cid: elements[cid].value for cid in component_ids
+                 if cid in elements and elements[cid].usable}
+        if not known:
+            # A filer that presents one "Depreciation and amortization" line has
+            # presented the total, and nothing here contradicts it. It stays
+            # `reported` -- the weakest usable state, which is what one source
+            # with nothing to check it against deserves.
             continue
-        result = reconcile(total_id, elements[total_id].value, components)
-        current = elements[total_id]
-        if result.status == "balanced":
-            elements[total_id] = Element(
-                total_id, current.value, "verified", route=current.route,
-                sources=current.sources,
-                checks=(Check("components", True, result.detail),))
-        elif result.blocking and result.status != "incomplete":
+
+        if len(known) == len(component_ids):
+            result = reconcile(total_id, current.value, dict(known), rounding_unit=unit)
+            if result.status == "balanced":
+                elements[total_id] = Element(
+                    total_id, current.value, "verified", route=current.route,
+                    sources=current.sources, checks=(Check("components", True, result.detail),))
+            elif result.blocking:
+                elements[total_id] = Element(
+                    total_id, current.value, "unreconciled", route=current.route,
+                    sources=current.sources,
+                    checks=(Check("components", False, result.detail),),
+                    blocked_reason=result.detail)
+            continue
+
+        # Some components but not all. That cannot confirm a total, but it can
+        # REFUTE one: parts already exceeding the whole is a contradiction
+        # whatever the missing ones are. This is the shape that let the current
+        # portion of a lease liability pass as the entire liability.
+        subtotal = sum(known.values())
+        tolerance = unit * (len(known) + 1) / 2
+        if subtotal > (current.value or 0.0) + tolerance:
+            detail = (f"the components read so far ({', '.join(known)}) already sum to "
+                      f"{subtotal:,.0f} against a presented total of {current.value:,.0f}, "
+                      "so the total is a part of itself")
             elements[total_id] = Element(
                 total_id, current.value, "unreconciled", route=current.route,
-                checks=(Check("components", False, result.detail),),
-                blocked_reason=result.detail)
+                sources=current.sources,
+                checks=(Check("components", False, detail),), blocked_reason=detail)
 
 
 def _derive(elements: dict[str, Element]) -> None:
@@ -305,27 +374,34 @@ def _derive(elements: dict[str, Element]) -> None:
              {"operating_income": 1, "operating_da_total": 1})
     _combine(elements, "house_ffo",
              {"house_operating_ebitda": 1, "cash_interest_paid": -1, "cash_taxes_paid": -1})
-    _combine(elements, "house_capex", {"capex_ppe": 1, "capex_intangibles": 1}, optional=("capex_intangibles",))
+    _combine(elements, "house_capex", {"capex_ppe": 1, "capex_intangibles": 1},
+             optional=("capex_intangibles",))
     _combine(elements, "focf", {"cfo": 1, "house_capex": -1})
     _combine(elements, "dcf", {"focf": 1, "dividends_paid": -1, "share_repurchases": -1},
              optional=("share_repurchases",))
     _combine(elements, "house_adjusted_debt",
              {"reported_financial_debt": 1, "finance_lease_total": 1, "operating_lease_total": 1},
-             note="house convention: leases capitalised")
+             note="reported debt plus both lease liabilities (house convention: leases "
+                  "capitalised). Finance leases are added as presented; where an issuer "
+                  "already includes them in reported debt this double counts, and the "
+                  "filing's debt note is the only thing that settles it")
     _combine(elements, "readily_available_cash", {"cash_and_equivalents": 1})
     _combine(elements, "house_net_debt",
              {"house_adjusted_debt": 1, "readily_available_cash": -1})
 
 
 def _sum_into(elements: dict[str, Element], total_id: str, component_ids: tuple[str, ...]) -> None:
-    """Build a total from its components when the filing presented no total."""
-    if total_id in elements:
+    """Build a total from its components when the filing presented no usable one."""
+    existing = elements.get(total_id)
+    if existing is not None and existing.usable:
         return
     known = {cid: elements[cid].value for cid in component_ids
              if cid in elements and elements[cid].usable}
     if not known:
-        elements[total_id] = Element(total_id, None, "unavailable",
-                                     blocked_reason="neither the total nor any component was found")
+        if existing is None:
+            elements[total_id] = Element(
+                total_id, None, "unavailable",
+                blocked_reason="neither the total nor any component was found")
     elif len(known) < len(component_ids):
         elements[total_id] = Element(
             total_id, sum(known.values()), "lower_bound", route=" + ".join(known),
@@ -345,9 +421,11 @@ def _combine(
     optional: tuple[str, ...] = (),
     note: str = "",
 ) -> None:
-    """A signed sum of other elements, blocked when a required term is not usable."""
-    if target in elements and elements[target].usable:
-        return
+    """A signed sum of other elements, blocked when a required term is not usable.
+
+    Every target is a computed element, which a model may not claim, so this is
+    the only thing that ever writes one.
+    """
     values: dict[str, float] = {}
     for key, sign in terms.items():
         element = elements.get(key)
@@ -360,7 +438,8 @@ def _combine(
             return
     elements[target] = Element(
         target, sum(values.values()), "derived",
-        route=note or " ".join(f"{'+' if v >= 0 else '-'} {k}" for k, v in values.items()).lstrip("+ "),
+        route=note or " ".join(f"{'+' if v >= 0 else '-'} {k}"
+                               for k, v in values.items()).lstrip("+ "),
         contributions=tuple(Contribution(k, v) for k, v in values.items()))
 
 

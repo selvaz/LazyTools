@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from contextlib import closing
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -74,14 +74,23 @@ class MappingStore:
         with self._connect() as connection:
             connection.executescript(_SCHEMA)
 
+    @contextmanager
     def _connect(self):
+        """A connection, shared for an in-memory store and per-call otherwise.
+
+        An in-memory database belongs to its connection, so opening a new one
+        each call would be a new, empty database every time. A file-backed store
+        opens and closes per call, which is what makes concurrent readers safe;
+        WAL is set once at creation and persists in the file.
+        """
         if self._shared is not None:
-            # An in-memory database belongs to its connection, so a new one each
-            # time would be a new, empty database every call.
-            return closing(_NonClosing(self._shared))
+            yield self._shared
+            return
         connection = sqlite3.connect(self.path)
-        connection.execute("PRAGMA journal_mode=WAL")
-        return closing(connection)
+        try:
+            yield connection
+        finally:
+            connection.close()
 
     def get(self, accession: str, column: int) -> CachedMapping | None:
         """The stored mapping for this filing, or ``None``.
@@ -115,16 +124,17 @@ class MappingStore:
             )
             connection.commit()
 
-    def forget(self, *, model: str | None = None) -> int:
-        """Drop stored mappings, optionally only those from one model.
+    def forget(self) -> int:
+        """Drop every stored mapping.
 
-        The reason this exists: a model that mapped badly leaves rows that look
-        exactly like good ones, and the only honest remedy is to clear the ones
-        it made and let them be recomputed.
+        A model that mapped badly leaves rows that look exactly like good ones,
+        and the only honest remedy is to clear them and let them be recomputed.
+        The model that produced each row travels with it, so which rows to
+        distrust is answerable; a filtered delete is not worth its own code path
+        until something needs one.
         """
         with self._connect() as connection:
-            cursor = (connection.execute("DELETE FROM statement_mapping WHERE model = ?", (model,))
-                      if model else connection.execute("DELETE FROM statement_mapping"))
+            cursor = connection.execute("DELETE FROM statement_mapping")
             connection.commit()
             return cursor.rowcount
 
@@ -133,26 +143,12 @@ class MappingStore:
             return connection.execute("SELECT COUNT(*) FROM statement_mapping").fetchone()[0]
 
 
-class _NonClosing:
-    """Wraps a shared connection so ``closing`` does not close it."""
-
-    def __init__(self, connection: sqlite3.Connection) -> None:
-        self._connection = connection
-
-    def __getattr__(self, name: str):
-        return getattr(self._connection, name)
-
-    def close(self) -> None:
-        return None
-
-
 def _to_payload(mapping: Mapping) -> dict:
     return {
         "refs": [{"element_id": r.element_id, "statement": r.statement,
-                  "label": r.label, "note": r.note} for r in mapping.refs],
+                  "label": r.label} for r in mapping.refs],
         "absences": [{"element_id": a.element_id, "reason": a.reason}
                      for a in mapping.absences],
-        "rejected": list(mapping.rejected),
     }
 
 
@@ -160,7 +156,6 @@ def _from_payload(payload: dict) -> Mapping:
     return Mapping(
         refs=tuple(LineRef(**r) for r in payload.get("refs", [])),
         absences=tuple(Absence(**a) for a in payload.get("absences", [])),
-        rejected=tuple(payload.get("rejected", [])),
     )
 
 

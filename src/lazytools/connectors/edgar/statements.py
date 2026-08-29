@@ -113,6 +113,11 @@ class RenderedStatement:
     title: str
     columns: tuple[str, ...]
     lines: tuple[StatementLine, ...]
+    #: The money multiplier the header declared, or ``None`` when it declared
+    #: none. Kept because reconciling figures from a table rendered in millions
+    #: needs to know that: with no tolerance, a total that does not sum exactly
+    #: because of the table's own rounding reads as a contradiction.
+    money_scale: int | None = None
 
     def by_tag(self, tag: str) -> list[StatementLine]:
         """Every presented line tagged with ``tag``, in presentation order.
@@ -207,7 +212,8 @@ def parse_statement(html: str, *, report: ReportRef) -> RenderedStatement:
         ))
         if label_only and not _is_structural(concept):
             section = label
-    return RenderedStatement(report=report, title=title, columns=columns, lines=tuple(lines))
+    return RenderedStatement(report=report, title=title, columns=columns,
+                             lines=tuple(lines), money_scale=money)
 
 
 # --------------------------------------------------------------------------- #
