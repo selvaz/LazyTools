@@ -130,6 +130,19 @@ def _treasury_fiscal(allow_write: bool = False, *,
     return TreasuryFiscalTools(db_path=(data_source or {}).get("path"))
 
 
+@_register("alfred")
+def _alfred(allow_write: bool = False, *,
+           data_source: dict[str, Any] | None = None) -> Any:
+    """ALFRED point-in-time/vintage FRED data in market-data-hub.
+
+    Written by the hub's ingestion job, like the economic/earnings calendars,
+    so there is no write surface and ``allow_write`` is accepted and ignored.
+    """
+    from lazytools.connectors.alfred import ALFREDTools
+
+    return ALFREDTools(db_path=(data_source or {}).get("path"))
+
+
 @_register("tradingview")
 def _tradingview(allow_write: bool = False, *,
                  data_source: dict[str, Any] | None = None) -> Any:
