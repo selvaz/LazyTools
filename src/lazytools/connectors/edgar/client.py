@@ -618,20 +618,7 @@ def _media_type(filename: str) -> str:
 
 
 def _looks_like_html(filename: str, raw: str) -> bool:
-    """Should this document have its tags stripped to plain text?
-
-    Only HTML should. The old rule also caught anything merely STARTING with
-    "<", which is every XML document EDGAR serves -- including FilingSummary.xml,
-    the index of a filing's rendered statements. Stripping its tags leaves the
-    values in place and destroys the structure that says what they are, so a
-    caller gets a page of orphaned strings and no way to tell a report's name
-    from its filename. XML and JSON are structured formats: they come back
-    intact for a parser to read.
-    """
-    lowered = filename.lower()
-    if lowered.endswith((".xml", ".xsd", ".json")):
-        return False
-    return lowered.endswith((".htm", ".html")) or raw.lstrip().startswith("<")
+    return filename.lower().endswith((".htm", ".html")) or raw.lstrip().startswith("<")
 
 
 def _html_to_text(raw: str) -> str:

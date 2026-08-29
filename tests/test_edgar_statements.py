@@ -18,8 +18,7 @@ from lazytools.connectors.edgar.statements import (
     parse_statement,
 )
 
-REPORT = ReportRef(filename="R72.htm", short_name="Amortization schedule",
-                   category="Details", position=72)
+REPORT = ReportRef(filename="R72.htm", short_name="Amortization schedule", category="Details")
 
 
 def _row(concept: str, label: str, *values: str, strong: bool = False) -> str:
@@ -62,12 +61,6 @@ def _note():
 # --- the case the module exists for --------------------------------------- #
 
 
-def test_the_dimensioned_total_is_recovered_where_the_entity_wide_fact_is_not() -> None:
-    values = [ln.values[0] for ln in _note().lines if ln.values[0] is not None]
-    assert 1_653_000_000 in values
-    assert 955_000_000 in values
-
-
 def test_each_appearance_carries_the_label_that_says_which_slice_it_is() -> None:
     by_section = {ln.section: ln.values[0] for ln in _note().lines
                   if ln.tag == "AmortizationOfIntangibleAssets" and ln.values[0] is not None}
@@ -95,27 +88,24 @@ def test_one_concept_appearing_four_times_is_returned_four_times() -> None:
 def test_the_rendered_scale_is_applied_so_values_match_xbrl_facts() -> None:
     # The table says 1,653; the fact is 1,653,000,000. Returning the former
     # beside the latter is a factor-of-a-million error that looks like data.
-    assert _note().scale == 1_000_000
+    total = next(ln for ln in _note().lines if ln.section == "Total")
+    assert total.values[0] == 1_653_000_000
 
 
 def test_a_money_scale_is_read_past_a_share_scale() -> None:
     html = _table("Statements of Operations - USD ($) shares in Millions, $ in Thousands",
                   _row("us-gaap_Revenues", "Revenue", "1,000"))
-    result = parse_statement(html, report=REPORT)
-    assert result.scale == 1_000
-    assert result.lines[0].values[0] == 1_000_000
+    assert parse_statement(html, report=REPORT).lines[0].values[0] == 1_000_000
 
 
 def test_an_unreadable_scale_withholds_the_values_rather_than_guessing() -> None:
     html = _table("Some Schedule (Details)", _row("us-gaap_Revenues", "Revenue", "1,000"))
-    result = parse_statement(html, report=REPORT)
-    assert result.scale is None
-    assert result.lines[0].values == (None,)
+    assert parse_statement(html, report=REPORT).lines[0].values == (None,)
 
 
 def test_a_money_column_with_no_stated_scale_is_taken_as_units() -> None:
     html = _table("Balance Sheet - USD ($)", _row("us-gaap_Assets", "Total assets", "1,234"))
-    assert parse_statement(html, report=REPORT).scale == 1
+    assert parse_statement(html, report=REPORT).lines[0].values[0] == 1_234
 
 
 # --- values ---------------------------------------------------------------- #
@@ -140,15 +130,8 @@ def test_a_dash_is_read_as_absent_not_as_a_number() -> None:
 # --- concepts -------------------------------------------------------------- #
 
 
-def test_the_taxonomy_and_tag_are_split_out() -> None:
-    line = _note().by_tag("AmortizationOfIntangibleAssets")[0]
-    assert line.taxonomy == "us-gaap"
-    assert not line.is_extension
-
-
-def test_a_filer_extension_is_flagged_because_no_api_serves_it() -> None:
-    html = _table("X - USD ($) $ in Millions", _row("csco_SomeCustomMeasure", "Custom line", "10"))
-    assert parse_statement(html, report=REPORT).lines[0].is_extension
+def test_the_tag_is_split_from_its_taxonomy_prefix() -> None:
+    assert _note().by_tag("AmortizationOfIntangibleAssets")[0].concept.startswith("us-gaap_")
 
 
 # --- the report index ------------------------------------------------------ #
@@ -193,3 +176,61 @@ def test_a_filing_with_no_summary_says_so_instead_of_returning_nothing() -> None
 def test_a_summary_that_parses_to_no_reports_is_an_error_not_an_absence() -> None:
     with pytest.raises(ValueError, match="listed no reports"):
         list_reports(_Stub("<FilingSummary></FilingSummary>"), "0000858877", "x")
+
+
+# --- one table, several units: the EPS trap -------------------------------- #
+
+
+def test_a_per_share_row_is_not_multiplied_by_the_money_scale() -> None:
+    # "$ in Millions, except per share data" means exactly what it says. Scaling
+    # an EPS of 0.47 by a million gives 470,000 -- a number that looks like data.
+    html = _table("Statements of Operations - USD ($) $ in Millions, except per share data",
+                  _row("us-gaap_NetIncomeLoss", "Net income", "10,320")
+                  + _row("us-gaap_EarningsPerShareDiluted", "Diluted earnings per share", "0.47"))
+    lines = parse_statement(html, report=REPORT).lines
+    assert lines[0].values[0] == 10_320_000_000
+    assert lines[1].values[0] == 0.47
+
+
+def test_a_share_count_takes_the_share_scale_not_the_money_scale() -> None:
+    html = _table("Statements of Operations - USD ($) shares in Thousands, $ in Millions",
+                  _row("us-gaap_NetIncomeLoss", "Net income", "10,320")
+                  + _row("us-gaap_WeightedAverageNumberOfSharesOutstandingBasic",
+                         "Weighted average shares", "4,000"))
+    lines = parse_statement(html, report=REPORT).lines
+    assert lines[0].values[0] == 10_320_000_000
+    assert lines[1].values[0] == 4_000_000
+
+
+def test_a_share_count_with_no_stated_share_scale_is_withheld() -> None:
+    html = _table("Statements of Operations - USD ($) $ in Millions",
+                  _row("us-gaap_WeightedAverageNumberOfSharesOutstandingBasic",
+                       "Weighted average shares", "4,000"))
+    assert parse_statement(html, report=REPORT).lines[0].values[0] is None
+
+
+def test_a_bare_scale_survives_an_except_per_share_clause() -> None:
+    # Rejecting any header that mentions shares withheld ordinary money rows.
+    html = _table("Balance Sheets In Thousands, except per share data",
+                  _row("us-gaap_Assets", "Total assets", "1,234"))
+    assert parse_statement(html, report=REPORT).lines[0].values[0] == 1_234_000
+
+
+# --- multi-row headers ------------------------------------------------------ #
+
+
+def test_the_period_labels_come_from_the_last_header_row_not_the_spanning_one() -> None:
+    # Cisco renders "12 Months Ended" above three dates. Taking the first header
+    # row leaves one column label standing over three columns of values.
+    html = ("<html><body><table class=\"report\">"
+            "<tr><th class=\"tl\" colspan=\"1\" rowspan=\"2\"><div><strong>"
+            "Statements of Operations - USD ($) $ in Millions</strong></div></th>"
+            "<th class=\"th\" colspan=\"3\">12 Months Ended</th></tr>"
+            "<tr><th class=\"th\">Jul. 26, 2025</th><th class=\"th\">Jul. 27, 2024</th>"
+            "<th class=\"th\">Jul. 29, 2023</th></tr>"
+            + _row("us-gaap_Revenues", "Total revenue", "56,654", "53,803", "56,998")
+            + "</table></body></html>")
+    result = parse_statement(html, report=REPORT)
+    assert len(result.columns) == 3
+    assert result.columns[0].startswith("Jul. 26")
+    assert result.lines[0].values == (56_654_000_000, 53_803_000_000, 56_998_000_000)

@@ -1,33 +1,27 @@
 """Reading a filing's statements as the filer actually presented them.
 
 The XBRL fact APIs answer "what value did this company report for this concept",
-which is not the same question as "what does this company's income statement
-say". The difference is where silent errors live. Cisco's FY2024 filing tags
-``DepreciationDepletionAndAmortization`` at $700m and
-``AmortizationOfIntangibleAssets`` at $698m as separate entity-wide facts, and a
-reader that takes the first as total D&A understates it by two thirds — because
-a further $955m of intangible amortization sits inside cost of sales, and no
-entity-wide fact says so. The rendered statement does.
+which is not the same question as "what does this income statement say". The
+difference is where silent errors live. Cisco's FY2024 filing serves
+``AmortizationOfIntangibleAssets`` at $698m entity-wide; the real total is
+$1,653m, because $955m sits in cost of sales and reaches the API only as a
+dimensioned fact the entity-wide endpoint never returns. A reader taking the
+entity-wide number gets something with perfect provenance that is wrong by a
+factor of two.
 
-EDGAR generates those rendered statements itself, as the ``R*.htm`` files
-indexed by ``FilingSummary.xml``. Every line carries three things the facts
-alone do not:
+EDGAR renders those statements itself, as the ``R*.htm`` files indexed by
+``FilingSummary.xml``. Every line carries what the facts alone do not: the label
+the filer chose, the concept behind it, and where it sits. That is what makes an
+aggregate checkable — the same concept appearing four times in one note comes
+back four times, each with the label saying which slice it is.
 
-* the **label the filer chose** ("Total cost of sales", "GROSS MARGIN"),
-* the **concept** behind it, and
-* **where it sits** — which statement, and under which section heading.
-
-That is what makes an aggregate checkable: a total can be reconciled against the
-components presented beneath it, and a concept can be located in the statement
-rather than assumed to be entity-wide.
-
-**The scale is a trap and is handled explicitly.** These tables are rendered in
-thousands or millions — Cisco's says "$ in Millions" — while XBRL facts are in
-units. A parser that returns 56,654 next to a fact of 56,654,000,000 has
-produced two numbers that disagree by a factor of a million and look equally
-valid. :class:`RenderedStatement` records the multiplier and returns values in
-UNITS, so the two are directly comparable; when the scale cannot be read, values
-come back ``None`` rather than unscaled.
+**Scale is per row, not per table.** These tables are rendered in thousands or
+millions while XBRL facts are in units, so a multiplier has to be applied. But a
+header reading "$ in Millions, except per share data" means exactly what it
+says: multiplying an EPS of 0.47 by a million gives 470,000, a number that looks
+like data and is nonsense. So the money scale reaches monetary rows only;
+per-share rows are left in units, share counts take the share scale, and a row
+whose scale cannot be established comes back ``None`` rather than wrong.
 """
 
 from __future__ import annotations
@@ -35,7 +29,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from html import unescape
-from typing import Any
 
 from lazytools.connectors.edgar.client import EdgarService
 
@@ -46,14 +39,26 @@ STATEMENTS_CATEGORY = "Statements"
 
 _REPORT_BLOCK = re.compile(r"<Report[^>]*>(.*?)</Report>", re.S | re.I)
 _ROW = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S | re.I)
-_CELL = re.compile(r"<t[dh]\b([^>]*)>(.*?)</t[dh]>", re.S | re.I)
+_CELL = re.compile(r"<(t[dh])\b([^>]*)>(.*?)</\1>", re.S | re.I)
 _CONCEPT = re.compile(r"defref_([A-Za-z0-9_\-]+)")
-_CLASS = re.compile(r'class="([^"]*)"')
+_CLASS = re.compile(r"""class\s*=\s*["']?([^"'>]*)""", re.I)
 _TAGS = re.compile(r"<[^>]+>")
-#: "$ in Millions", "shares in Thousands, $ in Millions", "In Thousands".
+
 _SCALE_WORDS = {"units": 1, "thousands": 1_000, "millions": 1_000_000, "billions": 1_000_000_000}
 _MONEY_SCALE = re.compile(r"\$\s*in\s+(units|thousands|millions|billions)", re.I)
+_SHARE_SCALE = re.compile(r"shares?\s+in\s+(units|thousands|millions|billions)", re.I)
 _BARE_SCALE = re.compile(r"\bin\s+(units|thousands|millions|billions)\b", re.I)
+
+#: Concepts that hold a table together and never label anything. A note that
+#: splits a total by axis renders "[Line Items]" between the member name and its
+#: figures, so without this the section of every dimensioned row would be that
+#: string rather than "Cost of sales".
+_STRUCTURAL_SUFFIXES = ("LineItems", "Table", "Domain")
+#: A per-share row is rendered in actual currency whatever the table's money
+#: scale says — which is why "except per share data" appears in so many headers.
+_PER_SHARE = re.compile(r"per\s*share|pershare", re.I)
+#: A row counting shares takes the share scale, not the money scale.
+_SHARE_COUNT = re.compile(r"\bshares\b|sharesoutstanding|sharesissued", re.I)
 
 
 @dataclass(frozen=True)
@@ -63,14 +68,14 @@ class ReportRef:
     filename: str
     short_name: str
     category: str
-    position: int
 
     @property
     def is_primary_statement(self) -> bool:
         """A face financial statement rather than a note, cover or detail.
 
         Parentheticals are excluded: they carry share counts and par values, not
-        statement lines, and treating one as the balance sheet finds nothing.
+        statement lines. The test reads the filer's own title, so it follows a
+        convention rather than a guarantee.
         """
         return self.category == STATEMENTS_CATEGORY and "parenthetical" not in self.short_name.lower()
 
@@ -79,15 +84,17 @@ class ReportRef:
 class StatementLine:
     """One presented line: what it is called, what it is tagged as, its values.
 
-    ``values`` is aligned to :attr:`RenderedStatement.columns` and is already in
-    UNITS. ``None`` marks a cell the filer left blank, which is not zero.
+    ``values`` is aligned to :attr:`RenderedStatement.columns`. ``None`` marks a
+    cell the filer left blank — which is not zero — or a value whose scale could
+    not be established.
     """
 
     label: str
     concept: str | None
     values: tuple[float | None, ...]
-    is_abstract: bool
-    is_emphasised: bool
+    #: True when the row carries no values at all, so it labels its neighbours
+    #: rather than reporting anything.
+    is_label_only: bool
     section: str | None
 
     @property
@@ -97,82 +104,46 @@ class StatementLine:
             return None
         return self.concept.split("_", 1)[1] if "_" in self.concept else self.concept
 
-    @property
-    def taxonomy(self) -> str | None:
-        """``us-gaap``, ``ifrs-full``, or the filer's own namespace prefix."""
-        if self.concept is None:
-            return None
-        return self.concept.split("_", 1)[0] if "_" in self.concept else None
-
-    @property
-    def is_extension(self) -> bool:
-        """Tagged with the filer's OWN concept, which the XBRL APIs never serve.
-
-        Worth knowing on sight: a line that matters and is an extension is one
-        the fact APIs cannot reach at all, so the rendered statement is not a
-        cross-check for it — it is the only source.
-        """
-        return self.taxonomy not in (None, "us-gaap", "ifrs-full", "dei", "srt")
-
 
 @dataclass(frozen=True)
 class RenderedStatement:
-    """One statement as presented, with its scale resolved."""
+    """One statement as presented, with each row's scale resolved."""
 
     report: ReportRef
     title: str
     columns: tuple[str, ...]
     lines: tuple[StatementLine, ...]
-    #: Multiplier applied to every value, or ``None`` when it could not be read.
-    scale: int | None
-    scale_note: str
 
     def by_tag(self, tag: str) -> list[StatementLine]:
         """Every presented line tagged with ``tag``, in presentation order.
 
-        More than one is normal and is the point: a concept can appear in two
-        sections of one statement, and only the section says what it means.
+        More than one is normal and is the point: a concept can appear several
+        times in one report, and only the section says what each occurrence is.
         """
-        return [ln for ln in self.lines if ln.tag == tag]
-
-    def sections(self) -> list[str]:
-        """The section headings, in order."""
-        out: list[str] = []
-        for ln in self.lines:
-            if ln.is_abstract and ln.label not in out:
-                out.append(ln.label)
-        return out
+        return [line for line in self.lines if line.tag == tag]
 
 
 def list_reports(client: EdgarService, cik: str, accession: str) -> list[ReportRef]:
-    """Every rendered report in a filing, from its own index.
+    """Every rendered report in a filing, in presentation order, from its index.
 
     Raises:
-        ValueError: when the filing has no readable ``FilingSummary.xml``. Older
-            filings predate the renderer, and that is a fact about the filing
-            worth surfacing rather than an empty list to misread as "no
-            statements".
+        ValueError: when the filing has no readable ``FilingSummary.xml``.
+            Filings older than EDGAR's renderer have no rendered statements, and
+            that is worth saying rather than returning an empty list for a
+            caller to misread as "this filing has no balance sheet".
     """
-    document = client.get_filing_document(cik, accession, SUMMARY_FILENAME)
-    content = document.get("content") or ""
+    content = client.get_filing_document(cik, accession, SUMMARY_FILENAME, raw=True).get("content") or ""
     if not content.strip():
         raise ValueError(
             f"filing {accession} has no readable {SUMMARY_FILENAME}; filings before "
             "EDGAR's renderer have no rendered statements to read"
         )
-    reports: list[ReportRef] = []
-    for position, block in enumerate(_REPORT_BLOCK.findall(content), start=1):
-        filename = _field(block, "HtmlFileName") or _field(block, "XmlFileName")
-        if not filename:
-            continue
-        reports.append(
-            ReportRef(
-                filename=filename,
-                short_name=_field(block, "ShortName") or "",
-                category=_field(block, "MenuCategory") or "",
-                position=position,
-            )
-        )
+    reports = [
+        ReportRef(filename=name, short_name=_field(block, "ShortName"),
+                  category=_field(block, "MenuCategory"))
+        for block in _REPORT_BLOCK.findall(content)
+        if (name := _field(block, "HtmlFileName") or _field(block, "XmlFileName"))
+    ]
     if not reports:
         raise ValueError(f"{SUMMARY_FILENAME} for {accession} listed no reports; it may not have parsed")
     return reports
@@ -183,103 +154,107 @@ def read_statement(
 ) -> RenderedStatement:
     """Fetch and parse one rendered report.
 
-    The document is fetched RAW: the concept behind each line lives in an HTML
-    attribute, so tag-stripped text would deliver the numbers and discard what
-    they are.
+    Fetched raw: each line's concept lives in an HTML attribute, so tag-stripped
+    text would deliver the numbers and discard what they are.
     """
-    document = client.get_filing_document(cik, accession, report.filename, raw=True)
-    return parse_statement(document.get("content") or "", report=report)
+    content = client.get_filing_document(cik, accession, report.filename, raw=True).get("content") or ""
+    return parse_statement(content, report=report)
 
 
 def parse_statement(html: str, *, report: ReportRef) -> RenderedStatement:
     """Parse one ``R*.htm`` table. Pure — no network."""
-    rows = _ROW.findall(html)
-    title, scale_note, columns = "", "", []
-    lines: list[StatementLine] = []
-    section: str | None = None
+    title = ""
+    header_rows: list[list[str]] = []
+    raw_lines: list[tuple[str, str | None, tuple[str, ...]]] = []
 
-    for row in rows:
+    for row in _ROW.findall(html):
         cells = _CELL.findall(row)
         if not cells:
             continue
-        head = _plain(cells[0][1])
-        classes = _CLASS.search(cells[0][0])
-        first_class = classes.group(1) if classes else ""
+        kinds = {kind.lower() for kind, _, _ in cells}
+        classes = _classes(cells[0][1])
 
-        if "tl" in first_class.split():
-            # The header cell carries the statement's own title and its scale.
-            title = title or head
-            scale_note = scale_note or head
-            columns.extend(_plain(c[1]) for c in cells[1:] if _plain(c[1]))
-            continue
-        if not columns and all("th" in (_CLASS.search(c[0]).group(1) if _CLASS.search(c[0]) else "")
-                               for c in cells):
-            columns.extend(_plain(c[1]) for c in cells if _plain(c[1]))
-            continue
-        if "pl" not in first_class.split():
-            continue
+        if "tl" in classes:
+            title = title or _plain(cells[0][2])
+            header_rows.append([_plain(c[2]) for c in cells[1:]])
+        elif kinds == {"th"}:
+            header_rows.append([_plain(c[2]) for c in cells])
+        elif "pl" in classes:
+            match = _CONCEPT.search(cells[0][1] + cells[0][2])
+            raw_lines.append((_plain(cells[0][2]),
+                              match.group(1) if match else None,
+                              tuple(_plain(c[2]) for c in cells[1:])))
 
-        concept_match = _CONCEPT.search(cells[0][0] + cells[0][1])
-        concept = concept_match.group(1) if concept_match else None
-        values_here = tuple(_number(c[1], c[0]) for c in cells[1:])
-        # A row carrying no values labels the rows around it rather than
-        # reporting anything. That covers more than "*Abstract": a note that
-        # breaks a total down by axis renders the member name ("Cost of sales",
-        # "Operating expenses", "Total") as its own value-less row, and those
-        # are precisely the labels that say which slice the next figures are.
-        # Cisco's amortisation schedule is unreadable without them: the same
-        # concept appears four times with four different meanings.
-        is_abstract = all(v is None for v in values_here)
-        line = StatementLine(
-            label=head,
+    # The LAST header row carries the period labels. Earlier rows span them
+    # ("12 Months Ended" above three dates), so taking the first leaves one
+    # column label standing over three columns of values.
+    columns = next((tuple(r) for r in reversed(header_rows) if len(r) > 1),
+                   tuple(header_rows[-1]) if header_rows else ())
+    money, shares = _scale(title, "money"), _scale(title, "shares")
+
+    lines: list[StatementLine] = []
+    section: str | None = None
+    for label, concept, texts in raw_lines:
+        numbers = [_number(t) for t in texts]
+        label_only = all(n is None for n in numbers)
+        scale = _row_scale(label, concept, money, shares)
+        lines.append(StatementLine(
+            label=label,
             concept=concept,
-            values=values_here,
-            is_abstract=is_abstract,
-            is_emphasised="<strong>" in cells[0][1].lower(),
-            section=None if is_abstract else section,
-        )
-        if is_abstract and not _is_structural(concept):
-            section = head
-        lines.append(line)
-
-    scale = _scale(scale_note)
-    if scale is not None and scale != 1:
-        lines = [
-            StatementLine(
-                label=ln.label, concept=ln.concept,
-                values=tuple(None if v is None else v * scale for v in ln.values),
-                is_abstract=ln.is_abstract, is_emphasised=ln.is_emphasised, section=ln.section,
-            )
-            for ln in lines
-        ]
-    elif scale is None:
-        # Unscaled values are a factor of a thousand or a million away from the
-        # facts they would be compared against. Withheld rather than returned.
-        lines = [
-            StatementLine(
-                label=ln.label, concept=ln.concept, values=tuple(None for _ in ln.values),
-                is_abstract=ln.is_abstract, is_emphasised=ln.is_emphasised, section=ln.section,
-            )
-            for ln in lines
-        ]
-    return RenderedStatement(
-        report=report, title=title, columns=tuple(columns), lines=tuple(lines),
-        scale=scale, scale_note=scale_note,
-    )
+            values=tuple(None if n is None or scale is None else n * scale for n in numbers),
+            is_label_only=label_only,
+            section=None if label_only else section,
+        ))
+        if label_only and not _is_structural(concept):
+            section = label
+    return RenderedStatement(report=report, title=title, columns=columns, lines=tuple(lines))
 
 
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
-#: Concepts that exist to hold a table together and never label anything.
-#: A note that splits a total by axis renders "[Line Items]" between the member
-#: name and its figures, so without this the section of every dimensioned row is
-#: the same meaningless string instead of "Cost of sales".
-_STRUCTURAL_SUFFIXES = ("LineItems", "Table", "Domain")
+def _row_scale(label: str, concept: str | None, money: int | None, shares: int | None) -> int | None:
+    """The multiplier for ONE row, or ``None`` to withhold its values.
+
+    One table can mix a money scale, a share scale and per-share amounts
+    rendered in actual currency. Applying the header's money multiplier to every
+    row is how an EPS of 0.47 becomes 470,000.
+    """
+    text = f"{label} {concept or ''}"
+    if _PER_SHARE.search(text):
+        return 1
+    if _SHARE_COUNT.search(text):
+        return shares
+    return money
+
+
+def _scale(note: str, kind: str) -> int | None:
+    """The money or share multiplier stated in a table's header.
+
+    Read separately because a header carries both: "shares in Millions, $ in
+    Thousands" scales currency by a thousand and share counts by a million, so
+    whichever is matched first is the wrong answer for the other.
+    """
+    specific = (_MONEY_SCALE if kind == "money" else _SHARE_SCALE).search(note)
+    if specific:
+        return _SCALE_WORDS[specific.group(1).lower()]
+    if kind == "money":
+        bare = _BARE_SCALE.search(note)
+        if bare:
+            return _SCALE_WORDS[bare.group(1).lower()]
+        if "$" in note:
+            # A money column with no stated scale: EDGAR renders it in units.
+            return 1
+    return None
 
 
 def _is_structural(concept: str | None) -> bool:
     return bool(concept) and concept.endswith(_STRUCTURAL_SUFFIXES)
+
+
+def _classes(attributes: str) -> set[str]:
+    match = _CLASS.search(attributes)
+    return set(match.group(1).split()) if match else set()
 
 
 def _field(block: str, name: str) -> str:
@@ -291,36 +266,16 @@ def _plain(cell: str) -> str:
     return " ".join(unescape(_TAGS.sub(" ", cell)).replace("\xa0", " ").split())
 
 
-def _scale(note: str) -> int | None:
-    """The money multiplier from a header like "$ in Millions".
-
-    The money scale is read first and separately: a header saying "shares in
-    Millions, $ in Thousands" carries two, and taking whichever appears first
-    scales every currency figure by a thousand too much.
-    """
-    money = _MONEY_SCALE.search(note)
-    if money:
-        return _SCALE_WORDS[money.group(1).lower()]
-    bare = _BARE_SCALE.search(note)
-    if bare and "share" not in note.lower():
-        return _SCALE_WORDS[bare.group(1).lower()]
-    if note and "$" in note:
-        # A money column with no stated scale: EDGAR renders those in units.
-        return 1
-    return None
-
-
-def _number(cell: str, attributes: str) -> float | None:
-    text = _plain(cell).replace("$", "").replace(",", "").strip()
-    if not text or text in {"-", "—", "–"}:
+def _number(text: str) -> float | None:
+    cleaned = text.replace("$", "").replace(",", "").strip()
+    if not cleaned or cleaned in {"-", "—", "–"}:
         return None
-    negative = text.startswith("(") and text.endswith(")")
-    text = text.strip("()").rstrip("%").strip()
+    negative = cleaned.startswith("(") and cleaned.endswith(")")
+    cleaned = cleaned.strip("()").rstrip("%").strip()
     try:
-        value = float(text)
+        value = float(cleaned)
     except ValueError:
         return None
-    _ = attributes  # class carries no sign information EDGAR does not also render
     return -value if negative else value
 
 
