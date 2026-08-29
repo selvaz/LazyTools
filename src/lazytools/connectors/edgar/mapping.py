@@ -31,19 +31,30 @@ from lazytools.financials.normalised import COMPUTED_ELEMENTS, ELEMENTS
 #: an analysis. The caller overrides it when it wants something else.
 DEFAULT_MODEL = "deepseek-v4-flash"
 
-_SYSTEM = """You map lines of a company's own financial statements onto a fixed set of
+#: The rules that survive as a literal, because they describe THIS call's
+#: contract rather than how filings behave: what to return and in what form.
+#: Everything about how filings behave comes from the instruction library, where
+#: it can be read, cited and corrected by someone who is not editing Python.
+_TASK = """You map lines of a company's own financial statements onto a fixed set of
 normalised element ids. You are labelling, not analysing.
 
-Rules, in order of importance:
-1. Refer to a line by its statement and its exact label. NEVER report a number:
-   the value is read from the statement by the caller, not from you.
-2. If an element is not present in what you were given, say so and say why. Do
-   not infer it from a related line, and do not compute it.
-3. A concept name can appear several times in one statement with different
-   meanings. Choose by the label and by where the line sits, not by the concept.
-4. Prefer the consolidated total over any segment or product breakdown.
-Return one entry per element you can place, and one absence per element you
-cannot."""
+Refer to a line by its statement and its exact label. If an element is not
+present in what you were given, say so and say why: do not infer it from a
+related line, and do not compute it. Prefer the consolidated total over any
+segment or product breakdown. Return one entry per element you can place, and
+one absence per element you cannot."""
+
+
+def _system() -> str:
+    """The mapping call's instructions: this call's contract, then the library.
+
+    Imported inside the function because the library lives in the skills
+    package and the skills package builds agents over these connectors;
+    importing it at module scope closes that circle.
+    """
+    from lazytools.skills.retriever import mapping_instructions
+
+    return f"{_TASK}\n\n{mapping_instructions()}"
 
 
 @dataclass(frozen=True)
@@ -183,7 +194,7 @@ def propose(
     does with an unplaced element.
     """
     task = (
-        f"{_SYSTEM}\n\nThe normalised elements:\n{elements_as_prompt()}\n\n"
+        f"{_system()}\n\nThe normalised elements:\n{elements_as_prompt()}\n\n"
         f"The statements as presented:\n{statements_as_prompt(statements, column=column)}\n\n"
         'Answer as JSON: {"mapped": [{"element_id": ..., "statement": ..., "label": ...}], '
         '"absent": [{"element_id": ..., "reason": ...}]}'
@@ -203,11 +214,15 @@ def _default_agent(model: str):
     document rather than of the day it was read — temperature zero is the
     cheapest part of holding that, and caching the mapping by accession is the
     rest of it, which belongs to whatever stores these bases.
+
+    No system prompt: the instructions travel in the task instead, so an
+    injected agent gets exactly what the default one gets. They used to be in
+    both places, which sent the whole of them twice per call.
     """
     from lazybridge import Agent, LLMEngine
 
     agent = Agent(
-        engine=LLMEngine(model, system=_SYSTEM, temperature=0),
+        engine=LLMEngine(model, temperature=0),
         name="statement_mapper",
     )
     return lambda task: agent(task).text()
