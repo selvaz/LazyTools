@@ -104,6 +104,45 @@ def _earnings_calendar(allow_write: bool = False, *,
     return EarningsCalendarTools(db_path=(data_source or {}).get("path"))
 
 
+@_register("cftc_cot")
+def _cftc_cot(allow_write: bool = False, *,
+             data_source: dict[str, Any] | None = None) -> Any:
+    """CFTC Commitments of Traders positioning (TFF + Legacy) in market-data-hub.
+
+    Written by the hub's ingestion job, like the economic/earnings calendars,
+    so there is no write surface and ``allow_write`` is accepted and ignored.
+    """
+    from lazytools.connectors.cftc_cot import CFTCPositioningTools
+
+    return CFTCPositioningTools(db_path=(data_source or {}).get("path"))
+
+
+@_register("treasury_fiscal")
+def _treasury_fiscal(allow_write: bool = False, *,
+                     data_source: dict[str, Any] | None = None) -> Any:
+    """U.S. Treasury Fiscal Data (cash balance, debt, auctions) in market-data-hub.
+
+    Written by the hub's ingestion job, like the economic/earnings calendars,
+    so there is no write surface and ``allow_write`` is accepted and ignored.
+    """
+    from lazytools.connectors.treasury_fiscal import TreasuryFiscalTools
+
+    return TreasuryFiscalTools(db_path=(data_source or {}).get("path"))
+
+
+@_register("alfred")
+def _alfred(allow_write: bool = False, *,
+           data_source: dict[str, Any] | None = None) -> Any:
+    """ALFRED point-in-time/vintage FRED data in market-data-hub.
+
+    Written by the hub's ingestion job, like the economic/earnings calendars,
+    so there is no write surface and ``allow_write`` is accepted and ignored.
+    """
+    from lazytools.connectors.alfred import ALFREDTools
+
+    return ALFREDTools(db_path=(data_source or {}).get("path"))
+
+
 @_register("tradingview")
 def _tradingview(allow_write: bool = False, *,
                  data_source: dict[str, Any] | None = None) -> Any:
@@ -156,6 +195,59 @@ def _polymarket(allow_write: bool = False, *,
     if budget is not None and budget <= 0:
         budget = None
     return PolymarketTools(max_calls=budget)
+
+
+@_register("gleif")
+def _gleif(allow_write: bool = False, *,
+           data_source: dict[str, Any] | None = None) -> Any:
+    """GLEIF's public, keyless LEI (legal-entity identifier) lookup API.
+
+    Public and keyless, like ``polymarket``/``tradingview``: no write
+    surface at all (this is a read-only reference lookup, not something an
+    agent could meaningfully write to), so ``allow_write`` is accepted and
+    ignored.
+
+    One environment knob, same convention as ``polymarket``:
+    ``LAZYTOOLS_GLEIF_MAX_CALLS`` (default 200 here, ``0`` to remove the
+    guard).
+    """
+    from lazytools.connectors.gleif import GLEIFTools
+
+    raw = os.environ.get("LAZYTOOLS_GLEIF_MAX_CALLS", "200")
+    try:
+        budget: int | None = int(raw)
+    except ValueError:
+        budget = 200
+    if budget is not None and budget <= 0:
+        budget = None
+    return GLEIFTools(max_calls=budget)
+
+
+@_register("manifold")
+def _manifold(allow_write: bool = False, *,
+              data_source: dict[str, Any] | None = None) -> Any:
+    """Manifold Markets' public, keyless prediction-market read endpoints.
+
+    A second prediction-market connector alongside ``polymarket``: mostly
+    play-money, so its probabilities are a crowd-forecast signal rather than
+    Polymarket's real-money price. No write surface at all (placing a bet
+    needs an API key and account this connector does not carry), so
+    ``allow_write`` is accepted and ignored.
+
+    One environment knob, same convention as ``polymarket``:
+    ``LAZYTOOLS_MANIFOLD_MAX_CALLS`` (default 200 here, ``0`` to remove the
+    guard).
+    """
+    from lazytools.connectors.manifold import ManifoldTools
+
+    raw = os.environ.get("LAZYTOOLS_MANIFOLD_MAX_CALLS", "200")
+    try:
+        budget: int | None = int(raw)
+    except ValueError:
+        budget = 200
+    if budget is not None and budget <= 0:
+        budget = None
+    return ManifoldTools(max_calls=budget)
 
 
 @_register("regimes")

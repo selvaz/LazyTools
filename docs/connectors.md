@@ -26,6 +26,8 @@ The **Extra** column below is what goes in the brackets (`—` = no extra needed
 | **Regime detection** | `lazystats.regimes` HMM/MS engines as `regime_*` tools: fit, state scans, summaries/changes, window comparison, plots, SQLite depot. Reads always on; `allow_write=True` gates fit/persist/delete. Data loads only via market-data-hub. | — (needs `lazystats[regimes]` from git) | [Regime detection](regimes.md) |
 | **TradingView screener** | Live market cross-section as six read-only tools: breadth counts, named ranked screens, and fund/fundamental/technical/consensus snapshots. Closed vocabularies — the model never composes a filter — with units and provenance on every reply. Snapshot only: no history, nothing stored. | `[tradingview]` | [TradingView screener](tradingview.md) |
 | **Polymarket** | Prediction-market data as five read-only tools: market discovery/metadata (Gamma) plus live order book, best price, and midpoint (CLOB), keyed by outcome token id. No wallet, no order placement. | `[polymarket]` | [Polymarket](polymarket.md) |
+| **GLEIF** | Legal-entity identifier (LEI) lookup as five read-only tools: search, single-record lookup, direct/ultimate parent, direct/ultimate children, fuzzy name completion. Public, keyless JSON:API. | `[gleif]` | [GLEIF](gleif.md) |
+| **Manifold Markets** | A second prediction-market connector, mostly play-money: listing/search, single-market lookup, probability, recent bets. No wallet, no order placement. | `[manifold]` | [Manifold Markets](manifold.md) |
 | **Web** | LazyCrawler's search/crawl/get-page surfaced as LLM tools (interface only — the crawler engine stays standalone). | `[web]` | — |
 | **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `[docs]` | [Documents](documents.md) |
 | **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | — | [Skills](skills.md) |
@@ -147,6 +149,28 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     # polymarket_order_book/_price/_midpoint read CLOB, keyed by the
     # clob_token_ids a market listing returns. Public, keyless, read-only.
     agent = Agent("claude-opus-4-8", tools=[PolymarketTools()])
+    ```
+
+=== "GLEIF"
+
+    ```python
+    from lazybridge import Agent
+    from lazytools.connectors.gleif import GLEIFTools
+
+    # gleif_search/_get_record read the LEI catalog; gleif_parents/_children
+    # walk the ownership graph. Public, keyless JSON:API, read-only.
+    agent = Agent("claude-opus-4-8", tools=[GLEIFTools()])
+    ```
+
+=== "Manifold Markets"
+
+    ```python
+    from lazybridge import Agent
+    from lazytools.connectors.manifold import ManifoldTools
+
+    # manifold_list_markets/_search_markets never populate answers; only
+    # manifold_get_market/_probability do. Public, keyless, read-only.
+    agent = Agent("claude-opus-4-8", tools=[ManifoldTools()])
     ```
 
 === "Web"

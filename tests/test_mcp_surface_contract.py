@@ -36,8 +36,13 @@ EXPECTED_PROVIDER_IDS = {
     "statistical",
     "econ_calendar",
     "earnings_calendar",
+    "cftc_cot",
+    "treasury_fiscal",
+    "alfred",
     "tradingview",
     "polymarket",
+    "gleif",
+    "manifold",
     "calendar_agent",
     "regimes",
     "report",
@@ -128,6 +133,21 @@ EARNINGS_TOOLS = {
     "earnings_event",
 }
 
+CFTC_COT_TOOLS = {
+    "cftc_positioning_financial",
+    "cftc_positioning_commodities",
+}
+
+TREASURY_FISCAL_TOOLS = {
+    "treasury_cash_balance",
+    "treasury_debt",
+    "treasury_auctions",
+}
+
+ALFRED_TOOLS = {
+    "alfred_vintage",
+}
+
 TRADINGVIEW_TOOLS = {
     "tradingview_vocabulary",
     "tradingview_fields",
@@ -143,6 +163,22 @@ POLYMARKET_TOOLS = {
     "polymarket_order_book",
     "polymarket_price",
     "polymarket_midpoint",
+}
+
+GLEIF_TOOLS = {
+    "gleif_search",
+    "gleif_get_record",
+    "gleif_parents",
+    "gleif_children",
+    "gleif_fuzzy_search",
+}
+
+MANIFOLD_TOOLS = {
+    "manifold_list_markets",
+    "manifold_search_markets",
+    "manifold_get_market",
+    "manifold_probability",
+    "manifold_recent_bets",
 }
 
 REPORT_READ = {"render_memo", "render_memo_html"}
@@ -185,6 +221,27 @@ def test_earnings_calendar_contract() -> None:
     assert _names(EarningsCalendarTools()) == EARNINGS_TOOLS
 
 
+def test_cftc_cot_contract() -> None:
+    """Read-only: the data is written by the hub's ingestion job, never by an agent."""
+    from lazytools.connectors.cftc_cot import CFTCPositioningTools
+
+    assert _names(CFTCPositioningTools()) == CFTC_COT_TOOLS
+
+
+def test_treasury_fiscal_contract() -> None:
+    """Read-only: the data is written by the hub's ingestion job, never by an agent."""
+    from lazytools.connectors.treasury_fiscal import TreasuryFiscalTools
+
+    assert _names(TreasuryFiscalTools()) == TREASURY_FISCAL_TOOLS
+
+
+def test_alfred_contract() -> None:
+    """Read-only: the data is written by the hub's ingestion job, never by an agent."""
+    from lazytools.connectors.alfred import ALFREDTools
+
+    assert _names(ALFREDTools()) == ALFRED_TOOLS
+
+
 def test_tradingview_contract() -> None:
     """Read-only: the endpoint has no write surface and nothing is persisted.
 
@@ -208,6 +265,32 @@ def test_polymarket_contract() -> None:
 
     provider = PolymarketTools(client=PolymarketClient(transport=object()))
     assert _names(provider) == POLYMARKET_TOOLS
+
+
+def test_gleif_contract() -> None:
+    """Read-only: this is a reference lookup, there is nothing to write.
+
+    Constructed with a client that has no transport, so building the tool
+    list reaches no network -- the contract is about the surface, not the
+    service.
+    """
+    from lazytools.connectors.gleif import GLEIFClient, GLEIFTools
+
+    provider = GLEIFTools(client=GLEIFClient(transport=object()))
+    assert _names(provider) == GLEIF_TOOLS
+
+
+def test_manifold_contract() -> None:
+    """Read-only: no write surface at all, betting needs an API key.
+
+    Constructed with a client that has no transport, so building the tool
+    list reaches no network -- the contract is about the surface, not the
+    service.
+    """
+    from lazytools.connectors.manifold import ManifoldClient, ManifoldTools
+
+    provider = ManifoldTools(client=ManifoldClient(transport=object()))
+    assert _names(provider) == MANIFOLD_TOOLS
 
 
 def test_fin_provider_contract(monkeypatch) -> None:

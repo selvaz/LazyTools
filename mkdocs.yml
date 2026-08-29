@@ -74,6 +74,11 @@ plugins:
           - datahub.md
           - tradingview.md
           - polymarket.md
+          - gleif.md
+          - cftc-cot.md
+          - manifold.md
+          - treasury-fiscal.md
+          - alfred.md
           - regimes.md
           - statistical-analysis.md
           - portfolio-optimization.md
@@ -147,6 +152,11 @@ nav:
       - Financial data (market-data-hub): datahub.md
       - TradingView screener: tradingview.md
       - Polymarket: polymarket.md
+      - GLEIF (LEI lookup): gleif.md
+      - CFTC Commitments of Traders: cftc-cot.md
+      - Manifold Markets: manifold.md
+      - Treasury Fiscal Data: treasury-fiscal.md
+      - ALFRED (vintage/point-in-time): alfred.md
       - Regime detection: regimes.md
       - Statistical analysis: statistical-analysis.md
       - Portfolio optimization: portfolio-optimization.md
