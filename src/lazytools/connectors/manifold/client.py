@@ -221,7 +221,12 @@ class ManifoldClient:
         limit: int = 20,
         before: str | None = None,
     ) -> list[Market]:
-        """Return one page of markets ordered by most recent update."""
+        """Return one page of markets ordered by most recent creation.
+
+        Verified live: consecutive rows' ``createdTime`` is strictly
+        descending while ``lastUpdatedTime`` is not sorted at all -- this
+        endpoint orders by creation, not by update or activity.
+        """
         params: dict[str, Any] = {"limit": limit}
         if before is not None:
             params["before"] = before

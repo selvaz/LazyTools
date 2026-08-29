@@ -62,20 +62,24 @@ the listing already gave it.
 
 Unlike Polymarket's `polymarket_list_markets(order=...)`, Manifold's
 `/markets` listing endpoint has no ranking parameter at all —
-`manifold_list_markets` returns a page ordered by most-recently-updated,
-full stop, and this connector does not silently re-sort or filter that page
-by `volume`, `volume_24h`, or `total_liquidity` before handing it back. If
-an agent wants "the biggest markets right now" it has two real options: use
-`manifold_search_markets` with a relevant term (search relevance is the
-closest thing to a ranking here) and inspect `volume`/`total_liquidity` on
-each result, or sort the raw rows client-side after fetching them — there is
-no vendor-side shortcut to ask for.
+`manifold_list_markets` returns a page ordered by most-recently-**created**
+(verified live: consecutive rows' `createdTime` is strictly descending while
+`lastUpdatedTime` is not sorted at all — a newly-created market appears
+before one that was just heavily traded), full stop, and this connector does
+not silently re-sort or filter that page by `volume`, `volume_24h`, or
+`total_liquidity` before handing it back. If an agent wants "the biggest
+markets right now" it has two real options: use `manifold_search_markets`
+with a relevant term (search relevance is the closest thing to a ranking
+here) and inspect `volume`/`total_liquidity` on each result, or sort the raw
+rows client-side after fetching them — there is no vendor-side shortcut to
+ask for. Page past the first `limit` rows with `before` (a market id from
+the prior page's last row).
 
 ## The tools
 
 | Tool | What it does |
 |---|---|
-| `manifold_list_markets` | a page of markets ordered by most-recently-updated (no volume/liquidity sort); `answers` is always `null` here |
+| `manifold_list_markets` | a page of markets ordered by most-recently-**created** (no volume/liquidity/activity sort); `before` pages further back; `answers` is always `null` here |
 | `manifold_search_markets` | full-text search by a required `term`; same shape and same `answers: null` caveat as listing |
 | `manifold_get_market` | one full market by exactly one of `market_id` or `slug`; `found=False` rather than an error on a typo; populates `answers` (as does `manifold_probability` below — never `manifold_list_markets`/`manifold_search_markets`) |
 | `manifold_probability` | current probability data for one market id — `probability` for `BINARY`, `answers` for `MULTIPLE_CHOICE` |

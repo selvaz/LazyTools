@@ -163,6 +163,23 @@ def test_list_markets_caps_limit_at_max_rows() -> None:
     assert params["limit"] == MAX_ROWS
 
 
+def test_list_markets_before_pages_past_the_first_result() -> None:
+    # Codex PR review finding: without forwarding `before`, every call
+    # returned the same newest page and a market older than the first
+    # MAX_ROWS results was unreachable.
+    stub = _Stub(routes={"/markets": []})
+    tools = _tools(stub)
+    tools.manifold_list_markets(before="some-market-id")
+    _, params = stub.gets[0]
+    assert params["before"] == "some-market-id"
+
+    # Omitted (the default) must not send a literal empty string upstream.
+    stub2 = _Stub(routes={"/markets": []})
+    _tools(stub2).manifold_list_markets()
+    _, params2 = stub2.gets[0]
+    assert "before" not in params2
+
+
 # --------------------------------------------------------------------------- #
 # manifold_search_markets
 # --------------------------------------------------------------------------- #

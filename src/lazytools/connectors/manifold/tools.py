@@ -76,14 +76,15 @@ class ManifoldTools:
         out.update(extra)
         return out
 
-    def manifold_list_markets(self, limit: int = 20) -> dict:
-        """A page of Manifold markets sorted by most-recently-updated, not by volume or liquidity as Polymarket listings can be; this endpoint has no server-side top-by-volume ordering, so for high-activity markets use ``manifold_search_markets`` with a relevant term or sort these rows client-side by ``volume`` or ``total_liquidity``.
+    def manifold_list_markets(self, limit: int = 20, before: str = "") -> dict:
+        """A page of Manifold markets sorted by most-recently-created, not by volume, liquidity, or last activity as Polymarket listings can be; this endpoint has no server-side top-by-volume ordering, so for high-activity markets use ``manifold_search_markets`` with a relevant term or sort these rows client-side by ``volume`` or ``total_liquidity``.
 
         Args:
-            limit: number of most-recently-updated markets to return, at most 100.
+            limit: number of most-recently-created markets to return, at most 100.
+            before: pass a market id from a prior page's last row to fetch older markets past it -- without this every call returns the same newest page.
         """
         rows_wanted = max(1, min(int(limit), MAX_ROWS))
-        markets = self._client.list_markets(limit=rows_wanted)
+        markets = self._client.list_markets(limit=rows_wanted, before=before or None)
         return self._envelope(
             returned=len(markets),
             markets=[_market_dict(market) for market in markets],
