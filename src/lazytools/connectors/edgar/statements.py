@@ -59,6 +59,12 @@ _STRUCTURAL_SUFFIXES = ("LineItems", "Table", "Domain")
 _PER_SHARE = re.compile(r"per\s*share|pershare", re.I)
 #: A row counting shares takes the share scale, not the money scale.
 _SHARE_COUNT = re.compile(r"\bshares\b|sharesoutstanding|sharesissued", re.I)
+#: Titles filers give the face statements. Used only to rescue a report the
+#: renderer failed to categorise — never to demote one it did.
+_FACE_TITLE = re.compile(
+    r"statements?\s+of\s+(income|operations|earnings|comprehensive|cash\s*flows?|"
+    r"stockholders|shareholders|equity|financial\s+position)|"
+    r"balance\s+sheets?|income\s+statements?", re.I)
 
 
 @dataclass(frozen=True)
@@ -74,10 +80,20 @@ class ReportRef:
         """A face financial statement rather than a note, cover or detail.
 
         Parentheticals are excluded: they carry share counts and par values, not
-        statement lines. The test reads the filer's own title, so it follows a
-        convention rather than a guarantee.
+        statement lines.
+
+        The MenuCategory is a convention, and filers break it. Walmart's FY2022
+        filing files "Consolidated Statements of Income" under ``Uncategorized``
+        while every other face statement in the same document sits under
+        ``Statements`` — so a category-only test dropped the income statement
+        without a word, and a six-year series came back with three years of
+        revenue and three years of silence. So the title is consulted too: a
+        report the filer named as a face statement is one, whatever drawer the
+        renderer put it in.
         """
-        return self.category == STATEMENTS_CATEGORY and "parenthetical" not in self.short_name.lower()
+        if "parenthetical" in self.short_name.lower():
+            return False
+        return self.category == STATEMENTS_CATEGORY or bool(_FACE_TITLE.search(self.short_name))
 
 
 @dataclass(frozen=True)

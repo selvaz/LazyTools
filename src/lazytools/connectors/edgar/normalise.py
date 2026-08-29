@@ -155,27 +155,12 @@ def normalise(
     window = resolve(interpret(period)[0], fiscal_year_end=profile.get("fiscal_year_end"))
     columns = _columns_for(_read_statements(client, cik, accession), window)
 
-    elements: dict[str, Element] = {}
     if not columns:
         mapping = Mapping(refs=(), absences=(), rejected=(
             f"no rendered column covers {window.start}..{window.end}",))
     else:
         mapping = _mapping_for(columns, accession, agent, model, store)
-        presented = _resolve_refs(mapping, columns)
-        for element_id, line in presented.items():
-            value, note = _apply_sign(element_id, line.value)
-            elements[element_id] = Element(
-                element_id, value, "reported",
-                route=f"{line.statement}: {line.label!r}" + (f" ({note})" if note else ""),
-                sources=(f"{accession} / {line.statement}"
-                         + (f" / us-gaap:{line.concept}" if line.concept else ""),))
-        _check_totals(elements, columns)
-        _derive(elements)
-
-    for absence in mapping.absences:
-        elements.setdefault(absence.element_id, Element(
-            absence.element_id, None, "unavailable",
-            blocked_reason=f"not present in the filing's statements: {absence.reason}"))
+    elements = _elements_for(mapping, columns, accession)
 
     return NormalisedBase(
         issuer_name=str(profile.get("name") or company),
@@ -193,12 +178,53 @@ def normalise(
     )
 
 
+def _elements_for(
+    mapping: Mapping, columns: list[_Column], accession: str
+) -> dict[str, Element]:
+    """Every element for ONE period, from a mapping already made.
+
+    Separated from :func:`normalise` because a mapping is a property of the
+    document and not of the period: the label "Total revenue" names the same
+    line whichever column you read. So one mapping serves every period a filing
+    presents, and a series can reuse it instead of asking the model once per
+    year — which would also risk three different answers about one document.
+    """
+    elements: dict[str, Element] = {}
+    for element_id, line in _resolve_refs(mapping, columns).items():
+        value, note = _apply_sign(element_id, line.value)
+        elements[element_id] = Element(
+            element_id, value, "reported",
+            route=f"{line.statement}: {line.label!r}" + (f" ({note})" if note else ""),
+            sources=(f"{accession} / {line.statement}"
+                     + (f" / us-gaap:{line.concept}" if line.concept else ""),))
+    if columns:
+        _check_totals(elements, columns)
+        _derive(elements)
+    for absence in mapping.absences:
+        elements.setdefault(absence.element_id, Element(
+            absence.element_id, None, "unavailable",
+            blocked_reason=f"not present in the filing's statements: {absence.reason}"))
+    return elements
+
+
 # --------------------------------------------------------------------------- #
 # Reading the filing
 # --------------------------------------------------------------------------- #
-def _annual_filing(client: EdgarService, cik: str, as_of: date | None) -> dict[str, Any] | None:
+def _annual_filing(
+    client: EdgarService, cik: str, as_of: date | None, *, deep: bool = False
+) -> dict[str, Any] | None:
+    """The most recent annual filing on or before ``as_of``.
+
+    ``deep`` reaches past EDGAR's recent-filings block into the paginated
+    history. Off by default because it costs extra requests and the newest
+    filing is always in the recent block; on when walking backwards, where
+    leaving it off makes an issuer look as though it stopped filing. Walmart
+    returns three 10-Ks without it and its whole record with it, which is how a
+    six-year series quietly came back with three years.
+    """
     for form in ("10-K", "20-F", "40-F"):
-        for filing in client.list_filings(cik, form=form, limit=10):
+        for filing in client.list_filings(cik, form=form, limit=10 if not deep else 40,
+                                          include_history=deep):
             filed = filing.get("filed_at", "")
             if as_of is None or (filed and filed <= as_of.isoformat()):
                 return filing
