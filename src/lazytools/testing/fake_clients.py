@@ -188,6 +188,8 @@ class FakeEdgarClient:
 
     def __init__(self) -> None:
         self.default_cik = _FAKE_EDGAR_DEFAULT_CIK
+        #: MMDD fiscal year end, matching the canned Apple data above.
+        self.fye: str | None = "0928"
         self.companies: list[dict[str, str]] = [
             {"cik": _FAKE_EDGAR_DEFAULT_CIK, "ticker": "AAPL", "title": "Apple Inc."},
         ]
@@ -293,7 +295,12 @@ class FakeEdgarClient:
         partial = [dict(c) for c in self.companies if c["ticker"].lower() != q and q in c["title"].lower()]
         return (exact + partial)[:limit]
 
-    def list_filings(self, cik: str, *, form: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
+    def list_filings(
+        self, cik: str, *, form: str | None = None, limit: int = 20, include_history: bool = False
+    ) -> list[dict[str, Any]]:
+        # include_history is accepted and ignored: this fake holds one flat
+        # list with no notion of a recent-vs-archived split, and refusing the
+        # argument would make code that passes it untestable against the fake.
         self.calls.append(("list_filings", cik))
         padded = _fake_edgar_pad_cik(cik)
         filings = self.filings if padded == _fake_edgar_pad_cik(self.default_cik) else []
@@ -391,6 +398,39 @@ class FakeEdgarClient:
         self.calls.append(("company_facts", cik))
         padded = _fake_edgar_pad_cik(cik)
         return self.facts if padded == _fake_edgar_pad_cik(self.default_cik) else {}
+
+    def company_concept(self, cik: str, taxonomy: str, tag: str) -> dict[str, Any]:
+        """One concept sliced out of ``facts``, in the real API's own shape.
+
+        Slicing the existing companyfacts fixture rather than holding a second
+        one keeps the two answers from drifting apart -- a fake whose concept
+        view disagrees with its own facts view would pass tests that production
+        fails.
+        """
+        self.calls.append(("company_concept", cik))
+        padded = _fake_edgar_pad_cik(cik)
+        if padded != _fake_edgar_pad_cik(self.default_cik):
+            return {}
+        body = (self.facts.get("facts", {}).get(taxonomy) or {}).get(tag)
+        if body is None:
+            # Same shape as the wrong-CIK answer above: both are "this fake has
+            # nothing for you", and raising for one while returning {} for the
+            # other would let a caller be tested against two contradictory
+            # absence behaviours depending only on which key was wrong.
+            return {}
+        return {
+            "cik": int(padded),
+            "taxonomy": taxonomy,
+            "tag": tag,
+            "label": body.get("label"),
+            "units": body.get("units", {}),
+        }
+
+    def fiscal_year_end(self, cik: str) -> str | None:
+        """``MMDD`` year end; Apple's is late September, hence ``"0928"``."""
+        self.calls.append(("fiscal_year_end", cik))
+        padded = _fake_edgar_pad_cik(cik)
+        return self.fye if padded == _fake_edgar_pad_cik(self.default_cik) else None
 
 
 class FakeMarketDataAdapter:

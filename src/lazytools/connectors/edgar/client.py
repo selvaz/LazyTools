@@ -40,6 +40,12 @@ _SEC_HOSTS = frozenset({"www.sec.gov", "sec.gov", "data.sec.gov"})
 _COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 _SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 _COMPANY_FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+_COMPANY_CONCEPT_URL = (
+    "https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/{taxonomy}/{tag}.json"
+)
+#: Older filings live in separate files named by the submissions JSON itself,
+#: served from the same directory as the main submissions document.
+_SUBMISSIONS_FILE_URL = "https://data.sec.gov/submissions/{name}"
 _ARCHIVES_URL = "https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession}/{document}"
 #: The submission's SGML header. Chosen over ``index.json`` deliberately:
 #: measured against a real Apple earnings 8-K, index.json's ``type`` field is
@@ -51,8 +57,15 @@ _INDEX_HEADERS_URL = (
     "https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession}/{dashed}-index-headers.html"
 )
 
-#: Default hard cap on every response body (bytes) — ~5 MB.
-DEFAULT_MAX_RESPONSE_BYTES = 5_000_000
+#: Default hard cap on every response body (bytes) — ~30 MB.
+#: Measured, not guessed: Microsoft's 10-Q for the quarter ending 2025-12-31
+#: (accession 0001193125-26-027207) is 7,483,278 bytes, so the previous 5 MB
+#: default refused an ordinary quarterly report from one of the largest
+#: filers on EDGAR. A cap that blocks the most common document it will ever
+#: be pointed at is not a safety limit, it is a defect; a 10-K carrying
+#: inline XBRL is larger again. Callers who want a tighter bound still pass
+#: ``max_response_bytes`` — this is only the default.
+DEFAULT_MAX_RESPONSE_BYTES = 30_000_000
 #: Default minimum spacing between requests (seconds) ≈ SEC's 10 req/s cap.
 DEFAULT_MIN_REQUEST_INTERVAL = 0.11
 #: Redirect hops followed (each target is re-validated) before giving up.
@@ -83,11 +96,15 @@ class EdgarService(Protocol):
     """The subset of an EDGAR client that :class:`EdgarTools` uses."""
 
     def resolve_company(self, query: str, *, limit: int = 10) -> list[dict[str, str]]: ...
-    def list_filings(self, cik: str, *, form: str | None = None, limit: int = 20) -> list[dict[str, Any]]: ...
+    def list_filings(
+        self, cik: str, *, form: str | None = None, limit: int = 20, include_history: bool = False
+    ) -> list[dict[str, Any]]: ...
     def get_filing(self, cik: str, accession_no: str, *, primary_document: str | None = None) -> dict[str, Any]: ...
     def list_filing_documents(self, cik: str, accession_no: str) -> list[dict[str, Any]]: ...
     def get_filing_document(self, cik: str, accession_no: str, filename: str) -> dict[str, Any]: ...
     def company_facts(self, cik: str) -> dict[str, Any]: ...
+    def company_concept(self, cik: str, taxonomy: str, tag: str) -> dict[str, Any]: ...
+    def fiscal_year_end(self, cik: str) -> str | None: ...
 
 
 class EdgarClient:
@@ -157,40 +174,92 @@ class EdgarClient:
                 partial.append(record)
         return (exact + partial)[:limit]
 
-    def list_filings(self, cik: str, *, form: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
-        """List a company's recent filings (newest first), optionally by form.
+    def list_filings(
+        self,
+        cik: str,
+        *,
+        form: str | None = None,
+        limit: int = 20,
+        include_history: bool = False,
+        max_history_batches: int = 8,
+    ) -> list[dict[str, Any]]:
+        """List a company's filings (newest first), optionally by form.
 
-        Reads the ``filings.recent`` arrays of the submissions JSON. Each
-        entry carries ``accession_no``, ``form``, ``filed_at``, ``report_date``
-        (``None`` when EDGAR reports an empty string -- and note this is the
-        covered PERIOD, e.g. a quarter-end, not the submission date; it is
-        not a substitute for ``filed_at`` when checking filing recency),
+        By default this reads only ``filings.recent``, which the SEC documents
+        as at least one year OR the 1,000 most recent filings, whichever is
+        more. For a large filer that is a few years, so a question about an
+        older period silently finds nothing rather than saying it looked in the
+        wrong place. ``include_history=True`` also walks the additional files
+        the submissions JSON names in ``filings.files``, oldest batches last,
+        stopping as soon as ``limit`` is satisfied — so the extra requests are
+        only spent when the recent block did not already answer.
+        ``max_history_batches`` bounds that walk: a limit the archive can
+        never satisfy (a form the company never filed, or fewer of them than
+        asked for) would otherwise fetch every historical file the issuer
+        has, one request each, to end up exactly where it started.
+
+        Each entry carries ``accession_no``, ``form``, ``filed_at``,
+        ``report_date`` (``None`` when EDGAR reports an empty string -- and note
+        this is the covered PERIOD, e.g. a quarter-end, not the submission date;
+        it is not a substitute for ``filed_at`` when checking filing recency),
         ``items`` (an 8-K's own item codes, e.g. ``["2.02", "9.01"]`` for a
         results-of-operations 8-K; empty for every other form), ``primary_document``,
         and the Archives ``url`` of the primary document.
         """
         padded = _pad_cik(cik)
         data = self._get_json(_SUBMISSIONS_URL.format(cik=padded))
-        recent = data.get("filings", {}).get("recent", {})
-        accessions = recent.get("accessionNumber", [])
-        forms = recent.get("form", [])
-        filed = recent.get("filingDate", [])
-        reports = recent.get("reportDate", [])
-        items = recent.get("items", [])
-        documents = recent.get("primaryDocument", [])
-        accepted = recent.get("acceptanceDateTime", [])
-        descriptions = recent.get("primaryDocDescription", [])
+        filings = data.get("filings", {})
+        results: list[dict[str, Any]] = []
+        self._collect_filings(results, filings.get("recent", {}), padded, form, limit)
+        if include_history and len(results) < limit:
+            # Newest batch first, so "newest first" holds across the join and a
+            # caller taking the first N gets the N newest, not an arbitrary N.
+            batches = sorted(
+                (f for f in filings.get("files", []) if f.get("name")),
+                key=lambda f: str(f.get("filingTo", "")),
+                reverse=True,
+            )
+            for batch in batches[:max_history_batches]:
+                if len(results) >= limit:
+                    break
+                block = self._get_json(_SUBMISSIONS_FILE_URL.format(name=batch["name"]))
+                self._collect_filings(results, block, padded, form, limit)
+        return results
+
+    @staticmethod
+    def _collect_filings(
+        into: list[dict[str, Any]],
+        block: dict[str, Any],
+        padded_cik: str,
+        form: str | None,
+        limit: int,
+    ) -> None:
+        """Append one columnar filings block's rows to ``into``, up to ``limit``.
+
+        The submissions JSON and each historical file share this columnar shape
+        (parallel arrays keyed by field name), which is why one reader serves
+        both rather than each growing its own copy of the index arithmetic.
+        """
+        accessions = block.get("accessionNumber", [])
+        forms = block.get("form", [])
+        filed = block.get("filingDate", [])
+        reports = block.get("reportDate", [])
+        items = block.get("items", [])
+        documents = block.get("primaryDocument", [])
+        accepted = block.get("acceptanceDateTime", [])
+        descriptions = block.get("primaryDocDescription", [])
 
         def _at(values: list[Any], i: int) -> str:
             return str(values[i]) if i < len(values) and values[i] is not None else ""
 
-        results: list[dict[str, Any]] = []
         for i, accession in enumerate(accessions):
+            if len(into) >= limit:
+                return
             form_i = _at(forms, i)
             if form is not None and form_i.upper() != form.upper():
                 continue
             primary = _at(documents, i)
-            results.append(
+            into.append(
                 {
                     "accession_no": str(accession),
                     "form": form_i,
@@ -204,12 +273,9 @@ class EdgarClient:
                     "accepted_at": _at(accepted, i) or None,
                     "primary_doc_description": _at(descriptions, i) or None,
                     "primary_document": primary,
-                    "url": _archives_url(padded, str(accession), primary),
+                    "url": _archives_url(padded_cik, str(accession), primary),
                 }
             )
-            if len(results) >= limit:
-                break
-        return results
 
     def get_filing(self, cik: str, accession_no: str, *, primary_document: str | None = None) -> dict[str, Any]:
         """Fetch a filing's primary document and strip it to plain text.
@@ -350,6 +416,43 @@ class EdgarClient:
         """Return the raw XBRL companyfacts JSON for a company, untouched."""
         padded = _pad_cik(cik)
         return self._get_json(_COMPANY_FACTS_URL.format(cik=padded))
+
+    def company_concept(self, cik: str, taxonomy: str, tag: str) -> dict[str, Any]:
+        """Every observation one company reported for ONE concept, untouched.
+
+        Args:
+            cik: the company's CIK.
+            taxonomy: ``us-gaap``, ``ifrs-full``, ``dei`` or ``srt``. The SEC's
+                XBRL APIs only aggregate non-custom taxonomies, so a company's
+                own extension concept is simply not here — a 404 means "not in
+                a standard taxonomy", which is a different answer from "the
+                company never reported it".
+            tag: the concept name, e.g. ``RevenueFromContractWithCustomerExcludingAssessedTax``.
+
+        The payload separates observations **by unit of measure**, and a single
+        unit's array mixes durations of different lengths: a Q2 10-Q reports
+        both the three-month and the year-to-date figure under one concept,
+        with the same accession, the same ``fy``/``fp``, and the same ``end``.
+        Select on ``start``/``end``, never on ``fy``/``fp`` — those are the
+        *document's* fiscal focus, not the fact's own period, so a prior-year
+        comparative inside an FY2026 filing carries ``fy=2026`` too.
+        """
+        padded = _pad_cik(cik)
+        return self._get_json(
+            _COMPANY_CONCEPT_URL.format(cik=padded, taxonomy=taxonomy.strip(), tag=tag.strip())
+        )
+
+    def fiscal_year_end(self, cik: str) -> str | None:
+        """The issuer's fiscal year end as ``MMDD``, or ``None`` when absent.
+
+        Read from the submissions JSON's own ``fiscalYearEnd`` field. Needed
+        before any fiscal period can be turned into dates — without it, "Q2
+        2026" cannot be told apart from calendar Q2 2026.
+        """
+        padded = _pad_cik(cik)
+        value = self._get_json(_SUBMISSIONS_URL.format(cik=padded)).get("fiscalYearEnd")
+        text = str(value).strip() if value is not None else ""
+        return text or None
 
     # ------------------------------------------------------------------ #
     # HTTP plumbing
