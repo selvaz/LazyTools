@@ -8,12 +8,45 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-29
+
+### Added
+- **Six new read-only connectors**, each a `ToolProvider` with its own
+  surface-contract test and reference page:
+  - **Polymarket** (`polymarket_*`) — public Gamma catalog + CLOB order
+    book, keyless. `side` follows the vendor's own convention (buy reads
+    the best bid, sell the best ask) and the order book is truncated
+    worst-to-best: both verified against the live endpoint rather than
+    assumed.
+  - **GLEIF** (`gleif_*`) — legal-entity identifier lookup and the
+    parent/child graph. A confirmed "no parent" is told apart from a
+    nonexistent LEI by the shape of the 404 body, because the vendor
+    answers both with the same status code.
+  - **Manifold Markets** (`manifold_*`) — a second prediction-market feed
+    beside Polymarket, with the pagination its list and search endpoints
+    actually support.
+  - **Treasury Fiscal Data** (`treasury_*`), **CFTC Commitments of
+    Traders** (`cftc_positioning_*`) and **ALFRED** (`alfred_vintage`) —
+    thin read-only wrappers over market-data-hub's readers, in the shape
+    `econ_calendar`/`earnings_calendar` already use. The hub's ingestion
+    job owns the data; these add no write surface at all.
+
+  The three hub-backed wrappers keep `pandas` out of module scope
+  (`TYPE_CHECKING` only, imported inside the row-serialising helper), so
+  the modules stay importable — and the MCP surface contract stays
+  checkable — where market-data-hub is not installed.
+
 ### Changed
 - **The verified combination moves to current releases.** `lazytoolkit`
-  `v0.6.0` → `v0.7.0`, `lazyportfolio` → `3f2d4cd4` (docs-only, and its
-  `datacore` extra still pins the same market-data-hub revision as the
-  manifest, so the coupled refs stay in agreement), and `lazybridge`
-  `1.0.1` → `1.2.0`.
+  `v0.7.0` → `v0.8.0`, `market-data-hub` `636b38a7` → `50e57e53` (the
+  Treasury, CFTC COT and ALFRED sources, the global earnings calendar and
+  two data-correctness fixes), and `lazyportfolio` `3f2d4cd4` → the
+  revision whose `datacore` extra pins that same market-data-hub commit.
+  Those two refs are coupled and must move together, or the released
+  combination resolves two different refs for one package.
+- The previous `[Unreleased]` promotion is folded into this release:
+  `lazytoolkit` `v0.6.0` → `v0.7.0`, `lazyportfolio` → `3f2d4cd4`, and
+  `lazybridge` `1.0.1` → `1.2.0`.
 - **The `lazybridge` floor is raised to `>=1.2.0,<2.0`** (was `>=1.0.1`), in
   `pyproject.toml` and `[minimums]` alike. This is deliberately breaking: the
   InvestmentCommittee environments were found running a `lazybridge 1.0.2`
