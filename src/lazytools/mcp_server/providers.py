@@ -158,6 +158,32 @@ def _polymarket(allow_write: bool = False, *,
     return PolymarketTools(max_calls=budget)
 
 
+@_register("gleif")
+def _gleif(allow_write: bool = False, *,
+           data_source: dict[str, Any] | None = None) -> Any:
+    """GLEIF's public, keyless LEI (legal-entity identifier) lookup API.
+
+    Public and keyless, like ``polymarket``/``tradingview``: no write
+    surface at all (this is a read-only reference lookup, not something an
+    agent could meaningfully write to), so ``allow_write`` is accepted and
+    ignored.
+
+    One environment knob, same convention as ``polymarket``:
+    ``LAZYTOOLS_GLEIF_MAX_CALLS`` (default 200 here, ``0`` to remove the
+    guard).
+    """
+    from lazytools.connectors.gleif import GLEIFTools
+
+    raw = os.environ.get("LAZYTOOLS_GLEIF_MAX_CALLS", "200")
+    try:
+        budget: int | None = int(raw)
+    except ValueError:
+        budget = 200
+    if budget is not None and budget <= 0:
+        budget = None
+    return GLEIFTools(max_calls=budget)
+
+
 @_register("regimes")
 def _regimes(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """HMM / Markov-switching regimes (needs lazystats[regimes]).
