@@ -38,6 +38,7 @@ EXPECTED_PROVIDER_IDS = {
     "earnings_calendar",
     "cftc_cot",
     "treasury_fiscal",
+    "alfred",
     "tradingview",
     "polymarket",
     "gleif",
@@ -143,6 +144,10 @@ TREASURY_FISCAL_TOOLS = {
     "treasury_auctions",
 }
 
+ALFRED_TOOLS = {
+    "alfred_vintage",
+}
+
 TRADINGVIEW_TOOLS = {
     "tradingview_vocabulary",
     "tradingview_fields",
@@ -228,6 +233,13 @@ def test_treasury_fiscal_contract() -> None:
     from lazytools.connectors.treasury_fiscal import TreasuryFiscalTools
 
     assert _names(TreasuryFiscalTools()) == TREASURY_FISCAL_TOOLS
+
+
+def test_alfred_contract() -> None:
+    """Read-only: the data is written by the hub's ingestion job, never by an agent."""
+    from lazytools.connectors.alfred import ALFREDTools
+
+    assert _names(ALFREDTools()) == ALFRED_TOOLS
 
 
 def test_tradingview_contract() -> None:

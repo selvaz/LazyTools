@@ -78,6 +78,7 @@ plugins:
           - cftc-cot.md
           - manifold.md
           - treasury-fiscal.md
+          - alfred.md
           - regimes.md
           - statistical-analysis.md
           - portfolio-optimization.md
@@ -155,6 +156,7 @@ nav:
       - CFTC Commitments of Traders: cftc-cot.md
       - Manifold Markets: manifold.md
       - Treasury Fiscal Data: treasury-fiscal.md
+      - ALFRED (vintage/point-in-time): alfred.md
       - Regime detection: regimes.md
       - Statistical analysis: statistical-analysis.md
       - Portfolio optimization: portfolio-optimization.md
