@@ -75,6 +75,7 @@ plugins:
           - tradingview.md
           - polymarket.md
           - gleif.md
+          - cftc-cot.md
           - regimes.md
           - statistical-analysis.md
           - portfolio-optimization.md
@@ -149,6 +150,7 @@ nav:
       - TradingView screener: tradingview.md
       - Polymarket: polymarket.md
       - GLEIF (LEI lookup): gleif.md
+      - CFTC Commitments of Traders: cftc-cot.md
       - Regime detection: regimes.md
       - Statistical analysis: statistical-analysis.md
       - Portfolio optimization: portfolio-optimization.md
