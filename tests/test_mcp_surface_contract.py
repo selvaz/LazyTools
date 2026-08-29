@@ -38,6 +38,7 @@ EXPECTED_PROVIDER_IDS = {
     "earnings_calendar",
     "tradingview",
     "polymarket",
+    "gleif",
     "calendar_agent",
     "regimes",
     "report",
@@ -145,6 +146,14 @@ POLYMARKET_TOOLS = {
     "polymarket_midpoint",
 }
 
+GLEIF_TOOLS = {
+    "gleif_search",
+    "gleif_get_record",
+    "gleif_parents",
+    "gleif_children",
+    "gleif_fuzzy_search",
+}
+
 REPORT_READ = {"render_memo", "render_memo_html"}
 REPORT_WRITE = {"save_memo_html", "save_memo_markdown", "save_report"}
 
@@ -208,6 +217,19 @@ def test_polymarket_contract() -> None:
 
     provider = PolymarketTools(client=PolymarketClient(transport=object()))
     assert _names(provider) == POLYMARKET_TOOLS
+
+
+def test_gleif_contract() -> None:
+    """Read-only: this is a reference lookup, there is nothing to write.
+
+    Constructed with a client that has no transport, so building the tool
+    list reaches no network -- the contract is about the surface, not the
+    service.
+    """
+    from lazytools.connectors.gleif import GLEIFClient, GLEIFTools
+
+    provider = GLEIFTools(client=GLEIFClient(transport=object()))
+    assert _names(provider) == GLEIF_TOOLS
 
 
 def test_fin_provider_contract(monkeypatch) -> None:

@@ -74,6 +74,7 @@ plugins:
           - datahub.md
           - tradingview.md
           - polymarket.md
+          - gleif.md
           - regimes.md
           - statistical-analysis.md
           - portfolio-optimization.md
@@ -147,6 +148,7 @@ nav:
       - Financial data (market-data-hub): datahub.md
       - TradingView screener: tradingview.md
       - Polymarket: polymarket.md
+      - GLEIF (LEI lookup): gleif.md
       - Regime detection: regimes.md
       - Statistical analysis: statistical-analysis.md
       - Portfolio optimization: portfolio-optimization.md
