@@ -7,11 +7,11 @@ Python: 3.11, 3.12, 3.13
 | Component | Channel | Verified ref |
 |---|---|---|
 | lazybridge | PyPI | `1.2.1` |
-| lazytoolkit | GitHub | `v0.7.0` |
+| lazytoolkit | GitHub | `v0.8.0` |
 | lazypulse | GitHub | `v0.4.0` |
 | lazycrawler | GitHub | `v0.19.3` |
-| market-data-hub | GitHub | `636b38a7f9039113b935315fbf5f205ff9180160` |
+| market-data-hub | GitHub | `50e57e539b73b46eced4ecbebc98d815ff6c3c65` |
 | lazystats | GitHub | `e1b1f4f0eb2c44e5f3987bf406ff01a26bb33eea` |
-| lazyportfolio | GitHub | `3f2d4cd40c2deaaa7c93748dc004a9e0718f051f` |
+| lazyportfolio | GitHub | `86543850fe60647d25638269da89b240cc7385e2` |
 | lazyfin | GitHub | `d5ef4cbccf8c688144dd7f9dc4a7a3e80e49347d` |
-| lazyray | GitHub | *excluded* — LazyRay now pins the same market-data-hub revision as the verified combination (re-aligned, ECO-007), so the earlier pin conflict is gone. It stays pending only because the ecosystem-released CI does not yet install and smoke it; move it to [verified.github] once that job exercises it. |
+| lazyray | GitHub | *excluded* — LazyRay still pins market-data-hub at 636b38a7, the revision this manifest verified until 2026-08-29; the combination has since moved to 50e57e53, so the two disagree again. It was re-aligned once before (ECO-007) and will need the same treatment: bump LazyRay's own pin to the verified revision, then move it to [verified.github] once the ecosystem-released CI installs and smokes it. Nothing in production depends on the two agreeing today, because LazyRay's runtime worktree is pinned independently and this entry is not installed by the released-combination job. |
