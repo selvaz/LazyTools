@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from lazytools.connectors.edgar.statements import RenderedStatement
-from lazytools.financials.normalised import ELEMENTS
+from lazytools.financials.normalised import COMPUTED_ELEMENTS, ELEMENTS
 
 #: Cheap by design: this is a labelling job over a few dozen short strings, not
 #: an analysis. The caller overrides it when it wants something else.
@@ -101,8 +101,18 @@ def statements_as_prompt(statements: list[RenderedStatement], *, column: int) ->
 
 
 def elements_as_prompt() -> str:
-    """The registry, with each element's meaning — which is what makes it mappable."""
-    return "\n".join(f"- {key}: {spec.meaning}" for key, spec in ELEMENTS.items())
+    """The PRESENTED elements and their meanings — what makes them mappable.
+
+    Computed elements are not offered. Free cash flow is not a line a filer
+    shows, and accepting a model's claim to have found one replaces the
+    calculation with a relabelled cash-flow line that every figure
+    downstream then inherits.
+    """
+    return "\n".join(
+        f"- {key}: {spec.meaning}"
+        for key, spec in ELEMENTS.items()
+        if key not in COMPUTED_ELEMENTS
+    )
 
 
 def parse_mapping(payload: Any) -> Mapping:
@@ -120,6 +130,10 @@ def parse_mapping(payload: Any) -> Mapping:
         element_id = str(entry.get("element_id") or "").strip()
         if element_id not in ELEMENTS:
             rejected.append(f"{element_id or '(unnamed)'}: not an element of the base")
+            continue
+        if element_id in COMPUTED_ELEMENTS:
+            rejected.append(f"{element_id}: computed from other elements, never read "
+                            "from a statement")
             continue
         label = str(entry.get("label") or "").strip()
         if not label:

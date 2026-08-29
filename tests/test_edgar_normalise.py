@@ -273,3 +273,18 @@ def test_a_model_that_placed_nothing_is_not_cached_as_an_answer() -> None:
     normalise(_Stub(), company="TST", period="FY2024", as_of=date(2025, 3, 1),
               agent=lambda t: "the model gave up", store=store)
     assert len(store) == 0
+
+
+def test_one_presented_line_cannot_become_two_different_elements() -> None:
+    # A model mapped "Depreciation and amortization" to BOTH depreciation and
+    # amortisation of intangibles, so the same figure was admitted twice and
+    # only failed later, at its own reconciliation.
+    doubled = [*GOOD,
+               {"element_id": "depreciation", "statement": "Cash Flows",
+                "label": "Depreciation and amortization"},
+               {"element_id": "amortisation_intangibles", "statement": "Cash Flows",
+                "label": "Depreciation and amortization"}]
+    base = _run(doubled)
+    placed = [k for k in ("operating_da_total", "depreciation", "amortisation_intangibles")
+              if k in base.elements and base.elements[k].usable]
+    assert len(placed) == 1

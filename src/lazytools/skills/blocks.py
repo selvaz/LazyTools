@@ -119,35 +119,54 @@ class Library:
         return "\n\n".join(f"## {b.id}\n\n{b.body}" for b in blocks)
 
 
-def load_library(path: str | Path) -> Library:
-    """Parse and validate one agent's instruction file.
+def load_library(*paths: str | Path) -> Library:
+    """Parse and validate one or more instruction files as a single library.
+
+    Several files compose: a sector library sits on top of the common one and
+    its blocks may require common blocks by id. They are validated together
+    rather than separately, because a sector block whose requirement lives in
+    the common file is only correct in the presence of that file.
+
+    A block id defined twice across files is an error rather than an override. A
+    sector that means to change a common instruction says so in its own block,
+    where a reader sees both; a silent redefinition would leave the two versions
+    indistinguishable in the catalogue.
 
     Raises:
         BlockError: on a duplicate id, a requirement that does not exist, a
             block with no summary, or a cycle. All of it at load time, because a
             library that is wrong should fail before an agent runs, not during.
     """
-    text = Path(path).read_text(encoding="utf-8")
-    matches = list(_BLOCK.finditer(text))
-    if not matches:
-        raise BlockError(f"{path} contains no blocks; expected '## block: <id>' headings")
+    if not paths:
+        raise BlockError("load_library needs at least one file")
 
     blocks: dict[str, Block] = {}
-    for index, match in enumerate(matches):
-        start = match.end()
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        block = _parse_block(match.group("id"), text[start:end], path)
-        if block.id in blocks:
-            raise BlockError(f"{path}: block {block.id!r} is defined twice")
-        blocks[block.id] = block
+    origin: dict[str, str] = {}
+    for path in paths:
+        text = Path(path).read_text(encoding="utf-8")
+        matches = list(_BLOCK.finditer(text))
+        if not matches:
+            raise BlockError(f"{path} contains no blocks; expected '## block: <id>' headings")
+        for index, match in enumerate(matches):
+            start = match.end()
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+            block = _parse_block(match.group("id"), text[start:end], path)
+            if block.id in blocks:
+                raise BlockError(
+                    f"block {block.id!r} is defined twice: in {origin[block.id]} and "
+                    f"{path}. A sector that means to change a common instruction says so "
+                    "in its own block rather than redefining one silently."
+                )
+            blocks[block.id] = block
+            origin[block.id] = str(path)
 
     for block in blocks.values():
         missing = [r for r in block.requires if r not in blocks]
         if missing:
-            raise BlockError(f"{path}: block {block.id!r} requires "
+            raise BlockError(f"{origin[block.id]}: block {block.id!r} requires "
                              f"{', '.join(missing)}, which do not exist")
 
-    library = Library(blocks=blocks, source=str(path))
+    library = Library(blocks=blocks, source=", ".join(str(p) for p in paths))
     for block_id in blocks:
         library.resolve([block_id])  # raises on a cycle
     return library

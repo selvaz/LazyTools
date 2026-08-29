@@ -20,13 +20,28 @@ from typing import Any
 from lazytools.financials.normalised import NormalisedBase
 from lazytools.skills.blocks import Library, instruction_tools, load_library
 
+_LIBRARY_DIR = Path(__file__).parent / "library"
 #: The common, sector-neutral library that ships with this package.
-COMMON_LIBRARY = Path(__file__).parent / "library" / "credit_analyst.md"
+COMMON_LIBRARY = _LIBRARY_DIR / "credit_analyst.md"
+#: Sector libraries that ship with it, by the name a caller passes as ``sector``.
+SECTOR_LIBRARIES = {"retail": _LIBRARY_DIR / "sector_retail.md"}
 
 
-def load_common_library() -> Library:
-    """The sector-neutral credit library."""
-    return load_library(COMMON_LIBRARY)
+def load_common_library(sector: str | None = None) -> Library:
+    """The credit library, with a sector layer on top when one is named.
+
+    Raises:
+        KeyError: for a sector with no library. Falling back to the common layer
+            alone would answer a sector question with sector-neutral
+            instructions and say nothing about having done so.
+    """
+    if sector is None:
+        return load_library(COMMON_LIBRARY)
+    if sector not in SECTOR_LIBRARIES:
+        raise KeyError(
+            f"no library for sector {sector!r}; available: {', '.join(sorted(SECTOR_LIBRARIES))}"
+        )
+    return load_library(COMMON_LIBRARY, SECTOR_LIBRARIES[sector])
 
 
 def system_prompt(library: Library, *, sector: str | None = None) -> str:
@@ -93,7 +108,7 @@ def credit_analyst(
     """
     from lazybridge import Agent, LLMEngine
 
-    library = library or load_common_library()
+    library = library or load_common_library(sector)
     return Agent(
         engine=LLMEngine(model, system=system_prompt(library, sector=sector)),
         tools=instruction_tools(library),
@@ -104,6 +119,7 @@ def credit_analyst(
 
 __all__ = [
     "COMMON_LIBRARY",
+    "SECTOR_LIBRARIES",
     "base_as_context",
     "credit_analyst",
     "load_common_library",

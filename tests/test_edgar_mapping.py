@@ -51,8 +51,8 @@ def test_the_prompt_shows_labels_and_concepts_but_never_values() -> None:
 def test_the_registry_is_offered_with_its_meanings() -> None:
     # The meaning is what makes an element mappable at all.
     prompt = elements_as_prompt()
-    assert "house_operating_ebitda" in prompt
-    assert "house convention" in prompt
+    assert "revenue:" in prompt
+    assert "revenue-recognition policy" in prompt
 
 
 # --- what the model may say ------------------------------------------------- #
@@ -119,3 +119,29 @@ def test_json_wrapped_in_prose_is_still_read() -> None:
 
     mapping = propose(_statements(), column=0, agent=chatty)
     assert [r.element_id for r in mapping.refs] == ["revenue"]
+
+
+# --- a model may not claim a figure this code computes ---------------------- #
+
+
+def test_a_computed_element_is_rejected_however_confidently_it_is_claimed() -> None:
+    # A presented line accepted as free cash flow silently replaces the
+    # calculation with a relabelled cash-flow line, and every figure downstream
+    # inherits it. This happened: focf, dcf and house_ffo all came back equal to
+    # CFO, and only the analyst reading the base noticed.
+    mapping = parse_mapping({"mapped": [
+        {"element_id": "focf", "statement": "Cash Flows", "label": "Free cash flow"}]})
+    assert mapping.refs == ()
+    assert "computed from other elements" in mapping.rejected[0]
+
+
+def test_the_prompt_never_offers_a_computed_element() -> None:
+    prompt = elements_as_prompt()
+    assert "cfo:" in prompt and "focf" not in prompt and "house_ffo" not in prompt
+
+
+def test_an_element_a_filer_really_does_present_is_still_offered() -> None:
+    # Walmart shows one "Depreciation and amortization" line, and many issuers
+    # show a total debt line. Those are presented; reconciliation checks them.
+    prompt = elements_as_prompt()
+    assert "operating_da_total" in prompt and "reported_financial_debt" in prompt

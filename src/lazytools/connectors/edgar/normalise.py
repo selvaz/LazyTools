@@ -59,6 +59,11 @@ _TOTALS: dict[str, tuple[str, ...]] = {
     "reported_financial_debt": ("short_term_borrowings", "current_long_term_debt",
                                 "long_term_debt_noncurrent"),
     "operating_da_total": ("depreciation", "amortisation_intangibles"),
+    # Split for the same reason as debt: a model reading the current line alone
+    # reported a fifth of a retailer's lease liability as the whole of it, and
+    # nothing downstream could tell.
+    "operating_lease_total": ("operating_lease_current", "operating_lease_noncurrent"),
+    "finance_lease_total": ("finance_lease_current", "finance_lease_noncurrent"),
 }
 
 
@@ -224,6 +229,7 @@ def _resolve_refs(
     ambiguity is real, and picking the first would resolve it by luck.
     """
     resolved: dict[str, _Presented] = {}
+    claimed: set[tuple[str, str]] = set()
     for ref in mapping.refs:
         hits = [
             (s, line) for s in statements
@@ -235,6 +241,14 @@ def _resolve_refs(
         if len(hits) != 1 or ref.element_id in resolved:
             continue
         statement, line = hits[0]
+        # One presented line cannot be two different elements. A model mapped
+        # "Depreciation and amortization" to BOTH depreciation and amortisation
+        # of intangibles, which then failed its own reconciliation -- correctly,
+        # but only after the figure had been admitted twice.
+        fingerprint = (statement.report.short_name, line.label)
+        if fingerprint in claimed:
+            continue
+        claimed.add(fingerprint)
         resolved[ref.element_id] = _Presented(
             element_id=ref.element_id, value=line.values[column],  # type: ignore[arg-type]
             statement=statement.report.short_name, label=line.label,
@@ -285,8 +299,8 @@ def _check_totals(elements: dict[str, Element], presented: dict[str, _Presented]
 
 def _derive(elements: dict[str, Element]) -> None:
     """Everything the base computes rather than reads."""
-    _sum_into(elements, "reported_financial_debt", _TOTALS["reported_financial_debt"])
-    _sum_into(elements, "operating_da_total", _TOTALS["operating_da_total"])
+    for total_id, component_ids in _TOTALS.items():
+        _sum_into(elements, total_id, component_ids)
     _combine(elements, "house_operating_ebitda",
              {"operating_income": 1, "operating_da_total": 1})
     _combine(elements, "house_ffo",
