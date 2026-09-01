@@ -2,7 +2,7 @@
 # — do not edit by hand. The verified, co-installable combination:
 #   pip install -r requirements/verified.txt
 
-lazybridge==1.2.1
+lazybridge==1.3.0
 lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.8.0
 lazypulse @ git+https://github.com/selvaz/LazyPulse.git@v0.4.0
 lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@v0.19.3
