@@ -38,7 +38,7 @@ ref = "v0.19.4"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "755d41770d89b25c033684f9485cc6c8112af848"  # pre-tag pin; finance train replaces with a release tag
+ref = "13b95978f78c407deaaebb143ba1e363703a6828"  # pre-tag pin; finance train replaces with a release tag
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
@@ -47,7 +47,7 @@ extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "966fbe381cd8bcc1c21770784b79c30de41a0b1c"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
+ref = "6fe00601f509e8a141fb156858012d7a0abbb050"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
 extras = ["datacore"]
 
 [verified.github.lazyfin]
