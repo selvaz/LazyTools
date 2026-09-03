@@ -10,8 +10,8 @@ Python: 3.11, 3.12, 3.13
 | lazytoolkit | GitHub | `v0.8.0` |
 | lazypulse | GitHub | `v0.4.0` |
 | lazycrawler | GitHub | `v0.19.4` |
-| market-data-hub | GitHub | `13b95978f78c407deaaebb143ba1e363703a6828` |
+| market-data-hub | GitHub | `37bf7f530de0895c5dc374bd6a7ad56f1a964966` |
 | lazystats | GitHub | `e1b1f4f0eb2c44e5f3987bf406ff01a26bb33eea` |
-| lazyportfolio | GitHub | `6fe00601f509e8a141fb156858012d7a0abbb050` |
+| lazyportfolio | GitHub | `a1e50a0bfc5c7dba2a2ede802d3f74692f9f874a` |
 | lazyfin | GitHub | `d5ef4cbccf8c688144dd7f9dc4a7a3e80e49347d` |
 | lazyray | GitHub | *excluded* — LazyRay still pins market-data-hub at 636b38a7, the revision this manifest verified until 2026-08-29; the combination has since moved to 50e57e53, so the two disagree again. It was re-aligned once before (ECO-007) and will need the same treatment: bump LazyRay's own pin to the verified revision, then move it to [verified.github] once the ecosystem-released CI installs and smokes it. Nothing in production depends on the two agreeing today, because LazyRay's runtime worktree is pinned independently and this entry is not installed by the released-combination job. |

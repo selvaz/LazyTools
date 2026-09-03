@@ -27,7 +27,7 @@
         "extras": [
           "datacore"
         ],
-        "ref": "6fe00601f509e8a141fb156858012d7a0abbb050",
+        "ref": "a1e50a0bfc5c7dba2a2ede802d3f74692f9f874a",
         "repo": "https://github.com/selvaz/LazyPortfolio"
       },
       "lazypulse": {
@@ -46,7 +46,7 @@
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
-        "ref": "13b95978f78c407deaaebb143ba1e363703a6828",
+        "ref": "37bf7f530de0895c5dc374bd6a7ad56f1a964966",
         "repo": "https://github.com/selvaz/market-data-hub"
       }
     },
