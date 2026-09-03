@@ -6,7 +6,7 @@ lazybridge==1.3.0
 lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.8.0
 lazypulse @ git+https://github.com/selvaz/LazyPulse.git@v0.4.0
 lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@v0.19.4
-market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@5bfa68a7966e01af03254aefa49d32dbc3d7ad1e
+market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@62dad7ce0c2bdfc23b5f6136f8788adc25ed83a4
 lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@e1b1f4f0eb2c44e5f3987bf406ff01a26bb33eea
 lazyportfolio[datacore] @ git+https://github.com/selvaz/LazyPortfolio.git@ad09a21a7270ae560ef8721800a6cb6b704f164a
 lazyfin[bridge,datacore] @ git+https://github.com/selvaz/LazyFin.git@d5ef4cbccf8c688144dd7f9dc4a7a3e80e49347d
