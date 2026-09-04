@@ -765,17 +765,22 @@ def _claude_review(allow_write: bool = False, *, data_source: dict[str, Any] | N
 
 @_register("code_write")
 def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
-    """Codex with write access (``codex_write``), sandboxed to the code root.
+    """Claude Code and/or Codex with write access, sandboxed to the code root.
 
-    A thin ``CodeWriteTools(codex=True, claude=False)`` wrapper: Codex runs in
-    its CLI's ``workspace-write`` sandbox (with ``approval_policy=never``
-    pinned so it never blocks waiting on stdin), confined to the configured
-    code root — the same root ``code_review`` confines its ``repo_path``
-    argument to.
+    A thin ``CodeWriteTools`` wrapper exposing ``claude_code_write`` and
+    ``codex_write`` side by side — the same read-engine pairing as
+    ``claude_review``/``code_review`` (Claude Code's ``acceptEdits`` sandbox
+    and Codex's ``workspace-write`` sandbox, with ``approval_policy=never``
+    pinned so Codex never blocks waiting on stdin), confined to the
+    configured code root — the same root ``code_review`` confines its
+    ``repo_path`` argument to.
+
+    Each engine is included only if its CLI is actually found; the whole
+    provider is skipped only when *neither* is available. A single missing
+    CLI does not take the other one down with it.
 
     Same opt-in gating as ``code_review``/``claude_review``: absent unless
-    ``allow_write=True`` (``--allow-unsafe``), and skipped when the ``codex``
-    CLI can't be located.
+    ``allow_write=True`` (``--allow-unsafe``).
 
     Unlike ``CodeWriteTools``'s own default, the one-shot ``confirm_write()``
     gate is disabled here (``require_confirmation=False``). That gate exists
@@ -801,12 +806,18 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
     if not allow_write:
         raise RuntimeError("code_write is opt-in only: pass allow_write=True (--allow-unsafe).")
 
+    import shutil
     from pathlib import Path
 
     from lazytools.connectors.code_support import CodeWriteTools, resolve_codex_bin
 
-    if resolve_codex_bin() is None:
-        raise RuntimeError("codex CLI not found on PATH or in the Codex app install directory; code_write skipped.")
+    have_claude = shutil.which("claude") is not None
+    have_codex = resolve_codex_bin() is not None
+    if not have_claude and not have_codex:
+        raise RuntimeError(
+            "neither claude nor codex CLI was found on PATH (or, for codex, the Codex app "
+            "install directory); code_write skipped."
+        )
 
     root = (data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT")
     base_dir = str(Path(root or Path.cwd()).expanduser().resolve())
@@ -822,8 +833,8 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
     writer = CodeWriteTools(
         base_dir=base_dir,
         default_cwd=os.environ.get("LAZYTOOLS_CODE_WRITE_DEFAULT_CWD") or None,
-        claude=False,
-        codex=True,
+        claude=have_claude,
+        codex=have_codex,
         require_confirmation=False,
         timeout=timeout,
     )
