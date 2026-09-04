@@ -6,8 +6,8 @@ lazybridge==1.3.0
 lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.8.0
 lazypulse @ git+https://github.com/selvaz/LazyPulse.git@v0.4.0
 lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@v0.19.4
-market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@5be6c51da588d1d5a21225b473c69107c753bc6a
+market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@9ad84122261e034b0eb38644afc9e53654727d7d
 lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@e1b1f4f0eb2c44e5f3987bf406ff01a26bb33eea
-lazyportfolio[datacore] @ git+https://github.com/selvaz/LazyPortfolio.git@17a54364ef2f3c49d6a0930dfedf51bc31c7fa59
+lazyportfolio[datacore] @ git+https://github.com/selvaz/LazyPortfolio.git@3490f565c3edb30061e808023e456202c785f69e
 lazyfin[bridge,datacore] @ git+https://github.com/selvaz/LazyFin.git@d5ef4cbccf8c688144dd7f9dc4a7a3e80e49347d
 # EXCLUDED lazyray: LazyRay still pins market-data-hub at 636b38a7, the revision this manifest verified until 2026-08-29; the combination has since moved to 50e57e53, so the two disagree again. It was re-aligned once before (ECO-007) and will need the same treatment: bump LazyRay's own pin to the verified revision, then move it to [verified.github] once the ecosystem-released CI installs and smokes it. Nothing in production depends on the two agreeing today, because LazyRay's runtime worktree is pinned independently and this entry is not installed by the released-combination job.
