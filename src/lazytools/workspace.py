@@ -634,7 +634,7 @@ def _validate_windows_parent(parent: Path, roots: tuple[Path, ...], operation: s
 
 def _open_windows_directory_fd(path: Path) -> int:
     """Open a directory itself, without following a final-component reparse point."""
-    if os.name != "nt":
+    if sys.platform != "win32":
         raise OSError("Windows directory-handle verification is unavailable")
     import msvcrt
     from ctypes import wintypes
@@ -677,7 +677,7 @@ def _open_windows_directory_fd(path: Path) -> int:
 
 def _path_from_windows_fd(descriptor: int) -> Path:
     """Return the kernel-resolved path for an open Windows descriptor."""
-    if os.name != "nt":
+    if sys.platform != "win32":
         raise OSError("Windows handle-path verification is unavailable")
     import msvcrt
     from ctypes import wintypes
@@ -717,7 +717,7 @@ async def _finish_termination(
 
 
 async def _terminate_process_tree(process: asyncio.subprocess.Process, windows_job: _WindowsJob | None) -> None:
-    if os.name == "nt":
+    if sys.platform == "win32":
         if windows_job is not None:
             windows_job.terminate()
             windows_job.close()
@@ -804,7 +804,7 @@ class _WindowsJob:
 
     def __init__(self) -> None:
         self._handle: int | None = None
-        if os.name != "nt":
+        if sys.platform != "win32":
             return
 
         from ctypes import wintypes
@@ -861,7 +861,7 @@ class _WindowsJob:
         self._handle = handle
 
     def assign(self, process: asyncio.subprocess.Process) -> None:
-        if self._handle is None:
+        if sys.platform != "win32" or self._handle is None:
             return
         from ctypes import wintypes
 
@@ -873,7 +873,7 @@ class _WindowsJob:
             raise ctypes.WinError(ctypes.get_last_error())
 
     def terminate(self) -> None:
-        if self._handle is None:
+        if sys.platform != "win32" or self._handle is None:
             return
         from ctypes import wintypes
 
@@ -884,7 +884,7 @@ class _WindowsJob:
             raise ctypes.WinError(ctypes.get_last_error())
 
     def close(self) -> None:
-        if self._handle is None:
+        if sys.platform != "win32" or self._handle is None:
             return
         from ctypes import wintypes
 
