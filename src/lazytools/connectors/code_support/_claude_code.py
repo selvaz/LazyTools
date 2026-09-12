@@ -72,6 +72,19 @@ def _run_claude(
             text=True,
             timeout=timeout,
             cwd=cwd,
+            # Found live (two 1500s timeouts with zero output, on real
+            # multi-file tasks -- trivial tasks never hit this): without
+            # this, `claude -p` inherits this process's stdin. In a
+            # non-interactive MCP server, nothing is ever there to answer a
+            # prompt this CLI build might emit (a trust dialog, a config
+            # migration notice, anything version-specific) -- the
+            # subprocess blocks on a read that can never complete, burning
+            # the full `timeout` with zero output and no partial result,
+            # indistinguishable from the process just being slow. Same
+            # fix already applied to _run_codex for the identical failure
+            # mode -- see that function's own comment. DEVNULL makes any
+            # such read fail/return EOF immediately instead of hanging.
+            stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired:
         return f"[claude_code] timeout after {timeout}s"
