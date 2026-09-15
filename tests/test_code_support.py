@@ -88,6 +88,22 @@ class TestClaudeCode:
             result = claude_code("task")
         assert "model overloaded" in result
 
+    def test_subprocess_stdin_is_devnull(self):
+        # Found live: two real claude_code_write calls each burned the full
+        # 1500s timeout with ZERO output on genuinely substantial multi-file
+        # tasks, while trivial tasks (a one-line reply, a single test file)
+        # completed in seconds -- indistinguishable from "just slow" until
+        # traced to this. Without stdin=DEVNULL, `claude -p` inherits the
+        # MCP server's own stdin; nothing is ever there to answer a prompt
+        # a given CLI build might emit (a trust dialog, a config migration
+        # notice, anything version-specific), so the subprocess blocks on a
+        # read that never completes. The identical bug, and this identical
+        # regression test, already existed for `codex()` -- this connector's
+        # own claude_code() path had never gotten the matching fix.
+        with patch("subprocess.run", return_value=_proc(stdout="ok")) as mock_run:
+            claude_code("task")
+        assert mock_run.call_args.kwargs["stdin"] == subprocess.DEVNULL
+
     def test_non_json_output_returned_raw(self):
         with patch("subprocess.run", return_value=_proc(stdout="raw text output\n")):
             result = claude_code("task")
