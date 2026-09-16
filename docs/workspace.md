@@ -83,9 +83,12 @@ immediately rather than failing later on first use.
   inode, not a swap happening after the check, and it's a single
   point-in-time check, not a lock held for the duration of the edit.
 
-`file_path` may be absolute or relative to `cwd`. A path is confined the
-same way for all three tools: it must resolve inside one of the configured
-`file_roots` (the longest-matching root wins when roots are nested).
+`file_path` may be absolute or relative to `cwd`. On POSIX, its lexically
+normalized path must fall under a configured root; when roots are nested,
+the longest lexical match supplies the directory descriptor used for the
+component walk. On Windows, the opened target or verified parent/temp
+handle must resolve under at least one configured root — there is no
+longest-match selection there, only membership.
 
 ### How confinement actually holds under attack
 
@@ -123,25 +126,29 @@ tools = WorkspaceTools(file_roots=["/workspace"], cwd="/workspace", enable_bash=
 ```
 
 `Bash(command, timeout=None)` runs `command` through a shell from `cwd` and
-returns `{"exit_code", "stdout", "stderr", "truncated"}`. `stdout`/`stderr`
-are captured up to `max_output_bytes` combined; beyond that, `truncated` is
-`True` (bytes are dropped, not the whole call rejected). Decoding never
-raises: the captured bytes are first decoded with `errors="replace"`
-(inserting `�` for any invalid or boundary-cut UTF-8 sequence), and in
-the rare case where that replacement itself pushes the result back over the
-byte budget, a second pass re-slices and decodes with `errors="ignore"`
-instead (silently dropping the trailing incomplete bytes rather than
-re-expanding past the limit). There is no default timeout — a command with
-`timeout=None` runs until it exits on its own; `timeout<=0` raises
-`ValueError` before starting anything.
+returns `{"exit_code", "stdout", "stderr", "truncated"}`. `stdout` and
+`stderr` share a `max_output_bytes` raw-byte capture budget. Once that
+budget is exhausted, later bytes are dropped and `truncated` is `True`.
+Decoding does not raise on malformed UTF-8: captured bytes are first
+decoded with replacement characters. Because those replacements can expand
+the UTF-8 byte length (one malformed byte can become `U+FFFD`, which is
+itself 3 bytes), the combined returned strings are capped to the same
+budget again; if that second cap cuts a UTF-8 sequence, the incomplete
+trailing bytes are dropped. Consequently, `truncated` can also become
+`True` when replacement decoding expands invalid input, even if the
+captured raw bytes did not exceed the budget. There is no default
+timeout — a command with `timeout=None` runs until it exits on its own;
+`timeout<=0` raises `ValueError` before starting anything.
 
-On a timeout, the whole process **tree** is torn down, not just the direct
-child:
+On a timeout, cleanup targets the direct child and its process tree, not
+only the direct child:
 
 - **Windows** (no POSIX process groups): the command runs inside a real
-  kernel **Job Object** created with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, so
-  closing the job terminates every process in it, including a grandchild the
-  Python `asyncio` layer never directly tracked.
+  kernel **Job Object** created with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`.
+  Cleanup calls `TerminateJobObject()` and then closes the job — it does
+  not rely on closing alone — so every process assigned to it is
+  terminated, including a grandchild the Python `asyncio` layer never
+  directly tracked. This tree kill is guaranteed on Windows.
 - **POSIX**: the process runs in its own session (`start_new_session=True`);
   on timeout, descendants are snapshotted by walking `/proc/*/stat` PPID
   chains (falling back to `ps -A -o pid=,ppid=` if `/proc` isn't available),
@@ -171,16 +178,37 @@ child:
 
 ## Example
 
+Enabling `Bash` without configuring an approval gate hands the model an
+immediately executable, host-unconfined shell — the example below wires
+`enable_bash=True` through an actual `TieredGate` so `Bash` calls are gated
+in practice, not just in a comment:
+
 ```python
 from lazybridge import Agent, LLMEngine
+from lazybridge.ext.approval import Rule, TerminalChannel, TieredGate
 from lazytools.workspace import WorkspaceTools
+
+gate = TieredGate(
+    channel=TerminalChannel(),
+    rules=(
+        Rule("allow", "Read"),
+        Rule("allow", "Write"),
+        Rule("allow", "Edit"),
+        Rule("ask", "Bash"),
+    ),
+)
 
 tools = WorkspaceTools(
     file_roots=["/workspace/project"],
     cwd="/workspace/project",
-    enable_bash=True,   # opt-in; gate the resulting capability via the engine's approval_gate
+    enable_bash=True,
 )
-agent = Agent(LLMEngine("deepseek-v4-flash"), tools=tools.as_tools())
+engine = LLMEngine(
+    "deepseek-v4-flash",
+    cwd="/workspace/project",
+    approval_gate=gate,
+)
+agent = Agent(engine, tools=tools.as_tools())
 ```
 
 ## Troubleshooting
@@ -190,12 +218,12 @@ agent = Agent(LLMEngine("deepseek-v4-flash"), tools=tools.as_tools())
 | `ValueError: file root does not exist` / `is not a directory` at construction | A `file_roots` entry is missing or not a directory | Create it first, or pass an existing directory |
 | `ValueError: ...: path is outside the configured file roots` (and, for `Write` on Windows to a path whose parent exists, `...: parent is outside the configured file roots`) | **POSIX:** `file_path` lexically escapes every `file_root` (any tool). **Windows:** an existing `Read`/`Edit` file's handle-resolved path, or an existing `Write` target's (or its parent's) `Path.resolve()` result, isn't under any root — Windows follows symlinks and checks the *resolved* path rather than rejecting them outright | Use a path inside a configured root |
 | `ValueError: ...: path is outside the configured roots or contains a symlink` | **POSIX only.** A parent directory component is a symlink (any tool), or — for `Read`/`Edit` specifically — the file itself is a symlink; rejected outright by the `O_NOFOLLOW` walk regardless of where it points | Replace the symlinked component with the real path |
-| `ValueError: Write: path is not a file` | **POSIX**, `Write` to an existing leaf that's a symlink (`Write` checks the leaf with `os.stat(follow_symlinks=False)` rather than the `O_NOFOLLOW` walk, so it reports this instead of the "contains a symlink" message above) | Point `Write` at a real file, not a symlink |
-| `ValueError: ...: parent directory does not exist` (`Write`) | `Write`'s direct parent doesn't exist | Create the parent directory first — `Write` never creates directories |
+| `ValueError: Write: path is not a file` | The existing target is not a regular file. On POSIX this covers any existing non-regular leaf — directory, symlink, FIFO, device — even a symlink pointing at a regular file (`Write` checks the leaf with `os.stat(follow_symlinks=False)` rather than the `O_NOFOLLOW` walk). Windows resolves symlinks first and reports this when the resolved target isn't a file | Point `Write` at a real file, not a symlink or other non-regular path |
+| `ValueError: ...: parent directory does not exist` | Not `Write`-only: `_open_posix_parent()` is shared by `Read`/`Write`/`Edit`. On POSIX it also covers a component that exists but isn't a directory (`ENOTDIR` maps to the same message). On Windows, `Write` reports this when the requested direct parent can't be resolved | Create the parent directory first — none of the three tools create parent directories |
 | `ValueError: Edit: old_string matched N times; set replace_all=true ...` | Ambiguous match | Narrow `old_string` for a unique match, or pass `replace_all=True` |
 | No `Bash` tool present | `enable_bash` wasn't set | Construct with `enable_bash=True` |
 | `TimeoutError: Bash: command timed out after ...` | Command ran past `timeout` | Raise `timeout`, or pass `timeout=None` for no limit |
-| Output cut off, `truncated: True` | Combined stdout+stderr exceeded `max_output_bytes` | Raise `max_output_bytes`, or have the command write less |
+| Output cut off, `truncated: True` | Combined raw stdout+stderr exceeded `max_output_bytes`, **or** replacement-decoding of malformed UTF-8 expanded the returned representation beyond that same budget | Raise `max_output_bytes`, or have the command write less / cleaner UTF-8 |
 
 ## See also
 

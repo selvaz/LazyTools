@@ -211,9 +211,11 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     from lazybridge import Agent
     from lazytools.workspace import WorkspaceTools
 
-    # Read/Write/Edit confined to file_roots; Bash is opt-in and NOT
-    # path-confined — gate it via the engine's own approval_gate.
-    tools = WorkspaceTools(file_roots=["/workspace"], cwd="/workspace", enable_bash=True)
+    # Read/Write/Edit confined to file_roots. Bash is opt-in and NOT
+    # path-confined -- leave it off here and see the Workspace guide for
+    # wiring enable_bash=True through an actual approval_gate before
+    # turning it on.
+    tools = WorkspaceTools(file_roots=["/workspace"], cwd="/workspace")
     agent = Agent("claude-opus-4-8", tools=tools.as_tools())
     ```
 
