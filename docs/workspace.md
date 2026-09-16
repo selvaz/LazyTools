@@ -179,12 +179,21 @@ only the direct child:
 ## Example
 
 Enabling `Bash` without configuring an approval gate hands the model an
-immediately executable, host-unconfined shell — the example below wires
-`enable_bash=True` through an actual `TieredGate` so `Bash` calls are gated
-in practice, not just in a comment:
+immediately executable, host-unconfined shell. `TieredGate` has **no
+automatic hook into `LLMEngine`'s tool loop** — it is consulted natively
+only inside `ClaudeCodeEngine`/`CodexEngine`'s own action-approval flow
+(`CodingAgentConfig.approval_gate`, e.g. via `.writer(gate)`).
+`LLMEngine(...)` takes no `cwd`/`approval_gate` keyword at all; passing
+either raises `TypeError` at construction. For an `LLMEngine`-backed agent
+— the case this whole page is about, "any engine, not just Claude Code" —
+gating `Bash` means wrapping the tool's own callable so every call is
+checked against the gate *before* `WorkspaceTools`' real implementation
+ever runs, using `TieredGate` as a plain policy object rather than an
+engine kwarg:
 
 ```python
 from lazybridge import Agent, LLMEngine
+from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import Rule, TerminalChannel, TieredGate
 from lazytools.workspace import WorkspaceTools
 
@@ -203,13 +212,38 @@ tools = WorkspaceTools(
     cwd="/workspace/project",
     enable_bash=True,
 )
-engine = LLMEngine(
-    "deepseek-v4-flash",
-    cwd="/workspace/project",
-    approval_gate=gate,
-)
-agent = Agent(engine, tools=tools.as_tools())
+tool_list = tools.as_tools()
+for tool in tool_list:
+    if tool.name == "Bash":
+        real_bash = tool.func
+
+        # Verified live: passing real_bash as a `_real=real_bash` default
+        # parameter instead of a plain closure breaks here -- Tool's
+        # pydantic-backed argument validation introspects every parameter
+        # including defaults, and deepcopying that bound method fails on
+        # an internal threading.Lock inside WorkspaceTools ("cannot pickle
+        # '_thread.lock' object"). A closure has no such parameter for
+        # pydantic to see.
+        async def gated_bash(command: str, timeout: float | None = None) -> dict:
+            decision = await gate(
+                ApprovalRequest(provider="llm", kind="command", name="Bash", arguments={"command": command})
+            )
+            if decision.action not in ("allow", "allow_session"):
+                raise PermissionError(f"Bash denied: {decision.message or 'no reason given'}")
+            return await real_bash(command, timeout=timeout)
+
+        tool.func = gated_bash
+
+agent = Agent(LLMEngine("deepseek-v4-flash"), tools=tool_list)
 ```
+
+If the engine actually is `ClaudeCodeEngine`/`CodexEngine` (still able to
+use `WorkspaceTools` for a uniform Read/Write/Edit surface, even though
+those engines ship their own native versions), `CodingAgentConfig.writer(gate)`
+(see `lazybridge.engines.coding` in the LazyBridge package itself — this
+repo's own docs don't cover LazyBridge's engine API) wires the same
+`TieredGate` through the engine's own native approval flow instead; that
+path does not need the manual wrapper above.
 
 ## Troubleshooting
 
