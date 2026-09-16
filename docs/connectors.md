@@ -32,6 +32,7 @@ The **Extra** column below is what goes in the brackets (`—` = no extra needed
 | **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `[docs]` | [Documents](documents.md) |
 | **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | — | [Skills](skills.md) |
 | **Report (LazyReport)** | Deterministic memo rendering: `Memo` → Markdown/HTML, no LLM. Embeds figures (charts/images) into self-contained HTML via artifact refs. Core needs no extra; the `chart:` figure scheme needs `[charts]`. | `[charts]` (figures only) | [Report](report.md) |
+| **Workspace** | Confined `Read`/`Write`/`Edit` file tools (any engine, not just Claude Code) plus an opt-in, unconfined `Bash` — structural (not string-prefix) path confinement, process-tree cleanup on a Bash timeout (kernel-enforced on Windows, best-effort signals on POSIX). | — | [Workspace](workspace.md) |
 
 Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
 `ConfirmationGate`, `ActionBlocked`) are what gate the dangerous outbound tools.
@@ -202,6 +203,18 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     meta = build_skill(["./docs"], "my-project")
     brief = query_skill(meta["skill_dir"], "How does auth work?")
     tools = skill_tools(skill_dir=meta["skill_dir"])   # expose to an agent
+    ```
+
+=== "Workspace"
+
+    ```python
+    from lazybridge import Agent
+    from lazytools.workspace import WorkspaceTools
+
+    # Read/Write/Edit confined to file_roots; Bash is opt-in and NOT
+    # path-confined — gate it via the engine's own approval_gate.
+    tools = WorkspaceTools(file_roots=["/workspace"], cwd="/workspace", enable_bash=True)
+    agent = Agent("claude-opus-4-8", tools=tools.as_tools())
     ```
 
 Follow any guide above for the full, reference-grade treatment.

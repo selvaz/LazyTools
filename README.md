@@ -77,6 +77,8 @@ from lazytools.documents import read_docs_tools
 from lazytools.skills import build_skill, skill_tools
 from lazytools.safety import Allowlist, ConfirmationGate, ActionBlocked
 from lazytools.mcp_server import build_server, serve_stdio, default_providers
+from lazytools.registry import RegistryTools, resolve_db, search_everywhere
+from lazytools.workspace import WorkspaceTools
 ```
 
 ## Package layout
@@ -90,6 +92,8 @@ from lazytools.mcp_server import build_server, serve_stdio, default_providers
 | `mcp_server/` | `server`, `providers` | expose LazyTools' read-only providers over MCP (the `lazytools-mcp` command) — mirror of the `connectors/mcp` client |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
 | `safety/` | `allowlist`, `gates`, `urls` | reusable allow-list, one-shot confirmation gate, and SSRF URL guard |
+| `registry/` | `db`, `router`, `artifacts`, `tools` | cross-repo DB env-var resolution + a shared artifact catalog (SQLite, no shared DB) — see [DB registry & artifacts](docs/registry.md) |
+| `workspace.py` | `WorkspaceTools` | confined `Read`/`Write`/`Edit` + opt-in, unconfined `Bash` for any engine — see [Workspace](docs/workspace.md) |
 | `testing/` | `fake_clients` | in-memory fakes for the connector Protocols |
 
 **Planned categories** (added when the first module lands, not scaffolded
