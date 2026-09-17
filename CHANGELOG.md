@@ -8,6 +8,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **`polymarket_search_markets`** — full-text topic search for the
+  Polymarket connector, via Gamma's undocumented-but-public
+  `/public-search` (the endpoint polymarket.com's own search bar calls;
+  verified live 2026-09-03). `polymarket_list_markets` cannot do this at
+  all — `/markets` silently ignores any keyword or name-based category
+  filter, so without this an agent with no web search of its own could
+  only find a market it already had the exact slug for, or one popular
+  enough to surface on a volume-sorted page. Results group by event, so a
+  question asked across several horizons ("by Sept 4", "by Sept 11", ...
+  "by Sept 30") comes back as one event carrying all of those markets
+  together with each one's short `group_item_title`, rather than scattered
+  rows a caller has to notice belong together.
+
 ## [0.8.0] — 2026-08-29
 
 ### Added

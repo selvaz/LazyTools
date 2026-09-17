@@ -19,7 +19,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from lazytools.connectors.polymarket.client import Market, PolymarketClient, PolymarketError
+from lazytools.connectors.polymarket.client import (
+    Market,
+    PolymarketClient,
+    PolymarketError,
+    SearchEvent,
+)
 
 #: Hard ceiling on rows one listing call returns -- not a vendor limit (Gamma
 #: accepts up to 500), a limit on how much undigested table an agent pulls
@@ -31,6 +36,23 @@ MAX_ROWS = 100
 #: in this module that could hand back an unbounded reply -- capped for the
 #: same reason MAX_ROWS caps a listing.
 MAX_BOOK_DEPTH = 50
+
+#: Hard ceiling on events per search page -- matches the vendor's own
+#: ``limit_per_type`` ceiling on ``/public-search``.
+MAX_SEARCH_EVENTS = 20
+
+#: Hard ceiling on markets returned per matched event. Some events (a full
+#: slate of named candidates, or a long recurring daily/weekly series) carry
+#: well over a hundred markets -- this bounds one noteworthy event so it
+#: cannot fill an entire search reply BY DEFAULT (the default caller-facing
+#: ``max_markets_per_event`` stays small, see the tool signature), but a
+#: caller who explicitly asks for more, because the event itself is what
+#: they need in full, must actually be able to get it: a fixed ceiling below
+#: what real events carry (found live: some events carry 100+ markets) would
+#: silently contradict that promise. ``n_markets_total``/``markets_truncated``
+#: on each event still report the true count so truncation stays visible if
+#: an event exceeds even this.
+MAX_MARKETS_PER_EVENT = 250
 
 _STALE_NOTE = (
     "outcome_prices are Gamma's last-published prices, not a live quote; "
@@ -62,6 +84,21 @@ def _market_dict(m: Market) -> dict[str, Any]:
         "volume_24hr": m.volume_24hr,
         "liquidity": m.liquidity,
         "end_date": m.end_date,
+        # The short per-horizon label ("September 4") on a market grouped
+        # under a multi-horizon event; None on a standalone market.
+        "group_item_title": m.group_item_title,
+    }
+
+
+def _event_dict(event: SearchEvent, *, max_markets: int) -> dict[str, Any]:
+    truncated = event.n_markets_total > max_markets
+    return {
+        "event_slug": event.slug,
+        "title": event.title,
+        "tags": event.tags,
+        "n_markets_total": event.n_markets_total,
+        "markets_truncated": truncated,
+        "markets": [_market_dict(m) for m in event.markets[:max_markets]],
     }
 
 
@@ -146,6 +183,66 @@ class PolymarketTools:
             offset=offset,
             returned=len(markets),
             markets=[_market_dict(m) for m in markets],
+            note=_STALE_NOTE,
+        )
+
+    def polymarket_search_markets(
+        self,
+        query: str,
+        limit: int = 10,
+        max_markets_per_event: int = 10,
+        active_only: bool = True,
+        page: int = 1,
+    ) -> dict:
+        """Full-text search over Polymarket's event catalog -- what
+        ``polymarket_list_markets`` cannot do, since Gamma's ``/markets``
+        silently ignores any keyword. Use this to go from a topic ("iran
+        ceasefire", "fed rate", "government shutdown") to relevant markets
+        without already knowing a slug.
+
+        Results are grouped by event, not returned as a flat market list: a
+        question asked across several horizons ("by Sept 4", "by Sept 11",
+        ... "by Sept 30") comes back as one event carrying all of those
+        markets together, each tagged with its short ``group_item_title``
+        (e.g. "September 30") -- read across an event's markets to see the
+        market's own implied probability curve over time, rather than
+        stumbling on one horizon at a time.
+
+        Args:
+            query: free-text search phrase, e.g. 'iran ceasefire' or 'fed rate'.
+            limit: events per page, at most 20.
+            max_markets_per_event: cap on markets returned per event -- some
+                events (a full slate of named candidates, or a long recurring
+                series) carry well over a hundred; raise this only if the
+                event itself is what you need in full. Check
+                ``n_markets_total``/``markets_truncated`` on each event
+                before assuming you have seen all of it.
+            active_only: True (default) restricts to active events; False
+                also returns closed/resolved ones (verified live: this
+                roughly 7x's the match count, mostly already-resolved
+                markets, for a typical query).
+            page: 1-indexed page number -- unlike ``polymarket_list_markets``
+                (which pages by row offset), this endpoint pages by page
+                number at a fixed page size of ``limit``.
+        """
+        if not query or not query.strip():
+            raise ValueError("query is required")
+        events_wanted = max(1, min(int(limit), MAX_SEARCH_EVENTS))
+        markets_cap = max(1, min(int(max_markets_per_event), MAX_MARKETS_PER_EVENT))
+        events, pagination = self._client.search(
+            query.strip(),
+            limit=events_wanted,
+            page=max(1, int(page)),
+            active_only=active_only,
+        )
+        return self._envelope(
+            query=query,
+            page=page,
+            active_only=active_only,
+            returned_events=len(events),
+            total_results=pagination.get("totalResults"),
+            has_more=bool(pagination.get("hasMore")),
+            events=[_event_dict(e, max_markets=markets_cap) for e in events],
             note=_STALE_NOTE,
         )
 
@@ -242,6 +339,7 @@ class PolymarketTools:
 
         return [
             Tool.wrap(self.polymarket_list_markets, name="polymarket_list_markets"),
+            Tool.wrap(self.polymarket_search_markets, name="polymarket_search_markets"),
             Tool.wrap(self.polymarket_get_market, name="polymarket_get_market"),
             Tool.wrap(self.polymarket_order_book, name="polymarket_order_book"),
             Tool.wrap(self.polymarket_price, name="polymarket_price"),
