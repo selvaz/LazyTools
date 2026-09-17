@@ -43,10 +43,16 @@ MAX_SEARCH_EVENTS = 20
 
 #: Hard ceiling on markets returned per matched event. Some events (a full
 #: slate of named candidates, or a long recurring daily/weekly series) carry
-#: well over a hundred markets -- capped so one noteworthy event cannot fill
-#: an entire search reply on its own; ``n_markets_total`` on each event
-#: reports the true count so truncation stays visible.
-MAX_MARKETS_PER_EVENT = 15
+#: well over a hundred markets -- this bounds one noteworthy event so it
+#: cannot fill an entire search reply BY DEFAULT (the default caller-facing
+#: ``max_markets_per_event`` stays small, see the tool signature), but a
+#: caller who explicitly asks for more, because the event itself is what
+#: they need in full, must actually be able to get it: a fixed ceiling below
+#: what real events carry (found live: some events carry 100+ markets) would
+#: silently contradict that promise. ``n_markets_total``/``markets_truncated``
+#: on each event still report the true count so truncation stays visible if
+#: an event exceeds even this.
+MAX_MARKETS_PER_EVENT = 250
 
 _STALE_NOTE = (
     "outcome_prices are Gamma's last-published prices, not a live quote; "

@@ -263,6 +263,31 @@ def test_search_markets_caps_events_and_markets_per_event() -> None:
     assert len(event["markets"]) == MAX_MARKETS_PER_EVENT  # hard cap wins over caller's ask
     assert event["markets_truncated"] is True
 
+
+def test_search_markets_lets_a_caller_actually_get_a_full_event_past_the_old_fixed_cap() -> None:
+    """Found by Codex review on PR #167: the docstring promises a caller can
+    raise ``max_markets_per_event`` "if the event itself is what you need in
+    full", but the ceiling used to be fixed at 15 -- a real event with, say,
+    40 markets (a full slate of named candidates) was permanently truncated
+    with no way to retrieve the rest through this tool at all. A caller
+    asking for more than the small default, but still under the real
+    ceiling, must actually get everything back."""
+    requested = 40
+    assert requested > 15  # the old, too-low ceiling this regression test guards against
+    assert requested < MAX_MARKETS_PER_EVENT
+    many_markets = [_market_row(slug=f"m{i}") for i in range(requested)]
+    payload = {
+        "events": [_search_event_row(markets=many_markets)],
+        "pagination": {},
+    }
+    stub = _Stub(routes={"/public-search": payload})
+    tools = _tools(stub)
+    out = tools.polymarket_search_markets("x", max_markets_per_event=requested)
+
+    event = out["events"][0]
+    assert len(event["markets"]) == requested
+    assert event["markets_truncated"] is False
+
     tools.polymarket_search_markets("x", limit=MAX_SEARCH_EVENTS + 10)
     _, params = stub.gets[-1]
     assert params["limit_per_type"] == MAX_SEARCH_EVENTS  # hard cap wins here too
