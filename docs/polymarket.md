@@ -35,7 +35,7 @@ needs a wallet-signed request (EIP-712 + L2 API credentials) this connector
 does not carry at all — there is no write tool to gate, unlike the messaging
 connectors.
 
-## No free-text search, and no name-based category filter either
+## No free-text search on `/markets` — but `/public-search` has it
 
 Gamma's `/markets` endpoint does not support a keyword-search parameter:
 passing one is silently ignored and the default ordering comes back instead.
@@ -46,14 +46,32 @@ ignored on `/markets` too. Verified live 2026-08-28: a query with
 page. Only the numeric `tag_id` actually narrows `/markets` — a real id
 filters, an unknown one correctly returns an empty list rather than being
 ignored — which is why `polymarket_list_markets` only exposes `tag_id`.
-Look up one known market by its exact, stable slug with
-`polymarket_get_market` instead of guessing a search field.
+
+For open-ended topic discovery — going from "iran ceasefire" or "fed rate"
+to relevant markets without already knowing a slug or a numeric tag id —
+use `polymarket_search_markets` instead. It calls `/public-search`, the
+endpoint polymarket.com's own search bar uses: undocumented in Polymarket's
+public API reference, but public, keyless, and verified live 2026-09-03.
+Without it, an agent with no web search of its own has no real way to find
+a market by topic — only `polymarket_list_markets` paged by volume (fine
+for whatever is already high-volume) or an exact slug supplied from
+outside.
+
+`/public-search` groups hits by **event**, not by market — a question asked
+across several horizons ("by Sept 4", "by Sept 11", ... "by Sept 30") comes
+back as one event carrying every one of those markets, each tagged with its
+short `group_item_title` ("September 30"). Reading across one event's
+markets is the closest this connector gets to a probability *curve* rather
+than a single snapshot. Look up one already-known market by its exact,
+stable slug with `polymarket_get_market` when you don't need discovery at
+all.
 
 ## The tools
 
 | Tool | What it does | Reads |
 |---|---|---|
 | `polymarket_list_markets` | a ranked page of markets — question, outcomes, last-published prices, volume, the per-outcome `clob_token_ids` needed by every CLOB tool; `offset` pages past the first `limit` rows | Gamma |
+| `polymarket_search_markets` | full-text search by topic, grouped by event with each market's `group_item_title`; `page` pages past the first `limit` events | Gamma (`/public-search`) |
 | `polymarket_get_market` | one market's full record by its exact slug; `found=False` rather than an error on a typo | Gamma |
 | `polymarket_order_book` | the live bids/asks for one outcome token, capped to `depth` levels per side (default 20, max 50) | CLOB |
 | `polymarket_price` | the current best bid (`side='buy'`) or best ask (`side='sell'`) for one outcome token | CLOB |

@@ -17,7 +17,12 @@ from lazytools.connectors.polymarket import (
     PolymarketError,
     PolymarketTools,
 )
-from lazytools.connectors.polymarket.tools import _STALE_NOTE, MAX_BOOK_DEPTH
+from lazytools.connectors.polymarket.tools import (
+    _STALE_NOTE,
+    MAX_BOOK_DEPTH,
+    MAX_MARKETS_PER_EVENT,
+    MAX_SEARCH_EVENTS,
+)
 
 
 class _Response:
@@ -55,6 +60,7 @@ class _Stub:
 
 POLYMARKET_TOOL_NAMES = {
     "polymarket_list_markets",
+    "polymarket_search_markets",
     "polymarket_get_market",
     "polymarket_order_book",
     "polymarket_price",
@@ -62,8 +68,8 @@ POLYMARKET_TOOL_NAMES = {
 }
 
 
-def _market_row(slug="will-it-happen", closed=False):
-    return {
+def _market_row(slug="will-it-happen", closed=False, group_item_title=None):
+    row = {
         "slug": slug,
         "question": "Will it happen?",
         "active": True,
@@ -75,6 +81,18 @@ def _market_row(slug="will-it-happen", closed=False):
         "volume24hr": 890.1,
         "liquidityNum": 456.7,
         "endDate": "2027-01-01T00:00:00Z",
+    }
+    if group_item_title is not None:
+        row["groupItemTitle"] = group_item_title
+    return row
+
+
+def _search_event_row(slug="some-event", title="Some event?", tags=("Politics",), markets=None):
+    return {
+        "slug": slug,
+        "title": title,
+        "tags": [{"label": t} for t in tags],
+        "markets": markets if markets is not None else [_market_row(slug=f"{slug}-market")],
     }
 
 
@@ -175,6 +193,87 @@ def test_get_market_finds_exact_slug_match() -> None:
     # here let a caller who already knows the slug see Gamma's lagging price
     # with no warning attached (Codex PR review finding).
     assert out["note"] == _STALE_NOTE
+
+
+# --------------------------------------------------------------------------- #
+# Gamma: /public-search, grouped by event
+# --------------------------------------------------------------------------- #
+def test_search_markets_groups_by_event_and_decodes_nested_markets() -> None:
+    payload = {
+        "events": [
+            _search_event_row(
+                slug="iran-ceasefire",
+                title="Iran ceasefire?",
+                tags=["Iran", "Geopolitics"],
+                markets=[
+                    _market_row(slug="by-sept-4", group_item_title="September 4"),
+                    _market_row(slug="by-sept-11", group_item_title="September 11"),
+                ],
+            )
+        ],
+        "pagination": {"hasMore": True, "totalResults": 42},
+    }
+    stub = _Stub(routes={"/public-search": payload})
+    tools = _tools(stub)
+    out = tools.polymarket_search_markets("iran ceasefire")
+
+    assert out["returned_events"] == 1
+    assert out["total_results"] == 42
+    assert out["has_more"] is True
+    event = out["events"][0]
+    assert event["event_slug"] == "iran-ceasefire"
+    assert event["tags"] == ["Iran", "Geopolitics"]
+    assert event["n_markets_total"] == 2
+    assert event["markets_truncated"] is False
+    assert [m["group_item_title"] for m in event["markets"]] == ["September 4", "September 11"]
+    # decoding is shared with polymarket_list_markets -- spot-check it ran
+    assert event["markets"][0]["outcome_prices"] == ["0.62", "0.38"]
+
+
+def test_search_markets_sends_query_and_active_filter() -> None:
+    stub = _Stub(routes={"/public-search": {"events": [], "pagination": {}}})
+    tools = _tools(stub)
+    tools.polymarket_search_markets("fed rate", limit=5, page=2)
+    _, params = stub.gets[0]
+    assert params["q"] == "fed rate"
+    assert params["limit_per_type"] == 5
+    assert params["page"] == 2
+    assert params["events_status"] == "active"
+
+    # active_only=False must not send the filter -- verified live it roughly
+    # 7x's the match count by including closed/resolved events.
+    stub2 = _Stub(routes={"/public-search": {"events": [], "pagination": {}}})
+    _tools(stub2).polymarket_search_markets("fed rate", active_only=False)
+    _, params2 = stub2.gets[0]
+    assert "events_status" not in params2
+
+
+def test_search_markets_caps_events_and_markets_per_event() -> None:
+    many_markets = [_market_row(slug=f"m{i}") for i in range(MAX_MARKETS_PER_EVENT + 5)]
+    payload = {
+        "events": [_search_event_row(markets=many_markets)],
+        "pagination": {},
+    }
+    stub = _Stub(routes={"/public-search": payload})
+    tools = _tools(stub)
+    out = tools.polymarket_search_markets("x", max_markets_per_event=MAX_MARKETS_PER_EVENT + 5)
+
+    event = out["events"][0]
+    assert event["n_markets_total"] == MAX_MARKETS_PER_EVENT + 5
+    assert len(event["markets"]) == MAX_MARKETS_PER_EVENT  # hard cap wins over caller's ask
+    assert event["markets_truncated"] is True
+
+    tools.polymarket_search_markets("x", limit=MAX_SEARCH_EVENTS + 10)
+    _, params = stub.gets[-1]
+    assert params["limit_per_type"] == MAX_SEARCH_EVENTS  # hard cap wins here too
+
+
+def test_search_markets_requires_nonempty_query() -> None:
+    stub = _Stub()
+    tools = _tools(stub)
+    with pytest.raises(ValueError):
+        tools.polymarket_search_markets("   ")
+    assert stub.gets == []
 
 
 def test_malformed_json_field_degrades_to_empty_list_not_a_crash() -> None:

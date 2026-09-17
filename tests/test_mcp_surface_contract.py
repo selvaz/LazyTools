@@ -161,6 +161,7 @@ TRADINGVIEW_TOOLS = {
 
 POLYMARKET_TOOLS = {
     "polymarket_list_markets",
+    "polymarket_search_markets",
     "polymarket_get_market",
     "polymarket_order_book",
     "polymarket_price",
