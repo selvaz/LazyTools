@@ -335,7 +335,8 @@ class PolymarketClient:
             return [], {}
         raw_events = payload.get("events")
         events = [_to_search_event(e) for e in raw_events if isinstance(e, dict)] if isinstance(raw_events, list) else []
-        pagination = payload.get("pagination") if isinstance(payload.get("pagination"), dict) else {}
+        raw_pagination = payload.get("pagination")
+        pagination: dict[str, Any] = raw_pagination if isinstance(raw_pagination, dict) else {}
         return events, pagination
 
     def market(self, slug: str) -> Market | None:
