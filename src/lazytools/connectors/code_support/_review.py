@@ -113,7 +113,7 @@ this is read by another agent, not rendered as a document."""
 #: Default per-run ceiling for one review (seconds). A real review reads
 #: several files and runs git; the 120 s ``CodexEngine`` default is sized for
 #: a single question, not for this.
-DEFAULT_REVIEW_TIMEOUT = 900.0
+DEFAULT_REVIEW_TIMEOUT = 3600.0
 
 
 def _resolve_repo(repo_path: str | None, root: Path) -> Path:

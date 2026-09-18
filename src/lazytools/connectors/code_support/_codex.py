@@ -47,6 +47,15 @@ _READ_FLAGS: list[str] = ["-s", "read-only"]
 _WRITE_FLAGS: list[str] = ["-s", "workspace-write", "-c", "approval_policy=never"]
 
 
+#: One hour. Was five minutes for writes and fifteen for reviews, which
+#: is shorter than a real refactor across a large repository: a long job
+#: was killed mid-work and the caller was told only that the call
+#: failed -- indistinguishable from a job that never started. Override
+#: per deployment with LAZYTOOLS_CODE_WRITE_TIMEOUT /
+#: LAZYTOOLS_CODE_REVIEW_TIMEOUT.
+DEFAULT_TIMEOUT = 3600.0
+
+
 def resolve_codex_bin() -> str | None:
     """Best-effort resolve the ``codex`` binary; ``None`` if none can be found.
 
@@ -153,7 +162,7 @@ def codex(
     *,
     cwd: str | None = None,
     resume_last: bool = False,
-    timeout: float = 300.0,
+    timeout: float = DEFAULT_TIMEOUT,
     skip_git_check: bool = True,
 ) -> dict[str, Any] | str:
     """Delegate a read-only task to the Codex CLI (``-s read-only`` sandbox).

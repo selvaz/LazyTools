@@ -824,7 +824,7 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
 
     raw_timeout = os.environ.get("LAZYTOOLS_CODE_WRITE_TIMEOUT")
     try:
-        timeout = float(raw_timeout) if raw_timeout else 300.0
+        timeout = float(raw_timeout) if raw_timeout else 3600.0
     except ValueError as exc:
         raise RuntimeError(f"LAZYTOOLS_CODE_WRITE_TIMEOUT is not a number: {raw_timeout!r}") from exc
     if not math.isfinite(timeout) or timeout <= 0:
