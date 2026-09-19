@@ -20,7 +20,7 @@ schema_version = 1
 
 [verified]
 python = ["3.11", "3.12", "3.13"]
-lazybridge = "1.4.0"
+lazybridge = "1.5.0"
 
 # Immutable GitHub refs of the verified, co-installable combination.
 # ``extras`` are the extras exercised by the released-artifact CI.
