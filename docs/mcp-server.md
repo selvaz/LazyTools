@@ -134,7 +134,7 @@ a real model turn; it is skipped entirely when the `codex` CLI can't be found.
 | `code_root` (`--config`) / `LAZYTOOLS_CODE_ROOT` | server cwd | Directory every `repo_path` is confined to (and `paths` to `repo_path` in turn) — a caller cannot walk the reviewer out of it through an argument. The free-text `task` can still *ask*; the reviewer prompt refuses, but that is an instruction, not a sandbox, so keep secrets out of the root. |
 | `LAZYTOOLS_CODE_REVIEW_MODEL` | the local `~/.codex/config.toml` model | Model override. |
 | `LAZYTOOLS_CODE_REVIEW_EFFORT` | the CLI's default | `low` / `medium` / `high`. |
-| `LAZYTOOLS_CODE_REVIEW_TIMEOUT` | `900` | Seconds per review. |
+| `LAZYTOOLS_CODE_REVIEW_TIMEOUT` | `3600` | Seconds per review. |
 
 A review takes minutes, so give the *host* a matching tool timeout (Claude
 Code: `MCP_TOOL_TIMEOUT` in ms) — otherwise the host cancels the call before

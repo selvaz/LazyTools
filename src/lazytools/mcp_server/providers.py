@@ -671,7 +671,7 @@ def _code_review(allow_write: bool = False, *, data_source: dict[str, Any] | Non
     * ``LAZYTOOLS_CODE_REVIEW_MODEL`` / ``LAZYTOOLS_CODE_REVIEW_EFFORT`` —
       left unset, the local Codex config (``~/.codex/config.toml``) decides;
     * ``LAZYTOOLS_CODE_REVIEW_TIMEOUT`` — seconds per review (default:
-      ``DEFAULT_REVIEW_TIMEOUT``, 900).
+      ``DEFAULT_REVIEW_TIMEOUT``, 3600).
       A host-side MCP tool timeout shorter than this cancels the call first.
     """
     if not allow_write:
@@ -796,7 +796,7 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
     else the server process' cwd) — same fallback chain ``code_review`` uses
     for its confinement root. Unlike a review call, a write has no per-call
     ``repo_path``, so this is resolved once, at provider construction.
-    ``LAZYTOOLS_CODE_WRITE_TIMEOUT`` — seconds per call (default: 300).
+    ``LAZYTOOLS_CODE_WRITE_TIMEOUT`` — seconds per call (default: 3600).
     ``LAZYTOOLS_CODE_WRITE_DEFAULT_CWD`` — subdirectory (relative to the code
     root) a call runs in when it omits ``cwd`` (default: the code root
     itself). Set this to whichever project the calling agent is actually
