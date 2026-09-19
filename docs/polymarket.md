@@ -1,6 +1,6 @@
 # Polymarket
 
-Five read-only tools over Polymarket's two public REST surfaces: Gamma (the
+Six read-only tools over Polymarket's two public REST surfaces: Gamma (the
 market/event catalog) for discovery, CLOB (the order book) for live pricing.
 Both are documented, public, and need no API key for these endpoints.
 
