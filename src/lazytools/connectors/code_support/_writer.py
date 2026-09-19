@@ -38,6 +38,15 @@ if TYPE_CHECKING:
     from lazybridge import Tool
 
 
+#: One hour. Was five minutes for writes and fifteen for reviews, which
+#: is shorter than a real refactor across a large repository: a long job
+#: was killed mid-work and the caller was told only that the call
+#: failed -- indistinguishable from a job that never started. Override
+#: per deployment with LAZYTOOLS_CODE_WRITE_TIMEOUT /
+#: LAZYTOOLS_CODE_REVIEW_TIMEOUT.
+DEFAULT_TIMEOUT = 3600.0
+
+
 class CodeWriteBlocked(ActionBlocked):
     """A write call was blocked (no confirmation, or cwd outside base_dir)."""
 
@@ -102,7 +111,7 @@ class CodeWriteTools:
         codex: bool = False,
         require_confirmation: bool = True,
         codex_skip_git_check: bool = False,
-        timeout: float = 300.0,
+        timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
         root = Path(base_dir).resolve()
         if not root.is_dir():

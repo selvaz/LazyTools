@@ -47,6 +47,15 @@ _WRITE_FLAGS: list[str] = [
 ]
 
 
+#: One hour. Was five minutes for writes and fifteen for reviews, which
+#: is shorter than a real refactor across a large repository: a long job
+#: was killed mid-work and the caller was told only that the call
+#: failed -- indistinguishable from a job that never started. Override
+#: per deployment with LAZYTOOLS_CODE_WRITE_TIMEOUT /
+#: LAZYTOOLS_CODE_REVIEW_TIMEOUT.
+DEFAULT_TIMEOUT = 3600.0
+
+
 def _run_claude(
     task: str,
     flags: list[str],
@@ -111,7 +120,7 @@ def claude_code(
     mode: str = "read",
     cwd: str | None = None,
     session_id: str | None = None,
-    timeout: float = 300.0,
+    timeout: float = DEFAULT_TIMEOUT,
     model: str | None = "claude-sonnet-5",
 ) -> dict[str, Any] | str:
     """Delegate a read-only task to Claude Code CLI.

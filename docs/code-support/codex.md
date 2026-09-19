@@ -27,7 +27,7 @@ codex(
     *,
     cwd: str | None = None,
     resume_last: bool = False,
-    timeout: float = 300.0,
+    timeout: float = 3600.0,
     skip_git_check: bool = True,
 ) -> dict | str
 ```
@@ -48,7 +48,7 @@ and the session id is not on stdout — to continue, use `resume_last=True`
 | `task` | `str` | — | The instruction for Codex. |
 | `cwd` | `str \| None` | `None` | Working directory for the subprocess. |
 | `resume_last` | `bool` | `False` | Continue the most recent session via `exec resume --last`. |
-| `timeout` | `float` | `300.0` | Max seconds for the subprocess. |
+| `timeout` | `float` | `3600.0` | Max seconds for the subprocess. |
 | `skip_git_check` | `bool` | `True` | Pass `--skip-git-repo-check`; required outside a git repo. |
 
 ```python
@@ -160,7 +160,7 @@ tool = codex_reviewer(
     root: str | None = None,        # confines every call's repo_path
     model: str | None = None,       # None → whatever ~/.codex/config.toml says
     effort: str | None = None,      # "low" / "medium" / "high"
-    timeout: float = 900.0,         # seconds per review
+    timeout: float = 3600.0,        # seconds per review
     name: str = "codex_code_review",
     system: str = CODE_REVIEWER_SYSTEM,
 ) -> Tool
@@ -285,7 +285,7 @@ Code, say) gets Codex as a second reviewer *and* a second opinion.
 |---|---|---|
 | `[codex] CLI 'codex' not found in PATH` | Codex not installed / not on `PATH` | Install it; verify with `check_clis_available()` |
 | `[codex] error (exit 1): …` outside a repo | Codex's git-repo check | Keep `skip_git_check=True` (the default) |
-| `[codex] timeout after 300s` | Task longer than `timeout` | Raise `timeout=`; set engine `tool_timeout=None` |
+| `[codex] timeout after 3600.0s` | Task longer than `timeout` | Raise `timeout=`; set engine `tool_timeout=None` |
 | Orphaned `codex` process after a run | Engine `tool_timeout` fired before the subprocess | Use `tool_timeout=None`, or `tool_timeout > timeout` |
 | `ValueError: requires an explicit allow= / deny=` | `codex_mcp` called without a filter | Pass `allow=["*"]` (after auditing) or an explicit glob list |
 | `ImportError: requires the official MCP SDK` | MCP mode used without the extra | `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"` |

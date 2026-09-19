@@ -22,7 +22,7 @@ claude_code(
     mode: str = "read",          # "read" | "plan"  (writes: see CodeWriteTools)
     cwd: str | None = None,
     session_id: str | None = None,
-    timeout: float = 300.0,
+    timeout: float = 3600.0,
     model: str | None = "claude-sonnet-5",
 ) -> dict | str
 ```
@@ -40,7 +40,7 @@ string.
 | `mode` | `str` | `"read"` | `read` → `Read,Grep,Glob` (analysis only — no Bash, so the CLI cannot run commands or modify files). `plan` → `--permission-mode plan`, no edits. There is deliberately **no `write` mode here**: writes live behind [`CodeWriteTools`](index.md#writes-codewritetools) (mandatory `base_dir` sandbox + one-shot confirmation), so an orchestrating LLM cannot reach write access through an argument. |
 | `cwd` | `str \| None` | `None` | Working directory for the subprocess. |
 | `session_id` | `str \| None` | `None` | If set, resumes an existing session via `--resume`. |
-| `timeout` | `float` | `300.0` | Max seconds for the subprocess. |
+| `timeout` | `float` | `3600.0` | Max seconds for the subprocess. |
 | `model` | `str \| None` | `"claude-sonnet-5"` | `--model` passed to the CLI — an alias (`"opus"`, `"sonnet"`) or a full model name. `None` omits the flag and lets the CLI's own default decide. |
 
 ```python
@@ -148,7 +148,7 @@ print(sorted(agent._tool_map))   # ['claude_code.Bash', 'claude_code.Edit', ...]
 |---|---|---|
 | `[claude_code] CLI 'claude' not found in PATH` | Claude Code not installed / not on `PATH` | Install it; verify with `check_clis_available()` |
 | `[claude_code] error (exit 1): … auth …` | No valid Claude credentials | Sign in to Claude Code, or set `ANTHROPIC_API_KEY` |
-| `[claude_code] timeout after 300s` | Task longer than `timeout` | Raise `timeout=`; set engine `tool_timeout=None` |
+| `[claude_code] timeout after 3600.0s` | Task longer than `timeout` | Raise `timeout=`; set engine `tool_timeout=None` |
 | Orphaned `claude` process after a run | Engine `tool_timeout` fired before the subprocess | Use `tool_timeout=None`, or `tool_timeout > timeout` |
 | `ValueError: requires an explicit allow= / deny=` | `claude_code_mcp` called without a filter | Pass `allow=["*"]` (after auditing) or an explicit glob list |
 | `ImportError: requires the official MCP SDK` | MCP mode used without the extra | `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"` |
