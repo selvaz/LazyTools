@@ -116,6 +116,54 @@ this is read by another agent, not rendered as a document."""
 DEFAULT_REVIEW_TIMEOUT = 3600.0
 
 
+class ReviewNotPerformed(RuntimeError):
+    """A reviewer/consultant turn ended in an engine failure, not a verdict.
+
+    Raised by :func:`_turn` (this module) and
+    :func:`~lazytools.connectors.code_support._claude_review._claude_turn`
+    whenever the underlying ``Agent.run`` envelope comes back with
+    ``env.ok is False`` — an engine error result, a timeout, a non-zero
+    exit, or "reached maximum number of turns". Before this existed, that
+    case was rendered as an ordinary findings *string* —
+    ``f"[{label}] failed in {cwd} (...): {message}"`` — returned exactly
+    like a real review. A caller that does not parse that prose (LazyCEO's
+    contract-review accept gate did not) cannot tell "the reviewer looked
+    and found nothing wrong" from "the reviewer never actually ran", and
+    recorded the failed run as ``performed=True``. Raising instead makes
+    the two cases structurally different: a successful call still returns
+    the findings string unchanged; a failed one raises this, and any
+    caller that does not explicitly catch it sees a real exception instead
+    of a plausible-looking success.
+
+    Preserves the exact legacy message as ``str(exc)`` (via ``reason``, see
+    below) so the MCP surface keeps working unchanged: the low-level MCP
+    ``Server.call_tool()`` handler catches tool exceptions and reports them
+    as an MCP error result (``isError=True``, text = ``str(exc)``) rather
+    than crashing the session, so an MCP host still gets the same
+    human-readable failure text it always did — just tagged as an error
+    instead of a normal tool result. A direct Python caller (LazyCEO calls
+    ``reviewer.func(...)`` directly, bypassing MCP) now gets a real
+    exception it can catch with ``except Exception`` exactly as it already
+    does for every other engine failure.
+
+    Attributes:
+        reason: The underlying engine error message (``env.error.message``,
+            or ``"unknown error"`` when the envelope carries no ``ErrorInfo``).
+        label: The tool name that failed (``"claude_code_review"``,
+            ``"codex_code_review"``, ...).
+        cwd: The repository path the turn ran against.
+        handle: The session/thread handle for that turn, so a caller that
+            catches this can still resume the conversation to ask why.
+    """
+
+    def __init__(self, reason: str, *, label: str, cwd: Any, handle: str, handle_kind: str = "session_id") -> None:
+        self.reason = reason
+        self.label = label
+        self.cwd = cwd
+        self.handle = handle
+        super().__init__(f"[{label}] failed in {cwd} ({handle_kind}={handle}): {reason}")
+
+
 def _resolve_repo(repo_path: str | None, root: Path) -> Path:
     """Resolve ``repo_path`` against ``root`` and refuse to leave it.
 
@@ -382,8 +430,10 @@ async def _turn(
     if not env.ok:
         message = env.error.message if env.error else "unknown error"
         # The handle matters most on failure: an interrupted turn is exactly
-        # what someone needs to go and inspect.
-        return f"[{label}] failed in {cwd} (thread_id={handle}): {message}"
+        # what someone needs to go and inspect. Raising (rather than
+        # returning this as findings text) is what makes the failure
+        # unmistakable to a caller — see ReviewNotPerformed.
+        raise ReviewNotPerformed(message, label=label, cwd=cwd, handle=handle, handle_kind="thread_id")
     return f"[{label}] {cwd} thread_id={handle}\n\n{env.text()}"
 
 

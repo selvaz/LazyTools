@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any
 
 from lazytools.connectors.code_support._review import (
     DEFAULT_REVIEW_TIMEOUT,
+    ReviewNotPerformed,
     _check_ref,
     _confine_paths,
     _decode_handle,
@@ -45,6 +46,26 @@ from lazytools.connectors.code_support._review import (
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from lazybridge import Tool
+
+#: Explicit turn budget for a Claude Code reviewer/consultant call.
+#:
+#: ``ClaudeCodeEngine`` defaults ``max_turns`` to 20 (see
+#: ``lazybridge/engines/claude_code/engine.py``) when nothing overrides it —
+#: that default is sized for a short back-and-forth, not for reading a real
+#: PR's diff plus its callers/callees plus running ``git_diff``/``git_status``
+#: a few times each. Left unset, a review that needs one turn more than 20
+#: does not get a shorter-than-ideal review: the SDK aborts the whole turn
+#: with "Reached maximum number of turns (20)", which — before
+#: ``ReviewNotPerformed`` existed — came back as ordinary findings text,
+#: indistinguishable from "the code is clean" (the exact live incident this
+#: budget and that exception were both raised to fix: job 9ad3b31c's review
+#: hit this ceiling and was recorded as a passed review).
+#:
+#: 60 matches the budget LazyBridge's own delegated-writer path already uses
+#: for real work (``lazybridge/ext/delegation/writers.py``, ``max_turns=60``)
+#: — three times the SDK default, enough headroom for a real repository
+#: without being unbounded.
+DEFAULT_CLAUDE_MAX_TURNS = 60
 
 #: The Codex reviewer's report contract, restated for a runtime with different
 #: tools. Kept deliberately identical in *output shape* so a finding from
@@ -163,6 +184,7 @@ async def _claude_turn(
     with_git: bool,
     web: bool = False,
     tools: list[Any] | None = None,
+    max_turns: int = DEFAULT_CLAUDE_MAX_TURNS,
 ) -> str:
     """One Claude Code turn on a durable session, rendered for an MCP caller."""
     from lazybridge import Agent
@@ -182,6 +204,8 @@ async def _claude_turn(
         thinking=thinking,
         request_timeout=timeout,
         stream_idle_timeout=max(timeout * 2 / 3, 30.0),
+        # Explicit, not the SDK's default of 20 — see DEFAULT_CLAUDE_MAX_TURNS.
+        max_turns=max_turns,
         session_id=resumed,
         persist_session=True,
         # The default profile, NOT ``CodingAgentConfig.reviewer()``: the
@@ -204,7 +228,9 @@ async def _claude_turn(
     handle = _encode_handle(cwd, base, engine.session_id or resumed or "")
     if not env.ok:
         message = env.error.message if env.error else "unknown error"
-        return f"[{label}] failed in {cwd} (session_id={handle}): {message}"
+        # Raising (rather than returning this as findings text) is what
+        # makes the failure unmistakable to a caller — see ReviewNotPerformed.
+        raise ReviewNotPerformed(message, label=label, cwd=cwd, handle=handle, handle_kind="session_id")
     return f"[{label}] {cwd} session_id={handle}\n\n{env.text()}"
 
 
@@ -238,6 +264,7 @@ def claude_reviewer(
     name: str = "claude_code_review",
     system: str | None = None,
     web: bool = True,
+    max_turns: int = DEFAULT_CLAUDE_MAX_TURNS,
 ) -> Tool:
     """Build ``claude_code_review``: Claude Code as a review agent.
 
@@ -258,6 +285,12 @@ def claude_reviewer(
     code-gated this way: the native Codex web tool (``web__run``) is an
     account-level capability, on whenever ``~/.codex/config.toml`` enables
     it, independent of role.
+
+    ``max_turns`` (default :data:`DEFAULT_CLAUDE_MAX_TURNS`, 60) is the
+    engine's hard cap on agentic turns for one review. Left unset it would
+    fall back to ``ClaudeCodeEngine``'s own default of 20, which a real
+    review of a non-trivial PR can exceed — the engine then aborts with
+    "Reached maximum number of turns (20)" rather than finishing.
     """
     from lazybridge import Tool
 
@@ -312,6 +345,7 @@ def claude_reviewer(
             timeout=timeout,
             with_git=True,
             web=web,
+            max_turns=max_turns,
         )
 
     return Tool(claude_code_review, name=name)
@@ -327,6 +361,7 @@ def claude_consultant(
     system: str | None = None,
     web: bool = True,
     tools: list[Any] | None = None,
+    max_turns: int = DEFAULT_CLAUDE_MAX_TURNS,
 ) -> Tool:
     """Build ``claude_ask``: Claude Code as a design partner.
 
@@ -393,6 +428,7 @@ def claude_consultant(
             with_git=True,
             web=web,
             tools=extra_tools,
+            max_turns=max_turns,
         )
 
     return Tool(claude_ask, name=name)
