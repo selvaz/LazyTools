@@ -406,9 +406,12 @@ async def _turn(
 
     Every call keeps its thread (``persist_thread=True``) and reports the id in
     the header, so the caller can come back to the same Codex conversation
-    instead of paying for a cold re-read of the repository. Errors are returned
-    as text rather than raised: an orchestrating agent should see the failure,
-    not lose the turn.
+    instead of paying for a cold re-read of the repository. An engine failure
+    (error result, turn limit, timeout) raises :class:`ReviewNotPerformed`
+    rather than returning its message as if it were findings: a caller that
+    records reviews must be able to tell "found nothing" from "never ran"
+    without parsing prose. Over MCP the exception surfaces as an error result
+    (``isError=True``), so an orchestrating agent still sees the failure.
     """
     from lazybridge import Agent
     from lazybridge.engines.codex import CodexEngine

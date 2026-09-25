@@ -200,9 +200,13 @@ only `task: str`, and the engine's `cwd` is fixed at construction).
   `CODE_REVIEWER_SYSTEM` tells the reviewer to refuse reads outside the
   working directory, which is an instruction, not a sandbox. Don't point this
   tool at a root containing secrets you would not show the model.
-- **Errors come back as text** (`[codex_code_review] failed in <cwd>: …`) rather
-  than raising, so an orchestrating agent sees the failure instead of losing the
-  turn.
+- **A failed review raises `ReviewNotPerformed`** (from
+  `lazytools.connectors.code_support`; `.reason` carries the engine's message)
+  instead of returning the failure as findings text. Over MCP it arrives as an
+  error result (`isError=True`), so an orchestrating agent still sees it; a
+  direct Python caller must catch it. Before this change a failure came back as
+  `[codex_code_review] failed in <cwd>: …`, indistinguishable from findings --
+  a LazyCEO verification was accepted on exactly that (25/09/2026).
 
 ### Continuing a review — `thread_id`
 
