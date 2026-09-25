@@ -119,7 +119,7 @@ def _git_tools(cwd: Path) -> list[Any]:
 
     def _run(args: list[str]) -> str:
         try:
-            proc = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, timeout=60)
+            proc = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
         except FileNotFoundError:
             return "[git] not found on PATH"
         except subprocess.TimeoutExpired:

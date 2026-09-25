@@ -79,6 +79,8 @@ def _run_claude(
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             cwd=cwd,
             # Found live (two 1500s timeouts with zero output, on real
