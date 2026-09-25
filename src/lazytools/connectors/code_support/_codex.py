@@ -129,6 +129,8 @@ def _run_codex(
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             cwd=cwd,
             # Found live: without this, `codex exec` inherits this process's

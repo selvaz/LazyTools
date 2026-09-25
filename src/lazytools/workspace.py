@@ -764,6 +764,8 @@ def _posix_descendants(root_pid: int) -> list[int]:
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
         except (OSError, subprocess.SubprocessError):
             return []
