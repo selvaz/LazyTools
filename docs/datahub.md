@@ -56,11 +56,11 @@ from lazybridge import Agent
 from lazytools.connectors.datahub import DataHubTools
 
 # Default: read-only, bounded-results-only discovery + resolution + facts.
-agent = Agent("claude-opus-4-8", tools=[DataHubTools()])
+agent = Agent("claude-opus-5-5", tools=[DataHubTools()])
 
 # Opt into raw (capped) series and on-demand ingestion:
 agent = Agent(
-    "claude-opus-4-8",
+    "claude-opus-5-5",
     tools=[DataHubTools(allow_raw_series=True, allow_refresh=True)],
 )
 ```

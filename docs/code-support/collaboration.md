@@ -12,10 +12,10 @@ build_cli_collaboration(
     *,
     name: str = "cli_collaboration",
     description: str | None = None,
-    claude_model: str = "claude-opus-4-8",
-    codex_model: str = "gpt-5.4",
-    synthesizer_model: str = "claude-opus-4-8",
-    executor_model: str = "claude-opus-4-8",
+    claude_model: str = "claude-opus-5-5",
+    codex_model: str = "gpt-6-sol",
+    synthesizer_model: str = "claude-opus-5-5",
+    executor_model: str = "claude-sonnet-5",
     execute: bool = True,
 ) -> Agent
 ```
@@ -38,10 +38,10 @@ Step 4  executor         claude_code_write    implement the plan   (ONLY with ex
 |---|---|---|---|
 | `name` | `str` | `"cli_collaboration"` | Tool name the parent agent sees (tool-map key). |
 | `description` | `str \| None` | `None` | Tool description shown to the parent LLM; a sensible default is used when `None`. |
-| `claude_model` | `str` | `"claude-opus-4-8"` | Model for the Claude-Code analyst (step 1). |
-| `codex_model` | `str` | `"gpt-5.4"` | Model for the Codex analyst/critic (step 2). |
-| `synthesizer_model` | `str` | `"claude-opus-4-8"` | Model that merges the analyses (step 3). |
-| `executor_model` | `str` | `"claude-opus-4-8"` | Model that implements the plan (step 4). |
+| `claude_model` | `str` | `"claude-opus-5-5"` | Model for the Claude-Code analyst (step 1). |
+| `codex_model` | `str` | `"gpt-6-sol"` | Model for the Codex analyst/critic (step 2). |
+| `synthesizer_model` | `str` | `"claude-opus-5-5"` | Model that merges the analyses (step 3). |
+| `executor_model` | `str` | `"claude-sonnet-5"` | Model that implements the plan (step 4). |
 | `execute` | `bool` | `False` | `False` (default) → stop after synthesis: the read-only three-session pipeline. `True` → append the executor, which implements the plan via the gated `claude_code_write` tool. |
 | `base_dir` | `str \| None` | `None` | **Required when `execute=True`**: the sandbox root the executor may write inside (ideally a git checkout). |
 | `writer` | `CodeWriteTools \| None` | `None` | Bring your own writer for the executor (mutually exclusive with `base_dir`). This is the only way to run a **gate-enabled** executor: you hold the instance, so you can call `writer.confirm_write()` per executor write while the pipeline runs. |
@@ -68,7 +68,7 @@ Step 4  executor         claude_code_write    implement the plan   (ONLY with ex
     # Hand the collaboration to a higher-level orchestrator, alongside any
     # other tools — it behaves like any other tool that takes a task string.
     orchestrator = Agent(
-        engine=LLMEngine("claude-opus-4-8"),
+        engine=LLMEngine("claude-opus-5-5"),
         tools=[build_cli_collaboration(name="deep_code_task")],
     )
     orchestrator("Use deep_code_task to add retries to the HTTP client")

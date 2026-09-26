@@ -512,7 +512,7 @@ def codex_consultant(
             thread_id: Continue an earlier conversation, from the `thread_id=`
                 in its reply. A thread belongs to the repository it was opened
                 on — don't reuse one against a different repo.
-            model: Codex model override for this call (e.g. "gpt-5.6-sol").
+            model: Codex model override for this call (e.g. "gpt-6-sol").
                 Defaults to the server's configured model.
             effort: Reasoning effort override for this call ("low", "medium",
                 "high", "xhigh"). Defaults to the server's configured effort.

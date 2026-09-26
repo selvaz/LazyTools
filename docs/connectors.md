@@ -64,7 +64,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     # gmail_create_draft is always allowed; gmail_send is gated (allow-list +
     # one-shot confirmation). See Gmail + Safety.
     tools = GmailTools(client, allowed_recipients=["teammate@example.com"])
-    agent = Agent("claude-opus-4-8", tools=[tools])
+    agent = Agent("claude-opus-5-5", tools=[tools])
     ```
 
 === "Outlook"
@@ -100,7 +100,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
         args=["-y", "@modelcontextprotocol/server-filesystem", "/tmp/project"],
         allow=["fs.read_*"],          # deny-by-default least-privilege filtering
     )
-    agent = Agent("claude-opus-4-8", tools=[fs])
+    agent = Agent("claude-opus-5-5", tools=[fs])
     ```
 
 === "Code Support Agent"
@@ -113,7 +113,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     # collaboration packaged as a single tool. tool_timeout=None lets each CLI
     # subprocess own its own deadline. (MCP mode: claude_code_mcp / codex_mcp.)
     agent = Agent(
-        engine=LLMEngine("claude-opus-4-8", tool_timeout=None),
+        engine=LLMEngine("claude-opus-5-5", tool_timeout=None),
         tools=[claude_code, codex, build_cli_collaboration()],
     )
     ```
@@ -137,7 +137,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     # datahub_* discovery + resolution + extraction. MarketDataHubBackend
     # imports market_data_hub lazily (GitHub-only package). Raw series are
     # opt-in (allow_raw_series=True); allow_refresh=True adds the write tool.
-    agent = Agent("claude-opus-4-8", tools=[DataHubTools()])
+    agent = Agent("claude-opus-5-5", tools=[DataHubTools()])
     ```
 
 === "Polymarket"
@@ -149,7 +149,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     # polymarket_list_markets/_search_markets/_get_market read Gamma (the
     # catalog); polymarket_order_book/_price/_midpoint read CLOB, keyed by
     # the clob_token_ids a market listing returns. Public, keyless, read-only.
-    agent = Agent("claude-opus-4-8", tools=[PolymarketTools()])
+    agent = Agent("claude-opus-5-5", tools=[PolymarketTools()])
     ```
 
 === "GLEIF"
@@ -160,7 +160,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
 
     # gleif_search/_get_record read the LEI catalog; gleif_parents/_children
     # walk the ownership graph. Public, keyless JSON:API, read-only.
-    agent = Agent("claude-opus-4-8", tools=[GLEIFTools()])
+    agent = Agent("claude-opus-5-5", tools=[GLEIFTools()])
     ```
 
 === "Manifold Markets"
@@ -171,7 +171,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
 
     # manifold_list_markets/_search_markets never populate answers; only
     # manifold_get_market/_probability do. Public, keyless, read-only.
-    agent = Agent("claude-opus-4-8", tools=[ManifoldTools()])
+    agent = Agent("claude-opus-5-5", tools=[ManifoldTools()])
     ```
 
 === "Web"
@@ -181,7 +181,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     from lazytools.connectors.web import WebTools
 
     # Thin pass-through over lazycrawler.CrawlerTools — LLM tool interface only.
-    agent = Agent("claude-opus-4-8", tools=[WebTools()])
+    agent = Agent("claude-opus-5-5", tools=[WebTools()])
     ```
 
 === "Documents"
@@ -216,7 +216,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     # wiring enable_bash=True through an actual approval_gate before
     # turning it on.
     tools = WorkspaceTools(file_roots=["/workspace"], cwd="/workspace")
-    agent = Agent("claude-opus-4-8", tools=tools.as_tools())
+    agent = Agent("claude-opus-5-5", tools=tools.as_tools())
     ```
 
 Follow any guide above for the full, reference-grade treatment.

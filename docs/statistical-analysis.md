@@ -101,7 +101,7 @@ from lazytools.connectors.datahub import DataHubTools
 from lazytools.statistical_analysis import StatisticalAnalysisTools
 
 agent = Agent(
-    "claude-opus-4-8",
+    "claude-opus-5-5",
     tools=[DataHubTools(), StatisticalAnalysisTools()],
 )
 ```

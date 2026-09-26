@@ -128,7 +128,7 @@ from lazytools.registry import RegistryTools
 # optional dependency. Read-only by default: pass allow_write=True to
 # also emit artifact_register (matches every other MCP-exposed provider's
 # convention, e.g. DataHubTools(allow_refresh=...)).
-agent = Agent("claude-opus-4-8", tools=[RegistryTools(allow_write=True)])
+agent = Agent("claude-opus-5-5", tools=[RegistryTools(allow_write=True)])
 ```
 
 ## See also

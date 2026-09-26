@@ -54,10 +54,10 @@ from lazybridge import Agent
 from lazytools.connectors.regimes import RegimeTools
 
 # Read-only inspection of existing fits/depot:
-agent = Agent("claude-opus-4-8", tools=[RegimeTools()])
+agent = Agent("claude-opus-5-5", tools=[RegimeTools()])
 
 # Full workflow — load from the hub, fit, summarize, plot:
-agent = Agent("claude-opus-4-8", tools=[RegimeTools(allow_write=True)])
+agent = Agent("claude-opus-5-5", tools=[RegimeTools(allow_write=True)])
 ```
 
 `lazystats` is imported lazily: the provider imports without it, and a missing

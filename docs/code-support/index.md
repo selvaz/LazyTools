@@ -54,7 +54,7 @@ when you want your own agent to drive the CLI's individual tools (Claude's
     from lazytools.connectors.code_support import claude_code
 
     agent = Agent(
-        engine=LLMEngine("claude-opus-4-8", tool_timeout=None),
+        engine=LLMEngine("claude-opus-5-5", tool_timeout=None),
         tools=[claude_code],
     )
     print(agent("Analyse the auth module and flag any security issues").text())
@@ -67,7 +67,7 @@ when you want your own agent to drive the CLI's individual tools (Claude's
     from lazytools.connectors.code_support import codex
 
     agent = Agent(
-        engine=LLMEngine("gpt-5.4", tool_timeout=None),
+        engine=LLMEngine("gpt-6-sol", tool_timeout=None),
         tools=[codex],
     )
     print(agent("List the public functions in main.py and describe each").text())
@@ -81,7 +81,7 @@ when you want your own agent to drive the CLI's individual tools (Claude's
 
     # allow= is REQUIRED (deny-by-default). Patterns match the namespaced name.
     reader = claude_code_mcp(allow=["claude_code.Read", "claude_code.Glob"])
-    agent = Agent(engine=LLMEngine("claude-opus-4-8"), tools=[reader])
+    agent = Agent(engine=LLMEngine("claude-opus-5-5"), tools=[reader])
     ```
 
 === "Codex (MCP)"
@@ -91,7 +91,7 @@ when you want your own agent to drive the CLI's individual tools (Claude's
     from lazytools.connectors.code_support import codex_mcp
 
     codex_srv = codex_mcp(allow=["codex.codex", "codex.codex-reply"])
-    agent = Agent(engine=LLMEngine("claude-opus-4-8"), tools=[codex_srv])
+    agent = Agent(engine=LLMEngine("claude-opus-5-5"), tools=[codex_srv])
     ```
 
 === "Collaboration"
@@ -124,7 +124,7 @@ the coroutine does *not* interrupt that thread — the subprocess keeps running
 deadline:
 
 ```python
-LLMEngine("claude-opus-4-8", tool_timeout=None)   # subprocess timeout= is the only limit
+LLMEngine("claude-opus-5-5", tool_timeout=None)   # subprocess timeout= is the only limit
 ```
 
 If you do want an engine-level ceiling, set `tool_timeout` **strictly greater**
