@@ -29,7 +29,7 @@ implements) as a single Agent tool.
       build_cli_collaboration, check_clis_available,
   )
 
-  agent = Agent("claude-opus-4-8", tools=[claude_code, codex])
+  agent = Agent("claude-opus-5-5", tools=[claude_code, codex])
 
 **CLI mode vs. MCP mode.** In CLI mode the binary *is* the agent: one call is
 one delegated task that returns a result string. In MCP mode the binary exposes

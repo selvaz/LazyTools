@@ -56,7 +56,7 @@ from lazybridge import Agent, LLMEngine
 from lazytools.connectors.code_support import codex
 
 agent = Agent(
-    engine=LLMEngine("gpt-5.4", tool_timeout=None),
+    engine=LLMEngine("gpt-6-sol", tool_timeout=None),
     tools=[codex],
 )
 print(agent("List the public functions in main.py and describe each").text())
@@ -127,7 +127,7 @@ from lazytools.connectors.code_support import codex_mcp
 
 codex_srv = codex_mcp(allow=["codex.codex", "codex.codex-reply"])
 
-agent = Agent(engine=LLMEngine("claude-opus-4-8"), tools=[codex_srv])
+agent = Agent(engine=LLMEngine("claude-opus-5-5"), tools=[codex_srv])
 # The agent calls codex.codex(prompt=...), gets a threadId back in the result,
 # then calls codex.codex-reply(prompt=..., threadId=...) to continue.
 agent("Use codex to add a retry decorator to http.py, then ask it to add a test")
@@ -144,7 +144,7 @@ agent("Use codex to add a retry decorator to http.py, then ask it to add a test"
 
 ```python
 srv = codex_mcp(allow=["*"])
-agent = Agent(engine=LLMEngine("claude-opus-4-8"), tools=[srv])
+agent = Agent(engine=LLMEngine("claude-opus-5-5"), tools=[srv])
 print(sorted(agent._tool_map))   # ['codex.codex', 'codex.codex-reply', ...]
 ```
 

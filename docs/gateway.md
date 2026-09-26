@@ -188,7 +188,7 @@ gateway = ExternalToolProvider(
 # 3. Pass into Agent — the provider expands into one Tool per remote
 #    spec at construction time.
 agent = Agent(
-    engine=LLMEngine("gpt-5.4-mini"),
+    engine=LLMEngine("gpt-6-luna"),
     tools=[gateway],
 )
 result = agent("Find recent papers on bee colony decline")

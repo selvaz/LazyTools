@@ -53,7 +53,7 @@ from lazytools.connectors.fin import PortfolioOptimizationTools
 optimizer_tools = PortfolioOptimizationTools(
     OptimizationStore("lazyfin_optimizer.sqlite")
 )
-agent = Agent("claude-opus-4-8", tools=[optimizer_tools])
+agent = Agent("claude-opus-5-5", tools=[optimizer_tools])
 ```
 
 ## Policies and constraints

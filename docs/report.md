@@ -60,7 +60,7 @@ As a tool provider:
 from lazybridge import Agent
 from lazytools.report import ReportTools
 
-agent = Agent("claude-opus-4-8", tools=[ReportTools()])
+agent = Agent("claude-opus-5-5", tools=[ReportTools()])
 ```
 
 ## How it works
@@ -177,5 +177,5 @@ from lazytools.report import ReportTools, ReportFiles, ecosystem_resolvers
 files = ReportFiles(base_dir="/data/reports")
 # figures resolve at render time; save_memo_html writes the full HTML to disk
 report = ReportTools(artifacts=ecosystem_resolvers(datahub_db_path="…/hub.duckdb"), files=files)
-agent = Agent("claude-opus-4-8", tools=[report, files])
+agent = Agent("claude-opus-5-5", tools=[report, files])
 ```

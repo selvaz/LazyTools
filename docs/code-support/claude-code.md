@@ -48,7 +48,7 @@ from lazybridge import Agent, LLMEngine
 from lazytools.connectors.code_support import claude_code
 
 agent = Agent(
-    engine=LLMEngine("claude-opus-4-8", tool_timeout=None),
+    engine=LLMEngine("claude-opus-5-5", tool_timeout=None),
     tools=[claude_code],
 )
 print(agent("Analyse the auth module and flag any security issues").text())
@@ -107,7 +107,7 @@ from lazytools.connectors.code_support import claude_code_mcp
 reader = claude_code_mcp(allow=["claude_code.Read", "claude_code.LS",
                                 "claude_code.Glob", "claude_code.Grep"])
 
-agent = Agent(engine=LLMEngine("claude-opus-4-8"), tools=[reader])
+agent = Agent(engine=LLMEngine("claude-opus-5-5"), tools=[reader])
 agent("Find every TODO in src/ and summarise them by file")
 ```
 
@@ -138,7 +138,7 @@ agent's tool map, then tighten:
 
 ```python
 srv = claude_code_mcp(allow=["*"])
-agent = Agent(engine=LLMEngine("claude-opus-4-8"), tools=[srv])
+agent = Agent(engine=LLMEngine("claude-opus-5-5"), tools=[srv])
 print(sorted(agent._tool_map))   # ['claude_code.Bash', 'claude_code.Edit', ...]
 ```
 

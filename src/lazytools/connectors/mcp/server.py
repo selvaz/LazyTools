@@ -43,7 +43,7 @@ class MCPServer:
     cleanup, use the server as an async context manager::
 
         async with MCP.stdio("fs", command="...", args=[...]) as fs:
-            agent = Agent("claude-opus-4-8", tools=[fs])
+            agent = Agent("claude-opus-5-5", tools=[fs])
             await agent.run("...")
 
     Without that, the transport stays open for the process lifetime; the

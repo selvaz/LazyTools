@@ -14,7 +14,7 @@ Quick start::
         command="npx",
         args=["-y", "@modelcontextprotocol/server-filesystem", "/tmp/project"],
     )
-    agent = Agent("claude-opus-4-8", tools=[fs])
+    agent = Agent("claude-opus-5-5", tools=[fs])
 
 Install with::
 
