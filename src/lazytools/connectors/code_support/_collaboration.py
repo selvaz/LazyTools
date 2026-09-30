@@ -62,7 +62,7 @@ def build_cli_collaboration(
     claude_model: str = "claude-opus-5-5",
     codex_model: str = "gpt-6-sol",
     synthesizer_model: str = "claude-opus-5-5",
-    executor_model: str = "claude-sonnet-5",
+    executor_model: str = "claude-sonnet-5-5",
     execute: bool = False,
     base_dir: str | None = None,
     writer: CodeWriteTools | None = None,

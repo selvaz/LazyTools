@@ -123,7 +123,7 @@ def claude_code(
     cwd: str | None = None,
     session_id: str | None = None,
     timeout: float = DEFAULT_TIMEOUT,
-    model: str | None = "claude-sonnet-5",
+    model: str | None = "claude-sonnet-5-5",
 ) -> dict[str, Any] | str:
     """Delegate a read-only task to Claude Code CLI.
 
@@ -160,7 +160,7 @@ def claude_code(
         ``LLMEngine`` so the engine never cancels before the subprocess
         finishes (zombie-process hazard when engine fires first).
     model:
-        ``--model`` passed to the CLI. Defaults to ``"claude-sonnet-5"`` so
+        ``--model`` passed to the CLI. Defaults to ``"claude-sonnet-5-5"`` so
         the delegated session has a pinned, predictable model regardless of
         the CLI's own interactive default; pass an alias (``"opus"``,
         ``"sonnet"``) or a full model name, or ``None`` to omit the flag and

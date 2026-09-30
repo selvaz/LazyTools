@@ -15,7 +15,7 @@ build_cli_collaboration(
     claude_model: str = "claude-opus-5-5",
     codex_model: str = "gpt-6-sol",
     synthesizer_model: str = "claude-opus-5-5",
-    executor_model: str = "claude-sonnet-5",
+    executor_model: str = "claude-sonnet-5-5",
     execute: bool = True,
 ) -> Agent
 ```
@@ -41,7 +41,7 @@ Step 4  executor         claude_code_write    implement the plan   (ONLY with ex
 | `claude_model` | `str` | `"claude-opus-5-5"` | Model for the Claude-Code analyst (step 1). |
 | `codex_model` | `str` | `"gpt-6-sol"` | Model for the Codex analyst/critic (step 2). |
 | `synthesizer_model` | `str` | `"claude-opus-5-5"` | Model that merges the analyses (step 3). |
-| `executor_model` | `str` | `"claude-sonnet-5"` | Model that implements the plan (step 4). |
+| `executor_model` | `str` | `"claude-sonnet-5-5"` | Model that implements the plan (step 4). |
 | `execute` | `bool` | `False` | `False` (default) → stop after synthesis: the read-only three-session pipeline. `True` → append the executor, which implements the plan via the gated `claude_code_write` tool. |
 | `base_dir` | `str \| None` | `None` | **Required when `execute=True`**: the sandbox root the executor may write inside (ideally a git checkout). |
 | `writer` | `CodeWriteTools \| None` | `None` | Bring your own writer for the executor (mutually exclusive with `base_dir`). This is the only way to run a **gate-enabled** executor: you hold the instance, so you can call `writer.confirm_write()` per executor write while the pipeline runs. |
