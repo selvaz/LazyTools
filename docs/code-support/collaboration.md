@@ -85,6 +85,12 @@ Step 4  executor         claude_code_write    implement the plan   (ONLY with ex
     print(pipeline("Add rate limiting to the /api/login endpoint").text())
     ```
 
+The executor's `claude_code_write` runs on `ClaudeCodeEngine` and takes
+per-call `model`, `effort` and `session_name`, so a later call can continue the
+same implementation conversation by name rather than by carrying a session id.
+See [Claude Code](claude-code.md#writing-claude_code_write) for what the write
+tool grants.
+
 ## Why `Plan`, not `AgentPool`?
 
 The flow is fixed and sequential (analyse → critique → synthesise [→ execute]).

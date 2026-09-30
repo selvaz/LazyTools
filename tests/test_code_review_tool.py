@@ -201,7 +201,16 @@ class TestCodexReviewer:
         tool = codex_reviewer(root=str(tmp_path))
         assert tool.name == "codex_code_review"
         params = tool.definition().parameters
-        assert set(params["properties"]) == {"task", "repo_path", "diff_ref", "paths", "thread_id"}
+        assert set(params["properties"]) == {
+            "task",
+            "repo_path",
+            "diff_ref",
+            "paths",
+            "thread_id",
+            "model",
+            "effort",
+            "session_name",
+        }
         assert params["required"] == ["task"]
 
     @pytest.mark.parametrize("timeout", [0, -1.0, float("inf"), float("nan")])
@@ -415,7 +424,14 @@ class TestCodexConsultant:
         tool = codex_consultant(root=str(tmp_path))
         assert tool.name == "codex_ask"
         params = tool.definition().parameters
-        assert set(params["properties"]) == {"question", "repo_path", "thread_id", "model", "effort"}
+        assert set(params["properties"]) == {
+            "question",
+            "repo_path",
+            "thread_id",
+            "model",
+            "effort",
+            "session_name",
+        }
         assert params["required"] == ["question"]
 
     @pytest.mark.asyncio
@@ -529,7 +545,14 @@ class TestNativeReviewTool:
     def test_tool_name_and_schema(self, tmp_path):
         tool = codex_native_reviewer(root=str(tmp_path))
         assert tool.name == "codex_review_changes"
-        assert set(tool.definition().parameters["properties"]) == {"repo_path", "scope", "ref"}
+        assert set(tool.definition().parameters["properties"]) == {
+            "repo_path",
+            "scope",
+            "ref",
+            "model",
+            "effort",
+            "session_name",
+        }
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -617,6 +640,9 @@ class TestClaudeTools:
             "diff_ref",
             "paths",
             "session_id",
+            "model",
+            "effort",
+            "session_name",
         }
         assert ask.name == "claude_ask"
         assert set(ask.definition().parameters["properties"]) == {
@@ -625,6 +651,8 @@ class TestClaudeTools:
             "session_id",
             "model",
             "thinking",
+            "effort",
+            "session_name",
         }
 
     @pytest.mark.parametrize("timeout", [0, -1.0, float("inf"), float("nan")])

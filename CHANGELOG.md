@@ -9,6 +9,25 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Per-call `model` / `effort` / `session_name` on every code tool.**
+  `codex_code_review`, `codex_review_changes`, `codex_ask`,
+  `claude_code_review`, `claude_ask`, `codex_write`, `claude_code_write` and
+  the plain `codex()` / `claude_code()` tools take optional `model` and
+  reasoning `effort` (default: the provider's own). `effort` is validated and a
+  bad value raises a `ValueError` listing the allowed ones (Claude: `low`,
+  `medium`, `high`, `xhigh`, `max`; Codex: `none`, `minimal`, `low`, `medium`,
+  `high`, `xhigh`, `max`). `claude_ask` keeps `thinking` and gains `effort`.
+  The seven engine-backed tools also take `session_name`: a renamable alias for
+  a durable conversation, stored in LazyBridge's `SessionRegistry` (scope = the
+  resolved repository). An unknown name opens a thread/session and binds it, a
+  known name resumes it, an explicit `thread_id` / `session_id` wins and
+  re-points the name. The reply header gains `session_name=`, and failures keep
+  both the native handle and the name.
+- **`code_sessions_list` / `_bind` / `_rename` / `_forget`** (`CodeSessionTools`,
+  MCP provider `code_sessions`): inspect and manage those names. The list is
+  read-only; the mutators are served only with `--allow-unsafe`.
+- `LAZYTOOLS_CLAUDE_REVIEW_EFFORT`: sets the default
+  effort of `claude_code_review` / `claude_ask` in the MCP server.
 - **`polymarket_search_markets`** — full-text topic search for the
   Polymarket connector, via Gamma's undocumented-but-public
   `/public-search` (the endpoint polymarket.com's own search bar calls;
@@ -21,6 +40,26 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   "by Sept 30") comes back as one event carrying all of those markets
   together with each one's short `group_item_title`, rather than scattered
   rows a caller has to notice belong together.
+
+### Changed
+- **`codex_write` and `claude_code_write` now run on the LazyBridge engines**
+  (`CodexEngine`, `ClaudeCodeEngine`) instead of a CLI subprocess. The gate is
+  unchanged (`base_dir`, one-shot grants, the git rail, result shape). Behaviour
+  that differs: Claude's `Write`/`Edit` are confined to the call's `cwd`; its
+  `Bash` is still not path-confined and is now approved by an allow-list gate
+  (`CodeWriteTools(claude_bash=False)` drops it); a Claude write is capped at 60
+  turns and never retried; the model defaults to the engine's (`sonnet`) unless
+  `model=` is given; the result text starts with a header line carrying the
+  `session_id` / `thread_id` (and `session_name`); the Codex git-repo refusal is
+  done by the tool, since the App Server has no `--skip-git-repo-check`.
+- **Requires `lazybridge>=1.6.0`** (engine `session_alias=` / `SessionRegistry`).
+
+### Removed
+- **BREAKING: `codex_write` no longer takes `resume_last`.** `exec resume
+  --last` was ambiguous whenever sessions shared a directory. Use
+  `session_name=` or the `thread_id` from the previous reply. The plain
+  `codex()` tool keeps `resume_last`. No shim. The write-mode CLI plumbing
+  (`_WRITE_FLAGS`) is gone with it.
 
 ## [0.8.0] — 2026-08-29
 

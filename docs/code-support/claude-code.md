@@ -24,6 +24,7 @@ claude_code(
     session_id: str | None = None,
     timeout: float = 3600.0,
     model: str | None = "claude-sonnet-5-5",
+    effort: str | None = None,
 ) -> dict | str
 ```
 
@@ -42,6 +43,7 @@ string.
 | `session_id` | `str \| None` | `None` | If set, resumes an existing session via `--resume`. |
 | `timeout` | `float` | `3600.0` | Max seconds for the subprocess. |
 | `model` | `str \| None` | `"claude-sonnet-5-5"` | `--model` passed to the CLI — an alias (`"opus"`, `"sonnet"`) or a full model name. `None` omits the flag and lets the CLI's own default decide. |
+| `effort` | `str \| None` | `None` | Reasoning effort, passed as `--effort`: `low`, `medium`, `high`, `xhigh` or `max`. `None` leaves the CLI's own setting. Anything else raises `ValueError` listing the allowed values. |
 
 ```python
 from lazybridge import Agent, LLMEngine
@@ -61,6 +63,32 @@ the inherited environment still carries `CLAUDE_CODE_OAUTH_TOKEN` (the token
 tool deliberately does **not** synthesize `CLAUDE_CODE_OAUTH_TOKEN` from the
 JSON credential store — that env var is a token string, not the store, and
 overriding it would break a valid disk login.
+
+## Writing — `claude_code_write`
+
+`CodeWriteTools(base_dir=...)` exposes `claude_code_write`, which runs on
+`ClaudeCodeEngine` (the Agent SDK) rather than a `claude -p` subprocess. The gate
+is unchanged: `base_dir` confinement, one-shot `confirm_write()` grants, and the
+same `{"result": ..., "content_is_untrusted": true}` /
+`"[claude_code] ..."` result shapes. Per call it takes `model`, `effort` and
+`session_name` (a durable, per-repository alias for the conversation; see
+[Codex](codex.md#naming-a-conversation-session_name)), plus the native
+`session_id`.
+
+What changed in the move, stated plainly:
+
+- **Permissions.** The writer runs with `permission_mode="acceptEdits"` and is
+  granted `Write`, `Edit` and `Bash`. `Write`/`Edit`/`Read` are now **confined to
+  the resolved `cwd`** (narrower than the CLI). `Bash` cannot be path-confined by
+  the engine, exactly as with the CLI, so it goes through an approval gate that
+  allows only the writer's documented tool surface; it is unconfined, so keep
+  `base_dir` a git checkout. `CodeWriteTools(claude_bash=False)` removes `Bash`
+  and its gate entirely.
+- **Turn cap and retries.** A write is capped at 60 turns (the CLI had no cap)
+  and is never retried, so a failed write is not silently replayed.
+- **Model.** The engine's default (`sonnet`) applies unless `model=` is given.
+- **Reply.** The text now starts with a header line naming the `session_id`
+  (and `session_name` when used); a failure carries the same handle.
 
 ## MCP mode — `claude_code_mcp`
 

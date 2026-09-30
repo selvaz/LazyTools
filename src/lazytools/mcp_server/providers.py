@@ -669,7 +669,9 @@ def _code_review(allow_write: bool = False, *, data_source: dict[str, Any] | Non
       server process' cwd) — the directory every call's ``repo_path`` is
       confined to;
     * ``LAZYTOOLS_CODE_REVIEW_MODEL`` / ``LAZYTOOLS_CODE_REVIEW_EFFORT`` —
-      left unset, the local Codex config (``~/.codex/config.toml``) decides;
+      the *defaults*; left unset, the local Codex config
+      (``~/.codex/config.toml``) decides. Every call may override both with its
+      own ``model`` / ``effort`` and may name its thread with ``session_name``;
     * ``LAZYTOOLS_CODE_REVIEW_TIMEOUT`` — seconds per review (default:
       ``DEFAULT_REVIEW_TIMEOUT``, 3600).
       A host-side MCP tool timeout shorter than this cancels the call first.
@@ -729,8 +731,11 @@ def _claude_review(allow_write: bool = False, *, data_source: dict[str, Any] | N
 
     Configuration: ``code_root`` / ``LAZYTOOLS_CODE_ROOT`` (the confinement
     root, shared with ``code_review``), ``LAZYTOOLS_CLAUDE_REVIEW_MODEL``
-    (default ``sonnet``), ``LAZYTOOLS_CLAUDE_REVIEW_THINKING``, and
-    ``LAZYTOOLS_CODE_REVIEW_TIMEOUT`` (shared, seconds per call).
+    (default ``sonnet``), ``LAZYTOOLS_CLAUDE_REVIEW_EFFORT`` (default: the
+    engine's), ``LAZYTOOLS_CLAUDE_REVIEW_THINKING``, and
+    ``LAZYTOOLS_CODE_REVIEW_TIMEOUT`` (shared, seconds per call). These are
+    defaults: each call may pass its own ``model`` / ``effort`` and a
+    ``session_name``.
     """
     if not allow_write:
         raise RuntimeError("claude_review is opt-in only: pass allow_write=True (--allow-unsafe).")
@@ -757,6 +762,7 @@ def _claude_review(allow_write: bool = False, *, data_source: dict[str, Any] | N
     settings: dict[str, Any] = {
         "root": (data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
         "model": os.environ.get("LAZYTOOLS_CLAUDE_REVIEW_MODEL") or "sonnet",
+        "effort": os.environ.get("LAZYTOOLS_CLAUDE_REVIEW_EFFORT") or None,
         "thinking": os.environ.get("LAZYTOOLS_CLAUDE_REVIEW_THINKING") or None,
         "timeout": timeout,
     }
@@ -768,12 +774,15 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
     """Claude Code and/or Codex with write access, sandboxed to the code root.
 
     A thin ``CodeWriteTools`` wrapper exposing ``claude_code_write`` and
-    ``codex_write`` side by side — the same read-engine pairing as
-    ``claude_review``/``code_review`` (Claude Code's ``acceptEdits`` sandbox
-    and Codex's ``workspace-write`` sandbox, with ``approval_policy=never``
-    pinned so Codex never blocks waiting on stdin), confined to the
-    configured code root — the same root ``code_review`` confines its
-    ``repo_path`` argument to.
+    ``codex_write`` side by side — the same engine pairing as
+    ``claude_review``/``code_review`` (Claude Code's ``acceptEdits`` with
+    file edits confined to the call's directory, and Codex's
+    ``workspace-write`` sandbox, with ``approval_policy=never`` pinned so
+    Codex never blocks waiting on stdin), confined to the configured code
+    root — the same root ``code_review`` confines its ``repo_path`` argument
+    to. Both take per-call ``model``, ``effort`` and ``session_name``; Claude
+    Code's shell (``Bash``) is granted, as it always was, and cannot be
+    confined to the directory.
 
     Each engine is included only if its CLI is actually found; the whole
     provider is skipped only when *neither* is available. A single missing
@@ -839,6 +848,31 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
         timeout=timeout,
     )
     return writer.as_tools()
+
+
+@_register("code_sessions")
+def _code_sessions(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Named-session management for the code tools (``code_sessions_*``).
+
+    ``code_sessions_list`` shows the ``session_name`` aliases the review, ask
+    and write tools keep (LazyBridge's session registry) and what native
+    thread/session each points at; ``code_sessions_bind`` / ``_rename`` /
+    ``_forget`` curate them. Present exactly when the review tools are —
+    absent unless ``allow_write=True`` (``--allow-unsafe``) — and the three
+    mutators are exposed only then too. Every ``repo_path`` is confined to
+    ``code_root`` / ``LAZYTOOLS_CODE_ROOT`` (else the process' cwd), and a list
+    without one shows only scopes under that root. Forgetting a name never
+    touches the native session.
+    """
+    if not allow_write:
+        raise RuntimeError("code_sessions is opt-in only: pass allow_write=True (--allow-unsafe).")
+
+    from lazytools.connectors.code_support import CodeSessionTools
+
+    return CodeSessionTools(
+        root=(data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
+        allow_mutate=allow_write,
+    )
 
 
 @_register("telegram")

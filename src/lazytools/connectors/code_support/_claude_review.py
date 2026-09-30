@@ -33,6 +33,13 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from lazytools.connectors.code_support._common import (
+    CLAUDE_EFFORTS,
+    check_effort,
+    check_session_name,
+    clean,
+)
+from lazytools.connectors.code_support._common import session_registry as _session_registry
 from lazytools.connectors.code_support._review import (
     DEFAULT_REVIEW_TIMEOUT,
     ReviewNotPerformed,
@@ -42,10 +49,12 @@ from lazytools.connectors.code_support._review import (
     _encode_handle,
     _resolve_repo,
     _scope_block,
+    _session_header,
 )
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from lazybridge import Tool
+    from lazybridge.engines.sessions import SessionRegistry
 
 #: Explicit turn budget for a Claude Code reviewer/consultant call.
 #:
@@ -169,6 +178,19 @@ def _git_tools(cwd: Path) -> list[Any]:
     return [git_diff, git_status]
 
 
+def _make_claude_engine(**kwargs: Any) -> Any:
+    """Build the ``ClaudeCodeEngine`` for one turn.
+
+    The single place a Claude Code engine is constructed by this package
+    (reviewers, consultant and the ``claude_code_write`` tool all come through
+    here), looked up at *call* time — a module-level seam so tests can
+    substitute a fake engine without a Claude Code login.
+    """
+    from lazybridge.engines.claude_code import ClaudeCodeEngine
+
+    return ClaudeCodeEngine(**kwargs)
+
+
 async def _claude_turn(
     *,
     label: str,
@@ -185,15 +207,30 @@ async def _claude_turn(
     web: bool = False,
     tools: list[Any] | None = None,
     max_turns: int = DEFAULT_CLAUDE_MAX_TURNS,
+    effort: str | None = None,
+    session_name: str | None = None,
+    registry: SessionRegistry | None = None,
 ) -> str:
-    """One Claude Code turn on a durable session, rendered for an MCP caller."""
+    """One Claude Code turn on a durable session, rendered for an MCP caller.
+
+    ``session_name`` is a per-repository alias held in LazyBridge's session
+    registry: a known one resumes the session it names, an unknown one is bound
+    to the session this turn opens (after the turn, success or not). An
+    explicit ``session_id`` wins over the alias and rebinds it.
+    """
     from lazybridge import Agent
-    from lazybridge.engines.claude_code import ClaudeCodeEngine
     from lazybridge.engines.coding import CodingAgentConfig
 
+    model = clean(model) or model
+    effort = check_effort(effort, CLAUDE_EFFORTS, provider="Claude Code")
+    reg = _session_registry(registry)
+    alias = check_session_name("claude", cwd, session_name, reg)
     resumed = _decode_handle(session_id, cwd, base)
-    engine = ClaudeCodeEngine(
+    engine = _make_claude_engine(
         model=model,
+        reasoning_effort=effort,
+        session_alias=alias,
+        session_registry=reg,
         cwd=str(cwd),
         file_roots=[str(cwd)],
         # web=True by default for both roles since 2026-08-19 — a review can
@@ -230,8 +267,10 @@ async def _claude_turn(
         message = env.error.message if env.error else "unknown error"
         # Raising (rather than returning this as findings text) is what
         # makes the failure unmistakable to a caller — see ReviewNotPerformed.
-        raise ReviewNotPerformed(message, label=label, cwd=cwd, handle=handle, handle_kind="session_id")
-    return f"[{label}] {cwd} session_id={handle}\n\n{env.text()}"
+        raise ReviewNotPerformed(
+            message, label=label, cwd=cwd, handle=handle, handle_kind="session_id", session_name=alias
+        )
+    return f"{_session_header(label, cwd, handle, 'session_id', alias)}\n\n{env.text()}"
 
 
 def _build_root(root: str | None) -> Path:
@@ -265,13 +304,20 @@ def claude_reviewer(
     system: str | None = None,
     web: bool = True,
     max_turns: int = DEFAULT_CLAUDE_MAX_TURNS,
+    effort: str | None = None,
+    session_registry: SessionRegistry | None = None,
 ) -> Tool:
     """Build ``claude_code_review``: Claude Code as a review agent.
 
     The Codex reviewer's twin — same arguments, same durable-handle protocol,
     same confinement — so the two can be pointed at one diff and compared.
     ``model`` is a Claude Code alias ("sonnet", "opus", …); ``thinking`` takes
-    the engine's extended-thinking setting.
+    the engine's extended-thinking setting; ``effort`` the reasoning effort
+    (``low``/``medium``/``high``/``xhigh``/``max``, ``None`` = the runtime's
+    default). All three are the *defaults* — each call may override ``model``
+    and ``effort``. ``session_registry`` is where a call's ``session_name``
+    alias is bound (default: LazyBridge's); an alias is scoped to the resolved
+    ``repo_path`` of the call.
 
     ``web=True`` (the default, since 2026-08-19) grants the engine's own
     WebSearch/WebFetch: a review can need to check a CVE, a library's current
@@ -298,6 +344,7 @@ def claude_reviewer(
 
     _check_timeout(timeout)
     base = _build_root(root)
+    default_model, default_effort = model, effort
 
     async def claude_code_review(
         task: str,
@@ -305,6 +352,9 @@ def claude_reviewer(
         diff_ref: str | None = None,
         paths: str | None = None,
         session_id: str | None = None,
+        model: str | None = None,
+        effort: str | None = None,
+        session_name: str | None = None,
     ) -> str:
         """Have Claude Code review code in a local repository and report defects.
 
@@ -316,6 +366,7 @@ def claude_reviewer(
 
         The header carries `session_id=<handle>`. Pass it back for a follow-up
         in the SAME conversation — it still knows what it read and concluded.
+        Or give the conversation a `session_name` and reuse that name.
 
         Args:
             task: What to review and what to look for. Include any context the
@@ -328,7 +379,17 @@ def claude_reviewer(
                 Each must live inside the reviewed repository.
             session_id: Continue an earlier conversation, from the
                 `session_id=` in its reply. A session belongs to the repository
-                it was opened on.
+                it was opened on. When given together with `session_name`, it
+                wins and rebinds the name.
+            model: Claude Code model alias override for this call ("sonnet",
+                "opus", "haiku"). Defaults to the server's configured model.
+            effort: Reasoning effort override for this call: one of "low",
+                "medium", "high", "xhigh", "max". Defaults to the runtime's
+                own default.
+            session_name: A name for this conversation, per repository
+                (letters, digits, `_.-`, starting with a letter). An unused
+                name opens a durable session and remembers it; a known name
+                resumes that session. Manage names with `code_sessions_*`.
         """
         cwd = _resolve_repo(repo_path, base)
         scope = _scope_block(diff_ref, _confine_paths(paths, cwd))
@@ -340,12 +401,15 @@ def claude_reviewer(
             system=system,
             agent_name="claude-code-reviewer",
             session_id=session_id,
-            model=model,
+            model=clean(model) or default_model,
             thinking=thinking,
             timeout=timeout,
             with_git=True,
             web=web,
             max_turns=max_turns,
+            effort=clean(effort) or default_effort,
+            session_name=session_name,
+            registry=session_registry,
         )
 
     return Tool(claude_code_review, name=name)
@@ -362,6 +426,8 @@ def claude_consultant(
     web: bool = True,
     tools: list[Any] | None = None,
     max_turns: int = DEFAULT_CLAUDE_MAX_TURNS,
+    effort: str | None = None,
+    session_registry: SessionRegistry | None = None,
 ) -> Tool:
     """Build ``claude_ask``: Claude Code as a design partner.
 
@@ -369,8 +435,9 @@ def claude_consultant(
     for the same reason it exists there: asked a design question, a reviewer
     prompt answers with a findings list.
 
-    ``model``/``thinking`` are the *defaults*; each ``claude_ask`` call may
-    override them. ``web=True`` (the default) grants the engine's own
+    ``model``/``thinking``/``effort`` are the *defaults*; each ``claude_ask``
+    call may override them. ``session_registry`` is where a call's
+    ``session_name`` alias is bound (default: LazyBridge's). ``web=True`` (the default) grants the engine's own
     WebSearch/WebFetch — same default as :func:`claude_reviewer` since
     2026-08-19, and composed the same way (see there): the prompt only
     claims web access when the engine actually grants it. ``tools`` are
@@ -381,7 +448,7 @@ def claude_consultant(
     _check_timeout(timeout)
     system = _compose_system(system, CLAUDE_CONSULTANT_SYSTEM, web)
     base = _build_root(root)
-    default_model, default_thinking = model, thinking
+    default_model, default_thinking, default_effort = model, thinking, effort
     extra_tools = list(tools or [])
 
     async def claude_ask(
@@ -390,6 +457,8 @@ def claude_consultant(
         session_id: str | None = None,
         model: str | None = None,
         thinking: str | None = None,
+        effort: str | None = None,
+        session_name: str | None = None,
     ) -> str:
         """Ask Claude Code a technical question about a local repository.
 
@@ -400,18 +469,27 @@ def claude_consultant(
 
         It has none of your conversation context, so state the question
         self-containedly. The header carries `session_id=<handle>`; pass it
-        back to continue the same conversation.
+        back to continue the same conversation, or give the conversation a
+        `session_name` and reuse that name.
 
         Args:
             question: The question, with enough context to answer it.
             repo_path: Repository the question is about, absolute or relative
                 to the server's code root. Defaults to the root.
             session_id: Continue an earlier conversation, from the
-                `session_id=` in its reply.
+                `session_id=` in its reply. When given together with
+                `session_name`, it wins and rebinds the name.
             model: Claude Code model alias override for this call ("sonnet",
                 "opus", "haiku"). Defaults to the server's configured model.
             thinking: Extended-thinking override for this call (e.g.
                 "adaptive", "disabled"). Defaults to the server's setting.
+            effort: Reasoning effort override for this call: one of "low",
+                "medium", "high", "xhigh", "max". Defaults to the runtime's
+                own default.
+            session_name: A name for this conversation, per repository
+                (letters, digits, `_.-`, starting with a letter). An unused
+                name opens a durable session and remembers it; a known name
+                resumes that session. Manage names with `code_sessions_*`.
         """
         cwd = _resolve_repo(repo_path, base)
         return await _claude_turn(
@@ -422,13 +500,16 @@ def claude_consultant(
             system=system,
             agent_name="claude-design-partner",
             session_id=session_id,
-            model=model or default_model,
+            model=clean(model) or default_model,
             thinking=thinking if thinking is not None else default_thinking,
             timeout=timeout,
             with_git=True,
             web=web,
             tools=extra_tools,
             max_turns=max_turns,
+            effort=clean(effort) or default_effort,
+            session_name=session_name,
+            registry=session_registry,
         )
 
     return Tool(claude_ask, name=name)

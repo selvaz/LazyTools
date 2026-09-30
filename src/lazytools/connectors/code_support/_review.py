@@ -37,8 +37,17 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from lazytools.connectors.code_support._common import (
+    CODEX_EFFORTS,
+    check_effort,
+    check_session_name,
+    clean,
+)
+from lazytools.connectors.code_support._common import session_registry as _session_registry
+
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from lazybridge import Tool
+    from lazybridge.engines.sessions import SessionRegistry
 
 #: Developer instructions handed to Codex for every review. Deliberately
 #: opinionated about *what not to report*: an unfiltered "list everything
@@ -154,14 +163,28 @@ class ReviewNotPerformed(RuntimeError):
         cwd: The repository path the turn ran against.
         handle: The session/thread handle for that turn, so a caller that
             catches this can still resume the conversation to ask why.
+        session_name: The caller's ``session_name`` alias for the turn, when it
+            used one (``None`` otherwise) — the failure names it next to the
+            native handle so either can be used to resume.
     """
 
-    def __init__(self, reason: str, *, label: str, cwd: Any, handle: str, handle_kind: str = "session_id") -> None:
+    def __init__(
+        self,
+        reason: str,
+        *,
+        label: str,
+        cwd: Any,
+        handle: str,
+        handle_kind: str = "session_id",
+        session_name: str | None = None,
+    ) -> None:
         self.reason = reason
         self.label = label
         self.cwd = cwd
         self.handle = handle
-        super().__init__(f"[{label}] failed in {cwd} ({handle_kind}={handle}): {reason}")
+        self.session_name = session_name
+        named = f", session_name={session_name}" if session_name else ""
+        super().__init__(f"[{label}] failed in {cwd} ({handle_kind}={handle}{named}): {reason}")
 
 
 def _resolve_repo(repo_path: str | None, root: Path) -> Path:
@@ -257,14 +280,19 @@ def codex_reviewer(
     timeout: float = DEFAULT_REVIEW_TIMEOUT,
     name: str = "codex_code_review",
     system: str = CODE_REVIEWER_SYSTEM,
+    session_registry: SessionRegistry | None = None,
 ) -> Tool:
     """Build the ``codex_code_review`` tool: one Codex-engined review agent.
 
     ``root`` confines every call's ``repo_path`` (default: ``LAZYTOOLS_CODE_ROOT``
-    or the current working directory). ``model``/``effort`` default to whatever
-    the local Codex CLI is configured with (``~/.codex/config.toml``) when left
-    ``None``. ``timeout`` bounds one review; it is passed as both the App Server
-    request timeout and (at two thirds) the stream-idle timeout.
+    or the current working directory). ``model``/``effort`` are the *defaults*
+    (``None`` = whatever the local Codex CLI is configured with in
+    ``~/.codex/config.toml``); each call may override them. ``timeout`` bounds
+    one review; it is passed as both the App Server request timeout and (at two
+    thirds) the stream-idle timeout. ``session_registry`` is where a call's
+    ``session_name`` alias is bound (default: LazyBridge's, i.e.
+    ``$LAZYBRIDGE_SESSIONS_FILE`` or ``~/.lazybridge/sessions.json``); an alias
+    is scoped to the resolved ``repo_path`` of the call.
 
     Raises ``ValueError`` on a non-positive / non-finite ``timeout`` — the MCP
     provider validates its env var, and the direct API must not be the lax way
@@ -287,6 +315,7 @@ def codex_reviewer(
     # against the process cwd on every call, so a later chdir would silently
     # move the boundary this tool is confined to.
     base = Path(root or os.environ.get("LAZYTOOLS_CODE_ROOT") or Path.cwd()).expanduser().resolve()
+    default_model, default_effort = model, effort
 
     async def codex_code_review(
         task: str,
@@ -294,6 +323,9 @@ def codex_reviewer(
         diff_ref: str | None = None,
         paths: str | None = None,
         thread_id: str | None = None,
+        model: str | None = None,
+        effort: str | None = None,
+        session_name: str | None = None,
     ) -> str:
         """Have Codex review code in a local repository and report defects.
 
@@ -306,7 +338,8 @@ def codex_reviewer(
         The header of every reply carries `thread_id=<id>`. Pass it back to ask
         a follow-up in the SAME Codex conversation: it still knows what it read
         and concluded, so the follow-up skips re-exploring the repository.
-        Omit it to start fresh.
+        Omit it to start fresh. Or give the conversation a `session_name` and
+        reuse that name instead of carrying the id around.
 
         Args:
             task: What to review and what to look for, e.g. "review the error
@@ -322,6 +355,18 @@ def codex_reviewer(
             thread_id: Continue an earlier review conversation, from the
                 `thread_id=` in its reply. A thread belongs to the repository
                 it was opened on — don't reuse one against a different repo.
+                When given together with `session_name`, it wins and the name
+                is rebound to it.
+            model: Codex model override for this call. Defaults to the
+                server's configured model.
+            effort: Reasoning effort override for this call: one of "none",
+                "minimal", "low", "medium", "high", "xhigh", "max" (which of
+                these a given model accepts is up to the model). Defaults to
+                the server's configured effort.
+            session_name: A name for this conversation, per repository
+                (letters, digits, `_.-`, starting with a letter). An unused
+                name opens a durable Codex thread and remembers it; a known
+                name resumes that thread. Manage names with `code_sessions_*`.
         """
         cwd = _resolve_repo(repo_path, base)
         scoped = _confine_paths(paths, cwd)
@@ -334,9 +379,11 @@ def codex_reviewer(
             system=system,
             agent_name="codex-code-reviewer",
             thread_id=thread_id,
-            model=model,
-            effort=effort,
+            model=clean(model) or default_model,
+            effort=clean(effort) or default_effort,
             timeout=timeout,
+            session_name=session_name,
+            registry=session_registry,
         )
 
     return Tool(codex_code_review, name=name)
@@ -387,6 +434,25 @@ def _decode_handle(handle: str | None, cwd: Path, base: Path) -> str | None:
     return thread_id
 
 
+def _make_codex_engine(**kwargs: Any) -> Any:
+    """Build the ``CodexEngine`` for one turn.
+
+    The single place a Codex engine is constructed by this package (reviewers,
+    consultant and the ``codex_write`` tool all come through here), looked up
+    at *call* time — a module-level seam so tests can substitute a fake
+    engine without an installed ``codex`` CLI.
+    """
+    from lazybridge.engines.codex import CodexEngine
+
+    return CodexEngine(**kwargs)
+
+
+def _session_header(label: str, cwd: Path, handle: str, handle_kind: str, session_name: str | None) -> str:
+    """``[label] <cwd> thread_id=<handle>`` plus `` session_name=<name>`` when one was used."""
+    named = f" session_name={session_name}" if session_name else ""
+    return f"[{label}] {cwd} {handle_kind}={handle}{named}"
+
+
 async def _turn(
     *,
     label: str,
@@ -401,6 +467,8 @@ async def _turn(
     timeout: float,
     review_target: dict[str, Any] | None = None,
     tools: list[Any] | None = None,
+    session_name: str | None = None,
+    registry: SessionRegistry | None = None,
 ) -> str:
     """Run one Codex turn on a durable thread and render it for an MCP caller.
 
@@ -412,12 +480,20 @@ async def _turn(
     records reviews must be able to tell "found nothing" from "never ran"
     without parsing prose. Over MCP the exception surfaces as an error result
     (``isError=True``), so an orchestrating agent still sees the failure.
+
+    ``session_name`` is a per-repository alias held in LazyBridge's session
+    registry: a known one resumes the thread it names, an unknown one is bound
+    to the thread this turn opens (after the turn, success or not). An
+    explicit ``thread_id`` wins over the alias and rebinds it.
     """
     from lazybridge import Agent
-    from lazybridge.engines.codex import CodexEngine
 
+    model = clean(model)
+    effort = check_effort(effort, CODEX_EFFORTS, provider="Codex")
+    reg = _session_registry(registry)
+    alias = check_session_name("codex", cwd, session_name, reg)
     resumed = _decode_handle(thread_id, cwd, base)
-    engine = CodexEngine(
+    engine = _make_codex_engine(
         model=model,
         cwd=str(cwd),
         system=system,
@@ -427,6 +503,8 @@ async def _turn(
         thread_id=resumed,
         persist_thread=True,
         review_target=review_target,
+        session_alias=alias,
+        session_registry=reg,
     )
     env: Any = await Agent(engine, name=agent_name, tools=tools or []).run(prompt)
     handle = _encode_handle(cwd, base, engine.thread_id or resumed or "")
@@ -436,8 +514,10 @@ async def _turn(
         # what someone needs to go and inspect. Raising (rather than
         # returning this as findings text) is what makes the failure
         # unmistakable to a caller — see ReviewNotPerformed.
-        raise ReviewNotPerformed(message, label=label, cwd=cwd, handle=handle, handle_kind="thread_id")
-    return f"[{label}] {cwd} thread_id={handle}\n\n{env.text()}"
+        raise ReviewNotPerformed(
+            message, label=label, cwd=cwd, handle=handle, handle_kind="thread_id", session_name=alias
+        )
+    return f"{_session_header(label, cwd, handle, 'thread_id', alias)}\n\n{env.text()}"
 
 
 def codex_consultant(
@@ -449,6 +529,7 @@ def codex_consultant(
     name: str = "codex_ask",
     system: str = CODE_CONSULTANT_SYSTEM,
     tools: list[Any] | None = None,
+    session_registry: SessionRegistry | None = None,
 ) -> Tool:
     """Build the ``codex_ask`` tool: Codex as a design partner, not a reviewer.
 
@@ -487,6 +568,7 @@ def codex_consultant(
         thread_id: str | None = None,
         model: str | None = None,
         effort: str | None = None,
+        session_name: str | None = None,
     ) -> str:
         """Ask Codex a technical question about a local repository.
 
@@ -504,6 +586,7 @@ def codex_consultant(
         The header of every reply carries `thread_id=<id>`. Pass it back to
         continue the SAME conversation — Codex keeps what it read and
         concluded, so the follow-up is much cheaper than restating everything.
+        Or give the conversation a `session_name` and reuse that name.
 
         Args:
             question: The question, with enough context to answer it.
@@ -511,11 +594,18 @@ def codex_consultant(
                 to the server's code root. Defaults to the root.
             thread_id: Continue an earlier conversation, from the `thread_id=`
                 in its reply. A thread belongs to the repository it was opened
-                on — don't reuse one against a different repo.
+                on — don't reuse one against a different repo. When given
+                together with `session_name`, it wins and rebinds the name.
             model: Codex model override for this call (e.g. "gpt-6-sol").
                 Defaults to the server's configured model.
-            effort: Reasoning effort override for this call ("low", "medium",
-                "high", "xhigh"). Defaults to the server's configured effort.
+            effort: Reasoning effort override for this call: one of "none",
+                "minimal", "low", "medium", "high", "xhigh", "max" (which of
+                these a given model accepts is up to the model). Defaults to
+                the server's configured effort.
+            session_name: A name for this conversation, per repository
+                (letters, digits, `_.-`, starting with a letter). An unused
+                name opens a durable Codex thread and remembers it; a known
+                name resumes that thread. Manage names with `code_sessions_*`.
         """
         cwd = _resolve_repo(repo_path, base)
         return await _turn(
@@ -526,10 +616,12 @@ def codex_consultant(
             system=system,
             agent_name="codex-design-partner",
             thread_id=thread_id,
-            model=model or default_model,
-            effort=effort or default_effort,
+            model=clean(model) or default_model,
+            effort=clean(effort) or default_effort,
             timeout=timeout,
             tools=extra_tools,
+            session_name=session_name,
+            registry=session_registry,
         )
 
     return Tool(codex_ask, name=name)
@@ -553,6 +645,7 @@ def codex_native_reviewer(
     effort: str | None = None,
     timeout: float = DEFAULT_REVIEW_TIMEOUT,
     name: str = "codex_review_changes",
+    session_registry: SessionRegistry | None = None,
 ) -> Tool:
     """Build ``codex_review_changes``: Codex' OWN review harness, typed target.
 
@@ -576,11 +669,15 @@ def codex_native_reviewer(
     codex_executable()
 
     base = Path(root or os.environ.get("LAZYTOOLS_CODE_ROOT") or Path.cwd()).expanduser().resolve()
+    default_model, default_effort = model, effort
 
     async def codex_review_changes(
         repo_path: str | None = None,
         scope: str = "uncommitted",
         ref: str | None = None,
+        model: str | None = None,
+        effort: str | None = None,
+        session_name: str | None = None,
     ) -> str:
         """Review a diff with Codex' built-in review harness.
 
@@ -601,6 +698,16 @@ def codex_native_reviewer(
                 "commit" (the single commit `ref`).
             ref: The base branch for scope="branch" (e.g. "main"), or the sha
                 for scope="commit". Ignored when scope="uncommitted".
+            model: Codex model override for this call. Defaults to the
+                server's configured model.
+            effort: Reasoning effort override for this call: one of "none",
+                "minimal", "low", "medium", "high", "xhigh", "max". Defaults
+                to the server's configured effort.
+            session_name: A name for the review thread, per repository
+                (letters, digits, `_.-`, starting with a letter). An unused
+                name is bound to the thread this review opens, so
+                `codex_ask(session_name=...)` can then question the findings;
+                a known name runs the review inside that existing thread.
         """
         if scope not in _REVIEW_TARGETS:
             raise ValueError(f"scope must be one of {', '.join(_REVIEW_TARGETS)}, got {scope!r}")
@@ -615,10 +722,12 @@ def codex_native_reviewer(
             system=CODE_REVIEWER_SYSTEM,
             agent_name="codex-native-reviewer",
             thread_id=None,
-            model=model,
-            effort=effort,
+            model=clean(model) or default_model,
+            effort=clean(effort) or default_effort,
             timeout=timeout,
             review_target=_REVIEW_TARGETS[scope](ref),
+            session_name=session_name,
+            registry=session_registry,
         )
 
     return Tool(codex_review_changes, name=name)
