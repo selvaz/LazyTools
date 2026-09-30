@@ -23,7 +23,7 @@ claude_code(
     cwd: str | None = None,
     session_id: str | None = None,
     timeout: float = 3600.0,
-    model: str | None = "claude-sonnet-5",
+    model: str | None = "claude-sonnet-5-5",
 ) -> dict | str
 ```
 
@@ -41,7 +41,7 @@ string.
 | `cwd` | `str \| None` | `None` | Working directory for the subprocess. |
 | `session_id` | `str \| None` | `None` | If set, resumes an existing session via `--resume`. |
 | `timeout` | `float` | `3600.0` | Max seconds for the subprocess. |
-| `model` | `str \| None` | `"claude-sonnet-5"` | `--model` passed to the CLI — an alias (`"opus"`, `"sonnet"`) or a full model name. `None` omits the flag and lets the CLI's own default decide. |
+| `model` | `str \| None` | `"claude-sonnet-5-5"` | `--model` passed to the CLI — an alias (`"opus"`, `"sonnet"`) or a full model name. `None` omits the flag and lets the CLI's own default decide. |
 
 ```python
 from lazybridge import Agent, LLMEngine
