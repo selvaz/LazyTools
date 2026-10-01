@@ -67,7 +67,7 @@ when you want your own agent to drive the CLI's individual tools (Claude's
     from lazytools.connectors.code_support import codex
 
     agent = Agent(
-        engine=LLMEngine("gpt-6-sol", tool_timeout=None),
+        engine=LLMEngine("gpt-6.1-sol", tool_timeout=None),
         tools=[codex],
     )
     print(agent("List the public functions in main.py and describe each").text())

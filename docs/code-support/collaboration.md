@@ -13,7 +13,7 @@ build_cli_collaboration(
     name: str = "cli_collaboration",
     description: str | None = None,
     claude_model: str = "claude-opus-5-5",
-    codex_model: str = "gpt-6-sol",
+    codex_model: str = "gpt-6.1-sol",
     synthesizer_model: str = "claude-opus-5-5",
     executor_model: str = "claude-sonnet-5-5",
     execute: bool = True,
@@ -39,7 +39,7 @@ Step 4  executor         claude_code_write    implement the plan   (ONLY with ex
 | `name` | `str` | `"cli_collaboration"` | Tool name the parent agent sees (tool-map key). |
 | `description` | `str \| None` | `None` | Tool description shown to the parent LLM; a sensible default is used when `None`. |
 | `claude_model` | `str` | `"claude-opus-5-5"` | Model for the Claude-Code analyst (step 1). |
-| `codex_model` | `str` | `"gpt-6-sol"` | Model for the Codex analyst/critic (step 2). |
+| `codex_model` | `str` | `"gpt-6.1-sol"` | Model for the Codex analyst/critic (step 2). |
 | `synthesizer_model` | `str` | `"claude-opus-5-5"` | Model that merges the analyses (step 3). |
 | `executor_model` | `str` | `"claude-sonnet-5-5"` | Model that implements the plan (step 4). |
 | `execute` | `bool` | `False` | `False` (default) → stop after synthesis: the read-only three-session pipeline. `True` → append the executor, which implements the plan via the gated `claude_code_write` tool. |

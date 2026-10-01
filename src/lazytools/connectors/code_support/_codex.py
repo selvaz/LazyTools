@@ -202,7 +202,7 @@ def codex(
     effort:
         Reasoning effort for this call (``-c model_reasoning_effort=...``): one
         of ``none``, ``minimal``, ``low``, ``medium``, ``high``, ``xhigh``,
-        ``max`` (which of them a model accepts is up to the model). ``None``
+        ``max``, ``ultra`` (which of them a model accepts is up to the model). ``None``
         leaves the CLI's configured effort. An unknown value raises
         ``ValueError`` listing the allowed ones, before anything is launched.
     """

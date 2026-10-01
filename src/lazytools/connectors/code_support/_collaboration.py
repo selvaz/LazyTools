@@ -60,7 +60,7 @@ def build_cli_collaboration(
     name: str = "cli_collaboration",
     description: str | None = None,
     claude_model: str = "claude-opus-5-5",
-    codex_model: str = "gpt-6-sol",
+    codex_model: str = "gpt-6.1-sol",
     synthesizer_model: str = "claude-opus-5-5",
     executor_model: str = "claude-sonnet-5-5",
     execute: bool = False,

@@ -269,7 +269,7 @@ class CodeWriteTools:
                         "spans more than one. Args: task (str); cwd (str, "
                         "optional — must stay inside the sandbox); model (str, optional — "
                         "default: Codex's); effort (str, optional — none/minimal/low/medium/"
-                        "high/xhigh/max); session_name (str, optional — a name for a durable "
+                        "high/xhigh/max/ultra); session_name (str, optional — a name for a durable "
                         "thread: reuse it to continue the same conversation, letters/digits/"
                         "._- starting with a letter); thread_id (str, optional — resume a "
                         "native thread; wins over session_name)."
