@@ -76,9 +76,9 @@ served in the default read-only surface, and won't construct even with
 key, only the CLI's own login — served as two tools:
 
 ```text
-codex_code_review(task, repo_path=None, diff_ref=None, paths=None, thread_id=None) -> str
-codex_ask(question, repo_path=None, thread_id=None, model=None, effort=None) -> str
-codex_review_changes(repo_path=None, scope="uncommitted", ref=None) -> str
+codex_code_review(task, repo_path=None, diff_ref=None, paths=None, thread_id=None, session_name=None, model=None, effort=None) -> str
+codex_ask(question, repo_path=None, thread_id=None, session_name=None, model=None, effort=None) -> str
+codex_review_changes(repo_path=None, scope="uncommitted", ref=None, session_name=None, model=None, effort=None) -> str
 ```
 
 `codex_code_review` finds defects in code you point it at; `codex_ask` answers a
@@ -89,10 +89,11 @@ from us at all. The split is not cosmetic: the reviewer's instructions turn
 every question into a findings list, and the native harness cannot be steered
 because the protocol has no prompt slot for it.
 
-The consultant differs from the reviewers in two more ways. `codex_ask` takes
-per-call `model` / `effort` overrides ("same question, stronger model" is a
-legitimate consulting move; the env-var settings below remain the defaults).
-And it carries the server's own **read-only LazyTools toolset** as Codex
+Every Codex tool takes per-call `model` / `effort` overrides ("same question,
+stronger model" is a legitimate consulting move; the env-var settings below
+remain the defaults). `effort` is checked: one of `none`, `minimal`, `low`,
+`medium`, `high`, `xhigh`, `max`, else a `ValueError` lists them. The consultant
+differs from the reviewers in one more way: it carries the server's own **read-only LazyTools toolset** as Codex
 dynamic tools — the `web`, `datahub`, `statistical`, `fin` and
 `econ_calendar` providers, built from the same factories and configuration
 the MCP server serves, so a consultant that searches the web or runs the
@@ -124,6 +125,13 @@ Threads are durable (they live in the Codex CLI's own session store), so this
 works across calls and across processes — but a thread belongs to the repository
 it was opened on; don't reuse one against a different repo.
 
+**Or name the conversation.** Pass `session_name="notes"` on any of these tools
+and the thread is remembered under that alias (per repository, in LazyBridge's
+`SessionRegistry` file): the first call opens it, later calls with the same name
+resume it, and no id needs carrying. An explicit `thread_id` still wins and
+re-points the name at it. The header then reads
+`thread_id=<id> session_name=notes`.
+
 It runs in Codex' **read-only sandbox** (`approval_policy="never"`, so nothing
 can block the non-interactive transport): it reports, it never patches. Like
 the other agent providers it is opt-in (`--allow-unsafe`) because a call spends
@@ -143,12 +151,13 @@ Codex answers.
 ### `claude_review` — the same thing on the other model family
 
 ```text
-claude_code_review(task, repo_path=None, diff_ref=None, paths=None, session_id=None) -> str
-claude_ask(question, repo_path=None, session_id=None, model=None, thinking=None) -> str
+claude_code_review(task, repo_path=None, diff_ref=None, paths=None, session_id=None, session_name=None, model=None, effort=None) -> str
+claude_ask(question, repo_path=None, session_id=None, session_name=None, model=None, thinking=None, effort=None) -> str
 ```
 
 `claude_ask` mirrors `codex_ask`'s consulting extras too: per-call `model` /
-`thinking` overrides, the same read-only LazyTools toolset (served to the
+`thinking` / `effort` overrides (`effort`: `low`, `medium`, `high`, `xhigh`,
+`max`), `session_name`, the same read-only LazyTools toolset (served to the
 engine as its in-process MCP server), and the engine's own WebSearch/WebFetch
 (`web=True`). `claude_code_review` gets that same web access — build it with
 `claude_reviewer(web=False)` for the old offline behavior — but not the
@@ -168,11 +177,45 @@ Two differences come from the runtime, not from choice:
 * **no native harness** — the Agent SDK has no `review/start`, so there is no
   `claude_review_changes` counterpart.
 
-Model via `LAZYTOOLS_CLAUDE_REVIEW_MODEL` (default `sonnet`), extended thinking
+Model via `LAZYTOOLS_CLAUDE_REVIEW_MODEL` (default `sonnet`), reasoning effort
+via `LAZYTOOLS_CLAUDE_REVIEW_EFFORT`, extended thinking
 via `LAZYTOOLS_CLAUDE_REVIEW_THINKING`; the confinement root and per-call
 timeout are the same `LAZYTOOLS_CODE_ROOT` / `LAZYTOOLS_CODE_REVIEW_TIMEOUT` as
 above. Registered as its own provider so a missing `codex` CLI cannot take the
 Claude tools down with it, and vice versa.
+
+### `code_write` — let Codex / Claude Code edit
+
+```text
+codex_write(task, cwd=None, thread_id=None, session_name=None, model=None, effort=None) -> dict | str
+claude_code_write(task, cwd=None, session_id=None, session_name=None, model=None, effort=None) -> dict | str
+```
+
+Opt-in (`--allow-unsafe`), confined to the code root, and now run on the
+LazyBridge engines like the review tools, with the same per-call `model`,
+`effort` and `session_name`. **`codex_write` no longer takes `resume_last`** —
+continue a conversation by `session_name` or the previous reply's `thread_id`.
+Claude's writer edits only inside its `cwd` and runs `Bash` behind an
+allow-list gate; Bash is not path-confined, so treat the code root as fully
+trusted scope.
+
+### `code_sessions` — see and manage session names
+
+```text
+code_sessions_list(kind=None, repo_path=None) -> list[dict]
+code_sessions_bind(kind, name, native_id, repo_path=None) -> dict
+code_sessions_rename(kind, old, new, repo_path=None) -> dict
+code_sessions_forget(kind, name, repo_path=None) -> dict
+```
+
+`session_name` aliases live in LazyBridge's `SessionRegistry` (a JSON file,
+`~/.lazybridge/sessions.json` or `LAZYBRIDGE_SESSIONS_FILE`), keyed by
+`kind` (`codex` or `claude`), the resolved repository and the name.
+`code_sessions_list` returns `name`, `kind`, `native_id`, `scope`, `model`,
+`effort`, `updated_at` and is read-only. The three mutators adopt a thread you
+already have (`bind`), rename, or drop a name (`forget` never deletes the
+underlying conversation); they are only served with `--allow-unsafe`, and
+`repo_path` is confined to the code root like every other path.
 
 ## Safety model
 

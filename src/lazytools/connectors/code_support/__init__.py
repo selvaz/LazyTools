@@ -19,6 +19,21 @@ the shape the LazyTools MCP server mounts (provider id ``code_review``) so an
 MCP host can hand a review to Codex; unlike the two functions above it takes a
 repository path per call, since a review has to happen somewhere.
 
+**Model, effort and session names, per call.** Every tool that launches an
+agent -- ``codex_code_review`` / ``codex_ask`` / ``codex_review_changes``,
+``claude_code_review`` / ``claude_ask``, the gated ``codex_write`` /
+``claude_code_write`` (which now run on the LazyBridge engines, not on CLI
+subprocesses), and the plain :func:`codex` / :func:`claude_code` CLI tools --
+takes an optional ``model`` and reasoning ``effort`` (default: the provider's
+own; a bad ``effort`` raises ``ValueError`` listing the allowed values). The
+seven engine-backed tools also take an optional ``session_name``: a
+renamable alias for a durable Codex thread / Claude Code session, held in
+LazyBridge's ``SessionRegistry`` and scoped to the call's working directory, so
+a later call with the same name continues the same conversation without the
+caller storing a ``thread_id``. The native ``thread_id`` / ``session_id`` still
+work and win over the name. :class:`CodeSessionTools` lists and curates the
+names (``code_sessions_list``; bind / rename / forget when mutation is allowed).
+
 Plus :func:`build_cli_collaboration`, which makes the two collaborate
 (Claude Code analyses → Codex critiques → synthesizer plans → executor
 implements) as a single Agent tool.
@@ -78,6 +93,7 @@ from lazytools.connectors.code_support._review import (
     codex_native_reviewer,
     codex_reviewer,
 )
+from lazytools.connectors.code_support._sessions import CodeSessionTools
 from lazytools.connectors.code_support._writer import CodeWriteBlocked, CodeWriteTools
 
 
@@ -106,6 +122,7 @@ __all__ = [
     "CODE_CONSULTANT_SYSTEM",
     "CODE_REVIEWER_SYSTEM",
     "DEFAULT_REVIEW_TIMEOUT",
+    "CodeSessionTools",
     "CodeWriteBlocked",
     "CodeWriteTools",
     "ReviewNotPerformed",

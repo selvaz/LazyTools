@@ -295,8 +295,9 @@ See [MCP server](docs/mcp-server.md).
 ## Safety model
 
 Dangerous tools (e.g. `gmail_send`, `telegram_send_message`, and the coding
-CLIs' `claude_code_write` / `codex_write` via `CodeWriteTools` — read-only
-`claude_code` / `codex` need no gate) are gated by two
+agents' `claude_code_write` / `codex_write` via `CodeWriteTools` (now on the
+LazyBridge engines, with per-call `model` / `effort` / `session_name`) —
+read-only `claude_code` / `codex` need no gate) are gated by two
 independent, composable primitives in `lazytools.safety`:
 
 - **`Allowlist`** — case-insensitive target allow-list (`None` = allow all).

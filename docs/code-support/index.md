@@ -159,6 +159,14 @@ agent("fix the failing test")    # the agent may now call claude_code_write once
   exactly one write call; grants can be task-scoped (`task_id=`). For
   autonomous pipelines pass `require_confirmation=False` and rely on the
   sandbox plus a git checkout.
+- **Engine-backed, per-call knobs** — `codex_write` / `claude_code_write` run
+  on `CodexEngine` / `ClaudeCodeEngine` and take optional `model`, `effort`
+  and `session_name` (a durable alias for the conversation; see
+  [Codex](codex.md#naming-a-conversation-session_name)). `codex_write` no
+  longer has `resume_last`. Claude's writer grants `Write`/`Edit` confined to
+  `base_dir` and `Bash` behind an allow-list gate (Bash itself is not
+  path-confined, as before); `CodeWriteTools(claude_bash=False)` drops Bash.
+  A Claude write is capped at 60 turns and is never retried.
 - **Codex writes keep the git rail** — `codex_skip_git_check` defaults to
   `False` for the writer (unlike the harmless read-only default).
 - **Output is labelled** — all CLI results return

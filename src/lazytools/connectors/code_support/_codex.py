@@ -22,6 +22,7 @@ import subprocess
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
+from lazytools.connectors.code_support._common import CODEX_EFFORTS, check_effort, clean
 from lazytools.connectors.mcp import MCP
 
 if TYPE_CHECKING:
@@ -32,20 +33,6 @@ _log = logging.getLogger(__name__)
 #: ``codex exec`` only exposes the sandbox flag (-s / --sandbox); there is no
 #: `-a` approval flag, so read-only sandbox is the whole story here.
 _READ_FLAGS: list[str] = ["-s", "read-only"]
-
-#: Write-mode flags — used only by ``CodeWriteTools`` (gated, sandboxed).
-#: ``codex exec`` has no ``--full-auto``/``-a`` flag at all on current Codex
-#: CLI builds (verified live against ``codex exec --help``: it exposes only
-#: ``-s/--sandbox`` and generic ``-c key=value`` overrides; passing
-#: ``--full-auto`` is a hard argument-parsing error). ``exec`` defaults to
-#: ``approval_policy=never`` on its own — verified live, including a task
-#: that runs a shell command, which completed without blocking — but that
-#: default could differ on another CLI version or a user's own
-#: ``~/.codex/config.toml``. ``-c approval_policy=never`` pins it explicitly,
-#: which is what ``--full-auto`` was originally meant to guarantee: pairing
-#: the sandbox with a policy that never blocks waiting on stdin.
-_WRITE_FLAGS: list[str] = ["-s", "workspace-write", "-c", "approval_policy=never"]
-
 
 #: One hour. Was five minutes for writes and fifteen for reviews, which
 #: is shorter than a real refactor across a large repository: a long job
@@ -91,10 +78,12 @@ def _run_codex(
     resume_last: bool,
     skip_git_check: bool,
     timeout: float,
+    model: str | None = None,
+    effort: str | None = None,
 ) -> str:
     """Run the ``codex`` CLI once and return its output (or an error string
-    starting with ``[codex]``). Shared by the read-only tool and the gated
-    writer.
+    starting with ``[codex]``). Used by the read-only tool only — the gated
+    writer runs on the LazyBridge engine instead.
     """
     codex_bin = resolve_codex_bin()
     if codex_bin is None:
@@ -113,7 +102,13 @@ def _run_codex(
     # looked like a hang from the caller's side: the actual failure was
     # instant, but arrived shaped like every other error string, easy to
     # miss next to the *real* hang below). Every exec-level flag therefore
-    # has to be placed BEFORE the `resume` subcommand, never after.
+    # has to be placed BEFORE the `resume` subcommand, never after. That
+    # includes the per-call model / reasoning-effort overrides below.
+    flags = list(flags)
+    if model:
+        flags += ["-m", model]
+    if effort:
+        flags += ["-c", f'model_reasoning_effort="{effort}"']
     if resume_last:
         cmd = [codex_bin, "exec", *flags]
         if skip_git_check:
@@ -166,6 +161,8 @@ def codex(
     resume_last: bool = False,
     timeout: float = DEFAULT_TIMEOUT,
     skip_git_check: bool = True,
+    model: str | None = None,
+    effort: str | None = None,
 ) -> dict[str, Any] | str:
     """Delegate a read-only task to the Codex CLI (``-s read-only`` sandbox).
 
@@ -199,7 +196,17 @@ def codex(
         Pass ``--skip-git-repo-check``. Harmless in the read-only sandbox;
         the gated writer defaults this **off** so writes keep git as a
         recovery rail.
+    model:
+        Codex model for this call (``-m``). ``None`` (default) leaves the CLI's
+        configured model.
+    effort:
+        Reasoning effort for this call (``-c model_reasoning_effort=...``): one
+        of ``none``, ``minimal``, ``low``, ``medium``, ``high``, ``xhigh``,
+        ``max`` (which of them a model accepts is up to the model). ``None``
+        leaves the CLI's configured effort. An unknown value raises
+        ``ValueError`` listing the allowed ones, before anything is launched.
     """
+    effort = check_effort(effort, CODEX_EFFORTS, provider="Codex")
     out = _run_codex(
         task,
         _READ_FLAGS,
@@ -207,6 +214,8 @@ def codex(
         resume_last=resume_last,
         skip_git_check=skip_git_check,
         timeout=timeout,
+        model=clean(model),
+        effort=effort,
     )
     if out.startswith("[codex]"):
         return out

@@ -29,6 +29,8 @@ codex(
     resume_last: bool = False,
     timeout: float = 3600.0,
     skip_git_check: bool = True,
+    model: str | None = None,
+    effort: str | None = None,
 ) -> dict | str
 ```
 
@@ -50,6 +52,8 @@ and the session id is not on stdout — to continue, use `resume_last=True`
 | `resume_last` | `bool` | `False` | Continue the most recent session via `exec resume --last`. |
 | `timeout` | `float` | `3600.0` | Max seconds for the subprocess. |
 | `skip_git_check` | `bool` | `True` | Pass `--skip-git-repo-check`; required outside a git repo. |
+| `model` | `str \| None` | `None` | Codex model for this call (`-m`). `None` leaves the CLI's configured model. |
+| `effort` | `str \| None` | `None` | Reasoning effort (`-c model_reasoning_effort=...`): `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`; which of them a model accepts is up to the model. `None` leaves the CLI's setting. Anything else raises `ValueError` listing the allowed values. |
 
 ```python
 from lazybridge import Agent, LLMEngine
@@ -232,6 +236,28 @@ the history there, and two chronologies of one conversation is worse than none.
 Threads live in the Codex CLI's own session store, so they also show up in its
 history.
 
+### Naming a conversation — `session_name`
+
+A raw `thread_id` has to be carried by the caller. Every Codex tool also takes
+an optional **`session_name`**: a short alias (letters, digits, `_ . -`, starting
+with a letter, at most 64 characters) that LazyBridge's `SessionRegistry` maps to
+a thread, scoped to the repository the call resolves to.
+
+```python
+await tool.run(question="remember the word PINEAPPLE", repo_path="LazyBridge", session_name="notes")
+await tool.run(question="what word did I ask you to remember?", repo_path="LazyBridge", session_name="notes")
+```
+
+An unknown name opens a fresh thread and binds it after the turn; a known name
+resumes the bound one. An explicit `thread_id` still works and wins: it is used
+for the call and the name is re-pointed at it. Names are per repository and per
+provider, so `notes` in two repos, or for Codex and Claude, are four different
+conversations. The reply header carries `session_name=<name>` next to
+`thread_id=`, and so does a failed turn (`ReviewNotPerformed.session_name`).
+The registry is a JSON file (`~/.lazybridge/sessions.json`, or
+`LAZYBRIDGE_SESSIONS_FILE`); the `code_sessions_*` tools list, bind, rename and
+forget names (see the [MCP server](../mcp-server.md#code_sessions-see-and-manage-session-names)).
+
 ### `codex_review_changes` — Codex' own review harness
 
 ```python
@@ -283,6 +309,23 @@ Both are what the [MCP server](../mcp-server.md#code_review-hand-a-review-to-cod
 mounts as provider `code_review`, which is how another coding agent (Claude
 Code, say) gets Codex as a second reviewer *and* a second opinion.
 
+### Writing — `codex_write`
+
+`CodeWriteTools(...)` exposes `codex_write` / `claude_code_write`, and both now
+run on the LazyBridge engines (`CodexEngine`, `ClaudeCodeEngine`), not on a CLI
+subprocess. The gate is unchanged (`base_dir` confinement, one-shot
+`confirm_write()` grants, the `codex_skip_git_check` rail -- the App Server has
+no `--skip-git-repo-check`, so the refusal outside a git repository is done by
+the tool itself). Per call they take `model`, `effort` and `session_name`
+exactly like the read-only tools, in the `workspace-write` sandbox with
+`approval_policy="never"`.
+
+**Breaking change:** `codex_write` no longer has `resume_last`. `exec resume
+--last` picked "the most recent session" and was ambiguous whenever two sessions
+shared a directory; pass `session_name="..."` (a durable, per-repository alias)
+or the `thread_id` from the previous reply's header instead. The plain `codex()`
+tool keeps `resume_last`.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -297,8 +340,8 @@ Code, say) gets Codex as a second reviewer *and* a second opinion.
 ## Pitfalls
 
 - **`resume --last` is ambiguous** when several sessions share a directory — it
-  always takes the most recent. For parallel conversations, pass the full
-  context in the prompt rather than relying on resume.
+  always takes the most recent (`codex()` only). For parallel conversations use
+  the engine-backed tools with a `session_name`, which names one thread.
 - **Codex MCP is experimental.** The `codex` / `codex-reply` tool shape can
   change between Codex versions — pin your version if you rely on it.
 
