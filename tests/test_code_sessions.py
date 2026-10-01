@@ -66,6 +66,11 @@ class TestModelAndEffort:
         assert script.kwargs["model"] == "gpt-x"
         assert script.kwargs["reasoning_effort"] == "xhigh"
 
+    async def test_codex_accepts_ultra_effort(self, root, script, registry):
+        tool = codex_reviewer(root=str(root), session_registry=registry)
+        await tool.run(task="look", model="gpt-6.1-sol", effort="ultra")
+        assert script.kwargs["reasoning_effort"] == "ultra"
+
     async def test_codex_call_overrides_the_factory_default(self, root, script, registry):
         tool = codex_consultant(root=str(root), model="base", effort="low", session_registry=registry)
         await tool.run(question="?")
@@ -95,14 +100,14 @@ class TestModelAndEffort:
         assert script.kwargs["reasoning_effort"] == "max"
         assert script.kwargs["thinking"] == "adaptive"
 
-    @pytest.mark.parametrize("effort", ["hgih", "ultra", "persistent"])
+    @pytest.mark.parametrize("effort", ["hgih", "ultrahigh", "persistent"])
     async def test_a_bad_codex_effort_names_the_allowed_values(self, effort, root, script, registry):
         tool = codex_reviewer(root=str(root), session_registry=registry)
-        with pytest.raises(ValueError, match="use one of: none, minimal, low, medium, high, xhigh, max"):
+        with pytest.raises(ValueError, match="use one of: none, minimal, low, medium, high, xhigh, max, ultra"):
             await tool.run(task="x", effort=effort)
         assert script.engines == []
 
-    @pytest.mark.parametrize("effort", ["hgih", "none", "minimal"])
+    @pytest.mark.parametrize("effort", ["hgih", "none", "minimal", "ultra"])
     async def test_a_bad_claude_effort_names_the_allowed_values(self, effort, root, script, registry):
         tool = claude_consultant(root=str(root), session_registry=registry)
         with pytest.raises(ValueError, match="use one of: low, medium, high, xhigh, max"):

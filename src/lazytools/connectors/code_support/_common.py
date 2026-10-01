@@ -35,7 +35,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 CLAUDE_EFFORTS: tuple[str, ...] = ("low", "medium", "high", "xhigh", "max")
 
 #: Reasoning efforts known to the Codex CLI, as a union across models.
-CODEX_EFFORTS: tuple[str, ...] = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
+CODEX_EFFORTS: tuple[str, ...] = ("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
 
 
 def clean(value: str | None) -> str | None:

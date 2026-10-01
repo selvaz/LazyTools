@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Codex: `ultra` effort accepted, `gpt-6.1-sol` default.** `ultra` (maximum
+  reasoning with automatic task delegation) joins the allowed Codex efforts on
+  every per-call `effort` argument; Claude's set is unchanged (Claude Code has no
+  `ultra`). The collaboration flow's `codex_model` default moves from `gpt-6-sol`
+  to `gpt-6.1-sol` (the current Codex workhorse; `gpt-6-sol` stays selectable by
+  passing it explicitly).
 - **Per-call `model` / `effort` / `session_name` on every code tool.**
   `codex_code_review`, `codex_review_changes`, `codex_ask`,
   `claude_code_review`, `claude_ask`, `codex_write`, `claude_code_write` and
@@ -16,7 +22,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   reasoning `effort` (default: the provider's own). `effort` is validated and a
   bad value raises a `ValueError` listing the allowed ones (Claude: `low`,
   `medium`, `high`, `xhigh`, `max`; Codex: `none`, `minimal`, `low`, `medium`,
-  `high`, `xhigh`, `max`). `claude_ask` keeps `thinking` and gains `effort`.
+  `high`, `xhigh`, `max`, `ultra`). `claude_ask` keeps `thinking` and gains `effort`.
   The seven engine-backed tools also take `session_name`: a renamable alias for
   a durable conversation, stored in LazyBridge's `SessionRegistry` (scope = the
   resolved repository). An unknown name opens a thread/session and binds it, a

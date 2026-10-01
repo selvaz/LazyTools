@@ -242,9 +242,9 @@ class TestCodex:
     def test_a_bad_effort_is_refused_before_any_process_starts(self):
         with (
             patch("subprocess.run") as mock_run,
-            pytest.raises(ValueError, match="use one of: none, minimal, low, medium, high, xhigh, max"),
+            pytest.raises(ValueError, match="use one of: none, minimal, low, medium, high, xhigh, max, ultra"),
         ):
-            codex("task", effort="ultra")
+            codex("task", effort="ultrahigh")
         mock_run.assert_not_called()
 
     def test_subprocess_stdin_is_devnull(self):

@@ -92,7 +92,7 @@ because the protocol has no prompt slot for it.
 Every Codex tool takes per-call `model` / `effort` overrides ("same question,
 stronger model" is a legitimate consulting move; the env-var settings below
 remain the defaults). `effort` is checked: one of `none`, `minimal`, `low`,
-`medium`, `high`, `xhigh`, `max`, else a `ValueError` lists them. The consultant
+`medium`, `high`, `xhigh`, `max`, `ultra`, else a `ValueError` lists them. The consultant
 differs from the reviewers in one more way: it carries the server's own **read-only LazyTools toolset** as Codex
 dynamic tools — the `web`, `datahub`, `statistical`, `fin` and
 `econ_calendar` providers, built from the same factories and configuration

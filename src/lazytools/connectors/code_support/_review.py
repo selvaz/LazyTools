@@ -360,7 +360,7 @@ def codex_reviewer(
             model: Codex model override for this call. Defaults to the
                 server's configured model.
             effort: Reasoning effort override for this call: one of "none",
-                "minimal", "low", "medium", "high", "xhigh", "max" (which of
+                "minimal", "low", "medium", "high", "xhigh", "max", "ultra" (which of
                 these a given model accepts is up to the model). Defaults to
                 the server's configured effort.
             session_name: A name for this conversation, per repository
@@ -596,10 +596,10 @@ def codex_consultant(
                 in its reply. A thread belongs to the repository it was opened
                 on — don't reuse one against a different repo. When given
                 together with `session_name`, it wins and rebinds the name.
-            model: Codex model override for this call (e.g. "gpt-6-sol").
+            model: Codex model override for this call (e.g. "gpt-6.1-sol").
                 Defaults to the server's configured model.
             effort: Reasoning effort override for this call: one of "none",
-                "minimal", "low", "medium", "high", "xhigh", "max" (which of
+                "minimal", "low", "medium", "high", "xhigh", "max", "ultra" (which of
                 these a given model accepts is up to the model). Defaults to
                 the server's configured effort.
             session_name: A name for this conversation, per repository
@@ -701,7 +701,7 @@ def codex_native_reviewer(
             model: Codex model override for this call. Defaults to the
                 server's configured model.
             effort: Reasoning effort override for this call: one of "none",
-                "minimal", "low", "medium", "high", "xhigh", "max". Defaults
+                "minimal", "low", "medium", "high", "xhigh", "max", "ultra". Defaults
                 to the server's configured effort.
             session_name: A name for the review thread, per repository
                 (letters, digits, `_.-`, starting with a letter). An unused

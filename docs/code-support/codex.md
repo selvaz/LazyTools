@@ -53,14 +53,14 @@ and the session id is not on stdout — to continue, use `resume_last=True`
 | `timeout` | `float` | `3600.0` | Max seconds for the subprocess. |
 | `skip_git_check` | `bool` | `True` | Pass `--skip-git-repo-check`; required outside a git repo. |
 | `model` | `str \| None` | `None` | Codex model for this call (`-m`). `None` leaves the CLI's configured model. |
-| `effort` | `str \| None` | `None` | Reasoning effort (`-c model_reasoning_effort=...`): `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`; which of them a model accepts is up to the model. `None` leaves the CLI's setting. Anything else raises `ValueError` listing the allowed values. |
+| `effort` | `str \| None` | `None` | Reasoning effort (`-c model_reasoning_effort=...`): `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` or `ultra`; which of them a model accepts is up to the model. `None` leaves the CLI's setting. Anything else raises `ValueError` listing the allowed values. |
 
 ```python
 from lazybridge import Agent, LLMEngine
 from lazytools.connectors.code_support import codex
 
 agent = Agent(
-    engine=LLMEngine("gpt-6-sol", tool_timeout=None),
+    engine=LLMEngine("gpt-6.1-sol", tool_timeout=None),
     tools=[codex],
 )
 print(agent("List the public functions in main.py and describe each").text())
