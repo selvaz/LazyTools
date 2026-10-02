@@ -7,7 +7,7 @@ Python: 3.11, 3.12, 3.13
 | Component | Channel | Verified ref |
 |---|---|---|
 | lazybridge | PyPI | `1.6.2` |
-| lazytoolkit | GitHub | `v0.8.0` |
+| lazytoolkit | GitHub | `v0.8.1` |
 | lazypulse | GitHub | `v0.4.0` |
 | lazycrawler | GitHub | `v0.19.4` |
 | market-data-hub | GitHub | `9ad84122261e034b0eb38644afc9e53654727d7d` |

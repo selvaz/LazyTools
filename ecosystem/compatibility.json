@@ -42,7 +42,7 @@
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
-        "ref": "v0.8.0",
+        "ref": "v0.8.1",
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
