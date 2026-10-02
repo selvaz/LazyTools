@@ -8,6 +8,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [0.8.1] — 2026-10-01
+
+### Changed
+- Requires `lazybridge>=1.6.2` (Codex transport hardening: diagnosable
+  `CodexTransportError`, bounded child cleanup, per-loop engine locks).
+
 ### Added
 - **Codex: `ultra` effort accepted, `gpt-6.1-sol` default.** `ultra` (maximum
   reasoning with automatic task delegation) joins the allowed Codex efforts on
