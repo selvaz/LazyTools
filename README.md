@@ -90,6 +90,7 @@ from lazytools.workspace import WorkspaceTools
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render`, `artifacts`, `resolvers`, `charts`, `tools`, `files` | deterministic memo/report rendering (Markdown/HTML) with embedded figures (charts/images) — "LazyReport" |
 | `mcp_server/` | `server`, `providers` | expose LazyTools' read-only providers over MCP (the `lazytools-mcp` command) — mirror of the `connectors/mcp` client |
+| `code_bridge/` | `cli`, `_jobs`, `_policy`, `_lockfile` | async alternative to `codex_write`/`claude_code_write` (the `lazytools-code-bridge` command): runs a coding-engine job in a background OS process instead of a blocking MCP call, with approvals filed to a durable ticket queue — see [Async Code Bridge](docs/code-bridge.md) |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
 | `safety/` | `allowlist`, `gates`, `urls` | reusable allow-list, one-shot confirmation gate, and SSRF URL guard |
 | `registry/` | `db`, `router`, `artifacts`, `tools` | cross-repo DB env-var resolution + a shared artifact catalog (SQLite, no shared DB) — see [DB registry & artifacts](docs/registry.md) |
@@ -291,6 +292,24 @@ server = build_server(default_providers())   # read-only by default
 ```
 
 See [MCP server](docs/mcp-server.md).
+
+## Async code bridge
+
+`codex_write` / `claude_code_write` are synchronous MCP calls: the
+delegating session blocks until the job finishes, and a long job can outrun
+the MCP transport's own timeout. `lazytools-code-bridge` is the
+asynchronous alternative: a console script a Claude Code session launches
+via its Bash tool with `run_in_background`, polling a durable approval
+ticket queue instead of blocking on a human at a terminal.
+
+```bash
+lazytools-code-bridge run --engine codex --cwd /path/to/repo --task "..." --session my-task
+lazytools-code-bridge pending --json
+lazytools-code-bridge approve <approval_id>
+lazytools-code-bridge result <job_id>
+```
+
+See [Async Code Bridge](docs/code-bridge.md) for the full workflow.
 
 ## Safety model
 

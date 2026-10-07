@@ -70,6 +70,7 @@ plugins:
           - code-support/claude-code.md
           - code-support/codex.md
           - code-support/collaboration.md
+          - code-bridge.md
           - gateway.md
           - datahub.md
           - tradingview.md
@@ -149,6 +150,7 @@ nav:
           - Claude Code: code-support/claude-code.md
           - Codex: code-support/codex.md
           - Collaboration: code-support/collaboration.md
+      - Async Code Bridge (CLI): code-bridge.md
       - External tool gateway: gateway.md
       - Financial data (market-data-hub): datahub.md
       - TradingView screener: tradingview.md
