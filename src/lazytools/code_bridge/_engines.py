@@ -60,10 +60,17 @@ def build_codex_engine(
     session_registry: SessionRegistry,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Any:
-    """A ``CodexEngine`` for one foreground job: workspace-write, on-request escalations gated."""
+    """A ``CodexEngine`` for one foreground job: workspace-write, on-request escalations gated.
+
+    Live web search is set explicitly rather than inherited from the user's
+    ``~/.codex/config.toml``, so a job can research what it is building
+    whatever that file says."""
+    import dataclasses
+
     from lazybridge.engines.coding import CodingAgentConfig
 
     config = CodingAgentConfig.writer(gate)
+    config = dataclasses.replace(config, codex=dataclasses.replace(config.codex, web_search="live"))
     return _make_codex_engine(
         model=model,
         cwd=cwd,
@@ -109,7 +116,9 @@ def build_claude_engine(
         reasoning_effort=effort,
         cwd=cwd,
         file_roots=[cwd],
-        web=False,
+        # WebSearch/WebFetch on: jobs may look things up while they work.
+        # Both are allowed by the bridge's rule table, so they run unprompted.
+        web=True,
         max_turns=DEFAULT_CLAUDE_MAX_TURNS,
         session_id=session_id,
         session_alias=session_alias,
