@@ -80,6 +80,10 @@ site       = ["mkdocs-material>=9.5,<10.0", "mkdocstrings[python]>=0.24,<1.0", "
 # ``mcp`` extra (pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"); the command errors with a
 # clear install hint if the SDK is absent.
 lazytools-mcp = "lazytools.mcp_server.__main__:main"
+# Async delegation CLI: Codex/Claude Code work, launched via Bash
+# run_in_background, with approvals filed to a durable ticket queue instead
+# of blocking a synchronous MCP call. See docs/code-bridge.md.
+lazytools-code-bridge = "lazytools.code_bridge.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/selvaz/LazyTools"
