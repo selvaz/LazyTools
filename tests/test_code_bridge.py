@@ -375,3 +375,19 @@ def test_session_name_resumes_the_same_native_session_on_the_next_run(tmp_path, 
     # already resolved from the session registry -- a real resume, not a
     # fresh thread.
     assert script.engines[1].kwargs.get("thread_id") == first_handle
+
+
+def test_both_engines_get_web_access(tmp_path, repo, monkeypatch):
+    """Jobs may look things up while they work: Claude gets WebSearch/WebFetch,
+    Codex gets live web search set explicitly (not inherited from the user's
+    Codex config)."""
+    _env(monkeypatch, tmp_path)
+    script = fakes.install(monkeypatch)
+    db_path = tmp_path / "store.sqlite"
+
+    _jobs.run_job(engine_name="claude", cwd=str(repo), task="x", root=str(tmp_path), db_path=db_path)
+    assert script.kwargs["web"] is True
+
+    _jobs.run_job(engine_name="codex", cwd=str(repo), task="y", root=str(tmp_path), db_path=db_path)
+    assert script.kwargs["config"].codex.web_search == "live"
+    assert script.kwargs["config"].codex.sandbox == "workspace-write"

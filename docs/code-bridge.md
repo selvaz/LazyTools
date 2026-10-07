@@ -79,6 +79,10 @@ id.
 
 ## What is gated, and how
 
+Both engines can use the web: Claude Code gets `WebSearch`/`WebFetch`
+(allowed by the rule table, so they never ask), and Codex runs with live web
+search set explicitly per job rather than inherited from `~/.codex/config.toml`.
+
 Every write call is sandboxed to one repository (`--cwd`, confined to
 `$LAZYTOOLS_CODE_ROOT` / `--root`, same convention
 `lazytools.connectors.code_support` uses) and gated by one
