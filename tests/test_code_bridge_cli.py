@@ -282,3 +282,18 @@ def test_wait_times_out_with_exit_3(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(lockfile, "_pid_alive", lambda pid: True)
 
     assert main(["wait", "slow", "--db", str(db_path), "--interval", "0.01", "--timeout", "0.05"]) == 3
+
+
+def test_request_detail_survives_an_elided_arguments_payload():
+    """TieredGate cuts long arguments in the middle, leaving invalid JSON; the
+    command and reason that came before the cut must still be shown."""
+    from lazytools.code_bridge.cli import _request_detail
+
+    head = json.dumps({"kind": "command", "reason": "Run the tests outside the sandbox?", "command": "pytest -q tests"})[:-1]
+    prompt = (
+        "[TieredGate] agent asks to run command 'codex-shell'\n"
+        f"  arguments: {head}, \"proposedExecpolicyAmendment\": [\"powershell.exe\", \"-Comm\n"
+        "  [...82 characters elided...]\n"
+        "  cwd: C:\\repo"
+    )
+    assert _request_detail(prompt) == {"command": "pytest -q tests", "reason": "Run the tests outside the sandbox?"}

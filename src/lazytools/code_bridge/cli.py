@@ -289,6 +289,30 @@ def _cmd_wait(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 
 
+_JSON_STRING_FIELD = r'"{name}":\s*("(?:[^"\\]|\\.)*")'
+
+
+def _salvage_detail(arguments: str) -> dict[str, str]:
+    """Pull ``command``/``reason`` out of an arguments payload TieredGate cut short.
+
+    TieredGate elides long arguments in the middle, which leaves the JSON
+    unparseable; a long escalation (a test run with a long PYTHONPATH, say)
+    then showed only "codex-shell" again. Each field is a complete JSON string
+    literal when it survived the cut, so it is matched and decoded on its own;
+    a field the cut went through is simply absent."""
+    import re
+
+    detail: dict[str, str] = {}
+    for name in ("command", "reason"):
+        match = re.search(_JSON_STRING_FIELD.format(name=name), arguments)
+        if match:
+            try:
+                detail[name] = str(json.loads(match.group(1)))
+            except ValueError:
+                continue
+    return {k: v for k, v in detail.items() if v}
+
+
 def _request_detail(prompt: str) -> dict[str, str]:
     """The command and reason a Codex escalation actually carries.
 
@@ -303,7 +327,7 @@ def _request_detail(prompt: str) -> dict[str, str]:
         try:
             payload = json.loads(line[len("arguments:") :])
         except ValueError:
-            return {}
+            return _salvage_detail(line[len("arguments:") :])
         if not isinstance(payload, dict):
             return {}
         # "command" is what will actually run. "commandActions" is Codex's
