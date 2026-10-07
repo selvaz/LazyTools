@@ -186,10 +186,17 @@ def _request_detail(prompt: str) -> dict[str, str]:
             return {}
         if not isinstance(payload, dict):
             return {}
+        # "command" is what will actually run. "commandActions" is Codex's
+        # own lossy parse of it (a pipeline can be summarised by one stage),
+        # so it is shown only as a summary, never in place of the command.
+        # Found by Codex review.
         actions = payload.get("commandActions") or []
-        commands = [str(a["command"]) for a in actions if isinstance(a, dict) and a.get("command")]
-        command = " && ".join(commands) or str(payload.get("command") or "")
-        detail = {"command": command, "reason": str(payload.get("reason") or "")}
+        summary = " ; ".join(str(a["command"]) for a in actions if isinstance(a, dict) and a.get("command"))
+        detail = {
+            "command": str(payload.get("command") or ""),
+            "summary": summary,
+            "reason": str(payload.get("reason") or ""),
+        }
         return {k: v for k, v in detail.items() if v}
     return {}
 

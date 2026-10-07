@@ -155,7 +155,8 @@ def test_request_detail_surfaces_the_real_codex_command_and_reason():
         "  cwd: C:\repo"
     )
     assert _request_detail(prompt) == {
-        "command": "git add -- hello.txt",
+        "command": "powershell.exe -Command 'git add -- hello.txt'",
+        "summary": "git add -- hello.txt",
         "reason": "Allow Git to stage hello.txt?",
     }
     assert _request_detail("[TieredGate] agent asks to run Bash\n  arguments: not json") == {}
