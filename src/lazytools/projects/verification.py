@@ -349,8 +349,10 @@ def accept(
             refusal = authorization_check(store, contract_for_auth)
             if refusal is not None:
                 raise ValueError(refusal)
+    validated: Verification | None = None
     if isinstance(raw, dict) and raw.get("status") == "running":
         current = Verification.model_validate(raw)
+        validated = current
         if not current.checks:
             raise ValueError(
                 "no checks have been recorded for this attempt yet -- accepting now would close the task "
@@ -394,12 +396,19 @@ def accept(
                     f"this contract promises a FULL suite, but {len(unexplained)} required check(s) used a "
                     f"--deselect/-k/--ignore flag that was never listed in allowed_check_exclusions: {commands}."
                 )
+    # Fence the write against exactly the snapshot that was just judged: with no
+    # ``expected`` of its own, a caller otherwise accepts whatever the record
+    # happens to be AT THE TRANSITION, not what it validated above -- a concurrent
+    # writer could swap a passing check for a failing one (or clear the review) in
+    # the gap between this function's own read and _transition's, and the CAS would
+    # still succeed because it only checks status, never content. Found by Codex
+    # review before this ever shipped.
     return _transition(
         store,
         job_id,
         from_status=("running",),
         updates={"status": "accepted", "reviewer": reviewer, "decision_reason": reason, "decided_at": datetime.now(UTC)},
-        expected=expected,
+        expected=expected if expected is not None else validated,
     )
 
 

@@ -87,6 +87,45 @@ def test_projects_set_brake_enabled_reaches_brake_status(tmp_path) -> None:
     assert status["would_admit"] is True
 
 
+def test_projects_brake_status_disabled_never_touches_telemetry(tmp_path, monkeypatch) -> None:
+    """A disabled brake must answer without calling read_quota_sync at all --
+    not just ignore its result. Found by Codex review."""
+    pt = _rw(tmp_path)
+    pt.projects_create("alpha", "Alpha", "x")
+    pt.projects_set_brake_enabled("alpha", False)
+
+    from lazytools.connectors.projects import tools as tools_module
+
+    def _boom(engine):
+        raise AssertionError("read_quota_sync must not be called when the brake is disabled")
+
+    monkeypatch.setattr(tools_module._quota, "read_quota_sync", _boom)
+    status = pt.projects_brake_status("alpha", "codex")
+    assert status["would_admit"] is True
+
+
+def test_projects_brake_status_agrees_with_shadow_mode(tmp_path, monkeypatch) -> None:
+    """Under LAZYTOOLS_PROJECTS_ADMISSION_SHADOW=1 a real admit() never actually
+    refuses -- brake_status must report the same would_admit=True, not a raw
+    decide() verdict that ignores shadow mode. Found by Codex review."""
+    from lazytools.projects import admission as admission_module
+
+    pt = _rw(tmp_path)
+    pt.projects_create("alpha", "Alpha", "x")
+    monkeypatch.setenv(admission_module.SHADOW_ENV, "1")
+
+    over_ceiling = admission_module.TelemetryReading(
+        engine="codex",
+        source="test",
+        observed_at=__import__("datetime").datetime.now(__import__("datetime").UTC),
+        windows=(admission_module.WindowReading(window_id="w", used_percent=99.0, duration_minutes=300, resets_at=None),),
+    )
+    monkeypatch.setattr("lazytools.connectors.projects.tools._quota.read_quota_sync", lambda engine: over_ceiling)
+    status = pt.projects_brake_status("alpha", "codex")
+    assert status["would_admit"] is True
+    assert status["shadow"] is True
+
+
 def test_projects_pause_resume_close_lifecycle(tmp_path) -> None:
     pt = _rw(tmp_path)
     pt.projects_create("alpha", "Alpha", "x")

@@ -217,10 +217,10 @@ class ProjectsTools:
         right now -- read-only: never reserves capacity (unlike actually
         starting a job, which must call the brake for real)."""
         brake_enabled = _brake.get_project_brake_enabled(self._store, project_id)
-        reading = _quota.read_quota_sync(engine)  # type: ignore[arg-type]
-        budget = _admission.budget_for(engine)  # type: ignore[arg-type]
-        in_flight = _admission.in_flight_count(self._store, engine)  # type: ignore[arg-type]
         if not brake_enabled:
+            # Checked BEFORE touching telemetry: read_quota_sync blocks for up to its
+            # own timeout (60s default) on a cold cache, and none of that is needed
+            # when the answer does not depend on it. Found by Codex review.
             return {
                 "project_id": project_id,
                 "engine": engine,
@@ -228,7 +228,14 @@ class ProjectsTools:
                 "would_admit": True,
                 "detail": "project brake is switched off; engine quota is not consulted for this project",
             }
-        decision = _admission.decide(reading, budget, operator_directed=False, in_flight=in_flight)
+        reading = _quota.read_quota_sync(engine)  # type: ignore[arg-type]
+        budget = _admission.budget_for(engine)  # type: ignore[arg-type]
+        # preflight(), not decide(): it applies the same shadow-mode "never actually
+        # refuse" override admit()/preflight() themselves use, so this read-only
+        # preview agrees with what a real call would do. Calling decide() directly
+        # reported would_admit=False under shadow mode even though admit() would
+        # have let the work through. Found by Codex review.
+        decision = _admission.preflight(self._store, budget=budget, reading=reading, operator_directed=False)
         return {
             "project_id": project_id,
             "engine": engine,
@@ -241,7 +248,7 @@ class ProjectsTools:
             "ceiling_percent": decision.ceiling_percent,
             "autonomous_percent": decision.autonomous_percent,
             "resets_at": decision.resets_at.isoformat() if decision.resets_at else None,
-            "shadow": budget.shadow,
+            "shadow": decision.shadow,
         }
 
     def projects_cost_report(self, project_id: str) -> dict[str, Any]:

@@ -220,6 +220,39 @@ smoke test below — never through this package's own default resolution.
    `--store-db` already uses, so Claude Code sessions see the identical
    registry.
 
+## Known gaps carried over from LazyCEO, not fixed here
+
+One Codex review (`codex_review_changes`, scope=branch vs origin/main) found six
+issues. Three were in this package's OWN new code and are fixed (see the
+commit history): `verification.accept` now fences its final write against
+the exact snapshot it validated, not whatever `_transition` re-reads later;
+`projects_brake_status` no longer blocks on telemetry when a project's brake
+is already disabled, and now agrees with shadow mode (`preflight`, not a raw
+`decide`). Three more are **inherited unchanged from LazyCEO's own
+equivalents** — not introduced by this port, and deliberately not changed
+here to keep "same behavior" true to the letter:
+
+- `verification.accept` checks that every *recorded* check passed, but never
+  checks that `current.checks` actually covers every command in
+  `contract.required_checks`. A contract naming two required checks whose
+  attempt only ever ran (and passed) one of them is accepted. LazyCEO's own
+  `accept_verification` has the identical gap.
+- `intake.promote_project_plan` only installs its plan onto the board when
+  the board is still empty (`if not board.snapshot().tasks: board.set_plan(...)`).
+  If an earlier, interrupted promotion already left a *different* plan on
+  the board, promoting a newly-reviewed plan silently keeps the stale one
+  while reporting the new one as installed. LazyCEO's `promote_project` tool
+  has this exact shape.
+- `quota_telemetry._read_claude` reads only `snapshot.weekly`, never a
+  session/five-hour window if the underlying `fetch_claude_usage()` exposes
+  one. Admission could then admit work that is fine on the weekly window but
+  already exhausted on a shorter one. LazyCEO's `lazyceo.quota._read_claude`
+  reads the identical field.
+
+Each is a real finding and a candidate for a follow-up PR (in whichever
+codebase ends up owning this mechanism after LazyCEO's adoption) — flagged
+here rather than silently carried forward.
+
 ## Not exposed, by design
 
 Delegation (execution of a task) — a Claude Code session uses

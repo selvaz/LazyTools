@@ -104,6 +104,45 @@ def test_accept_requires_review_when_contract_requires_it() -> None:
         verification.accept(store, "job12345678", reviewer="claude", reason="x")
 
 
+def test_accept_fences_against_evidence_changed_after_validation() -> None:
+    """A concurrent writer that swaps a passing check for a failing one between
+    accept()'s own validation read and its final CAS must lose the race, even
+    when the caller passed no ``expected`` of its own -- accept() must fence its
+    write against the exact snapshot it validated, not whatever ``_transition``
+    happens to re-read later. Found by Codex review before this ever shipped."""
+    store = Store()
+    contract = _open_contract(store)
+    _verification_flow(store, contract)
+
+    key = verification._verification_key("job12345678")
+    original_read = store.read
+    calls = {"n": 0}
+
+    def racing_read(k, default=None):
+        value = original_read(k, default)
+        if k == key:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                # accept()'s OWN validation read just happened (it saw a passing
+                # check). Simulate another writer landing a failing check in the
+                # gap before _transition's separate, later read of the same key.
+                verification.record_checks(
+                    store, "job12345678",
+                    checks=[verification.CheckResult(command="pytest -q", exit_code=1, output_tail="FAILED")],
+                    diff_summary=None,
+                )
+        return value
+
+    store.read = racing_read  # type: ignore[method-assign]
+    result = verification.accept(store, "job12345678", reviewer="claude", reason="all good")
+    assert result is None  # fenced -- must NOT have accepted the stale, already-passing snapshot
+
+    store.read = original_read  # type: ignore[method-assign]
+    # the record now genuinely has a failing check: a fresh accept() refuses normally
+    with pytest.raises(ValueError, match="did not pass"):
+        verification.accept(store, "job12345678", reviewer="claude", reason="x")
+
+
 def test_accept_refuses_failed_check() -> None:
     store = Store()
     contract = _open_contract(store)
