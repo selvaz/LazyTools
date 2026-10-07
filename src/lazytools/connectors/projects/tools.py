@@ -102,14 +102,53 @@ def _project_dict(record: _records.ProjectRecord, store: Store) -> dict[str, Any
     return data
 
 
+#: The tools a session gets by default. Every MCP tool costs context in every
+#: turn of every session that loads it, and most of the 37 are needed only
+#: while driving contracts and verifications by hand: the default is what
+#: planning and following projects needs, ``full`` adds the rest.
+CORE_TOOLS = frozenset(
+    {
+        "projects_list",
+        "projects_get",
+        "projects_schedule",
+        "projects_timeline",
+        "projects_board_summary",
+        "projects_quota",
+        "projects_brake_status",
+        "projects_cost_report",
+        "projects_jobs",
+        "projects_create",
+        "projects_promote",
+        "projects_set_owner",
+        "projects_set_deadline",
+        "projects_add_note",
+        "projects_revise_plan",
+        "projects_schedule_task",
+    }
+)
+PROFILES = ("core", "full")
+
+
+def _resolve_profile(profile: str | None) -> str:
+    chosen = (profile or os.environ.get("LAZYTOOLS_PROJECTS_TOOLS") or "core").strip().lower()
+    if chosen not in PROFILES:
+        raise ValueError(f"projects tool profile must be one of {PROFILES}, got {chosen!r}")
+    return chosen
+
+
 class ProjectsTools:
-    """Read/write tools over the shared project registry (``lazytools.projects``)."""
+    """Read/write tools over the shared project registry (``lazytools.projects``).
+
+    ``profile`` ("core" by default, or ``$LAZYTOOLS_PROJECTS_TOOLS``) picks how
+    many tools are emitted -- see :data:`CORE_TOOLS`; "full" emits all of them.
+    ``allow_write`` still gates every writer in either profile."""
 
     _is_lazy_tool_provider = True
 
-    def __init__(self, *, store_db: str | None = None, allow_write: bool = False) -> None:
+    def __init__(self, *, store_db: str | None = None, allow_write: bool = False, profile: str | None = None) -> None:
         self._store = _open_store(store_db)
         self._allow_write = allow_write
+        self._profile = _resolve_profile(profile)
 
     # ---- read: projects -------------------------------------------------
 
@@ -560,6 +599,8 @@ class ProjectsTools:
             self.projects_cost_report,
             self.projects_jobs,
         ]
+        if self._profile == "core":
+            read_methods = [m for m in read_methods if m.__name__ in CORE_TOOLS]
         tools = [Tool.wrap(method, name=method.__name__) for method in read_methods]
         if not self._allow_write:
             return tools
@@ -588,6 +629,8 @@ class ProjectsTools:
             self.projects_retry_harness,
             self.projects_reopen_for_empty_review,
         ]
+        if self._profile == "core":
+            write_methods = [m for m in write_methods if m.__name__ in CORE_TOOLS]
         tools += [Tool.wrap(method, name=method.__name__) for method in write_methods]
         return tools
 

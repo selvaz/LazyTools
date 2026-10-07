@@ -446,10 +446,16 @@ def test_pulse_contract() -> None:
 def test_projects_provider_contract(tmp_path) -> None:
     """Read-only by construction; write tools (bookkeeping only) only with allow_write=True."""
     from lazytools.connectors.projects import ProjectsTools
+    from lazytools.connectors.projects.tools import CORE_TOOLS
 
     store_db = str(tmp_path / "ceo_simple.sqlite")
-    assert _names(ProjectsTools(store_db=store_db, allow_write=False)) == PROJECTS_READ
-    assert _names(ProjectsTools(store_db=store_db, allow_write=True)) == PROJECTS_READ | PROJECTS_WRITE
+    full = {"store_db": store_db, "profile": "full"}
+    assert _names(ProjectsTools(**full, allow_write=False)) == PROJECTS_READ
+    assert _names(ProjectsTools(**full, allow_write=True)) == PROJECTS_READ | PROJECTS_WRITE
+    # The default profile is a strict subset, and still never emits a writer read-only.
+    assert CORE_TOOLS <= PROJECTS_READ | PROJECTS_WRITE
+    assert _names(ProjectsTools(store_db=store_db, profile="core", allow_write=False)) == PROJECTS_READ & CORE_TOOLS
+    assert _names(ProjectsTools(store_db=store_db, profile="core", allow_write=True)) == CORE_TOOLS
 
 
 def test_comms_connectors_contract() -> None:

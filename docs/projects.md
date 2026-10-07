@@ -165,6 +165,16 @@ field belongs to a newer LazyCEO than this port). When LazyCEO imports this
 package instead of keeping its own copy (the later step), this entire
 two-model hazard disappears, because there will only be one model again.
 
+## Tool profiles
+
+Every MCP tool costs context in every turn of every session that loads it, so
+the provider emits a **core** set by default: list/get/schedule/timeline/
+board summary, quota, brake status, cost report and jobs to read; create,
+promote, owner, deadline, notes, plan revision and task scheduling to write
+(writers only with `allow_write`). Set `LAZYTOOLS_PROJECTS_TOOLS=full` (or
+`ProjectsTools(profile="full")`) for all 37, including contracts and
+verification decisions.
+
 ## Store resolution
 
 `lazytools.connectors.projects.tools.ProjectsTools` resolves its `Store`
