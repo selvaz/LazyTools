@@ -60,6 +60,7 @@ EXPECTED_PROVIDER_IDS = {
     "outlook",
     "registry",
     "pulse",
+    "projects",
 }
 
 
@@ -192,6 +193,48 @@ PULSE_TOOLS = {
     "pulse_list_backlog",
     "pulse_list_pending_approvals",
     "pulse_state_snapshot",
+}
+
+PROJECTS_READ = {
+    "projects_list",
+    "projects_get",
+    "projects_schedule",
+    "projects_timeline",
+    "projects_notes",
+    "projects_board_summary",
+    "projects_find_contract",
+    "projects_get_contract",
+    "projects_repos_for_project",
+    "projects_get_verification",
+    "projects_get_verification_for_contract",
+    "projects_quota",
+    "projects_brake_status",
+    "projects_cost_report",
+    "projects_jobs",
+}
+PROJECTS_WRITE = {
+    "projects_create",
+    "projects_review_plan",
+    "projects_promote",
+    "projects_pause",
+    "projects_resume",
+    "projects_close",
+    "projects_set_owner",
+    "projects_set_brake_enabled",
+    "projects_set_deadline",
+    "projects_add_note",
+    "projects_retire_task",
+    "projects_reopen_task",
+    "projects_reopen_done_task",
+    "projects_revise_plan",
+    "projects_schedule_task",
+    "projects_open_contract",
+    "projects_accept_verification",
+    "projects_request_rework",
+    "projects_block_verification",
+    "projects_retry_review",
+    "projects_retry_harness",
+    "projects_reopen_for_empty_review",
 }
 
 TELEGRAM_TOOLS = {"telegram_send_message", "telegram_send_document"}
@@ -398,6 +441,15 @@ def test_pulse_contract() -> None:
     from lazytools.connectors.pulse import PulseTools
 
     assert _names(PulseTools()) == PULSE_TOOLS
+
+
+def test_projects_provider_contract(tmp_path) -> None:
+    """Read-only by construction; write tools (bookkeeping only) only with allow_write=True."""
+    from lazytools.connectors.projects import ProjectsTools
+
+    store_db = str(tmp_path / "ceo_simple.sqlite")
+    assert _names(ProjectsTools(store_db=store_db, allow_write=False)) == PROJECTS_READ
+    assert _names(ProjectsTools(store_db=store_db, allow_write=True)) == PROJECTS_READ | PROJECTS_WRITE
 
 
 def test_comms_connectors_contract() -> None:
