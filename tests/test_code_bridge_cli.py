@@ -161,3 +161,124 @@ def test_request_detail_surfaces_the_real_codex_command_and_reason():
     }
     assert _request_detail("[TieredGate] agent asks to run Bash\n  arguments: not json") == {}
     assert _request_detail("no arguments line at all") == {}
+
+
+# --------------------------------------------------------------------------- #
+# run --detach / wait
+# --------------------------------------------------------------------------- #
+
+
+def _run_args(tmp_path, repo, db_path, *extra):
+    return ["run", "--engine", "codex", "--cwd", str(repo), "--task", "do it", "--root", str(tmp_path), "--db", str(db_path), *extra]
+
+
+def test_run_with_job_id_records_the_job_under_that_id(tmp_path, monkeypatch, capsys):
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db_path = tmp_path / "store.sqlite"
+
+    assert main(_run_args(tmp_path, repo, db_path, "--job-id", "fixedid123")) == 0
+    assert capsys.readouterr().out.splitlines()[0] == "fixedid123"
+    assert main(["status", "fixedid123", "--db", str(db_path), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "done"
+
+
+def test_detach_spawns_a_child_with_the_same_job_and_reports_it(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    seen: dict = {}
+
+    def fake_spawn(argv, log_path):
+        seen["argv"], seen["log"] = argv, log_path
+        return 4242
+
+    monkeypatch.setattr(cli, "_spawn_detached", fake_spawn)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db_path = tmp_path / "store.sqlite"
+
+    code = main(_run_args(tmp_path, repo, db_path, "--detach", "--session", "s1", "--json"))
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    argv = seen["argv"]
+    assert argv[1:4] == ["-m", "lazytools.code_bridge", "run"]
+    assert argv[argv.index("--job-id") + 1] == payload["job_id"]
+    assert argv[argv.index("--session") + 1] == "s1"
+    assert "--detach" not in argv  # the child runs in the foreground of its own process
+    assert payload["pid"] == 4242
+    pid_file = _store.results_dir(db_path) / f"{payload['job_id']}.pid"
+    assert pid_file.read_text(encoding="utf-8") == "4242"
+
+
+def test_detach_refuses_a_missing_task_file_before_spawning(tmp_path, monkeypatch):
+    import lazytools.code_bridge.cli as cli
+
+    monkeypatch.setattr(cli, "_spawn_detached", lambda *a: (_ for _ in ()).throw(AssertionError("spawned")))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    args = _run_args(tmp_path, repo, tmp_path / "s.sqlite", "--detach")
+    args[args.index("do it")] = "@" + str(tmp_path / "missing.md")
+    try:
+        main(args)
+    except (FileNotFoundError, OSError):
+        return
+    raise AssertionError("a missing @task file must fail in the launcher")
+
+
+def test_spawn_detached_really_starts_an_independent_process(tmp_path):
+    import sys
+    import time
+
+    from lazytools.code_bridge.cli import _spawn_detached
+
+    marker = tmp_path / "ran.txt"
+    pid = _spawn_detached([sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ok')"], tmp_path / "child.log")
+    assert pid > 0
+    for _ in range(200):
+        if marker.exists():
+            break
+        time.sleep(0.05)
+    assert marker.read_text() == "ok"
+
+
+def test_wait_returns_the_outcome_once_the_job_is_terminal(tmp_path, monkeypatch, capsys):
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db_path = tmp_path / "store.sqlite"
+    assert main(_run_args(tmp_path, repo, db_path, "--job-id", "waitme")) == 0
+    capsys.readouterr()
+
+    assert main(["wait", "waitme", "--db", str(db_path), "--interval", "0.01"]) == 0
+    assert "[done] job waitme" in capsys.readouterr().out
+
+
+def test_wait_reports_a_job_whose_process_died(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge._lockfile as lockfile
+    from lazytools.code_bridge import _store as store_mod
+
+    db_path = tmp_path / "store.sqlite"
+    store = store_mod.build_store(db_path)
+    store_mod.build_job_registry(store).write("ghost", "x", tool_name="codex", status="running")
+    (store_mod.results_dir(db_path) / "ghost.pid").write_text("999999", encoding="utf-8")
+    monkeypatch.setattr(lockfile, "_pid_alive", lambda pid: False)
+
+    assert main(["wait", "ghost", "--db", str(db_path), "--interval", "0.01", "--json"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["status"] == "died" and out["last_status"] == "running"
+
+
+def test_wait_times_out_with_exit_3(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge._lockfile as lockfile
+    from lazytools.code_bridge import _store as store_mod
+
+    db_path = tmp_path / "store.sqlite"
+    store = store_mod.build_store(db_path)
+    store_mod.build_job_registry(store).write("slow", "x", tool_name="codex", status="running")
+    (store_mod.results_dir(db_path) / "slow.pid").write_text("1", encoding="utf-8")
+    monkeypatch.setattr(lockfile, "_pid_alive", lambda pid: True)
+
+    assert main(["wait", "slow", "--db", str(db_path), "--interval", "0.01", "--timeout", "0.05"]) == 3

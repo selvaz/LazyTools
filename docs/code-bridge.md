@@ -37,6 +37,26 @@ the finished result from.
    immediately, before the process exits, so you can poll/approve/cancel by
    id even if the run takes hours.
 
+   **Prefer `--detach` for anything long.** A plain `run` is a child of the
+   launching shell: if Claude Code reaps that background shell (it does so
+   under memory pressure) or the session exits, the job dies with it and is
+   only marked `interrupted` on the next run in that repository. With
+   `--detach` the job runs in its own process (its own process group,
+   outside the launcher's job object where Windows allows it), the command
+   prints the job id, pid and log path and returns at once, and you follow
+   it with `wait`, which you launch in the background instead:
+
+   ```
+   lazytools-code-bridge run --detach --engine codex --cwd /path/to/repo --task @brief.md --session my-task
+   Bash(command="lazytools-code-bridge wait <job_id>", run_in_background=true)
+   ```
+
+   `wait` exits when the job reaches `done`/`failed`/`interrupted` (printing
+   the same output as `result`), exits 1 if the job's process is gone while
+   its record still says running, and exits 3 on `--timeout`. If the waiter
+   itself is killed the job is not: start `wait` again. The child's output
+   goes to `~/.lazytools/results/<job_id>.log`.
+
 2. **Poll for approval tickets** while the job runs. The engine's sandbox
    lets it read/write/run most things on its own; anything it escalates
    (a dangerous git command, a Codex sandbox escalation, ...) files a ticket

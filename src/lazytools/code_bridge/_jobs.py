@@ -145,6 +145,7 @@ def run_job(
     root: str | None = None,
     db_path: Path | None = None,
     on_job_id: Callable[[str], None] | None = None,
+    job_id: str | None = None,
 ) -> RunResult:
     """Run one job to completion. Raises before any job is recorded for a
     bad engine name or a ``cwd`` outside the confinement root; raises
@@ -158,7 +159,9 @@ def run_job(
         raise ValueError(f"engine must be one of {ENGINES}, got {engine_name!r}")
     resolved_cwd = _engines.resolve_cwd(cwd, root)
 
-    job_id = new_job_id()
+    # A detached launch (`run --detach`) picks the id in the parent so it can
+    # report it before the child exists; every other caller gets a fresh one.
+    job_id = job_id or new_job_id()
     if on_job_id is not None:
         on_job_id(job_id)
 
