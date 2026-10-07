@@ -101,7 +101,7 @@ def test_lock_is_keyed_on_the_git_repo_root_not_the_literal_cwd(tmp_path, monkey
     try:
         store = _store.build_store(db_path)
         queue = _store.build_approval_queue(store)
-        _wait_for_one_ticket(queue)  # job is live and holding the repo-root lock
+        _wait_for_one_ticket(queue, thread=thread, box=_box)  # job is live and holding the repo-root lock
 
         with pytest.raises(LockHeld):
             _jobs.run_job(
@@ -258,14 +258,18 @@ def _run_in_thread(**kwargs):
     return thread, box
 
 
-def _wait_for_one_ticket(queue, timeout: float = 30.0):
+def _wait_for_one_ticket(queue, timeout: float = 30.0, thread=None, box=None):
     deadline = time.time() + timeout
     while time.time() < deadline:
         tickets = queue.list_pending_tickets()
         if tickets:
             return tickets[0]
+        if thread is not None and not thread.is_alive():
+            # The job finished without ever filing a ticket: say how, instead
+            # of waiting out the timeout and failing with no clue.
+            raise AssertionError(f"job ended before any ticket appeared: {box!r}")
         time.sleep(0.02)
-    raise AssertionError("no approval ticket appeared in time")
+    raise AssertionError(f"no approval ticket appeared in time (job box: {box!r})")
 
 
 def test_approval_ticket_approved_lets_the_job_continue(tmp_path, repo, monkeypatch):
@@ -282,7 +286,7 @@ def test_approval_ticket_approved_lets_the_job_continue(tmp_path, repo, monkeypa
     try:
         store = _store.build_store(db_path)
         queue = _store.build_approval_queue(store)
-        ticket = _wait_for_one_ticket(queue)
+        ticket = _wait_for_one_ticket(queue, thread=thread, box=box)
         assert ticket.task_id  # scoped to the job
         assert queue.approve_ticket(ticket.approval_id, actor="test", channel="test")
         thread.join(timeout=10)
@@ -308,7 +312,7 @@ def test_approval_ticket_rejected_fails_the_job(tmp_path, repo, monkeypatch):
     try:
         store = _store.build_store(db_path)
         queue = _store.build_approval_queue(store)
-        ticket = _wait_for_one_ticket(queue)
+        ticket = _wait_for_one_ticket(queue, thread=thread, box=box)
         assert queue.reject_ticket(ticket.approval_id, actor="test", channel="test", reason="no")
         thread.join(timeout=10)
     finally:
