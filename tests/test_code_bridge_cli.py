@@ -135,3 +135,28 @@ def test_reject_requires_a_reason_and_records_it(tmp_path, monkeypatch, capsys):
     resolved = queue.get_ticket(ticket.approval_id)
     assert resolved.status == "rejected"
     assert resolved.reason == "too risky"
+
+
+def test_request_detail_surfaces_the_real_codex_command_and_reason():
+    """A Codex escalation arrives as the opaque tool name "codex-shell"; the
+    pending listing must show the actual command and Codex's reason, or the
+    person approving is deciding blind."""
+    from lazytools.code_bridge.cli import _request_detail
+
+    payload = {
+        "kind": "command",
+        "reason": "Allow Git to stage hello.txt?",
+        "command": "powershell.exe -Command 'git add -- hello.txt'",
+        "commandActions": [{"type": "unknown", "command": "git add -- hello.txt"}],
+    }
+    prompt = (
+        "[TieredGate] agent asks to run command 'codex-shell'\n"
+        f"  arguments: {json.dumps(payload)}\n"
+        "  cwd: C:\repo"
+    )
+    assert _request_detail(prompt) == {
+        "command": "git add -- hello.txt",
+        "reason": "Allow Git to stage hello.txt?",
+    }
+    assert _request_detail("[TieredGate] agent asks to run Bash\n  arguments: not json") == {}
+    assert _request_detail("no arguments line at all") == {}

@@ -169,6 +169,31 @@ def _cmd_result(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 
 
+def _request_detail(prompt: str) -> dict[str, str]:
+    """The command and reason a Codex escalation actually carries.
+
+    A Codex sandbox escalation reaches TieredGate as the opaque tool name
+    "codex-shell"; the real command line and Codex's own reason sit in the
+    JSON on the prompt's "arguments:" line. Without them a person is asked to
+    approve "codex-shell" blind. Empty when the prompt has no such payload."""
+    for line in prompt.splitlines():
+        line = line.strip()
+        if not line.startswith("arguments:"):
+            continue
+        try:
+            payload = json.loads(line[len("arguments:") :])
+        except ValueError:
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        actions = payload.get("commandActions") or []
+        commands = [str(a["command"]) for a in actions if isinstance(a, dict) and a.get("command")]
+        command = " && ".join(commands) or str(payload.get("command") or "")
+        detail = {"command": command, "reason": str(payload.get("reason") or "")}
+        return {k: v for k, v in detail.items() if v}
+    return {}
+
+
 def _cmd_pending(args: argparse.Namespace) -> int:
     from lazybridge.ext.approval import ticket_gist
 
@@ -182,6 +207,7 @@ def _cmd_pending(args: argparse.Namespace) -> int:
                     "approval_id": t.approval_id,
                     "job_id": t.task_id,
                     "gist": ticket_gist(t.prompt),
+                    **_request_detail(t.prompt),
                     "kind": t.kind,
                     "created_at": t.created_at.isoformat(),
                     "expires_at": t.expires_at.isoformat(),
@@ -195,6 +221,8 @@ def _cmd_pending(args: argparse.Namespace) -> int:
         return 0
     for t in tickets:
         print(f"{t.approval_id}  job={t.task_id[:8]}  {ticket_gist(t.prompt, max_len=120)}")
+        for key, value in _request_detail(t.prompt).items():
+            print(f"  {key}: {value}")
         print(f"  created {t.created_at.isoformat()}  expires {t.expires_at.isoformat()}")
     return 0
 
