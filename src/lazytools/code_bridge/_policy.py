@@ -60,7 +60,14 @@ CODING_RULES: tuple[Rule, ...] = (
     # "ask" is cheap; a missed push to main is not. Found by Codex review.
     Rule("ask", "Bash", "git push *main*"),
     Rule("ask", "Bash", "git push *master*"),
-    Rule("session", "Bash", "git push*"),
+    # A push that names no branch ("git push", "git push origin", "git push
+    # origin HEAD") goes wherever the checked-out branch goes -- main, if
+    # that is what is checked out -- and the rules above cannot see it. Only
+    # a push naming both remote and branch is session-grantable; every
+    # implicit form asks. Found by Codex review.
+    Rule("ask", "Bash", "git push *HEAD*"),
+    Rule("session", "Bash", "git push * *"),
+    Rule("ask", "Bash", "git push*"),
     Rule("session", "Bash", "gh pr create*"),
     # Merging, resetting history, and deleting are not session-grantable:
     # each one is asked every time.

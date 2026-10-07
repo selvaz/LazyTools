@@ -39,7 +39,11 @@ def test_add_and_commit_are_session_not_allow():
 
 
 def test_plain_push_is_session_but_dangerous_forms_always_ask():
-    assert _tier("git push") == "session"
+    # Implicit destination: wherever the checked-out branch goes, main
+    # included, so never session-grantable. Found by Codex review.
+    assert _tier("git push") == "ask"
+    assert _tier("git push origin") == "ask"
+    assert _tier("git push origin HEAD") == "ask"
     assert _tier("git push origin feature") == "session"
     assert _tier("git push --force origin feature") == "ask"
     assert _tier("git push -f origin feature") == "ask"

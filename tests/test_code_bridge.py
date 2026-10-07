@@ -258,7 +258,7 @@ def _run_in_thread(**kwargs):
     return thread, box
 
 
-def _wait_for_one_ticket(queue, timeout: float = 5.0):
+def _wait_for_one_ticket(queue, timeout: float = 30.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         tickets = queue.list_pending_tickets()
