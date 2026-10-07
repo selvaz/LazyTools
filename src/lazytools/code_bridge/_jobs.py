@@ -339,7 +339,7 @@ def list_jobs(store: Any, *, all_jobs: bool = False) -> list[dict[str, Any]]:
         rows.append({**meta, **job})
     if not all_jobs:
         rows = [r for r in rows if r.get("status") in ("running", "awaiting_approval")]
-    rows.sort(key=lambda r: r.get("created_at") or 0)
+    rows.sort(key=lambda r: r.get("created_at") or 0, reverse=True)
     return rows
 
 

@@ -129,6 +129,10 @@ sessions.
   *next* `run` against the same repository reclaims the lock and marks it
   `interrupted` — there is no background sweeper watching for this on its
   own.
+- Lock liveness checks the pid only, not the process identity. After a crash
+  or reboot, an unrelated process that reuses the recorded pid keeps the lock
+  looking held; `run` then refuses with the lock path, which can be deleted
+  by hand once `jobs` shows nothing running on that repository.
 - `TieredGate`'s compound-command splitter is a text heuristic, not a shell
   parser (see its own module docstring): it does not see `$(...)`/backtick
   substitution inside a single non-compound command. This is the exact same

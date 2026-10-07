@@ -44,6 +44,10 @@ CODING_RULES: tuple[Rule, ...] = (
     # the run. See LazyCEO's own table for the enumeration history (fnmatch
     # cannot express "a safe push" directly, so these say what a
     # session-granted push may NOT contain).
+    # A global option before the subcommand ("git -C repo push --force",
+    # "git --git-dir=.git push origin main") hides the subcommand from every
+    # "git push ..." pattern below, so any such form asks. Found by Codex review.
+    Rule("ask", "Bash", "git -*"),
     Rule("ask", "Bash", "git push -*"),
     Rule("ask", "Bash", "git push * -*"),
     Rule("ask", "Bash", "git push*'-*"),

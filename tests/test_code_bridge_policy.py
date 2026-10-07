@@ -44,6 +44,9 @@ def test_plain_push_is_session_but_dangerous_forms_always_ask():
     assert _tier("git push") == "ask"
     assert _tier("git push origin") == "ask"
     assert _tier("git push origin HEAD") == "ask"
+    # Global options hide the subcommand from the push patterns.
+    assert _tier("git -C /repo push origin main") == "ask"
+    assert _tier("git --git-dir=.git push --force origin main") == "ask"
     assert _tier("git push origin feature") == "session"
     assert _tier("git push --force origin feature") == "ask"
     assert _tier("git push -f origin feature") == "ask"
