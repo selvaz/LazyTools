@@ -166,3 +166,50 @@ def test_under_plan_warning_only_fires_well_below_plan() -> None:
     assert admission.under_plan_warning(low, budget) is not None
     high = _reading(80.0, duration_minutes=24 * 60, elapsed_fraction=0.5)
     assert admission.under_plan_warning(high, budget) is None
+
+
+def test_claude_reading_includes_the_session_window_beside_the_weekly_ones(monkeypatch):
+    """The 5-hour session window is the first to run out under a burst of
+    delegated work; a reading with only the weekly figure would let the brake
+    admit that burst blind."""
+    import asyncio
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    import lazybridge.engines.claude_code.usage as usage
+
+    from lazytools.projects import quota_telemetry
+
+    snapshot = SimpleNamespace(
+        session=SimpleNamespace(used_percent=91, resets_at=None),
+        weekly={"all models": SimpleNamespace(used_percent=40, resets_at=None)},
+    )
+
+    async def fake_fetch(**_kwargs):
+        return snapshot
+
+    monkeypatch.setattr(usage, "fetch_claude_usage", fake_fetch)
+    reading = asyncio.run(quota_telemetry._read_claude(datetime.now(UTC)))
+    assert reading.error is None
+    by_id = {w.window_id: w for w in reading.windows}
+    assert by_id["session"].used_percent == 91.0
+    assert by_id["session"].duration_minutes == quota_telemetry.CLAUDE_SESSION_MINUTES
+    assert by_id["weekly/all models"].used_percent == 40.0
+
+
+def test_claude_reading_with_only_a_session_window_is_still_usable(monkeypatch):
+    import asyncio
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    import lazybridge.engines.claude_code.usage as usage
+
+    from lazytools.projects import quota_telemetry
+
+    async def fake_fetch(**_kwargs):
+        return SimpleNamespace(session=SimpleNamespace(used_percent=10, resets_at=None), weekly={})
+
+    monkeypatch.setattr(usage, "fetch_claude_usage", fake_fetch)
+    reading = asyncio.run(quota_telemetry._read_claude(datetime.now(UTC)))
+    assert reading.error is None
+    assert [w.window_id for w in reading.windows] == ["session"]

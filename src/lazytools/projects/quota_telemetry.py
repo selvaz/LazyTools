@@ -51,6 +51,10 @@ async def _read_codex(now: datetime) -> TelemetryReading:
     return TelemetryReading(engine="codex", source=CODEX_SOURCE, observed_at=now, windows=windows)
 
 
+#: Claude's rolling session limit window.
+CLAUDE_SESSION_MINUTES = 5 * 60
+
+
 async def _read_claude(now: datetime) -> TelemetryReading:
     try:
         from lazybridge.engines.claude_code.usage import fetch_claude_usage
@@ -60,6 +64,20 @@ async def _read_claude(now: datetime) -> TelemetryReading:
         return TelemetryReading(engine="claude_code", source=CLAUDE_SOURCE, observed_at=now, error=f"{type(exc).__name__}: {exc}")
 
     windows: list[WindowReading] = []
+    # The short session window is read too, as Codex's 5-hour window already
+    # is: it is the one that runs out first under a burst of delegated work,
+    # and a brake that sees only the weekly figure admits that burst blind.
+    session = getattr(snapshot, "session", None)
+    session_used = getattr(session, "used_percent", None)
+    if session_used is not None:
+        windows.append(
+            WindowReading(
+                window_id="session",
+                used_percent=float(session_used),
+                duration_minutes=CLAUDE_SESSION_MINUTES,
+                resets_at=getattr(session, "resets_at", None),
+            )
+        )
     for label, window in (getattr(snapshot, "weekly", None) or {}).items():
         used = getattr(window, "used_percent", None)
         if used is None:
@@ -74,7 +92,7 @@ async def _read_claude(now: datetime) -> TelemetryReading:
         )
     if not windows:
         return TelemetryReading(
-            engine="claude_code", source=CLAUDE_SOURCE, observed_at=now, error="no weekly percentage could be parsed out of the usage report"
+            engine="claude_code", source=CLAUDE_SOURCE, observed_at=now, error="no session or weekly percentage could be parsed out of the usage report"
         )
     return TelemetryReading(engine="claude_code", source=CLAUDE_SOURCE, observed_at=now, windows=tuple(windows))
 

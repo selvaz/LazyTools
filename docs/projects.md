@@ -253,11 +253,10 @@ here to keep "same behavior" true to the letter:
   the board, promoting a newly-reviewed plan silently keeps the stale one
   while reporting the new one as installed. LazyCEO's `promote_project` tool
   has this exact shape.
-- `quota_telemetry._read_claude` reads only `snapshot.weekly`, never a
-  session/five-hour window if the underlying `fetch_claude_usage()` exposes
-  one. Admission could then admit work that is fine on the weekly window but
-  already exhausted on a shorter one. LazyCEO's `lazyceo.quota._read_claude`
-  reads the identical field.
+- FIXED here (still open in LazyCEO's own `lazyceo.quota._read_claude` until
+  it adopts this package): the Claude reading now includes the five-hour
+  `session` window beside the weekly ones, so admission sees the window that
+  runs out first under a burst of delegated work.
 
 Each is a real finding and a candidate for a follow-up PR (in whichever
 codebase ends up owning this mechanism after LazyCEO's adoption) — flagged
