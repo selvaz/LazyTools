@@ -157,7 +157,9 @@ def get_verification(store: Any, job_id: str, *, prefix: str = VERIFICATION_PREF
     if len(job_id) < _MIN_JOB_ID_PREFIX:
         return None
     matches = [
-        raw for _key, raw in store.items(prefix=prefix) if isinstance(raw, dict) and str(raw.get("job_id", "")).startswith(job_id)
+        raw
+        for _key, raw in store.items(prefix=prefix)
+        if isinstance(raw, dict) and str(raw.get("job_id", "")).startswith(job_id)
     ]
     if len(matches) != 1:
         return None
@@ -202,9 +204,9 @@ def _transition(
     return updated
 
 
-def start_running(store: Any, job_id: str) -> Verification | None:
+def start_running(store: Any, job_id: str, *, prefix: str = VERIFICATION_PREFIX) -> Verification | None:
     """pending -> running, discarding the evidence of any EARLIER run (kept in superseded_reviews)."""
-    raw = store.read(_verification_key(job_id))
+    raw = store.read(_verification_key(job_id, prefix=prefix))
     if not isinstance(raw, dict):
         return None
     current = Verification.model_validate(raw)
@@ -212,18 +214,31 @@ def start_running(store: Any, job_id: str) -> Verification | None:
     updates: dict[str, Any] = {"status": "running", "review": None, "checks": []}
     if superseded is not None:
         updates["superseded_reviews"] = superseded
-    return _transition(store, job_id, from_status=("pending",), updates=updates, expected=current)
+    return _transition(store, job_id, from_status=("pending",), updates=updates, expected=current, prefix=prefix)
 
 
-def record_checks(store: Any, job_id: str, *, checks: list[CheckResult], diff_summary: str | None) -> Verification | None:
+def record_checks(
+    store: Any, job_id: str, *, checks: list[CheckResult], diff_summary: str | None, prefix: str = VERIFICATION_PREFIX
+) -> Verification | None:
     """Attach the automatic-check results and diff. Does NOT change status."""
     return _transition(
-        store, job_id, from_status=("running",), updates={"checks": checks, "diff_summary": diff_summary}
+        store,
+        job_id,
+        from_status=("running",),
+        updates={"checks": checks, "diff_summary": diff_summary},
+        prefix=prefix,
     )
 
 
 def record_review(
-    store: Any, job_id: str, *, reviewer: str, findings: str, performed: bool = True, empty_scope: bool = False
+    store: Any,
+    job_id: str,
+    *,
+    reviewer: str,
+    findings: str,
+    performed: bool = True,
+    empty_scope: bool = False,
+    prefix: str = VERIFICATION_PREFIX,
 ) -> Verification | None:
     """Attach an independent review's own words to this attempt. Does NOT change status."""
     return _transition(
@@ -232,20 +247,27 @@ def record_review(
         from_status=("running",),
         updates={
             "review": ReviewRecord(
-                reviewer=reviewer, findings=findings, recorded_at=datetime.now(UTC), performed=performed, empty_scope=empty_scope
+                reviewer=reviewer,
+                findings=findings,
+                recorded_at=datetime.now(UTC),
+                performed=performed,
+                empty_scope=empty_scope,
             )
         },
+        prefix=prefix,
     )
 
 
-def retry_review(store: Any, job_id: str, *, expected: Verification | None = None) -> Verification | None:
+def retry_review(
+    store: Any, job_id: str, *, expected: Verification | None = None, prefix: str = VERIFICATION_PREFIX
+) -> Verification | None:
     """Send an attempt back for its checks and review to be run again.
 
     Only when the recorded review genuinely did not run or ran against an
     empty scope -- not a way to re-roll a review that genuinely looked at
     the work and said something.
     """
-    raw = store.read(_verification_key(job_id))
+    raw = store.read(_verification_key(job_id, prefix=prefix))
     if not isinstance(raw, dict):
         return None
     current = Verification.model_validate(raw)
@@ -256,18 +278,25 @@ def retry_review(store: Any, job_id: str, *, expected: Verification | None = Non
             "findings is a decision (accept, request_rework or block), not a retry."
         )
     return _transition(
-        store, job_id, from_status=("running",), updates={"status": "pending", "review": None}, expected=expected
+        store,
+        job_id,
+        from_status=("running",),
+        updates={"status": "pending", "review": None},
+        expected=expected,
+        prefix=prefix,
     )
 
 
-def retry_harness(store: Any, job_id: str, *, expected: Verification | None = None) -> Verification | None:
+def retry_harness(
+    store: Any, job_id: str, *, expected: Verification | None = None, prefix: str = VERIFICATION_PREFIX
+) -> Verification | None:
     """Send a HARNESS-blocked attempt's evidence back to be re-checked.
 
     Only applies to a record blocked for an environment reason
     (``decision_reason`` starting with ``"HARNESS:"``), never to re-roll a
     human's deliberate ``block``.
     """
-    raw = store.read(_verification_key(job_id))
+    raw = store.read(_verification_key(job_id, prefix=prefix))
     if not isinstance(raw, dict):
         return None
     current = Verification.model_validate(raw)
@@ -282,10 +311,13 @@ def retry_harness(store: Any, job_id: str, *, expected: Verification | None = No
         from_status=("blocked",),
         updates={"status": "pending", "reviewer": None, "decision_reason": None, "decided_at": None},
         expected=expected,
+        prefix=prefix,
     )
 
 
-def reopen_for_empty_review(store: Any, job_id: str, *, expected: Verification | None = None) -> Verification | None:
+def reopen_for_empty_review(
+    store: Any, job_id: str, *, expected: Verification | None = None, prefix: str = VERIFICATION_PREFIX
+) -> Verification | None:
     """Send an ACCEPTED verification back to 'pending' because, from git, its
     work was confirmed to have been reviewed against an empty diff.
 
@@ -293,7 +325,7 @@ def reopen_for_empty_review(store: Any, job_id: str, *, expected: Verification |
     (moved to ``superseded_reviews``), rather than merely relabeling it, so
     the very next reconciler tick gets a genuinely fresh review.
     """
-    raw = store.read(_verification_key(job_id))
+    raw = store.read(_verification_key(job_id, prefix=prefix))
     if not isinstance(raw, dict):
         return None
     current = Verification.model_validate(raw)
@@ -315,7 +347,7 @@ def reopen_for_empty_review(store: Any, job_id: str, *, expected: Verification |
             "reopened_at": datetime.now(UTC),
         }
     )
-    if not store.compare_and_swap(_verification_key(job_id), raw, updated.model_dump(mode="json")):
+    if not store.compare_and_swap(_verification_key(job_id, prefix=prefix), raw, updated.model_dump(mode="json")):
         return None
     return updated
 
@@ -334,6 +366,7 @@ def accept(
     reason: str,
     expected: Verification | None = None,
     authorization_check: AuthorizationCheck | None = None,
+    prefix: str = VERIFICATION_PREFIX,
 ) -> Verification | None:
     """Accept an attempt -- only once its checks have actually run and all passed.
 
@@ -341,7 +374,7 @@ def accept(
     here uses for "lost a race / wrong state") when the evidence does not
     support acceptance.
     """
-    raw = store.read(_verification_key(job_id))
+    raw = store.read(_verification_key(job_id, prefix=prefix))
     if authorization_check is not None and isinstance(raw, dict):
         contract_id = str(raw.get("contract_id", ""))
         contract_for_auth = get_task_contract(store, contract_id)
@@ -361,9 +394,7 @@ def accept(
         contract = get_task_contract(store, current.contract_id)
         if contract is not None and contract.requires_review:
             if current.review is None:
-                raise ValueError(
-                    "this contract requires an independent review and none has been recorded yet."
-                )
+                raise ValueError("this contract requires an independent review and none has been recorded yet.")
             if current.reopened_at is not None and current.review.recorded_at < current.reopened_at:
                 raise ValueError(
                     "the recorded review predates this verification's most recent reopen -- it says nothing "
@@ -407,28 +438,52 @@ def accept(
         store,
         job_id,
         from_status=("running",),
-        updates={"status": "accepted", "reviewer": reviewer, "decision_reason": reason, "decided_at": datetime.now(UTC)},
+        updates={
+            "status": "accepted",
+            "reviewer": reviewer,
+            "decision_reason": reason,
+            "decided_at": datetime.now(UTC),
+        },
         expected=expected if expected is not None else validated,
+        prefix=prefix,
     )
 
 
-def request_rework(store: Any, job_id: str, *, reviewer: str, reason: str, expected: Verification | None = None) -> Verification | None:
+def request_rework(
+    store: Any,
+    job_id: str,
+    *,
+    reviewer: str,
+    reason: str,
+    expected: Verification | None = None,
+    prefix: str = VERIFICATION_PREFIX,
+) -> Verification | None:
     return _transition(
         store,
         job_id,
         from_status=("running",),
         updates={"status": "rework", "reviewer": reviewer, "decision_reason": reason, "decided_at": datetime.now(UTC)},
         expected=expected,
+        prefix=prefix,
     )
 
 
-def block(store: Any, job_id: str, *, reviewer: str, reason: str, expected: Verification | None = None) -> Verification | None:
+def block(
+    store: Any,
+    job_id: str,
+    *,
+    reviewer: str,
+    reason: str,
+    expected: Verification | None = None,
+    prefix: str = VERIFICATION_PREFIX,
+) -> Verification | None:
     return _transition(
         store,
         job_id,
         from_status=("running",),
         updates={"status": "blocked", "reviewer": reviewer, "decision_reason": reason, "decided_at": datetime.now(UTC)},
         expected=expected,
+        prefix=prefix,
     )
 
 
@@ -437,7 +492,11 @@ def reclaim_interrupted_verifications(store: Any, *, prefix: str = VERIFICATION_
     that would have finished it, but rerunning the same checks/review is idempotent."""
     reclaimed = []
     for key, raw in store.items(prefix=prefix):
-        if isinstance(raw, dict) and raw.get("status") == "running" and store.compare_and_swap(key, raw, {**raw, "status": "pending"}):
+        if (
+            isinstance(raw, dict)
+            and raw.get("status") == "running"
+            and store.compare_and_swap(key, raw, {**raw, "status": "pending"})
+        ):
             reclaimed.append(raw.get("verification_id", key))
     return reclaimed
 
