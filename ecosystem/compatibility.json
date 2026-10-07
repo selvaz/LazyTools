@@ -50,7 +50,7 @@
         "repo": "https://github.com/selvaz/market-data-hub"
       }
     },
-    "lazybridge": "1.6.2",
+    "lazybridge": "1.7.0",
     "python": [
       "3.11",
       "3.12",
