@@ -319,6 +319,42 @@ def check_uses_exclusion_flag(command: str) -> bool:
     return any(token.startswith(prefix) for token in tokens for prefix in _EXCLUSION_FLAG_PREFIXES)
 
 
+def check_satisfies_required(command: str, required: str, allowed_exclusions: list[str]) -> bool:
+    """Match exactly, or remove only explicitly approved exclusion arguments.
+
+    Approval of an unrelated command never satisfies this required command.
+    Tokenization preserves Windows paths and quoting; no command is executed.
+    """
+    if command == required:
+        return True
+    if command not in allowed_exclusions:
+        return False
+    try:
+        tokens = shlex.split(command, posix=False)
+        required_tokens = shlex.split(required, posix=False)
+    except ValueError:
+        return False
+    remaining: list[str] = []
+    removed = False
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in ("--deselect", "-k", "--ignore", "--ignore-glob"):
+            if index + 1 >= len(tokens):
+                return False
+            removed = True
+            index += 2
+            continue
+        if token.startswith(("--deselect=", "--ignore=", "--ignore-glob=", "-k=")) or (
+            token.startswith("-k") and len(token) > 2
+        ):
+            removed = True
+        else:
+            remaining.append(token)
+        index += 1
+    return removed and remaining == required_tokens
+
+
 __all__ = [
     "TaskContract",
     "check_uses_exclusion_flag",

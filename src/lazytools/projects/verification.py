@@ -32,6 +32,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from lazytools.projects.contracts import (
     TaskContract,
+    check_satisfies_required,
     check_uses_exclusion_flag,
     contract_requires_full_suite,
     find_contract_for_task,
@@ -418,6 +419,13 @@ def accept(
                 f"{len(failed)} required check(s) did not pass: {commands}. "
                 "Use request_rework to send it back, or block to escalate."
             )
+        if contract is not None:
+            missing = [
+                command for command in contract.required_checks
+                if not any(check_satisfies_required(c.command, command, contract.allowed_check_exclusions) for c in current.checks)
+            ]
+            if missing:
+                raise ValueError("missing required checks: " + ", ".join(repr(command) for command in missing))
         if contract is not None and contract_requires_full_suite(contract):
             narrowed = [c.command for c in current.checks if check_uses_exclusion_flag(c.command)]
             unexplained = [cmd for cmd in narrowed if cmd not in contract.allowed_check_exclusions]

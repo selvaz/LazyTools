@@ -163,6 +163,36 @@ def test_accept_succeeds_on_full_evidence() -> None:
     assert result.status == "accepted"
 
 
+@pytest.mark.parametrize("command,allowed,accepted", [
+    ("pytest -q", [], True),
+    ("pytest -q --deselect tests/test_x.py", ["pytest -q --deselect tests/test_x.py"], True),
+    ("pytest -q -k 'not slow'", ["pytest -q -k 'not slow'"], True),
+    ("pytest -q --ignore=tests/test_x.py", ["pytest -q --ignore=tests/test_x.py"], True),
+    ("pytest -q --deselect tests/test_x.py", [], False),
+    ("pytest tests/other -q --ignore=x", ["pytest tests/other -q --ignore=x"], False),
+])
+def test_accept_required_check_coverage(command, allowed, accepted) -> None:
+    store = Store()
+    contract = _open_contract(store, allowed_check_exclusions=allowed)
+    _verification_flow(store, contract)
+    verification.record_checks(store, "job12345678", checks=[
+        verification.CheckResult(command=command, exit_code=0, output_tail="ok")
+    ], diff_summary="+1")
+    if accepted:
+        assert verification.accept(store, "job12345678", reviewer="r", reason="ok").status == "accepted"
+    else:
+        with pytest.raises(ValueError, match="missing required checks: 'pytest -q'"):
+            verification.accept(store, "job12345678", reviewer="r", reason="ok")
+
+
+def test_accept_lists_all_missing_required_checks() -> None:
+    store = Store()
+    contract = _open_contract(store, required_checks=["pytest -q", "ruff check src", "mypy src"])
+    _verification_flow(store, contract)
+    with pytest.raises(ValueError, match="'ruff check src', 'mypy src'"):
+        verification.accept(store, "job12345678", reviewer="r", reason="ok")
+
+
 def test_accept_honours_authorization_check_hook() -> None:
     store = Store()
     contract = _open_contract(store)

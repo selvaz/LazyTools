@@ -242,11 +242,6 @@ is already disabled, and now agrees with shadow mode (`preflight`, not a raw
 equivalents** — not introduced by this port, and deliberately not changed
 here to keep "same behavior" true to the letter:
 
-- `verification.accept` checks that every *recorded* check passed, but never
-  checks that `current.checks` actually covers every command in
-  `contract.required_checks`. A contract naming two required checks whose
-  attempt only ever ran (and passed) one of them is accepted. LazyCEO's own
-  `accept_verification` has the identical gap.
 - `intake.promote_project_plan` only installs its plan onto the board when
   the board is still empty (`if not board.snapshot().tasks: board.set_plan(...)`).
   If an earlier, interrupted promotion already left a *different* plan on
@@ -271,3 +266,14 @@ changes (`set_project_autonomy`). Git merges/releases. None of these are
 partially exposed either — there is no read-only peek at specialist
 processes or autonomy levels through this provider; that visibility, if
 ever wanted, is LazyCEO's own to add.
+
+## Required check coverage
+
+`verification.accept(store, job_id, *, reviewer, reason, expected=None,
+prefix=VERIFICATION_PREFIX, authorization_check=None)` now refuses a new
+acceptance unless every `contract.required_checks` command has a passed
+recorded check. Commands match exactly. An explicitly listed
+`allowed_check_exclusions` command can substitute only when removing its
+`--deselect`, `-k`, `--ignore` or `--ignore-glob` arguments yields the required
+command. Missing commands are listed in `ValueError`. Previously accepted
+records are unchanged.
