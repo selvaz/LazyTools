@@ -286,6 +286,20 @@ hooks. Use the checked API when the caller must distinguish saved from unsaved.
 `recent_project_notes(..., diagnostic=None)` provide malformed timestamp
 diagnostics without changing sorting or legacy timestamp readability.
 
+`admission.admit(store, *, budget, reading, operator_directed=False, review=False,
+now=None, prefix=ADMISSION_PREFIX, post_reservation=None) -> AdmissionDecision`
+and `project_admit(..., admission_prefix=ADMISSION_PREFIX, post_reservation=None)`
+invoke `post_reservation(store, decision, before) -> AdmissionDecision | None`
+once after a successful allowed reservation CAS. `before` copies that CAS's
+input document, including prior reservations; it never re-reads a later state.
+Return `None` to keep the decision or a modified decision with `spent_approval`.
+A refused decision (e.g. caller reason `approval_already_spent`) releases the
+reservation; hook exceptions release and propagate. Release remains best-effort
+under contention. Allowed decisions must keep their reservation identity.
+Disabled project brakes and refused admissions skip the hook. Approval provenance,
+consumption, exemptions and refund policy belong to the caller. `spent_approval`
+is returned in memory only, preserving the existing audit/reservation shapes.
+
 ## Not exposed, by design
 
 Delegation (execution of a task) — a Claude Code session uses

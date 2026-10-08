@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import math
 import uuid
+from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Literal
@@ -144,6 +146,8 @@ class AdmissionDecision:
     resets_at: datetime | None = None
     shadow: bool = False
     detail: str | None = None
+    #: Caller-owned approval accounting, not added to the stored audit shape.
+    spent_approval: str | None = None
 
     def as_record(self) -> dict[str, Any]:
         return {
@@ -329,6 +333,9 @@ def _live_reservations(doc: dict[str, Any], *, now: datetime, ttl: float) -> lis
     return live
 
 
+PostReservationHook = Callable[["Store", AdmissionDecision, dict[str, Any]], AdmissionDecision | None]
+
+
 def admit(
     store: Store,
     *,
@@ -338,6 +345,7 @@ def admit(
     review: bool = False,
     now: datetime | None = None,
     prefix: str = ADMISSION_PREFIX,
+    post_reservation: PostReservationHook | None = None,
 ) -> AdmissionDecision:
     """Decide and, if admitted, reserve -- in one compare-and-swap.
 
@@ -350,6 +358,12 @@ def admit(
     ceiling only, never the forecast or the autonomous boundary -- because
     the writing work it checks has already been spent and a review is
     small; past the ceiling it is still refused.
+
+    ``post_reservation(store, decision, before)`` runs once after an allowed
+    reservation CAS. ``before`` is a copy of the exact winning input document
+    (empty for an absent record). Return None to keep the decision, or a new
+    decision with caller accounting/refusal. Refusal releases the reservation.
+    Hook exceptions also release and propagate, without retrying the hook.
     """
     moment = now or datetime.now(UTC)
     effective_operator_directed = operator_directed or review
@@ -372,10 +386,23 @@ def admit(
             "decisions": [*doc.get("decisions", []), decision.as_record()][-MAX_RECORDED_DECISIONS:],
         }
         try:
-            if store.compare_and_swap(_doc_key(budget.engine, prefix=prefix), doc or None, new_doc):
-                return decision
+            won = store.compare_and_swap(_doc_key(budget.engine, prefix=prefix), doc or None, new_doc)
         except Exception:
             break
+        if won:
+            if decision.allowed and post_reservation is not None:
+                try:
+                    result = post_reservation(store, decision, deepcopy(doc))
+                    if result is not None:
+                        if result.allowed and (result.admission_id != decision.admission_id or result.engine != decision.engine):
+                            raise ValueError("post_reservation cannot change an allowed reservation's identity")
+                        if not result.allowed:
+                            release(store, engine=budget.engine, admission_id=decision.admission_id, prefix=prefix)
+                        return result
+                except Exception:
+                    release(store, engine=budget.engine, admission_id=decision.admission_id, prefix=prefix)
+                    raise
+            return decision
 
     return AdmissionDecision(
         allowed=False, reason="admission_contended", engine=budget.engine, operator_directed=effective_operator_directed,
@@ -464,6 +491,7 @@ def project_admit(
     review: bool = False,
     now: datetime | None = None,
     admission_prefix: str = ADMISSION_PREFIX,
+    post_reservation: PostReservationHook | None = None,
 ) -> AdmissionDecision:
     """``admit``, gated by this PROJECT's own brake switch.
 
@@ -488,7 +516,7 @@ def project_admit(
             telemetry_source=reading.source,
             detail=f"project {project_id!r} has the quota brake switched off",
         )
-    return admit(store, budget=budget, reading=reading, operator_directed=operator_directed, review=review, now=now, prefix=admission_prefix)
+    return admit(store, budget=budget, reading=reading, operator_directed=operator_directed, review=review, now=now, prefix=admission_prefix, post_reservation=post_reservation)
 
 
 def project_preflight(
@@ -533,6 +561,7 @@ __all__ = [
     "ENGINES",
     "Engine",
     "EngineBudget",
+    "PostReservationHook",
     "SHADOW_ENV",
     "SHADOW_MARK",
     "TelemetryReading",

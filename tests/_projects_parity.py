@@ -23,5 +23,5 @@ def original_function(name: str, **dependencies):
     ast.fix_missing_locations(tree)
     namespace = dict(dependencies)
     exec(compile("from __future__ import annotations\n" + ast.unparse(tree), f"LazyCEO@{fixture['source_commit']}:{name}", "exec"), namespace)
-    function = next(node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)))
+    function = next(node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
     return namespace[function.name]
