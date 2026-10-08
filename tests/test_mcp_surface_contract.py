@@ -577,3 +577,12 @@ def test_unsafe_patterns_cover_the_optimizer_and_depot_writers() -> None:
         "portfolio_tree_load",
     ):
         assert not unsafe(read), f"{read} wrongly matches an unsafe pattern"
+
+
+def test_projects_core_profile_withholds_promotion_until_it_matches_the_ceo(tmp_path) -> None:
+    from lazytools.connectors.projects import ProjectsTools
+
+    core = {t.name for t in ProjectsTools(store_db=str(tmp_path / "s.sqlite"), profile="core", allow_write=True).as_tools()}
+    full = {t.name for t in ProjectsTools(store_db=str(tmp_path / "s.sqlite"), profile="full", allow_write=True).as_tools()}
+    assert "projects_promote" not in core
+    assert "projects_promote" in full

@@ -119,7 +119,9 @@ CORE_TOOLS = frozenset(
         "projects_cost_report",
         "projects_jobs",
         "projects_create",
-        "projects_promote",
+        # projects_promote stays out of the default profile until the shared
+        # promotion matches LazyCEO's own (reviewed-digest check, idempotent
+        # re-promotion, injectable reviewer): see docs/projects.md, "Known gaps".
         "projects_set_owner",
         "projects_set_deadline",
         "projects_add_note",
