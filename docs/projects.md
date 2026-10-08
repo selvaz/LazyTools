@@ -275,6 +275,17 @@ once after a winning close, for example to touch progress. A losing/repeated
 close never calls it. Hooks propagate exceptions; an exception after success
 does not roll back the close, and this is not a durable delivery guarantee.
 
+`notes.write_project_note(store, project_id, text, *, origin="note", note_id=None,
+prefix=PROJECT_NOTE_PREFIX, on_note=None, diagnostic=None) -> NoteWriteResult`
+returns `note_id`, `written` (the actual CAS outcome), and `diagnostics`.
+`on_note(store, record)` runs once on success and never on a duplicate or lost
+race. `diagnostic(message)` receives failed-write diagnostics. The existing
+`add_project_note` keeps returning a string id and supports the same optional
+hooks. Use the checked API when the caller must distinguish saved from unsaved.
+`notes.note_timestamp(value, *, diagnostic=None) -> float` and
+`recent_project_notes(..., diagnostic=None)` provide malformed timestamp
+diagnostics without changing sorting or legacy timestamp readability.
+
 ## Not exposed, by design
 
 Delegation (execution of a task) — a Claude Code session uses

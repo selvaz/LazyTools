@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import time
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -18,6 +20,38 @@ from lazytools.projects.keys import PROJECT_NOTE_PREFIX
 
 if TYPE_CHECKING:
     from lazybridge import Store
+
+Diagnostic = Callable[[str], None]
+NoteHook = Callable[["Store", dict], None]
+
+
+@dataclass(frozen=True)
+class NoteWriteResult:
+    note_id: str
+    written: bool
+    diagnostics: tuple[str, ...] = ()
+
+
+def write_project_note(
+    store: Store, project_id: str, text: str, *, origin: str = "note",
+    note_id: str | None = None, prefix: str = PROJECT_NOTE_PREFIX,
+    on_note: NoteHook | None = None, diagnostic: Diagnostic | None = None,
+) -> NoteWriteResult:
+    """Checked create-only CAS. A duplicate/lost race never invokes on_note.
+
+    Hooks are synchronous and exceptions propagate, without retrying a
+    successful write. The existing note record shape stays unchanged.
+    """
+    identity = note_id or str(uuid.uuid4())
+    record = {"note_id": identity, "project_id": project_id, "note": text, "at": time.time(), "origin": origin}
+    written = bool(store.compare_and_swap(f"{prefix}{project_id}:{identity}", None, record))
+    messages = () if written else (f"note {identity!r} was not written: already exists or lost CAS race",)
+    if diagnostic is not None:
+        for message in messages:
+            diagnostic(message)
+    if written and on_note is not None:
+        on_note(store, record)
+    return NoteWriteResult(identity, written, messages)
 
 
 def add_project_note(
@@ -28,6 +62,8 @@ def add_project_note(
     origin: str = "note",
     note_id: str | None = None,
     prefix: str = PROJECT_NOTE_PREFIX,
+    on_note: NoteHook | None = None,
+    diagnostic: Diagnostic | None = None,
 ) -> str:
     """Record a note against a project. Returns the note_id.
 
@@ -37,14 +73,10 @@ def add_project_note(
     text through a Telegram-specific prefix. A note is create-only: no
     edit/delete, same as LazyCEO's.
     """
-    note_id = note_id or str(uuid.uuid4())
-    note_key = f"{prefix}{project_id}:{note_id}"
-    record = {"note_id": note_id, "project_id": project_id, "note": text, "at": time.time(), "origin": origin}
-    store.compare_and_swap(note_key, None, record)
-    return note_id
+    return write_project_note(store, project_id, text, origin=origin, note_id=note_id, prefix=prefix, on_note=on_note, diagnostic=diagnostic).note_id
 
 
-def _note_timestamp(value: object) -> float:
+def note_timestamp(value: object, *, diagnostic: Diagnostic | None = None) -> float:
     """Coerce a note's ``at`` field to an epoch float, however it was actually written."""
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return float(value)
@@ -52,19 +84,32 @@ def _note_timestamp(value: object) -> float:
         try:
             parsed = datetime.fromisoformat(value)
         except ValueError:
+            if diagnostic is not None:
+                diagnostic(f"note timestamp {value!r} is not a valid ISO datetime; treating as 0.0")
             return 0.0
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=UTC)
-        return parsed.timestamp()
+        try:
+            return parsed.timestamp()
+        except (ValueError, OverflowError, OSError):
+            if diagnostic is not None:
+                diagnostic(f"note timestamp {value!r} is out of range; treating as 0.0")
+            return 0.0
+    if diagnostic is not None:
+        diagnostic(f"note timestamp {value!r} has unexpected type {type(value).__name__}; treating as 0.0")
     return 0.0
 
 
+_note_timestamp = note_timestamp  # compatibility for existing parser consumers
+
+
 def recent_project_notes(
-    store: Store, project_id: str, *, limit: int = 5, prefix: str = PROJECT_NOTE_PREFIX
+    store: Store, project_id: str, *, limit: int = 5, prefix: str = PROJECT_NOTE_PREFIX,
+    diagnostic: Diagnostic | None = None,
 ) -> list[dict]:
     """The newest ``limit`` notes recorded against a project, most recent first."""
     records = [raw for _key, raw in store.items(prefix=f"{prefix}{project_id}:") if isinstance(raw, dict)]
-    records.sort(key=lambda r: _note_timestamp(r.get("at")), reverse=True)
+    records.sort(key=lambda r: note_timestamp(r.get("at"), diagnostic=diagnostic), reverse=True)
     return records[:limit]
 
 
@@ -80,4 +125,4 @@ def project_board_summary(store: Store, project_id: str) -> str:
     return ", ".join(f"{n} {status}" for status, n in sorted(counts.items())) or "no tasks"
 
 
-__all__ = ["add_project_note", "project_board_summary", "recent_project_notes"]
+__all__ = ["Diagnostic", "NoteHook", "NoteWriteResult", "add_project_note", "note_timestamp", "project_board_summary", "recent_project_notes", "write_project_note"]
