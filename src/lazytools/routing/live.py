@@ -1,0 +1,173 @@
+"""Bounded live telemetry reads with a cache shared by short-lived CLI processes.
+
+An unreadable engine is absent, never counted as spare capacity. Cache trouble is
+non-fatal; an expired or malformed entry never substitutes for a failed live read.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import os
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from lazytools.projects import quota_telemetry
+from lazytools.projects.admission import ENGINES, Engine, TelemetryReading, WindowReading, budget_for
+from lazytools.routing.catalogue import TierCatalogue
+from lazytools.routing.router import CapabilityRequirement, ContinuityHint, RoutingDecision, route
+
+CACHE_MAX_AGE_SECONDS = 120.0
+READ_TIMEOUT_SECONDS = 45.0
+CACHE_PATH_ENV = "LAZYTOOLS_QUOTA_CACHE"
+
+
+def default_cache_path() -> Path:
+    override = os.environ.get(CACHE_PATH_ENV)
+    return Path(override).expanduser() if override else Path.home() / ".lazytools" / "quota-cache.json"
+
+
+def reading_record(reading: TelemetryReading) -> dict[str, Any]:
+    """JSON-safe telemetry, used by the file cache and the bridge's dry run."""
+    return {
+        "engine": reading.engine,
+        "source": reading.source,
+        "observed_at": reading.observed_at.isoformat(),
+        "error": reading.error,
+        "windows": [
+            {
+                "window_id": window.window_id,
+                "used_percent": window.used_percent,
+                "duration_minutes": window.duration_minutes,
+                "resets_at": window.resets_at.isoformat() if window.resets_at else None,
+            }
+            for window in reading.windows
+        ],
+    }
+
+
+def _datetime(raw: str) -> datetime:
+    moment = datetime.fromisoformat(raw)
+    if moment.tzinfo is None:
+        raise ValueError("cache timestamps must have a timezone")
+    return moment
+
+
+def _cached_readings(path: Path, moment: datetime) -> dict[Engine, TelemetryReading]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeError):
+        return {}
+    if not isinstance(data, dict) or data.get("version") != 1 or not isinstance(data.get("readings"), dict):
+        return {}
+    result: dict[Engine, TelemetryReading] = {}
+    for engine in ENGINES:
+        try:
+            entry = data["readings"][engine]
+            if entry["engine"] != engine or entry.get("error") is not None or not isinstance(entry["source"], str):
+                continue
+            observed_at = _datetime(entry["observed_at"])
+            if not 0 <= (moment - observed_at).total_seconds() <= CACHE_MAX_AGE_SECONDS:
+                continue
+            windows = []
+            for raw in entry["windows"]:
+                used = float(raw["used_percent"])
+                duration = raw["duration_minutes"]
+                if not math.isfinite(used) or used < 0 or not isinstance(raw["window_id"], str):
+                    raise ValueError("bad cached window")
+                if duration is not None and (type(duration) is not int or duration <= 0):
+                    raise ValueError("bad cached duration")
+                windows.append(
+                    WindowReading(
+                        window_id=raw["window_id"],
+                        used_percent=used,
+                        duration_minutes=duration,
+                        resets_at=_datetime(raw["resets_at"]) if raw["resets_at"] is not None else None,
+                    )
+                )
+            if windows:
+                result[engine] = TelemetryReading(engine, entry["source"], observed_at, tuple(windows))
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+    return result
+
+
+def _write_cache(path: Path, readings: dict[Engine, TelemetryReading]) -> None:
+    temporary: str | None = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"version": 1, "readings": {engine: reading_record(reading) for engine, reading in readings.items()}}
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, prefix=path.name + ".", delete=False
+        ) as out:
+            temporary = out.name
+            json.dump(payload, out, allow_nan=False)
+            out.flush()
+            os.fsync(out.fileno())
+        os.replace(temporary, path)
+    except (OSError, ValueError):
+        pass
+    finally:
+        if temporary is not None:
+            try:
+                Path(temporary).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def read_readings(
+    *,
+    cache_path: Path | None = None,
+    timeout: float = READ_TIMEOUT_SECONDS,
+    now: datetime | None = None,
+) -> dict[Engine, TelemetryReading]:
+    """Read both engines, with a per-engine timeout and a 120-second file cache.
+
+    ``cache_path`` or LAZYTOOLS_QUOTA_CACHE makes tests and isolated callers independent
+    of the operator's cache. Failed reads are deliberately omitted and never cached.
+    """
+    moment = now or datetime.now(UTC)
+    path = cache_path if cache_path is not None else default_cache_path()
+    readings = _cached_readings(path, moment)
+    for engine in ENGINES:
+        if engine in readings:
+            continue
+        try:
+            reading = quota_telemetry.read_quota_sync(engine, timeout=timeout)
+            if reading.error is None and reading.engine == engine and reading.windows:
+                readings[engine] = reading
+        except Exception:
+            # Provider/transport failures must not escape recommend().
+            continue
+    _write_cache(path, readings)
+    return readings
+
+
+def recommend(
+    tier: str,
+    *,
+    catalogue: dict[str, TierCatalogue],
+    in_flight: dict[Engine, int],
+    continuity: ContinuityHint | None = None,
+    capability: CapabilityRequirement | None = None,
+    writer_provider_for_review: Engine | None = None,
+    available: frozenset[Engine] | None = None,
+    readings: dict[Engine, TelemetryReading] | None = None,
+    now: datetime | None = None,
+) -> RoutingDecision:
+    """Read quota when needed, obtain admission budgets, and return a pure routing verdict."""
+    current = read_readings(now=now) if readings is None else readings
+    return route(
+        tier,
+        catalogue=catalogue,
+        readings=current,
+        budgets={engine: budget_for(engine) for engine in ENGINES},
+        in_flight=in_flight,
+        continuity=continuity,
+        capability=capability,
+        writer_provider_for_review=writer_provider_for_review,
+        available=available,
+        now=now,
+    )

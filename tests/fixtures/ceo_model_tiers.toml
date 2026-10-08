@@ -1,0 +1,146 @@
+# Router dei modelli -- catalogo delle fasce (fase 1: solo catalogo + router puro in SHADOW).
+#
+# Design: docs/design-router-modelli-2026-09-24.md (Wizengaimot 24/09/2026, non committato).
+# Questo file codifica il piano di implementazione, sezione B ("Chi scrive: il modello piu'
+# economico capace per la fascia") come l'AUTORITA' per l'ordine dei gradini di ciascuna fascia.
+#
+# PROVENIENZA DEI BENCHMARK (sezione 1, v3-A, e la correzione F.1 di Codex che ha PRECEDENZA):
+#   - I numeri "Artificial Analysis v4.3, costo per task" (v3-A) sono PREZZI API, non quota
+#     di abbonamento -- il freno di ammissione (admission.py) lavora per MOTORE, non per
+#     modello, e non esiste ancora una misura del consumo di quota per modello. L'ordine dei
+#     gradini qui sotto e' quindi un'IPOTESI DI CAPACITA' (dal piu' economico al piu' capace),
+#     non un ordine di costo -- il router non si attiva sui dollari (F.1).
+#   - "Opus 5.5 come fulcro lato Claude" (v3-A) resta PROVVISORIO (F.1): nessuna misura di
+#     quota per modello esiste ancora per confermarlo.
+#   - claude-fable-5-1 (la fascia "critical" nella tabella originale, sezione 1) e' stato
+#     rimpiazzato da Opus 5.5 come default automatico in v3-A: "Fable si usa solo su richiesta
+#     esplicita". Fable resta quindi FUORI dai gradini automatici di questo file -- non e' un
+#     regressione, e' la decisione v3 esplicita.
+#   - Section C (chi rivede) e' implementata (l'opposto del provider che ha scritto, vedi
+#     ``_run_contract_review``); la scalata sui FALLIMENTI (sezione D, "il task stesso e'
+#     fallito due volte") resta fuori da questa fase. Il router (PR 25/09) percorre invece i
+#     gradini di una fascia IN ORDINE quando un gradino non ha nessun provider idoneo (quota
+#     esaurita, telemetria stantia) -- non e' scalata su un fallimento del LAVORO, e' semplice
+#     assenza di un candidato su cui decidere a quel gradino.
+#
+# DEVIAZIONE NOTA: il design (sezione B) scrive "Luna 6 (max)" per i gradini Codex piu' economici.
+# Al momento in cui questo file e' stato scritto, Codex non aveva un livello di sforzo "max" --
+# usato "xhigh", il tetto reale che questo account poteva chiedere a Codex. Da allora la CLI
+# Codex con i modelli gpt-6 accetta anche "max" e "ultra" (vedi EFFORTS in
+# src/lazyceo/simple/agent.py: Codex ora accetta low/medium/high/xhigh/max/ultra, Claude Code
+# low/medium/high/xhigh/max) -- i gradini qui sotto restano volutamente su "xhigh" (nessuna
+# modifica ai default in questa PR); alzarli a "max"/"ultra" e' una decisione separata.
+#
+# DECISIONE OPERATORE 01/10 (docs/architettura 06+11): la generazione "workhorse" passa da
+# gpt-6-sol a gpt-6.1-sol (successore, stesso prezzo listino 2.0/10.0 USD per milione di token;
+# gpt-6-sol resta selezionabile ma e' la generazione precedente). Tutti i gradini che erano su
+# gpt-6-sol sono ora su gpt-6.1-sol, SENZA toccare l'effort ("xhigh" resta "xhigh": il default
+# del catalogo Codex per 6.1 Sol e' "low", ma il router passa sempre l'effort esplicitamente;
+# "max"/"ultra" restano una decisione separata -- "ultra" = massimo ragionamento con delega
+# automatica dei compiti). Astra e Luna invariati.
+#
+# DECISIONE OPERATORE 30/09 (docs/architettura 06+11): il DEFAULT scrittore Codex e' Sol
+# (gpt-6-sol, xhigh -- dal 01/10 gpt-6.1-sol, vedi sopra), non piu' Luna (che lo era dal 25/09) -- Luna resta solo come modello
+# economico per ruoli di consulenza/triage a basso sforzo, non come scrittore. NOTA DI
+# COERENZA: il secondo gradino di "writing" era gia' Sol/Opus 5.5 ("scalata"); ora il lato
+# Codex dei due gradini coincide (Sol) e cio' che cambia scalando e' il lato Claude
+# (Sonnet 5.5 high -> Opus 5.5 high). Nessun nuovo modello di scalata introdotto.
+#
+# DECISIONE OPERATORE 25/09 (docs/architettura 06+11): il DEFAULT scrittore Codex non e' un
+# pilota -- niente requires_confirmation, nessuna conferma umana per adottarlo. Il
+# router (lazyceo.model_router.route) sceglie fra i provider del PRIMO gradino idoneo in base
+# al margine di quota residuo -- vedi quel modulo per il criterio esatto e lo spareggio. La
+# fascia "basic" non ha piu' Haiku come ripiego: l'operatore non ha fiducia che Haiku sia
+# all'altezza, quindi "basic" usa la STESSA coppia di "writing" al primo gradino.
+
+[basic]
+note = "Stessa coppia di 'writing' al primo gradino -- Sol/Sonnet 5.5; nessun ripiego su Haiku (l'operatore non si fida della sua capacita', 25/09)."
+
+[[basic.steps]]
+description = "Sol 6.1 xhigh / Sonnet 5.5 high -- il router sceglie in base alla quota residua (sezione B); Sol e' il DEFAULT scrittore Codex (decisione operatore 30/09, prima era Luna), non un pilota."
+
+[basic.steps.providers.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"
+
+[basic.steps.providers.claude_code]
+model = "claude-sonnet-5-5"
+effort = "high"
+
+[writing]
+note = "La coppia Sonnet 5.5 / Sol 6.1 e' la commodity vera (stesso prezzo, nessun benchmark diretto) -- qui si raccolgono i dati di qualita' per primi (sezione 1)."
+
+[[writing.steps]]
+description = "Sol 6.1 xhigh / Sonnet 5.5 high -- il router sceglie in base alla quota residua (sezione B); Sol e' il DEFAULT scrittore Codex (decisione operatore 30/09, prima era Luna: 25/09), non un pilota che richiede conferma."
+
+[writing.steps.providers.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"
+
+[writing.steps.providers.claude_code]
+model = "claude-sonnet-5-5"
+effort = "high"
+
+[[writing.steps]]
+description = "Sol 6.1 xhigh / Opus 5.5 high -- il gradino di scalata successivo (decisione operatore 25/09), usato quando il primo gradino non ha un provider idoneo (quota esaurita, telemetria stantia)."
+
+[writing.steps.providers.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"
+
+[writing.steps.providers.claude_code]
+model = "claude-opus-5-5"
+effort = "high"
+
+[thinking]
+note = "Opus > Sol (terze parti); Astra > Sol (dato del fornitore); Astra contro Opus non noto (sezione 1)."
+
+[[thinking.steps]]
+description = "Sol 6.1 xhigh o Opus 5.5 medium -- il gradino piu' economico della fascia."
+
+[thinking.steps.providers.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"
+
+[thinking.steps.providers.claude_code]
+model = "claude-opus-5-5"
+effort = "medium"
+
+[[thinking.steps]]
+description = "Opus 5.5 high."
+
+[thinking.steps.providers.claude_code]
+model = "claude-opus-5-5"
+effort = "high"
+
+[[thinking.steps]]
+description = "Astra high -- gpt-6-astra e' anche il modello 'ripiego a capacita' ridotta' dichiarato per gpt-6.1-sol quando serve la coppia thinking = Opus <-> Astra (esito Wizengaimot, non Opus <-> Sol)."
+
+[thinking.steps.providers.codex]
+model = "gpt-6-astra"
+effort = "high"
+
+[critical]
+note = "Solo progettazione di progetti critici. claude-fable-5-1 resta fuori da questi gradini (si usa solo su richiesta esplicita, v3-A) -- e' l'unica fascia/modello che toccherebbe la finestra settimanale separata di Fable, se mai scelto esplicitamente."
+
+[[critical.steps]]
+description = "Opus 5.5 high <-> Astra high: il router sceglie in base alla quota residua (sezione B)."
+
+[critical.steps.providers.claude_code]
+model = "claude-opus-5-5"
+effort = "high"
+
+[critical.steps.providers.codex]
+model = "gpt-6-astra"
+effort = "high"
+
+[[critical.steps]]
+description = "Opus 5.5 max / Astra al tetto reale (design: 'Astra max' -> usato xhigh, vedi deviazione sopra)."
+
+[critical.steps.providers.claude_code]
+model = "claude-opus-5-5"
+effort = "max"
+
+[critical.steps.providers.codex]
+model = "gpt-6-astra"
+effort = "xhigh"
