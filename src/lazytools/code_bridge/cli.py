@@ -57,7 +57,7 @@ def _print_json(payload: Any) -> None:
 
 #: Statuses a job record can end in. A record still "running" or
 #: "awaiting_approval" whose process is gone is reported as died by `wait`.
-_TERMINAL = ("done", "failed", "interrupted", "denied", "expired")
+_TERMINAL = ("done", "failed", "interrupted")
 
 # Windows process-creation flags for a child that must outlive its launcher:
 # no console tie to the parent, its own process group (so a Ctrl+C or a
@@ -290,16 +290,23 @@ def _cmd_wait(args: argparse.Namespace) -> int:
 
 
 _JSON_STRING_FIELD = r'"{name}":\s*("(?:[^"\\]|\\.)*")'
+#: The opening of a JSON string field whose closing quote never came: the cut
+#: went through it. Captures up to the end of that physical line, which is
+#: where TieredGate spliced in its "[... elided ...]" marker.
+_JSON_STRING_FIELD_HEAD = r'"{name}":\s*"((?:[^"\\\n]|\\.)*)$'
+CUT_MARK = " [... cut by the approval gate]"
 
 
 def _salvage_detail(arguments: str) -> dict[str, str]:
     """Pull ``command``/``reason`` out of an arguments payload TieredGate cut short.
 
-    TieredGate elides long arguments in the middle, which leaves the JSON
-    unparseable; a long escalation (a test run with a long PYTHONPATH, say)
-    then showed only "codex-shell" again. Each field is a complete JSON string
-    literal when it survived the cut, so it is matched and decoded on its own;
-    a field the cut went through is simply absent."""
+    TieredGate elides long arguments by splicing a marker line into the
+    middle of the JSON, which leaves it unparseable and spread over several
+    lines; a long escalation (a test run with a long PYTHONPATH, say) then
+    showed only "codex-shell" again. ``arguments`` is the WHOLE text after
+    "arguments:", every line of it. A field that survived intact is decoded
+    on its own; a field the cut went through is shown up to the cut, marked
+    as such -- the head of a command is still what a person needs to judge it."""
     import re
 
     detail: dict[str, str] = {}
@@ -308,8 +315,17 @@ def _salvage_detail(arguments: str) -> dict[str, str]:
         if match:
             try:
                 detail[name] = str(json.loads(match.group(1)))
-            except ValueError:
                 continue
+            except ValueError:
+                pass
+        head = re.search(_JSON_STRING_FIELD_HEAD.format(name=name), arguments, flags=re.MULTILINE)
+        if head and head.group(1):
+            raw = head.group(1).rstrip("\\")
+            try:
+                text = str(json.loads(f'"{raw}"'))
+            except ValueError:
+                text = raw
+            detail[name] = text + CUT_MARK
     return {k: v for k, v in detail.items() if v}
 
 
@@ -320,14 +336,18 @@ def _request_detail(prompt: str) -> dict[str, str]:
     "codex-shell"; the real command line and Codex's own reason sit in the
     JSON on the prompt's "arguments:" line. Without them a person is asked to
     approve "codex-shell" blind. Empty when the prompt has no such payload."""
-    for line in prompt.splitlines():
+    lines = prompt.splitlines()
+    for index, line in enumerate(lines):
         line = line.strip()
         if not line.startswith("arguments:"):
             continue
         try:
             payload = json.loads(line[len("arguments:") :])
         except ValueError:
-            return _salvage_detail(line[len("arguments:") :])
+            # Hand over the rest of the prompt, not this line alone: an elided
+            # payload continues on the lines after the cut marker.
+            rest = "\n".join([line[len("arguments:") :], *lines[index + 1 :]])
+            return _salvage_detail(rest)
         if not isinstance(payload, dict):
             return {}
         # "command" is what will actually run. "commandActions" is Codex's

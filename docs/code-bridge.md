@@ -156,7 +156,10 @@ sessions.
 - Lock liveness checks the pid only, not the process identity. After a crash
   or reboot, an unrelated process that reuses the recorded pid keeps the lock
   looking held; `run` then refuses with the lock path, which can be deleted
-  by hand once `jobs` shows nothing running on that repository.
+  by hand once `jobs` shows nothing running on that repository. `wait` has
+  the same blind spot: if a detached job dies and its pid is reused before
+  the next poll, `wait` keeps waiting (use `--timeout`, and `status`/`jobs`
+  to check by hand).
 - `TieredGate`'s compound-command splitter is a text heuristic, not a shell
   parser (see its own module docstring): it does not see `$(...)`/backtick
   substitution inside a single non-compound command. This is the exact same

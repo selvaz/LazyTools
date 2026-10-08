@@ -297,3 +297,34 @@ def test_request_detail_survives_an_elided_arguments_payload():
         "  cwd: C:\\repo"
     )
     assert _request_detail(prompt) == {"command": "pytest -q tests", "reason": "Run the tests outside the sandbox?"}
+
+
+def test_request_detail_when_the_cut_goes_through_the_command_itself():
+    """The motivating case: the COMMAND is what is too long, so the real
+    elide() splices its marker inside it. The reason (earlier in the payload)
+    must come through whole, and the command up to the cut, marked as cut."""
+    from lazybridge._display import elide
+
+    from lazytools.code_bridge.cli import CUT_MARK, _request_detail
+
+    long_command = "powershell -Command '$env:PYTHONPATH=" + "C:\\very\\long\\path;" * 400 + "; pytest -q tests'"
+    payload = json.dumps({"kind": "command", "reason": "Run the suite outside the sandbox?", "command": long_command})
+    prompt = "[TieredGate] agent asks to run command 'codex-shell'\n  arguments: " + elide(payload, 3000) + "\n  cwd: C:\repo"
+
+    detail = _request_detail(prompt)
+    assert detail["reason"] == "Run the suite outside the sandbox?"
+    assert detail["command"].startswith("powershell -Command '$env:PYTHONPATH=C:")
+    assert detail["command"].endswith(CUT_MARK)
+
+
+def test_run_refuses_a_job_id_that_already_exists(tmp_path, monkeypatch, capsys):
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db_path = tmp_path / "store.sqlite"
+    assert main(_run_args(tmp_path, repo, db_path, "--job-id", "dupe")) == 0
+    capsys.readouterr()
+
+    assert main(_run_args(tmp_path, repo, db_path, "--job-id", "dupe")) == 2
+    assert "already exists" in capsys.readouterr().err

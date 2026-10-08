@@ -168,6 +168,10 @@ def run_job(
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)
     queue = _store.build_approval_queue(store)
+    # A caller-chosen id must be new: writing its records would otherwise
+    # silently replace an earlier job's history.
+    if _store.read_meta(store, job_id) is not None:
+        raise ValueError(f"job id {job_id!r} already exists -- refusing to overwrite its record")
 
     lock = JobLock(_store.locks_dir(db_path), _git_repo_root(resolved_cwd))
     stale_job_id = lock.acquire(job_id)  # raises LockHeld -- job_id was reported but nothing else is recorded
