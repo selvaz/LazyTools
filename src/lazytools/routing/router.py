@@ -30,9 +30,10 @@ rung", the same shape ``no_eligible_provider`` already had for a single-rung tie
    that provider ineligible on THAT rung; a window that plainly does not apply to this model
    (Fable's window, for a Sonnet call) is simply excluded rather than treated as a failure.
    Two distinct outcomes, both real: see ``WindowAvailability``.
-6. admission -- a margin that ``admission.decide()`` would itself REFUSE for ordinary
-   autonomous work (at or past the autonomous boundary, or a forecast breach) makes that
-   provider ineligible too, checked by calling ``decide()`` itself rather than re-deriving its
+6. admission -- anything ``admission.decide()`` would itself REFUSE makes that
+   provider ineligible too. By default this means autonomous work (including the
+   autonomous boundary and forecast breach); ``operator_directed=True`` retains only
+   admission's operator-directed checks. Call ``decide()`` rather than re-deriving its
    thresholds (found by Codex review on this PR: a provider already exhausted enough that a
    real delegation would be refused must never be scored as merely "worse" -- continuity could
    otherwise force it, and with every provider exhausted the router would never fall through
@@ -262,7 +263,8 @@ def _margin_pair(
 
 
 def _score_provider(
-    *, engine: Engine, model: str, reading: TelemetryReading, budget: EngineBudget, in_flight: int, moment: datetime
+    *, engine: Engine, model: str, reading: TelemetryReading, budget: EngineBudget, in_flight: int, moment: datetime,
+    operator_directed: bool = False,
 ) -> ProviderScore | str:
     """A provider's margins, or the ineligibility reason (a string) if its telemetry cannot
     support a score at all.
@@ -291,15 +293,13 @@ def _score_provider(
         return f"telemetry_window_unreadable: no usable weekly window for {engine}/{model!r} ({weekly_bucket!r})"
     assert isinstance(weekly, WindowReading)
 
-    # A margin that ``admission.decide()`` would itself REFUSE for ordinary autonomous work
-    # (at or past the autonomous boundary, or a forecast breach) makes this provider
+    # A refusal by ``admission.decide()`` for the caller's mode makes this provider
     # ineligible -- checked by calling ``decide()`` itself, scoped to just THIS weekly window
     # (never the whole account-wide reading: a Fable bucket near its ceiling must not drag a
     # Sonnet-tier score down with it -- the five-hour window is deliberately excluded too, the
     # same way it is excluded from eligibility everywhere else in this function, since it is a
-    # tie-break, not a gate). ``operator_directed=False`` because this is what an ordinary
-    # AUTONOMOUS delegation would face -- the same boundary ``admission.decide()`` enforces for
-    # one. Reusing ``decide()`` rather than re-deriving its ceiling/autonomous_boundary/
+    # tie-break, not a gate). The default remains autonomous for adoption parity;
+    # direct operator work opts in explicitly. Reusing ``decide()`` rather than re-deriving its ceiling/autonomous_boundary/
     # forecast_breach thresholds keeps the two permanently consistent -- found by Codex review
     # on this PR: a provider already exhausted enough that a real delegation would be refused
     # must never be scored as merely "worse", or continuity could force it and, with every
@@ -309,7 +309,7 @@ def _score_provider(
         engine=engine, source=reading.source, observed_at=reading.observed_at, windows=(weekly,)
     )
     admission_result = _admission_decide(
-        scoped_reading, budget, operator_directed=False, in_flight=in_flight, now=moment
+        scoped_reading, budget, operator_directed=operator_directed, in_flight=in_flight, now=moment
     )
     if not admission_result.allowed:
         detail = f" ({admission_result.detail})" if admission_result.detail else ""
@@ -369,6 +369,7 @@ def route(
     writer_provider_for_review: Engine | None = None,
     available: frozenset[Engine] | None = None,
     now: datetime | None = None,
+    operator_directed: bool = False,
 ) -> RoutingDecision:
     """What the router would choose for ``tier``, right now -- PURE and DETERMINISTIC: no
     store, no network, no side effect, and no LLM ever makes this choice. Walks
@@ -377,6 +378,11 @@ def route(
     documented three-level tie-break: weekly margin, then five-hour margin, then price/fixed
     order). A rung with nobody eligible is skipped, not a failure -- only running out of
     rungs entirely returns no pick.
+
+    ``operator_directed`` is forwarded to admission's eligibility check. Its default
+    preserves autonomous routing. An operator-directed call may cross the autonomous
+    boundary or forecast limit, while absolute ceilings and telemetry checks still
+    exclude providers. Scoring keeps the same margins in either mode.
 
     ``available`` names the providers THIS AGENT PROCESS actually has an engine factory for
     (e.g. a specialist built with no Codex writer at all) -- ``None`` (the default) means every
@@ -453,6 +459,7 @@ def route(
                 budget=budget,
                 in_flight=in_flight.get(engine, 0),
                 moment=moment,
+                operator_directed=operator_directed,
             )
             if isinstance(result, str):
                 step_ineligible[engine] = result

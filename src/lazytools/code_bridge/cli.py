@@ -162,9 +162,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             args.engine = _routing.bridge_engine(selection.decision.provider)
             args.model, args.effort, args.routing = selection.model, selection.effort, selection.record()
             if not args.json:
-                print(selection.launch_line(), flush=True)
-                if selection.notice:
-                    print(selection.notice, flush=True)
+                _routing.print_selection(selection)
         elif args.needs or args.review_of:
             raise ValueError("--needs and --review-of require --tier")
     except (OSError, ValueError) as exc:

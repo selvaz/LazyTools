@@ -156,8 +156,12 @@ def recommend(
     available: frozenset[Engine] | None = None,
     readings: dict[Engine, TelemetryReading] | None = None,
     now: datetime | None = None,
+    operator_directed: bool = False,
 ) -> RoutingDecision:
-    """Read quota when needed, obtain admission budgets, and return a pure routing verdict."""
+    """Read quota, obtain admission budgets, and route in the caller's admission mode.
+
+    Autonomous routing remains the default; direct operator work opts in explicitly.
+    """
     current = read_readings(now=now) if readings is None else readings
     return route(
         tier,
@@ -170,4 +174,5 @@ def recommend(
         writer_provider_for_review=writer_provider_for_review,
         available=available,
         now=now,
+        operator_directed=operator_directed,
     )

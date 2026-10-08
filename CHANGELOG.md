@@ -8,6 +8,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Bridge tier routing uses operator-directed admission for its direct work:
+  autonomous-boundary and forecast breaches are informational, while absolute
+  ceilings and telemetry failures still exclude engines. Forecast margins still
+  rank choices, and human output shows forecasts and warning lines. Shared
+  `route()`/`recommend()` default to autonomous admission for LazyCEO parity.
+
 ### Added
 - **`lazytools.routing`** — shared deterministic tier router, model/effort policy,
   validated catalogue, and live quota adapter with per-engine timeouts and an

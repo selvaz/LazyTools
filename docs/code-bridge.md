@@ -108,7 +108,7 @@ lazytools-code-bridge route --tier thinking --cwd /path/to/repo --json
 
 The human output starts with the engine, model, effort, winning rung (numbered
 from 1), and reason. It includes each engine's weekly and 5-hour percentages
-and reset times, plus every exclusion. JSON includes the decision, scores,
+and reset times, forecasts and informational warning lines, plus every exclusion. JSON includes the decision, scores,
 exclusions, telemetry timestamps, quota windows and any session notice.
 `route` creates no job and launches no coding engine.
 
@@ -139,7 +139,7 @@ only by an explicit `--model` override.
 `--engine codex` or `--engine claude` with a tier restricts the eligible
 engines. Explicit `--model` and `--effort` replace the selected values, are
 validated against the chosen engine, and are recorded in `routing.override`.
-A quota refusal still refuses the automatic route. An engine-only `run`
+An absolute-ceiling or telemetry refusal still refuses the automatic route. An engine-only `run`
 retains the existing manual behavior and does not read quota. A `run` with
 neither `--tier` nor `--engine` fails with a clear error.
 
@@ -159,6 +159,19 @@ Running bridge jobs are counted per engine across the Store and reserve
 quota in the score. Missing, unreadable, stale or exhausted weekly quota
 excludes the engine. If nothing is eligible, the error lists the exclusions
 and suggests manual selection with an engine-only `run --engine E`.
+
+Bridge jobs are direct operator work: `route` and `run --tier` use
+`operator_directed=True`, so the autonomous boundary and forecast brake do
+not block them. Forecast margins still rank eligible engines, and human output
+shows the projected end-of-window use (including job reservations), its forecast
+limit and a `warning:` line when the projection exceeds that limit. A warning
+does not prevent launching. Forecasts use the reading's observation time, just
+as the router does; unavailable reset/duration data is shown as unavailable.
+
+The bridge has no project attribution today. If it gains attribution, a project
+whose brake is enabled must use autonomous admission at the routing call.
+The shared `route()` and `recommend()` APIs keep `operator_directed=False`
+by default, preserving LazyCEO's autonomous behavior and parity.
 
 Both engines' quota is read with a 45-second timeout per engine. A file cache
 at `~/.lazytools/quota-cache.json` shares successful readings between CLI

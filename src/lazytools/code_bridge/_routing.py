@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from lazytools.code_bridge import _jobs, _store
-from lazytools.projects.admission import ENGINES, Engine, TelemetryReading
+from lazytools.projects.admission import ENGINES, Engine, TelemetryReading, WindowReading, budget_for
 from lazytools.routing import (
     CapabilityRequirement,
     ContinuityHint,
@@ -62,6 +62,8 @@ class Selection:
     effort: str | None
     override: dict[str, str] = field(default_factory=dict)
     notice: str | None = None
+    in_flight: dict[Engine, int] = field(default_factory=dict)
+    operator_directed: bool = True
 
     @property
     def rung(self) -> int | None:
@@ -71,7 +73,18 @@ class Selection:
         return int(reason.rsplit("_step", 1)[1]) + 1 if "_step" in reason else 1
 
     def record(self) -> dict[str, Any]:
-        return {**self.decision.as_record(), "override": self.override, "rung": self.rung}
+        return {**self.decision.as_record(), "override": self.override, "rung": self.rung, "operator_directed": self.operator_directed}
+
+    def forecast(self, engine: Engine, window: WindowReading) -> tuple[float, float] | None:
+        """Projected usage including the same reservations used in the router's margins."""
+        reading = self.readings[engine]
+        projected = window.projected_end_percent(now=reading.observed_at)
+        elapsed = window.elapsed_fraction(now=reading.observed_at)
+        if projected is None or elapsed is None or elapsed <= 0:
+            return None
+        budget = budget_for(engine)
+        reserved = (max(self.in_flight.get(engine, 0), 0) + 1) * budget.per_job_reserve_percent
+        return projected + reserved, budget.forecast_limit_percent(elapsed)
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -123,10 +136,15 @@ def choose(
         if row.get("status") == "running":
             in_flight[provider(str(row.get("engine", row.get("kind"))))] += 1
     readings = read_readings()
+    # The bridge has no project attribution today: these are direct, operator-directed
+    # jobs. If attribution is introduced, a project with its brake enabled must pass
+    # operator_directed=False here, using the project's existing brake setting.
+    operator_directed = True
     decision = recommend(
         tier, catalogue=catalogue, in_flight=in_flight, continuity=continuity,
         capability=CapabilityRequirement(images=needs == "images"),
         writer_provider_for_review=writer, available=available, readings=readings,
+        operator_directed=operator_directed,
     )
     override = {}
     if decision.provider is not None:
@@ -150,13 +168,13 @@ def choose(
         notice = f"Session {session!r} has {continuity.failed_attempts} consecutive failures; use a new --session to allow a different engine."
     return Selection(
         decision, readings, override.get("model", decision.model), effective_effort,
-        override, notice,
+        override, notice, in_flight=in_flight, operator_directed=operator_directed,
     )
 
 
 def print_selection(selection: Selection) -> None:
     """Explain the pick, both quota windows (including Claude's session), and exclusions."""
-    print(selection.launch_line())
+    print(selection.launch_line(), flush=True)
     for engine in ENGINES:
         reading = selection.readings.get(engine)
         print(f"{bridge_engine(engine)} quota:")
@@ -169,7 +187,11 @@ def print_selection(selection: Selection) -> None:
                 print(f"  {label}: unreadable; reset unknown")
             for window in windows:
                 reset = window.resets_at.isoformat() if window.resets_at else "unknown"
-                print(f"  {label} ({window.window_id}): {window.used_percent:g}% used; reset {reset}")
+                forecast = selection.forecast(engine, window)
+                forecast_text = "projected unavailable" if forecast is None else f"projected {forecast[0]:.0f}% (limit {forecast[1]:.0f}%)"
+                print(f"  {label} ({window.window_id}): {window.used_percent:g}% used; reset {reset}; {forecast_text}")
+                if forecast is not None and forecast[0] > forecast[1]:
+                    print(f"warning: {bridge_engine(engine)} {label} projected {forecast[0]:.0f}% (limit {forecast[1]:.0f}%) at the current pace")
     for provider_name, why in selection.decision.ineligible.items():
         print(f"excluded {provider_name}: {why}")
     if selection.notice:

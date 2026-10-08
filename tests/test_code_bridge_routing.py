@@ -341,3 +341,70 @@ def test_run_checks_confinement_before_telemetry(bridge, monkeypatch, capsys):
     argv[argv.index("--root") + 1] = str(bridge[2] / "outside")
     assert cli.main(argv) == 2
     assert "error:" in capsys.readouterr().err
+
+
+def _forecast_breach_readings(bridge):
+    for engine, used in (("codex", 50), ("claude_code", 40)):
+        old = bridge[1][engine]
+        bridge[1][engine] = TelemetryReading(engine, old.source, old.observed_at, (
+            WindowReading("codex/10080m" if engine == "codex" else "weekly/all models", used, 10080,
+                          old.observed_at + timedelta(days=5, hours=6)),
+        ))
+
+
+@pytest.mark.parametrize("command", ["route", "run"])
+def test_forecast_breaches_choose_more_margin_and_warn_without_blocking(bridge, capsys, command):
+    _forecast_breach_readings(bridge)
+    assert cli.main(args(bridge, command)) == 0
+    out = capsys.readouterr().out
+    assert out.splitlines()[0].startswith("chosen: claude/claude-sonnet-5-5 effort=high")
+    assert "warning: codex weekly projected 201% (limit 124%) at the current pace" in out
+    assert "warning: claude weekly projected 161% (limit 124%) at the current pace" in out
+    assert "reset" in out and "; projected 161% (limit 124%)" in out
+    assert "excluded" not in out
+    if command == "run":
+        (row,) = _jobs.list_jobs(_store.build_store(bridge[3]), all_jobs=True)
+        assert row["routing"]["operator_directed"] is True
+        assert row["routing"]["scores"]["claude_code"]["weekly_margin"] == -37.5
+        assert row["routing"]["scores"]["codex"]["weekly_margin"] == -77.5
+        assert bridge[0].last.kind == "claude"
+
+
+def test_bridge_passes_operator_directed_to_recommend(bridge, monkeypatch):
+    original = _routing.recommend
+    seen = []
+
+    def recommend(*args, **kwargs):
+        seen.append(kwargs["operator_directed"])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(_routing, "recommend", recommend)
+    assert cli.main(args(bridge)) == 0
+    assert seen == [True]
+
+
+@pytest.mark.parametrize("command", ["route", "run"])
+def test_absolute_ceiling_exclusion_is_still_enforced_by_bridge(bridge, capsys, command):
+    _forecast_breach_readings(bridge)
+    old = bridge[1]["codex"]
+    bridge[1]["codex"] = TelemetryReading("codex", old.source, old.observed_at, (WindowReading("codex/10080m", 94, 10080),))
+    assert cli.main(args(bridge, command, "--json")) == 0
+    payload = json.loads(capsys.readouterr().out.splitlines()[-1])
+    routing = payload["routing"] if command == "run" else payload
+    assert routing["provider"] == "claude_code"
+    assert routing["ineligible"]["codex"].startswith("admission_would_refuse:absolute_ceiling")
+
+
+def test_forecast_display_uses_in_flight_reservations_and_observation_time(bridge, capsys):
+    _forecast_breach_readings(bridge)
+    seed(bridge, "running", status="running")
+    assert cli.main(args(bridge)) == 0
+    out = capsys.readouterr().out
+    assert "warning: codex weekly projected 202% (limit 124%)" in out
+
+
+def test_unavailable_forecasts_are_labelled_without_warning(bridge, capsys):
+    assert cli.main(args(bridge)) == 0
+    out = capsys.readouterr().out
+    assert "projected unavailable" in out
+    assert "warning:" not in out
