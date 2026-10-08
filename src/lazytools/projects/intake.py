@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -189,6 +190,43 @@ def _apply_intake_fields(
     return _apply(store, project_id, updates, allowed_from=("draft", "open"))
 
 
+def install_project_plan(store: Store, project_id: str, *, objective: str, tasks: list[str]) -> str | None:
+    """Install or replace an untouched plan with whole-board CAS; None means success.
+
+    An identical plan is a no-op, preserving claims, results and schedules.
+    Started tasks include previous attempts returned to todo or cancelled.
+    """
+    from lazybridge.ext.planners.durable_blackboard import BLACKBOARD_VERSION
+
+    from lazytools.projects.keys import BOARD_KEY_PREFIX
+    from lazytools.projects.plan_edit import _fresh_task
+
+    key = f"{BOARD_KEY_PREFIX}project:{project_id}"
+    for _ in range(8):
+        raw = store.read(key)
+        current = raw if isinstance(raw, dict) else {}
+        old_tasks = current.get("tasks", [])
+        if current.get("reasoning") == objective.strip() and [t.get("text") for t in old_tasks] == tasks:
+            return None
+        started = [
+            f"{i}: {t.get('text')!r}" for i, t in enumerate(old_tasks)
+            if t.get("status") in ("claimed", "done", "failed") or t.get("attempts", 0)
+            or t.get("owner") is not None or t.get("claimed_at") is not None or t.get("result") or t.get("error")
+            or (t.get("completed_at") is not None and t.get("status") != "cancelled")
+        ]
+        if started:
+            return "REJECTED: cannot replace a different plan; tasks already started: " + ", ".join(started)
+        moment = time.time()
+        updated = {
+            **current, "version": BLACKBOARD_VERSION, "plan_id": f"project:{project_id}",
+            "reasoning": objective.strip(), "created_at": moment, "updated_at": moment,
+            "tasks": [_fresh_task(text) for text in tasks], "schedule_events": [],
+        }
+        if store.compare_and_swap(key, raw, updated):
+            return None
+    return "REJECTED: the board changed while installing the plan -- read it again and retry"
+
+
 def promote_project_plan(
     store: Store,
     project_id: str,
@@ -205,8 +243,6 @@ def promote_project_plan(
     plan onto the project's board (``DurableBlackboard.set_plan``) only once promotion
     actually succeeds, so a project cannot end up "open" with an empty board.
     """
-    from lazybridge.ext.planners import DurableBlackboard
-
     record = get_project(store, project_id)
     if record is None:
         return f"REJECTED: no project named {project_id!r} -- call open_project first"
@@ -228,9 +264,9 @@ def promote_project_plan(
     if not _apply_intake_fields(store, project_id, observable_result=observable_result, deadline=deadline, acceptance_criteria=criteria):
         return "REJECTED: the project changed while it was being promoted -- read it again and retry"
 
-    board = DurableBlackboard(store, plan_id=f"project:{project_id}")
-    if not board.snapshot().tasks:
-        board.set_plan(record.objective, [str(s["text"]) for s in subtasks])
+    refusal = install_project_plan(store, project_id, objective=record.objective, tasks=[str(s["text"]) for s in subtasks])
+    if refusal is not None:
+        return refusal
 
     if not _apply(store, project_id, {"status": "open"}, allowed_from=("draft",)):
         return "REJECTED: the project changed while it was being promoted -- read it again and retry"
@@ -244,6 +280,7 @@ __all__ = [
     "IntakeVerdict",
     "MINIMUM_SUBTASKS",
     "check_project_intake",
+    "install_project_plan",
     "parse_deadline",
     "plan_digest",
     "promote_project_plan",

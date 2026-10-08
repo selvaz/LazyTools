@@ -3,6 +3,7 @@ draft-to-open promotion."""
 
 from __future__ import annotations
 
+import pytest
 from lazybridge import Store
 from lazybridge.ext.planners import DurableBlackboard
 
@@ -91,3 +92,60 @@ def test_promote_project_plan_refuses_digest_mismatch_after_edit() -> None:
     edited_subtasks = [*_GOOD_SUBTASKS, {"text": "sneaky new step", "acceptance_criteria": ["z passes"]}]
     result = intake.promote_project_plan(store, "alpha", observable_result="y", deadline="2026-12-01", subtasks=edited_subtasks)
     assert result.startswith("REJECTED") and "changed after it was reviewed" in result
+
+
+@pytest.mark.parametrize("existing", [None, ["step one", "step two"], ["stale one", "stale two"]])
+def test_promotion_installs_matching_plan_or_replaces_untouched(existing) -> None:
+    store = Store()
+    records.open_project(store, project_id="alpha", title="Alpha", objective="do a thing")
+    board = DurableBlackboard(store, "project:alpha")
+    if existing:
+        board.set_plan("do a thing", existing)
+    before = store.read(board.key)
+    digest = intake.plan_digest(objective="do a thing", observable_result="y", deadline="2026-12-01", subtasks=_GOOD_SUBTASKS)
+    intake.record_project_review(store, "alpha", reviewed_digest=digest)
+    assert "promoted project" in intake.promote_project_plan(store, "alpha", observable_result="y", deadline="2026-12-01", subtasks=_GOOD_SUBTASKS)
+    assert [t["text"] for t in board.snapshot().tasks] == ["step one", "step two"]
+    if existing == ["step one", "step two"]:
+        assert store.read(board.key) == before
+
+
+@pytest.mark.parametrize("status,attempts", [("claimed", 1), ("done", 1), ("failed", 3), ("todo", 1), ("cancelled", 1)])
+def test_promotion_refuses_different_started_plan(status, attempts) -> None:
+    store = Store()
+    records.open_project(store, project_id="alpha", title="Alpha", objective="do a thing")
+    board = DurableBlackboard(store, "project:alpha")
+    board.set_plan("do a thing", ["stale one"])
+    raw = store.read(board.key)
+    raw["tasks"][0].update(status=status, attempts=attempts)
+    store.write(board.key, raw)
+    digest = intake.plan_digest(objective="do a thing", observable_result="y", deadline="2026-12-01", subtasks=_GOOD_SUBTASKS)
+    intake.record_project_review(store, "alpha", reviewed_digest=digest)
+    result = intake.promote_project_plan(store, "alpha", observable_result="y", deadline="2026-12-01", subtasks=_GOOD_SUBTASKS)
+    assert "tasks already started: 0: 'stale one'" in result
+    assert store.read(board.key) == raw
+    assert records.get_project(store, "alpha").status == "draft"
+
+
+def test_plan_install_rechecks_started_tasks_after_cas_race(monkeypatch) -> None:
+    store = Store()
+    board = DurableBlackboard(store, "project:alpha")
+    board.set_plan("old", ["old task"])
+    cas = store.compare_and_swap
+
+    def race(key, expected, value):
+        board.claim_next(owner="worker")
+        return cas(key, expected, value)
+
+    monkeypatch.setattr(store, "compare_and_swap", race)
+    # Use the original CAS inside the competing claim to avoid recursive instrumentation.
+    original_claim = board.claim_next
+
+    def claim(**kwargs):
+        monkeypatch.setattr(store, "compare_and_swap", cas)
+        return original_claim(**kwargs)
+
+    monkeypatch.setattr(board, "claim_next", claim)
+    result = intake.install_project_plan(store, "alpha", objective="new", tasks=["new task"])
+    assert "already started" in result
+    assert board.snapshot().tasks[0]["text"] == "old task"

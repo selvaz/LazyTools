@@ -230,32 +230,20 @@ smoke test below — never through this package's own default resolution.
    `--store-db` already uses, so Claude Code sessions see the identical
    registry.
 
-## Known gaps carried over from LazyCEO, not fixed here
+## Known gaps
 
-One Codex review (`codex_review_changes`, scope=branch vs origin/main) found six
-issues. Three were in this package's OWN new code and are fixed (see the
-commit history): `verification.accept` now fences its final write against
-the exact snapshot it validated, not whatever `_transition` re-reads later;
-`projects_brake_status` no longer blocks on telemetry when a project's brake
-is already disabled, and now agrees with shadow mode (`preflight`, not a raw
-`decide`). Three more are **inherited unchanged from LazyCEO's own
-equivalents** — not introduced by this port, and deliberately not changed
-here to keep "same behavior" true to the letter:
+The inherited required-check coverage and stale-board promotion defects are
+closed. Acceptance still fences its write against the evidence it validated;
+Claude telemetry includes the five-hour session window.
 
-- `intake.promote_project_plan` only installs its plan onto the board when
-  the board is still empty (`if not board.snapshot().tasks: board.set_plan(...)`).
-  If an earlier, interrupted promotion already left a *different* plan on
-  the board, promoting a newly-reviewed plan silently keeps the stale one
-  while reporting the new one as installed. LazyCEO's `promote_project` tool
-  has this exact shape.
-- FIXED here (still open in LazyCEO's own `lazyceo.quota._read_claude` until
-  it adopts this package): the Claude reading now includes the five-hour
-  `session` window beside the weekly ones, so admission sees the window that
-  runs out first under a burst of delegated work.
+## Installing a reviewed plan
 
-Each is a real finding and a candidate for a follow-up PR (in whichever
-codebase ends up owning this mechanism after LazyCEO's adoption) — flagged
-here rather than silently carried forward.
+`intake.install_project_plan(store, project_id, *, objective, tasks) -> str | None`
+uses whole-board CAS. Identical reasoning and task text are a no-op. A different
+plan replaces an empty or untouched board. Claims, done/failed statuses,
+previous attempts (including tasks returned to todo), owners and recorded work
+prevent replacement; refusals name the started tasks. Promotion uses this helper
+and remains draft on refusal. Existing board keys and task shapes are unchanged.
 
 ## Not exposed, by design
 
