@@ -300,6 +300,17 @@ Disabled project brakes and refused admissions skip the hook. Approval provenanc
 consumption, exemptions and refund policy belong to the caller. `spent_approval`
 is returned in memory only, preserving the existing audit/reservation shapes.
 
+`records.open_project(store, *, project_id, title, objective, size=None,
+risk=None, process=None, classification_rationale=None, prefix=PROJECT_PREFIX,
+extra_fields=None, record_factory=None) -> ProjectRecord` adds caller fields
+in the initial create-only CAS. `extra_fields` is a mapping of additional fields;
+it cannot override shared fields. `record_factory(data) -> ProjectRecord` can
+validate a caller subclass and add typed defaults (e.g. pass
+`CallerProject.model_validate`). It cannot change the already validated shared
+fields. Factory/validation errors happen before the CAS and do not consume the id.
+`adopt_existing_project(..., **kwargs)` forwards both options. Omitting them
+preserves the existing stored shape; shared mutations continue round-tripping extras.
+
 ## Not exposed, by design
 
 Delegation (execution of a task) — a Claude Code session uses

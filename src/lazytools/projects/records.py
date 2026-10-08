@@ -23,8 +23,9 @@ staged process) -- not a LazyCEO-only idea, so it stays here as mechanism.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict
@@ -72,6 +73,9 @@ class ProjectRecord(BaseModel):
     acceptance_criteria: list[str] = []
 
 
+RecordFactory = Callable[[dict[str, Any]], ProjectRecord]
+
+
 def _key(project_id: str, *, prefix: str = PROJECT_PREFIX) -> str:
     return f"{prefix}{project_id}"
 
@@ -94,6 +98,8 @@ def open_project(
     process: str | None = None,
     classification_rationale: str | None = None,
     prefix: str = PROJECT_PREFIX,
+    extra_fields: Mapping[str, Any] | None = None,
+    record_factory: RecordFactory | None = None,
 ) -> ProjectRecord:
     """Create a project AS A DRAFT, rejecting any existing record with the same id.
 
@@ -139,6 +145,18 @@ def open_project(
         process=process,
         classification_rationale=classification_rationale,
     )
+    if extra_fields is not None or record_factory is not None:
+        extras = dict(extra_fields or {})
+        conflicts = sorted(set(extras).intersection(ProjectRecord.model_fields))
+        if conflicts:
+            raise ValueError("extra_fields cannot override project fields: " + ", ".join(conflicts))
+        base = record.model_dump()
+        factory = record_factory or ProjectRecord.model_validate
+        record = factory({**base, **extras})
+        if not isinstance(record, ProjectRecord):
+            raise ValueError("record_factory must return a ProjectRecord")
+        if any(getattr(record, name) != value for name, value in base.items()):
+            raise ValueError("record_factory cannot change validated project fields")
     if not store.compare_and_swap(_key(project_id, prefix=prefix), None, record.model_dump(mode="json")):
         raise ValueError(f"project {project_id!r} is already registered -- pick a different project_id")
     return record
@@ -288,6 +306,7 @@ def touch_project_progress(store: Store, project_id: str) -> None:
 __all__ = [
     "ProjectRecord",
     "ProjectStatus",
+    "RecordFactory",
     "adopt_existing_project",
     "close_project",
     "get_project",
