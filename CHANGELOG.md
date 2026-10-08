@@ -52,6 +52,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.10.0] — 2026-10-08
+
+### Added
+- **`lazytools.routing`** — LazyCEO's deterministic model router as a shared package: per-engine/per-model policy, tier catalogue (`default_tiers.toml`), `route()` (parity-tested against LazyCEO), `recommend()` with concurrent quota reads and a 120 s file cache.
+- Code bridge: `route --tier` (dry run), `run --tier`, `--review-of` (opposite-engine review), `--needs images`, session pinning, `models [--probe-claude]` live audit; operator-directed admission for direct work.
+- `engines` extra (`lazybridge[claude-code]`): the Claude Agent SDK that the bridge's Claude engine and Claude quota reading need. A clean install without it failed at the first Claude quota read.
+
 ## [0.9.0] — 2026-10-08
 
 ### Changed
