@@ -371,3 +371,24 @@ def test_result_prints_characters_outside_the_console_codepage(tmp_path, monkeyp
     capsysbinary.readouterr()
     assert main(["result", "arrow", "--db", str(db_path)]) == 0
     assert "→".encode() in capsysbinary.readouterr().out
+
+
+def test_run_refuses_a_job_id_that_is_a_path(tmp_path, monkeypatch, capsys):
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    assert main(_run_args(tmp_path, repo, tmp_path / "s.sqlite", "--job-id", "../report")) == 2
+    assert "job id must be" in capsys.readouterr().err
+    assert not (tmp_path / "report.txt").exists()
+
+
+def test_detach_hint_keeps_the_selected_database(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: 7)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db = tmp_path / "custom.sqlite"
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--task", "x", "--root", str(tmp_path), "--db", str(db)]) == 0
+    assert f'--db "{db}"' in capsys.readouterr().out

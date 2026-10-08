@@ -134,7 +134,8 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
     else:
         print(job_id)
         print(f"detached: pid {pid}, log {log_path}")
-        print(f"wait for it with: lazytools-code-bridge wait {job_id}")
+        db_flag = f' --db "{args.db}"' if args.db else ""
+        print(f"wait for it with: lazytools-code-bridge wait {job_id}{db_flag}")
     return 0
 
 

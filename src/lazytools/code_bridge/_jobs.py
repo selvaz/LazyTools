@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import time
 import uuid
 from collections.abc import Callable
@@ -161,6 +162,10 @@ def run_job(
 
     # A detached launch (`run --detach`) picks the id in the parent so it can
     # report it before the child exists; every other caller gets a fresh one.
+    # A caller-chosen id becomes a file name (<id>.txt, .log, .pid): only a
+    # plain token is accepted, never a path. Found by review.
+    if job_id is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
+        raise ValueError(f"job id must be 1-64 letters, digits, '-' or '_', got {job_id!r}")
     job_id = job_id or new_job_id()
     if on_job_id is not None:
         on_job_id(job_id)
