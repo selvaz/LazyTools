@@ -119,9 +119,11 @@ CORE_TOOLS = frozenset(
         "projects_cost_report",
         "projects_jobs",
         "projects_create",
-        # projects_promote stays out of the default profile until the shared
-        # promotion matches LazyCEO's own (reviewed-digest check, idempotent
-        # re-promotion, injectable reviewer): see docs/projects.md, "Known gaps".
+        # The whole path from draft to runnable: a profile that can create a
+        # project must also be able to review and promote it (promotion now
+        # matches LazyCEO's: reviewed digest, idempotent when already open).
+        "projects_review_plan",
+        "projects_promote",
         "projects_set_owner",
         "projects_set_deadline",
         "projects_add_note",
@@ -205,6 +207,11 @@ class ProjectsTools:
 
         owners = _owners_filter(owner)
         statuses = None if include_closed else _gantt.DEFAULT_STATUSES
+        # A caller-chosen path is a write anywhere the process can write: only
+        # with write access. Read-only, the page goes to the managed directory.
+        # Found by review.
+        if out_path and not self._allow_write:
+            return {"text": "REJECTED: out_path needs a write-enabled provider; omit it to use ~/.lazytools/gantt/", "html_path": ""}
         target = Path(out_path).expanduser() if out_path else Path.home() / ".lazytools" / "gantt" / "gantt.html"
         written = _gantt.write_gantt_html(self._store, target, statuses=statuses, owners=owners)
         text = _gantt.render_gantt_text(self._store, statuses=statuses, owners=owners)
@@ -335,6 +342,10 @@ class ProjectsTools:
         A draft does not run: review its plan with projects_review_plan, then
         projects_promote, before any task can be claimed or delegated.
         """
+        # Validate the owner BEFORE the create-only CAS: afterwards a bad owner
+        # would leave a reserved draft with no owner record. Found by review.
+        if owner not in ("ceo", "claude", "shared"):
+            return f"REJECTED: owner must be one of ceo, claude, shared -- got {owner!r}; nothing was created"
         try:
             record = _records.open_project(
                 self._store,

@@ -579,10 +579,29 @@ def test_unsafe_patterns_cover_the_optimizer_and_depot_writers() -> None:
         assert not unsafe(read), f"{read} wrongly matches an unsafe pattern"
 
 
-def test_projects_core_profile_withholds_promotion_until_it_matches_the_ceo(tmp_path) -> None:
+def test_projects_core_profile_can_take_a_project_from_draft_to_runnable(tmp_path) -> None:
+    """A profile that can create a project must be able to review and promote
+    it, or every project it creates is stuck as a draft."""
     from lazytools.connectors.projects import ProjectsTools
 
     core = {t.name for t in ProjectsTools(store_db=str(tmp_path / "s.sqlite"), profile="core", allow_write=True).as_tools()}
-    full = {t.name for t in ProjectsTools(store_db=str(tmp_path / "s.sqlite"), profile="full", allow_write=True).as_tools()}
-    assert "projects_promote" not in core
-    assert "projects_promote" in full
+    assert {"projects_create", "projects_review_plan", "projects_promote"} <= core
+
+
+def test_projects_create_validates_the_owner_before_reserving_the_id(tmp_path) -> None:
+    from lazytools.connectors.projects import ProjectsTools
+
+    tools = ProjectsTools(store_db=str(tmp_path / "s.sqlite"), allow_write=True)
+    assert tools.projects_create("alpha", "Alpha", "x", owner="bogus").startswith("REJECTED")
+    assert "AS A DRAFT" in tools.projects_create("alpha", "Alpha", "x", owner="claude")
+
+
+def test_projects_gantt_writes_a_caller_path_only_with_write_access(tmp_path) -> None:
+    from lazytools.connectors.projects import ProjectsTools
+
+    target = tmp_path / "elsewhere.html"
+    read_only = ProjectsTools(store_db=str(tmp_path / "s.sqlite"), allow_write=False)
+    assert read_only.projects_gantt(out_path=str(target))["text"].startswith("REJECTED")
+    assert not target.exists()
+    writer = ProjectsTools(store_db=str(tmp_path / "s.sqlite"), allow_write=True)
+    assert writer.projects_gantt(out_path=str(target))["html_path"] == str(target)

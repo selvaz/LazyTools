@@ -80,7 +80,7 @@ def test_mcp_tool_writes_the_page_and_returns_its_path(tmp_path) -> None:
     db = tmp_path / "store.sqlite"
     store = Store(db=str(db))
     _project(store, "alpha", ["a"])
-    tools = ProjectsTools(store_db=str(db))
+    tools = ProjectsTools(store_db=str(db), allow_write=True)  # a caller-chosen out_path needs write access
     assert "projects_gantt" in {t.name for t in tools.as_tools()}  # in the default core profile
     result = tools.projects_gantt(out_path=str(tmp_path / "g.html"))
     from pathlib import Path
