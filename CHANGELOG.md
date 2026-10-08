@@ -10,6 +10,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.9.0] — 2026-10-08
+
+### Changed
+- Requires `lazybridge>=1.8.0` (delegation hooks; `Store` no longer fails with
+  "database is locked" when several bridge jobs open their database at once).
+- Declares `tzdata`: `lazytools.projects` resolves IANA time zones (`UTC`
+  included), and Windows — like minimal Linux containers — has no system zone
+  database, so a clean install failed every schedule/Gantt call with
+  `ZoneInfoNotFoundError`.
+
+### Added
+- **`lazytools.projects`** — LazyCEO's project management as a shared layer over
+  the CEO's Store: records, plans, schedule/timeline, contracts and verifications,
+  intake/promotion, task claims, quota telemetry (incl. Claude's five-hour session
+  window), admission/brake, cost report incl. fleet aggregation. Per-project owner
+  (`ceo` | `claude` | `shared`) and brake switch. Model-free Gantt as HTML and text.
+  MCP provider `projects` (core profile by default, `LAZYTOOLS_PROJECTS_TOOLS=full`).
+- **`lazytools-code-bridge`** — async delegation of coding work to Codex / Claude
+  Code with approvals over a durable ticket queue; `run --detach` + `wait` so a job
+  outlives its launcher; tickets show the real command and reason; web access for
+  both engines.
+
 ## [0.8.1] — 2026-10-01
 
 ### Changed

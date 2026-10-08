@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lazytoolkit"
-version = "0.8.1"
+version = "0.9.0"
 description = "Reusable tool providers, connector clients, and safety wrappers for LazyBridge and LazyPulse agents."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = ["lazybridge>=1.6.2,<2.0"]
+dependencies = ["lazybridge>=1.8.0,<2.0", "tzdata>=2024.1"]
 
 [project.optional-dependencies]
 gmail      = ["google-api-python-client>=2.0,<3.0", "google-auth>=2.0,<3.0", "google-auth-oauthlib>=1.0,<2.0"]
