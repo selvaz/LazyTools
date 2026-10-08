@@ -125,9 +125,9 @@ def _project_svg(view: Any, today: date, *, unplanned_done: bool = False) -> str
         if completed is not None:
             parts.append(f'<circle class="done-mark" cx="{x(completed) + DAY_PX / 2}" cy="{y + ROW_PX / 2}" r="5"/>')
         parts.append("</g>")
-    tx = x(today) + DAY_PX / 2
-    parts.append(f'<line class="today" x1="{tx}" y1="{TOP_PX - 10}" x2="{tx}" y2="{height}"/>')
-    parts.append(f'<text class="today-label" x="{tx + 3}" y="28">oggi</text>')
+    today_x = x(today) + DAY_PX / 2
+    parts.append(f'<line class="today" x1="{today_x}" y1="{TOP_PX - 10}" x2="{today_x}" y2="{height}"/>')
+    parts.append(f'<text class="today-label" x="{today_x + 3}" y="28">oggi</text>')
     parts.append("</svg>")
     return "".join(parts)
 
@@ -241,7 +241,7 @@ def _selected_views(
     store: Any, *, statuses: Sequence[str] | None, owners: Iterable[str] | None, moment: datetime
 ) -> list[tuple[Any, str]]:
     wanted_owners = set(owners) if owners is not None else None
-    views = []
+    views: list[tuple[Any, str]] = []
     for record in _records.list_projects(store):
         if statuses is not None and str(record.status) not in statuses:
             continue
