@@ -147,6 +147,8 @@ revalidates any effort inherited from the selected catalogue entry.
 With `--tier` and a model but no engine, the model restricts routing to its
 provider: allow-listed Codex identifiers select Codex, while `claude-*` and
 known Claude aliases select Claude. An ambiguous model needs an explicit engine.
+Routing scores and admission use the effective override's weekly bucket; the
+routing record retains the catalogue offering alongside the explicit override.
 An absolute-ceiling or telemetry refusal still refuses the automatic route. An engine-only `run`
 retains the existing manual behavior and does not read quota. A `run` with
 neither `--tier` nor `--engine` fails with a clear error.
@@ -169,15 +171,26 @@ these rules. `--needs` and `--review-of` on `run` require a tier.
 Running bridge jobs with a recorded, live PID are counted per engine across the Store and reserve
 quota in the score. Missing, unreadable, stale or exhausted weekly quota
 excludes the engine. After each router pick, the bridge also calls admission
-on the **full reading**, including Codex's 5-hour and Claude's session windows.
-An absolute ceiling on any window excludes that engine and repeats the routing
+on the effective model's weekly bucket plus Codex's account-wide short window
+or Claude's session window. Sonnet/Opus use `weekly/all models`; an explicit
+Fable override uses `weekly/Fable`. Other model-specific buckets are ignored,
+including extra Codex limit buckets regardless of their order in telemetry.
+The bridge filters recommendation inputs too, preserving the shared router's
+matching/scoring rules while retaining raw quota for display.
+An override with no applicable weekly
+telemetry is refused. An absolute ceiling on an applicable window excludes
+that engine and repeats the routing
 calculation with the remaining engines and the same constraints. Every rejected
 pick keeps its admission reason in the routing record. This additional bridge
 gate does not change the shared router's weekly scoring or parity behavior.
 
 If nothing is eligible, human output lists each distinct exclusion once.
-Ordinary failures suggest an engine-only `run --engine E`; a pinned session
-failure suggests a new session. Reviews state why no opposite-engine reviewer
+Ceiling failures name the applicable windows and reset times, and advise waiting
+for quota to reset. Other ordinary failures can suggest an engine-only
+`run --engine E` when no engine/model restriction was already supplied; a pinned
+session failure suggests a new session. Image/session conflicts explain that
+images need Codex and name the session pinned to Claude.
+Reviews state why no opposite-engine reviewer
 is eligible and require human review, without suggesting an unguarded manual review.
 
 Bridge jobs are direct operator work: `route` and `run --tier` use
@@ -187,7 +200,9 @@ shows the projected end-of-window use (including job reservations), its forecast
 limit and a `warning:` line when the projection exceeds that limit. A warning
 about a forecast does not prevent launching. Any window at its ceiling,
 including job reservations, also gets a warning even without reset/forecast
-data; that ceiling prevents launching. Forecasts use the reading's observation time, just
+data; an applicable window's ceiling prevents launching. The quota display
+retains all reported buckets, even those unrelated to the chosen model.
+Forecasts use the reading's observation time, just
 as the router does; unavailable reset/duration data is shown as unavailable.
 
 The bridge has no project attribution today. If it gains attribution, a project

@@ -9,9 +9,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
-- Bridge tier launches admit the full quota reading after the weekly router
-  pick, exclude engines refused on any window and retry with the same
-  constraints. Ceiling warnings include short windows without forecast data.
+- Bridge tier launches admit the effective model's weekly bucket and its
+  engine's short window after the weekly router pick, exclude refused engines
+  and retry with the same constraints. Unrelated Fable/Codex model buckets do
+  not gate the pick; explicit Fable overrides require their own weekly telemetry.
+  Ceiling warnings include short windows without forecast data, and failures
+  report applicable windows/reset times instead of suggesting a manual bypass.
+  Image/session conflicts explain that images need Codex; errors do not suggest
+  supplying an engine when it was already restricted.
 - Quota reads run concurrently and retain failure causes without caching
   failures. Human errors avoid duplicate exclusions and give review/session
   guidance; engine-only launches enforce session pins, dead job PIDs no longer

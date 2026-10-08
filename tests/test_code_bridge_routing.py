@@ -125,6 +125,9 @@ def test_run_launches_selected_model_and_records_decision(bridge, capsys):
 )
 def test_explicit_overrides_win_and_are_recorded(bridge, capsys, extra, model, effort, override):
     script, _, _, db = bridge
+    if model == "fable":
+        reading = bridge[1]["claude_code"]
+        bridge[1]["claude_code"] = replace(reading, windows=(*reading.windows, WindowReading("weekly/Fable", 40, 10080)))
     assert cli.main(args(bridge, "run", *extra, "--json")) == 0
     payload = json.loads(capsys.readouterr().out.splitlines()[-1])
     assert payload["routing"]["override"] == override
@@ -273,17 +276,26 @@ def test_images_require_codex_even_when_claude_has_more_quota(bridge, capsys):
 
 
 @pytest.mark.parametrize("mode", ["missing", "exhausted"])
-def test_no_eligible_provider_explains_both_engines_and_suggests_manual_engine(bridge, capsys, mode):
+def test_no_eligible_provider_explains_both_engines_with_safe_guidance(bridge, capsys, mode):
     if mode == "missing":
         bridge[1].clear()
     else:
         for engine, reading in bridge[1].items():
             bridge[1][engine] = TelemetryReading(
-                engine, reading.source, reading.observed_at, (WindowReading(reading.windows[0].window_id, 100, 10080),)
+                engine, reading.source, reading.observed_at, (replace(reading.windows[0], used_percent=100),)
             )
     assert cli.main(args(bridge, "run")) == 2
     output = capsys.readouterr()
-    assert "--engine" in output.err and "no_eligible_provider" in output.err
+    assert "no_eligible_provider" in output.err
+    if mode == "missing":
+        assert "Try an explicit --engine" in output.err
+    else:
+        assert "--engine" not in output.err
+        assert "Wait for quota to reset" in output.err
+        for reading in bridge[1].values():
+            window = reading.windows[0]
+            assert f"{window.window_id} at 100%" in output.err
+            assert window.resets_at.isoformat() in output.err
     assert "codex:" in output.err and "claude_code:" in output.err
     assert output.err.count("codex:") == 1 and output.err.count("claude_code:") == 1
     assert "excluded" not in output.out
@@ -510,6 +522,7 @@ def test_both_short_windows_exhausted_refuse_and_warn_without_forecast(bridge, c
     assert "projected unavailable" in captured.out and "weekly projected" not in captured.out
     assert captured.err.count("codex:") == 1 and captured.err.count("claude_code:") == 1
     assert "bridge_admission_would_refuse:absolute_ceiling" in captured.err
+    assert "--engine" not in captured.err and "reset unknown" in captured.err
     assert bridge[0].engines == []
 
 
@@ -524,15 +537,185 @@ def test_review_short_ceiling_requires_human_and_never_uses_writer(bridge, capsy
     assert "explicit --engine" not in payload["error"] and bridge[0].engines == []
 
 
-def test_ceiling_on_an_unclassified_window_is_also_warned_and_refused(bridge, capsys):
+def test_unclassified_window_is_displayed_but_does_not_gate_a_model(bridge, capsys):
     _short_windows(bridge, claude_short=0)
     old = bridge[1]["claude_code"]
     bridge[1]["claude_code"] = replace(old, windows=(*old.windows, WindowReading("custom", 100)))
     assert cli.main(args(bridge)) == 0
     out = capsys.readouterr().out
-    assert out.startswith("chosen: codex/")
+    assert out.startswith("chosen: claude/")
     assert "warning: claude other (custom) at 100% used" in out
-    assert "excluded claude_code: bridge_admission_would_refuse:absolute_ceiling" in out
+    assert "bridge_admission_would_refuse:absolute_ceiling" not in out
+
+
+@pytest.mark.parametrize("command,model", [
+    ("route", None), ("run", None), ("run", "claude-sonnet-5-5"),
+    ("run", "claude-opus-5-5"), ("run", "sonnet"), ("run", "opus"),
+])
+@pytest.mark.parametrize("engine", [None, "claude"])
+def test_exhausted_fable_bucket_does_not_block_sonnet_or_opus(bridge, capsys, command, model, engine):
+    _short_windows(bridge, claude_short=5)
+    reading = bridge[1]["claude_code"]
+    bridge[1]["claude_code"] = replace(reading, windows=(*reading.windows, WindowReading("weekly/Fable", 97, 10080)))
+    extra = (["--model", model] if model else []) + (["--engine", engine] if engine else [])
+    assert cli.main(args(bridge, command, *extra, "--json")) == 0
+    payload = json.loads(capsys.readouterr().out.splitlines()[-1])
+    routing = payload["routing"] if command == "run" else payload
+    assert routing["provider"] == "claude_code"
+    assert "claude_code" not in routing["ineligible"]
+    if command == "run":
+        (row,) = _jobs.list_jobs(_store.build_store(bridge[3]), all_jobs=True)
+        assert row["model"] == bridge[0].kwargs["model"] == (model or "claude-sonnet-5-5")
+    else:
+        assert payload["model"] == "claude-sonnet-5-5"
+
+
+def test_catalogue_opus_route_ignores_fable_bucket(bridge, capsys):
+    _short_windows(bridge, claude_short=5)
+    reading = bridge[1]["claude_code"]
+    bridge[1]["claude_code"] = replace(reading, windows=(*reading.windows, WindowReading("weekly/Fable", 97, 10080)))
+    path = bridge[2].parent / "opus.toml"
+    path.write_text(DEFAULT_PATH.read_text().replace("claude-sonnet-5-5", "claude-opus-5-5"))
+    assert cli.main(args(bridge, "route", "--engine", "claude", "--tiers", str(path), "--json")) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["provider"] == "claude_code" and payload["model"] == "claude-opus-5-5"
+
+
+@pytest.mark.parametrize("model", ["fable", " claude-fable-5-5 "])
+def test_explicit_fable_pick_is_blocked_by_its_own_weekly_bucket(bridge, capsys, model):
+    _short_windows(bridge, claude_short=5)
+    reading = bridge[1]["claude_code"]
+    reset = reading.observed_at + timedelta(days=2)
+    bridge[1]["claude_code"] = replace(reading, windows=(*reading.windows, WindowReading("weekly/Fable", 97, 10080, reset)))
+    assert cli.main(args(bridge, "run", "--model", model, "--json")) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["provider"] is None
+    assert "admission_would_refuse:absolute_ceiling" in payload["ineligible"]["claude_code"]
+    assert "weekly/Fable at 97%" in payload["error"] and reset.isoformat() in payload["error"]
+    assert "At ceiling: claude weekly/Fable" in payload["error"]
+    assert "weekly/all models at" not in payload["error"]
+    assert "--engine" not in payload["error"] and bridge[0].engines == []
+
+
+def test_fable_override_requires_its_own_weekly_telemetry(bridge, capsys):
+    assert cli.main(args(bridge, "run", "--model", "claude-fable-5-5", "--json")) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert "no usable weekly window" in payload["ineligible"]["claude_code"]
+    assert "'fable'" in payload["ineligible"]["claude_code"]
+    assert bridge[0].engines == []
+
+
+@pytest.mark.parametrize("command", ["route", "run"])
+@pytest.mark.parametrize("extra_bucket", ["gpt-6-astra", "codex-gpt-6-astra", "codex/gpt-6-astra"])
+@pytest.mark.parametrize("order", ["before", "after"])
+def test_codex_other_model_limit_buckets_do_not_block_the_pick(bridge, capsys, command, extra_bucket, order):
+    reading = bridge[1]["codex"]
+    extra = (WindowReading(f"{extra_bucket}/10080m", 100, 10080),
+        WindowReading(f"{extra_bucket}/300m", 100, 300),
+    )
+    windows = (*extra, *reading.windows) if order == "before" else (*reading.windows, *extra)
+    bridge[1]["codex"] = replace(reading, windows=windows)
+    assert cli.main(args(bridge, command, "--engine", "codex", "--json")) == 0
+    payload = json.loads(capsys.readouterr().out.splitlines()[-1])
+    routing = payload["routing"] if command == "run" else payload
+    assert routing["provider"] == "codex" and "codex" not in routing["ineligible"]
+
+
+@pytest.mark.parametrize("model", ["fable", "claude-fable-5-5"])
+def test_fable_override_uses_its_own_healthy_bucket_when_all_models_is_exhausted(bridge, capsys, model):
+    reading = bridge[1]["claude_code"]
+    bridge[1]["claude_code"] = replace(reading, windows=(
+        replace(reading.windows[0], used_percent=100), replace(reading.windows[1], used_percent=5),
+        WindowReading("weekly/Fable", 10, 10080),
+    ))
+    assert cli.main(args(bridge, "run", "--model", model, "--json")) == 0
+    payload = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert payload["routing"]["provider"] == "claude_code"
+    assert payload["routing"]["model"] == "claude-sonnet-5-5"
+    assert payload["routing"]["override"] == {"model": model}
+    assert payload["routing"]["scores"]["claude_code"]["weekly_position_margin"] == 65
+    assert bridge[0].kwargs["model"] == model
+
+
+@pytest.mark.parametrize("reviewer", ["claude_code", "codex"])
+@pytest.mark.parametrize("exhausted", ["weekly", "both"])
+def test_review_ceiling_error_includes_applicable_windows_and_resets(bridge, capsys, reviewer, exhausted):
+    seed(bridge, "writer", engine="codex" if reviewer == "claude_code" else "claude")
+    reading = bridge[1][reviewer]
+    weekly = replace(reading.windows[0], used_percent=100)
+    short = replace(reading.windows[1], used_percent=100 if exhausted == "both" else 5)
+    bridge[1][reviewer] = replace(reading, windows=(weekly, short))
+    assert cli.main(args(bridge, "run", "--review-of", "writer", "--json")) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["reason"] == "human_review_required"
+    assert "A human review is required" in payload["error"]
+    assert "--engine" not in payload["error"]
+    for window in (weekly, short) if exhausted == "both" else (weekly,):
+        assert f"{window.window_id} at 100%" in payload["error"]
+        assert window.resets_at.isoformat() in payload["error"]
+    assert bridge[0].engines == []
+
+
+@pytest.mark.parametrize("engine", ["claude_code", "codex"])
+def test_post_pick_admission_receives_only_applicable_windows_and_preserves_reading(bridge, monkeypatch, engine):
+    reading = bridge[1][engine]
+    bridge[1][engine] = replace(reading, windows=(*reading.windows, WindowReading("weekly/Fable", 97, 10080)))
+    seen = []
+    original = _routing.decide
+
+    def decide(scoped, budget, **kwargs):
+        seen.append(scoped)
+        return original(scoped, budget, **kwargs)
+
+    monkeypatch.setattr(_routing, "decide", decide)
+    selection = _routing.choose("writing", cwd=str(bridge[2]), db_path=bridge[3], engine=_routing.bridge_engine(engine))
+    assert selection.decision.provider == engine
+    (scoped,) = seen
+    assert scoped == reading  # Its source, timestamp and applicable windows survive.
+    assert selection.readings[engine] == bridge[1][engine]  # Reporting retains raw telemetry.
+
+
+@pytest.mark.parametrize("engine", ["codex", "claude"])
+@pytest.mark.parametrize("command", ["route", "run"])
+def test_ceiling_error_lists_all_applicable_windows_and_resets_without_manual_hint(bridge, capsys, engine, command):
+    native = _routing.provider(engine)
+    reading = bridge[1][native]
+    weekly, short = (replace(window, used_percent=100) for window in reading.windows)
+    unrelated = WindowReading("weekly/Fable" if native == "claude_code" else "codex-other/10080m", 100, 10080)
+    bridge[1][native] = replace(reading, windows=(weekly, short, unrelated))
+    assert cli.main(args(bridge, command, "--engine", engine, "--json")) == 2
+    payload = json.loads(capsys.readouterr().out)
+    error = payload["error"]
+    assert "Wait for quota to reset" in error and "--engine" not in error
+    for window in (weekly, short):
+        assert f"{window.window_id} at 100%" in error
+        assert window.resets_at.isoformat() in error
+    assert unrelated.window_id not in error
+    assert bridge[0].engines == []
+
+
+@pytest.mark.parametrize("restriction", [["--engine", "claude"], ["--model", "claude-opus-5-5"]])
+def test_requested_engine_failure_does_not_suggest_requesting_an_engine_again(bridge, capsys, restriction):
+    bridge[1].clear()
+    assert cli.main(args(bridge, "run", *restriction, "--json")) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert "telemetry_missing" in payload["error"]
+    assert "Try an explicit --engine" not in payload["error"]
+
+
+@pytest.mark.parametrize("command", ["route", "run"])
+@pytest.mark.parametrize("json_output", [False, True])
+def test_images_with_explicit_claude_and_pinned_session_reports_capability_conflict(bridge, monkeypatch, capsys, command, json_output):
+    seed(bridge, "old", engine="claude", session="conversation")
+    monkeypatch.setattr(_routing, "read_readings", lambda: pytest.fail("read quota despite capability/session conflict"))
+    extra = ["--engine", "claude", "--session", "conversation", "--needs", "images"]
+    assert cli.main(args(bridge, command, *extra, *(["--json"] if json_output else []))) == 2
+    captured = capsys.readouterr()
+    error = json.loads(captured.out)["error"] if json_output else captured.err
+    assert "images need codex" in error
+    assert "Session 'conversation' is pinned to claude" in error
+    assert "new --session" in error and "the requested codex engine" not in error
+    assert bridge[0].engines == []
 
 
 def test_real_failure_causes_reach_human_error_once_per_engine(bridge, monkeypatch, capsys):
