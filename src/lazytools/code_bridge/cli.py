@@ -518,7 +518,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _utf8_output() -> None:
+    """Never crash printing a result: a Windows console defaults to a legacy
+    codepage, and an engine's answer routinely carries characters it lacks
+    (arrows, accents). Found live: `result` died on a "→"."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _utf8_output()
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)

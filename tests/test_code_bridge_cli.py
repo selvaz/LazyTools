@@ -356,3 +356,18 @@ def test_detach_hands_the_child_absolute_root_cwd_and_task_paths(tmp_path, monke
     assert Path(argv[argv.index("--root") + 1]).is_absolute()
     assert Path(argv[argv.index("--cwd") + 1]) == repo.resolve()
     assert argv[argv.index("--task") + 1] == "@" + str(brief.resolve())
+
+
+def test_result_prints_characters_outside_the_console_codepage(tmp_path, monkeypatch, capsysbinary):
+    """A legacy Windows codepage cannot encode "→"; printing a result with one
+    used to raise UnicodeEncodeError instead of showing it."""
+    _env(monkeypatch, tmp_path)
+    script = fakes.install(monkeypatch)
+    script.text = "fatto → consegnato"
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db_path = tmp_path / "store.sqlite"
+    assert main(_run_args(tmp_path, repo, db_path, "--job-id", "arrow")) == 0
+    capsysbinary.readouterr()
+    assert main(["result", "arrow", "--db", str(db_path)]) == 0
+    assert "→".encode() in capsysbinary.readouterr().out
