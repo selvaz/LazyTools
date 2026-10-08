@@ -213,3 +213,26 @@ def test_claude_reading_with_only_a_session_window_is_still_usable(monkeypatch):
     reading = asyncio.run(quota_telemetry._read_claude(datetime.now(UTC)))
     assert reading.error is None
     assert [w.window_id for w in reading.windows] == ["session"]
+
+
+def test_project_preflight_agrees_with_project_admit_for_a_brake_disabled_project() -> None:
+    """The no-reservation check must not refuse what admission would allow:
+    a brake-disabled project's reading carries no windows, and the bare
+    preflight called that 'telemetry_unreadable'."""
+    store = Store()
+    brake.set_project_brake_enabled(store, "alpha", False)
+    budget = admission.EngineBudget(engine="codex", ceiling_percent=95.0)
+    reading = admission.TelemetryReading(engine="codex", source="project brake disabled", observed_at=datetime.now(UTC))
+    decision = admission.project_preflight(store, "alpha", budget=budget, reading=reading)
+    assert decision.allowed is True
+    assert decision.reason == "project_brake_disabled"
+    assert admission.in_flight_count(store, "codex") == 0  # nothing reserved
+
+
+def test_project_preflight_defers_to_preflight_when_brake_enabled() -> None:
+    store = Store()
+    budget = admission.EngineBudget(engine="codex", ceiling_percent=95.0)
+    reading = admission.TelemetryReading(engine="codex", source="test", observed_at=datetime.now(UTC), error="unreachable")
+    decision = admission.project_preflight(store, "alpha", budget=budget, reading=reading)
+    assert decision.allowed is False
+    assert decision.reason == "telemetry_unreadable"

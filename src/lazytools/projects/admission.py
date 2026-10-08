@@ -491,6 +491,41 @@ def project_admit(
     return admit(store, budget=budget, reading=reading, operator_directed=operator_directed, review=review, now=now, prefix=admission_prefix)
 
 
+def project_preflight(
+    store: Store,
+    project_id: str,
+    *,
+    budget: EngineBudget,
+    reading: TelemetryReading,
+    operator_directed: bool = False,
+    now: datetime | None = None,
+    admission_prefix: str = ADMISSION_PREFIX,
+) -> AdmissionDecision:
+    """``preflight``, gated by this PROJECT's own brake switch -- the
+    no-reservation twin of :func:`project_admit`.
+
+    Without it a caller deciding whether to ask a human first got the bare
+    :func:`preflight`, which judged a brake-disabled project on a reading
+    with no windows and refused it as "telemetry_unreadable" -- the opposite
+    of what :func:`project_admit` then does for the same project. Found by
+    review.
+    """
+    from lazytools.projects.brake import get_project_brake_enabled
+
+    moment = now or datetime.now(UTC)
+    if not get_project_brake_enabled(store, project_id):
+        return AdmissionDecision(
+            allowed=True,
+            reason="project_brake_disabled",
+            engine=budget.engine,
+            operator_directed=operator_directed,
+            decided_at=moment,
+            telemetry_source=reading.source,
+            detail=f"project {project_id!r} has the quota brake switched off",
+        )
+    return preflight(store, budget=budget, reading=reading, operator_directed=operator_directed, now=now, prefix=admission_prefix)
+
+
 __all__ = [
     "ADMISSION_PREFIX",
     "AdmissionDecision",
@@ -507,6 +542,7 @@ __all__ = [
     "decide",
     "in_flight_count",
     "preflight",
+    "project_preflight",
     "project_admit",
     "release",
     "shadow_findings",
