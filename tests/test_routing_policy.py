@@ -161,3 +161,36 @@ def test_empty_provider_table_is_rejected(tmp_path):
     path.write_text("[basic]\n[[basic.steps]]\n[writing]\n[thinking]\n[critical]\n")
     with pytest.raises(ModelTiersError, match="no providers"):
         load_tiers(path)
+
+
+@pytest.mark.parametrize("model", CODEX_MODELS)
+def test_default_model_efforts_match_live_codex_capabilities(model):
+    allowed = DEFAULT_POLICY.efforts_for("codex", model)
+    assert allowed == EFFORTS["codex"][:5] if model.endswith("-luna") else allowed == EFFORTS["codex"]
+    assert DEFAULT_POLICY.reject_effort(" max ", engine="codex", model=f" {model} ") is None
+    rejection = DEFAULT_POLICY.reject_effort("ultra", engine="codex", model=model)
+    assert (rejection is not None) == model.endswith("-luna")
+    if rejection:
+        assert model in rejection
+
+
+def test_custom_model_efforts_and_engine_fallback():
+    policy = replace(DEFAULT_POLICY, codex_model_efforts={"custom": ("high",)})
+    assert policy.reject_effort("medium", engine="codex", model="custom") is not None
+    assert policy.reject_effort(" high ", engine="codex", model=" custom ") is None
+    assert policy.reject_effort("ultra", engine="codex", model="unknown") is None
+    assert policy.reject_effort("ultra", engine="codex") is None
+    assert policy.reject_effort("ultra", engine="claude_code", model="custom") is not None
+    assert replace(policy, codex_model_efforts={}).reject_effort("medium", engine="codex", model="custom") is None
+
+
+@pytest.mark.parametrize("model", ["gpt-6-luna", "gpt-5.6-luna"])
+def test_catalogue_uses_model_specific_efforts(tmp_path, model):
+    path = tmp_path / "tiers.toml"
+    text = files("lazytools.routing").joinpath("default_tiers.toml").read_text()
+    text = text.replace("gpt-6.1-sol", model).replace('effort = "medium"', 'effort = "ultra"')
+    path.write_text(text)
+    with pytest.raises(ModelTiersError, match=model):
+        load_tiers(path)
+    path.write_text(text.replace('effort = "ultra"', 'effort = "max"'))
+    assert load_tiers(path)["basic"].steps[0].providers[0].effort == "max"

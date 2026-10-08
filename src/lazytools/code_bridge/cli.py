@@ -21,6 +21,7 @@ from typing import Any
 
 from lazytools.code_bridge import _jobs, _routing, _store
 from lazytools.code_bridge._lockfile import LockHeld
+from lazytools.routing.policy import DEFAULT_POLICY
 
 
 def _read_task(raw: str) -> str:
@@ -165,6 +166,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 _routing.print_selection(selection)
         elif args.needs or args.review_of:
             raise ValueError("--needs and --review-of require --tier")
+        elif args.effort is not None:
+            rejection = DEFAULT_POLICY.reject_effort(args.effort, engine=_routing.provider(args.engine), model=args.model)
+            if rejection is not None:
+                raise ValueError(rejection)
+            args.effort = args.effort.strip()
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -260,6 +266,27 @@ def _cmd_route(args: argparse.Namespace) -> int:
         if selection.decision.provider is None:
             print(f"error: {selection.error()}", file=sys.stderr)
     return 0 if selection.decision.provider is not None else 2
+
+
+def _cmd_models(args: argparse.Namespace) -> int:
+    from lazytools.code_bridge import _models
+
+    try:
+        report = _models.inspect_models(
+            tiers_path=Path(args.tiers).expanduser() if args.tiers else None,
+            probe_claude=args.probe_claude,
+        )
+    except (OSError, ValueError) as exc:
+        if args.json:
+            _print_json({"models": [], "probe_claude": args.probe_claude, "mismatches": [], "errors": [str(exc)]})
+        else:
+            print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        _print_json(report)
+    else:
+        _models.print_report(report)
+    return 2 if report["mismatches"] or report["errors"] else 0
 
 
 def _cmd_jobs(args: argparse.Namespace) -> int:
@@ -550,6 +577,15 @@ def build_parser() -> argparse.ArgumentParser:
     route_p.add_argument("--json", action="store_true")
     _add_db_option(route_p)
     route_p.set_defaults(func=_cmd_route)
+
+    models_p = sub.add_parser("models", help="Read live model availability and audit the catalogue and default policy.")
+    models_p.add_argument("--tiers", default=None, help="Catalogue path (default: ~/.lazytools/model_tiers.toml or packaged catalogue).")
+    models_p.add_argument(
+        "--probe-claude", action="store_true",
+        help="Opt in to a one-turn Claude probe per catalogue model plus sonnet/opus aliases; consumes a small amount of quota.",
+    )
+    models_p.add_argument("--json", action="store_true")
+    models_p.set_defaults(func=_cmd_models)
 
     wait_p = sub.add_parser("wait", help="Block until a job ends (or its process dies), then print its outcome.")
     wait_p.add_argument("job_id")

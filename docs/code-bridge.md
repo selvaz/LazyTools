@@ -138,7 +138,12 @@ only by an explicit `--model` override.
 
 `--engine codex` or `--engine claude` with a tier restricts the eligible
 engines. Explicit `--model` and `--effort` replace the selected values, are
-validated against the chosen engine, and are recorded in `routing.override`.
+validated against the chosen engine and effective model, and are recorded in
+`routing.override`. Known Codex models have their own effort sets: both Luna
+models support `low` through `max`, without `ultra`. Models without a specific
+set use the policy's engine-wide fallback. The catalogue and explicit `--effort`
+checks use the same policy, including engine-only runs. A model override also
+revalidates any effort inherited from the selected catalogue entry.
 An absolute-ceiling or telemetry refusal still refuses the automatic route. An engine-only `run`
 retains the existing manual behavior and does not read quota. A `run` with
 neither `--tier` nor `--engine` fails with a clear error.
@@ -193,6 +198,54 @@ existing job-id-first protocol for foreground runs and includes the routing
 record in the final JSON; detached JSON includes it in the launch record.
 Detached children use the parent's frozen decision, without a second quota
 read or a different pick.
+
+## Check live model availability
+
+```console
+lazytools-code-bridge models
+lazytools-code-bridge models --probe-claude
+lazytools-code-bridge models --tiers /path/to/model_tiers.toml --probe-claude --json
+```
+
+`models` reads Codex App Server's `model/list` after the same
+`initialize` → `initialized` handshake used for quota. It starts no Codex
+thread or turn and spends no Codex quota. The table shows the offered model
+ids, supported reasoning efforts, default model flag and default effort.
+Hidden models returned by the server are marked as hidden.
+
+Claude has no model-list endpoint. Without `--probe-claude`, its availability
+is shown as unknown and no Claude turn runs. **The opt-in probe consumes a
+small amount of quota:** it asks `Reply with just: ok` once for each distinct
+Claude model in the active catalogue, plus `sonnet` and `opus`. Each probe uses
+JSON output and `--max-turns 1`, with tools disabled and session persistence
+disabled, in an empty temporary directory. The CLI is resolved from the
+Agent SDK's bundled executable first, matching the bridge's Claude engine,
+then from PATH or the native installation under `~/.local/bin`.
+
+The table records the model that actually answered (`modelUsage`), along with
+any `unrecognized_model` stderr diagnostic. A successful answer with that
+diagnostic remains available. Alias resolution is reported explicitly:
+`sonnet` can resolve to `claude-sonnet-5` even when the full
+`claude-sonnet-5-5` identifier also works. Claude effort capabilities and the
+default flag remain unknown; an availability probe does not verify them.
+
+The audit cross-checks every catalogue entry and the default policy against
+Codex's live model/effort sets, reports policy models missing from the server,
+new offered models missing from policy, and differences in either direction
+between policy and live effort sets. With Claude probing enabled, failed
+catalogue probes and concrete model identifiers that answer as another model
+are reported too. The audit loads structurally valid catalogue entries even
+when normal routing validation would reject them, so it can report every
+capability mismatch instead of stopping at the first one. It changes no
+catalogue, policy, bridge job or session.
+
+The active catalogue follows the same `--tiers`, home override, packaged
+default precedence as routing. Codex discovery has a 30-second deadline;
+each Claude probe has a 60-second deadline. Exit code is **0** when the
+checked capabilities match, **2** for mismatches or discovery/probe errors.
+Without Claude probing, exit 0 covers Codex and local policy checks only.
+`--json` emits one object with `models`, `probe_claude`, `mismatches` and
+`errors`; unknown capabilities are `null`.
 
 ## What is gated, and how
 

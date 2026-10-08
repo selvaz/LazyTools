@@ -1,7 +1,8 @@
 """Model and effort validation shared by catalogue consumers.
 
-Defaults preserve the original account allow-list exactly, including case-sensitive
-Codex identifiers, trimmed efforts, and Claude's other-provider deny-list.
+Defaults preserve the original account allow-list, including case-sensitive
+Codex identifiers, trimmed efforts, and Claude's other-provider deny-list. Known
+per-model effort limits refine the engine-wide fallback.
 """
 
 from __future__ import annotations
@@ -38,13 +39,23 @@ EFFORTS: dict[str, tuple[str, ...]] = {
     "claude_code": ("low", "medium", "high", "xhigh", "max"),
 }
 
+CODEX_MODEL_EFFORTS: dict[str, tuple[str, ...]] = {
+    model: tuple(effort for effort in EFFORTS["codex"] if effort != "ultra" or not model.endswith("-luna"))
+    for model in CODEX_MODELS
+}
+
 
 @dataclass(frozen=True)
 class ModelPolicy:
-    """A caller may supply its own allowed Codex models and effort levels."""
+    """Allowed models, engine effort fallbacks, and optional Codex model limits.
+
+    A custom policy can leave ``codex_model_efforts`` empty to use only its
+    engine sets. The default policy supplies the live-verified model sets.
+    """
 
     codex_models: tuple[str, ...] = CODEX_MODELS
     efforts: Mapping[str, tuple[str, ...]] = field(default_factory=lambda: dict(EFFORTS))
+    codex_model_efforts: Mapping[str, tuple[str, ...]] = field(default_factory=lambda: dict(CODEX_MODEL_EFFORTS))
 
     def reject_model(self, engine: Engine, model: str | None, *, fails_when: str = "when the job starts") -> str | None:
         if engine == "codex":
@@ -61,11 +72,21 @@ class ModelPolicy:
             return f"REJECTED: {model!r} looks like a non-Anthropic model -- this runs on ClaudeCodeEngine, so this would report success now and only fail later, {fails_when}. Use an Anthropic model (e.g. 'sonnet', 'opus', 'haiku') or omit it to use the default."
         return None
 
-    def reject_effort(self, effort: str | None, *, engine: str) -> str | None:
+    def efforts_for(self, engine: str, model: str | None = None) -> tuple[str, ...]:
+        """Use a known Codex model's limits, otherwise the engine-wide set."""
+        if engine == "codex" and model is not None:
+            known = self.codex_model_efforts.get(model.strip())
+            if known is not None:
+                return known
+        return self.efforts[engine]
+
+    def reject_effort(self, effort: str | None, *, engine: str, model: str | None = None) -> str | None:
         if effort is None:
             return None
-        if effort.strip() not in self.efforts[engine]:
-            return f"REJECTED: effort {effort!r} is not one of {', '.join(self.efforts[engine])} for this engine -- omit it to use the default."
+        allowed = self.efforts_for(engine, model)
+        if effort.strip() not in allowed:
+            target = f"model {model.strip()!r}" if engine == "codex" and model is not None and model.strip() in self.codex_model_efforts else "this engine"
+            return f"REJECTED: effort {effort!r} is not one of {', '.join(allowed)} for {target} -- omit it to use the default."
         return None
 
     def reject_codex_model(self, model: str | None, *, fails_when: str) -> str | None:

@@ -148,9 +148,12 @@ def choose(
     )
     override = {}
     if decision.provider is not None:
+        effective_model = model.strip() if model is not None else decision.model
         for value, rejection in (
             (model, DEFAULT_POLICY.reject_model(decision.provider, model)),
-            (effort, DEFAULT_POLICY.reject_effort(effort, engine=decision.provider)),
+            (effort if effort is not None else decision.effort,
+             DEFAULT_POLICY.reject_effort(effort if effort is not None else decision.effort,
+                                          engine=decision.provider, model=effective_model)),
         ):
             if value is not None and rejection is not None:
                 raise ValueError(rejection)

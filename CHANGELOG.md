@@ -9,6 +9,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- Codex effort validation uses per-model capabilities in catalogues and bridge
+  overrides. Both Luna models support `low` through `max`, without `ultra`;
+  unknown model capabilities fall back to the engine's effort set.
 - Bridge tier routing uses operator-directed admission for its direct work:
   autonomous-boundary and forecast breaches are informational, while absolute
   ceilings and telemetry failures still exclude engines. Forecast margins still
@@ -16,6 +19,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   `route()`/`recommend()` default to autonomous admission for LazyCEO parity.
 
 ### Added
+- **Bridge `models` command:** reads Codex App Server model/effort capabilities
+  and audits the active catalogue and default policy. Optional `--probe-claude`
+  uses one tool-free turn per catalogue model and `sonnet`/`opus` alias, reports
+  the answering model and `unrecognized_model` warnings, and consumes a small
+  amount of quota. Human and JSON output report every mismatch; exit 2 on
+  mismatches or discovery/probe errors.
 - **`lazytools.routing`** — shared deterministic tier router, model/effort policy,
   validated catalogue, and live quota adapter with per-engine timeouts and an
   atomic 120-second file cache. The packaged Claude Code catalogue can be

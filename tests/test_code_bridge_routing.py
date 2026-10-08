@@ -408,3 +408,47 @@ def test_unavailable_forecasts_are_labelled_without_warning(bridge, capsys):
     out = capsys.readouterr().out
     assert "projected unavailable" in out
     assert "warning:" not in out
+
+
+@pytest.mark.parametrize("model", ["gpt-6-luna", "gpt-5.6-luna"])
+@pytest.mark.parametrize("routed", [False, True])
+def test_explicit_effort_uses_effective_model_before_any_launch(bridge, capsys, model, routed):
+    argv = args(bridge, "run", "--engine", "codex", "--model", model, "--effort", "ultra")
+    if not routed:
+        del argv[1:3]
+    assert cli.main(argv) == 2
+    assert model in capsys.readouterr().err
+    assert bridge[0].engines == []
+    assert _jobs.list_jobs(_store.build_store(bridge[3]), all_jobs=True) == []
+    argv[argv.index("ultra")] = " max "
+    assert cli.main(argv) == 0
+    assert bridge[0].kwargs["reasoning_effort"] == "max"
+
+
+def test_effort_override_is_checked_against_catalogue_pick(bridge, monkeypatch, capsys):
+    catalogue = load_tiers(DEFAULT_PATH)
+    from dataclasses import replace
+
+    from lazytools.routing.catalogue import StepModel
+
+    basic = catalogue["basic"]
+    catalogue["basic"] = replace(basic, steps=(replace(basic.steps[0], providers=(StepModel("codex", "gpt-6-luna", "high"),)),))
+    monkeypatch.setattr(_routing, "load_default_tiers", lambda: catalogue)
+    argv = args(bridge, "run", "--effort", "ultra")
+    argv[argv.index("writing")] = "basic"
+    assert cli.main(argv) == 2
+    assert "gpt-6-luna" in capsys.readouterr().err
+    assert bridge[0].engines == []
+
+
+def test_model_override_revalidates_inherited_effort(bridge, monkeypatch, capsys):
+    from dataclasses import replace
+
+    catalogue = load_tiers(DEFAULT_PATH)
+    writing = catalogue["writing"]
+    step = writing.steps[0]
+    catalogue["writing"] = replace(writing, steps=(replace(step, providers=(replace(step.providers[0], effort="ultra"),)),))
+    monkeypatch.setattr(_routing, "load_default_tiers", lambda: catalogue)
+    assert cli.main(args(bridge, "run", "--model", "gpt-6-luna")) == 2
+    assert "ultra" in capsys.readouterr().err
+    assert bridge[0].engines == []

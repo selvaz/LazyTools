@@ -74,11 +74,11 @@ def _validate_model(provider: Engine, model: str, *, tier: str, step_index: int,
         raise ModelTiersError(f"{where}: {rejection}")
 
 
-def _validate_effort(provider: Engine, effort: str | None, *, tier: str, step_index: int, policy: ModelPolicy) -> None:
+def _validate_effort(provider: Engine, effort: str | None, *, model: str, tier: str, step_index: int, policy: ModelPolicy) -> None:
 
     if effort is None:
         return
-    rejection = policy.reject_effort(effort, engine=provider)
+    rejection = policy.reject_effort(effort, engine=provider, model=model)
     if rejection is not None:
         raise ModelTiersError(f"{tier}.steps[{step_index}].providers.{provider}: {rejection}")
 
@@ -115,7 +115,7 @@ def _parse_step(raw: Any, *, tier: str, step_index: int, policy: ModelPolicy) ->
         if effort is not None and not isinstance(effort, str):
             raise ModelTiersError(f"{tier}.steps[{step_index}].providers.{provider_name}.effort must be a string")
         _validate_model(provider, model.strip(), tier=tier, step_index=step_index, policy=policy)
-        _validate_effort(provider, effort, tier=tier, step_index=step_index, policy=policy)
+        _validate_effort(provider, effort, model=model.strip(), tier=tier, step_index=step_index, policy=policy)
         models.append(StepModel(provider=provider, model=model.strip(), effort=effort))
     return TierStep(providers=tuple(models), description=description)
 
