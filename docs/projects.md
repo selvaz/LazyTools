@@ -238,12 +238,32 @@ Claude telemetry includes the five-hour session window.
 
 ## Installing a reviewed plan
 
-`intake.install_project_plan(store, project_id, *, objective, tasks) -> str | None`
+`intake.install_project_plan(store, project_id, *, objective, tasks, current_digest=None) -> str | None`
 uses whole-board CAS. Identical reasoning and task text are a no-op. A different
 plan replaces an empty or untouched board. Claims, done/failed statuses,
 previous attempts (including tasks returned to todo), owners and recorded work
 prevent replacement; refusals name the started tasks. Promotion uses this helper
 and remains draft on refusal. Existing board keys and task shapes are unchanged.
+
+`intake.promote_project(store, project_id, *, current_digest) -> str | None`
+provides the digest-only transition: callers install intake fields and the plan
+first. It checks the review and fences the status CAS against that exact record.
+Matching open records return `None`; paused/done records refuse.
+`promote_project_plan` also verifies that an open project's board matches before
+returning idempotent success. `install_project_plan` can check the current review
+immediately before each board CAS with `current_digest`.
+
+`async intake.review_and_promote_project_plan(store, project_id, *,
+observable_result, deadline, subtasks, reviewer, reviewer_kwargs=None) -> str`
+runs the checklist before invoking the async reviewer. The callable receives
+`observable_result`, flattened `acceptance_criteria`, `required_checks=[]`,
+`allowed_effects` and `store`, plus caller context (such as `root`). It returns
+`(findings: list[str], performed: bool)`. Findings or a review that did not run
+refuse; the review is recorded only if the project stayed unchanged while
+awaiting. The plan is copied before review. Matching open plans skip the reviewer.
+The package never selects or calls a model. Hooks propagate exceptions; retries
+must re-read state. Project and board keys remain separate, so these guards are
+best-effort across keys rather than a multi-key transaction.
 
 ## Not exposed, by design
 

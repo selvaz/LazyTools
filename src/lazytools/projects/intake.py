@@ -21,6 +21,8 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections.abc import Awaitable, Callable, Mapping
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
     from lazybridge import Store
 
 MINIMUM_SUBTASKS = 2
+PlanReviewer = Callable[..., Awaitable[tuple[list[str], bool]]]
 
 _EMPTY_ASSURANCES = (
     "works correctly",
@@ -178,6 +181,31 @@ def record_project_review(
     return _apply(store, project_id, {"reviewed_digest": reviewed_digest}, allowed_from=("draft",))
 
 
+def promote_project(store: Store, project_id: str, *, current_digest: str) -> str | None:
+    """Digest-only status transition; None on success, including matching open records.
+
+    Callers install the reviewed plan and intake fields first. The winning CAS
+    is fenced against the exact project record whose review was checked.
+    """
+    from lazytools.projects.records import ProjectRecord, _key
+
+    key = _key(project_id)
+    raw = store.read(key)
+    if not isinstance(raw, dict):
+        return f"REJECTED: no project named {project_id!r}"
+    record = ProjectRecord.model_validate(raw)
+    if record.status not in ("draft", "open"):
+        return f"REJECTED: project is {record.status!r}, not a draft"
+    refusal = promotion_refusal(reviewed_digest=record.reviewed_digest, current_digest=current_digest)
+    if refusal is not None:
+        return refusal
+    if record.status == "open":
+        return None
+    if not store.compare_and_swap(key, raw, record.model_copy(update={"status": "open"}).model_dump(mode="json")):
+        return "REJECTED: the project changed while it was being promoted -- read it again and retry"
+    return None
+
+
 def _apply_intake_fields(
     store: Store, project_id: str, *, observable_result: str, deadline: str, acceptance_criteria: list[str] | None = None
 ) -> bool:
@@ -190,7 +218,7 @@ def _apply_intake_fields(
     return _apply(store, project_id, updates, allowed_from=("draft", "open"))
 
 
-def install_project_plan(store: Store, project_id: str, *, objective: str, tasks: list[str]) -> str | None:
+def install_project_plan(store: Store, project_id: str, *, objective: str, tasks: list[str], current_digest: str | None = None) -> str | None:
     """Install or replace an untouched plan with whole-board CAS; None means success.
 
     An identical plan is a no-op, preserving claims, results and schedules.
@@ -222,6 +250,13 @@ def install_project_plan(store: Store, project_id: str, *, objective: str, tasks
             "reasoning": objective.strip(), "created_at": moment, "updated_at": moment,
             "tasks": [_fresh_task(text) for text in tasks], "schedule_events": [],
         }
+        if current_digest is not None:
+            project = get_project(store, project_id)
+            if project is None or project.objective != objective or project.status != "draft":
+                return "REJECTED: the project changed while installing the reviewed plan"
+            refusal = promotion_refusal(reviewed_digest=project.reviewed_digest, current_digest=current_digest)
+            if refusal is not None:
+                return refusal
         if store.compare_and_swap(key, raw, updated):
             return None
     return "REJECTED: the board changed while installing the plan -- read it again and retry"
@@ -246,6 +281,8 @@ def promote_project_plan(
     record = get_project(store, project_id)
     if record is None:
         return f"REJECTED: no project named {project_id!r} -- call open_project first"
+    if record.status not in ("draft", "open"):
+        return f"REJECTED: project is {record.status!r}, not a draft"
 
     verdict = check_project_intake(
         objective=record.objective, observable_result=observable_result, deadline=deadline, subtasks=subtasks
@@ -260,30 +297,85 @@ def promote_project_plan(
     if refusal is not None:
         return refusal
 
+    if record.status == "open":
+        from lazybridge.ext.planners import DurableBlackboard
+
+        board = DurableBlackboard(store, plan_id=f"project:{project_id}").snapshot()
+        if board.reasoning != record.objective.strip() or [t.get("text") for t in board.tasks] != [str(s["text"]) for s in subtasks]:
+            return "REJECTED: the open project's board does not match the reviewed plan"
+        return f"promoted project {project_id!r} to open with the reviewed plan installed: {len(subtasks)} subtask(s), each with acceptance criteria"
+
     criteria = [str(c) for s in subtasks for c in s.get("acceptance_criteria", [])]
     if not _apply_intake_fields(store, project_id, observable_result=observable_result, deadline=deadline, acceptance_criteria=criteria):
         return "REJECTED: the project changed while it was being promoted -- read it again and retry"
 
-    refusal = install_project_plan(store, project_id, objective=record.objective, tasks=[str(s["text"]) for s in subtasks])
+    refusal = install_project_plan(store, project_id, objective=record.objective, tasks=[str(s["text"]) for s in subtasks], current_digest=digest)
     if refusal is not None:
         return refusal
 
-    if not _apply(store, project_id, {"status": "open"}, allowed_from=("draft",)):
-        return "REJECTED: the project changed while it was being promoted -- read it again and retry"
+    refusal = promote_project(store, project_id, current_digest=digest)
+    if refusal is not None:
+        return refusal
     return (
         f"promoted project {project_id!r} to open with the reviewed plan installed: "
         f"{len(subtasks)} subtask(s), each with acceptance criteria"
     )
 
 
+async def review_and_promote_project_plan(
+    store: Store, project_id: str, *, observable_result: str, deadline: str,
+    subtasks: list[dict[str, Any]], reviewer: PlanReviewer,
+    reviewer_kwargs: Mapping[str, Any] | None = None,
+) -> str:
+    """Run the free checklist, then an injected async reviewer, then promotion.
+
+    The reviewer returns (findings, performed). Outages and findings refuse.
+    No model/provider is selected here. Additional reviewer context is supplied
+    by the caller; the reviewed arguments cannot be overridden through it.
+    """
+    from lazytools.projects.records import _key
+
+    raw = store.read(_key(project_id))
+    record = get_project(store, project_id)
+    if record is None:
+        return f"REJECTED: no project named {project_id!r} -- call open_project first"
+    if record.status == "open":
+        return promote_project_plan(store, project_id, observable_result=observable_result, deadline=deadline, subtasks=subtasks)
+    if record.status != "draft":
+        return f"REJECTED: project is {record.status!r}, not a draft"
+    plan = deepcopy(subtasks)
+    verdict = check_project_intake(objective=record.objective, observable_result=observable_result, deadline=deadline, subtasks=plan)
+    if not verdict.ok:
+        return verdict.rejection_text()
+    digest = plan_digest(objective=record.objective, observable_result=observable_result, deadline=deadline, subtasks=plan)
+    criteria = [str(c) for s in plan for c in s.get("acceptance_criteria", [])]
+    findings, performed = await reviewer(
+        **{**(reviewer_kwargs or {}), "observable_result": observable_result,
+           "acceptance_criteria": criteria, "required_checks": [],
+           "allowed_effects": f"work inside the {project_id} project", "store": store},
+    )
+    if findings or not performed:
+        detail = "\n".join(f"  - {finding}" for finding in findings)
+        label = "the review rejected these criteria" if performed else "the review could not be performed"
+        return f"REJECTED: {label}.\n{detail}\nThe project stays a draft. Nothing was started, so nothing was spent."
+    # Do not attach the review to a record changed while the reviewer awaited.
+    reviewed = record.model_copy(update={"reviewed_digest": digest})
+    if not store.compare_and_swap(_key(project_id), raw, reviewed.model_dump(mode="json")):
+        return "REJECTED: the project changed while it was being reviewed -- read it again and retry"
+    return promote_project_plan(store, project_id, observable_result=observable_result, deadline=deadline, subtasks=plan)
+
+
 __all__ = [
     "IntakeVerdict",
     "MINIMUM_SUBTASKS",
+    "PlanReviewer",
     "check_project_intake",
     "install_project_plan",
     "parse_deadline",
     "plan_digest",
     "promote_project_plan",
+    "promote_project",
     "promotion_refusal",
     "record_project_review",
+    "review_and_promote_project_plan",
 ]
