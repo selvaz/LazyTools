@@ -19,8 +19,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _jobs, _store
+from lazytools.code_bridge import _jobs, _routing, _store
 from lazytools.code_bridge._lockfile import LockHeld
+from lazytools.routing.policy import DEFAULT_POLICY
 
 
 def _read_task(raw: str) -> str:
@@ -80,6 +81,8 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
         argv += ["--root", args.root]
     if args.db:
         argv += ["--db", args.db]
+    if getattr(args, "routing", None) is not None:
+        argv += ["--routing-record", json.dumps(args.routing)]
     return argv
 
 
@@ -130,7 +133,7 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
     pid = _spawn_detached(_child_argv(args, job_id), log_path)
     (out_dir / f"{job_id}.pid").write_text(str(pid), encoding="utf-8")
     if args.json:
-        _print_json({"job_id": job_id, "pid": pid, "log": str(log_path)})
+        _print_json({"job_id": job_id, "pid": pid, "log": str(log_path), **({"routing": args.routing} if getattr(args, "routing", None) else {})})
     else:
         print(job_id)
         print(f"detached: pid {pid}, log {log_path}")
@@ -140,9 +143,45 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    try:
+        if args.engine is None and args.tier is None:
+            raise ValueError("run requires --tier T or --engine E; choose a tier for quota-aware routing or an explicit engine")
+        task = _read_task(args.task)
+        args.routing = json.loads(args.routing_record) if args.routing_record else None
+        if not args.tier and args.session:
+            from lazytools.code_bridge import _engines
+
+            resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
+            _routing.check_session_engine(cwd=str(resolved_cwd), session=args.session,
+                                          engine=args.engine, db_path=_db_path(args))
+        if args.tier:
+            from lazytools.code_bridge import _engines
+
+            resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
+            selection = _select(args, cwd=str(resolved_cwd))
+            if selection.decision.provider is None:
+                if args.json:
+                    _print_json({**selection.payload(), "error": selection.error()})
+                else:
+                    _routing.print_selection(selection)
+                    print(f"error: {selection.error()}", file=sys.stderr)
+                return 2
+            args.engine = _routing.bridge_engine(selection.decision.provider)
+            args.model, args.effort, args.routing = selection.model, selection.effort, selection.record()
+            if not args.json:
+                _routing.print_selection(selection)
+        elif args.needs or args.review_of:
+            raise ValueError("--needs and --review-of require --tier")
+        elif args.effort is not None:
+            rejection = DEFAULT_POLICY.reject_effort(args.effort, engine=_routing.provider(args.engine), model=args.model)
+            if rejection is not None:
+                raise ValueError(rejection)
+            args.effort = args.effort.strip()
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if args.detach:
         return _cmd_run_detached(args)
-    task = _read_task(args.task)
     job_id_holder: dict[str, str] = {}
 
     def _announce(job_id: str) -> None:
@@ -161,6 +200,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             db_path=_db_path(args),
             on_job_id=_announce,
             job_id=args.job_id,
+            routing=args.routing,
         )
     except LockHeld as exc:
         print(str(exc), file=sys.stderr)
@@ -176,6 +216,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 "status": result.status,
                 "result_path": str(result.result_path) if result.result_path else None,
                 "error": result.error,
+                **({"routing": args.routing} if args.routing else {}),
             }
         )
     else:
@@ -198,7 +239,60 @@ def _job_line(job: dict[str, Any]) -> str:
     status = job.get("status", "?")
     cwd = job.get("cwd", "?")
     objective = str(job.get("objective") or "")[:80]
-    return f"{short_id}  {engine:<6}  {status:<16}  {cwd}  {objective}"
+    routing = job.get("routing") or {}
+    details = f"tier={routing.get('tier') or '-'} model={job.get('model') or 'default'} effort={job.get('effort') or 'default'}"
+    return f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}"
+
+
+def _select(args: argparse.Namespace, *, cwd: str) -> _routing.Selection:
+    return _routing.choose(
+        args.tier, cwd=cwd, db_path=_db_path(args), engine=args.engine, session=args.session,
+        needs=args.needs, review_of=args.review_of, model=getattr(args, "model", None),
+        effort=getattr(args, "effort", None),
+        tiers_path=Path(args.tiers).expanduser() if args.tiers else None,
+    )
+
+
+def _cmd_route(args: argparse.Namespace) -> int:
+    try:
+        cwd = Path(args.cwd).expanduser().resolve()
+        if not cwd.is_dir():
+            raise ValueError(f"--cwd must name an existing directory: {cwd}")
+        selection = _select(args, cwd=str(cwd))
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        payload = selection.payload()
+        if selection.decision.provider is None:
+            payload["error"] = selection.error()
+        _print_json(payload)
+    else:
+        _routing.print_selection(selection)
+        if selection.decision.provider is None:
+            print(f"error: {selection.error()}", file=sys.stderr)
+    return 0 if selection.decision.provider is not None else 2
+
+
+def _cmd_models(args: argparse.Namespace) -> int:
+    from lazytools.code_bridge import _models
+
+    try:
+        report = _models.inspect_models(
+            tiers_path=Path(args.tiers).expanduser() if args.tiers else None,
+            probe_claude=args.probe_claude,
+        )
+    except (OSError, ValueError) as exc:
+        if args.json:
+            _print_json({"models": [], "probe_claude": args.probe_claude, "mismatches": [], "errors": [str(exc)]})
+        else:
+            print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        _print_json(report)
+    else:
+        _models.print_report(report)
+    return 2 if report["mismatches"] or report["errors"] else 0
 
 
 def _cmd_jobs(args: argparse.Namespace) -> int:
@@ -444,6 +538,13 @@ def _cmd_reject(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 
 
+def _add_routing_options(parser: argparse.ArgumentParser, *, required: bool = False) -> None:
+    parser.add_argument("--tier", choices=["basic", "writing", "thinking", "critical"], required=required)
+    parser.add_argument("--tiers", default=None, help="Catalogue TOML (default: ~/.lazytools/model_tiers.toml or packaged ladder).")
+    parser.add_argument("--needs", choices=["images"], default=None, help="Require image capability (Codex only).")
+    parser.add_argument("--review-of", default=None, metavar="JOB", help="Choose the engine opposite this bridge job's writer.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lazytools-code-bridge",
@@ -452,7 +553,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     run_p = sub.add_parser("run", help="Run one coding-engine job to completion in this process.")
-    run_p.add_argument("--engine", choices=list(_jobs.ENGINES), required=True)
+    run_p.add_argument("--engine", choices=list(_jobs.ENGINES))
+    _add_routing_options(run_p)
     run_p.add_argument("--cwd", required=True, help="Repository (or subdirectory) to work in.")
     run_p.add_argument("--task", required=True, help="Task text, or @path/to/file.")
     run_p.add_argument("--session", default=None, help="Durable session alias to create/resume.")
@@ -469,8 +571,30 @@ def build_parser() -> argparse.ArgumentParser:
         "print its id and return at once. Follow it with `wait`.",
     )
     run_p.add_argument("--job-id", default=None, help=argparse.SUPPRESS)
+    run_p.add_argument("--routing-record", default=None, help=argparse.SUPPRESS)
     _add_db_option(run_p)
     run_p.set_defaults(func=_cmd_run)
+
+    route_p = sub.add_parser("route", help="Explain a quota-aware pick; launch nothing.")
+    route_p.add_argument("--engine", choices=list(_jobs.ENGINES))
+    _add_routing_options(route_p, required=True)
+    route_p.add_argument("--cwd", default=".", help="Repository used to resolve session history (default: cwd).")
+    route_p.add_argument("--session", default=None)
+    # Same overrides as `run`, so the exact pick (bucket, provider, effort check) can be dry-run.
+    route_p.add_argument("--model", default=None)
+    route_p.add_argument("--effort", default=None)
+    route_p.add_argument("--json", action="store_true")
+    _add_db_option(route_p)
+    route_p.set_defaults(func=_cmd_route)
+
+    models_p = sub.add_parser("models", help="Read live model availability and audit the catalogue and default policy.")
+    models_p.add_argument("--tiers", default=None, help="Catalogue path (default: ~/.lazytools/model_tiers.toml or packaged catalogue).")
+    models_p.add_argument(
+        "--probe-claude", action="store_true",
+        help="Opt in to a one-turn Claude probe per catalogue model plus sonnet/opus aliases; consumes a small amount of quota.",
+    )
+    models_p.add_argument("--json", action="store_true")
+    models_p.set_defaults(func=_cmd_models)
 
     wait_p = sub.add_parser("wait", help="Block until a job ends (or its process dies), then print its outcome.")
     wait_p.add_argument("job_id")

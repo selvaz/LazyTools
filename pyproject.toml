@@ -99,6 +99,10 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/lazytools"]
 
+# Keep the default ladder available in wheels, including builds from a clean checkout.
+[tool.hatch.build.targets.wheel.force-include]
+"src/lazytools/routing/default_tiers.toml" = "lazytools/routing/default_tiers.toml"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Without this, `lazytools` resolves through whatever editable install the

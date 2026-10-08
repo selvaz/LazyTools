@@ -147,6 +147,7 @@ def run_job(
     db_path: Path | None = None,
     on_job_id: Callable[[str], None] | None = None,
     job_id: str | None = None,
+    routing: dict[str, Any] | None = None,
 ) -> RunResult:
     """Run one job to completion. Raises before any job is recorded for a
     bad engine name or a ``cwd`` outside the confinement root; raises
@@ -238,6 +239,7 @@ def run_job(
                 "pid": os.getpid(),
                 "created_at": now,
                 "updated_at": now,
+                **({"routing": routing} if routing is not None else {}),
             },
         )
 

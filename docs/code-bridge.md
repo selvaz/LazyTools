@@ -97,6 +97,200 @@ the finished result from.
 everything this bridge knows about, for a session that lost track of a job
 id.
 
+## Choose a model from quota
+
+Preview a choice without launching a job:
+
+```console
+lazytools-code-bridge route --tier writing --cwd /path/to/repo
+lazytools-code-bridge route --tier thinking --cwd /path/to/repo --json
+```
+
+The human output starts with the engine, model, effort, winning rung (numbered
+from 1), and reason. It includes each engine's weekly and 5-hour percentages
+and reset times, forecasts and informational warning lines, plus every exclusion. JSON includes the decision, scores,
+exclusions, telemetry timestamps, quota windows and any session notice.
+`route` creates no job and launches no coding engine.
+
+Use the same computation to launch work:
+
+```console
+lazytools-code-bridge run --tier basic --cwd /path/to/repo --task @brief.md --session fixes
+lazytools-code-bridge run --detach --tier writing --engine codex --cwd /path/to/repo --task @brief.md
+lazytools-code-bridge run --tier thinking --needs images --cwd /path/to/repo --task @brief.md
+lazytools-code-bridge run --tier writing --review-of JOB_ID --cwd /path/to/repo --task @review.md
+```
+
+| Tier | Rung 1 | Rung 2 | Rung 3 |
+| --- | --- | --- | --- |
+| `basic` | Sol 6.1 medium / Sonnet 5.5 medium | | |
+| `writing` | Sol 6.1 high / Sonnet 5.5 high | Sol 6.1 xhigh / Opus 5.5 high | |
+| `thinking` | Sol 6.1 xhigh / Opus 5.5 medium | Opus 5.5 high | Astra high |
+| `critical` | Opus 5.5 high / Astra high | Opus 5.5 max / Astra xhigh | |
+
+The router walks the ladder in order and picks from the first rung with an
+eligible engine. It ranks weekly admission margins, using its preserved
+5-hour tie-break and then provisional API-price/provider ordering for exact
+ties. For parity with the original router, Claude's 5-hour session window is
+displayed but does not contribute to its score. These are capability ladders;
+there is no per-model subscription-quota cost estimate. Fable is available
+only by an explicit `--model` override.
+
+`--engine codex` or `--engine claude` with a tier restricts the eligible
+engines. Explicit `--model` and `--effort` replace the selected values, are
+validated against the chosen engine and effective model, and are recorded in
+`routing.override`. Known Codex models have their own effort sets: both Luna
+models support `low` through `max`, without `ultra`. Models without a specific
+set use the policy's engine-wide fallback. The catalogue and explicit `--effort`
+checks use the same policy, including engine-only runs. A model override also
+revalidates any effort inherited from the selected catalogue entry.
+With `--tier` and a model but no engine, the model restricts routing to its
+provider: allow-listed Codex identifiers select Codex, while `claude-*` and
+known Claude aliases select Claude. An ambiguous model needs an explicit engine.
+Routing scores and admission use the effective override's weekly bucket; the
+routing record retains the catalogue offering alongside the explicit override.
+An absolute-ceiling or telemetry refusal still refuses the automatic route. An engine-only `run`
+retains the existing manual behavior and does not read quota. A `run` with
+neither `--tier` nor `--engine` fails with a clear error.
+
+`--session NAME` already used by a bridge job in the same repository pins
+the engine to that conversation's engine. The router receives the number of
+consecutive session failures; after two, output suggests a new `--session`.
+The existing conversation still cannot migrate engines. A session alias
+in another repository does not pin this one.
+Engine-only and detached launches enforce the same session pin. A conflict
+names the session and its engine and suggests a new `--session`; it fails
+before reading quota or launching a process.
+
+`--review-of JOB` (full id or unique prefix) allows only the engine opposite
+the writer. If that reviewer is ineligible, the command fails with
+`human_review_required`. `--needs images` permits only Codex. Conflicting
+engine, session, review and capability constraints cannot silently relax
+these rules. `--needs` and `--review-of` on `run` require a tier.
+
+Running bridge jobs with a recorded, live PID are counted per engine across the Store and reserve
+quota in the score. Missing, unreadable, stale or exhausted weekly quota
+excludes the engine. After each router pick, the bridge also calls admission
+on the effective model's weekly bucket plus Codex's account-wide short window
+or Claude's session window. Sonnet/Opus use `weekly/all models`; an explicit
+Fable override uses `weekly/Fable`. Other model-specific buckets are ignored,
+including extra Codex limit buckets regardless of their order in telemetry.
+The bridge filters recommendation inputs too, preserving the shared router's
+matching/scoring rules while retaining raw quota for display.
+An override with no applicable weekly
+telemetry is refused. An absolute ceiling on an applicable window excludes
+that engine and repeats the routing
+calculation with the remaining engines and the same constraints. Every rejected
+pick keeps its admission reason in the routing record. This additional bridge
+gate does not change the shared router's weekly scoring or parity behavior.
+
+If nothing is eligible, human output lists each distinct exclusion once.
+Ceiling failures name the applicable windows and reset times, and advise waiting
+for quota to reset. Other ordinary failures can suggest an engine-only
+`run --engine E` when no engine/model restriction was already supplied; a pinned
+session failure suggests a new session. Image/session conflicts explain that
+images need Codex and name the session pinned to Claude.
+Reviews state why no opposite-engine reviewer
+is eligible and require human review, without suggesting an unguarded manual review.
+
+Bridge jobs are direct operator work: `route` and `run --tier` use
+`operator_directed=True`, so the autonomous boundary and forecast brake do
+not block them. Forecast margins still rank eligible engines, and human output
+shows the projected end-of-window use (including job reservations), its forecast
+limit and a `warning:` line when the projection exceeds that limit. A warning
+about a forecast does not prevent launching. Any window at its ceiling,
+including job reservations, also gets a warning even without reset/forecast
+data; an applicable window's ceiling prevents launching. The quota display
+retains all reported buckets, even those unrelated to the chosen model.
+Forecasts use the reading's observation time, just
+as the router does; unavailable reset/duration data is shown as unavailable.
+
+The bridge has no project attribution today. If it gains attribution, a project
+whose brake is enabled must use autonomous admission at the routing call.
+The shared `route()` and `recommend()` APIs keep `operator_directed=False`
+by default, preserving LazyCEO's autonomous behavior and parity.
+
+Both engines' quota is read concurrently, with a 45-second timeout per engine,
+so two slow reads share the same wait. A file cache
+at `~/.lazytools/quota-cache.json` shares successful readings between CLI
+processes for at most 120 seconds; writes are atomic. A corrupt, missing,
+expired or unwritable cache does not prevent fresh reads, and failed reads
+never become spare capacity. Failed readings retain the provider's real cause
+(for example, a timeout or missing login) in decisions, JSON and human errors,
+and are never cached. `LAZYTOOLS_QUOTA_CACHE` overrides the cache path.
+
+The default catalogue is shipped in the wheel. `~/.lazytools/model_tiers.toml`,
+when present, replaces it; `--tiers PATH` on `route` or `run` takes precedence.
+A bad override fails visibly. All four tiers must be present, each rung must
+name at least one provider (`codex` or `claude_code`), and model/effort values
+must satisfy `lazytools.routing.ModelPolicy`.
+
+The first human launch line explains the chosen model and reason. Job records
+retain `routing` (tier, original pick, reason, scores, exclusions, rung and
+overrides), while `model`/`effort` store the values actually launched.
+`status` and `jobs` display the tier, model and effort. `--json` retains the
+existing job-id-first protocol for foreground runs and includes the routing
+record in the final JSON; detached JSON includes it in the launch record.
+Detached children use the parent's frozen decision, without a second quota
+read or a different pick.
+
+## Check live model availability
+
+```console
+lazytools-code-bridge models
+lazytools-code-bridge models --probe-claude
+lazytools-code-bridge models --tiers /path/to/model_tiers.toml --probe-claude --json
+```
+
+`models` reads Codex App Server's `model/list` after the same
+`initialize` → `initialized` handshake used for quota. It starts no Codex
+thread or turn and spends no Codex quota. The table shows the offered model
+ids, supported reasoning efforts, default model flag and default effort.
+Hidden models returned by the server are marked as hidden.
+
+Claude has no model-list endpoint. Without `--probe-claude`, its availability
+is shown as unknown and no Claude turn runs. **The opt-in probe consumes a
+small amount of quota:** it asks `Reply with just: ok` once for each distinct
+Claude model in the active catalogue, plus `sonnet` and `opus`. Each probe uses
+JSON output and `--max-turns 1`, with tools disabled and session persistence
+disabled, in an empty temporary directory. `--strict-mcp-config` loads no MCP
+servers, `--setting-sources ""` skips user/project/local settings, and
+`--safe-mode` disables hooks and customizations (these flags were checked in
+the installed CLI's help). The CLI is resolved from the
+Agent SDK's bundled executable first, matching the bridge's Claude engine,
+then from PATH or the native installation under `~/.local/bin`.
+
+The table records the model that actually answered (`modelUsage`), along with
+any `unrecognized_model` stderr diagnostic. A successful answer with that
+diagnostic remains available. Alias resolution is reported explicitly:
+`sonnet` can resolve to `claude-sonnet-5` even when the full
+`claude-sonnet-5-5` identifier also works. Claude effort capabilities and the
+default flag remain unknown; an availability probe does not verify them.
+
+The audit cross-checks every catalogue entry and the default policy against
+Codex's live model/effort sets, reports policy models missing from the server,
+new offered models missing from policy, and differences in either direction
+between policy and live effort sets. With Claude probing enabled, failed
+catalogue probes and concrete model identifiers that answer as another model
+are reported too. The audit loads structurally valid catalogue entries even
+when normal routing validation would reject them, so it can report every
+capability mismatch instead of stopping at the first one. It changes no
+catalogue, policy, bridge job or session.
+
+The active catalogue follows the same `--tiers`, home override, packaged
+default precedence as routing. Codex discovery has a 30-second deadline;
+each Claude probe has a 60-second deadline. A probe timeout kills the whole
+process tree on Windows (the process group on
+POSIX), and every cleanup communication/wait has a five-second deadline.
+On Windows the CLI is created suspended, assigned to a private kill-on-close
+Job Object and then resumed. Cleanup retains ownership of descendants even
+when the CLI has already exited while a descendant holds the output pipe open.
+Exit code is **0** when the
+checked capabilities match, **2** for mismatches or discovery/probe errors.
+Without Claude probing, exit 0 covers Codex and local policy checks only.
+`--json` emits one object with `models`, `probe_claude`, `mismatches` and
+`errors`; unknown capabilities are `null`.
+
 ## What is gated, and how
 
 Both engines can use the web: Claude Code gets `WebSearch`/`WebFetch`

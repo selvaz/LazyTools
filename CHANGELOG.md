@@ -8,6 +8,48 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Bridge tier launches admit the effective model's weekly bucket and its
+  engine's short window after the weekly router pick, exclude refused engines
+  and retry with the same constraints. Unrelated Fable/Codex model buckets do
+  not gate the pick; explicit Fable overrides require their own weekly telemetry.
+  Ceiling warnings include short windows without forecast data, and failures
+  report applicable windows/reset times instead of suggesting a manual bypass.
+  Image/session conflicts explain that images need Codex; errors do not suggest
+  supplying an engine when it was already restricted.
+- Quota reads run concurrently and retain failure causes without caching
+  failures. Human errors avoid duplicate exclusions and give review/session
+  guidance; engine-only launches enforce session pins, dead job PIDs no longer
+  reserve quota, and explicit tier models infer and restrict the engine.
+- Claude model probes disable MCP servers, settings and hooks; timeout cleanup
+  kills the process tree and bounds every subsequent wait on Windows.
+- Codex effort validation uses per-model capabilities in catalogues and bridge
+  overrides. Both Luna models support `low` through `max`, without `ultra`;
+  unknown model capabilities fall back to the engine's effort set.
+- Bridge tier routing uses operator-directed admission for its direct work:
+  autonomous-boundary and forecast breaches are informational, while absolute
+  ceilings and telemetry failures still exclude engines. Forecast margins still
+  rank choices, and human output shows forecasts and warning lines. Shared
+  `route()`/`recommend()` default to autonomous admission for LazyCEO parity.
+
+### Added
+- **Bridge `models` command:** reads Codex App Server model/effort capabilities
+  and audits the active catalogue and default policy. Optional `--probe-claude`
+  uses one tool-free turn per catalogue model and `sonnet`/`opus` alias, reports
+  the answering model and `unrecognized_model` warnings, and consumes a small
+  amount of quota. Human and JSON output report every mismatch; exit 2 on
+  mismatches or discovery/probe errors.
+- **`lazytools.routing`** — shared deterministic tier router, model/effort policy,
+  validated catalogue, and live quota adapter with per-engine timeouts and an
+  atomic 120-second file cache. The packaged Claude Code catalogue can be
+  replaced by `~/.lazytools/model_tiers.toml`.
+- **Quota-aware code bridge:** `route --tier T` explains a dry-run choice and
+  both engines' weekly/session quota; `run --tier T` launches that choice.
+  Engine restrictions, explicit model/effort overrides, image capability,
+  session engine pinning and consecutive-failure notices, opposite-engine
+  reviews, and routing metadata are supported. `status`/`jobs` show the
+  tier, model and effort. Detached launches retain the parent's decision.
+
 ---
 
 ## [0.9.0] — 2026-10-08
