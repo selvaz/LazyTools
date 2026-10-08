@@ -161,3 +161,234 @@ def test_request_detail_surfaces_the_real_codex_command_and_reason():
     }
     assert _request_detail("[TieredGate] agent asks to run Bash\n  arguments: not json") == {}
     assert _request_detail("no arguments line at all") == {}
+
+
+# --------------------------------------------------------------------------- #
+# run --detach / wait
+# --------------------------------------------------------------------------- #
+
+
+def _run_args(tmp_path, repo, db_path, *extra):
+    return ["run", "--engine", "codex", "--cwd", str(repo), "--task", "do it", "--root", str(tmp_path), "--db", str(db_path), *extra]
+
+
+def test_run_with_job_id_records_the_job_under_that_id(tmp_path, monkeypatch, capsys):
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db_path = tmp_path / "store.sqlite"
+
+    assert main(_run_args(tmp_path, repo, db_path, "--job-id", "fixedid123")) == 0
+    assert capsys.readouterr().out.splitlines()[0] == "fixedid123"
+    assert main(["status", "fixedid123", "--db", str(db_path), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "done"
+
+
+def test_detach_spawns_a_child_with_the_same_job_and_reports_it(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    seen: dict = {}
+
+    def fake_spawn(argv, log_path):
+        seen["argv"], seen["log"] = argv, log_path
+        return 4242
+
+    monkeypatch.setattr(cli, "_spawn_detached", fake_spawn)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db_path = tmp_path / "store.sqlite"
+
+    code = main(_run_args(tmp_path, repo, db_path, "--detach", "--session", "s1", "--json"))
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    argv = seen["argv"]
+    assert argv[1:4] == ["-m", "lazytools.code_bridge", "run"]
+    assert argv[argv.index("--job-id") + 1] == payload["job_id"]
+    assert argv[argv.index("--session") + 1] == "s1"
+    assert "--detach" not in argv  # the child runs in the foreground of its own process
+    assert payload["pid"] == 4242
+    pid_file = _store.results_dir(db_path) / f"{payload['job_id']}.pid"
+    assert pid_file.read_text(encoding="utf-8") == "4242"
+
+
+def test_detach_refuses_a_missing_task_file_before_spawning(tmp_path, monkeypatch):
+    import lazytools.code_bridge.cli as cli
+
+    monkeypatch.setattr(cli, "_spawn_detached", lambda *a: (_ for _ in ()).throw(AssertionError("spawned")))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    args = _run_args(tmp_path, repo, tmp_path / "s.sqlite", "--detach")
+    args[args.index("do it")] = "@" + str(tmp_path / "missing.md")
+    assert main(args) == 2  # reported by the launcher, never left to an unwatched child
+
+
+def test_spawn_detached_really_starts_an_independent_process(tmp_path):
+    import sys
+    import time
+
+    from lazytools.code_bridge.cli import _spawn_detached
+
+    marker = tmp_path / "ran.txt"
+    pid = _spawn_detached([sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ok')"], tmp_path / "child.log")
+    assert pid > 0
+    for _ in range(200):
+        if marker.exists():
+            break
+        time.sleep(0.05)
+    assert marker.read_text() == "ok"
+
+
+def test_wait_returns_the_outcome_once_the_job_is_terminal(tmp_path, monkeypatch, capsys):
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db_path = tmp_path / "store.sqlite"
+    assert main(_run_args(tmp_path, repo, db_path, "--job-id", "waitme")) == 0
+    capsys.readouterr()
+
+    assert main(["wait", "waitme", "--db", str(db_path), "--interval", "0.01"]) == 0
+    assert "[done] job waitme" in capsys.readouterr().out
+
+
+def test_wait_reports_a_job_whose_process_died(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge._lockfile as lockfile
+    from lazytools.code_bridge import _store as store_mod
+
+    db_path = tmp_path / "store.sqlite"
+    store = store_mod.build_store(db_path)
+    store_mod.build_job_registry(store).write("ghost", "x", tool_name="codex", status="running")
+    (store_mod.results_dir(db_path) / "ghost.pid").write_text("999999", encoding="utf-8")
+    monkeypatch.setattr(lockfile, "_pid_alive", lambda pid: False)
+
+    assert main(["wait", "ghost", "--db", str(db_path), "--interval", "0.01", "--json"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["status"] == "died" and out["last_status"] == "running"
+
+
+def test_wait_times_out_with_exit_3(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge._lockfile as lockfile
+    from lazytools.code_bridge import _store as store_mod
+
+    db_path = tmp_path / "store.sqlite"
+    store = store_mod.build_store(db_path)
+    store_mod.build_job_registry(store).write("slow", "x", tool_name="codex", status="running")
+    (store_mod.results_dir(db_path) / "slow.pid").write_text("1", encoding="utf-8")
+    monkeypatch.setattr(lockfile, "_pid_alive", lambda pid: True)
+
+    assert main(["wait", "slow", "--db", str(db_path), "--interval", "0.01", "--timeout", "0.05"]) == 3
+
+
+def test_request_detail_survives_an_elided_arguments_payload():
+    """TieredGate cuts long arguments in the middle, leaving invalid JSON; the
+    command and reason that came before the cut must still be shown."""
+    from lazytools.code_bridge.cli import _request_detail
+
+    head = json.dumps({"kind": "command", "reason": "Run the tests outside the sandbox?", "command": "pytest -q tests"})[:-1]
+    prompt = (
+        "[TieredGate] agent asks to run command 'codex-shell'\n"
+        f"  arguments: {head}, \"proposedExecpolicyAmendment\": [\"powershell.exe\", \"-Comm\n"
+        "  [...82 characters elided...]\n"
+        "  cwd: C:\\repo"
+    )
+    assert _request_detail(prompt) == {"command": "pytest -q tests", "reason": "Run the tests outside the sandbox?"}
+
+
+def test_request_detail_when_the_cut_goes_through_the_command_itself():
+    """The motivating case: the COMMAND is what is too long, so the real
+    elide() splices its marker inside it. The reason (earlier in the payload)
+    must come through whole, and the command up to the cut, marked as cut."""
+    from lazybridge._display import elide
+
+    from lazytools.code_bridge.cli import CUT_MARK, _request_detail
+
+    long_command = "powershell -Command '$env:PYTHONPATH=" + "C:\\very\\long\\path;" * 400 + "; pytest -q tests'"
+    payload = json.dumps({"kind": "command", "reason": "Run the suite outside the sandbox?", "command": long_command})
+    prompt = "[TieredGate] agent asks to run command 'codex-shell'\n  arguments: " + elide(payload, 3000) + "\n  cwd: C:\repo"
+
+    detail = _request_detail(prompt)
+    assert detail["reason"] == "Run the suite outside the sandbox?"
+    assert detail["command"].startswith("powershell -Command '$env:PYTHONPATH=C:")
+    assert detail["command"].endswith(CUT_MARK)
+
+
+def test_run_refuses_a_job_id_that_already_exists(tmp_path, monkeypatch, capsys):
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db_path = tmp_path / "store.sqlite"
+    assert main(_run_args(tmp_path, repo, db_path, "--job-id", "dupe")) == 0
+    capsys.readouterr()
+
+    assert main(_run_args(tmp_path, repo, db_path, "--job-id", "dupe")) == 2
+    assert "already exists" in capsys.readouterr().err
+
+
+def test_detach_refuses_a_cwd_outside_the_root_before_spawning(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    monkeypatch.setattr(cli, "_spawn_detached", lambda *a: (_ for _ in ()).throw(AssertionError("spawned")))
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    args = ["run", "--detach", "--engine", "codex", "--cwd", str(outside), "--task", "x", "--root", str(root), "--db", str(tmp_path / "s.sqlite")]
+    assert main(args) == 2
+    assert "outside" in capsys.readouterr().err
+
+
+def test_detach_hands_the_child_absolute_root_cwd_and_task_paths(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    seen: dict = {}
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    brief = tmp_path / "brief.md"
+    brief.write_text("do it", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", "repo", "--task", "@brief.md", "--root", ".", "--db", str(tmp_path / "s.sqlite")]) == 0
+    argv = seen["argv"]
+    from pathlib import Path
+
+    assert Path(argv[argv.index("--root") + 1]).is_absolute()
+    assert Path(argv[argv.index("--cwd") + 1]) == repo.resolve()
+    assert argv[argv.index("--task") + 1] == "@" + str(brief.resolve())
+
+
+def test_result_prints_characters_outside_the_console_codepage(tmp_path, monkeypatch, capsysbinary):
+    """A legacy Windows codepage cannot encode "→"; printing a result with one
+    used to raise UnicodeEncodeError instead of showing it."""
+    _env(monkeypatch, tmp_path)
+    script = fakes.install(monkeypatch)
+    script.text = "fatto → consegnato"
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db_path = tmp_path / "store.sqlite"
+    assert main(_run_args(tmp_path, repo, db_path, "--job-id", "arrow")) == 0
+    capsysbinary.readouterr()
+    assert main(["result", "arrow", "--db", str(db_path)]) == 0
+    assert "→".encode() in capsysbinary.readouterr().out
+
+
+def test_run_refuses_a_job_id_that_is_a_path(tmp_path, monkeypatch, capsys):
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    assert main(_run_args(tmp_path, repo, tmp_path / "s.sqlite", "--job-id", "../report")) == 2
+    assert "job id must be" in capsys.readouterr().err
+    assert not (tmp_path / "report.txt").exists()
+
+
+def test_detach_hint_keeps_the_selected_database(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: 7)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    db = tmp_path / "custom.sqlite"
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--task", "x", "--root", str(tmp_path), "--db", str(db)]) == 0
+    assert f'--db "{db}"' in capsys.readouterr().out

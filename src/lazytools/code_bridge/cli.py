@@ -12,7 +12,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -52,7 +55,93 @@ def _print_json(payload: Any) -> None:
 # --------------------------------------------------------------------------- #
 
 
+#: Statuses a job record can end in. A record still "running" or
+#: "awaiting_approval" whose process is gone is reported as died by `wait`.
+_TERMINAL = ("done", "failed", "interrupted")
+
+# Windows process-creation flags for a child that must outlive its launcher:
+# no console tie to the parent, its own process group (so a Ctrl+C or a
+# console close aimed at the launcher does not reach it), and out of the
+# launcher's job object when that object allows it -- a job object is what
+# lets a supervising process (e.g. a Claude Code background shell being
+# reaped) take its whole tree down with it.
+_DETACHED_PROCESS = 0x00000008
+_CREATE_NEW_PROCESS_GROUP = 0x00000200
+_CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+
+
+def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
+    argv = [sys.executable, "-m", "lazytools.code_bridge", "run", "--engine", args.engine, "--cwd", args.cwd]
+    argv += ["--task", args.task, "--job-id", job_id]
+    for flag, value in (("--session", args.session), ("--model", args.model), ("--effort", args.effort)):
+        if value:
+            argv += [flag, value]
+    if args.root:
+        argv += ["--root", args.root]
+    if args.db:
+        argv += ["--db", args.db]
+    return argv
+
+
+def _spawn_detached(argv: list[str], log_path: Path) -> int:
+    """Start ``argv`` as a process that survives this one and its supervisor."""
+    log = open(log_path, "ab")  # noqa: SIM115 -- handed to the child, closed below
+    try:
+        common: dict[str, Any] = {"stdin": subprocess.DEVNULL, "stdout": log, "stderr": subprocess.STDOUT, "close_fds": True}
+        if os.name == "nt":
+            flags = _DETACHED_PROCESS | _CREATE_NEW_PROCESS_GROUP
+            try:
+                proc = subprocess.Popen(argv, creationflags=flags | _CREATE_BREAKAWAY_FROM_JOB, **common)
+            except OSError:
+                # The launcher's job object forbids breakaway: still detach
+                # from its console and process group, which is what a
+                # console close or Ctrl+C reaches.
+                proc = subprocess.Popen(argv, creationflags=flags, **common)
+        else:
+            proc = subprocess.Popen(argv, start_new_session=True, **common)
+        return proc.pid
+    finally:
+        log.close()
+
+
+def _cmd_run_detached(args: argparse.Namespace) -> int:
+    # Everything the child would refuse is checked HERE, where the caller sees
+    # it: a detached child's error only reaches its log file. Found live -- a
+    # --cwd outside the default root (the launcher's own cwd) died in the
+    # child with nothing but "process gone" to show for it.
+    from lazytools.code_bridge import _engines
+    from lazytools.connectors.code_support._claude_review import _build_root
+
+    try:
+        _read_task(args.task)
+        root = _build_root(args.root)
+        resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    # Hand the child absolute paths, so nothing depends on its working directory.
+    args.root = str(root)
+    args.cwd = str(resolved_cwd)
+    if args.task.startswith("@"):
+        args.task = "@" + str(Path(args.task[1:]).expanduser().resolve())
+    job_id = _jobs.new_job_id()
+    out_dir = _store.results_dir(_db_path(args))
+    log_path = out_dir / f"{job_id}.log"
+    pid = _spawn_detached(_child_argv(args, job_id), log_path)
+    (out_dir / f"{job_id}.pid").write_text(str(pid), encoding="utf-8")
+    if args.json:
+        _print_json({"job_id": job_id, "pid": pid, "log": str(log_path)})
+    else:
+        print(job_id)
+        print(f"detached: pid {pid}, log {log_path}")
+        db_flag = f' --db "{args.db}"' if args.db else ""
+        print(f"wait for it with: lazytools-code-bridge wait {job_id}{db_flag}")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
+    if args.detach:
+        return _cmd_run_detached(args)
     task = _read_task(args.task)
     job_id_holder: dict[str, str] = {}
 
@@ -71,6 +160,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             root=args.root,
             db_path=_db_path(args),
             on_job_id=_announce,
+            job_id=args.job_id,
         )
     except LockHeld as exc:
         print(str(exc), file=sys.stderr)
@@ -164,9 +254,98 @@ def _cmd_result(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def _detached_pid(db_path: Path | None, job_id: str) -> int | None:
+    """The pid `run --detach` recorded for ``job_id`` (full id or unique prefix)."""
+    matches = sorted(_store.results_dir(db_path).glob(f"{job_id}*.pid"))
+    if len(matches) != 1:
+        return None
+    try:
+        return int(matches[0].read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _cmd_wait(args: argparse.Namespace) -> int:
+    """Poll until the job reaches a terminal status, or its detached process is gone.
+
+    Meant to be launched with the caller's own background mechanism (Claude
+    Code's run_in_background): if this waiter is killed, the job is not --
+    run it again to resume watching."""
+    from lazytools.code_bridge._lockfile import _pid_alive
+
+    db_path = _db_path(args)
+    deadline = None if args.timeout is None else time.monotonic() + args.timeout
+    pid = _detached_pid(db_path, args.job_id)
+    while True:
+        store = _store.build_store(db_path)
+        job = _jobs.find_job(store, _store.build_job_registry(store), args.job_id)
+        status = job.get("status") if job else None
+        if status in _TERMINAL:
+            return _cmd_result(args)
+        if pid is not None and not _pid_alive(pid):
+            # Re-read once: the child may have written its final status just
+            # before exiting, between the read above and this liveness check.
+            job = _jobs.find_job(store, _store.build_job_registry(store), args.job_id)
+            if job and job.get("status") in _TERMINAL:
+                return _cmd_result(args)
+            message = f"job {args.job_id}: its process {pid} is gone but the job record says {status or 'nothing'}"
+            if args.json:
+                _print_json({"job_id": args.job_id, "status": "died", "last_status": status, "pid": pid})
+            else:
+                print(message, file=sys.stderr)
+            return 1
+        if job is None and pid is None:
+            print(f"no job found matching {args.job_id!r}", file=sys.stderr)
+            return 1
+        if deadline is not None and time.monotonic() >= deadline:
+            print(f"job {args.job_id} still {status or 'starting'} after {args.timeout:.0f}s", file=sys.stderr)
+            return 3
+        time.sleep(args.interval)
+
+
 # --------------------------------------------------------------------------- #
 # pending / approve / reject
 # --------------------------------------------------------------------------- #
+
+
+_JSON_STRING_FIELD = r'"{name}":\s*("(?:[^"\\]|\\.)*")'
+#: The opening of a JSON string field whose closing quote never came: the cut
+#: went through it. Captures up to the end of that physical line, which is
+#: where TieredGate spliced in its "[... elided ...]" marker.
+_JSON_STRING_FIELD_HEAD = r'"{name}":\s*"((?:[^"\\\n]|\\.)*)$'
+CUT_MARK = " [... cut by the approval gate]"
+
+
+def _salvage_detail(arguments: str) -> dict[str, str]:
+    """Pull ``command``/``reason`` out of an arguments payload TieredGate cut short.
+
+    TieredGate elides long arguments by splicing a marker line into the
+    middle of the JSON, which leaves it unparseable and spread over several
+    lines; a long escalation (a test run with a long PYTHONPATH, say) then
+    showed only "codex-shell" again. ``arguments`` is the WHOLE text after
+    "arguments:", every line of it. A field that survived intact is decoded
+    on its own; a field the cut went through is shown up to the cut, marked
+    as such -- the head of a command is still what a person needs to judge it."""
+    import re
+
+    detail: dict[str, str] = {}
+    for name in ("command", "reason"):
+        match = re.search(_JSON_STRING_FIELD.format(name=name), arguments)
+        if match:
+            try:
+                detail[name] = str(json.loads(match.group(1)))
+                continue
+            except ValueError:
+                pass
+        head = re.search(_JSON_STRING_FIELD_HEAD.format(name=name), arguments, flags=re.MULTILINE)
+        if head and head.group(1):
+            raw = head.group(1).rstrip("\\")
+            try:
+                text = str(json.loads(f'"{raw}"'))
+            except ValueError:
+                text = raw
+            detail[name] = text + CUT_MARK
+    return {k: v for k, v in detail.items() if v}
 
 
 def _request_detail(prompt: str) -> dict[str, str]:
@@ -176,14 +355,18 @@ def _request_detail(prompt: str) -> dict[str, str]:
     "codex-shell"; the real command line and Codex's own reason sit in the
     JSON on the prompt's "arguments:" line. Without them a person is asked to
     approve "codex-shell" blind. Empty when the prompt has no such payload."""
-    for line in prompt.splitlines():
+    lines = prompt.splitlines()
+    for index, line in enumerate(lines):
         line = line.strip()
         if not line.startswith("arguments:"):
             continue
         try:
             payload = json.loads(line[len("arguments:") :])
         except ValueError:
-            return {}
+            # Hand over the rest of the prompt, not this line alone: an elided
+            # payload continues on the lines after the cut marker.
+            rest = "\n".join([line[len("arguments:") :], *lines[index + 1 :]])
+            return _salvage_detail(rest)
         if not isinstance(payload, dict):
             return {}
         # "command" is what will actually run. "commandActions" is Codex's
@@ -279,8 +462,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--root", default=None, help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT or cwd)."
     )
     run_p.add_argument("--json", action="store_true")
+    run_p.add_argument(
+        "--detach",
+        action="store_true",
+        help="Start the job in its own process, which outlives this one and the session that launched it, "
+        "print its id and return at once. Follow it with `wait`.",
+    )
+    run_p.add_argument("--job-id", default=None, help=argparse.SUPPRESS)
     _add_db_option(run_p)
     run_p.set_defaults(func=_cmd_run)
+
+    wait_p = sub.add_parser("wait", help="Block until a job ends (or its process dies), then print its outcome.")
+    wait_p.add_argument("job_id")
+    wait_p.add_argument("--timeout", type=float, default=None, help="Give up after this many seconds (exit 3).")
+    wait_p.add_argument("--interval", type=float, default=5.0, help=argparse.SUPPRESS)
+    wait_p.add_argument("--json", action="store_true")
+    _add_db_option(wait_p)
+    wait_p.set_defaults(func=_cmd_wait)
 
     jobs_p = sub.add_parser("jobs", help="List jobs.")
     jobs_p.add_argument("--all", action="store_true", help="Include finished jobs, not just active ones.")
@@ -321,7 +519,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _utf8_output() -> None:
+    """Never crash printing a result: a Windows console defaults to a legacy
+    codepage, and an engine's answer routinely carries characters it lacks
+    (arrows, accents). Found live: `result` died on a "→"."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _utf8_output()
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)

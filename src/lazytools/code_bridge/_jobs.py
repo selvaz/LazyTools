@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import time
 import uuid
 from collections.abc import Callable
@@ -145,6 +146,7 @@ def run_job(
     root: str | None = None,
     db_path: Path | None = None,
     on_job_id: Callable[[str], None] | None = None,
+    job_id: str | None = None,
 ) -> RunResult:
     """Run one job to completion. Raises before any job is recorded for a
     bad engine name or a ``cwd`` outside the confinement root; raises
@@ -158,13 +160,23 @@ def run_job(
         raise ValueError(f"engine must be one of {ENGINES}, got {engine_name!r}")
     resolved_cwd = _engines.resolve_cwd(cwd, root)
 
-    job_id = new_job_id()
+    # A detached launch (`run --detach`) picks the id in the parent so it can
+    # report it before the child exists; every other caller gets a fresh one.
+    # A caller-chosen id becomes a file name (<id>.txt, .log, .pid): only a
+    # plain token is accepted, never a path. Found by review.
+    if job_id is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
+        raise ValueError(f"job id must be 1-64 letters, digits, '-' or '_', got {job_id!r}")
+    job_id = job_id or new_job_id()
     if on_job_id is not None:
         on_job_id(job_id)
 
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)
     queue = _store.build_approval_queue(store)
+    # A caller-chosen id must be new: writing its records would otherwise
+    # silently replace an earlier job's history.
+    if _store.read_meta(store, job_id) is not None:
+        raise ValueError(f"job id {job_id!r} already exists -- refusing to overwrite its record")
 
     lock = JobLock(_store.locks_dir(db_path), _git_repo_root(resolved_cwd))
     stale_job_id = lock.acquire(job_id)  # raises LockHeld -- job_id was reported but nothing else is recorded
