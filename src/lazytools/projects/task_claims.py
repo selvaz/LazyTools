@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from lazytools.projects.keys import BOARD_KEY_PREFIX, JOB_PREFIX
@@ -32,6 +33,8 @@ if TYPE_CHECKING:
     from lazybridge import Store
 
 CAS_ATTEMPTS = 8
+ClosureCheck = Callable[["Store", str, int], str | None]
+ClosedHook = Callable[["Store", str, int], None]
 
 
 def _newer_job_exists(store: Store, plan_id: str, task_index: int, job_id: str, *, job_prefix: str) -> bool:
@@ -63,6 +66,8 @@ def complete_todo_without_verification(
     board_prefix: str = BOARD_KEY_PREFIX,
     job_prefix: str = JOB_PREFIX,
     contract_exists: bool = False,
+    check: ClosureCheck | None = None,
+    on_closed: ClosedHook | None = None,
 ) -> str:
     """Close a ``todo`` project task directly, without a claim: the honest-shortcut
     path for a caller who never claimed the task but has verified in person that
@@ -75,6 +80,12 @@ def complete_todo_without_verification(
     ``contracts.find_contract_for_task`` for this ``(project_id, task_index)``
     and pass that result in, since a contract means the task should close
     through ``verification.accept`` instead.
+
+    ``check(store, project_id, task_index)`` runs immediately before every
+    board CAS. None allows closure; a string refuses (for example, a newly
+    opened contract). ``on_closed`` runs once after the winning CAS. These
+    hooks are synchronous and their exceptions propagate; a hook failure
+    after CAS does not undo the close or cause a second invocation.
     """
     if not summary.strip():
         return "REJECTED: a 1-3 sentence summary is required."
@@ -107,7 +118,13 @@ def complete_todo_without_verification(
         updated.update(status="done", result=summary, error="", cancel_reason="", owner=None, claimed_at=None, completed_at=time.time())
         new_tasks[task_index] = updated
         new_doc = {**raw, "tasks": new_tasks, "updated_at": time.time()}
+        if check is not None:
+            refusal = check(store, project_id, task_index)
+            if refusal is not None:
+                return refusal
         if store.compare_and_swap(key, raw, new_doc):
+            if on_closed is not None:
+                on_closed(store, project_id, task_index)
             return f"task {task_index} marked done (SENZA VERIFICA, no claim): {summary}"
 
     return f"REJECTED: task {task_index} could not be closed safely -- another writer kept changing the board across {CAS_ATTEMPTS} retries; try again."
@@ -169,4 +186,4 @@ def release_claim(
         return False
 
 
-__all__ = ["complete_todo_without_verification", "release_claim"]
+__all__ = ["ClosedHook", "ClosureCheck", "complete_todo_without_verification", "release_claim"]

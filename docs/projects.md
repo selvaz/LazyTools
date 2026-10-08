@@ -265,6 +265,16 @@ The package never selects or calls a model. Hooks propagate exceptions; retries
 must re-read state. Project and board keys remain separate, so these guards are
 best-effort across keys rather than a multi-key transaction.
 
+`task_claims.complete_todo_without_verification(store, project_id, task_index,
+summary, *, board_prefix=BOARD_KEY_PREFIX, job_prefix=JOB_PREFIX,
+contract_exists=False, check=None, on_closed=None) -> str` retains the existing
+default guards. `check(store, project_id, task_index) -> str | None` runs just
+before every CAS attempt; return a refusal string or `None`. This supports a
+fresh contract lookup. `on_closed(store, project_id, task_index) -> None` runs
+once after a winning close, for example to touch progress. A losing/repeated
+close never calls it. Hooks propagate exceptions; an exception after success
+does not roll back the close, and this is not a durable delivery guarantee.
+
 ## Not exposed, by design
 
 Delegation (execution of a task) — a Claude Code session uses
