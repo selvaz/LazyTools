@@ -389,10 +389,10 @@ def accept(
         validated = current
         contract = get_task_contract(store, current.contract_id)
         if not current.checks:
-            missing = "" if contract is None else " Missing required checks: " + ", ".join(repr(command) for command in contract.required_checks)
+            missing_text = "" if contract is None else " Missing required checks: " + ", ".join(repr(command) for command in contract.required_checks)
             raise ValueError(
                 "no checks have been recorded for this attempt yet -- accepting now would close the task "
-                "with no evidence at all. Wait for the required_checks to run." + missing
+                "with no evidence at all. Wait for the required_checks to run." + missing_text
             )
         if contract is not None and contract.requires_review:
             if current.review is None:

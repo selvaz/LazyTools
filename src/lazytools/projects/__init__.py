@@ -29,6 +29,7 @@ from __future__ import annotations
 from lazytools.projects.admission import (
     AdmissionDecision,
     EngineBudget,
+    PostReservationHook,
     admit,
     budget_for,
     decide,
@@ -42,6 +43,7 @@ from lazytools.projects.admission import (
 from lazytools.projects.brake import get_project_brake_enabled, set_project_brake_enabled
 from lazytools.projects.contracts import (
     TaskContract,
+    check_satisfies_required,
     check_uses_exclusion_flag,
     contract_requires_full_suite,
     diff_is_empty,
@@ -53,17 +55,37 @@ from lazytools.projects.contracts import (
     resolve_review_base,
     snapshot_repo_state,
 )
-from lazytools.projects.cost_report import project_cost_report, project_jobs
+from lazytools.projects.cost_report import (
+    build_fleet_cost_report,
+    cost_totals,
+    project_cost_report,
+    project_jobs,
+    read_store_records_read_only,
+    unmeasured_cost_counts,
+)
 from lazytools.projects.intake import (
     IntakeVerdict,
+    PlanReviewer,
     check_project_intake,
+    install_project_plan,
     parse_deadline,
     plan_digest,
+    promote_project,
     promote_project_plan,
     promotion_refusal,
     record_project_review,
+    review_and_promote_project_plan,
 )
-from lazytools.projects.notes import add_project_note, project_board_summary, recent_project_notes
+from lazytools.projects.notes import (
+    Diagnostic,
+    NoteHook,
+    NoteWriteResult,
+    add_project_note,
+    note_timestamp,
+    project_board_summary,
+    recent_project_notes,
+    write_project_note,
+)
 from lazytools.projects.owner import ProjectOwner, get_project_owner, list_project_ids_by_owner, set_project_owner
 from lazytools.projects.plan_edit import (
     MAX_AUTONOMOUS_REOPENS,
@@ -88,6 +110,7 @@ from lazytools.projects.quota_telemetry import (
 from lazytools.projects.records import (
     ProjectRecord,
     ProjectStatus,
+    RecordFactory,
     adopt_existing_project,
     close_project,
     get_project,
@@ -108,7 +131,7 @@ from lazytools.projects.schedule import (
     project_schedule_status,
     project_schedule_view,
 )
-from lazytools.projects.task_claims import complete_todo_without_verification, release_claim
+from lazytools.projects.task_claims import ClosedHook, ClosureCheck, complete_todo_without_verification, release_claim
 from lazytools.projects.timeline import render_project_timeline
 from lazytools.projects.verification import (
     CheckResult,
@@ -135,8 +158,16 @@ __all__ = [
     "AdmissionDecision",
     "CACHE_SECONDS",
     "CheckResult",
+    "ClosedHook",
+    "ClosureCheck",
+    "Diagnostic",
     "EngineBudget",
     "IntakeVerdict",
+    "NoteHook",
+    "NoteWriteResult",
+    "PlanReviewer",
+    "PostReservationHook",
+    "RecordFactory",
     "MAX_AUTONOMOUS_REOPENS",
     "MIN_REOPEN_REASON_CHARS",
     "ProjectOwner",
@@ -158,13 +189,16 @@ __all__ = [
     "adopt_existing_project",
     "block",
     "budget_for",
+    "build_fleet_cost_report",
     "cache_quota_reading",
     "check_project_intake",
+    "check_satisfies_required",
     "check_uses_exclusion_flag",
     "claim_blocker",
     "claim_verification",
     "close_project",
     "contract_requires_full_suite",
+    "cost_totals",
     "decide",
     "diff_is_empty",
     "diff_is_empty_snapshot",
@@ -178,11 +212,18 @@ __all__ = [
     "get_verification",
     "get_verification_for_contract",
     "in_flight_count",
+    "install_project_plan",
     "list_project_ids_by_owner",
     "list_projects",
     "open_indexes",
     "open_project",
     "open_task_contract",
+    "note_timestamp",
+    "promote_project",
+    "read_store_records_read_only",
+    "review_and_promote_project_plan",
+    "unmeasured_cost_counts",
+    "write_project_note",
     "parse_deadline",
     "pause_project",
     "plan_digest",

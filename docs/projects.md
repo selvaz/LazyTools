@@ -9,11 +9,10 @@ does to its own projects. LazyCEO keeps the POLICY: per-project autonomy
 levels, Telegram, specialist lifecycle, brake ceiling *numbers*, contract
 *wording*, ceo-specific prompts.
 
-LazyCEO adopting this package (importing `lazytools.projects` and deleting
-its own copies of `projects.py`/`project_schedule.py`/`project_timeline.py`/
-`plan_edit.py`/`task_claims.py`/`verification.py`/`quota.py`/`admission.py`)
-is a separate, later step, not done here. Everything below describes the
-package as it stands today, usable independently of that migration.
+LazyCEO's local adoption branch imports this package and retains policy
+adapters. Phase A provides the mechanisms needed to replace the remaining
+gap adapters. This change does not update or deploy LazyCEO; the package
+remains usable independently of that integration.
 
 ## Layering
 
@@ -53,7 +52,7 @@ own code becomes purely POLICY wired on top of `lazytools.projects` and
 | `intake.py` | `lazyceo.project_intake` + a thin `promote_project_plan` | the LLM falsifiability reviewer call (`contract_review.review_contract_falsifiability`) — the calling agent plays that role itself |
 | `quota_telemetry.py` | `lazyceo.quota` | nothing — already pure mechanism over LazyBridge's own usage readers |
 | `admission.py` | `lazyceo.admission` | `_human_approval_exists`/`_consume_human_approval`/`restore_human_approval` (Telegram approval tickets) → `operator_directed: bool`, resolved by the caller; **new**: `project_admit`, the per-project brake switch |
-| `cost_report.py` | `lazyceo.cost_report` (helpers only) | the fleet-wide, cross-specialist-store aggregation (`build_fleet_cost_report`) — needs the specialist registry, out of scope; narrowed to one project's own job records |
+| `cost_report.py` | `lazyceo.cost_report` | specialist enumeration and fresh-connection policy; callers provide stores or read-only paths |
 | *(not ported)* | `lazyceo.fleet_report` | entirely specialist-lifecycle/process telemetry — out of scope |
 | *(not ported)* | `lazyceo.project_work` | `stop_project_work`/`resume_project_work`'s specialist-stopping — out of scope; `pause_project`/`resume_project` in `records.py` are pure record bookkeeping only |
 
@@ -232,8 +231,10 @@ smoke test below — never through this package's own default resolution.
 
 ## Known gaps
 
-The inherited required-check coverage and stale-board promotion defects are
-closed. Acceptance still fences its write against the evidence it validated;
+Phase A closes the required-check coverage and stale-board promotion defects,
+and supplies promotion, closure, note, admission, creation and fleet-cost hooks.
+No Phase A mechanism gap remains. LazyCEO still owns its policy wiring.
+Acceptance still fences its write against the evidence it validated;
 Claude telemetry includes the five-hour session window.
 
 ## Installing a reviewed plan
@@ -331,3 +332,32 @@ recorded check. Commands match exactly. An explicitly listed
 `--deselect`, `-k`, `--ignore` or `--ignore-glob` arguments yields the required
 command. Missing commands are listed in `ValueError`. Previously accepted
 records are unchanged.
+
+`cost_report.build_fleet_cost_report(store, *, specialist_stores,
+job_prefix=JOB_PREFIX, task_prefix=None, primary_name="CEO itself", now=None)
+-> dict[str, Any]` sums every job record in every supplied store, across all
+projects and unattributed work. `specialist_stores` maps names to `Store`
+instances or explicit `Path` values. Paths are opened with SQLite `mode=ro`;
+missing files are never created. Optional `task_prefix` includes each agent's
+own turn records using `completed_at`, alongside delegated jobs using the first
+parseable `finished_at`/`created_at`. Unavailable stores reject all their families
+and appear in `unavailable` and `breakdown`. The caller enumerates specialists
+and supplies any fresh connection policy.
+
+`cost_totals(records, *, now, timestamp_fields=("finished_at", "created_at"))
+-> dict[str, float]` and `unmeasured_cost_counts(records, *, now,
+timestamp_fields=("finished_at", "created_at")) -> dict[str, int]` expose the
+reducers independently. `read_store_records_read_only(path, *, prefixes)
+-> dict[str, list[dict[str, Any]]]` reads all requested families in one SQLite
+snapshot. Reports use UTC midnight and a rolling seven-day window, ignore
+future/unparseable timestamps, and preserve the original scalar cost rules.
+`project_jobs` and `project_cost_report` keep their existing APIs and behavior.
+
+All Phase A entry points and hook/result types are also exported from
+`lazytools.projects`. Regression parity fixtures in
+`tests/fixtures/projects_parity.json` retain LazyCEO function source at
+`70a481c` (promotion, closure, fleet) and the adoption wrapper's source
+(admission). Tests compile those functions with injected dependencies, without
+requiring LazyCEO or touching its stores. Known deliberate improvements beyond
+original parity are A1/A2, requiring matching review digests even for open
+projects, and refusing a reviewer that reports `performed=False` with no findings.
