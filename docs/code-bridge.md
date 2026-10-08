@@ -97,6 +97,90 @@ the finished result from.
 everything this bridge knows about, for a session that lost track of a job
 id.
 
+## Choose a model from quota
+
+Preview a choice without launching a job:
+
+```console
+lazytools-code-bridge route --tier writing --cwd /path/to/repo
+lazytools-code-bridge route --tier thinking --cwd /path/to/repo --json
+```
+
+The human output starts with the engine, model, effort, winning rung (numbered
+from 1), and reason. It includes each engine's weekly and 5-hour percentages
+and reset times, plus every exclusion. JSON includes the decision, scores,
+exclusions, telemetry timestamps, quota windows and any session notice.
+`route` creates no job and launches no coding engine.
+
+Use the same computation to launch work:
+
+```console
+lazytools-code-bridge run --tier basic --cwd /path/to/repo --task @brief.md --session fixes
+lazytools-code-bridge run --detach --tier writing --engine codex --cwd /path/to/repo --task @brief.md
+lazytools-code-bridge run --tier thinking --needs images --cwd /path/to/repo --task @brief.md
+lazytools-code-bridge run --tier writing --review-of JOB_ID --cwd /path/to/repo --task @review.md
+```
+
+| Tier | Rung 1 | Rung 2 | Rung 3 |
+| --- | --- | --- | --- |
+| `basic` | Sol 6.1 medium / Sonnet 5.5 medium | | |
+| `writing` | Sol 6.1 high / Sonnet 5.5 high | Sol 6.1 xhigh / Opus 5.5 high | |
+| `thinking` | Sol 6.1 xhigh / Opus 5.5 medium | Opus 5.5 high | Astra high |
+| `critical` | Opus 5.5 high / Astra high | Opus 5.5 max / Astra xhigh | |
+
+The router walks the ladder in order and picks from the first rung with an
+eligible engine. It ranks weekly admission margins, using its preserved
+5-hour tie-break and then provisional API-price/provider ordering for exact
+ties. For parity with the original router, Claude's 5-hour session window is
+displayed but does not contribute to its score. These are capability ladders;
+there is no per-model subscription-quota cost estimate. Fable is available
+only by an explicit `--model` override.
+
+`--engine codex` or `--engine claude` with a tier restricts the eligible
+engines. Explicit `--model` and `--effort` replace the selected values, are
+validated against the chosen engine, and are recorded in `routing.override`.
+A quota refusal still refuses the automatic route. An engine-only `run`
+retains the existing manual behavior and does not read quota. A `run` with
+neither `--tier` nor `--engine` fails with a clear error.
+
+`--session NAME` already used by a bridge job in the same repository pins
+the engine to that conversation's engine. The router receives the number of
+consecutive session failures; after two, output suggests a new `--session`.
+The existing conversation still cannot migrate engines. A session alias
+in another repository does not pin this one.
+
+`--review-of JOB` (full id or unique prefix) allows only the engine opposite
+the writer. If that reviewer is ineligible, the command fails with
+`human_review_required`. `--needs images` permits only Codex. Conflicting
+engine, session, review and capability constraints cannot silently relax
+these rules. `--needs` and `--review-of` on `run` require a tier.
+
+Running bridge jobs are counted per engine across the Store and reserve
+quota in the score. Missing, unreadable, stale or exhausted weekly quota
+excludes the engine. If nothing is eligible, the error lists the exclusions
+and suggests manual selection with an engine-only `run --engine E`.
+
+Both engines' quota is read with a 45-second timeout per engine. A file cache
+at `~/.lazytools/quota-cache.json` shares successful readings between CLI
+processes for at most 120 seconds; writes are atomic. A corrupt, missing,
+expired or unwritable cache does not prevent fresh reads, and failed reads
+never become spare capacity. `LAZYTOOLS_QUOTA_CACHE` overrides the cache path.
+
+The default catalogue is shipped in the wheel. `~/.lazytools/model_tiers.toml`,
+when present, replaces it; `--tiers PATH` on `route` or `run` takes precedence.
+A bad override fails visibly. All four tiers must be present, each rung must
+name at least one provider (`codex` or `claude_code`), and model/effort values
+must satisfy `lazytools.routing.ModelPolicy`.
+
+The first human launch line explains the chosen model and reason. Job records
+retain `routing` (tier, original pick, reason, scores, exclusions, rung and
+overrides), while `model`/`effort` store the values actually launched.
+`status` and `jobs` display the tier, model and effort. `--json` retains the
+existing job-id-first protocol for foreground runs and includes the routing
+record in the final JSON; detached JSON includes it in the launch record.
+Detached children use the parent's frozen decision, without a second quota
+read or a different pick.
+
 ## What is gated, and how
 
 Both engines can use the web: Claude Code gets `WebSearch`/`WebFetch`

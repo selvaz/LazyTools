@@ -8,6 +8,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **`lazytools.routing`** — shared deterministic tier router, model/effort policy,
+  validated catalogue, and live quota adapter with per-engine timeouts and an
+  atomic 120-second file cache. The packaged Claude Code catalogue can be
+  replaced by `~/.lazytools/model_tiers.toml`.
+- **Quota-aware code bridge:** `route --tier T` explains a dry-run choice and
+  both engines' weekly/session quota; `run --tier T` launches that choice.
+  Engine restrictions, explicit model/effort overrides, image capability,
+  session engine pinning and consecutive-failure notices, opposite-engine
+  reviews, and routing metadata are supported. `status`/`jobs` show the
+  tier, model and effort. Detached launches retain the parent's decision.
+
 ---
 
 ## [0.9.0] — 2026-10-08
