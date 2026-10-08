@@ -580,6 +580,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_routing_options(route_p, required=True)
     route_p.add_argument("--cwd", default=".", help="Repository used to resolve session history (default: cwd).")
     route_p.add_argument("--session", default=None)
+    # Same overrides as `run`, so the exact pick (bucket, provider, effort check) can be dry-run.
+    route_p.add_argument("--model", default=None)
+    route_p.add_argument("--effort", default=None)
     route_p.add_argument("--json", action="store_true")
     _add_db_option(route_p)
     route_p.set_defaults(func=_cmd_route)

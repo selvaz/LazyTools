@@ -302,7 +302,9 @@ def test_no_eligible_provider_explains_both_engines_with_safe_guidance(bridge, c
     assert bridge[0].engines == []
 
 
-def test_in_flight_counts_only_running_bridge_jobs_per_provider(bridge, monkeypatch):
+def test_in_flight_counts_live_running_and_approval_waiting_jobs_per_provider(bridge, monkeypatch):
+    """A job paused on an approval ticket resumes without another admission check, so it keeps
+    its reservation (Codex review on #186); finished jobs and other repos do not count."""
     seed(bridge, "c1", status="running")
     seed(bridge, "c2", status="running", cwd=bridge[2].parent / "elsewhere")
     seed(bridge, "a1", engine="claude", status="running")
@@ -317,7 +319,7 @@ def test_in_flight_counts_only_running_bridge_jobs_per_provider(bridge, monkeypa
 
     monkeypatch.setattr(_routing, "recommend", recommend)
     assert cli.main(args(bridge)) == 0
-    assert seen["in_flight"] == {"codex": 2, "claude_code": 1}
+    assert seen["in_flight"] == {"codex": 2, "claude_code": 2}
 
 
 def test_detached_run_passes_frozen_selection_to_child_without_recomputing(bridge, monkeypatch, capsys):
@@ -790,3 +792,17 @@ def test_distinct_rung_errors_are_grouped_under_one_engine_label(bridge, capsys)
     error = capsys.readouterr().err
     assert error.count("codex:") == 1 and error.count("claude_code:") == 1
     assert "claude-sonnet-5-5" in error and "claude-opus-5-5" in error
+
+
+def test_route_accepts_the_same_model_and_effort_overrides_as_run(bridge, monkeypatch):
+    seen = {}
+    original = _routing.choose
+
+    def choose(*a, **kw):
+        seen.update(kw)
+        return original(*a, **kw)
+
+    monkeypatch.setattr(_routing, "choose", choose)
+    cli.main(["route", "--tier", "writing", "--model", "claude-opus-5-5", "--effort", "medium",
+              "--cwd", str(bridge[2]), "--db", str(bridge[3])])
+    assert seen["model"] == "claude-opus-5-5" and seen["effort"] == "medium"
