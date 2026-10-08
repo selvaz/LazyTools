@@ -105,7 +105,25 @@ def _spawn_detached(argv: list[str], log_path: Path) -> int:
 
 
 def _cmd_run_detached(args: argparse.Namespace) -> int:
-    _read_task(args.task)  # fail here, not in an unwatched child, on a missing @file
+    # Everything the child would refuse is checked HERE, where the caller sees
+    # it: a detached child's error only reaches its log file. Found live -- a
+    # --cwd outside the default root (the launcher's own cwd) died in the
+    # child with nothing but "process gone" to show for it.
+    from lazytools.code_bridge import _engines
+    from lazytools.connectors.code_support._claude_review import _build_root
+
+    try:
+        _read_task(args.task)
+        root = _build_root(args.root)
+        resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    # Hand the child absolute paths, so nothing depends on its working directory.
+    args.root = str(root)
+    args.cwd = str(resolved_cwd)
+    if args.task.startswith("@"):
+        args.task = "@" + str(Path(args.task[1:]).expanduser().resolve())
     job_id = _jobs.new_job_id()
     out_dir = _store.results_dir(_db_path(args))
     log_path = out_dir / f"{job_id}.log"

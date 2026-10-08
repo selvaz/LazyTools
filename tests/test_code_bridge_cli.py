@@ -220,11 +220,7 @@ def test_detach_refuses_a_missing_task_file_before_spawning(tmp_path, monkeypatc
     repo.mkdir()
     args = _run_args(tmp_path, repo, tmp_path / "s.sqlite", "--detach")
     args[args.index("do it")] = "@" + str(tmp_path / "missing.md")
-    try:
-        main(args)
-    except (FileNotFoundError, OSError):
-        return
-    raise AssertionError("a missing @task file must fail in the launcher")
+    assert main(args) == 2  # reported by the launcher, never left to an unwatched child
 
 
 def test_spawn_detached_really_starts_an_independent_process(tmp_path):
@@ -328,3 +324,35 @@ def test_run_refuses_a_job_id_that_already_exists(tmp_path, monkeypatch, capsys)
 
     assert main(_run_args(tmp_path, repo, db_path, "--job-id", "dupe")) == 2
     assert "already exists" in capsys.readouterr().err
+
+
+def test_detach_refuses_a_cwd_outside_the_root_before_spawning(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    monkeypatch.setattr(cli, "_spawn_detached", lambda *a: (_ for _ in ()).throw(AssertionError("spawned")))
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    args = ["run", "--detach", "--engine", "codex", "--cwd", str(outside), "--task", "x", "--root", str(root), "--db", str(tmp_path / "s.sqlite")]
+    assert main(args) == 2
+    assert "outside" in capsys.readouterr().err
+
+
+def test_detach_hands_the_child_absolute_root_cwd_and_task_paths(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    seen: dict = {}
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    brief = tmp_path / "brief.md"
+    brief.write_text("do it", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", "repo", "--task", "@brief.md", "--root", ".", "--db", str(tmp_path / "s.sqlite")]) == 0
+    argv = seen["argv"]
+    from pathlib import Path
+
+    assert Path(argv[argv.index("--root") + 1]).is_absolute()
+    assert Path(argv[argv.index("--cwd") + 1]) == repo.resolve()
+    assert argv[argv.index("--task") + 1] == "@" + str(brief.resolve())
