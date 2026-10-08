@@ -249,7 +249,9 @@ and remains draft on refusal. Existing board keys and task shapes are unchanged.
 `intake.promote_project(store, project_id, *, current_digest) -> str | None`
 provides the digest-only transition: callers install intake fields and the plan
 first. It checks the review and fences the status CAS against that exact record.
-Matching open records return `None`; paused/done records refuse.
+An already-open project returns `None` before the digest is looked at, exactly
+as LazyCEO's original did (retries and polls of an open project rely on it);
+paused/done records refuse.
 `promote_project_plan` also verifies that an open project's board matches before
 returning idempotent success. `install_project_plan` can check the current review
 immediately before each board CAS with `current_digest`.
@@ -359,5 +361,6 @@ All Phase A entry points and hook/result types are also exported from
 `70a481c` (promotion, closure, fleet) and the adoption wrapper's source
 (admission). Tests compile those functions with injected dependencies, without
 requiring LazyCEO or touching its stores. Known deliberate improvements beyond
-original parity are A1/A2, requiring matching review digests even for open
-projects, and refusing a reviewer that reports `performed=False` with no findings.
+original parity are A1/A2 and refusing a reviewer that reports `performed=False`
+with no findings. `promote_project` keeps the original order (open = success,
+digest not consulted); the parity test pins the open-with-a-newer-digest case.

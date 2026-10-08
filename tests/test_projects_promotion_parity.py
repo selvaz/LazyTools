@@ -13,7 +13,7 @@ SUBTASKS = [
 ]
 
 
-@pytest.mark.parametrize("status,review,current", [("draft", None, "a"), ("draft", "a", "b"), ("draft", "a", "a"), ("open", "a", "a"), ("paused", "a", "a"), ("done", "a", "a"), (None, None, "a")])
+@pytest.mark.parametrize("status,review,current", [("draft", None, "a"), ("draft", "a", "b"), ("draft", "a", "a"), ("open", "a", "a"), ("open", "a", "b"), ("open", None, "b"), ("paused", "a", "a"), ("done", "a", "a"), (None, None, "a")])
 def test_digest_transition_matches_original(status, review, current):
     stores = [Store(), Store()]
     for store in stores:

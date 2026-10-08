@@ -111,7 +111,10 @@ def read_store_records_read_only(path: Path, *, prefixes: tuple[str, ...]) -> di
     with sqlite3.connect(resolved.as_uri() + "?mode=ro", uri=True, timeout=1.0) as connection:
         connection.execute("BEGIN")
         for prefix in prefixes:
-            rows = connection.execute("SELECT value FROM store WHERE substr(key, 1, length(?)) = ?", (prefix, prefix)).fetchall()
+            # A key range, not substr(): the range can use the key index, as
+            # LazyCEO's original did. Found by review.
+            upper = prefix[:-1] + chr(ord(prefix[-1]) + 1) if prefix else "￿"
+            rows = connection.execute("SELECT value FROM store WHERE key >= ? AND key < ?", (prefix, upper)).fetchall()
             for (raw,) in rows:
                 value = json.loads(raw)
                 if isinstance(value, dict):

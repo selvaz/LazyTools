@@ -196,11 +196,15 @@ def promote_project(store: Store, project_id: str, *, current_digest: str) -> st
     record = ProjectRecord.model_validate(raw)
     if record.status not in ("draft", "open"):
         return f"REJECTED: project is {record.status!r}, not a draft"
+    # Already open is where the caller wanted to get to: success, before and
+    # regardless of the digest -- exactly LazyCEO's original order. Checking the
+    # digest first refused retries and polls of an open project whose plan had
+    # since moved on, which production promotions rely on. Found by review.
+    if record.status == "open":
+        return None
     refusal = promotion_refusal(reviewed_digest=record.reviewed_digest, current_digest=current_digest)
     if refusal is not None:
         return refusal
-    if record.status == "open":
-        return None
     if not store.compare_and_swap(key, raw, record.model_copy(update={"status": "open"}).model_dump(mode="json")):
         return "REJECTED: the project changed while it was being promoted -- read it again and retry"
     return None
