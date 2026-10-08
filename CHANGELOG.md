@@ -9,6 +9,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- Bridge tier launches admit the full quota reading after the weekly router
+  pick, exclude engines refused on any window and retry with the same
+  constraints. Ceiling warnings include short windows without forecast data.
+- Quota reads run concurrently and retain failure causes without caching
+  failures. Human errors avoid duplicate exclusions and give review/session
+  guidance; engine-only launches enforce session pins, dead job PIDs no longer
+  reserve quota, and explicit tier models infer and restrict the engine.
+- Claude model probes disable MCP servers, settings and hooks; timeout cleanup
+  kills the process tree and bounds every subsequent wait on Windows.
 - Codex effort validation uses per-model capabilities in catalogues and bridge
   overrides. Both Luna models support `low` through `max`, without `ultra`;
   unknown model capabilities fall back to the engine's effort set.

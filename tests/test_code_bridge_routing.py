@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _jobs, _routing, _store, cli
+from lazytools.code_bridge import _jobs, _lockfile, _routing, _store, cli
 from lazytools.projects.admission import TelemetryReading, WindowReading
 from lazytools.routing.catalogue import DEFAULT_PATH, load_tiers
 
@@ -50,12 +52,13 @@ def args(bridge, command="route", *extra):
     return [*result, *extra]
 
 
-def seed(bridge, job_id, *, engine="codex", status="done", session=None, created=1, cwd=None):
+def seed(bridge, job_id, *, engine="codex", status="done", session=None, created=1, cwd=None, pid=None):
     _, _, repo, db = bridge
     store = _store.build_store(db)
     _store.build_job_registry(store).write(job_id, "seed", tool_name=engine, status=status)
     _store.write_meta(
-        store, job_id, {"engine": engine, "cwd": str(cwd or repo), "session_name": session, "created_at": created}
+        store, job_id, {"engine": engine, "cwd": str(cwd or repo), "session_name": session, "created_at": created,
+                        "pid": os.getpid() if pid is None else pid}
     )
 
 
@@ -132,7 +135,7 @@ def test_explicit_overrides_win_and_are_recorded(bridge, capsys, extra, model, e
 
 
 @pytest.mark.parametrize(
-    "extra", [["--model", "opus"], ["--effort", "none"], ["--engine", "claude", "--effort", "ultra"], ["--model", " "]]
+    "extra", [["--engine", "codex", "--model", "opus"], ["--effort", "none"], ["--engine", "claude", "--effort", "ultra"], ["--engine", "codex", "--model", " "]]
 )
 def test_bad_routed_overrides_are_rejected_before_launch(bridge, capsys, extra):
     assert cli.main(args(bridge, "run", *extra)) == 2
@@ -145,7 +148,7 @@ def test_engine_with_tier_restricts_availability(bridge, capsys, engine, provide
     assert cli.main(args(bridge, "route", "--engine", engine, "--json")) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["provider"] == provider
-    assert "not_available_to_this_agent" in payload["ineligible"].values()
+    assert f"requested engine/model restricts routing to {engine}" in payload["ineligible"].values()
 
 
 def test_missing_tier_and_engine_is_clear_error(bridge, capsys):
@@ -172,7 +175,8 @@ def test_known_session_pins_engine_even_with_better_other_quota(bridge, capsys):
     assert cli.main(args(bridge, "route", "--session", "work", "--json")) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["provider"] == "claude_code" and payload["reason"] == "continuity"
-    assert payload["ineligible"]["codex"] == "not_available_to_this_agent"
+    assert "claude" in payload["ineligible"]["codex"]
+    assert "work" in payload["ineligible"]["codex"]
 
 
 def test_two_consecutive_session_failures_suggest_new_session_without_migrating(bridge, capsys):
@@ -208,7 +212,9 @@ def test_session_conflict_has_no_pick_and_lists_reasons(bridge, capsys, extra):
     seed(bridge, "old", engine="claude", session="work")
     assert cli.main(args(bridge, "route", "--session", "work", *extra, "--json")) == 2
     payload = json.loads(capsys.readouterr().out)
-    assert payload["provider"] is None and "--engine" in payload["error"]
+    assert payload["provider"] is None and payload["reason"] == "session_conflict"
+    assert "work" in payload["error"] and "pinned to claude" in payload["error"]
+    assert "new --session" in payload["error"]
     assert payload["ineligible"]
 
 
@@ -218,7 +224,7 @@ def test_pinned_engine_unreadable_does_not_migrate(bridge, capsys):
     assert cli.main(args(bridge, "route", "--session", "work", "--json")) == 2
     payload = json.loads(capsys.readouterr().out)
     assert payload["ineligible"]["claude_code"] == "telemetry_missing"
-    assert payload["ineligible"]["codex"] == "not_available_to_this_agent"
+    assert payload["ineligible"]["codex"] == "session 'work' is pinned to claude"
 
 
 @pytest.mark.parametrize("writer,reviewer", [("codex", "claude_code"), ("claude", "codex")])
@@ -236,6 +242,9 @@ def test_review_never_falls_back_to_writer_and_requires_human_when_opposite_inel
     assert cli.main(args(bridge, "run", "--review-of", "writer", *extra, "--json")) == 2
     payload = json.loads(capsys.readouterr().out)
     assert payload["reason"] == "human_review_required" and payload["provider"] is None
+    assert "no opposite-engine reviewer is eligible" in payload["error"]
+    assert "A human review is required" in payload["error"]
+    assert "explicit --engine" not in payload["error"]
     assert bridge[0].engines == []
 
 
@@ -275,7 +284,9 @@ def test_no_eligible_provider_explains_both_engines_and_suggests_manual_engine(b
     assert cli.main(args(bridge, "run")) == 2
     output = capsys.readouterr()
     assert "--engine" in output.err and "no_eligible_provider" in output.err
-    assert "excluded codex" in output.out and "excluded claude_code" in output.out
+    assert "codex:" in output.err and "claude_code:" in output.err
+    assert output.err.count("codex:") == 1 and output.err.count("claude_code:") == 1
+    assert "excluded" not in output.out
     assert bridge[0].engines == []
 
 
@@ -452,3 +463,147 @@ def test_model_override_revalidates_inherited_effort(bridge, monkeypatch, capsys
     assert cli.main(args(bridge, "run", "--model", "gpt-6-luna")) == 2
     assert "ultra" in capsys.readouterr().err
     assert bridge[0].engines == []
+
+
+def _short_windows(bridge, *, codex_weekly=40, codex_short=0, claude_weekly=10, claude_short=100):
+    for engine, weekly, short in (("codex", codex_weekly, codex_short), ("claude_code", claude_weekly, claude_short)):
+        old = bridge[1][engine]
+        bridge[1][engine] = replace(old, windows=(
+            WindowReading(old.windows[0].window_id, weekly, 10080),
+            WindowReading("codex/300m" if engine == "codex" else "session", short, 300),
+        ))
+
+
+@pytest.mark.parametrize("command", ["route", "run"])
+@pytest.mark.parametrize("exhausted,chosen", [("claude_code", "codex"), ("codex", "claude_code")])
+@pytest.mark.parametrize("used", [94, 95, 100])
+def test_full_admission_excludes_short_window_and_reroutes_without_changing_router(bridge, capsys, command, exhausted, chosen, used):
+    from lazytools.projects.admission import budget_for
+    from lazytools.routing import route
+
+    _short_windows(bridge, codex_weekly=10 if exhausted == "codex" else 40,
+                   codex_short=used if exhausted == "codex" else 0,
+                   claude_weekly=10 if exhausted == "claude_code" else 40,
+                   claude_short=used if exhausted == "claude_code" else 0)
+    # The original pure router still makes exactly its weekly-only pick.
+    pure = route("writing", catalogue=load_tiers(DEFAULT_PATH), readings=bridge[1],
+                 budgets={engine: budget_for(engine) for engine in bridge[1]}, in_flight={}, operator_directed=True)
+    assert pure.provider == exhausted
+    assert cli.main(args(bridge, command, "--json")) == 0
+    payload = json.loads(capsys.readouterr().out.splitlines()[-1])
+    routing = payload["routing"] if command == "run" else payload
+    assert routing["provider"] == chosen
+    assert routing["ineligible"][exhausted].startswith("bridge_admission_would_refuse:absolute_ceiling")
+    assert "session" in routing["ineligible"][exhausted] if exhausted == "claude_code" else "codex/300m" in routing["ineligible"][exhausted]
+    assert exhausted in routing["scores"]  # The reason for rejecting the initial pick remains auditable.
+    if command == "run":
+        assert bridge[0].last.kind == _routing.bridge_engine(chosen)
+
+
+@pytest.mark.parametrize("command", ["route", "run"])
+def test_both_short_windows_exhausted_refuse_and_warn_without_forecast(bridge, capsys, command):
+    _short_windows(bridge, codex_short=100, claude_short=100)
+    assert cli.main(args(bridge, command)) == 2
+    captured = capsys.readouterr()
+    assert "warning: codex 5-hour (codex/300m) at 100% used" in captured.out
+    assert "warning: claude 5-hour (session) at 100% used" in captured.out
+    assert "projected unavailable" in captured.out and "weekly projected" not in captured.out
+    assert captured.err.count("codex:") == 1 and captured.err.count("claude_code:") == 1
+    assert "bridge_admission_would_refuse:absolute_ceiling" in captured.err
+    assert bridge[0].engines == []
+
+
+def test_review_short_ceiling_requires_human_and_never_uses_writer(bridge, capsys):
+    seed(bridge, "writer", engine="codex")
+    _short_windows(bridge)
+    assert cli.main(args(bridge, "run", "--review-of", "writer", "--json")) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["reason"] == "human_review_required"
+    assert "no opposite-engine reviewer is eligible" in payload["error"]
+    assert "session at 100%" in payload["error"] and "A human review is required" in payload["error"]
+    assert "explicit --engine" not in payload["error"] and bridge[0].engines == []
+
+
+def test_ceiling_on_an_unclassified_window_is_also_warned_and_refused(bridge, capsys):
+    _short_windows(bridge, claude_short=0)
+    old = bridge[1]["claude_code"]
+    bridge[1]["claude_code"] = replace(old, windows=(*old.windows, WindowReading("custom", 100)))
+    assert cli.main(args(bridge)) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("chosen: codex/")
+    assert "warning: claude other (custom) at 100% used" in out
+    assert "excluded claude_code: bridge_admission_would_refuse:absolute_ceiling" in out
+
+
+def test_real_failure_causes_reach_human_error_once_per_engine(bridge, monkeypatch, capsys):
+    from lazytools.routing import live
+
+    monkeypatch.setenv(live.CACHE_PATH_ENV, str(bridge[2].parent / "quota.json"))
+    monkeypatch.setattr(_routing, "read_readings", live.read_readings)
+
+    def read(engine, **kwargs):
+        return TelemetryReading(engine, "fake", datetime.now(UTC), error="timed out after 45s" if engine == "codex" else "not logged in")
+
+    monkeypatch.setattr(live.quota_telemetry, "read_quota_sync", read)
+    assert cli.main(args(bridge)) == 2
+    captured = capsys.readouterr()
+    assert captured.err.count("timed out after 45s") == 1
+    assert captured.err.count("not logged in") == 1
+    assert "telemetry_missing" not in captured.err and "excluded" not in captured.out
+
+
+def test_dead_running_jobs_do_not_reserve_quota(bridge, monkeypatch):
+    for job_id, engine, pid in (("live", "codex", 101), ("dead", "codex", 102), ("dead-claude", "claude", 103),
+                                 ("zero", "claude", 0), ("invalid", "claude", "104")):
+        seed(bridge, job_id, engine=engine, status="running", pid=pid)
+    seen = []
+    monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: seen.append(pid) or pid == 101)
+    selection = _routing.choose("writing", cwd=str(bridge[2]), db_path=bridge[3])
+    assert selection.in_flight == {"codex": 1, "claude_code": 0}
+    assert set(seen) == {0, 101, 102, 103} and 104 not in seen
+
+
+@pytest.mark.parametrize("pinned,requested", [("claude", "codex"), ("codex", "claude")])
+@pytest.mark.parametrize("routed,detached", [(False, False), (False, True), (True, False), (True, True)])
+def test_manual_and_tier_session_conflicts_use_same_message_before_launch(bridge, monkeypatch, capsys, pinned, requested, routed, detached):
+    seed(bridge, "old", engine=pinned, session="conversation")
+    monkeypatch.setattr(_routing, "read_readings", lambda: pytest.fail("read quota despite session conflict"))
+    monkeypatch.setattr(cli, "_spawn_detached", lambda *a: pytest.fail("spawned conflicting session"))
+    argv = args(bridge, "run", "--engine", requested, "--session", "conversation")
+    if not routed:
+        del argv[1:3]
+    if detached:
+        argv.append("--detach")
+    assert cli.main(argv) == 2
+    error = capsys.readouterr().err
+    expected = _routing.session_conflict_message("conversation", _routing.provider(pinned), _routing.provider(requested))
+    assert error.strip() == "error: " + expected
+    assert bridge[0].engines == []
+
+
+@pytest.mark.parametrize("model,chosen", [("claude-sonnet-5-5", "claude_code"), ("claude-opus-5-5", "claude_code"),
+                                          ("sonnet", "claude_code"), ("gpt-6-astra", "codex"), ("gpt-6-luna", "codex")])
+def test_model_without_engine_restricts_routing_before_pick(bridge, capsys, model, chosen):
+    _short_windows(bridge, codex_weekly=60 if chosen == "codex" else 10, claude_weekly=60 if chosen == "claude_code" else 10,
+                   codex_short=0, claude_short=0)
+    assert cli.main(args(bridge, "run", "--model", model, "--json")) == 0
+    payload = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert payload["routing"]["provider"] == chosen
+    assert payload["routing"]["override"]["model"] == model
+    assert bridge[0].kwargs["model"] == model
+
+
+def test_inferred_model_engine_cannot_escape_session_pin(bridge, monkeypatch, capsys):
+    seed(bridge, "old", engine="claude", session="work")
+    monkeypatch.setattr(_routing, "read_readings", lambda: pytest.fail("quota despite session conflict"))
+    assert cli.main(args(bridge, "run", "--model", "gpt-6-astra", "--session", "work")) == 2
+    assert "session_conflict" in capsys.readouterr().err and bridge[0].engines == []
+
+
+def test_distinct_rung_errors_are_grouped_under_one_engine_label(bridge, capsys):
+    for engine, old in bridge[1].items():
+        bridge[1][engine] = replace(old, windows=(old.windows[1],))
+    assert cli.main(args(bridge)) == 2
+    error = capsys.readouterr().err
+    assert error.count("codex:") == 1 and error.count("claude_code:") == 1
+    assert "claude-sonnet-5-5" in error and "claude-opus-5-5" in error

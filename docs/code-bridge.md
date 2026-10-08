@@ -144,6 +144,9 @@ models support `low` through `max`, without `ultra`. Models without a specific
 set use the policy's engine-wide fallback. The catalogue and explicit `--effort`
 checks use the same policy, including engine-only runs. A model override also
 revalidates any effort inherited from the selected catalogue entry.
+With `--tier` and a model but no engine, the model restricts routing to its
+provider: allow-listed Codex identifiers select Codex, while `claude-*` and
+known Claude aliases select Claude. An ambiguous model needs an explicit engine.
 An absolute-ceiling or telemetry refusal still refuses the automatic route. An engine-only `run`
 retains the existing manual behavior and does not read quota. A `run` with
 neither `--tier` nor `--engine` fails with a clear error.
@@ -153,6 +156,9 @@ the engine to that conversation's engine. The router receives the number of
 consecutive session failures; after two, output suggests a new `--session`.
 The existing conversation still cannot migrate engines. A session alias
 in another repository does not pin this one.
+Engine-only and detached launches enforce the same session pin. A conflict
+names the session and its engine and suggests a new `--session`; it fails
+before reading quota or launching a process.
 
 `--review-of JOB` (full id or unique prefix) allows only the engine opposite
 the writer. If that reviewer is ineligible, the command fails with
@@ -160,17 +166,28 @@ the writer. If that reviewer is ineligible, the command fails with
 engine, session, review and capability constraints cannot silently relax
 these rules. `--needs` and `--review-of` on `run` require a tier.
 
-Running bridge jobs are counted per engine across the Store and reserve
+Running bridge jobs with a recorded, live PID are counted per engine across the Store and reserve
 quota in the score. Missing, unreadable, stale or exhausted weekly quota
-excludes the engine. If nothing is eligible, the error lists the exclusions
-and suggests manual selection with an engine-only `run --engine E`.
+excludes the engine. After each router pick, the bridge also calls admission
+on the **full reading**, including Codex's 5-hour and Claude's session windows.
+An absolute ceiling on any window excludes that engine and repeats the routing
+calculation with the remaining engines and the same constraints. Every rejected
+pick keeps its admission reason in the routing record. This additional bridge
+gate does not change the shared router's weekly scoring or parity behavior.
+
+If nothing is eligible, human output lists each distinct exclusion once.
+Ordinary failures suggest an engine-only `run --engine E`; a pinned session
+failure suggests a new session. Reviews state why no opposite-engine reviewer
+is eligible and require human review, without suggesting an unguarded manual review.
 
 Bridge jobs are direct operator work: `route` and `run --tier` use
 `operator_directed=True`, so the autonomous boundary and forecast brake do
 not block them. Forecast margins still rank eligible engines, and human output
 shows the projected end-of-window use (including job reservations), its forecast
 limit and a `warning:` line when the projection exceeds that limit. A warning
-does not prevent launching. Forecasts use the reading's observation time, just
+about a forecast does not prevent launching. Any window at its ceiling,
+including job reservations, also gets a warning even without reset/forecast
+data; that ceiling prevents launching. Forecasts use the reading's observation time, just
 as the router does; unavailable reset/duration data is shown as unavailable.
 
 The bridge has no project attribution today. If it gains attribution, a project
@@ -178,11 +195,14 @@ whose brake is enabled must use autonomous admission at the routing call.
 The shared `route()` and `recommend()` APIs keep `operator_directed=False`
 by default, preserving LazyCEO's autonomous behavior and parity.
 
-Both engines' quota is read with a 45-second timeout per engine. A file cache
+Both engines' quota is read concurrently, with a 45-second timeout per engine,
+so two slow reads share the same wait. A file cache
 at `~/.lazytools/quota-cache.json` shares successful readings between CLI
 processes for at most 120 seconds; writes are atomic. A corrupt, missing,
 expired or unwritable cache does not prevent fresh reads, and failed reads
-never become spare capacity. `LAZYTOOLS_QUOTA_CACHE` overrides the cache path.
+never become spare capacity. Failed readings retain the provider's real cause
+(for example, a timeout or missing login) in decisions, JSON and human errors,
+and are never cached. `LAZYTOOLS_QUOTA_CACHE` overrides the cache path.
 
 The default catalogue is shipped in the wheel. `~/.lazytools/model_tiers.toml`,
 when present, replaces it; `--tiers PATH` on `route` or `run` takes precedence.
@@ -218,7 +238,10 @@ is shown as unknown and no Claude turn runs. **The opt-in probe consumes a
 small amount of quota:** it asks `Reply with just: ok` once for each distinct
 Claude model in the active catalogue, plus `sonnet` and `opus`. Each probe uses
 JSON output and `--max-turns 1`, with tools disabled and session persistence
-disabled, in an empty temporary directory. The CLI is resolved from the
+disabled, in an empty temporary directory. `--strict-mcp-config` loads no MCP
+servers, `--setting-sources ""` skips user/project/local settings, and
+`--safe-mode` disables hooks and customizations (these flags were checked in
+the installed CLI's help). The CLI is resolved from the
 Agent SDK's bundled executable first, matching the bridge's Claude engine,
 then from PATH or the native installation under `~/.local/bin`.
 
@@ -241,7 +264,13 @@ catalogue, policy, bridge job or session.
 
 The active catalogue follows the same `--tiers`, home override, packaged
 default precedence as routing. Codex discovery has a 30-second deadline;
-each Claude probe has a 60-second deadline. Exit code is **0** when the
+each Claude probe has a 60-second deadline. A probe timeout kills the whole
+process tree on Windows (the process group on
+POSIX), and every cleanup communication/wait has a five-second deadline.
+On Windows the CLI is created suspended, assigned to a private kill-on-close
+Job Object and then resumed. Cleanup retains ownership of descendants even
+when the CLI has already exited while a descendant holds the output pipe open.
+Exit code is **0** when the
 checked capabilities match, **2** for mismatches or discovery/probe errors.
 Without Claude probing, exit 0 covers Codex and local policy checks only.
 `--json` emits one object with `models`, `probe_claude`, `mismatches` and

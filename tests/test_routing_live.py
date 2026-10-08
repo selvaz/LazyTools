@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -35,7 +36,7 @@ def test_file_cache_is_reused_across_calls_without_memory_cache(tmp_path, monkey
     first = live.read_readings(cache_path=path, timeout=0.1, now=NOW)
     second = live.read_readings(cache_path=path, now=NOW + timedelta(seconds=120))
     assert first == second
-    assert calls == [("codex", 0.1), ("claude_code", 0.1)]
+    assert len(calls) == 2 and set(calls) == {("codex", 0.1), ("claude_code", 0.1)}
     assert json.loads(path.read_text())["version"] == 1
 
 
@@ -85,13 +86,14 @@ def test_malformed_entry_is_refetched_without_discarding_other_engine(tmp_path, 
     assert [engine for engine, _ in calls] == ["codex"]
 
 
-def test_failed_read_is_missing_and_not_cached_or_replaced_by_stale_data(tmp_path, monkeypatch):
+def test_failed_read_keeps_cause_without_cache_or_stale_substitution(tmp_path, monkeypatch):
     path = tmp_path / "cache.json"
     fake_reader(monkeypatch)
     live.read_readings(cache_path=path, now=NOW)
     fake_reader(monkeypatch, observed_at=NOW + timedelta(seconds=121), failed=("codex",))
     readings = live.read_readings(cache_path=path, now=NOW + timedelta(seconds=121))
-    assert set(readings) == {"claude_code"}
+    assert readings["codex"].error == "timeout" and readings["codex"].windows == ()
+    assert readings["claude_code"].error is None
     assert "codex" not in json.loads(path.read_text())["readings"]
 
 
@@ -102,8 +104,8 @@ def test_reader_exception_does_not_escape_recommend(tmp_path, monkeypatch):
     )
     decision = recommend("writing", catalogue=load_default_tiers(), in_flight={}, now=NOW)
     assert decision.provider is None
-    assert decision.ineligible["codex"] == "telemetry_missing"
-    assert decision.ineligible["claude_code"] == "telemetry_missing"
+    assert "RuntimeError: offline" in decision.ineligible["codex"]
+    assert "RuntimeError: offline" in decision.ineligible["claude_code"]
 
 
 def test_explicit_empty_readings_bypasses_telemetry(monkeypatch):
@@ -156,3 +158,30 @@ def test_cache_roundtrips_reset_times(tmp_path, monkeypatch):
     path = tmp_path / "cache.json"
     live.read_readings(cache_path=path, now=NOW)
     assert live.read_readings(cache_path=path, now=NOW)["codex"].windows[0].resets_at == reset
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_quota_misses_run_concurrently_with_independent_diagnostics(tmp_path, monkeypatch, failed):
+    started = threading.Barrier(2)
+
+    def read(engine, *, timeout):
+        started.wait(timeout=2)  # A serial reader breaks the barrier instead of succeeding.
+        return reading(engine, error=("timed out after 45s" if engine == "codex" else "not logged in") if failed else None)
+
+    monkeypatch.setattr(live.quota_telemetry, "read_quota_sync", read)
+    path = tmp_path / "cache.json"
+    readings = live.read_readings(cache_path=path, now=NOW)
+    assert readings["codex"].error == ("timed out after 45s" if failed else None)
+    assert readings["claude_code"].error == ("not logged in" if failed else None)
+    if failed:
+        assert json.loads(path.read_text())["readings"] == {}
+        decision = recommend("writing", catalogue=load_default_tiers(), in_flight={}, readings=readings, now=NOW)
+        assert "timed out after 45s" in decision.ineligible["codex"]
+        assert "not logged in" in decision.ineligible["claude_code"]
+
+
+@pytest.mark.asyncio
+async def test_sync_adapter_still_works_inside_an_existing_event_loop(tmp_path, monkeypatch):
+    fake_reader(monkeypatch)
+    readings = live.read_readings(cache_path=tmp_path / "cache.json", now=NOW)
+    assert all(value.error is None for value in readings.values())

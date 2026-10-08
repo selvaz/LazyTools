@@ -148,6 +148,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
             raise ValueError("run requires --tier T or --engine E; choose a tier for quota-aware routing or an explicit engine")
         task = _read_task(args.task)
         args.routing = json.loads(args.routing_record) if args.routing_record else None
+        if not args.tier and args.session:
+            from lazytools.code_bridge import _engines
+
+            resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
+            _routing.check_session_engine(cwd=str(resolved_cwd), session=args.session,
+                                          engine=args.engine, db_path=_db_path(args))
         if args.tier:
             from lazytools.code_bridge import _engines
 

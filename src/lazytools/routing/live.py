@@ -1,15 +1,18 @@
 """Bounded live telemetry reads with a cache shared by short-lived CLI processes.
 
-An unreadable engine is absent, never counted as spare capacity. Cache trouble is
+An unreadable engine carries its failure cause, never spare capacity. Cache trouble is
 non-fatal; an expired or malformed entry never substitutes for a failed live read.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -126,22 +129,43 @@ def read_readings(
     """Read both engines, with a per-engine timeout and a 120-second file cache.
 
     ``cache_path`` or LAZYTOOLS_QUOTA_CACHE makes tests and isolated callers independent
-    of the operator's cache. Failed reads are deliberately omitted and never cached.
+    of the operator's cache. Misses run concurrently; failed reads retain their
+    diagnostics for routing and human errors, but are never cached.
     """
     moment = now or datetime.now(UTC)
     path = cache_path if cache_path is not None else default_cache_path()
     readings = _cached_readings(path, moment)
-    for engine in ENGINES:
-        if engine in readings:
-            continue
+    def fetch(engine: Engine) -> TelemetryReading:
+        source = quota_telemetry.CODEX_SOURCE if engine == "codex" else quota_telemetry.CLAUDE_SOURCE
         try:
             reading = quota_telemetry.read_quota_sync(engine, timeout=timeout)
-            if reading.error is None and reading.engine == engine and reading.windows:
-                readings[engine] = reading
-        except Exception:
+            if reading.engine != engine:
+                raise ValueError(f"quota reader returned {reading.engine!r} for {engine!r}")
+            if reading.error is not None:
+                return replace(reading, windows=())
+            if not reading.windows:
+                return replace(reading, error=f"{reading.source} reported no usage window")
+            return reading
+        except Exception as exc:
             # Provider/transport failures must not escape recommend().
-            continue
-    _write_cache(path, readings)
+            return TelemetryReading(engine, source, moment, error=f"{type(exc).__name__}: {exc}")
+
+    async def fetch_missing() -> list[TelemetryReading]:
+        return await asyncio.gather(*(asyncio.to_thread(fetch, engine) for engine in ENGINES if engine not in readings))
+
+    if len(readings) < len(ENGINES):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            fresh = asyncio.run(fetch_missing())
+        else:
+            # This synchronous API may be called inside a running agent's loop.
+            # Run gather in its own loop rather than nesting asyncio.run there.
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                fresh = pool.submit(lambda: asyncio.run(fetch_missing())).result()
+        for reading in fresh:
+            readings[reading.engine] = reading
+    _write_cache(path, {engine: reading for engine, reading in readings.items() if reading.error is None})
     return readings
 
 

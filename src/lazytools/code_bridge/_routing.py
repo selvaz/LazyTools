@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _jobs, _store
-from lazytools.projects.admission import ENGINES, Engine, TelemetryReading, WindowReading, budget_for
+from lazytools.code_bridge import _jobs, _lockfile, _store
+from lazytools.projects.admission import ENGINES, Engine, TelemetryReading, WindowReading, budget_for, decide
 from lazytools.routing import (
     CapabilityRequirement,
     ContinuityHint,
@@ -54,6 +54,32 @@ def session_hint(rows: list[dict[str, Any]], cwd: str, session: str | None) -> C
     return ContinuityHint(engine=engine, failed_attempts=failures)
 
 
+def session_conflict_message(session: str, pinned: Engine, requested: Engine) -> str:
+    return (
+        f"session_conflict: Session {session!r} is pinned to {bridge_engine(pinned)}; "
+        f"the requested {bridge_engine(requested)} engine conflicts with it. "
+        f"Use a new --session to start a {bridge_engine(requested)} conversation."
+    )
+
+
+def check_session_engine(*, cwd: str, session: str, engine: str, db_path: Path | None = None) -> None:
+    """Manual and detached launches obey the same native-session pin as tier routing."""
+    rows = _jobs.list_jobs(_store.build_store(db_path), all_jobs=True)
+    pinned = session_hint(rows, cwd, session).engine
+    requested = provider(engine)
+    if pinned is not None and pinned != requested:
+        raise ValueError(session_conflict_message(session, pinned, requested))
+
+
+def model_provider(model: str) -> Engine:
+    stripped = model.strip()
+    if stripped in DEFAULT_POLICY.codex_models:
+        return "codex"
+    if stripped.lower().startswith("claude-") or stripped.lower() in ("sonnet", "opus", "haiku", "fable"):
+        return "claude_code"
+    raise ValueError(f"cannot infer engine from model {model!r}; choose --engine explicitly")
+
+
 @dataclass(frozen=True)
 class Selection:
     decision: RoutingDecision
@@ -64,6 +90,9 @@ class Selection:
     notice: str | None = None
     in_flight: dict[Engine, int] = field(default_factory=dict)
     operator_directed: bool = True
+    review_of: str | None = None
+    session: str | None = None
+    pinned_engine: Engine | None = None
 
     @property
     def rung(self) -> int | None:
@@ -104,9 +133,29 @@ class Selection:
         )
 
     def error(self) -> str:
-        exclusions = "; ".join(f"{engine}: {why}" for engine, why in self.decision.ineligible.items())
+        grouped: dict[str, list[str]] = {}
+        for key, why in self.decision.ineligible.items():
+            reasons = grouped.setdefault(key.rsplit(":", 1)[-1], [])
+            if why not in reasons:
+                reasons.append(why)
+        exclusions = "; ".join(f"{engine}: {'; '.join(reasons)}" for engine, reasons in grouped.items())
         notice = f" {self.notice}" if self.notice else ""
-        return f"{self.decision.reason}; {exclusions}. Try an explicit --engine for manual selection.{notice}"
+        if self.decision.reason == "session_conflict":
+            return self.notice or exclusions
+        if self.decision.reason == "human_review_required":
+            return (
+                f"human_review_required: no opposite-engine reviewer is eligible for job {self.review_of!r}; "
+                f"{exclusions}. A human review is required.{notice}"
+            )
+        # Pure route() embeds rung exclusions in this reason. Use the structured
+        # exclusions once here, leaving the router's parity contract untouched.
+        reason = self.decision.reason.split(" (", 1)[0]
+        if self.pinned_engine is not None:
+            return (
+                f"{reason}; {exclusions}. Session {self.session!r} is pinned to {bridge_engine(self.pinned_engine)}; "
+                f"use a new --session to consider another engine.{notice}"
+            )
+        return f"{reason}; {exclusions}. Try an explicit --engine for manual selection.{notice}"
 
 
 def choose(
@@ -121,7 +170,12 @@ def choose(
     store = _store.build_store(db_path)
     rows = _jobs.list_jobs(store, all_jobs=True)
     continuity = session_hint(rows, cwd, session)
-    available = frozenset((provider(engine),)) if engine else frozenset(ENGINES)
+    requested = provider(engine) if engine else model_provider(model) if model is not None else None
+    if requested is not None and model is not None:
+        rejection = DEFAULT_POLICY.reject_model(requested, model)
+        if rejection is not None:
+            raise ValueError(rejection)
+    available = frozenset((requested,)) if requested is not None else frozenset(ENGINES)
     # Native conversations cannot migrate providers, including after two failures.
     if continuity.engine is not None:
         available &= frozenset((continuity.engine,))
@@ -131,21 +185,64 @@ def choose(
         if job is None:
             raise ValueError(f"no job found matching {review_of!r}")
         writer = provider(str(job.get("engine", job.get("kind"))))
+    notice = None
+    requested_for_session = requested or ("codex" if needs == "images" else None)
+    if needs == "images" and continuity.engine != "codex":
+        requested_for_session = "codex"
+    if session and continuity.engine is not None and requested_for_session is not None and requested_for_session != continuity.engine:
+        notice = session_conflict_message(session, continuity.engine, requested_for_session)
+        if writer is None:
+            return Selection(
+                RoutingDecision(tier, None, None, None, "session_conflict", False,
+                                ineligible={requested_for_session: notice}),
+                {}, None, None, notice=notice,
+            )
     in_flight: dict[Engine, int] = dict.fromkeys(ENGINES, 0)
     for row in rows:
-        if row.get("status") == "running":
+        pid = row.get("pid")
+        if row.get("status") == "running" and type(pid) is int and _lockfile._pid_alive(pid):
             in_flight[provider(str(row.get("engine", row.get("kind"))))] += 1
     readings = read_readings()
     # The bridge has no project attribution today: these are direct, operator-directed
     # jobs. If attribution is introduced, a project with its brake enabled must pass
     # operator_directed=False here, using the project's existing brake setting.
     operator_directed = True
-    decision = recommend(
-        tier, catalogue=catalogue, in_flight=in_flight, continuity=continuity,
-        capability=CapabilityRequirement(images=needs == "images"),
-        writer_provider_for_review=writer, available=available, readings=readings,
-        operator_directed=operator_directed,
-    )
+    refused: dict[str, str] = {}
+    scores: dict[str, dict[str, Any]] = {}
+    while True:
+        decision = recommend(
+            tier, catalogue=catalogue, in_flight=in_flight, continuity=continuity,
+            capability=CapabilityRequirement(images=needs == "images"),
+            writer_provider_for_review=writer, available=available, readings=readings,
+            operator_directed=operator_directed,
+        )
+        scores.update(decision.scores)
+        if decision.provider is None:
+            break
+        chosen = decision.provider
+        # route() intentionally admits only its model's weekly bucket. Direct
+        # bridge work must also pass admission on the FULL account reading:
+        # the 5-hour/session ceiling is a launch gate, without changing scoring.
+        admission = decide(readings[chosen], budget_for(chosen),
+                           operator_directed=operator_directed, in_flight=in_flight[chosen])
+        if admission.allowed:
+            break
+        refused[chosen] = f"bridge_admission_would_refuse:{admission.reason} ({admission.rejection_text()})"
+        available -= frozenset((chosen,))
+    exclusions = dict(decision.ineligible)
+    for key, why in exclusions.items():
+        key_engine = key.rsplit(":", 1)[-1]
+        if key_engine in refused:
+            exclusions[key] = refused[key_engine]
+        elif why == "not_available_to_this_agent":
+            if continuity.engine is not None and key_engine != continuity.engine:
+                exclusions[key] = f"session {session!r} is pinned to {bridge_engine(continuity.engine)}"
+            elif requested is not None and key_engine != requested:
+                exclusions[key] = f"requested engine/model restricts routing to {bridge_engine(requested)}"
+    exclusions.update(refused)
+    decision = replace(decision, scores=scores, ineligible=exclusions)
+    if decision.provider is None and decision.reason.startswith("no_eligible_provider"):
+        decision = replace(decision, reason="no_eligible_provider")
     override = {}
     if decision.provider is not None:
         effective_model = model.strip() if model is not None else decision.model
@@ -166,36 +263,45 @@ def choose(
         # Catalogue validation intentionally preserves the original loader's raw
         # effort. Engines accept exact levels, so forward the validated stripped value.
         effective_effort = effective_effort.strip()
-    notice = None
     if continuity.failed_attempts >= 2:
-        notice = f"Session {session!r} has {continuity.failed_attempts} consecutive failures; use a new --session to allow a different engine."
+        failure_notice = f"Session {session!r} has {continuity.failed_attempts} consecutive failures; use a new --session to allow a different engine."
+        notice = f"{notice} {failure_notice}" if notice else failure_notice
     return Selection(
         decision, readings, override.get("model", decision.model), effective_effort,
-        override, notice, in_flight=in_flight, operator_directed=operator_directed,
+        override, notice, in_flight=in_flight, operator_directed=operator_directed, review_of=review_of,
+        session=session, pinned_engine=continuity.engine,
     )
 
 
 def print_selection(selection: Selection) -> None:
     """Explain the pick, both quota windows (including Claude's session), and exclusions."""
     print(selection.launch_line(), flush=True)
+    if selection.decision.reason == "session_conflict":
+        return  # Conflict validation deliberately runs before telemetry.
     for engine in ENGINES:
         reading = selection.readings.get(engine)
         print(f"{bridge_engine(engine)} quota:")
-        for label, weekly in (("weekly", True), ("5-hour", False)):
+        for label in ("weekly", "5-hour", "other"):
             windows = [] if reading is None else [
                 window for window in reading.windows
-                if ((window.duration_minutes or 0) >= 24 * 60 if weekly else 0 < (window.duration_minutes or 0) <= 360)
+                if ("weekly" if (window.duration_minutes or 0) >= 24 * 60
+                    else "5-hour" if 0 < (window.duration_minutes or 0) <= 360 else "other") == label
             ]
-            if not windows:
+            if not windows and label != "other":
                 print(f"  {label}: unreadable; reset unknown")
             for window in windows:
                 reset = window.resets_at.isoformat() if window.resets_at else "unknown"
                 forecast = selection.forecast(engine, window)
                 forecast_text = "projected unavailable" if forecast is None else f"projected {forecast[0]:.0f}% (limit {forecast[1]:.0f}%)"
                 print(f"  {label} ({window.window_id}): {window.used_percent:g}% used; reset {reset}; {forecast_text}")
+                budget = budget_for(engine)
+                effective = window.used_percent + (max(selection.in_flight.get(engine, 0), 0) + 1) * budget.per_job_reserve_percent
+                if effective >= budget.ceiling_percent:
+                    print(f"warning: {bridge_engine(engine)} {label} ({window.window_id}) at {window.used_percent:g}% used ({effective:g}% including reservations; ceiling {budget.ceiling_percent:g}%)")
                 if forecast is not None and forecast[0] > forecast[1]:
                     print(f"warning: {bridge_engine(engine)} {label} projected {forecast[0]:.0f}% (limit {forecast[1]:.0f}%) at the current pace")
-    for provider_name, why in selection.decision.ineligible.items():
-        print(f"excluded {provider_name}: {why}")
-    if selection.notice:
+    if selection.decision.provider is not None:
+        for provider_name, why in selection.decision.ineligible.items():
+            print(f"excluded {provider_name}: {why}")
+    if selection.notice and selection.decision.provider is not None:
         print(selection.notice)

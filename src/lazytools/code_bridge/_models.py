@@ -8,9 +8,11 @@ establish availability and resolve an alias. Its efforts remain unverified.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import shutil
+import signal
 import subprocess
 import tempfile
 from collections.abc import Iterator
@@ -25,6 +27,8 @@ from lazytools.routing.policy import DEFAULT_POLICY, ModelPolicy
 CODEX_TIMEOUT = 30.0
 CLAUDE_TIMEOUT = 60.0
 CLAUDE_PROMPT = "Reply with just: ok"
+_PROBE_WINDOWS = os.name == "nt"
+_PROBE_CLEANUP_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -160,14 +164,62 @@ def _claude_executable() -> str:
     raise FileNotFoundError("Claude Code CLI not found; install the native CLI or the claude-agent-sdk extra")
 
 
-def probe_claude_model(model: str, *, cwd: Path, timeout: float = CLAUDE_TIMEOUT) -> ModelInfo:
-    """One paid turn, without tools or session persistence, in an empty directory."""
+def _kill_probe_tree(process: subprocess.Popen[str]) -> None:
+    """Stop a POSIX group, or a suspended Windows child whose job attachment failed."""
+    if not _PROBE_WINDOWS:
+        with contextlib.suppress(OSError):
+            os.killpg(process.pid, signal.SIGKILL)  # type: ignore[attr-defined]  # POSIX-only branch
+    with contextlib.suppress(OSError):
+        process.kill()
+
+
+def _run_claude(argv: list[str], *, cwd: Path, timeout: float) -> subprocess.CompletedProcess[str]:
+    # Avoid subprocess.run's Windows timeout path: it re-communicates without
+    # a deadline, and grandchildren may still hold stdout/stderr pipe handles.
+    from lazytools.code_bridge._probe_process import WindowsProbeJob
+
+    job = WindowsProbeJob() if _PROBE_WINDOWS else None
     try:
-        result = subprocess.run(
+        process = subprocess.Popen(
+            argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace",
+            start_new_session=not _PROBE_WINDOWS,
+            # CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED
+            creationflags=(0x08000000 | 0x00000200 | 0x00000004) if _PROBE_WINDOWS else 0,
+        )
+    except BaseException:
+        if job is not None:
+            job.close()
+        raise
+    try:
+        if job is not None:
+            job.attach_and_resume(process.pid)
+        stdout, stderr = process.communicate(timeout=timeout)
+        return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
+    except BaseException:
+        if job is not None:
+            job.close()  # Stops descendants even if the root CLI has already exited.
+        _kill_probe_tree(process)
+        # Every teardown wait is bounded. In particular, never call communicate()
+        # without a timeout, even after killing the tree or receiving EOF.
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+            process.communicate(timeout=_PROBE_CLEANUP_SECONDS)
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+            process.wait(timeout=_PROBE_CLEANUP_SECONDS)
+        raise
+    finally:
+        if job is not None:
+            job.close()
+
+
+def probe_claude_model(model: str, *, cwd: Path, timeout: float = CLAUDE_TIMEOUT) -> ModelInfo:
+    """One paid turn, without tools, MCP, hooks or persistence, in an empty directory."""
+    try:
+        result = _run_claude(
             [_claude_executable(), "-p", CLAUDE_PROMPT, "--model", model,
-             "--output-format", "json", "--max-turns", "1", "--tools", "", "--no-session-persistence"],
-            cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True,
-            text=True, encoding="utf-8", errors="replace", timeout=timeout,
+             "--output-format", "json", "--max-turns", "1", "--tools", "", "--no-session-persistence",
+             "--strict-mcp-config", "--setting-sources", "", "--safe-mode"],
+            cwd=cwd, timeout=timeout,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return ModelInfo("claude", model, False, error=f"{type(exc).__name__}: {exc}")

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from lazytools.code_bridge import _models, cli
+from lazytools.code_bridge import _models, _probe_process, cli
 from lazytools.routing.catalogue import DEFAULT_PATH, load_tiers
 
 
@@ -144,7 +144,9 @@ def discovery(monkeypatch):
         assert argv[argv.index("--output-format") + 1] == "json"
         assert argv[argv.index("--tools") + 1] == ""
         assert "--no-session-persistence" in argv
-        assert kwargs["timeout"] == 60 and kwargs["stdin"] == subprocess.DEVNULL
+        assert "--strict-mcp-config" in argv and "--safe-mode" in argv
+        assert argv[argv.index("--setting-sources") + 1] == ""
+        assert kwargs["timeout"] == 60
         assert list(Path(kwargs["cwd"]).iterdir()) == []
         model = argv[argv.index("--model") + 1]
         resolved = {"sonnet": "claude-sonnet-5", "opus": "claude-opus-5-5"}.get(model, model)
@@ -153,7 +155,7 @@ def discovery(monkeypatch):
 
     monkeypatch.setattr(_models, "fetch_codex_models", fetch)
     monkeypatch.setattr(_models, "_claude_executable", lambda: "fake-claude")
-    monkeypatch.setattr(_models.subprocess, "run", run)
+    monkeypatch.setattr(_models, "_run_claude", run)
     monkeypatch.setattr(_models, "load_default_tiers", lambda **kwargs: load_tiers(DEFAULT_PATH, **kwargs))
     return models, calls
 
@@ -232,7 +234,7 @@ def test_claude_unavailable_and_wrong_concrete_answer_are_mismatches(discovery, 
             return subprocess.CompletedProcess(argv, 1, json.dumps({"is_error": True, "result": "model unavailable"}), "")
         return subprocess.CompletedProcess(argv, 0, json.dumps({"modelUsage": {"claude-opus-old": {}}}), "")
 
-    monkeypatch.setattr(_models.subprocess, "run", run)
+    monkeypatch.setattr(_models, "_run_claude", run)
     assert cli.main(["models", "--probe-claude", "--json"]) == 2
     payload = json.loads(capsys.readouterr().out)
     assert any("claude-sonnet-5-5' is unavailable" in item for item in payload["mismatches"])
@@ -252,7 +254,7 @@ def test_failed_claude_probe_never_claims_availability(tmp_path, monkeypatch, pr
         stdout = "noise" if problem == "invalid_json" else json.dumps({"result": "failure", "modelUsage": {} if problem == "no_usage" else {"sonnet": {}}})
         return subprocess.CompletedProcess(argv, 1 if problem == "exit" else 0, stdout, "")
 
-    monkeypatch.setattr(_models.subprocess, "run", run)
+    monkeypatch.setattr(_models, "_run_claude", run)
     info = _models.probe_claude_model("sonnet", cwd=tmp_path)
     assert info.available is False and info.error
 
@@ -286,3 +288,100 @@ def test_models_help_explains_opt_in_cost(capsys):
     assert caught.value.code == 0
     out = capsys.readouterr().out
     assert "Opt in" in out and "quota" in out and "--probe-claude" in out
+
+
+class FakeProbe:
+    def __init__(self, *, hung=False):
+        self.pid = 4321
+        self.returncode = None
+        self.hung = hung
+        self.communications = []
+        self.waits = []
+        self.killed = False
+
+    def communicate(self, *, timeout):
+        self.communications.append(timeout)
+        if self.hung:
+            raise subprocess.TimeoutExpired("fake probe", timeout)
+        self.returncode = 0
+        return '{"modelUsage":{"sonnet":{}}}', "diagnostic"
+
+    def kill(self):
+        self.killed = True
+
+    def wait(self, *, timeout):
+        self.waits.append(timeout)
+        if self.hung:
+            raise subprocess.TimeoutExpired("fake probe", timeout)
+        return 0
+
+
+class FakeProbeJob:
+    def __init__(self):
+        self.attached = None
+        self.closed = False
+        self.descendant_alive = True
+
+    def attach_and_resume(self, pid):
+        self.attached = pid
+
+    def close(self):
+        self.closed = True
+        self.descendant_alive = False
+
+
+def test_probe_runner_uses_pipes_and_a_deadline(tmp_path, monkeypatch):
+    child = FakeProbe()
+    job = FakeProbeJob()
+    monkeypatch.setattr(_probe_process, "WindowsProbeJob", lambda: job)
+    seen = {}
+
+    def popen(argv, **kwargs):
+        seen.update(argv=argv, **kwargs)
+        return child
+
+    monkeypatch.setattr(_models.subprocess, "Popen", popen)
+    result = _models._run_claude(["fake"], cwd=tmp_path, timeout=12)
+    assert result.returncode == 0 and result.stderr == "diagnostic"
+    assert child.communications == [12]
+    assert seen["stdin"] == subprocess.DEVNULL
+    assert seen["stdout"] == seen["stderr"] == subprocess.PIPE
+    assert seen["start_new_session"] == (not _models._PROBE_WINDOWS)
+
+
+@pytest.mark.parametrize("root_exited", [False, True])
+def test_windows_probe_timeout_owns_descendants_even_after_root_exit(tmp_path, monkeypatch, root_exited):
+    child = FakeProbe(hung=True)
+    child.returncode = 0 if root_exited else None
+    job = FakeProbeJob()
+    calls = []
+
+    def popen(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return child
+
+    monkeypatch.setattr(_models, "_PROBE_WINDOWS", True)
+    monkeypatch.setattr(_probe_process, "WindowsProbeJob", lambda: job)
+    monkeypatch.setattr(_models.subprocess, "Popen", popen)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        _models._run_claude(["fake"], cwd=tmp_path, timeout=0.01)
+    assert caught.value.timeout == 0.01
+    assert child.killed
+    assert len(calls) == 1  # Cleanup never depends on taskkill finding an exited root.
+    assert calls[0][1]["creationflags"] & 0x00000004  # CREATE_SUSPENDED
+    assert job.attached == 4321 and job.closed and not job.descendant_alive
+    assert child.communications == [0.01, _models._PROBE_CLEANUP_SECONDS]
+    assert child.waits == [_models._PROBE_CLEANUP_SECONDS]
+
+
+def test_posix_timeout_kills_the_new_process_group(tmp_path, monkeypatch):
+    child = FakeProbe(hung=True)
+    groups = []
+    monkeypatch.setattr(_models, "_PROBE_WINDOWS", False)
+    monkeypatch.setattr(_models.signal, "SIGKILL", 9, raising=False)
+    monkeypatch.setattr(_models.subprocess, "Popen", lambda *a, **kw: child)
+    monkeypatch.setattr(_models.os, "killpg", lambda *args: groups.append(args), raising=False)
+    with pytest.raises(subprocess.TimeoutExpired):
+        _models._run_claude(["fake"], cwd=tmp_path, timeout=1)
+    assert groups == [(4321, _models.signal.SIGKILL)] and child.killed
+    assert all(timeout is not None for timeout in child.communications)
