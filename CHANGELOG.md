@@ -15,9 +15,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 - Requires `lazybridge>=1.8.0` (delegation hooks; `Store` no longer fails with
   "database is locked" when several bridge jobs open their database at once).
-- Declares `tzdata` on Windows: `lazytools.projects` resolves IANA time zones
-  (`UTC` included) and Windows has no system zone database, so a clean install
-  failed every schedule/Gantt call with `ZoneInfoNotFoundError`.
+- Declares `tzdata`: `lazytools.projects` resolves IANA time zones (`UTC`
+  included), and Windows — like minimal Linux containers — has no system zone
+  database, so a clean install failed every schedule/Gantt call with
+  `ZoneInfoNotFoundError`.
 
 ### Added
 - **`lazytools.projects`** — LazyCEO's project management as a shared layer over
