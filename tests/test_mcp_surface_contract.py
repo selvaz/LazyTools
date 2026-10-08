@@ -60,6 +60,7 @@ EXPECTED_PROVIDER_IDS = {
     "outlook",
     "registry",
     "pulse",
+    "projects",
 }
 
 
@@ -192,6 +193,49 @@ PULSE_TOOLS = {
     "pulse_list_backlog",
     "pulse_list_pending_approvals",
     "pulse_state_snapshot",
+}
+
+PROJECTS_READ = {
+    "projects_list",
+    "projects_get",
+    "projects_schedule",
+    "projects_timeline",
+    "projects_gantt",
+    "projects_notes",
+    "projects_board_summary",
+    "projects_find_contract",
+    "projects_get_contract",
+    "projects_repos_for_project",
+    "projects_get_verification",
+    "projects_get_verification_for_contract",
+    "projects_quota",
+    "projects_brake_status",
+    "projects_cost_report",
+    "projects_jobs",
+}
+PROJECTS_WRITE = {
+    "projects_create",
+    "projects_review_plan",
+    "projects_promote",
+    "projects_pause",
+    "projects_resume",
+    "projects_close",
+    "projects_set_owner",
+    "projects_set_brake_enabled",
+    "projects_set_deadline",
+    "projects_add_note",
+    "projects_retire_task",
+    "projects_reopen_task",
+    "projects_reopen_done_task",
+    "projects_revise_plan",
+    "projects_schedule_task",
+    "projects_open_contract",
+    "projects_accept_verification",
+    "projects_request_rework",
+    "projects_block_verification",
+    "projects_retry_review",
+    "projects_retry_harness",
+    "projects_reopen_for_empty_review",
 }
 
 TELEGRAM_TOOLS = {"telegram_send_message", "telegram_send_document"}
@@ -400,6 +444,21 @@ def test_pulse_contract() -> None:
     assert _names(PulseTools()) == PULSE_TOOLS
 
 
+def test_projects_provider_contract(tmp_path) -> None:
+    """Read-only by construction; write tools (bookkeeping only) only with allow_write=True."""
+    from lazytools.connectors.projects import ProjectsTools
+    from lazytools.connectors.projects.tools import CORE_TOOLS
+
+    store_db = str(tmp_path / "ceo_simple.sqlite")
+    full = {"store_db": store_db, "profile": "full"}
+    assert _names(ProjectsTools(**full, allow_write=False)) == PROJECTS_READ
+    assert _names(ProjectsTools(**full, allow_write=True)) == PROJECTS_READ | PROJECTS_WRITE
+    # The default profile is a strict subset, and still never emits a writer read-only.
+    assert CORE_TOOLS <= PROJECTS_READ | PROJECTS_WRITE
+    assert _names(ProjectsTools(store_db=store_db, profile="core", allow_write=False)) == PROJECTS_READ & CORE_TOOLS
+    assert _names(ProjectsTools(store_db=store_db, profile="core", allow_write=True)) == CORE_TOOLS
+
+
 def test_comms_connectors_contract() -> None:
     from lazytools.connectors.gmail import GmailTools
     from lazytools.connectors.outlook import OutlookTools
@@ -518,3 +577,31 @@ def test_unsafe_patterns_cover_the_optimizer_and_depot_writers() -> None:
         "portfolio_tree_load",
     ):
         assert not unsafe(read), f"{read} wrongly matches an unsafe pattern"
+
+
+def test_projects_core_profile_can_take_a_project_from_draft_to_runnable(tmp_path) -> None:
+    """A profile that can create a project must be able to review and promote
+    it, or every project it creates is stuck as a draft."""
+    from lazytools.connectors.projects import ProjectsTools
+
+    core = {t.name for t in ProjectsTools(store_db=str(tmp_path / "s.sqlite"), profile="core", allow_write=True).as_tools()}
+    assert {"projects_create", "projects_review_plan", "projects_promote"} <= core
+
+
+def test_projects_create_validates_the_owner_before_reserving_the_id(tmp_path) -> None:
+    from lazytools.connectors.projects import ProjectsTools
+
+    tools = ProjectsTools(store_db=str(tmp_path / "s.sqlite"), allow_write=True)
+    assert tools.projects_create("alpha", "Alpha", "x", owner="bogus").startswith("REJECTED")
+    assert "AS A DRAFT" in tools.projects_create("alpha", "Alpha", "x", owner="claude")
+
+
+def test_projects_gantt_writes_a_caller_path_only_with_write_access(tmp_path) -> None:
+    from lazytools.connectors.projects import ProjectsTools
+
+    target = tmp_path / "elsewhere.html"
+    read_only = ProjectsTools(store_db=str(tmp_path / "s.sqlite"), allow_write=False)
+    assert read_only.projects_gantt(out_path=str(target))["text"].startswith("REJECTED")
+    assert not target.exists()
+    writer = ProjectsTools(store_db=str(tmp_path / "s.sqlite"), allow_write=True)
+    assert writer.projects_gantt(out_path=str(target))["html_path"] == str(target)

@@ -997,6 +997,26 @@ def _pulse(allow_write: bool = False, *, data_source: dict[str, Any] | None = No
     return PulseTools(ceo_state_db=ds.get("ceo_state_db"))
 
 
+@_register("projects")
+def _projects(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """The shared project registry (``lazytools.projects``) -- read tools always;
+    bookkeeping write tools (create/promote/pause/plan-edit/contracts/verification
+    decisions) only with ``allow_write=True``.
+
+    Points at the SAME Store a live LazyCEO deployment writes, PROVIDED one is
+    configured -- see ``lazytools.connectors.projects.tools`` for the resolution
+    order (``data_source["projects_store_db"]`` > ``LAZYTOOLS_PROJECTS_STORE_DB``
+    > ``LAZYCEO_CEO_STORE_DB`` env var). With none of those set this opens an
+    in-memory store, never LazyCEO's real file by default -- see that module's
+    docstring. Never delegation, Telegram, specialist lifecycle, autonomy-level
+    changes, or merges -- those stay LazyCEO's own policy, or
+    ``lazytools-code-bridge``'s.
+    """
+    from lazytools.connectors.projects import ProjectsTools
+
+    return ProjectsTools(store_db=(data_source or {}).get("projects_store_db"), allow_write=allow_write)
+
+
 @_register("registry")
 def _registry(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Ecosystem DB registry + cross-repo artifact catalog. Core, no extra needed.
