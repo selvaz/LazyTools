@@ -193,6 +193,15 @@ def test_accept_lists_all_missing_required_checks() -> None:
         verification.accept(store, "job12345678", reviewer="r", reason="ok")
 
 
+def test_accept_without_any_checks_lists_missing_commands() -> None:
+    store = Store()
+    contract = _open_contract(store, required_checks=["pytest -q", "ruff check src"])
+    verification.claim_verification(store, contract_id=contract.contract_id, job_id="job12345678")
+    verification.start_running(store, "job12345678")
+    with pytest.raises(ValueError, match="Missing required checks: 'pytest -q', 'ruff check src'"):
+        verification.accept(store, "job12345678", reviewer="r", reason="ok")
+
+
 def test_accept_honours_authorization_check_hook() -> None:
     store = Store()
     contract = _open_contract(store)

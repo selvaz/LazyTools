@@ -387,12 +387,13 @@ def accept(
     if isinstance(raw, dict) and raw.get("status") == "running":
         current = Verification.model_validate(raw)
         validated = current
+        contract = get_task_contract(store, current.contract_id)
         if not current.checks:
+            missing = "" if contract is None else " Missing required checks: " + ", ".join(repr(command) for command in contract.required_checks)
             raise ValueError(
                 "no checks have been recorded for this attempt yet -- accepting now would close the task "
-                "with no evidence at all. Wait for the required_checks to run."
+                "with no evidence at all. Wait for the required_checks to run." + missing
             )
-        contract = get_task_contract(store, current.contract_id)
         if contract is not None and contract.requires_review:
             if current.review is None:
                 raise ValueError("this contract requires an independent review and none has been recorded yet.")
