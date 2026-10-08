@@ -8,6 +8,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-10-08
+
+### Added
+- **`lazytools.routing`** — LazyCEO's deterministic model router as a shared package: per-engine/per-model policy, tier catalogue (`default_tiers.toml`), `route()` (parity-tested against LazyCEO), `recommend()` with concurrent quota reads and a 120 s file cache.
+- Code bridge: `route --tier` (dry run), `run --tier`, `--review-of` (opposite-engine review), `--needs images`, session pinning, `models [--probe-claude]` live audit; operator-directed admission for direct work.
+- `engines` extra (`lazybridge[claude-code]`): the Claude Agent SDK that the bridge's Claude engine and Claude quota reading need. A clean install without it failed at the first Claude quota read.
+
 ### Changed
 - Bridge tier launches admit the effective model's weekly bucket and its
   engine's short window after the weekly router pick, exclude refused engines
@@ -49,15 +56,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   session engine pinning and consecutive-failure notices, opposite-engine
   reviews, and routing metadata are supported. `status`/`jobs` show the
   tier, model and effort. Detached launches retain the parent's decision.
-
----
-
-## [0.10.0] — 2026-10-08
-
-### Added
-- **`lazytools.routing`** — LazyCEO's deterministic model router as a shared package: per-engine/per-model policy, tier catalogue (`default_tiers.toml`), `route()` (parity-tested against LazyCEO), `recommend()` with concurrent quota reads and a 120 s file cache.
-- Code bridge: `route --tier` (dry run), `run --tier`, `--review-of` (opposite-engine review), `--needs images`, session pinning, `models [--probe-claude]` live audit; operator-directed admission for direct work.
-- `engines` extra (`lazybridge[claude-code]`): the Claude Agent SDK that the bridge's Claude engine and Claude quota reading need. A clean install without it failed at the first Claude quota read.
 
 ## [0.9.0] — 2026-10-08
 

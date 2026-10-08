@@ -34,6 +34,7 @@ pip install "lazytoolkit[gmail] @ $G"          # Gmail client + tools
 pip install "lazytoolkit[outlook] @ $G"        # Outlook client + tools (Windows desktop, COM)
 pip install "lazytoolkit[telegram] @ $G"       # Telegram client + tools
 pip install "lazytoolkit[mcp] @ $G"            # Model Context Protocol connector
+pip install "lazytoolkit[engines] @ $G"        # Claude Code engine + Claude quota reading (code bridge --engine claude, --tier)
 pip install "lazytoolkit[docs] @ $G"           # PDF/DOCX/HTML document reading
 pip install "lazytoolkit[web] @ $G"            # LazyCrawler search/crawl as LLM tools
 pip install "lazytoolkit[charts] @ $G"         # report figures: on-demand charts from datahub series (matplotlib)
