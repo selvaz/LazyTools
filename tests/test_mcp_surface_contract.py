@@ -200,6 +200,7 @@ PROJECTS_READ = {
     "projects_get",
     "projects_schedule",
     "projects_timeline",
+    "projects_gantt",
     "projects_notes",
     "projects_board_summary",
     "projects_find_contract",

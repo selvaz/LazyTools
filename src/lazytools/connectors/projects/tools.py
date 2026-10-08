@@ -112,6 +112,7 @@ CORE_TOOLS = frozenset(
         "projects_get",
         "projects_schedule",
         "projects_timeline",
+        "projects_gantt",
         "projects_board_summary",
         "projects_quota",
         "projects_brake_status",
@@ -190,6 +191,22 @@ class ProjectsTools:
                 lines.append(f"--- owner={one_owner} ---\n{rendered}")
             return "\n\n".join(lines)
         return _timeline.render_project_timeline(self._store, blocked_reasons=blocked_reasons, owner=owners[0])
+
+    def projects_gantt(self, owner: str = "all", include_closed: bool = False, out_path: str | None = None) -> dict[str, str]:
+        """The Gantt of every open and paused project, rendered by plain code
+        (no model call), in two forms: ``text`` -- one character per day, to
+        paste as-is in a monospace block in chat -- and ``html_path`` -- a
+        colored, self-contained HTML page (inline SVG) written to disk, to
+        attach. ``owner``: "all" (default), "default", or one of
+        ceo/claude/shared. ``include_closed`` also draws draft/done projects."""
+        from lazytools.projects import gantt as _gantt
+
+        owners = _owners_filter(owner)
+        statuses = None if include_closed else _gantt.DEFAULT_STATUSES
+        target = Path(out_path).expanduser() if out_path else Path.home() / ".lazytools" / "gantt" / "gantt.html"
+        written = _gantt.write_gantt_html(self._store, target, statuses=statuses, owners=owners)
+        text = _gantt.render_gantt_text(self._store, statuses=statuses, owners=owners)
+        return {"text": text, "html_path": str(written)}
 
     def projects_notes(self, project_id: str, limit: int = 5) -> list[dict[str, Any]]:
         """The newest notes recorded against a project, most recent first."""
@@ -587,6 +604,7 @@ class ProjectsTools:
             self.projects_get,
             self.projects_schedule,
             self.projects_timeline,
+            self.projects_gantt,
             self.projects_notes,
             self.projects_board_summary,
             self.projects_find_contract,
