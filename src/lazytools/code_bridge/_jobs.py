@@ -150,16 +150,21 @@ def _git_head(path: Path) -> str | None:
     return result.stdout.strip() or None
 
 
-def _head_at_start(path: Path) -> str | None:
+def _head_at_start(path: Path) -> tuple[str | None, str | None]:
     try:
-        return _git_head(path)
-    except Exception:
-        return None
+        return _git_head(path), None
+    except Exception as exc:
+        if isinstance(exc, subprocess.CalledProcessError) and "not a git repository" in (exc.stderr or "").lower():
+            return None, None
+        reason = " ".join(str(exc).split()) or type(exc).__name__
+        return None, reason
 
 
-def workspace_evidence(path: Path, start: str | None) -> tuple[str, dict[str, Any]]:
+def workspace_evidence(path: Path, start: str | None, *, start_error: str | None = None) -> tuple[str, dict[str, Any]]:
     """Best-effort git evidence; a broken/missing git must never hide the job error."""
     data: dict[str, Any] = {"head": None, "new_commits": None, "uncommitted": None}
+    if start_error is not None:
+        return f"workspace: unavailable (start snapshot failed: {start_error})", data
     try:
         repo = _git_repo_root(path)
         probe = _git(repo, "rev-parse", "--is-inside-work-tree")
@@ -185,7 +190,15 @@ def workspace_evidence(path: Path, start: str | None) -> tuple[str, dict[str, An
         return f"workspace: unavailable ({reason})", data
 
 
-def _with_workspace(store: Any, job_id: str, error: str, *, path: Path | None = None, start: str | None = None) -> str:
+def _with_workspace(
+    store: Any,
+    job_id: str,
+    error: str,
+    *,
+    path: Path | None = None,
+    start: str | None = None,
+    start_error: str | None = None,
+) -> str:
     meta = _store.read_meta(store, job_id) or {}
     cwd = path or (Path(meta["cwd"]) if meta.get("cwd") else None)
     if cwd is None:
@@ -194,7 +207,11 @@ def _with_workspace(store: Any, job_id: str, error: str, *, path: Path | None = 
             {"head": None, "new_commits": None, "uncommitted": None},
         )
     else:
-        suffix, data = workspace_evidence(cwd, start if path is not None else meta.get("head_at_start"))
+        suffix, data = workspace_evidence(
+            cwd,
+            start if path is not None else meta.get("head_at_start"),
+            start_error=start_error if path is not None else meta.get("head_at_start_error"),
+        )
     meta["workspace_at_end"] = data
     meta["updated_at"] = time.time()
     _store.write_meta(store, job_id, meta)
@@ -291,6 +308,7 @@ def run_job(
     # right after, reclaiming on pid-death, but `run_job` is a public
     # function other callers may embed). Found by Codex review.
     head_at_start = None
+    head_at_start_error = None
     try:
         # Defined FIRST, before anything below that could itself raise:
         # the `except BaseException` handler further down calls this to
@@ -305,7 +323,14 @@ def run_job(
 
         def _finish(status: str, text: str, error: str | None) -> RunResult:
             if status != "done":
-                error = _with_workspace(store, job_id, error or "unknown error", path=lock.cwd, start=head_at_start)
+                error = _with_workspace(
+                    store,
+                    job_id,
+                    error or "unknown error",
+                    path=lock.cwd,
+                    start=head_at_start,
+                    start_error=head_at_start_error,
+                )
             # The result FILE is persisted BEFORE the job record is marked
             # terminal, not after: marking "done" first and writing the file
             # second would let a disk-full/permissions failure on the write
@@ -318,13 +343,15 @@ def run_job(
                 result_path: Path | None = _write_result(db_path, job_id, body)
             except OSError as exc:
                 write_error = f"result could not be persisted: {type(exc).__name__}: {exc}"
-                write_error = _with_workspace(store, job_id, write_error, path=lock.cwd, start=head_at_start)
+                write_error = _with_workspace(
+                    store, job_id, write_error, path=lock.cwd, start=head_at_start, start_error=head_at_start_error
+                )
                 _set_status("failed", error=write_error)
                 return RunResult(job_id, "failed", "", write_error, None)
             _set_status(status, result=text if status == "done" else None, error=error)
             return RunResult(job_id, status, text if status == "done" else "", error, result_path)
 
-        head_at_start = _head_at_start(lock.cwd)
+        head_at_start, head_at_start_error = _head_at_start(lock.cwd)
         if stale_job_id is not None:
             _mark_interrupted(store, registry, stale_job_id, db_path=db_path)
 
@@ -342,6 +369,7 @@ def run_job(
                 "effort": effort,
                 "timeout": timeout,
                 "head_at_start": head_at_start,
+                **({"head_at_start_error": head_at_start_error} if head_at_start_error is not None else {}),
                 "pid": os.getpid(),
                 "created_at": now,
                 "updated_at": now,

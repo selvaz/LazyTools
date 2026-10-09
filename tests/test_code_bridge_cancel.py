@@ -33,6 +33,112 @@ def test_cancel_terminal_is_noop(tmp_path, monkeypatch, capsys, status):
     assert _jobs.find_job(store, registry, "cancel-this-job") == before
 
 
+@pytest.mark.parametrize("status", ["done", "failed", "interrupted"])
+@pytest.mark.parametrize("already_dead", [False, True])
+def test_cancel_preserves_terminal_record_written_during_process_exit(
+    tmp_path, monkeypatch, capsys, status, already_dead
+):
+    db, _, store, registry = job_record(tmp_path)
+    ticket = _store.build_approval_queue(store).create_ticket(task_id="cancel-this-job", prompt="pending")
+    alive = True
+    terminal = {}
+    killed = []
+
+    def finish():
+        nonlocal alive
+        registry.write(
+            "cancel-this-job",
+            "x",
+            tool_name="codex",
+            status=status,
+            result="finished work" if status == "done" else None,
+            error="original failure" if status != "done" else None,
+        )
+        terminal.update(_jobs.find_job(store, registry, "cancel-this-job"))
+        alive = False
+
+    def pid_alive(pid):
+        if already_dead and alive:
+            finish()
+        return alive
+
+    def kill(pid):
+        killed.append(pid)
+        finish()
+
+    monkeypatch.setattr(_lockfile, "_pid_alive", pid_alive)
+    monkeypatch.setattr(cli, "_process_matches_bridge", lambda pid: True)
+    monkeypatch.setattr(cli, "_kill_process_tree", kill)
+    monkeypatch.setattr(_jobs, "interrupt_job", lambda *a, **kw: pytest.fail("overwrote terminal record"))
+    assert cli.main(["cancel", "cancel-this", "--db", str(db)]) == 0
+    assert capsys.readouterr().out.strip() == f"job cancel-this-job already {status}"
+    assert _jobs.find_job(store, registry, "cancel-this-job") == terminal
+    assert killed == ([] if already_dead else [4242])
+    assert _store.build_approval_queue(store).get_ticket(ticket.approval_id).status == "pending"
+
+
+@pytest.mark.parametrize("selector", ["startup-job", "startup-"])
+@pytest.mark.parametrize("child_writes_record", [False, True])
+@pytest.mark.parametrize("has_meta", [False, True])
+def test_cancel_detached_startup_persists_interruption(
+    tmp_path, monkeypatch, capsys, selector, child_writes_record, has_meta
+):
+    db = tmp_path / "store.sqlite"
+    store = _store.build_store(db)
+    registry = _store.build_job_registry(store)
+    (_store.results_dir(db) / "startup-job.pid").write_text("4242", encoding="utf-8")
+    if has_meta:
+        _store.write_meta(store, "startup-job", {"cwd": str(tmp_path), "engine": "codex", "head_at_start": None})
+    queue = _store.build_approval_queue(store)
+    ticket = queue.create_ticket(task_id="startup-job", prompt="startup ticket")
+    alive = True
+    checked = []
+    killed = []
+
+    def identity(pid):
+        checked.append(pid)
+        return True
+
+    def kill(pid):
+        nonlocal alive
+        killed.append(pid)
+        if child_writes_record:
+            registry.write("startup-job", "child task", tool_name="claude", status="running")
+        alive = False
+
+    monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: alive)
+    monkeypatch.setattr(cli, "_process_matches_bridge", identity)
+    monkeypatch.setattr(cli, "_kill_process_tree", kill)
+    assert cli.main(["cancel", selector, "--reason", "stop startup", "--db", str(db)]) == 0
+    assert checked == killed == [4242]
+    row = _jobs.find_job(store, registry, "startup-job")
+    assert row["status"] == "interrupted"
+    assert row["job_id"] == "startup-job"
+    assert row["pid"] == 4242
+    assert row["error"].startswith("cancelled by operator during startup: stop startup\nworkspace: ")
+    assert row["kind"] == ("claude" if child_writes_record else "codex" if has_meta else "unknown")
+    assert row["objective"] == ("child task" if child_writes_record else "")
+    assert queue.get_ticket(ticket.approval_id).status == "rejected"
+    assert row["error"] in (_store.results_dir(db) / "startup-job.txt").read_text(encoding="utf-8")
+    before = row.copy()
+    assert cli.main(["cancel", selector, "--db", str(db)]) == 0
+    assert _jobs.find_job(store, registry, "startup-job") == before
+
+
+def test_cancel_startup_refuses_unrelated_pid_and_ambiguous_pid_files(tmp_path, monkeypatch):
+    db = tmp_path / "store.sqlite"
+    (_store.results_dir(db) / "startup-job.pid").write_text("4242", encoding="utf-8")
+    monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: True)
+    monkeypatch.setattr(cli, "_process_matches_bridge", lambda pid: False)
+    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid: pytest.fail("killed"))
+    assert cli.main(["cancel", "startup-", "--db", str(db)]) == 1
+    store = _store.build_store(db)
+    assert _jobs.list_jobs(store, all_jobs=True) == []
+    (_store.results_dir(db) / "startup-other.pid").write_text("4343", encoding="utf-8")
+    assert cli.main(["cancel", "startup-", "--db", str(db)]) == 1
+    assert _jobs.list_jobs(store, all_jobs=True) == []
+
+
 @pytest.mark.parametrize("detached", [False, True])
 def test_cancel_kills_rejects_tickets_and_next_run_reclaims_lock(tmp_path, monkeypatch, capsys, detached):
     db, repo, store, registry = job_record(tmp_path)

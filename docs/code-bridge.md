@@ -124,7 +124,11 @@ The snapshot counts new commits with `git rev-list --count <start>..HEAD`
 and uncommitted paths with `git status --porcelain=v1 -uall`. It describes
 the repository as a whole, including work that was already dirty at launch.
 JSON metadata includes `workspace_at_end` with `head`, `new_commits`, and
-`uncommitted`. Git checks are best-effort, with a ten-second timeout per
+`uncommitted`. If the initial Git snapshot fails, metadata also includes
+`head_at_start_error`; evidence reports
+`workspace: unavailable (start snapshot failed: <reason>)` and leaves the
+new commit count unknown, even if Git is available again when the job ends.
+Git checks are best-effort, with a ten-second timeout per
 subprocess; a non-git directory reports `workspace: not a git repo`, and
 an inspection failure reports `workspace: unavailable (<reason>)` with
 unavailable fields set to `null`. This evidence helps assess a timed-out
@@ -143,7 +147,11 @@ private group is available), marks the job `interrupted` with
 `cancelled by operator: <reason>` and workspace evidence, and rejects its
 still-open approval tickets. A dead process is also marked interrupted.
 Cancelling a terminal job prints its status and exits **0** without changing
-it. A later `run` on the same repository automatically reclaims the dead
+it, including when the job finishes while cancellation is stopping the process.
+Cancellation also works immediately after `run --detach`, before the child
+writes its job record: the PID file resolves the full id and the interruption
+is recorded as `cancelled by operator during startup: <reason>`.
+A later `run` on the same repository automatically reclaims the dead
 owner's lock and preserves the cancellation result.
 
 Before killing, the bridge checks for a Python process running the bridge

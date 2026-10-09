@@ -377,15 +377,21 @@ def _cmd_result(args: argparse.Namespace) -> int:
     return exit_code
 
 
-def _detached_pid(db_path: Path | None, job_id: str) -> int | None:
-    """The pid `run --detach` recorded for ``job_id`` (full id or unique prefix)."""
+def _detached_job(db_path: Path | None, job_id: str) -> tuple[str, int] | None:
+    """Resolve a detached pid file to its full job id and pid."""
     matches = sorted(_store.results_dir(db_path).glob(f"{job_id}*.pid"))
     if len(matches) != 1:
         return None
     try:
-        return int(matches[0].read_text(encoding="utf-8").strip())
+        return matches[0].stem, int(matches[0].read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
         return None
+
+
+def _detached_pid(db_path: Path | None, job_id: str) -> int | None:
+    """The pid `run --detach` recorded for ``job_id`` (full id or unique prefix)."""
+    detached = _detached_job(db_path, job_id)
+    return detached[1] if detached else None
 
 
 def _process_matches_bridge(pid: int) -> bool | None:
@@ -449,14 +455,25 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)
     job = _jobs.find_job(store, registry, args.job_id)
+    startup = job is None
     if job is None:
-        print(f"no job found matching {args.job_id!r}", file=sys.stderr)
-        return 1
+        detached = _detached_job(db_path, args.job_id)
+        if detached is None:
+            print(f"no job found matching {args.job_id!r}", file=sys.stderr)
+            return 1
+        job_id, pid = detached
+        meta = _store.read_meta(store, job_id) or {}
+        job = _jobs.find_job(store, registry, job_id) or {
+            "job_id": job_id,
+            "kind": meta.get("engine", "unknown"),
+            "objective": meta.get("objective", ""),
+        }
+    else:
+        job_id = str(job["job_id"])
+        pid = _detached_pid(db_path, job_id) or job.get("pid")
     if job.get("status") in _TERMINAL:
         print(f"job {job['job_id']} already {job['status']}")
         return 0
-    job_id = str(job["job_id"])
-    pid = _detached_pid(db_path, job_id) or job.get("pid")
     if not isinstance(pid, int) or pid <= 0:
         print(f"job {job_id}: no process id recorded; cannot cancel", file=sys.stderr)
         return 1
@@ -481,7 +498,21 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
                 print(f"job {job_id}: pid {pid} is still alive after cancellation", file=sys.stderr)
                 return 1
             time.sleep(0.05)
-    error = _jobs.interrupt_job(store, registry, job, f"cancelled by operator: {args.reason}", db_path=db_path)
+    # A final write may precede process exit or race the kill. Preserve it,
+    # including when the pid was already dead at the first liveness check.
+    latest = _jobs.find_job(store, registry, job_id)
+    if latest and latest.get("status") in _TERMINAL:
+        print(f"job {job_id} already {latest['status']}")
+        return 0
+    if latest is not None:
+        job = latest
+    if startup:
+        meta = _store.read_meta(store, job_id) or {}
+        meta.setdefault("job_id", job_id)
+        meta.setdefault("pid", pid)
+        _store.write_meta(store, job_id, meta)
+    message = "cancelled by operator during startup" if startup else "cancelled by operator"
+    error = _jobs.interrupt_job(store, registry, job, f"{message}: {args.reason}", db_path=db_path)
     print(f"[interrupted] job {job_id}\n{error}")
     return 0
 

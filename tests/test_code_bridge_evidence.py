@@ -190,10 +190,53 @@ def test_non_git_and_git_failure_never_mask_engine_error(tmp_path, monkeypatch):
 
 def test_unborn_git_head(tmp_path):
     git(tmp_path, "init")
-    assert _jobs._head_at_start(tmp_path) is None
+    assert _jobs._head_at_start(tmp_path) == (None, None)
     suffix, data = _jobs.workspace_evidence(tmp_path, None)
     assert suffix == "workspace: HEAD unchanged; 0 uncommitted path(s)"
     assert data == {"head": None, "new_commits": 0, "uncommitted": 0}
+
+
+@pytest.mark.parametrize("mode", ["error", "raise", "interrupt", "write_failure"])
+def test_failed_start_snapshot_is_not_treated_as_unborn_head(tmp_path, repo, monkeypatch, mode):
+    script = fakes.install(monkeypatch)
+    script.mode = "raise" if mode == "interrupt" else mode
+    if mode == "interrupt":
+        script.exception_cls = KeyboardInterrupt
+    if mode == "write_failure":
+
+        def fail_write(*args):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(_jobs, "_write_result", fail_write)
+    real_git = _jobs._git
+    commands = []
+
+    def transient_git_failure(path, *args):
+        commands.append(args)
+        assert args[0] != "rev-list", "counted all historical commits after start snapshot failed"
+        if len(commands) == 1:
+            raise subprocess.TimeoutExpired("git", 10)
+        return real_git(path, *args)
+
+    monkeypatch.setattr(_jobs, "_git", transient_git_failure)
+    db = tmp_path / "store.sqlite"
+    kwargs = dict(engine_name="codex", cwd=str(repo), task="x", root=str(tmp_path), db_path=db)
+    if mode == "interrupt":
+        with pytest.raises(KeyboardInterrupt):
+            _jobs.run_job(**kwargs)
+    else:
+        assert _jobs.run_job(**kwargs).status == "failed"
+    store = _store.build_store(db)
+    row = _jobs.list_jobs(store, all_jobs=True)[0]
+    assert row["head_at_start"] is None
+    reason = row["head_at_start_error"]
+    assert "timed out" in reason
+    suffix = f"workspace: unavailable (start snapshot failed: {reason})"
+    assert row["error"].endswith(suffix)
+    assert row["workspace_at_end"]["new_commits"] is None
+    # Git is healthy again, but the missing baseline still prevents a commit count.
+    assert _jobs.workspace_evidence(repo, None, start_error=reason)[0] == suffix
+    assert _jobs._with_workspace(store, row["job_id"], "cancelled").endswith(suffix)
 
 
 def test_interrupt_during_initial_snapshot_still_finishes_job(tmp_path, monkeypatch):
