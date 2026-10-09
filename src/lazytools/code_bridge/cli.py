@@ -416,7 +416,7 @@ def _process_matches_bridge(pid: int) -> bool | None:
     return executable.startswith("python") and (module or entry_point)
 
 
-def _kill_process_tree(pid: int) -> None:
+def _kill_process_tree(pid: int, *, owns_group: bool = False) -> None:
     if sys.platform == "win32":
         subprocess.run(
             ["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True, timeout=30, check=True
@@ -424,8 +424,9 @@ def _kill_process_tree(pid: int) -> None:
         return
     try:
         group = os.getpgid(pid)
-        # CLI runs own a group. Never kill a launcher's/shared process group.
-        if group == pid:
+        # Group-kill only a group the job verifiably owns (it led its own session);
+        # a pipeline leader's group also holds its peers (e.g. `tee`).
+        if owns_group and group == pid:
             os.killpg(group, signal.SIGKILL)
             return
     except ProcessLookupError:
@@ -441,13 +442,15 @@ def _kill_process_tree(pid: int) -> None:
 def _isolate_process_group() -> None:
     if sys.platform == "win32":
         return
-    # A detached child is already a session leader; setsid/setpgid would fail.
-    if os.getpgrp() == os.getpid():
+    # A detached child already leads its own session. A pipeline leader has
+    # pgid == pid but shares the group, and setsid fails for it: then the job
+    # does not own a group and `cancel` kills only its pid.
+    if os.getsid(0) == os.getpid():
         return
     try:
         os.setsid()
     except OSError:
-        os.setpgid(0, 0)
+        pass
 
 
 def _cmd_cancel(args: argparse.Namespace) -> int:
@@ -490,7 +493,7 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
             print(f"job {job_id} already {latest['status']}")
             return 0
         try:
-            _kill_process_tree(pid)
+            _kill_process_tree(pid, owns_group=bool(job.get("owns_process_group")))
         except (OSError, subprocess.SubprocessError) as exc:
             if _pid_alive(pid):
                 print(f"job {job_id}: could not kill pid {pid}: {exc}", file=sys.stderr)

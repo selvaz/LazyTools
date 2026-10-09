@@ -117,13 +117,14 @@ one-line workspace snapshot, for example:
 
 ```text
 workspace: HEAD unchanged; 3 uncommitted path(s)
-workspace: HEAD abc1234 -> def5678 (2 new commit(s)); 1 uncommitted path(s)
+workspace: HEAD abc1234 -> def5678 (2 commit(s) not reachable from start); 1 uncommitted path(s)
 ```
 
-The snapshot counts new commits with `git rev-list --count <start>..HEAD`
+The snapshot counts commits reachable from the final HEAD but not from the start
+(they may predate the job if it switched to an existing branch) with `git rev-list --count <start>..HEAD`
 and uncommitted paths with `git status --porcelain=v1 -uall`. It describes
 the repository as a whole, including work that was already dirty at launch.
-JSON metadata includes `workspace_at_end` with `head`, `new_commits`, and
+JSON metadata includes `workspace_at_end` with `head`, `commits_since_start`, and
 `uncommitted`. If the initial Git snapshot fails, metadata also includes
 `head_at_start_error`; evidence reports
 `workspace: unavailable (start snapshot failed: <reason>)` and leaves the

@@ -135,12 +135,12 @@ def test_unfinished_job_has_unchanged_head_dirty_evidence(tmp_path, repo, monkey
     assert row["error"].endswith("workspace: HEAD unchanged; 2 uncommitted path(s)")
     assert row["workspace_at_end"] == {
         "head": row["head_at_start"],
-        "new_commits": 0,
+        "commits_since_start": 0,
         "uncommitted": 2,
     }
 
 
-def test_new_commits_are_captured_on_engine_failure(tmp_path, repo, monkeypatch):
+def test_commits_since_start_are_captured_on_engine_failure(tmp_path, repo, monkeypatch):
     fakes.install(monkeypatch)
     start = git(repo, "rev-parse", "HEAD")
     sub = repo / "sub"
@@ -157,10 +157,12 @@ def test_new_commits_are_captured_on_engine_failure(tmp_path, repo, monkeypatch)
     db = tmp_path / "store.sqlite"
     result = _jobs.run_job(engine_name="codex", cwd=str(sub), task="x", root=str(tmp_path), db_path=db)
     now = git(repo, "rev-parse", "HEAD")
-    assert result.error.endswith(f"workspace: HEAD {start[:7]} -> {now[:7]} (2 new commit(s)); 0 uncommitted path(s)")
+    assert result.error.endswith(
+        f"workspace: HEAD {start[:7]} -> {now[:7]} (2 commit(s) not reachable from start); 0 uncommitted path(s)"
+    )
     row = _jobs.list_jobs(_store.build_store(db), all_jobs=True)[0]
     assert row["head_at_start"] == start
-    assert row["workspace_at_end"] == {"head": now, "new_commits": 2, "uncommitted": 0}
+    assert row["workspace_at_end"] == {"head": now, "commits_since_start": 2, "uncommitted": 0}
     assert result.error in result.result_path.read_text(encoding="utf-8")
 
 
@@ -185,7 +187,7 @@ def test_non_git_and_git_failure_never_mask_engine_error(tmp_path, monkeypatch):
     assert "workspace: unavailable (" in result.error
     row = _jobs.find_job(_store.build_store(db), _store.build_job_registry(_store.build_store(db)), result.job_id)
     assert row["head_at_start"] is None
-    assert row["workspace_at_end"] == {"head": None, "new_commits": None, "uncommitted": None}
+    assert row["workspace_at_end"] == {"head": None, "commits_since_start": None, "uncommitted": None}
 
 
 def test_unborn_git_head(tmp_path):
@@ -193,7 +195,7 @@ def test_unborn_git_head(tmp_path):
     assert _jobs._head_at_start(tmp_path) == (None, None)
     suffix, data = _jobs.workspace_evidence(tmp_path, None)
     assert suffix == "workspace: HEAD unchanged; 0 uncommitted path(s)"
-    assert data == {"head": None, "new_commits": 0, "uncommitted": 0}
+    assert data == {"head": None, "commits_since_start": 0, "uncommitted": 0}
 
 
 @pytest.mark.parametrize("mode", ["error", "raise", "interrupt", "write_failure"])
@@ -233,7 +235,7 @@ def test_failed_start_snapshot_is_not_treated_as_unborn_head(tmp_path, repo, mon
     assert "timed out" in reason
     suffix = f"workspace: unavailable (start snapshot failed: {reason})"
     assert row["error"].endswith(suffix)
-    assert row["workspace_at_end"]["new_commits"] is None
+    assert row["workspace_at_end"]["commits_since_start"] is None
     # Git is healthy again, but the missing baseline still prevents a commit count.
     assert _jobs.workspace_evidence(repo, None, start_error=reason)[0] == suffix
     assert _jobs._with_workspace(store, row["job_id"], "cancelled").endswith(suffix)

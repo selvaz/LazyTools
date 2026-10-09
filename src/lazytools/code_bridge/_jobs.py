@@ -14,6 +14,7 @@ import math
 import os
 import re
 import subprocess
+import sys
 import time
 import uuid
 from collections.abc import Callable
@@ -131,6 +132,18 @@ def _git_repo_root(path: Path) -> Path:
     return path
 
 
+def _owns_process_group() -> bool:
+    """True only when this process leads its own session (setsid / start_new_session),
+    so its process group holds nothing but the job and its descendants. A shell
+    pipeline leader also has pgid == pid but shares the group with its peers."""
+    if sys.platform == "win32":
+        return False
+    try:
+        return os.getsid(0) == os.getpid()
+    except OSError:
+        return False
+
+
 def _git(path: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(path), *args],
@@ -162,7 +175,7 @@ def _head_at_start(path: Path) -> tuple[str | None, str | None]:
 
 def workspace_evidence(path: Path, start: str | None, *, start_error: str | None = None) -> tuple[str, dict[str, Any]]:
     """Best-effort git evidence; a broken/missing git must never hide the job error."""
-    data: dict[str, Any] = {"head": None, "new_commits": None, "uncommitted": None}
+    data: dict[str, Any] = {"head": None, "commits_since_start": None, "uncommitted": None}
     if start_error is not None:
         return f"workspace: unavailable (start snapshot failed: {start_error})", data
     try:
@@ -177,13 +190,13 @@ def workspace_evidence(path: Path, start: str | None, *, start_error: str | None
         status.check_returncode()
         data["uncommitted"] = len(status.stdout.splitlines())
         if head == start:
-            data["new_commits"] = 0
+            data["commits_since_start"] = 0
             summary = "HEAD unchanged"
         else:
             count = _git(repo, "rev-list", "--count", f"{start}..HEAD" if start else "HEAD")
             count.check_returncode()
-            data["new_commits"] = int(count.stdout.strip())
-            summary = f"HEAD {start[:7] if start else 'none'} -> {head[:7] if head else 'none'} ({data['new_commits']} new commit(s))"
+            data["commits_since_start"] = int(count.stdout.strip())
+            summary = f"HEAD {start[:7] if start else 'none'} -> {head[:7] if head else 'none'} ({data['commits_since_start']} commit(s) not reachable from start)"
         return f"workspace: {summary}; {data['uncommitted']} uncommitted path(s)", data
     except Exception as exc:
         reason = " ".join(str(exc).split()) or type(exc).__name__
@@ -204,7 +217,7 @@ def _with_workspace(
     if cwd is None:
         suffix, data = (
             "workspace: unavailable (job has no cwd)",
-            {"head": None, "new_commits": None, "uncommitted": None},
+            {"head": None, "commits_since_start": None, "uncommitted": None},
         )
     else:
         suffix, data = workspace_evidence(
@@ -371,6 +384,7 @@ def run_job(
                 "head_at_start": head_at_start,
                 **({"head_at_start_error": head_at_start_error} if head_at_start_error is not None else {}),
                 "pid": os.getpid(),
+                "owns_process_group": _owns_process_group(),
                 "created_at": now,
                 "updated_at": now,
                 **({"routing": routing} if routing is not None else {}),

@@ -26,7 +26,7 @@ def job_record(tmp_path, status="running", pid=4242):
 def test_cancel_terminal_is_noop(tmp_path, monkeypatch, capsys, status):
     db, _, store, registry = job_record(tmp_path, status)
     before = _jobs.find_job(store, registry, "cancel-this-job")
-    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid: pytest.fail("killed terminal job"))
+    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid, **_: pytest.fail("killed terminal job"))
     monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: pytest.fail("checked terminal pid"))
     assert cli.main(["cancel", "cancel-this", "--db", str(db)]) == 0
     assert f"already {status}" in capsys.readouterr().out
@@ -62,7 +62,7 @@ def test_cancel_preserves_terminal_record_written_during_process_exit(
             finish()
         return alive
 
-    def kill(pid):
+    def kill(pid, **_):
         killed.append(pid)
         finish()
 
@@ -99,7 +99,7 @@ def test_cancel_detached_startup_persists_interruption(
         checked.append(pid)
         return True
 
-    def kill(pid):
+    def kill(pid, **_):
         nonlocal alive
         killed.append(pid)
         if child_writes_record:
@@ -125,12 +125,37 @@ def test_cancel_detached_startup_persists_interruption(
     assert _jobs.find_job(store, registry, "startup-job") == before
 
 
+@pytest.mark.parametrize("owns", [True, False, None])
+def test_cancel_group_kills_only_a_recorded_owned_group(tmp_path, monkeypatch, owns):
+    db = tmp_path / "store.sqlite"
+    store = _store.build_store(db)
+    registry = _store.build_job_registry(store)
+    registry.write("owned-job", "task", tool_name="codex", status="running")
+    meta = {"cwd": str(tmp_path), "pid": 4242, "head_at_start": None}
+    if owns is not None:
+        meta["owns_process_group"] = owns
+    _store.write_meta(store, "owned-job", meta)
+    alive = True
+    calls = []
+
+    def kill(pid, **kwargs):
+        nonlocal alive
+        calls.append((pid, kwargs))
+        alive = False
+
+    monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: alive)
+    monkeypatch.setattr(cli, "_process_matches_bridge", lambda pid: True)
+    monkeypatch.setattr(cli, "_kill_process_tree", kill)
+    assert cli.main(["cancel", "owned-job", "--db", str(db)]) == 0
+    assert calls == [(4242, {"owns_group": bool(owns)})]
+
+
 def test_cancel_startup_refuses_unrelated_pid_and_ambiguous_pid_files(tmp_path, monkeypatch):
     db = tmp_path / "store.sqlite"
     (_store.results_dir(db) / "startup-job.pid").write_text("4242", encoding="utf-8")
     monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: True)
     monkeypatch.setattr(cli, "_process_matches_bridge", lambda pid: False)
-    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid: pytest.fail("killed"))
+    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid, **_: pytest.fail("killed"))
     assert cli.main(["cancel", "startup-", "--db", str(db)]) == 1
     store = _store.build_store(db)
     assert _jobs.list_jobs(store, all_jobs=True) == []
@@ -161,7 +186,7 @@ def test_cancel_kills_rejects_tickets_and_next_run_reclaims_lock(tmp_path, monke
     monkeypatch.setattr(_lockfile, "_pid_alive", lambda candidate: candidate in alive)
     monkeypatch.setattr(cli, "_process_matches_bridge", lambda candidate: None)
 
-    def kill(candidate):
+    def kill(candidate, **_):
         killed.append(candidate)
         alive.remove(candidate)
 
@@ -171,7 +196,7 @@ def test_cancel_kills_rejects_tickets_and_next_run_reclaims_lock(tmp_path, monke
     row = _jobs.find_job(store, registry, "cancel-this-job")
     assert row["status"] == "interrupted"
     assert row["error"] == "cancelled by operator: stop now\nworkspace: not a git repo"
-    assert row["workspace_at_end"] == {"head": None, "new_commits": None, "uncommitted": None}
+    assert row["workspace_at_end"] == {"head": None, "commits_since_start": None, "uncommitted": None}
     assert all(queue.get_ticket(ticket.approval_id).status == "rejected" for ticket in tickets)
     assert queue.get_ticket(tickets[0].approval_id).reason.startswith("cancelled by operator: stop now")
     assert queue.get_ticket(other.approval_id).status == "pending"
@@ -191,7 +216,7 @@ def test_cancel_refuses_reused_pid(tmp_path, monkeypatch, capsys):
     db, _, store, registry = job_record(tmp_path)
     monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: True)
     monkeypatch.setattr(cli, "_process_matches_bridge", lambda pid: False)
-    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid: pytest.fail("killed unrelated pid"))
+    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid, **_: pytest.fail("killed unrelated pid"))
     assert cli.main(["cancel", "cancel-this", "--db", str(db)]) == 1
     assert "refusing to kill" in capsys.readouterr().err
     assert _jobs.find_job(store, registry, "cancel-this-job")["status"] == "running"
@@ -200,7 +225,7 @@ def test_cancel_refuses_reused_pid(tmp_path, monkeypatch, capsys):
 def test_cancel_dead_pid_still_marks_interrupted(tmp_path, monkeypatch):
     db, _, store, registry = job_record(tmp_path)
     monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: False)
-    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid: pytest.fail("killed dead pid"))
+    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid, **_: pytest.fail("killed dead pid"))
     assert cli.main(["cancel", "cancel-this", "--db", str(db)]) == 0
     assert _jobs.find_job(store, registry, "cancel-this-job")["status"] == "interrupted"
 
@@ -210,7 +235,7 @@ def test_cancel_kill_failure_preserves_running_record(tmp_path, monkeypatch):
     monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: True)
     monkeypatch.setattr(cli, "_process_matches_bridge", lambda pid: True)
 
-    def fail_kill(pid):
+    def fail_kill(pid, **_):
         raise OSError("access denied")
 
     monkeypatch.setattr(cli, "_kill_process_tree", fail_kill)
@@ -221,7 +246,7 @@ def test_cancel_kill_failure_preserves_running_record(tmp_path, monkeypatch):
 def test_cancel_missing_or_ambiguous_job_cannot_kill(tmp_path, monkeypatch):
     db, _, _, registry = job_record(tmp_path)
     registry.write("cancel-that-job", "x", tool_name="codex", status="running")
-    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid: pytest.fail("killed"))
+    monkeypatch.setattr(cli, "_kill_process_tree", lambda pid, **_: pytest.fail("killed"))
     assert cli.main(["cancel", "cancel-", "--db", str(db)]) == 1
     assert cli.main(["cancel", "missing", "--db", str(db)]) == 1
 
@@ -262,8 +287,11 @@ def test_windows_killer_requests_tree(monkeypatch):
     assert calls[0][1]["timeout"] == 30 and calls[0][1]["check"] is True
 
 
-@pytest.mark.parametrize("group", [4242, 123])
-def test_posix_killer_targets_private_group_or_pid_fallback(monkeypatch, group):
+@pytest.mark.parametrize(
+    "group,owns_group,expected",
+    [(4242, True, "group"), (123, True, "pid"), (4242, False, "pid")],
+)
+def test_posix_killer_targets_private_group_or_pid_fallback(monkeypatch, group, owns_group, expected):
     calls = []
     monkeypatch.setattr(cli, "sys", SimpleNamespace(platform="linux"))
     monkeypatch.setattr(cli, "signal", SimpleNamespace(SIGKILL=9))
@@ -276,8 +304,9 @@ def test_posix_killer_targets_private_group_or_pid_fallback(monkeypatch, group):
             kill=lambda pid, sig: calls.append(("pid", pid, sig)),
         ),
     )
-    cli._kill_process_tree(4242)
-    assert calls == [("group" if group == 4242 else "pid", 4242, 9)]
+    # owns_group=False is a shell pipeline leader: pgid == pid but peers share it.
+    cli._kill_process_tree(4242, owns_group=owns_group)
+    assert calls == [(expected, 4242, 9)]
 
 
 @pytest.mark.parametrize(
@@ -285,7 +314,7 @@ def test_posix_killer_targets_private_group_or_pid_fallback(monkeypatch, group):
     [
         (True, False, []),
         (False, False, ["setsid"]),
-        (False, True, ["setsid", (0, 0)]),
+        (False, True, ["setsid"]),
     ],
 )
 def test_posix_run_owns_group_and_detached_child_keeps_existing_session(
@@ -303,7 +332,7 @@ def test_posix_run_owns_group_and_detached_child_keeps_existing_session(
         "os",
         SimpleNamespace(
             getpid=lambda: 4242,
-            getpgrp=lambda: 4242 if already_private else 123,
+            getsid=lambda pid: 4242 if already_private else 123,
             setsid=setsid,
             setpgid=lambda pid, group: calls.append((pid, group)),
         ),
