@@ -417,7 +417,7 @@ def _process_matches_bridge(pid: int) -> bool | None:
 
 
 def _kill_process_tree(pid: int) -> None:
-    if os.name == "nt":
+    if sys.platform == "win32":
         subprocess.run(
             ["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True, timeout=30, check=True
         )
@@ -439,6 +439,8 @@ def _kill_process_tree(pid: int) -> None:
 
 
 def _isolate_process_group() -> None:
+    if sys.platform == "win32":
+        return
     # A detached child is already a session leader; setsid/setpgid would fail.
     if os.getpgrp() == os.getpid():
         return
@@ -456,6 +458,7 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
     registry = _store.build_job_registry(store)
     job = _jobs.find_job(store, registry, args.job_id)
     startup = job is None
+    pid: int | None
     if job is None:
         detached = _detached_job(db_path, args.job_id)
         if detached is None:

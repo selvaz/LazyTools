@@ -254,7 +254,7 @@ def test_identity_check_without_psutil_uses_proc(monkeypatch):
 
 
 def test_windows_killer_requests_tree(monkeypatch):
-    monkeypatch.setattr(cli, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(cli, "sys", SimpleNamespace(platform="win32"))
     calls = []
     monkeypatch.setattr(subprocess, "run", lambda argv, **kwargs: calls.append((argv, kwargs)))
     cli._kill_process_tree(4242)
@@ -265,12 +265,12 @@ def test_windows_killer_requests_tree(monkeypatch):
 @pytest.mark.parametrize("group", [4242, 123])
 def test_posix_killer_targets_private_group_or_pid_fallback(monkeypatch, group):
     calls = []
+    monkeypatch.setattr(cli, "sys", SimpleNamespace(platform="linux"))
     monkeypatch.setattr(cli, "signal", SimpleNamespace(SIGKILL=9))
     monkeypatch.setattr(
         cli,
         "os",
         SimpleNamespace(
-            name="posix",
             getpgid=lambda pid: group,
             killpg=lambda pgid, sig: calls.append(("group", pgid, sig)),
             kill=lambda pid, sig: calls.append(("pid", pid, sig)),
@@ -308,5 +308,6 @@ def test_posix_run_owns_group_and_detached_child_keeps_existing_session(
             setpgid=lambda pid, group: calls.append((pid, group)),
         ),
     )
+    monkeypatch.setattr(cli, "sys", SimpleNamespace(platform="linux"))
     cli._isolate_process_group()
     assert calls == expected
