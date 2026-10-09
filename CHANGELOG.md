@@ -8,6 +8,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-10-09
+
+### Added
+- Code bridge `run --timeout SECONDS` (default 3600, finite and > 0), forwarded to detached children, the engine and the job metadata. Before, 3600 s was hard-coded, and 11 of 87 jobs on record had failed at exactly that limit.
+- Code bridge `cancel JOB [--reason]`. It verifies the process is a code-bridge Python process and kills its tree; on POSIX it kills the whole process group only when the job leads its own session. It then marks the job `interrupted` and rejects the job's open approval tickets. It also works in the startup window right after `run --detach`, and it never overwrites a record that is already terminal.
+- Workspace evidence on unfinished jobs (failed, interrupted, reclaimed): `workspace: HEAD unchanged; N uncommitted path(s)` or `HEAD a -> b (N commit(s) not reachable from start)`. It is stored as `workspace_at_end`, with `head_at_start` and `owns_process_group` recorded at launch. A failed start snapshot is reported as unavailable and never counted as history. "Whether it was committed is unknown" no longer requires a manual repo inspection.
+
 ## [0.10.0] — 2026-10-08
 
 ### Added
