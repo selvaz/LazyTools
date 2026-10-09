@@ -10,8 +10,11 @@ result -- to the job record and to a result file -- before returning.
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import re
+import subprocess
+import sys
 import time
 import uuid
 from collections.abc import Callable
@@ -129,6 +132,128 @@ def _git_repo_root(path: Path) -> Path:
     return path
 
 
+def _owns_process_group() -> bool:
+    """True only when this process leads its own session (setsid / start_new_session),
+    so its process group holds nothing but the job and its descendants. A shell
+    pipeline leader also has pgid == pid but shares the group with its peers."""
+    if sys.platform == "win32":
+        return False
+    try:
+        return os.getsid(0) == os.getpid()
+    except OSError:
+        return False
+
+
+def _git(path: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(path), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+    )
+
+
+def _git_head(path: Path) -> str | None:
+    result = _git(path, "rev-parse", "--verify", "--quiet", "HEAD")
+    if result.returncode == 1:  # unborn branch
+        return None
+    result.check_returncode()
+    return result.stdout.strip() or None
+
+
+def _head_at_start(path: Path) -> tuple[str | None, str | None]:
+    try:
+        return _git_head(path), None
+    except Exception as exc:
+        if isinstance(exc, subprocess.CalledProcessError) and "not a git repository" in (exc.stderr or "").lower():
+            return None, None
+        reason = " ".join(str(exc).split()) or type(exc).__name__
+        return None, reason
+
+
+def workspace_evidence(path: Path, start: str | None, *, start_error: str | None = None) -> tuple[str, dict[str, Any]]:
+    """Best-effort git evidence; a broken/missing git must never hide the job error."""
+    data: dict[str, Any] = {"head": None, "commits_since_start": None, "uncommitted": None}
+    if start_error is not None:
+        return f"workspace: unavailable (start snapshot failed: {start_error})", data
+    try:
+        repo = _git_repo_root(path)
+        probe = _git(repo, "rev-parse", "--is-inside-work-tree")
+        if probe.returncode and "not a git repository" in probe.stderr.lower():
+            return "workspace: not a git repo", data
+        probe.check_returncode()
+        head = _git_head(repo)
+        data["head"] = head
+        status = _git(repo, "status", "--porcelain=v1", "-uall")
+        status.check_returncode()
+        data["uncommitted"] = len(status.stdout.splitlines())
+        if head == start:
+            data["commits_since_start"] = 0
+            summary = "HEAD unchanged"
+        else:
+            count = _git(repo, "rev-list", "--count", f"{start}..HEAD" if start else "HEAD")
+            count.check_returncode()
+            data["commits_since_start"] = int(count.stdout.strip())
+            summary = f"HEAD {start[:7] if start else 'none'} -> {head[:7] if head else 'none'} ({data['commits_since_start']} commit(s) not reachable from start)"
+        return f"workspace: {summary}; {data['uncommitted']} uncommitted path(s)", data
+    except Exception as exc:
+        reason = " ".join(str(exc).split()) or type(exc).__name__
+        return f"workspace: unavailable ({reason})", data
+
+
+def _with_workspace(
+    store: Any,
+    job_id: str,
+    error: str,
+    *,
+    path: Path | None = None,
+    start: str | None = None,
+    start_error: str | None = None,
+) -> str:
+    meta = _store.read_meta(store, job_id) or {}
+    cwd = path or (Path(meta["cwd"]) if meta.get("cwd") else None)
+    if cwd is None:
+        suffix, data = (
+            "workspace: unavailable (job has no cwd)",
+            {"head": None, "commits_since_start": None, "uncommitted": None},
+        )
+    else:
+        suffix, data = workspace_evidence(
+            cwd,
+            start if path is not None else meta.get("head_at_start"),
+            start_error=start_error if path is not None else meta.get("head_at_start_error"),
+        )
+    meta["workspace_at_end"] = data
+    meta["updated_at"] = time.time()
+    _store.write_meta(store, job_id, meta)
+    return f"{error}\n{suffix}"
+
+
+def interrupt_job(store: Any, registry: Any, job: dict[str, Any], error: str, *, db_path: Path | None = None) -> str:
+    """Persist an interruption and close this job's still-open approval tickets."""
+    job_id = str(job["job_id"])
+    error = _with_workspace(store, job_id, error)
+    try:
+        _write_result(db_path, job_id, f"[interrupted] {error}")
+    except OSError:
+        pass  # the durable record still reports the interruption
+    registry.write(
+        job_id,
+        str(job.get("objective") or ""),
+        tool_name=str(job.get("kind") or "unknown"),
+        status="interrupted",
+        error=error,
+    )
+    queue = _store.build_approval_queue(store)
+    # Avoid list_pending_tickets' default 100-ticket cap and reject only this job.
+    for key, raw in store.items(prefix=_store.APPROVAL_PREFIX):
+        if isinstance(raw, dict) and raw.get("task_id") == job_id and raw.get("status") == "pending":
+            queue.reject_ticket(key.removeprefix(_store.APPROVAL_PREFIX), actor="operator", channel="cli", reason=error)
+    return error
+
+
 async def _run_agent(engine: Any, task: str, agent_name: str) -> Any:
     from lazybridge import Agent
 
@@ -148,6 +273,7 @@ def run_job(
     on_job_id: Callable[[str], None] | None = None,
     job_id: str | None = None,
     routing: dict[str, Any] | None = None,
+    timeout: float = _engines.DEFAULT_TIMEOUT,
 ) -> RunResult:
     """Run one job to completion. Raises before any job is recorded for a
     bad engine name or a ``cwd`` outside the confinement root; raises
@@ -159,6 +285,9 @@ def run_job(
     """
     if engine_name not in ENGINES:
         raise ValueError(f"engine must be one of {ENGINES}, got {engine_name!r}")
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("--timeout must be a finite number greater than 0")
+    timeout = float(timeout)
     resolved_cwd = _engines.resolve_cwd(cwd, root)
 
     # A detached launch (`run --detach`) picks the id in the parent so it can
@@ -191,6 +320,8 @@ def run_job(
     # catches the exception and keeps running (the CLI itself always exits
     # right after, reclaiming on pid-death, but `run_job` is a public
     # function other callers may embed). Found by Codex review.
+    head_at_start = None
+    head_at_start_error = None
     try:
         # Defined FIRST, before anything below that could itself raise:
         # the `except BaseException` handler further down calls this to
@@ -204,6 +335,15 @@ def run_job(
             registry.write(job_id, task, tool_name=engine_name, status=status, result=result, error=error)
 
         def _finish(status: str, text: str, error: str | None) -> RunResult:
+            if status != "done":
+                error = _with_workspace(
+                    store,
+                    job_id,
+                    error or "unknown error",
+                    path=lock.cwd,
+                    start=head_at_start,
+                    start_error=head_at_start_error,
+                )
             # The result FILE is persisted BEFORE the job record is marked
             # terminal, not after: marking "done" first and writing the file
             # second would let a disk-full/permissions failure on the write
@@ -216,13 +356,17 @@ def run_job(
                 result_path: Path | None = _write_result(db_path, job_id, body)
             except OSError as exc:
                 write_error = f"result could not be persisted: {type(exc).__name__}: {exc}"
+                write_error = _with_workspace(
+                    store, job_id, write_error, path=lock.cwd, start=head_at_start, start_error=head_at_start_error
+                )
                 _set_status("failed", error=write_error)
                 return RunResult(job_id, "failed", "", write_error, None)
             _set_status(status, result=text if status == "done" else None, error=error)
             return RunResult(job_id, status, text if status == "done" else "", error, result_path)
 
+        head_at_start, head_at_start_error = _head_at_start(lock.cwd)
         if stale_job_id is not None:
-            _mark_interrupted(registry, stale_job_id)
+            _mark_interrupted(store, registry, stale_job_id, db_path=db_path)
 
         now = time.time()
         registry.write(job_id, task, tool_name=engine_name, status="running")
@@ -236,7 +380,11 @@ def run_job(
                 "session_name": session_name,
                 "model": model,
                 "effort": effort,
+                "timeout": timeout,
+                "head_at_start": head_at_start,
+                **({"head_at_start_error": head_at_start_error} if head_at_start_error is not None else {}),
                 "pid": os.getpid(),
+                "owns_process_group": _owns_process_group(),
                 "created_at": now,
                 "updated_at": now,
                 **({"routing": routing} if routing is not None else {}),
@@ -266,6 +414,7 @@ def run_job(
                 thread_id=thread_id,
                 session_alias=session_name,
                 session_registry=session_registry,
+                timeout=timeout,
             )
             agent_name = "code-bridge-codex"
         else:
@@ -278,10 +427,15 @@ def run_job(
                 session_id=session_id,
                 session_alias=session_name,
                 session_registry=session_registry,
+                timeout=timeout,
             )
             agent_name = "code-bridge-claude"
 
         env = asyncio.run(_run_agent(engine, task, agent_name))
+        if not env.ok:
+            message = env.error.message if env.error else "unknown error"
+            return _finish("failed", "", message)
+        return _finish("done", env.text(), None)
     except BaseException as exc:
         # BaseException, not Exception: Ctrl+C (KeyboardInterrupt) and a
         # cancelled asyncio task (CancelledError) both derive from
@@ -302,26 +456,16 @@ def run_job(
     finally:
         lock.release()
 
-    if not env.ok:
-        message = env.error.message if env.error else "unknown error"
-        return _finish("failed", "", message)
 
-    return _finish("done", env.text(), None)
-
-
-def _mark_interrupted(registry: Any, old_job_id: str) -> None:
+def _mark_interrupted(store: Any, registry: Any, old_job_id: str, *, db_path: Path | None = None) -> None:
     """Best-effort: a reclaimed lock means that job's process died without
     ever updating its own record, which would otherwise sit at ``running``/
     ``awaiting_approval`` forever. No-op if the old record is gone."""
     old = registry.find(old_job_id)
-    if old is None:
+    if old is None or old.get("status") in ("done", "failed", "interrupted"):
         return
-    registry.write(
-        old_job_id,
-        str(old.get("objective") or ""),
-        tool_name=str(old.get("kind") or "unknown"),
-        status="interrupted",
-        error="lock reclaimed: the process running this job appears to have died",
+    interrupt_job(
+        store, registry, old, "lock reclaimed: the process running this job appears to have died", db_path=db_path
     )
 
 
@@ -336,6 +480,11 @@ def find_job(store: Any, registry: Any, job_id: str) -> dict[str, Any] | None:
     job = registry.find(job_id)
     if job is None:
         return None
+    if job.get("job_id") != job_id:
+        matches = [row for row in _store.all_job_records(store) if str(row.get("job_id", "")).startswith(job_id)]
+        if len(matches) != 1:
+            return None
+        job = matches[0]
     meta = _store.read_meta(store, str(job.get("job_id", ""))) or {}
     return {**meta, **job}
 

@@ -101,6 +101,68 @@ the finished result from.
 everything this bridge knows about, for a session that lost track of a job
 id.
 
+## Timeout, workspace evidence, and cancellation
+
+`run --timeout SECONDS` sets the engine request timeout for Codex or Claude
+(a positive, finite float; default **3600** seconds). It also applies to
+`run --detach`: the parent validates it before spawning and forwards it to
+the child. `status JOB_ID --json` includes the configured `timeout` and
+`head_at_start` (the repository's HEAD when the job acquired its lock, or
+`null` for a non-git directory or a repository with no commits). Invalid
+timeouts exit **2**. `wait --timeout` only limits how long the waiter polls;
+it does not stop the job.
+
+When a job fails or is interrupted, its error and result file include a
+one-line workspace snapshot, for example:
+
+```text
+workspace: HEAD unchanged; 3 uncommitted path(s)
+workspace: HEAD abc1234 -> def5678 (2 commit(s) not reachable from start); 1 uncommitted path(s)
+```
+
+The snapshot counts commits reachable from the final HEAD but not from the start
+(they may predate the job if it switched to an existing branch) with `git rev-list --count <start>..HEAD`
+and uncommitted paths with `git status --porcelain=v1 -uall`. It describes
+the repository as a whole, including work that was already dirty at launch.
+JSON metadata includes `workspace_at_end` with `head`, `commits_since_start`, and
+`uncommitted`. If the initial Git snapshot fails, metadata also includes
+`head_at_start_error`; evidence reports
+`workspace: unavailable (start snapshot failed: <reason>)` and leaves the
+new commit count unknown, even if Git is available again when the job ends.
+Git checks are best-effort, with a ten-second timeout per
+subprocess; a non-git directory reports `workspace: not a git repo`, and
+an inspection failure reports `workspace: unavailable (<reason>)` with
+unavailable fields set to `null`. This evidence helps assess a timed-out
+or crashed turn; the bridge does not resume or retry that turn.
+
+Stop an active job by full id or unique prefix:
+
+```console
+lazytools-code-bridge cancel JOB_ID --reason "operator stopped the task"
+```
+
+`--reason` is optional (default `requested cancellation`). Cancellation
+kills the process tree (`taskkill /PID ... /T /F` on Windows; the CLI's
+private process group on POSIX, falling back to the single pid if no
+private group is available), marks the job `interrupted` with
+`cancelled by operator: <reason>` and workspace evidence, and rejects its
+still-open approval tickets. A dead process is also marked interrupted.
+Cancelling a terminal job prints its status and exits **0** without changing
+it, including when the job finishes while cancellation is stopping the process.
+Cancellation also works immediately after `run --detach`, before the child
+writes its job record: the PID file resolves the full id and the interruption
+is recorded as `cancelled by operator during startup: <reason>`.
+A later `run` on the same repository automatically reclaims the dead
+owner's lock and preserves the cancellation result.
+
+Before killing, the bridge checks for a Python process running the bridge
+when command-line inspection is available through optional `psutil` or
+POSIX `/proc`; neither WMI nor PowerShell CIM is required. When identity
+inspection is unavailable, it requires a non-terminal job record and a
+live pid. There is residual pid-reuse risk in that fallback and between
+inspection and killing. Jobs embedded through `run_job` in a shared Python
+process do not own a CLI process group and should be stopped by their host.
+
 ## Choose a model from quota
 
 Preview a choice without launching a job:
@@ -321,7 +383,8 @@ that reads the same queue).
 
 ## One job per repository at a time
 
-`run` takes a file lock keyed on the resolved `--cwd`; a second `run` against
+`run` takes a file lock keyed on the git repository root containing the resolved
+`--cwd` (or the directory itself outside git); a second `run` against
 the same repository while the first is still alive is refused with a clear
 message naming the job and pid already holding it. A lock left behind by a
 process that died (crash, kill, machine restart) is detected by checking
@@ -345,8 +408,8 @@ sessions.
   instant could theoretically both decide to reclaim it. Not a practical
   concern for a single human driving this from one Claude Code session at a
   time.
-- A job's `Store` record is only ever updated by the process running it; if
-  that process is killed hard enough that `run_job`'s own `finally` never
+- If a job's process is killed outside `cancel` hard enough that
+  `run_job`'s own `finally` never
   executes, the record stays at `running`/`awaiting_approval` until the
   *next* `run` against the same repository reclaims the lock and marks it
   `interrupted` — there is no background sweeper watching for this on its

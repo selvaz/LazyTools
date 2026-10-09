@@ -12,14 +12,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
+import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _jobs, _routing, _store
+from lazytools.code_bridge import _engines, _jobs, _routing, _store
 from lazytools.code_bridge._lockfile import LockHeld
 from lazytools.routing.policy import DEFAULT_POLICY
 
@@ -74,6 +76,7 @@ _CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
     argv = [sys.executable, "-m", "lazytools.code_bridge", "run", "--engine", args.engine, "--cwd", args.cwd]
     argv += ["--task", args.task, "--job-id", job_id]
+    argv += ["--timeout", str(args.timeout)]
     for flag, value in (("--session", args.session), ("--model", args.model), ("--effort", args.effort)):
         if value:
             argv += [flag, value]
@@ -90,7 +93,12 @@ def _spawn_detached(argv: list[str], log_path: Path) -> int:
     """Start ``argv`` as a process that survives this one and its supervisor."""
     log = open(log_path, "ab")  # noqa: SIM115 -- handed to the child, closed below
     try:
-        common: dict[str, Any] = {"stdin": subprocess.DEVNULL, "stdout": log, "stderr": subprocess.STDOUT, "close_fds": True}
+        common: dict[str, Any] = {
+            "stdin": subprocess.DEVNULL,
+            "stdout": log,
+            "stderr": subprocess.STDOUT,
+            "close_fds": True,
+        }
         if os.name == "nt":
             flags = _DETACHED_PROCESS | _CREATE_NEW_PROCESS_GROUP
             try:
@@ -133,7 +141,14 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
     pid = _spawn_detached(_child_argv(args, job_id), log_path)
     (out_dir / f"{job_id}.pid").write_text(str(pid), encoding="utf-8")
     if args.json:
-        _print_json({"job_id": job_id, "pid": pid, "log": str(log_path), **({"routing": args.routing} if getattr(args, "routing", None) else {})})
+        _print_json(
+            {
+                "job_id": job_id,
+                "pid": pid,
+                "log": str(log_path),
+                **({"routing": args.routing} if getattr(args, "routing", None) else {}),
+            }
+        )
     else:
         print(job_id)
         print(f"detached: pid {pid}, log {log_path}")
@@ -144,16 +159,21 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
 
 def _cmd_run(args: argparse.Namespace) -> int:
     try:
+        if not math.isfinite(args.timeout) or args.timeout <= 0:
+            raise ValueError("--timeout must be a finite number greater than 0")
         if args.engine is None and args.tier is None:
-            raise ValueError("run requires --tier T or --engine E; choose a tier for quota-aware routing or an explicit engine")
+            raise ValueError(
+                "run requires --tier T or --engine E; choose a tier for quota-aware routing or an explicit engine"
+            )
         task = _read_task(args.task)
         args.routing = json.loads(args.routing_record) if args.routing_record else None
         if not args.tier and args.session:
             from lazytools.code_bridge import _engines
 
             resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
-            _routing.check_session_engine(cwd=str(resolved_cwd), session=args.session,
-                                          engine=args.engine, db_path=_db_path(args))
+            _routing.check_session_engine(
+                cwd=str(resolved_cwd), session=args.session, engine=args.engine, db_path=_db_path(args)
+            )
         if args.tier:
             from lazytools.code_bridge import _engines
 
@@ -173,7 +193,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
         elif args.needs or args.review_of:
             raise ValueError("--needs and --review-of require --tier")
         elif args.effort is not None:
-            rejection = DEFAULT_POLICY.reject_effort(args.effort, engine=_routing.provider(args.engine), model=args.model)
+            rejection = DEFAULT_POLICY.reject_effort(
+                args.effort, engine=_routing.provider(args.engine), model=args.model
+            )
             if rejection is not None:
                 raise ValueError(rejection)
             args.effort = args.effort.strip()
@@ -201,6 +223,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             on_job_id=_announce,
             job_id=args.job_id,
             routing=args.routing,
+            timeout=args.timeout,
         )
     except LockHeld as exc:
         print(str(exc), file=sys.stderr)
@@ -246,8 +269,14 @@ def _job_line(job: dict[str, Any]) -> str:
 
 def _select(args: argparse.Namespace, *, cwd: str) -> _routing.Selection:
     return _routing.choose(
-        args.tier, cwd=cwd, db_path=_db_path(args), engine=args.engine, session=args.session,
-        needs=args.needs, review_of=args.review_of, model=getattr(args, "model", None),
+        args.tier,
+        cwd=cwd,
+        db_path=_db_path(args),
+        engine=args.engine,
+        session=args.session,
+        needs=args.needs,
+        review_of=args.review_of,
+        model=getattr(args, "model", None),
         effort=getattr(args, "effort", None),
         tiers_path=Path(args.tiers).expanduser() if args.tiers else None,
     )
@@ -348,15 +377,150 @@ def _cmd_result(args: argparse.Namespace) -> int:
     return exit_code
 
 
-def _detached_pid(db_path: Path | None, job_id: str) -> int | None:
-    """The pid `run --detach` recorded for ``job_id`` (full id or unique prefix)."""
+def _detached_job(db_path: Path | None, job_id: str) -> tuple[str, int] | None:
+    """Resolve a detached pid file to its full job id and pid."""
     matches = sorted(_store.results_dir(db_path).glob(f"{job_id}*.pid"))
     if len(matches) != 1:
         return None
     try:
-        return int(matches[0].read_text(encoding="utf-8").strip())
+        return matches[0].stem, int(matches[0].read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
         return None
+
+
+def _detached_pid(db_path: Path | None, job_id: str) -> int | None:
+    """The pid `run --detach` recorded for ``job_id`` (full id or unique prefix)."""
+    detached = _detached_job(db_path, job_id)
+    return detached[1] if detached else None
+
+
+def _process_matches_bridge(pid: int) -> bool | None:
+    """Check identity when available; psutil is optional, never a dependency."""
+    try:
+        import psutil
+
+        process = psutil.Process(pid)
+        argv = process.cmdline()
+    except ImportError:
+        try:
+            argv = Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace").split("\0")
+        except OSError:
+            return None
+    except (psutil.Error, OSError):
+        return None
+    if not argv:
+        return None
+    executable = Path(argv[0]).name.lower()
+    module = any(argv[i : i + 2] == ["-m", "lazytools.code_bridge"] for i in range(1, len(argv) - 1))
+    entry_point = any(Path(arg).name in ("lazytools-code-bridge", "lazytools-code-bridge.exe") for arg in argv[1:2])
+    return executable.startswith("python") and (module or entry_point)
+
+
+def _kill_process_tree(pid: int, *, owns_group: bool = False) -> None:
+    if sys.platform == "win32":
+        subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True, timeout=30, check=True
+        )
+        return
+    try:
+        group = os.getpgid(pid)
+        # Group-kill only a group the job verifiably owns (it led its own session);
+        # a pipeline leader's group also holds its peers (e.g. `tee`).
+        if owns_group and group == pid:
+            os.killpg(group, signal.SIGKILL)
+            return
+    except ProcessLookupError:
+        return
+    except OSError:
+        pass
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def _isolate_process_group() -> None:
+    if sys.platform == "win32":
+        return
+    # A detached child already leads its own session. A pipeline leader has
+    # pgid == pid but shares the group, and setsid fails for it: then the job
+    # does not own a group and `cancel` kills only its pid.
+    if os.getsid(0) == os.getpid():
+        return
+    try:
+        os.setsid()
+    except OSError:
+        pass
+
+
+def _cmd_cancel(args: argparse.Namespace) -> int:
+    from lazytools.code_bridge._lockfile import _pid_alive
+
+    db_path = _db_path(args)
+    store = _store.build_store(db_path)
+    registry = _store.build_job_registry(store)
+    job = _jobs.find_job(store, registry, args.job_id)
+    startup = job is None
+    pid: int | None
+    if job is None:
+        detached = _detached_job(db_path, args.job_id)
+        if detached is None:
+            print(f"no job found matching {args.job_id!r}", file=sys.stderr)
+            return 1
+        job_id, pid = detached
+        meta = _store.read_meta(store, job_id) or {}
+        job = _jobs.find_job(store, registry, job_id) or {
+            "job_id": job_id,
+            "kind": meta.get("engine", "unknown"),
+            "objective": meta.get("objective", ""),
+        }
+    else:
+        job_id = str(job["job_id"])
+        pid = _detached_pid(db_path, job_id) or job.get("pid")
+    if job.get("status") in _TERMINAL:
+        print(f"job {job['job_id']} already {job['status']}")
+        return 0
+    if not isinstance(pid, int) or pid <= 0:
+        print(f"job {job_id}: no process id recorded; cannot cancel", file=sys.stderr)
+        return 1
+    if _pid_alive(pid):
+        if _process_matches_bridge(pid) is False:
+            print(f"job {job_id}: pid {pid} is not a Python code-bridge process; refusing to kill", file=sys.stderr)
+            return 1
+        # The job may have completed during the identity check.
+        latest = _jobs.find_job(store, registry, job_id)
+        if latest and latest.get("status") in _TERMINAL:
+            print(f"job {job_id} already {latest['status']}")
+            return 0
+        try:
+            _kill_process_tree(pid, owns_group=bool(job.get("owns_process_group")))
+        except (OSError, subprocess.SubprocessError) as exc:
+            if _pid_alive(pid):
+                print(f"job {job_id}: could not kill pid {pid}: {exc}", file=sys.stderr)
+                return 1
+        deadline = time.monotonic() + 5
+        while _pid_alive(pid):
+            if time.monotonic() >= deadline:
+                print(f"job {job_id}: pid {pid} is still alive after cancellation", file=sys.stderr)
+                return 1
+            time.sleep(0.05)
+    # A final write may precede process exit or race the kill. Preserve it,
+    # including when the pid was already dead at the first liveness check.
+    latest = _jobs.find_job(store, registry, job_id)
+    if latest and latest.get("status") in _TERMINAL:
+        print(f"job {job_id} already {latest['status']}")
+        return 0
+    if latest is not None:
+        job = latest
+    if startup:
+        meta = _store.read_meta(store, job_id) or {}
+        meta.setdefault("job_id", job_id)
+        meta.setdefault("pid", pid)
+        _store.write_meta(store, job_id, meta)
+    message = "cancelled by operator during startup" if startup else "cancelled by operator"
+    error = _jobs.interrupt_job(store, registry, job, f"{message}: {args.reason}", db_path=db_path)
+    print(f"[interrupted] job {job_id}\n{error}")
+    return 0
 
 
 def _cmd_wait(args: argparse.Namespace) -> int:
@@ -540,9 +704,13 @@ def _cmd_reject(args: argparse.Namespace) -> int:
 
 def _add_routing_options(parser: argparse.ArgumentParser, *, required: bool = False) -> None:
     parser.add_argument("--tier", choices=["basic", "writing", "thinking", "critical"], required=required)
-    parser.add_argument("--tiers", default=None, help="Catalogue TOML (default: ~/.lazytools/model_tiers.toml or packaged ladder).")
+    parser.add_argument(
+        "--tiers", default=None, help="Catalogue TOML (default: ~/.lazytools/model_tiers.toml or packaged ladder)."
+    )
     parser.add_argument("--needs", choices=["images"], default=None, help="Require image capability (Codex only).")
-    parser.add_argument("--review-of", default=None, metavar="JOB", help="Choose the engine opposite this bridge job's writer.")
+    parser.add_argument(
+        "--review-of", default=None, metavar="JOB", help="Choose the engine opposite this bridge job's writer."
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -560,6 +728,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--session", default=None, help="Durable session alias to create/resume.")
     run_p.add_argument("--model", default=None)
     run_p.add_argument("--effort", default=None)
+    run_p.add_argument(
+        "--timeout",
+        type=float,
+        default=_engines.DEFAULT_TIMEOUT,
+        help=f"Engine request timeout in seconds, greater than 0 (default: {_engines.DEFAULT_TIMEOUT:g}).",
+    )
     run_p.add_argument(
         "--root", default=None, help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT or cwd)."
     )
@@ -588,9 +762,12 @@ def build_parser() -> argparse.ArgumentParser:
     route_p.set_defaults(func=_cmd_route)
 
     models_p = sub.add_parser("models", help="Read live model availability and audit the catalogue and default policy.")
-    models_p.add_argument("--tiers", default=None, help="Catalogue path (default: ~/.lazytools/model_tiers.toml or packaged catalogue).")
     models_p.add_argument(
-        "--probe-claude", action="store_true",
+        "--tiers", default=None, help="Catalogue path (default: ~/.lazytools/model_tiers.toml or packaged catalogue)."
+    )
+    models_p.add_argument(
+        "--probe-claude",
+        action="store_true",
         help="Opt in to a one-turn Claude probe per catalogue model plus sonnet/opus aliases; consumes a small amount of quota.",
     )
     models_p.add_argument("--json", action="store_true")
@@ -616,7 +793,17 @@ def build_parser() -> argparse.ArgumentParser:
     _add_db_option(status_p)
     status_p.set_defaults(func=_cmd_status)
 
-    result_p = sub.add_parser("result", help="Show one job's result or error.")
+    cancel_p = sub.add_parser(
+        "cancel", help="Stop a job's process tree, record workspace evidence, and reject its open approvals."
+    )
+    cancel_p.add_argument("job_id", help="Full job id or unique prefix.")
+    cancel_p.add_argument("--reason", default="requested cancellation", help="Reason recorded with the interruption.")
+    _add_db_option(cancel_p)
+    cancel_p.set_defaults(func=_cmd_cancel)
+
+    result_p = sub.add_parser(
+        "result", help="Show one job's result or error, including workspace evidence for unfinished jobs."
+    )
     result_p.add_argument("job_id")
     result_p.add_argument("--json", action="store_true")
     _add_db_option(result_p)
@@ -660,6 +847,9 @@ def main(argv: list[str] | None = None) -> int:
     _utf8_output()
     parser = build_parser()
     args = parser.parse_args(argv)
+    if argv is None and os.name != "nt" and args.command == "run" and not args.detach:
+        # Keep engine descendants in our own session/group for `cancel`.
+        _isolate_process_group()
     return args.func(args)
 
 
