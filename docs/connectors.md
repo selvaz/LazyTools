@@ -16,11 +16,13 @@ The **Extra** column below is what goes in the brackets (`—` = no extra needed
 
 | Tool | What it gives an agent | Extra | Guide |
 |---|---|---|---|
+| **Async bridge** | Detached Claude/Codex jobs, durable approval tickets, results and opposite-engine tier review. | `[engines]` | [Code bridge](code-bridge.md) |
+| **Projects** | Shared records, plans, schedule/Gantt, claims, contracts, verification and quota brake. | `[mcp]` for MCP; core Python needs no extra | [Projects](projects.md) |
 | **Gmail** | Safe Gmail access: ungated reads (`gmail_list_emails` structured search, `gmail_get_email`) + ungated `gmail_create_draft` + guarded `gmail_send`, plus inbound auth-header verification. | `[gmail]` | [Gmail](gmail.md) |
 | **Outlook** | Safe Outlook access on the user's signed-in Windows desktop (over COM): ungated reads (`outlook_list_emails`, `outlook_get_email`) + ungated `outlook_create_draft` + guarded `outlook_send` — the same allow-list + confirmation model as Gmail. | `[outlook]` | — |
 | **Telegram** | A guarded Telegram outbox: `telegram_send_message` with allow-list + one-shot confirmation. | `[telegram]` | [Telegram](telegram.md) |
 | **MCP** | Drop an existing Model Context Protocol server's tool catalogue into an agent, deny-by-default. | `[mcp]` | [MCP](mcp.md) |
-| **Code Support Agent** | Delegate coding work to Claude Code & Codex — each in CLI or MCP mode, plus a collaboration pipeline. | — | [Code Support Agent](code-support/index.md) |
+| **Code support** | Engine-backed Claude/Codex write, review and named sessions over MCP; long work uses the async bridge. | `[engines,mcp]` for both engines over MCP | [Code support](code-support/index.md) |
 | **External tool gateway** | Adapt a remote JSON-HTTP tool registry (Composio / Pipedream / Arcade / internal) into LazyBridge tools. | — | [Gateway](gateway.md) |
 | **market-data-hub** | The single source of financial data: `datahub_*` discovery, instrument resolution, financial facts and coverage. Raw series are off the default surface (`allow_raw_series=True` to add capped `datahub_get_series`/`datahub_get_returns`); `allow_refresh=True` adds the `datahub_ensure_*` ingestion write tools. | — (needs the hub installed from git) | [Financial data](datahub.md) |
 | **Regime detection** | `lazystats.regimes` HMM/MS engines as `regime_*` tools: fit, state scans, summaries/changes, window comparison, plots, SQLite depot. Reads always on; `allow_write=True` gates fit/persist/delete. Data loads only via market-data-hub. | — (needs `lazystats[regimes]` from git) | [Regime detection](regimes.md) |
@@ -103,7 +105,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     agent = Agent("claude-opus-5-5", tools=[fs])
     ```
 
-=== "Code Support Agent"
+=== "Code support (older CLI wrappers)"
 
     ```python
     from lazybridge import Agent, LLMEngine

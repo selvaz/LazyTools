@@ -1,13 +1,65 @@
 # MCP server
 
-The mirror of the [MCP connector](mcp.md). Where the connector turns an
-**external** MCP server into `lazybridge.Tool` entries, the MCP *server*
-does the opposite: it **exposes LazyTools' own tool providers over MCP** so
-any MCP host — Claude Desktop, Claude Code, ChatGPT Codex — can call
-`datahub_*`, `statistical_*`, `regime_*` and web search/crawl as native
-tools.
+Expose LazyTools' project and coding tools to Claude Code, Codex or another
+MCP host. Engine-backed write/review tools are synchronous; detached work and
+durable approval tickets belong to [the async code bridge](code-bridge.md).
+Other connectors support data, reports and communication. The [MCP connector](mcp.md)
+is the reverse direction: it imports another server's tools into an agent.
 
-> **Status: alpha.** Install: `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"`.
+**LazyTools 0.10.1 is Alpha.** Install the coding runtime dependencies too:
+
+```sh
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.1"
+```
+
+## Collaboration setup
+
+From your workspace root, save `lazytools.json` with local paths:
+
+```json
+{"code_root": ".", "projects_store_db": "projects.sqlite"}
+```
+
+Then launch the same provider combination linked from the homepage:
+
+```sh
+lazytools-mcp projects code_review claude_review code_write code_sessions --allow-unsafe --config lazytools.json
+```
+
+`code_root` confines repository/cwd arguments; Claude Bash is not path-confined.
+`projects_store_db` makes state durable; without config or the Store env vars,
+Projects uses memory. Core project tools are on by default. For contracts and
+verification tools, set `LAZYTOOLS_PROJECTS_TOOLS=full` in the server environment.
+Sign in to the local coding runtimes; with a subscription login their turns use
+plan quota. Authentication can also follow another runtime-configured billing
+path. Coding providers require explicit selection and `--allow-unsafe`.
+
+A stdio host can launch the server using this configuration (the host's working
+directory must be the intended workspace, or replace the config with an absolute
+path). The executable must be available in that host's environment:
+
+```json
+{
+  "mcpServers": {
+    "lazytools": {
+      "command": "lazytools-mcp",
+      "args": ["projects", "code_review", "claude_review", "code_write", "code_sessions",
+               "--allow-unsafe", "--config", "lazytools.json"],
+      "env": {"LAZYTOOLS_PROJECTS_TOOLS": "full"}
+    }
+  }
+}
+```
+
+`--allow-unsafe` enables writes without an interactive confirmation gate. It
+is separate from the bridge's durable approvals. Select only the providers
+needed. MCP calls block for the delegated turn; configure host timeouts or
+use detached bridge jobs. See [code support](code-support/index.md) for
+Claude-writes/Codex-reviews calls and `session_name` aliases.
+
+For a persistent server, `--http --host 127.0.0.1 --port 8787` serves Streamable
+HTTP at `/mcp`; a compatible host uses a `type: "http"` entry and that URL.
+The default transport is stdio and logs go to stderr.
 
 The bridge is thin because LazyBridge already normalises every tool behind
 one abstraction: `tool.definition()` yields the JSON Schema MCP wants for
@@ -36,13 +88,15 @@ Point Claude Desktop / Claude Code at it:
 ```
 
 That's it — the host now sees LazyTools' read-only surface as native tools.
-Providers whose optional extra is missing are simply skipped, so a bare
-`[mcp]` install serves `datahub` + `statistical`; install
+Providers whose optional extra is missing are simply skipped, a bare
+`[mcp]` install serves available core providers such as registry/projects/report.
+`datahub` and `statistical` additionally need the separately installed hub; install
 `lazystats[regimes]` / the `[web]` extra to light up `regimes` / `web`.
 
 ## Providers
 
-`lazytools-mcp` serves the read-only provider menu. Pass ids to select a
+`lazytools-mcp` serves the available read-only providers by default. Coding
+and specialist-agent providers require explicit selection and opt-in. Pass ids to select a
 subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 
 | id | Provider | Tools | Needs |
@@ -55,13 +109,16 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `fin` | `PortfolioOptimizationTools()` + `PortfolioTreeTools()` | `portfolio_optimizer_*` (flat node) + `portfolio_tree_*` (multi-node, interoperable with LazyPortfolio's Tree Studio) | `lazyfin`, `lazyportfolio` |
 | `optimizer_agent` | `optimizer_specialist(...)` — a `lazybridge.Agent` | one tool, `portfolio-optimizer-specialist(task: str)` | `--allow-unsafe` + `DEEPSEEK_API_KEY` (opt-in only, see below) |
 | `report_agent` | `report_specialist(...)` — a `lazybridge.Agent` | one tool, `report-specialist(task: str)` | `--allow-unsafe` + `DEEPSEEK_API_KEY` (opt-in only, see below) |
-| `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — `lazybridge.Agent`s on `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
-| `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — `lazybridge.Agent`s on `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
+| `projects` | `ProjectsTools()` | records, owner, plans, schedule/Gantt, quota, notes, cost; full profile adds contracts/verification | configured Store for persistence; writes need `--allow-unsafe` |
+| `code_write` | `CodeWriteTools(...)` | `codex_write`, `claude_code_write` | `--allow-unsafe`, local runtimes; Claude needs `[engines]` |
+| `code_sessions` | `CodeSessionTools(...)` | list/bind/rename/forget native aliases | explicit opt-in with `--allow-unsafe` |
+| `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
+| `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — Tools that delegate through `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
 
-`optimizer_agent`/`report_agent` are the two providers that construct a real
+`optimizer_agent`/`report_agent` are two providers that construct a real
 `lazybridge.Agent` instead of a deterministic `ToolProvider` — calling their
 tool runs a live LLM-driven loop (its own internal tool calls) and returns
-only the final text. Unlike everything else on this menu, they are never
+only the final text. Like coding providers, they are never
 served in the default read-only surface, and won't construct even with
 `--allow-unsafe` unless the configured model's API key is set (default model
 `deepseek-v4-flash`, override with `LAZYTOOLS_OPTIMIZER_AGENT_MODEL` /
@@ -72,8 +129,7 @@ served in the default read-only surface, and won't construct even with
 `code_review` is the same idea pointed at *your own repositories*:
 `lazybridge.Agent`s whose engine is
 [`CodexEngine`](https://selvaz.github.io/LazyBridge/guides/full/codex-engine/)
-— JSON-RPC to the locally authenticated `codex app-server`, so there is no API
-key, only the CLI's own login — served as two tools:
+— JSON-RPC to the locally authenticated `codex app-server`, inheriting its runtime authentication — served as three tools:
 
 ```text
 codex_code_review(task, repo_path=None, diff_ref=None, paths=None, thread_id=None, session_name=None, model=None, effort=None) -> str
@@ -113,7 +169,7 @@ repository and say what to look at":
 {"task": "is the new retry logic correct?", "repo_path": "LazyTools", "diff_ref": "main"}
 ```
 
-**Follow-ups are cheap.** Every reply's header carries `thread_id=<id>`; pass it
+**Follow-ups reuse native history.** Every reply's header carries `thread_id=<id>`; pass it
 back and the next call continues the *same Codex thread*, which still holds what
 it read and concluded, instead of re-exploring the repository from scratch:
 
@@ -141,7 +197,7 @@ a real model turn; it is skipped entirely when the `codex` CLI can't be found.
 |---|---|---|
 | `code_root` (`--config`) / `LAZYTOOLS_CODE_ROOT` | server cwd | Directory every `repo_path` is confined to (and `paths` to `repo_path` in turn) — a caller cannot walk the reviewer out of it through an argument. The free-text `task` can still *ask*; the reviewer prompt refuses, but that is an instruction, not a sandbox, so keep secrets out of the root. |
 | `LAZYTOOLS_CODE_REVIEW_MODEL` | the local `~/.codex/config.toml` model | Model override. |
-| `LAZYTOOLS_CODE_REVIEW_EFFORT` | the CLI's default | `low` / `medium` / `high`. |
+| `LAZYTOOLS_CODE_REVIEW_EFFORT` | the CLI's default | Accepted vocabulary: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`; actual support depends on model/runtime. |
 | `LAZYTOOLS_CODE_REVIEW_TIMEOUT` | `3600` | Seconds per review. |
 
 A review takes minutes, so give the *host* a matching tool timeout (Claude
@@ -257,6 +313,7 @@ asyncio.run(serve_stdio(server))
 callables — so you can serve a custom, curated surface:
 
 ```python
+from lazytools.mcp_server import build_server
 from lazytools.connectors.datahub import DataHubTools
 from lazytools.statistical_analysis import StatisticalAnalysisTools
 

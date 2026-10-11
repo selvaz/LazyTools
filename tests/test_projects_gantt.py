@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from lazybridge import Store
 from lazybridge.ext.planners import DurableBlackboard
 
@@ -38,8 +39,9 @@ def test_draws_a_bar_per_planned_task_and_marks_late_ones() -> None:
     assert page.count('class="bar ') == 2  # the undated task gets no bar
     assert 'class="bar late' in page and 'class="bar open' in page
     assert "build &lt;the&gt; thing" in page  # task text is escaped, never raw markup
-    assert "1 aperti senza date" in page
-    assert ">oggi<" in page
+    assert "1 open without dates" in page
+    assert ">today<" in page
+    assert "1 overdue" in page
 
 
 def test_completed_tasks_without_a_plan_are_counted_not_drawn() -> None:
@@ -49,7 +51,7 @@ def test_completed_tasks_without_a_plan_are_counted_not_drawn() -> None:
     board.mark_done(0, "ok")
 
     page = gantt.render_gantt_html(store, now=NOW)
-    assert "1 chiusi senza pianificazione" in page
+    assert "1 completed without planned dates (not drawn)" in page
     assert 'class="done-mark"' not in page
     assert 'class="done-mark"' in gantt.render_gantt_html(store, now=NOW, unplanned_done=True)
 
@@ -62,7 +64,7 @@ def test_filters_by_status_and_owner() -> None:
 
     only_claude = gantt.render_gantt_html(store, now=NOW, owners=["claude"])
     assert "Title mine" in only_claude and "Title theirs" not in only_claude
-    assert "Nessun progetto da mostrare" in gantt.render_gantt_html(store, now=NOW, statuses=("done",))
+    assert "No projects to display" in gantt.render_gantt_html(store, now=NOW, statuses=("done",))
 
 
 def test_cli_writes_the_page(tmp_path) -> None:
@@ -101,7 +103,48 @@ def test_text_gantt_draws_one_character_per_day_around_today() -> None:
     upcoming = next(line for line in lines if line.lstrip().startswith("next one"))
     today_col = gantt.TEXT_LABEL + 2 + gantt.TEXT_DAYS_BACK
     assert late[today_col] == "|" and upcoming[today_col] == "|"
-    assert late[today_col - 4 : today_col - 1] == "▓▓▓" and late.endswith("IN RITARDO")
-    assert upcoming[today_col + 1 : today_col + 4] == "▒▒▒" and upcoming.endswith("da fare")
+    assert late[today_col - 4 : today_col - 1] == "▓▓▓" and late.endswith("OVERDUE")
+    assert upcoming[today_col + 1 : today_col + 4] == "▒▒▒" and upcoming.endswith("to do")
     assert not any(line.lstrip().startswith("no dates") for line in lines)
-    assert "alpha  (0/3 fatti" in text
+    assert "alpha  (0/3 done" in text
+
+
+@pytest.mark.parametrize(
+    ("state", "label"),
+    [
+        ("unscheduled", "unscheduled"), ("on_track", "on track"),
+        ("at_risk", "at risk"), ("behind", "behind schedule"),
+        ("blocked", "blocked"), ("ready_to_close", "ready to close"),
+        ("done", "closed"), ("paused", "paused"),
+    ],
+)
+def test_state_labels_are_english_in_both_renderers(monkeypatch, state, label) -> None:
+    store = Store()
+    _project(store, "alpha", ["Keep user text: oggi <test>"])
+    view = gantt._schedule.project_schedule_view(store, "alpha", now=NOW)
+    view = view.model_copy(update={"schedule_status": view.schedule_status.model_copy(update={"state": state})})
+    monkeypatch.setattr(gantt, "_selected_views", lambda *args, **kwargs: [(view, "shared")])
+    assert f">{label}</span>" in gantt.render_gantt_html(store, now=NOW)
+    assert f"done · {label}" in gantt.render_gantt_text(store, now=NOW)
+
+
+def test_english_rendering_is_byte_identical_with_fixed_now() -> None:
+    store = Store()
+    board = _project(store, "alpha", ["Keep user text: oggi <test>"])
+    _schedule(board, 0, "Keep user text: oggi <test>", NOW, NOW + timedelta(days=2))
+    page = gantt.render_gantt_html(store, now=NOW)
+    assert page == gantt.render_gantt_html(store, now=NOW)
+    assert gantt.render_gantt_text(store, now=NOW) == gantt.render_gantt_text(store, now=NOW)
+    assert '<html lang="en">' in page and "Project Gantt" in page
+    assert "Updated 08/10/2026 09:00 UTC" in page
+    for label in ("done", "planned", "overdue / failed", "cancelled", "on hold", "completion day"):
+        assert label in page
+    assert "Keep user text: oggi &lt;test&gt;" in page
+
+
+def test_empty_messages_are_english() -> None:
+    store = Store()
+    assert "no projects to display" in gantt.render_gantt_text(store, now=NOW)
+    _project(store, "alpha", ["no dates"])
+    assert "No tasks have planned dates." in gantt.render_gantt_html(store, now=NOW)
+    assert "no tasks with planned dates" in gantt.render_gantt_text(store, now=NOW)

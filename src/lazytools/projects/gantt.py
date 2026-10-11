@@ -7,7 +7,7 @@ planned window, a mark on the day it was completed, a line for today. It is
 plain code over the Store, so a Claude Code session, the CEO or a scheduled
 job can regenerate it as often as they like at no model cost.
 
-    python -m lazytools.projects.gantt --store C:/ProgramData/lazyceo/ceo_simple.sqlite --out gantt.html
+    python -m lazytools.projects.gantt --store projects.sqlite --out gantt.html
 """
 
 from __future__ import annotations
@@ -30,14 +30,14 @@ TOP_PX = 34
 DEFAULT_STATUSES = ("open", "paused")
 
 _STATE_TEXT = {
-    "unscheduled": "senza date",
-    "on_track": "in linea",
-    "at_risk": "a rischio",
-    "behind": "in ritardo",
-    "blocked": "bloccato",
-    "ready_to_close": "da chiudere",
-    "done": "chiuso",
-    "paused": "in pausa",
+    "unscheduled": "unscheduled",
+    "on_track": "on track",
+    "at_risk": "at risk",
+    "behind": "behind schedule",
+    "blocked": "blocked",
+    "ready_to_close": "ready to close",
+    "done": "closed",
+    "paused": "paused",
 }
 
 
@@ -77,7 +77,7 @@ def _drawn_tasks(view: Any, *, unplanned_done: bool) -> list[Any]:
 def _project_svg(view: Any, today: date, *, unplanned_done: bool = False) -> str:
     dated = _drawn_tasks(view, unplanned_done=unplanned_done)
     if not dated:
-        return '<p class="muted">Nessun task ha date pianificate.</p>'
+        return '<p class="muted">No tasks have planned dates.</p>'
     days: list[date] = [today]
     for task in dated:
         days += [d for d in (_day(task.planned_start_at), _day(task.due_at), _day(task.completed_at)) if d is not None]
@@ -127,7 +127,7 @@ def _project_svg(view: Any, today: date, *, unplanned_done: bool = False) -> str
         parts.append("</g>")
     today_x = x(today) + DAY_PX / 2
     parts.append(f'<line class="today" x1="{today_x}" y1="{TOP_PX - 10}" x2="{today_x}" y2="{height}"/>')
-    parts.append(f'<text class="today-label" x="{today_x + 3}" y="28">oggi</text>')
+    parts.append(f'<text class="today-label" x="{today_x + 3}" y="28">today</text>')
     parts.append("</svg>")
     return "".join(parts)
 
@@ -142,11 +142,11 @@ def _project_section(view: Any, owner: str, today: date, *, unplanned_done: bool
     )
     hidden = 0 if unplanned_done else sum(1 for t in view.tasks if t.completed_at and not (t.planned_start_at or t.due_at))
     facts = [
-        f"{status.done_tasks}/{status.total_tasks} fatti",
-        f"{hidden} chiusi senza pianificazione (non disegnati)" if hidden else "",
-        f"{len(status.overdue)} scaduti" if status.overdue else "",
+        f"{status.done_tasks}/{status.total_tasks} done",
+        f"{hidden} completed without planned dates (not drawn)" if hidden else "",
+        f"{len(status.overdue)} overdue" if status.overdue else "",
         f"target {target:%d/%m}" if target else "",
-        f"{undated} aperti senza date" if undated else "",
+        f"{undated} open without dates" if undated else "",
         f"owner {owner}",
     ]
     pct = round(100 * status.done_tasks / status.total_tasks) if status.total_tasks else 0
@@ -197,7 +197,7 @@ def render_gantt_html(
     statuses: Sequence[str] | None = DEFAULT_STATUSES,
     owners: Iterable[str] | None = None,
     now: datetime | None = None,
-    title: str = "Gantt dei progetti",
+    title: str = "Project Gantt",
     unplanned_done: bool = False,
 ) -> str:
     """The whole registry's Gantt as one self-contained HTML page.
@@ -211,21 +211,21 @@ def render_gantt_html(
         _project_section(view, project_owner, today, unplanned_done=unplanned_done)
         for view, project_owner in _selected_views(store, statuses=statuses, owners=owners, moment=moment)
     ]
-    body = "".join(sections) or '<p class="muted">Nessun progetto da mostrare.</p>'
+    body = "".join(sections) or '<p class="muted">No projects to display.</p>'
     legend = (
-        '<div class="legend"><span><i style="background:var(--done)"></i>fatto</span>'
-        '<span><i style="background:var(--open)"></i>pianificato</span>'
-        '<span><i style="background:var(--late)"></i>scaduto / fallito</span>'
-        '<span><i style="background:var(--cancel)"></i>annullato</span>'
-        '<span><i style="border:1.5px dashed var(--open)"></i>in attesa (hold)</span>'
-        '<span>○ giorno di chiusura</span></div>'
+        '<div class="legend"><span><i style="background:var(--done)"></i>done</span>'
+        '<span><i style="background:var(--open)"></i>planned</span>'
+        '<span><i style="background:var(--late)"></i>overdue / failed</span>'
+        '<span><i style="background:var(--cancel)"></i>cancelled</span>'
+        '<span><i style="border:1.5px dashed var(--open)"></i>on hold</span>'
+        '<span>○ completion day</span></div>'
     )
     return (
-        '<!doctype html><html lang="it"><head><meta charset="utf-8">'
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{html.escape(title)}</title><style>{_CSS}</style></head><body><main>"
-        f"<h1>{html.escape(title)}</h1><p class=\"sub\">Aggiornato {moment:%d/%m/%Y %H:%M} UTC · "
-        "tocca una barra per il testo completo del task</p>"
+        f"<h1>{html.escape(title)}</h1><p class=\"sub\">Updated {moment:%d/%m/%Y %H:%M} UTC · "
+        "tap a bar for the full task text</p>"
         f"{legend}{body}</main></body></html>"
     )
 
@@ -282,13 +282,13 @@ def render_gantt_text(
         status = view.schedule_status
         state = _STATE_TEXT.get(str(status.state), str(status.state))
         target = _day(status.target_completion_at)
-        head = f"{view.project.project_id}  ({status.done_tasks}/{status.total_tasks} fatti · {state}"
+        head = f"{view.project.project_id}  ({status.done_tasks}/{status.total_tasks} done · {state}"
         head += f" · target {target:%d/%m}" if target else ""
         head += f" · owner {project_owner})" if project_owner != "ceo" else ")"
         lines += ["", head]
         drawn = _drawn_tasks(view, unplanned_done=unplanned_done)
         if not drawn:
-            lines.append("  nessun task con date pianificate")
+            lines.append("  no tasks with planned dates")
             continue
         for task in drawn:
             kind = _task_kind(task, today)
@@ -304,12 +304,12 @@ def render_gantt_text(
                 if completed == day:
                     ch = "✓"
                 row.append(ch)
-            note = {"done": "fatto", "cancelled": "annullato", "late": "IN RITARDO"}.get(kind, "da fare")
+            note = {"done": "done", "cancelled": "cancelled", "late": "OVERDUE"}.get(kind, "to do")
             if task.start_hold and kind not in ("done", "cancelled"):
-                note += " · in attesa"
+                note += " · on hold"
             lines.append(f"  {_label(task.text, TEXT_LABEL):<{TEXT_LABEL}}{''.join(row)} {note}")
     if len(lines) == 1:
-        lines.append("nessun progetto da mostrare")
+        lines.append("no projects to display")
     return "\n".join(lines)
 
 

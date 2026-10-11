@@ -1,133 +1,182 @@
 # Portfolio optimization
 
-> **Stale content below (2026-07-28):** `PortfolioOptimizationTools` was ported
-> to LazyPortfolio's hierarchical (V2) engine — `lazyfin.optimization`,
-> `OptimizationStore`, `ModelPortfolio`, `SkfolioOptimizer` and the 7 named
-> methods described below no longer exist. The current tool surface is
-> `portfolio_optimizer_list_objectives` / `_run` / `_backtest` over
-> `lazyportfolio`'s objectives (`min_risk`, `max_return`, `max_ratio`,
-> `max_utility`, `hrp`) with no persisted store. See
-> `src/lazytools/connectors/fin/tools.py`'s `PortfolioOptimizationTools`
-> docstring for the current contract; this page and
-> `portfolio-optimization-methodology.md` need a full rewrite to match.
->
-> **`PortfolioTreeTools` added (this release):** the flat-node limitation
-> this page otherwise describes throughout no longer applies to the tree
-> surface — see [Tree configurations](#tree-configurations) below for the
-> current, accurate contract. Everything else on this page is still the
-> stale V1 content described above.
+`PortfolioOptimizationTools` is the LLM-facing, auditable surface over
+LazyPortfolio's hierarchical V2 engine. It is for decision support: it returns
+target weights and diagnostics, never submits trades. Five policy objectives
+remain available: `min_risk`, `max_return`, `max_ratio`, `max_utility`, `hrp`.
+The extraction from LazyFin changed the implementation and API, not the need
+to document their mathematics and evaluation protocol.
 
-`PortfolioOptimizationTools` is the LLM-facing, auditable surface over the
-Skfolio-backed LazyFin optimizer. It is for decision support: it returns target
-weights and diagnostics, never submits trades.
-
-The full mathematical and scientific specification of the supported policies is
-in [Portfolio optimization methodology](portfolio-optimization-methodology.md).
+The mathematical specification of the supported objectives is in
+[Portfolio optimization methodology](portfolio-optimization-methodology.md).
 This page documents the LLM tool boundary and operational usage.
+The flat provider and [tree provider](#tree-configurations) use the same
+engine; the tree surface additionally exposes hierarchy and per-node settings.
 
 ## Data boundary
 
 The agent supplies comma-separated ticker symbols (`SPY,TLT`) or canonical
-instruments (`ticker:SPY,ticker:TLT`), a date window, a method and constraints.
+instruments (`ticker:SPY,ticker:TLT`), a date window, an `objective` and constraints.
 Canonical daily **simple returns** are loaded privately from `market-data-hub`
-by LazyFin. The tool's `frequency` parameter selects the fitting grid
-(`D`/`W`/`M`/`Q`), not the data extraction grid. Tool results are deliberately
-limited to weights, risk metrics, costs, tracking error, bounded provenance and
-persistent ids; prices, return rows and covariance matrices never enter LLM
-context.
+by `MarketDataHubOptimizationBackend`, or an injected `OptimizationDataBackend`.
+The tool's `frequency` parameter selects the fitting grid (`D`/`W`/`M`/`Q`),
+not the data extraction grid. The flat wrapper declares USD reference currency;
+the full tree config declares its own currency.
+
+Tool results are deliberately limited to weights, diagnostics, aggregate
+backtest metrics and bounded provenance. Prices, return rows and covariance
+matrices never enter LLM context through these tools. Flat results have no
+persistent run id: keep the request and result in the caller's audit record.
 
 ## Setup
 
-Install LazyFin's optional quantitative dependency and configure a durable
-audit database:
-
-```bash
-pip install "lazyfin[optimizer] @ git+https://github.com/selvaz/LazyFin.git"
-```
+The flat connector imports `lazyfin` for its sibling finance providers and
+`lazyportfolio` for the V2 engine. The tree module imports only `lazyportfolio`
+lazily. Both packages are separate installations; there is no LazyTools `fin`
+extra and no current `lazyfin[optimizer]` setup for this engine. Consult
+`ecosystem/compatibility.toml` and `requirements/verified.txt` for tested pins.
+That file's older LazyTools pin is an ecosystem CI baseline, distinct from
+LazyTools 0.10.1; this docs change does not update the ecosystem combination.
 
 ```python
-from lazybridge import Agent
-from lazyfin.optimization import OptimizationStore
 from lazytools.connectors.fin import PortfolioOptimizationTools
 
-optimizer_tools = PortfolioOptimizationTools(
-    OptimizationStore("lazyfin_optimizer.sqlite")
-)
-agent = Agent("claude-opus-5-5", tools=[optimizer_tools])
+flat = PortfolioOptimizationTools()
+print([tool.name for tool in flat.as_tools()])
 ```
+
+For an agent, pass this provider in `Agent(..., tools=[flat])`. The constructor
+accepts only keyword `backend=`; it no longer accepts `OptimizationStore`.
+The current menu is `portfolio_optimizer_list_objectives`,
+`portfolio_optimizer_run`, `portfolio_optimizer_backtest`.
 
 ## Policies and constraints
 
-- `min_variance_shrinkage`, `min_cvar`, `max_sharpe_shrinkage` and
-  `max_utility_shrinkage` use Skfolio `MeanRisk`; they support bounds, groups,
-  linear constraints, transaction costs, hard turnover and tracking-error
-  limits. `max_utility_shrinkage` also accepts a positive `risk_aversion`.
-- `risk_budget_cvar` uses `RiskBudgeting`; it supports bounds, groups, linear
-  constraints and transaction costs.
-- `hrp_cvar` uses `HierarchicalRiskParity`; it supports bounds and transaction
-  costs. Its CVaR confidence is Skfolio's fixed 95%.
-- `max_return_benchmark_vol` uses `MeanRisk` to maximise expected return under
-  a volatility cap dynamically measured from the declared `benchmark_id` in
-  each fitting window. It needs a benchmark; it does not use future or realised
-  OOS benchmark volatility as its target.
+Call `portfolio_optimizer_list_objectives` for the authoritative vocabulary.
+Names are `objective=`, not the former `method=`:
 
-The provider rejects an unsupported method/constraint combination rather than
-altering the generated weights after the solve.
+| Objective | Implemented target | Important limitation |
+| --- | --- | --- |
+| `min_risk` | Minimize covariance-implied variance | Sensitive to covariance and bounds; does not need a mean forecast |
+| `max_return` | Maximize expected excess return | Flat surface supplies bounds, not a benchmark-volatility cap |
+| `max_ratio` | Maximize expected excess return / standard deviation | Fractional objective; no global-optimality promise |
+| `max_utility` | Maximize excess mean minus `risk_aversion / 2` times variance | Uses variance, not standard deviation or CVaR |
+| `hrp` | Hierarchical risk parity with Skfolio's default variance measure | Bounds supported; cash/leverage and non-`auto` mean estimators refused |
 
-The V1 LLM surface exposes a uniform `max_weight`; individual `min_weights`
-remain zero by design (long-only is the natural default). Per-asset minimum
-weights are available to programmatic callers through `OptimizationSpec` and
-will be surfaced to the agent only with a dedicated portfolio-policy interface.
+The flat run/backtest arguments are `instruments`, `objective`, `start`, `end`,
+`frequency`, `min_weight`, `max_weight`, `cash_enabled`, `max_leverage`,
+`mean_estimator`, `risk_aversion`, `risk_free_rate`, `benchmark_weights`.
+Defaults: `min_risk`, weekly fitting, uniform minimum 0 and maximum 1,
+cash disabled, leverage 1, mean estimator `auto`. Uniform per-asset minimum
+weights are now supported through `min_weight`; they are not fixed to zero.
+
+Mean estimators are `auto`, `equilibrium`, `empirical`, `bayes_stein`,
+`james_stein`, `bodnar_okhrin`. The wrapper always constructs B0 weights,
+using supplied canonical instrument weights or an equal-weight fallback.
+The engine resolves `auto` from objective, reference availability and financing;
+inspect `resolved_mean_estimator` in the run result. In the verified engine,
+utility/financing `auto` uses Bayes-Stein rather than reconstructing the benchmark.
+Explicit equilibrium requires a complete fully invested reference and rejects
+active cash financing. Tool descriptions can be more conservative about asking
+for explicit benchmark weights; supply them when that reference is meaningful.
+
+The full tree surface exposes per-asset bounds, volatility targets/caps,
+tracking error, covariance choice, borrowing spread and Black-Litterman views.
+Those are tree `constraints`, not extra flat-tool keywords. HRP rejects unsupported
+combinations; validation/solve errors must remain visible. No post-solve patch
+should make a refused configuration look compliant.
+
+### What changed from the seven-method interface
+
+| Former name or API | Current location or status |
+| --- | --- |
+| `min_variance_shrinkage` | Use `min_risk`; default covariance still uses fixed shrinkage |
+| `max_sharpe_shrinkage` | Use `max_ratio`; `risk_free_rate` is now exposed |
+| `max_utility_shrinkage` | Use `max_utility`; quadratic utility has factor one half |
+| `hrp_cvar` | Use `hrp` only for variance-based HRP; this is a changed risk measure |
+| `min_cvar`, `risk_budget_cvar` | No equivalent V2 objective in this tool menu; CVaR/RiskBudgeting remain lower-level Skfolio capabilities |
+| `max_return_benchmark_vol` | Tree `max_return` with an explicit benchmark-referenced volatility cap; flat `max_return` alone is not equivalent |
+| `OptimizationStore`, `ModelPortfolio`, `benchmark_id`, run-id lifecycle | Removed from the flat wrapper; B0 uses `benchmark_weights`, saved tree configs use the LazyPortfolio store |
+| `chart_filename`, `artifacts_dir` | Not flat optimizer arguments; use a separate report/chart pipeline |
+
+The deterministic score-ranked `OptimizerTools` / `optimize_target_weights`
+still lives in `lazyfin.kernel`. It is a separate optimizer and was unaffected
+by the hierarchical-engine extraction.
 
 ## Benchmarks and backtests
 
-Create a versioned model portfolio, for example a 70/30 ACWI/aggregate-bond
-allocation, before referencing it by `benchmark_id`. It is always available as
-a performance comparator; `MeanRisk` policies can also enforce an optional
-tracking-error budget against it.
+Declare a static comparator with `benchmark_weights`, for example
+`{"ticker:SPY": 0.7, "ticker:TLT": 0.3}`. There is no preliminary model-portfolio
+creation or `benchmark_id`. The B0 comparator does not impose a risk budget
+unless a tree configuration explicitly declares a benchmark risk constraint.
 
-`portfolio_optimizer_backtest` fits Skfolio on the requested return frequency
-and values the resulting holding periods on daily simple returns. Its
-`train_size` is measured in fitting-return observations; its
-`rebalance_frequency` (`D`/`W`/`M`/`Q`) independently controls when weights are
-renewed. A fit ending at a rebalance endpoint is applied beginning with the
-following daily observation, so there is no look-ahead or artificial extra
-execution delay. OOS NAV, costs, drawdown, CAGR and annualised realised metrics
-therefore use daily data and factor 252, even when fitting is weekly or monthly.
+`portfolio_optimizer_backtest` fits the V2 estimator on the requested return
+frequency and values the resulting holding periods on daily simple returns.
+Its `train_size` (default 104) counts fitting observations;
+`rebalance_frequency` (default `M`) independently controls renewed weights.
+A fit ending at a rebalance endpoint applies to following daily observations,
+not the training window. Annualized OOS metrics use daily factor 252, even
+when fitting is weekly or monthly. See the methodology for compounding,
+drifting weights and the cost convention.
 
-Tool results distinguish `annualized_mean` from geometric `cagr`; the latter
-comes from the compounded daily OOS wealth curve. The store records benchmark
-versions, specifications, weights
-at each out-of-sample rebalance, aggregate metrics and data provenance—but not
-historical observations.
+The backtest takes all run arguments plus `train_size`, `rebalance_frequency`
+and `transaction_cost_bps` (default 0). Pass costs deliberately: zero is a
+configuration default, not an estimate of real execution cost.
+The result contains `n_folds`, FINAL `metrics`, B0 `benchmark_metrics`,
+`transaction_cost_paid` and bounded source/frequency provenance. It does not
+persist specifications, weights at each fold or raw observations in a V1 store.
 
-Pass a `chart_filename` only when the provider has been built with an
-`artifacts_dir`. It writes a PNG of strategy versus benchmark cumulative
-out-of-sample return and returns only a sandboxed `file:` artifact reference;
-no observations are returned to the LLM. Pair that reference with
-`ReportTools(..., files=ReportFiles(...))` and `save_memo_html` for a
-self-contained HTML report with the chart embedded.
+Here is a complete flat call; run it only with a configured data backend:
+
+```python
+import asyncio
+import json
+from lazytools.connectors.fin import PortfolioOptimizationTools
+
+async def evaluate():
+    flat = PortfolioOptimizationTools()
+    menu = {tool.name: tool for tool in flat.as_tools()}
+    vocabulary = json.loads(await menu["portfolio_optimizer_list_objectives"].run())
+    assert "max_utility" in vocabulary["objectives"]
+    result = await menu["portfolio_optimizer_backtest"].run(
+        instruments="SPY,TLT", objective="min_risk",
+        start="2018-01-01", end="2026-01-01", frequency="W",
+        max_weight=0.7, train_size=104, rebalance_frequency="M",
+        transaction_cost_bps=10.0,
+        benchmark_weights={"ticker:SPY": 0.7, "ticker:TLT": 0.3},
+    )
+    print(json.loads(result))
+
+asyncio.run(evaluate())
+```
+
+Retain the exact inputs and compact outputs for reproduction. A self-contained
+HTML report can still use `ReportTools` / `ReportFiles` and `save_memo_html`,
+but a chart needs a separately authorized source; the optimizer returns no
+OOS curve or sandboxed `file:` chart reference. Do not infer a missing curve
+from aggregate metrics.
 
 ## Live DeepSeek smoke test
 
-`examples/run_portfolio_optimization_deepseek.py` performs a live agentic
-smoke test: DeepSeek receives only the DataHub, optimizer, report and Telegram
-providers plus a portfolio-research objective. It decides the tool sequence
-and the appropriate policy comparison for a SPY/GLD/TLT/BCI universe against a
-70/30 SPY/TLT benchmark, using a three-year rolling window and quarterly
-rebalancing. It saves a self-contained HTML report with OOS chart(s) and uses
-the existing Telegram tool provider to send both outputs. The runner verifies
-only completion artifacts (backtest, persisted HTML, message and attachment),
-not a prescribed chain of tool calls. It reads `DEEPSEEK_API_KEY`, `TELEGRAM_BOT_TOKEN` and
-`TELEGRAM_CHAT_ID` from the environment (with the established workspace
-`deepseek.env` fallback for local development). Telegram receives only a short
-status message; the detailed Markdown report is attached as a document.
+`examples/run_portfolio_optimization_deepseek.py` remains the live agentic
+smoke-test runner. It now imports `MarketDataHubOptimizationBackend` from
+LazyPortfolio and the current flat provider. DeepSeek chooses a sequence of
+DataHub, optimizer, report and Telegram tools for a SPY/GLD/TLT/BCI study against
+a 70/30 SPY/TLT comparator. The task specifies a roughly three-year rolling
+window, quarterly rebalancing and capped long-only weights.
+
+The runner checks completion artifacts, not a predetermined chain or numerical
+performance. It uses report `chart:` schemas for instrument price/return charts,
+not the removed optimizer `chart_filename` interface. It reads `DEEPSEEK_API_KEY`,
+`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` and a configured market-data-hub database,
+with its documented local key-file fallback. This sends a Telegram summary and
+HTML attachment: it is an explicitly invoked live example, not part of docs
+verification. The docs tests substitute engines/data and send no messages.
 
 ## Tree configurations
 
-Unlike everything above, this section describes the **current** contract —
-`PortfolioTreeTools` (`src/lazytools/connectors/fin/tree_tools.py`), added
-this release.
+`PortfolioTreeTools` (`src/lazytools/connectors/fin/tree_tools.py`) exposes
+the current full-tree contract alongside the flat tools above.
 
 `PortfolioOptimizationTools` always wraps a single flat node. `PortfolioTreeTools`
 exposes the full LazyPortfolio V2 node-tree: multiple nodes, each with its own
@@ -138,6 +187,7 @@ A tree config is one JSON object:
 ```json
 {
   "root_id": "root",
+  "currency": "USD",
   "nodes": [
     {"id": "root", "name": "Global", "children": ["equity", "bonds"], "instruments": [], "proxy": "", "goal": {"objective": "min_risk"}, "constraints": {}},
     {"id": "equity", "name": "Equity", "children": [], "instruments": ["SPY", "VGK", "EWJ"], "proxy": "ACWI", "goal": {"objective": "min_risk"}, "constraints": {}},
@@ -174,7 +224,8 @@ a tree built/edited in the GUI loads via `portfolio_tree_load`/`_list`.
 from lazytools.connectors.fin.tree_tools import PortfolioTreeTools
 
 tools = PortfolioTreeTools()                  # validate / list / load
-tools = PortfolioTreeTools(allow_write=True)  # + save / delete / estimate / backtest
+tools = PortfolioTreeTools(allow_compute=True, allow_persist=True, allow_delete=True)
+print([tool.name for tool in tools.as_tools()])
 ```
 
 - `portfolio_tree_validate(config)` — never touches market data or the store;
@@ -192,3 +243,26 @@ tools = PortfolioTreeTools(allow_write=True)  # + save / delete / estimate / bac
   Responses carry `terminal_weights`, per-node `local_weights`/
   `terminal_weights`/`audit`, and aggregate backtest metrics/provenance —
   never `synthetic_returns` or per-period curves.
+
+
+### Tree privileges and errors
+
+`allow_compute` adds estimate/backtest, `allow_persist` adds save, and
+`allow_delete` adds delete. There is no constructor `allow_write` parameter.
+Compute can be granted without persistence or deletion. The MCP `fin` provider
+maps its write-enabled selection (`--allow-unsafe`) to all three privileges;
+read-only tree tools are emitted otherwise. Flat estimation/backtests are already
+in the provider menu: this flag is not a universal compute-cost gate.
+
+`store_path` overrides `LAZYPORTFOLIO_TREE_DB`. Inline `config` wins over `name`.
+Save validates before writing, and frequency/window/cost overrides affect only
+that call. `portfolio_tree_validate` verifies structure without fetching data;
+it cannot prove coverage, feasibility or forecast quality. Tree views are
+typed per-node settings; a single-node tree is sufficient for views on a flat
+universe. The flat `portfolio_optimizer_*` calls have no view argument.
+
+Missing optional dependencies, missing data, invalid structure and infeasible
+settings are errors to resolve. They are not reasons to invent returns or
+silently fall back to a removed policy. Regression coverage in
+`test_portfolio_optimization_tools.py` and `test_fin_tree_tools.py` verifies this
+API/data boundary, not profitability.

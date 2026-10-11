@@ -1,5 +1,5 @@
 site_name: LazyTools
-site_description: Reusable tool providers, connector clients, and safety wrappers for LazyBridge agents.
+site_description: Claude Code and Codex collaboration with async jobs, shared projects, MCP tools and quota routing.
 site_url: https://tools.lazybridge.com/
 repo_url: https://github.com/selvaz/LazyTools
 repo_name: selvaz/LazyTools
@@ -8,6 +8,8 @@ copyright: Copyright &copy; 2026 LazyTools — Apache-2.0
 
 docs_dir: docs
 strict: true
+not_in_nav: |
+  /_audit-2026-10.md
 
 theme:
   name: material
@@ -71,6 +73,7 @@ plugins:
           - code-support/codex.md
           - code-support/collaboration.md
           - code-bridge.md
+          - projects.md
           - gateway.md
           - datahub.md
           - tradingview.md
@@ -131,7 +134,7 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/selvaz/LazyTools
     - icon: fontawesome/solid/envelope
-      link: mailto:LazyBridgeLabs@gmail.com
+      link: mailto:lazybridgelabs@gmail.com
       name: Email LazyBridge Labs
 
 extra_css:
@@ -145,12 +148,13 @@ nav:
       - Telegram: telegram.md
       - MCP: mcp.md
       - MCP server: mcp-server.md
-      - Code Support Agent:
+      - Code support:
           - Overview: code-support/index.md
           - Claude Code: code-support/claude-code.md
           - Codex: code-support/codex.md
           - Collaboration: code-support/collaboration.md
       - Async Code Bridge (CLI): code-bridge.md
+      - Projects: projects.md
       - External tool gateway: gateway.md
       - Financial data (market-data-hub): datahub.md
       - TradingView screener: tradingview.md
