@@ -1,12 +1,35 @@
 # LazyTools (`lazytoolkit`)
 
-Reusable **tool providers**, **connector clients**, and **safety wrappers** for
-agents built on [LazyBridge](https://github.com/selvaz/LazyBridge) (and
-[LazyPulse](https://github.com/selvaz/LazyPulse)).
+LazyTools is the **integration layer for Claude Code + Codex collaboration**.
+It connects engine-backed coding tools, detached jobs with durable approval
+tickets, shared project evidence and deterministic quota routing. One engine
+writes, the other reviews; code runs the checks and records the acceptance.
 
-LazyBridge stays a minimal agent runtime; the concrete, dependency-carrying
-tools live here. Anything you add to `Agent(tools=[...])` or
-`PulseAgent(tools=[...])` that talks to the outside world belongs in LazyTools.
+**LazyTools 0.10.1 is Alpha.** It requires LazyBridge 1.8.0 or later within
+1.x. LazyBridge core is Stable; that does not make every integration Stable.
+With a subscription login, coding runtimes use your plan's quota; LazyTools
+inherits runtime authentication and does not force a billing path.
+
+Start with the [async code bridge](docs/code-bridge.md) and its full
+Claude-writes/Codex-reviews toy-repo flow. Use the [MCP code-support tools](docs/code-support/index.md)
+for short calls and named native conversations. Keep plans, claims, contracts,
+verification and notes in [Projects](docs/projects.md); render the recorded
+schedule as a deterministic English Gantt. [Quota routing](docs/code-bridge.md#choose-a-model-from-quota)
+explains tier selection and admission. **Benchmark in progress**; no measured
+quality, time, quota-efficiency or subscription savings result is claimed.
+
+```sh
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.1"
+lazytools-mcp projects code_review claude_review code_write code_sessions --allow-unsafe
+```
+
+Configure the code root and persistent project Store using the
+[MCP setup](docs/mcp-server.md#collaboration-setup). Coding providers are
+explicitly opt-in. `--allow-unsafe` exposes mutating MCP tools without per-call
+confirmation; bridge jobs use their own approval-ticket queue.
+
+Connectors, data tools, documents and safety wrappers support the same agent
+workflow. They plug into LazyBridge `Agent(tools=[...])` and LazyPulse.
 
 ```
 lazybridge       minimal agent runtime — core abstractions only (PyPI)
@@ -25,10 +48,10 @@ lazyfin          Portfolio Manager AI — the finance domain layer on top of
 
 LazyTools is distributed from GitHub (only LazyBridge lives on PyPI). Install
 `lazytoolkit` and its extras with a PEP 508 direct reference — this pulls the
-current `main`; append `@vX.Y.Z` to the URL to pin a release tag instead:
+release `v0.10.1`:
 
 ```bash
-G="git+https://github.com/selvaz/LazyTools.git"
+G="git+https://github.com/selvaz/LazyTools.git@v0.10.1"
 pip install "lazytoolkit @ $G"                 # core (just lazybridge)
 pip install "lazytoolkit[gmail] @ $G"          # Gmail client + tools
 pip install "lazytoolkit[outlook] @ $G"        # Outlook client + tools (Windows desktop, COM)
@@ -199,7 +222,7 @@ direct-fetch finance connector on the agent surface.
   from lazytools.connectors.fin.tree_tools import PortfolioTreeTools
 
   tools = PortfolioTreeTools()                  # validate/list/load
-  tools = PortfolioTreeTools(allow_write=True)  # + save/delete/estimate/backtest
+  tools = PortfolioTreeTools(allow_compute=True, allow_persist=True, allow_delete=True)  # + save/delete/estimate/backtest
   ```
 
 - **Report** (`lazytools.report` — "LazyReport") — deterministic,
@@ -281,7 +304,7 @@ secondary name guard drops anything matching `*_send` / `*_write` /
 `*_delete` / … There is no interactive confirmation over MCP, so mutating
 tools stay off the default surface — opt in with `--allow-unsafe` only after
 wiring your own gating. Providers whose extra is missing are skipped, so a
-bare `[mcp]` install serves `datahub` + `statistical` + `report` (its
+`[mcp]` install serves the available core providers; datahub/statistical need the separately installed hub. The `report` provider renders without those packages (its
 `chart:`/`regimes:` figure schemes degrade gracefully — they only need
 matplotlib / `lazystats[regimes]` at the moment a figure of that scheme is
 actually resolved); add `lazystats[regimes]` / `[web]` to light up the rest.

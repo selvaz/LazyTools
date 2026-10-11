@@ -1,353 +1,99 @@
 # Codex
 
-Put **Codex** behind a LazyBridge agent in one of three modes:
+The current write/review tools use `CodexEngine` over JSON-RPC to the local
+`codex app-server`. Authentication and defaults come from that runtime.
+Expose `code_review code_write code_sessions` through [LazyTools MCP](../mcp-server.md).
 
-- **CLI mode** — [`codex`](#cli-mode-codex): hand the CLI a task via
-  `codex exec`, it runs its own loop, you get the final message back.
-- **MCP mode** — [`codex_mcp`](#mcp-mode-codex_mcp): run `codex mcp-server` and
-  let your agent call Codex's two agent-level MCP tools (`codex` /
-  `codex-reply`).
-- **Review mode** — [`codex_reviewer`](#review-mode-codex_reviewer): Codex as
-  the *engine* of a LazyBridge agent (`CodexEngine` → `codex app-server`),
-  pinned to a reviewer prompt and exposed as one `codex_code_review` tool —
-  plus [`codex_review_changes`](#codex_review_changes-codex-own-review-harness)
-  (Codex' native `review/start` harness) and
-  [`codex_ask`](#codex_ask-the-same-thing-for-questions) (design questions).
+| MCP tool | Python factory/provider | Purpose |
+| --- | --- | --- |
+| `codex_code_review` | `codex_reviewer()` | Prompted defects review: `task`, `repo_path`, `diff_ref`, `paths` |
+| `codex_ask` | `codex_consultant()` | Design question: `question`, `repo_path` |
+| `codex_review_changes` | `codex_native_reviewer()` | Native harness: `scope`, `ref`, `repo_path`; no task prompt |
+| `codex_write` | `CodeWriteTools(base_dir=...)` | Write: `task`, `cwd` |
 
-See [Code Support Agent](index.md) for install, the CLI-vs-MCP overview, the
-startup check, and timeout guidance.
-
-## CLI mode — `codex`
+All accept `model`, `effort`, `session_name`. Prompted review, ask and write
+also accept `thread_id`. `paths` is a comma-separated string.
+The harness takes `scope="uncommitted"`, `scope="branch", ref="main"`,
+or `scope="commit"` with a commit ref; there is no prompt slot to steer it.
 
 ```python
-from lazytools.connectors.code_support import codex
+import asyncio
+from pathlib import Path
+from lazytools.connectors.code_support import codex_consultant, codex_native_reviewer
 
-codex(
+root = str(Path.cwd())
+async def inspect():
+    review = codex_native_reviewer(root=root)
+    print(await review.run(scope="uncommitted", session_name="deployment-review",
+                           model="gpt-6.1-sol", effort="high"))
+    ask = codex_consultant(root=root)
+    print(await ask.run(question="Which boundary test would detect these findings?",
+                        session_name="deployment-review"))
+
+asyncio.run(inspect())
+```
+
+Run from a Git repository with a bounded change. Review/ask tools use a
+read-only sandbox, `approval_policy="never"`, and web access by default.
+The consultant can receive dynamic tools; the MCP provider supplies its
+configured read-only toolset. Failed turns raise `ReviewNotPerformed` and
+appear as MCP errors, never successful findings.
+
+## Naming a conversation: `session_name`
+
+Reply headers carry `thread_id` and the supplied alias. Reuse
+`session_name="deployment-review"` in the same repository to resume;
+an explicit `thread_id` wins and rebinds the name. Manage names using
+[`code_sessions_*`](index.md#name-a-native-conversation). Native history stays
+engine-specific; a Claude transcript cannot become a Codex thread.
+`codex_write` no longer accepts `resume_last`.
+
+Code-support tools validate the effort vocabulary (`none`, `minimal`, `low`,
+`medium`, `high`, `xhigh`, `max`, `ultra`); the selected runtime/model determines
+actual support. Bridge routing additionally validates known model-specific
+sets, such as Luna's lack of `ultra`. Defaults come from the runtime unless
+factory/per-call overrides are given. The default request timeout is 3600
+seconds; configure the host timeout for that duration.
+
+Writers use workspace-write and retain the Git repository check by default.
+Direct `CodeWriteTools` calls need one-shot confirmation; the opt-in MCP writer
+has no per-call confirmation. See the [write example](index.md#claude-writes-codex-reviews).
+
+## CLI and native MCP wrappers
+
+`codex(task, ...)` separately wraps `codex exec` in a subprocess.
+It is read-only, with `resume_last` for CLI history; it takes neither `mode`
+nor `thread_id`. It does not provide the writer's `session_name` alias
+interface. Success returns a labelled untrusted result; errors return a
+`[codex] ...` string.
+
+`codex_mcp(allow=...)` wraps `codex mcp-server` and its native `codex` /
+`codex-reply` tools through the [MCP connector](../mcp.md). It requires an
+explicit filter matching namespaced names. This differs from serving
+LazyTools tools through `lazytools-mcp`.
+Use [detached bridge jobs](../code-bridge.md) for long tasks and approval tickets.
+
+## Explicit timeout configuration
+
+The wrapper's timeout is 3600 seconds. This runnable helper forwards it to
+the CLI; the reviewer factory takes the same default at construction:
+
+```python
+from lazytools.connectors.code_support import codex, codex_reviewer
+
+def read_with_codex(
     task: str,
-    *,
-    cwd: str | None = None,
-    resume_last: bool = False,
     timeout: float = 3600.0,
-    skip_git_check: bool = True,
-    model: str | None = None,
-    effort: str | None = None,
-) -> dict | str
+):
+    return codex(task, timeout=timeout)
+
+def reviewer_for(
+    root: str,
+    timeout: float = 3600.0,  # seconds per review
+):
+    return codex_reviewer(root=root, timeout=timeout)
 ```
-
-Read-only by construction (`-s read-only`); on success returns
-`{"result": <text>, "content_is_untrusted": true}`. There is deliberately
-**no write mode here**: writes live behind
-[`CodeWriteTools`](index.md#writes-codewritetools) (mandatory `base_dir`
-sandbox + one-shot confirmation).
-
-Wraps `codex exec "<task>"` and returns the final message printed on stdout.
-Unlike Claude Code, Codex prints only the final message (not a JSON envelope),
-and the session id is not on stdout — to continue, use `resume_last=True`
-(`exec resume --last`).
 
 | Parameter | Type | Default | Meaning |
-|---|---|---|---|
-| `task` | `str` | — | The instruction for Codex. |
-| `cwd` | `str \| None` | `None` | Working directory for the subprocess. |
-| `resume_last` | `bool` | `False` | Continue the most recent session via `exec resume --last`. |
-| `timeout` | `float` | `3600.0` | Max seconds for the subprocess. |
-| `skip_git_check` | `bool` | `True` | Pass `--skip-git-repo-check`; required outside a git repo. |
-| `model` | `str \| None` | `None` | Codex model for this call (`-m`). `None` leaves the CLI's configured model. |
-| `effort` | `str \| None` | `None` | Reasoning effort (`-c model_reasoning_effort=...`): `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` or `ultra`; which of them a model accepts is up to the model. `None` leaves the CLI's setting. Anything else raises `ValueError` listing the allowed values. |
-
-```python
-from lazybridge import Agent, LLMEngine
-from lazytools.connectors.code_support import codex
-
-agent = Agent(
-    engine=LLMEngine("gpt-6.1-sol", tool_timeout=None),
-    tools=[codex],
-)
-print(agent("List the public functions in main.py and describe each").text())
-```
-
-!!! warning "`write` mode pins `-c approval_policy=never`, not `--full-auto`"
-    In a non-interactive subprocess, an approval prompt would **block waiting
-    for stdin** on the first failure and hang until the timeout fires.
-    Current `codex exec` builds have no `--full-auto`/`-a` flag at all
-    (passing either is a hard argument-parsing error) — only `-s/--sandbox`
-    and generic `-c key=value` config overrides. `write` mode therefore pairs
-    `-s workspace-write` with `-c approval_policy=never`, pinning the same
-    non-interactive guarantee `--full-auto` used to provide on older builds.
-    Prefer a git repo for `write` so changes are reviewable.
-
-**Auth.** Codex uses the credentials from `codex login` (`~/.codex/auth.json`);
-the subprocess inherits the current shell environment. There is no
-environment-variable seam as clean as Claude's, so run `codex login` first.
-
-## MCP mode — `codex_mcp`
-
-```python
-from lazytools.connectors.code_support import codex_mcp
-
-codex_mcp(
-    *,
-    name: str = "codex",
-    allow: Iterable[str] | None = None,
-    deny: Iterable[str] | None = None,
-    args: list[str] | None = None,
-    env: dict[str, str] | None = None,
-    namespace: bool = True,
-    prefix: str | None = None,
-    cache_tools_ttl: float | None = 60.0,
-) -> MCPServer
-```
-
-Codex's MCP server is different in kind from Claude Code's: instead of file
-primitives it exposes **two agent-level tools** (verified against Codex's
-`codex_mcp_interface.md`):
-
-| Tool (namespaced) | Purpose | Key arguments |
-|---|---|---|
-| `codex.codex` | Start a new Codex conversation and run it to completion | `prompt` (required); optional `model`, `cwd`, `sandbox`, `approval-policy`, `config` |
-| `codex.codex-reply` | Continue an existing conversation | `prompt` + the `threadId` returned by a prior `codex` call |
-
-So `codex_mcp` is closer to the `codex` *CLI tool* in spirit (you send a prompt,
-Codex runs its own loop) — but delivered as MCP tools your agent can call and
-chain via the returned `threadId`. The tool result is a standard MCP
-`CallToolResult`; Codex mirrors the text plus the `threadId` inside
-`structuredContent`, which the [MCP connector](../mcp.md) surfaces in the
-flattened tool output so the follow-up `codex-reply` can chain.
-
-| Parameter | Type | Default | Meaning |
-|---|---|---|---|
-| `name` | `str` | `"codex"` | Server name and default namespace prefix (`<name>.`). |
-| `allow` | `Iterable[str] \| None` | `None` | fnmatch globs (against the **namespaced** name) to permit. **`allow=` or `deny=` is required.** |
-| `deny` | `Iterable[str] \| None` | `None` | fnmatch globs to block. |
-| `args` | `list[str] \| None` | `None` | Extra CLI args appended after `mcp-server`. |
-| `env` | `dict[str, str] \| None` | `None` | Extra subprocess env (auth otherwise inherited). |
-| `namespace` | `bool` | `True` | Prefix every tool with `<name>.`. `False` keeps raw names. |
-| `prefix` | `str \| None` | `None` | Custom prefix instead of `<name>.`. |
-| `cache_tools_ttl` | `float \| None` | `60.0` | Seconds the discovered tool list is cached; `None` = never expire. |
-
-```python
-from lazybridge import Agent, LLMEngine
-from lazytools.connectors.code_support import codex_mcp
-
-codex_srv = codex_mcp(allow=["codex.codex", "codex.codex-reply"])
-
-agent = Agent(engine=LLMEngine("claude-opus-5-5"), tools=[codex_srv])
-# The agent calls codex.codex(prompt=...), gets a threadId back in the result,
-# then calls codex.codex-reply(prompt=..., threadId=...) to continue.
-agent("Use codex to add a retry decorator to http.py, then ask it to add a test")
-```
-
-!!! warning "Codex MCP is experimental"
-    OpenAI documents the `codex mcp-server` interface as **experimental and
-    subject to change without notice**. The `codex` / `codex-reply` tool names
-    and their argument shapes can move between Codex versions — pin your Codex
-    version if you depend on them, and re-check with `allow=["*"]` after an
-    upgrade.
-
-### Discovering the live tool surface
-
-```python
-srv = codex_mcp(allow=["*"])
-agent = Agent(engine=LLMEngine("claude-opus-5-5"), tools=[srv])
-print(sorted(agent._tool_map))   # ['codex.codex', 'codex.codex-reply', ...]
-```
-
-`allow=["*"]` connects the subprocess at construction time, so this doubles as a
-smoke test that the CLI launches and authenticates.
-
-## Review mode — `codex_reviewer`
-
-```python
-from lazytools.connectors.code_support import codex_reviewer
-
-tool = codex_reviewer(
-    root: str | None = None,        # confines every call's repo_path
-    model: str | None = None,       # None → whatever ~/.codex/config.toml says
-    effort: str | None = None,      # "low" / "medium" / "high"
-    timeout: float = 3600.0,        # seconds per review
-    name: str = "codex_code_review",
-    system: str = CODE_REVIEWER_SYSTEM,
-) -> Tool
-```
-
-Neither of the modes above is quite a *review*: CLI mode is a one-shot
-`codex exec` with no fixed role, MCP mode hands you primitives. `codex_reviewer`
-builds the thing itself — a `lazybridge.Agent` whose engine is
-[`CodexEngine`](https://selvaz.github.io/LazyBridge/guides/full/codex-engine/)
-(JSON-RPC to `codex app-server`, reusing the CLI's login — no API key), with
-`CODE_REVIEWER_SYSTEM` as developer instructions — and returns it as a single
-tool:
-
-```python
-await tool.run(
-    task="is the new retry logic correct?",
-    repo_path="LazyTools",   # absolute, or relative to root
-    diff_ref="main",         # optional: scope to `git diff main...HEAD` + uncommitted
-    paths="src/a.py",        # optional: restrict further
-)
-```
-
-Codex reads the files and runs `git` itself, which is why this takes a
-`repo_path` per call instead of being `Tool.wrap(agent)` (an agent-as-tool takes
-only `task: str`, and the engine's `cwd` is fixed at construction).
-
-- **Read-only.** The engine keeps `CodexPolicy`'s defaults —
-  `sandbox="read-only"`, `approval_policy="never"` — so the reviewer reports
-  and never patches, and no approval prompt can block a non-interactive
-  transport. Writes stay behind [`CodeWriteTools`](index.md#writes-codewritetools).
-- **Confined.** `repo_path` must resolve inside `root` (default:
-  `LAZYTOOLS_CODE_ROOT` or the process cwd), and every entry in `paths` must
-  resolve inside `repo_path`; anything else raises `ValueError`. Both checks
-  matter: read-only stops *writes*, not reads elsewhere on the host, so an
-  absolute path in `paths` would otherwise be quoted into the prompt as a file
-  to go read. The free-text `task` is the one thing no check can constrain —
-  `CODE_REVIEWER_SYSTEM` tells the reviewer to refuse reads outside the
-  working directory, which is an instruction, not a sandbox. Don't point this
-  tool at a root containing secrets you would not show the model.
-- **A failed review raises `ReviewNotPerformed`** (from
-  `lazytools.connectors.code_support`; `.reason` carries the engine's message)
-  instead of returning the failure as findings text. Over MCP it arrives as an
-  error result (`isError=True`), so an orchestrating agent still sees it; a
-  direct Python caller must catch it. Before this change a failure came back as
-  `[codex_code_review] failed in <cwd>: …`, indistinguishable from findings --
-  a LazyCEO verification was accepted on exactly that (25/09/2026).
-
-### Continuing a review — `thread_id`
-
-Each call runs on a **durable Codex thread** and reports its id in the header
-(`[codex_code_review] <cwd> thread_id=<id>`). Pass that id back and the next
-call resumes the same conversation: Codex still has the files it read and the
-conclusions it drew, so a follow-up costs a turn, not a re-exploration.
-
-```python
-first = await tool.run(task="review the retry path", repo_path="LazyBridge")
-tid = first.split("thread_id=")[1].split()[0]   # e.g. "LazyBridge#01a0...d3"
-await tool.run(task="what about the timeout interaction?", repo_path="LazyBridge", thread_id=tid)
-```
-
-The handle is `<repo>#<id>`, not a bare id, and resuming it against a different
-repository is refused: path confinement says nothing about a thread, so a
-mis-pasted id would otherwise splice another repository's transcript into the
-answer. Naming the repo in the handle keeps that check working across an MCP
-server restart, with no stored state.
-
-The engine stops sending LazyBridge `Memory` on a resumed thread — Codex owns
-the history there, and two chronologies of one conversation is worse than none.
-Threads live in the Codex CLI's own session store, so they also show up in its
-history.
-
-### Naming a conversation — `session_name`
-
-A raw `thread_id` has to be carried by the caller. Every Codex tool also takes
-an optional **`session_name`**: a short alias (letters, digits, `_ . -`, starting
-with a letter, at most 64 characters) that LazyBridge's `SessionRegistry` maps to
-a thread, scoped to the repository the call resolves to.
-
-```python
-await tool.run(question="remember the word PINEAPPLE", repo_path="LazyBridge", session_name="notes")
-await tool.run(question="what word did I ask you to remember?", repo_path="LazyBridge", session_name="notes")
-```
-
-An unknown name opens a fresh thread and binds it after the turn; a known name
-resumes the bound one. An explicit `thread_id` still works and wins: it is used
-for the call and the name is re-pointed at it. Names are per repository and per
-provider, so `notes` in two repos, or for Codex and Claude, are four different
-conversations. The reply header carries `session_name=<name>` next to
-`thread_id=`, and so does a failed turn (`ReviewNotPerformed.session_name`).
-The registry is a JSON file (`~/.lazybridge/sessions.json`, or
-`LAZYBRIDGE_SESSIONS_FILE`); the `code_sessions_*` tools list, bind, rename and
-forget names (see the [MCP server](../mcp-server.md#code_sessions-see-and-manage-session-names)).
-
-### `codex_review_changes` — Codex' own review harness
-
-```python
-from lazytools.connectors.code_support import codex_native_reviewer
-
-tool = codex_native_reviewer(root=...)      # -> Tool named "codex_review_changes"
-await tool.run(repo_path="LazyBridge", scope="branch", ref="main")
-```
-
-This one does **not** send a prompt. It calls the App Server's `review/start`
-with a typed target — `uncommitted`, `branch` + `ref`, or `commit` + `ref` — and
-returns what Codex' built-in review harness produces: findings tagged by
-severity with file:line.
-
-| | `codex_code_review` | `codex_review_changes` |
-|---|---|---|
-| Instruction | your `task`, steerable | none — the target *is* the instruction |
-| Standards | `CODE_REVIEWER_SYSTEM` | Codex' own review harness |
-| Use for | "is the retry logic correct?" | "review this branch, your call" |
-
-Measured against codex-cli 0.148.0 on a repo with one planted defect: all three
-targets find it and rank it (`[P1]`/`[P2]`); `uncommittedChanges` correctly
-judged a benign edit benign. Findings arrive as one text message, not a
-structured array — there is no `findings[]` API to parse. Only `delivery:
-"inline"` is wired: a detached review completes on a *different* thread and
-raises an approval request the parent thread never sees, which cannot work for
-a non-interactive caller.
-
-Because the review runs inline on a durable thread, the `thread_id` it returns
-can go straight to `codex_ask` — that is how you interrogate the findings
-without paying for the review twice.
-
-### `codex_ask` — the same thing for questions
-
-```python
-from lazytools.connectors.code_support import codex_consultant
-
-tool = codex_consultant(root=...)   # -> Tool named "codex_ask"
-await tool.run(question="does thread/resume keep dynamic tools?", repo_path="LazyBridge")
-```
-
-Same engine, same confinement, same threading; a different role. `CODE_CONSULTANT_SYSTEM`
-asks for a *design answer* — separating what was verified in the source from
-what is inferred, and preferring "I don't know, here is the experiment that
-settles it" over a confident guess. The reviewer prompt is the wrong instrument
-here: asked a question, it replies with a findings list.
-
-Both are what the [MCP server](../mcp-server.md#code_review-hand-a-review-to-codex)
-mounts as provider `code_review`, which is how another coding agent (Claude
-Code, say) gets Codex as a second reviewer *and* a second opinion.
-
-### Writing — `codex_write`
-
-`CodeWriteTools(...)` exposes `codex_write` / `claude_code_write`, and both now
-run on the LazyBridge engines (`CodexEngine`, `ClaudeCodeEngine`), not on a CLI
-subprocess. The gate is unchanged (`base_dir` confinement, one-shot
-`confirm_write()` grants, the `codex_skip_git_check` rail -- the App Server has
-no `--skip-git-repo-check`, so the refusal outside a git repository is done by
-the tool itself). Per call they take `model`, `effort` and `session_name`
-exactly like the read-only tools, in the `workspace-write` sandbox with
-`approval_policy="never"`.
-
-**Breaking change:** `codex_write` no longer has `resume_last`. `exec resume
---last` picked "the most recent session" and was ambiguous whenever two sessions
-shared a directory; pass `session_name="..."` (a durable, per-repository alias)
-or the `thread_id` from the previous reply's header instead. The plain `codex()`
-tool keeps `resume_last`.
-
-## Troubleshooting
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| `[codex] CLI 'codex' not found in PATH` | Codex not installed / not on `PATH` | Install it; verify with `check_clis_available()` |
-| `[codex] error (exit 1): …` outside a repo | Codex's git-repo check | Keep `skip_git_check=True` (the default) |
-| `[codex] timeout after 3600.0s` | Task longer than `timeout` | Raise `timeout=`; set engine `tool_timeout=None` |
-| Orphaned `codex` process after a run | Engine `tool_timeout` fired before the subprocess | Use `tool_timeout=None`, or `tool_timeout > timeout` |
-| `ValueError: requires an explicit allow= / deny=` | `codex_mcp` called without a filter | Pass `allow=["*"]` (after auditing) or an explicit glob list |
-| `ImportError: requires the official MCP SDK` | MCP mode used without the extra | `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"` |
-
-## Pitfalls
-
-- **`resume --last` is ambiguous** when several sessions share a directory — it
-  always takes the most recent (`codex()` only). For parallel conversations use
-  the engine-backed tools with a `session_name`, which names one thread.
-- **Codex MCP is experimental.** The `codex` / `codex-reply` tool shape can
-  change between Codex versions — pin your version if you rely on it.
-
-## See also
-
-- [Claude Code](claude-code.md) — the other code-support agent.
-- [Collaboration](collaboration.md) — Claude Code + Codex working together.
-- [Code Support Agent](index.md) — install, modes, timeouts, startup check.
-- [MCP](../mcp.md) — the connector MCP mode is built on.
+| --- | --- | --- | --- |
+| `timeout` | `float` | `3600.0` | CLI subprocess deadline; reviewer request deadline is configured on the factory. |

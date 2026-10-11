@@ -74,7 +74,7 @@ exact strings come from the hub's own source data.
 
 ## Through the MCP server
 
-Mounted (once registered) the same way as `econ_calendar` and
+Mounted as the `treasury_fiscal` provider, the same way as `econ_calendar` and
 `earnings_calendar`: always read-only, so `--allow-unsafe` changes nothing
 about it.
 

@@ -5,101 +5,122 @@
 Codex / Claude Code write access that `codex_write` / `claude_code_write`
 (see [Code Support Agent](code-support/index.md)) expose over MCP.
 
-Install with the `engines` extra — `pip install "lazytoolkit[engines] @ git+https://github.com/selvaz/LazyTools.git"` —
+Install with the `engines` extra — `pip install "lazytoolkit[engines] @ git+https://github.com/selvaz/LazyTools.git@v0.10.1"` —
 when you use `--engine claude` or `--tier`: both need the Claude Agent SDK (Claude engine and
 Claude quota reading). Without it Claude jobs fail and quota-aware routing sees Claude as unreadable.
 
-## Why this exists, next to `codex_write`
+## Job lifecycle
 
-`codex_write` / `claude_code_write` are synchronous MCP tool calls: the
-delegating Claude Code session is blocked on the call until the job
-finishes, and a long multi-file job can outrun the MCP transport's own
-timeout — the call then *looks* failed to the caller while the underlying
-work keeps running.
+Long synchronous MCP calls block the caller and can outlast the host's transport
+timeout. `run --detach` launches an independent worker, prints the job id, pid
+and log path, and returns immediately. Follow it with `wait`; a killed waiter
+can be restarted without stopping the worker. OS shutdown can still stop jobs.
 
-The bridge solves that by moving the job **out of the MCP call entirely**:
-Claude Code launches it as a plain OS process, in the background, via its own
-Bash tool. Claude Code's own harness already notifies the session
-automatically when a `run_in_background` process exits, so nothing here has
-to build its own notification channel — it only has to give the session
-something to poll in the meantime (approval tickets) and somewhere to read
-the finished result from.
+| Command | What to retain |
+| --- | --- |
+| `run` | Foreground: job id on stdout's first line, then final result; detached `--json`: one launch object |
+| `pending --json` | `approval_id`, `job_id`, gist, command/reason when available, creation and expiry |
+| `approve` / `reject` | Decision on a pending ticket; rejection requires `--reason` |
+| `status` / `result` | Status or full job record/text; `--json` preserves metadata |
+| `wait` | Terminal result; exit 3 on waiter timeout, 1 when process disappears before final record |
+| `jobs --all` | History, including finished jobs, for recovering a lost id |
+| `cancel` | Stop process tree, reject open tickets, retain interruption and workspace evidence |
 
-## The workflow, from a Claude Code session
+Read each ticket's command and reason before deciding. An unanswered ticket
+expires as rejection after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.
+Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;
+`LAZYTOOLS_CODE_BRIDGE_DB` or `--db` selects another Store. Use the same Store
+for every lifecycle command. Logs are under the Store's results directory
+(default `~/.lazytools/results/`).
 
-1. **Launch**, in the background, never foreground:
+## Claude writes, Codex reviews
 
-   ```
-   Bash(
-     command="lazytools-code-bridge run --engine codex --cwd /path/to/repo "
-             "--task 'refactor the retry logic in foo.py' --session my-task",
-     run_in_background=true,
-   )
-   ```
+This toy flow starts with a deliberately incomplete deployment guard and an
+independent boundary test. Use a fresh directory, local runtime logins and the
+`engines` extra. The tutorial's model turns are real when run normally; the
+repository's docs verifier executes these steps with mock engines/telemetry.
+It is a functional example, not a benchmark.
 
-   The job id is printed as the **first line** of stdout — read it
-   immediately, before the process exits, so you can poll/approve/cancel by
-   id even if the run takes hours.
+Create the fixture from your workspace root (save this block as `setup_toy.py`
+and run `python setup_toy.py`):
 
-   **Prefer `--detach` for anything long.** A plain `run` is a child of the
-   launching shell: if Claude Code reaps that background shell (it does so
-   under memory pressure) or the session exits, the job dies with it and is
-   only marked `interrupted` on the next run in that repository. With
-   `--detach` the job runs in its own process (its own process group,
-   outside the launcher's job object where Windows allows it), the command
-   prints the job id, pid and log path and returns at once, and you follow
-   it with `wait`, which you launch in the background instead:
+```python
+from pathlib import Path
+import subprocess
 
-   ```
-   lazytools-code-bridge run --detach --engine codex --cwd /path/to/repo --task @brief.md --session my-task
-   Bash(command="lazytools-code-bridge wait <job_id>", run_in_background=true)
-   ```
+repo = Path("toy-tandem")
+repo.mkdir()  # refuses to overwrite an existing fixture
+(repo / "deployment.py").write_text(
+    "def deployment_allowed(day):\n    return True\n", encoding="utf-8",
+)
+(repo / "test_deployment.py").write_text(
+    "import unittest\nfrom datetime import date\n"
+    "from deployment import deployment_allowed\n\n"
+    "class Boundaries(unittest.TestCase):\n"
+    "    def test_week_boundary(self):\n"
+    "        for day, allowed in [(9, True), (10, False), (11, False), (12, True)]:\n"
+    "            with self.subTest(day=day):\n"
+    "                self.assertEqual(deployment_allowed(date(2026, 10, day)), allowed)\n",
+    encoding="utf-8",
+)
+for args in (["init"], ["add", "."],
+             ["-c", "user.name=Docs Demo", "-c", "user.email=demo@example.invalid",
+              "commit", "-m", "Add deployment fixture"]):
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+```
 
-   `wait` exits when the job reaches `done`/`failed`/`interrupted` (printing
-   the same output as `result`), exits 1 if the job's process is gone while
-   its record still says running, and exits 3 on `--timeout`. If the waiter
-   itself is killed the job is not: start `wait` again. The child's output
-   goes to `~/.lazytools/results/<job_id>.log`.
+Launch Claude with an explicit model/effort and a named native session. Run
+these commands from the workspace root. Copy the printed job id into
+`WRITER_JOB_ID` in later commands (these uppercase ids are placeholders):
 
-2. **Poll for approval tickets** while the job runs. The engine's sandbox
-   lets it read/write/run most things on its own; anything it escalates
-   (a dangerous git command, a Codex sandbox escalation, ...) files a ticket
-   instead of blocking on a terminal prompt nobody is watching. Use a
-   `Monitor` until-loop (or any periodic check) against:
+```sh
+lazytools-code-bridge run --detach --engine claude --model sonnet --effort high --cwd toy-tandem --task "Implement deployment_allowed(day): weekdays true, weekends false. Preserve the independent test; run python -m unittest discover -v. Do not commit." --session deployment-writer --timeout 120 --json
+lazytools-code-bridge pending --json
+```
 
-   ```
-   lazytools-code-bridge pending --json
-   ```
+If a ticket appears, inspect it and run `lazytools-code-bridge approve APPROVAL_ID`
+only for an authorized action; otherwise use `reject APPROVAL_ID --reason "Outside the task"`.
+No ticket is required for every edit: the approval policy governs escalations.
+Poll pending while the job runs, then:
 
-   Each row has `approval_id`, `job_id`, a short `gist` of what is being
-   asked, `created_at`, `expires_at`. Relay the gist to the user in chat.
+```sh
+lazytools-code-bridge wait WRITER_JOB_ID --timeout 180
+lazytools-code-bridge result WRITER_JOB_ID --json
+lazytools-code-bridge route --tier writing --review-of WRITER_JOB_ID --cwd toy-tandem --json
+lazytools-code-bridge run --detach --tier writing --review-of WRITER_JOB_ID --cwd toy-tandem --task "Review the uncommitted deployment guard against Friday, Saturday, Sunday and Monday. Report defects and test gaps. Do not edit or commit." --session deployment-review --timeout 120 --json
+```
 
-3. **Answer** what the user decides:
+Wait for the writer before launching its reviewer: both jobs use the same
+repository lock. Routing chooses Codex because the producer was Claude.
+If Codex quota is unreadable/exhausted, review refuses with
+`human_review_required`; do not substitute a self-review. Copy the new id into
+`REVIEW_JOB_ID`, handle any new tickets, and finish:
 
-   ```
-   lazytools-code-bridge approve <approval_id>
-   lazytools-code-bridge reject <approval_id> --reason "<why>"
-   ```
+```sh
+lazytools-code-bridge wait REVIEW_JOB_ID --timeout 180
+lazytools-code-bridge result REVIEW_JOB_ID
+python -m unittest discover -s toy-tandem -v
+git -C toy-tandem diff -- deployment.py test_deployment.py
+lazytools-code-bridge jobs --all --json
+```
 
-   A ticket left unanswered past its TTL (a few hours by default —
-   `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL`, in seconds) is treated as rejected and
-   the job fails cleanly rather than hanging forever.
+Expected check output ends in `OK` and covers Friday/Saturday/Sunday/Monday.
+Inspect the actual diff and reviewer findings; a successful job is not an
+acceptance verdict. Record those checks and the opposite-engine review in
+[project verification](projects.md#contracts-and-verification).
+The bridge's review job is still write-capable: "do not edit" is a task
+instruction. Use the [read-only MCP reviewers](code-support/index.md) when
+review permissions must prohibit writes.
 
-4. **Read the result** once Claude Code's own harness notifies you the
-   background process exited:
-
-   ```
-   lazytools-code-bridge result <job_id>
-   ```
-
-   (or `status <job_id>` for a quick status line without the full text, or
-   `result --json` for the full job record). The same text is also written
-   to the path printed by `run` on completion, for when the Store itself is
-   unavailable.
-
-`jobs` (optionally `--all` for history, not just active jobs) lists
-everything this bridge knows about, for a session that lost track of a job
-id.
+For rework, launch another Claude job with `--session deployment-writer` and
+include the findings in its task. Reuse `deployment-review` for the Codex
+follow-up. Native history stays with its engine; share the diff and findings
+between engines. To reverse the flow, choose Codex as writer and a fresh
+writer alias: tier-based `--review-of` will then require Claude.
+For an active job outside the accepted scope, use
+`cancel ACTIVE_JOB_ID --reason "Stop this attempt"`. A 120-second engine
+request timeout records failure evidence; `wait --timeout 180` only bounds
+waiting and does not cancel the job. Read that evidence before starting over.
 
 ## Timeout, workspace evidence, and cancellation
 
@@ -165,11 +186,41 @@ process do not own a CLI process group and should be stopped by their host.
 
 ## Choose a model from quota
 
+**Benchmark in progress.** The ladder is shipped policy; no comparative
+quality, time, quota-efficiency or subscription-cost result is claimed.
+
+
 Preview a choice without launching a job:
 
 ```console
 lazytools-code-bridge route --tier writing --cwd /path/to/repo
 lazytools-code-bridge route --tier thinking --cwd /path/to/repo --json
+```
+
+For Python callers, `route()` is pure: pass catalogue, readings, budgets,
+in-flight counts and a fixed time. `recommend()` adds bounded live quota
+reads and configured budgets, or uses supplied readings. This executable
+example uses synthetic readings and launches nothing:
+
+```python
+from datetime import UTC, datetime
+from lazytools.projects.admission import EngineBudget, TelemetryReading, WindowReading
+from lazytools.routing import load_default_tiers, recommend, route
+
+now = datetime(2026, 10, 11, 9, 0, tzinfo=UTC)
+readings = {
+    "codex": TelemetryReading("codex", "synthetic demo", now,
+                              (WindowReading("codex/10080m", 20, 10080),)),
+    "claude_code": TelemetryReading("claude_code", "synthetic demo", now,
+                                    (WindowReading("weekly/all models", 20, 10080),)),
+}
+catalogue = load_default_tiers()
+decision = route("writing", catalogue=catalogue, readings=readings,
+                 budgets={engine: EngineBudget(engine) for engine in readings},
+                 in_flight={}, writer_provider_for_review="claude_code", now=now)
+assert decision.provider == "codex"
+print(decision.model, decision.effort, decision.reason)
+print(recommend("basic", catalogue=catalogue, readings=readings, in_flight={}, now=now))
 ```
 
 The human output starts with the engine, model, effort, winning rung (numbered
@@ -363,9 +414,10 @@ Both engines can use the web: Claude Code gets `WebSearch`/`WebFetch`
 (allowed by the rule table, so they never ask), and Codex runs with live web
 search set explicitly per job rather than inherited from `~/.codex/config.toml`.
 
-Every write call is sandboxed to one repository (`--cwd`, confined to
-`$LAZYTOOLS_CODE_ROOT` / `--root`, same convention
-`lazytools.connectors.code_support` uses) and gated by one
+The `--cwd` argument must resolve inside `$LAZYTOOLS_CODE_ROOT` / `--root`
+(default: the launching directory). Codex uses workspace-write; Claude file
+hooks confine file tools to `cwd`, while Bash is not path-confined. Requests
+are gated by one
 `lazybridge.ext.approval.TieredGate` whose rule table
 (`lazytools.code_bridge._policy.CODING_RULES`) mirrors the generic coding
 rules in LazyCEO's own agent: reads/`Write`/`Edit`/`Bash` run free; `git

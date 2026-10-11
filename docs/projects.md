@@ -1,366 +1,227 @@
-# The project layer: `lazytools.projects`
+# Projects: shared state for collaborative work
 
-Project management used to live only inside LazyCEO. This package is the
-generic MECHANISM half of that: a durable project registry, a plan-editing
-layer over LazyBridge's `DurableBlackboard`, a task acceptance-contract /
-verification state machine, and an engine quota brake — exposed over
-LazyTools' MCP server so a Claude Code session can do most of what the CEO
-does to its own projects. LazyCEO keeps the POLICY: per-project autonomy
-levels, Telegram, specialist lifecycle, brake ceiling *numbers*, contract
-*wording*, ceo-specific prompts.
+`lazytools.projects` connects Claude Code and Codex work through a LazyBridge
+Store: project records, plans on `DurableBlackboard`, schedule dates, claims,
+contracts, verification, notes, cost reports and quota admission. The same
+mechanisms are exposed through `ProjectsTools` and the `projects` MCP provider.
+LazyTools 0.10.1 is Alpha. Caller policy chooses who may accept work and what
+the checks must prove; project bookkeeping does not merge or release code.
 
-LazyCEO's local adoption branch imports this package and retains policy
-adapters. Phase A provides the mechanisms needed to replace the remaining
-gap adapters. This change does not update or deploy LazyCEO; the package
-remains usable independently of that integration.
+## Records, owner and plans
 
-## Layering
-
-```
-lazybridge                     generic primitives: Store, DurableBlackboard,
-                                ext.approval, ext.delegation,
-                                engines.codex.usage / engines.claude_code.usage
-        |
-lazytools.projects              mechanism: registry, schedule, plan editing,
-                                contracts, verification, quota brake
-        |
-lazytools.connectors.projects   MCP tool surface (ProjectsTools)
-        |
-lazyceo (today)                 ITS OWN copies of the same mechanism, plus
-                                 POLICY: autonomy levels, Telegram, specialist
-                                 lifecycle, brake numbers, contract wording
-```
-
-Once LazyCEO adopts this package, the middle layer disappears and LazyCEO's
-own code becomes purely POLICY wired on top of `lazytools.projects` and
-`lazytools.connectors.projects`.
-
-## Module map (what moved from which LazyCEO file)
-
-| `lazytools.projects` module | ported from | left behind (stays CEO policy) |
-|---|---|---|
-| `records.py` | `lazyceo.projects` | `autonomy_level`, `paused_specialists` fields; `set_project_autonomy`; `add_operator_note`'s Telegram wake |
-| `owner.py` | — (new) | — |
-| `brake.py` | — (new) | — |
-| `notes.py` | `lazyceo.projects` (`add_project_note`, `recent_project_notes`, `project_board_summary`) | `add_operator_note`'s CEO-wake/Telegram prefix |
-| `schedule.py` | `lazyceo.project_schedule` | nothing — already pure mechanism |
-| `timeline.py` | `lazyceo.project_timeline` | nothing — `blocked_reasons` stays caller-supplied |
-| `plan_edit.py` | `lazyceo.plan_edit` | nothing — already pure mechanism |
-| `task_claims.py` | `lazyceo.task_claims` | `close_accepted_task` (reaches LazyCEO's boost/autonomy; see `verification.accept`'s hook instead) |
-| `contracts.py` | `lazyceo.verification` (the `TaskContract` half) | nothing of substance — contract-open now does presence/non-blank checks only, not LazyCEO's `deterministic_contract_findings` wording |
-| `verification.py` | `lazyceo.verification` (the `Verification` state machine) | `_refuse_if_not_the_ceos_to_accept` → `accept`'s `authorization_check` hook; `_contract_inadequate_for` → `claim_blocker`'s `contract_adequate` hook |
-| `intake.py` | `lazyceo.project_intake` + a thin `promote_project_plan` | the LLM falsifiability reviewer call (`contract_review.review_contract_falsifiability`) — the calling agent plays that role itself |
-| `quota_telemetry.py` | `lazyceo.quota` | nothing — already pure mechanism over LazyBridge's own usage readers |
-| `admission.py` | `lazyceo.admission` | `_human_approval_exists`/`_consume_human_approval`/`restore_human_approval` (Telegram approval tickets) → `operator_directed: bool`, resolved by the caller; **new**: `project_admit`, the per-project brake switch |
-| `cost_report.py` | `lazyceo.cost_report` | specialist enumeration and fresh-connection policy; callers provide stores or read-only paths |
-| *(not ported)* | `lazyceo.fleet_report` | entirely specialist-lifecycle/process telemetry — out of scope |
-| *(not ported)* | `lazyceo.project_work` | `stop_project_work`/`resume_project_work`'s specialist-stopping — out of scope; `pause_project`/`resume_project` in `records.py` are pure record bookkeeping only |
-
-## The owner model
-
-Every project has an owner: `"ceo"`, `"claude"`, or `"shared"`. Stored at its
-own key (`ceo:project-owner:<project_id>`), **never** as a field inside the
-`ProjectRecord` blob — see "Concurrency" below for why. A project with no
-owner record at all — every project any currently installed LazyCEO has ever
-created — reads as `"ceo"`.
-
-- `owner.get_project_owner(store, project_id)` / `set_project_owner(...)`.
-- Changing owner is one write, no data copy: it never touches the project
-  record or its board.
-- `records.list_projects(..., owner=...)` and `timeline.render_project_timeline(..., owner=...)`
-  filter by it.
-- The MCP provider's `owner` parameter additionally accepts `"default"`
-  (Claude Code's own view: `claude` + `shared`, excluding `ceo`) and `"all"`.
-
-**Owner is a label, not an enforced ACL — today.** Nothing in this package
-stops a caller from mutating a `ceo`-owned project's plan, and nothing in
-LazyCEO (yet) skips a `claude`-owned project. Making the CEO ignore `claude`
-projects is explicitly a *later* LazyCEO change; this package only makes
-that change easy (one `owner` field to filter on), not automatic.
-
-## The brake rule
-
-The quota brake (`admission.py`) applies to **project work** — a delegated
-job attributed to a project, whoever launches it — never to a Claude Code
-session's own direct work (reading files, answering a question, editing code
-in its own turn). A caller doing direct work simply never calls
-`project_admit`/`admit` at all; there is no "off" switch for direct work
-because there is no gate on it in the first place.
-
-For project work, the brake is **on by default**, per project, switchable
-off:
+Run this in a fresh demo folder. `Store(db="projects.sqlite")` persists;
+`Store()` is in-memory. Projects open as drafts. The example deliberately
+keeps the draft until its intake plan has been independently reviewed.
 
 ```python
-from lazytools.projects import brake
+from lazybridge import Store
+from lazybridge.ext.planners import DurableBlackboard
+from lazytools.projects import brake, contracts, notes, owner, records
 
-brake.get_project_brake_enabled(store, "my-project")        # True by default
-brake.set_project_brake_enabled(store, "my-project", False)  # opt out
+store = Store(db="projects.sqlite")
+project = records.open_project(
+    store, project_id="deployment", title="Weekday deployment guard",
+    objective="Block weekend deployment and verify the Friday-to-Monday boundary",
+)
+owner.set_project_owner(store, "deployment", "shared")
+board = DurableBlackboard(store, plan_id="project:deployment")
+board.set_plan("Claude writes, Codex reviews; code executes the checks",
+               ["Implement the guard", "Review and run boundary checks"])
+notes.add_project_note(store, "deployment", "Keep test_deployment.py independent of the writer.")
+contract = contracts.open_task_contract(
+    store, project_id="deployment", task_index=0, repo="toy-tandem",
+    observable_result="Weekday deployment guard with independent boundary tests",
+    acceptance_criteria=["Friday and Monday allowed; Saturday and Sunday blocked"],
+    required_checks=["python -m unittest discover -v"], risk="medium",
+    allowed_effects="Only deployment.py; preserve the independent boundary test",
+)
+assert brake.get_project_brake_enabled(store, "deployment") is True
+print(records.get_project(store, "deployment"))
 ```
 
-`admission.project_admit(store, project_id, budget=..., reading=...)` checks
-the project's own switch first; if disabled, it returns an allowed decision
-with `reason="project_brake_disabled"` and never consults the engine's
-quota at all. If enabled, it defers to `admit()` — the per-engine
-ceiling/boundary/forecast brake, unchanged in spirit from LazyCEO's. Ceiling
-and boundary numbers (`EngineBudget`) stay fleet-wide **configuration**,
-never touched by the per-project switch.
+Owners `ceo`, `claude`, `shared` are coordination labels, not ACLs. Missing
+owner metadata defaults to `ceo`. Owner and brake flags have separate keys so
+record updates do not overwrite them. `records.list_projects(owner=...)`
+filters by owner; MCP additionally accepts `default` (`claude` + `shared`)
+and `all`.
 
-## Concurrency: what is safe with a live CEO process
+For promotion, `intake.check_project_intake` checks an observable result,
+deadline and at least two subtasks with falsifiable acceptance criteria.
+`plan_digest` identifies exactly the reviewed plan. After a real review,
+`record_project_review` records that digest and `promote_project_plan` installs
+it and opens the project. `review_and_promote_project_plan` accepts an injected
+async reviewer returning `(findings, performed)`; findings or an unperformed
+review leave the project a draft. Started tasks prevent silent plan replacement.
+`install_project_plan` uses whole-board compare-and-swap; identical plans are
+no-ops. `plan_edit` provides revision, retire and reopen operations without
+rewriting active work as untouched tasks.
 
-The live CEO process writes the *same* Store (when pointed at it — see
-"Store resolution" below), under its own, currently-deployed pydantic models
-for `ProjectRecord`/`TaskContract`/`Verification`. Two hazards, and how each
-is handled:
+## Schedule and deterministic Gantt
 
-1. **A newer LazyCEO model drops an older caller's unknown fields on
-   write.** LazyCEO's own `projects.py` documents this about itself (an old
-   model silently drops a newer record's fields on a read-modify-write). The
-   same hazard runs the OTHER way today: LazyCEO's *current* `ProjectRecord`
-   has two fields (`autonomy_level`, `paused_specialists`) that
-   `lazytools.projects.records.ProjectRecord` deliberately does not know
-   (they are CEO policy, out of scope here). If this package's model
-   silently dropped them on every write, any of its mutators
-   (`pause_project`, `touch_project_progress`, …) would quietly erase a
-   live CEO project's autonomy level or paused-specialist list the next
-   time it ran. **Fixed by `model_config = ConfigDict(extra="allow")`** on
-   every record type here (`ProjectRecord`, `TaskContract`, `Verification`,
-   `CheckResult`, `ReviewRecord`): an unknown field round-trips through
-   `model_validate` → `model_copy(update=...)` → `model_dump(mode="json")`
-   unchanged. This is verified by
-   `test_projects_records.py::test_apply_round_trips_unknown_fields_extra_allow`.
-   The reverse direction — LazyCEO's own (narrower, `extra` defaulting to
-   "ignore") model reading a record this package wrote — is safe simply
-   because this package never adds a *new* field to any of these three
-   record shapes; it only omits two CEO-only ones.
+Continue the example with explicit UTC dates. The project deadline and each
+task window are separate records; one does not infer the other.
 
-2. **Owner and the brake switch must never be lost to a CEO write.** Both
-   are stored at their OWN keys (`ceo:project-owner:<id>`,
-   `ceo:project-brake:<id>`), never inside the `ProjectRecord` blob. LazyCEO's
-   own mutators never touch those keys (they do not know they exist), so
-   there is nothing for them to race or clobber.
+```python
+from datetime import UTC, datetime, timedelta
+from lazytools.projects import gantt, schedule
 
-**Which write tools are safe to use while a live CEO process is also
-writing the same Store, and why:**
+now = datetime(2026, 10, 11, 9, 0, tzinfo=UTC)
+board.set_task_schedule(0, "Implement the guard", planned_start_at=now.timestamp(),
+                        due_at=(now + timedelta(days=1)).timestamp(), reason="Demo schedule")
+board.set_task_schedule(1, "Review and run boundary checks",
+                        planned_start_at=(now + timedelta(days=1)).timestamp(),
+                        due_at=(now + timedelta(days=2)).timestamp(), reason="After writer")
+print(schedule.project_schedule_view(store, "deployment", now=now).schedule_status)
+page = gantt.render_gantt_html(store, statuses=None, now=now)
+assert page == gantt.render_gantt_html(store, statuses=None, now=now)
+gantt.write_gantt_html(store, "gantt.html", statuses=None, now=now)
+print(gantt.render_gantt_text(store, statuses=None, now=now))
+```
 
-| Write tool / function | Safe concurrently? | Why |
-|---|---|---|
-| `projects_set_owner`, `projects_set_brake_enabled` | **Yes** | separate keys, never touched by the CEO |
-| `projects_create` (`records.open_project`) | **Yes** | create-only CAS against a key the CEO has not written yet (a fresh `project_id`) |
-| `projects_pause`/`resume`/`close`, `projects_set_deadline`, `projects_add_note`, `projects_review_plan`/`promote` | **Yes, with the caveat above** | all go through `records._apply`'s CAS, which round-trips unknown fields (fix #1) |
-| `projects_retire_task`, `projects_reopen_task`, `projects_reopen_done_task`, `projects_revise_plan`, `projects_schedule_task` | **Yes** | whole-document CAS on the board (`blackboard:project:<id>`), same mechanism `DurableBlackboard` itself uses; the task dicts in LazyCEO's board carry no extra fields this package does not already preserve (it reads/writes the same dict shape, not a narrower pydantic model) |
-| `projects_open_contract`, `projects_accept_verification`, `projects_request_rework`, `projects_block_verification`, `projects_retry_review`, `projects_retry_harness`, `projects_reopen_for_empty_review` | **Yes** | `TaskContract`/`Verification` also `extra="allow"`, same reasoning as fix #1; CAS-guarded by current status, exactly like LazyCEO's own equivalents |
+The renderer now uses **English fixed labels** in HTML and text; user task
+text remains unchanged and HTML-escaped. Bars come from recorded dates, with
+completion marks, today, overdue/failed tasks and hold markers. It uses no LLM
+and no network. Given the same records, filters and fixed `now`, rendering is
+byte-identical. This is recorded scheduling, not predictive planning.
 
-**Not safe, and deliberately not exposed:** nothing in this package's write
-surface mutates `autonomy_level`, `paused_specialists`, Telegram state,
-specialist process lifecycle, or runs a merge/release — those stay
-exclusively LazyCEO's, so there is no concurrent-write hazard with them to
-even discuss.
+```sh
+python -m lazytools.projects.gantt --store projects.sqlite --out gantt.html --all-statuses --text
+```
 
-**One thing this package cannot protect against:** if a *future* LazyCEO
-schema adds a third field to `ProjectRecord`/`TaskContract`/`Verification`,
-this package's `extra="allow"` models will keep round-tripping it correctly
-— but this package will not *validate* or *interpret* it (by design: that
-field belongs to a newer LazyCEO than this port). When LazyCEO imports this
-package instead of keeping its own copy (the later step), this entire
-two-model hazard disappears, because there will only be one model again.
+CLI defaults draw open/paused projects; `--all-statuses` includes this draft.
+`--owner` can repeat; `--unplanned-done` adds completion-only tasks otherwise
+counted but not drawn. The CLI reads the current time; use the Python `now`
+argument for reproducible snapshots. `projects_gantt` exposes the same renderer
+through MCP. A caller-chosen output path requires write-enabled tools.
 
-## Tool profiles
+## Claims
 
-Every MCP tool costs context in every turn of every session that loads it, so
-the provider emits a **core** set by default: list/get/schedule/timeline/
-board summary, quota, brake status, cost report and jobs to read; create,
-promote, owner, deadline, notes, plan revision and task scheduling to write
-(writers only with `allow_write`). Set `LAZYTOOLS_PROJECTS_TOOLS=full` (or
-`ProjectsTools(profile="full")`) for all 37, including contracts and
-verification decisions.
+Claim the exact board slot and expected text before delegating:
+`board.claim_task(0, "Implement the guard", owner="claude-writer")`.
+A caller should check the returned claim/refusal, keep its lease alive and
+connect its job/contract to that slot. `verification.claim_blocker` checks
+contract and prior-attempt eligibility; caller policy can add contract adequacy.
+`task_claims.release_claim` is for setup failure before real work starts. It
+checks claim status/owner and can reject a newer job via `expected_job_id`;
+the caller must establish that work never started. `complete_todo_without_verification` is only for an
+unclaimed todo task with no running job and no contract; contracted work must
+close through acceptance. The caller supplies authoritative closure checks.
 
-## Store resolution
+## Contracts and verification
 
-`lazytools.connectors.projects.tools.ProjectsTools` resolves its `Store`
-path as: explicit `store_db` (or `data_source["projects_store_db"]` through
-the MCP provider) → `LAZYTOOLS_PROJECTS_STORE_DB` env var →
-`LAZYCEO_CEO_STORE_DB` env var (the one LazyCEO itself already sets for a
-specialist child process) → **in-memory** if none of those are set.
+Agree a contract **before** delegating: repo, observable result, criteria,
+required check commands, allowed effects, risk and whether review is required.
+`open_task_contract` checks presence/nonblank fields; semantic adequacy belongs
+to the caller. Review defaults on; high-risk contracts cannot waive it.
 
-It deliberately does **not** fall back to LazyCEO's documented production
-path (`keys.DEFAULT_CEO_STORE_DB`,
-`C:\ProgramData\lazyceo\ceo_simple.sqlite`) on its own. `Store.__init__` runs
-schema DDL immediately — merely *constructing* a provider with no
-configuration at all must never open a real connection against a live
-deployment's file. `DEFAULT_CEO_STORE_DB` documents the value a real
-deployment sets one of the two env vars **to**, to see the live CEO's
-projects; it is not a silent default this code chooses for itself. (Same
-convention the existing `pulse` connector already uses for the same kind of
-shared CEO state.)
+Create the contract above before launching the writer. This helper records
+evidence against that existing contract for a **finished writer job** in the toy repo from
+[the bridge guide](code-bridge.md#claude-writes-codex-reviews). Supply the actual
+contract id, writer id and independent review findings; call only after confirming that the
+review ran over the nonempty writer diff. The helper executes the boundary
+check itself and raises if it fails. It does not infer acceptance from prose.
 
-Tests in this package always pass an explicit path (a temp file, or
-in-memory `Store()` directly). The one place a REAL production file is ever
-touched is a read-only `sqlite3` backup copy, made once, by hand, for the
-smoke test below — never through this package's own default resolution.
+```python
+import subprocess
+import sys
+from lazytools.projects import verification
 
-## What LazyCEO must change to adopt this
+CHECK = "python -m unittest discover -v"
+def record_checked_attempt(store, contract_id, repo, writer_job_id, review_findings):
+    assert verification.claim_verification(store, contract_id=contract_id,
+                                           job_id=writer_job_id) is not None
+    assert verification.start_running(store, writer_job_id) is not None
+    check = subprocess.run([sys.executable, "-m", "unittest", "discover", "-v"],
+                           cwd=repo, capture_output=True, text=True, check=True)
+    diff = subprocess.run(["git", "-C", str(repo), "diff", "--stat"],
+                          capture_output=True, text=True, check=True)
+    assert diff.stdout.strip(), "The uncommitted fixture diff must be nonempty"
+    verification.record_checks(store, writer_job_id, checks=[verification.CheckResult(
+        command=CHECK, exit_code=check.returncode, output_tail=check.stdout + check.stderr,
+    )], diff_summary=diff.stdout)
+    verification.record_review(store, writer_job_id, reviewer="codex",
+                               findings=review_findings, performed=True, empty_scope=False)
+    return verification.accept(store, writer_job_id, reviewer="operator",
+                               reason="Inspected diff, independent review and four boundary checks")
+```
 
-1. Replace `from lazyceo.projects import ...` (and the seven sibling
-   modules) with `from lazytools.projects import ...` at each call site;
-   delete `lazyceo/{projects,project_schedule,project_timeline,plan_edit,
-   verification,quota,admission}.py` (keep `task_claims.py`'s
-   `close_accepted_task` — it stays CEO-specific — or migrate it to call
-   `verification.accept(..., authorization_check=lazyceo's own check)`
-   directly).
-2. Add `autonomy_level`/`paused_specialists` back as LazyCEO-local fields —
-   either keep them as separate keys (this package's `owner`/`brake`
-   pattern) or accept that `lazytools.projects.records.ProjectRecord`'s
-   `extra="allow"` already protects them inside the shared blob; either
-   choice is adoptable today without a migration.
-2. Wire `verification.accept`'s `authorization_check` to
-   `lazyceo.boost.effective_capability`/`lazyceo.project_autonomy` (this is
-   exactly `_refuse_if_not_the_ceos_to_accept`, unchanged in substance).
-3. Wire `verification.claim_blocker`'s `contract_adequate` to
-   `lazyceo.simple.agent._contract_inadequate_for`.
-4. Set `owner="ceo"` is already the default for every unmigrated project —
-   no backfill needed. LazyCEO starts filtering its own worklist by
-   `owner != "claude"` whenever it is ready to.
-5. Keep running its own `lazyceo.project_work.stop_project_work`/
-   `resume_project_work` (specialist-stopping) on top of this package's
-   `records.pause_project`/`resume_project` — those two stay thin record
-   bookkeeping here on purpose.
-6. Point the `projects` MCP provider's `projects_store_db` (or
-   `LAZYTOOLS_PROJECTS_STORE_DB`) at the exact same file LazyCEO's own
-   `--store-db` already uses, so Claude Code sessions see the identical
-   registry.
+`accept` refuses missing/failed checks, incomplete required-command coverage,
+unperformed review, empty review scope and stale review after reopening. A
+promised full suite cannot silently become a narrowed check. `authorization_check`
+is an injectable hook; engine independence and caller identity are policy
+wiring, not universal enforcement by these generic records. Review findings
+need an explicit decision: `request_rework` or `block` instead of accepting
+known defects. `retry_review`, `retry_harness`, `reopen_for_empty_review` retain
+an audit trail and have specific eligibility rules.
+Acceptance records do not automatically close board tasks: caller policy
+performs `mark_done`/progress bookkeeping after acceptance.
 
-## Known gaps
+## Brake and quota telemetry
 
-Phase A closes the required-check coverage and stale-board promotion defects,
-and supplies promotion, closure, note, admission, creation and fleet-cost hooks.
-No Phase A mechanism gap remains. LazyCEO still owns its policy wiring.
-Acceptance still fences its write against the evidence it validated;
-Claude telemetry includes the five-hour session window.
+The brake is on by default per project. `brake.set_project_brake_enabled`
+changes that project's flag. `admission.project_admit` reads it before
+per-engine admission; disabled means `project_brake_disabled` without a quota
+check. Enabled admission checks fresh telemetry, configured absolute ceilings,
+autonomous boundary and forecast, with reservations for in-flight jobs.
+`EngineBudget` carries caller configuration. Admission refuses new work; it
+does not kill active jobs or gate a session's direct file work.
 
-## Installing a reviewed plan
+`quota_telemetry.read_quota` / `read_quota_sync` return structured percentages,
+window durations, resets, source, observation time and errors. Codex uses
+App Server quota; Claude uses its usage report including the five-hour session
+window. Unknown telemetry is not spare capacity. This sample uses synthetic
+telemetry and starts no engine:
 
-`intake.install_project_plan(store, project_id, *, objective, tasks, current_digest=None) -> str | None`
-uses whole-board CAS. Identical reasoning and task text are a no-op. A different
-plan replaces an empty or untouched board. Claims, done/failed statuses,
-previous attempts (including tasks returned to todo), owners and recorded work
-prevent replacement; refusals name the started tasks. Promotion uses this helper
-and remains draft on refusal. Existing board keys and task shapes are unchanged.
+```python
+from datetime import UTC, datetime
+from lazybridge import Store
+from lazytools.projects.admission import EngineBudget, TelemetryReading, WindowReading, project_admit
 
-`intake.promote_project(store, project_id, *, current_digest) -> str | None`
-provides the digest-only transition: callers install intake fields and the plan
-first. It checks the review and fences the status CAS against that exact record.
-An already-open project returns `None` before the digest is looked at, exactly
-as LazyCEO's original did (retries and polls of an open project rely on it);
-paused/done records refuse.
-`promote_project_plan` also verifies that an open project's board matches before
-returning idempotent success. `install_project_plan` can check the current review
-immediately before each board CAS with `current_digest`.
+moment = datetime(2026, 10, 11, 9, 0, tzinfo=UTC)
+reading = TelemetryReading(engine="codex", source="synthetic demo", observed_at=moment,
+                           windows=(WindowReading("codex/10080m", 20, 10080),))
+decision = project_admit(Store(), "deployment", budget=EngineBudget("codex"),
+                         reading=reading, now=moment)
+print(decision.allowed, decision.reason)
+```
 
-`async intake.review_and_promote_project_plan(store, project_id, *,
-observable_result, deadline, subtasks, reviewer, reviewer_kwargs=None) -> str`
-runs the checklist before invoking the async reviewer. The callable receives
-`observable_result`, flattened `acceptance_criteria`, `required_checks=[]`,
-`allowed_effects` and `store`, plus caller context (such as `root`). It returns
-`(findings: list[str], performed: bool)`. Findings or a review that did not run
-refuse; the review is recorded only if the project stayed unchanged while
-awaiting. The plan is copied before review. Matching open plans skip the reviewer.
-The package never selects or calls a model. Hooks propagate exceptions; retries
-must re-read state. Project and board keys remain separate, so these guards are
-best-effort across keys rather than a multi-key transaction.
+[Quota routing](code-bridge.md#choose-a-model-from-quota) selects the first
+eligible rung of `basic`, `writing`, `thinking`, `critical`. Python `route()`
+is pure; `recommend()` adds bounded live quota reads and budgets (or accepts
+supplied readings). Both default to autonomous admission.
+Bridge `route`/`run --tier` are operator-directed, without project attribution:
+forecast/boundary warnings do not block them, but ceilings and telemetry checks
+do. Project autonomy admission must be wired by the caller. **Benchmark in
+progress**; no quality or quota-efficiency numbers are established.
 
-`task_claims.complete_todo_without_verification(store, project_id, task_index,
-summary, *, board_prefix=BOARD_KEY_PREFIX, job_prefix=JOB_PREFIX,
-contract_exists=False, check=None, on_closed=None) -> str` retains the existing
-default guards. `check(store, project_id, task_index) -> str | None` runs just
-before every CAS attempt; return a refusal string or `None`. This supports a
-fresh contract lookup. `on_closed(store, project_id, task_index) -> None` runs
-once after a winning close, for example to touch progress. A losing/repeated
-close never calls it. Hooks propagate exceptions; an exception after success
-does not roll back the close, and this is not a durable delivery guarantee.
+## Notes, jobs and cost report
 
-`notes.write_project_note(store, project_id, text, *, origin="note", note_id=None,
-prefix=PROJECT_NOTE_PREFIX, on_note=None, diagnostic=None) -> NoteWriteResult`
-returns `note_id`, `written` (the actual CAS outcome), and `diagnostics`.
-`on_note(store, record)` runs once on success and never on a duplicate or lost
-race. `diagnostic(message)` receives failed-write diagnostics. The existing
-`add_project_note` keeps returning a string id and supports the same optional
-hooks. Use the checked API when the caller must distinguish saved from unsaved.
-`notes.note_timestamp(value, *, diagnostic=None) -> float` and
-`recent_project_notes(..., diagnostic=None)` provide malformed timestamp
-diagnostics without changing sorting or legacy timestamp readability.
+`notes.add_project_note` / `recent_project_notes` keep durable handoff context.
+`write_project_note` gives checked create-only CAS and optional `on_note` /
+diagnostic hooks; duplicates do not fire the hook twice.
+`cost_report.project_jobs` and `project_cost_report` report attributed job
+records, UTC-today / rolling-seven-day measured spend and unmeasured counts.
+`build_fleet_cost_report` aggregates explicit stores; paths are opened read-only,
+missing files are not created and unavailable stores are reported.
+Subscription turns without measured cost do not imply zero cost. The bridge
+currently has no project attribution: callers must connect its job evidence
+to project contracts; it does not automatically populate project cost totals.
 
-`admission.admit(store, *, budget, reading, operator_directed=False, review=False,
-now=None, prefix=ADMISSION_PREFIX, post_reservation=None) -> AdmissionDecision`
-and `project_admit(..., admission_prefix=ADMISSION_PREFIX, post_reservation=None)`
-invoke `post_reservation(store, decision, before) -> AdmissionDecision | None`
-once after a successful allowed reservation CAS. `before` copies that CAS's
-input document, including prior reservations; it never re-reads a later state.
-Return `None` to keep the decision or a modified decision with `spent_approval`.
-A refused decision (e.g. caller reason `approval_already_spent`) releases the
-reservation; hook exceptions release and propagate. Release remains best-effort
-under contention. Allowed decisions must keep their reservation identity.
-Disabled project brakes and refused admissions skip the hook. Approval provenance,
-consumption, exemptions and refund policy belong to the caller. `spent_approval`
-is returned in memory only, preserving the existing audit/reservation shapes.
+## MCP configuration and concurrency
 
-`records.open_project(store, *, project_id, title, objective, size=None,
-risk=None, process=None, classification_rationale=None, prefix=PROJECT_PREFIX,
-extra_fields=None, record_factory=None) -> ProjectRecord` adds caller fields
-in the initial create-only CAS. `extra_fields` is a mapping of additional fields;
-it cannot override shared fields. `record_factory(data) -> ProjectRecord` can
-validate a caller subclass and add typed defaults (e.g. pass
-`CallerProject.model_validate`). It cannot change the already validated shared
-fields. Factory/validation errors happen before the CAS and do not consume the id.
-`adopt_existing_project(..., **kwargs)` forwards both options. Omitting them
-preserves the existing stored shape; shared mutations continue round-tripping extras.
+Use the [collaboration server setup](mcp-server.md#collaboration-setup).
+Store resolution is explicit `store_db` / config `projects_store_db`, then
+`LAZYTOOLS_PROJECTS_STORE_DB`, then `LAZYCEO_CEO_STORE_DB`, else in-memory.
+A bare server restart therefore loses unpersisted project state.
+Core profile emits the common schedule, registry, note, job, cost, quota and
+plan tools. `LAZYTOOLS_PROJECTS_TOOLS=full` or `ProjectsTools(profile="full")`
+adds contract/verification decisions. Writes require `--allow-unsafe` or
+`allow_write=True`.
 
-## Not exposed, by design
-
-Delegation (execution of a task) — a Claude Code session uses
-`lazytools-code-bridge` for that, not this provider. Telegram. Specialist
-lifecycle (`lazyceo.specialists`/`specialist_lifecycle`). Autonomy-LEVEL
-changes (`set_project_autonomy`). Git merges/releases. None of these are
-partially exposed either — there is no read-only peek at specialist
-processes or autonomy levels through this provider; that visibility, if
-ever wanted, is LazyCEO's own to add.
-
-## Required check coverage
-
-`verification.accept(store, job_id, *, reviewer, reason, expected=None,
-prefix=VERIFICATION_PREFIX, authorization_check=None)` now refuses a new
-acceptance unless every `contract.required_checks` command has a passed
-recorded check. Commands match exactly. An explicitly listed
-`allowed_check_exclusions` command can substitute only when removing its
-`--deselect`, `-k`, `--ignore` or `--ignore-glob` arguments yields the required
-command. Missing commands are listed in `ValueError`. Previously accepted
-records are unchanged.
-
-`cost_report.build_fleet_cost_report(store, *, specialist_stores,
-job_prefix=JOB_PREFIX, task_prefix=None, primary_name="CEO itself", now=None)
--> dict[str, Any]` sums every job record in every supplied store, across all
-projects and unattributed work. `specialist_stores` maps names to `Store`
-instances or explicit `Path` values. Paths are opened with SQLite `mode=ro`;
-missing files are never created. Optional `task_prefix` includes each agent's
-own turn records using `completed_at`, alongside delegated jobs using the first
-parseable `finished_at`/`created_at`. Unavailable stores reject all their families
-and appear in `unavailable` and `breakdown`. The caller enumerates specialists
-and supplies any fresh connection policy.
-
-`cost_totals(records, *, now, timestamp_fields=("finished_at", "created_at"))
--> dict[str, float]` and `unmeasured_cost_counts(records, *, now,
-timestamp_fields=("finished_at", "created_at")) -> dict[str, int]` expose the
-reducers independently. `read_store_records_read_only(path, *, prefixes)
--> dict[str, list[dict[str, Any]]]` reads all requested families in one SQLite
-snapshot. Reports use UTC midnight and a rolling seven-day window, ignore
-future/unparseable timestamps, and preserve the original scalar cost rules.
-`project_jobs` and `project_cost_report` keep their existing APIs and behavior.
-
-All Phase A entry points and hook/result types are also exported from
-`lazytools.projects`. Regression parity fixtures in
-`tests/fixtures/projects_parity.json` retain LazyCEO function source at
-`70a481c` (promotion, closure, fleet) and the adoption wrapper's source
-(admission). Tests compile those functions with injected dependencies, without
-requiring LazyCEO or touching its stores. Known deliberate improvements beyond
-original parity are A1/A2 and refusing a reviewer that reports `performed=False`
-with no findings. `promote_project` keeps the original order (open = success,
-digest not consulted); the parity test pins the open-with-a-newer-digest case.
+Records and board edits use compare-and-swap; models round-trip unknown fields.
+Owner/brake keys remain separate. This prevents common lost updates, but does
+not supply an ACL or a deployment guarantee. Project mechanisms are usable
+independently; LazyCEO or another orchestrator owns its autonomy, messaging,
+specialist lifecycle and final policy wiring. Advanced hooks include
+`review_and_promote_project_plan`, `records.close_project`, caller-owned
+operator-directed admission and fleet cost reducers.
