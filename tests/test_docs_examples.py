@@ -292,6 +292,9 @@ def test_mcp_configuration_and_tools(isolated, monkeypatch):
 
 
 def test_changed_install_snippets_and_tree_flags(isolated, monkeypatch):
+    # The portfolio wrappers live behind the optional ``fin`` extra (lazyfin);
+    # CI installs the core test extras only.
+    pytest.importorskip("lazyfin")
     import tomllib
 
     extras = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["optional-dependencies"]
@@ -364,8 +367,16 @@ def test_restored_tree_json_matches_current_model():
 
 
 def test_every_page_import_audit():
+    try:
+        import lazyfin  # noqa: F401
+        optional_missing = ()
+    except ImportError:
+        # Pages documenting the optional ``fin`` extra cannot be imported
+        # without it; every other finding still fails.
+        optional_missing = ("requires the lazyfin package",)
     for path in [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]:
         _, findings = audit_module.audit(path)
+        findings = [f for f in findings if not any(m in str(f) for m in optional_missing)]
         assert not findings, (path, findings)
 
 
