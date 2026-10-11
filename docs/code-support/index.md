@@ -102,6 +102,22 @@ in that repository to the original engine.
 
 ## Permissions and timeouts
 
+### Startup check
+
+```python
+from lazytools.connectors.code_support import check_clis_available
+
+available = check_clis_available()
+print(available)  # {"claude": bool, "codex": bool}
+```
+
+This checks executable resolution, not authentication or quota. Claude is
+looked up on PATH; Codex uses LazyBridge's resolver, including the desktop
+app install directory and `CODEX_BIN`. Sign in and test the intended engine
+before a live task. The engine-backed Claude path also needs the Agent SDK;
+raw MCP needs the official MCP SDK. Discovery and a model turn are different
+checks: raw MCP tool listing does not prove an authenticated review can run.
+
 Codex reviewers use a read-only sandbox and `approval_policy="never"`.
 Claude reviewers get scoped `Read`/`Glob`/`Grep` plus supplied Git tools;
 they have no Bash. Reviewers can access the web by default. Writers are a
@@ -117,6 +133,30 @@ Calls block until the delegated turn finishes. The default request timeout is
 `MCP_TOOL_TIMEOUT` uses milliseconds). Prefer detached bridge jobs for long
 work, approval queues and independently restartable waiters.
 
+### Outer timeout for CLI tools
+
+When a CLI wrapper is an `LLMEngine` tool, use `tool_timeout=None` or a
+strictly larger outer deadline than its subprocess `timeout`. The synchronous
+function runs in a worker thread; cancelling `asyncio.wait_for` does not stop
+that thread or its subprocess. Let the subprocess own its deadline, for example
+a 300-second wrapper budget with an outer ceiling greater than 300. Engine
+reviewers/writers instead set their request timeout on the factory/provider.
+The MCP host must also allow enough time for the call and transport overhead.
+
+### Write grants and output contracts
+
+`confirm_write(task_id=...)` can scope a one-shot grant to a task so another
+concurrent task cannot spend it. Every invalid cwd is rejected before consuming
+a grant. Direct `CodeWriteTools` defaults to Claude only; set `codex=True`
+deliberately to expose the Codex writer. `default_cwd` selects the default
+subdirectory within `base_dir`; `codex_skip_git_check` defaults to `False`.
+
+CLI wrappers return `{"result": ..., "content_is_untrusted": true}` on
+success, or a `[claude_code] ...` / `[codex] ...` error string.
+Engine-backed reviewers/consultants return header plus findings/answer and
+raise `ReviewNotPerformed` on a failed turn. Writers return labelled result or
+failure text. None of these output shapes is an acceptance verdict.
+
 ## Other integration surfaces
 
 The older CLI wrappers still work: `claude_code` supports read/plan tasks,
@@ -126,3 +166,30 @@ while `codex` is read-only. `claude_code_mcp` exposes Claude's raw file/shell to
 differ from the engine-backed LazyTools MCP tools above. See the
 [Claude guide](claude-code.md), [Codex guide](codex.md) and
 [collaboration guide](collaboration.md).
+
+## Troubleshooting and pitfalls
+
+| Check | What it resolves |
+| --- | --- |
+| `check_clis_available()` | Executable lookup; it does not inspect credential files |
+| Raw MCP `alist_tools()` | Installed tool names/schemas and transport connection |
+| Factory/provider settings and host timeout | Default 3600-second engine request versus host cancellation |
+| `CodeWriteBlocked` reason and selected tool menu | Missing grant, cwd escape or writer not exposed |
+| `ReviewNotPerformed` / MCP `isError=True` | Review failed structurally; do not record it as performed |
+| Native id/alias and repository | Engine-specific history; ids cannot cross repositories or engines |
+
+Use the engine-specific [Codex](codex.md#troubleshooting) and
+[Claude](claude-code.md#troubleshooting) tables for recovery details. The raw
+MCP interfaces evolve with the runtime: discover before relying on a schema.
+Namespaced filters govern exposed capabilities; a broad deny list can still
+leave write tools available. Repository text is untrusted input, and scoped
+parameters do not constrain arbitrary instructions embedded in that text.
+
+## See also
+
+- [Codex](codex.md) for prompted/native reviews, questions, writes and continuation.
+- [Claude Code](claude-code.md) for SDK and CLI/raw MCP behavior.
+- [Collaboration](collaboration.md) for selecting an integration path.
+- [Async code bridge](../code-bridge.md) for the complete toy-repository flow.
+- [Projects](../projects.md) for shared plans, contracts and verification.
+- [MCP connector](../mcp.md) and [Safety](../safety.md) for transports and gates.

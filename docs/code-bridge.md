@@ -16,6 +16,23 @@ timeout. `run --detach` launches an independent worker, prints the job id, pid
 and log path, and returns immediately. Follow it with `wait`; a killed waiter
 can be restarted without stopping the worker. OS shutdown can still stop jobs.
 
+### Foreground jobs and a host's background waiter
+
+A foreground `run` remains a child of its launching shell. If a coding host
+reaps that shell or exits, the worker can die with it; a later run reclaims the
+stale repository lock and records interruption. `--detach` starts a separate
+worker process/group (outside the launcher's Windows job object where allowed).
+Its launch command finishes immediately, so a host's launch-completion notice
+does not mean the work has finished.
+
+When the host supports background shell work, launch `wait JOB_ID` there and
+let the host's normal process-completion notice report that waiter's exit.
+In Claude Code this is the Bash tool's background option. Keep polling
+`pending --json` while it waits; the notification channel belongs to the host,
+not a bridge push service. A killed waiter can be restarted independently.
+Foreground job ids are printed before completion so they can be polled too;
+detached launch JSON gives the id, pid and log path at once.
+
 | Command | What to retain |
 | --- | --- |
 | `run` | Foreground: job id on stdout's first line, then final result; detached `--json`: one launch object |
@@ -32,6 +49,13 @@ Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;
 `LAZYTOOLS_CODE_BRIDGE_DB` or `--db` selects another Store. Use the same Store
 for every lifecycle command. Logs are under the Store's results directory
 (default `~/.lazytools/results/`).
+
+`--task @brief.md` reads a UTF-8 task file rather than treating it as literal
+text; detached launch resolves its path before passing it to the worker.
+The final text is also saved to a result file under the results directory;
+retain the path printed at completion as an independent copy if the Store is
+unavailable. The log contains worker output, while `result --json` contains
+the complete job record. Recover a lost id with `jobs --all`.
 
 ## Claude writes, Codex reviews
 

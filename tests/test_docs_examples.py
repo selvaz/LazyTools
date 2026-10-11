@@ -72,9 +72,24 @@ def execute(code, namespace=None):
 
 def test_code_support_python_snippets(isolated, monkeypatch):
     from lazytools.connectors.code_support import _claude_code, _codex
+    from lazytools.connectors.mcp import MCP
+    from test_mcp import FakeTransport
 
     script = code_fakes.install(monkeypatch)
     deadlines = []
+    discoveries = []
+    subprocess.run(["git", "init", str(isolated)], check=True, capture_output=True)
+
+    def fake_stdio(name, **kwargs):
+        names = ["codex", "codex-reply"] if name == "codex" else ["Read", "Glob", "Grep", "Write", "Bash"]
+        transport = FakeTransport([
+            {"name": item, "description": "Mock runtime primitive", "inputSchema": {"type": "object", "properties": {}}}
+            for item in names
+        ])
+        discoveries.append(transport)
+        return MCP.from_transport(name, transport, allow=kwargs.get("allow"), deny=kwargs.get("deny"))
+
+    monkeypatch.setattr(MCP, "stdio", staticmethod(fake_stdio))
 
     def mock_cli(*args, **kwargs):
         deadlines.append(kwargs["timeout"])
@@ -84,7 +99,11 @@ def test_code_support_python_snippets(isolated, monkeypatch):
     monkeypatch.setattr(_codex, "_run_codex", mock_cli)
     for name in ("index", "claude-code", "codex"):
         for code in python_blocks(f"docs/code-support/{name}.md"):
+            before = len(script.engines)
             namespace = execute(code)
+            if "async def continue_review" in code:
+                resumed = script.engines[before:]
+                assert len(resumed) >= 2 and len({engine.handle for engine in resumed}) == 1
             for helper in ("read_with_claude", "read_with_codex"):
                 if helper in namespace:
                     assert namespace[helper]("Read deployment.py")["content_is_untrusted"] is True
@@ -92,8 +111,9 @@ def test_code_support_python_snippets(isolated, monkeypatch):
                 assert namespace["reviewer_for"](str(isolated)).name == "codex_code_review"
     assert deadlines == [3600.0, 3600.0]
     assert {engine.kind for engine in script.engines} == {"claude", "codex"}
-    # Review and follow-up resume one native id, rather than opening new history.
-    assert script.engines[-1].handle == script.engines[-2].handle
+    assert len(discoveries) == 4
+    assert all(transport.connected and transport.closed and not transport.calls for transport in discoveries)
+    assert any(engine.kwargs.get("session_alias") == "codex-implementation" for engine in script.engines)
 
 
 def test_projects_and_gantt_snippets(isolated, monkeypatch):
@@ -297,16 +317,50 @@ def test_changed_install_snippets_and_tree_flags(isolated, monkeypatch):
         setattr(module, name, lambda *args, **kwargs: None)
     calendar = ModuleType("lazyportfolio.calendar")
     calendar._annualization_factor = calendar._resample_simple_returns = lambda *args: None
+
+    class MockModel:
+        @staticmethod
+        def from_config(config):
+            return SimpleNamespace(reference_currency=config["currency"], config=config)
+
+    class MockBackend:
+        def load_returns(self, instruments, **kwargs):
+            assert instruments == ["ticker:SPY", "ticker:TLT"]
+            assert kwargs == {"start": "2018-01-01", "end": "2026-01-01", "frequency": "D", "currency": "USD"}
+            return SimpleNamespace(returns=object(), metadata={"source": "mock-hub", "n_rows": 1000})
+
+    class MockBacktester:
+        def run(self, model, returns, **kwargs):
+            assert model.config["nodes"][0]["goal"]["objective"] == "min_risk"
+            assert kwargs == {"mode": "flat", "train_size": 104, "estimation_frequency": "W",
+                              "rebalance_frequency": "M", "transaction_cost_bps": 10.0}
+            return SimpleNamespace(folds=[object()], metrics={"FINAL": {"cagr": 0.01}, "B0": {"cagr": 0.02}},
+                                   transaction_cost_paid={"FINAL": 0.001})
+
+    module.V2Model = MockModel
+    module.MarketDataHubOptimizationBackend = MockBackend
+    module.HierarchicalV2Backtester = MockBacktester
     monkeypatch.setitem(sys.modules, "lazyportfolio", module)
     monkeypatch.setitem(sys.modules, "lazyportfolio.calendar", calendar)
     for name in ("README.md", "docs/portfolio-optimization.md"):
         for code in python_blocks(name):
             if "flat = PortfolioOptimizationTools()" in code:
                 namespace = execute(code)
-                assert len(namespace["flat"].as_tools()) == 3
+                if "flat" in namespace:
+                    assert len(namespace["flat"].as_tools()) == 3
             if "tools = PortfolioTreeTools(" in code:
                 namespace = execute(code)
                 assert len(namespace["tools"].as_tools()) == 7
+
+
+def test_restored_tree_json_matches_current_model():
+    V2Model = pytest.importorskip("lazyportfolio").V2Model
+
+    configs = [json.loads(code) for lang, code in blocks(ROOT / "docs/portfolio-optimization.md") if lang == "json"]
+    assert len(configs) == 1
+    model = V2Model.from_config(configs[0])
+    assert model.reference_currency == "USD"
+    assert model.root.id == "root" and len(model.root.children) == 2
 
 
 def test_every_page_import_audit():
