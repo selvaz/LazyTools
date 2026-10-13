@@ -1,0 +1,261 @@
+
+===== PDF PAGE 1 =====
+Ill 
+Egan-Jones 
+Ratings Company Founded 1995 
+E Egan-Jones 
+Ratings Company, 
+The Ratings Process 
+Version 1.0 
+July 7, 2025 
+(844) 495-5244 I ratings@egan-jones.com Page 11 
+
+===== PDF PAGE 2 =====
+Ill 
+Egan-Jones 
+Ratings Company Founded 1995 
+Introduction 
+Egan-Jones Ratings Company, Inc. ("Egan-Jones" or "EJR") is a credit rating agency established in 1995. 
+Privately owned and operated without affiliation to any financial institution, Egan-Jones strives to deliver 
+timely and accurate evaluations of credit quality. 
+Egan-Jones ratings and research are available via its website and other distribution platforms. EJR is 
+committed to continuously refining its expertise in the analysis of credit quality and is dedicated to 
+maintaining objective and credible opinions within the global financial marketplace. 
+Version: This is the original copy of this report . Content used to create this report is primarily sourced 
+from EJR's current main rating methodology, Methodologies for Determining Credit Ratings (version 16), 
+along with summary content within existing policies and procedures. 
+Rating Overview & Analytical Process 
+EJR follows standardized procedures for conducting its credit analysis. Key elements of EJR's ratings 
+work are summarized here. 
+Credit Ratings 
+EJR issues credit ratings to provide its opinion on the relative credit quality of various issuers and 
+obligations. In general terms, Egan-Jones ratings are opinions that reflect the creditworthiness of an 
+issuer, a security, or an obligation. They are opinions based on an analysis of historical trends and forward­
+looking measurements that assess an issuer's ability and willingness to make payments on outstanding 
+obligations (whether principal, interest, dividend, or distributions) with respect to the terms of an 
+obligation. 
+EJR produces credit ratings through the following services: 
+1. Subscription: Ratings are generated using public information and provided to rating users through 
+EJR's Subscription rating platform on our website at www.egan-jones.com . Subscription ratings 
+are typically unsolicited. 
+2. Non-Subscription: Ratings are generated using information provided to EJR from a third party, 
+often an investor or issuer, and are provided to users through privately distributed rating reports. 
+Non-Subscription ratings are primarily Private Placement ratings. Non-Subscription ratings are 
+solicited. 
+The Rating Process 
+Each rating is assigned to an analyst, who is responsible for reviewing the necessary information and 
+following the relevant rating methodology to complete a rating review. Each rating has a second analyst 
+as a reviewer who is responsible for checking the work of the assigned analyst. 
+EJR's ratings are determined by the Ratings Review and Policy Committee ("RRC"). The RRC is comprised of 
+(844) 495-5244 I ratings@egan-jones.com Page 12 
+
+===== PDF PAGE 3 =====
+Ill 
+Egan-Jones 
+Ratings Company Founded 1995 
+seasoned rating analysts who are senior team members of the Ratings Group. The RRC reviews and 
+determines all ratings, considering the analyst's recommendation. 
+The rating's analysis is conducted per the considerations outlined below regarding information, 
+methodologies, and models. 
+Rating conclusions following the RRC review are updated to EJR's website for Subscription Ratings and 
+emailed to the relevant client for Non-Subscription Ratings. This step includes the delivery of an updated 
+Rating Report. 
+Information Sources 
+Adequate information must be available to reach a view on the creditworthiness of the issuer, entity, or 
+transaction in question. This includes publicly available information on the issuer, such as company 
+financial and operational statistics, reports filed with regulatory agencies, and industry and economic 
+reports . In addition, the rating process may incorporate data and insight gathered by EJR. If the available 
+information appears insufficient to form a rating opinion, EJR may decide not to assign or maintain a credit 
+rating. 
+As part of the credit rating process for Non-Subscription ratings, EJR may conduct meetings with the 
+issuer's senior management or related parties to gain a deeper understanding of the issuer's business, 
+financing plans, and other factors that may be considered in the ratings analysis. These discussions may 
+be supplemented with written responses and are informed by the analytical team's review of relevant 
+documentation . 
+Subscription: The first step in the ratings process is to acquire information about the issuer and/or 
+obligation. For publicly traded issuers, EJR uses financial information from publicly available and 
+recognized reliable sources, including third-party data providers. EJR may also use the data provided from 
+clients directly. EJR's model synthesizes the updated current information about the issuer with EJR's 
+previously compiled data and produces an initial implied rating. 
+Non-Subscription: The credit analysis may include issuer participation, be based on publicly available 
+information, and may be initiated by Egan-Jones, the Issuer, or an interested third party. EJR provides a 
+private rating assignment and surveillance based on a client's request. Clients are responsible for providing 
+the necessary financial data for EJR to perform the related rating analysis. The Ratings Group thereafter 
+will produce a private rating report, in which a notification of a one-year rating validation period from the 
+date of issuance of the rating is included unless specified otherwise. 
+Non-Public Information 
+EJR might obtain material non-public information during the process of assigning or reviewing ratings. EJR 
+has strict policies for maintaining such information as confidential. 
+Treatment of Other Ratings 
+EJR may use ratings from other NRSROs where available. The ratings are subject to analytical judgement 
+(844) 495-5244 I ratings@egan-jones.com Page 13 
+
+===== PDF PAGE 4 =====
+Ill 
+Egan-Jones 
+Ratings Company Founded 1995 
+and the application of any exceptions deemed appropriate by the RRC when evaluating the rating request. 
+Methodologies 
+EJR assigns ratings based on methodologies that are developed, updated, and approved in accordance 
+with policies that govern methodology development and review, which includes approval by our Board of 
+Directors . These methodologies cover various sectors and asset classes. These reports also identify key 
+risk factors and various analytical considerations. 
+Methodologies are available on EJR's website at Egan-Jones Methodologies 
+Company. 
+Egan-Jones Ratings 
+Any new or materially revised methodology must be approved by the Board of Directors and issued for a 
+public consultation period, to allow market participants to provide feedback, prior to use. Public 
+comments on proposed changes are reviewed before final adoption. 
+When a methodology is updated and includes material changes that impact ratings, EJR reviews 
+potentially impacted ratings and discloses any changes, including their implications . Changes to ratings 
+because of methodology changes, which would include related model changes, are applied prospectively 
+to existing and future ratings, as relevant . All active methodologies are reviewed annually . 
+Rating users can comment on EJR's rating methodologies at any time by submitting questions or 
+comments through our website. 
+For Non-Subscription Ratings, EJR analysts apply the same methodology, policies, and procedures as 
+Subscription Ratings, but in the case of corporate ratings, often with a focus on EBITDA and cashflow 
+measures rather than earnings. When assessing the credit rating, EJR will determine the most appropriate 
+metrics, including credit industry ratios, loan-to-value, debt service coverage, and other measures. 
+Proprietary Models 
+EJR uses proprietary models to obtain prelim inary assessments of issuer credit quality. EJR uses the same 
+model but applies different credit ratios for its corporate, financial Institution, and insurance company 
+ratings to assess the company's risk profile for all ratings. EJR generally uses models to generate ratio­
+implied ratings. From the ratio-implied rating level, EJR may conclude that the assigned rating is the same, 
+higher, or lower after considering additional qualitative factors. 
+EJR uses the same model for both initial and surveillance ratings. 
+Qualitative and Quantitative Analysis 
+Ratings typically consider a mix of both qualitative and quantitative considerations . EJR analysts apply 
+their best judgment, based on their expertise and experience, to arrive at a rating . Models alone, while 
+very useful, cannot completely accurately capture current or projected credit quality . 
+EJR's ratings approach commonly generates ratio-implied ratings . This forms the core quantitative 
+element of our analysis. EJR will consider ratio-implied ratings both in reviewing recent historical results 
+(844) 495-5244 I ratings@egan-jones.com Page 14 
+
+===== PDF PAGE 5 =====
+Ill 
+Egan-Jones 
+Ratings Company Founded 1995 
+as well as EJR's projections, when utilized. 
+The ratio-implied ratings factor in expert qualitative judgments as to the likely future performance of an 
+issuer, when considering projections, and reflect expert estimates based upon publicly available 
+information and current market conditions and trends. EJR industry ratios, which are used to set the ratio­
+implied ratings, aim to adjust for the cyclicality and risk characteristics of particular industries. 
+Ratings consider qualitative factors beyond projections and in setting industry ratios . These considerations 
+include, but are not limited to, business profile, risk management, idiosyncratic features, and economic 
+factors. 
+Rating Review 
+The ratings, rating actions and rating modifiers are determined by the RRC. 
+Rating Reviews and Rating Review & Policy Committee (RRC) 
+Subscription: An analyst completes the periodic credit review and provides a rating recommendation 
+which is then reviewed by the RRC before publishing. Each RRC member may select items for further 
+discussion, debate, or analysis. At the conclusion of the discussion, the RRC votes. The RRC maintains 
+minutes to record the identity of those attending the meeting , how each attendee voted. The Compliance 
+Department ensures that subsequent amended ratings are, in fact, generated and published in a timely 
+manner . 
+Non-Subscription: Ratings are generally reviewed by the RRC, before a rating action is formally taken. To 
+conduct the rating review, the RRC member(s) provide their votes following a review of the credit. 
+A number of RRC members may be involved in a rating review. If three members vote, the majority vote 
+will be used. If there is not a majority vote, the median vote of the RRC votes shall be used. 
+Attestation 
+The RRC members are requested to make attestations regarding compliance with EJR's Methodologies, 
+expert ise to review all credit ratings, and adherence to EJR's policies and procedures to ensure the 
+independence of RRC members. 
+Issuer and Client Appeals 
+If an issuer or a client (subscriber, private placement client, or third-party client, as applicable) disagrees 
+with an EJR rating, EJR requests that they provide written support for their objection including any relevant 
+materials and such information will be shared with the RRC. Depending on the decision of the RRC, EJR 
+might re-evaluate the rating in RRC and re-issue its rating report. 
+(844) 495-5244 I ratings@egan-jones.com Page I 5 
+
+===== PDF PAGE 6 =====
+Ill 
+Egan-Jones 
+Ratings Company Founded 1995 
+Initiating & Monitoring Ratings 
+Subscript ion Ratings 
+Initiating Ratings: The Ratings Group has discretion to choose to initiate new coverage on companies 
+deemed by Egan-Jones or clients to be of interest or that appear in news reports and analyses, earnings 
+releases, or other publicly available information. As described above, the firm uses an integrated model 
+that compares the publicly available financial information for both initial and ongoing ratings analyses. 
+The data used in the model are sourced from widely used data providers, which obtain their information 
+from issuers. Since the data providers have been vetted by numerous users, EJR generally does not 
+independently verify data from the data providers . 
+Monitoring Ratings: In general, EJR's credit analysts review and update ratings on a quarterly, semi­
+annual, or annual basis, generally triggered by earnings releases. Ratings for corporate, financial, and 
+insurance issuers are updated on at least an annual basis upon availability of data. Ongoing monitoring of 
+current news and events may trigger off-cycle reviews. 
+Non -Subscription Ratings 
+Non-Subscription ratings, which include private placements, are generally prepared for a restricted 
+audience, where the rating, any supporting report, and knowledge of the rating, are circumscribed in 
+accordance with the terms of the arrangement between EJR and the issuer or third party. 
+Feasibility: Before initiating a rating, EJR analysts conduct a feasibility analysis to determine whether the 
+security to be rated is a non-NRSRO security or not. The analyst should determine whether the security is: 
+• a class of obligors, securities, or money market instruments that EJR has not previously rated 
+and, if so, whether EJR has sufficient competency, access to necessary information, and 
+resources to rate the type of obligor, security, or money market instrument . 
+• an "exotic" or "bespoke" type of obligor, security, or money market instrument and, if so, whether 
+it is feasible for EJR to determine a credit rating. An analyst should consider, among other factors, 
+whether there are material terms, structures or features that may not be addressed in a 
+methodology or whether the issuer may be involved in a line of business which has not been rated 
+before . 
+• considered a Sovereign, Municipal, or Structured Finance Obligation, and if so, utilize 
+methodologies and disclosures that indicate the ratings as non-NRSRO, as EJR does not have a 
+license from the SEC to issue ratings in these rating categories . 
+Indicative Assessments: EJR provides confidential, unmonitored, unpublished indicative assessments at 
+its sole discretion. The indicative assessment generally includes a rating range, or an approximate rating 
+based on the limited information provided, has a certain validation period (such as 30 days, etc.), and is 
+not approved by the RRC. Documentation evidencing the delivery of indicative assessments shall be 
+retained, as applicable. With these factors, indicative assessments are not considered to be full credit 
+(844) 495-5244 I ratings@egan-jones.com Page 16 
+
+===== PDF PAGE 7 =====
+Ill 
+Egan-Jones 
+Ratings Company Founded 1995 
+ratings. 
+Initiating Ratings: EJR provides a non-subscription rating based on the client's request. The Ratings Group 
+provides the initial private rating report following its approval by the RRC, in which a notification of a one­
+year rating validation period from the date of issuance of the rating is included unless specified otherwise. 
+Ratings expire if not followed with surveillance ratings. 
+Non-Subscription ratings may be used for a variety of reasons including, but not limited to an issuer 
+request for the purposes of issuing debt to a small number of investors who intend to use the rating as a 
+rating opinion; a rating opinion requested by an investor, regulator, government, or other interested third 
+party; analyze transaction party and/or counterparty credit exposure for Structured Finance ratings. The 
+sharing of all knowledge, information and records regarding a Non-Subscription rating is limited in 
+accordance with the terms of the arrangement with the issuer, investor, or third party who requested the 
+rating and in adherence to EJR's policies and procedures. 
+After the rating approval, the rating report will be delivered to the client solely unless the client gives other 
+delivery requests. 
+Monitoring Ratings: EJR reviews ratings annually, or more frequently if material changes occur. Ratings 
+will be deemed to expire if not timely refreshed with proper surveillance ratings within one year. Clients 
+are obligated to provide updated information to allow the necessary rating analysis to be performed and 
+the private surveillance rating report to be produced. 
+It is the client's responsibility to provide adequate and appropriate data in a timely manner for EJR to 
+produce the surveillance report. EJR is not obligated to perform surveil lance analysis before receiving the 
+required data from the client. In general, the Ratings Group follows up with clients regarding their 
+surveillance needs. As a courtesy, EJR may remind clients about the data needed and warn them if 
+adequate data is not provided or still needs to be received. 
+The analytical process for assigning a new rating is similar to the work executed in monitoring existing 
+ratings. In surveillance, EJR will review amendments to the original documentation if there have been 
+updates since the prior review. Updated information, which could, for example, include financial 
+statements and covenant reports, is provided in surveillance reviews. In surveillance, EJR will seek 
+updated information related to material changes incurred or potentially upcoming events. Rating 
+surveillance occurs annually, or potentially earlier if material changes occur. 
+Withdrawing Coverage 
+When EJR decides to drop Subscription coverage of an issuer, it publishes a report indicating coverage has 
+been dropped and, in most cases, the reasons for such. A withdrawn rating is normally indicated by the 
+symbol "NR" (not rated). In some cases, obtaining financials for the issuer becomes impossible, and 
+generating a report becomes difficult. 
+For both Subscription and Non-Subscription Ratings, in the case that surveillance is not needed (including 
+circumstances in which the rated instrument has matured or otherwise been retired) or information 
+required to permit EJR to perform rating analysis is not timely received such that a review of the credit 
+(844) 495-5244 I ratings@egan-jones.com Pagel? 
+
+===== PDF PAGE 8 =====
+Ill 
+Egan-Jones 
+Ratings Company Founded 1995 
+rating is not performed, the related credit rating(s) will be withdrawn. 
+However, in the case that EJR's withdrawal of a rating is a result of a review of the credit rating using EJR's 
+rating procedures and methodologies, a rating report must be produced and sent to the related client. 
+(844) 495-5244 I ratings@egan-jones.com Page IS 

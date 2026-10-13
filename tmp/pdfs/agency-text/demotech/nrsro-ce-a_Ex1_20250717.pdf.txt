@@ -1,0 +1,357 @@
+
+===== PDF PAGE 1 =====
+ 
+  2715 Tuller Parkway  Dublin, Ohio  43017-2310 
+Tel: 614 761-8602  800 354-7207 
+www.demotech.com 
+ 
+ 
+ 
+Demotech, Inc. 
+ 
+Form NRSRO – Update of Registration  
+ 
+July 2025 
+ 
+ 
+ 
+Exhibit 1 
+ 
+Credit Ratings Performance Measurement Statistics 
+ 
+
+===== PDF PAGE 2 =====
+ 
+Credit Ratings Performance Measurement Statistics  July 2025 
+Page 1 of 7 
+ 
+ 
+Exhibit 1.  Credit Ratings Performance Measurement Statistics 
+ 
+Exhibit 1 includes the 2024 credit rating performance measurement statistics for Demotech.   This Exhibit 
+shows transition and default rates for 1-year, 3-year, and 10-year time periods through the most recent 
+calendar year end for the class of ratings for insurance companies.  In addition, this Exhibit includes the 
+definitions of each of Demotech’s ratings symbols, Demotech’s definition of default, and the uniform 
+resource locator (URL) of Demotech’s website where the credit rating histories required to be disclosed 
+pursuant to 17 CFR 17g-7(b) are located. 
+ 
+Additional notes regarding Exhibit 1: 
+ 
+Note 1:  Effective with Demotech’s updated filing of July 17, 2025, Demotech has revised its reporting of 
+data in Exhibit 1 to report default statistics based on “net impairments.”  Accordingly, defaults that occur 
+after a rating has been withdrawn are not included in Exhibit 1 default statistics. This change aligns 
+Demotech’s reporting method with the practices of other NRSROs registered in the class of ratings for 
+insurance companies.  Demotech’s previous filings reported default statistics based on “gross impairments,” 
+which included defaults that occurred after a rating was withdrawn by Demotech.   
+ 
+Note 2:  Demotech assigned ratings to nine (9) self-funded public entity pools in 2024.  These ratings 
+utilize a different rating scale, are not included in these performance measurement statistics, and are not 
+considered NRSRO ratings under Demotech’s registration as an NRSRO in the class of ratings for 
+insurance companies.
+    
+
+===== PDF PAGE 3 =====
+ 
+Credit Ratings Performance Measurement Statistics  July 2025 
+Page 2 of 7 
+ 
+ 
+Table 1 
+Financial Stability Ratings® (FSRs) 
+1-Year Transition and Default Rates 
+December 31, 2023 through December 31, 2024 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+FSRs as of 12/31/2023 FSRs as of 12/31/2024 (Percent)
+FSR
+Number of 
+FSRs 
+Outstandi ng A'' A' A S M L Default
+Paid
+off
+Withdrawn 
+(other)
+A'' 80 98.8% 1.3% 0.0%
+A' 78 85.9% 7.7% 6.4%
+A 264 94.3% 5.3%
+S 10 20.0% 80.0% 0.0%
+M 0 NA NA NA
+L 0 NA NA NA
+Total 432
+Other Outcomes
+12/31/2023-12/31/2024
+
+===== PDF PAGE 4 =====
+ 
+Credit Ratings Performance Measurement Statistics  July 2025 
+Page 3 of 7 
+ 
+ 
+Table 2 
+Financial Stability Ratings® (FSRs)  
+3-Year Transition and Default Rates 
+December 31, 2021 through December 31, 2024 
+ 
+ 
+ 
+  
+FSRs as of 12/31/2021 FSRs as of 12/31/2024 (Percent)
+FSR
+Number of 
+FSRs 
+Outstandi ng A'' A' A S M L Default
+Paid
+off
+Withdrawn 
+(other)
+A'' 78 97.4% 1.3% 1.3%
+A' 84 73.8% 11.9% 14.3%
+A 265 0.8% 74.3% 0.8% 2.3% 21.9%
+S 12 8.3% 33.3% 50.0% 8.3%
+M 0 NA NA NA
+L 0 NA NA NA
+Total 439
+Other Outcomes
+12/31/2021-12/31/2024
+
+===== PDF PAGE 5 =====
+ 
+Credit Ratings Performance Measurement Statistics  July 2025 
+Page 4 of 7 
+ 
+ 
+Table 3 
+Financial Stability Ratings® (FSRs)  
+10-Year Transition and Default Rates 
+December 31, 2014 through December 31, 2024 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+FSRs as of 12/31/2014 FSRs as of 12/31/2024 (Percent)
+FSR
+Number of 
+FSRs 
+Outstandi ng A'' A' A S M L Default
+Paid
+off
+Withdrawn 
+(other)
+A'' 91 46.2% 1.1% 52.7%
+A' 74 5.4% 37.8% 14.9% 41.9%
+A 214 0.5% 7.5% 44.4% 1.9% 45.8%
+S 15 20.0% 20.0% 20.0% 40.0%
+M 0 NA NA NA
+L 0 NA NA NA
+Total 394
+Other Outcomes
+12/31/2014-12/31/2024
+
+===== PDF PAGE 6 =====
+ 
+Credit Ratings Performance Measurement Statistics  July 2025 
+Page 5 of 7 
+ 
+ 
+Definition of Rating Symbols 
+ 
+A Financial Stability Rating ® summarizes Demotech’s opinion as to the insurer's ability to insulate itself 
+from the business cycle that exists in the general economy as well as the underwriting cycle that exists in 
+the insurance industry, and its relative ability to fulfill its insurance obligations to policyholders, i.e., 
+honoring meritorious claims or otherwise fulfilling its insurance-related obligations, during a downturn in 
+the general economic conditions as well as a downturn in the underwriting cycle.   
+ 
+Demotech assigns the following FSRs: 
+ 
+ 
+ 
+ 
+A'' (A Double Prime), Unsurpassed 
+Regardless of the severity of a general economic downturn or 
+deterioration in the insurance cycle, insurers earning a Financial 
+Stability Rating ® of A'' (A Double Prime) possess Unsurpassed 
+financial stability related to maintaining surplus as regards 
+policyholders at an acceptable level. 
+ 
+One hundred percent of the insurers receiving a Financial 
+Stability Rating ® of A'' (A Double Prime) are expected to have 
+positive surplus as regards policyholders as of eighteen months 
+from the initial date of rating assignment. 
+ 
+ 
+ 
+ 
+A' (A Prime), Unsurpassed 
+Regardless of the severity of a general economic downturn or 
+deterioration in the insurance cycle, insurers earning a Financial 
+Stability Rating® of A' (A Prime) possess Unsurpassed financial 
+stability related to maintaining surplus as regards policyholders at 
+an acceptable level. 
+ 
+At least ninety-nine percent of all the insurers countrywide 
+receiving a Financial Stability Rating® of A' (A Prime) are expected 
+to have positive surplus as regards policyholders as of eighteen 
+months from the initial date of rating assignment. 
+ 
+ 
+ 
+ 
+A, Exceptional 
+Regardless of the severity of a general economic downturn or 
+deterioration in the insurance cycle, insurers earning a Financial 
+Stability Rating ® of A possess Exceptional financial stability 
+related to maintaining surplus as regards policyholders at an 
+acceptable level. 
+ 
+At least ninety-seven percent of all the insurers countrywide 
+receiving a Financial Stability Rating ® of A are expected to have 
+positive surplus as regards policyholders as of eighteen months 
+from the initial date of rating assignment. 
+ 
+ 
+
+
+===== PDF PAGE 7 =====
+ 
+Credit Ratings Performance Measurement Statistics  July 2025 
+Page 6 of 7 
+ 
+ 
+ 
+ 
+ 
+  S, Substantial 
+Regardless of the severity of a general economic downturn or 
+deterioration in the insurance cycle, insurers earning a Financial 
+Stability Rating ® of S possess Substantial financial stability 
+related to maintaining surplus as regards policyholders at an 
+acceptable level. 
+ 
+At least ninety-five percent of all the insurers countrywide 
+receiving a Financial Stability Rating ® of S are expected to have 
+positive surplus as regards policyholders as of eighteen months 
+from the initial date of rating assignment. 
+ 
+ 
+ 
+ 
+M, Moderate 
+Regardless of the severity of a general economic downturn or 
+deterioration in the insurance cycle, insurers earning a Financial 
+Stability Rating® of M possess Moderate financial stability related 
+to maintaining surplus as regards policyholders at an acceptable 
+level. 
+ 
+At least ninety percent of all the insurers countrywide receiving a 
+Financial Stability Rating ® of M are expected to have positive 
+surplus as regards policyholders as of eighteen months from the 
+initial date of rating assignment. 
+ 
+ 
+ 
+ 
+ 
+L, Licensed 
+Insurers earning a Financial Stability Rating® of L are Licensed by 
+state regulatory authorities. Our evaluation of their financial 
+stability precludes assignment at a Financial Stability 
+Rating® category referenced above. 
+ 
+ 
+ 
+  
+
+
+===== PDF PAGE 8 =====
+ 
+Credit Ratings Performance Measurement Statistics  July 2025 
+Page 7 of 7 
+ 
+ 
+Definition of Default 
+ 
+For the rating class of insurance companies, Demotech defines default as the impairment of the insurer.  
+Impairment occurs when an insurance company has been subjected to one or more formal regulatory actions 
+for solvency reasons and the regulatory action(s) are made public.  Such regulatory actions may include 
+occurrences when the insurer is placed into rehabilitation, liquidation, involuntary receivership or 
+conservatorship, license suspension or revocation, supervision, or other legal or regulatory remedy 
+instituted by a Department of Insurance or regulatory authority for the purpose of protecting the interests 
+of policyholders or claimants.  Impairment does not include voluntary action by an insurance company, 
+such as surrender of a license, merger into an affiliate, purchase by a solvent insurer, capital infusion by a 
+third party, voluntary dissolution, other regulatory action that is not made public, or other activity that 
+results in the continuous ability to honor meritorious claims and other obligations.  
+ 
+Rating Action History 
+ 
+The credit rating histories required to be disclosed pursuant to 17 CFR 17g-7(b) are located at 
+www.demotech.com/regulatory.  
+ 
+Notice  
+ 
+Financial Stability Rating® is a registered certification mark of Demotech, Inc.  Financial Stability Ratings® 
+(FSRs) and the FSR seal image may not be used or reproduced without the express written approval of 
+Demotech.  FSRs represent Demotech’s opinion of the ability of an insurer to meet its insurance related 
+obligations based upon our assessment of financial information and other information.  FSRs do not 
+constitute a warranty of a company’s ability to meet its contractual or legal obligations; are not 
+recommendations to buy, sell or hold any securities, or to make any investment decisions related to the 
+rated entity; and are not an endorsement of any particular insurer or its products. Insureds, agents, and third 
+parties need to independently evaluate any relationship with a particular insurer as well as the applicability 
+of an insurer's products to the needs of the insured or agent.  
+ 
+Demotech obtains information from sources considered reliable.  Demotech reviews the data and 
+information it receives for reasonableness and consistency, but does not independently audit the data it 
+receives and assumes no responsibility for data provided by rated entities or prepared by third parties. 
+ 
+Historical ratings information is indicative only of Demotech’s review and opinion of the insurer at the date 
+of the respective previous rating assignments.  Only the most current FSR assigned to an insurer represents 
+Demotech’s existing assessment and opinion of the insurer. The most current Financial Stability Rating
+® 
+must be verified by visiting www.demotech.com. 
+ 
+ 
+ 
+ 
+ 

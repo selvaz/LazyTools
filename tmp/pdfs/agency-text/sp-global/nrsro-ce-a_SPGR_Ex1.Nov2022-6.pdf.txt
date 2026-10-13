@@ -1,0 +1,1972 @@
+
+===== PDF PAGE 1 =====
+S&P Global Ratings 
+Form NRSRO Exhibit 1 
+Performance Measurement Statistics
+
+===== PDF PAGE 2 =====
+Page Table Title Table Number
+3 Financial Institutions, Brokers, or Dealers Ratings 1 Year Transition and Default Rates (December 31, 2020 through December 31,  2021) Table 1
+4 Financial Institutions, Brokers, or Dealers Ratings 3 Year Transition and Default Rates (December 31, 2018 through December 31,  2021) Table 2
+5 Financial Institutions, Brokers, or Dealers Ratings 10 Year Transition and Default Rates (December 31, 2011 through December 31 , 2021) Table 3
+6 Insurance Companies Ratings 1 Year Transition and Default Rates (December 31, 2020 through December 31, 2021) Table 4
+7 Insurance Companies Ratings 3 Year Transition and Default Rates (December 31, 2018 through December 31, 2021) Table 5
+8 Insurance Companies Ratings 10 Year Transition and Default Rates (December 31, 2011 through December 31, 2021) Table 6
+9 Corporate Issuers Ratings 1 Year Transition and Default Rates (December 31, 2020 through December 31, 2021) Table 7
+10 Corporate Issuers Ratings 3 Year Transition and Default Rates (December 31, 2018 through December 31, 2021) Table 8
+11 Corporate Issuers Ratings 10 Year Transition and Default Rates (December 31, 2011 through December 31, 2021) Table 9
+12 Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 1 Year Transition and Default Rates (December 31, 2020 through December 31, 2021) Table 10
+13 Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 3 Year Transition and Default Rates (December 31, 2018 through December 31, 2021) Table 11
+14 Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 10 Year Transition and Default Rates  (December 31, 2011 through December 31, 2021) Table 12
+15 Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 1 Year Transition and Default Rates ( December 31, 2020 through December 31, 2021) Table 13
+16 Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 3 Year Transition and Default Rates ( December 31, 2018 through December 31, 2021) Table 14
+17 Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 10 Year Transition and Default Rates (December 31, 2011 through December 31, 2021) Table 15
+18 Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 1 Year Transition and Default Rates (Decemb er 31, 2020 through December 31, 2021) Table 16
+19 Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 3 Year Transition and Default Rates (Decemb er 31, 2018 through December 31, 2021) Table 17
+20 Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 10 Year Transition and Default Rates (Decem ber 31, 2011 through December 31, 2021) Table 18
+21 Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 1 Year Transition and Default Rates (Decemb er 31, 2020 through December 31, 2021) Table 19
+22 Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 3 Year Transition and Default Rates (Decemb er 31, 2018 through December 31, 2021) Table 20
+23 Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 10 Year Transition and Default Rates (Decem ber 31, 2011 through December 31, 2021) Table 21
+24 Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 1 Year Transition and Default Rates (December  31, 2020 through December 31, 2021) Table 22
+25 Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 3 Year Transition and Default Rates (December  31, 2018 through December 31, 2021) Table 23
+26 Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 10 Year Transition and Default Rates (Decembe r 31, 2011 through December 31, 2021) Table 24
+27 Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 1 Year Transition and Default Rates (December  31, 2020 through December 31, 2021) Table 25
+28 Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 3 Year Transition and Default Rates (December  31, 2018 through December 31, 2021) Table 26
+29 Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 10 Year Transition and Default Rates (Decembe r 31, 2011 through December 31, 2021) Table 27
+30 Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 1 Year Transition and Default Rates (Dece mber 31, 2020 through December 31, 2021) Table 28
+31 Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 3 Year Transition and Default Rates (Dece mber 31, 2018 through December 31, 2021) Table 29
+32 Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 10 Year Transition and Default Rates (Dec ember 31, 2011 through December 31, 2021) Table 30
+33 Sovereign Issuers Ratings 1 Year Transition and Default Rates (December 31, 2020 through December 31, 2021) Table 31
+34 Sovereign Issuers Ratings 3 Year Transition and Default Rates (December 31, 2018 through December 31, 2021) Table 32
+35 Sovereign Issuers Ratings 10 Year Transition and Default Rates (December 31, 2011 through December 31, 2021) Table 33
+36 U.S. Public Finance Ratings 1 Year Transition and Default Rates (December 31, 2020 through December 31, 2021) Table 34
+37 U.S. Public Finance Ratings 3 Year Transition and Default Rates (December 31, 2018 through December 31, 2021) Table 35
+38 U.S. Public Finance Ratings 10 Year Transition and Default Rates (December 31, 2011 through December 31, 2021) Table 36
+39 International Public Finance Issuers Ratings 1 Year Transition and Default Rates (December 31, 2020 through December 31, 2021) T able 37
+40 International Public Finance Issuers Ratings 3 Year Transition and Default Rates (December 31, 2018 through December 31, 2021) T able 38
+41 International Public Finance Issuers Ratings 10 Year Transition and Default Rates (December 31, 2011 through December 31, 2021) Table 39
+Page 2
+
+===== PDF PAGE 3 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 3 100.00%
+AA+ 23 95.65% 4.35%
+AA 18 100.00%
+AA- 56 89.29% 10.71%
+A+ 127 1.57% 88.98% 6.30% 0.79% 2.36%
+A 128 12.50% 79.69% 5.47% 2.34%
+A- 119 3.36% 89.92% 3.36% 0.84% 2.52%
+BBB+ 163 1.23% 8.59% 82.82% 4.29% 0.61% 2.45%
+BBB 181 4.97% 87.85% 1.10% 0.55% 5.52%
+BBB- 99 4.04% 80.81% 6.06% 1.01% 8.08%
+BB+ 51 7.84% 82.35% 9.80%
+BB 56 8.93% 80.36% 1.79% 1.79% 7.14%
+BB- 112 3.57% 86.61% 3.57% 6.25%
+B+ 64 17.19% 71.88% 1.56% 1.56% 7.81%
+B 59 1.69% 1.69% 20.34% 57.63% 5.08% 13.56%
+B- 60 1.67% 18.33% 58.33% 6.67% 3.33% 11.67%
+CCC+ 19 5.26% 5.26% 73.68% 5.26% 10.53%
+CCC 1 100.00%
+CCC- 1 100.00%
+CC
+C
+Total
+Table 1
+Financial Institutions, Brokers, or Dealers Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 3
+
+===== PDF PAGE 4 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 3 100.00%
+AA+ 24 91.67% 8.33%
+AA 16 93.75% 6.25%
+AA- 64 1.56% 73.44% 18.75% 1.56% 4.69%
+A+ 106 3.77% 73.58% 14.15% 0.94% 7.55%
+A 144 20.83% 52.78% 14.58% 0.69% 0.69% 1.39% 9.03%
+A- 122 14.75% 63.11% 10.66% 0.82% 10.66%
+BBB+ 189 1.06% 13.23% 57.67% 20.63% 0.53% 6.88%
+BBB 134 13.43% 68.66% 5.22% 0.75% 0.75% 11.19%
+BBB- 100 16.00% 52.00% 8.00% 24.00%
+BB+ 70 12.86% 41.43% 8.57% 4.29% 2.86% 30.00%
+BB 64 15.63% 37.50% 32.81% 1.56% 12.50%
+BB- 98 9.18% 57.14% 12.24% 3.06% 1.02% 17.35%
+B+ 73 1.37% 23.29% 36.99% 10.96% 1.37% 2.74% 1.37% 1.37% 20.55%
+B 74 1.35% 8.11% 28.38% 10.81% 12.16% 2.70% 36.49%
+B- 49 2.04% 2.04% 8.16% 12.24% 40.82% 2.04% 12.24% 20.41%
+CCC+ 9 33.33% 11.11% 33.33% 22.22%
+CCC 1 100.00%
+CCC- 1 100.00%
+CC
+C
+Total 1341
+Table 2
+Financial Institutions, Brokers, or Dealers Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 4
+
+===== PDF PAGE 5 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 9 33.33% 22.22% 33.33% 11.11%
+AA+ 25 68.00% 24.00% 8.00%
+AA 18 5.56% 27.78% 5.56% 16.67% 5.56% 5.56% 33.33%
+AA- 73 1.37% 35.62% 27.40% 5.48% 30.14%
+A+ 129 7.75% 25.58% 20.93% 8.53% 3.88% 0.78% 32.56%
+A 139 0.72% 13.67% 16.55% 19.42% 6.47% 3.60% 1.44% 38.13%
+A- 107 5.61% 10.28% 23.36% 16.82% 5.61% 0.93% 0.93% 36.45%
+BBB+ 109 0.92% 0.92% 2.75% 12.84% 20.18% 14.68% 2.75% 2.75% 0.92% 0.92% 2.75% 37.61%
+BBB 132 0.76% 17.42% 27.27% 5.30% 0.76% 4.55% 3.03% 0.76% 0.76% 39.39%
+BBB- 95 1.05% 6.32% 12.63% 10.53% 7.37% 2.11% 6.32% 1.05% 1.05% 51.58%
+BB+ 58 1.72% 3.45% 15.52% 3.45% 5.17% 1.72% 5.17% 1.72% 62.07%
+BB 52 3.85% 1.92% 3.85% 7.69% 17.31% 11.54% 3.85% 1.92% 1.92% 46.15%
+BB- 45 2.22% 2.22% 2.22% 4.44% 2.22% 13.33% 4.44% 4.44% 6.67% 57.78%
+B+ 53 1.89% 3.77% 1.89% 1.89% 13.21% 3.77% 13.21% 9.43% 3.77% 47.17%
+B 55 1.82% 1.82% 5.45% 5.45% 3.64% 7.27% 5.45% 21.82% 47.27%
+B- 28 7.14% 10.71% 17.86% 64.29%
+CCC+ 7 14.29% 28.57% 57.14%
+CCC 8 62.50% 37.50%
+CCC- 1 100.00%
+CC
+C
+Total 1143
+Table 3
+Financial Institutions, Brokers, or Dealers Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 5
+
+===== PDF PAGE 6 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA
+AA+ 15 100.00%
+AA 34 91.18% 8.82%
+AA- 69 2.90% 85.51% 4.35% 7.25%
+A+ 139 0.72% 94.96% 2.16% 0.72% 1.44%
+A 155 6.45% 87.74% 1.29% 0.65% 3.87%
+A- 140 6.43% 89.29% 4.29%
+BBB+ 64 3.13% 90.63% 1.56% 4.69%
+BBB 63 3.17% 1.59% 85.71% 3.17% 6.35%
+BBB- 25 12.00% 72.00% 4.00% 4.00% 8.00%
+BB+ 15 6.67% 86.67% 6.67%
+BB 16 25.00% 75.00%
+BB- 10 20.00% 80.00%
+B+ 15 13.33% 73.33% 13.33%
+B 33 3.03% 78.79% 18.18%
+B- 13 15.38% 46.15% 38.46%
+CCC+ 1 100.00%
+CCC
+CCC-
+CC
+C
+Total 807
+Table 4
+Insurance Companies Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 6
+
+===== PDF PAGE 7 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA
+AA+ 14 100.00%
+AA 36 77.78% 8.33% 13.89%
+AA- 75 4.00% 65.33% 10.67% 2.67% 17.33%
+A+ 140 3.57% 77.86% 5.00% 0.71% 12.86%
+A 159 11.32% 71.70% 1.89% 0.63% 14.47%
+A- 146 0.68% 11.64% 74.66% 1.37% 1.37% 10.27%
+BBB+ 67 14.93% 71.64% 7.46% 1.49% 4.48%
+BBB 54 3.70% 9.26% 62.96% 5.56% 18.52%
+BBB- 24 33.33% 50.00% 12.50% 4.17%
+BB+ 19 5.26% 15.79% 31.58% 31.58% 15.79%
+BB 8 37.50% 12.50% 12.50% 37.50%
+BB- 11 18.18% 18.18% 36.36% 9.09% 18.18%
+B+ 14 7.14% 21.43% 50.00% 21.43%
+B 33 48.48% 6.06% 3.03% 42.42%
+B- 13 23.08% 7.69% 69.23%
+CCC+ 1 100.00%
+CCC
+CCC-
+CC
+C
+Total 814
+Table 5
+Insurance Companies Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 7
+
+===== PDF PAGE 8 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1 100.00%
+AA+ 20 70.00% 20.00% 10.00%
+AA 23 60.87% 4.35% 34.78%
+AA- 107 9.35% 30.84% 20.56% 2.80% 36.45%
+A+ 106 0.94% 11.32% 46.23% 7.55% 0.94% 33.02%
+A 125 2.40% 16.00% 34.40% 11.20% 0.80% 0.80% 34.40%
+A- 157 5.10% 25.48% 28.66% 4.46% 1.91% 34.39%
+BBB+ 81 1.23% 2.47% 4.94% 24.69% 12.35% 3.70% 1.23% 49.38%
+BBB 56 5.36% 8.93% 21.43% 23.21% 1.79% 1.79% 37.50%
+BBB- 54 1.85% 1.85% 7.41% 1.85% 24.07% 7.41% 1.85% 53.70%
+BB+ 23 4.35% 17.39% 8.70% 4.35% 65.22%
+BB 15 13.33% 6.67% 13.33% 66.67%
+BB- 10 10.00% 10.00% 10.00% 70.00%
+B+ 10 20.00% 10.00% 10.00% 10.00% 10.00% 10.00% 30.00%
+B 10 10.00% 90.00%
+B- 4 100.00%
+CCC+ 4 50.00% 50.00%
+CCC
+CCC- 1 100.00%
+CC 1 100.00%
+C
+Total 808
+Table 6
+Insurance Companies Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 8
+
+===== PDF PAGE 9 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 5 100.00%
+AA+ 91 0 0 . 0 0 %
+AA 28 7.14% 75.00% 17.86%
+AA- 38 13.16% 68.42% 13.16% 2.63% 2.63%
+A+ 90 4.44% 87.78% 6.67% 1.11%
+A 186 2.69% 85.48% 5.38% 1.08% 5.38%
+A- 326 2.15% 81.90% 13.50% 0.92% 1.53%
+BBB+ 388 3.87% 90.98% 2.32% 0.52% 0.26% 2.06%
+BBB 460 0.43% 2.61% 87.17% 5.65% 0.22% 3.91%
+BBB- 394 9.64% 79.19% 4.06% 1.02% 6.09%
+BB+ 279 0.72% 8.96% 81.36% 4.66% 0.72% 0.36% 3.23%
+BB 314 3.82% 0.96% 14.97% 64.97% 6.37% 1.91% 0.32% 6.69%
+BB- 333 0.90% 13.81% 64.86% 5.11% 2.10% 0.30% 0.30% 0.30% 12.31%
+B+ 359 0.28% 1.67% 15.60% 61.84% 6.69% 0.84% 0.28% 1.11% 11.70%
+B 681 1.17% 9.40% 66.52% 6.02% 1.32% 0.29% 0.29% 14.98%
+B- 657 0.46% 2.44% 11.72% 62.40% 2.59% 0.76% 0.15% 0.30% 19.18%
+CCC+ 294 0.34% 4.42% 23.13% 49.66% 2.04% 0.68% 1.02% 3.06% 15.65%
+CCC 92 2.17% 10.87% 19.57% 29.35% 20.65% 17.39%
+CCC- 37 5.41% 10.81% 8.11% 13.51% 40.54% 21.62%
+CC 9 11.11% 11.11% 77.78%
+C
+Total 4979
+Table 7
+Corporate Issuers Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 9
+
+===== PDF PAGE 10 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 5 100.00%
+AA+ 11 81.82% 18.18%
+AA 28 7.14% 67.86% 7.14% 7.14% 10.71%
+AA- 61 8.20% 40.98% 24.59% 11.48% 1.64% 13.11%
+A+ 106 3.77% 60.38% 20.75% 8.49% 0.94% 5.66%
+A 167 1.80% 69.46% 10.78% 4.79% 1.20% 0.60% 11.38%
+A- 322 0.31% 4.35% 62.42% 24.84% 1.86% 1.24% 0.31% 4.66%
+BBB+ 429 0.47% 9.56% 63.64% 12.12% 3.96% 0.47% 0.23% 0.47% 9.09%
+BBB 477 0.21% 0.21% 0.84% 5.66% 66.67% 13.21% 2.52% 1.05% 9.64%
+BBB- 396 0.51% 11.87% 50.51% 10.35% 3.28% 1.26% 1.01% 0.51% 0.25% 0.25% 1.01% 19.19%
+BB+ 291 1.37% 13.06% 46.39% 14.43% 4.12% 2.75% 1.37% 0.34% 16.15%
+BB 380 0.26% 1.05% 16.32% 33.16% 13.95% 7.89% 3.95% 1.32% 0.26% 0.26% 1.32% 20.26%
+BB- 394 0.25% 0.51% 2.03% 11.17% 32.99% 10.41% 6.09% 2.28% 1.27% 0.25% 3.55% 29.19%
+B+ 422 0.24% 0.24% 2.61% 7.35% 25.36% 16.82% 6.64% 1.90% 0.24% 0.47% 7.82% 30.33%
+B 923 0.54% 1.52% 5.09% 26.54% 17.33% 6.72% 1.73% 0.22% 0.22% 7.15% 32.94%
+B- 479 0.21% 0.21% 1.88% 5.85% 28.39% 8.56% 1.67% 0.21% 15.66% 37.37%
+CCC+ 126 0.79% 0.79% 2.38% 2.38% 3.97% 8.73% 1.59% 0.79% 46.03% 32.54%
+CCC 44 2.27% 9.09% 2.27% 54.55% 31.82%
+CCC- 20 75.00% 25.00%
+CC 3 66.67% 33.33%
+C
+Total 5084
+Table 8
+Corporate Issuers Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 10
+
+===== PDF PAGE 11 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 15 33.33% 33.33% 20.00% 13.33%
+AA+ 5 40.00% 40.00% 20.00%
+AA 19 15.79% 15.79% 21.05% 10.53% 36.84%
+AA- 60 3.33% 8.33% 23.33% 25.00% 13.33% 6.67% 10.00% 10.00%
+A+ 96 4.17% 6.25% 28.13% 18.75% 19.79% 2.08% 4.17% 1.04% 15.63%
+A 177 4.52% 0.56% 4.52% 27.12% 19.21% 14.12% 4.52% 1.69% 1.13% 1.13% 21.47%
+A- 272 1.84% 10.29% 19.12% 29.04% 5.51% 5.15% 0.74% 0.37% 1.47% 0.37% 0.74% 25.37%
+BBB+ 315 0.32% 0.63% 3.49% 18.41% 26.03% 17.78% 8.89% 0.32% 1.27% 0.63% 0.63% 0.32% 0.32% 0.63% 20.32%
+BBB 375 0.27% 0.27% 9.60% 16.53% 25.60% 9.87% 3.20% 2.13% 0.27% 0.27% 0.27% 0.53% 31.20%
+BBB- 354 0.56% 2.82% 9.32% 21.75% 14.69% 5.37% 4.52% 2.82% 0.56% 0.56% 1.98% 35.03%
+BB+ 222 0.45% 0.90% 1.80% 2.25% 5.86% 12.16% 14.86% 3.60% 6.31% 1.35% 3.15% 0.45% 2.70% 44.14%
+BB 258 1.16% 5.81% 5.81% 12.79% 7.36% 12.02% 6.98% 2.33% 0.78% 1.16% 5.43% 38.37%
+BB- 323 1.55% 5.26% 5.88% 5.26% 10.53% 5.88% 2.48% 2.48% 0.62% 0.31% 9.60% 50.15%
+B+ 428 0.70% 1.40% 3.74% 4.21% 3.27% 6.07% 3.74% 3.50% 0.70% 0.23% 11.68% 60.75%
+B 555 0.18% 0.90% 1.98% 1.62% 3.96% 4.50% 3.42% 1.08% 18.74% 63.60%
+B- 249 0.40% 0.40% 2.01% 2.41% 3.61% 2.41% 4.02% 0.40% 0.80% 23.29% 60.24%
+CCC+ 64 1.56% 1.56% 1.56% 3.13% 37.50% 54.69%
+CCC 42 2.38% 2.38% 2.38% 2.38% 2.38% 47.62% 40.48%
+CCC- 11 90.91% 9.09%
+CC 10 10.00% 70.00% 20.00%
+C
+Total 3850
+Table 9
+Corporate Issuers Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 11
+
+===== PDF PAGE 12 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 3266 80.10% 0.03% 0.03% 18.28% 1.56%
+AA+ 1368 2.12% 78.29% 0.29% 0.66% 1.02% 0.29% 0.29% 11.33% 5.70%
+AA 980 3.88% 5.61% 72.14% 0.20% 0.20% 0.10% 0.10% 16.02% 1.73%
+AA- 313 0.32% 2.56% 3.19% 75.08% 0.32% 2.56% 0.32% 0.32% 11.50% 3.83%
+A+ 794 0.38% 2.64% 5.04% 0.88% 70.53% 0.38% 0.25% 2.90% 0.50% 0.38% 8.69% 7.43%
+A 822 0.36% 1.34% 7.18% 1.82% 1.95% 74.57% 0.12% 0.36% 0.73% 9.98% 1.58%
+A- 219 1.83% 1.37% 3.20% 0.46% 78.54% 0.91% 2.74% 3.20% 6.85% 0.91%
+BBB+ 495 2.42% 0.20% 7.27% 4.04% 0.20% 63.23% 0.20% 3.23% 2.83% 0.81% 1.01% 0.20% 7.88% 6.46%
+BBB 632 0.16% 0.79% 1.27% 3.96% 10.28% 2.22% 1.58% 56.01% 1.42% 2.22% 1.58% 2.37% 0.16% 0.16% 13.92% 1.90%
+BBB- 374 0.27% 0.80% 2.67% 1.07% 2.41% 2.14% 66.84% 2.94% 1.34% 1.87% 0.27% 0.27% 10.43% 6.68%
+BB+ 613 0.16% 0.16% 0.98% 3.10% 6.69% 2.77% 0.65% 58.24% 0.49% 0.98% 2.45% 2.45% 0.16% 0.16% 14.85% 5.71%
+BB 574 0.35% 0.52% 1.22% 10.63% 2.09% 2.26% 59.06% 0.35% 0.70% 3.66% 0.70% 0.35% 0.17% 13.76% 4.18%
+BB- 324 0.31% 26.85% 0.62% 3.09% 51.23% 0.31% 1.85% 3.40% 0.31% 10.49% 1.54%
+B+ 511 0.59% 17.81% 0.98% 14.68% 7.44% 0.20% 42.47% 0.20% 3.13% 0.78% 7.44% 4.31%
+B 643 0.16% 0.31% 1.09% 2.64% 5.75% 0.31% 1.09% 72.47% 2.80% 2.64% 0.62% 5.91% 4.20%
+B- 644 0.31% 2.33% 1.86% 1.09% 2.33% 0.93% 75.62% 0.16% 1.24% 7.45% 6.68%
+CCC+ 12 8.33% 58.33% 25.00% 8.33%
+CCC 3530 0.14% 0.45% 0.08% 0.68% 1.78% 0.76% 0.06% 83.63% 2.92% 6.43% 3.06%
+CCC- 15 93.33% 6.67%
+CC 1624 0.12% 0.06% 0.55% 94.77% 1.97% 1.11% 1.42%
+C
+Total 17753
+Table 
+10
+Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 12
+
+===== PDF PAGE 13 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 3435 54.26% 0.20% 0.44% 0.06% 0.06% 0.06% 0.03% 0.03% 0.03% 0.03% 0.03% 0.03% 0.03% 42.36% 2.36%
+AA+ 1857 1.35% 49.27% 0.32% 1.18% 1.56% 1.40% 0.48% 1.24% 0.43% 0.54% 0.22% 0.11% 0.43% 29.67% 11.79%
+AA 999 6.31% 5.11% 41.04% 0.30% 0.40% 1.70% 1.60% 0.60% 0.30% 0.50% 0.10% 0.20% 0.10% 0.20% 0.20% 0.20% 35.94% 5.21%
+AA- 353 2.83% 4.25% 4.82% 43.63% 3.12% 3.12% 0.28% 0.28% 0.28% 0.85% 0.28% 30.59% 5.67%
+A+ 1184 0.59% 4.05% 7.77% 1.52% 34.29% 1.60% 1.35% 3.89% 2.79% 2.45% 2.20% 0.59% 0.51% 0.17% 0.42% 0.08% 0.17% 24.16% 11.40%
+A 747 1.07% 1.20% 6.69% 2.01% 3.48% 44.18% 1.20% 1.61% 1.34% 0.94% 0.54% 2.01% 0.13% 0.13% 0.27% 25.57% 7.63%
+A- 273 2.20% 4.03% 4.03% 2.20% 5.86% 14.29% 31.87% 0.73% 2.20% 2.56% 0.73% 0.37% 1.47% 0.73% 0.73% 14.65% 11.36%
+BBB+ 587 0.34% 1.53% 4.60% 0.85% 8.18% 7.84% 0.51% 27.43% 1.02% 2.90% 3.92% 1.36% 0.51% 0.68% 2.04% 0.34% 0.17% 1.36% 24.87% 9.54%
+BBB 473 0.63% 1.90% 4.44% 0.85% 2.54% 13.74% 1.69% 1.69% 22.41% 0.85% 5.29% 3.38% 1.06% 1.27% 2.75% 0.85% 0.21% 0.42% 28.33% 5.71%
+BBB- 343 0.29% 0.87% 1.75% 0.29% 1.75% 4.37% 1.46% 2.92% 2.04% 30.61% 4.37% 4.08% 4.08% 1.17% 2.33% 1.75% 0.58% 0.87% 20.12% 14.29%
+BB+ 609 0.33% 0.82% 0.33% 3.28% 3.94% 0.49% 4.93% 6.73% 1.81% 26.93% 0.66% 2.79% 3.78% 4.27% 2.63% 1.97% 1.15% 19.54% 13.63%
+BB 448 0.22% 0.22% 2.90% 2.23% 0.45% 3.13% 8.93% 1.56% 3.35% 27.46% 0.67% 1.56% 4.91% 3.57% 3.35% 0.22% 0.89% 23.21% 11.16%
+BB- 219 1.37% 2.28% 0.91% 0.46% 3.65% 6.85% 4.11% 1.83% 2.74% 24.66% 0.91% 7.31% 8.68% 5.02% 0.91% 19.18% 9.13%
+B+ 374 0.80% 0.53% 1.87% 6.15% 0.53% 8.29% 5.08% 0.27% 27.81% 0.53% 6.95% 5.88% 1.34% 17.65% 16.31%
+B 536 0.19% 0.19% 0.93% 0.75% 1.87% 3.17% 1.68% 5.41% 5.22% 1.31% 1.31% 33.40% 4.85% 8.58% 0.93% 20.34% 9.89%
+B- 806 0.37% 0.37% 0.12% 0.74% 1.24% 0.74% 2.36% 2.73% 2.11% 2.98% 2.11% 41.19% 11.66% 2.98% 17.12% 11.17%
+CCC+ 11 9.09% 18.18% 18.18% 9.09% 45.45%
+CCC 4530 0.02% 0.02% 0.07% 0.09% 0.29% 0.66% 0.11% 0.66% 1.92% 1.41% 0.07% 60.93% 1.02% 15.87% 12.08% 4.79%
+CCC- 14 7.14% 7.14% 78.57% 7.14%
+CC 1863 0.05% 0.11% 0.21% 0.64% 80.14% 13.79% 2.58% 2.47%
+C
+Total 19661
+Table 
+11
+Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 13
+
+===== PDF PAGE 14 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 11877 3.27% 5.22% 1.21% 0.54% 2.08% 0.84% 0.57% 1.18% 0.78% 0.61% 0.84% 0.28% 0.26% 0.27% 0.53% 0.84% 0.93% 0.02% 1.39% 59.72% 18.62%
+AA+ 1259 0.87% 7.47% 6.59% 0.24% 1.11% 0.56% 0.40% 1.03% 1.03% 1.03% 1.11% 1.19% 0.56% 0.48% 1.11% 2.22% 6.43% 0.08% 4.13% 49.64% 12.71%
+AA 1880 2.13% 0.85% 2.02% 0.11% 0.69% 2.39% 0.69% 0.64% 0.21% 1.44% 0.80% 0.37% 0.96% 0.96% 1.33% 5.05% 0.05% 3.72% 64.73% 10.85%
+AA- 973 1.13% 1.95% 2.77% 0.31% 1.75% 4.42% 0.82% 0.31% 0.21% 0.62% 1.13% 1.54% 0.41% 0.51% 0.31% 1.44% 3.49% 2.16% 66.70% 8.02%
+A+ 741 1.21% 1.48% 2.70% 0.94% 5.13% 5.67% 0.81% 0.94% 0.94% 0.67% 0.54% 0.54% 0.13% 0.67% 1.08% 1.21% 5.40% 4.59% 58.70% 6.61%
+A 1523 0.98% 1.38% 2.04% 0.92% 1.44% 3.09% 0.39% 0.46% 0.33% 1.05% 1.18% 0.39% 0.26% 0.33% 0.66% 1.44% 3.94% 4.27% 66.71% 8.73%
+A- 607 0.82% 1.65% 3.13% 0.66% 1.81% 3.95% 0.82% 1.15% 0.33% 1.32% 1.15% 2.14% 0.66% 1.15% 1.65% 1.15% 6.43% 10.21% 51.07% 8.73%
+BBB+ 523 0.38% 1.72% 1.72% 1.53% 3.44% 4.59% 0.57% 1.72% 1.15% 0.96% 1.91% 1.34% 3.44% 0.38% 0.96% 2.49% 8.03% 6.31% 49.52% 7.84%
+BBB 1397 0.36% 1.36% 2.43% 0.36% 2.43% 1.65% 0.14% 1.43% 1.29% 0.36% 1.15% 0.93% 0.79% 0.50% 0.72% 1.15% 0.14% 5.80% 0.07% 6.01% 63.85% 7.09%
+BBB- 516 0.19% 1.74% 0.78% 0.58% 3.49% 4.26% 0.78% 0.97% 1.36% 1.16% 2.71% 1.55% 0.97% 0.97% 2.91% 1.36% 9.88% 0.39% 9.11% 45.74% 9.11%
+BB+ 465 0.86% 2.15% 2.15% 0.65% 1.51% 3.01% 0.22% 1.72% 0.86% 0.22% 0.22% 1.08% 1.72% 0.86% 1.51% 3.44% 7.53% 10.75% 52.69% 6.88%
+BB 1192 0.59% 0.59% 1.93% 0.50% 1.76% 2.01% 0.08% 0.76% 0.76% 0.59% 0.76% 1.76% 0.76% 0.67% 1.09% 2.10% 0.17% 6.96% 0.34% 8.64% 44.55% 22.65%
+BB- 534 0.19% 0.56% 2.43% 0.37% 1.31% 2.81% 0.75% 2.06% 4.49% 0.75% 2.62% 0.94% 0.94% 0.94% 0.94% 2.43% 0.37% 13.11% 0.37% 0.37% 12.17% 39.70% 9.36%
+B+ 534 0.37% 0.56% 0.94% 0.19% 1.31% 0.56% 0.19% 0.37% 1.50% 1.12% 1.31% 1.31% 0.94% 1.12% 2.62% 3.93% 18.54% 0.19% 19.66% 32.02% 11.24%
+B 1284 0.23% 0.47% 0.93% 0.16% 1.40% 1.48% 0.78% 1.01% 0.23% 1.40% 0.78% 0.31% 0.55% 1.64% 2.73% 0.08% 11.68% 0.16% 0.31% 15.73% 31.78% 26.17%
+B- 1564 0.51% 0.45% 1.85% 0.06% 1.02% 1.60% 1.41% 1.34% 0.90% 1.41% 1.28% 0.51% 1.15% 3.01% 4.03% 0.06% 23.08% 0.13% 1.15% 20.01% 28.64% 6.39%
+CCC+ 7 28.57% 14.29% 57.14%
+CCC 10783 0.05% 0.09% 0.19% 0.04% 0.21% 0.22% 0.03% 0.19% 0.31% 0.14% 0.41% 0.48% 0.06% 0.43% 0.75% 0.55% 0.01% 12.12% 0.01% 11.31% 60.41% 9.23% 2.76%
+CCC- 18 11.11% 5.56% 5.56% 11.11% 44.44% 22.22%
+CC 11587 0.01% 0.09% 0.01% 0.04% 0.02% 0.03% 0.02% 0.06% 0.06% 0.02% 0.06% 0.14% 0.31% 1.98% 2.43% 87.17% 5.36% 2.19%
+C
+Total 49264
+Table 
+12
+Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 14
+
+===== PDF PAGE 15 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 995 93.27% 0.30% 0.60% 0.20% 5.43% 0.20%
+AA+ 100 1.00% 76.00% 23.00%
+AA 139 94.96% 0.72% 1.44% 0.72% 2.16%
+AA- 257 0.78% 87.94% 1.56% 0.39% 1.95% 7.39%
+A+ 40 2.50% 85.00% 2.50% 2.50% 2.50% 5.00%
+A 68 2.94% 82.35% 4.41% 1.47% 8.82%
+A- 226 0.44% 89.38% 1.77% 0.88% 7.52%
+BBB+ 43 2.33% 76.74% 2.33% 6.98% 2.33% 9.30%
+BBB 64 1.56% 76.56% 1.56% 3.13% 7.81% 9.38%
+BBB- 232 0.43% 88.79% 1.29% 0.43% 0.43% 8.62%
+BB+ 40 77.50% 2.50% 2.50% 5.00% 12.50%
+BB 55 83.64% 5.45% 1.82% 1.82% 7.27%
+BB- 102 79.41% 1.96% 1.96% 4.90% 11.76%
+B+ 71 77.46% 1.41% 7.04% 1.41% 12.68%
+B 55 74.55% 5.45% 5.45% 1.82% 5.45% 7.27%
+B- 104 75.00% 4.81% 7.69% 11.54% 0.96%
+CCC+ 4 100.00%
+CCC 67 53.73% 2.99% 38.81% 4.48%
+CCC- 28 32.14% 53.57% 14.29%
+CC
+C
+Total 2690
+Table 
+13
+Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 15
+
+===== PDF PAGE 16 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 771 69.78% 0.78% 2.33% 0.65% 0.26% 0.13% 0.13% 0.26% 0.26% 0.13% 24.12% 1.17%
+AA+ 138 30.43% 1.45% 1.45% 5.07% 61.59%
+AA 127 3.15% 59.84% 3.15% 1.57% 1.57% 1.57% 2.36% 0.79% 0.79% 25.20%
+AA- 232 0.43% 1.29% 0.43% 57.33% 3.02% 1.72% 5.60% 1.29% 1.29% 0.86% 0.43% 25.86% 0.43%
+A+ 61 1.64% 1.64% 37.70% 1.64% 4.92% 4.92% 3.28% 6.56% 37.70%
+A 79 1.27% 1.27% 3.80% 40.51% 1.27% 1.27% 1.27% 1.27% 1.27% 1.27% 3.80% 2.53% 3.80% 34.18% 1.27%
+A- 235 0.43% 0.85% 0.85% 51.91% 4.26% 3.40% 4.26% 1.28% 2.55% 0.43% 0.85% 0.85% 0.85% 27.23%
+BBB+ 44 2.27% 31.82% 2.27% 4.55% 2.27% 2.27% 6.82% 2.27% 2.27% 43.18%
+BBB 79 3.80% 1.27% 2.53% 40.51% 2.53% 5.06% 7.59% 1.27% 1.27% 7.59% 1.27% 24.05% 1.27%
+BBB- 276 0.36% 0.72% 0.36% 45.29% 0.72% 1.45% 4.35% 2.17% 1.09% 2.54% 0.36% 4.35% 32.97% 3.26%
+BB+ 68 2.94% 10.29% 23.53% 1.47% 4.41% 4.41% 1.47% 1.47% 5.88% 41.18% 2.94%
+BB 57 1.75% 45.61% 5.26% 5.26% 1.75% 3.51% 1.75% 7.02% 26.32% 1.75%
+BB- 154 0.65% 0.65% 25.32% 14.94% 9.09% 5.19% 1.95% 3.25% 6.49% 31.17% 1.30%
+B+ 70 1.43% 18.57% 7.14% 11.43% 2.86% 1.43% 22.86% 31.43% 2.86%
+B 67 1.49% 14.93% 4.48% 4.48% 29.85% 41.79% 2.99%
+B- 123 26.83% 15.45% 22.76% 32.52% 2.44%
+CCC+ 9 11.11% 55.56% 33.33%
+CCC 19 5.26% 68.42% 26.32%
+CCC- 22 72.73% 27.27%
+CC 6 100.00%
+C
+Total 2637
+Table 
+14
+Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 16
+
+===== PDF PAGE 17 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1969 0.96% 0.10% 0.10% 0.05% 0.05% 80.35% 18.38%
+AA+ 227 3.08% 0.88% 0.44% 92.51% 3.08%
+AA 274 0.36% 5.11% 0.36% 0.36% 0.36% 0.36% 2.55% 82.12% 8.39%
+AA- 192 1.56% 0.52% 0.52% 0.52% 1.56% 86.46% 8.85%
+A+ 300 0.33% 0.67% 3.67% 0.67% 0.33% 4.00% 86.67% 3.67%
+A 309 0.32% 0.65% 1.29% 0.65% 0.32% 0.32% 0.32% 0.32% 0.32% 4.21% 86.41% 4.85%
+A- 235 0.85% 0.85% 2.13% 0.43% 0.43% 5.53% 88.51% 1.28%
+BBB+ 249 0.40% 0.40% 0.80% 4.02% 0.40% 0.40% 5.22% 86.35% 2.01%
+BBB 310 0.65% 0.65% 0.65% 2.90% 0.65% 0.32% 0.32% 8.06% 81.94% 3.87%
+BBB- 267 0.75% 0.37% 0.75% 0.37% 12.36% 81.27% 4.12%
+BB+ 297 0.34% 0.67% 0.34% 0.67% 0.34% 0.34% 0.67% 17.17% 75.42% 4.04%
+BB 303 0.33% 0.33% 0.33% 0.33% 0.33% 26.07% 70.63% 1.65%
+BB- 255 0.39% 0.39% 0.78% 0.39% 32.16% 62.75% 3.14%
+B+ 335 0.30% 0.60% 0.60% 0.30% 39.70% 55.52% 2.99%
+B 261 0.38% 0.77% 1.15% 0.38% 0.38% 54.02% 41.00% 1.92%
+B- 312 0.32% 0.32% 55.77% 41.67% 1.92%
+CCC+ 198 65.66% 29.80% 4.55%
+CCC 230 73.48% 22.17% 4.35%
+CCC- 544 73.71% 22.43% 3.86%
+CC 53 100.00%
+C
+Total 7120
+Table 
+15
+Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 17
+
+===== PDF PAGE 18 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1499 54.04% 45.83% 0.13%
+AA+ 38 15.79% 23.68% 60.53%
+AA 1304 1.92% 0.23% 55.67% 42.10% 0.08%
+AA- 20 5.00% 10.00% 5.00% 20.00% 60.00%
+A+ 26 3.85% 7.69% 30.77% 57.69%
+A 1033 0.48% 0.77% 1.36% 0.19% 56.53% 40.56% 0.10%
+A- 49 2.04% 2.04% 4.08% 40.82% 51.02%
+BBB+ 31 6.45% 3.23% 29.03% 61.29%
+BBB 256 0.39% 0.39% 1.56% 1.56% 1.17% 54.30% 40.23% 0.39%
+BBB- 724 0.14% 0.28% 0.14% 0.41% 0.28% 60.64% 38.12%
+BB+ 54 1.85% 3.70% 1.85% 22.22% 46.30% 1.85% 22.22%
+BB 100 1.00% 1.00% 2.00% 65.00% 31.00%
+BB- 551 0.18% 0.36% 0.36% 59.71% 39.38%
+B+ 163 1.84% 2.45% 14.72% 65.64% 15.34%
+B 55 1.82% 12.73% 12.73% 36.36% 36.36%
+B- 283 0.35% 0.71% 1.41% 2.83% 67.49% 0.35% 26.86%
+CCC+ 98 1.02% 50.00% 31.63% 17.35%
+CCC 18 11.11% 11.11% 33.33% 11.11% 5.56% 5.56% 22.22%
+CCC- 8 25.00% 25.00% 37.50% 12.50%
+CC 5 60.00% 20.00% 20.00%
+C
+Total 6315
+Table 
+16
+Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 18
+
+===== PDF PAGE 19 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 962 40.33% 59.04% 0.62%
+AA+ 28 7.14% 10.71% 82.14%
+AA 687 3.93% 1.02% 50.95% 0.15% 43.09% 0.87%
+AA- 6 16.67% 83.33%
+A+ 15 6.67% 93.33%
+A 580 1.38% 1.03% 2.41% 0.52% 1.03% 53.62% 0.69% 0.17% 38.62% 0.52%
+A- 26 30.77% 3.85% 65.38%
+BBB+ 16 6.25% 12.50% 6.25% 6.25% 6.25% 62.50%
+BBB 247 0.81% 1.21% 1.62% 2.43% 0.40% 1.21% 31.17% 4.45% 2.43% 0.40% 0.40% 52.23% 1.21%
+BBB- 312 0.32% 0.32% 0.64% 1.28% 0.32% 72.12% 5.45% 19.55%
+BB+ 10 10.00% 90.00%
+BB 190 1.05% 0.53% 28.95% 7.37% 5.79% 2.11% 1.05% 2.11% 0.53% 48.95% 1.58%
+BB- 351 0.28% 0.28% 0.85% 43.59% 23.36% 4.56% 3.70% 0.85% 0.28% 0.28% 0.28% 21.65%
+B+ 6 100.00%
+B 49 2.04% 4.08% 2.04% 4.08% 26.53% 4.08% 4.08% 2.04% 4.08% 46.94%
+B- 204 61.27% 11.27% 1.47% 0.98% 1.47% 23.53%
+CCC+ 2 50.00% 50.00%
+CCC 4 25.00% 50.00% 25.00%
+CCC- 2 50.00% 50.00%
+CC 3 33.33% 66.67%
+C
+Total 3700
+Table 
+17
+Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 19
+
+===== PDF PAGE 20 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 585 99.32% 0.68%
+AA+ 743 99.19% 0.81%
+AA 390 98.97% 1.03%
+AA- 269 99.63% 0.37%
+A+ 472 0.21% 0.21% 99.15% 0.42%
+A 241 0.41% 97.93% 1.66%
+A- 191 99.48% 0.52%
+BBB+ 336 0.30% 99.11% 0.60%
+BBB 228 0.44% 0.44% 0.44% 97.81% 0.88%
+BBB- 181 100.00%
+BB+ 446 0.45% 98.43% 1.12%
+BB 185 0.54% 0.54% 0.54% 1.08% 95.14% 2.16%
+BB- 85 2.35% 96.47% 1.18%
+B+ 303 1.98% 97.69% 0.33%
+B 81 6.17% 90.12% 3.70%
+B- 64 7.81% 89.06% 3.13%
+CCC+ 176 5.68% 92.61% 1.70%
+CCC 35 2.86% 20.00% 74.29% 2.86%
+CCC- 260 0.38% 13.08% 84.23% 2.31%
+CC 26 46.15% 42.31% 11.54%
+C
+Total 5297
+Table 
+18
+Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 20
+
+===== PDF PAGE 21 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 9 55.56% 44.44%
+AA+ 28 96.43% 3.57%
+AA 35 88.57% 11.43%
+AA- 11 45.45% 54.55%
+A+ 67 4.48% 74.63% 20.90%
+A 36 25.00% 58.33% 16.67%
+A- 19 5.26% 10.53% 63.16% 10.53% 10.53%
+BBB+ 52 3.85% 1.92% 86.54% 7.69%
+BBB 15 26.67% 60.00% 13.33%
+BBB- 13 69.23% 30.77%
+BB+ 4 25.00% 50.00% 25.00%
+BB 1 100.00%
+BB- 3 100.00%
+B+ 4 75.00% 25.00%
+B 2 50.00% 50.00%
+B- 6 100.00%
+CCC+
+CCC 1 100.00%
+CCC- 17 64.71% 5.88% 11.76% 17.65%
+CC 21 95.24% 4.76%
+C
+Total 344
+Table 
+19
+Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 21
+
+===== PDF PAGE 22 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 18 27.78% 72.22%
+AA+ 47 57.45% 42.55%
+AA 50 60.00% 38.00% 2.00%
+AA- 13 38.46% 61.54%
+A+ 72 4.17% 48.61% 47.22%
+A 45 24.44% 33.33% 2.22% 40.00%
+A- 23 4.35% 39.13% 17.39% 26.09% 13.04%
+BBB+ 79 1.27% 6.33% 51.90% 1.27% 3.80% 32.91% 2.53%
+BBB 19 15.79% 36.84% 47.37%
+BBB- 13 38.46% 7.69% 7.69% 38.46% 7.69%
+BB+ 12 8.33% 8.33% 83.33%
+BB 2 50.00% 50.00%
+BB- 3 66.67% 33.33%
+B+ 10 20.00% 10.00% 20.00% 50.00%
+B 5 20.00% 20.00% 60.00%
+B- 6 33.33% 66.67%
+CCC+ 3 100.00%
+CCC 4 25.00% 75.00%
+CCC- 71 15.49% 4.23% 30.99% 49.30%
+CC 39 46.15% 20.51% 33.33%
+C
+Total 534
+Table 
+20
+Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 22
+
+===== PDF PAGE 23 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 340 1.18% 0.29% 90.29% 8.24%
+AA+ 195 12.31% 1.03% 0.51% 0.51% 0.51% 75.90% 9.23%
+AA 129 1.55% 91.47% 6.98%
+AA- 101 3.96% 0.99% 86.14% 8.91%
+A+ 180 0.56% 8.33% 2.78% 1.11% 80.56% 6.67%
+A 155 5.81% 0.65% 1.94% 0.65% 1.29% 83.23% 6.45%
+A- 128 0.78% 7.03% 0.78% 2.34% 72.66% 16.41%
+BBB+ 152 3.29% 1.32% 1.32% 1.32% 2.63% 73.03% 17.11%
+BBB 115 0.87% 1.74% 0.87% 1.74% 81.74% 13.04%
+BBB- 138 0.72% 0.72% 5.80% 83.33% 9.42%
+BB+ 226 0.44% 0.44% 0.88% 7.96% 81.86% 8.41%
+BB 120 0.83% 10.83% 78.33% 10.00%
+BB- 125 0.80% 4.00% 84.00% 11.20%
+B+ 174 0.57% 1.15% 6.32% 79.31% 12.64%
+B 149 1.34% 1.34% 11.41% 75.84% 10.07%
+B- 123 1.63% 7.32% 74.80% 16.26%
+CCC+ 187 0.53% 0.53% 1.07% 8.02% 59.36% 30.48%
+CCC 139 0.72% 2.16% 15.11% 49.64% 32.37%
+CCC- 1214 0.16% 0.66% 31.30% 46.38% 21.50%
+CC 612 0.82% 39.22% 10.62% 49.35%
+C
+Total 4702
+Table 
+21
+Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 23
+
+===== PDF PAGE 24 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+A-1+ A-1 A-2 A-3 B C Default Paid Off Withdrawn 
+(Other)
+A-1+ 77 53.25% 1.30% 42.86% 2.60%
+A-1 203 0.99% 95.57% 0.49% 1.97% 0.99%
+A-2 8 87.50% 12.50%
+A-3
+B1 100.00%
+C
+Total 289
+Table 22
+Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 24
+
+===== PDF PAGE 25 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+A-1+ A-1 A-2 A-3 B C Default Paid Off Withdrawn 
+(Other)
+A-1+ 88 23.86% 2.27% 69.32% 4.55%
+A-1 188 4.26% 81.91% 0.53% 8.51% 4.79%
+A-2 8 75.00% 25.00%
+A-3
+B
+C
+Total 284
+Table 23
+Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 25
+
+===== PDF PAGE 26 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+A-1+ A-1 A-2 A-3 B C Default Paid Off Withdrawn 
+(Other)
+A-1+ 82 2.44% 4.88% 58.54% 34.15%
+A-1 127 0.79% 36.22% 2.36% 20.47% 40.16%
+A-2 9 77.78% 22.22%
+A-3 5 80.00% 20.00%
+B
+C
+Total 223
+Table 24
+Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 26
+
+===== PDF PAGE 27 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1701 60.55% 0.06% 39.39%
+AA+ 454 14.32% 70.70% 14.98%
+AA 745 13.56% 2.42% 68.59% 0.13% 15.17% 0.13%
+AA- 93 20.43% 7.53% 3.23% 47.31% 1.08% 18.28% 2.15%
+A+ 183 8.74% 3.83% 7.65% 2.19% 51.37% 2.73% 23.50%
+A 688 7.27% 2.33% 3.49% 1.31% 1.89% 66.57% 0.29% 14.83% 2.03%
+A- 257 4.67% 1.17% 2.33% 0.78% 1.17% 10.51% 69.26% 9.73% 0.39%
+BBB+ 237 7.59% 1.69% 0.42% 3.38% 5.06% 3.80% 55.70% 0.42% 21.94%
+BBB 359 2.23% 1.95% 2.23% 2.51% 1.95% 5.29% 6.69% 5.57% 47.63% 0.28% 18.38% 5.29%
+BBB- 90 2.22% 1.11% 1.11% 3.33% 1.11% 1.11% 4.44% 67.78% 16.67% 1.11%
+BB+ 81 1.23% 1.23% 3.70% 2.47% 6.17% 2.47% 3.70% 35.80% 1.23% 22.22% 1.23% 17.28% 1.23%
+BB 94 1.06% 1.06% 1.06% 2.13% 1.06% 3.19% 4.26% 9.57% 5.32% 9.57% 41.49% 4.26% 12.77% 3.19%
+BB- 94 1.06% 1.06% 2.13% 3.19% 3.19% 7.45% 3.19% 11.70% 6.38% 43.62% 2.13% 1.06% 12.77% 1.06%
+B+ 52 1.92% 1.92% 3.85% 5.77% 3.85% 1.92% 38.46% 1.92% 1.92% 3.85% 34.62%
+B 80 1.25% 1.25% 1.25% 1.25% 2.50% 3.75% 5.00% 7.50% 5.00% 1.25% 48.75% 1.25% 1.25% 18.75%
+B- 72 2.78% 2.78% 6.94% 48.61% 6.94% 26.39% 5.56%
+CCC+ 14 7.14% 14.29% 57.14% 7.14% 14.29%
+CCC 51 1.96% 1.96% 3.92% 64.71% 1.96% 9.80% 1.96% 13.73%
+CCC- 55 1.82% 63.64% 30.91% 3.64%
+CC 84 97.62% 2.38%
+C
+Total 5484
+Table 
+25
+Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 27
+
+===== PDF PAGE 28 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1859 25.50% 0.05% 0.05% 0.05% 0.05% 73.91% 0.38%
+AA+ 500 10.60% 49.60% 1.40% 0.20% 0.40% 37.40% 0.40%
+AA 731 4.92% 1.92% 40.36% 0.27% 0.14% 0.41% 51.85% 0.14%
+AA- 92 9.78% 4.35% 1.09% 17.39% 2.17% 1.09% 64.13%
+A+ 177 2.26% 5.65% 2.82% 1.69% 24.86% 0.56% 59.89% 2.26%
+A 694 5.04% 1.30% 1.73% 0.43% 2.88% 29.97% 0.29% 0.72% 0.58% 0.14% 0.29% 2.02% 52.31% 2.31%
+A- 194 0.52% 0.52% 1.03% 10.82% 40.21% 2.58% 0.52% 1.03% 1.03% 39.69% 2.06%
+BBB+ 220 1.82% 0.45% 0.45% 0.45% 0.91% 2.73% 2.27% 41.82% 1.82% 44.55% 2.73%
+BBB 385 10.39% 1.30% 1.56% 1.04% 1.30% 3.12% 3.64% 15.84% 0.52% 1.82% 1.04% 0.52% 2.08% 0.26% 52.73% 2.86%
+BBB- 73 2.74% 4.11% 35.62% 2.74% 1.37% 2.74% 1.37% 49.32%
+BB+ 48 4.17% 2.08% 4.17% 4.17% 22.92% 6.25% 2.08% 54.17%
+BB 135 4.44% 0.74% 0.74% 0.74% 0.74% 0.74% 1.48% 2.22% 2.22% 0.74% 3.70% 8.89% 2.22% 3.70% 7.41% 0.74% 0.74% 0.74% 0.74% 54.07% 2.22%
+BB- 53 11.32% 3.77% 1.89% 1.89% 7.55% 1.89% 5.66% 9.43% 1.89% 11.32% 3.77% 1.89% 37.74%
+B+ 29 3.45% 3.45% 6.90% 3.45% 3.45% 3.45% 13.79% 6.90% 51.72% 3.45%
+B 37 2.70% 2.70% 2.70% 2.70% 2.70% 2.70% 5.41% 2.70% 5.41% 2.70% 10.81% 5.41% 2.70% 48.65%
+B- 52 5.77% 3.85% 3.85% 1.92% 21.15% 5.77% 7.69% 1.92% 1.92% 46.15%
+CCC+ 25 16.00% 16.00% 32.00% 16.00% 4.00% 12.00% 4.00%
+CCC 44 2.27% 2.27% 2.27% 2.27% 27.27% 15.91% 18.18% 2.27% 25.00% 2.27%
+CCC- 36 2.78% 58.33% 13.89% 25.00%
+CC 94 77.66% 12.77% 9.57%
+C
+Total 5478
+Table 
+26
+Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 28
+
+===== PDF PAGE 29 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1990 3.52% 8.54% 0.25% 0.05% 0.10% 0.05% 0.05% 0.25% 0.40% 86.08% 0.70%
+AA+ 394 6.60% 5.08% 10.41% 0.25% 0.25% 0.25% 2.79% 0.51% 73.86%
+AA 464 1.51% 1.72% 4.31% 0.22% 2.37% 0.43% 88.79% 0.65%
+AA- 137 2.92% 5.11% 2.92% 89.05%
+A+ 225 0.89% 0.89% 1.33% 1.33% 0.44% 94.67% 0.44%
+A 752 0.93% 1.73% 2.66% 1.33% 0.80% 0.53% 0.40% 0.53% 0.27% 0.27% 0.27% 0.93% 0.27% 0.13% 87.90% 1.06%
+A- 243 1.23% 0.82% 16.05% 10.70% 1.23% 68.72% 1.23%
+BBB+ 138 5.80% 5.07% 1.45% 2.17% 2.17% 1.45% 0.72% 1.45% 1.45% 73.19% 5.07%
+BBB 524 0.19% 0.19% 0.38% 0.76% 1.72% 3.82% 0.38% 1.72% 0.95% 0.57% 0.19% 1.15% 0.19% 0.38% 0.76% 0.19% 83.78% 2.67%
+BBB- 106 1.89% 1.89% 0.94% 0.94% 1.89% 0.94% 1.89% 0.94% 1.89% 83.02% 3.77%
+BB+ 55 1.82% 1.82% 1.82% 1.82% 1.82% 1.82% 3.64% 80.00% 5.45%
+BB 97 1.03% 4.12% 3.09% 1.03% 2.06% 1.03% 7.22% 74.23% 6.19%
+BB- 52 1.92% 1.92% 1.92% 1.92% 3.85% 1.92% 1.92% 1.92% 5.77% 13.46% 59.62% 3.85%
+B+ 32 3.13% 6.25% 6.25% 3.13% 3.13% 12.50% 6.25% 59.38%
+B 84 1.19% 7.14% 1.19% 2.38% 3.57% 2.38% 14.29% 66.67% 1.19%
+B- 84 1.19% 3.57% 4.76% 5.95% 9.52% 20.24% 13.10% 35.71% 5.95%
+CCC+ 26 7.69% 7.69% 3.85% 11.54% 15.38% 7.69% 23.08% 23.08%
+CCC 30 3.33% 10.00% 10.00% 23.33% 16.67% 30.00% 6.67%
+CCC- 116 0.86% 0.86% 0.86% 8.62% 38.79% 32.76% 12.93% 4.31%
+CC 21 4.76% 47.62% 23.81% 23.81%
+C 1 100.00%
+Total 5571
+Table 
+27
+Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 29
+
+===== PDF PAGE 30 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 37 86.49% 13.51%
+AA+ 55 96.36% 3.64%
+AA 30 76.67% 6.67% 16.67%
+AA- 3 100.00%
+A+ 15 93.33% 6.67%
+A 7 14.29% 42.86% 42.86%
+A- 8 75.00% 12.50% 12.50%
+BBB+ 30 3.33% 83.33% 13.33%
+BBB 41 100.00%
+BBB- 13 7.69% 92.31%
+BB+ 4 100.00%
+BB 17 58.82% 41.18%
+BB- 9 44.44% 44.44% 11.11%
+B+ 9 22.22% 77.78%
+B 1 100.00%
+B- 6 33.33% 66.67%
+CCC+
+CCC
+CCC- 2 100.00%
+CC 10 100.00%
+C
+Total 297
+Other Structured Finance Products is comprised of covered bonds, CDO operating companies, synthetic structured finance products, and other structured credits.
+Table 
+28
+Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 30
+
+===== PDF PAGE 31 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 37 64.86% 35.14%
+AA+ 58 89.66% 10.34%
+AA 31 54.84% 45.16%
+AA- 6 83.33% 16.67%
+A+ 20 60.00% 40.00%
+A 11 18.18% 18.18% 36.36% 27.27%
+A- 16 25.00% 12.50% 6.25% 56.25%
+BBB+ 56 1.79% 3.57% 39.29% 23.21% 32.14%
+BBB 30 86.67% 3.33% 10.00%
+BBB- 15 66.67% 6.67% 26.67%
+BB+ 6 16.67% 33.33% 50.00%
+BB 13 46.15% 15.38% 15.38% 23.08%
+BB- 3 66.67% 33.33%
+B+ 4 50.00% 50.00%
+B 4 100.00%
+B- 3 33.33% 66.67%
+CCC+ 9 100.00%
+CCC 1 100.00%
+CCC- 5 40.00% 60.00%
+CC 6 100.00%
+C
+Total 334
+Other Structured Finance Products is comprised of covered bonds, CDO operating companies, synthetic structured finance products, and other structured credits.
+Table 
+29
+Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 31
+
+===== PDF PAGE 32 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 594 2.53% 0.34% 80.98% 16.16%
+AA+ 198 26.26% 0.51% 72.22% 1.01%
+AA 52 3.85% 88.46% 7.69%
+AA- 44 22.73% 4.55% 68.18% 4.55%
+A+ 70 1.43% 4.29% 1.43% 1.43% 87.14% 4.29%
+A 76 2.63% 1.32% 85.53% 10.53%
+A- 148 0.68% 0.68% 6.08% 7.43% 0.68% 75.00% 9.46%
+BBB+ 53 7.55% 9.43% 3.77% 67.92% 11.32%
+BBB 98 4.08% 12.24% 4.08% 3.06% 1.02% 1.02% 3.06% 57.14% 14.29%
+BBB- 48 2.08% 2.08% 16.67% 2.08% 4.17% 2.08% 68.75% 2.08%
+BB+ 75 9.33% 8.00% 2.67% 2.67% 10.67% 60.00% 6.67%
+BB 25 12.00% 4.00% 68.00% 16.00%
+BB- 8 100.00%
+B+ 17 5.88% 88.24% 5.88%
+B 12 25.00% 25.00% 50.00%
+B- 10 10.00% 90.00%
+CCC+
+CCC 5 20.00% 80.00%
+CCC- 11 36.36% 27.27% 36.36%
+CC 21 23.81% 19.05% 28.57% 28.57%
+C 14 85.71% 14.29%
+Total 1579
+Other Structured Finance Products is comprised of covered bonds, CDO operating companies, synthetic structured finance products, and other structured credits.
+Table 
+30
+Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 32
+
+===== PDF PAGE 33 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 11 100.00%
+AA+ 5 20.00% 80.00%
+AA 6 100.00%
+AA- 12 8.33% 75.00% 16.67%
+A+ 6 100.00%
+A 5 20.00% 80.00%
+A- 5 100.00%
+BBB+ 5 80.00% 20.00%
+BBB 10 90.00% 10.00%
+BBB- 11 90.91% 9.09%
+BB+ 3 100.00%
+BB 5 100.00%
+BB- 10 10.00% 70.00% 20.00%
+B+ 12 83.33% 16.67%
+B 12 8.33% 75.00% 8.33% 8.33%
+B- 12 100.00%
+CCC+ 6 16.67% 83.33%
+CCC 1 100.00%
+CCC- 2 50.00% 50.00%
+CC 2 50.00% 50.00%
+C
+Total 141
+Table 
+31
+Sovereign Issuers Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 33
+
+===== PDF PAGE 34 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 11 100.00%
+AA+ 5 20.00% 80.00%
+AA 7 85.71% 14.29%
+AA- 8 12.50% 75.00% 12.50%
+A+ 7 42.86% 57.14%
+A 7 42.86% 42.86% 14.29%
+A- 8 12.50% 50.00% 25.00% 12.50%
+BBB+ 4 25.00% 25.00% 50.00%
+BBB 8 12.50% 62.50% 12.50% 12.50%
+BBB- 10 40.00% 50.00% 10.00%
+BB+ 4 25.00% 25.00% 25.00% 25.00%
+BB 4 25.00% 50.00% 25.00%
+BB- 10 20.00% 70.00% 10.00%
+B+ 11 9.09% 63.64% 27.27%
+B 18 11.11% 33.33% 33.33% 5.56% 5.56% 11.11%
+B- 13 7.69% 53.85% 15.38% 7.69% 7.69% 7.69%
+CCC+ 1 100.00%
+CCC
+CCC- 1 100.00%
+CC
+C
+Total 137
+Table 
+32
+Sovereign Issuers Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 34
+
+===== PDF PAGE 35 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 16 68.75% 18.75% 12.50%
+AA+ 4 25.00% 25.00% 25.00% 25.00%
+AA 6 50.00% 16.67% 33.33%
+AA- 9 11.11% 33.33% 33.33% 11.11% 11.11%
+A+ 2 50.00% 50.00%
+A 9 22.22% 22.22% 22.22% 11.11% 11.11% 11.11%
+A- 6 16.67% 33.33% 16.67% 16.67% 16.67%
+BBB+ 6 16.67% 16.67% 16.67% 33.33% 16.67%
+BBB 7 14.29% 14.29% 14.29% 28.57% 14.29% 14.29%
+BBB- 9 11.11% 22.22% 33.33% 11.11% 11.11% 11.11%
+BB+ 8 12.50% 12.50% 37.50% 12.50% 12.50% 12.50%
+BB 4 25.00% 25.00% 25.00% 25.00%
+BB- 10 30.00% 10.00% 10.00% 20.00% 20.00% 10.00%
+B+ 15 6.67% 26.67% 26.67% 26.67% 6.67% 6.67%
+B 11 9.09% 27.27% 18.18% 18.18% 9.09% 9.09% 9.09%
+B- 6 16.67% 33.33% 50.00%
+CCC+
+CCC
+CCC-
+CC 1 100.00%
+C
+Total 129
+Table 
+33
+Sovereign Issuers Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 35
+
+===== PDF PAGE 36 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1386 96.10% 0.43% 0.07% 0.07% 3.17% 0.14%
+AA+ 3444 0.52% 92.45% 0.23% 0.06% 6.56% 0.17%
+AA 3216 1.24% 92.88% 0.34% 0.09% 0.03% 5.22% 0.19%
+AA- 4209 0.12% 2.02% 90.76% 1.00% 0.38% 0.05% 0.02% 0.02% 0.02% 5.44% 0.17%
+A+ 4988 0.10% 1.72% 91.42% 0.90% 0.28% 0.02% 0.02% 0.02% 5.23% 0.28%
+A 3284 0.03% 0.30% 2.38% 89.52% 0.85% 0.03% 0.03% 0.03% 6.61% 0.21%
+A- 1369 0.58% 4.46% 86.49% 1.02% 1.02% 0.07% 0.07% 5.41% 0.88%
+BBB+ 606 0.50% 0.66% 1.65% 6.44% 80.53% 1.98% 0.50% 0.66% 6.44% 0.66%
+BBB 594 0.34% 0.17% 0.51% 4.88% 85.19% 1.85% 1.68% 4.55% 0.84%
+BBB- 300 0.67% 1.33% 4.67% 86.33% 2.33% 0.33% 3.33% 1.00%
+BB+ 176 0.57% 0.57% 10.23% 72.73% 4.55% 1.14% 0.57% 0.57% 7.95% 1.14%
+BB 139 0.72% 3.60% 83.45% 2.16% 1.44% 1.44% 5.76% 1.44%
+BB- 58 12.07% 65.52% 5.17% 1.72% 1.72% 6.90% 6.90%
+B+ 20 5.00% 55.00% 5.00% 5.00% 10.00% 15.00% 5.00%
+B 26 3.85% 3.85% 7.69% 57.69% 7.69% 11.54% 7.69%
+B- 20 5.00% 5.00% 35.00% 10.00% 5.00% 5.00% 5.00% 30.00%
+CCC+ 10 90.00% 10.00%
+CCC 13 61.54% 23.08% 15.38%
+CCC- 1 100.00%
+CC 4 75.00% 25.00%
+C
+Total 23863
+Table 
+34
+U.S. Public Finance Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 36
+
+===== PDF PAGE 37 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1272 89.47% 1.81% 0.47% 0.08% 0.08% 0.08% 7.55% 0.47%
+AA+ 3307 2.42% 78.62% 1.48% 0.21% 0.03% 0.06% 0.03% 16.63% 0.51%
+AA 3343 0.06% 5.83% 75.32% 2.99% 0.36% 0.42% 0.03% 0.03% 0.03% 13.70% 1.23%
+AA- 4189 0.07% 0.33% 4.92% 76.08% 3.92% 0.72% 0.31% 0.14% 0.02% 0.02% 0.02% 12.56% 0.88%
+A+ 5050 0.02% 0.40% 4.69% 75.98% 3.86% 0.99% 0.36% 0.06% 0.02% 0.02% 0.02% 0.08% 12.50% 1.01%
+A 3346 0.21% 1.29% 6.46% 69.04% 3.56% 1.14% 0.69% 0.15% 0.18% 0.03% 0.03% 0.03% 0.06% 0.03% 15.84% 1.29%
+A- 1406 0.28% 0.43% 1.78% 9.74% 61.74% 4.13% 2.42% 0.50% 0.43% 0.21% 0.14% 0.14% 0.07% 0.14% 14.79% 3.06%
+BBB+ 701 0.29% 0.43% 1.28% 1.57% 8.56% 45.22% 20.83% 1.71% 1.71% 0.57% 0.14% 0.14% 14.84% 2.71%
+BBB 433 0.23% 1.15% 1.85% 2.77% 9.47% 54.50% 9.70% 1.15% 1.15% 0.23% 0.23% 0.23% 0.46% 1.15% 11.78% 3.93%
+BBB- 328 0.30% 0.91% 1.22% 1.83% 9.15% 51.22% 9.76% 2.44% 1.83% 0.30% 0.61% 0.61% 0.30% 0.30% 0.91% 12.80% 5.49%
+BB+ 147 1.36% 2.72% 1.36% 10.88% 42.18% 12.93% 2.04% 1.36% 0.68% 1.36% 0.68% 0.68% 14.29% 7.48%
+BB 115 0.87% 0.87% 2.61% 5.22% 57.39% 5.22% 0.87% 1.74% 15.65% 9.57%
+BB- 48 20.83% 33.33% 6.25% 2.08% 10.42% 2.08% 16.67% 8.33%
+B+ 22 4.55% 13.64% 13.64% 18.18% 9.09% 4.55% 4.55% 27.27% 4.55%
+B 21 4.76% 9.52% 4.76% 23.81% 4.76% 9.52% 38.10% 4.76%
+B- 20 5.00% 5.00% 5.00% 10.00% 10.00% 20.00% 35.00% 10.00%
+CCC+ 19 5.26% 21.05% 26.32% 47.37%
+CCC 5 40.00% 20.00% 40.00%
+CCC- 7 100.00%
+CC 5 60.00% 20.00% 20.00%
+C
+Total 23784
+Table 
+35
+U.S. Public Finance Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 37
+
+===== PDF PAGE 38 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 933 63.99% 5.04% 1.39% 0.21% 0.32% 0.11% 22.72% 6.22%
+AA+ 2951 6.78% 34.70% 2.81% 0.51% 0.14% 0.30% 0.03% 0.10% 0.03% 0.03% 0.03% 0.03% 0.03% 0.03% 49.78% 4.64%
+AA 2813 3.59% 15.82% 33.17% 6.68% 2.03% 0.39% 0.36% 0.07% 0.11% 0.04% 0.04% 0.04% 0.04% 34.62% 3.02%
+AA- 3336 0.54% 5.52% 17.00% 31.24% 6.09% 1.74% 0.33% 0.33% 0.09% 0.03% 0.03% 0.09% 34.77% 2.22%
+A+ 4504 0.04% 1.13% 5.13% 14.32% 32.26% 5.51% 1.71% 0.47% 1.15% 0.27% 0.11% 0.02% 34.33% 3.55%
+A 3315 0.06% 0.54% 1.60% 6.67% 16.86% 21.48% 3.80% 1.30% 0.63% 0.51% 0.21% 0.12% 0.09% 0.03% 0.12% 41.96% 4.01%
+A- 1532 0.13% 0.33% 1.11% 3.52% 7.05% 15.01% 13.77% 3.98% 1.57% 0.72% 0.33% 0.20% 0.20% 0.13% 0.07% 0.13% 0.20% 44.65% 6.92%
+BBB+ 656 0.15% 0.46% 1.98% 5.95% 9.76% 11.28% 12.65% 2.74% 1.22% 0.61% 0.61% 0.15% 1.98% 43.60% 6.86%
+BBB 478 0.21% 1.05% 2.51% 2.09% 6.69% 6.28% 10.04% 14.02% 4.39% 0.84% 1.67% 0.21% 0.21% 0.21% 0.21% 0.63% 36.61% 12.13%
+BBB- 372 0.27% 0.81% 0.81% 1.34% 3.23% 3.23% 7.53% 14.78% 5.11% 3.49% 1.61% 0.27% 0.27% 0.27% 0.54% 5.11% 40.05% 11.29%
+BB+ 96 1.04% 1.04% 3.13% 3.13% 2.08% 2.08% 4.17% 6.25% 4.17% 3.13% 1.04% 2.08% 1.04% 2.08% 47.92% 15.63%
+BB 69 1.45% 2.90% 2.90% 1.45% 2.90% 2.90% 1.45% 2.90% 2.90% 1.45% 13.04% 46.38% 17.39%
+BB- 25 8.00% 4.00% 4.00% 12.00% 64.00% 8.00%
+B+ 7 14.29% 14.29% 14.29% 57.14%
+B 47 2.13% 2.13% 2.13% 2.13% 4.26% 72.34% 14.89%
+B- 15 6.67% 6.67% 66.67% 20.00%
+CCC+
+CCC 6 33.33% 33.33% 33.33%
+CCC-
+CC 10 10.00% 10.00% 30.00% 30.00% 20.00%
+C 9 11.11% 11.11% 33.33% 33.33% 11.11%
+Total 21174
+Table 
+36
+U.S. Public Finance Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 38
+
+===== PDF PAGE 39 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 26 96.15% 3.85%
+AA+ 41 2.44% 97.56%
+AA 56 10.71% 83.93% 1.79% 3.57%
+AA- 23 4.35% 91.30% 4.35%
+A+ 21 4.76% 90.48% 4.76%
+A 12 25.00% 58.33% 16.67%
+A- 12 8.33% 50.00% 41.67%
+BBB+ 10 40.00% 60.00%
+BBB 13 7.69% 15.38% 53.85% 23.08%
+BBB- 18 11.11% 77.78% 11.11%
+BB+ 9 88.89% 11.11%
+BB 15 86.67% 6.67% 6.67%
+BB- 13 76.92% 23.08%
+B+ 5 100.00%
+B 5 20.00% 60.00% 20.00%
+B- 2 100.00%
+CCC+ 4 100.00%
+CCC
+CCC- 1 100.00%
+CC 2 100.00%
+C
+Total 288
+Table 
+37
+International Public Finance Issuers Ratings 1 Year Transition and Default Rates
+(December 31, 2020 through December 31, 2021)
+Credit Ratings as of
+12/31/2020 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2020 - 12/31/2021 (Percent)
+Page 39
+
+===== PDF PAGE 40 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 29 82.76% 13.79% 3.45%
+AA+ 39 5.13% 89.74% 5.13%
+AA 47 12.77% 80.85% 2.13% 4.26%
+AA- 25 20.00% 64.00% 8.00% 8.00%
+A+ 23 4.35% 26.09% 65.22% 4.35%
+A 8 50.00% 25.00% 12.50% 12.50%
+A- 12 8.33% 66.67% 16.67% 8.33%
+BBB+ 16 6.25% 31.25% 25.00% 37.50%
+BBB 16 6.25% 18.75% 37.50% 37.50%
+BBB- 18 16.67% 66.67% 16.67%
+BB+ 17 5.88% 35.29% 5.88% 5.88% 47.06%
+BB 18 11.11% 55.56% 16.67% 16.67%
+BB- 14 7.14% 42.86% 14.29% 7.14% 7.14% 21.43%
+B+ 6 16.67% 33.33% 50.00%
+B 12 8.33% 8.33% 8.33% 8.33% 66.67%
+B- 3 33.33% 33.33% 33.33%
+CCC+ 1 100.00%
+CCC
+CCC- 1 100.00%
+CC
+C
+Total 305
+Table 
+38
+International Public Finance Issuers Ratings 3 Year Transition and Default Rates
+(December 31, 2018 through December 31, 2021)
+Credit Ratings as of
+12/31/2018 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2018 - 12/31/2021 (Percent)
+Page 40
+
+===== PDF PAGE 41 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 36 52.78% 25.00% 8.33% 2.78% 11.11%
+AA+ 32 15.63% 46.88% 21.88% 6.25% 3.13% 6.25%
+AA 28 3.57% 25.00% 39.29% 14.29% 3.57% 14.29%
+AA- 30 6.67% 20.00% 6.67% 16.67% 6.67% 3.33% 3.33% 36.67%
+A+ 23 13.04% 30.43% 13.04% 8.70% 4.35% 30.43%
+A 24 12.50% 8.33% 4.17% 4.17% 8.33% 8.33% 54.17%
+A- 6 16.67% 33.33% 16.67% 16.67% 16.67%
+BBB+ 2 50.00% 50.00%
+BBB 6 16.67% 16.67% 50.00% 16.67%
+BBB- 14 21.43% 7.14% 7.14% 7.14% 14.29% 7.14% 7.14% 28.57%
+BB+ 22 4.55% 4.55% 13.64% 13.64% 22.73% 4.55% 36.36%
+BB 20 5.00% 15.00% 5.00% 5.00% 70.00%
+BB- 21 9.52% 9.52% 19.05% 4.76% 4.76% 19.05% 33.33%
+B+ 4 25.00% 75.00%
+B 11 9.09% 45.45% 45.45%
+B- 5 40.00% 60.00%
+CCC+ 1 100.00%
+CCC
+CCC-
+CC
+C
+Total 285
+Table 
+39
+International Public Finance Issuers Ratings 10 Year Transition and Default Rates
+(December 31, 2011 through December 31, 2021)
+Credit Ratings as of
+12/31/2011 Credit Ratings as of 12/31/2021 (Percent) Other Outcomes During 
+12/31/2011 - 12/31/2021 (Percent)
+Page 41
+
+===== PDF PAGE 42 =====
+S&P Global Ratings Definitions
+7KHEHORZRXWOLQHVGHILQLWLRQVRIWKHV\PEROVQXPEHUVDQGVFRUHVLQWKHUDWLQJVFDOHVXVHGE\6	3*OREDO5DWLQJVಫ63*5ಬWR
+GHQRWHFUHGLWUDWLQJFDWHJRULHVDQGQRWFKHVZLWKLQWKRVHFDWHJRULHVIRUWKHFODVVHVDQGVXEFODVVHVRIFUHGLWUDWLQJVVKRZQLQWKH
+0DWULFHVFRQWDLQHGZLWKLQ63*5ಬV)RUP15652([KLELW0DWULFHV
+I. GENERAL-PURPOSE CREDIT RATINGS
+ 7KHIROORZLQJVHWVRIUDWLQJGHILQLWLRQVDUHIRUORQJWHUPDQGVKRUWWHUPFUHGLWUDWLQJVIRUERWKLVVXHUDQGLVVXHUDWLQJV
+7KHVHW\SHVRIFUHGLWUDWLQJVFRYHUWKHEURDGHVWVHWRIFUHGLWULVNIDFWRUVDQGDUHQRWOLPLWHGLQVFRSH6RPHUHIHUWR
+WKHVHDVWKHWUDGLWLRQDOFUHGLWUDWLQJV
+A. Issue Credit Ratings
+ $Q6	3*OREDO5DWLQJVLVVXHFUHGLWUDWLQJLVDIRUZDUGORRNLQJRSLQLRQDERXWWKHFUHGLWZRUWKLQHVVRIDQREOLJRUZLWK
+UHVSHFWWRDVSHFLILFILQDQFLDOREOLJDWLRQDVSHFLILFFODVVRIILQDQFLDOREOLJDWLRQVRUDVSHFLILFILQDQFLDOSURJUDP
+LQFOXGLQJUDWLQJVRQPHGLXPWHUPQRWHSURJUDPVDQGFRPPHUFLDO SDSHUSURJUDPV,WWDNHVLQWRFRQVLGHUDWLRQWKH
+FUHGLWZRUWKLQHVVRIJXDUDQWRUVLQVXUHUVRURWKHUIRUPVRIFUHGLWHQKDQFHPHQWRQWKHREOLJDWLRQDQGWDNHVLQWRDFFRXQW
+WKHFXUUHQF\LQZKLFKWKHREOLJDWLRQLVGHQRPLQDWHG7KHRSLQLRQUHIOHFWV6	3*OREDO5DWLQJV
+YLHZRIWKHREOLJRU
+V
+FDSDFLW\DQGZLOOLQJQHVVWRPHHWLWVILQDQFLDOFRPPLWPHQWVDVWKH\FRPHGXHDQGWKLVRSLQLRQPD\DVVHVVWHUPVVXFK
+DVFROODWHUDOVHFXULW\DQGVXERUGLQDWLRQZKLFKFRXOGDIIHFWXOWLPDWHSD\PHQWLQWKHHYHQWRIGHIDXOW
+ ,VVXHFUHGLWUDWLQJVFDQEHHLWKHUORQJWHUPRUVKRUWWHUP6KR UWWHUPLVVXHFUHGLWUDWLQJVDUHJHQHUDOO\DVVLJQHGWR
+WKRVHREOLJDWLRQVFRQVLGHUHGVKRUWWHUPLQWKHUHOHYDQWPDUNHW W\SLFDOO\ZLWKDQRULJLQDOPDWXULW\RIQRPRUHWKDQ
+GD\V6KRUWWHUPLVVXHFUHGLWUDWLQJVDUHDOVRXVHGWRLQGLFDWHWKHFUHGLWZRUWKLQHVVRIDQREOLJRUZLWKUHVSHFWWRSXW
+IHDWXUHVRQORQJWHUPREOLJDWLRQV:HZRXOGW\SLFDOO\DVVLJQDORQJWHUPLVVXHFUHGLWUDWLQJWRDQREOLJDWLRQZLWKDQ
+RULJLQDOPDWXULW\RIJUHDWHUWKDQGD\V+RZHYHUWKHUDWLQJ VZHDVVLJQWRFHUWDLQLQVWUXPHQWVPD\GLYHUJHIURP
+WKHVHJXLGHOLQHVEDVHGRQPDUNHWSUDFWLFHV0HGLXPWHUPQRWHVDUHDVVLJQHGORQJWHUPUDWLQJV
+1. Long-Term Issue Credit Ratings
+ ,VVXHFUHGLWUDWLQJVDUHEDVHGLQYDU\LQJGHJUHHVRQ6	3*OREDO5DWLQJV
+DQDO\VLVRIWKHIROORZLQJFRQVLGHUDWLRQV
+ 7KHOLNHOLKRRGRISD\PHQWWKHFDSDFLW\DQGZLOOLQJQHVVRIWKH REOLJRUWRPHHWLWVILQDQFLDO
+FRPPLWPHQWVRQDQREOLJDWLRQLQDFFRUGDQFHZLWKWKHWHUPVRIWK HREOLJDWLRQ
+ 7KHQDWXUHDQGSURYLVLRQVRIWKHILQDQFLDOREOLJDWLRQDQGWKHSURPLVHZHLPSXWHDQG
+ 7KHSURWHFWLRQDIIRUGHGE\DQGUHODWLYHSRVLWLRQRIWKHILQDQ FLDOREOLJDWLRQLQWKHHYHQWRID
+EDQNUXSWF\UHRUJDQL]DWLRQRURWKHUDUUDQJHPHQWXQGHUWKHODZVRIEDQNUXSWF\DQGRWKHUODZV
+DIIHFWLQJFUHGLWRUV
+ULJKWV
+ $QLVVXHUDWLQJLVDQDVVHVVPHQWRIGHIDXOWULVNEXWPD\LQFRUSRUDWHDQDVVHVVPHQWRIUHODWLYHVHQLRULW\RUXOWLPDWH
+UHFRYHU\LQWKHHYHQWRIGHIDXOW-XQLRUREOLJDWLRQVDUHW\SLFDOO\UDWHGORZHUWKDQVHQLRUREOLJDWLRQVWRUHIOHFWORZHU
+SULRULW\LQEDQNUXSWF\DVQRWHGDERYH6XFKGLIIHUHQWLDWLRQPD\DSSO\ZKHQDQHQWLW\KDVERWKVHQLRUDQG
+VXERUGLQDWHGREOLJDWLRQVVHFXUHGDQGXQVHFXUHGREOLJDWLRQVRURSHUDWLQJFRPSDQ\DQGKROGLQJFRPSDQ\REOLJDWLRQV
+
+===== PDF PAGE 43 =====
+
+
+Table 1 
+ 
+Long-Term Issue Credit Ratings* 
+ 
+ 
+Category Definition 
+$$$ $QREOLJDWLRQUDWHG
+$$$
+KDVWKHKLJKHVWUDWLQJDVVLJQHGE\6	 3*OREDO5DWLQJV7KHREOLJRU
+VFDSDFLW\WRPHHWLWVILQDQFLDO
+FRPPLWPHQWVRQWKHREOLJDWLRQLV H[WUHPHO\VWURQJ 
+$$ $QREOLJDWLRQUDWHG
+$$
+GLIIHUVIURPWKHKLJKHVWUDWHGREOLJDWLRQVRQO\WRDVPDOOGHJUHH7KHREOLJRU
+VFDSDFLW\WRPHHWLWV
+ILQDQFLDOFRPPLWPHQWVRQWKHREOLJDWLRQLVYHU\VWURQJ 
+$ $QREOLJDWLRQUDWHG
+$
+LVVRPHZKDWPRUHVXVFHSWLEOHWRWKHDGYHUVHHIIHFWVRIFKDQJHVLQFLUFXPVWDQFHVDQGHFRQRPLF
+FRQGLWLRQVWKDQREOLJDWLRQVLQKLJKHUUDWHGFDWHJRULHV+RZHYHUWKHREOLJRU
+VFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWVRQWKH
+REOLJDWLRQLVVWLOOVWURQJ
+%%% $QREOLJDWLRQUDWHG
+%%%
+H[KLELWVDGHTXDWHSURWHFWLRQSDUDPHWH UV+RZHYHUDGYHUVHHFRQRPLFFRQGLWLRQVRUFKDQJLQJ
+FLUFXPVWDQFHVDUHPRUHOLNHO\WRZHDNHQWKHREOLJRU
+VFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWVRQWKHREOLJDWLRQ 
+%%%&&&
+&&DQG&
+2EOLJDWLRQVUDWHG
+%%
+
+%
+
+&&&
+
+&&
+DQG
+&
+DUHUHJDUGHGDVKDYLQJVLJQLILFDQWVSHFXODWLYHFKDUDFWHULVWLFV
+%%
+LQGLFDW HVWKH
+OHDVWGHJUHHRIVSHFXODWLRQDQG
+&
+WKHKLJKHVW:KLOHVXFKREOLJDWLRQVZLOOOLNHO\KDYHVRPHTXDOLW\DQGSURWHFWLYHFKDUDFWHU LVWLFV
+WKHVHPD\EHRXWZHLJKHGE\ODUJHXQFHUWDLQWLHVRUPDMRUH[SRVXUHWRDGYHUVHFRQGLWLRQV
+%% $QREOLJDWLRQUDWHG
+%%
+LVOHVVYXOQHUDEOHWRQRQSD\PHQWWKDQRWKHUVSHFXODWLYHLVVXHV+RZHYHULWIDFHVPDMRURQJRLQJ
+XQFHUWDLQWLHVRUH[SRVXUHWRDGYHUVHEXVLQHVVILQDQFLDORUHFRQRPLFFRQGLWLRQVWKDWFRXOGOHDGWRWKHREOLJRU
+VLQDGHTXDWH
+FDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWVRQWKHREOLJDWLRQ
+% $QREOLJDWLRQUDWHG
+%
+LVPRUHYXOQHUDEOHWRQRQSD\PHQWWKDQREOLJDWLRQVUDWHG
+%%
+EXWWKHREOLJRUFXUUHQWO\KDVWKHFDSDFL W\WR
+PHHWLWVILQDQFLDOFRPPLWPHQWVRQWKHREOLJDWLRQ$GYHUVHEXVLQHVVILQDQFLDORUHFRQRPLFFRQGLWLRQVZLOOOLNHO\LPSDLUWKH
+REOLJRU
+VFDSDFLW\RUZLOOLQJQHVVWRPHHWLWVILQDQFLDOFRPPLWP HQWVRQWKHREOLJDWLRQ
+&&& $QREOLJDWLRQUDWHG
+&&&
+LVFXUUHQWO\YXOQHUDEOHWRQRQSD\PHQWDQGLVGHSHQGHQWXSRQIDYRUDEOHEXVLQHVVILQDQFLDODQG
+HFRQRPLFFRQGLWLRQVIRUWKHREOLJRUWRPHHWLWVILQDQFLDOFRPPLWPHQWVRQWKHREOLJDWLRQ,QWKHHYHQWRIDGYHUVHEXVLQHVV 
+ILQDQFLDORUHFRQRPLFFRQGLWLRQVWKHREOLJRULVQRWOLNHO\WRKDYHWKHFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWVRQWKHREO LJDWLRQ
+&& $QREOLJDWLRQUDWHG
+&&
+LVFXUUHQWO\KLJKO\YXOQHUDEOHWRQRQSD\PHQW7KH
+&&
+UDWLQJLVXVHGZKHQDGHIDXOWKDVQRW\HWRFFX UUHG
+EXW6	3*OREDO5DWLQJVH[SHFWVGHIDXOWWREHDYLUWXDOFHUWDLQW\UHJDUGOHVVRIWKHDQWLFLSDWHGWLPHWRGHIDXOW 
+& $QREOLJDWLRQUDWHG
+&
+LVFXUUHQWO\KLJKO\YXOQHUDEOHWRQRQSD\PHQWDQGWKHREOLJDWLRQLVH[SHFWHGWRKDYHORZHUUHODWLYHVH QLRULW\
+RUORZHUXOWLPDWHUHFRYHU\FRPSDUHGZLWKREOLJDWLRQVWKDWDUHUDWHGKLJKHU
+' $QREOLJDWLRQUDWHG
+'
+LVLQGHIDXOWRULQEUHDFKRIDQLPSXWHGSURPLVH)RUQRQK\EULGFDSLWD OLQVWUXPHQWVWKH
+'
+UDWLQJFDWHJRU\
+LVXVHGZKHQSD\PHQWVRQDQREOLJDWLRQDUHQRWPDGHRQWKHGDWH GXHXQOHVV6	3*OREDO5DWLQJVEHOLHYHVWKDWVXFKSD\PHQWV
+ZLOOEHPDGHZLWKLQWKHQH[WILYHEXVLQHVVGD\VLQWKHDEVHQFH RIDVWDWHGJUDFHSHULRGRUZLWKLQWKHHDUOLHURIWKHVWDWHGJU DFH
+SHULRGRUWKHQH[WFDOHQGDUGD\V7KH
+'
+UDWLQJDOVRZLOOEHXVHGXSRQWKHILOLQJRIDEDQNUXSWF\SHWLWLRQRUWKHWDNLQJRIVLPLODU
+DFWLRQDQGZKHUHGHIDXOWRQDQREOLJDWLRQLVDYLUWXDOFHUWDLQW\IRUH[DPSOHGXHWRDXWRPDWLFVWD\SURYLVLRQV$UDWLQJRQD Q
+REOLJDWLRQLVORZHUHGWR
+'
+LILWLVVXEMHFWWRDGLVWUHVVHGGHEWUHVWUXFWXULQJ
+
+*Ratings from 'AA' to 'CCC' may be modified by the addition of a plus (+) or minus (-) sign to show relative standing within th e rating categories. 
+
+2. Short-Term Issue Credit Ratings 
+ 
+Table 2 
+ 
+Short-Term Issue Credit Ratings 
+Category Definition 
+$ $VKRUWWHUPREOLJDWLRQUDWHG
+$ 
+LVUDWHGLQWKHKLJKHVWFDWHJRU\E\6	3*OREDO5DWLQJV7KH REOLJRU
+VFDSDFLW\WRPHHWLWV
+ILQDQFLDOFRPPLWPHQWVRQWKHREOL JDWLRQLVVWURQJ:LWKLQWKLV FDWHJRU\FHUWDLQREOLJDWLRQVDUH GHVLJQDWHGZLWKDSOXVVLJQ
+7KLVLQGLFDWHVWKDWWKHREOLJRU
+VFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWVRQWKHVHREOLJDWLRQVLVH[WUHPHO\VWURQJ 
+$ $VKRUWWHUPREOLJDWLRQUDWHG
+$ 
+LVVRPHZKDWPRUHVXVFHSWLEO HWRWKHDGYHUVHHIIHFWVRIFKDQJHVLQFLUFXPVWDQFHVDQG
+HFRQRPLFFRQGLWLRQVWKDQREOLJDWLRQVLQKLJKHUUDWLQJFDWHJRULHV+RZHYHUWKHREOLJRU
+VFDSDFLW\WRPHHWLWVILQDQFLDO
+FRPPLWPHQWVRQWKHREOLJDWLRQLVVDWLVIDFWRU\ 
+$ $VKRUWWHUPREOLJDWLRQUDWHG
+$ 
+H[KLELWVDGHTXDWHSURWHFWLR QSDUDPHWHUV+RZHYHUDGYHUVHHF RQRPLFFRQGLWLRQVRUFKDQJLQJ
+FLUFXPVWDQFHVDUHPRUHOLNHO\WRZHDNHQDQREOLJRU
+VFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWVRQWKHREOLJDWLRQ 
+% $VKRUWWHUPREOLJDWLRQUDWHG
+%
+LVUHJDUGHGDVYXOQHUDEOHDQGKDVVLJQLILFDQWVSHFXODWLYHFKDU DFWHULVWLFV7KHREOLJRUFXUUHQWO\
+KDVWKHFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWVKRZHYHULW IDFHVPDMRURQJRLQJXQFHUWDLQWL HVWKDWFRXOGOHDGWRWKHREOLJ RU
+V
+LQDGHTXDWHFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWV
+& $VKRUWWHUPREOLJDWLRQUDWHG
+&
+LVFXUUHQWO\YXOQHUDEOHWRQRQSD\PHQWDQGLVGHSHQGHQWXSRQID YRUDEOHEXVLQHVVILQDQFLDODQG
+HFRQRPLFFRQGLWLRQVIRUWKHREOLJRUWRPHHWLWVILQDQFLDOFRPPLWPHQWVRQWKHREOLJDWLRQ
+' $VKRUWWHUPREOLJDWLRQUDWHG
+'
+LVLQGHIDXOWRULQEUHDFKRIDQLPSXWHGSURPLVH)RUQRQK\EU LGFDSLWDOLQVWUXPHQWVWKH
+'
+UDWLQJ
+FDWHJRU\LVXVHGZKHQSD\PHQWVRQDQREOLJDWLRQDUHQRWPDGHRQ WKHGDWHGXHXQOHVV6	3*OREDO5DWLQJVEHOLHYHVWKDWVXFK
+SD\PHQWVZLOOEHPDGHZLWKLQDQ\VWDWHGJUDFHSHULRG+RZHYHUDQ\VWDWHGJUDFHSHULRGORQJHUWKDQ ILYHEXVLQHVVGD\VZLOOEH
+WUHDWHGDVILYHEXVLQHVVGD\V7KH
+'
+UDWLQJDOVRZLOOEHXVHGXSRQWKHILOLQJRIDEDQNUXSWF\SHWLWLR QRUWKHWDNLQJRIDVLPLODU
+DFWLRQDQGZKHUHGHIDXOWRQDQRE OLJDWLRQLVDYLUWXDOFHUWDLQW\IRUH[DPSOHGXHWRDXWRPDWLFVWD\SURYLVLRQV$UDWLQJRQD Q
+REOLJDWLRQLVORZHUHGWR
+'
+LILWLVVXEMHFWWRDGLVWUHVVHGGHEWUHVWUXFWXULQJ
+
+===== PDF PAGE 44 =====
+
+
+ 
+B. Issuer Credit Ratings 
+ $Q6	3*OREDO5DWLQJVLVVXHUFUHGLWUDWLQJLVDIRUZDUGORRNLQJRSLQLRQDERXWDQREOLJRU
+VRYHUDOOFUHGLWZRUWKLQHVV7KLV
+RSLQLRQIRFXVHVRQWKHREOLJRU
+VFDSDFLW\DQGZLOOLQJQHVVWRPHHWLWVILQDQFLDOFRPPLWPHQWVDVWKH\FRPHGXH,WGRHV
+QRWDSSO\WRDQ\VSHFLILFILQDQFLDOREOLJDWLRQDVLWGRHVQRWWDNHLQWRDFFRXQWWKHQDWXUHRIDQGSURYLVLRQVRIWKH
+REOLJDWLRQLWVVWDQGLQJLQEDQNUXSWF\RUOLTXLGDWLRQVWDWXWRU\SUHIHUHQFHVRUWKHOHJDOLW\DQGHQIRUFHDELOLW\RIWKH
+REOLJDWLRQ
+ 6RYHUHLJQFUHGLWUDWLQJVDUHIRUPVRILVVXHUFUHGLWUDWLQJV
+ ,VVXHUFUHGLWUDWLQJVFDQEHHLWKHUORQJWHUPRUVKRUWWHUP/RQJWHUPLVVXHUFUHGLWUDWLQJVIRFXVRQWKHREOLJRU
+V
+FDSDFLW\DQGZLOOLQJQHVVRYHUWKHORQJWHUPWRPHHWDOORILWV ILQDQFLDOFRPPLWPHQWVERWKORQJDQGVKRUWWHUPDVWKH\
+FRPHGXHZKHUHDVVKRUWWHUPLVVXHUFUHGLWUDWLQJVIRFXVRQWKHREOLJRU
+VFDSDFLW\DQGZLOOLQJQHVVRYHUWKHVKRUWWHUP
+WRPHHWDOORILWVILQDQFLDOFRPPLWPHQWVDVWKH\FRPHGXH
+
+1. Long-Term Issuer Credit Ratings 
+ 
+Table 3 
+ 
+Long-Term Issuer Credit Ratings* 
+Category Definition 
+$$$ $QREOLJRUUDWHG
+$$$
+KDVH[WUHPHO\VWURQJFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWV
+$$$
+LVWKHKLJKHVWLVVXHUFUHGLWUDW LQJ
+DVVLJQHGE\6	3*OREDO5DWLQJV  
+$$ $QREOLJRUUDWHG
+$$
+KDVYHU\VWURQJFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWV,WGLIIHUVIURPWKHKLJKHVWUDWHGREOLJRUVR QO\WRD
+VPDOOGHJUHH
+$ $QREOLJRUUDWHG
+$
+KDVVWURQJFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWVEXWLVVRPHZKDWPRUHVXVFHSWLEOHWRWKHDGYHUVH
+HIIHFWVRIFKDQJHVLQFLUFXPVWDQFHVDQGHFRQRPLFFRQGLWLRQVWKDQREOLJRUVLQKLJKHUUDWHGFDWHJRULHV
+%%% $QREOLJRUUDWHG
+%%%
+KDVDGHTXDWHFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWV+RZHYHUDGYHUVHHFRQRPLFFRQGLWLRQVRU
+FKDQJLQJFLUFXPVWDQFHVDUHPRUHOLNHO\WRZHDNHQWKHREOLJRU
+VFDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWV
+%%%&&&
+DQG&&
+2EOLJRUVUDWHG
+%%
+
+%
+
+&&&
+DQG
+&&
+DUHUHJDUGHGDVKDYLQJVLJQLILFDQWVSHFXODWLYHFKDUDFWHULVWLFV
+%%
+LQGLFDWHVWKHOHDVW
+GHJUHHRIVSHFXODWLRQDQG
+&&
+WKHKLJKHVW:KLOHVXFKREOLJRUVZLOOOLNHO\KDYHVRPHTXDOLW\DQGSURWHFWLYHFKDUDFWHULVWLFVWKHVH
+PD\EHRXWZHLJKHGE\ODUJHXQFHUWDLQWLHVRUPDMRUH[SRVXUHWRDGYHUVHFRQGLWLRQV
+%% $QREOLJRUUDWHG
+%%
+LVOHVVYXOQHUDEOHLQWKHQHDUWHUPWKDQRWKHUORZHUUDWHGREOLJRUV+RZHYHULWIDFHVPDMRURQJRLQJ
+XQFHUWDLQWLHVDQGH[SRVXUHWRDGYHUVHEXVLQHVVILQDQFLDORUHFRQRPLFFRQGLWLRQVWKDWFRXOGOHDGWRWKHREOLJRU
+VLQDGHTXDWH 
+FDSDFLW\WRPHHWLWVILQDQFLDOFRPPLWPHQWV 
+% $QREOLJRUUDWHG
+%
+LVPRUHYXOQHUDEOHWKDQWKHREOLJRUVUDWHG
+%%
+EXWWKHREOLJRUFXUUHQWO\KDVWKHFDSDFLW\WRPHHWLWVI LQDQFLDO
+FRPPLWPHQWV$GYHUVHEXVLQHVVILQDQFLDORUHFRQRPLFFRQGLWLRQVZLOOOLNHO\LPSDLUWKHREOLJRU
+VFDSDFLW\RUZLOOLQJQHVV WRPHHW
+LWVILQDQFLDOFRPPLWPHQWV
+&&& $QREOLJRUUDWHG
+&&&
+LVFXUUHQWO\YXOQHUDEOHDQGLVGHSHQGHQWXSRQIDYRUDEOHEXVLQHVVILQDQFLDODQGHFRQRPLFFRQGLWLRQVWR 
+PHHWLWVILQDQFLDOFRPPLWPHQWV
+&&
+$QREOLJRUUDWHG
+&&
+LVFXUUHQWO\KLJKO\YXOQHUDEOH7KH
+&&
+UDWLQJLVXVHGZKHQDGHIDXOWKDVQRW\HWRFFXUUHGEXW6	3*ORE DO
+5DWLQJVH[SHFWVGHIDXOWWREHDYLUWXDOFHUWDLQW\UHJDUGOHVVRIWKHDQWLFLSDWHGWLPHWRGHIDXOW 
+6'DQG' $QREOLJRULVUDWHG
+6'
+VHOHFWLYHGHIDXOWRU
+'
+LI6	3*OREDO5DWLQJVFRQVLGHUVWKHUHWREHDGHIDXOWRQRQHRUPRUHRILW V
+ILQDQFLDOREOLJDWLRQVZKHWKHUORQJRUVKRUWWHUPLQFOXGLQJUDWHGDQGXQUDWHGREOLJDWLRQVEXWH[FOXGLQJK\EULGLQVWUXPHQWV
+FODVVLILHGDVUHJXODWRU\FDSLWDORULQQRQSD\PHQWDFFRUGLQJWRWHUPV$
+'
+UDWLQJLVDVVLJQHGZKHQ6	3*OREDO5DWLQJVEHOLHYHV
+WKDWWKHGHIDXOWZLOOEHDJHQHUDOGHIDXOWDQGWKDWWKHREOLJRUZLOOIDLOWRSD\DOORUVXEVWDQWLDOO\DOORILWVREOLJDWLRQV DVWKH\FRPH
+GXH$Q
+6'
+UDWLQJLVDVVLJQHGZKHQ6	3*OREDO5DWLQJVEHOLHYHVWKDWWKHREOLJRUKDVVHOHFWLYHO\GHIDXOWHGRQDVSHFLILFLVVX HRU
+FODVVRIREOLJDWLRQVEXWLWZLOOFRQWLQXHWRPHHWLWVSD\PHQWREOLJDWLRQVRQRWKHULVVXHVRUFODVVHVRIREOLJDWLRQVLQ DWLPHO\
+PDQQHU$UDWLQJRQDQREOLJRULVORZHUHGWR
+'
+RU
+6'
+LILWLVFRQGXFWLQJDGLVWUHVVHGGHEWUHVWUXFWXULQJ 
+
+*Ratings from 'AA' to 'CCC' may be modified by the addition of a plus (+) or minus (-) sign to show relative standing within th e rating categories. 
+
+
+
+===== PDF PAGE 45 =====
+
+
+II. LOCAL CURRENCY AND FOREIGN CURRENCY RATINGS 
+ 6	3*OREDO5DWLQJV
+LVVXHUFUHGLWUDWLQJVPDNHDGLVWLQFWLRQEH WZHHQIRUHLJQFXUUHQF\UDWLQJVDQGORFDOFXUUHQF\
+UDWLQJV$IRUHLJQFXUUHQF\UDWLQJRQDQLVVXHUFDQGLIIHUIURPWKHORFDOFXUUHQF\UDWLQJRQLWZKHQWKHREOLJRUKDVD
+GLIIHUHQWFDSDFLW\WRPHHWLWVREOLJDWLRQVGHQRPLQDWHGLQLWVORFDOFXUUHQF\YHUVXVREOLJDWLRQVGHQRPLQDWHGLQDIRUHLJQ
+FXUUHQF\
+
+
+III. SPECIAL-PURPOSE RATINGS 
+
+A. SPUR (S&P Underlying Rating) 
+ $6385LVDQRSLQLRQDERXWWKHVWDQGDORQHFDSDFLW\RIDQREOLJRUWRSD\GHEWVHUYLFHRQDFUHGLWHQKDQFHGGHEW
+LVVXHZLWKRXWJLYLQJHIIHFWWRWKHHQKDQFHPHQWWKDWDSSOLHVWRLW7KHVHUDWLQJVDUHSXEOLVKHGRQO\DWWKHUHTXHVWRIWKH
+GHEWLVVXHURUREOLJRUZLWKWKHGHVLJQDWLRQ6385WRGLVWLQJXLVKWKHPIURPWKHFUHGLWHQKDQFHGUDWLQJWKDWDSSOLHVWRWKH
+GHEWLVVXH6	3*OREDO5DWLQJVPDLQWDLQVVXUYHLOODQFHRIDQLVVXHZLWKDSXEOLVKHG6385
+
+B. Swap Risk Ratings 
+ $Q6	3*OREDO5DWLQJVVZDSULVNUDWLQJLVDIRUZDUGORRNLQJRSLQLRQDERXWWKHOLNHOLKRRGRIORVVDVVRFLDWHGZLWKD
+VSHFLILFVZDSWUDQVDFWLRQWKHVZDSWUDQVDFWLRQHQWHUHGLQWRE\WZRFRXQWHUSDUWLHV
+ $VZDSULVNUDWLQJWDNHVLQWRFRQVLGHUDWLRQ6	3*OREDO5DWLQJV
+ YLHZRQWKHWHUPVRIWKHVZDSWUDQVDFWLRQLQFOXGLQJ
+ZLWKRXWOLPLWDWLRQWKHFUHGLWZRUWKLQHVVRIRQHRUPRUHUHIHUHQFHRUXQGHUO\LQJREOLJDWLRQVRUREOLJRUVWKHSRUWIROLR
+DERYHDFHUWDLQVSHFLILHGWKUHVKROGSHUFHQWDJHRUDPRXQWWHUPLQDWLRQHYHQWVDQGSRWHQWLDOUHFRYHU\SHUFHQWDJHRU
+DPRXQWRQWKHSRUWIROLR$OOVZDSULVNUDWLQJVWDNHLQWRFRQVLGHUDWLRQWKHFUHGLWZRUWKLQHVVRIWKHSRUWIROLR
+ $VZDSULVNUDWLQJPD\EHPRGLILHGE\WKHGHVLJQDWLRQSRUWIROL RVLQJOHFRXQWHUSDUW\SURWHFWLRQEX\HUDQGVLQJOH
+FRXQWHUSDUW\SURWHFWLRQVHOOHU$VZDSULVNUDWLQJSRUWIROLRWDNHVLQWRFRQVLGHUDWLRQRQO\6	3*OREDO5DWLQJV
+YLHZRQ
+WKHFUHGLWZRUWKLQHVVRIWKHFUHGLWGHIDXOWVZDSSRUWIROLR$VZDSULVNUDWLQJVLQJOHFRXQWHUSDUW\SURWHFWLRQEX\HUWDNHV
+LQWRFRQVLGHUDWLRQ6	3*OREDO5DWLQJV
+YLHZRQWKHFUHGLWZRUWKLQHVVRIWKHSRUWIROLRDQGWKHEX\HURISURWHFWLRQXQGHU
+WKHVZDSWUDQVDFWLRQ$VZDSULVNUDWLQJVLQJOHFRXQWHUSDUW\ SURWHFWLRQVHOOHUWDNHVLQWRFRQVLGHUDWLRQ6	3*OREDO
+5DWLQJV
+YLHZRQWKHFUHGLWZRUWKLQHVVRIWKHSRUWIROLRDQGWKHVHOOHURISURWHFWLRQXQGHUWKHVZDSWUDQVDFWLRQ%HFDXVH
+WKHWHUPVRIHDFKVZDSWUDQVDFWLRQDUHKLJKO\FXVWRPL]HGDVZDSULVNUDWLQJPD\DGGUHVVGLIIHUHQWULVNVWKHUHIRUHWKH
+VZDSULVNUDWLQJVVKRXOGQRWEHYLHZHGDVEHQFKPDUNVUHODWHGWR VZDSULVNDFURVVGLIIHUHQWVZDSWUDQVDFWLRQV
+ 6ZDSULVNUDWLQJVZLOOEHPRGLILHGE\DVXIIL[WKDWLGHQWLILHVWKHW\SHRIVZDSULVNUDWLQJDVVLJQHG7KHOHWWHUUDWLQJVZLOO
+EHIROORZHGE\WKHGHVLJQDWLRQV
+VUS
+
+VUE
+DQG
+VUV
+WRFRUUHVSRQGZLWKUHODWHGGHVLJQDWLRQV
+ 3RUWIROLR
+VUS
+UDWLQJVRQO\WDNHLQWRFRQVLGHUDWLRQWKHFUHGLWZRUWKLQHVVRIWKHUHIHUHQFHSRUWIROLRRI
+WKHFUHGLWGHIDXOWVZDS
+ 6LQJOHFRXQWHUSDUW\SURWHFWLRQEX\HU
+VUE
+UDWLQJVWDNHLQWRFRQVLGHUDWLRQWKHFUHGLWZRUWKLQHVVRIWKH
+UHIHUHQFHSRUWIROLRDQGWKHEX\HURISURWHFWLRQXQGHUWKHVZDS WUDQVDFWLRQDQG
+ 6LQJOHFRXQWHUSDUW\SURWHFWLRQVHOOHU
+VUV
+UDWLQJVWDNHLQWRFRQVLGHUDWLRQWKHFUHGLWZRUWKLQHVVRIWKH
+UHIHUHQFHSRUWIROLRDQGWKHVHOOHURISURWHFWLRQXQGHUWKHVZDSWUDQVDFWLRQ
+ $VZDSULVNUDWLQJSRUWIROLRGRHVQRWDGGUHVVHLWKHUFRXQWHUS DUW\ULVNLQFOXGLQJULVNRISHULRGLFSD\PHQWV(DFKRI
+VZDSULVNUDWLQJVVLQJOHFRXQWHUSDUW\SURWHFWLRQEX\HURUV LQJOHFRXQWHUSDUW\SURWHFWLRQVHOOHUDGGUHVVHVWKH
+FRXQWHUSDUW\ULVNRIRQHRIWKHFRXQWHUSDUWLHVWRWKHVZDSWUDQ VDFWLRQUHVSHFWLYHO\1RQHRIWKHVZDSULVNUDWLQJV
+DGGUHVVWKHVSHFLILFDPRXQWRIWHUPLQDWLRQSD\PHQWVWKDWZRXOGEHSD\DEOHXQGHUWKHVZDSWUDQVDFWLRQ7KHVSHFLILF
+ULVNVDGGUHVVHGE\HDFKVZDSULVNUDWLQJDUHVWDWHGLQWKHUDWLQJOHWWHUDQGWKHWHUPVDQGFRQGLWLRQVLVVXHGIRUHDFK
+UDWHGVZDSWUDQVDFWLRQ
+
+
+===== PDF PAGE 46 =====
+
+
+Table 4 
+ 
+Swap Risk Ratings* (see paragraph 14 for suffix) 
+Category Definition 
+$$$ $VZDSWUDQVDFWLRQZLWKDVZDSULVNUDWLQJRI
+$$$
+KDVWKHKLJ KHVWUDWLQJDVVLJQHGE\6	3*OREDO 5DWLQJV7KHOLNHOLKRRGRIORVV
+XQGHUWKHVZDSWUDQVDFWLRQLVH[WUHPHO\ORZ  
+$$ $VZDSWUDQVDFWLRQZLWKDVZDSULVNUDWLQJRI
+$$
+GLIIHUVIURP WKHKLJKHVWUDWHGVZDSWUDQVDFWLRQRQO\WRDVPDOOGHJUHH7KH
+OLNHOLKRRGRIORVVXQGHUWKHVZDSWUDQVDFWLRQLVYHU\ORZ
+$ $VZDSWUDQVDFWLRQZLWKDVZDSULVNUDWLQJRI
+$
+LVVRPHZKDWPRUHVXVFHSWLEOHWRWKHDGYHUVHHIIHFWVRIFKDQJHVLQ
+FLUFXPVWDQFHVDQGHFRQRPLFFRQGLWLRQVWKDQVZDSWUDQVDFWLRQVLQKLJKHUUDWHGFDWHJRULHV+RZHYHUWKHOLNHOLKRRG RIORVVXQGHU
+WKHVZDSWUDQVDFWLRQLVVWLOOORZ
+%%% $VZDSWUDQVDFWLRQZLWKDVZDSULVNUDWLQJRI
+%%%
+H[KLELWVDG HTXDWHSURWHFWLRQSDUDPHWHUV+RZHYHUDGYHUVHHFRQRPLF
+FRQGLWLRQVRUFKDQJLQJFLUFXPVWDQFHVDUHPRUHOLNHO\WROHDGWRDQLQFUHDVHGOLNHOLKRRGRIORVVXQGHUWKHVZDSWUDQVDFWLRQ
+%%%&&&
+DQG&&
+$VZDSWUDQVDFWLRQZLWKDVZDSULVNUDWLQJRI
+%%
+
+%
+
+&&&
+ DQG
+&&
+LVUHJDUGHGDVKDYLQJVLJQLILFDQWVSHFXODWLYH
+FKDUDFWHULVWLFV
+%% $VZDSWUDQVDFWLRQZLWKDVZDSULVNUDWLQJRI
+%%
+LQGLFDWHVOH VVYXOQHUDELOLW\WRDULVNRIORVVWKDQRWKHUVSHFXODWLYHLVVXHV
++RZHYHUPDMRURQJRLQJXQFHUWDLQWLHVRUH[SRVXUHWRDGYHUVHEXVLQHVVILQDQFLDORUHFRQRPLFFRQGLWLRQVFRXOGOHDGWRD
+VXEVWDQWLDOLQFUHDVHLQWKHOLNHOLKRRGRIO RVVXQGHUWKHVZDSWUDQVDFWLRQ
+% $VZDSWUDQVDFWLRQZLWKDVZDSULVNUDWLQJRI
+%
+LVPRUHYXOQH UDEOHWRDULVNRIORVVWKDQDVZDSWUDQVDFWLRQZLWKDVZDSULV N
+UDWLQJRI
+%%
++RZHYHUPDMRURQJRLQJXQFHUWDLQWLHVRUH[SRVXUHWRDGYHUVHEXVLQHVVILQDQFLDORUHFRQRPLFFRQGLWLRQVZLOOOLNHO\
+OHDGWRDVXEVWDQWLDOLQFUHDVHLQWKHOLNHOLKRRGRIORVVXQGHUWKHVZDSWUDQVDFWLRQ
+&&& $VZDSWUDQVDFWLRQZLWKDVZDSULVNUDWLQJRI
+&&&
+LVFXUUHQWO \YXOQHUDEOHWRDULVNRIORVV,QWKHHYHQWRIDGYHUVHEXVLQHV V
+ILQDQFLDORUHFRQRPLFFRQGLWLRQVWKHVZDSWUDQVDFWLRQLVOLNHO\WRLQFXUORVV
+&& $VZDSWUDQVDFWLRQZLWKDVZDSULVNUDWLQJRI
+&&
+LVFXUUHQWO\ KLJKO\YXOQHUDEOHWRORVV
+' $VZDSWUDQVDFWLRQZLWKDVZDSULVNUDWLQJRI
+'
+KDVLQFXUUHG RUH[SHULHQFHGORVV
+*Swap risk ratings from 'AA' to 'CCC' may be modified by the addition of a plus (+) or minus (-) sign to show relative standing within the swap risk rating categories. 
+
+===== PDF PAGE 47 =====
+History of Rating Actions 
+In accordance with the rules of the Securities and Exchange Commission (the "Commission"), the NRSRO 
+makes and keeps publicly available on its internet website in an interactive data file in XBRL format the 
+ratings action information required pursuant to 17 CFR §240.17g-7(b), at the following URL:  
+https://disclosure.spglobal.com/ratings/en/regulatory/ratingshistory.  
+ 
+
+===== PDF PAGE 48 =====
+Method of Calculating Performance Measurement Statistics 
+S&P Global Ratings uses the single cohort approach method of calculating the performance measurement 
+statistics in Exhibit 1. The single cohort approach is used to calculate transition and default rates in order to 
+determine the percent of credit ratings at each notch in the rating scale for a given class or subclass and for 
+the applicable time period (1-, 3-, and 10-years) that were rated at the same notch or transitioned to another 
+notch as of the end of the period, and the percent of credit ratings at each notch that were classified as a 
+default or paid off, or had been withdrawn for reasons other than being classified as a default or paid off 
+during the period. For example, a matrix containing 3-year transition and default rates for the class of 
+corporate issuers discloses the number of credit ratings of corporate issuers S&P Global Ratings had 
+outstanding as of the period start date that is three years prior to the most recent calendar year end at each 
+notch in the rating scale used by S&P Global Ratings, the percent of those credit ratings that were rated at 
+the same notch and the percent that transitioned to each other notch in the rating scale as of the end of the 
+3-year period, and the percent that were classified as a default or paid off, or had been withdrawn at any time 
+during the 3-year period.  
+Single and average cohort approaches provide different information about rating performance. The single 
+cohort approach uses information from only the most recent 1-, 3-, and 10-year periods and thus presents 
+the rating performance at specific points in time. As such, it is useful for presenting the historical experience 
+of a particular group of ratings under a particular set of circumstances. On the other hand, the average 
+cohort approach uses information from multiple time periods and thus presents the weighted average rating 
+performance across all available 1-, 3-, or 10-year time periods. Both approaches are valid, depending on 
+the needs of the user, but they do not yield comparable information.  
+S&P Global Ratings uses both single and average cohort approaches in the rating performance 
+measurement statistics it publishes on its Internet website. As noted previously, single and average cohort 
+approaches provide different information about rating performance. S&P Global Ratings uses both 
+approaches to present the rating performance measurement statistics to avoid the pitfalls in estimating 
+default and transition rates using one approach. 

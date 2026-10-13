@@ -1,0 +1,2117 @@
+
+===== PDF PAGE 1 =====
+ 
+Form NRSRO:  Exhibit 6Identify in this Exhibit the types of conflicts of interest relating to the issuance of credit ratings that are material to A.M. Best Rating Services (AMBRS). AMBRS is paid by issuers or underwriters to determine credit ratings with respect to securities or money market instruments they issue or underwrite. AMBRS is paid by obligors to determine credit ratings of the obligors. AMBRS is paid for services in addition to determining credit ratings by issuers, underwriters, or obligors that have paid AMBRS to determine a credit rating.  AMBRS’ affiliates are paid by persons for subscriptions to receive or access the credit ratings of AMBRS and/or for other services offered by AMBRS’ affiliates where such persons may use the credit ratings of AMBRS to comply with, and obtain benefits or relief under, statutes and regulations using the term “nationally recognized statistical rating organization.” AMBRS’ affiliates are paid by persons for subscriptions to receive or access the credit ratings of AMBRS and/or for other services offered by AMBRS’ affiliates where such persons also may own investments or have entered into transactions that could be favorably or adversely impacted by a credit rating issued by AMBRS. In certain circumstances, AMBRS permits persons within AMBRS to directly or indirectly own securities or money market instruments of, or have other direct ownership interests in, issuers or obligors subject to a credit rating determined by AMBRS.  
+
+===== PDF PAGE 2 =====
+A.M. Best Code of Conduct                                                                                                                           Page 1 of 7
+A.M. Best Company Code of Conduct
+Issued By:    A.M. Best Rating Services, Inc. Compliance Department
+Applicable To:  A.M. Best Company, Inc. and all subsidiary companies, as well as AMBRS Temporary 
+Agency Staff (Global) and AMBRS Consultants (Global)
+Effective Date:  27 May 2025
+Glossary
+AMBRS Consultants: A resource engaged by the Information Technology (IT) Division to facilitate 
+completion of a task or project. The consultant is retained from an agency for a limited period of 
+time and is required to augment existing resources and/or provide subject matter expertise 
+AMBRS Group:  A.M. Best Rating Services, Inc., A.M. Best Europe Ratings Services Limited, A.M. 
+Best (EU) Rating Services B.V., A.M. Best Asia Pacific Limited, A.M. Best America Latina, S.A. de C.V. 
+and A.M. Best Asia-Pacific (Singapore) Pte. Ltd.
+AMBRS Temporary Agency Staff: Someone who will provide a service and skill set to AM Best for a 
+1
+Analytical Staff:  A person (or persons) within A.M. Best who has responsibility for participating in, 
+determining or approving credit ratings or for developing or approving procedures or methodologies 
+used for determining credit ratings, including qualitative and quantitative models. It also refers to 
+both Rating Analysts (also known as Credit Analysts) and any employees of A.M. Best who are 
+responsible for preparing and determining Ancillary Services.
+Ancillary Services Refers to products and services that are not considered A.M. Best Rating Services. 
+A.M. Best does engage in ancillary businesses, such as the issuance of performance assessments. 
+A.M. Best does not provide consulting or advisory products and services.
+The Group: A.M. Best Company, Inc. and all subsidiary companies (including all members of the 
+AMBRS Group).
+Employees: All full and part time employees of A.M. Best.
+Confidential Information: Refers to information possessed by the Group that is not generally known 
+by the public.
+Material Non Public Information (MNPI):  Confidential Information that a reasonable investor would 
+consider important in making a decision to buy, sell or hold a security, including but not limited to, 
+1 This term is not applicable to A.M. Best América Latina, S.A. de C.V., as its prohibited having outsourced 
+employees.
+unavailable within IT's staff. 
+specified period of time. They will not be employed by AM Best, but through a "Placement Agency". 
+The individual will also be paid through the "Placement Agency''. 
+
+===== PDF PAGE 3 =====
+A.M. Best Code of Conduct                                                                                                                           Page 2 of 7
+Confidential Information related to acquisitions, mergers, divestitures, capital structure transactions, 
+and projected financial results.
+Rating Services: The issuance of insurer financial strength ratings, issuer credit ratings, issue credit 
+ratings, rating evaluation and assessment services and preliminary credit assessments.
+Restricted Company:  
+have signed the applicable service agreement (i.e. a Rating Services Agreeme
+Credit Ratings or Ancillary Service Agreement (ASA) for Ancillary Services) but currently have not 
+Credit Rating. Parent companies and/or insurance subsidiaries of such entities are also deemed to be 
+Restricted Companies. A parent company is considered to be a Restricted Company if it derives 5% 
+or more of revenues (GAAP revenue includes premium and insurance policy deposits activity) from 
+its subsidiary.
+Introduction
+Although A.M. Best Company, Inc. and A.M. Best Europe 
+not directly subject to formal Credit Rating Agencies regulation, the Credit Rating businesses within 
+across the globe.  Consequently, it is important that AMB employees , AMBRS Temporary Agency 
+Staff  and AMBRS Consultants demonstrate a high level of integrity at all times in order to both 
+protect the reputation of the Group and to avoid creating any potential conflicts of interest, which 
+could impact upon the activities of the regulated companies within the Group.
+This Policy was issued to ensure the appropriate management of actual and perceived conflicts of 
+interest or other compromises of honesty and integrity that could otherwise negatively impact on 
+the reputations of either the individual company or the Group.  
+This Policy applies to all Group e , AMBRS Temporary Agency Staff and 
+AMBRS Consultants regardless of their location.  Employees, AMBRS Temporary Agency Staff and 
+AMBRS Consultants are required to be familiar with and to comply with this Policy at all times.   
+Violations of this Policy may lead to disciplinary action up to and including termination of 
+employment.
+Employees in the AMBRS Group, and other Group employees with access to Confidential 
+Information and MNPI, are also required to adhere to the AMBRS Code of Conduct and AMBRS 
+Policy C-5, which subjects AMBRS Group employees to certain securities ownership and trading 
+restrictions and securities reporting requirements.  These documents should be read together with 
+this AMB Code of Conduct as the requirements of each of these documents apply to all AMBRS 
+Group employees. 
+Members of the Board of Directors for any company within the Group are also subject to certain 
+confidentiality, securities ownership and trading restrictions and securities reporting requirements 
+as detailed in Policy C-5D: Confidentiality, Conflicts of Interest and Securities Trading Clearance and 
+Reporting Board of Directors - .  This AMB Code of Conduct and Policy C-5D should be 
+________ Companies currently issued or applying for a Best's Credit Rating or Ancillary 
+Service are Restricted Companies. Companies applying for a Best's Credit Rating or Ancillary Service 
+nt (RSA) for Best's 
+been issued a Best's Credit Rating or Ancillary Service. A Best's Credit Rating includes: a Best's 
+Financial Strength Rating, Best's Issuer Credit Rating, Best's Issue Credit Rating, or any other Best 
+- Information Services Limited ("AMB") are 
+the wider A.M. Best Group ("the Group") are subject to extensive regulation in numerous territories 
+mployees ("Employees") 
+("Policy C SD") 
+
+===== PDF PAGE 4 =====
+A.M. Best Code of Conduct                                                                                                                           Page 3 of 7
+read together as the requirements of each of these documents apply to all Board membersas if 
+Board -5D and this AMB Code of 
+Conduct with respect to Board members, Policy C-5D shall be controlling.
+Some employees in AMBEIS (i.e. the Data Team) are also subject to certain securities ownership and 
+trading restrictions and securities reporting requirements as detailed in Policy C-5: Confidentiality, 
+Conflicts of Interest and Securities Trading Clearance and Reporting.  This AMB Code of Conduct and 
+Policy C-5 should be read together as the requirements of each of these documents apply to these 
+employees.
+Section 1 Confidential Information
+1.1 Confidential Information
+Confidential Information is not limited to information generated or received by the Group that is 
+marked as confidential or proprietary.  In general, you should take a broad and conservative view 
+towards what might be deemed Confidential Information.  If you have any doubt as to whether 
+information is Confidential Information (or whether it is sensitive and should be treated with special 
+care even if not strictly confidential), you should presume that such information is Confidential 
+Information.  If you have a question as to whether or not certain information should be treated as 
+Confidential Information, contact your supervisor, department head, or the AMBRS Group 
+Compliance function for guidance.
+1.2 Use of Confidential Information and MNPI
+Strict compliance with this Policy is required of Employees, AMBRS Temporary Agency Staff and 
+AMBRS Consultants with respect to the handling, use, management, disclosure, and protection of all 
+Confidential Information, including MNPI.  
+(a) Permitted Use of Confidential Information
+Employees, AMBRS Temporary Agency Staff and AMBRS Consultants shall use Confidential 
+Information only for purposes related to AMB business activities.  Any other use by any Employee, 
+AMBRS Temporary Agency Staff or AMBRS Consultant is strictly prohibited (including, but not limited 
+to, any use for any direct or indirect personal gain or the gain of others, and whether through 
+trading of securities or otherwise).   
+(b) Prohibited Uses of Confidential Information
+Employees, AMBRS Temporary Agency Staff and AMBRS Consultants are prohibited from buying, 
+selling, or otherwise trading stock or other securities (or any derivative thereof) (i) of any company if 
+such person is aware of any MNPI of such company or (ii) if such purchase, sale, or other trade is 
+made on the basis, in whole or in part, of any MNPI.
+Employees, AMBRS Temporary Agency Staff and AMBRS Consultants are similarly prohibited from (i) 
+using or employing any third party to make any such purchase, sale, or other trade or (ii) providing 
+any MNPI to any third party for any reason (including, but not limited to, any purpose related to any 
+purchase, sale, or other trade of any stock or other securities).
+members are "Employees". If there is a conflict between Policy C 
+
+===== PDF PAGE 5 =====
+A.M. Best Code of Conduct                                                                                                                           Page 4 of 7
+Serious consequences could result from the misuse of MNPI and may include civil and criminal 
+liability, sanctions, significant fines, and imprisonment.
+1.3 Firewall Policy
+(a) In General.   
+businesses from improper use or disclosure by strictly limiting the sharing of such information within 
+the Group.
+outlined in this Firewall Policy are necessary to prevent any actual or perceived impropriety in 
+(b) The Firewalls.
+(i) Employees, AMBRS Temporary Agency Staff and AMBRS Consultants must not 
+Employees regarding Confidential 
+Information. 
+(ii) No Employee, AMBRS Temporary Agency Staff or AMBRS Consultant may suggest or 
+imply that the purchase of any particular product or service offered by AMB will have a 
+favorable effect on a rating.  
+(iii) No Employee, AMBRS Temporary Agency Staff or AMBRS Consultant is permitted to 
+attempt to exert improper influence on the opinions of any Analytical Staff.  Under no 
+circumstance is it permitted for any Employee, AMBRS Temporary Agency Staff or AMBRS 
+Consultant to try to influence the opinion of Analytical Staff by referring to the commercial 
+relationship (or the absence of a commercial relationship) between the Group and any third 
+party.
+(iv) Analytical Staff may not participate in any business activities of AMB to the extent 
+any such participation may give rise to an actual or perceived conflict of interest.
+(v) Employees, AMBRS Temporary Agency Staff and AMBRS Consultants are prohibited 
+from providing consultancy or advisory services and from otherwise making proposals or 
+recommendations to a rated entity or a related third party entity regarding the corporate or 
+legal structure, assets, liabilities or activities of a rated entity or its related third parties.
+(vi) Employees, AMBRS Temporary Agency Staff and AMBRS Consultants who become 
+aware that another Employee, AMBRS Temporary Agency Staff or AMBRS Consultant has 
+engaged in conduct that is illegal shall report such information immediately to the AMBRS
+Group Compliance function. AMB management prohibits retaliation by other AMB staff or 
+by AMB itself against anyone who, in good faith, make such reports.
+(vii) Employees, AMBRS Temporary Agency Staff and AMBRS Consultants shall 
+immediately report to the AMBRS Group Compliance function any instance where they
+receive from any outside party (defined as any person not employed by the Group) 
+As part of the Group's commitment to fair and honest dealing in all aspects of 
+its business, this Firewall Policy is intended to protect MNPI received by AMBRS Group's rating 
+This Firewall Policy is vital to ensuring that AMBRS Group's rating businesses operate without 
+jeopardizing the Group's credibility and reputation . The limitations on the use of information 
+AMBRS Group's handling and use of Confidential Information, MNPI and other sensitive information. 
+engage in any discussions with AMBRS Group's 
+
+===== PDF PAGE 6 =====
+A.M. Best Code of Conduct                                                                                                                           Page 5 of 7
+information that alleges that an issuer of securities rated by A.M. Best has committed, or is 
+committing, a violation of law. 
+Note:  Employees, AMBRS Temporary Agency Staff and AMBRS Consultants are not expected to be 
+experts in the law and as such, you are under no obligation to make any judgment regarding the 
+materiality of an alleged violation of law, or to attempt to verify the accuracy of such alleged 
+violation.   
+1.4 Additional Obligations of Employees, AMBRS Temporary Agency Staff and AMBRS 
+Consultants.
+If an Employee, AMBRS Temporary Agency Staff or AMBRS Consultant becomes aware of anyone 
+(within or outside the Group) who is misusing MNPI, or is taking a cavalier attitude towards its 
+safeguard, such individual has an obligation to notify their supervisor, department head, or the 
+AMBRS Group Compliance function of this circumstance.  In addition, if someone shows an unusual 
+interest in rating activity for a particular rated entity, and that individual has no legitimate business 
+reason to be apprised of such information, Employees, AMBRS Temporary Agency Staff and AMBRS 
+Consultants have an obligation to report such unusual or suspicious activity to their supervisor, 
+department head, or the AMBRS Group Compliance function.  Potential abuse or misuse of MNPI 
+the welfare of AMBRS Group and its employees.
+If an Employee, AMBRS Temporary Agency Staff or AMBRS Consultant becomes aware that another 
+Employee (or division of the Group), AMBRS Temporary Agency Staff or AMBRS Consultant is 
+engaging, or has engaged, in conduct that is illegal, unethical, or contrar
+procedures, such individual is required to report such information immediately, on either a disclosed 
+or anonymous basis, to their supervisor, department head, or the AMBRS Group Compliance 
+function so that the matter can be reviewed and appropriate action can be taken.  Employees, 
+AMBRS Temporary Agency Staff and AMBRS Consultants are not expected to be experts in the law, 
+but they are expected to report the activities that a reasonable person would question.  The Group 
+prohibits retaliation by other Employees, AMBRS Temporary Agency Staff or AMBRS Consultants or 
+by the Group itself against anyone who, in good faith, make such reports.
+Section 2 Conflicts of Interest 
+2.1 General Policies
+Employees, AMBRS Temporary Agency Staff and AMBRS Consultants have an obligation to preserve 
+Employees, AMBRS Temporary Agency Staff and AMBRS Consultants are prohibited from engaging in 
+any activity that might constitute or result in, or create the appearance of, any impropriety or 
+conflict of interest.
+2.2 Conflicts of Interest 
+To minimize the risk of any actual or perceived conflict of interest or impropriety, Employees, 
+AMBRS Temporary Agency Staff and AMBRS Consultants are subject to the following restrictions:
+could damage AMBRS Group's reputation and financial condition, which could ultimately jeopardize 
+y to the Group's policies and 
+and protect the Group's reputation for independence, honesty, integrity, and fair dealing. 
+
+===== PDF PAGE 7 =====
+A.M. Best Code of Conduct                                                                                                                           Page 6 of 7
+(a) Relationships with Restricted Companies
+No Employee, AMBRS Temporary Agency Staff or AMBRS Consultant may be employed by, provide 
+services as an independent contractor to, serve on any board of directors or similar supervisory 
+board of any Restricted Company or any entity affiliated with any Restricted Company (such as a 
+parent, subsidiary, or sister company of such Restricted Company). 
+No Employee, AMBRS Temporary Agency Staff or AMBRS Consultant may serve on any board of 
+directors or similar supervisory board of, be employed by, or provide services as an independent 
+contractor to any external organization to the extent any such service may give rise to an actual or 
+perceived conflict of interest. 
+(b) Gifts
+Employees, AMBRS Temporary Agency Staff and AMBRS Consultants should exercise caution when 
+accepting gifts from external organizations to ensure that the acceptance of the gift does not 
+present a conflict of interest for the Group.  Consideration should also be given to the requirements 
+-Bribery and Corruption Policy.
+Section 3 Prohibited Unfair, Coercive, or Abusive Practices; Ban on Representations
+3.1 Prohibited Unfair, Coercive, or Abusive Practices.
+(a) Employees, AMBRS Temporary Agency Staff and AMBRS Consultants are strictly prohibited 
+from conditioning or threatening to condition the issuance or withdrawal of a credit rating on the 
+purchase (or non-purchase) of any other services or products.  For example, AMB cannot suggest 
+that the purchase of any news service
+model, etc.; is a pre-requisite to being able to obtain a rating from the AMBRS Group. 
+(b) Employees, AMBRS Temporary Agency Staff and AMBRS Consultants are strictly prohibited 
+from conditioning or threatening that the purchase (or non-purchase) of a particular service or 
+product will in any way influence the outcome of a rating issued by the AMBRS Group.  All AMBRS 
+Group ratings must be determined in accordance with the nationally recognized statistical rating 
+whether the rated person, or an affiliate of the rated person, purchases or will purchase any other 
+service or product.
+(c) Employees, AMBRS Temporary Agency Staff and AMBRS Consultants are strictly prohibited 
+from conditioning or threatening that the purchase (or non-purchase) of a particular service or 
+established procedures and methodologies.
+Depending on the circumstances listed in (a) through (c) above, Employees, AMBRS Temporary 
+Agency Staff and AMBRS Consultants
+ing to 
+actions. 
+of the Group's Anti 
+s, data products, publications, Best's Capital Adequacy Ratio 
+organization's established procedures and methodologies for determining credit ratings and not 
+product will lead to a modification of a credit rating in a manner that is contrary to AMBRS Group's 
+should be aware that, "threatening to condition," "threatening 
+to issue," "threatening to modify," "threatening to lower," and "threatening to withdraw" could 
+include directly, indirectly, or implicitly threatening to take these actions. Similarly, "offer 
+issue" and "offering to modify" could include directly, indirectly, or implicitly offering to take these 
+
+===== PDF PAGE 8 =====
+A.M. Best Code of Conduct                                                                                                                           Page 7 of 7
+3.2 Ban on Representations.
+Pursuant to Section 15E(f) of the Securities Exchange Act of 1934 and Article 10 of Regulation (EC) 
+1060/2009, Employees, AMBRS Temporary Agency Staff and AMBRS Consultants are prohibited from 
+representing or implying in any manner whatsoever that AMBRS Group has been designated, 
+respect been passed upon, by the United States or any agency, officer, or employee thereof, or any 
+other non-U.S. Government or regulatory body.
+Inception Date: 13 January 2020
+Revision Dates:  05 October 2021; 17 October 2022, 13 September 2023, 27 May 2025
+sponsored, recommended, or approved, or that AMBRS Groups' abilities or qualifications have in any 
+
+===== PDF PAGE 9 =====
+AMBRS Code of Conduct Page 1 of 19
+A.M. Best Rating Services Code of ConductIssued By:    AMBRS Compliance Department Applicable To:  A.M. Best Rating Services, Inc., A.M. Best Europe Rating Services Limited, A.M. Best Asia Pacific Limited, A.M. Best America Latina S.A. de C.V., A.M. Best (EU) Rating Services B.V., A.M. Best Asia Pacific (Singapore) Pte. Ltd. and All EmployeesEffective Date: 1 December 2025
+                                                                                                                               
+
+===== PDF PAGE 10 =====
+AMBRS Code of Conduct Page 2 of 19
+Table of ContentsPREFACEDEFINED TERMSCODE SECTIONS   1. Quality and Integrity of the Credit Rating Process  A. Quality of the Rating Process B. Integrity of the Credit Rating Process2. Independence and Avoidance of Conflicts of Interest  A. General B. Policies, Procedures, Controls and DisclosuresC. Employee Independence 3. Responsibilities to the Investing Public, Rated Entities, Obligors, Originators, Underwriters and Arrangers  A. Transparency and Timeliness of Credit Ratings Disclosure B. The Treatment of Confidential Information 4. Governance, Risk Management, and Employee Training5. Disclosure and Communication with Market Participants  6. Discussion of Deviations in this Code of Conduct from the IOSCO Code
+
+===== PDF PAGE 11 =====
+AMBRS Code of Conduct Page 3 of 19
+PREFACE
+A.M. Best Rating Services, Inc. and its subsidiaries, A.M. Best Europe Rating Services 
+Limited, A.M. Best America Latina S.A. de C.V., A.M. Best (EU) Rating Services B.V., A.M. Best 
+Asia Pacific Limited, and A.M. Best Asia Pacific (Singapore) Pte. Ltd. hereafter collectively 
+referred to as A.M. Best, through the publication of this Code of Conduct, and other documents 
+related to its credit ratings business, undertakes to comply with a code of conduct that is 
+consistent with the IOSCO Statement of Principles Regarding the Activities of Credit Rating 
+. All Employees, full and part 
+time, of A.M. Best are required to adhere to this Code of Conduct. 
+While we have made this Code of Conduct available to the public, except in so far as is 
+provided for in legislation, A.M. Best does not assume any responsibility or liability to third 
+parties arising out of or relating to this document or other policies and practices. This Code of 
+Conduct and rating methodologies, policies or practices are not intended to form, or be any 
+part of, a contract, and no one will have claim, directly or indirectly, to enforce any of its 
+provisions. A.M. Best reserves the right to update or modify this Code of Conduct and/or rating 
+methodologies, policies and practices at any time, without prior notice. This Code of Conduct 
+should be read in conjunction with A.M. Best Rating Services, Inc. Policy C-5 (or Policy C-5D, as 
+applicable).
+DEFINED TERMS
+Analytical Staff refers to a person (or persons) within A.M. Best who has responsibility for 
+participating in, determining or approving credit ratings or for developing or approving 
+procedures or methodologies used for determining credit ratings, including qualitative and 
+quantitative models. It also refers to both Rating Analysts (also known as Credit Analysts) and 
+any employees of A.M. Best who are responsible for preparing and determining Ancillary 
+Services.
+Ancillary Services refers to products and services that are not considered A.M. Best Rating 
+Services.  A.M. Best does engage in ancillary businesses, such as the issuance of performance 
+assessments. A.M. Best does not provide consulting or advisory products and services.
+Area of Primary Analytical Responsibility refers to any entity rated by A.M. Best.
+Confidential Information refers to all information possessed by A.M. Best that is not generally 
+known by the public, except for information that: (a) is contained in (i) public disclosure 
+documents, (ii) a press release issued by the issuer, or (iii) a publication or newspaper of general 
+circulation; or (b) the issuer has informed A.M. Best that such information is public information. 
+Agencies ("IOSCO Principles") and the IOSCO Code of Conduct Fundamentals for Credit Rating 
+Agencies ("IOSCO Code"), (collectively, the "IOSCO provisions") 
+
+===== PDF PAGE 12 =====
+AMBRS Code of Conduct Page 4 of 19
+Employee refers to all full and part time employees of A.M. Best.
+Immediate Family Member refers to familial relationships as defined in Policy C-
+5/Policy C-5D.    
+Material Non Public Information (MNPI) means Confidential Information that a reasonable
+investor would consider important in making a decision to buy, sell or hold a security, including
+but not limited to, Confidential Information related to acquisitions, mergers, divestitures, capital
+structure transactions, and projected financial results.
+Rating Action refers to the determination and dissemination of an initial credit rating; any 
+change, affirmation, suspension or withdrawal of an existing credit rating; any change in a rating 
+outlook; the placement of an existing credit rating under review, and; the publication of an 
+expected or preliminary credit rating assigned to an obligor, security, or money market 
+instrument before the publication of an initial credit rating. 
+Rating Analyst(s) also referred to Credit Analyst(s) refers to Employees of A.M. Best who
+are responsible for preparing rating recommendations or who participate in determining, 
+monitoring or approving credit ratings. 
+Rating Services refers to that includes: the issuance of insurer financial 
+strength ratings, issuer credit ratings, issue credit ratings,  national scale ratings, rating evaluation 
+and assessment services and preliminary credit assessments.
+CODE SECTIONS
+1.   QUALITY AND INTEGRITY OF THE CREDIT RATING PROCESS 
+A. Quality of the Credit Rating Process
+1.1 A.M. Best shall establish, maintain, document, and enforce a credit rating methodology 
+for each class of entity or obligation for which A.M. Best issues credit ratings.  Each credit rating 
+methodology shall be rigorous, capable of being applied consistently, and, where possible, result 
+in credit ratings that can be subjected to some form of objective validation based on historical 
+experience.
+1.2 Credit ratings shall reflect all information known and believed to be relevant to A.M. Best, 
+consistent with the applicable credit rating methodology that is in effect. Therefore, A.M. Best
+shall establish, maintain, document, and enforce policies, procedures, and controls to ensure that 
+the credit ratings and related reports it disseminates are based on a thorough analysis of all such 
+information.
+an Employee's 
+as" 
+II 
+A.M. Best's business 
+
+===== PDF PAGE 13 =====
+AMBRS Code of Conduct Page 5 of 19
+1.3 A.M. Best shall adopt reasonable measures designed to ensure that it has the appropriate 
+knowledge and expertise, and that the information it uses in determining credit rating is of 
+sufficient quality and obtained from reliable sources to support a high-quality credit rating.
+1.4 A.M. Best shall avoid issuing credit ratings for entities or obligations for which it does not 
+have appropriate information, knowledge, and expertise.  For example, where the complexity of 
+a security or the structure of a type of security, or the lack of robust data about the assets 
+underlying the security raise serious questions as to whether A.M. Best can determine a high-
+quality credit rating for the security, A.M. Best shall refrain from issuing a credit rating.
+1.5 In assessing creditworthiness, Rating Analysts involved in the Rating Action shall use the 
+credit rating methodology established by A.M. Best for the type of entity or obligation that is 
+subject to the Rating Action.  The credit rating methodology shall be applied in a manner that is 
+consistent across all entities or obligations for which that methodology is used.
+1.6 A.M. Best shall define the meaning of each category in its rating scales and apply those 
+categories consistently across all classes of rated entities and obligations to which a given rating 
+scale applies.
+1.7 Credit ratings shall be assigned by A.M. Best as an entity (not by a Rating Analyst or other 
+Employee of A.M. Best).
+1.8 A.M. Best shall assign Rating Analysts who, individually or collectively (particularly where 
+credit rating committees are used), have appropriate knowledge and experience for assessing 
+the creditworthiness of the type of entity or obligation being rated.
+1.9 A.M. Best shall maintain internal records that are accurate and sufficiently detailed and 
+comprehensive to reconstruct the credit rating process for a given Rating Action.  The records 
+shall be retained for as long as necessary to promote the integrity of A.M. Best
+process, including to permit internal audit, compliance, and quality control functions to review 
+past Rating Actions in order to carry out the responsibilities of those functions.  Further, A.M. 
+Best shall establish, maintain, document, and enforce policies, procedures, and controls designed 
+to ensure that its Employees comply with A.M. Best
+and disposition requirements and with applicable laws and regulations governing the 
+maintenance, retention, and disposition of credit rating agency records.
+1.10 A.M. Best shall establish, maintain, document, and enforce policies, procedures, and 
+controls designed to avoid issuing credit ratings, analyses, or reports that contain 
+misrepresentations or are otherwise misleading as to the general creditworthiness of a rated 
+entity or obligation.
+'s credit rating 
+'s internal record maintenance, retention, 
+
+===== PDF PAGE 14 =====
+AMBRS Code of Conduct Page 6 of 19
+1.11 A.M. Best shall ensure that it has and devotes sufficient resources to carry out and 
+maintain high quality credit ratings.
+When deciding whether to issue a credit rating for an entity or obligation, A.M. Best shall assess 
+whether it is able to devote a sufficient number of Rating Analysts with the skill sets to determine 
+high quality credit ratings, and whether the Rating Analysts will have access to sufficient 
+information in order to determine a high-quality credit rating.
+1.12       A.M. Best shall establish and maintain a review function made up of one or more senior 
+managers with appropriate experience to review the feasibility of providing a credit rating for a 
+type of entity or obligation that is materially different from the entities or obligations A.M. Best
+currently rates.
+1.13 A.M. Best shall establish and maintain a review function made up of one or more senior 
+managers responsible for conducting a rigorous, formal, and periodic review, on a regular basis 
+pursuant to an established timeframe, of all aspects of A.M. Best
+(including models and key assumptions) and significant changes to the credit rating 
+methodologies.  For example, A.M. Best shall assess whether existing credit rating methodologies 
+and models for determining credit ratings of structured finance products are appropriate when 
+the risk characteristics of the assets underlying a structured finance product change materially.
+Where feasible and appropriate for the size and scope of its credit rating business, this function 
+shall be independent of the Employees who are principally responsible for determining credit 
+ratings.
+1.14 A.M. Best, in selecting the Rating Analyst(s) who will participate in determining a credit 
+rating, shall seek to promote continuity but also to avoid bias in the credit rating process.  For 
+example, in seeking to balance the objectives of continuity and bias avoidance, A.M. Best assigns
+a team of Rating Analysts to participate in determining the credit rating some for whom the 
+rated entity or obligation is within their Area of Primary Analytical Responsibility and some of 
+whom may have other Areas of Primary Analytical Responsibility.
+1.15 A.M. Best shall ensure that sufficient Employees and financial resources are allocated to 
+monitoring and updating all its credit ratings.  Except for a credit rating that clearly indicates it 
+does not entail ongoing surveillance, once a credit rating is published, A.M. Best shall monitor 
+the credit rating on an ongoing basis by:
+a.   reviewing the creditworthiness of the rated entity or obligation regularly;
+'s credit rating methodologies 
+
+===== PDF PAGE 15 =====
+AMBRS Code of Conduct Page 7 of 19
+b.   initiating a review of the status of the credit rating upon becoming aware of any information 
+that might reasonably be expected to result in a Rating Action (including withdrawal of a credit 
+rating), consistent with the applicable credit rating methodology;
+c.   reviewing the impact of and applying a change in the credit rating methodologies, models or 
+key rating assumptions on the relevant credit ratings within a reasonable period of time;
+d.   updating on a timely basis the credit rating, as appropriate, based on the results of such
+review; and
+e.   incorporating all cumulative experience obtained.
+1.16 If A.M. Best uses separate analytical teams for determining initial credit ratings and for 
+subsequent monitoring of existing credit ratings, each team shall have the requisite level of 
+expertise and resources to perform their respective functions in a timely manner.
+1.17 A.M. Best shall establish, maintain, document, and enforce policies and procedures that 
+clearly set forth guidelines for disseminating credit ratings that are the result or subject of Rating 
+Actions and the related reports, and for when a credit rating will be withdrawn.
+B. Integrity of the Credit Rating Process
+1.18 A.M. Best and its Employees shall deal fairly and honestly with rated entities, obligors, 
+originators, underwriters, arrangers, and users of credit ratings.
+1.19 A.M. Best Employees shall be held to high standards of integrity and ethical behavior, 
+and A.M. Best shall have policies and procedures in place that are designed to ensure that 
+individuals with demonstrably compromised integrity are not employed.
+1.20 A.M. Best and its Employees shall not, either implicitly or explicitly, give any assurance or 
+guarantee to an entity subject to a Rating Action, obligor, originator, underwriter, arranger, or 
+user of A.M. Best Rating Action. This does not 
+preclude A.M. Best from developing preliminary indications in a manner that is consistent with 
+Provisions 1.22 and 2.6(d) of the IOSCO Code.
+1.21 A.M. Best and its Employees shall not make promises or threats about potential Rating 
+Actions to influence rated entities, obligors, originators, underwriters, arrangers, or users of A.M. 
+Best
+1.22 A.M. Best and its Employees shall not make proposals or recommendations regarding the 
+activities of rated entities or obligors that could impact a credit rating of the rated entity or 
+'s 
+'s credit ratings about the outcome of a particular 
+'s credit ratings (e.g., subscribers) to pay for credit ratings or other services. 
+
+===== PDF PAGE 16 =====
+AMBRS Code of Conduct Page 8 of 19
+obligation, including but not limited to proposals or recommendations about corporate or legal 
+structure, assets and liabilities, business operations, investment plans, lines of financing, business 
+combinations, and the design of structured finance products.
+1.23 In each jurisdiction in which A.M. Best is registered as a credit rating agency, A.M. Best
+shall establish, maintain, document, and enforce policies, procedures, and controls designed to 
+ensure that A.M. Best and its Employees comply with A.M. Best Code of Conduct and applicable 
+laws and regulations.
+a.   A.M. Best shall establish a compliance function responsible for monitoring and reviewing the 
+compliance of A.M. Best and its Employees with the provisions of A.M. Best Code of Conduct 
+and with applicable laws and regulations.
+b.   The compliance function also shall be responsible for reviewing the adequacy of A.M. Best
+policies, procedures, and controls designed to ensure compliance with A.M. Best Code of 
+Conduct and applicable laws and regulations.
+c.   A.M. Best shall assign a senior level Employee with the requisite skill set to serve as A.M. 
+Best
+reporting lines and compensation shall be independent of A.M. Best
+1.24 Upon becoming aware that another Employee or an affiliate of A.M. Best is or has 
+engaged in conduct that is illegal, unethical, or contrary to A.M. Best Code of Conduct, A.M. 
+Best Employees shall report such information immediately to the compliance officer or another 
+officer of A.M. Best, as appropriate, so proper action may be taken.  A.M. Best Employees are 
+not necessarily expected to be experts in the law. Nonetheless, Employees are expected to report 
+activities that a reasonable person would question.  Upon receiving such a report from an 
+Employee, A.M. Best is obligated to take appropriate action, as determined by the laws and 
+regulations of the jurisdiction and the policies, procedures, and controls established, maintained, 
+documented, and enforced by A.M. Best.   A.M. Best shall prohibit retaliation by A.M. Best (or an 
+Employee) against any Employee who, in good faith, make such reports.
+2.   INDEPENDENCE AND AVOIDANCE OF CONFLICTS OF INTEREST 
+A. General
+2.1 A.M. Best shall not delay or refrain from taking a Rating Action based on the potential 
+effect (economic, political, or otherwise) of the action on A.M. Best, a rated entity, obligor, 
+originator, underwriter, arranger, investor, or other market participant.
+'s 
+'s 
+'s 
+'s 
+'s compliance officer in charge of the compliance function. The compliance officer's 
+'s credit rating operations . 
+'s 
+'s 
+
+===== PDF PAGE 17 =====
+AMBRS Code of Conduct Page 9 of 19
+2.2 A.M. Best and its Employees shall use care and professional judgment to maintain both 
+the substance and appearance of A.M. Best E
+2.3 A.M. Best determination of a credit rating shall be influenced only by factors relevant to 
+assessing the creditworthiness of the rated entity or obligation.
+2.4 The credit rating A.M. Best assigns to an entity or obligation shall not be affected by 
+whether there is an existing or potential business relationship between A.M. Best (or its affiliates) 
+and the rated entity, obligor, originator, underwriter, or arranger (or any of their affiliates), or 
+any other party.
+2.5 A.M. Best shall operationally, legally, and, if practicable, physically separate its credit 
+rating, Ancillary Services and Analytical Staff from any other businesses of A.M. Best that may 
+present a conflict of interest.  For other businesses that do not necessarily present a conflict of 
+interest, A.M. Best shall establish, maintain, document, and enforce policies, procedures, and 
+controls designed to minimize the likelihood that conflicts of interest will arise.  A.M. Best shall
+disclose why it believes those other businesses do not present a conflict of interest with its credit 
+rating business.
+B. Policies, Procedures, Controls and Disclosures
+2.6 A.M. Best shall establish, maintain, document, and enforce policies, procedures, and 
+controls to identify and eliminate, or manage and disclose, as appropriate, any actual or potential 
+conflicts of interest that may influence the credit rating methodologies, Rating Actions, or 
+analyses of A.M. Best or the judgment and analyses of A.M. Best Employees.  Among other 
+things, the policies, procedures, and controls shall address (as applicable to A.M. Best
+model) how the following conflicts can potentially influence A.M. Best
+methodologies or Rating Actions:
+a.   being paid to issue a credit rating by the rated entity or by the obligor, originator, underwriter, 
+or arranger of the rated obligation;
+b. being paid by subscribers with a financial interest that could be affected by a Rating Action of 
+A.M. Best;
+c. being paid by rated entities, obligors, originators, underwriters, arrangers, or subscribers for 
+services other than issuing credit ratings or providing access to A.M. Best
+d.  providing a preliminary indication or similar indication of credit quality to an entity, obligor, 
+originator, underwriter, or arranger prior to being hired to determine the final credit rating for 
+the entity, obligor, originator, underwriter, or arranger; and
+'s 
+'sand its mployees' independence and objectivity. 
+'s 
+'s business 
+'s credit rating 
+'s credit ratings; 
+
+===== PDF PAGE 18 =====
+AMBRS Code of Conduct Page 10 of 19
+e.   having a direct or indirect ownership interest in a rated entity or obligor, or having a rated 
+entity or obligor have a direct or indirect ownership interest in A.M. Best.
+2.7 A.M. Best shall disclose actual and potential conflicts of interest (including, but not limited 
+to, those conflicts of interest identified in Principle 2.6 above) in a complete, timely, clear, 
+concise, specific, and prominent manner.  When the actual or potential conflict of interest is 
+unique or specific to a Rating Action with respect to a particular rated entity, obligor, originator, 
+lead underwriter, arranger, or obligation, such conflict of interest shall be disclosed in the same 
+form and through the same means as the relevant Rating Action.
+2.8 A.M. Best shall disclose the general nature of its compensation arrangements with rated 
+entities, obligors, lead underwriters, or arrangers.
+a.   When A.M. Best receives from a rated entity, obligor, originator, lead underwriter, or arranger 
+compensation unrelated to its credit rating services, A.M. Best shall disclose such unrelated 
+compensation as a percentage of total annual compensation received from such rated entity, 
+obligor, lead underwriter, or arranger in the relevant credit rating report or elsewhere, as 
+appropriate.
+b.  A.M. Best shall disclose in the relevant credit rating report or elsewhere, as appropriate, if it 
+receives 10 percent or more of its annual revenue from a single client (e.g., a rated entity, obligor, 
+originator, lead underwriter, arranger, or subscriber, or any of their affiliates).
+2.9 A.M. Best shall disclose in its credit rating announcement whether the issuer of a 
+structured finance product has informed A.M. Best that it is publicly disclosing all relevant 
+information about the obligation being rated or if the information remains non-public.
+2.10 A.M. Best shall not hold or transact in trading instruments presenting a conflict of interest 
+with A.M. Best or Ancillary Services.
+2.11 In instances where rated entities or obligors (e.g., sovereign nations or states) have, or  
+are  simultaneously  pursuing,  oversight  functions  related  to  the  credit rating agency ,  the 
+Employees responsible for interacting with the officials of the rated entity or the obligor (e.g., 
+government regulators) regarding supervisory matters shall be separate from the Employees 
+who participate in taking Rating Actions or developing or modifying credit rating methodologies 
+that apply to such rated entity or obligor.
+'s credit rating activities 
+
+===== PDF PAGE 19 =====
+AMBRS Code of Conduct Page 11 of 19
+C. Employee Independence
+2.12 Reporting lines for A.M. Best Employees and their compensation arrangements shall be 
+structured to eliminate or effectively manage actual and potential conflicts of interest.
+a.   A.M. Best Employees who participate in or who might otherwise have an effect on a Rating
+Action with respect to an entity or obligation shall not be compensated or evaluated on the basis 
+of the amount of revenue that A.M. Best derives from that entity or obligor.
+b.   A.M. Best shall conduct formal and periodic reviews of its compensation policies, procedures, 
+and practices for Employees who participate in or who might otherwise have an effect on a Rating 
+Action to ensure that these policies, procedures, and practices have not compromised and do 
+not compromise the objectivity of A.M. Best
+2.13 Analytical Staff shall not initiate or participate in discussions with rated entities, obligors, 
+arrangers, or subscribers regarding fees or payments charged to such rated entity, obligor, 
+arranger, or subscriber.
+2.14 A.M. Best Employees shall not participate in or otherwise influence an A.M. Best Rating 
+Action with respect to an entity or obligation or an Ancillary Service if the Employee, an 
+Immediate Family Member of the Employee, or an entity managed by the Employee (e.g., a trust):
+a.   Holds or transacts in a trading instrument issued by the rated entity or obligor or a company 
+provided an Ancillary Service;
+b.  Holds or transacts in a trading instrument (other than a diversified collective investment 
+scheme) that itself owns an interest in the rated entity or obligor or company provided an 
+Ancillary Service, or is a derivative based on a trading instrument issued by the rated entity or 
+obligor or company provided an Ancillary Service;
+c.   Holds or transacts in a trading instrument issued by an affiliate of the rated entity or obligor
+or company provided an Ancillary Service, the ownership of which may cause or may be 
+perceived as causing a conflict of interest with respect to the Employee or A.M. Best;
+d.   Holds or transacts in a trading instrument issued by a lead underwriter or arranger of the 
+rated obligation or company provided an Ancillary Service, the ownership of which may cause or 
+may be perceived as causing a conflict of interest with respect to the Employee or A.M. Best;
+e.   Is currently employed by, or had a recent employment or other significant business 
+relationship with the rated entity or obligor or a lead underwriter or arranger of the rated 
+'s credit rating process. 
+
+===== PDF PAGE 20 =====
+AMBRS Code of Conduct Page 12 of 19
+obligation or company provided an Ancillary Service that may cause or may be perceived as 
+causing a conflict of interest;
+f.   Is a director of the rated entity or obligor, or lead underwriter or arranger of the rated 
+obligation or company provided an Ancillary Service; or
+g.   Has, or had, another relationship with or interest in the rated entity, obligor, or the lead 
+underwriter or arranger of the rated obligation (or any of their affiliates) or company provided 
+an Ancillary Service that may cause or may be perceived as causing a conflict of interest.
+2.15 Analytical Staff shall not hold or transact in a trading instrument issued by a rated entity 
+or obligor in their Area of Primary Analytical Responsibility, or by a company provided an Ancillary 
+Service.   This would not preclude Analytical Staff from holding or trading a diversified collective 
+investment scheme that owns a trading instrument issued by a rated entity or obligor in their
+Area of Primary Analytical Responsibility, or by a company provided an Ancillary Service.
+2.16    A.M. Best Employees shall be prohibited from soliciting money, gifts, or favors from anyone 
+with whom A.M. Best does business and shall be prohibited from accepting gifts offered in the 
+form of cash or cash equivalents or any gifts exceeding a minimal monetary value.
+2.17 A.M. Best Employees who become involved in a personal relationship (including, for 
+example, a personal relationship with an employee of a rated entity, obligor, or originator, or the 
+lead underwriter or arranger of a rated obligation or company provided an Ancillary Service) that 
+creates an actual or potential conflict of interest shall be required under A.M. Best
+procedures, and controls to disclose the relationship to the compliance officer or another officer 
+of A.M. Best, as appropriate.
+2.18 A.M. Best shall establish, maintain, document, and enforce policies, procedures, and 
+controls for reviewing without unnecessary delay the past work of a Rating Analyst who leaves 
+the employ of A.M. Best and joins an entity that the Employee participated in rating, an obligor 
+whose obligation the Employee participated in rating, an originator, underwriter, or arranger 
+with which the Employee had significant dealings as part of his or her duties at A.M. Best, or any 
+of their affiliates.
+3.   RESPONSIBILITIES TO THE INVESTING PUBLIC, RATED ENTITIES, OBLIGORS, ORIGINATORS, 
+UNDERWRITERS, AND ARRANGERS
+A. Transparency and Timeliness of Credit Ratings Disclosure
+3.1 A.M. Best shall assist investors and other users of credit ratings in developing a greater 
+understanding of credit ratings by disclosing in plain language, among other things, the nature 
+'s policies, 
+
+===== PDF PAGE 21 =====
+AMBRS Code of Conduct Page 13 of 19
+and limitations of credit ratings and the risks of unduly relying on them to make investment or other financial decisions.  As a registered credit rating agency, A.M. Best shall not state or imply that regional or national authorities endorse its credit ratings or use its registration status to advertise the quality of its credit ratings.3.2       A.M. Best shall disclose sufficient information about its credit rating process and its credit rating methodologies, so that investors and other users of credit ratings can understand how a credit rating was determined by A.M. Best. 3.3A.M. Best shall disclose a material modification to a credit rating methodology prior to the modification taking effect unless doing so would negatively impact the integrity of a credit rating by unduly delaying the taking of a Rating Action.  In either case, A.M. Best shall disclose the material modification in a non-selective manner.3.4A.M. Best shall disclose its policies and procedures that address the issuance of unsolicited credit ratings.3.5A.M. Best shall disclose its policies and procedures for distributing credit ratings and reports, and for when a credit rating will be withdrawn.3.6A.M. Best shall disclose clear definitions of the meaning of each category in its rating scales, including the definition of default.3.7A.M. Best shall differentiate credit ratings of structured finance products from credit ratings of other types of entities or obligations, preferably through a different credit rating identifier.  A.M. Best shall also disclose how this differentiation functions.3.8A.M. Best shall be transparent with investors, rated entities, obligors, originators, underwriters, and arrangers about how the relevant entity or obligation is rated.3.9Where feasible and appropriate, A.M. Best shall inform the rated entity, or the obligor or arranger of the rated obligation about the critical information and principal considerations upon which a credit rating will be based prior to disseminating a credit rating that is the result or subject of the Rating Action and afford such rated entity, obligor, or arranger an adequate opportunity to clarify any factual errors, factual omissions, or factual misperceptions that would have a material effect on the credit rating.  A.M. Best shall duly evaluate any response from such rated entity, obligor, or arranger.  Where in particular circumstances A.M. Best has not informed such rated entity, obligor, or arranger prior to disseminating a Rating Action, A.M. Best shallinform such rated entity, obligor, or arranger as soon as practical thereafter and, generally, shallexplain why A.M. Best did not inform such rated entity, obligor, or arranger prior to disseminating the Rating Action.
+
+===== PDF PAGE 22 =====
+AMBRS Code of Conduct Page 14 of 19
+3.10 When A.M. Best publicly discloses a credit rating that is the result or subject of the Rating 
+Action, it shall do so as soon as practicable after taking such action.
+3.11 When A.M. Best publicly discloses a credit rating that is the result or subject of a Rating 
+Action, it shall do so on a non-selective basis.
+3.12 A.M. Best shall disclose with a credit rating that is the result or subject of a Rating Action 
+whether the rated entity, obligor, or originator, or the underwriter or arranger of the rated 
+obligation participated in the credit rating process.  Each credit rating not initiated at the request 
+of the rated entity, obligor, or originator, or the underwriter or arranger of the rated obligation 
+shall be identified as such.
+3.13       A.M. Best shall clearly indicate attributes and limitations of each credit rating and the 
+extent to which A.M. Best verifies information provided to it by the rated entity, obligor, or 
+originator, or the underwriter or arranger of the rated obligation. For example, if the credit rating 
+involves a type of entity or obligation for which there is limited historical data, A.M. Best shall
+disclose this fact and how it may limit the credit rating.
+3.14 A.M. Best shall indicate in the announcement of a credit rating that is the result or the 
+subject of a Rating Action when the credit rating was last updated or reviewed. The credit rating 
+announcement shall also indicate the principal credit rating methodology or methodology 
+version that was used in determining the credit rating and where a description of that credit 
+rating methodology can be found.  Where the credit rating is based on more than one credit 
+rating methodology, or where a review of only the principal credit rating methodology might 
+cause investors and other users of credit ratings to overlook important aspects of the credit 
+rating, A.M. Best shall explain this fact in the credit rating announcement, and indicate where to 
+find a discussion of how the different credit rating methodologies and other important aspects 
+factored into the credit rating decision.
+3.15 When publicly rating a structured finance product, A.M. Best shall publicly disclose 
+sufficient information about its loss and cash-flow analysis with the credit rating, so that investors 
+in the product, other users of credit ratings, and/or subscribers can understand the basis for A.M. 
+Best A.M. Best shall also publicly disclose or distribute information about the 
+degree to which it analyzes how sensitive a credit rating of a structured finance product is to 
+changes in the assumptions underlying the applicable credit rating methodology.
+3.16 When issuing or revising a credit rating, A.M. Best shall explain in its announcement 
+and/or report the key assumptions and data underlying the credit rating, including financial 
+statement adjustments that deviate materially from those contained in the published financial 
+statements of the relevant rated entity or obligor.
+'s credit rating. 
+
+===== PDF PAGE 23 =====
+AMBRS Code of Conduct Page 15 of 19
+3.17 If A.M. Best discontinues monitoring a publicly disclosed credit rating for a rated entity or 
+obligation it shall either withdraw the credit rating or disclose such discontinuation to the public 
+as soon as practicable.  A publication by A.M. Best of a credit rating that is no longer being 
+monitored shall indicate the date the credit rating was last updated or reviewed, the reason the 
+credit rating is no longer monitored, and the fact that the credit rating is no longer being updated.
+3.18 To promote transparency and to enable investors and other users of credit ratings to 
+compare the performance of different credit rating agencies, A.M. Best shall disclose sufficient 
+information about the historical transition and default rates of its credit rating categories with 
+respect to the classes of entities and obligations it rates.   This information shall include verifiable, 
+quantifiable historical information, organized over a period of time, and, where possible, 
+standardized in such a way to assist investors and other users of credit ratings in comparing 
+different credit rating agencies.  If the nature of the rated entity or obligation or other 
+circumstances make such historical transition or default rates inappropriate, statistically invalid 
+or otherwise likely to mislead investors or other users of credit ratings, A.M. Best shall disclose 
+why this is the case.
+Due to the relatively small number of rating opinions assigned to certain rating classifications or
+categories within a classification, the number of observations in such classification or specific 
+rating categories may not be statistically significant for the transition statistics to be informative.   
+B. The Treatment of Confidential Information
+3.19 A.M. Best shall establish, maintain, document, and enforce policies, procedures, and 
+controls to protect Confidential Information and/or Material Non-Public Information, including 
+Confidential Information received from a rated entity, obligor, or originator, or the underwriter 
+or arranger of a rated obligation, or company provided an Ancillary Service and/or Material Non-
+Public Information about a Rating Action (e.g., information about a  Rating Action before the 
+credit rating is publicly disclosed or disseminated to subscribers).
+a.   The policies, procedures, and controls shall prohibit A.M. Best and its Employees from using 
+or disclosing Confidential Information and/or Material Non-Public Information for any purpose 
+unrelated to A.M. Best
+Employees where the disclosure is not necessary in connection with A.M. Best
+activities, unless disclosure is required by applicable law or regulation.
+b.   The policies, procedures, and controls shall require A.M. Best and its Employees to take 
+reasonable steps to protect Confidential Information and/or Material Non-Public Information 
+from fraud, theft, misuse, or inadvertent disclosure.
+'s credit rating activities, including disclosing such information to other 
+'s credit rating 
+
+===== PDF PAGE 24 =====
+AMBRS Code of Conduct Page 16 of 19
+c.  With respect to Confidential Information received from a rated entity, obligor, originator, 
+underwriter, or arranger, the policies, procedures, and controls shall prohibit A.M. Best and its 
+Employees from using or disclosing such information in violation of the terms of any applicable 
+agreement or mutual understanding that A.M. Best will keep the information confidential, unless 
+disclosure is required by applicable law or regulation.
+d.  With respect to a pending Rating Action, the policies, procedures, and controls shall prohibit 
+A.M. Best and its Employees from selectively disclosing information about the pending Rating
+Action, except to the rated entity, obligor, arranger, or their designated agents, or as required by 
+applicable law or regulation.
+3.20 A.M. Best shall establish, maintain, document, and enforce policies, procedures, and 
+controls designed to prevent violations of applicable laws and regulations governing the 
+treatment and use of Confidential Information and/or Material Non-Public Information.
+3.21 A.M. Best shall establish, maintain, document, and enforce policies, procedures, and 
+controls that prohibit Employees who possess Confidential Information and/or Material Non-
+Public Information concerning a trading instrument from engaging in a transaction in the trading 
+instrument or using the information to advise or otherwise advantage another person in 
+transacting in the trading instrument.
+4.  GOVERNANCE, RISK MANAGEMENT, AND EMPLOYEE TRAINING
+4.1 A.M. Best Rating Services, Inc. board (or similar body) shall have ultimate oversight 
+responsibility for ensuring that A.M. Best Rating Services, Inc. and its subsidiaries establish, 
+maintain, document, and enforce a code of conduct that is consistent with the IOSCO Code.
+4.2      A.M. Best shall establish a risk management function made up of one or more senior 
+managers or Employees with the appropriate level of experience responsible for identifying, 
+assessing, monitoring, and reporting the risks arising from its activities, including, but not limited 
+to legal risk, reputational risk, operational risk, and strategic risk.  The function shall be 
+independent of the internal audit function (if practicable given A.M. Best
+periodic reports to the board (or similar body) and senior management to assist them in assessing 
+the adequacy of the policies, procedures, and controls A.M. Best establishes, maintains, 
+documents, and enforces to manage risk, including the policies, procedures, and controls 
+specified in the IOSCO Code.
+4.3 A.M. Best shall establish, maintain, document, and enforce policies, procedures, and 
+controls requiring Employees to undergo formal ongoing training at reasonably regular time 
+intervals.  The subject matter covered by the training shall be relevant to the E
+responsibilities and shall cover, as applicable, A.M. Best Code of Conduct, A.M. Best's 
+'s size) and make 
+mployee's 
+'s credit 
+
+===== PDF PAGE 25 =====
+AMBRS Code of Conduct Page 17 of 19
+rating methodologies, the laws governing A.M. Best A.M. Best
+procedures, and controls for managing conflicts of interest and governing the holding and 
+transacting in trading instruments, and A.M. Best
+Confidential Information and/or Material Non-Public Information.   The policies, procedures, and 
+controls shall include measures designed to verify that Employees undergo required training.
+5.   DISCLOSURE AND COMMUNICATION WITH MARKET PARTICIPANTS
+5.1 A.M. Best
+shall be complete, fair, accurate, timely, and understandable to investors and other users of 
+credit ratings.
+5.2 A.M. Best shall disclose with its Code of Conduct a description of how the provisions of its 
+Code of Conduct fully implement the provisions of the IOSCO provisions.  If A.M. Best Code of 
+Conduct deviates from an IOSCO provision, A.M. Best shall identify the relevant IOSCO provision, 
+explain the reason for the deviation, and explain how the deviation nonetheless achieves the 
+objectives contained in the IOSCO provisions.  A.M. Best shall describe how it implements and 
+enforces its Code of Conduct.  A.M. Best also shall disclose as soon as practicable any changes to 
+its Code of Conduct or changes to how it is being implemented or enforced.
+5.3 A.M. Best shall establish and maintain a function within its organization charged with 
+receiving, retaining, and handling complaints from market participants and the public.  The 
+function shall establish, maintain, document, and enforce policies, procedures, and controls for 
+receiving, retaining, and handling of complaints, including those that are provided on a 
+confidential basis.  The policies, procedures, and controls shall specify the circumstances under 
+which a complaint must be reported to senior management and/or the board (or similar body).
+5.4 A.M. Best shall publicly and prominently disclose free of charge on its primary website:
+a.   A.M. Best Code of Conduct;
+b.   a description of A.M. Best
+c.   information about A.M. Best
+d.   any other disclosures specified in the provisions of the IOSCO Code as applicable given A.M. 
+Best
+'s credit rating activities, 's policies, 
+'s policies and procedures for handling 
+'s disclosures, including those specified in the provisions of the IOSCO Code, 
+'s 
+'s 
+'s credit rating methodologies; 
+'s historic performance data; and 
+'s business model. 
+
+===== PDF PAGE 26 =====
+AMBRS Code of Conduct Page 18 of 19
+6. DISCUSSION OF DEVIATIONS IN THIS CODE OF CONDUCT FROM THE IOSCO CODE
+Set forth below are explanations with respect to the provisions of this Code of Conduct
+that deviate from the provisions set forth in the IOSCO Code:
+For A.M. Best Asia Pacific Limited and A.M. Best Asia Pacific (Singapore) Pte. Ltd., references 
+Section 1.23
+credit rating agency 
+Section 2.14
+Section 2.14 of the IOSCO Code states that credit rating agency employees shall not participate 
+in or otherwise influence an A.M. Best credit rating action with respect to an entity or obligation 
+if the employee, an immediate family member of the employee, or an entity managed by the 
+employee (e.g., a trust) holds or transacts in a trading instrument (other than a diversified 
+collective investment scheme) that itself owns an interest in an A.M. Best rated entity or obligor. 
+A.M. Best restricts such ownership subject to materiality.  Additionally, the Company does not 
+restrict ownership of investment banks as A.M. Best does not rate these institutions (lead 
+underwriters) or have relationships with such entities that cause a conflict of interest.  
+Section 2.15
+Section 2.15 of the IOSCO Code prohibits Rating Analysts from holding or transacting in a trading 
+instrument issued by a rated entity or obligor in their Area of Primary Analytic Responsibility.  All 
+A.M. Best Employees and their Immediate Family Members are prohibited from owning 
+securities issued by entities rated by A.M. Best or companies provided Ancillary Services with two 
+exceptions.  1. Employees and Immediate Family Members who previously worked for a rated 
+entity (or company provided an Ancillary Service) and which own securities issued by the rated 
+entity (or company provided an Ancillary Service) that are subject to a lock-up period, are 
+permitted to own such securities until the expiration of the lock-up period, at which time, the 
+Employee and Immediate Family Member is required to liquidate the securities.  2. Immediate 
+Family Members of an Employee who are employed by a rated entity (or are provided an Ancillary 
+Service) are permitted to own securities issued by their employer that are considered part of 
+their compensation.  Analytical Staff who own securities of a rated entity (or a company provided 
+an Ancillary Service) that are subject to lock-up provisions or who have an Immediate Family 
+Member who is permitted to own securities of their employer, are prohibited from determining 
+to the term "should" in this document are to be understood as "must." 
+Section 1.23 of the IOSCO Code states "In each jurisdiction in which a 
+operates ... ". The term "operates" is undefined and unclear. A.M. Best has included the following 
+clarifying language to this provision " ... is registered as a credit rating agency". 
+
+===== PDF PAGE 27 =====
+AMBRS Code of Conduct Page 19 of 19
+or approving credit ratings involving such rated entities or participating in the provision of an Ancillary Service (in the case of a company provided an Ancillary Service).      
+Inception Date: 1 June 2007Revision Dates: 1 April 2009; 8 February 2010; 19 March 2010; 9 September 2010; 1 January 2011; 28 December 2012; 28 February 2014; 11 April 2014; 15 June 2015; 1 January 2016; 11 March 2016; 10 May 2019; 2 April 2020; 26 August 2021; 5 October 2021; 17 October 2022; 11 October 2023; 1 December 2025
+
+===== PDF PAGE 28 =====
+Compliance Policy C-5 Page 1 of 22
+COMPLIANCE POLICY C-5: CONFIDENTIALITY, FIREWALL, CONFLICTS OF INTEREST, AND 
+SECURITIES TRADING AND REPORTING
+Issued by: AMBRS Compliance Department
+Applicable to:  A.M. Best Rating Services, Inc., A.M. Best Europe Ratings Services Limited, A.M. Best 
+(EU) Rating Services B.V., A.M. Best Asia Pacific Limited, A.M. Best America Latina, S.A. de C.V., A.M. 
+Best Asia- Pacific (Singapore) Pte. Ltd. and all Employees.
+Effective date: June 23, 2025
+Definitions
+AMBR Means A.M. Best Rating Services, Inc., A.M. Best EuropeRatings Services Limited, A.M. Best 
+(EU) Rating Services B.V., A.M. Best Asia Pacific Limited, A.M. Best America Latina, and A.M. Best Asia-
+Pacific (Singapore) Pte. Ltd.
+: a person (or persons) within A.M. Best who has responsibility for participating in, 
+determining or approving credit ratings or for developing or approving procedures or methodologies 
+used for determining credit ratings, including qualitative and quantitative models. It also refers to both 
+Rating Analysts and any employees of A.M. Best who are responsible for preparing and determining 
+ancillary services.
+Ancillary Services : As defined in the AMBRS Code of Conduct.
+: Means trades of s
+his or her Immediate Family Members. For the trust to qualify as a Blind Trust, the Employee must have: 
+(i) no knowledge of the securities held in the trust; and
+(ii) no discretion or control over the trading of securities in the trust.
+To avail oneself of this exemption, an Employee must provide a copy of the agreement covering any 
+Blind Trust that is held for the benefit of the Employee or his or her Immediate Family Members to the 
+Compliance Department.  Securities trading made in Blind Trusts are exempt from the reporting 
+requirements in 2.3(d).
+Brokerage Account : Means accounts through which investment orders are placed and transactions 
+are executed on the investor's behalf. For purposes of AMBRS policy, Brokerage Accounts are owned (or 
+controlled) by an employee, either individually or jointly, or owned by an Immediate Family Member of 
+the employee, (including where the employee is able to trade Securities on behalf of the Immediate 
+Family Member), or where the Immediate Family Member is able to trade Securities on his/her own 
+behalf.
+Confidential Informatio : Means information possessed by AMBRS that is not generally known by the 
+public, except for information that: (a) is contained in (i) public disclosure documents, (ii) a press release 
+issued by the issuer, or (iii) a publication or newspaper of general circulation; or (b) the issuer has 
+informed AMBRS that such information is public information.
+II 
+S": 
+"Analytical Staff' 
+II ,, 
+"Blind Trust" ecurities made in a "Blind Trust" held for the benefit of an Employee or 
+II ,, 
+II 
+n" 
+
+===== PDF PAGE 29 =====
+Compliance Policy C-5 Page 2 of 22
+Credit Rating Means an independent opinion regarding the creditworthiness of an obligor, issuer or 
+security.
+mploy Means all full and part time employees of AMBRS.
+Immediate Family Immediate Family Member: Means;
+1. An Employee s spouse, including any partner of the Employee considered by local law to be 
+equivalent to a spouse (i.e., acivil union );
+2.  An Employee s dependent child or step child;
+3.  An Employee s other relatives who have shared the same household as the employee for at least one 
+year prior to the date of a Securities trade or transaction;
+4.  Any legal person, trust (excluding a Blind Trust, as defined above) or company that is directly (or
+indirectly) controlled by (or established for) the benefit of the Employee or other Immediate Family
+Member, or where the Employee is responsible for managing the trust or company for persons listed in
+items 1) through 3); or
+5. Any person listed in items 1) through 3) where the Employee has discretionary control of investing 
+activities or trading authority, regardless of whether the person shares the same residence as the
+Employee.
+Insurance Sector Fund Means any mutual fund, Exchange Traded Fund (ETF) or other collective 
+investment scheme that invests primarily in the securities of insurance companies and other insurance 
+related entities.
+Non-Brokerage Account Means pensions and other tax-qualified/efficient accounts, such as 401(k), 
+403(b), 457, and 529 plans (and any foreign equivalents). Although subject to different definitions based 
+on jurisdiction, these plans/funds are taken to include longer term commitments made by employees 
+and their family to provision for their eventual retirement or other specified goals, such as an education 
+savings plan. The guiding principle is that the savings plan consists of a number of well-diversified mutual 
+funds. Typically, in these accounts the individual investor does not have the ability to purchase individual 
+securities within the plan and can only make general requests as to the fund make-up applicable to their 
+plan. 401k plans (or similar accounts) that allow accountholders to trade individual stocks are NOT 
+considered Non-Brokerage Accounts for purposes of Policy C-5. In addition, limited purpose accounts, 
+such as accounts established for the sole purpose of holding securities awarded as a form of 
+compensation from an employer, are typically considered to be Non-Brokerage Accounts; however, 
+these accounts will be evaluated by the Compliance Department on a case by case basis.
+aterial Non Public Information (MNPI) : Means Confidential Information that a reasonable investor 
+would consider important in making a decision to buy, sell or hold a security, including but not limited
+to, Confidential Information related to acquisitions, mergers, divestitures, capital structure transactions, 
+and projected financial results.
+Rating Action : Means the determination and dissemination of an initial Credit Rating; any change, 
+affirmation, suspension or withdrawal of an existing Credit Rating; any change in a rating outlook; the 
+placement of an existing Credit Rating under review; and, the publication of an expected or preliminary 
+II 11. 
+IIE ee11 : 
+II 11 and 11 II 
+II II 
+II 11. 
+II 11. 
+IIM II 
+II II 
+
+===== PDF PAGE 30 =====
+Compliance Policy C-5 Page 3 of 22
+Credit Rating assigned to an obligor, security, or money market instrument before the publication of an 
+initial Credit Rating.
+Rating Analyst (also referred to Credit Analyst : Means Employees of AMBRS who are responsible
+for preparing rating recommendations or who participate in determining, monitoring or approving
+Credit Ratings.
+: As defined in the AMBRS Code of Conduct.
+Restricted Company
+signed the applicable service agreement (i.e. a Rating Services Agreeme
+Iss
+insurance subsidiaries of such entities are also deemed to be Restricted Companies. A parent company is 
+considered to be a Restricted Company if it derives 5% or more of revenues (GAAP revenue includes 
+premium and insurance policy deposits activity) from its subsidiary..
+Companies issued or applying for (i.e. has signed the applicable service agreement) for Rating 
+Services and/or Ancillary Services and parents and/or insurance subsidiaries of such entities are 
+deemed to be Restricted Companies. A parent company is considered to be a Restricted Company 
+if it derives 5% or more of revenues (GAAP revenue includes premium and insurance policy deposits 
+activity) from its subsidiary.
+Restricted Security Means any and all stocks, bonds, notes, and similar securities (whether or not
+listed or publicly traded) issued by a Restricted Company and also include all options, warrants, and 
+other derivatives thereof and Insurance Sector Funds.
+INTRODUCTION
+Next to its employees, AMBRSs greatest asset is its reputation for producing quality ratings. The quality 
+of our ratings depends on our integrity and independence from conflicts of interest. Any compromise to 
+our integrity, or even the appearance of a compromise, conflict of interest, or other impropriety,
+could severely damage our reputation and, as a result, diminish the value of our ratings and our business. 
+AMBRS understands, and it is vital that each Employee understands, the importance of AMBRSs role in 
+the insurance, financial services, health care, securities, and other markets and the responsibility this 
+creates. AMBRS is committed to providing ratings that are objective, independent, timely, and forward-
+looking to fulfill its responsibilities to the markets it serves.
+AMBRS has issued this Confidentiality, Firewall, Conflicts of Interest, and Securities Trading and Reporting
+Policy (this Policy or Policy C-5 to protect our reputation against actual and perceived conflicts
+of interest or other compromises of our honesty and integrity. We have earned our reputation over
+more than 100 years, and we must continue to earn it every day going forward. This goodwill is 
+entrusted to each of our Employees in their day-to-day work.
+II II 
+as" ") 
+"Rating Services" 
+_" _______ '...a.': Companies currently issued or applying for a Best's Credit Rating or Ancillary 
+Service are Restricted Companies. Companies applying for a Best's Credit Rating or Ancillary Service have 
+nt (RSA) for Best's Credit Ratings 
+or Ancillary Service Agreement (ASA) for Ancillary Services) but currently have not been issued a Best's 
+Credit Rating or Ancillary Service. A Best's Credit Rating includes: a Best's Financial Strength Rating, Best's 
+uer Credit Rating, Best's Issue Credit Rating, or any other Best Credit Rating. Parent companies and/or 
+II II, 
+II 
+" ____ ") 
+
+===== PDF PAGE 31 =====
+Compliance Policy C-5 Page 4 of 22
+An area of particular concern is the proper treatment, use, and protection of Confidential Information 
+possessed by AMBRS. All information provided to AMBRS (even information that is not Confidential 
+Information) must be treated with respect and due care.
+As outlined below, Employees are prohibited from disclosing any Confidential Information to any third 
+parties (and, to a certain extent, other Employees) and are additionally required to take active steps
+to protect the confidentiality of MNPI. Handling Confidential Information in a highly professional manner 
+(in accordance with this Policy) will help protect AMBRSs reputation for honesty and integrity and our 
+relationships with the companies we rate, our other customers and clients, our regulators, market 
+participants, and the general public.
+Another key to preserving AMBRS s reputation is preventing even the appearance of a conflict of 
+interest. To this end, this Policy contains restrictions on Employees securities transactions and on their 
+securities holdings.
+This Policy applies to AMBRS and all Employees. All Employees are required to be familiar with and to 
+comply with this Policy and all of AMBRSs other policies and codes of conduct (collectively, tAMBRS
+Policies ), including our Codes of Conduct. In addition, all Employees should be aware that they may 
+be civilly and/or criminally liable, under state, federal, and/or other applicable laws, for improper
+disclosure or use of Confidential Information (including trading of securities of an issuer while in
+possession of, or based upon, MNPI). All Employees are expected to be familiar with and understand 
+the legal and regulatory structure applicable to AMBRS. To the extent that any Employee participates in 
+the securities or other markets in their individual capacity, AMBRS expects such individual to be familiar 
+with the legal and regulatory requirements applicable to such participation.
+Violations of this Policy (including failure to comply with the reporting requirements of this Policy and 
+failure to comply with this Policys requirements in a timely manner) may lead to disciplinary action by 
+AMBRS, up to and including termination of employment.
+This Policy may be amended or replaced at any time.                                                   
+                                  
+SECTION 1
+1.1 Confidential Information.
+Confidential Information is not limited to information received by AMBRS that is marked as confidential
+or proprietary. In general, you should take a broad and conservative view towards what might be
+deemed Confidential Information. Information maintained on companies that is not included in public
+documents, including material that has been specifically requested by AMBRS, should be treated as
+Confidential Information. If you have any doubt as to whether information is Confidential Information (or
+whether it is sensitive and should be treated with special care even if not strictly confidential), you should
+presume that such information is Confidential Information. If you have a question as to whether or not
+certain information should be treated as Confidential Information, contact your supervisor, department
+head, or the Compliance Officer for guidance.
+1.2        Use of Confidential Information and MNPI.
+Strict compliance with this Policy is required of all Employees with respect to the handling,
+use, management, disclosure, and protection of all Confidential Information, including MNPI.
+he" 
+II 
+
+===== PDF PAGE 32 =====
+Compliance Policy C-5 Page 5 of 22
+(a) Permitted Use of Confidential Information.
+AMBRS and all Employees shall use Confidential Information only for purposes related to
+AMBRS s business activities. Any other use by any Employee is strictly prohibited (including, but not
+limited to, any use for any direct or indirect personal gain or the gain of others, and whether through
+trading of securities or otherwise). AMBRS and all Employees shall actively protect and safeguard all
+Confidential Information from disclosure to any third parties or, except as otherwise expressly
+permitted by this Policy (including the Firewall Policy set forth in Section 1.4 below), to any other
+Employees that are not involved in the related business activity.
+MNPI may be shared and discussed only with the entity (or its authorized agents) that provided
+such information to AMBRS and with Employees who have a
+to know (as defined in Section
+1.4(b) below) such information, as more fully described below. Employees are required to make every
+effort to protect such information from improper disclosure or misuse.
+Although AMBRS s Analytical Staff may discuss the analysis underlying and supporting rating 
+opinions with investors, media, analysts, and certain other third parties, under no circumstances are 
+they or any other Employees permitted to discuss or disclose MNPI (or to render or imply personal
+views with respect to specific ratings). Please note that all unpublished rating committee determinations
+are considered MNPI and must be treated with due care and in accordance with this Policy.
+Under no circumstances can MNPI be discussed with persons (other than the rated entity or its
+authorized agents) outside the AMBRS organization (including employees of affiliated AMBRS 
+companies, family, friends, social acquaintances, and business contacts).
+(b) Prohibited Uses of Confidential Information.
+(i) Securities Trading.  Each Employee is prohibited from buying, selling, or otherwise
+trading stock or other securities (or any derivative thereof) (i) of any company if such person 
+is aware of any MNPI of such company or (ii) if such purchase, sale, or other trade is made on 
+the basis, in whole or in part, of any MNPI.  Each Employee is similarly prohibited from (i) using
+or employing any third party to make any such purchase, sale, or other trade or (ii) providing
+any MNPI to any third party for any reason (including, but not limited to, any purpose related to 
+any purchase, sale, or other trade of any stock or other securities).
+Misuse of MNPI may be a violation of law, including state and federal laws relating to the
+trading of securities. Serious consequences could result from the misuse of MNPI and may 
+include civil and criminal liability, sanctions, significant fines, and imprisonment.
+AMBRS
+s additional securities trading policies are summarized below in Section 2 of this
+Policy.
+(ii) Other Prohibited Uses. Any other use of MNPI that is not expressly permitted by this
+Policy is strictly prohibited.
+1.3 Protection of Confidential Information.
+(a)       In General. As a general rule, all Employees should exercise the utmost care when 
+handling Confidential Information in order to avoid violating this Policy, any other AMBRS Policy, or 
+"need 
+
+===== PDF PAGE 33 =====
+Compliance Policy C-5 Page 6 of 22
+any applicable legal, regulatory, or ethical requirements.
+If you receive Confidential Information, you are required to follow the appropriate
+procedures outlined in this Policy and to comply with all other policies and procedures of AMBRS
+regarding the treatment of Confidential Information. If the existing policies and procedures of AMBRS
+do not address the handling of a particular type of information or circumstance, you should
+immediately contact your supervisor, department head, or the Compliance Officer for guidance.
+(b)       Specific Guidance - MNPI. You must make every effort to safeguard all MNPI that 
+comes to you through your work at AMBRS. You should at all times exercise caution when discussing 
+MNPI, whether inside or outside the office. When outside the office, you should exercise special care
+due to the increased likelihood that unauthorized third parties may overhear discussions or see
+documents. MNPI is never to be discussed in social situations, nor with any unauthorized third parties
+(including, but not limited to, friends and relatives). Within the office, you should be careful in
+conversations not to disseminate MNPI to Employees or other individuals who do not have a bona fide
+need to knowsuch information,  such as  employees of AMBRS s affiliated companies  or to persons  
+unaffiliated with AMBRS. Distribution of documents, notes, files, and other ratings-related work and 
+ancillary business-related work should be controlled and limited. When sharing MNPI with another
+Employee who has a legitimate ed to knowsuch information, the disclosing Employee is responsible
+for letting the recipient know that the information is Confidential Information or MNPI. Whether a
+particular Employee has a legitimate eed to know regarding certain Confidential Information is
+discussed in Section 1.4 below.
+In addition to the foregoing, you should maintain the following safeguards to protect MNPI:
+(i)        Calls with Interested Parties. On calls with interested parties, such as individual 
+and institutional investors,  underwriters of securities, insurance brokers, investment 
+bankers, or the media, AMBRS s Analytical Staff should discuss only information that has 
+been publicy disclosed. Under no circumstances should Analytical Staff discuss MNPI on any
+such calls or render or imply personal views with respect to specific ratings or performance 
+assessments. Analytical Staff may discuss the analysis supporting any public rating or 
+performance assessment assigned by AMBRS. Additionally, Analytical Staff are prohibited
+from discussing any commercial relationship between the interested party and AMBRS or its
+affiliates, or between AMBRS or its affiliates and any entity rated or company provided an 
+Ancillary Service by AMBRS.
+(ii)       Discussions. All Employees are strictly prohibited from discussing MNPI under 
+circumstances in which persons (who do not have a to know could overhear such 
+discussions. This rule applies at all times, both inside and outside the office. Employees
+should exercise extreme caution in participating in conversations in public places when
+using speakerphones or talking on cellular phones or in any other location/situation in 
+which unauthorized persons may overhear or see MNPI.
+(iii)      Documents. Documents (including electronic communications such as emails 
+and faxes), notes, files, and other ratings-related work products and ancillary business-
+related work products that contain MNPI should not be left out in the open (whether at
+work, at home, or anywhere else) where unauthorized personnel might see them.
+(iv)    Ratings. Employees are prohibited from disseminating, within or outside AMBRS,
+II ,, 
+"ne ,, 
+"n ,, 
+"need ") 
+
+===== PDF PAGE 34 =====
+Compliance Policy C-5 Page 7 of 22
+any pending Rating Action except in strict accordance with all applicable AMBRS Policies. 
+(Note that an unpublished Credit Rating is considered MNPI.)
+For additional guidance on sharing of Confidential Information, including MNPI,
+with other Employees, you are directed to AMBRSs Firewall Policy in Section 1.4 below.
+1.4 Firewall Policy.
+(a)       In General. As part of AMBRSs commitment to fair and honest dealing in all aspects 
+of its business, this Firewall Policy is intended to protect MNPI from improper use or disclosure
+by strictly limiting the sharing of such information within the AMBRS group.
+This Firewall Policy is vital to ensuring that employees of AMBRS operate without jeopardizing
+AMBRS credibility and reputation. The limitations on the use of information outlined in this Firewall
+Policy are necessary to prevent any actual or perceived impropriety in AMBRS
+s handling and use of
+Confidential Information, MNPI and other sensitive information.
+(b) The Firewalls.
+(i)        Need to Know cept as otherwise specifically provided herein, MNPI (and 
+other sensitive information) may only be shared within AMBRS with Employees who have a 
+legitimate ed to know such information in connection with the performance of their
+duties as an Employee of AMBRS. Only Analytical Staff who are directly involved in the 
+determination of a rating or performance assessment (and their supervisors) qualify as bona
+fide need to know individuals. These individuals, under the direction of their supervisors,
+may be allowed to share such information with the appropriate committee (and thereafter
+with AMBRS personnel involved in the dissemination of ratings or performance assessments).
+(ii)       Operation of the Firewalls. The establishment of firewalls between AMBRSs 
+departments does not imply that MNPI can circulate freely within a department. Nor is
+the establishment of these firewalls intended to prevent all communication of MNPI between 
+departments.  The eed to know limitation applies to the sharing of MNPI among 
+Employees in the same department, as well as the sharing of MNPI among Employees in
+different departments. All sharing and disclosing of MNPI within AMBRS is subject to this
+Firewall Policy.
+Business communications between Employees in different departments, and related to
+or involving Confidential Information, should be kept to a minimum and on to know
+basis. Employees are directed not to discuss company specific information, potential or
+pending Rating Actions or performance assessments, particular company transactions, or
+capital market initiatives with any Employee outside their immediate working group ofed 
+to know personnel.
+Except as otherwise outlined in this Policy, if an Employee believes that it is necessary or
+advisable to share certain MNPI with an Employee in another department, such Employee
+must notify the senior officer in his or her department, his or her supervisor, and the 
+Compliance Officer prior to sharing such information. Thereafter, such Employee may only
+act upon, and in strict compliance with, the determination of such senior officer, supervisor, 
+and/or Compliance Officer.
+" ". Ex 
+"ne 
+II 
+" ,, 
+"n ,, 
+a "need ,, 
+"ne 
+II 
+
+===== PDF PAGE 35 =====
+Compliance Policy C-5 Page 8 of 22
+Except as otherwise specifically provided in this Policy, all Employees shall at all times 
+comply with the following:
+(A)      Analytical Staff is prohibited from disclosing MNPI to Employees who do not have 
+a bona fide need to know.
+(B)     Analytical Staff is prohibited from discussing with employees of AMBRSs affiliated
+companies any commercial relationship that AMBRSs affiliated companies may have
+with rated companies and companies provided Ancillary Services.
+(C)      No Employee may suggest or imply that the purchase of any particular product
+or service offered by AMBRS or any of its affiliates will have a favorable effect on a rating
+or performance assessment. As part of their work responsibilities, Analytical Staff often
+make business related presentations to interested parties, particularly with respect to
+the rating process or assessment process (or certain aspects of the process). In the
+course of these presentations, the Analytical Staff may offer, or may be asked, to discuss 
+the general nature of certain products and services offered by AMBRS or its affiliates.
+However, under no circumstances should Analytical Staff enter into commercial
+discussions with any particular interested party and any commercial inquiries of
+interested parties should be directed to appropriate sales personnel.
+(D)      The opinions of AMBRS
+s Analytical Staff are developed by following AMBRSs
+processes, methodologies, policies, and procedures and are not to be influenced by any
+commercial relationship (or the absence of a relationship) between AMBRS or its 
+affiliates and any third party.
+(E)      No Employee is permitted to attempt to exert improper influence on the opinions
+of any of AMBRS s Analytical Staff. Under no circumstance is it permitted for any
+Employee to try to influence the opinion of Analytical Staff by referring to the 
+commercial relationship (or the absence of a commercial relationship) between AMBRS 
+or its affiliates and any third party.
+(F)       AMBRS s Analytical Staff may not participate in any business activities (e.g., sales 
+and marketingand other activities that would pose a conflict of interest through the 
+analytical process) to the extent any such participation may give rise to an actual or
+perceived conflict of interest.
+(G)     Analytical Staff are prohibited from initiating, discussing, negotiating, or
+arranging rating services fees.
+(H)      Analytical Staff may not discuss the deliberations relating to, or any 
+Confidential Information used in determining, any AMBRS rating or performance 
+assessment with any Employee outside of the need to know loop.
+(I)        AMBRS and Employees of AMBRS are prohibited from having any non-
+ordinary course business relationships with a Restricted Company. For instance, a non-
+ordinary course business relationship would include obtaining a loan from a Restricted 
+Company at interest rates far below market rates or entering a business relationship with
+u " 
+
+===== PDF PAGE 36 =====
+Compliance Policy C-5 Page 9 of 22
+a rated entity, such as a joint venture. Ordinary course business relationships, such as
+purchasing insurance policies, mutual funds (excluding insurance Sector Funds), 
+pensions, healthcare or other services at market rates (arms length transactions) are not
+considered non-ordinary course business relationships.
+(J)       Employees are prohibited from disseminating, whether within or outside AMBRS,
+pending rating actions except in strict accordance with all applicable AMBRS Policies.
+(K)   Rating Analysts are prohibited from making proposals or recommendations, either 
+formally or informally, regarding the design of structured finance products that AMBRS 
+rates.
+(L)     AMBRS and Employees of AMBRS are prohibited from providing consultancy or
+advisory services and from otherwise making proposals or recommendations to a rated
+entity or a related third party entity regarding the corporate or legal structure, assets,
+liabilities or activities of a rated entity or its related third parties or a company 
+provided an Ancillary Service.
+Note: Analytical Staff are prohibited from engaging in communications with a 
+rated entity or a potentially rated entity or a company provided an Ancillary 
+Service whereby the purpose of the analysts communications is solely to offer
+such entity information on how the entity can achieve a specific rating or 
+performance assessment. This does not prevent Analytical Staff from providing
+general feedback to a rated entity or company provided an Ancillary Service or
+related third parties or to a prospective rated entity with respect to the general 
+treatment of information provided by the entity according to published 
+methodology. This prohibition also does not apply to any communications that
+the company or its employees must disclose as a result of regulatory
+requirements.
+(M)     Rating Analysts employed by A.M. Best Europe Rating Services Limited and 
+A.M. Best (EU) Rating Services B.V. are prohibited under Point 7, S e c t i o n C  Annex
+I of Regulation (EC) No 1060/2009 and the Credit Rating Agencies (Amendment etc.) 
+(EU Exit) Regulations 2019 from becoming employed in a key management position
+by any entity or its related third parties in which the analyst participated in determining 
+a Credit Rating within six months of the Credit Rating.
+(N)      Rating Analysts not employed by A.M. Best Europe
+Rating Services Limited
+or A.M. Best (EU) Rating Services B.V. who vote in rating committees where the lead
+Rating Analyst of the subject of the credit rating is employed by A.M. Best Europe
+Rating Services Limited or A.M. Best (EU) Rating Services B.V., are prohibited under
+Point 7, Section C, Annex I of Regulation (EC) No 1060/2009 and the Credit Rating 
+Agencies (Amendment etc.) (EU Exit) Regulations 2019 from becoming employed in a
+key management positio by any entity or its related third parties in which the
+Rating Analyst participated in determining a Credit Rating within six months of the
+Credit Rating.
+Note to (M) and (N): European and UK Regulators have not defined key 
+management position owever, it is broadly accepted across EU and UK financial
+II 
+" n" 
+" 
+", h 
+
+===== PDF PAGE 37 =====
+Compliance Policy C-5 Page 10 of 22
+regulation that a key management positio generally entails assignment of decision 
+making, directly or indirectly, by means of delegation from the responsible
+bodies/persons, or responsibility for final sign-off of decisions to responsible
+bodies/persons within the company.
+These employment functions naturally point to positions that are generally
+referred to as part of the senior management of a company (board members,
+directors, executive officers, heads of departments, etc.). However, EU and UK 
+regulators also believe that a case by case analysis is always needed to assess the extent
+to which a position may be effectively "key". For example, EU and UK regulators believe
+that a middle management position may be deemed as key to the extent to which it
+involves interactions with a credit rating agency.
+(O) Employees upon becoming aware that another employee has engaged in conduct
+that is illegal shall report such information immediately to the Compliance Officer. AMBRS
+management prohibits retaliation by other AMBRS staff or by AMBRS itself against any
+employees who, in good faith, make such reports.
+(P) Employees shall immediately report to the Compliance Officer any instance where the
+Employee receives from any outside party (defined as any person not employed by A.M. Best
+Rating Services and its subsidiaries) information that alleges that an issuer of securities that are
+rated by A.M. Best has committed, or is committing, a violation of law.
+Note: Employees are not expected to be experts in law and as such you are under
+no obligation to make any judgment regarding the materiality of an alleged violation
+of law, or to attempt to verify the accuracy of such alleged violation.
+(Q) Employees shall immediately report to the Compliance Officer, any complaint
+received from any outside party (defined as any person not employed by, or a director
+of, A.M. Best Rating Services and its subsidiaries) regarding Credit Ratings, rating models, 
+rating methodologies, or compliance with securities laws. Additionally, Employees are
+required to forward to the Compliance Officer copies of any documents received from
+such outside parties, including but not limited to, any information received by post or
+email.
+1.5 Additional Obligations of Employees.
+If an Employee becomes aware of anyone (within or outside AMBRS) who is misusing MNPI, or is taking 
+a cavalier attitude towards its safeguard, such Employee has an obligation to AMBRS and to the entity 
+providing such information to notify their supervisor, department head, and/or the Compliance Officer
+of this circumstance. In addition, if someone shows an unusual interest in rating activity for a particular
+rated entity, and that individual has no legitimate business reason to be apprised of such information, 
+Employees have an obligation to report such unusual or suspicious activity to their supervisor,
+department head, and/or the Compliance Officer. Potential abuse or misuse of MNPI could damage
+AMBRS
+s reputation and financial condition, which could ultimately jeopardize the welfare of AMBRS and 
+its employees.
+If an Employee becomes aware that another Employee or department of AMBRS is engaging, or has 
+II 
+n" 
+
+===== PDF PAGE 38 =====
+Compliance Policy C-5 Page 11 of 22
+mployee 
+is required to report such information immediately, on either a disclosed or anonymous basis, to their 
+supervisor, department head, and/or the Compliance Officer so that the matter can be reviewed and 
+appropriate action can be taken. Employees are not expected to be experts in the law, but they are expected 
+to report the activities that a reasonable person would question. The Compliance Officer is obligated to take 
+appropriate action, as determined by applicable laws and regulations and the rules, procedures, and 
+guidelines set forth by AMBRS.  AMBRS prohibits retaliation by other Employees or by AMBRS itself against 
+any Employee who, in good faith, make such reports.
+SECTION 2
+CONFLICTS OF INTEREST AND SECURITIES TRADING AND REPORTING P
+OLICY
+2.1 General Policies.
+Except in certain limited circumstances, all Employees of AMBRS (and, in certain circumstances, 
+members of their Immediate Family) are prohibited from owning any security, or becoming involved in 
+any business, activity, association, organization, consulting role, or other activity, that could be 
+interpreted as creating a real or potential conflict of interest or could in any way damage AMBRSs 
+reputation. In addition to each Employees duty of loyalty to AMBRS, each Employee has an obligation 
+to preserve and protect AMBRSs reputation for independence, honesty, integrity, and fair dealing. 
+All Employees are prohibited from engaging in any activity that might constitute or result in, or create
+the appearance of, any impropriety or conflict of interest.
+AMBRS occupies a unique position as an objective and independent authority serving the 
+insurance, financial services, health care, and other industries. AMBRS is committed to dealing fairly 
+and honestly with issuers, investors, regulators, market participants, and the public and to
+providing ratings that are objective, independent, timely, and forward-looking.
+Significant damage to AMBRSs reputation can result from any actual (or perceived) conflict of 
+interest or impropriety. Therefore, all Employees are required to take a very conservative approach 
+towards avoiding any such actual or perceived conflict of interest or impropriety.
+The prevention of any actual (or perceived) conflict of interest or impropriety also ensures and 
+reinforces the trust that rated entities place in AMBRS, which is vital to the continued high quality of
+our ratings.
+2.2 Conflicts of Interest. To minimize the risk of any actual or perceived conflict of interest or 
+impropriety, each Employee is subject to the following restrictions:
+(a) Relationships with Restricted Companies, Government Agencies, and Self-
+Regulatory Bodies.
+No Employee may:
+(i)         be employed by, provide services as an independent contractor to, serve on any board
+of directors or similar supervisory board of, or, except as specifically provided in Section2.3
+below, own any security (or any derivative thereof) issued by any Restricted Company or any 
+engaged, in conduct that is illegal, unethical, or contrary to AMBRS's policies and procedures, such E 
+
+===== PDF PAGE 39 =====
+Compliance Policy C-5 Page 12of 22
+entity affiliated with any Restricted Company (such as a parent, subsidiary, or sister companyof such Restricted Company);(ii)        hold any elected or appointed government office, to the extent holding any such office may give rise to an actual or perceived conflict of interest;(iii)      serve in any capacity on any government or public agency, authority, commission,or regulatory body, to the extent any such service may give rise to an actual or perceived conflictof interest;  (iv)     serve in any capacity on any self-regulatory body that has any function in the oversight of the insurance, financial services, health care, or capital markets, to the extentany such service may give rise to an actual or perceived conflict of interest;(v)       serve on any board of directors or similar supervisory board of, be employedby, or provide services as an independent contractor to any trade or professional organizationor association, to the extent any such service may give rise to an actual or perceived conflict of interest; or(vi)      serve on any board of directors or similar supervisory board of, be employedby, or provide services as an independent contractor to any broker or dealer engaged in thebusiness of underwriting securities or money market instruments. This prohibition also appliesto any person directly or indirectly controlling, controlled by or under the common control ofAMBRS.Employees must also promptly notify the Compliance Officer in the event that their ImmediateFamily Members serve in any of the capacities described in items (i) through (vi) above.(b) Prohibition on Participating in Rating Actions and Performance Assessments.  In addition to the prohibitions enumerated in Section 2.2 (a) (i) through (vi) Employees are prohibited fromparticipating in any aspect of the rating process (or any Rating Action) and any performance assessmentinvolving a Restricted Company or any security of a RestrictedCompany if:(i) you or any Immediate Family Member own any security of suchRestricted Company (other than any such securities held in diversified mutual funds);(ii)      you or any Immediate Family Member serve on any board of directors or similar supervisory board of, or are employed by, any Restricted Company or any entity affiliatedwith any Restricted Company; or(iii )      a family, personal, or financial interest might unduly influence you in any way (for example, if your Immediate Family Member is employed by a company that does significant business with a Restricted Company).Additionally, any Employee that served on any board of directors or similar supervisory boardof, was employed by, or had any other relationship with a Restricted Company (or any affiliate thereof) that may cause, appear to cause, or be perceived as causing a conflict ofinterest, is prohibited from participating in any aspect of the rating process (or any Rating Action) and any performance assessment involving such Restricted Company or any security of such Restricted Company for a period of five years following the termination of such relationship.
+
+===== PDF PAGE 40 =====
+Compliance Policy C-5 Page 13 of 22
+To the extent that any Employee is subject to any of the foregoing restrictions, such person
+is required to inform the Compliance Officer upon the commencement, and upon the cessation or 
+termination, of the circumstances subjecting such person to such restrictions. To the greatest extent 
+possible, each such Employee shall provide advance notice of any such circumstances.
+(c) Gifts Employees not involved in determining, monitoring or approving Credit
+Ratings or for developing or approving procedures or methodologies used for 
+determining credit ratings, including qualitative and quantitative models and 
+Employees not involved in the provision of Ancillary Services (i.e. non-Analytical 
+Staff).
+(i) Except as otherwise specifically provided herein, Employees not involved in 
+determining, monitoring or approving Credit Ratings or for developing or approving 
+procedures or methodologies used for determining credit ratings, including qualitative and 
+quantitative models and Employees not involved in the provision of Ancillary Services and their
+Immediate Family Members are prohibited from accepting gifts, benefits, services or anything
+similar (collectively gifts) totaling more than $100 USD annually from any Restricted Company
+(or any of its directors, employees, agents, or representatives) or from any third party
+representing or in any way affiliated with any Restricted Company. Such $100 USD limit applies
+collectively to all gifts received by you and your Immediate Family Members, except that gifts
+from a Restricted Company to your Immediate Family Members who are currently employed
+by such Restricted Company are exempt from this Policy. In addition, gifts to your Immediate 
+Family Members that are received in conjunction with their employment at a Restricted 
+Restricted Company employer, but a 
+related party that is also a Restricted Company) need to be reported by the employee as 
+part of the C-5 quarterly Compliance Certificate. Any single gift or gifts that, in aggregate,
+exceed the $100 USD annual limit shall be promptly reported to the Compliance Officer (DO 
+NOT WAIT UNTIL THE C-5 QUARTERLY CERTIFICATION) and immediately relinquished to
+AMBRS for appropriate disposition.
+(ii) You are required to report any gift received by you or your Immediate Family
+Members from any Restricted Company.
+(iii) You are prohibited from soliciting (or in any way requesting) money, gifts, favors,
+benefits, and anything similar from any Restricted Company (or any of its directors, 
+employees, agents, or representatives) or any third party representing, or in any way affiliated 
+with, any Restricted Company.
+(iv) Gifts of cash (or cash equivalents such as securities, gift cards, etc.) from any 
+Restricted Company to you, and/ or your Immediately Family Members, are strictly 
+prohibited under all circumstances.
+(v) Attendance at high profile functions or events, such as the Super Bowl, the 
+Oscars, and certain fundraisers, that are paid for by a Restricted Company are strictly 
+prohibited.
+(vi) Occasional meals provided by a Restricted Company in connection with 
+Company (not from the Immediate Family Member's 
+
+===== PDF PAGE 41 =====
+Compliance Policy C-5 Page 14 of 22
+legitimate AMBRS business activities with such company, which are neither so frequent nor 
+so extensive as to raise any question of impropriety or undue influence, are not subject to
+the annual gift limit or the reporting requirement set forth in subsection (ii) above.
+Entertainment provided by a Restricted Company in connection with legitimate AMBRS
+business activities with such company, which are neither so frequent nor so extensive as to
+raise any question of impropriety or undue influence, are not subject to the annual gift limit,
+but are subject to the reporting requirements in subsection (ii) above. The provisions of this
+subsection (vi) do not apply, however, if there is no legitimate business purpose underlying
+any such meal or entertainment activity.
+(vii) Transportation, lodging, and meal expenses to attend a business meeting with a 
+Restricted Company may be paid for or reimbursed by the Restricted Company if (A) you 
+obtain prior approval from the head of your department, (B) the location of the meeting is 
+appropriate for the purpose of the meeting (e.g., the Restricted Company
+s offices), and (C) 
+transportation, lodging, and meal expenses for any outside (personal) guest are not paid for 
+or reimbursed by the Restricted Company. Such payment or reimbursement by a Restricted
+Company is not subject to the annual gift limit, but is subject to the reporting
+requirements in subsection (ii) above.
+(viii) Transportation, lodging, and meal expenses for eligible Employees that are 
+requested to make business presentations at a Restricted Company sponsored event may
+be paid for or reimbursed by the Restricted Company if such Employee obtains prior
+approval from the head of his or her department and no similar payment or reimbursement
+is made with respect to any guests of such employee. Payment or reimbursement of
+transportation, lodging, and meal expenses are not subject to the reporting requirement,
+but in no instance exceed the period beginning the night before and ending the morning
+after the presentation is made. Entertainment in connection with such events, provided
+such entertainment does not raise any question of impropriety or undue influence, is not
+subject to the annual gift limit, but is subject to the reporting requirements in subsection (ii)
+above.
+(d) Gifts Analytical Staff .
+(i) Except as otherwise specifically provided herein, Analytical Staff and their
+Immediate Family Members are prohibited from accepting gifts, benefits, services,
+entertainment or anything similar (collectively gifts) from any Restricted Company (or any of
+its directors, employees, agents, underwriters, sponsors or representatives) or from any
+third party representing or in any way affiliated with any Restricted Company. Such
+prohibition applies to all gifts received by you and your Immediate Family Members, except
+that gifts from a Restricted Company by an Immediate Family Member who is currently
+employed by such Restricted Company are exempt from this Policy. In addition, gifts to your 
+Immediate Family Members that are received in conjunction with their employment at a 
+employer, but a related party that is also a Restricted Company) are also exempt from 
+this Policy. However, these items need to be reported by the employee as part of the C -
+5 quarterly Compliance Certificate. Analytical Staff who have Immediate Family Members 
+employed by Restricted Companies and those Immediate Family Member have been given 
+gifts in conjunction with their employment at a Restricted Company (not from the 
+Restricted Company (not from the Immediate Family Member's Restricted Company 
+
+===== PDF PAGE 42 =====
+Compliance Policy C-5 Page 15 of 22
+r, but a related party that is 
+also a Restricted Company) must also recuse themselves from participating in the 
+rating/assessment process with respect to any Restricted Companies who have given their 
+Immediate Family Member gifts.
+                         (ii)         You are required to report any gift received by you or your Immediate
+Family Members from any Restricted Company, excluding those gifts expressly permitted
+under section (iv) below. (PLEASE NOTE: IF YOU RECEIVE A GIFT FROM A RESTRICTED 
+COMPANY, PLEASE REPORT IT TO THE COMPLIANCE DEPARTMENT IMMEDIATELY.)
+                       (iii)       You are prohibited from soliciting or in any way requesting gifts from any Restricted
+Company (or any of its directors, employees, agents, or representatives) or any third party
+representing, or in any way affiliated with, any Restricted Company.
+                       (iv)        Permitted Gifts Analytical Staff are permitted to receive gifts from Restricted 
+Companies in the context of normal business activities such as note pads, pens and 
+refreshments, including light lunches, during meetings at the companys offices that have an 
+aggregate value of no more than $25 USD per personper meeting.  Such employees are
+prohibited from accepting any gift, regardless of its value, that has no use in conducting the
+meeting.
+(e) Issuing or Maintaining Certain Credit Ratings. Rule 17g-5(c) promulgated by the
+Securities and Exchange Commission (theCommissio pursuant to the Securities Exchange
+Act of 1934 (the hange Act prohibits nationally recognized statistical rating
+organizations (including AMBRS) from having the following conflicts of interest:
+(i)        Issuing or maintaining a Credit Rating solicited by a person that, in the most 
+recently ended fiscal year, provided the nationally recognized statistical rating organization with 
+net revenue equaling or exceeding 10% of the total net revenue of the nationally recognized 
+statistical rating organization for such fiscal year; or
+(ii)     Issuing or maintaining a Credit Rating with respect to a person (excluding a 
+sovereign nation or an agency of a sovereign nation) where the nationally recognized statistical 
+rating organization, a Rating Analyst that participated in determining the Credit Rating, or
+a person responsible for approving the Credit Rating directly or indirectly controls, is controlled 
+by, or is under common control with the person that is subject to the Credit Rating.
+Additionally, Mexico
+s regulatory restrictions prohibit A.M. Best America Latina from rating any entity 
+that owns or controls five percent or more of A.M. Best America Latina.
+Notwithstanding any provision to the contrary in this Policy or any other AMBRS Policy, any action by 
+AMBRS or by any Employee which violates, or might reasonably be expected to lead to or result in a 
+violation of these provisions is strictly prohibited.
+(f)        Disclosure of Other Potential Conflicts. With respect to every rating process, rating 
+action, or Ancillary Service in which an Employee participates, that Employee is required to disclose to
+their department head and the Compliance Officer any other potential conflicts of interest not
+Immediate Family Member's Restricted Company employe 
+II 
+n") 
+"Exe ") 
+
+===== PDF PAGE 43 =====
+Compliance Policy C-5 Page 16 of 22
+otherwise covered in this Policy. The Compliance Officer, after consultation with the Employee s
+department head, will determine whether any such potential conflict of interest could reasonably be
+expected to (or appear to) compromise or otherwise impair the Employees ability to participate in an
+objective and independent manner with respect to such Rating Action, rating process, or Ancillary 
+Service. Remember: You are required to use your utmost care to avoid even the appearance of any
+impropriety or conflict of interest.
+(g)       Additional Restrictions. It may be necessary from time to time for AMBRS to impose 
+greater restrictions than those set forth in this Section 2.2 with respect to a particular department of 
+AMBRS. To the extent AMBRS institutes any additional restrictions Employees will be given notice 
+thereof by AMBRS.
+2.3 Securities Trading and Reporting.
+(a) Restricted Securities.
+It is AMBRSs view that any purchase, ownership, or trade of any security issued by a 
+Restricted Company (or any derivative thereof) and Insurance Sector Funds by AMBRS or any Employee 
+is likely to give rise to a conflict of interest or at least create an appearance of impropriety or a conflict
+of interest. To protect and sustain AMBRSs long established reputation for honesty, integrity, and fair 
+dealing, AMBRS maintains strict policies with respect to purchasing, owning, and trading Restricted 
+Securities.
+In addition to the rated companies listed on AMBRSs website, and companies provided Ancillary Services, 
+AMBRS also maintains an internal list of Restricted Companies (theRestricted List as a convenience 
+to aid Employees in identifying Restricted Securities. Companies are added to the Restricted List 
+when the company signs a service agreement for any Rating Service and/or Ancillary 
+Service, which includes:  a Best Financial Strength Rating, Best Issuer Credit Rating, 
+Credit Rating, or any other Best Credit Rating or Ancillary Service. Parent 
+companies and/or insurance subsidiaries of such entities are also added to the 
+Restricted List. A parent company is considered to be a Restricted Company if it 
+derives 5% or more of revenues (GAAP revenue includes premium and insurance policy 
+deposits activity) from its subsidiary. Upon the signing of any RSA, ASA, or other service 
+agreement, it is the responsibility of Employees with knowledge of the agreement to 
+immediately notify the Compliance Officer and supply the names and ticker symbol, if 
+applicable, of the entities that sh
+It should be noted that although AMBRS attempts to maintain a current and exhaustive listing on its
+website and Restricted List, great care should be exercised before trading any securities issued by
+companies within the insurance, financial services and health care sectors.
+To help ensure that Employees do not inadvertently engage in securities transactions that 
+strongly 
+securities other than diversified mutual funds and non-Insurance Sector ETFs prior to placing the purchase 
+II 
+") 
+Best's Issue 
+ould be added to the Restricted List." 
+are contrary to AMBRS's securities ownership and trading policies, all Employees of AMBRS are 
+encouraged to report, through the electronic "Securities Certification System", all intended purchases of 
+
+===== PDF PAGE 44 =====
+Compliance Policy C-5 Page 17of 22
+order, whether such order or purchase is intended to be made directly by the Employee or an Immediate Family Member, or a person acting on behalf of such Employee or Immediate Family Member (for example: a financial planner or advisor).Additionally, this Policy requires that all Employees promptly inform the Compliance Officer of any sector fund or rated company, or company provided an Ancillary Service, and/or theirsubsidiaries, affiliates or parent company of such rated entity or company provided an Ancillary Service that should be added to (or deleted from) the Restricted List.The following paragraphs summarize AMBRSs policies with respect to Restricted Securities.  Employees must refer to AMBRS associated policies and procedures with respect to securities trading, ownership and reporting requirements.(b) Corporate Investments by AMBRS.A.M. Best Rating Services, Inc., its subsidiaries, their pension, profit sharing and retirement plans and any other accounts controlled by A.M. Best Rating Services, Inc. or its subsidiariesare prohibited from owning or trading Restricted Securities.(c) Personal Investments by Employees.(i)    Employees are required to disclose upon employment, and thereafter on aquarterly basis, the name(s) of any company(s) providing brokerage services (Brokerage and non-Brokerage) to the Employee and their Immediate Family Members. Upon request, Employees are required to provide AMBRS with original copies of all brokerage account statements, including tradeconfirmations, for all such accounts held by the Employee and their Immediate Family Members.(ii)    Restricted Securities owned by Employees in pension, retirement, profit sharing,or similar accounts sponsored by a former employer and which are not freely alienable, or securities that cannot be liquidated without penalty (excluding capital gains/losses), are not subject to the liquidation requirements of this Section 2.3(c) or Section 2.3(d). Employees are precluded from beneficially purchasing additional shares of such Restricted Securities provided, however, employees may participate in Dividend Reinvestment Plans (DRIPs) tied to former employment at Restricted Companies that do not offer opt-out provisions. All holdings and transactions in Restricted Securitiesheld pursuant to this section must be reported (see Section 2.3(d) below). Once such RestrictedSecurities can be liquidated without penalty, they shall immediately become subject to this Section2.3(c) and Section 2.3(d). Any Employee who owns Restricted Securities subject to this subsection (ii) isrequired to recuse himself or herself from all rating deliberations, processes, and actions or Ancillary Services involving any such Restricted Securities, the rated company, or company provided an Ancillary Service to which they relate.(iii)  Except as otherwise expressly provided for in AMBRS securities ownership, trading and reporting policies, all Employees and their Immediate Family Members are prohibitedfrom owning or trading any Restricted Securities. Notwithstanding the foregoing provision of thissubsection (iii), an Employees Immediate Family Member who is currently employed by a RestrictedCompany is exempt from this prohibition insofar as it relates to the Restricted Securities of such Restricted Company that are considered to be part of their compensation, subject to the limits described in Section 2.3(c)(iv) or 2.3(c)(v). 
+
+===== PDF PAGE 45 =====
+Compliance Policy C-5 Page 18 of 22
+(iv)    An Immediate Family Member of any Employee may hold Restricted Securities 
+of their current employer only in Non-Brokerage Accounts or profit sharing accounts (e.g., Employee 
+Stock Ownership Programs) sponsored by such employer. All holdings and transactions in such 
+securities by an Immediate Family Member must be reported (see Section 2.3(d) below). Upon 
+termination of employment, Immediate Family Members are required to liquidate all Restricted 
+Securities that are not subject to penalty (excluding capital gains/losses). Employees with Immediate 
+Family Members who own Restricted Securities exempted under this subsection (iv) are required to 
+recuse themselves from all rating deliberations, processes, and actions or Ancillary Services involving 
+any related rated company or company provided an Ancillary Service.
+(v)     An Immediate Family Member of any Employee and/or an Employee him/her self 
+may be the beneficial owner of Restricted Securities if the Restricted Securities are held in Blind Trusts  
+pursuant to which such Immediate Family Member(s) or the Employee does not have direct or indirect
+control, discretion, or influence over any purchase, sale, or trade involving such  Securities. Restricted
+Securities beneficially owned by an Employee/Employee
+s Immediate Family Member(s) as described in 
+this subsection (v) are exempt from the liquidation requirements of this policy. 
+(d)   Reporting Requirements.
+(i)        All Employees are required to disclose their ownership of Restricted Securities by completing 
+the Restricted Securities Disclosure Formeach calendar quarter and submitting such electronic form,
+within 10 business days after the end of such calendar quarter. All new Employees are required to 
+complete the Restricted Securities Disclosure Form when hired or appointed or elected to the board. 
+The Restricted Securities Disclosure Form requires disclosure of all Restricted Securities beneficially 
+owned by the Employee and their Immediate Family Members.
+(ii)        If a newly hired employee of AMBRS (or any member of any such Employees 
+Immediate Family) owns Restricted Securities that are required to be liquidated, 100% of the 
+Restricted Securities must be liquidated within 90 days of the date of hire.
+(iii)
+a result of an inheritance or similar windfall, 100% of the Restricted Securities must be
+liquidated within 90 days of the date of the inheritance or other acquisition.
+( i v ) Periodically, the list of rated entities set forth on the AMBRS web page and the internal
+Restricted List are updated to reflect newly rated companies, as well as companies provided 
+Ancillary Services.. In the event that new entities or companies are added to the AMBRSweb
+page and/or the Restricted List, each Employee is obligated to determine if they or their
+Immediate Family Members own any of these Restricted Securities. Furthermore, if the
+Employee is an Analytical Staff member who follows any such Restricted Company, he or she
+must notify the Compliance Officer and must recuse himself or herself from following such
+Restricted Company until the holdings are liquidated. If an Employee or their Immediate
+Family Members own securities that become Restricted Securities, those securities must be
+liquidated within 90 days from the date it was added to the Restricted List.
+(v)      At the end of each calendar quarter, all Employees (on behalf of themselves
+and their Immediate Family Members) are required to complete and electronically submit Quarterly
+II ,, 
+If an Employee or any Employee's Immediate Family Member receives Restricted Securities as 
+a" 
+
+===== PDF PAGE 46 =====
+Compliance Policy C-5 Page 19 of 22
+Compliance Certificat Quarterly Compliance Certificate requires Employees to: (1) certify that
+they have read and understand AMBRS securities trading ownership and reporting policies and 
+procedures and that they have faithfully complied with the terms and conditions of all such policies; and
+(2) state whether or not they or their Immediate Family Members engaged in any trading of Restricted
+Securities in such quarter. Please note that employees must check ALL accounts (including accounts that 
+are not self-directed (i.e.managed accounts) for Restricted Securities trading and holdings before 
+completing their certification. The employee must personally verify the account holdings without relying 
+on the word of others who have access to the account. All active Employees are required to complete
+and return the Quarterly Compliance Certificate within 10 business days of the end of each calendar
+quarter. If any Employee or their Immediate Family Members did engage in trading Restricted
+Securities during such quarter, such Employee is required to provide the requested information.
+(vi)    Employees and their Immediate Family Member(s) are strongly encouraged to
+enter all intended securities purchases (as applicable) in the electronic
+urities Certification System
+described in section 2.3 (a) above prior to execution.
+(vii)  Employees and their Immediate Family Members may be required to electronically 
+forward Brokerage Account information to securities surveillance systems used by AMBRS. Employees 
+whose Brokerage Accounts have already been enrolled in the automatic datafeed system are still 
+obligated to periodically check (at least once a quarter) for Restricted Securities ownership and trading. 
+Identification of any Restricted Securities requires immediate notification to the Compliance 
+Department.
+SECTION 3
+PROHIBITED UNFAIR, COERCIVE, OR ABUSIVE PRACTICES; BAN ON REPRESENTATIONS
+3.1 Prohibited Unfair, Coercive, or Abusive Practices.
+Section 15E(i)(1) of the Exchange Act provides that the Commission may prohibit certain specified acts 
+or practices if the Commission determines that the act or practice is unfair, coercive, or abusive. 
+The Commission has determined that the following acts are of such nature and are prohibited:
+(a)  Conditioning or threatening to condition the issuance of a credit rating on the purchase by
+an obligor or issuer, or an affiliate of the obligor or issuer, of any other services or products, of the
+nationally recognized statistical rating organization or any person associated with the nationally
+recognized statistical rating organization:
+Example: AMBRS cannot condition or threaten to condition the issuance of a Credit 
+Rating on the purchase by an obligor, issuer, or its affiliates, of any other product or 
+service (i.e.assessment) offered by AMBRS or any of its affiliates (for instance; A.M. Best
+Company, Inc.news services, data products, publications, Bess Capital Adequacy Ratio 
+model, etc.);
+(b) Issuing, or offering or threatening to issue, a credit rating that is not determined in
+accordance with the nationally recognized statistical rating organizations established procedures and
+methodologies for determining credit ratings, based on whether the rated person, or an affiliate of the
+e". The 
+"Sec ,, 
+t' 
+
+===== PDF PAGE 47 =====
+Compliance Policy C-5 Page 20 of 22
+rated person, purchases or will purchase the credit rating or any other service or product of the
+nationally recognized statistical rating organization or any person associated with the nationally 
+recognized statistical rating organization:
+Example:   AMBRS assigns an initial Credit Rating that is higher than that which 
+would otherwise be assigned if AMBRS followed its methodologies/criteria based on the 
+fact that the obligor, issuer, or its affiliates agrees to pay AMBRS or its affiliates for the 
+Credit Rating or another product or service (i.e. assessment);
+(c)      Modifying, or offering or threatening to modify, a credit rating in a manner that is contrary 
+to the nationally recognized statistical rating organizations established procedures and methodologies 
+for modifying credit ratings based on whether the rated person, or an affiliate of the rated person,
+purchases or will purchase the credit rating or any other service or product of the nationally recognized
+statistical rating organization or any person associated with the nationally recognized statistical rating
+organization:
+Example: AMBRS assigns an existing Credit Rating a higher credit rating than that 
+which would otherwise be assigned if AMBRS followed its methodologies/criteria based 
+on the fact that the obligor, issuer, or its affiliates agrees to pay AMBRS or its affiliates 
+for the Credit Rating or another product or service (i.e. assessement);
+(d) Issuing or threatening to issue a lower credit rating, lowering or threatening to lower an 
+existing credit rating, refusing to issue a credit rating, or withdrawing or threatening to withdraw a
+credit rating, with respect to securities or money market instruments issued by an asset pool or as part
+of any asset-backed or mortgage-backed securities transaction, unless all or a portion of the assets
+within such pool or part of such transaction also are rated by the nationally recognized statistical rating 
+organization, where such practice is engaged in by the nationally recognized statistical rating 
+organization for an anticompetitive purpose;
+Example: AMBRS issues or threatens to issue a lower initial Credit Rating, lowers or 
+threatens to lower an existing Credit Rating, refuses to issue a Credit Rating, or 
+withdraws or threatens to withdraw a Credit Rating on an asset-backed securities 
+transaction unless all or a portion of the underlying assets are also rated by AMBRS 
+where the purpose of requiring that the underlying assets be rated by AMBRS is
+intended to reduce competition among credit rating agencies.
+Depending on the circumstances listed in (a) through (d) above, Employees should be aware that, 
+threatening to conditi threatening to issue threatening to modify threatening to lower
+and threatening to withdraw could include directly, indirectly, or implicitly threatening to take
+these actions. Similarly, ffering to i and offering to modify could include directly, indirectly,
+or implicitly offering to take these actions. Additionally, item (d) above could includethreatening
+to refu to issue a rating directly, indirectly or implicitly.
+(e) The nationally recognized statistical rating organization issues or maintains a credit rating 
+with respect to an obligor or security where the nationally recognized statistical rating organization or a 
+person associated with the nationally recognized statistical rating organization made recommendations
+to the obligor or the issuer, underwriter, or sponsor of the security about the corporate or legal
+structure, assets, liabilities, or activities of the obligor or issuer of the security;
+" on,"" 
+" 
+II 
+"o ssue" 
+se" 
+II II 
+" 
+II 
+II II 
+I 
+" 
+II 
+
+===== PDF PAGE 48 =====
+Compliance Policy C-5 Page 21of 22
+Note: This prohibition was adopted to address the potential lack of impartiality thatcould arise when a nationally recognized statistical rating organization determines acredit rating based on a corporate structure that was developed after consultations with the nationally recognized statistical rating organization or its affiliate on how to achievea desired credit rating. In simple terms, the rule prohibits a nationally recognized statistical rating organization from rating its own work or the work of an affiliate.(f) The nationally recognized statistical rating organization issues or maintains a creditrating where the fee paid for the rating was negotiated, discussed, or arranged by a person within thenationally recognized statistical rating organization who has responsibility for participating in determining credit ratings or for developing or approving procedures or methodologies used fordetermining credit ratings, including qualitative and quantitative models;(g) The nationally recognized statistical rating organization issues or maintains a creditrating where a credit analyst who participated in determining or monitoring the credit rating, or a person responsible for approving the credit rating received gifts, including entertainment, from the obligorbeing rated, or from the issuer, underwriter, or sponsor of the securities being rated, other than itemsprovided in the context of normal business activities such as meetings that have an aggregate value ofno more than $25 USD;(h) AMBRS is prohibited from issuing an initial credit rating for a security or money marketinstrument issued by an asset pool or as part of any asset-backed or mortgage-backed securities transaction that was paid for by the issuer, sponsor, or underwriter of the security or money marketinstrument unless AMBRS makes the required provision for the disclosure of the initial ratingengagement and other required information to other nationally recognized statistical rating organizations and has obtained the necessary representations from the issuer, sponsor or underwriterof the securities;(i) The nationally recognized statistical rating organization issues or maintains a credit rating where a person within the nationally recognized statistical rating organization who participatesin determining or monitoring the credit rating, or developing or approving procedures or methodologiesused for determining the credit rating, including qualitative and quantitative models, also:(1) Participates in sales or marketing of a product or service of the nationally recognized statistical rating organization or a product or service of an affiliate of the nationally recognized statistical rating organization; or(2) Is influenced by sales or marketing considerations.Notwithstanding any provision to the contrary in this Policy or any other AMBRS Policy, any action by AMBRS or by any Employee which violates, or might reasonably be expected to lead to or result in a violation of, the provisions set forth in this Section 3.1 is strictly prohibited.3.2 Ban on Representations.Pursuant to Section 15E(f) of the Securities Exchange Act of 1934, Article 10 of Regulation (EC)1060/2009, and Article 10 of the Credit Rating Agencies (Amendment etc.) (EU Exit) Regulations 2019, AMBRS and each of its Employees are prohibited from representing or implying in any 
+
+===== PDF PAGE 49 =====
+Compliance Policy C-5 Page 22of 22
+manner whatsoever that AMBRS has been designated, sponsored, recommended, or approved, or that AMBRSs abilities or qualifications have in any respect been passed upon, by the United States or any agency, officer, or employee thereof, or any other non-U.S. Government or regulatory body.
+Inception Date:05/04/1967Revision Dates: 11/17/1972; 10/23/1981; 05/02/2001; 04/15/2004; 12/07/2005; 02/16/2006; 05/30/2007;06/22/2007; 01/05/2009; 04/01/2009; 02/08/2010; 09/09/2010; 01/01/2011; 12/28/2012; 02/28/2014;10/14/2014; 10/20/2014; 11/07/2014; 06/15/2015; 01/01/16; 07/18/2016; 10/12/2016; 07/06/2017; 07/27/2017, 05/10/19; 02/04/2020; 02/02/2021, 04/16/2021, 08/26/2021; 11/04/21; 11/17/22; 01/09/24; 06/23/2025
+
+===== PDF PAGE 50 =====
+Policy C-5 D                                                                                                                                                 Page 1 of 10
+Compliance Policy C-5D: Confidentiality, Conflicts of Interest, and Securities Trading 
+Clearance and Reporting Board of Directors
+Issued By:          AMBRS Compliance Department 
+Applicable To:   A.M. Best Company, Inc. and all subsidiaries 
+Effective Date:  23 June 2025
+Definitions
+Best   Collectively A.M. Best Company, Inc., A.M. Best Rating Services, Inc., A.M. Best Europe 
+Ratings Services Limited, A.M. Best (EU) Rating Services B.V., A.M. Best Asia Pacific Limited, A.M. 
+Best America Latina, S.A. de C.V., and A.M. Best Asia-Pacific (Singapore) Pte. Ltd.
+A.M. Best Europe Rating Services Limited only.
+-EU A.M. Best (EU) Rating Services B.V. 
+Blind Trust
+his or her Immediate Family Members. For the trust to qualify as a Blind Trust, the Director must have: 
+(i) no knowledge of the securities held in the trust; and
+(ii) no discretion or control over the trading of securities in the trust.
+To avail oneself of this exemption, a Director must provide a copy of the agreement covering any Blind 
+Trust that is held for the benefit of the Director or his or her Immediate Family Members to the 
+Compliance Department.  Securities trading made in Blind Trusts are exempt from the reporting 
+requirements in 2.3(c).
+Means accounts through which investment orders are placed and transactions 
+executed on the investor's behalf. For purposes of AM Best policy, Brokerage Accounts are owned (or 
+controlled) by a Director, either individually or jointly, or owned by an Immediate Family Member of 
+the Director, (including where the Director is able to trade securities on behalf of the Immediate 
+Family Member), or where the Immediate Family Member is able to trade securities on his/her own 
+behalf.
+Refers to information possessed by AM Best that is not generally known 
+by the public, except for information that: (a) is contained in (i) public disclosure documents, (ii) a 
+press release issued by the issuer, or (iii) a publication or newspaper of general circulation; or (b) the 
+issuer has informed AM Best that such information is public information.
+Means an independent opinion regarding the creditworthiness of an obligor, issuer 
+or security.
+: Means a member of the Board of Directors for any AM Best company.
+: Means all full and part time employees of AM Best.
+  Means;
+1. A Directors spouse, including any partner of the Director considered by local law to be equivalent
+to a spouse (i.e., acivil union );
+2.  A Directors dependent child or step child;
+"AM "· 
+"AMBERS"-
+"AMB 
+II 
+" ____ ": Means trades of securities made in a "Blind Trust" held for the benefit of the Director or 
+"Brokerage Account": 
+"Confidential Information" : 
+"Credit Rating": 
+"Director" 
+"Employee" 
+"Immediate Family'' and "Immediate Family Member": 
+II II 
+
+===== PDF PAGE 51 =====
+Policy C-5 D                                                                                                                                                 Page 2 of 10
+3.  A Directors other relatives who have shared the same household as the employee for at least one 
+year prior to the date of a Securities trade or transaction;
+4.  Any legal person, trust (excluding a Blind Trust, as defined above) or company that is directly (or
+indirectly) controlled by (or established for) the benefit of the Director or other Immediate Family
+Member, or where the Employee is responsible for managing the trust or company for persons listed
+in items 1) through 3); or
+5. Any person listed in items 1) through 3) where the Director has discretionary control of investing 
+activities or trading authority, regardless of whether the person shares the same residence as the
+Employee.
+mutual fund, Exchange Traded Fund (ETF) or other collective 
+investment scheme that invests primarily in the securities of insurance companies and other insurance 
+related entities.
+Non-Public :  Means Confidential Information that a reasonable 
+investor would consider important in making a decision to buy, sell or hold a security, including but 
+not limited to, Confidential Information related to acquisitions, mergers, divestitures, capital structure 
+transactions, and projected financial results.
+- Means pensions and other tax-qualified/efficient accounts, such as 401(k), 
+403(b), 457, and 529 plans (and any foreign equivalents). Although subject to different definitions 
+based on jurisdiction, these plans/funds are taken to include longer term commitments made by a 
+Director and their family to provision for their eventual retirement or other specified goals, such as an 
+education savings plan. The guiding principle is that the savings plan consists of a number of well-
+diversified mutual funds. Typically, in these accounts the individual investor does not have the ability 
+to purchase individual securities within the plan and can only make general requests as to the fund 
+make-up applicable to their plan. 401k plans (or similar accounts) that allow accountholders to trade 
+individual stocks are NOT considered Non-Brokerage Accounts for purposes of this Policy. In addition, 
+limited purpose accounts, such as accounts established for the sole purpose of holding securities 
+awarded as a form of compensation from an employer, are typically considered to be Non-Brokerage 
+Accounts; however, these accounts will be evaluated by the Compliance Department on a case by case 
+basis.
+  
+have signed the applicable service agreement (i.e. a Rating Services Agreeme
+Ratings or Ancillary Service Agreement (ASA) for Ancillary Services) but currently have not been issued 
+companies and/or insurance subsidiaries of such entities are also deemed to be Restricted Companies. 
+A parent company is considered to be a Restricted Company if it derives 5% or more of revenues 
+(GAAP revenue includes premium and insurance policy deposits activity) from its subsidiary.
+Means any and all stocks, bonds, notes, and similar securities (whether or not 
+listed or publicly traded) issued by a Restricted Company and also includes all options, warrants, and 
+other derivatives thereof and Insurance Sector Funds.
+"Insurance Sector Fund": Means any 
+"Material Information (MNPI)" 
+"Non Brokerage Account": 
+"Restricted Company" : Companies currently issued or applying for a Best's Credit Rating or Ancillary 
+Service are Restricted Companies. Companies applying for a Best's Credit Rating or Ancillary Service 
+nt (RSA) for Best's Credit 
+a Best's Credit Rating or Ancillary Service. A Best's Credit Rating includes: a Best's Financial Strength 
+Rating, Best's Issuer Credit Rating, Best's Issue Credit Rating, or any other Best Credit Rating. Parent 
+"Restricted Security": 
+
+===== PDF PAGE 52 =====
+Policy C-5 D                                                                                                                                                 Page 3 of 10
+Introduction
+The quality of AM B ratings depends upon our integrity and independence from conflicts of 
+interest.  Any compromise to this integrity, or even the appearance of a compromise, conflict of 
+interest, or other impropriety, could severely damage our reputation and, as a result, diminish the 
+value of our ratings and our business.  AM Best understands, and it is vital that each Director 
+understands, the importance of AM B role in the insurance, financial services, health care, 
+securities, and other markets and the responsibility this creates.  AM Best is committed to providing 
+ratings that are objective, independent, timely, and forward-looking to fulfil its responsibilities to the 
+markets it serves.
+AM Best has adopted this Policy for Directors to protect our reputation against conflicts of interest or 
+other compromises of our honesty and integrity.    
+NB: 
+respect of AMB-EU, unless there is a Chairman appointed at the time. 
+Section 1
+Confidential Information
+1.1 Confidential Information.
+Confidential Information is not limited to information received and/or produced by AM Best that is 
+marked as confidential or proprietary.  In general, you should take a broad and conservative view 
+towards what might be deemed Confidential Information.  Information maintained on companies and 
+proprietary information produced by AM Best that is not included in public documents, including 
+material that has been specifically requested by AM Best, should be treated as Confidential 
+Information. If you have any doubt as to whether information is Confidential Information (or whether 
+it is sensitive and should be treated with special care even if not strictly confidential), you should 
+presume that such information is Confidential Information.  If you have a question as to whether or 
+not certain information should be treated as Confidential Information, contact the Chairman of the 
+Board of Directors or the Compliance Officer for guidance.
+1.2 Use of Confidential Information and MNPI.
+Strict compliance with this Policy is required of all Directors with respect to the handling, use, 
+management, disclosure, and protection of all Confidential Information, including MNPI.
+(a) Permitted Use of Confidential Information.
+All Directors shall use Confidential Information/MNPI only for purposes related to AM Best
+activities.  Any other use by any Director is strictly prohibited (including, but not limited to, any use 
+for any direct or indirect personal gain or the gain of others, and whether through trading of securities 
+or otherwise).  All Directors shall actively protect and safeguard all Confidential Information/MNPI
+from disclosure to any third parties or to any Employees that are not involved in the related business 
+activity.
+(b) Prohibited Uses of Confidential Information.
+(i) Securities Trading.  Each Director is prohibited from buying, selling, or otherwise 
+trading stock or other securities (or any derivative thereof) (1) of any company if such 
+person is aware of any MNPI of such company or (2) if such purchase, sale, or other 
+trade is made on the basis, in whole or in part, of any MNPI.  Each Director is similarly 
+est's 
+est's 
+All references made to "Chairman" throughout this policy should be understood as "CEO" in 
+'s business 
+
+===== PDF PAGE 53 =====
+Policy C-5 D                                                                                                                                                 Page 4 of 10
+prohibited from (1) using or employing any third party to make any such purchase, 
+sale, or other trade or (2) providing any MNPI to any third party for any reason 
+(including, but not limited to, any purpose related to any purchase, sale, or other trade 
+of any stock or other securities).
+Serious consequences could result from the misuse of MNPI and may include civil and 
+criminal liability, sanctions, significant fines, and imprisonment.
+AM Best
+section 2 of this Policy and Directors shall be subject to this Section 1.2 (b) at all times.
+(ii) Other Prohibited Uses.  Any other use of MNPI that is not expressly permitted by this 
+Policy is strictly prohibited.          
+1.3 Protection of Confidential Information.
+(a) In General.   All Directors should exercise the utmost care when handling Confidential 
+Information in order to avoid violating this Policy, any other AM Best Policy, or any applicable legal, 
+regulatory, ethical requirements or fiduciary duties.
+If you receive Confidential Information, you are required to follow the appropriate procedures 
+outlined in this Policy and to comply with all other policies and procedures of AMB regarding the 
+treatment of Confidential Information.  If the existing policies and procedures of AMB do not address 
+the handling of a particular type of information or circumstance, you should immediately contact the 
+Chairman of the Board of Directors or the Compliance Officer for guidance.
+(b) Specific Guidance - MNPI.   You must make every effort to safeguard all MNPI that comes to 
+you through your work at AM Best.  You should at all times exercise caution when discussing MNPI, 
+whether inside or outside the office or meetings of the Board of Directors (or any committees thereof).  
+When outside the office or meetings of the Board of Directors (or any committees thereof), you should 
+exercise special care due to the increased likelihood that unauthorized third parties may overhear 
+discussions or see related documents.  MNPI is never to be discussed in social situations, nor with any 
+unauthorized third parties (including, but not limited to, friends and relatives).  Within the office and 
+meetings of the Board of Directors (or any committees thereof), you should be careful in conversations 
+-related work and 
+ancillary business-related work should be controlled and limited.  When sharing MNPI with an 
+Director is responsible for letting the recipient know that the information is Confidential Information 
+or MNPI.
+1.4 Additional Obligations of Directors.
+If a Director becomes aware of anyone (within or outside AM Best) who is misusing MNPI, or is taking 
+a cavalier attitude towards its safeguard, such Director has an obligation to notify the Chairman of the 
+Board of Directors or the Compliance Officer of this circumstance.  In addition, if someone shows an 
+unusual interest in rating activity for a particular rated entity, and that individual has no legitimate 
+business reason to be apprised of such information, Directors have an obligation to report such 
+unusual or suspicious activity to the Chairman of the Board of Directors or the Compliance Officer.  
+If a Director becomes aware that another Director or an Employee of AM Best is engaging, or has 
+Director is required to report such information immediately, on either a disclosed or anonymous basis, 
+to the Chairman of the Board of Directors, or the Compliance Officer, so that the matter can be 
+Director's securities trading and reporting policies are summarized below in 
+not to disseminate MNPI to Employees or other individuals who do not have a bona fide "need to 
+know" such information. Distribution of documents, notes, files, and other ratings 
+Employee or another Director who has a legitimate "need to know" such information, the disclosing 
+engaged, in conduct that is illegal, unethical, or contrary to AMB's policies and procedures, such 
+
+===== PDF PAGE 54 =====
+Policy C-5 D                                                                                                                                                 Page 5 of 10
+reviewed and appropriate action can be taken.  Directors are not expected to be experts in the law, 
+but they are expected to report the activities that a reasonable person would question.  The Chairman 
+of the Board of Directors and the Compliance Officer are obligated to take appropriate action, as 
+determined by applicable laws and regulations and the rules, procedures, and guidelines set forth by 
+AM Best.  AM Best prohibits retaliation by other Directors, Employees or by AM Best itself against any 
+Director who, in good faith, make such reports.
+Section 2
+CONFLICTS OF INTEREST AND SECURITIES TRADING CLEARANCE AND REPORTING POLICY
+2.1 General Policies.
+Each Director has an obligation to preserve and protect AM B reputation for independence, 
+honesty, integrity, and fair dealing.
+Directors are required to take a very conservative approach towards avoiding any conflict of interest 
+or impropriety.
+The prevention of any actual conflict of interest also ensures and reinforces the trust that rated 
+entities place in AM Best, which is vital to the continued high quality of our ratings.
+2.2 Conflicts of Interest.   
+To minimize the risk of any actual conflict of interest each Director is subject to the following 
+restrictions:
+(a) Relationships with Restricted Companies, government agencies, and self-regulatory bodies; 
+financial interests.
+No Director may:
+(i) be employed by, serve on any board of directors or similar supervisory board of, or, 
+except as specifically provided in Section 2.3 below, own any security (or any 
+derivative thereof) issued by any Restricted Company or any entity affiliated with any 
+Restricted Company (such as a parent, subsidiary, or sister company of such Restricted 
+Company);
+(ii) hold any elected or appointed government office, to the extent holding any such 
+office may give rise to an actual conflict of interest;
+(iii) serve in any capacity on any government or public agency, authority, commission, or 
+regulatory body, to the extent any such service may give rise to an actual conflict of 
+interest;
+(iv) serve in any capacity on any self-regulatory body that has any function in the oversight 
+of the insurance, financial services, health care, or capital markets, to the extent any 
+such service may give rise to an actual conflict of interest;
+(v) serve on any board of directors or similar supervisory board of, be employed by, or 
+provide services as an independent contractor to any trade or professional 
+organization or association, to the extent any such service may give rise to an actual 
+conflict of interest;
+est's 
+Significant damage to AMB's reputation can result from any actual conflict of interest. Therefore, 
+
+===== PDF PAGE 55 =====
+Policy C-5 D                                                                                                                                                 Page 6of 10
+(vi) provide recommendations to an obligor or issuer, underwriter, or sponsor of a security about the corporate or legal structure, assets, liabilities, or activities of the obligor or issuer of a security on how to achieve a desired credit rating or performance assessment;(vii) serve on any board of directors or similar supervisory board of, be employed by, or        provide services as an independent contractor to any broker or dealer engaged in the business of underwriting securities or money market instruments.  This prohibition also applies to any person directly or indirectly controlling, controlled by or under the common control of AM Best; or(viii) engage in any deliberation involving a specific rating or performance assessment in which such Director has a financial interest in the outcome of the rating or performance assessment.Directors must also promptly notify the Chairman of the Board of Directors or the Compliance Officer in the event that their Immediate Family Member(s) serve in any of the capacities described in items (i) through (viii) above.(b) Gifts(i) Directors are required to report any gift received by either themselves (or theirImmediate Family Member(s)) from any Restricted Company, except that gifts from a Restricted Company to Immediate Family Member(s) who are currently employed by such Restricted Company are exempt from this Policy. Please note, gifts received by an Immediate Family Member from a Restricted Company other than their employer need to be reported by the Director as part of the C-5D quarterly Compliance Certificate. Receipt of any gift shallbe promptly reported to the Compliance Officer at the time of receipt. This is in addition to reporting receipt of the gift on the C-5 Quarterly Certification.(ii) Directors are prohibited from soliciting (or in any way requesting) money, gifts, favours, benefits, and anything similar from any Restricted Company (or any of its directors, employees, agents, or representatives) or any third party representing, or in any way affiliated with, any Restricted Company.(iii) Gifts of cash (or cash equivalents such as securities, gift cards, etc.) from any Restricted Company to a Director and / or their Immediate Family Member(s), are strictly prohibited under all circumstances.(iv) Attendance at high profile functions or events such as the Super Bowl, the Oscars, and certain fundraisers, that are paid for by a Restricted Company are strictly prohibited.(c) Additional Restrictions.  It may be necessary from time to time for AM Best to impose greater restrictions than those set forth in this Section 2.2 with respect to Directors. To the extentthat AM Best institutes any additional restrictions, Directors will be given notice thereof by AM Best.2.3 Securities Trading Clearance and Reporting.(a) Restricted Securities.It is AM Bests view that any purchase, ownership, or trade of any security (or any derivative thereof)issued by a Restricted Company, (including Insurance Sector Funds), by AM Best (or any Director
+
+===== PDF PAGE 56 =====
+Policy C-5 D                                                                                                                                                 Page 7 of 10
+Immediate Family Member(s)) is likely to give rise to a conflict of interest, or at
+least create an appearance of impropriety or a conflict of interest. To protect and sustain AM Bests 
+long-established reputation for honesty, integrity, and fair dealing, AM Best maintains strict policies
+with respect to purchasing, owning, and trading Restricted Securities.
+In addition to the rated companies listed on AM website, and companies provided ancillary 
+services, AM Best also maintains an internal list of Restricted Companies (theRestricted List as a
+convenience to aid Directors in identifying Restricted Securities. Companies are added to the 
+Restricted List when the company signs a service agreement for any Rating Service and/or Ancillary 
+Service
+Rating, or any other Best Credit Rating or Ancillary Service. Parent companies and/or insurance 
+subsidiaries of such entities are also added to the Restricted List. A parent company is considered to 
+be a Restricted Company if it derives 5% or more of revenues (GAAP revenue includes premium and 
+insurance policy deposits activity) from its subsidiary.
+It should be noted that although AM Best attempts to maintain a current and exhaustive listing on
+its website and Restricted List, great care should be exercised before trading any securities issued
+by companies within the insurance, financial services and health care sectors.
+To help ensure that Directors and their Immediate Family Member(s) do not inadvertently engage in 
+securities transactions that are contrary to AM B
+securities ownership and trading policies, they are 
+purchases of securities (other than diversified mutual funds and non-Insurance Sector ETFs) prior to 
+placing the purchase order, whether such order or purchase is intended to be made directly by the 
+Director or an Immediate Family Member, or a person acting on behalf of such Director or Immediate 
+Family Member (for example: a financial planner or advisor).
+Additionally, this Policy requires that all Directors promptly inform the Compliance Officer of any 
+sector fund or rated company, or company provided an ancillary service, and/or their subsidiaries,
+affiliates or parent company of such rated entity or company provided an ancillary service, that should
+be added to (or deleted from) the web page and/or Restricted List.
+The following paragraphs summarize AM with respect to ownership of Restricted 
+Securities by Directors.
+(b) Personal Investments by Directors and their Immediate Family.
+(i) Directors are required to disclose upon appointment, and thereafter on a quarterly 
+basis, the name(s) of any company(ies) providing brokerage services (Brokerage and 
+non-Brokerage) to the Director or his/her Immediate Family Member(s).  Upon 
+request, Directors are required to provide AM Best with original copies of all 
+brokerage account statements, including trade confirmations, for all such accounts 
+held by the Director and their Immediate Family Member(s).
+(ii) Except as otherwise expressly provided for in AM Best securities ownership, trading  
+and reporting  policies,  all  Directors  and  their  Immediate  Family  Member(s) are 
+prohibited from owning or trading any Restricted Securities. 
+1. If a newly appointed Director (or their Immediate Family Member(s)) owns 
+Restricted Securities that are required to be liquidated, 100% of the Restricted 
+Securities must be liquidated within 45 days
+term.
+and/or the Director's 
+Best's 
+") 
+, which includes: a Best Financial Strength Rating, Best Issuer Credit Rating, Best's Issue Credit 
+est's 
+strongly encouraged to report, through the electronic "Securities Certification System", all intended 
+Best's policies 
+of the beginning of the Director's 
+
+===== PDF PAGE 57 =====
+Policy C-5 D                                                                                                                                                 Page 8 of 10
+2. If a Director or any Director (s) receives Restricted 
+Securities as a result of an inheritance or similar windfall, 100% of the Restricted 
+Securities must be liquidated within 90 days of the date of the inheritance or 
+other acquisition.
+3. Notwithstanding the foregoing provision of this subsection (ii
+Immediate Family Member(s) who is currently employed by a Restricted Company 
+is exempt from this prohibition insofar as it relates to the Restricted Securities of 
+such Restricted Company that are considered to be part of their compensation, 
+subject to the limits described in Section 2.3. 
+(iii) Restricted Securities owned by a Director and/or their Immediate Family 
+Member(s) in pension, retirement, profit sharing, or similar accounts sponsored by 
+a former employer and which are not freely alienable, or securities that cannot be 
+liquidated without penalty (excluding capital gains/losses), are not subject to the 
+liquidation requirements. Directors and/or their Immediate Family Member(s) are 
+precluded from beneficially purchasing additional shares of such Restricted 
+Securities, however, Directors and/or their Immediate Family Member(s) may 
+participate in Dividend Reinvestment Plans (DRIPs) tied to former employment at 
+Restricted Companies that do not offer opt-out provisions.   All holdings and 
+transactions in Restricted Securities held pursuant to this section must be reported 
+(see Section 2.3(c) below). Once such Restricted Securities can be liquidated without 
+penalty, however, they shall immediately become subject to this Section 2.3(b) and 
+Section 2.3(c). 
+(iv)    An Immediate Family Member of any Director may hold Restricted Securities of their 
+current employer only in Non-Brokerage Accounts or profit sharing accounts (e.g., 
+Employee Stock Ownership Programs) sponsored by such employer. All holdings and 
+transactions in such securities by an Immediate Family Member must be reported 
+(see Section 2.3(c) below). Immediate Family Member(s) are required to liquidate all 
+Restricted Securities (within 90 days of termination of employment) that are not 
+subject to penalty (excluding capital gains/losses). 
+(v)     An Immediate Family Member of any Director and/or a Director him/herself may be 
+the beneficial owner of Restricted Securities if the Restricted Securities are held in 
+trusts  pursuant to which such Immediate Family Member or Director does not have 
+direct (or indirect control), discretion, or influence over any purchase, sale, or trade 
+involving such Securities. Restricted Securities beneficially owned by a Director
+and/or their Immediate Family Member(s) as described in this subsection (v) are 
+exempt from the liquidation requirements of this policy. However, holdings of 
+Restricted Securities and transactions involving Restricted Securities are subject to 
+the reporting requirements of Section 2.3(c).  
+(c) Reporting Requirements.
+(i) All Directors are required to disclose their ownership of Restricted Securities by 
+submitting such electronic form within 10 business days after the end of such calendar 
+quarter. The form requires the disclosure of all Restricted Securities beneficially 
+owned by the Director and their Immediate Family Member(s). All new Directors are 
+required to provide this information by completing the appropriate form provided by 
+AM Best when hired, appointed or elected to the board. 
+'s Immediate Family Member 
+), a Director's 
+completing the "Restricted Securities Disclosure Form" each calendar quarter and 
+
+===== PDF PAGE 58 =====
+Policy C-5 D                                                                                                                                                 Page 9 of 10
+(ii)         Periodically, the list of rated entities set forth on the AM Best web page and the 
+internal Restricted List are updated to reflect newly rated companies, as well as 
+companies provided ancillary services. In the event that new rated entities or 
+companies provided an ancillary service are added to the AM Best web page and/or 
+the Restricted List, each Director is obligated to determine if they or their Immediate 
+Family Member(s) own any securities of these entities. If a Director or their Immediate 
+Family Member(s) own securities that become Restricted Securities, those securities 
+must be liquidated within 90 days from the date it was added to the Restricted List.
+(iii)      At the end of each calendar quarter, all Directors (on behalf of themselves and their 
+Immediate Family Member(s)) are required to complete and electronically submit a 
+Directors to: 
+1. Certify that they have read and understand the AM Best securities trading 
+ownership and reporting policies and procedures, and that they have 
+faithfully complied with the terms and conditions of all such policies; and 
+2. State whether or not they or their Immediate Family Member(s) engaged in 
+any trading of Restricted Securities in such quarter. All Directors are required 
+to complete and return the Quarterly Compliance Certificate within 10 
+business days of the end of each calendar quarter. If any Director or their 
+Immediate Family Member(s) did engage in trading Restricted Securities 
+during such quarter, such Director is required to provide the requested 
+information. 
+(iv)    Directors and their Immediate Family Member(s) are strongly encouraged to enter 
+(v)  Directors and their Immediate Family Member(s) may be required to electronically 
+forward Brokerage Account information to securities surveillance systems used by AM
+Best.
+2.4 Fitness and Propriety.
+(a) Quarterly Compliance Questionnaire.
+As noted above, at the end of each calendar quarter all Directors are required to complete the 
+Quarterly Compliance Certificate. In addition to the securities trading and reporting noted above, the 
+Quarterly Compliance Certificate requires Directors to: 1) state whether or not they have any 
+relationships with Restricted Companies, government agencies, and self-regulatory bodies, or any 
+financial interests which may be deemed a conflict of interest based on the requirements of this Policy; 
+2) state whether or not they have (or an Immediate Family Member(s) has) received any gifts from 
+any Restricted Company; and, 3) submit and certify information related to certain offenses, as defined 
+in the Securities Exchange Act Section 15(E)d.  
+Please note that the receipt of any gift shall be promptly reported to the Compliance Officer at the 
+time of receipt. This is in addition to reporting receipt of the gift on the C-5 Quarterly Certification.
+"Quarterly Compliance Certificate". The Quarterly Compliance Certificate requires 
+all intended securities purchases (as applicable) in the electronic "Securities 
+Certification System" described in section 2.3 (a) above prior to execution. 
+
+===== PDF PAGE 59 =====
+Policy C-5 D                                                                                                                                                 Page 10of 10
+(b) ESMA / FCA Reporting Requirements.In accordance with Article 15 of Commission Delegated Regulation 449/2012 (as adopted in UK Law), AMBERS/AMB-EU is required to provide ESMA / FCA, on request, with the following information:(i) a UK criminal records file for Directors; and(ii) a self-declaration of good repute completed by Directors.In respect of point (i), the AMBERS/AMB-EU HR function will periodically request criminal records checks for Directors.  Please note that under UK law, only details of unspent convictions can be requested.The information required under point (ii) will be obtained via a Statement of Self Repute Questionnaire which Directors are required to complete on their appointment to the AMBERS/AMB-EU Boards.  This information will be validated on a quarterly basis using the electronic filing process outlined above.
+Inception Date: January 13, 2020Revision Dates: February 3, 2021; April 16, 2021; August 26, 2021; November 09, 2021; September 13, 2023; June 23, 2025

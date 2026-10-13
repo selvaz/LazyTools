@@ -1,0 +1,619 @@
+
+===== PDF PAGE 1 =====
+ 
+  2715 Tuller Parkway  Dublin, Ohio  43017-2310 
+Tel: 614 761-8602  800 354-7207   
+www.demotech.com 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PDF PAGE 2 =====
+Code of Conduct   July 15, 2025 
+Page 1 of 12 
+Code of Conduct 
+Introduction 
+ ratings to rated entities and interested parties.  
+Demotech regularly evaluates its criteria, financial models, and procedures in an effort to determine ways 
+to improve its practices and processes.  Demotech strives to keep its rating and monitoring processes 
+independent of conflicts of interest and has adopted the following Code of Conduct, in addition to other 
+policies and procedures, to ensure the quality and integrity of the rating process, the independence of its 
+analysts, and the transparency of its practices. 
+ 
+d in accordance with the principles outlined by the 
+International Organization of Securities Commissions  Conduct Fundamentals for 
+Credit Rating Agencies in 2004 and most recently amended in 
+2015.  This Code of Conduct has been designed to achieve the objectives articulated by IOSCO and to 
+ensure the highest standards of ethics, integrity, and professional responsibility.  Demotech has substantially 
+adopted the provisions set forth in the IOSCO Code and has deviated from IOSCO recommendations only 
+where necessary to accommodate the unique nature of
+consistency with the requirements of applicable laws and regulations.  Such deviations do not compromise 
+the fundamental principles of integrity, transparency, and responsibility to which the IOSCO Code aspires. 
+   
+Implementation, Enforcement & Effect 
+All employees of Demotech are expected to comply with this Code of Conduct.  In addition, every 
+Demotech employee is expected to use common sense and to act ethically in all dealings with fellow 
+employees, clients, third parties, and the public. Demo
+responsible for implementing and enforcing this Code
+board of directors oversee all Demotech policies.  Any questions relating to the Code of Conduct should be 
+directed to the Designated Compliance Officer. 
+ 
+Demotech has produced this Code of Conduct to set forth certain internal standards and to provide guidance 
+to its employees.  Demotech does not assume any responsibility or liability to third parties arising out of or 
+relating to this Code of Conduct and it does not create any legal obligations or rights. Demotech may amend 
+this Code of Conduct at any time in its sole discretion. 
+ 
+Statement about Deviations from the IOSCO Code 
+Demotech has made the following modifications to provisions in the IOSCO Code:  Section 1.13 was 
+revised to remove the reference to structured finance products as Demotech does not currently issue ratings 
+for this asset class;  Section 1.14 was modified to remove the example included in the IOSCO Code related 
+to analytic teams including analysts with different areas of analytic responsibility as Demotech currently 
+focuses on a single class of credit ratings; Section 2.4 w
+interactions with affiliated entities; Section 2.5 was modified to remove the reference to explanatory 
+disclosures as conflicts of interest will be disclosed by Demotech, as required by applicable laws, to achieve 
+the principles and objectives of the IOSCO Code in promoting transparency; Section 2.6(d) was modified 
+for clarity and consistency with applicable law, as the issuance of preliminary ratings by itself does not 
+present a conflict of interest, and to the extent it could pose a conflict of interest, such conflicts are 
+adequately addressed elsewhere in the Code and by applicable law; Section 2.8(a) was modified to reflect 
+applicable rules and regulations requiring a rating agency to disclose the potential conflict of interest that it 
+was paid by a rated entity for services unrelated to credit ratings; Sections 2.9, 3.7, and 3.15, as numbered 
+within the IOSCO Code, were deleted as Demotech does not currently rate structured finance products; 
+
+===== PDF PAGE 3 =====
+Code of Conduct  July 15, 2025 
+Page 2 of 12 
+Section 2.11 was deleted as it does not apply to Demot
+reflect applicable rules and regulations related to gift
+practices for disclosing information related to rating withdrawals; Section 4.2 has been modified to remove 
+the requirement that the risk management function be separate from the internal audit function as permitted 
+by the language included in this section in the IOSCO Code; references to originators, underwriters, and 
+arrangers have been removed throughout the Code of Conduct for clarity, as Demotech currently issues 
+ratings only in the class of ratings for insurance companies    
+
+===== PDF PAGE 4 =====
+Code of Conduct  July 15, 2025 
+Page 3 of 12 
+1. Quality and Integrity of the Rating Process 
+ 
+A. Quality of the Credit Rating Process 
+1.1 Demotech shall establish, maintain, document, and enforce a credit rating methodology for 
+each class of entity or obligation for which Demotech issues credit ratings.  The credit 
+rating methodology shall be rigorous, capable of being applied consistently, and, where 
+possible, result in credit ratings that can be subjected to some form of objective validation 
+based on historical experience. 
+ 
+1.2 Credit ratings shall reflect all information known and believed to be relevant to Demotech, 
+consistent with the applicable credit rating methodology that is in effect.  Demotech shall 
+establish, maintain, document, and enforce policies, procedures, and controls to ensure that 
+the credit ratings and related reports it disseminates are based on a thorough analysis of all 
+such information.   
+ 
+1.3  Demotech shall adopt reasonable measures designed to ensure that it has the appropriate 
+knowledge and expertise, and that the information it uses in determining credit ratings is 
+of sufficient quality and obtained from reliable sources to support an informed credit rating.   
+ 
+1.4  Demotech shall avoid issuing credit ratings for entities or obligations for which it does not 
+have appropriate information, knowledge, and expertise. For example, where the 
+complexity of a security or the structure of a type of security, or the lack of robust data 
+about the assets underlying the security raise serious questions as to whether Demotech can 
+determine an informed credit rating for the security, Demotech shall refrain from issuing a 
+credit rating.  
+ 
+1.5  In assessing creditworthiness, analysts involved in the credit rating action shall use the 
+credit rating methodology established by Demotech for the type of entity or obligation that 
+is subject to the credit rating action. The credit rating methodology shall be applied in a 
+manner that is consistent across all entities or obligations for which that methodology is 
+used.  
+ 
+1.6  Demotech shall define the meaning of each category in its rating scales and apply those 
+categories consistently across all classes of rated entities and obligations to which a given 
+rating scale applies.  
+ 
+1.7  Credit ratings shall be assigned by Demotech as an entity (not by an analyst or other 
+employee of Demotech).  
+ 
+1.8  Demotech shall assign analysts who, individually or collectively, have appropriate 
+knowledge and experience for assessing the creditworthiness of the type of entity or 
+obligation being rated.  
+ 
+1.9  Demotech shall maintain internal records that are accurate and sufficiently detailed and 
+comprehensive to reconstruct the credit rating process for a given credit rating action. The 
+records shall be retained fo
+credit rating process, including to permit internal audit, compliance, and quality control 
+functions to review past credit rating actions in order to carry out the responsibilities of 
+those functions. Further, Demotech shall establish, maintain, document, and enforce 
+
+===== PDF PAGE 5 =====
+Code of Conduct  July 15, 2025 
+Page 4 of 12 
+policies, procedures, and controls designed to ensure that its employees comply with 
+ecord maintenance, retention, and disposition requirements and with 
+applicable laws and regulations governing the maintenance, retention, and disposition of 
+records.  
+ 
+1.10  Demotech shall establish, maintain, document, and enforce policies, procedures, and 
+controls designed to avoid knowingly issuing credit ratings, analyses, or reports that 
+contain misrepresentations or are otherwise misleading as to the general creditworthiness 
+of a rated entity or obligation.  
+ 
+1.11  Demotech shall ensure that it has and devotes sufficient resources to carry out and maintain 
+informed credit ratings. When deciding whether to issue a credit rating for an entity or 
+obligation, Demotech shall assess whether it is able to devote a sufficient number of 
+analysts with the skill sets to determine informed credit ratings, and whether the analysts 
+will have access to sufficient information in order to determine an informed credit rating.  
+ 
+ll review the feasibility of providing a credit 
+rating for a type of entity or obligation that is materially different from the entities or 
+obligations that Demotech currently rates.  
+  
+1.13   Demotech shall establish and maintain a review function made up of one or more senior 
+managers responsible for conducting a rigorous, formal, and periodic review, on a regular 
+basis pursuant to an established timeframe, of all aspects of its credit rating methodologies 
+(including models and key assumptions) and significant changes to the credit rating 
+methodologies. Where feasible and appropriate for the size and scope of its credit rating 
+business, this function shall be independent of the employees who are principally 
+responsible for determining credit ratings. 
+ 
+1.14  Demotech shall assign analysts and structure its rating process to promote continuity but 
+also to avoid bias in the credit rating process.  
+ 
+1.15  Demotech shall ensure that sufficient employees and financial resources are allocated to 
+monitoring and updating all its credit ratings. Except for a credit rating that clearly indicates 
+it does not entail ongoing surveillance, once a credit rating is published, Demotech shall 
+monitor the credit rating on an ongoing basis by:  
+ 
+a. Reviewing the creditworthiness of the rated entity or obligation regularly;  
+ 
+b. Initiating a review of the status of the credit rating upon becoming aware of any 
+information that might reasonably be expected to result in a credit rating action 
+(including withdrawal of a credit rating), consistent with the applicable credit 
+rating methodology;  
+ 
+c. Reviewing the impact of and applying a change in the credit rating methodologies, 
+models or key rating assumptions on the relevant credit ratings within a reasonable 
+period of time;  
+ 
+d.  Updating on a timely basis the credit rating, as appropriate, based on the results of 
+such review; and  
+ 
+e.  Incorporating all cumulative experience obtained.  
+
+===== PDF PAGE 6 =====
+Code of Conduct  July 15, 2025 
+Page 5 of 12 
+ining initial credit ratings and for subsequent 
+monitoring of existing credit ratings shall have the requisite level of expertise and resources 
+to perform their respective functions in a timely manner.  
+ 
+1.17  Demotech shall establish, maintain, document, and enforce policies and procedures that 
+clearly set forth guidelines for disseminating credit ratings that are the result or subject of 
+credit rating actions and the related reports, and for when a credit rating shall be withdrawn. 
+ 
+B. Integrity of the Credit Rating Process 
+ 
+1.18 Demotech and its employees shall deal fairly and honestly with rated entities, obligors, and 
+users of credit ratings. 
+ 
+e highest standards of integrity and ethical 
+behavior, and Demotech shall have policies and procedures in place that are designed to 
+ensure that individuals with demonstrably compromised integrity are not employed. 
+ 
+1.20 Demotech and its employees shall not implicitly or explicitly give any assurance or 
+guarantee to an entity subject to a rating acti
+about the outcome of a particular rating action.  This does not preclude Demotech from 
+issuing preliminary ratings or explaining preliminary rating analyses and results. 
+ 
+1.21 Demotech and its employees shall not make promises or threats about potential credit rating 
+actions to influence rated entities, obligors, or users of the ratings to pay for credit ratings 
+or other services. 
+ 
+1.22 Demotech and its employees shall not make recommendations regarding the activities of 
+rated entities or obligors that could impact a credit rating of the rated entity or obligation, 
+including recommendations about the corporate or legal structure, assets, liabilities, or 
+activities of the rated entity or obligor.  
+ 
+1.23 Demotech shall establish, maintain, document, and enforce policies, procedures and 
+controls designed to ensure that Demotech and its employees comply with this Code of 
+Conduct and applicable laws and regulations. 
+ 
+a. Demotech shall establish a compliance function responsible for monitoring and 
+reviewing the compliance of Demotech and its employees with the provisions of 
+this Code and with applicable laws and regulations; 
+ 
+b. The compliance function shall be responsible for reviewing the adequacy of 
+rols designed to ensure compliance with 
+this Code and applicable laws and regulations; 
+ 
+c.   Demotech shall assign a senior level employee with the requisite skill set to serve 
+as its Designated Compliance Officer. 
+reporting lines and compensation shall be 
+operations. 
+ 
+
+===== PDF PAGE 7 =====
+Code of Conduct  July 15, 2025 
+Page 6 of 12 
+1.24 Upon becoming aware that another employee or an affiliate of Demotech is or has engaged 
+in conduct that is illegal, unethical, or contrary to this Code of Conduct, the Demotech 
+employee must report such information immediately to the Designated Compliance Officer 
+or another officer of Demotech, as appropriate, so proper action may be taken.  Demotech 
+employees are not necessarily expected to be experts in the law.  Nonetheless, Demotech 
+employees are expected to report activities that a reasonable person would question.  Upon 
+receiving such a report from an employee, Demotech shall take appropriate action, as 
+determined by the laws and regulations of the jurisdiction and the policies, procedures, and 
+controls established, maintained, documented, and enforced by Demotech. Neither 
+Demotech nor its employees shall retaliate against any employees who, in good faith, make 
+such reports. 
+ 
+2. Independence and Avoidance of Conflicts of Interest 
+  
+A. General 
+ 
+2.1 Demotech shall not delay or refrain from taking a rating action based on the potential effect 
+(economic, political, or otherwise) of the action on Demotech, a rated entity, obligor, 
+originator, underwriter, arranger, investor, or other market participant. 
+ 
+2.2 Demotech and its employees shall use care and professional judgment to maintain both the 
+substance and appearance of independence and objectivity. 
+ 
+2.3 The determination of a rating shall be influenced only by factors relevant to the rating 
+assessment. 
+ 
+2.4 The particular rating assigned to an entity or obligation shall not be affected by whether 
+there is an existing or potential business relationship between Demotech (or its affiliates) 
+and the rated entity, obligor (or any of their affiliates), or any other party; however, this 
+section shall not prohibit Demotech from considering the impact of an affiliate of a rated 
+entity on the financial condition or operating condition of the rated entity in determining a 
+rating.  In addition, an existing relationship between Demotech and rated entities that are 
+affiliated may be considered by Demotech in determining the nature, scope, and extent of 
+information requested from such entities in order to determine a rating.     
+ 
+2.5 To the extent necessary, Demotech shall operationally, legally, and, if practicable, 
+physically separate its credit rating business and its analysts from other business activities 
+that may present a conflict of interest.  For other businesses that do not necessarily present 
+a conflict of interest, Demotech shall establish, maintain, document, and enforce policies, 
+procedures, and controls to minimize the likelihood that conflicts of interest shall arise.  
+  
+B. Policies, Procedures, Controls and Disclosures 
+ 
+2.6 Demotech shall establish, maintain, document, and enforce policies, procedures and 
+controls to identify and eliminate, or manage and disclose, as appropriate, any actual or 
+potential conflicts of interest that may influence credit rating methodologies, credit rating 
+actions, or analyses of Demotech or the judgment and analyses of its analysts who have an 
+influence on ratings decisions.  Among other things, these policies, procedures and controls 
+shall address the following potential conflicts of interest to the extent they may be 
+applicable to Demotech: 
+ 
+
+===== PDF PAGE 8 =====
+Code of Conduct  July 15, 2025 
+Page 7 of 12 
+a. Being paid to issue a credit rating by the rated entity or by the obligor; 
+ 
+b.    Being paid by subscribers with a financial interest that could be affected  by  
+a credit rating action of Demotech; 
+ 
+c.    Being paid by rated entities, obligors, or subscribers for services other than 
+ 
+d.   Conditioning or threatening to condition the issuance of a credit rating on the 
+purchase by an obligor or issuer, or an affiliate of the obligor or issuer, of any 
+other services or products, including pre-credit rating assessment products; 
+ 
+e. Having a direct or indirect ownership interest in a rated entity or obligor, or 
+having a rated entity or obligor have a direct or indirect ownership interest in 
+Demotech. 
+ 
+2.7 Demotech shall disclose actual and potential conflicts of interest (including, but not limited 
+to, those conflicts of interest identified in Section 2.6 above) in a complete, timely, clear, 
+concise, specific, and prominent manner.  When the actual or potential conflict of interest 
+is unique or specific to a credit rating action with respect to a particular rated entity, obligor, 
+or obligation, such conflict of interest shall be disclosed in the same form and through the 
+same means as the relevant credit rating action. 
+ 
+2.8 Demotech shall disclose the general nature of its compensation arrangements with rated 
+entities or obligors. 
+   
+a. When Demotech receives from a rated entity or obligor, compensation unrelated 
+to its credit rating services, Demotech shall disclose that it was paid for other 
+services by such rated entity or obligor in the relevant credit rating report or 
+elsewhere, as appropriate.  
+ 
+b. Demotech shall disclose in the relevant credit rating report or elsewhere, as 
+appropriate, if it receives 10 percent or more of its annual revenue from a single 
+rated entity, obligor, or subscriber or any of their affiliates.  
+ 
+2.9 [This section intentionally left blank]  
+ 
+2.10 Demotech shall not hold or transact in trading instruments presenting a conflict of interest 
+ 
+2.11 [This section intentionally left blank] 
+ 
+C. Employee Independence 
+ 
+2.12 Reporting lines for Demotech employees and their compensation arrangements shall be 
+structured to eliminate or effectively manage actual and potential conflicts of interest.  
+ 
+a. An employee who participates in or who might otherwise have an effect on a credit 
+rating action with respect to an entity or obligation shall not be compensated or 
+evaluated on the basis of the amount of revenue that Demotech derives from that entity 
+or obligor.  
+
+===== PDF PAGE 9 =====
+Code of Conduct  July 15, 2025 
+Page 8 of 12 
+b. Demotech shall conduct formal and periodic reviews of its compensation policies, 
+procedures, and practices for its employees who participate in or who might otherwise 
+have an effect on a credit rating action to ensure that these policies, procedures, and 
+practices have not compromised and do not 
+credit rating process.  
+ 
+2.13 Demotech employees who participate in or who might otherwise have an effect on a credit 
+rating action with respect to a rated entity, obligor, or subscriber shall not negotiate, 
+discuss, or arrange the fees or payments charged to such rated entity, obligor, or subscriber. 
+ 
+2.14 Demotech employees shall not participate in or otherwise influence a credit rating action 
+with respect to an entity or obligation if the employee, an immediate family member of the 
+employee (e.g., spouse, domestic partner, or dependent), or an entity managed by the 
+employee (e.g., a trust):  
+ 
+a. Holds or transacts in a trading instrument issued by the rated entity or obligor;  
+b. Holds or transacts in a trading instrument (other than a diversified collective 
+investment scheme) that itself owns an interest in the rated entity or obligor, or is a 
+derivative based on a trading instrument issued by the rated entity or obligor;  
+ 
+c.  Holds or transacts in a trading instrument issued by an affiliate of the rated entity or 
+obligor, the ownership of which may cause or may be perceived as causing a conflict 
+of interest with respect to the employee or Demotech;  
+ 
+d.  Holds or transacts in a trading instrument issued by a lead underwriter or arranger of 
+the rated obligation, the ownership of which may cause or may be perceived as causing 
+a conflict of interest with respect to the employee or Demotech;  
+ 
+e.  Is currently employed by, or had a recent employment or other significant business 
+relationship with the rated entity or obligor that may cause or may be perceived as 
+causing a conflict of interest;  
+ 
+f.  Is a director of the rated entity or obligor; or  
+ 
+g.  Has, or had, another relationship with or interest in the rated entity or obligor (or any 
+of their affiliates) that may cause or may be perceived as causing a conflict of interest.  
+ 
+2.15 A Demotech analyst shall not hold or transact in a trading instrument issued by a rated 
+primary analytical responsibility. This does not 
+preclude an analyst from holding or trading a diversified collective investment scheme that 
+owns a trading instrument issued by a rated en
+analytical responsibility.  
+ 
+2.16 Demotech employees may not solicit money, gifts, or favors from anyone with whom 
+Demotech does ratings-related business.  Demotech analysts shall not accept gifts or favors 
+from a rated entity or a person affiliated with a rated entity, except if such gifts are provided 
+in the context of normal business activities such as meetings and have an aggregate value 
+of no more than $25. 
+ 
+
+===== PDF PAGE 10 =====
+Code of Conduct  July 15, 2025 
+Page 9 of 12 
+2.17 A Demotech employee who becomes involved in a personal relationship (including, for 
+example, a personal relationship with an employee of a rated entity or obligor,) that creates 
+an actual or potential conflict of interest must disclose the relationship to the Designated 
+Compliance Officer or another officer of Demotech, as appropriate. 
+ 
+2.18 Demotech shall establish, maintain, document, and enforce policies, procedures, and 
+controls for reviewing without unnecessary delay the past work of an analyst who leaves 
+the employ of Demotech and joins an entity that the employee participated in rating, an 
+obligor whose obligation the employee participated in rating, or any of their affiliates. 
+ 
+3 Responsibilities to the Public, Rated Entities, and Obligors 
+ 
+A. Transparency and Timeliness of Credit Ratings Disclosure 
+ 
+3.1 Demotech shall assist users of credit ratings in developing a greater understanding of its 
+ratings by disclosing in plain language the nature and limitations of credit ratings.  To the 
+extent that Demotech is subject to registration and oversight by a regulatory authority, 
+Demotech shall not represent or imply that such regulatory authority endorses its credit 
+ratings or use its registration status to advertise the quality of its credit ratings.   
+ 
+3.2 Demotech shall disclose sufficient information about its credit rating process and its credit 
+rating methodologies so that users of credit ratings can understand the manner in which a 
+credit rating was determined. 
+ 
+3.3 Demotech shall disclose a material modification to its credit rating methodology and shall 
+do so prior to the modification taking effect, unless doing so would negatively impact the 
+integrity of a credit rating by unduly delaying the taking of a credit rating action.   
+ 
+3.4 Demotech shall disclose its policies and procedures that address the issuance of unsolicited 
+credit ratings.  
+ 
+3.5 Demotech shall disclose its policies and procedures for distributing credit ratings and 
+reports, and for when a credit rating will be withdrawn. 
+ 
+3.6 Demotech shall disclose clear definitions of the meaning of each category in its rating 
+scales, including the definition of default or impairment. 
+ 
+3.7 [This section intentionally left blank] 
+ 
+3.8 Demotech shall be transparent with investors, rated entities and obligors, about how the 
+relevant entity or obligation is rated. 
+ 
+3.9 Where feasible and appropriate, Demotech shall inform the rated entity, or the obligor, 
+about the critical information and principal considerations upon which a credit rating will 
+be based prior to disseminating a credit rating that is the result or subject of the credit rating 
+action and afford such rated entity or obligor, an adequate opportunity to clarify any factual 
+errors, factual omissions, or factual misperceptions that would have a material effect on the 
+credit rating. Demotech shall duly evaluate any response from such rated entity or obligor. 
+Where in particular circumstances Demotech has not informed such rated entity or obligor 
+prior to disseminating a credit rating action, Demotech shall inform such rated entity or 
+obligor, as soon as practical thereafter and, generally, shall explain why Demotech did not 
+
+===== PDF PAGE 11 =====
+Code of Conduct  July 15, 2025 
+Page 10 of 12 
+inform such rated entity or obligor prior to disseminating the credit rating action.   
+ 
+3.10 When Demotech publicly discloses a credit rating that is the result or subject of the credit 
+rating action, it shall do so as soon as practicable after taking such action.  
+ 
+3.11 When Demotech publicly discloses a credit rating that is the result or subject of a credit 
+rating action, it shall do so on a non-selective basis. 
+ 
+3.12 Demotech shall disclose with a credit rating that is the result or subject of a credit rating 
+action whether the rated entity or obligor participated in the credit rating process. Each 
+credit rating not initiated at the request of the rated entity or obligor shall be identified as 
+such.  
+ 
+3.13  Demotech shall clearly indicate the attributes and limitations of each credit rating, and the 
+extent to which it verifies information provided to it by the rated entity or obligor. For 
+example, if the credit rating involves a type of entity or obligation for which there is limited 
+historical data, Demotech shall disclose this fact and how it may limit the credit rating.  
+ 
+3.14 Demotech shall indicate in the announcement of a credit rating that is the result or the 
+subject of a credit rating action when the credit rating was last updated or reviewed. The 
+credit rating announcement shall indicate the principal credit rating methodology or 
+methodology version that was used in determining the credit rating and where a description 
+of that credit rating methodology can be found. Where the credit rating is based on more 
+than one credit rating methodology, or where a review of only the principal credit rating 
+methodology might cause investors and other users of credit ratings to overlook important 
+aspects of the credit rating, Demotech shall explain this fact in the credit rating 
+announcement, and indicate where to find a discussion of how the different credit rating 
+methodologies and other important aspects factored into the credit rating decision.  
+ 
+3.15 [This section intentionally left blank]  
+ 
+3.16 When issuing or revising a credit rating, Demotech shall explain in its announcement 
+and/or report the key assumptions and data underlying the credit rating, including financial 
+statement adjustments that deviate materially from those contained in the published 
+financial statements of the relevant rated entity or obligor.  
+ 
+3.17 If Demotech withdraws a credit rating for a rated entity or obligation it shall disclose such 
+withdrawal to the public as soon as practicable. A publication by Demotech of a credit 
+rating that has been withdrawn shall indicate that the rating has been withdrawn and the 
+date of the withdrawal.   
+ 
+3.18  To promote transparency and to enable investors and other users of credit ratings to 
+compare the performance of different credit rating agencies, Demotech shall disclose 
+sufficient information about the historical transition and default rates of its credit rating 
+categories with respect to the classes of entities and obligations it rates. This information 
+shall include verifiable, quantifiable historical information, organized over a period of 
+time, and, where possible, standardized in such a way to assist investors and other users of 
+credit ratings in comparing different credit rating agencies. If the nature of the rated entity 
+or obligation or other circumstances make such historical transition or default rates 
+inappropriate, statistically invalid, or otherwise likely to mislead investors or other users 
+of credit ratings, Demotech shall disclose why this is the case. 
+
+===== PDF PAGE 12 =====
+Code of Conduct  July 15, 2025 
+Page 11 of 12 
+B. The Treatment of Confidential Information 
+ 
+3.19 Demotech shall establish, maintain, document, and enforce policies, procedures and 
+controls to protect confidential and material non-public information including confidential 
+information received from a rated entity or obligor, , and non-public information about a 
+credit rating action (e.g., information about a credit rating action before the credit rating is 
+publicly disclosed or disseminated to subscribers).  
+ 
+a. The policies, procedures, and controls shall prohibit Demotech and its employees from 
+using or disclosing confidential or material non-public information for any purpose 
+it rating activities, including disclosing such information 
+to other employees where the disclosure is not necessary in connection with 
+regulation.  
+ 
+b. The policies, procedures, and controls shall require Demotech and its employees to 
+take reasonable steps to protect confidential and material non-public information from 
+fraud, theft, misuse, or inadvertent disclosure.  
+ 
+c. With respect to confidential information received from a rated entity or obligor, the 
+policies, procedures, and controls shall prohibit Demotech and its employees from 
+using or disclosing such information in violation of the terms of any applicable 
+agreement or mutual understanding that Demotech shall keep the information 
+confidential, unless disclosure is required by applicable law or regulation.  
+ 
+d. With respect to a pending credit rating action, the policies, procedures, and controls 
+shall prohibit Demotech and its employees from selectively disclosing information 
+about the pending credit rating action, except to the rated entity or obligor, or their 
+designated agents, or as required by applicable law or regulation. 
+ 
+3.20 Demotech shall establish, maintain, document, and enforce written policies, procedures 
+and controls designed to prevent violations of applicable laws and regulations governing 
+the treatment and use of confidential and material non-public information. 
+ 
+3.21 Demotech shall establish, maintain, document, and enforce policies, procedures and 
+controls that prohibit employees that possess confidential or material non-public 
+information concerning a trading instrument from engaging in a transaction in the trading 
+instrument or using the information to advise or otherwise advantage another person in 
+transacting in the trading instrument. 
+ 
+4. Governance, Risk Management, and Employee Training 
+ 
+ applicable, shall have ultimate responsibility 
+for ensuring that Demotech establishes, maintains, documents, and enforces a code of 
+conduct that gives full effect to the IOSCO Code of Conduct Fundamentals for Credit 
+Rating Agencies.   
+ 
+4.2 Demotech shall establish a risk management function made up of one or more senior 
+managers or employees with the appropriate level of experience responsible for 
+identifying, assessing, monitoring, and reporting the risks arising from its activities, 
+including, but not limited to legal risk, reputational risk, operational risk, and strategic risk. 
+
+===== PDF PAGE 13 =====
+Code of Conduct  July 15, 2025 
+Page 12 of 12 
+The function shall make periodic reports to the board (or similar body) and senior 
+management to assist them in assessing the adequacy of the policies, procedures, and 
+controls Demotech establishes, maintains, documents, and enforces to manage risk, 
+including the policies, procedures, and controls specified in the code of conduct. 
+ 
+4.3 Demotech shall establish, maintain, document, and enforce policies, procedures, and 
+controls requiring employees to undergo formal ongoing training at reasonably regular time 
+intervals. The subject matter covered by the 
+responsibilities and shall cover, as applicable, 
+credit rating methodologies, the laws govern
+ls for managing conflicts of interest and 
+governing the holding and transacting in tradi
+procedures for handling confidential information and material non-public information. The 
+policies, procedures, and controls shall include measures designed to verify that employees 
+undergo required training. 
+5. Disclosure and Communication with Market Participants 
+ified in the provisions of this Code of 
+Conduct shall be complete, fair, accurate, timely, and understandable to investors and other 
+users of credit ratings. 
+ 
+5.2 Demotech shall disclose with its Code of Conduct a description of how the provisions of 
+its Code of Conduct fully implement the provisions of the IOSCO Statement of Principles 
+Regarding the Activities of Credit Rating Agencies and the IOSCO Code of Conduct 
+Fundamentals for Credit Rating Agencies (co
+an IOSCO provision, Demotech shall identify 
+the relevant IOSCO provision, explain the reason for the deviation, and explain how the 
+deviation nonetheless achieves the objectives contained in the IOSCO provisions.  
+Demotech shall describe how it implements and enforces its Code of Conduct. Demotech 
+shall disclose as soon as practicable any changes to its Code of Conduct or changes to how 
+it is being implemented or enforced.   
+5.3 Demotech shall establish and maintain a function within its organization charged with 
+receiving, retaining, and handling complaints from market participants and the public. The 
+function shall establish, maintain, document, and enforce policies, procedures, and controls 
+for receiving, retaining, and handling complaints, including those that are provided on a 
+confidential basis. The policies, procedures, and controls shall specify the circumstances 
+under which a complaint must be reported to senior management or the board (or similar 
+body). 
+ 
+5.4 Demotech shall publicly and prominently disclose free of charge on its primary website: 
+ 
+a. 
+b. 
+ 
+c. historic performance data; and 
+d. Any other disclosures specified in this Code of Conduct. 
+ 
+Effective Date: 07/11/22; Revised: 12/22/22; 10/24/23; 07/15/25 

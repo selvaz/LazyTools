@@ -105,18 +105,15 @@ What the obvious approach gets wrong:
 - **The filing date is not the period.** A 10-K filed in March covers a year
   that ended in December — or in January, or in June. The issuer's fiscal year
   end decides, and it must be read from the issuer's own profile rather than
-  assumed to be December. Walmart's year ends 31 January; NVIDIA's on the last
-  Sunday of January; Deere's in late October.
-- **Report date can precede filing date, and occasionally does not.** Of 666
-  SAP filings, 4 carry a report date AFTER their filed date. Any code that
-  assumes the ordering will silently mis-sort those four.
+  assumed to be December.
+- **Report date can precede filing date, and occasionally does not.** Never
+  infer an ordering beyond the dates the filing actually provides.
 - **A filing's history is paginated.** The recent-filings block covers only
   part of an issuer's record; older filings live in separate files that must be
   fetched to be seen. An issuer that appears to have no annual filing may simply
   have one beyond the first page.
-- **Documents can be large.** A 5MB response ceiling refused Microsoft's 10-Q,
-  which is 7,483,278 bytes. A cap set from intuition rather than measurement
-  fails on exactly the largest and most important issuers.
+- **Documents can be large.** A response ceiling set from intuition rather than
+  measurement fails on exactly the largest and most important issuers.
 
 SEC fair access requires a declared User-Agent naming a real contact. Without
 one, requests are refused; with one, they are served without authentication.
@@ -132,12 +129,11 @@ The XBRL fact APIs answer "what value did this company report for this concept".
 The rendered statements — the `R*.htm` files indexed by `FilingSummary.xml` —
 answer "what does this income statement say". Read the rendered statements.
 
-The difference is not stylistic. Cisco's FY2024 filing serves
-`AmortizationOfIntangibleAssets` at $698m entity-wide. The real total is
-$1,653m: $955m sits in cost of sales and reaches the fact API only as a
-dimensioned fact the entity-wide endpoint never returns. A reader taking the
-entity-wide figure gets something with perfect provenance that is wrong by a
-factor of two, and nothing in the response says so.
+The difference is not stylistic. A company-concept response can carry only an
+entity-wide value while another component appears in a dimensioned fact on the
+face statement. A reader taking the entity-wide value gets something with
+perfect provenance that is nevertheless incomplete, and nothing in the response
+says so.
 
 What the rendered statements give that the facts do not:
 
@@ -158,35 +154,26 @@ requires: source/sec/statements
 Each of these was measured against a live filing. They share a shape: the figure
 is real, correctly scaled, and from the document — and still wrong.
 
-- **A combined concept can be a subtotal, not a total.** Walmart serves
-  `DebtLongtermAndShorttermCombinedAmount` at $35,999m while its own components
-  sum to $39,067m. The gap is exactly short-term borrowings. The name promises
-  everything and the figure delivers less.
-- **Two facts can share a period end and mean different things.** Microsoft's
-  Q2 FY2026 revenue appears twice ending 2025-12-31, same accession, same fiscal
-  year and period: $158,946m and $81,273m. Only the START date separates the
-  half-year from the quarter. A period match on the end alone picks whichever
-  came first.
-- **A concept an issuer does not serve is not a concept it lacks.** Procter &
-  Gamble publishes no plain cash concept, only the restricted-inclusive one.
-  Taking the available concept because it is the only one gives cash that
-  includes money the issuer cannot spend.
-- **A filer can present one line where the base expects two.** Walmart shows a
-  single "Depreciation and amortization"; NVIDIA a single "Purchases related to
-  property and equipment and intangible assets". Neither is separable, and
-  claiming both halves of one line double-counts it.
+- **A combined concept can be a subtotal, not a total.** Reconcile it against
+  the reported components before treating its label as a complete aggregate.
+- **Two facts can share a period end and mean different things.** The start
+  date distinguishes a quarter from a year-to-date period; an end date alone
+  does not.
+- **A missing plain concept is not permission to use a related one.** Cash that
+  includes restricted balances is not freely available cash.
+- **A filer can present one line where the base expects two.** The parts are
+  not separable, and claiming both halves of one line double-counts it.
 - **A schedule that looks like the one you want may be a different schedule.**
-  NVIDIA files no debt maturity schedule at all. Its LEASE commitment schedule
-  has the same shape — years down the side, amounts across — and reads as a
-  $2.1bn maturity ladder for an issuer carrying $8.5bn of debt.
+  A lease-commitment table is not a debt-maturity schedule merely because both
+  list years and amounts.
 - **Scale is per row, not per table.** A header reading "$ in Millions, except
   per share data" means exactly that: an EPS of 0.47 multiplied by a million is
   470,000, a number that looks like data.
 - **The units string is not what the documentation says.** Earnings per share is
   served as `USD/shares`, not the `USD-per-shares` the SEC documents describe.
-- **An industry code describes the filing, not the business.** Deere files under
-  SIC 3523, "Farm Machinery and Equipment", and runs a captive finance company
-  whose debt is consolidated into the same statements.
+- **An industry code describes the filing, not the whole business.** Review the
+  filing for financing, leasing and other consolidated activities before
+  interpreting group debt as industrial operating debt.
 
 ## block: source/esef/filings
 kind: process

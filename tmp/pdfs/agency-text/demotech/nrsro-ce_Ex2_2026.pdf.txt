@@ -1,0 +1,808 @@
+
+===== PDF PAGE 1 =====
+ 
+  2715 Tuller Parkway  Dublin, Ohio  43017-2310 
+Tel: 614 761-8602  800 354-7207 
+www.demotech.com 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+
+===== PDF PAGE 2 =====
+ 
+  2715 Tuller Parkway  Dublin, Ohio  43017-2310 
+Tel: 614 761-8602  800 354-7207 
+www.demotech.com 
+ 
+Rating Procedures & Methodologies 
+procedures and methodologies used by Demotech to determine ratings. The philosophy, procedures, and 
+methodologies discussed in these documents are 
+general understanding of how Demotech determines and assigns ratings. The most current version of 
+is provided to the Securities and Exchange Commission with Form NRSRO on an annual basis and is 
+ www.demotech.com. 
+ 
+ 
+
+===== PDF PAGE 3 =====
+Demotechs Philosophy  March 2024 
+Demotechs Philosophy 
+line for assessing solvency based upon changes in 
+financial stability, as manifested over time in an en
+financial statements.  While Financial Stability Ratings® (FSRs) are predominantly based upon a series of 
+quantitative ratios, certain qualitative factors are also considered in the analysis.  An FSR summarizes 
+e business cycle that exists in the 
+general economy as well as the underwriting cycle that exists in the insurance industry in the jurisdictions 
+where the entity operates. Thus, an FSR summarizes 
+insurer to honor meritorious claims during a downturn in general economic conditions as well as a downturn 
+in the underwriting cycle.  
+ 
+que. While Demotech acknowledges and recognizes the 
+importance of the profitability of the entity assigned a rating, we believe that balance sheet strength and 
+financial integrity are the ultimate determinants of the long-term financial stability required to effectively 
+ meritorious claims. Accordingly, while operating 
+profit remains an important element and consideration of FSRs, the ability of an insurer to remain 
+financially stable under a variety of economic scenarios requires a focus on balance sheet integrity, 
+including a review of the quality and quantity of reinsurance protection as well as the relative adequacy of 
+loss and loss adjustment expense reserves.  
+ 
+Demotech believes that financial stability can be independent of size.  We believe well-managed, properly 
+reinsured, regional and specialty insurers can be as financially stable as larger insurers.   
+ 
+e ability of the insurer to meet its insurance-related obligations based 
+upon our assessment and interpretation of financial information and other information requested by and 
+presented to us.  FSRs are not an endorsement of any particular insurer or its products. Insureds, producers, 
+and third parties need to independently evaluate their relationship with a particular insurer as well as the 
+ 
+
+===== PDF PAGE 4 =====
+Rating Procedures  July 15, 2025 
+Page 1 of 4 
+ Initiation of the rating process   
+ 
+Ratings from Demotech are typically solicited by the entity seeking the rating.  Demotech requires the 
+participation of the rated entity to complete its review and assign a final rating.  Demotech does not publish 
+unsolicited ratings for particular entities and does not publish ratings unless an entity agrees to finalize a 
+rating assignment.  When an entity agrees to participate in the rating process, Demotech will review certain 
+publicly available information and request that the entity submit such additional information as may be 
+required by Demotech for a full review of the entity.  Demotech accepts rating assignments only if it 
+determines it has the necessary information, resources, and expertise to review the entity and assign an 
+informed rating.  All engagements are subject to Demo
+rating assignments and subsequent monitoring occur only for entities who have engaged Demotech for its 
+rating services. 
+ 
+ Public and non-public sources of information used in determining credit ratings 
+ 
+Demotech will issue a rating only after it has received and reviewed all financial data and qualitative 
+information that it deems relevant and that would be required to apply an analysis process consistent with 
+the risks that the entity appears to present.  This information includes publicly available information (which 
+includes annual and quarterly financial statements, and which may also consist of statements of actuarial 
+opinion, management discussion and analysis, regulatory filings, including rate, rule, and form filings, and 
+other information), nonpublic information obtained from the entity (which may include but is not 
+necessarily limited to information related to reinsurance programs, business plans, financial projections, 
+risk management procedures, or financial statements and other information related to a parent, subsidiary 
+or affiliated entity), and other information provided by agents or third-party vendors of the entity, such as 
+auditors, actuaries, reinsurers, third party administrators, managing general agencies, and other vendors or 
+service providers. 
+ 
+Demotech obtains information from sources considered reliable.  Demotech reviews the data and 
+information it receives for reasonableness and consistency, but does not independently audit the data it 
+receives and assumes no responsibility for data provided by rated entities or prepared by third parties. 
+ 
+If Demotech concludes that it does not possess the information that it requires or sufficient analysts 
+necessary to issue an informed credit rating, Demotech will not issue a rating to an entity. 
+ 
+ Quantitative and qualitative models and metrics used to determine credit ratings 
+ 
+Demotech ratings are determined using quantitative and qualitative considerations.   
+ 
+For reviewing established entities with representative operating histories, quantitative considerations are of 
+ Analysis Model is a component of the rating 
+assignment process and includes a review as well as computation and analysis of critical financial ratios to 
+determine the current and anticipated financial stability of the entity being reviewed.  
+ 
+For reviewing new entities or those without representative operating history, quantitative considerations 
+include a review of the pro forma financial information, critical assumptions, business plan, and 
+qualifications and experience of management or its anticipated vendors and service providers. 
+ 
+
+===== PDF PAGE 5 =====
+Rating Procedures  July 15, 2025 
+Page 2 of 4 
+cludes certain qualitative factors such as operating 
+environments, business models and operating plans, enterprise risk management, corporate governance, 
+ownership and management, and access to capital.  Business models and specific business risks provide 
+context for our quantitative review, inform other aspects of our review, and may be considered in 
+determining a rating.   
+ 
+Additional information about the metrics and criteria c view process is included 
+® Methodology.   
+ 
+Procedures for interacting with the management of a rated obligor or issuer  
+ 
+Demotech requires access to an authorized representative of a rated entity.  Each rated entity must designate 
+a contact person at the entity prior to Demotech finalizi
+interactions with representatives of the rated obligor are dependent upon the complexity of the rated obligor 
+and our understanding of its business model, interactions with management or other authorized 
+representatives of the rated entity occur on an as-needed basis.  When it is deemed necessary, our analysts 
+may communicate with the representative of the rated entity that has been designated as the contact person 
+for rating purposes in order to gain additional information or for clarification about information obtained.  
+When our analysts deem it necessary to do so, they may require a meeting with managers or division heads 
+in other critical functional areas of the entity, such as sales, marketing, underwriting, investment, claims, 
+actuarial, accounting, or reinsurance.  Demotech may also request permission to communicate with third 
+party vendors to gain additional information about the entity.   
+ 
+ Process for reviewing and approving credit ratings 
+ 
+When an entity engages Demotech for a rating, an analyst or team of analysts is assigned to review the 
+entity and monitor the entity after the assignment of a rating.  Demotech obtains all necessary information 
+to complete its review.  Once a thorough analysis of the entity to be rated has been completed by the 
+assigned analyst, the analyst will determine a recommended preliminary rating (in the case of the initial 
+assignment of a rating) or a recommended rating action (in the case of monitoring a previously assigned 
+rating).  The recommendation and supporting analysis are submitted to the Chief Ratings Officer, or, when 
+necessary, another senior analyst for review and approval.  The Chief Ratings Officer, or another senior 
+analyst, may approve the recommended rating, request additional information or analysis, or recommend a 
+different rating based on the review and analysis.  If there is disagreement between the lead analyst and 
+approving analyst as to the rating action, a third analyst will participate in the review to help determine the 
+rating action.  
+ 
+Once an initial rating assignment is determined and approved, the rating will be communicated to the rated 
+entity.  If the entity agrees to finalize the rating, then the rating information disclosure form required by 
+SEC Rule 17g-7 will be finalized and attested to by the Chief Ratings Officer or another senior analyst who 
+participated in the approval of the rating.  If the rated entity disagrees with the rating assignment, it may 
+provide additional information, correct factual errors, or provide clarification if it believes Demotech 
+misinterpreted any information that would have a material effect on the rating.  In the case of monitoring 
+an assigned rating, where feasible, a downgrade or withdrawal of the rating will be communicated to the 
+rated entity, which may then have the opportunity to appeal the decision if Demotech determines that such 
+an appeal is appropriate.  All appeals will be handled as described in this document and in accordance with 
+ 
+ 
+ 
+ 
+
+===== PDF PAGE 6 =====
+Rating Procedures  July 15, 2025 
+Page 3 of 4 
+ Procedures for informing rated obligors about credit rating decisions and for appeals of final or 
+pending credit rating decisions 
+ 
+For initial rating assignments, after a review and analysis of relevant information, Demotech informs 
+entities of the preliminary rating assignment.  Ratings are not finalized and published unless the subject 
+entity agrees to engage in the rating process and consents to finalization.  For subsequent rating actions 
+resulting from ongoing monitoring of a rating assignment, Demotech will inform the rated entity of the 
+action prior to the action being taken, where feasible.  Demotech will reference specific metrics and factors 
+that impacted the analysis and opinion, and will enumerate the major critical issues that will be the focus 
+ 
+Where feasible and appropriate, Demotech may afford an entity the opportunity to appeal a rating decision 
+prior to Demotech finalizing a rating action or withdrawal.  There is no specific right to an appeal.  The 
+opportunity for an entity to appeal a rating decision will occur on a case-by-case basis as determined by 
+Demotech.  The purpose of an appeal is for an entity to correct factual errors, provide clarification if it 
+believes Demotech materially misinterpreted information, or provide new information that may have a 
+material impact on the rating decision.  If an appeal is considered by Demotech, the entity will have a 
+limited period of time to correct factual errors, clarify information, or provide additional information to 
+Demotech.  Demotech will consider the information provided by the entity in the course of an appeal and  
+determine if any revision to the rating assignment is warranted, subject to the review and approval process 
+described in this document.   
+ 
+Demotech requires the consent of the entity prior to finalizing an initial rating assignment, but after a rating 
+has been assigned, Demotech may revise a rating assignment or withdraw a rating at any time in its sole 
+discretion.  A rated entity may choose to withdraw its rating at any time.  
+ 
+ Procedures for monitoring, reviewing, and updating credit ratings 
+ 
+Demotech monitors all rated entities on an ongoing basis and takes such rating actions as may be necessary.  
+Reviews are completed regularly on an annual and quarterly basis and are based primarily on annual and 
+quarterly financial statements and ot
+operating situation may also prompt a review.  The review process focuses on material changes in the 
+financial or operating condition of the entity.  Not all criteria considered for an initial rating assignment are 
+necessarily reviewed on a quarterly basis.  Consistent, positive developments may warrant a rating upgrade, 
+whereas, material adverse developments may result in the downgrade or withdrawal of a rating.  All rating 
+actions are made in the sole discretion of Demotech, subject to the review and approval process described 
+ls and criteria for determining ratings are generally 
+not applied retroactively to existing ratings; howe
+impacting an assigned rating will be applied in the course of ongoing monitoring and regular reviews. 
+Rating actions resulting from a review of the rating assigned by Demotech using applicable procedures and 
+methodologies for determining ratings are disclosed
+information disclosure form identifying the applicable methodology.   
+ 
+ Procedures to withdraw a credit rating 
+ 
+Demotech ratings are owned and controlled by Demotech.  Demotech may take any rating action, including 
+a withdrawal, at any time and for any reason in its sole discretion. Demotech may withdraw a rating when 
+it deems a withdrawal to be appropriate, including but not limited to the following situations: 
+ 
+ When there are material quantitative or qualitative changes in the financial condition, operating 
+condition, or operating environment of the entity, or when the ability of the entity to execute its 
+
+===== PDF PAGE 7 =====
+Rating Procedures  July 15, 2025 
+Page 4 of 4 
+business model comes into question; 
+ If Demotech determines that it lacks sufficient information or that the information is not of the 
+quality it deems necessary to assign an informed rating.  This may include instances where 
+Demotech does not receive sufficient information from an entity in a complete and timely manner; 
+where the quantity or quality of information is determined by Demotech to be insufficient; or where 
+there are concerns about the factual accuracy of the information;  
+ When an entity becomes impaired (subject to one or more formal regulatory actions for solvency 
+reasons, including rehabilitation, liquidation, involuntary receivership or conservatorship, license 
+suspension or revocation, supervision, or other legal or regulatory remedies instituted by an 
+appropriate regulatory authority for the purpose of protecting the interests of policyholders or 
+claimants) or when Demotech otherwise determines that a rating assignment is not supported due 
+to a regulatory or legal action affecting the entity, or its officers, directors, or owners; 
+ When an entity is subject to a merger or consolidation, or voluntarily ceases doing business; 
+ At the request of the entity;  
+ If the entity fails to comply with the terms and conditions for maintaining a rating; or 
+ 
+ 
+In certain situations, prior to effecting a withdrawal, Demotech may request additional information from 
+the affected entity or otherwise afford the entity a lim
+intent to withdraw the rating. Demotech may consider any new information provided by the entity, 
+siness plan or access to additional capital.  Demotech 
+will then make a final determination about withdrawing a rating or taking such other rating action as it sees 
+ 
+When a rating is withdrawn by Demotech, the entity w
+website.  In certain circumstances, Demotech may issue a publication stating the reason for the withdrawal. 
+ 
+Effective: 07/11/22; Revised: 03/19/24; 07/15/25  
+
+===== PDF PAGE 8 =====
+Financial Stability Rating® Methodology  February 19, 2025 
+Page 1 of 11  
+Financial Stability Rating® Methodology 
+The Financial Stability Rating® tings of all insurance companies, 
+including Property and Casualty insurers; Title underwriters; Life, Accident and Health insurers; and other 
+risk bearing entities. 
+ 
+Demotech does not mandate specific financial benchmarks, acceptable ranges, or minimums for admitted 
+assets, surplus, capital adequacy, leverage ratios, reinsurance programs, or other financial, operational, or 
+capital adequacy performance measures. The initial assignment of a Financial Stability Rating® (FSR) and 
+subsequent rating actions are based upon our interpretation of the overall financial stability of an insurer. 
+istently report acceptable operating results is the 
+culmination of sound management practices that have been implemented and monitored.    
+ 
+The assignment and monitoring of an FSR is based on a review of the entity and the analytical expertise 
+and judgment of the rating analysts in the applicati
+analysis process for determining a rating assignment includes both quantitative and qualitative 
+considerations; however, the interpretation of certain quantitative factors and the consideration of additional 
+qualitative factors necessarily require some subjective analysis from rating analysts.   
+ 
+Review and Analysis Process 
+Demotech generally follows the process outlined below for determining and assigning ratings.  The rating 
+process is interactive and may include questions for d additional data requests 
+throughout the review.   
+  
+Business Model Review 
+ 
+In reviewing an insurer, Demotech considers the business model and operating profile of the insurer.  An 
+business model underlies all other aspects of the review.  This initial 
+step in the review seeks to understand an insure
+operating environment, and other operational aspects of the insurer.  Demotech has found that size, product 
+line diversity, or geographic diversity have had a limited impact on the financial success of insurers.  
+Adequate premiums,  sound asset liability management, sufficient liquid investments, adequate reserves, 
+and the quality and quantity of reinsurance have proven to be critical to the ability to honor meritorious 
+claims.  Demotech recognizes that coverage specialists (insurers with more than 90% of their direct written 
+premium in one line of business) focused on a particular niche can be financially stable and, in many cases, 
+are in the best position to understand their business sectors, maintain consistent underwriting discipline, 
+and maintain consistent relationships with agents and their core 
+on of their business model, an overall understanding 
+nnels, lines of business, products, and geographic exposure 
+may be reviewed by Demotech and can impact our overall assessment of a company.  
+Business Model 
+Review 
+Business Risk 
+Review
+Financial 
+Statement 
+Analysis and 
+Metrics Review
+Reinsurance 
+Review
+Additional 
+considerations 
+including group 
+structure and holding 
+company review 
+Assignment of 
+PFSR and 
+communication 
+with company
+
+===== PDF PAGE 9 =====
+Financial Stability Rating® Methodology   February 19, 2025 
+Page 2 of 11
+Business Risk Review
+ 
+Demotech also reviews the specific  business, including those related to 
+line of business, geographic profile, catastrophe exposure, operating environment, and enterprise risk 
+management, among others.  An overa business risk comprises an initial 
+step in our review and informs other aspects of the review.   
+ 
+Line of Business, Products, Geography, Catastrophe Exposure 
+ 
+ts, geographic areas of operation, and catastrophe 
+exposure informs the specific risks for the insurer and provides perspective on the financial results of the 
+company.  Such specific risks may provide context for the quantitative aspects 
+process and may determine the nature and extent of our review of certain qualitative factors. 
+Legislative, Regulatory, and Judicial Environment 
+In some cases, the legislative, regulatory, and judi
+review where legislation, regulations, or judicial decisions could materially imp
+position or its ability to operate consistently given the market conditions of a particular jurisdiction.  
+Regulatory practices or regulatory actions may affect the operating environment of insurance companies 
+positively or negatively.  Such actions may relate to product regulation, financial regulation, or market 
+regulation. In some instances, legislation or judicial decisions may also alter the operating environment or 
+risk exposure of certain insurers by altering, positively or negatively, the policyholder claims and litigation 
+environment, the financial environment, or the insurance regulatory environment. 
+ 
+Enterprise Risk Management 
+ 
+ enterprise risk management processes and capabilities.  Depending on 
+c profile, Demotech may obtain additional information 
+from insurers, including the following: 
+ 
+Catastrophe Response Plan and Disaster Recovery Plan 
+ 
+Demotech requires property insurers writing significant business in catastrophe prone areas to submit a 
+catastrophe response plan (CAT Response Plan) and disaster recovery plan, or business continuity plan, in 
+addition to their reinsurance program information.  Demotech may undertake a formal data call requiring 
+subject insurers to provide the following information:   
+ 
+ 
+ 
+ and qualifications of in-house adjusters; 
+ 
+ l responsible for assessing, monitoring, and responding to a 
+catastrophe event; 
+ ders, affiliated and non-affiliated, that provide 
+services and support for adjustment of catastrophe claims; 
+ number of independent adjusters contracted with company; 
+ , and description of overall CAT Response Plan; 
+ er recovery/business continuity plan. 
+ 
+
+===== PDF PAGE 10 =====
+Financial Stability Rating® Methodology   February 19, 2025 
+Page 3 of 11
+Title Agent Appointment and Defalcation Prevention Process 
+Demotech requires most Title underwriters to provide information pertaining to their agent review and 
+appointment process and defalcation prevention procedures.  This information typically includes 
+procedures and practices regarding how Title agents are vetted prior to their appointment by the Title 
+underwriter, how the Title underwriter monitors agency activity including escrow reconciliation, audits, 
+monitoring software, and other reviews, as well as protections in place to prevent escrow theft.  This 
+information may be considered in the assignment of a rating. 
+ 
+Life Insurer Investment Review 
+As Life insurers have liabilities with much longer durations than most Property and Casualty insurers, 
+Demotech may require Life insurers to provide more detailed information pertaining to their investment 
+management policies and processes. The amount of information required depends on the nature of the 
+products being sold by the insurer. This information may be considered in the assignment of a rating. The 
+following information may be required:  
+ Qualifications of investment personnel; 
+ Investment strategies, including bond quality and durations; 
+ Use of mortgages, asset-backed securities, real estate, and stocks; 
+ Alternative investments program and limits; 
+ Use of derivatives; 
+ Issuer and sector limits; 
+ Investments in foreign entities; 
+ Investments in affiliates; 
+ Timing and process for correcting investment guideline violations; 
+ Ability to model assets and liabilities;  
+ Liability product features that impact the investment strategy (term lengths, surrender charges, 
+market value adjustments, persistency bonuses, etc.). 
+ 
+Financial Statement Analysis and Metrics Review 
+view and analysis of financial statements and the 
+calculation of financial ratios and metrics.  This review is based upon publicly available financial 
+information, focuses on insurance fundamentals, and consis
+income statement, reserves, and other metrics.  
+ 
+Financial Stability Analysis Model  
+   
+For entities with sufficient representative operating hist
+Stability Analysis Model is a component of the rating process and involves a review of financial statements 
+in addition to computation and analysis of critical financial ratios and metrics.  The Financial Stability 
+Analysis Model is a proprietary model that analyzes financial statement calculations and relationships.  The 
+model takes into account such things as operating performance, leverage, capital adequacy, liability mix, 
+and reserve development.  
+ a rating assignment but is not determinative of a 
+final rating or rating action.  The Financial Stability Analysis Model is generally applied for initial rating 
+assignments and is typically not applied to subsequent monitoring of assigned ratings.  Monitoring of rating 
+assignments focuses on material changes in the reported financial condition or operating situation of an 
+entity. 
+
+===== PDF PAGE 11 =====
+Financial Stability Rating® Methodology   February 19, 2025 
+Page 4 of 11
+Pro Forma/Projection Review 
+For entities without sufficient representative operating history, including startup entities and entities 
+implementing new business models, a tactile review of pro forma financials is undertaken along with a 
+plan, critical assumptions, and the experience and 
+qualifications of management or its anticipated vendors and service providers.  Where applicable, the pro 
+forma financial information may be compared to actual operating results of similar entities to determine the 
+Selected Metrics  
+ude the following balance sheet and income statement 
+ratios, among others: 
+ 
+Capital Adequacy  
+Although Demotech does not establish internal minimums or publish our proprietary benchmarks, objective 
+measures of capital are available.  Sources include the statutes of various jurisdictions and the level of Risk-
+Based Capital (RBC), as determined by the National Association of Insurance Commissioners (NAIC) and 
+reported in the statutory annual statement.  Similarly, the consequences associated with the relative levels 
+of RBC are well-known to insurers.  Accordingly, when an insurer calculates and reports total adjusted risk-
+based capital that does not exceed the Authorized Control Level RBC by a 3:1 ratio, it is reasonable to 
+assume that management is developing an action plan to improve capital adequacy. 
+ 
+In addition, rote acceptance of the reported surplus level of an insurer does not necessarily provide an 
+appropriate evaluation of the actual level of the reported surplus. Demotech considers other components of 
+the balance sheet, statement of income, and statement of cash flow as significant keys to understanding and 
+evaluating the reported surplus as an accurate estimate of available surplus. Our review and analysis process 
+respects insurers that maintain surplus at a level that can absorb operating losses, including their retentions 
+of losses and loss adjustment expenses related to their net retentions of potential catastrophe events, market 
+and interest rate fluctuations that impact investment income and the values of investments, and other factors 
+that have a negative impact on surplus without the need to receive a capital contribution to remain 
+financially stable. It has been our practice to expand our quarterly review process whenever an insurer 
+reports an overall decrease to surplus that is greater than 10 percent of the surplus reported at the prior year-
+end. In our opinion, although the ability to obtain capital infusions to supplement or offset operating results 
+is a valid consideration in the assignment of an FSR, it is not equivalent to intrinsic balance sheet integrity. 
+ 
+Liabilities to Surplus Leverage  
+A key leverage ratio in our analysis is total liabilities to surplus. The lower the ratio, the greater the financial 
+flexibility of the company. Our preference is to see companies report a total liabilities to surplus ratio of 
+less than 3:1. However, Life insurers, as reserves tend to be set at a more conservative level, will often 
+exceed this. For these companies, our preference is to see this ratio less than 10:1. A ratio greater than 3:1 
+(or 10:1 for life insurers) may subject the company to additional review and analysis.  
+ 
+For new companies and those companies experiencing significant premium growth, unearned premiums 
+can represent a significant portion of total liabilities. If the company is posting underwriting losses while 
+continuing to grow, the negative future impact to surplus may be compounded. In these situations, we need 
+to understand the rationale and business and operating plan for attempting to outgrow poor underwriting 
+results. Adequate pricing at the policy level, reinsurance costs, and loss and loss adjustment expense reserve 
+development are important components of our evaluation.  
+
+===== PDF PAGE 12 =====
+Financial Stability Rating® Methodology   February 19, 2025 
+Page 5 of 11
+Liquidity  
+Available cash and invested assets provide insight into the liquidity of admitted assets as well as the 
+ability. A liquidity ratio, defined as cash and invested 
+assets to total liabilities, of 1:1 or greater is our preference. While a lower result in and of itself is not 
+necessarily cause for concern, an insurer with a liquidity ratio below 1:1 is likely to be scrutinized more 
+than a carrier with a liquidity ratio of 1:1 or greater. For Life Insurers, a narrower definition of liquidity that 
+excludes assets deemed to be less liquid (below investment grade bonds, mortgages, real estate, derivatives, 
+contract loans, and alternative assets) will also be considered and evaluated ag
+profile. Our review includes an evaluation of the carrie e quality of the underlying 
+assets. We view supplemental measures that companies have taken to ensure adequate liquidity, including 
+securing letters of credit, formal lending agreements with affiliates, and other resources, as a positive 
+access additional cash flow if needed.  
+Loss and Loss Adjustment Expense Reserves  
+ 
+ial stability, solvency, and capital adequacy is their 
+desire and ability to record adequate loss and loss adjustment expense reserves (loss reserves) on a 
+consistent basis. Adequate loss reserves meet a higher standard than reasonable loss reserves. We view 
+adverse loss reserve development as an impediment to the acceptance of the reported value of current, and 
+future, surplus, as well as current and future reported earnings. From our perspective, any amount of adverse 
+loss reserve development on a consistent basis may be indicative of ma
+unwillingness to properly estimate ultimate incurred losses.  
+For Life Insurers, contract reserves and the assets held 
+actuary to be adequate under moderately adverse conditions. A company may deem it necessary to set up 
+cash flow testing/asset adequacy reserves. In this case, we may ask for detail on the scenarios, products, or 
+conditions that led to inadequate reserves and consider that in our rating.  
+ 
+Premium to Surplus Leverage  
+ 
+ory Information System (IRIS) ratios provide insurers, consumers, 
+and other third parties with direction on acceptable ranges of gross premium written (GPW) and net 
+premium written (NPW) to surplus ratios for P&C insurers. For example, to avoid an exceptional regulatory 
+ratio, the GPW to surplus ratio should be less than 9:1, with the NPW to surplus ratio less than 3:1. Although 
+our preferred metrics may not be identical to these, premium to surplus leverage ratios are a component of 
+our overall evaluation.  
+ 
+In our opinion, a GPW to surplus ratio in excess of 6:1 could subject the company to greater scrutiny during 
+the review process. Likewise, a NPW to surplus ratio greater than 3:1 could also subject the company to 
+greater scrutiny. We may be comfortable with higher ratios when the insurer can demonstrate that a 
+contributing factor to the higher ratio is relative improvement in rate adequacy.  
+ 
+Due to the nature of coverage and losses along with the reduced need for and use of reinsurance, Title 
+underwriters may report premium to surplus ratios above those presented above. 
+ 
+For Life insurers, these ratios may be considered along with the types of products sold and the amount of 
+first-year or single premium collected relative to renewal premium collected.  
+ 
+ 
+ 
+
+===== PDF PAGE 13 =====
+Financial Stability Rating® Methodology   February 19, 2025 
+Page 6 of 11
+Underwriting Results  
+ 
+Although Demotech does not expect a company to record and report an underwriting gain in each quarterly 
+reporting period, a component of our review process is the evaluation of underwriting results. Any company 
+recording an underwriting loss or net loss greater than 10 percent of prior year surplus may be subject to a 
+detailed review of current operating results. Chronic underwriting losses may prompt a request to a 
+company for information regarding rate making, policy limits or guarantees, exposure information, 
+reinsurance programs, net investment income, or other information relative to the current and future 
+operating results.  
+ 
+When an insurer has selected a business model that reflects significant administrative fees, commissions, 
+or fees to affiliated or non-affiliated managing general agencies or third party administrative firms, the 
+insurer will need to provide insight into how these relationships impact its operating results as well as its 
+business model. Since this business model diverts revenue streams from the insurer to other entities, this 
+structure might hamper the ability of the insurer to grow surplus through profitable operations, i.e., 
+organically.  
+ 
+Reinsurance Review  
+ 
+Reinsurance is often a critical component of an in
+An appropriate level of reinsurance may help fac to meet its policyholder 
+financial stability.  As part of the rating process, Demotech reviews 
+am. The appropriate levels and structure of an 
+ber of factors, including the level of surplus, 
+ess model, the nature of the risk exposure, and the 
+results of third party or internal catastrophe models.  For insurers with limited loss exposure related to their 
+policies or operating under certain business models, reinsurance protection may not be necessary.   
+ 
+For insurers with significant exposure to catastrophe risk, the review of the quality and quantity of 
+reinsurance is a substantial aspect of the overall review process and Demotech requires additional 
+information from the insurer related to its catastrophe reinsurance program.   In such cases, a company with 
+a net catastrophe retention greater than 15% of prior year surplus (first event, pre-tax) may trigger a more 
+detailed review regarding its relative surplus position and catastrophe reinsurance program. 
+ 
+Demotech reviews the reinsurance programs in place, in conjunction with third party catastrophe modeling 
+warrants a more frequent review, the reinsurance review is generally undertaken on an annual basis, as 
+reinsurance programs are typically in place for one-year terms.    
+ 
+The critical components of a catastrophe reinsurance pr
+selected parameters used in modeling its probable maximum loss, net catastrophe retentions for specified 
+event return times, and its vertical and horizontal reinsurance capabilities.   
+ 
+When carriers purchase private sector reinsurance from financially stable reinsurers, there is an expectation 
+that the meritorious demands of the cedents will be honored in a timely manner, in the normal course of 
+business.  However, Demotech may consider additional factors in its review, including the source and 
+operation of the reinsurance program.  Such additional information may include: 
+ Information on any structured quota share reinsurance agreements as applicable; 
+ Participation in pools or other corporate st
+reinsurance program; 
+
+===== PDF PAGE 14 =====
+Financial Stability Rating® Methodology   February 19, 2025 
+Page 7 of 11
+ For Florida property insurers, participation in a Citizens depopulation program and information 
+explaining the specifics of how the company will address any short-fall or timing issues relative to 
+the liquidity of the Florida Hurricane Catastrophe Fund (FHCF), if applicable. 
+ 
+For Life insurers, third party reinsurance is viewed favorably if the company is selling death benefit 
+protection with large face amounts to single lives. Quota share reinsurance may also be appropriate if the 
+company is new, entering a new product or market, modifying its underwriting, or wants to limit surplus 
+strain.  
+ 
+Life insurers may initiate financial arrangements with captive or third-party reinsurers to finance redundant 
+reserves or otherwise manage their capital. These arrangements can be acceptable but may prompt 
+additional scrutiny. 
+Protected Cell Captives 
+Captive insurance companies allow organizations to internally finance their risks, offering greater control 
+over insurance programs, thus providing customization to meet specific needs or objectives. Captives 
+typically provide cost-effective alternatives, such as centralized functions enhancing operational 
+efficiency and flexibility in risk management decisions, allowing businesses to optimize coverage and 
+increase their financial resilience. 
+Demotech recognizes certain unique attributes that apply to captive insurance companies, especially 
+protected cell captives (PCCs) and other similarly structured segregated cell captives, such as series captive 
+insurance companies, when reviewing these entities for the assignment of a rating.  The review of PCCs 
+involves an evaluation of traditional key rating factors, such as business model, business risk, financial 
+metrics, reinsurance, and operational capabilities.  However, due to the unique aspects of PCCs, 
+regulatory compliance, legal structure, formation, and key agreements. 
+ 
+Demotech may utilize third parties, including legal counsel or other qualified professionals, to assist in 
+understanding applicable legal and regulatory requirements and to provide guidance in reviewing the legal 
+and operational structure of a PCC.
+Jurisdiction  
+The regulations governing PCCs, particularly regarding the segregation of assets and liabilities between 
+the core company (the protected cell company itself) and the individual cells, can vary significantly across 
+different U.S. states and territories. Therefore, the PC
+assigning a rating to a PCC. 
+ 
+Additionally, although most states have comprehensive regulations in place, these regulations can differ 
+mainly in terms of operational requirements, regulatory oversight, a
+review considers the statutes and regulations govern
+domicile, particularly to assess whether the segregated cells will be treated as separate entities for purposes 
+of the insurance business conducted within each segregated cell. 
+ 
+Regulatory Compliance 
+ 
+Demotech considers whether the PCC and, to the extent necessary, the segregated cells hold the necessary 
+regulatory licenses and approvals to conduct operations in accordance with an approved business plan and 
+
+===== PDF PAGE 15 =====
+Financial Stability Rating® Methodology   February 19, 2025 
+Page 8 of 11
+s domicile, and, to the extent practicable, the laws 
+of other jurisdictions in which risks are insured.  Demotech may also consider pertinent legal or regulatory 
+proceedings relating to the PCC.  As part of the review, Demotech may request documentation related to 
+the business plan of the PCC and its approval by the domestic regulator; documentation related to pertinent 
+litigation or arbitration, or administrative, regulatory, or investigative proceedings of the PCC or any 
+segregated cell; or copies of examination reports. 
+ 
+Legal Structure, Formation, and Key Agreements 
+ 
+Demotech considers the legal structure and formation of the PCC as it relates to the laws and regulations 
+of the domicile.  This may include a review of the articles of incorporation and bylaws, or equivalent 
+documentation for a limited liability company, for the PCC and each segregated cell.  This may also include 
+a review of key agreements including, but not limited to, cell participation agreements, subscription 
+agreements, shareholder agreements, surplus notes, parental guarantees, letters of credit, indemnification 
+agreements, reinsurance agreements, collateral trust agreements, service provider contracts, 
+collateralization agreements, and other key contracts.  As part of its review of the operation of the PCC, 
+Demotech may review governance policies and procedures, Board and Committee actions and meeting 
+minutes, underwriting guidelines, and risk management policies and procedures.  A particular focus of this 
+review is clear delineation of the rights and responsibilities of participating parties, including the 
+appropriate segregation of assets and liabilities, as well as the appropriate operation of the PCC generally 
+to ensure financial stability.  The assignment of a rating to a captive or PCC is not a legal opinion and must 
+not be relied upon as an opinion of the compliance of an entity or cell with applicable laws or regulations. 
+ 
+Financial Review 
+ 
+ key rating factors that impact traditional insurers, 
+as described in this methodology, including capital adequacy, access to funding, reserve adequacy, 
+ of expenses and the ability of the PCC to meet 
+its business plan or stated financial targets.  In addition, a key factor in reviewing PCCs is the appropriate 
+separation of accounts.  To the extent that a PCC may have reinsurance agreements, Demotech will consider 
+the amount of reinsurance, retentions, and how the reinsurance is utilized to limit exposure and protect 
+surplus.  As part of its review, Demotech may request and review audited financial statements, regulatory 
+examination reports, and other pertinent information.  
+Tax Compliance 
+Demotech may consider the tax status of the PCC but does not verify if PCCs or segregated cells are 
+engaged in sufficient risk transfer and risk distribution for federal tax purposes.  The assignment of a rating 
+to a PCC or segregated cell is not a tax opinion and must not be relied upon as an opinion as to whether 
+or not an entity or a cell is compliant with applicable tax laws or regulations. 
+ 
+Summary 
+ 
+As the format and function of PCCs vary across domicile and legal structure, our process begins with a 
+review and evaluation of traditional rating factors and then incorporates additional considerations specific 
+to the particular PCC and segregated cells being analyzed.  While terminology and design of PCCs may 
+differ by regulatory authority, our process allows us to understand the segregated structure, risk sharing, 
+and regulatory compliance common to entities being reviewed. 
+
+===== PDF PAGE 16 =====
+Financial Stability Rating® Methodology   February 19, 2025 
+Page 9 of 11
+Additional Considerations 
+The review and rating process is primarily focused on quantitative criteria and insurance fundamentals.  
+There is, necessarily, a subjective aspect to the review 
+financial criteria outlined above that requires the e
+addition, certain qualitative considerations could potentially impact a rating assignment or action.   
+ 
+Group Structure, Holding Company, and Ownership  
+ 
+Demotech may review and assess considerations relating parent company, holding 
+company, or affiliated companies.  Demotech may review the financial information related to such entities, 
+material risks, and other information about the relationship between the insurer and the 
+owner/parent/holding/affiliate company. Such considerations may impact a rating favorably where the 
+owner/parent/holding/affiliate company is in a position to provide or raise capital, or otherwise positively 
+impact the financial position of the insurance entity, including through the implementation of a revised 
+business plan; or may impact a rating negatively where the financial condition, operations, or risks related 
+to the owner/parent/holding/affiliate company may affect the insurer.    
+ 
+Management 
+ 
+Demotech generally evaluates the quality of management only insofar as it is reflected in the operating 
+results of an entity or the quantitative aspects of Demo
+impact its determination regarding a particular rating action, especially w
+to successfully execute business plans, prepare and report accurate financial statements, or evaluate and 
+implement necessary corrective actions.  Changes in key management positions may prompt additional 
+inquiries and review.  
+ 
+Future Plans and Anticipated Changes 
+ 
+When management knows and communicates information regarding future plans or anticipated changes to 
+use this information to place historical results in context and as a 
+way to understand potential future financial results.  Demotech may consider the anticipated effects of an 
+recently implemented changes in its review. 
+ 
+Monitoring:  Affirmations, Upgrades, and Downgrades 
+Demotech monitors rating assignments on an ongoing b
+quarterly and annual reviews; however, specific events may warrant additional reviews as necessary.  
+Demotech may take any rating action it deems appropriate at any time based on its monitoring of an entity. 
+   
+Monitoring generally focuses on a review of several key metrics, with rating actions based on positive 
+operating performance results or material adverse ch
+monitoring review generally focuses on the following key metrics:  
+leverage, loss reserve development, underwriting results, and capital adequacy.  When significant changes 
+rnal operations, or operating environment are identified, or if we 
+identified particular areas of concern in previous reviews, Demotech will focus on those areas of concern 
+and the relative performance of plans or changes implemented by the company to address those concerns.  
+Additionally, Demotech may consider other criteria outlined in this methodology where such criteria could 
+reasonably be expected to impact th
+
+===== PDF PAGE 17 =====
+Financial Stability Rating® Methodology   February 19, 2025 
+Page 10 of 11 
+Demotech recognizes that the business plans of insurers may not go as planned for a variety of reasons, 
+including, but not limited to, economic shock created by: 
+ 
+ Natural catastrophes including hurricanes, tornadoes, floods, and wildfires; 
+ ncial crises, or a pandemic, which can have 
+implications for an economy and investing markets; 
+ Judicial decisions, legislative enactments, or regulatory changes that could result in changes to 
+procedures, practices, and protocols;   
+ Other events, such as war, nuclear contamination, or climate change. 
+ 
+Demotech recognizes that certain internal actions undertaken by insurance companies, including such 
+things as changes in business plans, implementation of 
+of business, as well as external factors, including changes to the legislative, judicial, or regulatory 
+environment or changes to certain markets, may take several quarters or even years to fully reveal 
+themselves.   Consistent with our belief that the primary responsibility of insurers is the ability to respond 
+to meritorious claims, Demotech is unlikely to penalize an insurer for what may be a temporary disruption 
+of the execution of their business plan (i.e., quarterly losses or catastrophe events), a change in judicial 
+precedent that impacts historically acceptable claims processing, a strengthening of loss and loss adjustment 
+expense reserves, or the manifestation of a risk or event outside the normal course of events, etc.   
+ 
+incremental improvements, expected turnaround times for implemented plans or changes, past operating 
+performance, and the overall trajectory of the company.  In some cases, immediate action may be 
+appropriate and necessary; however, it is atypical for the performance of an insurer over a single quarter to 
+result in an upgrade or a downgrade.  For the reasons described above, rating actions are typically based on 
+at least several quarters of reviews.  Consequently
+ech may sustain a rating assignment if the insurer has 
+articulated a reasonable and acceptable improvement plan or modified business model, and demonstrates 
+anticipated, incremental improvement over a realistic time period.  In addition, Demotech will review the 
+ility to infuse sufficient cash or other 
+liquid admitted assets as may be necessary to restore financial metrics to a level acceptable and consistent 
+with the assigned rating.  Continuous monitoring will evaluate the successful execution of the business 
+model and the overall financial stability of the company.  Rating actions will be taken as necessary based 
+ 
+Additional Information Regarding the Methodology and Rating Actions 
+Criteria outlined in this methodology are not a safe harbor or bright-line indicator for acceptable financial 
+performance or a financially stable insurer.  Demotech reviews and assesses quantitative factors and 
+qualitative considerations for each company we review and rate.  A Financial Stability Rating® reflects 
+ility of an insurer.  Demotech does not make 
+recommendations to the entities it reviews and rates.  Demotech may, however, engage in dialogue with, 
+and provide feedback to, rated entities regarding Demo
+Insurers should not assume that any particular results reported to Demotech or course of action undertaken 
+by an insurer will result in a particular rating.  Demotech reviews the overall condition of a company, 
+including any applicable external factors such as jurisdictional risk and market conditions that may impact 
+a rating assignment.  Deficiencies in certain metrics may be addressed and compensated by strengths in 
+others.  It is also important to note that publicly available statutory financial statements are snapshots of 
+insurers at a particular point in time and may not 
+financial condition or other pertinent non-public information.  Demotech applies its methodology 
+
+===== PDF PAGE 18 =====
+Financial Stability Rating® Methodology   February 19, 2025 
+Page 11 of 11 
+objectively and consistently, and strives to be transparent in its rating process for the benefit of rated entities 
+and users of ratings.  Although two insurers may report comparable financial statements at a given point in 
+time, differences in operating history, access to capital, ownership, management, business plans, 
+reinsurance arrangements, other non-public information shared by management, and other factors that may 
+not be apparent in publicly reported financial statements or other public information may result in different 
+rating assignments.   
+Notice 
+© Copyright 2025, Demotech, Inc.  All rights reserved.  All information contained herein is proprietary to 
+Demotech and protected by copyright and other intellectual property law. Financial Stability Rating® is a 
+registered certification mark of Demotech, Inc. Financial Stability Ratings® (FSRs) and the FSR seal image 
+may not be used or reproduced without the express written approval of Demotech. No information 
+contained herein may be reproduced, redistributed, or resold, in whole or in part, without the express written 
+consent of Demotech.  FSRs represent an insurer to meet its insurance 
+related obligations based upon our assessment of financial information and other information.  Demotech 
+obtains information from sources considered reliable.  Demotech reviews the data and information it 
+receives for reasonableness and consistency but does not independently audit the data it receives and 
+assumes no responsibility for data provided by rated entities or prepared by third parties.  FSRs do not 
+ its contractual or legal obligations; are not 
+recommendations to buy, sell or hold any securities, or to make any investment decisions related to the 
+rated entity; and are not an endorsement of any particular insurer or its products. Insureds, agents, and third 
+parties need to independently evaluate any relationship with a particular insurer as well as the applicability 
+of an insurer's products to the needs of the insured or agent.  Demotech generally presents only current 
+FSRs, as historical ratings information may not reflect a current, accurate assessment of an insurer.  
+Historical ratings information is indicative only of Demo
+of the respective previous rating assignments.  Only the most current FSR assigned to an insurer represents 
+inion of the insurer. The most current Financial Stability Rating® 
+must be verified by visiting www.demotech.com. 
+Effective Date: 07/11/2022; Revised 02/19/2025 

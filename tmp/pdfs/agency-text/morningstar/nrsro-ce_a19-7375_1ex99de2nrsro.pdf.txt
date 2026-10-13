@@ -1,0 +1,279 @@
+
+===== PDF PAGE 1 =====
+Morningstar Credit Ratings, LLC 
+Exhibit 2 - Policies and Procedures used in determining credit ratings 
+¾ General Description of Credit Rating Process
+¾ Regulatory *RYHUQDQFH%RDUG Charter 
+
+
+===== PDF PAGE 2 =====
+ Page 1 Effective Date: AugusW24,2018 
+Version 10.
+MORNINGSTAR CREDIT RATINGS, LLC (MCR) 
+Policy and Procedure 
+General Description of Credit Rating Process 
+Table of Contents 
+Initiation of a Credit Rating .............................................................................................................................................. 2 
+Information Used in the Credit Rating Process ................................................................................................................. 2 
+Quantitative and Qualitative Models................................................................................................................................ 2 
+Methodologies Regarding Credit Ratings of Other Agencies ............................................................................................ 3 
+Procedures for Interacting with Management.................................................................................................................. 3 
+Originators, Servicers, Asset Managers, and Other Transaction Parties .......................................................................... 3 
+Committee Process ......................................................................................................................................................... 3 
+Credit Rating Decisions and Dissemination...................................................................................................................... 4 
+Subscription-Based Service ............................................................................................................................................ 5 
+Private Credit Ratings ..................................................................................................................................................... 5 
+Types of Credit Ratings .................................................................................................................................................. 5 
+Monitoring, Updating, and Reviewing Credit Ratings ....................................................................................................... 5 
+Withdrawal of Credit Ratings .......................................................................................................................................... 6 
+
+===== PDF PAGE 3 =====
+ Page 2 Effective Date: August 24, 2018 
+Version 10.
+This description provides a general overview of the Credit Rating process for Morningstar Credit Ratings, LLC (MCR). 
+Initiation of a Credit Rating 
+It is at the sole discretion of MCR to initiate a Credit Rating. The request for a Credit Rating can come from (i) an issuer 
+or arranger, (ii) an investor, or (iii) MCR itself. For reques ts made by issuers, arrangers, or investors, MCR would be 
+compensated pursuant to the terms of an agreement with such  party. For issuer or arranger requests, this agreement 
+would also provide that MCR receive certain information relevant to its credit analysis. Credit Ratings initiated by MCR 
+that may be provided without the full participation of the issuer (or in the case of a new-issuance transaction, the 
+arranger) are considered Unsolicited Ratings. 
+Information Used in the Credit Rating Process 
+MCR reviews and relies on certain information provided to it, to the extent enumerated in the respective Ratings Report, 
+and the applicable methodologies and criteria for the transaction. This may include information available on an issuer or 
+arranger website, information provided by third-party vendors, publicly available information, investor reporting, or other 
+sources MCR considers reliable. The applicable ratings me thodology establishes more specifically the information 
+required for a rating. The methodologies can be found on MCR’s public website. 
+Unless otherwise required under MCR’s policies and proced ures, MCR does not independently verify or perform due 
+diligence on the information described above. In addition, MCR does not audit or verify the truth or accuracy of any such 
+information. As a result, any Ratings Reports provided by MCR related to such information are made without 
+representation or warranty of any kind. 
+Quantitative and Qualitative Models 
+Most of MCR’s Credit Rating methodologies incorporate quantitative Models that facilitate the determination and 
+analysis of credit stress scenarios and their impact on sche duled principal and interest du e on the rated securities or 
+issuers, and/or the mapping of such scenarios and outcomes to specific MCR ratings. The Models vary in complexity 
+from simple calculation tools, formulas, and spreadsheets to stochastic engines. Model inputs and other analytical 
+assumptions may be derived using either qualitative or quantitative methods, and Model inputs and outputs are subject 
+to qualitative adjustments based on our analysts’ credit judgment.  
+Quantitative Models that are incorporated into a Credit Rating  methodology are subject to an independent review and 
+approval process prior to being put into use. MCR's Model Risk Management Committee (MRMC), which is responsible 
+for providing oversight over all Model review activities in  accordance with MCR's Model Governance Policy, evaluates 
+and approves new and updated quantitative Models. Such ac tivities may include but are not limited to validation, 
+verification, benchmarking, back testing, and/or user acceptance testing. The MRMC determines the scope and depth 
+of the review for a specific Model based on certain risk based criteria that are contained in the Model Governance Policy. 
+New and updated quantitative Models and the rating methodologies that incorporate them are subject to further review 
+and final approval prior to being put into use by the Morningstar Criteria Committee and the Board (or similar body that 
+carries out oversight of MCR pursuant to regulatory requirements Ϳ. Once approved and put into use, new or updated 
+methodologies and quantitative Models are applied consistently to both new and existing ra tings in accordance with 
+the terms of such methodologies and Models.  
+
+===== PDF PAGE 4 =====
+ Page 3 Effective Date: August 24, 2018 
+Version 10. 
+All existing Models are also subject to ongoing periodic reviews, the frequency and scope of which the MRMC are 
+determines in accordance with risk based criteria that are contained in the Model Governance Policy.  
+Methodologies Regarding Credit Ratings of Other Agencies 
+Unless otherwise stated in the particular methodologies, cr iteria, or Ratings Reports, MCR generally does not use the 
+Credit Ratings of other rating agencies in the determination of its ratings. 
+Procedures for Interacting with Management 
+When interacting with the management of  an issuer or obligor, MCR analysts ga ther information by asking pertinent 
+questions and encouraging open discussions with the agents of an issuer or obligor regarding their credit strengths and 
+weaknesses and trends in their industries. MCR analysts should be prepared to explain during these inquiries and 
+discussions the relevance of the questions to MCR’s credit analysis, how the issuer’s or obligor’s responses may be 
+used in MCR’s analysis, and our policies with respect to Confidential Information. 
+Issuers or obligors may choose to provide documents that are nonpublic in nature or discuss topics that are confidential. 
+However, it is ultimately up to the issuer or obligor whether to participate in the Credit Rating process and to determine 
+what Nonpublic Information it will allow MCR to publish. Although this Nonpublic Information, if relevant, will be 
+incorporated into the credit rating issued, the information discussed or provided will remain confidential, when indicated 
+by the issuer or obligor. 
+MCR analysts rely on the agents of the issuers and obligors they rate to provide reliable information to the securities 
+markets and to MCR. If MCR has inadequate information to provide a Credit Rating, it may decline to provide a rating or 
+withdraw a current rating, as described below under Withdrawal of Credit Ratings. 
+Originators, Servicers, Asset Managers, and Other Transaction Parties 
+MCR may consider specific characteristics and capabilities of key transaction parties when rating certain types of 
+structured securities. For example, an originator's asset origination and credit underwriting performance, operational and 
+administrative capabilities, and financial profile may influence MCR's determinatio n of an ABS or RMBS credit rating. 
+Likewise, MCR assesses the capabilities and track record of an asset manager when rating managed CLO transactions. 
+MCR's rating methodologies for specific asset classes, where applicable, address how these transaction parties may 
+impact our ratings analysis.  
+Committee Process 
+The committee process is an important internal control me chanism for promoting the quality of MCR’s Credit Ratings 
+and for preserving the integrity of MCR’s Credit Rating process. Determinations of Credit Ratings and any subsequent 
+changes thereto are issued through ratings committees that require a majority vote of the committee’s voting members. 
+No individual analyst can assign or change a particular Credit Rating without a majority committee vote. 
+Committees for Credit Ratings changes require a minimum of three members. 
+
+===== PDF PAGE 5 =====
+ Page 4 Effective Date: August 24, 2018 
+Version 10. 
+Each ratings group consists of credit anal ysts led by an analytical group head. Generally, the analytical group head or 
+designee of the applicable ratings group designates voting el igibility based on the depth and breadth of the analysts’ 
+experience. Although ratings committees typically will consist of members of the same analytical group, members from 
+other analytical groups may be asked to  vote in a ratings committee, as permitted or determined appropriate by the 
+applicable analytical group heads and MCR’s Ratings Committee Policy.  
+Sometimes after a ratings committee meeting has taken pl ace, MCR may receive new information regarding the 
+transaction, issuer, or Security. The MCR analytical groups  are not required to take this new information to the 
+committee unless it might result in a difference in the Credit Ratings. 
+Credit Rating Decisions and Dissemination 
+MCR posts its Credit Rating Actions to its public website, except for Private Credit Ratings. The ratings solicitation status 
+and other required SEC Rule 17g-7 disclosures are also available on MCR’s public website.  
+For public structured finance ratings on a new-issuance transaction, MCR generally prepares a presale report, which 
+contains the preliminary ratings and the material considerations and analysis related to the transaction, before it issues 
+the final Credit Rating. Important conside rations for any presale report or anal ogous document that MCR prepares are 
+the scope, date of such report, review performed, and parameters related to the information in this report. These items 
+are typically contained in the presale report or referenced therein. The presale report is posted on MCR’s public website, 
+and, within one business day, a rating announcement of the preliminary ratings is issued. 
+Upon the close of a structured finance transaction, MCR issues final ratings. When the preliminary ratings remain 
+unchanged, and/or there are no new credit considerations that are significant, material, or adverse that surface before 
+the issuance of final ratings, MCR provides a ratings letter to the issuer and posts its confirmation of the final ratings to 
+MCR’s public website. If there are changes to the preliminary ratings and/or considerations that are significant, material, 
+or adverse in nature, in lieu of a final ratings confirmation, MCR prepares a postsale report describing the changes and 
+posts it to MCR’s public website. Following the posting of th e final ratings confirmation or postsale report, a rating 
+announcement is released on MCR’s public website within one business day containing the final rating in addition to the 
+final rating confirmation or the postsale report. 
+Additionally, for structured finance transactions, under no circumstances should a new issuance rating and associated 
+rating announcement be released until the applicable new issue team has confirmed that the issuer or arranger has 
+indicated that the preliminary prospectus or offering memorandum has been distributed or has otherwise received 
+consent by the issuer or arranger to release the rating consistent with MCR’s policies or the engagement agreement 
+with the applicable issuer or arranger. 
+For new corporate and financial institution ratings, MCR will issue a rating announcement on its public website within 
+one business day of the release of the related rating action.  
+For all structured finance, as well as corporate and financial institution ratings, MCR will also post to its public website 
+any subsequent surveillance information for issuer/arranger requested ratings. The Credit Ratings, other opinions and 
+identifiers in MCR’s surveillance Ratings Reports are as of its publication date. The most recently available Credit Ratings, 
+other opinions and identifiers for the applicable transaction can be found on MCR’s public website. In addition, a rating 
+announcement is issued on MCR’s public website within one business day following the release of any surveillance 
+updates to Credit Ratings and ratings under review.  
+As a courtesy, MCR may provide the issuer and/or arranger with an advance copy of its presale report, ratings letters, 
+
+===== PDF PAGE 6 =====
+ Page 5 Effective Date: August 24, 2018 
+Version 10. 
+postsale reports, or certain surveillance Ratings Reports, usually 12 hours prior to its intended publication time. The 
+issuer or arranger has the opportunity to provide comments to clarify any factual errors, omissions, or other 
+misperceptions that could affect the Credit Ratings, or to prevent the unintentional disclosure of Confidential Information. 
+If MCR does not receive a response within the 12-hour time frame, it will presume the issuer or arranger had no 
+comments to provide and will proceed with publication (presuming proceeding would not violate any other confidentiality 
+obligations MCR has). MCR will consider comments but is  not obligated to make changes. MCR will not accept 
+comments regarding Credit Ratings or the substance or scope of the Ratings Report or letter. Any consideration of these 
+comments resulting in material rating changes, if any, are subject to a majority vote of the committee discussed above. 
+Subscription-Based Service 
+MCR maintains an investor-paid subscrip tion service that provides research (non-ratings) on most U.S. CMBS 
+transactions. A general description of this non-ratings service may be found on MCR’s public website at 
+www.morningstarcreditratings.com.  
+Subscribers to MCR’s investor-paid subscription service can find the current Credit Ratings, other opinions and identifiers 
+(where applicable) on MCR’s subscription website. For those transactions for which MCR was selected to rate by the 
+issuer or arranger at issuance, the most recent Credit Ratings, other opinions and identifiers will also be posted publicly 
+to MCR’s website for the applicable transaction.  
+Private Credit Ratings 
+Private Credit Ratings are Credit Ratings that are prepared for a restricted audience and are not made publicly available 
+by MCR. MCR typically provides Private Credit Ratings directly to the requesting party via a ratings letter. Private Credit 
+Ratings are generally conducted in accordance with MCR’s policies, procedures, and methodologies, subject to any 
+qualifications, caveats, and parameters set forth in, or provided with, the ratings letter. Ratings letter templates used to 
+disseminate Private Credit Ratings must be approved by the legal department. 
+Types of Credit Ratings 
+For other types of credit ratings, please refer to MCR’s Types of Credit Ratings Procedures. 
+Monitoring, Updating, and Reviewing Credit Ratings 
+General. Except for Credit Ratings clearly identified as Point in Time Ratings, once a Credit Rating is published, MCR will 
+monitor the Credit Ratings on an ongoing basis or as it deems appropriate and will modify the Credit Ratings as necessary 
+to reflect changes in MCR’s opinion on  creditworthiness. Unless performance triggers prompt a ratings surveillance 
+review, MCR ratings committees review their Credit Ratings at least once every 12 months. Any surveillance review 
+subject to the 12 months requirement that is conducted after the same calendar month of the following year from the 
+last Rating Action Date will be considered late.  
+Rating Agency Confirmations. As part of its monitoring of structured finance Credit Ratings, MCR may receive a request 
+for a Rating Agency Confirmation (RAC) letter. A RAC letter issued by MCR confirms, post-closing, that a proposed 
+amendment, structural change, or other action or event with respect to a securitized transaction will not, in and of itself, 
+
+===== PDF PAGE 7 =====
+ Page 6 Effective Date: August 24, 2018 
+Version 10. 
+result in a qualification, downgrade, or wi thdrawal of the current letter ratings of  the rated deal certificates. If MCR is 
+requested to provide a RAC for a transaction it rated at issuance, MCR at its sole discretion, may decline to review the 
+RAC request or provide a RAC letter or deny to provide a RAC letter because it believes the request may impact the 
+rating(s). MCR will not perform a RAC for those transactions MCR did not rate at issuance. RAC letters do not constitute 
+any consent, approval, agreement, advice or affirmation with respect to the reason behind a RAC request. In addition, 
+any no downgrade letters and analysis related thereto by MC R does not address: (i) whether the proposed change or 
+amendment is permitted, consistent, or otherwise approved under the rated transaction documents; (ii) any benefits or 
+effect of the proposed change or amendment on the obligation’s holders or parties to any rated transaction documents 
+or any such parties interests; and/or (iii) any consideration s enumerated or otherwise addressed pursuant to the no 
+downgrade letter and the Ratings letters and Reports issued in connection with the transaction. Any ratings of the rated 
+transactions remain subject to, and qualified by, MCR’s Ratings letters and Reports. 
+Models. The Models, methodologies, and criteria MCR uses in monitoring its Credit Ratings are generally the same as 
+those used for the initial rating, except as noted therein. Most of the distinctions result from differences in the credit-
+relevant information available at various points in the life of the obligor or obligation. For instance, certain information, 
+such as delinquency rates, may exist only during the monitoring period.
+ 
+When a Credit Rating methodology, inclusive of any related Model is revised, MC R applies the changes to all affected 
+ratings as soon as reasonably practicable following the effective date of publication of the revised methodology.  
+Withdrawal of Credit Ratings 
+Credit Ratings may be withdrawn at any time for any reason. Reasons for withdrawing Credit Ratings could include but 
+are not limited to: the inadequacy of information reporting, a lack of investor interest, an underlying financial obligation 
+that is no longer outstanding, the dissolution or merger of the issuer, a credit rating methodology that is no longer 
+appropriate because of the reduction of the size of the collateral pool, or other business purposes MCR deems 
+appropriate. 
+Decisions to withdraw Credit Ratings are generally made by the applicable ratings committee. Any withdrawal of a 
+Credit Rating of an issuer or obligor or of a Security that is paid in full or defaulted generally does not require a rating 
+committee. Withdrawals of Credit Ratings for lack of adequate  information or for business reasons do not typically 
+require a ratings committee unless a committee was not held in the past 90 days or there is not documented evidence 
+in the rating file of ongoing analytical  monitoring. For public ratings, a rating announcement is issued on MCR’s public 
+website for rating withdrawals except for withdrawals resulting from full pay-offs. 
+
+===== PDF PAGE 8 =====
+Morningstar Credit Ratings, LLC – Regulatory Governance Board Charter 1 
+Morningstar Credit Ratings, LLC – Regulatory Governance Board 
+Charter 
+Effective as of January 1, 2018 
+Purpose 
+The purpose of the Regulatory Governance Board (the “Board”) of Morningstar Credit Ratings, LLC (“MCR”),  
+is to satisfy the corporate governance, organization and management of conflicts of interest provisions (the “Rating 
+Agency Governance Requirements”) of Section 932 of the Dodd-Frank Wall Street Reform and Consumer Protection 
+Act (the “Dodd-Frank Act”), Section 15E(t) of the Securities Exchange Act of 1934 (the “Exchange Act”) and related 
+Securities and Exchange Commission rules with respect to MCR. The Board shall constitute the “board of directors” of 
+MCR contemplated by the Rating Agency Governance Requirements.  
+ 
+Membership 
+The Board will consist of at least four members designated by the board of directors of Morningstar, Inc., (i) 
+at least half of whom must be “independent” within the meaning of Section 15E(t)(2)(B) of the Exchange Act (the “In-
+dependent Members”), and (ii) at least one of which Independent Members must be a user of credit ratings from a 
+nationally recognized statistical rating organization (an “NRSRO”) as contemplated by Section 15E(t)(2)(A) of the Ex-
+change Act. The members will be appointed by the board of directors of Morningstar, Inc. and, in the case of the Inde-
+pendent Members, will serve for a single term not to exceed 5 years. The board of directors of Morningstar Inc. shall 
+appoint the Chair of the Board.   
+ 
+Board Organization and Procedures 
+The Board will meet quarterly in person or by telephone.  It may meet more frequently, if the Board deems it 
+necessary to comply with the responsibilities defined in this Charter. 
+ 
+The Board will have a Chair, who will be responsible for, with input from the other members of the Board, calling, es-
+tablishing agendas for, and supervising the Board meetings.  The Chair, or a member of the Board appointed by the 
+Chair, will report to the board of directors of Morningstar, Inc. the actions of the Board. 
+ 
+A majority of the members of the Board shall constitute a quorum for the transaction of business and the action of a 
+majority of the members present at any meeting at which there is a quorum shall be the act of the Board.  The Board 
+may also take any action permitted in this Charter by unanimous written consent. 
+ 
+The Board will keep adequate minutes of its proceedings and shall maintain copies of such minutes and each written 
+consent to action taken without a meeting. 
+ 
+Responsibilities 
+The Board will: 
+ 
+1. In order to satisfy the Rating Agency Governance Requirements, the Board will oversee, with respect to MCR: 
+(a) the establishment, maintenance and enforcement of policies and procedures for determining credit rat-
+ings; (b) the establishment, maintenance and enforcement of policies and procedures to address, manage 
+and disclose any conflicts of interest; (c) the effectiveness of the internal control system with respect to poli-
+
+===== PDF PAGE 9 =====
+Morningstar Credit Ratings, LLC – Regulatory Governance Board Charter 2 
+cies and procedures for determining credit ratings; and (d) compensation and promotion policies and practic-
+es. 
+ 
+2. Approve models (including qualitative and quantitative models), procedures and methodologies that MCR 
+uses to determine credit ratings as required by Rule 17g-8(a)(1) under the Exchange Act. 
+ 
+3.  Review this Charter at least annually and, if appropriate, revise this Charter from time to time. 
+ 
+4.  Perform such other duties and responsibilities, consistent with this Charter and the Rating Agency Govern-
+ance Requirements, delegated to the Board by the board or directors of Morningstar, Inc. 
+ 
+ 

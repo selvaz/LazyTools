@@ -1,0 +1,1862 @@
+
+===== PDF PAGE 1 =====
+Ex1 Performance Measurement Statistics 1 March , 2026 
+KROLL BOND RATING AGENCY, LLC
+Form NRSRO Annual Certification
+EXHIBIT 1: 
+Performance 
+Measurement 
+Statistics 
+
+
+===== PDF PAGE 2 =====
+Ex1 Performance Measurement Statistics 2 March , 2026 
+Form NRSRO Exhibit 1
+Exhibit 1. Provide in this Exhibit performance measurement statistics of the credit ratings of the 
+Applicant/NRSRO, including performance measurement statistics of the credit ratings separately 
+for each class of credit rating for which the Applicant/NRSRO is seeking registration or is registered 
+(as indicated in Item 6 and/or 7 of Form NRSRO): 
+Overview
+Kroll Bond Rating Agency, LLC (KBRA) began to issue credit ratings in 2011. The attached tables 
+show transition and default rates for 1-year, 3-year, and 10-year time periods through the most 
+recent calendar year end.  
+Performance Measurement Statistics   
+Periods Shown; Institutions Rated; Frequency of Ratings
+The data in the attached tables have been compiled from historical published and unpublished 
+ratings. The unit of study for Structured Finance ratings is the rated tranche. For other ratings, 
+the unit of study is either: the distinctly rated tranches of a secured debt transaction; the senior 
+rating or the issuer rating of a government, corporate or financial entity; or the Insurer Financial 
+Strength Rating (IFSR) of an insurance entity regardless of the number of securities rated. 
+Each table shown is based on a static pool or cohort analysis. The tables show the percentage of 
+ratings outstanding at the start of the period (not initial ratings) in each category, compared to 
+where they stood at the end of the stated period. The diagonal is the percentage of ratings that 
+remained the same at the start and end of the period. The periods covered are 1-year (comparing 
+ratings on December 31, 2024 with ratings at December 31, 2025), 3-year (comparing ratings on 
+December 31, 2022 with ratings at December 31, 2025) and 10-year (comparing ratings on 
+December 31, 2015 with ratings at December 31, 2025).
+The transition and default tables reflect specific time periods. However, the number of entities 
+included may change from period to period, or from the beginning of a period to the end of a 
+period. For example, an institution may merge, dissolve, or otherwise experience an organizational 
+change that causes it to cease to be included in a later period.  
+For long-term and short-term Credit Ratings, KBRA defines default as occurring if: 
+1. There is a missed interest payment, principal payment, or preferred dividend payment,
+as applicable, on a rated obligation which is unlikely to be recovered; or
+2. The rated entity files for protection from creditors, is placed into receivership or is closed
+by regulators such that a missed payment is likely to result; or
+3. The rated entity seeks and completes a distressed exchange, where existing rated
+obligations are replaced by new obligations with a diminished economic value.
+
+===== PDF PAGE 3 =====
+Ex1 Performance Measurement Statistics 3 March , 2026 
+In all cases, defaulted entities are not dollar-weighted (i.e., a failure of a large entity and a small 
+entity will be counted the same). 
+Some cells of the transition matrix do not include a value. This indicates that there were no 
+transitions observed for that cell. A cell with a non-zero value that is less than 0.5% will be shown 
+with a value of “0%” in the transition matrix due to rounding. 
+For the purposes of KBRA’s Exhibit 1 submission, “other SFPs” means a securitization primarily of 
+Containers, Aircraft, Fleet Lease, Franchise, Ground Lease, Rail Car, Solar, Specialty Finance, Net 
+Leases, Residential PACE, Property Tax Liens, Whole Business Securitization, Wireless Spectrum, 
+Timeshare, Trade Receivables, SBA Loans, Lottery Receivables, Structured Settlements, Litigation 
+Finance, Limited Partnership Interests, or other miscellaneous ABS.  
+Definition of Credit Rating Categories Used by KBRA
+Long-Term Credit Rating Scale 
+KBRA assigns credit ratings to issuers and their obligations using the same rating scale. In either 
+case, KBRA's credit ratings are intended to reflect both the probability of default and severity of 
+loss in the event of default, with greater emphasis on probability of default at higher rating 
+categories. For obligations, the determination of expected loss severity is, among other things, a 
+function of the seniority of the claim. Generally speaking, issuer-level ratings assume a loss 
+severity consistent with a senior unsecured claim. KBRA appends the “sf” indicator to ratings 
+assigned to structured finance obligations. 
+AAA Determined to have almost no risk of loss due to credit-related events. Assigned only to 
+the very highest quality obligors and obligations able to survive extremely challenging 
+economic events. 
+AA Determined to have minimal risk of loss due to credit-related events. Such obligors and 
+obligations are deemed very high quality. 
+A Determined to be of high quality with a small risk of loss due to credit-related events. 
+Issuers and obligations in this category are expected to weather difficult times with low 
+credit losses. 
+BBB Determined to be of medium quality with some risk of loss due to credit-related events. 
+Such issuers and obligations may experience credit losses during stress environments. 
+BB Determined to be of low quality with moderate risk of loss due to credit-related events. 
+Such issuers and obligations have fundamental weaknesses that create moderate credit 
+risk. 
+B Determined to be of very low quality with high risk of loss due to credit-related events.
+These issuers and obligations contain many fundamental shortcomings that create 
+significant credit risk. 
+CCC Determined to be at substantial risk of loss due to credit-related events, near default or in 
+default with high recovery expectations. 
+CC Determined to be near default or in default with average recovery expectations. 
+C Determined to be near default or in default with low recovery expectations. 
+
+===== PDF PAGE 4 =====
+Ex1 Performance Measurement Statistics 4 March , 2026 
+D KBRA defines default as occurring if: 
+1. There is a missed interest payment, principal payment, or preferred dividend payment,
+as applicable, on a rated obligation which is unlikely to be recovered; or
+2. The rated entity files for protection from creditors, is placed into receivership or is closed
+by regulators such that a missed payment is likely to result; or
+3. The rated entity seeks and completes a distressed exchange, where existing rated
+obligations are replaced by new obligations with a diminished economic value.
+KBRA may append - or + modifiers to ratings in categories AA through CCC to indicate, 
+respectively, upper and lower risk levels within the broader category. 
+Short-Term Credit Rating Scale 
+KBRA’s short-term ratings indicate an ability to meet obligations that typically have maturities of 
+thirteen months or fewer when issued by corporate entities, financial institutions, and in 
+connection with structured finance transactions. When applied to municipal obligations, KBRA's 
+short-term ratings typically indicate an ability to meet obligations of three years or fewer. Short-
+term ratings may be assigned to both issuers and to specific obligations. As compared to long-
+term ratings, greater emphasis is placed on an obligor's liquidity profile and access to funding. 
+KBRA appends the “sf” indicator to ratings assigned to structured finance obligations. 
+K1+ Exceptional ability to meet short-term obligations. 
+K1 Very strong ability to meet short-term obligations. 
+K2 Strong ability to meet short-term obligations. 
+K3 Adequate ability to meet short-term obligations. 
+B Questionable ability to meet short-term obligations. 
+C Little ability to meet short-term obligations. 
+D KBRA defines default as occurring if: 
+1. There is a missed interest payment, principal payment, or preferred dividend payment,
+as applicable, on a rated obligation which is unlikely to be recovered;
+2. The rated entity files for protection from creditors, is placed into receivership or is closed
+by regulators such that a missed payment is likely to result; or
+3. The rated entity seeks and completes a distressed exchange, where existing rated
+obligations are replaced by new obligations with a diminished economic value.
+Rating Action History
+Ratings information that is required to be made available pursuant to SEC Rule 17g-7(b) can be 
+found first by clicking on the link https://www.kbra.com/regulatory/disclosures/form-nrsro,a n d  
+then clicking the hyperlinks “KBRA XBRL Rating History – Issue Level Ratings” and “KBRA XBRL 
+Rating History – Issuer Level Ratings” under the heading “Rating Action History.” 
+
+===== PDF PAGE 5 =====
+List of Tables
+1 Financial Institutions, Brokers, or Dealers - 1-Year Transition and Default Rates (Long-Term Credit Ratings) ....................... 3
+2 Financial Institutions, Brokers, or Dealers - 3-Year Transition and Default Rates (Long-Term Credit Ratings) ....................... 4
+3 Financial Institutions, Brokers, or Dealers - 10-Year Transition and Default Rates (Long-Term Credit Ratings) ...................... 5
+4 Financial Institutions, Brokers, or Dealers - 1-Year Transition and Default Rates (Short-Term Credit Ratings) ....................... 6
+5 Financial Institutions, Brokers, or Dealers - 3-Year Transition and Default Rates (Short-Term Credit Ratings) ....................... 7
+6 Financial Institutions, Brokers, or Dealers - 10-Year Transition and Default Rates (Short-Term Credit Ratings) ...................... 8
+7 Insurance Companies - 1-Year Transition and Default Rates (Insurance Financial Strength Ratings) ............................ 9
+8 Insurance Companies - 3-Year Transition and Default Rates (Insurance Financial Strength Ratings) ............................ 1 0
+9 Insurance Companies - 10-Year Transition and Default Rates (Insurance Financial Strength Ratings) ............................ 1 1
+10 Corporate Issuers - 1-Year Transition and Default Rates (Long-Term Credit Ratings) ..................................... 1 2
+11 Corporate Issuers - 3-Year Transition and Default Rates (Long-Term Credit Ratings) ..................................... 1 3
+12 Corporate Issuers - 10-Year Transition and Default Rates (Long-Term Credit Ratings) .................................... 1 4
+13 Corporate Issuers - 1-Year Transition and Default Rates (Short-Term Credit Ratings) .................................... 1 5
+14 Corporate Issuers - 3-Year Transition and Default Rates (Short-Term Credit Ratings) .................................... 1 6
+15 Corporate Issuers - 10-Year Transition and Default Rates (Short-Term Credit Ratings) .................................... 1 7
+16 RMBS - 1-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................... 1 8
+17 RMBS - 3-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................... 1 9
+18 RMBS - 10-Year Transition and Default Rates (Long-Term Credit Ratings) .......................................... 2 0
+19 RMBS - 1-Year Transition and Default Rates (Short-Term Credit Ratings) .......................................... 2 1
+20 RMBS - 3-Year Transition and Default Rates (Short-Term Credit Ratings) .......................................... 2 2
+21 RMBS - 10-Year Transition and Default Rates (Short-Term Credit Ratings) .......................................... 2 3
+22 CMBS - 1-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................... 2 4
+23 CMBS - 3-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................... 2 5
+24 CMBS - 10-Year Transition and Default Rates (Long-Term Credit Ratings) .......................................... 2 6
+25 CMBS - 1-Year Transition and Default Rates (Short-Term Credit Ratings) .......................................... 2 7
+26 CMBS - 3-Year Transition and Default Rates (Short-Term Credit Ratings) .......................................... 2 8
+27 CMBS - 10-Year Transition and Default Rates (Short-Term Credit Ratings) .......................................... 2 9
+28 CLOs - 1-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................... 3 0
+29 CLOs - 3-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................... 3 1
+30 CLOs - 10-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................... 3 2
+31 CLOs - 1-Year Transition and Default Rates (Short-Term Credit Ratings) ........................................... 3 3
+32 CLOs - 3-Year Transition and Default Rates (Short-Term Credit Ratings) ........................................... 3 4
+33 CLOs - 10-Year Transition and Default Rates (Short-Term Credit Ratings) .......................................... 3 5
+34 CDOs - 1-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................... 3 6
+35 CDOs - 3-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................... 3 7
+36 CDOs - 10-Year Transition and Default Rates (Long-Term Credit Ratings) .......................................... 3 8
+37 CDOs - 1-Year Transition and Default Rates (Short-Term Credit Ratings) ........................................... 3 9
+38 CDOs - 3-Year Transition and Default Rates (Short-Term Credit Ratings) ........................................... 4 0
+39 CDOs - 10-Year Transition and Default Rates (Short-Term Credit Ratings) .......................................... 4 1
+40 Other ABS - 1-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................ 4 2
+41 Other ABS - 3-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................ 4 3
+42 Other ABS - 10-Year Transition and Default Rates (Long-Term Credit Ratings) ....................................... 4 4
+43 Other ABS - 1-Year Transition and Default Rates (Short-Term Credit Ratings) ........................................ 4 5
+1
+
+===== PDF PAGE 6 =====
+44 Other ABS - 3-Year Transition and Default Rates (Short-Term Credit Ratings) ........................................ 4 6
+45 Other ABS - 10-Year Transition and Default Rates (Short-Term Credit Ratings) ....................................... 4 7
+46 Other SFPs - 1-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................ 4 8
+47 Other SFPs - 3-Year Transition and Default Rates (Long-Term Credit Ratings) ........................................ 4 9
+48 Other SFPs - 10-Year Transition and Default Rates (Long-Term Credit Ratings) ....................................... 5 0
+49 Other SFPs - 1-Year Transition and Default Rates (Short-Term Credit Ratings) ........................................ 5 1
+50 Other SFPs - 3-Year Transition and Default Rates (Short-Term Credit Ratings) ........................................ 5 2
+51 Other SFPs - 10-Year Transition and Default Rates (Short-Term Credit Ratings) ....................................... 5 3
+52 Sovereign Issuers - 1-Year Transition and Default Rates (Long-Term Credit Ratings) ..................................... 5 4
+53 Sovereign Issuers - 3-Year Transition and Default Rates (Long-Term Credit Ratings) ..................................... 5 5
+54 Sovereign Issuers - 10-Year Transition and Default Rates (Long-Term Credit Ratings) .................................... 5 6
+55 Sovereign Issuers - 1-Year Transition and Default Rates (Short-Term Credit Ratings) ..................................... 5 7
+56 Sovereign Issuers - 3-Year Transition and Default Rates (Short-Term Credit Ratings) ..................................... 5 8
+57 Sovereign Issuers - 10-Year Transition and Default Rates (Short-Term Credit Ratings) .................................... 5 9
+58 U.S. Public Finance - 1-Year Transition and Default Rates (Long-Term Credit Ratings) ................................... 6 0
+59 U.S. Public Finance - 3-Year Transition and Default Rates (Long-Term Credit Ratings) ................................... 6 1
+60 U.S. Public Finance - 10-Year Transition and Default Rates (Long-Term Credit Ratings) ................................... 6 2
+61 U.S. Public Finance - 1-Year Transition and Default Rates (Short-Term Credit Ratings) ................................... 6 3
+62 U.S. Public Finance - 3-Year Transition and Default Rates (Short-Term Credit Ratings) ................................... 6 4
+63 U.S. Public Finance - 10-Year Transition and Default Rates (Short-Term Credit Ratings) .................................. 6 5
+2
+
+===== PDF PAGE 7 =====
+Table 1: Financial Institutions, Brokers, or Dealers - 1-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 4 100%
+AA+ 1 100%
+AA 8 13% 75% 12%
+AA- 35 6% 88% 3% 3%
+A+ 37 3% 89% 5% 3%
+A 85 10% 80% 2% 6% 2%
+A- 225 0% 5% 87% 0% 4% 4%
+BBB+ 177 4% 84% 0% 2% 10%
+BBB 214 0% 3% 87% 2% 1% 7%
+BBB- 155 1% 3% 80% 1% 1% 1% 5% 8%
+BB+ 35 6% 3% 88% 3%
+BB 47 92% 2% 2% 4%
+BB- 41 5% 81% 2% 2% 10%
+B+ 7 86% 14%
+B 8 12% 38% 25% 25%
+B- 3 67% 33%
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 1082
+3
+
+===== PDF PAGE 8 =====
+Table 2: Financial Institutions, Brokers, or Dealers - 3-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 8 38% 12% 50%
+AA+ 0
+AA 9 11% 67% 11% 11%
+AA- 23 83% 4% 9% 4%
+A+ 34 3% 70% 3% 3% 12% 9%
+A 62 6% 66% 8% 15% 5%
+A- 183 3% 5% 61% 3% 0% 13% 15%
+BBB+ 161 5% 66% 3% 1% 1% 5% 19%
+BBB 175 1% 7% 71% 4% 2% 15%
+BBB- 97 2% 7% 58% 3% 1% 1% 9% 19%
+BB+ 22 9% 5% 68% 4% 14%
+BB 29 10% 72% 4% 7% 7%
+BB- 13 8% 54% 38%
+B+ 6 17% 17% 66%
+B 1 100%
+B- 2 100%
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 825
+4
+
+===== PDF PAGE 9 =====
+Table 3: Financial Institutions, Brokers, or Dealers - 10-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 0
+AA+ 0
+AA 3 100%
+AA- 2 100%
+A+ 5 20% 20% 60%
+A 7 14% 86%
+A- 26 8% 27% 4% 7% 4% 4% 46%
+BBB+ 56 2% 12% 23% 4% 59%
+BBB 42 10% 14% 5% 71%
+BBB- 12 17% 17% 66%
+BB+ 1 100%
+BB 1 100%
+BB- 0
+B+ 1 100%
+B 0
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 156
+5
+
+===== PDF PAGE 10 =====
+Table 4: Financial Institutions, Brokers, or Dealers - 1-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 4 100%
+K1 16 94% 6%
+K2 182 1% 87% 1% 11%
+K3 90 5% 83% 1% 11%
+B 0
+C 0
+Total 292
+6
+
+===== PDF PAGE 11 =====
+Table 5: Financial Institutions, Brokers, or Dealers - 3-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 5 80% 20%
+K1 17 76% 18% 6%
+K2 195 0% 74% 4% 1% 21%
+K3 87 6% 71% 23%
+B 0
+C 0
+Total 304
+7
+
+===== PDF PAGE 12 =====
+Table 6: Financial Institutions, Brokers, or Dealers - 10-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 4 100%
+K1 14 7% 7% 7% 79%
+K2 77 4% 34% 5% 57%
+K3 30 13% 17% 70%
+B 1 100%
+C 0
+Total 126
+8
+
+===== PDF PAGE 13 =====
+Table 7: Insurance Companies - 1-Year Transition and Default Rates (Insurance Financial Strength Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 0
+AA+ 3 100%
+AA 4 100%
+AA- 1 100%
+A+ 3 33% 67%
+A 18 89% 11%
+A- 45 91% 5% 4%
+BBB+ 24 4% 84% 8% 4%
+BBB 20 5% 85% 5% 5%
+BBB- 10 80% 20%
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 128
+9
+
+===== PDF PAGE 14 =====
+Table 8: Insurance Companies - 3-Year Transition and Default Rates (Insurance Financial Strength Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 0
+AA+ 4 75% 25%
+AA 4 100%
+AA- 1 100%
+A+ 0
+A 18 6% 39% 11% 5% 39%
+A- 70 7% 54% 6% 3% 30%
+BBB+ 13 69% 8% 23%
+BBB 13 8% 46% 31% 15%
+BBB- 3 33% 67%
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 126
+10
+
+===== PDF PAGE 15 =====
+Table 9: Insurance Companies - 10-Year Transition and Default Rates (Insurance Financial Strength Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 0
+AA+ 3 100%
+AA 0
+AA- 0
+A+ 0
+A 0
+A- 0
+BBB+ 0
+BBB 0
+BBB- 0
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 3
+11
+
+===== PDF PAGE 16 =====
+Table 10: Corporate Issuers - 1-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 0
+AA+ 1 100%
+AA 0
+AA- 0
+A+ 8 88% 12%
+A 15 7% 87% 6%
+A- 24 88% 4% 4% 4%
+BBB+ 33 79% 6% 3% 3% 9%
+BBB 72 6% 85% 1% 1% 7%
+BBB- 89 1% 4% 87% 1% 3% 2% 2%
+BB+ 25 80% 16% 4%
+BB 26 15% 65% 4% 12% 4%
+BB- 14 7% 79% 7% 7%
+B+ 9 11% 45% 22% 22%
+B 46 85% 7% 4% 4%
+B- 72 3% 78% 3% 1% 1% 6% 8%
+CCC+ 5 80% 20%
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 439
+12
+
+===== PDF PAGE 17 =====
+Table 11: Corporate Issuers - 3-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 0
+AA+ 1 100%
+AA 0
+AA- 0
+A+ 5 100%
+A 13 15% 46% 39%
+A- 17 6% 65% 6% 23%
+BBB+ 22 14% 73% 4% 9%
+BBB 50 6% 72% 2% 4% 14% 2%
+BBB- 89 1% 7% 65% 2% 1% 1% 16% 7%
+BB+ 22 5% 50% 41% 4%
+BB 21 5% 24% 29% 5% 28% 9%
+BB- 13 8% 38% 8% 38% 8%
+B+ 6 17% 17% 17% 33% 16%
+B 14 36% 14% 7% 7% 7% 29%
+B- 11 9% 46% 18% 27%
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 284
+13
+
+===== PDF PAGE 18 =====
+Table 12: Corporate Issuers - 10-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 0
+AA+ 0
+AA 0
+AA- 0
+A+ 0
+A 1 100%
+A- 5 20% 40% 20% 20%
+BBB+ 3 67% 33%
+BBB 8 13% 25% 50% 12%
+BBB- 28 11% 3% 21% 4% 43% 18%
+BB+ 3 67% 33%
+BB 2 50% 50%
+BB- 2 100%
+B+ 2 50% 50%
+B 1 100%
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 55
+14
+
+===== PDF PAGE 19 =====
+Table 13: Corporate Issuers - 1-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+15
+
+===== PDF PAGE 20 =====
+Table 14: Corporate Issuers - 3-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+16
+
+===== PDF PAGE 21 =====
+Table 15: Corporate Issuers - 10-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+17
+
+===== PDF PAGE 22 =====
+Table 16: RMBS - 1-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 11382 98% 2%
+AA+ 754 12% 87% 0% 1%
+AA 303 23% 65% 12%
+AA- 235 15% 22% 62% 1%
+A+ 330 4% 27% 67% 0% 2%
+A 319 1% 9% 19% 63% 8%
+A- 305 5% 29% 65% 1%
+BBB+ 793 1% 3% 17% 79%
+BBB 856 0% 3% 21% 74% 2%
+BBB- 473 1% 33% 64% 2%
+BB+ 295 3% 19% 75% 3%
+BB 217 2% 3% 14% 80% 1%
+BB- 148 5% 11% 84%
+B+ 155 5% 12% 82% 1%
+B 108 1% 7% 92%
+B- 100 1% 2% 95% 2%
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 16773
+18
+
+===== PDF PAGE 23 =====
+Table 17: RMBS - 3-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 8469 97% 3%
+AA+ 342 33% 51% 16%
+AA 322 26% 17% 25% 32%
+AA- 185 41% 12% 3% 15% 0% 29%
+A+ 298 21% 28% 13% 17% 14% 7%
+A 324 28% 16% 5% 12% 9% 25% 5%
+A- 229 16% 11% 4% 11% 4% 3% 15% 0% 36%
+BBB+ 304 11% 3% 5% 5% 6% 23% 18% 17% 12%
+BBB 628 0% 2% 1% 1% 3% 3% 11% 27% 43% 9%
+BBB- 418 7% 1% 2% 3% 7% 9% 10% 31% 26% 4%
+BB+ 238 0% 3% 3% 2% 5% 6% 6% 20% 15% 23% 17%
+BB 172 2% 5% 2% 3% 3% 7% 12% 13% 46% 7%
+BB- 98 2% 3% 5% 11% 16% 10% 7% 43% 3%
+B+ 93 2% 4% 3% 9% 12% 18% 14% 12% 26%
+B 120 1% 4% 14% 6% 6% 12% 6% 44% 7%
+B- 85 1% 2% 4% 11% 7% 4% 5% 63% 3%
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 12325
+19
+
+===== PDF PAGE 24 =====
+Table 18: RMBS - 10-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 1045 56% 44%
+AA+ 18 72% 28%
+AA 57 72% 28%
+AA- 4 50% 50%
+A+ 0
+A 67 57% 1% 42%
+A- 9 100%
+BBB+ 1 100%
+BBB 81 46% 5% 1% 48%
+BBB- 12 100%
+BB+ 4 100%
+BB 68 18% 29% 6% 6% 3% 38%
+BB- 0
+B+ 12 33% 67%
+B 15 13% 7% 7% 73%
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 1393
+20
+
+===== PDF PAGE 25 =====
+Table 19: RMBS - 1-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+21
+
+===== PDF PAGE 26 =====
+Table 20: RMBS - 3-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+22
+
+===== PDF PAGE 27 =====
+Table 21: RMBS - 10-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+23
+
+===== PDF PAGE 28 =====
+Table 22: CMBS - 1-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 3127 86% 0% 0% 0% 12% 2%
+AA+ 100 8% 72% 20%
+AA 263 1% 4% 79% 1% 2% 2% 1% 0% 0% 0% 10% 0%
+AA- 317 1% 1% 83% 1% 1% 1% 1% 1% 1% 9%
+A+ 71 1% 6% 9% 62% 1% 1% 20%
+A 213 2% 1% 2% 76% 1% 1% 3% 3% 0% 0% 11%
+A- 444 0% 0% 2% 82% 2% 4% 1% 1% 1% 0% 7% 0%
+BBB+ 213 1% 1% 90% 3% 1% 0% 4%
+BBB 275 2% 1% 75% 3% 0% 4% 1% 1% 2% 1% 0% 10%
+BBB- 493 0% 0% 1% 1% 78% 5% 4% 0% 1% 1% 0% 7% 2%
+BB+ 101 1% 91% 2% 2% 1% 1% 2%
+BB 210 1% 65% 6% 8% 9% 3% 1% 0% 6% 1%
+BB- 302 0% 1% 0% 67% 5% 13% 3% 1% 1% 1% 7% 1%
+B+ 59 78% 2% 12% 5% 3%
+B 185 0% 63% 10% 15% 3% 2% 5% 2%
+B- 296 0% 1% 0% 60% 23% 3% 2% 1% 8% 2%
+CCC+ 1 100%
+CCC 197 51% 0% 29% 10% 2% 4% 4%
+CCC- 6 17% 66% 17%
+CC 118 41% 35% 12% 2% 10%
+C 139 78% 16% 6%
+Total 7130
+24
+
+===== PDF PAGE 29 =====
+Table 23: CMBS - 3-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 3078 67% 0% 0% 0% 0% 0% 0% 0% 0% 0% 0% 29% 4%
+AA+ 115 10% 41% 1% 1% 1% 1% 1% 1% 1% 1% 41%
+AA 262 1% 3% 69% 1% 0% 1% 2% 1% 1% 0% 1% 20%
+AA- 252 2% 3% 2% 53% 5% 2% 2% 1% 2% 0% 0% 1% 0% 1% 26% 0%
+A+ 86 1% 7% 6% 4% 30% 1% 1% 1% 4% 2% 1% 42%
+A 202 1% 2% 3% 2% 60% 3% 1% 3% 3% 0% 1% 2% 1% 1% 17%
+A- 389 0% 0% 1% 1% 0% 2% 55% 1% 3% 5% 2% 2% 3% 2% 2% 1% 0% 20% 0%
+BBB+ 174 1% 1% 5% 3% 69% 6% 3% 1% 1% 0% 0% 10%
+BBB 206 1% 0% 3% 2% 52% 4% 0% 8% 2% 4% 0% 4% 1% 0% 19%
+BBB- 527 0% 0% 0% 1% 1% 54% 0% 6% 5% 3% 6% 4% 3% 2% 12% 3%
+BB+ 78 1% 1% 59% 5% 1% 3% 8% 7% 4% 10% 1%
+BB 169 1% 38% 6% 6% 11% 9% 4% 5% 16% 4%
+BB- 337 0% 1% 0% 1% 1% 43% 9% 10% 11% 4% 5% 2% 12% 1%
+B+ 42 48% 2% 19% 12% 5% 7% 5% 2%
+B 146 1% 1% 35% 9% 19% 5% 9% 2% 14% 5%
+B- 319 0% 0% 1% 1% 37% 19% 1% 11% 12% 2% 13% 3%
+CCC+ 0
+CCC 123 1% 22% 21% 26% 10% 7% 13%
+CCC- 5 20% 40% 40%
+CC 55 2% 2% 22% 34% 29% 4% 7%
+C 68 48% 43% 9%
+Total 6633
+25
+
+===== PDF PAGE 30 =====
+Table 24: CMBS - 10-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 1324 5% 0% 0% 0% 0% 0% 0% 0% 0% 0% 0% 85% 10%
+AA+ 25 100%
+AA 61 2% 11% 2% 2% 3% 3% 3% 2% 5% 67%
+AA- 132 1% 2% 7% 1% 6% 4% 3% 1% 2% 1% 1% 1% 1% 1% 1% 66% 1%
+A+ 18 6% 94%
+A 68 3% 12% 12% 3% 3% 4% 6% 3% 54%
+A- 220 3% 6% 4% 6% 1% 5% 2% 2% 4% 5% 2% 2% 58% 0%
+BBB+ 45 2% 2% 2% 5% 89%
+BBB 30 4% 10% 3% 7% 13% 3% 60%
+BBB- 240 8% 2% 2% 5% 4% 10% 6% 7% 4% 42% 10%
+BB+ 28 7% 4% 7% 11% 7% 11% 7% 43% 3%
+BB 113 4% 3% 1% 12% 16% 14% 11% 25% 14%
+BB- 99 5% 2% 6% 8% 6% 17% 8% 38% 10%
+B+ 26 4% 12% 4% 38% 15% 19% 8%
+B 78 3% 4% 5% 9% 32% 19% 20% 8%
+B- 66 6% 8% 6% 33% 14% 21% 12%
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 2573
+26
+
+===== PDF PAGE 31 =====
+Table 25: CMBS - 1-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+27
+
+===== PDF PAGE 32 =====
+Table 26: CMBS - 3-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+28
+
+===== PDF PAGE 33 =====
+Table 27: CMBS - 10-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+29
+
+===== PDF PAGE 34 =====
+Table 28: CLOs - 1-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 138 55% 45%
+AA+ 0
+AA 127 61% 39%
+AA- 5 100%
+A+ 13 8% 54% 38%
+A 150 0% 59% 41%
+A- 11 45% 55%
+BBB+ 3 33% 67%
+BBB 39 2% 54% 44%
+BBB- 113 1% 1% 59% 39%
+BB+ 1 100%
+BB 11 9% 73% 18%
+BB- 111 59% 41%
+B+ 0
+B 0
+B- 82 61% 39%
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 804
+30
+
+===== PDF PAGE 35 =====
+Table 29: CLOs - 3-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 88 17% 83%
+AA+ 0
+AA 68 24% 76%
+AA- 1 100%
+A+ 7 29% 71%
+A 87 1% 3% 25% 71%
+A- 9 11% 33% 56%
+BBB+ 2 100%
+BBB 28 7% 43% 50%
+BBB- 74 1% 1% 4% 15% 79%
+BB+ 0
+BB 4 100%
+BB- 72 1% 17% 82%
+B+ 0
+B 0
+B- 34 100%
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 474
+31
+
+===== PDF PAGE 36 =====
+Table 30: CLOs - 10-Year Transition and Default Rates (Long-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+32
+
+===== PDF PAGE 37 =====
+Table 31: CLOs - 1-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+33
+
+===== PDF PAGE 38 =====
+Table 32: CLOs - 3-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+34
+
+===== PDF PAGE 39 =====
+Table 33: CLOs - 10-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+35
+
+===== PDF PAGE 40 =====
+Table 34: CDOs - 1-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 18 83% 17%
+AA+ 10 100%
+AA 10 10% 40% 50%
+AA- 11 55% 27% 18%
+A+ 7 100%
+A 3 33% 67%
+A- 11 73% 27%
+BBB+ 4 50% 25% 25%
+BBB 3 100%
+BBB- 21 90% 10%
+BB+ 1 100%
+BB 7 57% 14% 29%
+BB- 13 85% 15%
+B+ 3 100%
+B 0
+B- 9 89% 11%
+CCC+ 1 100%
+CCC 10 100%
+CCC- 1 100%
+CC 0
+C 0
+Total 143
+36
+
+===== PDF PAGE 41 =====
+Table 35: CDOs - 3-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 6 50% 50%
+AA+ 2 100%
+AA 6 17% 83%
+AA- 9 34% 33% 33%
+A+ 1 100%
+A 5 20% 80%
+A- 7 57% 43%
+BBB+ 4 75% 25%
+BBB 2 50% 50%
+BBB- 18 55% 6% 6% 33%
+BB+ 2 100%
+BB 4 50% 50%
+BB- 10 20% 80%
+B+ 3 100%
+B 1 100%
+B- 3 33% 67%
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 83
+37
+
+===== PDF PAGE 42 =====
+Table 36: CDOs - 10-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 2 100%
+AA+ 0
+AA 0
+AA- 0
+A+ 0
+A 1 100%
+A- 2 100%
+BBB+ 1 100%
+BBB 0
+BBB- 24 100%
+BB+ 0
+BB 0
+BB- 26 100%
+B+ 1 100%
+B 1 100%
+B- 4 100%
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 62
+38
+
+===== PDF PAGE 43 =====
+Table 37: CDOs - 1-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+39
+
+===== PDF PAGE 44 =====
+Table 38: CDOs - 3-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+40
+
+===== PDF PAGE 45 =====
+Table 39: CDOs - 10-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+41
+
+===== PDF PAGE 46 =====
+Table 40: Other ABS - 1-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 319 57% 1% 42%
+AA+ 120 23% 42% 1% 34%
+AA 127 14% 26% 38% 1% 1% 20%
+AA- 90 2% 10% 15% 48% 2% 23%
+A+ 67 10% 10% 12% 9% 36% 2% 2% 19%
+A 155 5% 4% 8% 6% 15% 41% 1% 1% 19%
+A- 166 0% 2% 1% 4% 4% 7% 57% 1% 24%
+BBB+ 60 3% 5% 1% 2% 12% 15% 42% 2% 3% 15%
+BBB 141 1% 1% 3% 3% 4% 6% 17% 48% 1% 1% 2% 13%
+BBB- 165 0% 0% 1% 1% 4% 2% 1% 7% 61% 1% 1% 1% 1% 19%
+BB+ 49 2% 2% 2% 6% 59% 2% 2% 2% 23%
+BB 112 1% 1% 1% 1% 4% 4% 16% 50% 2% 2% 5% 3% 10%
+BB- 103 1% 1% 2% 4% 13% 63% 2% 14%
+B+ 12 9% 50% 33% 8%
+B 34 12% 3% 14% 56% 3% 12%
+B- 56 2% 2% 4% 77% 3% 12%
+CCC+ 0
+CCC 11 36% 55% 9%
+CCC- 0
+CC 2 50% 50%
+C 9 89% 11%
+Total 1798
+42
+
+===== PDF PAGE 47 =====
+Table 41: Other ABS - 3-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 210 17% 83%
+AA+ 76 18% 7% 75%
+AA 75 15% 7% 12% 1% 1% 64%
+AA- 62 5% 6% 6% 15% 68%
+A+ 57 3% 18% 2% 9% 68%
+A 119 7% 7% 2% 2% 2% 16% 1% 1% 1% 60% 1%
+A- 106 1% 4% 1% 4% 3% 16% 71%
+BBB+ 55 3% 4% 13% 4% 2% 5% 2% 67%
+BBB 122 5% 5% 2% 2% 6% 2% 1% 5% 14% 1% 1% 1% 1% 1% 1% 51% 1%
+BBB- 122 2% 1% 1% 1% 1% 2% 1% 2% 7% 20% 1% 1% 2% 1% 1% 56%
+BB+ 37 3% 5% 5% 16% 3% 68%
+BB 98 3% 1% 1% 2% 2% 2% 5% 3% 4% 18% 1% 1% 1% 5% 1% 1% 49%
+BB- 74 1% 1% 6% 3% 12% 23% 1% 4% 3% 4% 7% 35%
+B+ 17 6% 6% 6% 6% 6% 6% 64%
+B 38 3% 8% 10% 5% 3% 8% 58% 5%
+B- 16 12% 63% 6% 19%
+CCC+ 0
+CCC 3 100%
+CCC- 0
+CC 0
+C 0
+Total 1287
+43
+
+===== PDF PAGE 48 =====
+Table 42: Other ABS - 10-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 31 100%
+AA+ 16 100%
+AA 25 92% 8%
+AA- 4 100%
+A+ 8 100%
+A 37 95% 5%
+A- 8 75% 25%
+BBB+ 7 100%
+BBB 33 94% 6%
+BBB- 4 100%
+BB+ 7 100%
+BB 22 100%
+BB- 1 100%
+B+ 1 100%
+B 3 100%
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 207
+44
+
+===== PDF PAGE 49 =====
+Table 43: Other ABS - 1-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 16 100%
+K1 0
+K2 0
+K3 0
+B 0
+C 0
+Total 16
+45
+
+===== PDF PAGE 50 =====
+Table 44: Other ABS - 3-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 10 100%
+K1 0
+K2 0
+K3 0
+B 0
+C 0
+Total 10
+46
+
+===== PDF PAGE 51 =====
+Table 45: Other ABS - 10-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+47
+
+===== PDF PAGE 52 =====
+Table 46: Other SFPs - 1-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 75 88% 12%
+AA+ 7 14% 86%
+AA 40 5% 73% 22%
+AA- 51 4% 90% 2% 4%
+A+ 41 2% 3% 3% 61% 7% 24%
+A 307 0% 1% 0% 3% 84% 0% 0% 0% 12% 0%
+A- 139 1% 4% 82% 1% 1% 11%
+BBB+ 36 8% 14% 50% 8% 6% 14%
+BBB 304 0% 1% 1% 86% 2% 1% 0% 8% 1%
+BBB- 107 1% 1% 2% 4% 72% 2% 3% 1% 13% 1%
+BB+ 33 9% 61% 3% 9% 6% 12%
+BB 83 2% 74% 3% 1% 2% 2% 16%
+BB- 58 79% 7% 2% 10% 2%
+B+ 8 75% 25%
+B 18 6% 67% 6% 11% 5% 5%
+B- 5 40% 40% 20%
+CCC+ 2 100%
+CCC 45 5% 67% 2% 2% 2% 22%
+CCC- 1 100%
+CC 1 100%
+C 0
+Total 1361
+48
+
+===== PDF PAGE 53 =====
+Table 47: Other SFPs - 3-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 61 61% 39%
+AA+ 1 100%
+AA 18 17% 5% 6% 72%
+AA- 22 14% 14% 23% 36% 13%
+A+ 19 5% 11% 37% 5% 42%
+A 245 1% 4% 10% 5% 49% 0% 30% 1%
+A- 101 1% 4% 6% 13% 51% 1% 24%
+BBB+ 33 3% 18% 33% 6% 3% 37%
+BBB 237 0% 1% 2% 6% 1% 62% 4% 1% 22% 1%
+BBB- 89 2% 1% 6% 20% 35% 1% 4% 1% 29% 1%
+BB+ 27 11% 33% 4% 7% 4% 41%
+BB 84 2% 13% 4% 42% 11% 1% 2% 1% 1% 22% 1%
+BB- 34 3% 21% 41% 9% 23% 3%
+B+ 5 20% 40% 40%
+B 14 7% 7% 43% 7% 22% 7% 7%
+B- 7 14% 29% 29% 28%
+CCC+ 2 100%
+CCC 49 6% 53% 2% 2% 2% 35%
+CCC- 1 100%
+CC 1 100%
+C 0
+Total 1050
+49
+
+===== PDF PAGE 54 =====
+Table 48: Other SFPs - 10-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 8 88% 12%
+AA+ 0
+AA 11 73% 27%
+AA- 3 100%
+A+ 4 100%
+A 31 3% 97%
+A- 10 10% 10% 80%
+BBB+ 4 100%
+BBB 21 5% 95%
+BBB- 4 25% 75%
+BB+ 0
+BB 8 13% 13% 62% 12%
+BB- 2 100%
+B+ 3 100%
+B 1 100%
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 110
+50
+
+===== PDF PAGE 55 =====
+Table 49: Other SFPs - 1-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 1 100%
+K1 0
+K2 0
+K3 0
+B 0
+C 0
+Total 1
+51
+
+===== PDF PAGE 56 =====
+Table 50: Other SFPs - 3-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+52
+
+===== PDF PAGE 57 =====
+Table 51: Other SFPs - 10-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+53
+
+===== PDF PAGE 58 =====
+Table 52: Sovereign Issuers - 1-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 4 100%
+AA+ 0
+AA 0
+AA- 2 100%
+A+ 2 100%
+A 0
+A- 1 100%
+BBB+ 0
+BBB 4 25% 75%
+BBB- 0
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 13
+54
+
+===== PDF PAGE 59 =====
+Table 53: Sovereign Issuers - 3-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 4 100%
+AA+ 0
+AA 0
+AA- 2 100%
+A+ 2 100%
+A 0
+A- 0
+BBB+ 0
+BBB 3 33% 67%
+BBB- 0
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 11
+55
+
+===== PDF PAGE 60 =====
+Table 54: Sovereign Issuers - 10-Year Transition and Default Rates (Long-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+56
+
+===== PDF PAGE 61 =====
+Table 55: Sovereign Issuers - 1-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 8 100%
+K1 0
+K2 2 100%
+K3 0
+B 0
+C 0
+Total 10
+57
+
+===== PDF PAGE 62 =====
+Table 56: Sovereign Issuers - 3-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 8 100%
+K1 0
+K2 2 100%
+K3 0
+B 0
+C 0
+Total 10
+58
+
+===== PDF PAGE 63 =====
+Table 57: Sovereign Issuers - 10-Year Transition and Default Rates (Short-Term Credit Ratings)
+KBRA has not assigned credit ratings in this class/subclass for the length of time necessary to produce a Transition/Default Matrix.
+59
+
+===== PDF PAGE 64 =====
+Table 58: U.S. Public Finance - 1-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 41 98% 2%
+AA+ 35 3% 91% 6%
+AA 42 2% 93% 5%
+AA- 30 13% 80% 7%
+A+ 53 4% 96%
+A 14 93% 7%
+A- 4 100%
+BBB+ 7 14% 43% 15% 14% 14%
+BBB 9 11% 67% 22%
+BBB- 7 14% 86%
+BB+ 0
+BB 1 100%
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 243
+60
+
+===== PDF PAGE 65 =====
+Table 59: U.S. Public Finance - 3-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 30 93% 7%
+AA+ 22 9% 77% 14%
+AA 29 7% 83% 10%
+AA- 26 23% 65% 8% 4%
+A+ 50 10% 84% 4% 2%
+A 10 30% 50% 10% 10%
+A- 8 50% 38% 12%
+BBB+ 3 67% 33%
+BBB 12 17% 50% 17% 16%
+BBB- 8 13% 63% 12% 12%
+BB+ 0
+BB 2 100%
+BB- 0
+B+ 0
+B 1 100%
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 201
+61
+
+===== PDF PAGE 66 =====
+Table 60: U.S. Public Finance - 10-Year Transition and Default Rates (Long-Term Credit Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+AAA 3 100%
+AA+ 8 38% 25% 13% 12% 12%
+AA 12 8% 8% 84%
+AA- 12 8% 25% 42% 17% 8%
+A+ 8 13% 25% 38% 12% 12%
+A 4 50% 25% 25%
+A- 6 17% 17% 17% 16% 33%
+BBB+ 1 100%
+BBB 1 100%
+BBB- 1 100%
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC+ 0
+CCC 0
+CCC- 0
+CC 0
+C 0
+Total 56
+62
+
+===== PDF PAGE 67 =====
+Table 61: U.S. Public Finance - 1-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2024 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 8 75% 25%
+K1 2 50% 50%
+K2 0
+K3 0
+B 0
+C 0
+Total 10
+63
+
+===== PDF PAGE 68 =====
+Table 62: U.S. Public Finance - 3-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2022 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 9 67% 33%
+K1 2 50% 50%
+K2 0
+K3 0
+B 0
+C 0
+Total 11
+64
+
+===== PDF PAGE 69 =====
+Table 63: U.S. Public Finance - 10-Year Transition and Default Rates (Short-Term Credit Ratings)
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During
+12/31/2015 - 12/31/2025
+(Percent)
+Credit
+Rating
+Number of
+Ratings
+Outstanding K1+ K1 K2 K3 B C Default
+Paid
+Oﬀ
+Withdrawn
+(other)
+K1+ 6 34% 33% 33%
+K1 1 100%
+K2 0
+K3 0
+B 0
+C 0
+Total 7
+65
+
+===== PDF PAGE 70 =====
+66

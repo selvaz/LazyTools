@@ -44,9 +44,10 @@ def test_the_mapping_call_carries_the_traps_it_needs() -> None:
     # The mapping call is one turn with no tools: it cannot fetch a block, so
     # what governs it has to be in front of it.
     text = mapping_instructions()
-    assert "AmortizationOfIntangibleAssets" in text     # Cisco, entity-wide vs true
+    assert "entity-wide value" in text                  # statement vs fact scope
     assert "per share data" in text                     # per-row scale
-    assert "no debt maturity schedule" in text          # NVIDIA's lease ladder
+    assert "lease-commitment table" in text             # schedule scope
+    assert not any(name in text.casefold() for name in ("nike", "walmart", "nvidia", "deere"))
 
 
 def test_the_mapping_call_does_NOT_carry_what_is_already_settled() -> None:
@@ -60,7 +61,7 @@ def test_the_mapping_call_does_NOT_carry_what_is_already_settled() -> None:
 def test_the_traps_reach_the_live_mapping_prompt() -> None:
     # The connector built its prompt from a string literal for a while. This is
     # the test that the library is wired in rather than merely shipped.
-    assert "AmortizationOfIntangibleAssets" in _system()
+    assert "entity-wide value" in _system()
     assert "labelling, not analysing" in _system()
 
 

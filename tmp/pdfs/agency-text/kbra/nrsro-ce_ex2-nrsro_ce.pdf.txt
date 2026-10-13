@@ -1,0 +1,279 @@
+
+===== PDF PAGE 1 =====
+Ex2 Procedures and Methodologies Used to Determine 
+Credit Ratings
+1 March , 202
+KROLL BOND RATING AGENCY, LLC
+Form NRSRO Annual Certification
+EXHIBIT 2: 
+Procedures and 
+Methodologies Used to 
+Determine Credit Ratings
+
+===== PDF PAGE 2 =====
+Overview of KBRA’s Rating Process 1 
+805 Third Ave, 29th Floor 
+New York, NY 10022 
++1 (212) 702-0707 | www.kbra.com
+Overview of 
+KBRA’s Rating Process 
+Contacts 
+Lenny Giltman, Chief Credit Officer 
++1 (646) 731-2378
+lenny.giltman@kbra.com
+Rahsaan Majors, Managing 
+Director 
++1 (646) 731-2370
+rahsaan.majors@kbra.com
+
+
+===== PDF PAGE 3 =====
+Overview of KBRA’s Rating Process 2 March , 2026 
+Introduction 
+Kroll Bond Rating Agency, LLC, and its rating affiliates (collectively KBRA) offer credit rating services through their 
+offices in the United States, Ireland, and the United Kingdom. The credit rating processes employed by KBRA for its 
+credit rating products are described below but may vary depending on the nature of a specific engagement. 
+Credit Ratings 
+Engagement Process 
+KBRA offers credit ratings for debt and debt-like obligations (such as bonds, notes, etc.) and for the issuers of these 
+obligations. Credit ratings are generally solicited and are assigned with the cooperation of the issuing entity; KBRA 
+discloses when a credit rating is unsolicited. The credit rating process typically begins when an issuer or its banker (or, 
+in the case of a structured finance transaction, an arranger) contacts KBRA to determine if KBRA can rate the entity or 
+obligation.
+1 KBRA’s decision to accept an engagement is based on the available resources and expertise to provide a 
+credit rating, the availability of applicable in-use methodologies for the credit to be rated, and consideration of whether 
+actual or potential conflicts of interest exist. KBRA analytical staff is not permitted to be involved in negotiating, 
+discussing, or establishing the business terms of the engagement; rather, this function is the responsibility of separate 
+staff responsible for business development.  
+Once the decision is made to proceed with an engagement, the entity seeking a credit rating provides supporting financial 
+data, transaction- related documentation, and other information, as appropriate. In the context of a structured finance 
+transaction, i.e., a deal that involves the issuance of an asset-backed or mortgage-backed security, the information may 
+be made available to KBRA and other nationally recognized statistical rating organizations (NRSROs) by the issuer or 
+arranger via a shared data room, as required by U.S. Securities and Exchange Commission (SEC) rules. The issuer will 
+provide information on the underlying assets and deal structure for structured finance transactions. KBRA analysts will 
+examine the information and proceed to gather other data pertinent to the credit rating. 
+Credit Rating Methodologies 
+When assigning a credit rating to an issuer or obligation, KBRA analysts adhere to Credit Rating Methodologies approved 
+by KBRA’s Credit Policy Committee and the Kroll Bond Rating Agency, LLC Board of Managers. KBRA’s Credit Rating 
+Methodologies cover a broad spectrum of topics and describe how KBRA analyzes issuers and obligations within an 
+industry sector, asset class, or region. To the degree that an entity or transaction exhibits features not described in 
+existing Credit Rating Methodologies, a report on that transaction or entity may contain additional disclosure of KBRA’s 
+credit rating approach. 
+The Credit Rating Methodologies offer guidance as to the important risk factors and, where relevant, relative weightings 
+that are applied. KBRA’s Credit Rating Methodologies are available on KBRA’s website. If KBRA deems it necessary 
+to create a new or to substantively modify an existing Credit Rating Methodology or Quantitative Model, or otherwise 
+substantively revise its credit rating practices, such proposed changes are submitted to KBRA’s Credit Policy Committee 
+and the Kroll Bond Rating Agency, LLC Board of Managers for approval. KBRA has a Public Comments page on its 
+website to accept and publicly display comments on outstanding, newly proposed or substantively revised Credit 
+Rating Methodologies and to publish the comments (if any), along with the final Credit Rating Methodologies. 
+Material revisions to a proposed Credit Rating Methodology in response to comments will be reviewed and considered 
+by the Credit Policy Committee and the KBRA Board prior to publication of a final Credit Rating Methodology. 
+When a Credit Rating Methodology is updated, all outstanding credit ratings that are potentially affected by the update 
+are reviewed. KBRA will publicly comment on the potential impact to credit ratings from changes to a Credit Rating 
+Methodology. When the revised Credit Rating Methodology is adopted, any potential changes to the affected credit 
+ratings are published. The accompanying press release will describe the nature of any changes and the potential impact 
+on outstanding credit ratings. All in-use Credit Rating Methodologies are reviewed at least annually. 
+1 Investors and others may also approach KBRA to seek credit ratings for a particular security or loan, or to rate an investor’s portion 
+of a particular security or loan. 
+
+===== PDF PAGE 4 =====
+Overview of KBRA’s Rating Process 3 March , 2026 
+Use of Quantitative Models 
+KBRA may use Quantitative Models in the credit rating process when a Credit Rating Methodology integrates a complex 
+modeling approach. KBRA has established a Quantitative Risk Management (QRM) function whose mandate is to enhance 
+KBRA’s model risk management framework. KBRA’s QRM Committee oversees KBRA’s model risk initiative and the 
+Quantitative Model approval process. 
+A component of a methodology that uses a complex quantitative approach such as regression, classification or simulation 
+that KBRA views as a Quantitative Model must be validated by a member of the QRM function and then presented to the QRM 
+Committee for approval. The QRM Committee must approve all new Quantitative Models, material changes to 
+Quantitative Models, and all use cases of a Quantitative Model prior to implementation. KBRA maintains an inventory of all 
+Quantitative Models. 
+The QRM function has issued internal guidelines for each phase of the model life cycle, including model development, 
+validation, approval, implementation, use, and managem ent. Model management commences when a Quantitative 
+Model has been implemented and put into production, and includes model change management, ongoing monitoring, 
+and periodic backtesting and review. 
+Credit Rating Process 
+Each credit rating engagement is assigned to a lead analyst on the applicable credit ratings team. Once a credit rating 
+recommendation is reached, the lead analyst will work with senior managers of the relevant asset class to assemble a 
+Rating Committee. Once a credit rating is agreed upon by a Rating Committee, the lead analyst will inform the entity 
+seeking the credit rating of the credit rating outcome. In the case of a published credit rating, this will be followed by 
+posting the credit rating along with an Information Disclosure Form (IDF) on KBRA’s website, the publication of a press 
+release, and typically a rating report. In the case of an unpublished credit rating, an IDF will accompany KBRA’s written 
+communication of the credit rating. 
+In structured finance and some other asset classes, it is often the case that published credit ratings are assigned and 
+published on a preliminary basis on KBRA’s website and in a pre-sale report to provide investors with credit rating 
+analysis during the marketing phase of a transaction. The new issue credit ratings are assigned after the transaction 
+closes. In the case of a published credit rating, the publication for both preliminary and new issue credit ratings will 
+include an IDF accompanied by a press release. 
+In certain asset classes, one or more discussions with the management team of the issuer, engaging entity, sponsor, or 
+servicer, as applicable, may be part of the credit rating analysis for solicited credit ratings. In such cases, the rating analysts 
+typically arrange a meeting with the relevant management team and other parties or may also request and accept written 
+responses to questions as part of the credit ratings process. The management meeting typically includes discussion of 
+questions developed by the KBRA analytical team after it has reviewed relevant issuer documentation delivered by the 
+relevant management team or its advisors. 
+Credit ratings will reflect all information known to, and believed to be relevant to, KBRA, consistent with the applicable 
+Credit Rating Methodology in effect. KBRA relies on macroeconomic, financial market, and historical performance data 
+in combination with financial data gathered from public sources about the rated entity, transaction, or obligor. KBRA 
+credit ratings may factor in an assessment of the quality of asset originators. Asset originator reviews may include an 
+assessment of business strategy, financial strength, quality control, underwriting practices, management strength, 
+governance, and the performance of previously originated assets. KBRA also relies on direct communication with the 
+rated entity, issuer, or obligor for nonpublic data. KBRA will determine on a case-by-case basis how assessments of the 
+quality of originators of assets underlying or referenced by a security or money market instrument as part of any asset-
+backed or mortgage-backed securities transaction factor into the determination of credit ratings. KBRA has policies in 
+place to prevent the misuse of any nonpublic data. 
+KBRA may review a wide range of market indicators or credit opinions in the credit rating process. When determining credit 
+ratings for securities or money market instruments issued by an asset pool or as part of any asset-backed or mortgage-backed 
+securities transaction in which KBRA deems it appropriate to consider credit ratings or methodologies from other NRSROs, 
+the following will be true: (1) KBRA’s credit rating will not rely exclusively on ratings or methodologies from another NRSRO; 
+and (2) if KBRA does use a rating from another NRSRO as a factor in deriving the KBRA credit rating, KBRA will not adjust 
+the other NRSRO’s rating before using it as an input into deriving the KBRA credit rating. KBRA will not refuse to issue 
+credit ratings for any entity because it is or was rated by another NRSRO. 
+
+===== PDF PAGE 5 =====
+Overview of KBRA’s Rating Process 4 March , 2026 
+KBRA has adopted measures designed to reasonably obtain information that is reliable and originates from reliable 
+sources, including, when appropriate, independent third parties. KBRA’s policy is to refuse to issue a credit rating when 
+the available data is insufficient, unreliable, or of inadequate quality to support a credible credit rating; KBRA does not 
+have the necessary analytical expertise to provide a credit rating; or providing a credit rating would violate applicable 
+laws or regulations. KBRA will determine on a case-by-case basis how information about verification of assets underlying 
+or referenced by a security or money market instrument as part of any asset-backed or mortgage-backed securities 
+transaction will factor into determining the credit rating. Although KBRA does not typically provide independent 
+verification of the information it receives during the credit rating process, KBRA may use available sources to 
+independently verify information used in the credit rating process. 
+While KBRA’s credit rating process is substantively similar regardless of whether the credit rating is issued on a solicited 
+or unsolicited basis, in cases of unsolicited credit ratings, KBRA will not have an engagement letter with the rated entity 
+or transaction sponsor and KBRA will generally not have an opportunity to conduct a direct evaluation of the relevant 
+entity’s management team. 
+Rating Committees 
+Purpose 
+The purpose of a Rating Committee is to provide a formal forum for the determination of credit ratings and to offer an 
+appropriate level of governance and oversight with respect to credit rating decisions. 
+Frequency and Attestation 
+A Rating Committee will convene as needed, depending on the timing of credit rating mandates, availability of new 
+information, and credit developments. 
+The Rating Committee chair is responsible for keeping the meeting on topic and for taking the vote. At the start of the 
+credit rating process, an email conflict check must be sent to all participants who may be involved in the credit rating 
+process. Further, at the start of each Rating Committee, the Rating Committee chair must obtain a follow-up oral 
+confirmation on conflict checks from the participants. Participants who are unable to confirm the absence of conflicts of 
+interest, including where a potential conflict is identified, must recuse themselves immediately and leave the Rating 
+Committee before any substantive discussions begin.. The committee must be postponed until the Rating Committee 
+chair has contacted Credit Policy and Compliance for clearance to continue. 
+Prior to a Rating Committee meeting, the lead analyst will provide a Rating Committee memo outlining the proposed 
+credit rating (or action) and supporting information. However, a meeting can be called without advance distribution of 
+a memo if a time-sensitive concern arises about an issue or issuer. At the Rating Committee, the lead analyst will 
+provide documentary evidence of all the responses to the mandatory conflict check email and a printed copy of the 
+Rating Chair Attestation Form, with all fields other than the Rating Committee chair’s signature completed to the Rating 
+Committee chair’s satisfaction. 
+Credit Policy and Compliance Oversight and Review 
+KBRA’s rating committee process is subject to independent second-line oversight. Credit Policy and Compliance perform 
+periodic after-the-fact reviews of rating committee composition, documentation, and adherence to applicable policies 
+and procedures, including eligibility requirements, conflict-of-interest controls, and voting protocols. These reviews are 
+designed to confirm that rating committees are consistently conducted in accordance with KBRA’s established 
+governance framework and applicable regulatory requirements. Where issues are identified, Credit Policy and 
+Compliance may require remediation, additional documentation, training, or other corrective actions, as appropriate. 
+Reasons for Convening 
+KBRA cannot assign, affirm, or change a credit rating without a Rating Committee’s review of a transaction or issuer, 
+except in the cases of subsequent issuances of securities where an outstanding credit rating already exists on an issuer 
+or on securities that have the same priority of claim as the subsequently issued security. A Rating Committee may also 
+be convened to consider any other action with respect to a credit rating as may be determined prudent by a Managing 
+Director or above.  Under some circumstances, Rating Committees may also be convened to withdraw credit ratings. 
+2 A Rating Committee is not required to effectuate the withdrawal of a credit rating in the case of routine maturing of debt or in the 
+case of debt that ultimately was not issued. 
+
+===== PDF PAGE 6 =====
+Overview of KBRA’s Rating Process 5 March , 2026 
+Committee Members 
+A Rating Committee will generally consist of two or more analysts and a Senior Director or above. At a minimum, three 
+members are required for the Rating Committee to hold a vote. Considered item(s) for action or approval will be 
+approved based on a majority vote. However, in the case of a tie vote, the Rating Committee chair will break the tie. 
+Disagreements with a Rating Committee’s decisions are handled through an internal appeal process. 
+Appeals 
+An issuer who has new, material information for KBRA to consider or who believes KBRA misinterpreted critical 
+information in reaching a rating decision may appeal the rating decision and request a review of the additional 
+information before the credit rating is published. 
+In addition, any of the following employees who believe information or Credit Rating Methodologies were improperly 
+interpreted or applied in the determination of a credit rating can request an internal appeal at the end of a Rating 
+Committee or before such credit rating is communicated to the issuer: (1) any analytical staff present at the Rating 
+Committee, or (2) the Head of an analytical group. 
+Monitoring Credit Ratings 
+After a credit rating is assigned, KBRA monitors the performance of the entity or transaction so that credit ratings remain 
+current and any necessary credit ratings actions are taken in a timely manner. KBRA will generally commence a review 
+of each outstanding credit rating at least annually. Any substantive changes made to Quantitative Models or Credit 
+Rating Methodologies would be applied both to existing credit ratings and to new issue ratings going forward. 
+Corporate, Financial, and Government Ratings 
+Monitoring credit ratings in the corporates, financial institution, insurance, public finance, project finance, and 
+investment funds areas consists of reviewing periodic financial statements and/or other information provided by, or on 
+behalf of, the rated entity, in addition to event-driven statements and news reports (e.g., mergers and acquisitions 
+activity). The analyst responsible for monitoring will consult with their rating group on any information that may be 
+material to the credit rating and will convene a Rating Committee if deemed appropriate. The review process is 
+substantively the same as the initial credit rating process, with a focus on material new information, such as updated 
+financial statements. 
+Structured Finance Credit Ratings 
+Structured finance monitoring mainly consists of reviewing periodic statements issued by securitization trustees and 
+monitoring the performance of the rated classes and the underlying asset pool. KBRA utilizes the same Credit Rating 
+Methodologies for both initial assignment and surveillance of credit ratings, and indications that performance is 
+meaningfully different than expectations may cause an analyst to initiate a review and schedule a Rating Committee if 
+deemed appropriate. 
+Sovereign Credit Ratings 
+KBRA will monitor outstanding sovereign credit ratings and complete a formal review of each credit rating periodically 
+throughout the year. KBRA will typically follow the three-step process outlined in KBRA’s Sovereigns Rating Methodology 
+in its surveillance review. KBRA’s surveillance of sovereigns involves ongoing analysis and monitoring of macroeconomic 
+data. KBRA will also monitor qualitative metrics, including government policy behavior and priorities, political risk, 
+security risk, systemic risk, and economic risk. KBRA also continually monitors global political economy developments 
+to assess their bearing on the sovereign’s credit risk profile. 
+Kroll Bond Rating Agency Europe Limited (KBRA Europe), an affiliate of Kroll Bond Rating Agency, LLC, sets a calendar 
+each December with the specific Fridays it will make sovereign credit rating surveillance announcements on existing 
+published sovereign credit ratings.  The calendar is posted on KBRA’s website and sent directly to KBRA Europe’s 
+regulator, the European Securities and Markets Authority. For unsolicited credit ratings, there is a maximum of three 
+dates in a calendar year for credit rating announcements, although surveillance actions may be taken outside of these 
+dates if necessary. If there is a deviation from the calendar, the announcement will be accompanied by a detailed 
+explanation of the reasons for the deviation from the announced calendar. KBRA Europe will review published sovereign 
+credit ratings at least every six months. Following these reviews, a press release as well as an IDF and credit rating 
+report will be released as per the specifications above.
+ 
+
+===== PDF PAGE 7 =====
+Overview of KBRA’s Rating Process 6 March , 2026 
+Withdrawing Credit Ratings 
+KBRA may withdraw a credit rating if it no longer rates an entity, obligation, program, issuer, or other financial 
+instrument for which a credit rating was previously assigned, or for other reasons specified in KBRA’s policies and 
+procedures. When a credit rating is withdrawn, KBRA issues an indication on KBRA’s website that the credit rating has 
+been withdrawn and, depending on the reason for the withdrawal, may also issue a publication stating the reason for 
+withdrawal. KBRA assigns a WR to any obligation, program, or issuer with respect to which it has determined that the 
+credit rating should be withdrawn. 
+Other Rating Services 
+KBRA also provides indicative ratings and other rating services. More information is available at www.kbra.com. 
+
+===== PDF PAGE 8 =====
+Overview of KBRA’s Rating Process 7 March , 2026 
+Defined Terms 
+Credit Rating Methodologies 
+Credit Rating Methodology means a document that sets forth KBRA Ratings’ analytical approach to determine credit ratings. 
+Rating Committee 
+Rating Committee means a committee convened by a chair to review a transaction or issuer, or a proposed credit rating 
+action or actions. 
+Credit Policy Committee 
+Credit Policy Committee means KBRA Ratings’ committee to address matters pertaining to the procedures, Credit 
+Rating Methodologies and other matters pertinent to the determination, dissemination and monitoring of credit ratings.   
+Quantitative Model 
+A Quantitative Model is a component of a methodology that uses a complex quantitative approach, such as regression, 
+classification, or simulation. KBRA uses Quantitative Models to assist in making critical ratings decisions in several places 
+across the organization. Quantitative Models may be used for various purposes including, but not limited to, creating 
+loss distributions, forecasting economic scenarios, and estimating default probability. 
+© Copyright 202 , Kroll Bond Rating Agency, LLC and/or its affiliates and licensors (together, “KBRA”). All rights reserved. 
+All information contained herein is proprietary to KBRA and is  protected by copyright and other intellectual property law, and none of 
+such information may be copied or otherwise reproduced, further transmitted, redistributed, repackaged or resold, in whole or i n 
+part, by any person, without KBRA’s prior express written cons ent. Information, including any ratings, is licensed by KBRA 
+under these conditions. Misappropriation or misuse of KBRA in formation may cause serious damage to KBRA for which money 
+damages may not constitute a sufficient remedy; KBRA shall have the right to obtain an injunction or other equitable relief in 
+addition to any other remedies. The statements contained herein are based solely upon the opinions of KBRA and the data and 
+information available to the authors at the time of publication. All information contained herein is obtained by KBRA from sour ces 
+believed by it to be accurate and reliable; however, all information, including any ratings, is provided “AS IS”. No warranty, 
+express or implied, as to the accuracy, timeliness, completene ss, merchantability, or fitness for any particular purpose of any  rating 
+or other opinion or information is given or  made by KBRA. Under no circumstances shall KBRA have any liability resulting from t he 
+use of any such information, including without limitation, for a ny indirect, special, consequential, incidental or compensatory  
+damages whatsoever (including without limitation, loss of profits,  revenue or goodwill), even if KBRA is advised of the possibi lity 
+of such damages. The credit ratings, if any, and analysis con stituting part of the informatio n contained herein are, and must b e 
+construed solely as, statements of opinion and not statements of fact or recommendations to purchase, sell or hold any securiti es. 
+KBRA receives compensation for its rating activities from issuers, insurers, guarantors and/or underwriters of debt securities for 
+assigning ratings and from subscribers to its website. Please read KBRA’s full disclaimers and terms of use at www.kbra.com. 

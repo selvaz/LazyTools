@@ -1,0 +1,185 @@
+
+===== PDF PAGE 1 =====
+Exhibit 3 – Material Non-Public Information 
+Form NRSRO – Annual Certification 
+March 2024 
+Morningstar DBRS Policies and Procedures 1 to Prevent the Misuse of Material, Non-Public 
+Information2: 
+x Confidential Information Global Policy
+x Personal Securities Ownership and Trading Global Policy
+1 Certain policies and procedures that are referenced in the Confidential Information Global Policy and Personal 
+Securities Ownership and Trading Global Policy have not been attached to this exhibit as they may contain 
+information that is proprietary or would have their effectiv eness diminished if made publicly available.   
+2 See also, Morningstar DBRS’ Business Code of Conduct for the Morningstar'%56 Group of Companies (See 
+especially Sections 3.19 – 3.20) available at dbrs.morningstar.com/research/228896/dbrs-business-code-of-conduct 
+and Morningstar DBRS’V Rating Polices at dbrs.morningstar.com/understanding-ratings/#about-ratings. 
+
+===== PDF PAGE 2 =====
+Effective Date: June 1, 2020
+Document Control Number: 20200514-026 v2 1 1
+CONFIDENTIAL INFORMATION GLOBAL POLICY
+Effective Date: June 1, 2020
+Owner: Global Compliance
+Applies to: All Morningstar DBRS1 Covered Personnel2
+I. Purpose and Scope
+This Confidential Information Global Policy (“Policy”) sets out Morningstar DBRS’ approach to the identification and management of  
+confidential information (“Confidential Information”). 
+This Policy applies to all Covered P ersonnel in all jurisdictions and should be read in conjunction with the DBRS Insiders Procedure 
+for Europe, the Personal Trading Global Policy and Global Procedure, the DBRS Privileged Account Management Global Procedure and 
+the Morningstar, Inc. Code of Ethics. Capitalized terms are defined herein or in the DBRS Glossary.   
+II. Confidential Information
+A. Morningstar DBRS defines Confid ential Information to include:
+1. Data and information Morningstar DBRS receives from or on beha lf of an issuer or entity in connection with Morningstar
+DBRS’ business which Morningstar DBRS knows, or should reasonably know, is information confidential to the issuer, entity 
+or agent.
+This does not include data or information that:
+i. was previously known to Mornings tar DBRS through independent sources;
+ii. was lawfully received from a third pa rty without an obligation of confidence;
+iii. was in, or has become pa rt of, the public domain;
+iv. has been publicly released by the issuer, enti ty and/or its authorized agent on a prior basis; or
+v. is required to be released or disclosed by law.
+2. Data and information with respect to a pending Morningstar DBRS credit opinions that has not yet been publicly disclosed.
+3. Confidential Information further includes a class of price-se nsitive information, known as Material, Non-Public Information
+(“MNPI”).
+B. Morningstar DBRS defines MNPI as:
+1. Information that has not been disclosed in such a way as to achieve a broad dissemination to the investing public generally,
+and:
+i. if it were publicly known, that information would or would reasonably be expected to result in a significant change
+in the market price or value of a traded security; or
+ii. there is a substantial likelihood that a re asonable investor would consider that information important in making an
+investment decision.
+III. Confidential Information Fram ework – The Guiding Principles
+Covered Personnel must not share Confidenti al Information except in a ccordance with this Policy and the following four guiding 
+1 Morningstar DBRS as defined in the DBRS Glossary.
+2 Morningstar DBRS Covered Personnel, as defined in the DBRS Glossary, is referred to as Covered Personnel herein.
+
+===== PDF PAGE 3 =====
+Effective Date: June 1, 2020
+Document Control Number: 20200514-026 v2 2 2
+principles.
+A. Use Principle
+Confidential Information must only be used in the furtherance o f Morningstar DBRS’ business, or as otherwise agreed with the 
+customer in a letter of engagement or confidentiality agreement. Use of Confidential Information for any other purpose, including 
+for personal gain, is strictly prohibited.
+B. Need-to-Know Principle
+A Covered Person must only share or pass along Confidential Information to another Covered Person that has the “need to know” 
+the information to complete his or her job function. In addition , Confidential Information must be stored where only Covered 
+Personnel who have a “need to know” can access it. If a Covered Person determines they have access to Confidential Information 
+about which they do not have a “need to know”, they must refrain from further accessing the Confidential Information and report 
+the occurrence to their manager and notify  Compliance, who will provide guidance with  respect to further steps that may be 
+taken. 
+Although all Covered Personnel are subject to this Policy, any red uction in the number of individuals with access or knowledge 
+of Confidential Information greatly reduces the likelihood that such information will be misused.
+C. Safekeeping Principle
+Covered Personnel must take reasonable steps to protect Confiden tial Information from fraud, theft and misuse, or inadvertent 
+disclosure. Morningstar DBRS exp ects Covered Personnel to adopt safekeeping prac tices consistent with those set out in the 
+Employee Code of Conduct.
+D. Release Principle
+Morningstar DBRS generally does not disclose  Confidential Information in response to outside requests. Covered Personnel 
+should report the request to their manager and notify Compliance, who will provide guidance with respect to further steps that 
+may be taken.  
+IV. Prohibited Uses of Confidential Information
+As noted above, Confidential Information must only be used in the furtherance of Morningstar DBRS’ business, or as otherwise agreed 
+with the customer in a letter of engagement or confidentiality ag reement. Other uses of Confidential Information could result i n 
+disciplinary action or legal sanction.
+In particular, Covered Personnel should note that each of the following may constitute a criminal and/or civil offence in some or all of 
+the jurisdictions in which Morningstar DBRS does business, and upon conviction, could result in the payment of fines and/or a prison 
+sentence:
+1. acquiring or disposing of securities or investments, directly or indirectly, for your own account or on account of others, while 
+in possession of related MNPI;
+2. recommending or inducing another pe rson to engage in trading or dealing while in possession of related MNPI; and
+3. sharing MNPI with another person, other than in accordance wi th the Need To Know principle in section III.B herein or in 
+the necessary course of business.
+Any questions regarding the appropriate use of Confidential Info rmation should be referred to the Chief Compliance Officer or th e 
+appropriate Regional Compliance Officer. 
+V. Permitted Sharing of Confidential Information
+
+===== PDF PAGE 4 =====
+Effective Date: June 1, 2020
+Document Control Number: 20200514-026 v2 3 3 
+A. Sharing Confidential Information - The Need to Know Guiding Principle
+Covered Personnel are only permitted to share Confidential Information, including MNPI, with other Covered Personnel when that 
+other person needs to know the information to perform their job function.
+B. Permitted Sharing within Morningstar DBRS
+Confidential Information relating to credit opinions cannot be shared with anyone who is not within the Morningstar DBRS entity 
+(e.g.,. DBRS, Inc. or MCR) that is or will be issuing the rating, unless:  
+1. the person is directly involv ed in the credit opinion, and
+2. has a “need to know” the information to perform their job function.  
+A person is “within the Morningstar DBRS entity issuing the rating” if they are an employee, officer, or director of the Morningstar 
+DBRS entity this is issuing or will be issuing a credit opinion, or a consultant engaged by that entity. 
+While Independent Non-Executive Directors (“INEDS”) are “within the company” for which they serve as director, in accordance 
+with separate procedures that Morningstar DBRS employs with such directors, Confidential Information relating to a rating should 
+not be shared with INEDs absent an exception granted by the Chief Compliance Officer.
+C. Permitted Sharing With External Parties
+Confidential Information relating to a credit opinion can only be shared with external parties if they are directly involved in  the 
+credit opinion (e.g., the issuer or rated entity and their agents), or as otherwise permitted by the party that provided the Confidential 
+Information. 
+A public rating that has not yet been published may only be shared with the issuer and its agents.  
+A public rating or any related rating action3 may not be made available through a Morningstar DBRS subscription service prior to it 
+being published on the applicable website and disseminated by press release.
+D. Permitted Sharing with Regulators
+Nothing in this Policy or otherwise limits an  individual’s ability to communicate volu ntarily and directly with an appropriate 
+governmental entity or agency, including Morningstar DBRS’ supervising regulato rs, concerning possible violations of law or 
+regulation, or to provide information, in cluding documents, not otherwise protected from disclosure by any applicable law or 
+privilege, to such entities or agencies, or to cooperate with th eir investigative activities, and no individual is required to provide 
+notice to or obtain consent from Morningstar DBRS to do so. All provisions of this Policy should be construed in a manner 
+consistent with the preceding sentence.
+VI. Tracking Access to MNPI 
+From time to time, regulators may ask Morningstar DBRS for det ails regarding individuals within Morningstar DBRS who received 
+MNPI in connection with Morningstar DBRS’ bu siness. In some cases, Covere d Personnel may also be tasked to maintain a list of 
+individuals with access to MNPI on an on-going basis. For more information regarding these circumstances, see the Insiders Procedure
+for Europe. 
+VII. Confidential Information with Respect to Morningstar
+MNPI and other confidential information pertaining to Morningstar, Inc. and its subsidiaries (including Morningstar DBRS) should be 
+identified and managed in accordance with the applicable provisions of the Morningstar, Inc. Code of Ethics.  
+3 For MCR, includes a Credit Rating Action (as defined in the MCR Glossary), outlook or under review status.
+
+===== PDF PAGE 5 =====
+Effective Date: March 31, 2022
+Document Control Number: 20220307-024V2 v2 1
+PERSONAL SECURITIES OWNERSHIP AND TRADING GLOBAL POLICY
+Effective Date: March 31, 2022
+Owner: Global Compliance
+Applies to: All Morningstar DBRS Covered Personnel
+I. Purpose and Scope
+This Personal Securities Ownership and Tradi ng Global Policy (“PSOT Policy”) defines the approach that Morningstar DBRS follows 
+in relation to personal securities ownership, trading, and disclosure, in line with applicable regulatory requirements.
+This PSOT Policy applies to all Covered Personnel, globally, and the Immediate Family Members of Analytical Personnel. However, 
+certain sections apply to Covered Personnel differently depending on their involvement in credit rating activities and their access to 
+certain types of Confidential Information.
+This Policy should be read in conjunction with the Personal Securities Ownership and Trading Global Procedure (“PSOT Procedure”), 
+the Confidential Information Global Policy (“CI Policy”), Personal Securities Ownership and Trading Global Reference Document, and 
+the Employee Code of Conduct.  Terms capi talized throughout this Policy are defined in the aforementioned documents or the 
+Glossary.
+II. Prohibition on Insider Trading
+It is a criminal offense to trade or encourage others to trade Securities while in the possession of Material Non-Public Information 
+(“MNPI”), a practice known as “Insider Trading.”  All Covered Personnel are prohibited from directly or indirectly engaging in Insider 
+Trading and from misusing Confidential Information as defined in the CI Policy.
+III. Policy Provisions Related to Securities Ownership and Trading
+In order to eliminate the appearance of impropriety and to miti gate potential conflicts of interest related to Morningstar DBRS ’ 
+credit rating activities, 
+1. An Analytical Person must not participate in the assignment or  monitoring of any credit rating if such Analytical Person 
+or any Immediate Family Member of such An alytical Person, directly or indirectly i, owns the Securities of the entity that 
+is subject of such credit rating, their Affiliated Entity(ies) or any relevant Related Third Party(ies).
+2. Morningstar DBRS maintains Restricted List(s) covering all entities that are subject to Morningstar DBRS credit ratings, 
+their Affiliated Entities and any Related Third Parties, as applicable.
+3. Covered Personnel and their respective Immediate Family Me mbers, where applicable, must not directly or indirectly, own 
+Securities of, or have any other direct or indirect ownership interest in, any entity that is in the applicable Restricted 
+List(s).
+4. Covered Personnel are also subject to certain requirements pertaining to their respective securities ownership and trading 
+(and that of their respective Immediate Family Members, as applicable) as detailed in the PSOT Procedure. 
+5. Restricted Lists and applicable requirements are determ ined and applied based on a Covered Person’s role and 
+responsibilities; access, or ability to access MNPI; and the natu re of the accounts held by, and Securities owned by, the 
+relevant Covered Person as described in the PSOT Procedure.
+
+===== PDF PAGE 6 =====
+Effective Date: March 31, 2022
+Document Control Number: 20220307-024V2 v2 2
+IV. Confidentiality 
+All information that Morningstar DBRS obtains pertaining to Covered Personnel in accordance with this Policy shall be kept in strict 
+confidence, except when such information may need to be disclosed to internal or exte rnal legal counsel, or to a regulatory or 
+adjudicatory body pursuant to law, regulation or other legal process.
+i For the purpose of this Policy, “indirect” ownership includes beneficial ownership interest that a Covered Person (or an Immediate Family Member 
+of Analytical Personnel) may have in a Covered Account or Rep ortable Security, including through another natural person or lega l entity (for 
+example, holding company or a trust arrangement) that acts on behalf of the Covered Person (or an  Immediate Family Member of An alytical 
+Personnel)).   

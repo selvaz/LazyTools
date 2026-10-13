@@ -1,0 +1,2421 @@
+
+===== PDF PAGE 1 =====
+1
+FORM NRSRO
+APPLICATION FOR REGISTRATION AS A
+NATIONALLY RECOGNIZEDSTATISTICAL 
+RATING ORGANIZATION (NRSRO)
+SEC 1541 (1-15) Persons who respond to the collection of information contained in this
+form are not required to respond unless the form displays a currently valid 
+OMB control number.
+OMB APPROVAL
+OMB Number: 3235-0625
+Expires: Dec. 31, 2023
+Estimated average burden 
+hours per response: 36
+
+===== PDF PAGE 2 =====
+2 
+ 
+ 
+APPLICATION FOR REGISTRATION AS A 
+NATIONALLY RECOGNIZED 
+STATISTICAL RATING ORGANIZATION (NRSRO) 
+ 
+ INITIAL APPLICATION  ANNUAL CERTIFICATION 
+ APPLICATION TO ADD CLASS OF 
+CREDIT RATINGS  
+ 
+UPDATE OF REGISTRATION 
+Form Application, Exhibit 1 and 4 
+ 
+APPLICATION SUPPLEMENT 
+Items and/or Exhibits Supplemented: 
+  
+ WITHDRAWAL FROM REGISTRATION 
+ 
+Important: Refer to Form NRSRO Instructions for General Instructions, Item-by-Item Instructions, an Explanation of 
+Terms, and the Disclosure Reporting Page (NRSRO). “You” and “your” mean the person filing or furnishing, as 
+applicable, this Form NRSRO. “Applicant” and “NRSRO” mean the person filing or furnishing, as applicable, this 
+Form NRSRO and any credit rating affiliate identified in Item 3. 
+ 
+1.  A. Your full name: 
+ 
+      S&P Global Ratings 
+ 
+B. (i) Name under which your credit rating business is primarily conducted, if different from Item 1A: 
+ 
+N/A 
+ 
+(ii) Any other name under which your credit rating business is conducted and where it is used 
+(other than the name of a credit rating affiliate identified in Item 3): 
+ 
+Standard & Poor’s Ratings Services1 
+ 
+C. Address of your principal office (do not use a P.O. Box): 
+ 
+            55 Water Street                   New York                           New York                  10041-0003 
+(Number and Street) (City) (State/Country) (Zip/Postal Code) 
+D. Mailing address, if different: 
+ Not Applicable 
+(Number and Street) (City) (State/Country) (Zip/Postal Code) 
+E. Contact person (See Instructions): 
+ 
+Scott Forston, Global Head, Regulatory Coordination 
+(Name and Title) 
+ 
+                  55 Water Street                  New York                           New York                   10041-0003 
+(Number and Street) (City) (State/Country) (Zip/Postal Code) 
+ 
+CERTIFICATION: 
+ 
+The undersigned has executed this Form NRSRO on behalf of, and on the authority of, the Applicant/NRSRO. The 
+undersigned, on behalf of the Applicant/NRSRO, represents that the information and statements contained in this Form, 
+including Exhibits and attachments, all of which are part of this Form, are accurate in all significant respects. If this is an 
+ANNUAL CERTIFICATION, the undersigned, on behalf of the NRSRO, represents that the NRSRO’s application on Form 
+NRSRO, as amended, is accurate in all significant respects. 
+ 
+       November 22, 2022                            S&P Global Ratings 
+(Date) (Name of the Applicant/NRSRO) 
+ 
+By:                  /s/ Martina Cheung                                                               Martina Cheung, President           
+(Signature) (Print Name and Title)
+ 
+1 Standard & Poor’s Ratings Services changed its name to S&P Global Ratings on April 27, 2016.  However, the legacy name may continue to 
+be used for a transitional period. 
+
+===== PDF PAGE 3 =====
+3 
+ 
+ 
+ 
+2. A . Your legal status: 
+   
+ Corporation     Limited Liability Company     Partnership    Other (specify)  
+ 
+The NRSRO, S&P Global Ratings, is comprised of those legal entities named in the response to item 3 below. 
+B. Month and day of your fiscal year end:   December 31  
+ 
+C. Place and date of your formation (i.e., state or country where you were incorporated, where 
+your partnership agreement was filed, or where you otherwise were formed): 
+ 
+  State/Country of formation: (of parent) 
+SPGI 
+New York/U.S.A. 
+Date of formation: (of parent) 
+SPGI 
+December 29, 1925 
+ 
+3. Your credit rating affiliates (See Instructions): 
+ 
+The response to this Item is attached and made a part of this Form NRSRO 
+ 
+4. The designated compliance officer of the Applicant/NRSRO (See Instructions): 
+ 
+Patrick R. Nicholson, Designated Compliance Officer, S&P Global Ratings 
+(Name and Title) 
+ 
+55 Water Street                                New York              New York                                       10041-0003 
+(Number and Street) (City) (State/Country) (Postal Code) 
+ 
+5. Describe in detail how this Form NRSRO and Exhibits 1 through 9 to this Form NRSRO will be made 
+publicly and freely available on an easily accessible portion of the corporate Internet website of the 
+Applicant/NRSRO (See Instructions): 
+ 
+This Form NRSRO and Exhibits 1 through 9 will be made available at www.spglobal.com 
+ 
+ 
+6. COMPLETE ITEM 6 ONLY IF THIS IS AN INITIAL APPLICATION, APPLICATION 
+SUPPLEMENT, OR APPLICATION TO ADD A CLASS OF CREDIT RATINGS. 
+ 
+A. Indicate below the classes of credit ratings for which the Applicant/NRSRO is applying to be registered. For 
+each class, indicate the approximate number of obligors, securities, and money market instruments in that 
+class as of the date of this application for which the Applicant/NRSRO has an outstanding credit rating and the 
+approximate date the Applicant/NRSRO began issuing credit ratings as a “credit rating agency” in that class on 
+a continuous basis through the present (See Instructions): 
+ 
+Class of credit ratings Applying for 
+registration 
+Approximate number 
+currently 
+outstanding 
+Approximate date 
+issuance commenced 
+financial institutions as that term is defined in 
+section 3(a)(46) of the Exchange Act (15 U.S.C. 
+78c(a)(46)), brokers as that term is defined in 
+section 3(a)(4) of the Exchange Act (15 U.S.C. 
+78c(a)(4)), and dealers as that term is defined 
+in section 3(a)(5) of the Exchange Act (15 
+U.S.C. 78c(a)(5)) 
+ 
+ 
+   
+insurance companies as that term is defined in 
+section 3(a)(19) of the Exchange Act (15 U.S.C. 
+78c(a)(19)) 
+ 
+ 
+ 
+  
+corporate issuers 
+ 
+   
+issuers of asset-backed securities as that term 
+is defined in 17 CFR 229.1101(c) 
+ 
+   
+issuers of government securities as that term 
+is defined in section 3(a)(42) of the Exchange 
+Act (15 U.S.C. 78c(a)(42)), municipal securities 
+as that term is defined in section 3(a)(29) of 
+the Exchange Act (15 U.S.C. 78c(a)(29)), and 
+foreign government securities 
+ 
+ 
+ 
+ 
+  
+ 
+
+===== PDF PAGE 4 =====
+4 
+ 
+ 
+B. Briefly describe how the Applicant/NRSRO makes the credit ratings in the classes indicated in Item 6A readily 
+accessible for free or for a reasonable fee (See Instructions): 
+ 
+ 
+ 
+ 
+C. Check the applicable box and attach certifications from qualified institutional buyers, if required (See 
+Instructions): 
+□ The Applicant/NRSRO is attaching  certificatio ns from qualified institutional buyers to this 
+application. Each is marked “Certification from Qualified Institutional Buyer.” 
+□ The Applicant/NRSRO is exempt from the requirement to file certifications from qualified institutional 
+buyers pursuant to section 15E(a)(1)(D) of the Exchange Act. 
+ 
+Note: You are not required to make a Certification from a Qualified Institutional Buyer filed with this 
+Form NRSRO publicly available on your corporate Internet website pursuant to Exchange Act Rule 17g- 
+1(i). You may request that the Commission keep these certifications confidential by marking each page 
+“Confidential Treatment” and complying with Commission rules governing confidential treatment. The 
+Commission will keep the certifications confidential upon request to the extent permitted by law. 
+ 
+
+===== PDF PAGE 5 =====
+5 
+ 
+ 
+□ 
+□ 
+7. DO NOT COMPLETE ITEM 7 IF THIS IS AN INITIAL APPLICATION. 
+ 
+A. Indicate below the classes of credit ratings for which the NRSRO is currently registered. For each class, indicate 
+the approximate number of obligors, securities, and money market instruments in that class for which the 
+NRSRO had an outstanding credit rating as of the most recent calendar year end and the approximate date the 
+NRSRO began issuing credit ratings as a “credit rating agency” in that class on a continuous basis through the 
+present (See Instructions): 
+ 
+ 
+Class of credit rating Currently 
+registered 
+Approximate 
+number outstanding 
+as of the most 
+recent calendar 
+year end 
+Approximate date 
+issuance 
+commenced 
+ 
+financial institutions as that term is defined in 
+section 3(a)(46) of the Exchange Act (15 U.S.C. 
+78c(a)(46)), brokers as that term is defined in 
+section 3(a)(4) of the Exchange Act (15 U.S.C. 
+78c(a)(4)), and dealers as that term is defined in 
+section 3(a)(5) of the Exchange Act (15 U.S.C. 
+78c(a)(5)) 
+ 
+ 
+ 
+52,947 1955 
+ 
+insurance companies as that term is defined in 
+section 3(a)(19) of the Exchange Act (15 U.S.C. 
+78c(a)(19)) 
+ 
+ 
+ 
+6,919 1967 
+corporate issuers 
+ 
+ 56,745 1923 
+issuers of asset-backed securities as that term is 
+defined in 17 CFR 229.1101(c) 
+ 
+ 37,593 1983 
+issuers of government securities as that term is 
+defined in section 3(a)(42) of the Act (15 U.S.C. 
+78c(a)(42)), municipal securities as that term is 
+defined in section 3(a)(29) of the Exchange Act (15 
+U.S.C. 78c(a)(29)), and foreign government securities 
+ 
+ 
+ 
+ 935,801 1941 
+ 
+B. Briefly describe how the NRSRO makes the credit ratings in the classes indicated in Item 7A readily accessible 
+for free or for a reasonable fee (See Instructions):  
+ 
+Public ratings and ratings actions are made available at no charge at www.spglobal.com (except for 
+ratings of Standard & Poor’s Maalot Ltd., which are made available at no charge at www.maalot.co.il), 
+and for a fee through release to wire services and various subscription-based products, such as 
+RatingsDirect. 
+ 
+ 
+ 
+ 
+ 
+ 
+X 
+X 
+X 
+X 
+X 
+
+===== PDF PAGE 6 =====
+6 
+ 
+ 
+□ □ 
+□ □ 
+□ □ 
+8. Answer each question. Provide information that relates to a “Yes” answer on a Disclosure 
+Reporting Page (NRSRO) and submit the Disclosure Reporting Page with this Form NRSRO 
+(See Instructions). You are not required to make any disclosure reporting pages submitted with 
+this Form publicly available on your corporate Internet website pursuant to Exchange Act Rule 
+17g-1(i). You may request that the Commission keep any disclosure reporting pages 
+confidential by marking each page “Confidential Treatment” and complying with Commission 
+rules governing confidential treatment. The Commission will keep the disclosure reporting pages 
+confidential upon request to the extent permitted by law. 
+  
+ YES NO 
+A. Has the Applicant/NRSRO or any person within the Applicant/NRSRO committed or omitted 
+any act, or been subject to an order or finding, enumerated in subparagraphs (A), (D), (E), (G), 
+or (H) of section 15(b)(4) of the Securities Exchange Act of 1934, been convicted of any 
+offense specified in section 15(b)(4)(B) of the Securities Exchange Act of 1934, or been 
+enjoined from any action, conduct, or practice specified in section 15(b)(4)(C) of the Securities 
+Exchange Act of 1934 in the ten years preceding the date of the initial application of the 
+Applicant/NRSRO for registration as an NRSRO or at any time thereafter? 
+ 
+ 
+ 
+ 
+ 
+ 
+B. Has the Applicant/NRSRO or any person within the Applicant/NRSRO been convicted of any 
+crime that is punishable by imprisonment for 1 or more years, and that is not described in 
+section 15(b)(4) of the Securities Exchange Act of 1934, or been convicted of a substantially 
+equivalent crime by a foreign court of competent jurisdiction in the ten years preceding the 
+date of the initial application of the Applicant/NRSRO for registration as an NRSRO or at any 
+time thereafter? 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+C. Is any person within the Applicant/NRSRO subject to any order of the Commission barring or 
+suspending the right of the person to be associated with an NRSRO? 
+ 
+ 
+ 
+ 
+ 
+9. Exhibits (See Instructions). 
+ 
+ 
+Exhibit 1. Credit ratings performance measurement statistics. 
+ 
+   Exhibit 1 is attached and made a part of this Form NRSRO. 
+ 
+Exhibit 2. A description of the procedures and methodologies used in determining credit ratings. 
+ 
+    Exhibit 2 is attached and made a part of this Form NRSRO. 
+ 
+Exhibit 3. Policies or procedures adopted and implemented to prevent the misuse of material, nonpublic information. 
+ 
+ Exhibit 3 is attached and made a part of this Form NRSRO. 
+ 
+Exhibit 4. Organizational structure. 
+ 
+   Exhibit 4 is attached and made a part of this Form NRSRO. 
+ 
+Exhibit 5. The code of ethics or a statement of the reasons why a code of ethics is not in effect. 
+ 
+  Exhibit 5 is attached and made a part of this Form NRSRO. 
+ 
+Exhibit 6. Identification of conflicts of interests relating to the issuance of credit ratings. 
+ 
+  Exhibit 6 is attached and made a part of this Form NRSRO. 
+ 
+Exhibit 7. Policies and procedures to address and manage conflicts of interest. 
+  Exhibit 7 is attached and made a part of this Form NRSRO. 
+X 
+X 
+X 
+
+===== PDF PAGE 7 =====
+7 
+ 
+ 
+ 
+Exhibit 8. Certain information regarding the credit rating agency’s credit analysts and credit analyst 
+supervisors. 
+   Exhibit 8 is attached and made a part of this Form NRSRO. 
+ 
+Exhibit 9. Certain information regarding the credit rating agency’s designated compliance officer. 
+ 
+   Exhibit 9 is attached and made a part of this Form NRSRO. 
+ 
+Exhibit 10. A list of the largest users of credit rating services by the amount of net revenue earned from the 
+user during the fiscal year ending immediately before the date of the initial application. 
+□  Exhibit 10 is attached to and made a part of this Form NRSRO. 
+Note: You are not required to make this Exhibit publicly available on your corporate Internet website 
+pursuant to Exchange Act Rule 17g-1(i). You may request that the Commission keep this Exhibit 
+confidential by marking each page “Confidential Treatment” and complying with Commission rules 
+governing confidential treatment. The Commission will keep the information and documents in the 
+Exhibit confidential upon request to the extent permitted by law. 
+ 
+Exhibit 11. Audited financial statements for each of the three fiscal or calendar years ending immediately 
+before the date of the initial application. 
+□ Exhibit 11 is attached to and made a part of this Form NRSRO. 
+Note: You are not required to make this Exhibit publicly available on your corporate Internet website 
+pursuant to Exchange Act Rule 17g-1(i). You may request that the Commission keep this Exhibit 
+confidential by marking each page “Confidential Treatment” and complying with Commission rules 
+governing confidential treatment. The Commission will keep the information and documents in the 
+Exhibit confidential upon request to the extent permitted by law. 
+ 
+Exhibit 12. Information regarding revenues for the fiscal or calendar year ending immediately before the date of the 
+initial application. 
+□ Exhibit 12 is attached to and made a part of this Form NRSRO. 
+Note: You are not required to make this Exhibit publicly available on your corporate Internet website 
+pursuant to Exchange Act Rule 17g-1(i). You may request that the Commission keep this Exhibit 
+confidential by marking each page “Confidential Treatment” and complying with Commission rules 
+governing confidential treatment. The Commission will keep the information and documents in the 
+Exhibit confidential upon request to the extent permitted by law. 
+ 
+Exhibit 13. The total and median annual compensation of credit analysts. 
+□ Exhibit 13 is attached and made a part of this Form NRSRO. 
+Note: You are not required to make this Exhibit publicly available on your corporate Internet website 
+pursuant to Exchange Act Rule 17g-1(i). You may request that the Commission keep this Exhibit 
+confidential by marking each page “Confidential Treatment” and complying with Commission rules 
+governing confidential treatment. The Commission will keep the information and documents in the 
+Exhibit confidential upon request to the extent permitted by law. 
+ 
+
+===== PDF PAGE 8 =====
+8 
+ 
+ 
+Item #3:  Credit Rating Affiliates 
+ 
+Name Location2 Address 
+Standard & Poor’s Financial Services LLC United  
+States 
+55 Water Street,  
+New York, NY 10041 USA 
+S&P Global Ratings Argentina S.R.L., Agente de 
+Calificación de Riesgo Argentina Av. Leandro N. Alem, 815, 3rd floor, Torre Catalinas Norte 
+Ciudad Autónoma de Buenos Aires, Argentina C1001AAD 
+S&P Global Ratings Singapore Pte. Ltd. Singapore 12 Marina Boulevard, #23-01 MBFC Tower 3,  
+Singapore 018982 
+S&P Global Ratings Hong Kong Limited Hong Kong 
+3-4/F, Three Exchange Square,  
+8 Connaught Place, Central,  
+Hong Kong 
+S&P Global Ratings Japan Inc. Japan  
+Marunouchi Kitaguchi Bldg. 
+1-6-5, Marunouchi, Chiyoda-ku 
+Tokyo, Japan 100-0005 
+S&P Global Ratings Australia Pty Ltd Australia Level 17, 101 Collins Street 
+Melbourne Victoria 3000, Australia 
+S&P Global Ratings Europe Limited 
+ 
+Dubai 
+Unit 501, Level 5 
+Gate Precinct Building 1 
+Dubai International Finance Centre 
+PO Box 506650 
+France 40 Rue de Courcelles 
+Paris, France 75008 
+Germany Bockenheimer Landstrasse 2, 
+60306 Frankfurt am Main, Germany 
+Ireland Fourth Floor, Waterways House, Grand Canal Quay, 
+Dublin 2, Ireland 
+Italy Vicolo San Giovanni Sul Muro 1/3/5 
+Milan, Italy 20121 
+South Africa 
+30 Jellicoe Avenue, 2nd Floor 
+Rosebank 2196  
+Johannesburg, South Africa 
+Spain Paseo de la Castellana, 7-Planta 6 
+Madrid, Spain 28046 
+Sweden Master Samuelsgatan 6, Box 1753  
+Stockholm, Sweden 11187 
+S&P Global Ratings UK Limited U.K. 25 Ropemaker Street 
+London, United Kingdom EC2Y 9LY 
+S&P Global Ratings, S.A. de C.V. Mexico 
+Av. Javier Barros Sierra No. 540 Tower II, PH2 
+Col. Lomas de Santa Fé, Del. Alvaro Obregón 
+México City, México 01219 
+S&P Global Ratings Canada, a business unit of S&P 
+Global Canada Corp.    Canada 
+Bay Adelaide - East Tower 
+22 Adelaide Street West, 40th Floor 
+Toronto, ON, Canada M5H 4E3 
+S&P Global Ratings Maalot Ltd Israel  12 Abba Hillel Silver Street,  
+Ramat Gan, Tel Aviv, Israel 52506 
+Standard & Poor’s Ratings do Brasil Ltda.3 Brazil Av. Brigadeiro Faria Lima, 201, 18th floor, Pinheiros 
+São Paulo, Brazil 05426-100 
+Taiwan Ratings Corporation4 Taiwan 2F, Hung Kuo Building No. 167, Dunhua N. Road, Taipei 
+City 105, Taiwan, R.O.C 
+ 
+ 
+2 In the jurisdictions listed below S&P Global Ratings operates within these legal entities, each of which (with the exception of Taiwan Ratings   
+  Corporation which is majority owned) is a wholly-owned subsidiary of S&P Global Inc. 
+ 
+3 This entity is part of the NRSRO, with credit ratings determined via other affiliates on behalf of the NRSRO. 
+ 
+4 Taiwan Ratings Corporation is majority-owned by S&P Global Inc. 
+
+===== PDF PAGE 9 =====
+DISCLOSURE REPORTING PAGE (NRSRO)
+This Disclosure Reporting Page (DRP) is to be used to provide information concerning affirmative 
+responses to Item 8 of Form NRSRO. 
+Submit a separate DRP for each person that: (a) has committed or omitted any act, or been subject to 
+an order or finding, enumerated in subparagraphs (A), (D), (E), (G), or (H) of section 15(b)(4) of the 
+Securities Exchange Act of 1934, has been convicted of any offense specified in section 15(b)(4)(B) of the 
+Securities Exchange Act of 1934, or has been enjoined from any action, conduct, or practice specified in 
+section 15(b)(4)(C) of the Securities Exchange Act of 1934; (b) has been convicted of any crime that is 
+punishable by imprisonment for 1 or more years, and that is not described in section 15(b)(4) of the 
+Securities Exchange Act of 1934, or has been convicted of a substantially equivalent crime by a foreign 
+court of competent jurisdiction; or (c) is subject to any order of the Commission barring or suspending the 
+right of the person to be associated with an NRSRO. 
+Name of Applicant/NRSRO 
+/g54/g9/g51/g3/g42/g79/g82/g69/g68/g79/g3/g53/g68/g87/g76/g81/g74/g86/g3
+Date
+1RYHPEHU, 202
+Check Item being responded to:
+X Item 8A
+/g401Item 8B
+/g401Item 8C
+Full name of the person for whom this DRP is being submitted: 
+/g54/g9/g51/g3/g42/g79/g82/g69/g68/g79/g3/g53/g68/g87/g76/g81/g74/g86
+If this DRP provides information relating to a “Yes” answer to Item 8A, describe the act(s) that 
+was (were) committed or omitted; or the order(s) or finding(s); or the injunction(s) (provide the 
+relevant statute(s) or regulation(s)) and provide jurisdiction(s) and date(s): 
+/g20/g17 /g54/g87/g68/g81/g71/g68/g85/g71/g3/g9/g3/g51/g82/g82/g85/g182/g86/g3/g53/g68/g87/g76/g81/g74/g86/g3/g54/g72/g85/g89/g76/g70/g72/g86/g3/g11/g87/g75/g72/g3/g179/g49/g53/g54/g53/g50/g180/g12/g3/g72/g81/g87/g72/g85/g72/g71/g3/g76/g81/g87/g82/g3/g86/g72/g87/g87/g79/g72/g80/g72/g81/g87
+/g68/g74/g85/g72/g72/g80/g72/g81/g87/g86/g3/g90/g76/g87/g75/g3/g87/g75/g72/g3/g56/g17/g54/g17/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g68/g81/g71/g3/g40/g91/g70/g75/g68/g81/g74/g72/g3/g38/g82/g80/g80/g76/g86/g86/g76/g82/g81/g3/g11/g87/g75/g72/g3/g179/g54/g40/g38/g180/g12/g3/g85/g72/g79/g68/g87/g76/g81/g74
+/g87/g82/g3/g87/g75/g72/g3/g50/g85/g71/g72/g85/g86/g3/g71/g72/g86/g70/g85/g76/g69/g72/g71/g3/g76/g81/g3/g51/g68/g85/g68/g74/g85/g68/g83/g75/g3/g21/g3/g69/g72/g79/g82/g90/g15/g3/g72/g68/g70/g75/g3/g82/g73/g3/g90/g75/g76/g70/g75/g3/g90/g68/g86/g3/g76/g86/g86/g88/g72/g71/g3/g69/g92/g3/g87/g75/g72/g3/g54/g40/g38
+/g82/g81/g3/g45/g68/g81/g88/g68/g85/g92/g3/g21/g20/g15/g3/g21/g19/g20/g24/g15/g3/g76/g81/g3/g70/g82/g81/g81/g72/g70/g87/g76/g82/g81/g3/g90/g76/g87/g75/g3/g11/g76/g12/g3/g86/g76/g91/g3/g56/g17/g54/g17/g3/g70/g82/g81/g71/g88/g76/g87/g18/g73/g88/g86/g76/g82/g81/g3/g70/g82/g80/g80/g72/g85/g70/g76/g68/g79
+/g80/g82/g85/g87/g74/g68/g74/g72/g16/g69/g68/g70/g78/g72/g71/g3/g86/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g11/g179/g38/g48/g37/g54/g180/g12/g3/g87/g85/g68/g81/g86/g68/g70/g87/g76/g82/g81/g86/g3/g85/g68/g87/g72/g71/g3/g69/g92/g3/g87/g75/g72/g3/g49/g53/g54/g53/g50/g3/g76/g81/g3/g21/g19/g20/g20/g3/g68/g81/g71
+/g87/g90/g82/g3/g68/g71/g71/g76/g87/g76/g82/g81/g68/g79/g3/g56/g17/g54/g17/g3/g70/g82/g81/g71/g88/g76/g87/g18/g73/g88/g86/g76/g82/g81/g3/g38/g48/g37/g54/g3/g87/g85/g68/g81/g86/g68/g70/g87/g76/g82/g81/g86/g3/g73/g85/g82/g80/g3/g87/g75/g68/g87/g3/g83/g72/g85/g76/g82/g71/g3/g11/g179/g48/g68/g87/g87/g72/g85/g3/g44/g180/g12/g15
+/g11/g76/g76/g12/g3/g70/g72/g85/g87/g68/g76/g81/g3/g21/g19/g20/g21/g3/g83/g88/g69/g79/g76/g70/g68/g87/g76/g82/g81/g86/g3/g70/g82/g81/g70/g72/g85/g81/g76/g81/g74/g3/g70/g85/g76/g87/g72/g85/g76/g68/g3/g68/g81/g71/g3/g85/g72/g86/g72/g68/g85/g70/g75/g3/g85/g72/g79/g68/g87/g76/g81/g74/g3/g87/g82
+/g70/g82/g81/g71/g88/g76/g87/g18/g73/g88/g86/g76/g82/g81/g3/g38/g48/g37/g54/g3/g11/g179/g48/g68/g87/g87/g72/g85/g3/g44/g44/g180/g12/g3/g68/g81/g71/g3/g11/g76/g76/g76/g12/g3/g87/g75/g72/g3/g49/g53/g54/g53/g50/g182/g86/g3/g76/g81/g87/g72/g85/g81/g68/g79/g3/g70/g82/g81/g87/g85/g82/g79/g86/g3/g85/g72/g74/g68/g85/g71/g76/g81/g74
+/g70/g75/g68/g81/g74/g72/g86/g3/g80/g68/g71/g72/g3/g87/g82/g3/g68/g81/g3/g68/g86/g86/g88/g80/g83/g87/g76/g82/g81/g3/g88/g86/g72/g71/g3/g76/g81/g3/g86/g88/g85/g89/g72/g76/g79/g79/g76/g81/g74/g3/g70/g72/g85/g87/g68/g76/g81/g3/g56/g17/g54/g17/g3/g85/g72/g86/g76/g71/g72/g81/g87/g76/g68/g79/g3/g80/g82/g85/g87/g74/g68/g74/g72/g16
+/g69/g68/g70/g78/g72/g71/g3/g86/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g11/g179/g48/g68/g87/g87/g72/g85/g3/g44/g44/g44/g180/g12/g17/g3/g44/g81/g3/g68/g71/g71/g76/g87/g76/g82/g81/g15/g3/g82/g81/g3/g82/g85/g3/g68/g69/g82/g88/g87/g3/g45/g68/g81/g88/g68/g85/g92/g3/g21/g19/g15/g3/g21/g19/g20/g24/g15/g3/g54/g87/g68/g81/g71/g68/g85/g71
+/g9/g3/g51/g82/g82/g85/g182/g86/g3/g41/g76/g81/g68/g81/g70/g76/g68/g79/g3/g54/g72/g85/g89/g76/g70/g72/g86/g3/g47/g47/g38/g15/g3/g68/g3/g79/g76/g80/g76/g87/g72/g71/g3/g79/g76/g68/g69/g76/g79/g76/g87/g92/g3/g70/g82/g80/g83/g68/g81/g92/g3/g82/g73/g3/g90/g75/g76/g70/g75/g3/g87/g75/g72/g3/g49/g53/g54/g53/g50/g3/g76/g86
+/g68/g3/g86/g72/g83/g68/g85/g68/g87/g72/g79/g92/g3/g76/g71/g72/g81/g87/g76/g73/g76/g68/g69/g79/g72/g3/g69/g88/g86/g76/g81/g72/g86/g86/g3/g88/g81/g76/g87/g15/g3/g72/g81/g87/g72/g85/g72/g71/g3/g76/g81/g87/g82/g3/g86/g72/g87/g87/g79/g72/g80/g72/g81/g87/g3/g68/g74/g85/g72/g72/g80/g72/g81/g87/g86/g3/g90/g76/g87/g75/g3/g87/g75/g72
+/g36/g87/g87/g82/g85/g81/g72/g92/g86/g3/g42/g72/g81/g72/g85/g68/g79/g3/g82/g73/g3/g87/g75/g72/g3/g54/g87/g68/g87/g72/g3/g82/g73/g3/g49/g72/g90/g3/g60/g82/g85/g78/g3/g68/g81/g71/g3/g87/g75/g72/g3/g38/g82/g80/g80/g82/g81/g90/g72/g68/g79/g87/g75/g3/g82/g73
+
+===== PDF PAGE 10 =====
+/g39/g53/g51/g16/g21/g3
+/g6/g27/g25/g27/g19/g20/g23/g25/g19/g89/g25/g3
+/g48/g68/g86/g86/g68/g70/g75/g88/g86/g72/g87/g87/g86/g3/g85/g72/g79/g68/g87/g76/g81/g74/g3/g87/g82/g3/g48/g68/g87/g87/g72/g85/g3/g44/g17/g3
+/g21/g17 /g36/g3/g70/g82/g80/g83/g79/g72/g87/g72/g3/g71/g72/g86/g70/g85/g76/g83/g87/g76/g82/g81/g3/g82/g73/g3/g87/g75/g72/g3/g82/g85/g71/g72/g85/g86/g15/g3/g73/g76/g81/g71/g76/g81/g74/g86/g15/g3/g76/g81/g77/g88/g81/g70/g87/g76/g82/g81/g86/g3/g68/g81/g71/g3/g85/g72/g79/g72/g89/g68/g81/g87/g3/g86/g87/g68/g87/g88/g87/g72/g86/g3/g68/g81/g71/g3
+/g85/g72/g74/g88/g79/g68/g87/g76/g82/g81/g86/g3/g85/g72/g79/g68/g87/g76/g81/g74/g3/g87/g82/g29/g3
+/g68/g17 /g87/g75/g72/g3/g54/g40/g38/g3/g83/g85/g82/g70/g72/g72/g71/g76/g81/g74/g86/g3/g76/g81/g89/g82/g79/g89/g76/g81/g74/g3/g48/g68/g87/g87/g72/g85/g86/g3/g44/g15/g3/g44/g44/g3/g68/g81/g71/g3/g44/g44/g44/g3/g76/g86/g3/g86/g72/g87/g3/g73/g82/g85/g87/g75/g3/g76/g81/g3/g87/g75/g72/g3/g73/g82/g79/g79/g82/g90/g76/g81/g74/g3
+/g50/g85/g71/g72/g85/g86/g15/g3/g90/g75/g76/g70/g75/g3/g68/g85/g72/g3/g68/g87/g87/g68/g70/g75/g72/g71/g3/g75/g72/g85/g72/g87/g82/g3/g68/g86/g3/g40/g91/g75/g76/g69/g76/g87/g86/g3/g44/g15/g3/g44/g44/g3/g68/g81/g71/g3/g44/g44/g44/g15/g3/g85/g72/g86/g83/g72/g70/g87/g76/g89/g72/g79/g92/g15/g3/g68/g81/g71/g3
+/g76/g81/g70/g82/g85/g83/g82/g85/g68/g87/g72/g71/g3/g75/g72/g85/g72/g76/g81/g3/g69/g92/g3/g85/g72/g73/g72/g85/g72/g81/g70/g72/g29/g3
+/g11/g76/g12 /g54/g40/g38/g15/g3/g50/g85/g71/g72/g85/g3/g44/g81/g86/g87/g76/g87/g88/g87/g76/g81/g74/g3/g36/g71/g80/g76/g81/g76/g86/g87/g85/g68/g87/g76/g89/g72/g3/g68/g81/g71/g3/g38/g72/g68/g86/g72/g16/g68/g81/g71/g16/g39/g72/g86/g76/g86/g87/g3/g51/g85/g82/g70/g72/g72/g71/g76/g81/g74/g86/g15/g3
+/g51/g88/g85/g86/g88/g68/g81/g87/g3/g87/g82/g3/g54/g72/g70/g87/g76/g82/g81/g3/g27/g36/g3/g82/g73/g3/g87/g75/g72/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g36/g70/g87/g3/g82/g73/g3/g20/g28/g22/g22/g3/g68/g81/g71/g3/g54/g72/g70/g87/g76/g82/g81/g86/g3/g20/g24/g40/g11/g71/g12/g3
+/g68/g81/g71/g3/g21/g20/g38/g3/g82/g73/g3/g87/g75/g72/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g40/g91/g70/g75/g68/g81/g74/g72/g3/g36/g70/g87/g3/g82/g73/g3/g20/g28/g22/g23/g15/g3/g48/g68/g78/g76/g81/g74/g3/g41/g76/g81/g71/g76/g81/g74/g86/g15/g3/g68/g81/g71/g3
+/g44/g80/g83/g82/g86/g76/g81/g74/g3/g53/g72/g80/g72/g71/g76/g68/g79/g3/g54/g68/g81/g70/g87/g76/g82/g81/g86/g3/g68/g81/g71/g3/g68/g3/g38/g72/g68/g86/g72/g16/g68/g81/g71/g16/g39/g72/g86/g76/g86/g87/g3/g50/g85/g71/g72/g85/g15/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g36/g70/g87/g3
+/g82/g73/g3/g20/g28/g22/g22/g3/g53/g72/g79/g17/g3/g49/g82/g17/g3/g28/g26/g19/g24/g15/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g40/g91/g70/g75/g68/g81/g74/g72/g3/g36/g70/g87/g3/g82/g73/g3/g20/g28/g22/g23/g3/g53/g72/g79/g17/g3/g49/g82/g17/g3/g26/g23/g20/g19/g23/g15/g3
+/g36/g71/g80/g76/g81/g76/g86/g87/g85/g68/g87/g76/g89/g72/g3/g51/g85/g82/g70/g72/g72/g71/g76/g81/g74/g3/g41/g76/g79/g72/g3/g49/g82/g17/g3/g22/g16/g20/g25/g22/g23/g27/g15/g3/g85/g72/g79/g68/g87/g76/g81/g74/g3/g87/g82/g3/g48/g68/g87/g87/g72/g85/g3/g44/g3/g11/g40/g91/g75/g76/g69/g76/g87/g3/g44/g12/g30/g3
+/g11/g76/g76/g12 /g54/g40/g38/g15/g3/g50/g85/g71/g72/g85/g3/g44/g81/g86/g87/g76/g87/g88/g87/g76/g81/g74/g3/g36/g71/g80/g76/g81/g76/g86/g87/g85/g68/g87/g76/g89/g72/g3/g68/g81/g71/g3/g38/g72/g68/g86/g72/g16/g68/g81/g71/g16/g39/g72/g86/g76/g86/g87/g3/g51/g85/g82/g70/g72/g72/g71/g76/g81/g74/g86/g15/g3
+/g51/g88/g85/g86/g88/g68/g81/g87/g3/g87/g82/g3/g54/g72/g70/g87/g76/g82/g81/g3/g27/g36/g3/g82/g73/g3/g87/g75/g72/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g36/g70/g87/g3/g82/g73/g3/g20/g28/g22/g22/g3/g68/g81/g71/g3/g54/g72/g70/g87/g76/g82/g81/g86/g3/g20/g24/g40/g11/g71/g12/g3
+/g68/g81/g71/g3/g21/g20/g38/g3/g82/g73/g3/g87/g75/g72/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g40/g91/g70/g75/g68/g81/g74/g72/g3/g36/g70/g87/g3/g82/g73/g3/g20/g28/g22/g23/g15/g3/g48/g68/g78/g76/g81/g74/g3/g41/g76/g81/g71/g76/g81/g74/g86/g15/g3/g68/g81/g71/g3
+/g44/g80/g83/g82/g86/g76/g81/g74/g3/g53/g72/g80/g72/g71/g76/g68/g79/g3/g54/g68/g81/g70/g87/g76/g82/g81/g86/g3/g68/g81/g71/g3/g68/g3/g38/g72/g68/g86/g72/g16/g68/g81/g71/g16/g39/g72/g86/g76/g86/g87/g3/g50/g85/g71/g72/g85/g15/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g36/g70/g87/g3
+/g82/g73/g3/g20/g28/g22/g22/g3/g53/g72/g79/g17/g3/g49/g82/g17/g3/g28/g26/g19/g23/g15/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g40/g91/g70/g75/g68/g81/g74/g72/g3/g36/g70/g87/g3/g82/g73/g3/g20/g28/g22/g23/g3/g53/g72/g79/g17/g3/g49/g82/g17/g3/g26/g23/g20/g19/g21/g15/g3
+/g36/g71/g80/g76/g81/g76/g86/g87/g85/g68/g87/g76/g89/g72/g3/g51/g85/g82/g70/g72/g72/g71/g76/g81/g74/g3/g41/g76/g79/g72/g3/g49/g82/g17/g3/g22/g16/g20/g25/g22/g23/g25/g15/g3/g3/g85/g72/g79/g68/g87/g76/g81/g74/g3/g87/g82/g3/g48/g68/g87/g87/g72/g85/g3/g44/g44/g3
+/g11/g40/g91/g75/g76/g69/g76/g87/g3/g44/g44/g12/g30/g3/g68/g81/g71/g3
+/g11/g76/g76/g76/g12 /g54/g40/g38/g15/g3/g50/g85/g71/g72/g85/g3/g44/g81/g86/g87/g76/g87/g88/g87/g76/g81/g74/g3/g36/g71/g80/g76/g81/g76/g86/g87/g85/g68/g87/g76/g89/g72/g3/g68/g81/g71/g3/g38/g72/g68/g86/g72/g16/g68/g81/g71/g16/g39/g72/g86/g76/g86/g87/g3/g51/g85/g82/g70/g72/g72/g71/g76/g81/g74/g86/g15/g3
+/g51/g88/g85/g86/g88/g68/g81/g87/g3/g87/g82/g3/g54/g72/g70/g87/g76/g82/g81/g86/g3/g20/g24/g40/g11/g71/g12/g3/g68/g81/g71/g3/g21/g20/g38/g3/g82/g73/g3/g87/g75/g72/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g40/g91/g70/g75/g68/g81/g74/g72/g3/g36/g70/g87/g3/g82/g73/g3
+/g20/g28/g22/g23/g15/g3/g48/g68/g78/g76/g81/g74/g3/g41/g76/g81/g71/g76/g81/g74/g86/g15/g3/g68/g81/g71/g3/g44/g80/g83/g82/g86/g76/g81/g74/g3/g53/g72/g80/g72/g71/g76/g68/g79/g3/g54/g68/g81/g70/g87/g76/g82/g81/g86/g3/g68/g81/g71/g3/g68/g3/g38/g72/g68/g86/g72/g16/g68/g81/g71/g16
+/g39/g72/g86/g76/g86/g87/g3/g50/g85/g71/g72/g85/g15/g3/g54/g72/g70/g88/g85/g76/g87/g76/g72/g86/g3/g40/g91/g70/g75/g68/g81/g74/g72/g3/g36/g70/g87/g3/g82/g73/g3/g20/g28/g22/g23/g3/g53/g72/g79/g17/g3/g49/g82/g17/g3/g26/g23/g20/g19/g22/g15/g3
+/g36/g71/g80/g76/g81/g76/g86/g87/g85/g68/g87/g76/g89/g72/g3/g51/g85/g82/g70/g72/g72/g71/g76/g81/g74/g3/g41/g76/g79/g72/g3/g49/g82/g17/g3/g22/g16/g20/g25/g22/g23/g26/g15/g3/g85/g72/g79/g68/g87/g76/g81/g74/g3/g87/g82/g3/g48/g68/g87/g87/g72/g85/g3/g44/g44/g44/g3
+/g11/g40/g91/g75/g76/g69/g76/g87/g3/g44/g44/g44/g12/g30/g3
+/g69/g17 /g87/g75/g72/g3/g54/g87/g68/g87/g72/g3/g82/g73/g3/g49/g72/g90/g3/g60/g82/g85/g78/g3/g83/g85/g82/g70/g72/g72/g71/g76/g81/g74/g3/g76/g81/g89/g82/g79/g89/g76/g81/g74/g3/g48/g68/g87/g87/g72/g85/g3/g44/g3/g76/g86/g3/g86/g72/g87/g3/g73/g82/g85/g87/g75/g3/g76/g81/g3/g87/g75/g72/g3/g73/g82/g79/g79/g82/g90/g76/g81/g74/g3
+/g36/g86/g86/g88/g85/g68/g81/g70/g72/g3/g82/g73/g3/g39/g76/g86/g70/g82/g81/g87/g76/g81/g88/g68/g81/g70/g72/g15/g3/g90/g75/g76/g70/g75/g3/g76/g86/g3/g68/g87/g87/g68/g70/g75/g72/g71/g3/g75/g72/g85/g72/g87/g82/g3/g68/g86/g3/g40/g91/g75/g76/g69/g76/g87/g3/g44/g57/g3/g68/g81/g71/g3
+/g76/g81/g70/g82/g85/g83/g82/g85/g68/g87/g72/g71/g3/g75/g72/g85/g72/g76/g81/g3/g69/g92/g3/g85/g72/g73/g72/g85/g72/g81/g70/g72/g29/g3/g36/g87/g87/g82/g85/g81/g72/g92/g3/g42/g72/g81/g72/g85/g68/g79/g3/g82/g73/g3/g87/g75/g72/g3/g54/g87/g68/g87/g72/g3/g82/g73/g3/g49/g72/g90/g3/g60/g82/g85/g78/g15/g3
+/g44/g81/g89/g72/g86/g87/g82/g85/g3/g51/g85/g82/g87/g72/g70/g87/g76/g82/g81/g3/g37/g88/g85/g72/g68/g88/g15/g3/g36/g86/g86/g88/g85/g68/g81/g70/g72/g3/g82/g73/g3/g39/g76/g86/g70/g82/g81/g87/g76/g81/g88/g68/g81/g70/g72/g15/g3/g85/g72/g79/g68/g87/g76/g81/g74/g3/g87/g82/g3/g48/g68/g87/g87/g72/g85/g3/g44/g3
+/g11/g40/g91/g75/g76/g69/g76/g87/g3/g44/g57/g12/g30/g3/g68/g81/g71/g3
+/g70/g17 /g87/g75/g72/g3/g38/g82/g80/g80/g82/g81/g90/g72/g68/g79/g87/g75/g3/g82/g73/g3/g48/g68/g86/g86/g68/g70/g75/g88/g86/g72/g87/g87/g86/g3/g83/g85/g82/g70/g72/g72/g71/g76/g81/g74/g3/g76/g81/g89/g82/g79/g89/g76/g81/g74/g3/g48/g68/g87/g87/g72/g85/g3/g44/g3/g76/g86/g3/g86/g72/g87/g3/g73/g82/g85/g87/g75/g3/g76/g81/g3
+/g87/g75/g72/g3/g73/g82/g79/g79/g82/g90/g76/g81/g74/g3/g36/g86/g86/g88/g85/g68/g81/g70/g72/g3/g82/g73/g3/g39/g76/g86/g70/g82/g81/g87/g76/g81/g88/g68/g81/g70/g72/g15/g3/g90/g75/g76/g70/g75/g3/g76/g86/g3/g68/g87/g87/g68/g70/g75/g72/g71/g3/g75/g72/g85/g72/g87/g82/g3/g68/g86/g3/g40/g91/g75/g76/g69/g76/g87/g3/g57/g3
+/g68/g81/g71/g3/g76/g81/g70/g82/g85/g83/g82/g85/g68/g87/g72/g71/g3/g75/g72/g85/g72/g76/g81/g3/g69/g92/g3/g85/g72/g73/g72/g85/g72/g81/g70/g72/g29/g3/g38/g82/g80/g80/g82/g81/g90/g72/g68/g79/g87/g75/g3/g82/g73/g3/g48/g68/g86/g86/g68/g70/g75/g88/g86/g72/g87/g87/g86/g15/g3
+/g36/g86/g86/g88/g85/g68/g81/g70/g72/g3/g82/g73/g3/g39/g76/g86/g70/g82/g81/g87/g76/g81/g88/g68/g81/g70/g72/g15/g3/g51/g88/g85/g86/g88/g68/g81/g87/g3/g87/g82/g3/g42/g17/g47/g17/g3/g70/g17/g3/g28/g22/g36/g3/g134/g3/g24/g15/g3/g85/g72/g79/g68/g87/g76/g81/g74/g3/g87/g82/g3/g48/g68/g87/g87/g72/g85/g3/g44/g3
+/g11/g40/g91/g75/g76/g69/g76/g87/g3/g57/g12/g17/g3
+If this DRP provides information relating to a “Yes” answer to Item 8B, describe the crime(s) and 
+provide jurisdiction(s) and date(s): 
+/g49/g82/g87/g3/g68/g83/g83/g79/g76/g70/g68/g69/g79/g72/g17
+
+===== PDF PAGE 11 =====
+DRP-3 
+#86801460v6
+If this DRP provides information relating to a “Yes” answer to Item 8C, attach the relevant 
+Commission order(s) and provide the date(s): 
+Not applicable.
+
+===== PDF PAGE 12 =====
+UNITED STATES OF AMERICA 
+before the
+SECURITIES AND EXCHANGE COMMISSION 
+SECURITIES ACT OF 1933 
+Release No. 9705 / January 21, 2015 
+SECURITIES EXCHANGE ACT OF 1934 
+Release No. 74104 / January 21, 2015 
+ADMINISTRATIVE PROCEEDING 
+File No. 3-16348 
+In the Matter of
+STANDARD & POOR’S 
+RATINGS SERVICES,
+Respondent.
+ORDER INSTITUTING 
+ADMINISTRATIVE AND C
+EASE-AND-
+DESIST PROCEEDINGS, PURSUANT 
+TO SECTION 8A OF THE SECURITIES 
+ACT OF 1933 AND SECT
+IONS 15E (d)
+AND 21C OF THE SECURITIES 
+EXCHANGE ACT OF 1934, MAKING 
+FINDINGS, AND IMPOSI
+NG 
+REMEDIAL SANCTIONS AND A 
+CEASE-AND-DESIST ORDER
+I.
+The Securities and Exchange Commission (“Commission”) deems it appropriate and in 
+the public interest that public administrative and cease-and-desist proceedings be, and hereby 
+are, instituted pursuant to Section 8A of the Securities Act of 1933 (“Securities Act”) and 
+Sections 15E(d) and 21C of the Securities Exchange Act of 1934 (“Exchange Act”) against 
+Standard & Poor’s Ratings Services (“S&P” or the “Respondent”).
+II. 
+ In anticipation of the institution of these proceedings, S&P has submitted an Offer of 
+Settlement (the “Offer”) which the Commission has determined to accept.  Solely for the purpose 
+of these proceedings and any other proceedings brought by or on behalf of the Commission, or to 
+which the Commission is a party, and without admitting or denying the findings herein, except as 
+to the Commission’s jurisdiction over it, the subject matter of these proceedings, and the facts set 
+forth in Annex A attached hereto, which are admitted, S&P consents to the entry of this Order 
+Instituting Administrative and Cease-and-Desist Proceedings, Pursuant to Section 8A of the 
+EXHIBIT I
+Ex. I-1
+
+===== PDF PAGE 13 =====
+2
+Securities Act and Sections 15E(d) and 21C of the Securities Exchange Act of 1934, Making 
+Findings, and Imposing Remedial Sanctions and a Cease-and-Desist Order (“Order”), as set forth 
+below.   
+III.
+On the basis of this Order and S&P’s Offer, the Commission finds1 that: 
+Summary 
+ These proceedings involve statements by S&P concerning its methodology for rating 
+conduit/fusion Commercial Mortgage Backed Securities (“CF CMBS”).  Conduit/fusion 
+transactions are those that are comprised of geographically diversified pools of at least 20 
+mortgages loans made to unrelated borrowers.  The disclosures at issue concern S&P’s 
+application of the Debt Service Coverage Ratio (“DSCR”), a key quantitative metric used to rate 
+CF CMBS transactions. 
+ S&P used DSCRs to estimate term defaults of loans in CF CMBS as part of its analysis 
+of appropriate levels of Credit Enhancement (“CE”) for particular ratings.  CE is a critical 
+consideration for a credit rating; in general terms, ratings with higher levels of CE are more 
+conservative and provide greater protection against loss to investors.  In late 2010, S&P changed 
+its methodology for calculating DSCRs, which had the impact of lowering the amount of CE 
+necessary to achieve a particular rating for transactions then in the market. 
+ S&P published eight CF CMBS Presale reports between February and July 2011 in which 
+it failed to describe its changed methodology for calculating DSCRs.  The reports included 
+DSCRs calculated using its prior methodology, which were misleading because they 
+communicated that the ratings at issue were more conservative than they actually were.  S&P did 
+not follow its internal policies and procedures when making the change to its method for 
+calculating DSCRs.  S&P’s internal control structure also did not sufficiently address red flags –
+including an internal complaint – that S&P had improperly changed its method for rating CF
+CMBS.   
+Respondent 
+S&P is a Nationally Recognized Statistical Rating Organization (“NRSRO”) 
+headquartered in New York City, New York.  S&P is comprised of a separately identifiable 
+business unit within Standard & Poor’s Financial Services LLC, a Delaware limited liability 
+company wholly-owned by McGraw Hill Financial, Inc. (“MHFI”), and the credit ratings 
+business housed within certain other wholly-owned subsidiaries of, or businesses continuing to 
+operate as divisions of, MHFI. 
+1 The findings herein are made pursuant to Respondent’s Offer of Settlement and are not binding on any other 
+person or entity in this or any other proceeding.
+EXHIBIT I
+Ex. I-2
+
+===== PDF PAGE 14 =====
+3
+Facts 
+A. S&P’s CMBS ratings.
+1. Rating agencies’ consistency and transparency are crucial to investors, including 
+in the CF CMBS market.  Without consistent application of rating methodology, ratings are not 
+comparable from deal to deal.  Similarly, without transparency, investors can assess neither the 
+methodology employed by the rating agency nor the application of that methodology.  S&P’s 
+policies reflected these priorities by requiring S&P employees to consistently apply established 
+Criteria, avoid being influenced by business relationships with the issuers, and publish sufficient 
+information about S&P’s procedures and assumptions so that users of credit ratings could 
+understand how S&P arrived at its ratings. 
+2. A CF CMBS is a type of mortgage-backed security backed by a pool of 
+commercial real estate loans.  Commercial properties that secure loans in CF CMBS pools are 
+broadly divided into five categories:  retail, office, multifamily, lodging, and industrial.  CF 
+CMBS are typically structured as multiple “tranches,” or bonds, which have differing risk/return 
+profiles.  The bonds at the top of the capital structure generally receive priority in payment of 
+principal and interest, while the bonds at the bottom experience losses first after the underlying 
+loans incur losses.  Because of these differences, the bonds at the bottom of the capital structure 
+generally receive the highest rate of return, while the bonds at the top receive the lowest rate of 
+return.  The bonds at the bottom of the structure thus provide a cushion against loss to the bonds 
+at the top of the structure.  This cushion is a key element of the CE applicable to each bond in a 
+CF CMBS transaction. 
+3. During the time frame covered by this Order (2010 and 2011), fees for rating CF 
+CMBS transactions were paid by the issuers.  Issuers typically announced potential CF CMBS 
+transactions privately to NRSROs several months before they anticipated selling the bonds.  
+NRSROs typically responded to these announcements by undertaking initial analyses of the pool 
+and providing feedback to the issuers concerning how much CE they would require for each 
+bond in the capital structure to be rated at particular levels.  Typically, the issuers then retained 
+two NRSROs to rate the transaction, usually choosing the agencies that proposed the lowest 
+credible CE. 
+4. S&P competed for and sometimes obtained CF CMBS rating assignments in 2010 
+and 2011.  After being hired to rate a transaction, S&P spent approximately two months 
+analyzing the loans and properties.  As part of this analysis, S&P made reductions to projected 
+cash flows and property values for the purpose of estimating how the loans would perform under 
+stressed economic conditions.  S&P then gave final feedback to the issuer concerning 
+recommended ratings for levels of the capital structure proposed by the issuer.  The feedback 
+included summary data concerning DSCRs and other key metrics, which reflected the stress that 
+S&P placed on the loans. 
+EXHIBIT I
+Ex. I-3
+
+===== PDF PAGE 15 =====
+4
+5. After receiving final feedback, the issuers announced the transactions to the 
+public.  Shortly after the announcements, S&P publicly disseminated Presale reports setting forth 
+S&P’s preliminary recommended ratings and the detailed rationale for the ratings.  Although 
+these ratings were designated as preliminary, they were issued in the offer and sale of the CMBS 
+bonds because issuers and investors used the Presales as part of the total mix of information 
+available to analyze the transactions.  Final ratings were not issued until after the closing of the 
+transactions.  Investors typically had approximately one week after the announcement of the 
+proposed transaction to make their investment decisions. 
+B. S&P ’s established rating methodology for CF CMBS used published loan constants 
+ for calculating DSCR .
+6. On or about June 26, 2009 , S&P published “U.S. CMBS Rating Methodology 
+And Assumptions For Conduit/Fusion Pools” (“the Criteria Article”).  The Criteria Article was 
+intended to inform market participants, including investors, how S&P calculated net cash flow, 
+how S&P used DSCRs and other information to estimate losses on loans in CF CMBS pools, and 
+how S&P used estimated losses to calculate recommended CE for the various rating levels, 
+among other things. 
+7. The Criteria Article established a 19% “AAA” CE for an “archetypical pool” of 
+commercial real estate loans.  In S&P’s view, bonds rated at the AAA level would withstand 
+market conditions commensurate with an extreme economic downturn like the Great Depression 
+without defaulting. 
+8. S&P used DSCRs to estimate term defaults of loans in CF CMBS pools in 
+connection with determining appropriate levels of CE for particular ratings.  The DSCR is the 
+ratio of the annual net cash flow produced by an income-generating property, divided by the 
+annual debt service payment required under the mortgage loans.  DSCRs are usually expressed 
+as a multiple, for example, 1.2x.  DSCRs give a measure of a property’s ability to cover debt 
+service payments.  Put another way, an initial DSCR shows the cushion that is available to 
+absorb a decline in net cash flow generated by a property during the term of the mortgage loan. 
+9. For the purposes of estimating whether a loan would default during its term (as 
+opposed to at its maturity date), S&P calculated the numerator in the DSCR (the net cash flow) 
+by beginning with the current net cash flow data provided by the issuers of the CF CMBS 
+transaction and then applying stresses and discounts to estimate how the income from the 
+property would be affected by economic circumstances.  S&P calculated the denominator in the 
+DSCR (the debt service) by multiplying the original principal amount of the loan by a “loan 
+constant” reflecting an interest rate and an amortization schedule.
+10. Although the Criteria Article provided loan constants f or an “archetypical pool” 
+of loans in a table identified as Table 1 by property type – Retail 8.25%, Office 8.25%, 
+EXHIBIT I
+Ex. I-4
+
+===== PDF PAGE 16 =====
+5
+Multifamily 7.75%, Lodging 10.00% and Industrial 8.50% – it did not state whether S&P would 
+calculate the denominator of the DSCR using the Table 1 loan constants for the purpose of 
+estimating whether a loan would default during its term. 
+11. After internal discussion, on or about July 31, 2009, S&P decided to use the Table 
+1 loan constants to calculate DSCRs. On or about March 10, 2010, the CMBS criteria committee 
+further decided that S&P would use the “higher of” the actual constants or Table 1 loan constants 
+to determine debt service payments.  S&P incorporated the methodology that resulted from these 
+decisions into the model that it used to analyze CF CMBS transactions. 
+12. On or about June 22, 2010, S&P published a commentary on a CF CMBS 
+transaction called JPMCC 2010-C1.  S&P did not rate the transaction.  In the commentary, S&P 
+included DSCR data based on actual loan constants, but then stated that the firm “typically 
+evaluates a transaction’s loan default probability using a stressed DSC based on ‘BBB’ and 
+‘AAA’ cash flow scenarios and a stressed loan constant.  For JPMCC 2010-Cl, the pool’s 
+weighted average stressed debt constant would equal approximately 8.33%, based primarily on 
+the retail and office exposure, for which our constant is 8.25%.” S&P closed the commentary 
+with a direct comparison of the JPMCC 2010-C1 pool to the archetypical pool.  In that 
+comparison S&P stated that the pool’s DSCR was based upon “stressed constants.” Through 
+these statements, S&P informed the public that it used the Table 1 loan constants to calculate 
+DSCRs in its analysis of CF CMBS transactions. 
+13. On or about September 24, 2010, S&P published a Presale for a CF CMBS 
+transaction called JPMCC 2010-C2.  The Presale set forth preliminary ratings for the transaction 
+and detailed S&P’s analysis that led to its ratings.  It began with a summary overview that 
+highlighted the pool-wide DSCR, and the subsequent analysis contained approximately 45 
+DSCR representations, an indication of the importance of the DSCR in commercial real estate 
+analysis.  In addition to the pool-wide DSCR, the Presale presented DSCRs for stratified portions 
+of the pool and for individual loans.  In each case, the DSCRs were calculated using the “higher 
+of” the actual loan constants or Table 1 loan constants. 
+14. As a result of its internal actions described above, including decisions and model 
+implementation, the published commentary on JPMCC 2010-Cl, and the published Presale for 
+JPMCC 2010-C2, S&P established that it used the “higher of” the actual loan constants or Table 
+1 loan constants to calculate DSCRs. 
+C. In late 2010, S&P adjusted its methodology for calculating DSCRs. 
+15. S &P’s market position for rating CMBS transactions had declined in the years 
+following the financial crisis, which essentially halted the new issuance CMBS market.  When 
+issuers started marketing CMBS transactions again in 2010, S&P’s market share did not rebound 
+EXHIBIT I
+Ex. I-5
+
+===== PDF PAGE 17 =====
+6
+to its pre-2008 level, a fact that some members of the CMBS Group believed was caused by, 
+among other things, the conservatism of the firm’s criteria.
+16. In or around mid-December 2010, the CMBS Analytical Group made a change to 
+the assumption embodied in its model for analyzing new issue CF CMBS transactions.  While 
+the model previously calculated the DSCR for each loan by using the “higher of” the actual loan 
+constant or Table 1 loan constant, the assumption was changed to calculate the DSCR for each 
+loan by using the simple average of (1) the higher of the actual loan constant or the Table 1 loan 
+constant and (2) the actual loan constant. 
+17. Personnel within S&P described the average constants as “blended constants.” In 
+all cases in which a loan’s actual constant was lower than the Table 1 loan constant, the blended 
+constant would also be lower than the Table 1 loan constants.  The use of blended constants 
+generally resulted in lower annual debt service calculations and, therefore, higher DSCRs, which 
+led the model to estimate fewer defaults under a “AAA” stress during the term of a loan, but 
+more defaults at the maturity of the loan, but ultimately leading to lower losses from defaults.  
+This resulted in CE requirements that were lower than they would have been had S&P calculated 
+DSCRs using the “higher of” Table 1 or actual constants, which was more attractive as a 
+commercial matter because issuers seek lower CE levels. 
+D. S&P rated six transactions and produced preliminary ratings for two more 
+ transactions using the revised DSCR methodology, but published data using
+ different DSCRs. 
+18. During the first half of 2011, S&P used its blended constant methodology to rate 
+the following six CF CMBS transactions:  MSC 2011-C1, FREMF 2011-K701, JPMCC 2011-
+C3, FREMF 2011-K11, FREMF 2011-K13 and JPMCC 2011-C4.  Issuers paid S&P 
+approximately $7 million to rate and conduct surveillance on these six transactions. 
+19. For each transaction, S&P published a Presale.  Each Presale contained over 40 
+representations of DSCRs calculated using the “higher of” the actual loan constants or Table 1 
+loan constants.  These representations included DSCRs for the entire pool, stratified portions of 
+the pool, and individual loans.  Three of the six Presales also included DSCRs calculated from 
+actual loan constants, but none of the Presales included any DSCRs calculated from the blended 
+constants that S&P actually used to rate the transactions.   
+20. Had S&P actually used the DSCRs derived from the Table 1 loan constants, as set 
+forth in the Presales, it would have required materially higher amounts of CE in the six rated 
+transactions. 
+21. The Presales for the 2011 transactions included a sentence that stated, “[i]n 
+determining a loan’s DSCR, Standard & Poor’s will consider both the loan’s actual debt constant 
+EXHIBIT I
+Ex. I-6
+
+===== PDF PAGE 18 =====
+7
+and a stressed constant based on property type as further detailed in our conduit/fusion criteria.” 
+This sentence did not inform investors that S&P had changed its methodology to use blended 
+constants, but was consistent with its previously established methodology of calculating DSCRs 
+with the higher of Table 1 or actual constants. 
+22. S&P’s statements in the Presales concerning DSCRs were thus knowingly or 
+recklessly false and misleading concerning the amount of stress S&P applied in rating the 
+transactions.   
+23. On at least four of the 2011 transactions, while S&P reported DSCRs based on the 
+Table 1 loan constants to the public, the CMBS Group reported the DSCRs they actually used, 
+based on the blended constants, to the issuers who paid S&P.  Thus, the CMBS Group knew that 
+the DSCRs they actually used were important to assessing the ratings, but still did not provide 
+them to investors who used their ratings. 
+24. S&P also misrepresented the calculation of DSCRs in internal documents known 
+as Rating Analysis and Methodology Profile (“RAMP”), despite acknowledging, in a December 
+2010 internal email that “[i]f we do [use an alternate debt constant], we would document it in the 
+RAMP.”
+25. According to S&P’s RAMP Guidelines, “The RAMP’s objective is to explain the 
+rating recommendation to voting committee members [who approved the proposed rating] 
+through application of criteria.  The RAMP captures the key drivers of the issue being rated, the 
+relevant facets of analysis, the pertinent information being considered, and the underlying criteria 
+and applicable assumptions....” S&P’s Model Use Guidelines described various matters 
+pertaining to models that must be documented in RAMPs, including key assumptions used in 
+models and modifications to models. 
+26. The RAMPs for each of the six transactions listed above disclosed DSCRs 
+calculated using the Table 1 loan constants and, for three transactions, the actual constants, when 
+in fact S&P rated the transactions using blended constants.  The RAMPs did not describe the use 
+of blended constants, the data derived from blended constants, or the fact that the models were 
+modified to apply blended constants. 
+27. In July 2011 S&P published Presales with preliminary ratings for two additional 
+CF CMBS transactions called GSMS 2011-GC4 and FREMF 2011-K14.  As with the previous 
+six transactions, the Presales contained multiple DSCRs calculated using the higher of the actual 
+loan constants or Table 1 loan constants.  They also included DSCRs calculated from actual loan 
+constants, but did not provide any DSCRs derived from the blended constants S&P actually used 
+for the preliminary ratings.  As a result, these Presales also made false and misleading statements 
+about the amount of stress that S&P placed on the loans in the pools when assigning its ratings.  
+EXHIBIT I
+Ex. I-7
+
+===== PDF PAGE 19 =====
+8
+The RAMPs for these transactions similarly provided data based on the Table 1 loan constants, 
+and actual constants, but not blended constants. 
+28. Several potential investors questioned the low level of CE for the AAA bonds in 
+the GSMS 2011 GC-4 transaction.  S&P gave a preliminary AAA rating to bonds with 14.5% CE 
+Using the higher of the actual loan constants or Table 1 loan constants, rather than the blended 
+constants, S&P’s model would have resulted in approximately 20% CE for the AAA bond. 
+29. In light of the investor questions, S&P’s senior management reviewed S&P’s 
+ratings and discovered the use of blended constants.  S&P then withdrew its preliminary ratings 
+for the two transactions.  As a result, these transactions did not close on schedule. 
+30. Following withdrawal of the preliminary ratings on the July transactions, S&P 
+reviewed the ratings on the six transactions from earlier in 2011.  S&P’s Chief Credit Officer 
+believed that those ratings were not assigned in accordance with S&P’s criteria because they 
+were based on blended constants.  
+31.  On or about August 5, 2011 and August 16, 2011, S&P issued press releases 
+called “Advanced Notice of Proposed Criteria Change[,]” which disclosed the methodology S&P 
+had used in rating the CMBS transactions and stated that the ratings were “consistent with S&P’s 
+rating definitions.” These publications did not inform investors of the effect of the change in 
+methodology on required CE levels. 
+E. S&P’s internal controls did not detect and prevent the Criteria change.
+32. In 2010 and 2011, S&P purported to maintain a system of internal controls 
+designed to ensure, among other things, that ratings were assigned using S&P’s approved 
+criteria.  However, S&P’s internal controls failed to identify and respond adequately to red flags 
+that the CMBS Group had changed its methodology for rating CF CMBS transactions without 
+appropriate process or disclosures. 
+33. The internal controls failures included: 
+a. S&P’s Model Quality Review Group (“MQR”), which was supposed to determine 
+whether numerical models used by rating practice groups appropriately implemented S&P’s 
+criteria, conducted a review of the CMBS model during the time that the CMBS Group was 
+using blended constants to calculate DSCRs.  MQR began its review with a model that used the 
+higher of the actual loan constants or Table 1 loan constants.  The CMBS Group modified the 
+model to use blended constants while the review was ongoing, but failed to provide the modified 
+model to MQR.  Nevertheless, the CMBS Group provided information to MQR which, although 
+vague, was a red flag that the CMBS Group was no longer applying the “higher of” 
+methodology.  MQR failed to respond to this red flag and never requested the modified model. 
+EXHIBIT I
+Ex. I-8
+
+===== PDF PAGE 20 =====
+9
+b. In January 2011, S&P received an anonymous email asserting that the CMBS 
+Group was inappropriately using blended constants to produce lower CE levels and make S&P 
+more competitive.  S&P’s Quality Group, whose responsibilities included reviews of ratings files 
+to determine whether ratings analytical groups were complying with S&P’s criteria, investigated 
+the complaint.  The Quality Group did not conduct a sufficient investigation of how the CMBS 
+Group calculated DSCRs, and the complaint was not discussed with S&P’s Chief Credit Officer.
+c. S&P’s Criteria Group was supposed to enforce S&P’s Criteria Process 
+Guidelines, which set forth procedures for researching and approving proposed criteria changes 
+and publicizing any resulting changes.  The Criteria Group knew that the CMBS Group was 
+considering changes to the methodology for calculating DSCRs, and that the Quality Group was 
+investigating such possible changes.  However, the Criteria Group failed to identify the change 
+the CMBS Group actually made to the methodology for calculating DSCRs, and failed to enforce 
+the Criteria Process Guidelines despite these red flags. 
+Violations 
+34. As a result of the conduct described above, S&P willfully violated 
+Section 17(a)(l) of the Securities Act, which prohibits fraudulent conduct in the offer and sale of 
+securities.
+35. As a result of the conduct described above, S&P violated Section 15E(c)(3) of the 
+Exchange Act, which requires NRSROs to establish, maintain, enforce, and document an 
+effective internal control structure governing the implementation of and adherence to policies, 
+procedures, and methodologies for determining credit ratings. 
+36. As a result of the conduct described above, S&P violated Rules 17g-2(a)(2)(iii) 
+and 17g-2(a)(6) under the Exchange Act, which require NRSROs to make and retain complete 
+and current records of the rationale for any material difference between the credit rating implied 
+by a model and the final credit rating issued and of the established procedures and methodologies 
+used by the NRSRO to determine credit ratings. 
+Undertakings 
+Respondent has undertaken to refrain from making preliminary or final ratings for any 
+new issue U.S. conduit/fusion CMBS transaction for a period of twelve months from the date of 
+this Order, including engaging in any marketing activity related thereto.  This prohibition 
+extends to all new issuance ratings activity whether undertaken for a fee or otherwise.  This 
+undertaking does not prohibit S&P from engaging in surveillance of outstanding conduit/fusion 
+CMBS issues that S&P has previously rated. 
+EXHIBIT I
+Ex. I-9
+
+===== PDF PAGE 21 =====
+10
+Within 180 days of the entry of this Order, or as otherwise agreed to with the 
+Commission’s Office of Credit Ratings, S&P shall adopt, implement, and maintain policies, 
+procedures, practices and internal controls that address the recommendations and issues 
+identified in the September 9, 2014 summary letter concerning the completed 2014 Section 15E 
+Examination of S&P conducted by the Commission’s Office of Credit Ratings (“2014S & P  
+Exam”).
+S&P shall submit a report, approved and signed under penalty of perjury by the President 
+and the Chief Compliance Officer of S&P, to Thomas Butler, Director, Office of Credit Ratings, 
+Securities and Exchange Commission New York Regional Office, 3 World Financial Center, 
+Suite 400, New York, NY 10281-1022, and Michael J. Osnato, Jr., Chief, Complex Financial 
+Instruments Unit, Securities and Exchange Commission, 3 World Financial Center, Suite 400, 
+New York, NY 10281-1022, which details the new policies, procedures, practices, and internal 
+controls adopted, and the actions taken to implement and maintain the new policies, procedures, 
+practices, and internal controls. 
+IV. 
+In view of the foregoing, the Commission deems it appropriate to impose the sanctions 
+agreed to in S&P’s Offer.
+Accordingly, pursuant to Section 8A of the Securities Act and Sections 15E(d) and 21C 
+of the Exchange Act, it is hereby ORDERED that: 
+A. S&P cease and desist from committing or causing any violations and any future 
+violations of Section 17(a)(1) of the Securities Act, Section 15E(c)(3) of the Exchange Act, and 
+Exchange Act Rules 17g-2(a)(2)(iii) and 17g-2(a)(6). 
+B. S&P is censured. 
+C. S&P shall, within thirty (30) days of the entry of this Order, pay disgorgement of 
+$6.2 million, prejudgment interest of $800,000, and a civil money penalty of $35 million to the 
+Securities and Exchange Commission.  If timely payment is not made, additional interest shall 
+accrue pursuant to SEC Rule of Practice 600 or 31 U.S.C. § 3717 as applicable.  Payment must 
+be made in one of the following ways: 
+(1) S&P may transmit payment electronically to the Commission, which will  
+   provide detailed ACH transfer/Fedwire instructions upon request; 
+(2) S&P may make direct payment from a bank account via Pay.gov through  
+   the SEC website at http://www.sec.gov/about/offices/ofm.htm; or 
+EXHIBIT I
+Ex. I-10
+
+===== PDF PAGE 22 =====
+11
+(3) S&P may pay by certified check, bank cashier’s check, or United States 
+   postal money order, made payable to the Securities and Exchange   
+   Commission and hand-delivered or mailed to: 
+Enterprise Services Center 
+Accounts Receivable Branch 
+HQ Bldg., Room 181, AMZ-341 
+6500 South MacArthur Boulevard 
+Oklahoma City, OK 73169 
+ Payments by check or money order must be accompanied by cover letter identifying S&P 
+as a Respondent in these proceedings, and the file number of these proceedings; a copy of the 
+cover letter and check or money order must be sent to Michael J. Osnato, Division of 
+Enforcement, Securities and Exchange Commission, 200 Vesey Street, Suite 4000, New York, 
+New York 10281. 
+By the Commission. 
+Brent J. Fields 
+Secretary
+        
+EXHIBIT I
+Ex. I-11
+
+===== PDF PAGE 23 =====
+ANNEX A 
+S&P admits to the facts set forth below. 
+Beginning in 2009, S&P developed new commercial mortgage backed securities 
+(“CMBS”) ratings criteria that generally increased the required credit enhancement levels for 
+conduit/fusion CMBS (“CF CMBS”).
+On June 26, 2009, S&P published “US. CMBS Ratings Methodology and 
+Assumptions for Conduit/Fusion Pools” setting forth its methodology for rating CF CMBS.  
+That article described how S&P used the debt service coverage ratio (“DSCR”) to estimate 
+whether the loans comprising the conduit/fusion pool would default during their term.  This 
+term default estimate was an important variable in S&P’s calculation of the amount of credit 
+enhancement S&P would require for each rating level (AAA, AA, A, etc.). 
+The Criteria article defined the DSCR as “the ratio of a real property’s [Net Cash 
+Flow] to the scheduled debt service expressed as a multiple (e.g. 1.2x).”  Debt service on a 
+loan can be calculated by multiplying the outstanding principal balance by a loan constant, 
+which reflects both an interest rate and an amortization schedule.  The Criteria article also 
+included a table, called Table 1, which defined an “archetypical” CF CMBS pool.  Table 1 
+included loan constants for five property types as follows (the “Table 1 constants”):
+Retail:  8.25% 
+Office:  8.25%  
+Multifamily:  7.75%  
+Lodging:  10.00%  
+Industrial:  8.50% 
+In July 2009, S&P decided to use the Table 1 constants to calculate DSCRs when 
+analyzing loans as part of the rating of CF CMBS.  Subsequently, in March 2010, the CMBS 
+Criteria Committee approved the use of the actual loan constant to calculate a loan’s DSCR 
+when the actual loan constant was higher than the Table 1 constant.  These decisions were 
+incorporated in the mathematical model that S&P used to calculate credit enhancement 
+requirements for various rating levels. 
+In December 2010, S&P’s CMBS Ratings Group began analyzing loans in new issue 
+CF CMBS using the higher of the actual loan constant or the average of the actual loan 
+constant and the Table 1 constant to calculate debt service.  Members of the CMBS ratings 
+group sometimes described this average as a “blended constant.” The usage of blended 
+constants rather than the higher of the actual loan constant or the Table 1 loan constant had 
+the effect of lowering the debt service for loans that had actual loan constants that were lower 
+than the Table 1 loan constants, which in turn could have the effect of lowering the credit 
+enhancement applicable to each rating level. 
+Between February 2011 and May 2011, S&P published Presale reports for six CF 
+CMBS transactions the company ultimately rated.  The reports reflected S&P’s preliminary 
+ratings of the offerings and its methodology for arriving at the ratings.  In these reports, S&P 
+EXHIBIT I
+Ex. I-12
+
+===== PDF PAGE 24 =====
+2
+published pool level data, data on stratifications of the pool, and data concerning the top 10 
+loans. 
+The DSCRs in the Presale reports generally were calculated using the higher of the 
+actual loan constants or the Table loan constants.  In three of the six Presale reports, S&P 
+also presented DSCRs based on actual loan constants.  The Presale reports, in a section called 
+“Conduit/fusion methodology[,]” stated:  “In determining a loan’s DSCR, Standard & Poor’s 
+will consider both the loan’s actual debt constant and a stressed constant based on property 
+type as further detailed in our conduit/fusion criteria.”
+S&P did not, however, determine its ratings based on the Table 1 loan constants or 
+the actual debt service data in the manner it disclosed in the Presale reports.  Rather, the 
+CMBS ratings group used blended constants to arrive at ratings for these CF CMBS. 
+In connection with each preliminary and final set of ratings on the six transactions 
+described above, S&P analysts prepared a Rating Analysis and Methodology Profile 
+(“RAMP”) as required by S&P’s policies and procedures.  According to S&P’s RAMP 
+guidelines, the purpose of a RAMP “is to explain the rating recommendation” to S&P 
+personnel who would vote on the rating.  The RAMP guidelines further stated that, “[t]he 
+RAMP captures the key drivers of the issue being rated, the relevant facets of the analysis, 
+the pertinent information considered, and the underlying criteria and applicable 
+assumptions . . . .” 
+The RAMPs for the six transactions described above included DSCR data derived 
+from the Table 1 constants but did not include the data derived using blended constants that 
+were actually used to rate the transactions, other than by reference to the model results that 
+were considered in arriving at the ratings. 
+The issuers of the six rated transactions paid S&P approximately $7 million to rate 
+and conduct surveillance on those transactions.   
+In July 2011, S&P published Presale reports for two additional CF CMBS 
+conduit/fusion transactions.  As with the earlier transactions rated in 2011, S&P used the 
+higher of the actual loan constants or the blended constants to calculate DSCRs for these 
+transactions, while its publicly disclosed Presale reports included data using the Table 1 
+constants and, in both cases, the actual constants.  After investors questioned the credit 
+enhancement levels on one of those transactions, S&P’s senior management conducted a 
+review which concluded that the CMBS ratings group was in fact using blended constants to 
+calculate DSCRs. 
+S&P voluntarily withdrew the preliminary ratings described in the Presales for the 
+two July 2011 transactions. 
+ 
+EXHIBIT I
+Ex. I-13
+
+===== PDF PAGE 25 =====
+UNITED  STATES  OF AMERICA  
+Before the  
+SECURITIES AND EXCHANGE COMMISSION 
+SECURITIES ACT OF 1933  
+Release No. 9704 / January 21, 2015 
+SECURITIES EXCHANGE ACT OF 1934  
+Release No. 74102 / January 21, 2015 
+ADMINISTRATIVE PROCEEDING  
+File No. 3-16346 
+In the Matter of
+STANDARD & POOR'S RATINGS 
+SERVICES,
+Respondent.
+ORDER INSTITUTING 
+ADMINISTRATIVE AND CEASE
+-AND-
+DESIST PROCEEDINGS, PURSUANT 
+TO SECTION 8A OF THE SECURITIES 
+ACT OF 193
+3 AND SECTIONS 15E(d) 
+AND 21C OF THE SECURITIES 
+EXCHANGE ACT OF 1934, MAKING 
+FINDINGS, AND IMPOSING  
+REMEDIAL SANCTIONS AND A 
+CEASE
+-AND-DESIST ORDER
+I.
+The Securities and Exchange Commission (“Commission”) deems it appropriate 
+and in the public interest that public administrative and cease-and-desist proceedings be, 
+and hereby are, instituted pursuant to Section 8A of the Securities Act of 1933 
+(“Securities Act”) and Sections 15E(d) and 21C of the Securities Exchange Act of 1934 
+(“Exchange Act”) against Standard & Poor's Ratings Services (“S&P” or “Respondent”).
+II.
+In anticipation of the institution of these proceedings, S&P has submitted an Offer 
+of Settlement (the “Offer”) which the Commission has determined to accept.  Solely for 
+the purpose of these proceedings and any other proceedings brought by on behalf of the 
+Commission, or to which the Commission is a party, and without admitting or denying 
+the findings herein, except as to the Commission’s jurisdiction over it and the subject 
+matter of these proceedings, which are admitted, S&P consents to the entry of this Order 
+Instituting Administrative and Cease-and-Desist Proceedings, Pursuant to Section 8A of 
+the Securities Act and Sections 15E(d) and 21C of the Securities Exchange Act of 1934, 
+EXHIBIT II
+Ex. II-1
+
+===== PDF PAGE 26 =====
+2
+Making Findings, and Imposing Remedial Sanctions and a Cease-and-Desist Order 
+(“Order”), as set forth below. 
+III.
+On the basis of this Order and S&P’s Offer, the Commission finds1 that: 
+Summary
+1. These proceedings involve misconduct by S&P in 2012 concerning its 
+criteria for rating conduit/fusion Commercial Mortgage Backed Securities (“CF CMBS”) 
+and related research.  After being frozen out of the market for rating CF CMBS in late 
+2011, S&P sought to re-enter the market in 2012 by publishing new ratings criteria (the 
+“2012 CMBS Criteria”).   
+2.  In connection with its release of the 2012 CMBS Criteria, S&P published 
+an article describing an internal study purportedly showing average commercial mortgage 
+loan pool losses of about 20% under Great Depression levels of economic stress.  The 
+article was flawed, in part because it relied on significant assumptions that were not 
+adequately disclosed in the article and thereby contained false and misleading statements.  
+The article was nonetheless published in June 2012 as additional support for the target 
+credit enhancement (CE) level of 20% in the 2012 CMBS Criteria. 
+3.  Separately, S&P also did not accurately describe certain aspects of its 
+2012 CMBS Criteria in the publication setting forth their operation. 
+4. S&P used the 2012 CMBS Criteria to determine credit ratings on 
+approximately 25 CF CMBS between October 2012 and June 2014.      
+Respondent 
+5. S&P is a Nationally Recognized Statistical Rating Organization 
+(“NRSRO”) headquartered in New York City, New York.  Standard & Poor’s Ratings 
+Services is comprised of a separately identifiable business unit within Standard & Poor’s
+Financial Services LLC, a Delaware  limited  liability  company  wholly-owned  by  the  
+McGraw Hill Financial (“MHFI”),  and the credit ratings business housed within certain 
+other wholly-owned subsidiaries of, or businesses continuing to operate as divisions of, 
+MHFI. 
+                                                
+1 The findings herein are made pursuant to Respondent’s Offer of Settlement and are not binding 
+on any other person or entity in this or any other proceeding. 
+EXHIBIT II
+Ex. II-2
+
+===== PDF PAGE 27 =====
+3
+Facts 
+A. Background 
+6. Rating agencies’ transparency is crucial to investors, including in the CF 
+CMBS market.  Without transparency, investors can neither assess the methodology 
+employed by the rating agency nor the application of that methodology.  S&P’s policies 
+reflected these priorities by requiring S&P employees to publish sufficient information 
+about S&P’s procedures and assumptions so that users of credit ratings could understand 
+how S&P arrived at its ratings. 
+7. A CF CMBS is a type of mortgage-backed security backed by a pool of 
+commercial real estate loans.  Commercial properties that secure loans in CF CMBS 
+pools are broadly divided into five categories:  retail, office, multifamily, lodging, and 
+industrial.  CF CMBS are typically structured as multiple “tranches,” or bonds, which 
+have differing risk/return profiles.  The bonds at the top of the capital structure generally 
+receive priority in payment of principal and interest, while the bonds at the bottom 
+experience losses first after the underlying loans incur losses.  Because of these 
+differences, the bonds at the bottom of the capital structure generally receive the highest 
+rate of return, while the bonds at the top receive the lowest rate of return.  The bonds at 
+the bottom of the structure thus provide a cushion against loss to the bonds at the top of 
+the structure.  This cushion is a key element of the CE applicable to each bond in a CF 
+CMBS transaction. 
+8. On June 26, 2009, S&P published an article entitled “U.S. CMBS Rating 
+Methodology And Assumptions For Conduit/Fusion Pools.” That criteria article 
+established a 19% CE level for the AAA-rated tranche of a CF CMBS backed by an 
+“archetypical pool” of commercial real estate loans.  In July 2011 S&P published 
+preliminary ratings for two CF CMBS transactions.  On one of the deals, S&P gave a 
+preliminary AAA rating to bonds with only 14.5% CE.  After potential investors  
+questioned  the  low  level of CE for the AAA bonds in this transaction, S&P withdrew 
+its preliminary ratings for the two transactions. 
+9.  Following withdrawal of the preliminary ratings on the July 2011 
+transactions, S&P lost significant market share for rating new issuance CF CMBS.  S&P 
+sought to re-enter the market in 2012 by publishing new ratings criteria.  The prior 
+criteria had been described as being calibrated to produce a AAA credit enhancement 
+level (“AAA CE”) of 19% for an “Archetypical Pool” described in that criteria.  The 
+2012 CMBS Criteria were described as having a “target” AAA CE of approximately 20% 
+for a “typical well-diversified conduit-fusion CMBS transaction.”
+EXHIBIT II
+Ex. II-3
+
+===== PDF PAGE 28 =====
+4
+B. S&P's Great Depression Article 
+10. On June 4, 2012, as part of the development of new CF CMBS Criteria, 
+S&P published an article entitled “Request For Comment: Rating Methodology And 
+Assumptions for U.S. And Canadian CMBS.”  That publication outlined the parameters 
+of S&P’s proposed new CMBS ratings criteria and invited feedback and questions from 
+market participants. 
+11. With respect to the CE to be provided to CF CMBS under the new 
+Criteria, the article stated in relevant part: “For a typical conduit/fusion transaction, the 
+application of the proposed criteria supports ‘AAA’ CE level around 20% . . . . This level 
+was supported by multiple factors, including [S&P’s] analysis of commercial real estate 
+bond defaults and losses during the Great Depression . . . .”
+12. The reference to analysis of Great Depression data corresponded, in part, 
+to an internal study undertaken by a senior S&P employee, which S&P thereafter decided 
+to summarize in an article to provide additional information supporting the 2012 CMBS 
+Criteria.  On June 28, 2012, S&P published an article entitled “Estimating U.S. 
+Commercial Mortgage Loan Losses Using Data From The Great Depression” (the “Great 
+Depression Article”).  The Great Depression Article relied on data gathered by the staff 
+of the Federal Reserve Bank of New York in preparing a February 2012 report analyzing 
+commercial bond performance during the Great Depression era (the “Fed Data”).  Among
+other things, the Great Depression Article stated that S&P’s analysis of Great Depression 
+loss and default information “suggest[s] an average loss of about 20% in periods of 
+extreme economic conditions,” thereby supporting the 20% target AAA CE in the 
+proposed new criteria.   
+13. S&P’s focus on the Great Depression, which is commonly understood to 
+have begun in 1929 and to have continued for years thereafter, was consistent with 
+existing S&P ratings practices and methodology.  In 2009, S&P published 
+“Understanding Standard & Poor’s Ratings Definitions,” in which it stated that AAA-
+rated bonds “should be able to withstand an extreme level of stress and still meet [their] 
+financial obligations.”  A historical example of such a scenario is the Great Depression in 
+the U.S.  The Great Depression Article reinforced the selection of the Great Depression 
+as the “benchmark” for testing the sufficiency of the proposed 20% CE level:  “We 
+[S&P] often use the U.S. Great Depression as a benchmark period for determining the 
+appropriate CE level for ‘AAA’ ratings.”
+14. The Great Depression Article was flawed, in part because it suggested
+“about 20%” losses in periods of “extreme economic conditions” without adequately 
+disclosing certain significant assumptions, including the following:  
+a) S&P’s analysis of purported Great Depression losses and defaults included 
+analysis of  performance of commercial mortgages originated between 1900 and 1935, 
+many of which were not affected by the extreme economic stress of the Great 
+Depression;  
+EXHIBIT II
+Ex. II-4
+
+===== PDF PAGE 29 =====
+5
+b) T he Fed Data analyzed by S&P incorporated discounting assumptions.  
+Discounting loss estimates is contrary to industry standards.  The application of a 
+discounting factor lowered the Fed Data losses compared to industry standards; and 
+c) S&P excluded defaulted commercial mortgages that took longer than three 
+years to resolve, thereby removing from its analysis many of the loans with the most 
+severe losses.  The exclusion of these loans also affected the results discussed in the 
+Great Depression Article concerning estimated losses.  
+15. The impact of the assumptions and methodology incorporated in the Great 
+Depression Article was inadequately disclosed when it was published on June 28, 2012.  
+As a result, S&P knew, or was reckless in not knowing, that the Article was false and 
+misleading.  
+16. Contemporaneous written evidence prepared by the senior criteria officer 
+(“SCO”) who conducted the analysis underlying the Great Depression Article reflects his 
+concerns over his ability to furnish robust and unbiased research to support S&P’s 
+proposed CE level of 20%.  The SCO’s initial determination was that the CE calibration 
+of the 2012 Criteria “may be understating the potential losses in a ‘AAA’ scenario.”
+17. For example, on April 16, 2012, after computing loss estimates that ranged 
+above 50%, the SCO wrote in his handwritten notes “Criteria Committee has considered 
+an anchor of 20% for ‘AAA’—not sure of justification.” After completing his 
+independent analytical work, the SCO estimated losses of approximately 29.5%.  He also 
+concluded that the 20% AAA CE benchmark “may be understating the potential losses in 
+a ‘AAA scenario.’” His handwritten notes, written contemporaneously with the 
+completion of his independent analytical work, asked “How do we reconcile the 
+[underlying] data and my analysis with the 20% Benchmark?”
+18. After discussions with the S&P CMBS ratings group responsible for rating 
+new issuance transactions under the new Criteria, and its Criteria Officer, the SCO 
+modified his analysis to incorporate one of the significant and inadequately described 
+assumptions referenced above relating to time to resolution, and reached results that 
+supported the 20% AAA CE anchor point.  
+19. In June 2012, when the SCO’s study was being prepared for publication, 
+the SCO repeatedly complained about the CMBS group’s removal of information from 
+the study.   
+20. In an unguarded contemporaneous discussion with a confidant, the SCO 
+expressed his reservations generally that the Great Depression Article had become a 
+“sales pitch” for the new criteria, and specifically concerning the removal of certain 
+disclosures concerning the comparable transactions analyzed in connection with the 
+Article.  
+21. The SCO also expressed concerns about the fact that the removal of those 
+disclosures was reflected in “electronic document[s]” and “discoverable” and he could 
+one day be “sit[ting] in front of Department of Justice, or the SEC . . . .”
+EXHIBIT II
+Ex. II-5
+
+===== PDF PAGE 30 =====
+6
+22. Desp ite those concerns, in a self-evaluation written after the Great 
+Depression Article was publicly released in support of the 2012 CMBS Criteria, the SCO 
+lauded his role in the publication and stated that “In my role, I recognize the need to 
+balance between the best theoretical solution and the best business solution.”
+23. As a result of the conduct described above, S&P willfully violated Section 
+17(a)(l) of the Securities Act, which prohibits fraudulent conduct in the offer and sale of 
+securities.  The Great Depression Article was expressly referenced in the final 2012 
+CMBS Criteria, which were considered by investors in the offer and sale of securities. 
+C.  S&P’s 2012 CMBS Criteria 
+24. On September 5, 2012, S&P published its new CMBS Criteria in a 
+publication titled “Rating Methodology And Assumptions For U.S. And Canadian 
+CMBS” (the “Criteria Publication”).
+25. With respect to CE under the new 2012 CMBS Criteria, the Criteria 
+Publication provided at Paragraph 51: “For a typical well-diversified conduit/fusion 
+transaction, the application of the criteria support a ‘AAA’ CE level of approximately 
+20%.  This would generally be reflective of a transaction with an S&P LTV range 
+between 70% and 75%, S&P DSC between 1.40x and 1.70x and an effective loan count 
+of around 30.”  Debt service coverage (DSC) and loan-to-value (LTV) ratios are the two 
+key quantitative metrics used to rate CMBS. 
+26.  Impact testing on a sample of transactions during the development of the 
+criteria did not support the range of S&P DSC and S&P LTV referenced in Paragraph 
+51.  Eight U.S. Non-agency transactions from that sample had metrics within the range 
+cited in Paragraph 51.  The impact testing showed that the AAA CE level for those eight 
+transactions would range between 14.8% and 21.3% (with an average AAA CE of 
+18.8%) under the 2012 Criteria.  In addition, six of the eight transactions had an effective 
+loan count of less than 30 and thus were not “well diversified” within the meaning of the 
+criteria.  These transactions would have resulted in lower AAA CE if they had been well 
+diversified.  Paragraph 51 of the Criteria Publication thus was inaccurate. 
+27.  Following publication and adoption of the 2012 CMBS Criteria, between 
+October 2012 and June 2014, CMBS issuers engaged S&P to rate approximately 25 new 
+issuance CMBS transactions using the new criteria.  
+28. As a result of the conduct described above, S&P violated Exchange Act 
+Rule 17g-2(a)(6), which requires that NRSROs make and retain books and records which 
+must be complete and current documenting the established procedures and methodologies 
+used to determine credit ratings. 
+Undertakings 
+Respondent has undertaken to, within thirty (30) days of the date of the entry of 
+this Order, retract all publicly available versions of the June 28, 2012 Great Depression 
+Article, and remove references to the Article in the Criteria Publication.    
+EXHIBIT II
+Ex. II-6
+
+===== PDF PAGE 31 =====
+7
+Respondent has further undertaken to, within thirty (30) days of the entry of this 
+Order, revise Paragraph 51 of the Criteria Publication to accurately describe the anchor 
+point used to develop the DF Matrix that results in the credit enhancement level as 
+described in that paragraph and to publicly disclose a corrected version of the Criteria 
+Publication. 
+IV. 
+In view of the foregoing, the Commission deems it appropriate to impose the 
+sanctions agreed to in S&P's Offer. 
+Accordingly, pursuant to Section 8A of the Securities Act and Sections 15E(d) 
+and 21C of the Exchange Act, it is hereby ORDERED that: 
+A. S&P cease and desist from committing or causing any violations and any 
+future violations of Section 17(a)(l)  of the Securities Act and Exchange Act Rule 17g-
+2(a)(6). 
+B.  S&P is censured. 
+C.  S&P shall, within thirty (30) days of the entry of this Order, pay a civil 
+money penalty of $15 million to the Securities and Exchange Commission.  If timely 
+payment is not made, additional interest shall accrue pursuant to 31 U.S.C. § 3717.  
+Payment must be made in one of the following ways: 
+(1) S&P may transmit payment electronically to the Commission, which will 
+provide detailed ACH transfer/Fedwire instructions upon request; 
+(2) S&P may make direct payment from a bank account via Pay.gov through 
+the SEC website at http://www.sec.gov/about/offices/ofm.htm; or  
+(3) S&P may pay by certified check, bank cashier’s check, or United States 
+postal money order, made payable to the Securities and Exchange Commission and hand-
+delivered or mailed to: 
+ Enterprise Services Center  
+ Accounts Receivable Branch  
+ HQ Bldg., Room 181, AMZ-341 
+ 6500 South MacArthur Boulevard 
+ Oklahoma City, OK 73169 
+EXHIBIT II
+Ex. II-7
+
+===== PDF PAGE 32 =====
+8
+Payments by check or money order must be accompanied by a cover letter 
+identifying S&P as a Respondent in these proceedings, and the file number of these 
+proceedings; a copy of the cover letter and check or money order must be sent to Michael 
+J. Osnato, Division of Enforcement, Securities and Exchange Commission, 200 Vesey 
+Street, Suite 4000, New York, New York 10281. 
+By the Commission. 
+      Brent J. Fields 
+       S e c r e t a r y  
+EXHIBIT II
+Ex. II-8
+
+===== PDF PAGE 33 =====
+UNITED STATES OF AMERICA 
+Before the 
+SECURITIES AND EXCHANGE COMMISSION 
+SECURITIES EXCHANGE ACT OF 1934 
+Release No. 74103 / January 21, 2015 
+ADMINISTRATIVE PROCEEDING 
+File No. 3-16347
+In the Matter of
+STANDARD & POOR’S 
+RATINGS SERVICES,
+Respondent.
+ORDER INSTITUTING ADMINISTRATIVE 
+AND CEASE-AND-DESIST PROCEEDINGS, 
+PURSUANT TO SECTIONS 15E(d) AND 21C 
+OF THE SECURITIES EXCHANGE ACT OF 
+1934, MAKING FINDINGS, AND IMPOSING 
+REMEDIAL SANCTIONS AND A CEASE-
+AND-DESIST ORDER 
+  
+I.
+ The Securities and Exchange Commissi on (“Commission”) deems it appropriate and in the 
+public interest that public administrative and cease-and-desist proceedings be, and hereby are, 
+instituted pursuant to Sections 15E(d) and 21C of the Securities Exchange Act of 1934 (“Exchange 
+Act”) against Standard &Poor’s Ratings Services (“S&P” or “Respondent”).
+II.
+ In anticipation of the institution of these proceedings, S&P has submitted an Offer of 
+Settlement (the “Offer”) which the Commission has determined to accept.  Solely for the purpose 
+of these proceedings and any other proceedings brought by or on behalf of the Commission, or to 
+which the Commission is a party, and without admitting or denying the findings herein, except as 
+to the Commission’s jurisdiction over it and the subject matter of these proceedings, which are 
+admitted, S&P consents to the entry of this Order Instituting Administrative and Cease-and-Desist 
+Proceedings, Pursuant to Sections 15E(d) and 21C of the Securities Exchange Act of 1934, Making 
+Findings, and Imposing Remedial Sanctions and a Cease-and-Desist Order (“Order”), as set forth 
+below. 
+EXHIBIT III
+Ex. III-1
+
+===== PDF PAGE 34 =====
+2
+III.
+ On the basis of this Order and S&P ’s Offer, the Commission finds1 that:  
+SUMMARY
+1. These proceedings involve S&P’s failure to maintain and enforce internal controls 
+regarding changes made to an assumption used in surveilling certain Residential Mortgage Backed 
+Securities (“RMBS”) supported primarily by seasoned (i.e., pre-2005) collateral with amortization 
+periods of less than 30 years (i.e., short-amortizing collateral or loans). 
+2. In August 2012, S&P published updated criteria for surveillance of ratings of 
+RMBS backed by pre-2009 originations (the “Criteria”). The Criteria sets forth S&P’s established 
+methodology for determining the appropriate loss severity (“LS”) assumptions to be used in 
+surveilling these ratings.  S&P’s LS assumptions represent the estimated losses that would be 
+incurred if a mortgage defaults and are asignificant part of S&P’s ratings analyses.    
+3. However, from approximately October 2012 through January 2014, S&P did not 
+apply the LS assumptions set forth in the Criteria to its surveillance reviews in connection with 
+bonds supported by seasoned, short-amortizing loans with low loan-to-value (“LTV”) ratios.  
+Instead, S&P conducted surveillance reviews of approximately 150 transactions containing  short-
+amortizing loans using LS assumptions that were lower than those set forth in the Criteria. 
+4.  When changing its LS assumptions for this type of loan pool, S&P did not follow 
+its internal control policies and procedures for making changes to criteria.  Throughout the relevant 
+time period, the group that performed RMBS surveillance (the “RMBS Group”) communicated 
+with various persons within S&P’s internal control structure about the proper approach to 
+surveilling ratings of bonds backed by these pools and possible changes to the Criteria, but none of 
+these persons assured that S&P timely updated the Criteria or disclosed and documented the LS 
+assumptions actually used in its surveillance reviews.   
+5. While S&P did disclose the use of lower LS assumptions in a few press releases, 
+S&P did not fully explain its methodology to determine the specific LS assumptions used to surveil 
+ratings of bonds supported by pools with seasoned, short-amortizing loans until September 2014, 
+when it published notices about its different methodology.  Throughout the relevant period, S&P 
+produced inconsistent and incomplete external disclosures and internal records concerning the LS 
+assumptions it used in its surveillance of bonds supported by seasoned, short-amortizing collateral.    
+S&P’s internal controls failed to timely detect and prevent these documentation errors.
+6. S&P self-reported this issue to the Commission and took voluntarily steps to 
+remediate and address the issues that are described herein, including clarifying its approach to 
+the surveillance of transactions supported by short-amortizing collateral in a published Criteria 
+1  The findings herein are made pursuant to Respondent ’s Offer of Settlement and are not 
+binding on any other person or entity in this or any other proceeding.  
+EXHIBIT III
+Ex. III-2
+
+===== PDF PAGE 35 =====
+3
+FAQ entitled “Criteria FAQ: Loss Severity Assumptions For Securitizations Backed By Highly 
+Seasoned Prime Jumbo And Larger-Balance Alt-A Loans” which explained S&P’s past and future 
+use of LS assumptions.  S&P has also voluntarily undertaken significant remedial measures and, 
+in response to the Commission’s investigation in this matter, has provided substantial cooperation 
+to Commission staff.      
+RESPONDENT 
+7. S&P is a Nationally Recognized Statistical Rating Organization (“NRSRO”)
+headquartered in New York City, New York.  Standard & Poor’s Ratings Services is comprised of 
+a separately identifiable business unit within Standard & Poor’s Financial Services LLC, a 
+Delaware limited liability company wholly-owned by McGraw Hill Financial, Inc. (“MHFI”), and 
+the credit ratings business housed within certain other wholly-owned subsidiaries of, or businesses 
+continuing to operate as divisions of, MHFI. 
+FACTS 
+The Criteria and Pools with Short-Amortizing Loans
+8. On August 9, 2012, S&P published the Criteria in an update called “Methodology 
+And Assumptions:  U.S. RMBS Surveillance Credit And Cash Flow Analysis For Pre-2009 
+Originations[.]”  Among other things, the Criteria described the methodology that S&P would 
+follow to determine the LS assumptions to be used to conduct surveillance on ratings of RMBS 
+bonds containing pre-2009 collateral.   First, the Criteria provides that if sufficient data were 
+available S&P would calculate the LS assumptions based on the actual performance of the pool, or 
+of closely related pools, over a finite time period. Second, if the data were not sufficient for such a 
+calculation, S&P would assume LS based on the loan type and the year that the RMBS pool was 
+created.  Loan types were designated as prime, Alt-A, negative amortization, or subprime.  The 
+assumptions were published in the Criteria in a matrix called Table 3. For example, pursuant to 
+Table 3, the LS assumption for prime pools formed before 2005 would be 40%, while the LS for 
+Alt-A pools formed before 2005 would be 50%.  Finally, Paragraph 14 of the Criteria stated as 
+follows: 
+We have derived the credit and cash flow assumptions in these criteria at the loan, pool, or 
+cohort level and will apply them to all in-scope transactions. We may apply additional 
+quantitative and/or or [sic] qualitative analysis in certain limited circumstances. We expect 
+to conduct additional analysis for less than 10% of the cases. For instance, in situations 
+where we apply cohortwide rating assumptions to a specific transaction whose performance 
+or portfolio characteristics vary significantly from other transactions within its cohort, we 
+may consider the specific differentiating factors when determining the appropriate 
+assumptions to apply. 
+9. Once the applicable LS assumptions were determined, S&P would then multiply 
+the LS percentage by the anticipated frequency of loan defaults to estimate total potential losses for 
+the loan pool.  Based on these calculations, which included assumptions designed to estimate how 
+EXHIBIT III
+Ex. III-3
+
+===== PDF PAGE 36 =====
+4
+the loans would perform in stressed economic conditions, S&P would determine whether to take a 
+rating action (i.e., upgrade, downgrade or affirm) on its ratings of the bonds. 
+10. While S&P was considering publication of the Criteria, persons within the RMBS 
+Group raised the concern that the LS assumptions in Table 3 might be too high for pools with 
+seasoned, short-amortizing loans.  It is generally expected that LS for seasoned, short-amortizing 
+loans could be lower than for 30-year loans.  The final Criteria, however, made no distinction 
+between pools with short-amortizing loans and pools containing loans with 30-year amortization 
+schedules. 
+11. Throughout the relevant period, S&P had a specific methodology for changing 
+criteria, called the Criteria Process Guidelines.  These Guidelines set forth procedures for 
+researching and approving proposed criteria changes and publishing those changes when 
+made.  Before September 2014, S&P did not publish any Criteria article specifying different LS 
+assumptions used to surveil RMBS pools with short-amortizing loans. 
+Application of Lower LS Assumptions to Pools of Loans With Less than 30-Year 
+Amortization Schedules 
+12. Following publication of the Criteria in August 2012, S&P policy required that the 
+firm review all outstanding ratings within the scope of the Criteria within six months.  This meant 
+that the RMBS Group needed to review ratings for approximately 5,000 RMBS transactions.
+Because RMBS transactions typically include many different bonds, each of which carries its own 
+rating, this required review of approximately 60,000 ratings within a six-month period.  This 
+represented a large volume of surveillance reviews for S&P’s RMBS Group to conduct within this 
+time period. 
+13. Shortly after beginning its surveillance, the RMBS Group concluded that the Table 
+3 LS assumptions were not appropriate for pools with predominately seasoned, short-amortizing 
+loans.  However, rather than proposing a revision to the Criteria, the RMBS Group determined that 
+it could apply lower LS assumptions under Paragraph 14 of the Criteria and developed an approach 
+to consistently apply lower LS assumptions in surveillance reviews of such pools. 
+14. The RMBS Group discussed the application of lower LS assumptions with certain 
+persons from two separate groups within S&P’s internal control structure:  the Quality Group and 
+the Criteria Group.
+2
+15. In an October 15, 2012 email, the RMBS Criteria Officer told the RMBS Group 
+that she agreed with the use of a 20% LS assumption, rather than the 40% provided for by Table 3, 
+for the surveillance of ratings on pools with prime jumbo collateral, originated prior to 2005, with 
+at least 85% of the pool composed of 15-year fixed rate loans. Neither the Quality Group nor the 
+2  The Quality Group was responsible for reviewing ratings to determine whether the 
+ratings procedure was appropriately documented and complied with published criteria.  
+The Criteria Group was responsible for providing guidance to the analytical group on 
+application of criteria and for enforcing the internal procedures for changes to criteria.  
+EXHIBIT III
+Ex. III-4
+
+===== PDF PAGE 37 =====
+5
+Criteria Group required that the change in LS assumptions for these short-amortizing loans follow 
+the process outlined in S&P’s Criteria Process Guidelines because they believed the use of a lower 
+LS assumption for this limited subset of collateral was permissible under Paragraph 14 of the 
+Criteria.
+16. In October and December 2012, the RMBS Group submitted two instructions to the 
+production staff, which maintained the model that S&P used for RMBS surveillance, to override 
+the default 40% LS assumption and to apply a lower LS assumption for a number of RMBS 
+structures with short-amortizing collateral.  These modifications to the LS assumptions resulted in 
+material differences in the output of S&P’s surveillance model.  
+17. From October 2012 through January 2014, S&P published rating actions in 
+connection with its surveillance of multiple batches of RMBS, which included approximately 150 
+transactions that S&P surveilled using LS assumptions (usually 20%) that were lower than the 
+values in Table 3 of the Criteria. The RMBS Group believed these lower assumptions were 
+analytically appropriate.
+18. For each bulk surveillance review conducted, S&P prepared an internal document 
+called a Rating Analysis and Methodology Profile (“RAMP”).  RAMPs are a critical part of S&P’s 
+internal control procedures.  According to S&P’s RAMP Guidelines, “The RAMP’s objective is to 
+explain the rating recommendation to voting committee members [who approved the proposed 
+rating] through application of criteria.  The RAMP captures the key drivers of the issue being rated, 
+the relevant facets of analysis, the pertinent information being considered, and the underlying 
+criteria and applicable assumptions . . . .”  Each of the RAMPs included a copy of the Criteria 
+Table 3, along with adjacent text that indicated that the LS assumptions in Table 3 were used to 
+surveil at least some of the bonds in the batch.  However, none of the RAMPs included any 
+discussions about deviations from Table 3 for pools with short-amortizing loans as part of the text 
+adjacent to Table 3, although some of the RAMPs did include some information about the use of 
+different LS assumptions for pools with short-amortizing loans elsewhere in the RAMP document.
+19. In addition, in connection with each bulk surveillance review conducted, S&P 
+published a press release describing its ratings actions and its methodology for such actions. Only 
+three of the press releases contained meaningful discussions of the deviations from Table 3.   
+20. The RMBS Group recognized the importance of internal and external disclosure 
+and record-keeping whenever they departed from the Table 3 LS assumptions.  In an email dated 
+December 14, 2012, the Lead Analytical Manager of the RMBS Group asked for the following 
+when analysts used the different LS assumptions: 
+1.  Consistent ramp disclosure – consider press release disclosure also 
+2.  Maintaining a database of deals where this is applied
+3.  Documentation of process – how often will these be updated 
+4.  External article in Jan or Feb (when all deals have been resolved) about this type of 
+collateral (less than 30 mainly 15 year). 
+EXHIBIT III
+Ex. III-5
+
+===== PDF PAGE 38 =====
+6
+21. Still, the RMBS group did not consistently include information about S&P’s 
+different approach to pools with seasoned, short-amortizing loans in the RAMPs and press 
+releases.  The omission of information from the RAMPs and press releases about the actual LS 
+assumptions used for the relevant pools rendered these documents incomplete for their intended 
+purposes. The Quality Group, which was responsible for assuring adequate documentation of 
+S&P’s ratings, knew about the RMBS Group’s different approach to these pools but did not 
+identify or correct this omission. 
+First Proposal to Amend Criteria for Short-Amortizing Loans 
+22. In December 2012 and January 2013, members of the RMBS Group developed, but 
+then later withdrew, a written proposal to change the Criteria’s LS assumptions for pools with 
+short-amortizing loans, including proposed modifications to Table 3.  The proposal did not disclose 
+that the RMBS Group had already changed its approach to pools with seasoned, short-amortizing 
+loans, and it went beyond the changes the Criteria Officer previously considered in October 2012.  
+The Criteria Officer concluded that the new proposal constituted a criteria change, rather than an 
+interpretation. 
+23. After the RMBS Group withdrew the proposal, senior personnel in the Criteria 
+Group stated in emails to certain members of the RMBS Group that the application of Paragraph 
+14 of the Criteria should be limited to unique situations, and not applied on a systematic basis.
+Despite these statements, the RMBS Group continued to believe that the Table 3 assumptions were 
+not analytically appropriate for seasoned, short-amortizing loans.  The RMBS Group continued to 
+apply lower LS assumptions in surveilling pools with seasoned, short-amortizing loans and thereby 
+did not surveil ratings in compliance with the Criteria.
+Compliance Review of LS Assumptions as Part of a Broad Inquiry into Employee Complaint 
+24. In February 2013, an employee in the RMBS Group brought numerous concerns to 
+the attention of S&P’s Compliance Department.  The Compliance Department was responsible for 
+conducting an internal investigation of the concerns raised to evaluate whether there was evidence 
+of possible violations of internal S&P policies and procedures and to recommend appropriate 
+action.
+25. One of the concerns raised by the RMBS employee was that the Table 3 
+assumptions in the Criteria were too high for pools with short-amortizing loans.  The Compliance 
+Department conducted an inquiry and found that the employee’s analytical disagreement with the 
+Table 3 assumptions was not a policy violation. 
+26. The Compliance Department inquiry regarding the employee’s complaintsended 
+May 1, 2013.  Later in May, the Compliance Department learned that the RMBS Group was not 
+consistently applying the Table 3 assumptions to pools with short-amortizing loans, but had 
+conducted surveillance reviews of over 100 ratings using LS assumptions that were lower than the 
+values provided for in Table 3.  The Compliance Department opened a second inquiry into whether 
+the use of the lower LS assumptions was consistent with the Criteria.
+EXHIBIT III
+Ex. III-6
+
+===== PDF PAGE 39 =====
+7
+Second Proposal to Amend Criteria and Continuing Uncertainty Concerning 
+Methodology 
+27. At various points in the spring and summer of 2013, members of the Criteria and 
+Quality Groups learned that the RMBS Group was conducting surveillance reviews of RMBS 
+using non-Table 3 LS assumptions.  In July 2013 the RMBS Group approached the Structured 
+Finance Criteria Committee (“SFCC”) with a written proposal to amend the Criteria to clarify the 
+LS assumptions that were being applied during the surveillance process for short-amortizing 
+collateral.
+28. The SFCC considered the proposal at a meeting on July 24, 2013, and requested 
+additional research into the impact of the change.  S&P then formed a “working group” to continue 
+to research and develop the criteria proposal about LS assumptions for short-amortizing loans.
+Although there was widespread agreement within S&P that the application of lower LS 
+assumptions for short-amortizing collateral was analytically appropriate and should be formally 
+incorporated into the Criteria, S&P did not reach a consensus on specific changes until more than a 
+year later.
+29. Both in the written proposal and at the SFCC meeting, the RMBS Group clearly 
+informed the SFCC that the purpose of the proposal was to ratify the existing practice of the 
+RMBS Group, rather than to propose new action for the future.  However, no one associated with 
+the SFCC deliberations took any steps to ensure that the Criteria was updated before the RMBS 
+Group continued to apply the lower LS assumptions to seasoned, short-amortizing loans.  They 
+also did not confirm whether the RMBS Group was adequately documenting and disclosing the LS 
+assumptions being used for short-amortizing collateral. 
+30. As noted above, in August 2013, the Compliance Department opened a second 
+inquiry to consider the RMBS Group’s use of non-Table 3 LS assumptions.  During the 
+Compliance Department’s review, it became apparent that there was a lack of clarity among 
+relevant S&P personnel as to the specific LS assumptions that were being used and should be used.   
+There were also inconsistent views as to whether the use of lower LS assumptions was permissible 
+under Paragraph 14 of the Criteria or was a change to the Criteria. The Compliance Officer who 
+conducted the inquiry determined in a preliminary draft report that non-Table 3 LS assumptions 
+should not have been applied without additional levels of review and approval within S&P.
+31. In January 2014, the RMBS Group decided to stop using non-Table 3 LS 
+assumptions for the surveillance of ratings of bonds supported by pools with short-amortizing 
+loans, pending the resolution of the pending criteria proposal. This decision was made with the 
+expectation that the SFCC would soon consider and approve LS assumptions for pools with short-
+amortizing loans.  However, the SFCC continued to consider different methodologies for several 
+months. 
+32. S&P still used non-Table 3 LS assumptions to surveil a small number of bonds 
+supported by pools with seasoned, short-amortizing loans in 2014, but surveillance reviews on 
+other bonds supported by such pools were delayed pending the resolution of the criteria proposal.  
+As a result of the delay in amending the Criteria, the RMBS Group experienced a backlog of 
+EXHIBIT III
+Ex. III-7
+
+===== PDF PAGE 40 =====
+8
+delayed surveillance.  These delays conflicted with S&P policies and procedures that required 
+timely surveillance of ratings. 
+S&P’s Notices to the Public 
+33. In addition to the press releases referenced above, on May 3, 2013, the RMBS 
+Group published an article entitled “Examining The Components Of Loan-Level Loss Severity in 
+U.S. RMBS.”  The article stated,inter alia, that “[t]he 15-year fixed-rate structure is an example of 
+when we might adjust our loss-severity assumption based on differentiating factors such as product 
+type and group-level HPI-adjusted LTV.”
+34. On August 28, 2014, S&P’s highest criteria board, the Analytics Policy Board 
+(“APB”), reviewed the LS assumptions for seasoned, short-amortizing collateral and concluded 
+that, in the vast majority of instances, the application of lower LS assumptions was analytically 
+appropriate and that the Criteria should be updated.  Nevertheless, S&P determined that it needed 
+to review LS assumptions for short-amortizing loans originated between 2005 and 2008, and on 
+September 9, 2014, S&P published an Advance Notice of Criteria Change reflecting that decision. 
+35. Also on September 9, 2014, S&P published an article entitled “Criteria FAQ: Loss 
+Severity Assumptions For Securitizations Backed By Highly Seasoned Prime Jumbo And Larger-
+Balance Alt-A Loans” that clarified the LS assumptions S&P had used and intends to use to surveil 
+securitization backed by seasoned, short-amortizing loans consistent with the APB’s conclusion.
+S&P resolved the backlog of its surveillance reviews in connection with bonds supported by short-
+amortizing collateral. S&P also disclosed error corrections in connection with certain prior rating 
+actions for which a surveillance review had been conducted using a lower LS assumption in 
+circumstances that did not fall within the September 9, 2014 Criteria FAQ.  
+VIOLATIONS 
+36. As a result of the conduct described above, S&P violated Section 15E(c)(3)(A) of 
+the Exchange Act, which requires NRSROs to establish, maintain, enforce, and document an 
+effective internal control structure governing the implementation of and adherence to policies, 
+procedures, and methodologies for determining credit ratings. 
+37. As a result of the conduct described above, S&P willfully violated Rules 17g-
+2(a)(2)(iii) and 17g-2(a)(6) under the Exchange Act, which require NRSROs to make and retain 
+complete and current records of the rationale for any material difference between the credit rating 
+implied by a model and the final credit rating issued for asset-backed or mortgage-backed securities 
+transactions and of the established procedures and methodologies used by the NRSRO to 
+determine credit ratings.
+3
+3 A willful violation of the securities laws means merely “‘that the person charged with the 
+duty knows what he is doing.’”  Wonsover v. SEC, 205 F.3d 408, 414 (D.C. Cir. 2000) 
+(quoting Hughes v. SEC, 174 F.2d 969, 977 (D.C. Cir. 1949)).  There is no requirement 
+that the actor “‘also be aware that he is violating one of the Rules or Acts.’”  Id. (quoting 
+Gearhart & Otis, Inc. v. SEC, 348 F.2d 798, 803 (D.C. Cir. 1965)). 
+EXHIBIT III
+Ex. III-8
+
+===== PDF PAGE 41 =====
+9
+COOPERATION AND REMEDIATION
+38. In determining to accept the Offer, the Commission considered S&P’s self-
+reporting of this issue to the Commission staff, the remedial acts promptly undertaken by S&P and 
+the substantial cooperation S&P afforded the Commission staff in this matter. 
+UNDERTAKINGS
+S&P has undertaken the following:  
+S&P will determine the analytically appropriate LS assumptions for pools with short-
+amortizing loans and will publish, within thirty (30) days of the date of this Order, updated 
+criteria disclosing these LS assumptions. 
+S&P, within ninety (90) days of the date of this Order, will develop measures to enhance 
+its written policies and procedures and internal control structure relating to the process for 
+changes to and approval of criteria which will be implemented on a timeframe set in consultation 
+with the Office of Credit Ratings.   
+S&P, within sixty (60) days of the date of this Order, will address any future deviations 
+from criteria in two ways:  (1) development of standard and conspicuous language to be used at 
+the start of press releases and presales where ratings resulted from deviations from published 
+criteria; and (2) tracking of all deviations from published criteria, including records of the 
+corresponding approval for such deviations, with the appointment of an overseer for purposes of 
+collection and on-going review of such data. 
+S&P shall certify, in writing, compliance with the undertakings set forth above.  The 
+certification shall identify the undertakings, provide written evidence of compliance in the form 
+of a narrative, and be supported by exhibits sufficient to demonstrate compliance.  The 
+Commission staff may make reasonable requests for further evidence of compliance, and 
+Respondent agrees to provide such evidence.  The certification and supporting material shall be 
+submitted to, 
+Thomas Butler, Director, Office of Credit Ratings, Securities and Exchange 
+Commission New York Regional Office, 3 World Financial Center, Suite 400, New York, NY 10281-
+1022, and Michael J. Osnato, Jr., Chief, Complex Financial Instruments Unit, Securities and Exchange 
+Commission, 3 World Financial Center, Suite 400, New York, NY 10281-1022, with a copy to the 
+Office of Chief Counsel of the Enforcement Division, no later than sixty (60) days from the date 
+of the completion of the undertakings.  
+IV.
+In view of the foregoing, the Commission deems it appropriate to impose the sanctions 
+agreed to in S&P’s Offer.
+EXHIBIT III
+Ex. III-9
+
+===== PDF PAGE 42 =====
+10
+Accordingly, pursuant to Sect ions 15E (d) an d 21C of t he Exc hange Act, it is hereby 
+ORDERED that: 
+A. S&P cease and desist from committing or causing any violations and any future 
+violations of Section 15E(c)(3)(a) of the Exchange Act and Exchange Act Rules 17g-2(a)(2)(iii) and 
+17g-2(a)(6). 
+B. S&P is censured. 
+C. S&P shall, within thirty (30) days of the entry of this Order, pay a civil money 
+penalty of $1 million to the Securities and Exchange Commission.  If timely payment is not made, 
+additional interest shall accrue pursuant to 31 U.S.C. § 3717.  Payment must be made in one of the 
+following ways:   
+(1) S&P may transmit payment electronically to the Commission, which will 
+provide detailed ACH transfer/Fedwire instructions upon request;  
+(2) S&P may make direct payment from a bank account via Pay.gov through 
+the SEC website at http://www.sec.gov/about/offices/ofm.htm; or  
+(3) S&P may pay by certified check , bank cashier’s check, or United States 
+postal money order, made payable to the Securities and Exchange 
+Commission and hand-delivered or mailed to:  
+Enterprise Services Center 
+Accounts Receivable Branch 
+HQ Bldg., Room 181, AMZ-341
+6500 South MacArthur Boulevard 
+Oklahoma City, OK 73169 
+Payments by check or money order must be accompanied by a cover letter identifying S&P 
+as a Respondent in these proceedings, and the file number of these proceedings; a copy of the 
+cover letter and check or money order must be sent to Michael J. Osnato, Division of Enforcement, 
+Securities and Exchange Commission, 200 Vesey Street, Suite 4000, New York, New York 10281.   
+   
+ By the Commission. 
+       B r e n t  J .  F i e l d s  
+       S e c r e t a r y  
+EXHIBIT III
+Ex. III-10
+
+===== PDF PAGE 43 =====
+EXHIBIT IV
+Ex. IV-1
+
+===== PDF PAGE 44 =====
+EXHIBIT IV
+Ex. IV-2
+
+===== PDF PAGE 45 =====
+EXHIBIT IV
+Ex. IV-3
+
+===== PDF PAGE 46 =====
+EXHIBIT IV
+Ex. IV-4
+
+===== PDF PAGE 47 =====
+EXHIBIT IV
+Ex. IV-5
+
+===== PDF PAGE 48 =====
+EXHIBIT IV
+Ex. IV-6
+
+===== PDF PAGE 49 =====
+EXHIBIT IV
+Ex. IV-7
+
+===== PDF PAGE 50 =====
+EXHIBIT IV
+Ex. IV-8
+
+===== PDF PAGE 51 =====
+EXHIBIT V
+Ex. V-1
+
+===== PDF PAGE 52 =====
+EXHIBIT V
+Ex. V-2
+
+===== PDF PAGE 53 =====
+EXHIBIT V
+Ex. V-3
+
+===== PDF PAGE 54 =====
+EXHIBIT V
+Ex. V-4
+
+===== PDF PAGE 55 =====
+EXHIBIT V
+Ex. V-5
+
+===== PDF PAGE 56 =====
+EXHIBIT V
+Ex. V-6
+
+===== PDF PAGE 57 =====
+EXHIBIT V
+Ex. V-7
+
+===== PDF PAGE 58 =====
+EXHIBIT V
+Ex. V-8
+
+===== PDF PAGE 59 =====
+EXHIBIT V
+Ex. V-9
+
+===== PDF PAGE 60 =====
+EXHIBIT V
+Ex. V-10
+
+===== PDF PAGE 61 =====
+EXHIBIT V
+Ex. V-11
+
+===== PDF PAGE 62 =====
+EXHIBIT V
+Ex. V-12
+
+===== PDF PAGE 63 =====
+EXHIBIT V
+Ex. V-13
+
+===== PDF PAGE 64 =====
+EXHIBIT V
+Ex. V-14
+
+===== PDF PAGE 65 =====
+ 
+ 
+#96329029v1  
+DISCLOSURE REPORTING PAGE (NRSRO) 
+ 
+This Disclosure Reporting Page (DRP) is to be used to provide information concerning affirmative 
+responses to Item 8 of Form NRSRO. 
+ 
+Submit a separate DRP for each person that: (a) has committed or omitted any act, or been subject to an 
+order or finding, enumerated in subparagraphs (A), (D), (E), (G), or (H) of section 15(b)(4) of the 
+Securities Exchange Act of 1934, has been convicted of any offense specified in section 15(b)(4)(B) of 
+the Securities Exchange Act of 1934, or has been enjoined from any action, conduct, or practice specified 
+in section 15(b)(4)(C) of the Securities Exchange Act of 1934; (b) has been convicted of any crime that is 
+punishable by imprisonment for 1 or more years, and that is not described in section 15(b)(4) of the 
+Securities Exchange Act of 1934, or has been convicted of a substantially equivalent crime by a foreign 
+court of competent jurisdiction; or (c) is subject to any order of the Commission barring or suspending the 
+right of the person to be associated with an NRSRO. 
+ 
+Name of Applicant/NRSRO                                                      Date 
+S&P Global Ratings                                                 November 16, 2022 
+ 
+Check Item being responded to: 
+□俶 Item 8A 
+□ Item 8B 
+□ Item 8C 
+Full name of the person for whom this DRP is being submitted: 
+S&P Global Ratings 
+ 
+If this DRP provides information relating to a “Yes” answer to Item 8A, describe the act(s) that was (were) 
+committed or omitted; or the order(s) or finding(s); or the injunction(s) (provide the relevant statute(s) or 
+regulation(s)) and provide jurisdiction(s) and date(s): 
+ 
+On November 14, 2022, the U.S. Securities and Exchange Commission (“SEC”) issued an Order 
+captioned “In the Matter of S&P Global Ratings,” in which the SEC found that S&P Global Ratings had 
+willfully violated Rules 17g-5(c)(8)(i) and 17g-5(c)(8)(ii) of the Exchange Act of 1934 and Section 
+15E(h)(1) of the Exchange Act of 1934.  See Order Instituting Administrative and Cease-and-Desist 
+Proceedings, Pursuant to Sections 15E(d) and 21C of the Securities Exchange Act of 1934, Making 
+Findings, and Imposing Remedial Sanctions and a Cease-and-Desist Order, Securities Exchange Act of 
+1934 Rel. No. 96308, Administrative Proceeding File No. 3-21240 (attached as Exhibit VI). 
+ 
+ 
+If this DRP provides information relating to a “Yes” answer to Item 8B, describe the crime(s) and provide 
+jurisdiction(s) and date(s): 
+ 
+     Not applicable.  
+ 
+If this DRP provides information relating to a “Yes” answer to Item 8C, attach the relevant Commission 
+order(s) and provide the date(s): 
+ 
+    Not applicable.  
+
+===== PDF PAGE 66 =====
+1
+UNITED STATES OF AMERICA
+Before the
+SECURITIES AND EXCHANGE COMMISSION
+SECURITIES EXCHANGE ACT OF 1934
+Release No. 96308 / November 14, 2022
+ADMINISTRATIVE PROCEEDING
+File No. 3-21240
+In the Matter of
+S&P Global Ratings, 
+Respondent.
+ORDER INSTITUTINGADMINISTRATIVE 
+AND CEASE-AND-DESIST PROCEEDINGS 
+PURSUANT TO SECTIONS 15E(d) AND
+21C OF THE SECURITIES EXCHANGE 
+ACT OF 1934, MAKING 
+FINDINGS, AND 
+IMPOSING REMEDIAL SANCTIONS AND 
+A CEASE-AND-DESIST ORDER
+I.
+The Securities and Exchange Commission (“Commission”) deems it appropriate and in the 
+public interest that public administrative and cease-and-desist proceedings be, and hereby are, 
+instituted pursuant to Sections 15E(d) and 21C of the Securities Exchange Act of 1934 (“Exchange 
+Act”) against S&P Global Ratings (“S&P” or “Respondent”).
+II.
+In anticipation of the institution of these proceedings, Respondent has submitted an Offer of 
+Settlement (the “Offer”) which the Commission has determined to accept. Solely for the purpose of 
+these proceedings and any other proceedings brought by or on behalf of the Commission, or to 
+which the Commission is a party, and without admitting or denying the findings herein, except as to 
+the Commission’s jurisdiction over it and the subject matter of these proceedings, which are 
+admitted, Respondent consents to the entry of this Order Instituting Administrative and Cease-and-
+Desist Proceedings Pursuant to Sections 15E(d) and 21C of the Securities Exchange Act of 1934, 
+Making Findings, and Imposing Remedial Sanctions and a Cease-and-Desist Order (“Order”), as set 
+forth below.
+EXHIBIT 9I
+
+===== PDF PAGE 67 =====
+2
+III.
+On the basis of this Order and Respondent’s Offer, the Commission finds1 that:
+Summary
+1. This matter arises from the rating of a residential mortgage backed security
+(“RMBS”) transaction by S&P Global Ratings in 2017. At that time, S&P had not rated a prime 
+“jumbo”RMBS transaction in over two years and had not rated any transaction for this issuer since 
+early 2015. S&P commercial employees viewed the engagement as a very positive development for 
+S&P and its RMBS ratingbusiness.
+2. In late July 2017, S&P provided preliminary feedback to the issuer, indicating that
+certain super senior tranches issued as part of the RMBS transaction met the minimum credit 
+enhancement floor required by S&P’s written RMBS criteria to assign “AAA” ratings to those 
+tranches. In August 2017, the S&P employees responsible for evaluating and assigning the rating 
+(the “S&P analytical employees” or the “S&P analytical team”), informed the issuer that they had 
+miscalculated the minimum credit enhancement floor required by S&P’s criteria, and that those 
+tranches were actually ten basis points below the minimum credit enhancement floor needed for 
+“AAA” ratings. A few days later, after further analysis and discussion, the S&P analytical 
+employees drew a different conclusion and told the issuer that the transaction actually did meet 
+S&P’s minimum credit enhancement floor requirements, only to withdraw that assurance, again, 
+shortly afterward. As a result of these events, the issuer repeatedly expressed its disappointment and 
+frustration to certain S&P employees responsible for managing the relationship with the issuer (the 
+“S&P commercial employees”) and, on a call with the S&P analytical employees, threatened to sue 
+S&P because it had revised its ratings feedback during a key marketing period for the offering. The 
+issuer communicated to the S&P commercial employees that if S&P could not rate the super senior 
+and senior support classes “AAA” and “AA,”respectively, the issuer would drop S&P from the 
+transaction and would permanently end its relationship with S&P’s RMBS team, which one S&P 
+commercial employee believed would result in “a huge reputational hit forS&P.”
+3. As the S&P analytical employees re-evaluated the transaction, over a five-day
+period from August 4 to 9, the S&P commercial employees engaged in multiple communications 
+with the S&P analytical employees and compliance personnel, including numerous emails and 
+meeting requests, as well as several telephone calls. Through these communications over a short 
+period, the S&P commercial employees attempted to exert pressure on S&P analytical employees 
+to find a way to rate the transaction consistent with the preliminary indications that S&P had 
+provided to the issuer and consequently became“participa[nts]”in the ratings process for purposes 
+of Rule 17g-5(c)(8). Although all communications between the S&P commercial and analytical 
+employees were chaperoned by staff from S&P’s Compliance department, certain of the emails 
+sent by the S&P commercial employees to the S&P analytical team contained statements reflecting 
+sales and marketing considerations, including that the issuer needed to decide quickly whether to 
+1 The findings herein are made pursuant to Respondent’s Offer of Settlement and are not 
+binding on any other person or entity in this or any other proceeding.
+EXHIBIT 9I
+
+===== PDF PAGE 68 =====
+3
+move forward without S&P and that the potential exclusion from rating the transaction could 
+significantly impact S&P’s ability to participate in the prime RMBS rating market and present 
+general reputational risk.
+4. Against that backdrop, the S&P analytical employees, working late on the night
+before the preliminary rating committee meeting, analyzed a unique structural feature of the 
+transaction that the issuer had urged them to evaluate and concluded that it could provide the extra 
+ten basis points needed to satisfy S&P’s “AAA” minimum credit enhancement floor. Their analysis
+relied, in part, on an exercise of analytical judgment concerning an economic outlook that extended 
+beyond the period covered by the economic forecast developed by S&P’s economic forecasting 
+team for rating purposes.
+5. As a result of the content, urgent nature, high volume, and compressed timing of the
+communications between the S&P commercial employees and the S&P analytical team, the S&P 
+commercial employees consequently became “participa[nts]” in the rating process for this RMBS 
+transaction during a time when they were participating in, and being influenced by, sales and 
+marketing considerations. Rule 17g-5(c)(8) is violated when a Nationally Recognized Statistical 
+Rating Organization (“NRSRO”) issues or maintains a credit rating where an individual who 
+participates in sales and marketing activities seeks to influence the determination of a credit rating, 
+or the rating procedures and methodologies used to determine a credit rating, even if the 
+individual’s conduct does not influence the credit rating or rating procedures or methodologies. 
+S&P Global Ratings violated Rules 17g-5(c)(8)(i) and 17g- 5(c)(8)(ii) of the Exchange Act. In 
+addition, S&P Global Ratings failed to establish, maintain, and enforce written policies and 
+procedures reasonably designed to ensure compliance with Exchange Act Rules 17g-5(c)(8)(i) and 
+17g-5(c)(8)(ii) and thereby violated Section 15E(h)(1) of the Exchange Act.
+Respondent
+6. S&P Global Ratings is an NRSRO headquartered in New York, New York. S&P is
+comprised of the credit ratings business (i) within Standard &Poor’s Financial Services LLC, a
+Delaware limited liability company wholly owned by S&P Global Inc., and (ii) operated by various
+other subsidiaries that are predominantly wholly-owned, directly or indirectly, by S&P Global Inc.
+Background
+A. S&P’s Conflicts of Interest Policy Required Certain Communications Between
+Commercial and Analytical Employees to be Chaperoned by Compliance
+7. In 2017, S&P’s conflicts of interest policies and procedures assigned employees to
+one of several roles based on the employee’s responsibilities. The roles included, among others, 
+analytical, commercial, and control (e.g., compliance).
+8. S&P’s policies and procedures at the time further required that certain
+communications between commercial and analytical employees regarding a ratings engagement or 
+ratings analysis be “chaperoned” by compliance. To satisfy this requirement, email 
+communications between commercial and analytical employees often would be sent first to 
+compliance for review and possible redaction, before being distributed by compliance to the 
+EXHIBIT 9I
+
+===== PDF PAGE 69 =====
+4
+intended recipient(s). Compliance personnel also were required to be present on and monitor 
+certain calls between commercial and analytical personnel.
+9. Following an internal compliance review that was prompted by the unusual events
+surrounding the rating of this RMBS transaction, as described more fully below, S&P voluntarily 
+enhanced its policies and procedures regarding communications between commercial and 
+analytical employees.
+B. S&P was Retained to Rate a Jumbo RMBS Transaction and Provided the Issuer with
+a Preliminary Rating Indication Which Contained a CalculationError
+10. In early July 2017, an issuer engaged S&P, along with several other rating agencies,
+to rate a jumbo RMBS transaction.2 It was the first jumbo transaction that S&P had been engaged to
+rate in more than two years and its first rating for this issuer since early 2015. An S&P commercial 
+employee described the engagement to other commercial employees as a “bigwin.”
+11. An S&P analytical employee who initially ran S&P’s loss coverage model on the
+RMBS transaction made a mistake that impacted preliminary feedback provided by S&P to the 
+issuer on July 18, 2017. The error implicated a particular aspect ofS&P’sRMBS criteria called the 
+tail risk criteria.
+3 The tail risk criteria required S&P to consider the structural protections provided 
+by an RMBS to determine whether they are sufficient to mitigate the likelihood of back-end losses 
+that may occur as certain loan tranches are paid down over time. The preliminary feedback 
+provided by S&P indicated that S&P’s written tail risk criteria required only a 60-basis-point 
+minimum credit enhancement floor for a“AAA” rating, which would be satisfied by the 65-basis-
+point credit enhancement floor included in the proposed structure.
+12. Based on the preliminary rating indication provided by S&P, the issuer asked S&P to
+proceed with the rating process, a development that an S&P commercial employee described to 
+other commercial employees as“apositive turning point for thebusiness.”
+C. After the Error was Discovered, the S&P Commercial Employees Repeatedly
+Communicated with the S&P Analytical Employees Concerning the Rating Process
+13. The S&P analytical employees discovered the mistake on Friday, August 4, 2017.
+Upon correcting the error, S&P’s analysis now indicated that the written criteria required 
+protection equivalent to a 75-basis-point minimum credit enhancement floor for a AAA rating. A 
+member ofS&P’sanalytical team promptly alerted the issuer. Upon learning of the error, the issuer 
+2 “Jumbo” is an industry term referring to mortgages whose value exceeds the conforming 
+loan limit set on mortgages eligible for purchase by Fannie Mae and Freddie Mac.
+3 “Tail risk” is the risk that as the outstanding loan count decreases during a transaction’slife 
+that a default in a limited number of loans – particularly those with higher balances – can 
+significantly affect rating stability, depending on available credit support. S&P’s RMBS criteria 
+provides specific methodologies and assumptions for analyzing tail risk.
+EXHIBIT 9I
+
+===== PDF PAGE 70 =====
+5
+immediately contacted the S&P commercial employees to raise concerns about S&P’s changed 
+analysis.
+14. The S&P commercial employees stated to other commercial team members, at that
+time, that the issuer had threatened that, if S&P’s “ratings were changing, [S&P was] off the deal” 
+and that,“byremoving [S&P] from the deal, [the issuer] was also ending the relationship in RMBS 
+indefinitely and would also drop all [S&P] servicer and originator rankings.” An S&P commercial 
+employee concluded in communications to other commercial team members that such aresult would
+be a “hugereputationalhit”for S&P and“havemajor ramifications for[S&P’s]reentry in to [sic]
+the prime RMBS sector of the market. . . .”
+15. The S&P commercial employees then contacted the S&P analytical team by a
+chaperoned email sent on August 4. The email stated that the head of theissuer’sRMBS group had 
+called concerning the error and had told the S&P commercial employees that the issuer was in the 
+process of marketing the deal, that 92 percent of the offering had been sold, and that the issuer had to
+“makea call by [the following day] whether to move ahead with or withoutS&P.”
+16. The email from the S&P commercial employees also contained the following
+sentence, which was redacted by the reviewing compliance official who forwarded the email to the 
+S&P analytical team: “This of course has major ramifications for entry into the Prime RMBS 
+sector and reputational risk.” Subsequently, however, another S&P compliance official sent an 
+unredacted version of the same email to the S&P analytical team, which included the statement 
+quoted above. Later on August 4, at approximately 10:00 p.m., a chaperoned telephone call took 
+place between the S&P commercial and analytical employees to discuss the rating process.
+17. On or about the same day, the issuer informed S&P that it no longer would engage
+S&P to rate the subordinate bonds in the RMBS offering, but would continue to engage S&P to rate 
+the senior “AA” bonds –for which the indicative rating remained unchanged – and the super 
+senior “AAA” bonds –for which there was only a 10-basis-point difference between the loss 
+coverage requirements under S&P’s tail risk criteria and the issuer’s65-basis-point credit 
+enhancement floor.
+18. The issuer urged S&P’s analytical team to consider whether a structural payment
+priority feature– or trigger– included in the deal could supply protectionequivalenttothe 10 basis 
+points needed to bridge the gap between the 75-basis-points minimum credit enhancement 
+protection required by S&P’s written RMBS criteria for “AAA” ratings and the 65-basis-point 
+credit enhancement floor included in the RMBS transaction.
+19. An S&P commercial employee noted to other S&P commercial employees thatS&P’s
+potential ability to rate the super senior and senior support bonds was “a determining factor in 
+[S&P’s] ability to salvage the relationship to a degree” and that there seemed to be “a clear
+delineation in [theissuer’s]ability to manage the fallout between the senior and sub investors . . ..”
+D. The S&P Analytical Team Received, but Misunderstood, Advice Concerning Whether
+and How to Analyze the TriggerFeature
+20. Over the weekend of August 5 and 6, 2017, one of the S&P analytical employees
+EXHIBIT 9I
+
+===== PDF PAGE 71 =====
+6
+sought advice from an employee in S&P’s criteria group regarding how to analyze the deal’s trigger
+feature.4 At about the same time, an S&P commercial employee reached out to the same criteria
+employee, via a chaperoned email, to impress uponhim the importance of answering the issuer
+quickly.
+21. The criteria employee advised the analytical team that it could exercise analytical
+judgment in analyzing the trigger feature. Based on that guidance, members of the S&P analytical 
+team used their analytical judgment to conclude that the trigger “sufficiently mitigate[d] tail risk 
+for the ‘AAA’ super seniorbond.”
+22. As a result, on Monday, August 7, the S&P analytical employees informed the
+issuer that S&P could issue a “AAA” rating for the super senior bonds in the RMBS transaction 
+and, at theissuer’srequest, confirmed its preliminary rating indications in writing. In light ofS&P’s 
+assurances, the issuer revised its deal documents and continued marketing the deal, and S&P 
+remained engaged to rate a portion of the offering. On the same day, the commercial and analytical 
+employees held a chaperoned call to discuss the status ofS&P’sreview of the transaction.
+23. In an internal email sent to other commercial employees on August 7, the S&P
+commercial employees indicated that the issuer had told them that the outcome, although not ideal, 
+was “muchbetter than having to drop S&P[,] which would have‘been disastrous.’”They also stated 
+that the issuer had said that it would retain S&P to rate the super senior and senior support bonds, 
+that the “analytical fireworks” would be “ring-fenced” on the issuer’s end, and that the issuer likely 
+would ask S&P to preliminarily assess theissuer’supcoming jumbo deals.
+24. On Tuesday, August 8, following discussions among compliance, criteria and
+analytical employees, it was determined that there may have been a misunderstanding between the 
+criteria team and the S&P analytical employeesas to the extent to which S&P’s RMBS criteria 
+allowed the analysts to exercise analytical judgment under the circumstances.
+25. As a result of those internal discussions , on August 8, notwithstanding that on the
+day before S&P had confirmed that 65 basis points plus the trigger would be sufficient for a“AAA” 
+rating, one of the S&P analytical employees told the issuer that it was his understanding that the 
+transaction needed to have at least a 75-basis-point minimum credit enhancement floor, after all, in 
+order for S&P to issue a “AAA”rating.
+26. The issuer threatened to sue S&P and demanded that S&P reconsider its
+determination. Also on August 8, the head of the issuer’s RMBS group emailed an S&P 
+commercial employee to tell him that because S&P had confirmed its prior analysis in writing on 
+August 7, the issuer had revised its deal documents and was“notin a position to make any updates 
+4 Among other things, S&P’s criteria group is responsible for providing guidance to 
+analytical employees concerning the application of S&P’s written criteria during the rating process. 
+Criteria employees are categorized as analytical employees for purposes of S&P’s conflict of 
+interest policy.
+EXHIBIT 9I
+
+===== PDF PAGE 72 =====
+7
+to the structure…,” and that “[t]he ask [was] totally unacceptable.”
+E. The S&P Analytical Team Concluded that the Trigger Feature Provided the Extra
+Credit Support Needed to SatisfyS&P’sRMBS Criteria
+27. After these events and communications, the analytical team met again with the
+senior criteria employee who had raised concerns about the manner in which the S&P analytical 
+employees had exercised analytical judgment indetermining the rating of the super senior bonds. 
+During that meeting, the senior criteria employee clarified his prior comments and expressed the 
+view that the S&P analytical team properly could apply analytical judgment in its choice of 
+economic scenarios to test the trigger feature, but not in determining what the required level of 
+protection ought to be. A preliminary rating committee meeting was scheduled for Wednesday, 
+August 9.
+28. Between the evening of August 8 and the meeting on August 9, the S&P analytical
+employees ran multiple economic scenarios using various assumptions in an effort to determine 
+how much credit to assign to the trigger feature and, inparticular, whether the trigger could furnish 
+at least 10 basis points of additional credit support.
+29. During the evening of August 8, via a chaperoned call, an analytical employee
+spoke to one of the S&P commercial employees concerning the status of the S&P analytical team’s 
+work on the rating analysis, and conveyed that there was “no resolution as of yet,” but that the S&P 
+analytical team would be“workingthrough the night on various scenarios and cash flowruns,”and 
+that “an analytical committee [would] be held [the next day] to determine the final outcome, at 
+which time a final decision [would] be provided to [the issuer].” The S&P commercial employees 
+later reported the substance of the conversation to other commercial employees and to S&P’s Head 
+of Global Ratings. Also during the evening of August 8, S&P’s Chief Credit Officer asked a criteria
+group employee“whetheror not [the Analysts] ran a scenarioto find the 10 [basis points.]” 
+(Emphasis added.) The criteria employee responded that they had and that they would do 
+“additional runs to see how sensitive the trigger is to different loss levels before making a final 
+decision in terms of how much credit to give thetrigger.”
+30. On Wednesday, August 9, the S&P commercial employees became frustrated that
+the S&P analytical team was not keeping the issuer informed, after the issuer had told the S&P 
+commercial employees that it was“progressingunder the assumption that [S&P will] getthere” and 
+that the issuer expected to price the offering at 4:00 p.m. that day. An S&P commercial employee 
+sent a chaperoned email to the S&P analytical team stating that the issuer was pressing them for 
+answers and that the analytical team should update the issuer because of the “[s]ensitivity of [the] 
+live transaction.” A compliance official redacted the “[s]ensitivity of [the] live transaction” 
+sentence from the email before forwarding it to the analytical team, but an unredacted copy of the 
+email containing that statement subsequently was sent to the analysts by another compliance 
+official.
+31. In total, between the time the error was discovered on August 4 and the preliminary
+rating committee on August 9, the S&P commercial and analytical employees exchanged numerous 
+emails and meeting requests and engaged in several telephone calls chaperoned by compliance 
+EXHIBIT 9I
+
+===== PDF PAGE 73 =====
+8
+personnel. S&P Global Ratings’ policies and procedures that required certain communications 
+between analytical and commercial staff to bechaperoned by compliance employees were not 
+reasonably designed to address and manage the situation, such as happened here, given the volume, 
+nature, and timing of even chaperoned communications for this rating. Moreover, as discussed 
+above, chaperone-redacted content from S&P commercial employees ultimately was transmitted, 
+unredacted, to the analytical staff.
+32. In advance of the preliminary rating committee on August 9, the S&P analytical
+team determined the trigger could supply the requisite 10 basis points if a “BB-” or worse 
+economic stress scenario was projected to occur within 15 years.
+5 S&P’s written RMBS criteria 
+provide that S&P’s economic outlook is determined through an internal committee of senior 
+analysts, economists, and senior credit officers. That economic outlook, however, does not provide 
+any statement regarding expected macroeconomic conditions beyond a three-to-five-year time 
+horizon. Therefore, the analytical team conducted its own economic research for purposes of the 
+tail risk analysis to determine whether a “BB-” or worse economic scenario was likely to occur 
+within 15 years. Based on historical analysis of prior economic cycles, the S&P analytical team 
+concluded that a modest economic stress scenario would likely occur within 15 years, and that, 
+therefore, the trigger feature provided adequate support in all reasonably likely economic scenarios during 
+the projected life of the transaction. The S&P analytical team presented their trigger analysis to the 
+preliminary rating committee meeting on August 9,and, shortly before the issuer priced the 
+transaction, the committee voted unanimously to approve the proposed ratings, which provided for 
+“AAA”and “AA”ratings for the super senior and senior support bonds,respectively.
+33. On August 14, during the period between the preliminary and final rating
+committee meetings, S&P published a presale report detailing S&P’s preliminary ratings and 
+analysis of the RMBS transaction. The presale report stated that “[t]he defined 0.65% credit 
+enhancement floor specified in the transaction documents is below the 0.75% [S&P] calculated for 
+‘AAA’ rated super-senior certificates.” The presale report also discussed S&P’s analysis of the 
+relevant structural feature, concluding that, “[g]iven past economic cycles,” S&P “believe[d] that at 
+least a modest economic stress scenario will likely occur within [15 years] and thus concluded the 
+structural feature would trip. This would provide at least a 0.75% credit enhancement floor to the 
+super seniors.”
+34. On August 17, the S&P commercial employees emailed the issuer expressing their
+“deepest apologies” for the “serious challenges” presented on the RMBS transaction. The issuer 
+asked them to provide preliminary feedback on another RMBS transaction. In an internal email 
+among commercial employees, they noted that “[f]ollowing some challenges with both analytical 
+messaging and delivery,” S&P had rated its first RMBS prime-jumbo transaction with the issuer in 
+over two and a half years and it was a“significant breakthrough for [S&P’s] brand” with the issuer 
+5 Specifically, the analysis from the S&P analytical employees showed that the only scenario 
+in which the trigger was not projected to trip before the credit enhancement dropped below the 
+level required by the RMBS criteria was the scenario in which economic conditions remained at 
+the “B” or “mild” economic stress scenarios, for over 15 years.
+EXHIBIT 9I
+
+===== PDF PAGE 74 =====
+9
+that should “generate positive visibility” with otherissuers.
+F. S&P’s Ratings Risk Review Group Disagreed with the Manner in which Analytical
+Judgment was Applied, but Concluded that There was No Misapplication ofS&P’s
+RMBS Rating Criteria
+35. Although the preliminary rating committee unanimously voted in favor of the
+proposed ratings, during the period between the preliminary and final rating committee meetings, 
+renewed concern was raised within S&P regarding the trigger analysis. The issue was referred to 
+S&P’s Ratings Risk Review (“RRR”) group, which conducted a review of the ratings analysis. 
+RRR ultimately disagreed with the manner in which the S&P analytical employees had exercised 
+their analytical judgment. Specifically, RRR disagreed with the S&P analytical team’s conclusion 
+as part of their exercise of analytical judgment that a“BB-” economic scenario was likely to occur 
+within 15 years for purposes of tail risk, while also using the“B”economic scenario as the lifetime 
+expected loss scenario for purposes of determining loss coverage requirements. However, RRR
+concluded that there was no misapplication of S&P’s RMBS criteria.
+36. In light of RRR’s findings, as well as the questions raised regarding the atypical
+analytical approach used for the tail risk analysis, S&P changed the composition of the final ratings 
+committee to ensure that it included new members who had not been involved in the underlying 
+analysis or preliminary ratings process. RRR was asked to present its findings to the final rating 
+committee, and the S&P analytical employees were provided an opportunity to respond. After 
+hearing from both RRR and the S&P analytical team regarding the analytical approach used to 
+recommend AAA and AA ratings to the super-senior and senior notes, respectively, the final rating 
+committee voted unanimously to approve the S&P analytical employees’ recommendation on 
+August 29 and the rating letter was issued on August 30.
+37. Following the events described above, S&P undertook an internal investigation regarding
+the circumstances surrounding the rating of the transaction.  It self-reported the conduct at issue to 
+Commission staff, shared facts developed in its internal investigation, and facilitated Commission staff 
+interviews with witnesses. S&P also took certain remedial measures, including voluntarily remediating 
+its conflicts of interest policies and procedures and instituting enhanced training regarding its 
+conflicts of interest policies and procedures. In particular, S&P revised its conflicts of interest 
+policies and procedures to prohibit all communications between commercial and analytical 
+employees – excepting only chaperoned communications with certain senior analytical managers –
+regarding (a) any new credit rating, from the time that analytical work for the purpose of 
+determining such credit rating has commenced until the credit rating has been released, or (b) any 
+outstanding credit rating from the time a rating committee meeting to review the credit rating has 
+been scheduled until the credit rating has been released.
+EXHIBIT 9I
+
+===== PDF PAGE 75 =====
+10
+Violations
+38. As a result of the conduct described above, S&P Global Ratings willfully6
+violated Rules 17g-5(c)(8)(i) and 17g-5(c)(8)(ii) of the Exchange Act. Rule 17g-5(c)(8)(i) 
+forbids NRSROs from issuing or maintaining a credit rating where a person within the 
+NRSRO who participates in determining or monitoring the credit rating, or developing or 
+approving procedures or methodologies used for determining the credit rating, also 
+participates in sales or marketing of a product or service of the NRSRO or an affiliate of 
+the NRSRO. Rule 17g-5(c)(8)(ii) forbids an NRSRO from issuing or maintaining a rating 
+if a person who participates in the rating, or in developing or approving the procedures or 
+methodology used in the rating, is influenced by sales or marketing considerations.
+39. S&P Global Ratings also willfully failed to establish, maintain, and enforce written
+policies and procedures reasonably designed to ensure compliance with Rules 17g-5(c)(8)(i) and 
+17g-5(c)(8)(ii), and therefore violated Section 15E(h)(1) of the ExchangeAct.
+S&P Global Ratings’ Remedial Efforts and Cooperation
+In determining to accept the Offer, the Commission considered the remedial acts 
+undertaken by Respondent and cooperation afforded the Commission staff during the investigation,
+as described more fully above.
+Undertakings
+Respondent has undertaken to: (a) review and enhanceS&P Global’s policies and 
+procedures relating to conflicts of interest, and (b) withdraw the ratings that are the subject of this 
+Order, as required pursuant to Rules 17g-5(c)(8)(i) and 17g- 5(c)(8)(ii) in light of the findings set 
+forth in this Order.
+Certify, in writing, compliance with the undertaking(s) set forth above. The certification 
+shall identify the undertaking(s), provide written evidence of compliance in the form of a narrative, 
+and be supported by exhibits sufficient to demonstrate compliance. The Commission staff may 
+make reasonable requests for further evidence of compliance, and Respondent agrees to provide 
+such evidence. The certification and supporting material shall be submitted to Assistant Directors 
+Jeffrey Weiss and Yuri B. Zelinsky, 100 F St., N.E., Washington, DC 20549, with a copy to the 
+Office of Chief Counsel of the Enforcement Division, no later than sixty (60) days from the date of 
+the completion of the undertakings.
+6 “Willfully,” for purposes of imposing relief under Section 15E(d)(1) of the Exchange Act,
+“‘means no more than that the person charged with the duty knows what he is doing.’” Wonsover 
+v. SEC, 205 F.3d 408, 414 (D.C. Cir. 2000) (quotingHughes v. SEC, 174 F.2d 969, 977 (D.C. Cir.
+1949)). There is no requirement that the actor “also be aware that he is violating one of the Rules
+or Acts.” Tager v. SEC, 344 F.2d 5, 8 (2d Cir. 1965).
+EXHIBIT 9I
+
+===== PDF PAGE 76 =====
+11
+IV.
+In view of the foregoing, the Commission deems it appropriate, in the public interest, and for 
+the protection of investors to impose the sanctions agreed to in Respondent’s Offer.
+Accordingly, pursuant to Sections 15E(d) and 21C of the Securities Exchange Act of 1934,
+it is hereby ORDERED that:
+A. Respondent S&P Global Ratings cease and desist from committing or causing any
+violations and any future violations of Rules 17g-5(c)(8)(i) and 17g-5(c)(8)(ii) under the Exchange 
+Act and Exchange Act Section 15E(h)(1);
+B. Respondent S&P Global Ratings is censured; and
+C. S&P Global Ratings shall, within 15 days of the entry of this Order, pay a civil
+money penalty in the amount of $2,500,000.00 to the Securities and Exchange Commission for 
+transfer to the general fund of the United States Treasury, subject to Exchange Act Section 
+21F(g)(3). If timely payment is not made, additional interest shall accrue pursuant to 31 U.S.C. §
+3717.
+Payment must be made in one of the following ways:
+(1) Respondent may transmit payment electronically to the Commission, which will
+provide detailed ACH transfer/Fedwire instructions upon request;
+(2) Respondent may make direct payment from a bank account via Pay.gov through the
+SEC website athttp://www.sec.gov/about/offices/ofm.htm;o r
+(3) Respondent may pay by certified check, bank cashier’s check, orUnited States postal
+money order, made payable to the Securities and Exchange Commission and hand-
+delivered or mailed to:
+Enterprise Services Center
+Accounts Receivable Branch
+HQ Bldg., Room 181,AMZ-341
+6500 South MacArthur Boulevard
+Oklahoma City, OK 73169
+Payments by check or money order must be accompanied by a cover letter identifying S&P 
+Global Ratings as a Respondent in these proceedings, and the file number of these proceedings; a
+copy of the cover letter and check or money order must be sent to Stacy Bogert, Associate Director, 
+Division of Enforcement, Securities and Exchange Commission, Division of Enforcement, 
+Securities and Exchange Commission, 100 F St., N.E., Washington, DC 20549 and to Osman 
+Nawaz, CFI Unit Chief, Division of Enforcement, Securities and Exchange Commission, New York 
+Regional Office, 100 Pearl St., Ste. 20-100, New York, NY 10004-2616.
+EXHIBIT 9I
+
+===== PDF PAGE 77 =====
+12
+D. Amounts ordered to be paid as civil money penalties pursuant to this Order shall be
+treated as penalties paid to the government for all purposes, including all tax purposes. To preserve 
+the deterrent effect of the civil penalty, Respondent agrees that in any Related Investor Action, it
+shall not argue that it is entitled to, nor shall it benefit by, offset or reduction of any award of
+compensatory damages by the amount of any part ofRespondent’spayment of a civil penalty in this 
+action (“Penalty Offset”). If the court in any Related Investor Action grants such a Penalty Offset, 
+Respondent agrees that it shall, within 30 days after entry of a final order granting the Penalty 
+Offset, notify the Commission’s counsel in this action and pay the amount of the Penalty Offset to 
+the Securities and Exchange Commission. Such a payment shall not be deemed an additional civil
+penalty and shall not be deemed to change the amount of the civil penalty imposed in this proceeding. 
+For purposes of this paragraph, a “Related Investor Action” means a private damages action brought 
+against Respondent by or on behalf of one or more investors based on substantially the same facts as 
+alleged in the Order instituted by the Commission in this proceeding.
+E. Respondent shall comply with the undertakings enumerated in Section III, above.
+By the Commission.
+Vanessa A. Countryman 
+Secretary
+EXHIBIT 9I

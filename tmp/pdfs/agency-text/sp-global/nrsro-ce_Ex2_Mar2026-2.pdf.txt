@@ -1,0 +1,1794 @@
+
+===== PDF PAGE 1 =====
+Exhibit 2. A description of the procedures and methodologies used in determining credit ratings.  
+ 
+  Exhibit 2 is attached and made a part of this Form NRSRO.  
+ 
+The following documents attached below describe the procedures and methodologies used in 
+determining credit ratings.   
+ 
+Note: Capitalized terms used but not defined in the policies below generally will have the meanings assigned in 
+the Glossary of Terms included within this Exhibit. 
+ 
+Document: 
+1. Principles of Credit Ratings 
+ 
+2. Glossary  
+ 
+3. General Description of the Credit Rating Process 
+ 
+4. Assignment of Credit Ratings  
+ 
+5. Withdrawal, Discontinuance, and Suspension  
+ 
+6. Sufficient Information (Quality of Information) 
+ 
+7. Rating Committee 
+ 
+8. Issuer Notification (including Issuer Appeals) 
+ 
+9. Ratings Release  
+ 
+10. Surveillance 
+ 
+11. Error Correction 
+ 
+12. Prohibited Activities 
+ 
+13. Model Use 
+ 
+14. Methodology         
+ 
+15. Ratings Vendor Management 
+ 
+16. Analysis of Information a nd Application of Criteria 
+  
+
+===== PDF PAGE 2 =====
+
+
+ 
+ 
+ 
+ 
+ 
+General Criteria: 
+ 
+(Editor's Note: On May 1, 2023, we republished this criteria article to make nonmaterial changes. See the "Revisions And 
+Updates" section for details.) 
+ 
+ 
+6	3*OREDO5DWLQJVXVHVDSULQFLSOHVEDVHGDSSURDFKIRUDVVLJQL QJDQGPRQLWRULQJUDWLQJV
+JOREDOO\ 7KHVHEURDGSULQFLSOHVDSSO\ JHQHUDOO\ WR UDWLQJV RIDOO W\SHVRI FRUSRUDWHVJRYHUQPHQWV
+VHFXULWL]DWLRQVWUXFWXUHVDQGDVVHWFODVVHV+RZHYHUIRUFHUWDLQW\SHVRILVVXHUVLVVXHVDVVHW
+FODVVHVPDUNHWVDQGUHJLRQV6	3*OREDO5DWLQJVFRPSOHPHQWVW KHVHSULQFLSOHVZLWKVSHFLILF
+PHWKRGRORJLHVDQG DVVXPSWLRQV
+:HDOVRGHWHUPLQHUDWLQJVE\DSSO\LQJGHILQLWLRQDOFRQFHSWVDQG DWWULEXWHVRIRXUUDWLQJVDV
+GHVFULEHGLQRXUUDWLQJGHILQLWLRQVZKHQDSSURSULDWH)RUH[DPSOHRXUGHILQLWLRQRIWKH
+'
+UDWLQJ
+FDWHJRU\IRUPVWKHEDVLVIRUDVVLJQLQJD
+'
+UDWLQJ5HDGHUVVKRXOGUHDGWKLVDUWLFOHLQFRQMXQFWLRQ
+ZLWK6	3*OREDO5DWLQJV'HILQLWLRQV
+6	3*OREDO5DWLQJVDVVLJQVFUHGLWUDWLQJVWRERWKLVVXHUVDQGL VVXHVDQGVWULYHVWRPDLQWDLQ
+FRPSDUDELOLW\ RI UDWLQJVDFURVV VHFWRUV DQG RYHU WLPH 7KDW LV 6	3 *OREDO 5DWLQJV LQWHQGV IRU HDFK
+UDWLQJV\PEROWRFRQQRWHWKHVDPHJHQHUDOOHYHORIFUHGLWZRUWKL QHVVIRULVVXHUVDQGLVVXHVLQ
+GLIIHUHQWVHFWRUVDQGDWGLIIHUHQWWLPHV(QKDQFLQJFRPSDUDELOL W\UHTXLUHVFDOLEUDWLQJWKHFULWHULD
+IRUGHWHUPLQLQJUDWLQJV6	3*OREDO5DWLQJVFDOLEUDWHVFULWHULD WKURXJKYDULRXVPHDQVLQFOXGLQJ
+PHDVXULQJGHIDXOWEHKDYLRUDFURVVVHFWRUVDQGRYHUWLPHDSSO\L QJFRPPRQDSSURDFKHVWRULVN
+DQDO\VLVDQGXVLQJDFRPPRQVHWRIPDFURHFRQRPLFVFHQDULRVDVV RFLDWHGZLWKWKHGLIIHUHQW
+UDWLQJ OHYHOV 7KH VFHQDULR DVVRFLDWHG ZLWK WKH 
+$$$
+ UDWLQJ OHYHO LV RQH RI H[WUHPH PDFURHFRQRPLF
+VWUHVVRQSDUZLWKWKH*UHDW'HSUHVVLRQRIWKHV7KHVFHQ DULRVDVVRFLDWHGZLWKWKHORZHU
+UDWLQJ OHYHOVDUH VXFFHVVLYHO\OHVV VWUHVVIXO &UHGLWV UDWHG LQ HDFK FDWHJRU\ DUH LQWHQGHG WR EH DEOH
+WRZLWKVWDQGWKHDVVRFLDWHGOHYHORIPDFURHFRQRPLFVWUHVVZLWKRXWGHIDXOWLQJDOWKRXJKZHPLJKW
+VLJQLILFDQWO\ORZHUWKHUDWLQJVRQWKRVHFUHGLWVDVHFRQRPLFVWUHVVHVLQFUHDVH
+
+7KHVHFULWHULDDSSO\WRUDWLQJVRIDOOLVVXHUVDQGLVVXHVUDWHG E\6	3*OREDO5DWLQJV 
+
+7KHDQDO\WLFIUDPHZRUNIRUVWUXFWXUHGILQDQFHVHFXULWL]DWLRQUD WLQJVLQFOXGHVILYHNH\DUHDV 
+ &UHGLWTXDOLW\RIWKHVHFXULWL]HGDVVHWV
+ /HJDODQGUHJXODWRU\ULVNV
+London 
+(44) 20-7176-3507 
+lapo.guadagnuolo 
+@spglobal.com 
+Tokyo 
+(81) 3-4550-8719 
+takamasa.yamaoka 
+@spglobal.com 
+Centennial 
++ 1 (303) 721 4670 
+matthew.albrecht 
+@spglobal.com 
+Buenos Aires 
+(54) 114-891-2128 
+marta.castelli 
+@spglobal.com 
+London 
+(44) 20-7176-3736 
+andrea.quirk 
+@spglobal.com 
+London 
++ 44 20 7176 3761 
+andrew.bowyer 
+@spglobal.com 
+
+
+===== PDF PAGE 3 =====
+
+
+ 
+ 
+ 3D\PHQWVWUXFWXUHDQGFDVKIORZPHFKDQLFV
+ 2SHUDWLRQDODQGDGPLQLVWUDWLYHULVNVDQG
+ &RXQWHUSDUW\ULVN
+7KHDQDO\WLFIUDPHZRUNIRUFRUSRUDWHDQGJRYHUQPHQWUDWLQJVLQF OXGHVWKUHHNH\DUHDV 
+ &UHGLWZRUWKLQHVVEHIRUHH[WHUQDOVXSSRUW 
+ ([WHUQDOVXSSRUW DQG
+ $QDO\VLVRIVSHFLILFLQVWUXPHQWV
+)RUERWKVWUXFWXUHGILQDQFHDQGFRUSRUDWHDQGJRYHUQPHQWUDWLQJ VDQREOLJDWLRQ
+VUDWLQJPD\
+UHIOHFWWKHZHDNOLQNDSSURDFKVHHSDUDJUDSK 
+
+,QPRVWVHFXULWL]DWLRQWUDQVDFWLRQVWKHILUVWNH\VWHSLQDQDO \]LQJWKHFUHGLWTXDOLW\RIWKH
+VHFXULWL]HGDVVHWVLVGHWHUPLQLQJWKHDPRXQWRIFUHGLWVXSSRUW QHFHVVDU\LQRXURSLQLRQWR
+PDLQWDLQDUDWLQJDWWKH
+$$$
+OHYHO7KDWGHWHUPLQDWLRQLVHTXLYDOHQWWRHVWLPDWLQJWKHDPRXQWRI
+ORVVHVWKDWWKHDVVHWVZRXOGVXIIHUXQGHUFRQGLWLRQVRIH[WUHPH VWUHVV7KHHVWLPDWLRQFDQ
+LQFOXGHUHIHUHQFHWRKLVWRULFDOVWXGLHVRIWKHVXEMHFWDVVHWFO DVVRUZKHQVXFKVWXGLHVDUHQRW
+DYDLODEOH DQG DV ZH GHHP DSSURSULDWH FRPSDULVRQ RU EHQFKPDUNLQJ UHODWLYH WR DVVHW FODVVHV IRU
+ZKLFKVXFKVWXGLHVGRH[LVW
+)RUVRPHDVVHWFODVVHVWKHHVWLPDWLRQPD\SURFHHGLQVWDJHV: HPLJKWVHSDUDWHO\HVWLPDWH
+DVVHWGHIDXOW IUHTXHQFLHV DQGORVV VHYHULWLHV XQGHUH[WUHPHVWUHVVFRQGLWLRQV DQG WKHQFRPELQH
+WKRVHFRPSRQHQWVWRIRUPWKHRYHUDOOORVVHVWLPDWH6LPLODUO\ IRUVRPHDVVHWFODVVHVWKH
+HVWLPDWLRQPD\XVHJHQHUDOL]DWLRQVEDVHGRQKLVWRULFDOVWXGLHVVXFKDVWKHQRWLRQWKDWORVVHV
+XQGHUH[WUHPHVWUHVVFRQGLWLRQVFDQEHHVWLPDWHGDVDPXOWLSOH RIH[SHFWHGORVVHVZLWKWKH
+PXOWLSOHSRWHQWLDOO\YDU\LQJIRUGLIIHUHQWDVVHWFODVVHV
+ )RU VRPH DVVHW FODVVHV 6	3 *OREDO 5DWLQJV GHILQHV DQ DUFKHW\SLFDO DVVHW SRRO DQG XVHV LW DV D
+FRPSDULVRQEHQFKPDUNIRUJDXJLQJWKHHVWLPDWHGORVVHVXQGHUH[W UHPHVWUHVVIRUSRROV
+XQGHUO\LQJDFWXDO WUDQVDFWLRQV LQ VXFK DVVHW FODVVHV ,Q VRPH FDVHVWKHPD[LPXPUDWLQJIRUWKH
+KLJKHVW UDWHGVHFXULW\ PD\EHEHORZ
+$$$
+EDVHGRQRXU DVVHVVPHQW RI IDFWRUV VXFK DV FRXQWU\
+ULVNRUWUDQVIHUDQGFRQYHUWLELOLW\ULVNDQGZHZRXOGDGMXVWWKHDQDO\VLVDFFRUGLQJO\
+,QPDQ\VHFXULWL]DWLRQWUDQVDFWLRQVDNH\VWHSLQDQDO\]LQJWK HFUHGLWTXDOLW\RIWKHVHFXULWL]HG
+DVVHWVLVHVWLPDWLQJWKHOHYHORIH[SHFWHGORVVHV7KHOHYHORI H[SHFWHGORVVHVJHQHUDOO\
+FRUUHVSRQGVWRWKHDPRXQWRIFUHGLWHQKDQFHPHQWDVVRFLDWHGZLWKWKH
+%
+UDWLQJOHYHO(VWLPDWLRQ
+RIH[SHFWHGORVVHVJHQHUDOO\XVHVWKHUHFHQWSHUIRUPDQFHRIVLP LODUDVVHWVDVDJXLGH7KH
+HVWLPDWLRQPD\LQFOXGHDGMXVWPHQWVEDVHGRQRXUDVVHVVPHQWRIF XUUHQWWUHQGVDVZHOODV
+HYROYLQJPDUNHW SUDFWLFHV
+,QWHUSRODWLRQLVRQHRIWKHPHWKRGVZHPD\XVHZKHQZHDQDO\]H WKHDPRXQWRIFUHGLW
+HQKDQFHPHQWDVVRFLDWHGZLWKWKHUDWLQJOHYHOVEHWZHHQ
+$$$
+DQG 
+%
+IRUWUDQVDFWLRQVLQFHUWDL Q
+DVVHW FODVVHV )RU RWKHU DVVHW FODVVHV ZH FUHDWH VSHFLILF EHQFKPDUNV VXFK DV FRYHUDJH PXOWLSOHV
+RUVLPXODWHGGHIDXOWUDWHVZLWKLQDPDWKHPDWLFDOVLPXODWLRQPRGHO
+
+===== PDF PAGE 4 =====
+
+
+
+ 2XU YLHZ RQ WKH FUHGLW TXDOLW\ RI D SRRO RI DVVHWV PD\ FKDQJH RYHU WLPH 7KH SHUIRUPDQFH RI WKH
+SRRO PD\ GLYHUJH IURP H[SHFWDWLRQV DQG WKDW GLYHUJHQFH PD\ UHYHDO FUHGLW VWUHQJWKV RU ZHDNQHVV
+WKDW ZHUH QRWSUHYLRXVO\ DSSDUHQW 7KURXJK RXU VXUYHLOODQFHSURFHVVHV ZH UHDVVHVV WKH FUHGLW
+TXDOLW\RIWKHSRROEDVHGRQFHUWDLQ LQIRUPDWLRQUHJDUGLQJ WKHREVHUYHGSHUIRUPDQFHDQGRWKHU
+IDFWRUVZHGHHPUHOHYDQW
+
+ 6	3*OREDO 5DWLQJV
+DVVHVVPHQWRI OHJDODQG UHJXODWRU\ULVNV IRFXVHV SULPDULO\ RQ WKH GHJUHH WR
+ZKLFKDVHFXULWL]DWLRQVWUXFWXUHLVRODWHVWKHVHFXULWL]HGDVVHWVIURPWKHEDQNUXSWF\RULQVROYHQF\
+ULVNRIHQWLWLHVWKDWSDUWLFLSDWHLQWKHWUDQVDFWLRQ7\SLFDOO\ RXUDQDO\VLVIRFXVHVRQWKHHQWLW\RU
+HQWLWLHVWKDWRULJLQDWHGDQGRZQHGWKHDVVHWVEHIRUHWKHVHFXUL WL]DWLRQDOWKRXJKWKH
+FUHGLWZRUWKLQHVVRIRWKHUHQWLWLHVDOVRPD\EHUHOHYDQW$WUXHVDOHRIWKHVXEMHFWDVVHWVIURPWKH
+RULJLQDWRUVHOOHU WRD VSHFLDOSXUSRVHHQWLW\63( LVRQH PHWKR GFR P PR QO\ X VH GE\D QDUU D QJ HU
+VHHNLQJWRDFKLHYHDVVHWLVRODWLRQLQDVHFXULWL]DWLRQ)URPD OHJDOSHUVSHFWLYHDWUXHVDOHLV
+JHQHUDOO\XQGHUVWRRGWRUHVXOWLQWKHDVVHWVFHDVLQJWREHSDUW RIWKHVHOOHU
+VEDQNUXSWF\RU
+LQVROYHQF\HVWDWH7KHUHPD\DOVREHRWKHUOHJDOPHFKDQLVPVDS DUWIURPWUXHVDOHWKDWPD\
+DFKLHYHDQDORJRXVFRPIRUW63(VDUHHQWLWLHVWKDWW\SLFDOO\DUHXVHGLQDVHFXULWL]DWLRQWUDQVDFWLRQ
+WRKRXVHWKHDVVHWVWKDWZLOOEDFNWKHSD\PHQWREOLJDWLRQVXVXDOO\UHSUHVHQWHGE\WKHVHFXULWLHV
+L V V X H G E \ W K H 6 3 (  , Q W K H F R Q W H [ W R I R X U D Q D O \ V L V  6 	 3 * O R E D O 5DWLQJV IRUPVDQ RSLQLRQDERXW WKH
+L Q V R O Y H Q F \ U H P R W H Q H V V R I D Q 6 3 ( E D V H G R Q R X U H Y D O X D W L R Q R I W K H VSHFLILF IDFWV DQG FLUFXPVWDQFHV
+WKDW ZHYLHZDVDSSOLFDEOHWRDSDUWLFXODUWUDQVDFWLRQ$PRQJRWKHUWKLQJVWKHDQDO\VLVFRQVLGHUV
+ZKHWKHU WKHVHSDUDWHOHJDOLGHQWLW\RIWKH63(ZRXOGEHUHVSHFWHGE\EDQNUXSWF\FRXUWVRUERGLHV
+FKDUJHGZLWKVLPLODUIXQFWLRQV,QDGGLWLRQZHDVVHVVWKHSUHV HQFHRIIHDWXUHVLQWHQGHGWR
+PLQLPL]HWKHOLNHOLKRRGWKDWWKH63(LWVHOIEHFRPHVWKHVXEMHFWRIEDQNUXSWF\
+
+ 7KHUDWLQJDQDO\VLVIRUVWUXFWXUHGILQDQFHW\SLFDOO\LQFOXGHVDQDQDO\VLVRISD\PHQWVWUXFWXUHDQG
+FDVK IORZ PHFKDQLFV7KLVSRUWLRQRI WKHDQDO\VLV PD\ LQYROYHERWKDVVHVVLQJ WKHGRFXPHQWDWLRQ
+IRUDVHFXULW\DQGWHVWLQJWKHFDVKIORZVXVLQJTXDQWLWDWLYHPRGHOV,QERWKFDVHVWKHREMHFWLYHLV
+WRDVVHVVZKHWKHUWKHFDVKIORZIURPWKHVHFXULWL]HGDVVHWVZRXOGEHVXIILFLHQWDWWKHDSSOLFDEOH
+UDWLQJOHYHOVWRPDNHWLPHO\SD\PHQWVRILQWHUHVWDQGXOWLPDWHSD\PHQWRISULQFLSDOWRWKHUHODWHG
+VHFXULWLHVDIWHUWDNLQJDFFRXQWRIDYDLODEOHFUHGLWHQKDQFHPHQ WDQGDOORZLQJIRUWUDQVDFWLRQ
+H[SHQVHV VXFK DV VHUYLFLQJ DQG WUXVWHH IHHV 7KH DQDO\VLV PD\HQFRPSDVV GLYHUVH IHDWXUHV RI WKH
+SD\PHQWVWUXFWXUHDQGFDVKIORZPHFKDQLFVUDQJLQJIURPWKHEDVLFSD\PHQWSULRULWLHVLQKHUHQWLQ
+DGHDO LH WKH VXERUGLQDWLRQKLHUDUFK\RI WUDQFKHV WR WKH LPSDFW RI SHUIRUPDQFH FRYHQDQWV LH
+VRFDOOHGWULJJHUVWKDWPD\RSHUDWHDVVZLWFKHVWKDWPDWHULD OO\FKDQJHWKHGLVWULEXWLRQ
+SULRULWLHVLIWKH\DUHEUHDFKHG)LQDOO\IRUVHFXULWLHVWKDWH PERG\VXSSRUWIDFLOLWLHVIURPWKLUG
+SDUWLHVVXFKDVLQVXUDQFHSROLFLHVJXDUDQWHHVEDQNFUHGLWDQGOLTXLGLW\IDFLOLWLHVDQGGHULYDWLYHV
+LQVWUXPHQWVWKHDQDO\VLVIRFXVHVRQWKHSD\PHQWPHFKDQLFVIRUWKRVHREOLJDWLRQV
+
+7KHDQDO\VLVRIRSHUDWLRQDODQGDGPLQLVWUDWLYHULVNVLVDQRWKHU SDUWRIWKHVWUXFWXUHGILQDQFH
+UDWLQJDQDO\VLV7KLVSDUWRIWKHDQDO\VLVIRFXVHVRQNH\WUDQVDFWLRQSDUWLHVWRGHWHUPLQHZKHWKHU
+WKH\DUHFDSDEOHRIPDQDJLQJDVHFXULWL]DWLRQRYHULWVOLIH.H\WUDQVDFWLRQSDUWLHVPD\LQFOXGHD
+WUDQVDFWLRQ
+V VHUYLFHU RU PDQDJHU WKH DVVHW PDQDJHU RI D FROODW H U D O L ] H G G H E W R E O L J D W L R Q  & ' 2   W K H 
+WUXVWHHWKHSD\LQJDJHQWDQGDQ\RWKHUWUDQVDFWLRQSDUW\KHU HLQZHFROOHFWLYHO\UHIHUWRWKHVH
+SDUWLHVDV VHUYLFHUV
+
+===== PDF PAGE 5 =====
+
+
+
+ ,Q VHFXULWL]DWLRQV LQYROYLQJ PDQ\ DVVHW FODVVHV WKHDQDO\VLV IRFXVHV RQ HYDOXDWLQJD VHUYLFHU
+V RU
+PDQDJHU
+VDELOLW\WRSHUIRUPLWVGXWLHVVXFKDVUHFHLYLQJWLPH O\SD\PHQWVSXUVXLQJFROOHFWLRQ
+HIIRUWVRQGHOLQTXHQWDVVHWVIRUHFORVLQJRQDQGOLTXLGDWLQJFROODWHUDOWUDFNLQJFDVKUHFHLSWVDQG
+GLVEXUVHPHQWVDQGSURYLGLQJWLPHO\DQGDFFXUDWHLQYHVWRUUHSRUWV)RUWUDQVDFWLRQV WKDWLQYROYH
+UHYHQXHSURGXFLQJDVVHWVHJFRPPHUFLDOSURSHUW\WKHDQDO\ VLVPD\LQFOXGHDVZHGHHP
+DSSURSULDWHDVVHVVPHQWRIFHUWDLQLQFUHPHQWDOULVNVDVVRFLDWHGZLWKPDQDJLQJWKHDVVHWV)RU
+DFWLYHO\PDQDJHGSRUWIROLRVWKHDQDO\VLVFRQVLGHUVWKHDVVHWP DQDJHU
+VFDSDELOLWLHVDQGSDVW
+SHUIRUPDQFHDVDQDVVHWPDQDJHU
+7KHDQDO\VLVRIRSHUDWLRQDODQGDGPLQLVWUDWLYHULVNVJHQHUDOO\ FRQVLGHUVWKHSRVVLELOLW\WKDWD
+VHUYLFHUPD\EHFRPHXQDEOHRUXQZLOOLQJWRSHUIRUPLWVGXWLHVGXULQJWKHOLIHRIWKHWUDQVDFWLRQ,Q
+WKDW YHLQWKHDQDO\VLVPD\FRQVLGHUERWKWKHSRWHQWLDOIRUKLULQJDVXEVWLWXWHRUVXFFHVVRUVHUYLFHU
+DQG DQ\ DUUDQJHPHQWV WKDWSURYLGH IRU DGHVLJQDWHGEDFNXS VHUYLFHU7KDWSRUWLRQRIWKHDQDO\VLV
+ZRXOG W\SLFDOO\FRQVLGHUWKHVXIILFLHQF\RIWKHVHUYLFLQJIHHWR DWWUDFWDVXEVWLWXWHWKHVHQLRULW\RI
+WKHIHHLQWKHSD\PHQWSULRULWLHVDQGWKHDYDLODELOLW\RIVXEVWLWXWHVHUYLFHUV
+
+ 7KHILIWKSDUWRIWKHUDWLQJDQDO\VLVLVWKHDQDO\VLVRIFRXQWHUSDUW\ULVN7KDWDQDO\VLVIRFXVHVRQ
+WKLUGSDUW\REOLJDWLRQVWRHLWKHUKROGDVVHWVLQFOXGLQJFDVKRUPDNHILQDQFLDOSD\PHQWVWKDWPD\
+DIIHFWWKHFUHGLWZRUWKLQHVVRIVWUXFWXUHGILQDQFHLQVWUXPHQWV ([DPSOHVRIFRXQWHUSDUW\ULVNV
+LQFOXGHH[SRVXUHVWRLQVWLWXWLRQVWKDWPDLQWDLQNH\DFFRXQWVDQ GH[SRVXUHVWRWKHSURYLGHUVRI
+GHULYDWLYHFRQWUDFWVVXFKDVLQWHUHVWUDWHVZDSVDQGFXUUHQF\V ZDSV7KHFRXQWHUSDUW\ULVN
+DQDO\VLVFRQVLGHUVERWKWKHW\SHRIGHSHQGHQF\DQGWKHUDWLQJR IWKHFRXQWHUSDUW\IRUHDFK
+FRXQWHUSDUW\UHODWLRQVKLSLQDWUDQVDFWLRQ
+
+ 7KHPRVWLPSRUWDQWVWHSLQDQDO\]LQJWKHFUHGLWZRUWKLQHVVRIDFRUSRUDWHRUJRYHUQPHQWDOREOLJRU
+LVJDXJLQJWKHUHVRXUFHVDYDLODEOHWRLWIRUIXOILOOLQJLWVFRPPLWPHQWVUHODWLYHWRWKHVL]HDQGWLPLQJ
+RIWKRVHFRPPLWPHQWV$VVHVVLQJDQREOLJRU
+VUHVRXUFHVIRUIXOILOOLQJLWVILQDQFLDOFRPPLWPHQWVLV
+SULPDULO\DIRUZDUGORRNLQJH[HUFLVH,WPD\HQWDLOHVWLPDWLQJRUSURMHFWLQJIXWXUHLQFRPHDQGFDVK
+IORZV,WPD\LQFOXGHFRQVLGHUDWL RQRIHFRQRPLFFRQGLWLRQVWKH UHJXODWRU\HQYLURQPHQWDQG
+HFRQRPLFSURMHFWLRQVDQGIRUHFDVWV)RUEXVLQHVVHQWLWLHVIXWX UHLQFRPHDQGFDVKIORZVPD\
+FRPHSULPDULO\IURPRQJRLQJRSHUDWLRQVRULQYHVWPHQWV)RUJRYH UQPHQWDOHQWLWLHVLQFRPHDQG
+FDVK IORZV PD\FRPHSULPDULO\ IURP WD[HV ,Q VRPH FDVHVRWKHUUHVRXUFHV LQFOXGLQJ OLTXLGDVVHWV
+RULQWKHFDVHRIDVRYHUHLJQREOLJRUWKHDELOLW\WRSULQWFXUUHQF\PD\EHUHOHYDQW
+ 7KHDVVHVVPHQWRIUHVRXUFHVFRQVLGHUVERWKWKHH[SHFWHGOHYHORIIXWXUHLQFRPHDQGFDVK IORZV
+DQG WKHLUSRWHQWLDOYDULDELOLW\)RUDOOW\SHVRIREOLJRUVWKHDVVHVVPHQWLQFOXGHVERWKTXDOLWDWLYH
+DQGTXDQWLWDWLYH IDFWRUV
+ 7KHTXDQWLWDWLYHVLGHRIWKHDQDO\VLVIRFXVHVSULPDULO\RQILQDQFLDODQDO\VLVDQGPD\LQFOXGHDQ
+HYDOXDWLRQRIDQREOLJRU
+VDFFRXQWLQJSULQFLSOHVDQGSUDFWLFHV
+ )RUEXVLQHVVHQWLWLHVNH\ILQDQFLDOLQGLFDWRUVJHQHUDOO\LQFOX GHSURILWDELOLW\OHYHUDJHFDVKIORZ
+DGHTXDF\ OLTXLGLW\ DQG ILQDQFLDO IOH[LELOLW\ )RU ILQDQFLDO LQVWLWXW LRQV DQG LQVXUHUV RWKHU FULWLFDO
+IDFWRUVPD\LQFOXGHDVVHWTXDOLW\UHVHUYHVIRUORVVHVDVVHWOLDELOLW\PDQDJHPHQWDQGFDSLWDO
+
+===== PDF PAGE 6 =====
+
+
+
+DGHTXDF\ 2IIEDODQFH VKHHW LWHPV VXFK DV VHFXULWL]DWLRQV GHULYDWLYH H[SRVXUHV OHDVHV DQG
+SHQVLRQOLDELOLWLHVPD\DOVREHSDUWRIWKHTXDQWLWDWLYHDQDO\VLV&DVKIORZDQDO\VLVDQGOLTXLGLW\
+DVVXPHKHLJKWHQHGVLJQLILFDQFHIRUILUPVZLWKVSHFXODWLYHJUDGHUDWLQJV
+%%
+DQGORZHU
+)RUJRYHUQPHQWDOHQWLWLHVWKHTXDQWLWDWLYHIDFWRUVZHDVVHVVD UHGLIIHUHQWIURPWKHIDFWRUVZH
+DVVHVVIRUEXVLQHVVHQWLWLHVWKH\JHQHUDOO\LQFOXGHERWKHFRQR PLFIDFWRUVDQGEXGJHWDU\DQG
+ILQDQFLDOSHUIRUPDQFHDVZHOO DVDGGLWLRQDO LWHPV IRU VRYHUHLJQREOLJRUV7KHHFRQRPLFVLGH RI WKH
+DQDO\VLV W\SLFDOO\ HQFRPSDVVHV GHPRJUDSKLFV ZHDOWK DQG JURZWK SURVSHFWV 7KH EXGJHWDU\ DQG
+ILQDQFLDOVLGHJHQHUDOO\LQFOXGHVEXGJHWUHVHUYHVH[WHUQDOOLT XLGLW\DQGVWUXFWXUDOEXGJHW
+SHUIRUPDQFH)RUVRYHUHLJQREOLJRUVDGGLWLRQDOTXDQWLWDWLYHID FWRUVWKDWPD\LQRXUYLHZEH
+UHOHYDQWWRRXUDQDO\VLVLQFOXGHILVFDOSROLF\IOH[LELOLW\PRQ HWDU\SROLF\IOH[LELOLW\LQWHUQDWLRQDO
+LQYHVWPHQWSRVLWLRQDQGFRQWLQJHQWOLDELOLWLHVDVVRFLDWHGZLWK SRWHQWLDOVXSSRUWIRUWKHILQDQFLDO
+VHFWRU
+ 7UHQGVRYHUWLPHDQGSHHUFRPSDULVRQVPD\EHSDUWRIWKHTXDQWLWDWLYHDQDO\VLVIRUERWKEXVLQHVV
+DQGJRYHUQPHQWDO HQWLWLHV
+2QWKHTXDOLWDWLYHVLGHWKHDQDO\VLVRIEXVLQHVVHQWLWLHVIRFX VHVRQYDULRXVIDFWRUVLQFOXGLQJ
+FRXQWU\ULVNLQGXVWU\FKDUDFWHULVWLFVDQGHQWLW\VSHFLILFIDF WRUV:HLQWHQGIRURXUDQDO\VLVRIWKH
+FRXQWU\ULVNIDFWRUWRFDSWXUHRXUDVVHVVPHQWRIWKHILQDQFLDO DQGRSHUDWLQJHQYLURQPHQWWKDW
+DSSOLHVEURDGO\WREXVLQHVVHVLQDSDUWLFXODUFRXQWU\LQFOXGLQ JDFRXQWU\
+VSK\VLFDOOHJDODQG
+ILQDQFLDOLQIUDVWUXFWXUH+LVWRULFDOO\WKLVDVVHVVPHQWKDVRIW HQRSHUDWHGWRFRQVWUDLQWKHUDWLQJV
+RIEXVLQHVVHQWLWLHVLQFRXQWULHVWKDWKDYHKLJKFRXQWU\ULVN
+,QGXVWU\FKDUDFWHULVWLFVW\SLFDOO\HQFRPSDVVJURZWKSURVSHFWV YRODWLOLW\DQGWHFKQRORJLFDO
+FKDQJH DVZHOO DV WKH GHJUHHDQGQDWXUHRIFRPSHWLWLRQ%URDGO\ VSHDNLQJ WKH ORZHU WKH LQGXVWU\
+ULVNWKHKLJKHUWKHSRWHQWLDOFUHGLWUDWLQJIRUDQREOLJRULQWKDWVHFWRU7KHDQDO\VLVDOVRFRQVLGHUV
+FHUWDLQHQWLW\VSHFLILFIDFWRUVWKDWZHEHOLHYHFDQGLVWLQJXLVK DQLQGLYLGXDOREOLJRUIURPLWVSHHUV
+7KHVHPD\LQFOXGHGLYHUVLILFDWLRQRIWKHREOLJRU
+VSURGXFWVDQG VHUYLFHVDVZHOODVULVN
+FRQFHQWUDWLRQVSDUWLFXODUO\IRUDILQDQFLDOLQVWLWXWLRQ2EOLJ RUVSHFLILFIDFWRUVDOVRPD\LQFOXGH
+RSHUDWLRQDOHIIHFWLYHQHVVRYHUDOOFRPSHWLWLYHSRVLWLRQVWUDWH J\JRYHUQDQFHILQDQFLDOSROLFLHV
+ULVNPDQDJHPHQWSUDFWLFHVDQGULVNWROHUDQFH
+ 4XDOLWDWLYHIDFWRUVIRUJRYHUQPHQWDOHQWLWLHVDUHVRPHZKDWGLIIHUHQWIURPWKHIDFWRUVIRUEXVLQHVV
+HQWLWLHV2XUDQDO\VLVPD\HQFRPSDVVSROLWLFDOULVNVLQFOXGLQJWKHHIIHFWLYHQHVVDQGSUHGLFWDELOLW\
+RISROLF\PDNLQJDQGLQVWLWXWLRQVDQGWKHWUDQVSDUHQF\RISURFHV VHVDQGGDWDDQGWKH
+DFFRXQWDELOLW\RILQVWLWXWLRQV,QDGGLWLRQIRUVRYHUHLJQREOL JRUVFRQVLGHUDWLRQRISROLWLFDOULVNV
+PD\LQFOXGHDQDVVHVVPHQWRIWKHSRWHQWLDOIRUZDUUHYROXWLRQRURWKHUVHFXULW\UHODWHGHYHQWVWR
+DIIHFWFUHGLWZRUWKLQHVV2WKHUTXDOLWDWLYHFRQVLGHUDWLRQVWKDW PD\EHSDUWRIDQDQDO\VLVRID
+JRYHUQPHQWDOREOLJRULQFOXGHUHYHQXHIRUHFDVWLQJH[SHQGLWXUHF RQWUROORQJWHUPFDSLWDO
+SODQQLQJGHEWPDQDJHPHQWDQGFRQWLQJHQF\SODQQLQJ)LQDOO\W KHDVVHVVPHQWRID
+JRYHUQPHQWDOREOLJRUIRFXVHVRQWKHSRWHQWLDOWKDWWKHREOLJRUPLJKWGHIDXOWHYHQZKHQLWKDVWKH
+UHVRXUFHVWRPHHWLWVILQDQFLDOFRPPLWPHQWV
+
+,QDGGLWLRQWRRXUDVVHVVPHQWRIDQREOLJRU
+VVWDQGDORQHFUHGL WZRUWKLQHVV6	3*OREDO5DWLQJV
+
+DQDO\VLVFRQVLGHUVWKHOLNHOLKRRGDQGSRWHQWLDODPRXQWRIH[WHU QDOVXSSRUWRULQIOXHQFHWKDW
+FRXOGHQKDQFHRUGLPLQLVKWKHREOLJRU
+VFUHGLWZRUWKLQHVV:KH QDQREOLJRU
+VFUHGLWRUVKDYHWKH
+EHQHILWRIFRQWUDFWXDOVXSSRUWVXFKDVDJXDUDQWHHIURPDKLJK HUUDWHGJXDUDQWRUWKHDQDO\VLV
+PD\ DVVLJQ WKH JXDUDQWRU
+V UDWLQJ WR WKH VXSSRUWHG LVVXH RU LVVXHU+RZHYHU WKLV RFFXUVRQO\ZKHQ
+WKHJXDUDQWHHVDWLVILHVVWULQJHQWFRQGLWLRQVDQGJXDUDQWHHVIXO ODQGWLPHO\SD\PHQWRIWKH
+XQGHUO\LQJREOLJDWLRQ 
+
+===== PDF PAGE 7 =====
+
+
+
+$SDUWIURPIRUPDOJXDUDQWHHVWKHDQDO\VLVFRQVLGHUVWKHSRWHQW LDOIRURWKHUVXSSRUWIURP
+DIILOLDWHGEXVLQHVVHQWLWLHVJRYHUQPHQWVDQGPXOWLODWHUDOLQV WLWXWLRQV)RUDIILOLDWHGEXVLQHVV
+HQWLWLHVWKHDQDO\VLVFRQVLGHUVERWKWKHGHJUHHRIVWUDWHJLFL PSRUWDQFHRIVXEVLGLDULHVRU
+DIILOLDWHVWRGHWHUPLQHWKHOLNHOLKRRGDQGGHJUHHRIVXSSRUWE\DVWURQJHUSDUHQWDQGWKHSDUHQW
+V
+FDSDFLW\WRSURYLGHVXFKVXSSRUW
+)RUJRYHUQPHQWDOVXSSRUWWKHDQDO\VLVFRQVLGHUVWKHSRWHQWLDO IRUYDULRXVIRUPVRIVXSSRUW)RU
+H[DPSOH WKH DQDO\VLV FRQVLGHUV SRWHQWLDO VXSSRUW IRU JRYHUQPHQWUHODWHG HQWLWLHV *5(V VXFK DV
+FHUWDLQSXEOLFXWLOLWLHVWUDQVSRUWDWLRQV\VWHPVDQGILQDQFLDO FRPSDQLHV7KHDQDO\VLVRID*5(
+FRQVLGHUVWKHUROHWKDWWKHHQWLW\SOD\VDQGWKHQDWXUHRILWVOLQNVWRLWVJRYHUQPHQW$VLPLODUOLQH
+RIDQDO\VLVDSSOLHVWRWKHSRWHQWLDOIRUH[WUDRUGLQDU\JRYHUQPH QWVXSSRUWWREDQNVWKDWLQRXU
+YLHZKDYHV\VWHPLFLPSRUWDQFHLQDQDWLRQDOHFRQRP\,QWKHFD VHRIDVRYHUHLJQREOLJRUWKH
+DQDO\VLVFRQVLGHUVWKHSRWHQWLDOIRUVXSSRUWIURPPXOWLODWHUDO LQVWLWXWLRQVHJWKH,QWHUQDWLRQDO
+0RQHWDU\)XQG >,0)@
+7KHDVVHVVPHQWRISRWHQWLDOH[WHUQDOVXSSRUWJHQHUDOO\GRHVQRW LQFOXGHWKHEHQHILWVWKDWDQ
+REOLJRUUHFHLYHV PHUHO\ E\ EHLQJ SDUW RI D V\VWHP RU IUDPHZRUN:HFRQVLGHU WKRVHEHQHILWV LQ WKH
+DVVHVVPHQWRILQGXVWU\FKDUDFWHULVWLFVRURWKHUZLVHLQWKHDQDO \VLVRIVWDQGDORQH
+FUHGLWZRUWKLQHVV)RUH[DPSOHWKHVWDQGDORQHDQDO\VLVRIDED QNLQFOXGHVFRQVLGHUDWLRQRI
+EHQHILWVWKDWZHEHOLHYHLWPD\UHFHLYHIURPVXSHUYLVLRQZLWKLQLWVUHJXODWRU\IUDPHZRUNDQGIURP
+DFFHVV WR ORZFRVWERUURZLQJV IURP LWV FHQWUDO EDQN/LNHZLVHWKHDQDO\VLV RIJRYHUQPHQWV HJ D
+VFKRRO GLVWULFWPD\ LQFOXGHDQHYDOXDWLRQRI V\VWHP VXSSRUW SURYLGHGE\D KLJKHU OHYHO HQWLW\ HJ
+DFLW\RUVWDWH
+ ,Q VRPH FDVHV H[WHUQDO VXSSRUW FDQ KDYH D QHJDWLYH LQIOXHQFH RQDQ HQWLW\
+VFUHGLWZRUWKLQHVV )RU
+H[DPSOHWKLVFDQKDSSHQZKHQDZHDNHUSDUHQWFRPSDQ\GUDLQVFD VKIORZVRUDVVHWVIURPD
+VWURQJHU VXEVLGLDU\ WKURXJK GLYLGHQGV RU LQ RWKHU ZD\V 6LPLODUO\ D VRYHUHLJQ JRYHUQPHQW FDQ EH D
+QHJDWLYHIDFWRUIRUDFRPSDQ\
+VFUHGLWZRUWKLQHVVLILWLQWHUYHQ HVE\ZLWKGUDZLQJUHVRXUFHVRU
+OLPLWLQJWKHFRPSDQ\
+VILQDQFLDOIOH[LELOLW\
+
+ 7KHDQDO\VLVRIVSHFLILFLQVWUXPHQWVLQFOXGHVFRQVLGHUDWLRQRISULRULWLHVZLWKLQDQREOLJRU
+VFDSLWDO
+VWUXFWXUHDQGWKHSRWHQWLDOHIIHFWVRIFROODWHUDODQGUHFRYHU\HVWLPDWHVLQWKHHYHQWRIWKHREOLJRU
+V
+GHIDXOW7KHDQDO\VLVPD\DSSO\QRWFKLQJWRLQVWUXPHQWVWKDWUD QNDERYHRUEHORZWKHLUREOLJRU
+V
+VHQLRUXQVHFXUHGGHEW)RUH[DPSOHVXERUGLQDWHGGHEWZRXOGJH QHUDOO\UHFHLYHDUDWLQJEHORZ
+WKH VHQLRU GHEW UDWLQJ&RQYHUVHO\ VHFXUHG GHEW PD\ UHFHLYH DUDWLQJ DERYH WKH XQVHFXUHG GHEW
+UDWLQJ
+ 1RWFKLQJDOVRDSSOLHVWRWKHVWUXFWXUDOVXERUGLQDWLRQRIGHEWLVVXHGE\RSHUDWLQJVXEVLGLDULHVRU
+KROGLQJ FRPSDQLHV WKDW DUH SDUW RI DQ HQWHUSULVH YLHZHG DV D VLQJOH HFRQRPLFHQWLW\ )RUH[DPSOH
+WKHGHEWRIDKROGLQJFRPSDQ\PD\EHUDWHGORZHUWKDQWKHGHEWRILWVVXEVLGLDULHVWKDWKDYHWKH
+HQWHUSULVH
+VDVVHWVDQGFDVKIORZV:HH[WHQGWKHQRWFKLQJDSSU RDFKWRDQDO\]LQJWKH
+FUHGLWZRUWKLQHVVRILQVWUXPHQWVLQYROYLQJSD\PHQWSULRULW\)RUH[DPSOHZHZRXOGJHQHUDOO\UDWH
+SUHIHUUHGVWRFNDQGVRFDOOHGK\EULGFDSLWDOLQVWUXPHQWVORZHU WKDQVHQLRUGHEWWRLQGLFDWHWKDW
+SD\PHQWFRXOGEHGHIHUUHG
+
+ 7KHZHDNOLQNDSSURDFKUHIHUVWRWKHSULQFLSOHE\ZKLFKWKHUDWLQJZRXOGQRWEHKLJKHUWKDQWKDWRI
+WKHORZHVWUDWHGFUHGLWVRXUFH7KLVSULQFLSOHFDQDSSO\WRERWKVWUXFWXUHGILQDQFHDQGFRUSRUDWH
+DQG JRYHUQPHQWUDWLQJVDQGZKHUHUHOHYDQWWKHVHFWRUVSHFLILFFULWHULDPD\SURYLGHDGGLWLRQDO
+
+===== PDF PAGE 8 =====
+
+
+7KLVDUWLFOHLVD&ULWHULD DUWLFOH&ULWHULDDUHWKHSXEOLVKHGDQDO\WLFIUDPHZRUNIRUGHWH UPLQLQJ&UHGLW5DWLQJV&ULWHULD
+LQFOXGHIXQGDPHQWDOIDFWRUVDQDO\WLFDOSULQFLSOHVPHWKRGRORJL HVDQGRUNH\DVVXPSWLRQVWKDWZHXVHLQWKHUDWLQJV
+SURFHVV WRSURGXFHRXU &UHGLW5DWLQJV &ULWHULD OLNHRXU&UHGLW 5DWLQJVDUH IRUZDUGORRNLQJLQQDWXUH &ULWHULDDUHLQWHQGHG
+WR KHOS XVHUV RI RXU &UHGLW 5DWLQJV XQGHUVWDQG KRZ 6	3 *OREDO 5DWLQJV DQDO\VWV JHQHUDOO\ DSSURDFK WKH DQDO\VLV RI,VVXHUV
+RU ,VVXHV LQDJLYHQVHFWRU &ULWHULD LQFOXGH WKRVHPDWHULDO PHWKRGRORJLFDOHOHPHQWV LGHQWLILHGE\ 6	3*OREDO 5DWLQJVDV
+
+GHWDLOVRQLWVDSSOLFDWLRQ 
+
+7 K L V D U W L F O H Z D V R U L J L Q D O O \ S X E O L V K H G R Q ) H E       
+&KDQJHVLQWURGXFHGDIWHURULJLQDOSXEOLFDWLRQ
+ )ROORZLQJRXUSHULRGLFUHYLHZFRPSOHWHGRQ'HFZHXSGDWHGWKHFRQWDFWLQIRUPDWLRQ
+ )ROORZLQJ RXU SHULRGLF UHYLHZ FRPSOHWHGRQ'HF   ZH XSGDWHG WKH FRQWDFW LQIRUPDWLRQ
+DQGXSGDWHG WKH KHDGLQJDERYHSDUDJUDSK WR ([WHUQDO ,QIOXHQFH IURP ([WHUQDO 6XSSRUW
+ 2Q -DQ   ZH UHSXEOLVKHG WKLV FULWHULD DUWLFOH WR PDNHQRQPDWHULDO FKDQJHV :H XSGDWHG
+WKHFRQWDFWLQIRUPDWLRQDQGPDGHHGLWRULDOFKDQJHV
+ 2Q )HE  ZH UHSXEOLVKHG WKLV FULWHULD DUWLFOH WR PDNHQRQPDWHULDO FKDQJHV :H XSGDWHG
+WKHFRQWDFWLQIRUPDWLRQDQGDUHIHUHQFHWRDUHODWHGFULWHULDDUWLFOH
+ 2Q $XJ   ZH UHSXEOLVKHG WKLV FULWHULD DUWLFOH WR PDNH D QRQPDWHULDO FKDQJH :H DGGHG
+WZRVHQWHQFHVWRSDUDJUDSKIRUFODULILFDWLRQDQGZHXSGDWHGDUWLFOHUHIHUHQFHV
+ 2Q'HF ZH UHSXEOLVKHG WKLVFULWHULDDUWLFOH WRPDNHQRQPDWHULDO FKDQJHV WRXSGDWH
+WKHFRQWDFW LQIRUPDWLRQ
+ 2Q0D\   ZHUHSXEOLVKHG WKLVFULWHULD DUWLFOH WRPDNHQRQPDWHULDO FKDQJHV:H LQFOXGHG
+FODULILFDWLRQVRQWKHZHDNOLQNDSSURDFKLQSDUDJUDSKVDQG:HDOVRXSGDWHGWKHFRQWDFW
+LQIRUPDWLRQ
+
+ 3ULQFLSOHV2I&RUSRUDWH$QG*RYHUQPHQW5DWLQJV-XQH
+ 3ULQFLSOHV%DVHG5DWLQJ0HWKRGRORJ\)RU*OREDO6WUXFWXUHG)LQDQFH6HFXULWLHV0D\
+ &'2 6SRWOLJKW 4XDQWLWDWLYH 0RGHOLQJ $SSURDFK 7R 5DWLQJ ,QGH[ &3'2 6WUXFWXUHV 0DUFK 
+
+ &RUSRUDWH 6HFXULWL]DWLRQV 7KH 5ROH 2I 5LVN &DSLWDO ,Q $OLJQLQJ 6WDNHKROGHU ,QWHUHVWV 6HSW 
+
+ 6WUXFWXUHG,QYHVWPHQW9HKLFOH&ULWHULD0DUFK
+
+ 6	3*OREDO5DWLQJV'HILQLWLRQVSXEOLVKHGIURPWLPHWRWLPH
+
+
+===== PDF PAGE 9 =====
+
+
+
+
+EHLQJ UHOHYDQW WRFUHGLWDQDO\VLV+RZHYHU 6	3*OREDO 5DWLQJV UHFRJQL]HV WKDW WKHUHDUHPDQ\XQLTXH IDFWRUV  IDFWVDQG
+FLUFXPVWDQFHV WKDW PD\ SRWHQWLDOO\ DSSO\ WR WKH DQDO\VLV RI D JLYHQ ,VVXHU RU ,VVXH $FFRUGLQJO\ 6	3 *OREDO 5DWLQJV&ULWHULD
+LVQRWGHVLJQHGWRSURYLGHDQH[KDXVWLYHOLVWRIDOOIDFWRUVDS SOLHGLQRXUUDWLQJDQDO\VHV$QDO\VWVH[HUFLVHDQDO\WLF
+MXGJHPHQWLQWKHDSSOLFDWLRQRI&ULWHULDWKURXJKWKH5DWLQJ&RPPLWWHHSURFHVVWRDUULYHDWUDWLQJGHWHUPLQDWLRQV
+
+===== PDF PAGE 10 =====
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+===== PDF PAGE 11 =====
+ 
+     
+ 
+ 
+ 
+ 
+Glossary 
+Date: 09 October 2025
+ 
+ 
+Unless stated otherwise, for the purposes of all S&P Global Ratings policies and internal procedures the 
+following definitions apply: 
+ 
+1. “Affiliate of S&P Global Ratings”: any Affiliated Person  
+ 
+2. “Affiliated Person”: S&P Global Inc., any entity (including S&P Global Ratings) that is under the 
+direct or indirect control of S&P Global Inc., and any of their respective partners, directors, officers, 
+branch managers and employees (and persons occupying a similar status or performing similar 
+functions).  
+ 
+3. “Analyst”: an Employee who is engaged in Credit Rating Activities and/or Product Analytical 
+Activities, but not an Employee in an Associated Role, in the Criteria Function, in the Compliance 
+function or in the Ratings Legal function. 
+ 
+4. “Analytical Employee”: all Employees in an Analytical Role.  
+ 
+5. “Analytical Manager” or “AM”: an Employee who oversees the day-to-day work of Analysts or 
+other Analytical Managers, but who is not acting in a General Management Role.  
+ 
+6. “Analytical Role”: the role of an Employee when acting as an Analyst or in a Criteria Function. 
+Examples include Analysts and Analytical Managers.  
+ 
+7. “Analytic Quality & Validation Group” or “AQV”: a second line of defense function 
+responsible for validation, periodic review and reporting with respect to Criteria and Covered 
+Models as well as monitoring and reporting on the adherence to procedures and methodologies for 
+determining credit ratings. This function operates independently from the Analytical practices and 
+Commercial team.  
+ 
+8. “Ancillary Service”: a product or service that S&P Global Ratings provides or sells that is not a 
+Credit Rating or Credit Ratings Activity and is either a market forecast, an estimate of economic 
+trends, a pricing analysis, other general data analysis, or distribution services related to a Credit 
+Rating, a market forecast, an estimate of economic trends, a pricing analysis, or general data 
+analysis.  
+ 
+9. “Annual Review”: a type of Formal Review in which a Credit Rating is reviewed based on all 
+relevant Criteria factors and a determination is made whether to refer the Credit Rating for 
+Committee Review. 
+ 
+10. “Approved Document Repository”: the methods approved by S&P Global Ratings for saving 
+and storing documents. A list of Approved Document Repositories is maintained by the 
+Documentation Governance Council, which also approves any changes to the list.  The Approved 
+Document Repository list does not include data repositories, which are managed separately. 
+ 
+
+
+===== PDF PAGE 12 =====
+ 
+ 
+11. “Arranger”: for purposes the Secure Website Policy – SEC Rule 17g-5, an Issuer, sponsor or 
+underwriter.  
+ 
+12. “Associated Role”: the role of an Employee when acting in a role other than an Analytical Role, a 
+Control Role, a Commercial Role, or a General Management Role.  
+ 
+13. “Business Contact”: an Issuer or any other third party with whom S&P Global Ratings does 
+business. With respect to a particular Employee, a Business Contact does not include strictly 
+personal and familial relationships that are social in nature and with whom the Employee does not 
+interact in connection with his or her duties as an Employee.  
+ 
+14. “Business Entertainment”: any form of entertainment where (a) the person providing the 
+entertainment is present and (b) business will be discussed. Examples include: meals, recreational, 
+social, sporting, theatrical, or musical events. Business Entertainment does not include light 
+refreshments incidental to routine business interactions such as business meetings that have an 
+aggregate value of no more than US $25 or its local equivalent (or 3000 yen for activities subject to 
+Japanese jurisdiction). For these purposes, entertainment where the person providing the 
+entertainment is not present is a Gift.  
+ 
+15. “Business Records”: see the Recordkeeping & Retention Policy and may be known as “Official 
+Business Records” or “OBRs”. 
+ 
+16. “CRA”: Credit Rating Agency  
+ 
+17. “Commercial Activities”: Sales or Marketing Activities.  
+ 
+18. “Commercial Employee”: any Employee in a Commercial Role.  
+ 
+19. “Commercial Role”: the role of an Employee when engaging in Sales or Marketing Activities.  
+ 
+20. “Committee Review”: a type of Formal Review in which a Credit Rating is reviewed in a Rating 
+Committee. 
+ 
+21. “Communication”: includes any communication, whether verbal or non-verbal, via any means, 
+whether in person, in writing, by telephone, by email, by social media, through a third party, or 
+otherwise. 
+ 
+22. “Complaint”: any Communication received by S&P Global Ratings that contains specific 
+allegations, irrespective of whether the conduct is intentional or negligent, regarding one or more of 
+the following: 
+ 
+1. Expressing dissatisfaction with the performance of an Analyst in the process of initiating, 
+determining, maintaining, monitoring, changing, or withdrawing a Credit Rating. 
+ 
+2. Expressing dissatisfaction with a Credit Rating, Models or Methodologies  
+ 
+3. Alleging a violation, by S&P Global Ratings and/or its Employees of securities laws, 
+regulations, or policies and procedures adopted by S&P Global Ratings. 
+ 
+For more details regarding Communications classified as Complaints, please see the Complaint Policy. 
+ 
+23. “Confidential Credit Rating”: a Credit Rating that is not made public by S&P Global Ratings and 
+is not intended to be disclosed by the party requesting the Credit Rating to any other party other 
+than advisors bound by appropriate confidentiality obligations or as otherwise required by law or 
+regulation or for regulatory purposes.  
+ 
+
+===== PDF PAGE 13 =====
+ 
+ 
+24. “Confidential for Internal Purposes or “CIP Credit Rating”: a Credit Rating that is used 
+solely for internal purposes as a component of another Credit Rating, and is not made public or 
+disseminated outside of S&P Global Ratings. 
+ 
+25. “Confidential Information”: any of the following types of information: (a) Issuer Confidential 
+Information; (b) S&P Global Ratings Confidential Information; and (c) Other Confidential 
+Information.  
+ 
+26. “Control Role”:  the role of an Employee in Compliance & Risk excluding however certain 
+employees of the AQV Group engaged in review or validation activities.   
+ 
+27. “Covered Model”: a Model that is subject to the Methodology Policy and SOP and classified as a 
+Ratings Model, Criteria Model, Market Intelligence Model or S&P Global Ratings External Model, 
+collectively referred to as Covered Models. 
+ 
+28. “Credit Rating”: a forward looking opinion about the creditworthiness of an Issuer, an Issue, a 
+specific class of an Issue, or a specific financial program, issued using S&P Global Ratings established 
+and defined symbology. A Rating Outlook is not a Credit Rating but is subject to the same S&P 
+Global Ratings policies and procedures applicable to a Credit Rating. 
+ 
+29. “Credit Rating Action": an initial Credit Rating, change to an existing Credit Rating, affirmation 
+of an existing Credit Rating, withdrawal or suspension of an existing Credit Rating, or CreditWatch 
+action, in each case as and when such action is Released. Credit Rating Action does not include a 
+Rating Agency Confirmation (RAC).  
+ 
+30. “Credit Rating Activities”: an activity engaged in by S&P Global Ratings that leads to or directly 
+supports the issuance or surveillance of a Credit Rating including: 
+ 
+x the evaluation, approval, issuance, or review of Credit Ratings; 
+x analysis of data and information related to Credit Ratings; 
+x a Credit Rating Action or Rating Decision; and 
+x the development or approval of Criteria, including the development or approval of qualitative 
+and quantitative Models. 
+ 
+       Examples include: 
+ 
+x Participating in determining the Rating Decision and/or voting in Rating Committees; 
+x Attending management meetings for the purpose of gathering information for determining the 
+basis of a rating recommendation; 
+x Communicating with Rated Entities and Related Third Parties to determine a Credit Rating 
+Action; 
+x Managing Analysts, as applicable, in their analytical work; 
+x Developing Criteria; 
+x Conducting surveillance of a Credit Rating; 
+x Developing analytical models to support Criteria in which the results are used by a Rating 
+Committee as part of determining a Credit Rating. 
+ 
+In addition Credit Rating Activities also include: 
+ 
+x Mappings; 
+x Rating Agency Confirmation (RAC); 
+x
+ Rating Evaluations Service (RES); 
+x Recovery Ratings 
+ 
+For the purposes of this definition, (i) legal counseling by the Legal Department or GRA is not a Credit 
+Rating Activity and (ii) Sales or Marketing Activities are not Credit Rating Activities.  
+ 
+
+===== PDF PAGE 14 =====
+ 
+ 
+31. “Credit Rating Rationale” or “Rationale”: the written explanation associated with a Credit 
+Rating(s) that explains the principal basis for the Credit Rating(s), regardless of whether it is 
+published. A Credit Rating Rationale may support more than one Credit Rating (e.g., in the case of 
+Linked Rating Actions).  
+ 
+32. “CreditWatch”: see S&P Global Ratings Definitions as published on the Free Website.  
+ 
+33. “Criteria”: Criteria are the published analytic framework for determining Credit Ratings. Criteria 
+include fundamental factors, analytical principles, methodologies, and /or key assumptions that we 
+use in the ratings process to produce our Credit Ratings. Criteria, like our Credit Ratings, are 
+forward-looking in nature. Criteria are intended to help users of our Credit Ratings understand how 
+S&P Global Ratings analysts generally approach the analysis of Issuers or Issues in a given sector. 
+Criteria include those material methodological elements identified by S&P Global Ratings as being 
+relevant to credit analysis.  However, S&P Global Ratings recognizes that there are many unique 
+factors / facts and circumstances that may potentially apply to the analysis of a given Issuer or Issue. 
+Accordingly, S&P Global Ratings Criteria is not designed to provide an exhaustive list of all factors 
+applied in our rating analyses. Analysts exercise analytic judgement in the application of Criteria 
+through the Rating Committee process to arrive at rating determinations.   
+ 
+34. “Criteria Function”: the role of an Employee when acting as a member of the Methodologies 
+Group or certain employees in the AQV Group engaged in review or validation activities. 
+ 
+35. “Criteria Model”:  a complex Model that is based on advanced economic, financial, mathematical, 
+or statistical methodologies used in the development of Criteria.  
+ 
+36. “Criteria Subject Matter Expert” or “CSME”: A member of the Methodologies Group with 
+relevant Criteria expertise. 
+ 
+37. “DCO”: the designated compliance officer for the purposes of the U.S. Securities Exchange Act of 
+1934 and rules thereunder that are applicable to a Nationally Recognized Statistical Rating 
+Organization and the designated compliance officer for the purposes of Canadian National 
+Instrument 25-101 relating to designated rating organizations.  
+ 
+38. “Document” or “Record”: information recorded in any form, including electronic or paper form, 
+used by S&P Global Ratings to perform business functions. Documents or Records include, but are 
+not limited to, Documents created using computer desktop or corporate applications, e-mails, faxes, 
+instant messages, journals, diaries, calendars, planners, notes, photographs, audio files, voice mails, 
+video files, images, microfilm, hard copy, and any other electronically stored information. The terms 
+Document and Record may be used interchangeably. For example, e-mails are considered both 
+Documents and Records.  
+ 
+39. “Employee”: any S&P Global Ratings personnel or any other natural person, whose services are 
+placed at the disposal or under the control of S&P Global Ratings.  
+ 
+40. “Event-Driven Review”: A Rating Committee held to consider the effect of an event on 
+outstanding Credit Rating(s).  
+ 
+41. “External Written Comments”: comments received in writing from market participants on 
+proposed Criteria, including proposed material changes to Criteria, as well as in-use Criteria, 
+through the opportunity provided on the Free Website. 
+ 
+42. “Formal Review”: a surveillance review conducted at least every 12 months, or as otherwise 
+required by Regulatory Commitment, that includes several types of reviews described by the 
+Surveillance SOP. 
+ 
+43. “Free Website”: S&P Global Ratings websites that are provided with free access for a variety of 
+regions and languages for regulatory disclosures including its public Credit Ratings and related 
+information. 
+
+===== PDF PAGE 15 =====
+ 
+ 
+ 
+44. “General Management Role” or “GM”: the role of an Employee when engaging in the 
+management of S&P Global Ratings’ business and operational activities. Examples include: 
+ 
+x managing the business and coordinating the operations of a unit including overseeing quality, 
+human resources and policy compliance; participating in marketplace outreach; establishing 
+marketing and business strategy for the unit and making decisions with respect to product 
+development; 
+ 
+x overseeing the analytical operations without participating in the evaluation, approval, 
+issuance, or review of any specific Credit Rating Action; and 
+ 
+x budgeting and managing revenues, profits, expenses, and other financial targets, including 
+establishing general fee structures, together with Commercial Employees.  
+ 
+45. “Gifts”: goods and services of monetary value, including but not limited to, cash or cash equivalents 
+(such as gift certificates or cards), as well as things with no clear monetary value that benefit the 
+recipient, such as a favor. For these purposes, entertainment where the person who provides the 
+entertainment is not present or where the entertainment does not involve the discussion of business 
+matters is a Gift. Gifts do not include: (a) items incidental to routine business interactions such as 
+items provided at business meetings (e.g., note pads and pens) that have an aggregate value of no 
+more than US $25 or its local equivalent (or 3000 yen for activities subject to Japanese jurisdiction), 
+(b) Promotional Items (e.g., logo branded items), including complimentary passes to conferences, 
+rewards for submitting surveys, and prizes provided by S&P Global Ratings, S&P Dow Jones Indices, 
+and S&P Global Market Intelligence for random drawings, raffles, or contests offered broadly and 
+where permitted by law, or (c) promotional or other items of de minimis value (i.e., no more than 
+US$10 or its local equivalent) received in the normal course of business (and in Japan, offered 
+generally for free).  
+ 
+46. “Immediate Family”:(a) an Employee’s spouse, domestic partner, or equivalent or an Employee’s 
+dependent child or stepchild regardless of residence; (b) an Employee’s relative, whether or not that 
+person is dependent on the Employee (e.g., grandchild, parent, stepparent, grandparent, sibling, 
+mother- or father-in-law, sister- or brother-in-law, and son- or daughter-in-law, including adoptive 
+and guardian relationships) who has shared the same household as the Employee for at least one 
+year immediately preceding the date that the household member engages in the applicable activity; 
+and (c) any legal entity (including a trust or partnership) directly or indirectly managed or controlled 
+by, established for the benefit of, or whose economic interests are substantially equivalent to, either 
+an Employee or a person listed above in items (a) or (b). For these purposes, the terms “dependent”, 
+“domestic partner,” and “adoptive or guardian relationship” are defined by the national law where 
+the Employee works.  
+ 
+47. “Issue”: a debt or financial obligation, debt security, preferred share or other financial instrument 
+(including a money market instrument). 
+ 
+48. “Issuer”: an entity that issues debt or equity securities, as well as a bank or insurance companies, 
+and their employees and agents acting on its behalf. An Issuer includes the Rated Entity and its 
+Related Third Parties.  
+ 
+49. “Issuer Confidential Information”: verbal or written information from an Issuer or its agents 
+or advisors that S&P Global Ratings has agreed to keep confidential, whether temporarily, such as 
+during the rating process until a rating is published, or indefinitely. 
+ 
+50. “Linked Rating Action”: means a Credit Rating Action that is derived in whole from another 
+Credit Rating Action.  
+ 
+The most common Linked Rating Actions issued by S&P Global Ratings include: 
+ 
+
+===== PDF PAGE 16 =====
+ 
+ 
+i. A Credit Rating of an Issue, that in turn is dependent upon an outstanding Issuer Credit Rating 
+(ICR);  
+ 
+ii. A Credit Rating of an Issue that is dependent upon an outstanding Credit Rating of a credit 
+enhancement provider (e.g., a Letter or Credit or bond insurance); 
+ 
+iii. A Credit Rating of an Issue that is dependent upon the outstanding Credit Rating of a different Issue 
+(e.g., a repackaged single-name synthetic security); 
+ 
+iv. A Credit Rating of an Issuer that is dependent upon the outstanding Credit Rating of a different 
+Issuer (e.g., a swap or guaranteed investment contract provider); 
+ 
+v. A Credit Rating of a new Issue by a rated Issuer when such issuance conforms to prior rated 
+issuances, is consistent with the Issuer’s current financial plans as considered by the original Rating 
+Committee, and for which no new information is present to warrant a rating committee review; and 
+ 
+vi. A Credit Rating of a new Issue by a rated Issuer pursuant to an established financing plan (e.g., a 
+Medium Term Note program).  
+ 
+51. “Market Intelligence Model”: a Model that is used by Analysts to prioritize credits for review, 
+but is not a Ratings Model. 
+ 
+52. “Material Non-Public Information” or “MNPI”:  Shall mean all non-public information that 
+a reasonable investor would likely consider important in making an investment decision or non-
+public information that is reasonably likely to affect the market price of a Security when it is publicly 
+disclosed. Information is non-public if it has not been disseminated to the public in a manner 
+reasonably designed to provide broad distribution, such as a required or voluntary filing with a 
+government agency or regulatory body, a publication of general circulation, or a press release issued 
+by an issuer or client. Material Non-Public Information can be positive or negative and may involve 
+events with contingencies. 
+ 
+53. “Methodologies”: S&P Global Ratings considers Criteria to be its methodologies. 
+ 
+54. “Model”: S&P Global Ratings considers a model to be a quantitative method, system or approach 
+that applies statistical, economic, financial or mathematical theories, techniques, and assumptions 
+to process input data into quantitative estimates.  A model also includes quantitative approaches 
+whose inputs are partly or wholly qualitative or based on expert judgment, provided that the outputs 
+are quantitative in nature.   
+ 
+A model consists of three components: 
+ 
+i. An information input component, which delivers assumptions and data to the model; 
+ii. A processing component, which transforms inputs into estimates; and 
+iii. A reporting component, which translates the estimates into useful business information 
+ 
+55. “Model Repository”: the database of record for all Covered Models and their related files and 
+documents. 
+ 
+56. “Non-Credit Rating Product”: a product or service that S&P Global Ratings provides or sells 
+that is not a Credit Rating or Credit Rating Activity. Ancillary Services and Other Services are Non-
+Credit Rating Products. 
+ 
+57. “NRSRO”: Nationally Recognized Statistical Rating Organization  
+ 
+58. “Other Confidential Information”: any information, other than Issuer Confidential 
+Information and S&P Global Ratings Confidential Information, obtained from any source that an 
+Employee believes is intended to be confidential. 
+ 
+
+===== PDF PAGE 17 =====
+ 
+ 
+59. “Other Service”: a product or service that S&P Global Ratings provides or sells that is neither an 
+Ancillary Service nor part of its Credit Rating Activities.  
+ 
+60. “Outlook: see “Rating Outlook” 
+ 
+61. “Outsourced Activity”: Credit Ratings Activities or Regulatory Requirements, or responsibilities 
+of S&P Global Ratings that are performed by a Service Provider that S&P Global Ratings’ internal 
+staff or management could have performed. 
+ 
+62. “Practice Area” or “Practice”: one of the following analytical groups within S&P Global Ratings: 
+Corporates, Financial Services, Infrastructure, Sovereigns/ International PublicFinance, Structured 
+Finance and U.S. Public Finance 
+ 
+63. “Primary Analyst”: the Analyst who has been assigned primary responsibility for (a) determining 
+a Rating Recommendation, (b) presenting that Rating Recommendation to a Rating Committee, (c) 
+Communicating with an Issuer with respect to a specific Credit Rating Action, and/or (d) acting as a 
+presenting Analyst for purposes of determining and presenting a recommendation for a Committee 
+Review in an Annual Review. A Primary Analyst means the “lead rating analyst” pursuant to E.U. 
+regulations and Japanese regulations. Individuals not eligible to be a Primary Analyst are: (i) 
+CRISIL GAC Analysts, and (ii) Employees in analytical support roles located in New York office such 
+as Rating Analyst and Rating Specialist.  
+ 
+64. “Private Credit Rating”: a Credit Rating that is not made public and is not intended to be 
+disclosed to any party, other than a limited number of third parties identified by the party requesting 
+the Credit Rating and (A) professional advisers who are bound by appropriate confidentiality 
+obligations, (B) as required by law or regulation or for regulatory purposes or (C) subject to certain 
+conditions, for the purpose of preparing required periodic reports relating to the assets owned by a 
+special purpose vehicle that has purchased the rated securities. In certain jurisdictions, S&P Global 
+Ratings may limit the availability of Private Credit Ratings to certain Issue sizes, a set number of 
+recipients, or as otherwise prescribed by regulation.  
+ 
+65. “Product Analytical Activities”: an activity engaged in by S&P Global Ratings that leads to or 
+directly supports a Non-Credit Rating Product output or the monitoring of a Non-Credit Rating 
+Product including: 
+ 
+x the application of an analytical approach or use of an analytical tool related to a Non-Credit 
+Rating Product; 
+ 
+x analysis of data and information related to a Non-Credit Rating Product; and 
+ 
+x the development, review, revision or approval of an analytical approach or analytical tool 
+related to a Non-Credit Rating Product. 
+ 
+66. “Publications”: items of information in any written form created by S&P Global Ratings and 
+distributed to the public on a Free Website or other broad distribution platform whether or not 
+owned by Standard & Poor’s Financial Services, LLC. Publications do not include communications 
+between Employees 
+and third  parties that are intended to be private. Publications ordinarily do not 
+include Confidential or Private Credit Ratings and their related Credit Rating Rationales unless S&P 
+Global Ratings distributes such items to the public in error.  
+ 
+67. “Rated Entity”: an entity whose creditworthiness is assessed in a Credit Rating.  
+ 
+68. “Rating Committee”: the committee that determines a Credit Rating.  
+ 
+69. “Rating Committee Chairperson”: the Analyst whose role is to oversee the Rating Committee, 
+including the process for arriving at a Rating Decision and approve the Rating Decision as 
+determined by the Rating Committee or oversee the Formal Review, including acting as a sign-off 
+
+===== PDF PAGE 18 =====
+ 
+ 
+Analyst to confirm a presenting Analysts recommendation for a Committee Review in an Annual 
+Review. 
+ 
+70. “Rating Decision”: a Credit Rating that is determined by a Rating Committee prior to its Release.  
+ 
+71. “Rating Outlook” or “Outlook”: an assessment as to the potential direction of a long-term Credit 
+Rating over the intermediate term (typically six months to two years). In determining a Rating 
+Outlook, consideration is given to any changes in economic and/or fundamental business 
+conditions. A Rating Outlook is not necessarily a precursor of a rating change or future CreditWatch 
+action. A Rating Outlook is not a Credit Rating but is subject to the same S&P Global Ratings 
+policies and procedures applicable to a Credit Rating. 
+ 
+72. “Ratings Model”: a Model that is used in the process of determining a Credit Rating.  
+ 
+73. “Recommendation”: any statement, oral or written, direct or indirect, that suggests to an Issuer 
+(a) how it should arrange a corporate or legal structure, (b) how it should manage or structure its 
+assets, liabilities or activities in connection with a Credit Rating, or (c) how it should design or 
+structure a structured finance instrument.  
+ 
+74. “Record” See “Document”. 
+ 
+75. “Regulatory Commitments”: S&P Global Ratings Regulatory Requirements and Regulatory 
+Expectations.  
+ 
+76. “Regulatory Requirements”: the requirements set forth in the statutes, regulations, and rules 
+that are applicable to S&P Global Ratings in various jurisdictions.  
+ 
+77. “Related Third Party”: the arranger, obligor, originator, servicer, sponsor, underwriter, or any 
+other party that interacts with S&P Global Ratings on behalf of a Rated Entity, including any person 
+directly or indirectly linked to that Rated Entity by control.  
+ 
+78. “Retention Schedule” or “Record Retention Schedule” or “RRS”: refers to the S&P Global 
+Record Retention Schedule, which identifies Records and Documents that must be retained and 
+their required retention periods. 
+ 
+79. “S&P Global Ratings”: S&P Global Ratings, as registered with the SEC as an NRSRO.  
+ 
+80. “S&P Global Ratings Confidential Information”: 
+ 
+i. A Rating Recommendation, Rating Decision, and unpublished versions of (a) Credit Rating 
+Actions, (b) Criteria, (c) opinions and (d) estimates, (e) Outlooks; and 
+ 
+ii. related unpublished analysis, documentation, reports and press releases created by S&P Global 
+Ratings. S&P Global Ratings Confidential Information also includes unpublished information 
+concerning the Rating Committee process, including Rating Committee date when combined 
+with the name of the Issuer or transaction, and the timing of potential Credit Rating Actions or 
+ratings-related announcements. 
+ 
+81. “S&P Global Ratings External Model”: a Model that S&P Global Ratings disseminates 
+externally to generally facilitate the understanding of the factors that influence our Credit Ratings. 
+ 
+82. “Sales or Marketing Activities”: include activities that are directed at increasing, improving, 
+maintaining, obtaining, securing or defending the sales, revenues, marketing, business 
+development, market share or market position of S&P Global Ratings, any Affiliate of S&P Global 
+Ratings, or any of their respective products or services, including, without limitation, all efforts to 
+solicit business from, or “pitch” products or services to, an Issuer or prospective Issuer, any other 
+efforts directed at selling or marketing the products or services of S&P Global Ratings or any 
+Affiliate of S&P Global Ratings to existing or prospective clients, and soliciting, negotiating, 
+
+===== PDF PAGE 19 =====
+ 
+ 
+discussing, or arranging for the establishment, payment or collection of fees for any product or 
+service of S&P Global Ratings or any Affiliate of S&P Global Ratings. Sales or Marketing Activities 
+do not include Credit Rating Activities, activities aimed at Transparency and Educational 
+Objectives or activities aimed at increasing the quality, efficiency and/or timeliness of Credit 
+Rating Activities or Product Analytical Activities. 
+ 
+83. “Sales or Marketing Considerations”: include any consideration, concern, Communication, 
+plan, goal or objective relating to or directed at Sales or Marketing Activities.  
+ 
+84. “Sector and Industry Variables” or “SIV”: Sector and Industry Variables are sector, industry, 
+asset class or regional variables, that are related to Criteria and are expected to be periodically 
+updated and republished to reflect S&P Global Rating’s evolving views as market conditions 
+warrant. 
+ 
+85. “Security”: any stock, note, bond, debenture, limited partnership interest, limited liability 
+company interest, an investment contract, an obligation issued by or an interest in a vehicle which 
+purchases and pools investments in other securities (such as a mutual fund, an exchange traded fund 
+(ETF), hedge fund, or venture capital fund), or other financial instrument commonly known as a 
+security, including securities issued globally, and American Depository Receipts (ADRs). It also 
+includes any put or call options, futures contracts, or any other derivative instruments related to 
+securities. 
+ 
+86. “Service Provider”: a person or entity that performs an Outsourced Activity on behalf of S&P 
+Global Ratings. 
+ 
+87. “Solicited Credit Rating”: Credit Ratings, other than Confidential for Internal Purposes Credit 
+Ratings, assigned by S&P Global Ratings at the request of the Issuer. A Credit Rating will be 
+considered to be at the request of the Issuer if (a) there is an agreement with the Issuer or its agent 
+for the provision of the Credit Rating (or an agreement does not specifically identify the Credit 
+Rating but indicates S&P Global Ratings expects to rate the Issuer’s obligations in the future, unless 
+the Issuer has confirmed to S&P Global Ratings in writing that it does not wish the obligation to be 
+rated) or (b) the Issuer pays for the Credit Rating. Solicited Credit Ratings do not include Credit 
+Ratings that were initially requested by the Issuer but, while still maintained by S&P Global Ratings, 
+are no longer requested by the Issuer as demonstrated by the fact that S&P Global Ratings no longer 
+receives payment from the Issuer for these Credit Ratings.  
+ 
+88. “Transitory Information”: see the Recordkeeping & Retention Policy. 
+ 
+89. “Transparency and Educational Objectives” or “TEO”: include: 
+ 
+x increasing the transparency of Credit Rating Activities in order to promote marketplace 
+understanding of Credit Rating Activities and competition among CRAs on the basis of the    
+substance and quality of their Credit Ratings and the Criteria they use; 
+ 
+x helping actual or prospective Issuers and other persons (internal or external) better understand 
+Credit Ratings and Criteria; and 
+ 
+x helping actual or prospective clients and other persons (internal or external) better understand 
+Non-Credit Rating Products, Product Analytical Activities, and any analytical approach 
+associated with a Non-Credit Rating Product 
+ 
+90. “Under Criteria Observation” or “UCO”: an identifier that may (or shall, if a Regulatory 
+Requirement in Europe) be assigned to Credit Ratings under review as a result of a Criteria revision. 
+The addition of the UCO identifier to a Credit Rating does not change that Credit Rating's definition 
+or S&P Global Ratings’ opinion about the Issue's or Issuer's creditworthiness.  
+91. “Unsolicited Credit Rating”: Credit Ratings, other than Confidential for Internal Purposes 
+Credit Ratings, that are not Solicited Credit Ratings.  
+ 
+
+===== PDF PAGE 20 =====
+ 
+ 
+92. “Voting Analyst”: an Analyst who has been approved by an Analytical Manager or other qualified 
+manager (i.e., the Head of Global Analytics and Methodologies or Chief Analytical Officers for 
+Analysts reporting to them) to vote in a Rating Committee. A CRISIL GAC Analyst or a member of 
+the New York Newspaper Guild is not eligible to be a Voting Analyst.  
+ 
+93. “Work-in-Progress Information”: see the Recordkeeping & Retention Policy. 
+ 
+
+===== PDF PAGE 21 =====
+ 
+ 
+pg. 1 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+General Description of the Credit Rating Process
+  
+(as of January 23, 2026) 
+ 
+ 
+Initiation of a Credit Rating 
+S&P Global Ratings’ process for determining a Credit Rating typically begins with a request for a 
+Credit Rating from the Issuer (See Quality of the Rating Process – Assignment of Credit Ratings 
+Policy) (such policy also defines circumstances when Unsolicited Credit Ratings may be issued. Also 
+see S&P Global Ratings Transparency (Public Disclosure) – Secure Website – SEC Rule 17g-5 Policy 
+regarding identification of transactions subject to the rule and access to information required by the 
+rule). 
+ 
+Information Sources and Considerations 
+S&P Global Ratings provides a Credit Rating only when, in its opinion, there is information of 
+satisfactory quality to form a credible opinion on creditworthiness, consistent with its Quality of the 
+Rating Process – Sufficient Information (Quality of Information) Policy, and only after applicable 
+quantitative, qualitative, and legal analyses are performed. Throughout the ratings and surveillance 
+process, the analytical team may review information from both public and nonpublic sources. 
+ 
+For corporate, government, and financial services company or entity (collectively referred to as 
+“C&G”) Credit Ratings, the analysis generally includes historical and projected financial information, 
+industry and/or economic data, peer comparisons, and details on planned financings. In addition, the 
+analysis is based on qualitative factors, such as the institutional or governance framework, the 
+financial strategy of the rated entity and, generally, the experience and credibility of management. For 
+structured finance Credit Ratings, the analysis generally covers the credit quality of the securitized 
+assets, a review of the applicable legal and regulatory regime to determine whether the securitized 
+assets have been appropriately isolated from bankruptcy and insolvency risk of transaction 
+participants, the payment structure and cash flow mechanics, operational and administrative risks of 
+key participants, counterparty exposure, and the historical performance data relating to the underlying 
+assets (and/or assets with similar characteristics), if applicable. Our analysis generally includes 
+qualitative assessments of multiple factors, including strengths and weaknesses of originators of 
+assets, peer comparisons, and market trends, as well as the qualitative assessments of quantitative 
+model scenarios, which may impact the amount of credit enhancement required for a particular Credit 
+Rating and/or limit the maximum potential Credit Rating. Quantitative models are commonly 
+employed in our analysis coupled with a qualitative assessment of the risk and mitigating factors. 
+ 
+In connection with its assignment or surveillance of a Credit Rating, S&P Global Ratings typically 
+receives data and other information from issuers and their agents and
+ advisors, as well as from other 
+sources. In addition, numerous commercial vendors sell or provide data to S&P Global Ratings that 
+may be used in various aspects of the ratings process, including publicly available data aggregated by 
+
+
+===== PDF PAGE 22 =====
+ 
+ 
+pg. 2 
+ 
+third parties.  Purchased data includes economic and business news, information on new financings, 
+information on defaults and bankruptcies, performance data for structured finance transactions, 
+securities prices, and information obtained from regulatory filings. 
+ 
+As noted above, S&P Global Ratings provides a Credit Rating only when, in its opinion, there is 
+information of satisfactory quality to form a credible opinion on creditworthiness. In particular, S&P 
+Global Ratings will not issue or maintain a Credit Rating if it believes the information available and 
+necessary to maintain the Credit Rating is not reliable. Although, it may in certain cases obtain 
+additional information concerning the data provided by various parties, S&P Global Ratings does not 
+perform an audit and undertakes no duty of due diligence or independent verification of any 
+information it receives. If S&P Global Ratings’ Criteria permit the use of public ratings from other 
+CRAs, S&P Global Ratings may use such ratings as part of its evaluation of funds, pools of assets or in 
+connection with structured finance transactions. (See Quality of the Rating Process – Sufficient 
+Information (Quality of Information) Policy). 
+ 
+Interaction with Management 
+For C&G Credit Ratings, S&P Global Ratings primarily employs
+ fundamental credit analysis, 
+occasionally supplemented by quantitative models in accordance with our Criteria. A meeting with 
+management is commonly undertaken as part of the credit rating process. Members of S&P Global 
+Ratings’ analytical team typically meet with management to review key factors that may have an 
+impact on the Credit Rating, including operating and financial plans and management policies. These 
+meetings help Analysts develop their assessment of management and corporate strategy, which are 
+qualitative factors that are generally incorporated in our Credit Rating Actions (See Quality of the 
+Rating Process – Sufficient Information (Quality of Information) Policy). 
+ 
+The Rating Committee 
+S&P Global Ratings’ Credit Ratings are determined by the vote of a Rating Committee, not by any 
+individual Analyst. Under certain circumstances, S&P Global Ratings issues Credit Ratings that are 
+derived in whole from other Credit Ratings. In this regard, and under certain circumstances, an 
+Employee may apply an existing Issue or Issuer Credit Rating on an entity (previously determined by 
+a Rating Committee) to another Issuer and/or Issue as a Linked Rating Action. 
+ 
+The Rating Committee process is central to analytical quality. (See Quality of the Rating Process – 
+Rating Committee Policy). Individuals who collectively have the knowledge and experience in 
+developing and monitoring a Credit Rating for a specific type of Rated Entity comprise the Rating 
+Committee. At the Rating Committee meeting, pertinent information and a Rating Recommendation 
+are presented and discussed. Then the Rating Committee votes on the Rating Recommendation and 
+reaches a Rating Decision. The Rating Committee Chairperson ensures that the Rating Committee (a) 
+is properly constituted, (b) appropriately applies S&P Global Ratings’ Criteria, (c) reviews all relevant 
+information and disclosures, (d) complies with the S&P Global Ratings Code of Conduct and related 
+policies, guidelines and procedures, and (e) reaches a Ratings Decision absent
+ extraordinary 
+circumstances. (See Quality of the Rating Process – Rating Committee Policy). 
+ 
+Informing Issuers and Appeals 
+As a general matter, once the Rating Committee has reached a Rating Decision the Issuer is notified of 
+the Rating Decision and the key elements underlying it. After notifying the Issuer, S&P Global Ratings 
+publishes the Credit Rating and makes it publicly available, except in the case of Private and 
+
+===== PDF PAGE 23 =====
+ 
+ 
+pg. 3 
+ 
+Confidential Credit Ratings. S&P Global Ratings will, when so required by applicable regulations or 
+may, as a courtesy to prevent factual errors or prevent the inadvertent release of Confidential 
+Information, provide an advance copy of its Credit Rating Rationale to the Issuer (See Quality of the 
+Rating Process - Ratings Release Policy, Issuer Notification (including Issuer Appeals) Policy and 
+Protection of Information - Avoiding Selective Disclosure of Material Non-Public Information Policy). 
+ 
+S&P Global Ratings may accept a request from an Issuer to appeal a Rating Decision, provided that 
+meaningful new information is presented. (See Quality of the Rating Process - Issuer Notification 
+(including Issuer Appeals) Policy). When this occurs, a Rating Committee will convene to review the 
+additional information and vote. The Rating Committee may stand by the original Rating Decision or 
+reach a new Rating Decision. 
+ 
+Credit Rating Reviews 
+Consistent with its goal of maintaining forward-looking, timely, and credible Credit Ratings, S&P 
+Global Ratings surveils its outstanding Credit Ratings (other than point in time Credit Ratings) on an 
+ongoing basis and also performs a review of such Credit Ratings on at least an annual basis. As a result 
+of the surveillance and review processes, it sometimes becomes apparent that changing conditions 
+require reconsideration of an outstanding Credit Rating. A Rating Committee may then convene to 
+determine whether a Credit Rating Action is appropriate. The frequency, timing and extent of 
+surveillance are dynamic and reflect, among other things: (a) the frequency and public availability of 
+financial and regulatory reporting; (b) the frequency and availability of transaction-specific 
+performance information; (c) the availability of new information, derived from a variety of sources that 
+is relevant to creditworthiness; (d) the occurrence of material changes that could impact a Credit 
+Rating; (e) the impact of changes in macro-economic or financial market conditions; and (f) specific 
+risk considerations and expectations relevant to a rated issue or issuer or to a group or class of rated 
+issues or issuers. (See Surveillance and Withdrawal - Surveillance Policy and Quality of the Rating 
+Process - Sufficient Information (Quality of Information) Policy). 
+ 
+For C&G Credit Ratings, it is routine to schedule periodic meetings with management as part of the 
+ongoing surveillance process. These meetings enable Analysts to be apprised of changes in the Rated 
+Entity’s plans and to discuss new developments, performance relative to prior expectations, and other 
+areas pertinent to our analysis. For structured finance Credit Ratings, as part of the surveillance 
+process, Analysts monitor performance data and other pertinent information that includes, for 
+example, changes in asset performance, changes in the transaction’s credit support, and changes in the 
+ratings of support providers. 
+ 
+In general, for C&G Credit Ratings, the same principles are applied in determining initial Credit 
+Ratings and in performing surveillance of Credit Ratings. However, while the same principles are 
+applied in structured finance for determining initial Credit Ratings and for changing ratings in the 
+surveillance process, in limited instances the specific Criteria and models used may differ. Any 
+potential process differences between new issues and surveillance in Structured Finance may be 
+attributed to the availability of pertinent information used in the analysis. (See Surveillance and 
+Withdrawal – Surveillance Policy). 
+ 
+ 
+  
+
+===== PDF PAGE 24 =====
+ 
+ 
+pg. 4 
+ 
+S&P Global Ratings establishes and maintains Criteria to support the issuance of its Credit Ratings. 
+Criteria are S&P Global Ratings' published analytic frameworks for determining Credit Ratings. Criteria 
+include fundamental factors, analytical principles, methodologies, and/or key assumptions that we use in 
+the ratings process to determine our Credit Ratings. Existing Criteria remain in effect until they are 
+replaced by new Criteria or explicitly withdrawn. Changes made to Criteria and models for determining 
+initial Credit Ratings are generally applied to existing Credit Ratings within a reasonable period of time, 
+in accordance with applicable regulatory requirements, taking into consideration such factors as the 
+number of Credit Ratings impacted, the complexity of the procedures and methodologies used to 
+determine the Credit Ratings, and the types of securities being rated. Additionally, changes made to 
+models and Criteria for performing Credit Rating surveillance are incorporated into the models and 
+Criteria for determining initial Credit Ratings. For structured finance Credit Ratings, certain changes 
+made to models and Criteria for determining initial Credit Ratings may not apply to existing Credit 
+Ratings when changes to the initial Credit Ratings assumptions are not considered significant to the 
+surveillance analysis where the surveillance process focuses on the actual underlying asset performance. 
+(See Methodology Policy). 
+ 
+Once a Credit Rating is public, S&P Global Ratings publicly discloses any subsequent Credit Rating 
+Actions, generally with a short explanation. Depending on our view of market interest in the Credit 
+Rating, we may publish reports at the conclusion of Credit Rating reviews in which a Credit Rating is 
+affirmed. 
+ 
+Credit Ratings are discontinued most commonly when the rated obligations are fully repaid. Credit 
+Ratings may also be discontinued for a number of other reasons, including but not limited to: no rated 
+debt outstanding; all or substantially all of an Issuer’s rated obligations have been or will be 
+transferred to another entity;  when a “D” level Credit Rating has been outstanding for at least 30 days 
+and S&P Global Ratings determines that the Credit Rating is unlikely to be raised in the future;  for 
+Issue Credit Ratings, when an obligation has defeased in accordance with its terms; and for linked 
+Credit Ratings, when the Credit Rating on which the linked Credit Rating depends has been 
+discontinued or withdrawn, and there is no alternative underlying Credit Rating.  
+ 
+S&P Global Ratings may withdraw a Credit Rating at any
+ time in its sole discretion. Reasons for 
+withdrawals may include, among other reasons, (a) at the request of an Issuer, (b) as a result of the 
+merger or consolidation of an Issuer, (c) because of a lack of information , (d) because S&P Global 
+Ratings determines to terminate its contract with the Issuer, (e) because of a lack of investor interest, or 
+(f) where it is determined that resources necessary to maintain a Credit Rating exceed the value of such 
+Credit Rating to investors and other market participants. S&P Global Ratings may change a Credit 
+Rating, and publish such
+ change, prior to withdrawing the Credit Rating, if we believe a change to the 
+Credit Rating is warranted. The revision or affirmation of a Credit Rating at the time of a withdrawal of 
+the Credit Rating is determined by the Rating Committee. S&P Global Ratings may also suspend a Credit 
+Rating at any time in its sole discretion. (See Surveillance and Withdrawal - Withdrawal, Discontinuance 
+and Suspension Policy). 
+
+===== PDF PAGE 25 =====
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Assignment of Credit Ratings 
+Date: 23 May 2016 
+ 
+ 
+ 
+Policy Statement 
+ 
+Within its sole discretion, S&P Global Ratings determines whether to issue a Credit Rating. S&P Global Ratings 
+may decline specific requests for Credit Ratings, may decline to issue Credit Ratings on subsequent Issues, or 
+may withdraw or suspend an existing Credit Rating. When consistent with regulatory requirements in 
+applicable jurisdictions and its policies, guidelines, and Criteria, S&P Global Ratings will issue and maintain a 
+Credit Rating if it has sufficient information of satisfactory quality for a Credit Rating. S&P Global Ratings will 
+not refrain from issuing or revising any Credit Rating based on the potential effect (economic, political, or 
+otherwise) on it, an Issuer, an investor, or other market participant. S&P Global Ratings publishes a Credit 
+Rating Rationale depending on market interest or as required by regulation. 
+ 
+S&P Global Ratings may assign Confidential Credit Ratings or Private Credit Ratings if S&P Global Ratings has 
+determined not to assign an Unsolicited Credit Rating. Confidential Credit Ratings and Private Credit Ratings 
+are subject to substantial distribution and publication restrictions. In addition, in certain jurisdictions, S&P 
+Global Ratings may limit the availability of Private Credit Ratings to certain Issue sizes, to a set number of 
+recipients, or to cases where certain regulatory conditions are met. 
+ 
+S&P Global Ratings may assign a preliminary rating based on information that is subject to finalization but is 
+otherwise consistent with its Sufficient Information Policy. S&P Global Ratings will assign a final Credit Rating 
+when it receives the finalized information that was used in arriving at the preliminary Credit Rating. 
+ 
+Consistent with its other applicable policies, including the Protection of Information Policy, S&P Global Ratings 
+may assign Unsolicited Credit Ratings when S&P Global Ratings believes sufficient market interest exists for 
+the Rated Entity. 
+
+
+===== PDF PAGE 26 =====
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Withdrawal, Discontinuance, and Suspension 
+Date: 01 January 2018 
+ 
+ 
+ 
+Policy Statement 
+ 
+S&P Global Ratings may, consistent with applicable regulatory requirements, withdraw or suspend a Credit 
+Rating at any time in its sole discretion. S&P Global Ratings determines the timing of both the withdrawal or 
+suspension of a Credit Rating and the issuance of related notices. 
+ 
+S&P Global Ratings may withdraw a Credit Rating at the request of an Issuer, but under no circumstances will 
+an Issuer’s request to withdraw a Credit Rating avoid an imminent rating change. S&P Global Ratings may elect 
+to convert that Credit Rating into an Unsolicited Credit Rating rather than to withdraw the Credit Rating. 
+ 
+When S&P Global Ratings withdraws or suspends a Credit Rating, S&P Global Ratings generally issues a notice 
+in the same manner in which the original Credit Rating was issued (i.e., for a public Credit Rating, S&P Global 
+Ratings will post the notice on its website; and for a Private Credit Rating, S&P Global Ratings will notify the 
+party that requested the Credit Rating or post a notice through the secured website established for the Credit 
+Rating, as appropriate). 
+ 
+Finally, S&P Global Ratings discontinues a Credit Rating on an obligation when the obligation is paid in full in 
+accordance with its terms and in certain other circumstances. S&P Global Ratings generally does not publicly 
+announce discontinuances of Credit Ratings but denotes the discontinuances in its ratings databases and public 
+website. 
+ 
+
+===== PDF PAGE 27 =====
+ 
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Sufficient Information (Quality of Information) 
+Date: 1 June 2025 
+ 
+ 
+ 
+Policy Statement 
+ 
+S&P Global Ratings will issue a Credit Rating only when it possesses sufficient information upon which to base 
+a Credit Rating. Information may be deemed sufficient only when: (a) there is sufficient quantity of information 
+to enable the assignment of a Credit Rating; (b) S&P Global Ratings has received such information on a timely 
+basis; and (c) S&P Global Ratings determines that the information received is reliable. 
+ 
+S&P Global Ratings’ determination that information is sufficient is not an audit, is not designed to prevent or 
+detect fraud and S&P Global Ratings’ use of such information is not a guarantee of its accuracy. 
+ 
+S&P Global Ratings typically receives information upon which to base a Credit Rating from an Issuer and its 
+Related Third Parties. S&P Global Ratings may also receive and use information from other sources. 
+ 
+However, in all cases S&P Global Ratings will only use any such information if it satisfies the relevant standards 
+that the applicable Practice Area, sector or asset class has established or an alternate procedure has been 
+approved consistent with its policies. 
+ 
+S&P Global Ratings determines the reliability of the information it receives and uses in its rating analyses either 
+through: 
+ 
+x Consideration of relevant findings resulting from evaluations performed by a third party such as an 
+auditor, due diligence firm or similar service provider, or 
+ 
+x Internal assessment of whether (i) the information contains anomalies, or (ii) the source of the 
+information presents a history of providing accurate and timely information to S&P Global Ratings. 
+ 
+As part of the internal assessment to identify anomalies, S&P Global Ratings may use quantitative or qualitative 
+evaluation approaches. The quantitative evaluation approach may include a random sampling methodology or 
+other approaches to evaluate certain data used in analyses. The qualitative evaluation approach may include a 
+review of the operational capability of the Issuer or Related Third Parties and a determination of their ability 
+and willingness to provide S&P Global Ratings with reliable information in combination with a review of the 
+information and data provided. 
+ 
+If S&P Global Ratings Criteria permits the use of public ratings from other CRAs, S&P Global Ratings may, in 
+certain cases and on a limited basis, use such ratings as part of its analysis of funds, pools of assets or in 
+connection with structured finance transactions. In such cases, use of such ratings must be documented and 
+stored in the Approved Document Repository. For the avoidance of doubt, the foregoing does not preclude the 
+use of public credit ratings from other CRAs on an unadjusted basis where otherwise provided for by S&P 
+Global Ratings Criteria. S&P Global Ratings will withdraw or suspend a Credit Rating when sufficient 
+information is no longer available.
+ 
+
+
+===== PDF PAGE 28 =====
+ 
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Rating Committee 
+Date: 15 October 2023 
+ 
+ 
+ 
+Policy Statement 
+ 
+Credit Ratings issued by S&P Global Ratings are determined by Rating Committees composed of Analysts and 
+not by individual Analysts. 
+ 
+However, under certain circumstances, S&P Global Ratings assigns Credit Ratings that are derived in whole 
+from other Credit Ratings. Under these circumstances, an Employee may therefore apply an existing Issue or 
+Issuer Credit Rating on an entity (previously determined by a Rating Committee) to another Issuer and/or 
+Issue (i.e., a Linked Rating Action). 
+ 
+The composition of a Rating Committee and the processes it follows depends on the nature and complexity of 
+the Credit Rating Action. Rating Committees make Rating Decisions based on analyses of relevant information 
+known to it in accordance with S&P Global Ratings’ established Criteria. 
+ 
+A Rating Committee under certain circumstances may assign a preliminary Credit Rating and simultaneously 
+authorize, conditionally, the final Credit Rating. If events occur which would require the final Credit Rating to 
+be different than the preliminary Credit Rating, or that would require a material change in the Credit Rating 
+Rationale, a new Rating Committee will be convened. 
+ 
+Each Rating Committee must have a designated Rating Committee Chairperson (“Chair”). The role of the Chair 
+includes ensuring that the Rating Committee: 
+• Is properly constituted, 
+• Appropriately applies S&P Global Ratings’ Criteria and, 
+• Reviews all relevant information and materials presented at the Rating Committee. 
+ 
+An Analyst may not serve as the Chair for a Rating Committee for a Rated Entity for which he or she serves as 
+the Primary Analyst. 
+ 
+Only Voting Analysts may vote in a Rating Committee. To further enhance the independence of the rating 
+process, Criteria Subject Matter Experts (CSMEs) are not permitted to be Voting Analysts and thus may not 
+vote in, or chair, a Rating Committee. Employees who are not Voting Analysts, may, with the approval of the 
+respective Chair, share their opinion on a subject where they have specialized knowledge relevant to the Credit 
+Rating Action under review by the Rating Committee but may not vote in that Rating Committee. 
+ 
+Under no circumstances may an Employee attend or vote in a Rating Committee if he or she has an actual or 
+potential conflict of interest. 
+ 
+
+===== PDF PAGE 29 =====
+ 
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Issuer Notification (including Issuer Appeals) 
+Date: 01 December 2022  
+ 
+ 
+ 
+Policy Statement 
+ 
+When required by regulation or where otherwise feasible and appropriate, S&P Global Ratings will, prior to the 
+publication of a Credit Rating, inform the Issuer of the critical information and principal considerations upon 
+which the Credit Rating will be based and afford the Issuer the opportunity to clarify any potential factual 
+errors on which S&P Global Ratings may have based its Rating Decision. This notice also allows the Issuer to 
+identify and alert S&P Global Ratings to any potential disclosure of material non-public or confidential 
+information. 
+ 
+Any change proposed by an Issuer to correct a factual error or prevent the disclosure of material non-public or 
+confidential information shall be given consideration before publication of the Credit Rating. A change will be 
+made only if the Primary Analyst determines it is warranted. Concerns or misunderstandings raised by an 
+Issuer will be discussed with the Issuer, but the Primary Analyst is generally discouraged from making changes 
+for purposes other than correcting a factual error or avoiding the potential disclosure of material non-public or 
+confidential information. If an Issuer suggests wording or grammatical changes, the Primary Analyst may 
+consider such comments but is not obligated to make any changes. In all cases, S&P Global Ratings maintains 
+editorial control over its published materials, including Credit Rating Rationales. 
+ 
+This policy statement applies to Solicited Credit Ratings, Unsolicited Credit Ratings (in certain jurisdictions), 
+and Confidential and Private Credit Ratings, but does not apply to Confidential for Internal Purposes Credit 
+Ratings. 
+ 
+An Issuer may share new information relevant to the Rating Decision after being notified of the Rating 
+Decision. S&P Global Ratings will determine whether the new information could impact the Rating Decision. If 
+necessary, a new Rating Committee will be convened. 
+ 
+An Issuer may appeal the Rating Decision and request a review of the additional information based on either 
+material new information it has shared with S&P Global Ratings or a belief that S&P Global Ratings materially 
+misinterpreted critical information in reaching that Rating Decision. 
+ 
+S&P Global Ratings will consider appeals of Rating Decisions by Issuers and will grant such appeals as 
+appropriate. There is no right to appeal, and the decision to grant an appeal is made on a case-by-case basis. A 
+Credit Rating may be placed on CreditWatch during the appeal period. S&P Global Ratings will take any appeal 
+request seriously and will seek to gauge its substance, but it will reject requests that appear to be made solely 
+for the purpose of delaying the issuance of a Credit Rating. In general, the Rating Decision of an appeal Rating 
+Committee is final. In certain jurisdictions, S&P Global Ratings must disclose if an initial Rating Decision was 
+changed following an appeal by the Issuer. 
+ 
+The following are not subject to appeal: CreditWatch actions, affirmations of Credit Ratings, and Unsolicited 
+Credit Ratings (except for Sovereign Credit Ratings), as well as Ancillary Services, Other Services, and certain 
+other opinion products that could potentially contribute to a Credit Rating Activity (i.e., Mappings, Rating 
+Agency Confirmations (RAC), Rating Evaluation Services (RES), and Recovery Ratings, unless the Recovery 
+ 
+
+===== PDF PAGE 30 =====
+ 
+ 
+Rating is a material input in determining the Credit Rating.) Components of a Credit Rating (e.g., BICRA, 
+SACP, or risk scores) or other assessments (e.g. ESG Credit Indicators) which do not meet the definition of a 
+Credit Rating, even if made public, are also not subject to appeal. Additionally, Outlook changes on U. S. Public 
+Finance Credit Ratings are not subject to appeal. 
+ 
+Requests to appeal a Rating Decision can constitute a Complaint if the request otherwise meets the definition of 
+Complaint. 
+
+===== PDF PAGE 31 =====
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Ratings Release 
+Date: 23 May 2016 
+ 
+ 
+ 
+Policy Statement 
+ 
+When a Rating Committee makes a Rating Decision on a Credit Rating Action, S&P Global Ratings’ overriding 
+objective is to disseminate Credit Rating Actions as soon as possible. 
+
+
+===== PDF PAGE 32 =====
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Surveillance 
+Date: 01 January 2019 
+ 
+ 
+ 
+Policy Statement 
+ 
+Consistent with our goal of forward-looking and timely Credit Ratings, S&P Global Ratings maintains 
+surveillance of its outstanding Credit Ratings on an ongoing basis and at least every 12 months. For purposes of 
+this policy, outstanding Credit Ratings exclude point-in-time, withdrawn, suspended, and discontinued Credit 
+Ratings. 
+ 
+The frequency, timing, and extent of surveillance are dynamic and may reflect, among other things: (a) the 
+frequency and public availability of financial and regulatory reporting; (b) the frequency and availability of 
+transaction-specific performance information; (c) the availability of new information, derived from a variety of 
+sources, that is relevant to creditworthiness; (d) the occurrence of changes that could impact a Credit Rating; 
+(e) the impact of changes in macro-economic or financial market conditions; and (f) specific risk considerations 
+and expectations relevant to a rated Issue or Issuer or to a group or class of rated Issues or Issuers. 
+ 
+S&P Global Ratings will publicly disclose in a timely manner Credit Rating Actions along with the Credit Rating 
+Rationale or refer to an existing public Credit Rating Rationale and key elements underlying the action. If a 
+Credit Rating is Confidential or Private, communication of the Credit Rating, the Credit Rating Rationale, and 
+subsequent Credit Rating Actions will be made to the entity that requested the Credit Rating or in the case of a 
+Private Credit Rating, to other parties as authorized by the requesting entity. 
+ 
+When Criteria used in Credit Rating Activities is created or changed, S&P Global Ratings will review potentially 
+affected Credit Ratings as soon as possible but no later than the time period required by law or regulation. 
+Pending such review, S&P Global Ratings will assign the UCO (“Under Criteria Observation”) identifier as an 
+early indication that such change may affect specified Credit Ratings. The UCO identifier is not equivalent to a 
+CreditWatch as it offers neither an estimate of the likelihood of a Credit Rating change nor the timescale over 
+which such change might occur. The UCO identifier will continue to be on Credit Ratings until the Credit Rating 
+is reviewed by a Rating Committee. The addition of the UCO identifier to a Credit Rating does not change that 
+Credit Rating's definition or our opinion about the Issue's or Issuer's creditworthiness. 
+ 
+In addition, if a change to existing or the creation of new Criteria, Covered Models, or key rating assumptions is 
+likely to affect a Credit Rating, S&P Global Ratings will convene a Rating Committee to determine the impact, 
+and, in the course of such deliberations but prior to a final determination, the Rating Committee may place the 
+potentially affected Credit Rating on CreditWatch. 
+ 
+
+===== PDF PAGE 33 =====
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Error Correction 
+Date: 01 December 2016 
+ 
+ 
+ 
+Policy Statement 
+ 
+The goal of S&P Global Ratings is to provide investors and the markets with research and Credit Ratings that 
+are insightful, complete and error-free. This includes issuing Credit Ratings, Credit Rating Rationales, and 
+other published materials that are free of misrepresentations and that can be easily understood. We recognize 
+that occasionally there may be errors made and S&P Global Ratings will disclose and correct errors in 
+Publications and other significant errors relating to our analysis and methodologies that may result in a change 
+to current Credit Ratings. We will act to correct any identified errors to further our mission of acting with 
+integrity, honesty and transparency in providing quality Credit Ratings. 
+ 
+
+
+===== PDF PAGE 34 =====
+ 
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Prohibited Activities 
+Date: 01 June 2023 
+ 
+ 
+ 
+Policy Statement 
+ 
+No Unfair, Coercive, or Abusive Practices 
+ 
+Employees are prohibited from engaging in unfair, coercive, or abusive practices, such as issuing or modifying, 
+conditioning or threatening to condition, credit ratings, equity research reports or opinions or fund ratings, 
+research, or recommendations, or securities selected for an index, based on the purchase of any other service or 
+product of S&P Global Ratings or S&P Global Inc. by the related obligor or Issuer, or an affiliate of the obligor 
+or Issuer. 
+ 
+This prohibition also includes issuing or lowering-or making related threats to issue or lower–a credit rating of 
+a security or money market instrument issued by an asset pool or as part of any asset - or mortgage-backed 
+security transaction unless all or a portion of the assets within such pool or such transaction are also rated by 
+S&P Global Ratings, if such actions are taken with an anticompetitive intent. 
+ 
+No Structuring 
+ 
+S&P Global Ratings’ Employees are prohibited from structuring transactions and from making any 
+Recommendation to an Issuer if S&P Global Ratings issues, reasonably anticipates issuing, or maintains a 
+Credit Rating with respect to the Issuer or any security issued, underwritten, or sponsored by the Issuer. 
+ 
+S&P Global Ratings must not issue or maintain a Credit Rating with respect to an Issuer or any security issued, 
+underwritten, or sponsored by an Issuer where a S&P Global Ratings Employee or any Affiliated Person made 
+any Recommendation to the Issuer. S&P Global Ratings must withdraw an existing Credit Rating if it learns 
+that a Recommendation was made to the Issuer by an Employee or Affiliated Person. 
+ 
+No Endorsement 
+ 
+S&P Global Ratings and its Employees will not make statements or take other actions inconsistent with the 
+guiding principles provided in Code of Conduct section 4.3. 
+ 
+
+===== PDF PAGE 35 =====
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Model Use 
+Date: 09 July 2018 
+ 
+ 
+ 
+Policy Statement 
+ 
+This Policy applies to Ratings Models. Analysts may only use a Ratings Model in the process of determining a 
+Credit Rating if the Ratings Model is approved for that use, as specified in the Model Repository. 
+ 
+Analysts must document the use of all Ratings Models (including Ratings Model name and Model ID) used in 
+the process of determining a Credit Rating. 
+ 
+S&P Global Ratings allows for dispensations to this policy in certain circumstances. 
+ 
+
+===== PDF PAGE 36 =====
+ 
+ 
+     
+ 
+ 
+Policy: Methodology 
+Date: 1 November 2024 
+ 
+ 
+ 
+Policy Statement 
+ 
+S&P Global Ratings establishes and maintains Criteria to support the issuance of its Credit Ratings.  Covered 
+Models may also be used to apply Criteria. 
+ 
+S&P Global Ratings’ Criteria are rigorous, systematic, continuous and based upon historical experience 
+(including back-testing) and objective validation.  S&P Global Ratings’ Criteria and Covered Models are 
+developed and changed in accordance with its policies and procedures to allow for consistent application in the 
+issuance and surveillance of Credit Ratings.   
+ 
+S&P Global Ratings’ new and materially changed Criteria and Covered Models are validated by persons who are 
+independent from the persons who developed the Criteria and Covered Models and from the Practice Areas 
+performing the relevant Credit Rating Activities. S&P Global Ratings’ new or materially changed Criteria and 
+associated Covered Models are also subject to management approval and, as required by law or regulation, S&P 
+Financial Services LLC Board of Managers’ approval, prior to use.  S&P Global Ratings will also ensure that any 
+other jurisdictional legal and regulatory requirements are met before Criteria and Covered Models are used in 
+the jurisdictions in which S&P Global Ratings operates.  S&P Global Ratings will ensure consistent application 
+of its Criteria and the use of its Covered Models through training, including training on changes where 
+applicable. 
+ 
+Once approved for use, Criteria used in the determination of a Credit Rating are disclosed to the public on the 
+Free Website in a timely manner and as required by legal and regulatory requirements.  Information relating to 
+Covered Models used in the determination of Credit Ratings is also disclosed to the public on the Free Website. 
+ 
+S&P Global Ratings promptly publishes to the Free Website material changes to Criteria, the reason for the 
+changes, and the likely scope of Credit Ratings to be affected.  Prior to public disclosure, S&P Global Ratings 
+will protect Confidential Information, which includes pending changes to Criteria and Covered Models in 
+accordance with its policies and procedures. 
+ 
+S&P Global Ratings provides market participants an opportunity to provide comments on its in-use Criteria 
+through submission of External Written Comments on the Free Website.  S&P Global Ratings will consider 
+those comments and make them publicly available on the Free Website.  S&P Global Ratings also provides 
+market participants an opportunity to comment on newly developed and material changes to in-use Criteria for 
+determining Credit Ratings for a set time period prior to the proposed or updated Criteria being employed.   
+S&P Global Ratings does so by publicly disclosing on the Free Website proposed new or materially changed 
+Criteria.  Any External Written Comments received on its proposed Criteria will be considered by S&P Global 
+Rating prior to implementing the new or materially changed Criteria and will be made publicly available on the 
+Free Website when the final Criteria is published.  Any changes between the proposed Criteria and final Criteria 
+based on External Written Comments or any other feedback will be made at the discretion of S&P Global 
+Ratings based on its independent and objective assessment of the feedback. 
+ 
+S&P Global Ratings ensures that new and materially changed Criteria and Covered Models are applied 
+consistently to all new and existing Credit Ratings in a timely manner as prescribed by legal and regulatory 
+requirements.  The impact of new or materially changed Criteria on existing Credit Ratings is evaluated in 
+
+
+===== PDF PAGE 37 =====
+ 
+ 
+accordance with S&P Global Ratings’ policies and procedures.  S&P Global Ratings periodically reviews, at least 
+annually, its Criteria by evaluating the performance of its Credit Ratings using metrics (for example, statistics). 
+S&P Global Ratings also ensures that Covered Models that apply in-use Criteria are periodically reviewed and 
+back-tested.   S&P Global Ratings ensures that those who conduct the periodic reviews of Criteria and Covered 
+Models are independent from the persons who developed the Criteria and Covered Models and from the 
+Practice Areas performing the relevant Credit Rating Activities.  
+ 
+S&P Global Ratings also monitors performance of its Credit Ratings through default and transition studies, 
+which are made publicly available. 
+ 
+S&P Global Ratings will disclose to the public all information on the Free Website that it is required to disclose 
+pursuant to its legal and regulatory requirements, including significant errors in Criteria and Covered Models 
+that may result in a change to current Credit Ratings. 
+ 
+S&P Global Ratings clearly defines its rating symbols and applies those symbols in a consistent manner. When 
+required by law or regulation or where otherwise feasible and appropriate, S&P Global Ratings will differentiate 
+Credit Ratings of structured finance products from other Credit Ratings, including through additional 
+disclosures or the use of different rating symbols. Additional detail regarding rating symbols is found in the 
+Rating Definitions document on the Free Website. 
+ 
+In certain circumstances, S&P Global Ratings Criteria may permit the use of ratings from another Credit Rating 
+Agency subject to a comparison analysis of the other Credit Rating Agencies ratings as compared to S&P Global 
+Ratings Credit Ratings or as otherwise provided for in such criteria. 
+ 
+ 
+ 
+ 
+
+===== PDF PAGE 38 =====
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Ratings Vendor Management 
+Date: 17 January, 2025 
+ 
+ 
+ 
+Policy Statement 
+ 
+As necessary and appropriate, S&P Global Ratings utilizes vendors’ goods, products or services (“Vendor 
+Services”). 
+ 
+A “Ratings Vendor” is an internal or external third-party that S&P Global Ratings, S&P Global Inc. or any 
+affiliate of S&P Global Inc. has entered into a contractual relationship with to provide Vendor Services that may 
+impact or are related to Credit Ratings and Credit Ratings Activities. 
+ 
+Prior to utilizing a Ratings Vendor, S&P Global Ratings shall conduct an assessment and related due diligence 
+to ensure that the Vendor Service does not materially impair (i) the quality of Credit Ratings or Credit Rating 
+Activities, (ii) the quality of S&P Global Ratings’ internal controls, (iii) compliance with the S&P Global Ratings 
+Code of Conduct and its Policies, or (iv) compliance with any Regulatory Commitments or guidance within the 
+jurisdictions in which it operates (items (i) to (iv) collectively, “Ratings Vendor Requirements”).  
+ 
+S&P Global Ratings, S&P Global Inc. or its affiliates will enter into written agreements with Ratings Vendors 
+that outline the Vendor Services to be provided, the related terms and conditions, and, when applicable, the 
+controls (such as policies and procedures) that must be implemented and enforced. The written agreements 
+will also direct the manner in which S&P Global Ratings will monitor and periodically review the Ratings 
+Vendor with respect to: (a) performance of and continued fitness to perform Vendor Services pursuant to the 
+written agreement, and (b) the implementation and enforcement of the controls required by written agreement. 
+ 
+S&P Global Ratings will periodically review Ratings Vendors to assess the Ratings Vendor’s current 
+performance of–and continued ability to appropriately perform–the Vendor Services so as to continue to meet 
+the Ratings Vendor Requirements. 
+ 
+Actions by a Ratings Vendor that result in a breach of its written agreement with S&P Global Ratings, and results 
+in a failure to meet the Ratings Vendor Requirements, will be handled by S&P Global Ratings accordingly. 
+ 
+ 
+ 
+
+===== PDF PAGE 39 =====
+ 
+     
+ 
+ 
+ 
+ 
+Policy: Analysis of Information and Application of Criteria 
+Date: 23 May 2016 
+ 
+ 
+ 
+Policy Statement 
+ 
+S&P Global Ratings will establish and maintain Criteria for the issuance of its Credit Ratings and will require 
+consistent application of its Criteria. S&P Global Ratings’ Criteria are rigorous, systematic, continuous and 
+based upon historical experience (including back-testing) and objective validation.  
+ 
+Each Credit Rating is based on a thorough analysis of all information known to, and believed relevant by, the 
+applicable Rating Committee in accordance with its Criteria. 
+ 
+ 
+S&P Global Ratings will establish and maintain measures so that the Analysts assigned to determine a Credit 
+Rating have appropriate individual or collective knowledge and experience to determine the creditworthiness of 
+the applicable Rated Entity or Security. 
+ 

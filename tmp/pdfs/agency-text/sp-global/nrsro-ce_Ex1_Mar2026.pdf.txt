@@ -1,0 +1,1813 @@
+
+===== PDF PAGE 1 =====
+S&P Global Ratings 
+Form NRSRO Exhibit 1 
+Performance Measurement Statistics
+
+===== PDF PAGE 2 =====
+Page Table Title Table Number
+3 Financial Institutions, Brokers, or Dealers Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 1
+4 Financial Institutions, Brokers, or Dealers Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 2
+5 Financial Institutions, Brokers, or Dealers Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 3
+6 Insurance Companies Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 4
+7 Insurance Companies Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 5
+8 Insurance Companies Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 6
+9 Corporate Issuers Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 7
+10 Corporate Issuers Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 8
+11 Corporate Issuers Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 9
+12 Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 10
+13 Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 11
+14 Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 12
+15 Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 13
+16 Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 14
+17 Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 15
+18 Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 16
+19 Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 17
+20 Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 18
+21 Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 19
+22 Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 20
+23 Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 21
+24 Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 22
+25 Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 23
+26 Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 24
+27 Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 25
+28 Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 26
+29 Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 27
+30 Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 28
+31 Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 29
+32 Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 30
+33 Sovereign Issuers Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 31
+34 Sovereign Issuers Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 32
+35 Sovereign Issuers Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 33
+36 U.S. Public Finance Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 34
+37 U.S. Public Finance Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 35
+38 U.S. Public Finance Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 36
+39 International Public Finance Issuers Ratings 1 Year Transition and Default Rates (December 31, 2024 through December 31, 2025) Table 37
+40 International Public Finance Issuers Ratings 3 Year Transition and Default Rates (December 31, 2022 through December 31, 2025) Table 38
+41 International Public Finance Issuers Ratings 10 Year Transition and Default Rates (December 31, 2015 through December 31, 2025) Table 39
+Page 2
+
+===== PDF PAGE 3 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 3 100.00%
+AA+ 26 100.00%
+AA 11 100.00%
+AA- 52 96.15% 1.92% 1.92%
+A+ 142 2.11% 95.77% 0.70% 1.41%
+A 134 8.21% 88.81% 1.49% 1.49%
+A- 131 5.34% 92.37% 2.29%
+BBB+ 145 8.28% 86.90% 0.69% 4.14%
+BBB 161 0.62% 9.32% 73.29% 0.62% 16.15%
+BBB- 130 1.54% 16.15% 75.38% 6.92%
+BB+ 58 10.34% 56.90% 12.07% 20.69%
+BB 78 12.82% 57.69% 29.49%
+BB- 73 16.44% 58.90% 2.74% 21.92%
+B+ 47 10.64% 61.70% 4.26% 2.13% 21.28%
+B 35 17.14% 51.43% 2.86% 28.57%
+B- 43 11.63% 76.74% 2.33% 9.30%
+CCC+ 9 11.11% 44.44% 11.11% 22.22% 11.11%
+CCC 15 20.00% 6.67% 6.67% 6.67% 60.00%
+CCC-
+CC 3 100.00%
+C
+Total 1296
+Table 1
+Financial Institutions, Brokers, or Dealers Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 3
+
+===== PDF PAGE 4 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 3 100.00%
+AA+ 25 100.00%
+AA 14 7.14% 78.57% 7.14% 7.14%
+AA- 51 80.39% 9.80% 9.80%
+A+ 125 5.60% 86.40% 4.00% 4.00%
+A 131 19.85% 67.94% 3.82% 1.53% 6.87%
+A- 125 4.00% 15.20% 71.20% 4.80% 4.80%
+BBB+ 141 4.26% 17.02% 59.57% 8.51% 0.71% 0.71% 9.22%
+BBB 177 3.95% 19.77% 46.89% 8.47% 20.90%
+BBB- 111 2.70% 22.52% 53.15% 2.70% 18.92%
+BB+ 61 1.64% 4.92% 8.20% 34.43% 13.11% 37.70%
+BB 49 8.16% 20.41% 28.57% 4.08% 2.04% 2.04% 34.69%
+BB- 106 0.94% 2.83% 30.19% 23.58% 4.72% 1.89% 35.85%
+B+ 51 1.96% 1.96% 25.49% 29.41% 1.96% 1.96% 1.96% 5.88% 29.41%
+B 44 4.55% 4.55% 18.18% 25.00% 9.09% 2.27% 6.82% 29.55%
+B- 47 2.13% 4.26% 10.64% 46.81% 2.13% 2.13% 8.51% 23.40%
+CCC+ 18 22.22% 22.22% 55.56%
+CCC 7 14.29% 14.29% 14.29% 57.14%
+CCC- 1 100.00%
+CC
+C
+Total 1287
+Table 2
+Financial Institutions, Brokers, or Dealers Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 4
+
+===== PDF PAGE 5 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 5 60.00% 20.00% 20.00%
+AA+ 23 82.61% 13.04% 4.35%
+AA 16 31.25% 31.25% 18.75% 18.75%
+AA- 73 1.37% 42.47% 27.40% 4.11% 24.66%
+A+ 62 1.61% 12.90% 37.10% 16.13% 4.84% 27.42%
+A 162 32.72% 24.07% 13.58% 3.70% 1.85% 24.07%
+A- 114 7.89% 14.04% 34.21% 12.28% 2.63% 0.88% 28.07%
+BBB+ 152 2.63% 9.21% 12.50% 24.34% 11.18% 4.61% 0.66% 34.87%
+BBB 124 1.61% 1.61% 5.65% 29.84% 16.13% 6.45% 0.81% 2.42% 35.48%
+BBB- 121 0.83% 3.31% 4.96% 18.18% 9.92% 0.83% 7.44% 0.83% 0.83% 52.89%
+BB+ 95 1.05% 1.05% 1.05% 2.11% 4.21% 5.26% 11.58% 2.11% 2.11% 1.05% 68.42%
+BB 67 8.96% 2.99% 4.48% 14.93% 2.99% 2.99% 62.69%
+BB- 82 2.44% 1.22% 1.22% 1.22% 3.66% 7.32% 8.54% 1.22% 1.22% 2.44% 69.51%
+B+ 75 1.33% 1.33% 2.67% 4.00% 8.00% 1.33% 2.67% 10.67% 1.33% 10.67% 56.00%
+B 61 3.28% 4.92% 3.28% 3.28% 6.56% 13.11% 65.57%
+B- 59 1.69% 5.08% 10.17% 1.69% 1.69% 28.81% 50.85%
+CCC+ 12 16.67% 25.00% 58.33%
+CCC 6 16.67% 66.67% 16.67%
+CCC- 2 50.00% 50.00%
+CC 1 100.00%
+C
+Total 1312
+Table 3
+Financial Institutions, Brokers, or Dealers Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 5
+
+===== PDF PAGE 6 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA
+AA+ 18 94.44% 5.56%
+AA 37 97.30% 2.70%
+AA- 65 90.77% 9.23%
+A+ 176 0.57% 19.32% 77.27% 2.27% 0.57%
+A 171 12.28% 83.04% 1.17% 3.51%
+A- 134 15.67% 81.34% 2.99%
+BBB+ 56 16.07% 82.14% 1.79%
+BBB 51 5.88% 76.47% 17.65%
+BBB- 29 6.90% 82.76% 3.45% 6.90%
+BB+ 18 16.67% 61.11% 5.56% 16.67%
+BB 13 38.46% 30.77% 7.69% 23.08%
+BB- 13 30.77% 61.54% 7.69%
+B+ 12 33.33% 66.67%
+B 18 5.56% 77.78% 16.67%
+B- 11 54.55% 45.45%
+CCC+ 1 100.00%
+CCC 2 100.00%
+CCC-
+CC 1 100.00%
+C
+Total 826
+Table 4
+Insurance Companies Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 6
+
+===== PDF PAGE 7 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA
+AA+ 18 88.89% 5.56% 5.56%
+AA 37 89.19% 2.70% 2.70% 5.41%
+AA- 62 3.23% 80.65% 9.68% 6.45%
+A+ 165 0.61% 16.36% 73.33% 6.06% 3.64%
+A 169 7.69% 15.98% 68.64% 3.55% 4.14%
+A- 123 23.58% 68.29% 1.63% 6.50%
+BBB+ 62 22.58% 62.90% 6.45% 8.06%
+BBB 59 8.47% 11.86% 54.24% 3.39% 22.03%
+BBB- 22 18.18% 68.18% 9.09% 4.55%
+BB+ 17 5.88% 35.29% 17.65% 11.76% 5.88% 23.53%
+BB 13 7.69% 7.69% 38.46% 15.38% 7.69% 23.08%
+BB- 12 16.67% 33.33% 50.00%
+B+ 15 6.67% 46.67% 26.67% 6.67% 6.67% 6.67%
+B 23 4.35% 17.39% 47.83% 30.43%
+B- 10 50.00% 30.00% 20.00%
+CCC+
+CCC
+CCC-
+CC
+C
+Total 807
+Table 5
+Insurance Companies Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 7
+
+===== PDF PAGE 8 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA
+AA+ 15 80.00% 6.67% 6.67% 6.67%
+AA 40 62.50% 7.50% 2.50% 2.50% 25.00%
+AA- 75 8.00% 34.67% 21.33% 4.00% 2.67% 29.33%
+A+ 156 1.28% 1.28% 16.03% 37.82% 8.97% 34.62%
+A 157 1.27% 0.64% 5.73% 22.93% 38.85% 5.73% 1.27% 23.57%
+A- 159 3.77% 5.03% 26.42% 30.19% 3.14% 31.45%
+BBB+ 94 1.06% 2.13% 1.06% 3.19% 20.21% 27.66% 6.38% 3.19% 3.19% 31.91%
+BBB 47 2.13% 10.64% 10.64% 21.28% 2.13% 2.13% 51.06%
+BBB- 33 6.06% 6.06% 18.18% 15.15% 3.03% 51.52%
+BB+ 21 4.76% 19.05% 9.52% 9.52% 4.76% 4.76% 4.76% 42.86%
+BB 18 5.56% 11.11% 5.56% 77.78%
+BB- 12 16.67% 16.67% 66.67%
+B+ 7 42.86% 14.29% 42.86%
+B 33 3.03% 12.12% 9.09% 3.03% 72.73%
+B- 5 20.00% 20.00% 60.00%
+CCC+
+CCC 1 100.00%
+CCC-
+CC
+C
+Total 873
+Table 6
+Insurance Companies Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 8
+
+===== PDF PAGE 9 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 4 100.00%
+AA+ 14 92.86% 7.14%
+AA 23 100.00%
+AA- 38 2.63% 2.63% 84.21% 10.53%
+A+ 86 1.16% 2.33% 88.37% 4.65% 3.49%
+A 159 4.40% 86.16% 6.92% 0.63% 1.89%
+A- 305 0.33% 5.57% 85.25% 3.93% 0.33% 4.59%
+BBB+ 457 7.88% 85.34% 3.72% 0.22% 2.84%
+BBB 481 0.42% 6.24% 84.20% 5.61% 3.53%
+BBB- 368 0.27% 10.87% 78.26% 2.45% 0.82% 0.27% 7.07%
+BB+ 308 7.47% 77.60% 5.52% 0.97% 0.32% 0.32% 7.79%
+BB 321 0.62% 9.97% 66.04% 7.17% 0.62% 0.31% 15.26%
+BB- 350 0.29% 0.57% 12.00% 61.71% 6.86% 1.43% 0.29% 0.29% 0.29% 16.29%
+B+ 371 0.54% 0.54% 10.78% 57.68% 8.09% 1.08% 1.08% 0.54% 0.81% 18.87%
+B 651 0.15% 0.46% 5.22% 70.05% 8.29% 1.08% 0.15% 0.31% 14.29%
+B- 511 0.20% 1.76% 7.63% 59.88% 7.44% 1.57% 0.78% 2.94% 17.81%
+CCC+ 180 0.56% 8.89% 50.00% 7.22% 2.78% 15.56% 15.00%
+CCC 70 17.14% 10.00% 8.57% 5.71% 1.43% 40.00% 17.14%
+CCC- 19 5.26% 5.26% 63.16% 26.32%
+CC 4 25.00% 75.00%
+C
+Total 4720
+Table 7
+Corporate Issuers Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 9
+
+===== PDF PAGE 10 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 4 100.00%
+AA+ 15 86.67% 13.33%
+AA 23 100.00%
+AA- 38 2.63% 2.63% 73.68% 15.79% 2.63% 2.63%
+A+ 90 1.11% 3.33% 73.33% 12.22% 2.22% 1.11% 1.11% 5.56%
+A 171 0.58% 5.85% 64.33% 19.30% 2.92% 1.17% 5.85%
+A- 295 1.69% 9.83% 67.46% 11.86% 1.02% 0.34% 7.80%
+BBB+ 424 0.24% 0.47% 12.26% 68.87% 8.02% 0.94% 0.24% 0.24% 8.73%
+BBB 477 0.63% 1.68% 14.88% 61.22% 7.55% 0.84% 0.42% 0.63% 0.21% 11.95%
+BBB- 377 0.80% 1.86% 21.49% 51.19% 4.51% 2.12% 1.33% 0.80% 0.27% 0.27% 0.80% 14.59%
+BB+ 308 0.65% 1.62% 18.51% 49.68% 9.42% 1.30% 1.95% 0.65% 0.32% 15.91%
+BB 269 1.12% 3.35% 21.93% 39.78% 9.67% 1.12% 2.60% 0.37% 0.74% 0.37% 0.37% 0.74% 17.84%
+BB- 358 0.56% 0.84% 5.03% 19.55% 31.56% 6.98% 3.35% 0.56% 0.28% 0.56% 3.35% 27.37%
+B+ 373 1.07% 1.88% 4.56% 16.35% 30.03% 11.80% 4.29% 1.88% 0.27% 2.41% 25.47%
+B 704 0.14% 0.14% 0.57% 1.85% 2.56% 8.95% 35.65% 12.07% 2.41% 0.85% 0.28% 4.83% 29.69%
+B- 648 0.15% 1.23% 1.85% 10.80% 28.55% 6.02% 1.70% 0.46% 12.96% 36.27%
+CCC+ 217 0.46% 0.46% 0.92% 1.38% 3.23% 14.29% 11.06% 0.46% 0.92% 32.72% 34.10%
+CCC 58 1.72% 1.72% 5.17% 68.97% 22.41%
+CCC- 20 5.00% 80.00% 15.00%
+CC 6 16.67% 83.33%
+C
+Total 4875
+Table 8
+Corporate Issuers Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 10
+
+===== PDF PAGE 11 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 12 33.33% 50.00% 16.67%
+AA+ 5 60.00% 20.00% 20.00%
+AA 20 15.00% 20.00% 15.00% 10.00% 10.00% 30.00%
+AA- 80 16.25% 16.25% 36.25% 7.50% 5.00% 1.25% 1.25% 16.25%
+A+ 87 2.30% 6.90% 34.48% 27.59% 9.20% 4.60% 4.60% 1.15% 9.20%
+A 162 4.94% 31.48% 14.81% 13.58% 1.85% 1.23% 0.62% 0.62% 30.86%
+A- 302 1.66% 10.26% 35.43% 26.16% 5.30% 1.66% 0.33% 0.33% 0.99% 0.33% 17.55%
+BBB+ 345 0.29% 0.29% 2.03% 17.68% 30.43% 15.94% 6.38% 2.03% 0.87% 0.29% 0.29% 0.58% 22.90%
+BBB 479 0.21% 5.85% 18.58% 28.60% 7.72% 1.88% 2.30% 0.42% 0.63% 0.84% 32.99%
+BBB- 378 0.26% 0.26% 1.59% 6.35% 13.76% 16.93% 3.97% 3.97% 0.79% 1.32% 1.32% 0.79% 0.26% 3.44% 44.97%
+BB+ 305 0.33% 0.66% 3.93% 8.52% 8.85% 16.72% 6.89% 2.62% 1.97% 1.64% 0.66% 0.33% 1.97% 44.92%
+BB 322 0.93% 3.11% 8.07% 9.94% 13.98% 5.59% 4.97% 0.93% 0.62% 0.31% 0.31% 4.35% 46.89%
+BB- 357 0.56% 1.96% 6.44% 7.84% 8.40% 4.20% 3.08% 1.68% 1.12% 7.28% 57.42%
+B+ 460 0.22% 0.43% 0.65% 1.09% 2.61% 2.39% 4.57% 5.65% 3.91% 1.96% 0.43% 0.43% 13.48% 62.17%
+B 847 0.12% 0.24% 0.83% 0.94% 2.24% 2.36% 3.54% 3.19% 0.71% 0.47% 16.77% 68.60%
+B- 343 0.29% 0.29% 0.58% 1.75% 0.58% 3.79% 1.75% 0.58% 0.29% 31.49% 58.60%
+CCC+ 117 0.85% 0.85% 0.85% 1.71% 0.85% 51.28% 43.59%
+CCC 34 2.94% 61.76% 35.29%
+CCC- 21 4.76% 4.76% 9.52% 42.86% 38.10%
+CC 6 83.33% 16.67%
+C
+Total 4682
+Table 9
+Corporate Issuers Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 11
+
+===== PDF PAGE 12 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 3362 90.21% 0.06% 0.03% 9.61% 0.09%
+AA+ 997 1.81% 81.44% 0.10% 0.10% 12.74% 3.81%
+AA 891 1.57% 19.87% 57.58% 0.11% 0.22% 18.74% 1.91%
+AA- 473 0.42% 15.86% 18.18% 50.11% 0.21% 0.42% 13.53% 1.27%
+A+ 700 2.29% 3.86% 6.43% 11.14% 62.14% 0.14% 0.29% 0.29% 9.00% 4.43%
+A 664 0.30% 0.15% 5.12% 10.09% 15.96% 55.42% 0.30% 0.15% 0.15% 0.15% 10.39% 1.81%
+A- 362 1.38% 1.66% 23.20% 25.14% 31.49% 0.28% 0.55% 14.09% 2.21%
+BBB+ 783 0.13% 2.17% 1.15% 5.62% 11.75% 23.37% 45.08% 0.13% 0.13% 0.38% 0.13% 0.26% 7.54% 2.17%
+BBB 994 0.91% 5.03% 12.68% 19.11% 51.41% 0.10% 0.50% 0.20% 0.10% 0.10% 7.04% 2.82%
+BBB- 590 0.34% 0.51% 10.00% 23.73% 22.88% 33.22% 0.68% 1.19% 0.51% 0.17% 4.92% 1.86%
+BB+ 433 0.92% 0.46% 14.55% 11.09% 8.08% 48.27% 0.23% 0.69% 0.69% 1.39% 0.23% 1.39% 0.23% 7.62% 4.16%
+BB 583 0.17% 0.17% 0.17% 0.86% 13.38% 16.64% 6.69% 54.55% 0.34% 0.17% 0.17% 0.17% 0.17% 4.29% 2.06%
+BB- 316 0.95% 7.28% 6.01% 21.84% 6.65% 47.78% 1.27% 0.95% 0.32% 4.43% 2.53%
+B+ 271 0.37% 11.81% 10.70% 12.18% 48.71% 0.74% 3.69% 1.48% 1.11% 5.90% 3.32%
+B 403 0.25% 0.50% 6.70% 4.96% 4.96% 67.25% 0.25% 4.47% 2.48% 4.22% 3.97%
+B- 457 0.66% 2.19% 2.63% 4.38% 3.94% 59.74% 9.41% 0.22% 1.75% 9.41% 5.69%
+CCC+ 13 7.69% 7.69% 53.85% 15.38% 15.38%
+CCC 1891 0.53% 1.53% 0.53% 78.85% 0.11% 12.96% 3.17% 2.33%
+CCC- 11 9.09% 90.91%
+CC 420 0.24% 1.67% 68.57% 28.10% 1.43%
+C
+Total 14614
+Table 
+10
+Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 12
+
+===== PDF PAGE 13 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 3411 71.91% 0.03% 0.12% 0.03% 0.03% 27.44% 0.44%
+AA+ 1113 8.36% 54.27% 0.36% 0.36% 0.90% 0.45% 0.18% 20.93% 14.20%
+AA 906 3.75% 19.76% 31.46% 0.66% 0.44% 0.11% 0.11% 0.11% 38.85% 4.75%
+AA- 315 1.27% 9.21% 13.65% 31.75% 2.86% 0.95% 1.90% 0.63% 0.32% 31.11% 6.35%
+A+ 631 1.11% 1.11% 7.61% 8.08% 33.28% 0.16% 0.32% 0.79% 0.16% 0.16% 0.48% 0.16% 32.49% 14.10%
+A 822 2.19% 1.22% 14.84% 9.61% 14.96% 19.59% 0.24% 0.49% 0.24% 0.12% 0.12% 0.12% 0.12% 0.12% 32.24% 3.77%
+A- 384 0.26% 14.84% 5.73% 11.20% 5.73% 2.60% 12.24% 1.82% 0.78% 0.26% 1.04% 35.94% 7.55%
+BBB+ 486 0.21% 0.82% 0.82% 5.97% 15.64% 18.31% 1.03% 16.26% 0.82% 2.06% 0.21% 0.21% 0.21% 0.82% 0.82% 0.21% 23.87% 11.73%
+BBB 844 0.12% 8.53% 1.54% 3.32% 6.40% 13.15% 13.86% 6.87% 14.10% 0.24% 1.07% 0.47% 0.47% 0.24% 0.12% 0.24% 21.92% 7.35%
+BBB- 615 2.60% 0.49% 0.65% 4.72% 4.88% 23.09% 25.37% 1.63% 11.54% 0.98% 2.11% 0.33% 0.16% 0.16% 0.33% 0.33% 16.75% 3.90%
+BB+ 505 0.99% 2.97% 7.92% 7.33% 10.10% 8.12% 3.37% 16.83% 0.40% 0.20% 1.19% 1.39% 1.78% 0.59% 23.37% 13.47%
+BB 685 0.29% 0.58% 0.15% 2.63% 3.36% 1.31% 10.66% 12.12% 8.47% 4.96% 17.96% 0.44% 1.31% 1.90% 0.44% 0.15% 0.58% 0.58% 27.74% 4.38%
+BB- 309 4.53% 0.65% 0.32% 1.94% 0.97% 11.97% 23.95% 4.85% 1.94% 18.12% 1.62% 3.56% 1.94% 0.32% 15.86% 7.44%
+B+ 335 4.78% 0.60% 0.60% 1.79% 0.30% 1.79% 7.76% 6.57% 10.15% 8.96% 5.97% 14.33% 2.99% 5.07% 5.37% 0.90% 16.42% 5.67%
+B 644 0.78% 0.31% 0.47% 1.86% 7.14% 1.24% 6.21% 9.01% 9.78% 5.43% 18.63% 2.33% 4.97% 0.16% 2.33% 19.57% 9.78%
+B- 544 0.18% 0.18% 0.18% 1.29% 1.47% 1.84% 2.57% 5.70% 2.94% 5.70% 4.60% 29.23% 0.18% 8.09% 2.57% 19.30% 13.97%
+CCC+ 11 9.09% 9.09% 9.09% 27.27% 18.18% 9.09% 18.18%
+CCC 2468 0.04% 0.20% 0.16% 0.32% 1.22% 0.49% 0.93% 2.39% 1.58% 57.98% 0.12% 18.07% 7.58% 8.91%
+CCC- 14 7.14% 14.29% 42.86% 7.14% 21.43% 7.14%
+CC 1453 0.07% 0.28% 0.21% 0.76% 19.82% 77.22% 0.55% 1.10%
+C
+Total 16495
+Table 
+11
+Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 13
+
+===== PDF PAGE 14 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 3715 22.61% 0.27% 0.27% 0.16% 0.30% 0.30% 0.05% 0.27% 0.05% 0.08% 0.16% 0.13% 0.11% 0.08% 0.08% 0.08% 0.08% 71.63% 3.28%
+AA+ 2126 0.42% 13.64% 0.47% 0.52% 0.66% 0.47% 0.14% 0.66% 0.47% 0.42% 0.42% 0.56% 0.09% 0.19% 0.05% 0.28% 0.94% 48.17% 31.42%
+AA 1049 1.72% 4.29% 8.20% 0.19% 0.29% 0.10% 0.10% 0.19% 0.10% 0.19% 0.38% 1.72% 71.69% 10.87%
+AA- 393 0.25% 2.29% 2.80% 1.53% 0.25% 0.51% 0.25% 0.25% 0.25% 0.25% 1.02% 0.25% 0.25% 77.10% 12.72%
+A+ 1777 0.23% 3.49% 1.52% 0.79% 3.66% 1.01% 0.51% 0.23% 0.90% 0.73% 1.01% 0.45% 0.34% 0.39% 0.39% 0.17% 0.28% 1.13% 53.91% 28.87%
+A 1008 0.69% 1.39% 2.68% 1.98% 2.28% 0.40% 0.50% 0.30% 0.69% 0.20% 0.30% 0.40% 0.20% 0.20% 0.50% 0.79% 72.72% 13.79%
+A- 633 3.79% 1.58% 1.90% 1.42% 8.21% 0.63% 0.95% 0.63% 0.63% 0.16% 0.16% 0.32% 0.32% 73.46% 5.85%
+BBB+ 1166 0.69% 0.86% 1.54% 1.54% 1.89% 1.89% 0.26% 1.72% 0.34% 0.60% 0.77% 0.60% 0.86% 0.34% 0.43% 1.11% 0.51% 0.09% 1.89% 59.09% 22.98%
+BBB 980 1.02% 0.82% 2.76% 2.14% 2.45% 1.33% 0.41% 0.31% 1.12% 0.92% 0.82% 0.41% 0.92% 0.41% 0.61% 0.41% 0.10% 0.20% 0.10% 0.10% 2.04% 68.78% 11.84%
+BBB- 401 0.25% 0.25% 0.50% 1.50% 1.75% 3.49% 0.50% 1.25% 1.25% 1.00% 2.00% 0.50% 0.25% 1.25% 0.75% 1.50% 1.75% 59.10% 21.20%
+BB+ 1088 0.74% 0.74% 0.64% 0.55% 2.02% 1.29% 0.28% 0.92% 0.92% 0.28% 1.65% 0.46% 0.28% 1.01% 0.92% 2.02% 3.22% 4.14% 58.64% 19.30%
+BB 627 0.96% 0.80% 0.96% 1.44% 5.58% 2.07% 0.16% 0.32% 3.19% 0.32% 0.64% 2.23% 0.96% 0.16% 0.96% 0.80% 2.23% 1.75% 56.46% 18.02%
+BB- 354 1.41% 0.85% 1.98% 2.26% 2.54% 0.85% 1.69% 1.41% 1.41% 1.41% 2.54% 0.85% 0.56% 1.98% 2.82% 3.39% 51.41% 20.62%
+B+ 481 0.42% 0.42% 1.04% 1.04% 2.29% 1.04% 0.21% 0.21% 1.66% 0.83% 0.83% 0.42% 0.83% 1.87% 2.49% 3.33% 50.94% 30.15%
+B 744 0.40% 0.94% 0.54% 2.42% 1.21% 1.08% 1.48% 1.21% 0.67% 1.21% 1.34% 0.40% 0.67% 1.75% 0.81% 3.76% 6.59% 39.92% 33.60%
+B- 1327 0.08% 0.75% 0.60% 0.38% 0.68% 0.83% 0.38% 1.21% 2.11% 0.90% 1.51% 2.03% 0.90% 1.28% 0.83% 3.62% 0.08% 6.25% 6.78% 49.89% 18.91%
+CCC+ 15 6.67% 6.67% 6.67% 13.33% 6.67% 6.67% 6.67% 13.33% 13.33% 20.00%
+CCC 8106 0.01% 0.12% 0.05% 0.14% 0.68% 0.12% 0.20% 0.74% 0.44% 0.60% 1.16% 0.58% 0.60% 1.38% 0.76% 15.45% 0.07% 1.17% 41.94% 23.65% 10.12%
+CCC- 14 7.14% 7.14% 14.29% 7.14% 14.29% 21.43% 21.43% 7.14%
+CC 2100 0.05% 0.10% 0.24% 0.10% 0.19% 0.57% 0.19% 0.24% 0.57% 0.52% 3.43% 9.14% 67.24% 11.14% 6.29%
+C
+Total 28104
+Table 
+12
+Issuers of Asset-Backed Securities - Residential Mortgage-Backed Securities Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 14
+
+===== PDF PAGE 15 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1107 86.18% 1.45% 0.45% 0.36% 1.63% 0.18% 0.18% 9.58%
+AA+ 136 63.24% 12.50% 1.47% 2.21% 1.47% 19.12%
+AA 137 0.73% 2.92% 66.42% 3.65% 10.95% 4.38% 9.49% 1.46%
+AA- 201 4.48% 4.98% 43.78% 15.92% 0.50% 1.49% 3.98% 4.48% 2.49% 0.50% 0.50% 0.50% 16.42%
+A+ 78 1.28% 10.26% 3.85% 43.59% 8.97% 8.97% 3.85% 1.28% 1.28% 1.28% 1.28% 1.28% 12.82%
+A 61 3.28% 1.64% 54.10% 6.56% 1.64% 1.64% 1.64% 3.28% 3.28% 1.64% 1.64% 19.67%
+A- 143 0.70% 4.20% 2.10% 0.70% 48.95% 4.90% 4.20% 4.90% 3.50% 6.99% 0.70% 1.40% 0.70% 16.08%
+BBB+ 63 6.35% 1.59% 3.17% 53.97% 3.17% 6.35% 3.17% 3.17% 1.59% 3.17% 1.59% 12.70%
+BBB 85 1.18% 2.35% 56.47% 4.71% 2.35% 2.35% 4.71% 5.88% 5.88% 2.35% 11.76%
+BBB- 123 0.81% 6.50% 0.81% 5.69% 39.84% 6.50% 4.88% 0.81% 3.25% 1.63% 1.63% 3.25% 2.44% 21.95%
+BB+ 52 40.38% 15.38% 5.77% 3.85% 1.92% 7.69% 1.92% 1.92% 19.23% 1.92%
+BB 66 1.52% 4.55% 1.52% 48.48% 6.06% 1.52% 6.06% 4.55% 9.09% 1.52% 4.55% 9.09% 1.52%
+BB- 61 6.56% 1.64% 24.59% 9.84% 6.56% 18.03% 8.20% 1.64% 4.92% 18.03%
+B+ 53 5.66% 1.89% 35.85% 1.89% 3.77% 18.87% 13.21% 16.98% 1.89%
+B 37 43.24% 24.32% 16.22% 13.51% 2.70%
+B- 68 1.47% 1.47% 1.47% 42.65% 33.82% 1.47% 8.82% 8.82%
+CCC+
+CCC 98 60.20% 6.12% 23.47% 10.20%
+CCC- 41 63.41% 36.59%
+CC 3 33.33% 66.67%
+C
+Total 2613
+Table 
+13
+Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 15
+
+===== PDF PAGE 16 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1230 63.25% 1.63% 1.06% 0.57% 2.85% 0.41% 0.41% 0.49% 0.57% 0.33% 0.33% 0.08% 0.08% 0.16% 0.33% 0.16% 0.57% 26.59% 0.16%
+AA+ 150 52.67% 11.33% 1.33% 0.67% 34.00%
+AA 152 0.66% 2.63% 50.00% 2.63% 6.58% 4.61% 0.66% 1.32% 2.63% 1.32% 25.66% 1.32%
+AA- 225 0.44% 2.22% 1.78% 27.56% 5.33% 1.78% 4.44% 4.89% 5.33% 3.11% 2.67% 3.11% 0.89% 0.89% 0.44% 0.44% 0.44% 2.22% 32.00%
+A+ 68 13.24% 2.94% 35.29% 7.35% 4.41% 4.41% 1.47% 1.47% 1.47% 27.94%
+A 96 1.04% 6.25% 30.21% 1.04% 2.08% 1.04% 4.17% 3.13% 3.13% 7.29% 1.04% 9.38% 30.21%
+A- 206 1.94% 0.49% 24.76% 6.80% 3.88% 4.85% 5.34% 4.37% 3.40% 3.40% 1.94% 1.46% 1.46% 0.97% 4.85% 30.10%
+BBB+ 59 8.47% 5.08% 3.39% 32.20% 1.69% 5.08% 6.78% 3.39% 3.39% 1.69% 5.08% 23.73%
+BBB 65 1.54% 46.15% 1.54% 1.54% 4.62% 3.08% 13.85% 6.15% 21.54%
+BBB- 200 0.50% 2.50% 0.50% 3.50% 12.00% 4.50% 5.00% 2.00% 5.00% 2.50% 6.00% 7.00% 0.50% 6.00% 42.00% 0.50%
+BB+ 33 15.15% 6.06% 3.03% 6.06% 6.06% 18.18% 45.45%
+BB 56 1.79% 3.57% 21.43% 1.79% 3.57% 10.71% 7.14% 50.00%
+BB- 96 2.08% 2.08% 1.04% 6.25% 3.13% 3.13% 15.63% 20.83% 2.08% 10.42% 30.21% 3.13%
+B+ 48 2.08% 2.08% 12.50% 2.08% 8.33% 14.58% 6.25% 10.42% 39.58% 2.08%
+B 62 14.52% 3.23% 20.97% 3.23% 29.03% 27.42% 1.61%
+B- 68 1.47% 1.47% 13.24% 25.00% 7.35% 27.94% 23.53%
+CCC+ 3 66.67% 33.33%
+CCC 75 30.67% 10.67% 36.00% 22.67%
+CCC- 22 50.00% 36.36% 13.64%
+CC 1 100.00%
+C
+Total 2915
+Table 
+14
+Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 16
+
+===== PDF PAGE 17 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 882 0.68% 0.91% 2.49% 0.11% 0.23% 0.11% 0.23% 0.68% 0.91% 77.44% 16.21%
+AA+ 107 0.93% 1.87% 1.87% 0.93% 94.39%
+AA 150 0.67% 0.67% 6.00% 1.33% 1.33% 1.33% 1.33% 2.00% 85.33%
+AA- 174 0.57% 0.57% 2.87% 0.57% 1.72% 0.57% 1.72% 1.15% 0.57% 1.15% 1.15% 0.57% 0.57% 4.60% 81.61%
+A+ 82 1.22% 1.22% 2.44% 1.22% 3.66% 1.22% 3.66% 2.44% 82.93%
+A 130 0.77% 6.92% 0.77% 1.54% 0.77% 7.69% 81.54%
+A- 224 1.34% 0.89% 0.45% 2.68% 0.89% 0.89% 0.89% 2.23% 0.45% 1.34% 0.45% 3.13% 5.36% 79.02%
+BBB+ 120 3.33% 0.83% 0.83% 9.17% 0.83% 1.67% 0.83% 0.83% 5.83% 75.00% 0.83%
+BBB 117 0.85% 7.69% 0.85% 1.71% 0.85% 0.85% 5.98% 81.20%
+BBB- 265 0.38% 0.38% 1.13% 1.51% 0.38% 0.75% 3.77% 0.38% 7.92% 83.02% 0.38%
+BB+ 140 5.00% 0.71% 1.43% 0.71% 8.57% 82.14% 1.43%
+BB 135 0.74% 0.74% 0.74% 0.74% 2.96% 0.74% 11.85% 80.74% 0.74%
+BB- 207 0.48% 2.42% 1.93% 13.04% 81.16% 0.97%
+B+ 125 0.80% 1.60% 1.60% 0.80% 22.40% 71.20% 1.60%
+B 139 1.44% 1.44% 0.72% 23.74% 71.22% 1.44%
+B- 289 0.69% 31.83% 66.78% 0.69%
+CCC+ 38 60.53% 39.47%
+CCC 93 67.74% 32.26%
+CCC- 123 69.92% 30.08%
+CC 8 87.50% 12.50%
+C
+Total 3548
+Table 
+15
+Issuers of Asset-Backed Securities - Commercial Mortgage-Backed Securities Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 17
+
+===== PDF PAGE 18 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 2936 62.16% 37.84%
+AA+ 104 9.62% 32.69% 57.69%
+AA 2323 2.63% 1.33% 60.05% 35.99%
+AA- 23 8.70% 4.35% 34.78% 52.17%
+A+ 93 2.15% 5.38% 2.15% 34.41% 55.91%
+A 1771 0.06% 0.90% 0.90% 0.90% 0.73% 59.51% 36.98%
+A- 29 3.45% 44.83% 51.72%
+BBB+ 82 1.22% 1.22% 53.66% 1.22% 42.68%
+BBB 391 0.51% 0.26% 0.26% 0.51% 0.26% 0.77% 1.02% 72.63% 0.77% 23.02%
+BBB- 1641 0.24% 0.06% 0.06% 0.79% 0.55% 62.83% 1.04% 0.55% 33.88%
+BB+ 23 4.35% 34.78% 60.87%
+BB 50 2.00% 4.00% 34.00% 60.00%
+BB- 1441 0.21% 0.07% 61.07% 2.50% 1.94% 0.21% 0.07% 33.93%
+B+ 104 0.96% 1.92% 44.23% 3.85% 6.73% 8.65% 0.96% 32.69%
+B 19 5.26% 57.89% 10.53% 26.32%
+B- 634 0.16% 0.16% 66.09% 2.21% 1.74% 0.63% 0.16% 28.86%
+CCC+ 27 62.96% 7.41% 14.81% 3.70% 11.11%
+CCC 3 33.33% 33.33% 33.33%
+CCC- 4 50.00% 25.00% 25.00%
+CC 3 100.00%
+C
+Total 11701
+Table 
+16
+Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 18
+
+===== PDF PAGE 19 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 2027 23.63% 76.17% 0.20%
+AA+ 43 4.65% 95.35%
+AA 1793 4.24% 1.95% 26.72% 66.98% 0.11%
+AA- 19 10.53% 15.79% 73.68%
+A+ 45 2.22% 2.22% 4.44% 91.11%
+A 1381 0.58% 1.74% 1.23% 1.16% 1.30% 23.39% 70.46% 0.14%
+A- 36 2.78% 2.78% 2.78% 16.67% 75.00%
+BBB+ 53 1.89% 22.64% 73.58% 1.89%
+BBB 272 0.37% 0.74% 0.74% 1.47% 0.37% 1.47% 1.47% 43.38% 1.10% 48.90%
+BBB- 1076 0.09% 0.09% 0.46% 0.19% 0.09% 1.67% 0.74% 23.05% 1.49% 0.84% 71.10% 0.19%
+BB+ 34 5.88% 8.82% 85.29%
+BB 74 1.35% 4.05% 14.86% 79.73%
+BB- 1002 0.30% 0.10% 28.34% 3.89% 3.09% 0.90% 0.10% 0.10% 63.17%
+B+ 99 1.01% 2.02% 20.20% 6.06% 5.05% 9.09% 1.01% 1.01% 1.01% 53.54%
+B 27 3.70% 14.81% 7.41% 3.70% 3.70% 66.67%
+B- 462 0.22% 0.22% 41.56% 4.55% 2.38% 1.52% 0.87% 48.70%
+CCC+ 22 45.45% 9.09% 4.55% 4.55% 4.55% 31.82%
+CCC 4 25.00% 75.00%
+CCC- 7 14.29% 57.14% 28.57%
+CC 5 100.00%
+C
+Total 8481
+Table 
+17
+Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 19
+
+===== PDF PAGE 20 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1354 98.15% 1.85%
+AA+ 320 99.38% 0.63%
+AA 678 96.61% 3.39%
+AA- 71 100.00%
+A+ 193 98.96% 1.04%
+A 511 97.06% 2.94%
+A- 51 100.00%
+BBB+ 194 99.48% 0.52%
+BBB 436 97.25% 2.75%
+BBB- 69 100.00%
+BB+ 160 99.38% 0.63%
+BB 399 2.26% 96.24% 1.50%
+BB- 84 2.38% 97.62%
+B+ 106 2.83% 97.17%
+B 171 5.85% 94.15%
+B- 67 2.99% 97.01%
+CCC+ 36 2.78% 97.22%
+CCC 11 100.00%
+CCC- 52 1.92% 40.38% 57.69%
+CC 11 36.36% 27.27% 36.36%
+C
+Total 4974
+Table 
+18
+Issuers of Asset-Backed Securities - Collateralized Loan Obligations Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 20
+
+===== PDF PAGE 21 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 4 75.00% 25.00%
+AA+ 23 4.35% 91.30% 4.35%
+AA 25 8.00% 92.00%
+AA- 6 100.00%
+A+ 27 70.37% 29.63%
+A 20 10.00% 5.00% 65.00% 5.00% 15.00%
+A- 7 71.43% 14.29% 14.29%
+BBB+ 27 3.70% 3.70% 88.89% 3.70%
+BBB 31 96.77% 3.23%
+BBB- 6 33.33% 66.67%
+BB+
+BB 2 100.00%
+BB- 3 100.00%
+B+ 5 20.00% 80.00%
+B
+B- 3 66.67% 33.33%
+CCC+
+CCC 1 100.00%
+CCC- 1 100.00%
+CC 9 88.89% 11.11%
+C
+Total 200
+Table 
+19
+Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 21
+
+===== PDF PAGE 22 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 4 75.00% 25.00%
+AA+ 23 4.35% 91.30% 4.35%
+AA 20 10.00% 85.00% 5.00%
+AA- 7 85.71% 14.29%
+A+ 46 39.13% 2.17% 56.52% 2.17%
+A 21 9.52% 4.76% 28.57% 4.76% 4.76% 47.62%
+A- 15 33.33% 6.67% 6.67% 46.67% 6.67%
+BBB+ 20 5.00% 5.00% 45.00% 30.00% 15.00%
+BBB 34 85.29% 2.94% 11.76%
+BBB- 6 33.33% 50.00% 16.67%
+BB+ 1 100.00%
+BB 2 50.00% 50.00%
+BB- 3 33.33% 66.67%
+B+ 4 25.00% 25.00% 50.00%
+B
+B- 4 25.00% 75.00%
+CCC+
+CCC 1 100.00%
+CCC- 5 20.00% 40.00% 40.00%
+CC 19 42.11% 15.79% 42.11%
+C
+Total 235
+Table 
+20
+Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 22
+
+===== PDF PAGE 23 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 46 100.00%
+AA+ 72 27.78% 2.78% 6.94% 1.39% 59.72% 1.39%
+AA 55 9.09% 89.09% 1.82%
+AA- 25 96.00% 4.00%
+A+ 52 98.08% 1.92%
+A 118 9.32% 0.85% 89.83%
+A- 48 2.08% 2.08% 83.33% 12.50%
+BBB+ 81 1.23% 6.17% 3.70% 1.23% 85.19% 2.47%
+BBB 33 3.03% 15.15% 78.79% 3.03%
+BBB- 49 2.04% 2.04% 91.84% 4.08%
+BB+ 53 1.89% 98.11%
+BB 30 3.33% 93.33% 3.33%
+BB- 43 4.65% 95.35%
+B+ 45 2.22% 93.33% 4.44%
+B 32 81.25% 18.75%
+B- 37 2.70% 97.30%
+CCC+ 46 2.17% 2.17% 95.65%
+CCC 30 3.33% 6.67% 86.67% 3.33%
+CCC- 242 0.41% 1.65% 31.82% 64.46% 1.65%
+CC 58 6.90% 48.28% 44.83%
+C
+Total 1195
+Table 
+21
+Issuers of Asset-Backed Securities - Collateralized Debt Obligations Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 23
+
+===== PDF PAGE 24 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+A-1+ A-1 A-2 A-3 B C Default Paid Off Withdrawn 
+(Other)
+A-1+ 71 33.80% 66.20%
+A-1 140 99.29% 0.71%
+A-2 2 100.00%
+A-3
+B
+C
+Total 213
+Table 22
+Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 24
+
+===== PDF PAGE 25 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+A-1+ A-1 A-2 A-3 B C Default Paid Off Withdrawn 
+(Other)
+A-1+ 66 18.18% 15.15% 66.67%
+A-1 110 7.27% 81.82% 10.91%
+A-2 8 25.00% 25.00% 50.00%
+A-3
+B 1 100.00%
+C
+Total 185
+Table 23
+Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 25
+
+===== PDF PAGE 26 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+A-1+ A-1 A-2 A-3 B C Default Paid Off Withdrawn 
+(Other)
+A-1+ 80 5.00% 5.00% 78.75% 11.25%
+A-1 82 9.76% 54.88% 21.95% 13.41%
+A-2 28 7.14% 3.57% 67.86% 21.43%
+A-3 1 100.00%
+B
+C
+Total 191
+Table 24
+Issuers of Asset-Backed Securities - Asset-Backed Commercial Paper Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 26
+
+===== PDF PAGE 27 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1928 64.26% 0.99% 0.31% 0.05% 34.23% 0.16%
+AA+ 409 22.49% 62.35% 0.24% 0.24% 14.67%
+AA 797 10.16% 9.16% 70.01% 1.25% 0.50% 8.91%
+AA- 89 24.72% 5.62% 10.11% 30.34% 2.25% 1.12% 1.12% 2.25% 19.10% 3.37%
+A+ 142 10.56% 4.23% 9.15% 4.23% 54.23% 2.11% 1.41% 0.70% 13.38%
+A 715 4.90% 2.66% 3.78% 1.96% 2.24% 71.61% 0.70% 1.12% 0.42% 0.56% 9.93% 0.14%
+A- 226 0.88% 1.33% 1.33% 0.88% 1.33% 79.20% 0.44% 5.31% 0.88% 8.41%
+BBB+ 198 1.52% 1.52% 0.51% 5.05% 2.02% 2.53% 71.21% 5.56% 0.51% 0.51% 9.09%
+BBB 377 0.80% 1.06% 0.27% 1.33% 1.86% 5.31% 2.12% 7.16% 67.37% 3.45% 0.27% 0.27% 0.27% 0.80% 6.63% 1.06%
+BBB- 85 1.18% 1.18% 1.18% 1.18% 3.53% 3.53% 72.94% 3.53% 1.18% 10.59%
+BB+ 54 1.85% 3.70% 1.85% 5.56% 3.70% 5.56% 50.00% 5.56% 3.70% 1.85% 1.85% 14.81%
+BB 173 0.58% 0.58% 1.73% 1.73% 1.16% 2.89% 3.47% 40.46% 1.16% 1.16% 1.16% 0.58% 0.58% 0.58% 12.72% 29.48%
+BB- 110 0.91% 0.91% 0.91% 1.82% 1.82% 1.82% 20.91% 32.73% 4.55% 0.91% 1.82% 13.64% 17.27%
+B+ 38 5.26% 5.26% 2.63% 2.63% 23.68% 13.16% 47.37%
+B 40 2.50% 5.00% 2.50% 2.50% 37.50% 2.50% 5.00% 30.00% 12.50%
+B- 49 2.04% 2.04% 2.04% 6.12% 48.98% 18.37% 20.41%
+CCC+ 18 5.56% 55.56% 16.67% 16.67% 5.56%
+CCC 33 3.03% 3.03% 6.06% 6.06% 3.03% 54.55% 3.03% 15.15% 6.06%
+CCC- 20 5.00% 5.00% 75.00% 5.00% 5.00% 5.00%
+CC 75 1.33% 86.67% 6.67% 1.33% 4.00%
+C
+Total 5576
+Table 
+25
+Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 27
+
+===== PDF PAGE 28 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1676 28.40% 0.36% 71.24%
+AA+ 443 14.00% 44.24% 0.23% 0.23% 41.31%
+AA 710 9.58% 6.48% 40.28% 0.28% 0.28% 0.14% 42.68% 0.28%
+AA- 84 8.33% 4.76% 5.95% 9.52% 5.95% 1.19% 1.19% 61.90% 1.19%
+A+ 133 5.26% 1.50% 9.77% 3.76% 15.79% 2.26% 60.90% 0.75%
+A 737 7.06% 0.81% 2.99% 0.81% 2.04% 43.83% 0.14% 1.63% 0.41% 0.54% 38.94% 0.81%
+A- 255 1.96% 0.78% 0.78% 7.84% 54.12% 0.39% 5.10% 0.39% 28.63%
+BBB+ 197 2.54% 1.02% 0.51% 0.51% 2.54% 1.02% 49.24% 1.52% 3.05% 38.07%
+BBB 321 7.17% 2.18% 1.56% 2.18% 0.62% 3.43% 3.43% 5.92% 39.56% 2.18% 0.62% 0.31% 0.93% 0.31% 28.97% 0.62%
+BBB- 118 2.54% 1.69% 0.85% 2.54% 1.69% 1.69% 3.39% 11.86% 32.20% 2.54% 0.85% 38.14%
+BB+ 72 4.17% 1.39% 1.39% 1.39% 4.17% 5.56% 1.39% 18.06% 2.78% 4.17% 2.78% 52.78%
+BB 85 1.18% 4.71% 4.71% 2.35% 1.18% 8.24% 23.53% 7.06% 2.35% 1.18% 1.18% 42.35%
+BB- 145 0.69% 1.38% 1.38% 1.38% 1.38% 0.69% 0.69% 2.07% 6.90% 7.59% 0.69% 0.69% 0.69% 2.76% 51.03% 20.00%
+B+ 46 2.17% 2.17% 2.17% 10.87% 2.17% 4.35% 58.70% 17.39%
+B 69 1.45% 1.45% 1.45% 1.45% 1.45% 1.45% 4.35% 1.45% 2.90% 7.25% 1.45% 4.35% 1.45% 5.80% 53.62% 8.70%
+B- 61 1.64% 1.64% 3.28% 29.51% 1.64% 55.74% 6.56%
+CCC+ 29 24.14% 3.45% 10.34% 58.62% 3.45%
+CCC 43 2.33% 2.33% 2.33% 4.65% 27.91% 4.65% 13.95% 39.53% 2.33%
+CCC- 50 4.00% 4.00% 2.00% 4.00% 4.00% 2.00% 2.00% 2.00% 26.00% 10.00% 6.00% 30.00% 4.00%
+CC 78 1.28% 1.28% 71.79% 21.79% 1.28% 2.56%
+C
+Total 5352
+Table 
+26
+Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 28
+
+===== PDF PAGE 29 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1550 2.90% 96.71% 0.39%
+AA+ 562 7.30% 18.33% 0.36% 0.18% 0.18% 0.53% 0.18% 1.60% 70.64% 0.71%
+AA 624 1.92% 2.56% 9.94% 0.16% 0.16% 1.44% 0.16% 0.32% 83.01% 0.32%
+AA- 120 0.83% 0.83% 0.83% 96.67% 0.83%
+A+ 321 2.49% 2.80% 1.25% 2.49% 90.65% 0.31%
+A 579 2.76% 0.17% 0.52% 0.35% 0.52% 0.17% 0.17% 0.17% 0.35% 92.23% 2.59%
+A- 111 4.50% 0.90% 0.90% 2.70% 0.90% 4.50% 0.90% 1.80% 2.70% 0.90% 72.97% 6.31%
+BBB+ 343 0.58% 0.29% 6.41% 8.75% 1.17% 0.29% 81.05% 1.46%
+BBB 366 0.27% 0.27% 0.82% 0.82% 1.64% 1.91% 0.55% 1.91% 0.55% 0.27% 89.07% 1.91%
+BBB- 65 3.08% 1.54% 1.54% 1.54% 1.54% 1.54% 81.54% 7.69%
+BB+ 50 2.00% 2.00% 96.00%
+BB 104 0.96% 2.88% 1.92% 0.96% 93.27%
+BB- 41 2.44% 4.88% 14.63% 78.05%
+B+ 35 2.86% 2.86% 2.86% 91.43%
+B 49 2.04% 2.04% 93.88% 2.04%
+B- 75 1.33% 1.33% 8.00% 6.67% 2.67% 4.00% 4.00% 2.67% 68.00% 1.33%
+CCC+ 36 2.78% 2.78% 13.89% 2.78% 2.78% 72.22% 2.78%
+CCC 51 3.92% 1.96% 1.96% 1.96% 13.73% 17.65% 3.92% 49.02% 5.88%
+CCC- 49 6.12% 2.04% 2.04% 2.04% 2.04% 40.82% 10.20% 32.65% 2.04%
+CC 90 1.11% 1.11% 1.11% 1.11% 1.11% 1.11% 1.11% 35.56% 43.33% 11.11% 2.22%
+C
+Total 5221
+Table 
+27
+Issuers of Asset-Backed Securities - Other Asset-Backed Securities Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 29
+
+===== PDF PAGE 30 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 45 82.22% 17.78%
+AA+ 40 100.00%
+AA 25 100.00%
+AA- 7 100.00%
+A+ 5 100.00%
+A 10 90.00% 10.00%
+A- 5 100.00%
+BBB+ 16 87.50% 6.25% 6.25%
+BBB 34 26.47% 73.53%
+BBB- 30 3.33% 26.67% 3.33% 66.67%
+BB+ 28 10.71% 42.86% 3.57% 14.29% 28.57%
+BB 56 3.57% 1.79% 5.36% 89.29%
+BB- 37 5.41% 94.59%
+B+ 55 3.64% 3.64% 7.27% 85.45%
+B 38 5.26% 94.74%
+B- 9 33.33% 66.67%
+CCC+
+CCC
+CCC- 2 100.00%
+CC 13 69.23% 30.77%
+C
+Total 455
+Other Structured Finance Products is comprised of covered bonds, CDO operating companies, synthetic structured finance products, and other structured credits.
+Table 
+28
+Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 30
+
+===== PDF PAGE 31 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 40 37.50% 5.00% 50.00% 7.50%
+AA+ 43 93.02% 6.98%
+AA 24 91.67% 8.33%
+AA- 6 83.33% 16.67%
+A+ 8 25.00% 50.00% 25.00%
+A 2 50.00% 50.00%
+A- 9 11.11% 33.33% 55.56%
+BBB+ 21 61.90% 9.52% 4.76% 19.05% 4.76%
+BBB 37 27.03% 48.65% 10.81% 8.11% 5.41%
+BBB- 27 18.52% 22.22% 11.11% 29.63% 18.52%
+BB+ 27 3.70% 29.63% 3.70% 14.81% 48.15%
+BB 17 23.53% 11.76% 64.71%
+BB- 36 2.78% 2.78% 16.67% 77.78%
+B+ 39 5.13% 5.13% 7.69% 15.38% 66.67%
+B 12 8.33% 91.67%
+B- 9 33.33% 11.11% 55.56%
+CCC+
+CCC
+CCC- 2 100.00%
+CC 10 90.00% 10.00%
+C
+Total 369
+Other Structured Finance Products is comprised of covered bonds, CDO operating companies, synthetic structured finance products, and other structured credits.
+Table 
+29
+Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 31
+
+===== PDF PAGE 32 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 54 3.70% 3.70% 88.89% 3.70%
+AA+ 82 48.78% 3.66% 46.34% 1.22%
+AA 42 28.57% 4.76% 66.67%
+AA- 17 5.88% 94.12%
+A+ 16 12.50% 12.50% 68.75% 6.25%
+A 34 2.94% 5.88% 2.94% 82.35% 5.88%
+A- 34 2.94% 11.76% 2.94% 11.76% 67.65% 2.94%
+BBB+ 85 2.35% 18.82% 10.59% 1.18% 2.35% 61.18% 3.53%
+BBB 33 18.18% 3.03% 69.70% 9.09%
+BBB- 44 9.09% 9.09% 2.27% 77.27% 2.27%
+BB+ 14 7.14% 42.86% 7.14% 14.29% 28.57%
+BB 19 10.53% 31.58% 57.89%
+BB- 10 20.00% 20.00% 10.00% 50.00%
+B+ 4 25.00% 75.00%
+B 5 20.00% 60.00% 20.00%
+B- 11 81.82% 18.18%
+CCC+
+CCC 6 33.33% 50.00% 16.67%
+CCC- 13 15.38% 23.08% 61.54%
+CC 6 100.00%
+C
+Total 529
+Other Structured Finance Products is comprised of covered bonds, CDO operating companies, synthetic structured finance products, and other structured credits.
+Table 
+30
+Issuers of Asset-Backed Securities - Other Structured Finance Products Issues Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 32
+
+===== PDF PAGE 33 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 12 100.00%
+AA+ 5 100.00%
+AA 8 100.00%
+AA- 3 33.33% 33.33% 33.33%
+A+ 10 10.00% 90.00%
+A 8 25.00% 75.00%
+A- 6 16.67% 83.33%
+BBB+ 5 20.00% 60.00% 20.00%
+BBB 6 50.00% 50.00%
+BBB- 16 6.25% 12.50% 75.00% 6.25%
+BB+ 4 50.00% 25.00% 25.00%
+BB 6 33.33% 66.67%
+BB- 10 40.00% 60.00%
+B+ 12 16.67% 58.33% 8.33% 8.33% 8.33%
+B 4 50.00% 50.00%
+B- 14 14.29% 85.71%
+CCC+ 10 20.00% 70.00% 10.00%
+CCC 2 100.00%
+CCC-
+CC 1 100.00%
+C
+Total 142
+Table 
+31
+Sovereign Issuers Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 33
+
+===== PDF PAGE 34 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 12 100.00%
+AA+ 5 100.00%
+AA 7 85.71% 14.29%
+AA- 7 42.86% 14.29% 14.29% 14.29% 14.29%
+A+ 10 10.00% 70.00% 20.00%
+A 4 50.00% 50.00%
+A- 4 25.00% 25.00% 50.00%
+BBB+ 8 12.50% 37.50% 25.00% 25.00%
+BBB 8 12.50% 50.00% 12.50% 25.00%
+BBB- 9 11.11% 77.78% 11.11%
+BB+ 6 33.33% 33.33% 16.67% 16.67%
+BB 6 33.33% 33.33% 33.33%
+BB- 6 50.00% 33.33% 16.67%
+B+ 11 18.18% 36.36% 27.27% 9.09% 9.09%
+B 11 9.09% 18.18% 36.36% 18.18% 9.09% 9.09%
+B- 13 7.69% 15.38% 69.23% 7.69%
+CCC+ 6 16.67% 50.00% 33.33%
+CCC 2 50.00% 50.00%
+CCC- 2 100.00%
+CC 1 100.00%
+C
+Total 138
+Table 
+32
+Sovereign Issuers Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 34
+
+===== PDF PAGE 35 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 13 84.62% 7.69% 7.69%
+AA+ 6 16.67% 50.00% 16.67% 16.67%
+AA 7 57.14% 14.29% 28.57%
+AA- 4 25.00% 25.00% 25.00% 25.00%
+A+ 8 25.00% 62.50% 12.50%
+A 6 50.00% 16.67% 33.33%
+A- 7 14.29% 28.57% 14.29% 28.57% 14.29%
+BBB+ 8 12.50% 25.00% 12.50% 12.50% 12.50% 25.00%
+BBB 5 20.00% 40.00% 40.00%
+BBB- 12 8.33% 8.33% 8.33% 25.00% 8.33% 16.67% 8.33% 16.67%
+BB+ 5 20.00% 20.00% 20.00% 20.00% 20.00%
+BB 4 25.00% 25.00% 25.00% 25.00%
+BB- 9 11.11% 11.11% 11.11% 22.22% 22.22% 11.11% 11.11%
+B+ 14 7.14% 28.57% 7.14% 28.57% 14.29% 14.29%
+B 13 15.38% 7.69% 15.38% 7.69% 15.38% 15.38% 23.08%
+B- 11 9.09% 36.36% 18.18% 9.09% 18.18% 9.09%
+CCC+ 2 50.00% 50.00%
+CCC 1 100.00%
+CCC-
+CC
+C
+Total 135
+Table 
+33
+Sovereign Issuers Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 35
+
+===== PDF PAGE 36 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1595 96.93% 0.56% 0.06% 2.45%
+AA+ 3929 0.41% 93.54% 0.89% 0.18% 0.03% 4.66% 0.31%
+AA 2957 1.35% 93.17% 1.79% 0.14% 0.10% 2.84% 0.61%
+AA- 3991 4.11% 88.75% 2.46% 0.53% 0.10% 0.03% 0.03% 3.23% 0.78%
+A+ 4785 0.08% 3.36% 89.38% 2.72% 0.54% 0.04% 0.08% 3.24% 0.54%
+A 3238 0.40% 3.18% 89.96% 2.29% 0.59% 0.22% 0.06% 2.81% 0.49%
+A- 1411 0.07% 0.99% 14.03% 76.90% 1.42% 0.78% 0.28% 0.14% 4.18% 1.20%
+BBB+ 487 0.21% 1.85% 3.70% 83.57% 3.90% 1.85% 0.62% 2.05% 2.26%
+BBB 369 0.27% 2.17% 7.05% 80.76% 5.69% 0.54% 0.27% 2.71% 0.54%
+BBB- 321 0.31% 1.87% 3.74% 84.42% 4.36% 0.93% 0.31% 0.31% 0.31% 1.87% 1.56%
+BB+ 173 0.58% 1.16% 5.20% 79.19% 5.78% 0.58% 1.73% 1.16% 2.89% 1.73%
+BB 149 0.67% 0.67% 6.04% 82.55% 4.70% 0.67% 0.67% 0.67% 0.67% 1.34% 1.34%
+BB- 44 4.55% 65.91% 15.91% 2.27% 9.09% 2.27%
+B+ 25 4.00% 8.00% 68.00% 8.00% 4.00% 8.00%
+B 12 8.33% 75.00% 8.33% 8.33%
+B- 9 22.22% 11.11% 44.44% 11.11% 11.11%
+CCC+ 2 100.00%
+CCC 2 50.00% 50.00%
+CCC- 1 100.00%
+CC 5 40.00% 60.00%
+C
+Total 23505
+Table 
+34
+U.S. Public Finance Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 36
+
+===== PDF PAGE 37 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1421 91.84% 1.34% 0.07% 6.54% 0.21%
+AA+ 3648 2.58% 81.91% 2.19% 0.25% 0.03% 12.39% 0.66%
+AA 3102 0.06% 8.51% 75.92% 3.00% 0.26% 0.13% 0.03% 10.99% 1.10%
+AA- 4072 0.12% 8.42% 73.18% 4.15% 1.11% 0.25% 0.02% 0.02% 10.41% 2.31%
+A+ 4903 0.04% 0.39% 8.30% 74.22% 4.59% 0.94% 0.18% 0.18% 9.28% 1.88%
+A 3199 0.16% 0.97% 10.00% 71.62% 4.28% 0.97% 0.31% 0.19% 0.03% 9.35% 2.13%
+A- 1332 0.38% 3.45% 16.52% 60.59% 3.90% 1.88% 0.45% 0.53% 0.08% 0.08% 0.08% 0.08% 9.38% 2.63%
+BBB+ 670 0.30% 3.28% 23.43% 8.21% 39.55% 5.07% 1.64% 0.75% 0.30% 0.30% 0.15% 0.15% 12.99% 3.88%
+BBB 420 2.14% 4.29% 10.00% 13.10% 46.90% 7.62% 1.19% 0.24% 0.48% 0.24% 0.71% 0.24% 8.81% 4.05%
+BBB- 317 0.63% 0.32% 1.89% 1.89% 7.57% 9.78% 60.57% 6.94% 1.58% 0.32% 0.32% 6.62% 1.58%
+BB+ 178 0.56% 1.69% 2.25% 17.42% 51.12% 8.43% 2.25% 2.81% 0.56% 8.99% 3.93%
+BB 134 0.75% 0.75% 2.24% 0.75% 12.69% 61.19% 3.73% 2.24% 0.75% 1.49% 1.49% 11.19% 0.75%
+BB- 47 4.26% 2.13% 12.77% 31.91% 12.77% 4.26% 2.13% 4.26% 14.89% 10.64%
+B+ 21 4.76% 14.29% 38.10% 9.52% 4.76% 19.05% 9.52%
+B 15 6.67% 6.67% 13.33% 40.00% 6.67% 6.67% 6.67% 13.33%
+B- 8 25.00% 12.50% 25.00% 12.50% 25.00%
+CCC+ 9 22.22% 33.33% 22.22% 22.22%
+CCC 5 20.00% 20.00% 20.00% 20.00% 20.00%
+CCC- 1 100.00%
+CC 5 40.00% 60.00%
+C
+Total 23507
+Table 
+35
+U.S. Public Finance Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 37
+
+===== PDF PAGE 38 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 1109 70.78% 4.42% 0.63% 0.36% 0.27% 21.10% 2.43%
+AA+ 3171 6.53% 41.06% 3.25% 0.63% 0.06% 0.06% 0.06% 0.03% 0.03% 0.03% 46.55% 1.70%
+AA 3370 0.98% 13.68% 37.66% 5.82% 1.07% 0.42% 0.09% 0.03% 0.03% 0.06% 38.10% 2.08%
+AA- 4006 0.12% 2.00% 12.21% 37.22% 7.41% 2.00% 0.60% 0.12% 0.10% 0.07% 0.05% 0.02% 0.05% 35.00% 3.02%
+A+ 4977 0.46% 2.13% 11.57% 39.12% 6.89% 1.49% 0.54% 0.30% 0.10% 0.02% 0.02% 33.78% 3.58%
+A 3486 0.20% 0.60% 3.82% 14.54% 27.17% 5.19% 1.64% 0.52% 0.29% 0.32% 0.09% 0.11% 0.03% 0.03% 0.14% 41.28% 4.04%
+A- 1719 0.12% 0.87% 2.62% 5.64% 17.80% 15.47% 4.36% 1.86% 0.99% 0.35% 0.06% 0.12% 0.06% 0.06% 0.12% 42.82% 6.69%
+BBB+ 571 0.35% 0.70% 1.93% 9.28% 10.16% 10.68% 11.21% 2.98% 1.58% 1.05% 0.35% 0.35% 0.35% 0.35% 0.18% 40.81% 7.71%
+BBB 479 0.21% 0.63% 2.09% 5.43% 8.14% 8.35% 8.35% 11.06% 6.05% 1.88% 1.25% 0.63% 0.21% 0.21% 0.21% 0.84% 36.33% 8.14%
+BBB- 365 0.55% 0.82% 1.92% 4.11% 4.38% 6.03% 7.40% 18.08% 3.56% 4.11% 1.10% 0.55% 0.82% 0.55% 0.27% 1.64% 38.08% 6.03%
+BB+ 146 0.68% 4.11% 2.05% 1.37% 0.68% 2.05% 7.53% 13.70% 8.22% 2.05% 1.37% 1.37% 41.10% 13.70%
+BB 76 1.32% 1.32% 6.58% 3.95% 13.16% 15.79% 1.32% 3.95% 1.32% 1.32% 2.63% 36.84% 10.53%
+BB- 36 2.78% 2.78% 2.78% 8.33% 8.33% 11.11% 2.78% 55.56% 5.56%
+B+ 12 8.33% 16.67% 8.33% 58.33% 8.33%
+B 26 3.85% 11.54% 3.85% 7.69% 3.85% 7.69% 42.31% 19.23%
+B- 20 5.00% 5.00% 5.00% 70.00% 15.00%
+CCC+ 8 12.50% 12.50% 62.50% 12.50%
+CCC 5 20.00% 40.00% 40.00%
+CCC- 2 100.00%
+CC 41 68.29% 17.07% 14.63%
+C
+Total 23625
+Table 
+36
+U.S. Public Finance Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 38
+
+===== PDF PAGE 39 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 38 92.11% 7.89%
+AA+ 46 6.52% 80.43% 10.87% 2.17%
+AA 32 3.13% 56.25% 34.38% 6.25%
+AA- 35 8.57% 34.29% 51.43% 5.71%
+A+ 20 90.00% 10.00%
+A 22 18.18% 77.27% 4.55%
+A- 6 100.00%
+BBB+ 6 16.67% 83.33%
+BBB 14 50.00% 42.86% 7.14%
+BBB- 8 37.50% 62.50%
+BB+ 7 100.00%
+BB 13 30.77% 69.23%
+BB- 6 16.67% 66.67% 16.67%
+B+ 4 25.00% 50.00% 25.00%
+B 3 33.33% 66.67%
+B- 2 50.00% 50.00%
+CCC+ 2 50.00% 50.00%
+CCC 8 62.50% 37.50%
+CCC-
+CC 5 100.00%
+C
+Total 277
+Table 
+37
+International Public Finance Issuers Ratings 1 Year Transition and Default Rates
+(December 31, 2024 through December 31, 2025)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2024 - 12/31/2025 (Percent)
+Page 39
+
+===== PDF PAGE 40 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 34 85.29% 8.82% 2.94% 2.94%
+AA+ 51 15.69% 66.67% 9.80% 3.92% 1.96% 1.96%
+AA 42 4.76% 38.10% 23.81% 21.43% 11.90%
+AA- 21 4.76% 14.29% 33.33% 23.81% 19.05% 4.76%
+A+ 23 17.39% 69.57% 8.70% 4.35%
+A 18 27.78% 61.11% 11.11%
+A- 6 16.67% 66.67% 16.67%
+BBB+ 7 42.86% 57.14%
+BBB 10 40.00% 50.00% 10.00%
+BBB- 9 22.22% 11.11% 11.11% 55.56%
+BB+ 6 16.67% 83.33%
+BB 12 8.33% 8.33% 83.33%
+BB- 12 16.67% 16.67% 8.33% 8.33% 50.00%
+B+ 7 14.29% 42.86% 42.86%
+B 2 50.00% 50.00%
+B-
+CCC+ 12 58.33% 33.33% 8.33%
+CCC
+CCC-
+CC 5 100.00%
+C
+Total 277
+Table 
+38
+International Public Finance Issuers Ratings 3 Year Transition and Default Rates
+(December 31, 2022 through December 31, 2025)
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2022 - 12/31/2025 (Percent)
+Page 40
+
+===== PDF PAGE 41 =====
+Credit 
+Rating  
+Number of 
+Ratings 
+Outstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C Default Paid Off Withdrawn 
+(Other)
+AAA 30 63.33% 16.67% 10.00% 3.33% 6.67%
+AA+ 40 35.00% 42.50% 7.50% 5.00% 10.00%
+AA 42 4.76% 23.81% 23.81% 9.52% 16.67% 2.38% 19.05%
+AA- 27 18.52% 25.93% 18.52% 7.41% 29.63%
+A+ 28 25.00% 35.71% 10.71% 28.57%
+A 10 20.00% 10.00% 30.00% 20.00% 20.00%
+A- 7 14.29% 28.57% 28.57% 14.29% 14.29%
+BBB+ 10 30.00% 50.00% 10.00% 10.00%
+BBB 9 22.22% 33.33% 44.44%
+BBB- 19 5.26% 42.11% 5.26% 47.37%
+BB+ 30 3.33% 3.33% 3.33% 6.67% 3.33% 6.67% 10.00% 3.33% 60.00%
+BB 18 5.56% 5.56% 5.56% 5.56% 5.56% 72.22%
+BB- 14 7.14% 7.14% 7.14% 78.57%
+B+ 7 100.00%
+B 3 100.00%
+B- 3 33.33% 66.67%
+CCC+ 1 100.00%
+CCC 100.00%
+CCC- 7 14.29% 71.43% 14.29%
+CC
+C
+Total 305
+Table 
+39
+International Public Finance Issuers Ratings 10 Year Transition and Default Rates
+(December 31, 2015 through December 31, 2025)
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent) Other Outcomes During 
+12/31/2015 - 12/31/2025 (Percent)
+Page 41
+
+===== PDF PAGE 42 =====
+ 
+ 
+S&P Global Ratings Definitions 
+ 
+The below outlines definitions of the symbols, numbers and scores in the rating scales used by S&P Global Ratings 
+(‘SPGR’) to denote credit rating categories and notches within those categories for the classes and subclasses of credit 
+ratings shown in the Matrices contained within SPGR’s Form NRSRO Exhibit 1 Matrices. 
+ 
+I. GENERAL-PURPOSE CREDIT RATINGS 
+1. The following sets of rating definitions are for long-term and short-term credit ratings for both issuer and issue 
+ratings. These types of credit ratings cover the broadest set of credit risk factors and are not limited in scope. 
+Some refer to these as the "traditional" credit ratings. 
+ 
+A. Issue Credit Ratings 
+2. An S&P Global Ratings issue credit rating is a forward-looking opinion about the creditworthiness of an obligor 
+with respect to a specific financial obligation, a specific class of financial obligations, or a specific financial 
+program (including ratings on medium-term note programs and commercial paper programs). It takes into 
+consideration the creditworthiness of guarantors, insurers, or other forms of credit enhancement on the obligation 
+and takes into account the currency in which the obligation is denominated. The opinion reflects S&P Global 
+Ratings' view of the obligor's capacity and willingness to meet its financial commitments as they come due, and 
+this opinion may assess terms, such as collateral security and subordination, which could affect ultimate payment 
+in the event of default.  
+3. Issue credit ratings can be either long-term or short-term. Short-term issue credit ratings are generally assigned 
+to those obligations considered short-term in the relevant market, typically with an original maturity of no more 
+than 365 days. Short-term issue credit ratings are also used to indicate the creditworthiness of an obligor with 
+respect to put features on long-term obligations. We would typically assign a long-term issue credit rating to an 
+obligation with an original maturity of greater than 365 days. However, the ratings we assign to certain 
+instruments may diverge from these guidelines based on market practices. Medium-term notes are assigned long-
+term ratings. 
+ 
+1. Long-Term Issue Credit Ratings 
+4. Issue credit ratings are based, in varying degrees, on S&P Global Ratings' analysis of the following considerations: 
+- The likelihood of payment--the capacity and willingness of the obligor to meet its financial 
+commitments on an obligation in accordance with the terms of the obligation; 
+- The nature and provisions of the financial obligation, and the promise we impute; and 
+- The protection afforded by, and relative position of, the financial obligation in the event of a 
+bankruptcy, reorganization, or other arrangement under the laws of bankruptcy and other laws 
+affecting creditors' rights. 
+5. An issue rating is an assessment of default risk but may incorporate an assessment of relative seniority or 
+ultimate recovery in the event of default. Junior obligations are typically rated lower than senior obligations, to 
+reflect lower priority in bankruptcy, as noted above. (Such differentiation may apply when an entity has both 
+senior and subordinated obligations, secured and unsecured obligations, or operating company and holding 
+company obligations.) 
+  
+
+===== PDF PAGE 43 =====
+ 
+ 
+Table 1 
+ 
+Long-Term Issue Credit Ratings* 
+ 
+ 
+Category Definition 
+AAA An obligation rated 'AAA' has the highest rating assigned by S&P Global Ratings. The obligor's capacity to meet its financial  
+commitments on the obligation is extremely strong. 
+AA An obligation rated 'AA' differs from the highest-rated obligations only to a small degree. The obligor's capacity to meet its 
+financial commitments on the obligation is very strong. 
+A An obligation rated 'A' is somewhat more susceptible to the adverse effects of changes in circumstances and economic 
+conditions than obligations in higher-rated categories. However, the obligor's capacity to meet its financial commitments on 
+the obligation is still strong. 
+BBB An obligation rated 'BBB' exhibits adequate protection parameters. However, adverse economic conditions or changing 
+circumstances are more likely to weaken the obligor's capacity to meet its financial commitments on the obligation. 
+BB, B, CCC, 
+CC, and C 
+Obligations rated 'BB', 'B', 'CCC', 'CC', and 'C' are regarded as having significant speculative characteristics. 'BB' indicates 
+the least degree of speculation and 'C' the highest. While such obligations will likely have some quality and protective 
+characteristics, these may be outweighed by large uncertainties or major exposure to adverse conditions. 
+BB An obligation rated 'BB' is less vulnerable to nonpayment than other speculative issues. However, it faces major ongoing 
+uncertainties or exposure to adverse business, financial, or economic conditions that could lead to the obligor's inadequate 
+capacity to meet its financial commitments on the obligation. 
+B An obligation rated 'B' is more vulnerable to nonpayment than obligations rated 'BB', but the obligor currently has the 
+capacity to meet its financial commitments on the obligation. Adverse business, financial, or economic conditions will likely  
+impair the obligor's capacity or willingness to meet its financial commitments on the obligation. 
+CCC An obligation rated 'CCC' is currently vulnerable to nonpayment and is dependent upon favorable business, financial, and 
+economic conditions for the obligor to meet its financial commitments on the obligation. In the event of adverse business, 
+financial, or economic conditions, the obligor is not likely to have the capacity to meet its financial commitments on the 
+obligation. 
+CC An obligation rated 'CC' is currently highly vulnerable to nonpayment. The 'CC' rating is used when a default has not yet 
+occurred but S&P Global Ratings expects default to be a virtual certainty, regardless of the anticipated time to default.  
+C An obligation rated 'C' is currently highly vulnerable to nonpayment, and the obligation is expected to have lower relative 
+seniority or lower ultimate recovery compared with obligations that are rated higher. 
+D An obligation rated 'D' is in default or in breach of an imputed promise. For non-hybrid capital instruments, the 'D' rating 
+category is used when payments on an obligation are not made on the date due, unless S&P Global Ratings believes that 
+such payments will be made within the next five business days in the absence of a stated grace period or within the earlier 
+of the stated grace period or the next 30 calendar days. The 'D' rating also will be used upon the filing of a bankruptcy 
+petition or the taking of similar action and where default on an obligation is a virtual certainty, for example due to automatic 
+stay provisions. A rating on an obligation is lowered to 'D' if it is subject to a distressed debt restructuring. 
+ 
+*Ratings from 'AA' to 'CCC' may be modified by the addition of a plus (+) or minus (-) sign to show relative standing within the rating categories. 
+ 
+2. Short-Term Issue Credit Ratings 
+ 
+Table 2 
+ 
+Short-Term Issue Credit Ratings 
+ 
+Category Definition 
+A-1 A short-term obligation rated 'A-1' is rated in the highest category by S&P Global Ratings. The obligor's capacity to meet its 
+financial commitments on the obligation is strong. Within this category, certain obligations are designated with a plus sign 
+(+). This indicates that the obligor's capacity to meet its financial commitments on these obligations is extremely strong . 
+A-2 A short-term obligation rated 'A-2' is somewhat more susceptible to the adverse effects of changes in circumstances and 
+economic conditions than obligations in higher rating categories. However, the obligor's capacity to meet its financial 
+commitments on the obligation is satisfactory. 
+A-3 A short-term obligation rated 'A-3' exhibits adequate protection parameters. However, adverse economic conditions or 
+changing circumstances are more likely to weaken an obligor's capacity to meet its financial commitments on the obligation . 
+B A short-term obligation rated 'B' is regarded as vulnerable and has significant speculative characteristics. The obligor 
+currently has the capacity to meet its financial commitments; however, it faces major ongoing uncertainties that could lead 
+to the obligor's inadequate capacity to meet its financial commitments. 
+C A short-term obligation rated 'C' is currently vulnerable to nonpayment and is dependent upon favorable business, financial, 
+and economic conditions for the obligor to meet its financial commitments on the obligation. 
+D A short-term obligation rated 'D' is in default or in breach of an imputed promise. For non-hybrid capital instruments, the 'D' 
+rating category is used when payments on an obligation are not made on the date due, unless S&P Global Ratings believes 
+that such payments will be made within any stated grace period. However, any stated grace period longer than five business 
+days will be treated as five business days. The 'D' rating also will be used upon the filing of a bankruptcy petition or the 
+taking of a similar action and where default on an obligation is a virtual certainty, for example due to automatic stay 
+provisions. A rating on an obligation is lowered to 'D' if it is subject to a distressed debt restructuring. 
+
+===== PDF PAGE 44 =====
+ 
+ 
+ 
+B. Issuer Credit Ratings 
+6. An S&P Global Ratings issuer credit rating is a forward-looking opinion about an obligor's overall creditworthiness. 
+This opinion focuses on the obligor's capacity and willingness to meet its financial commitments as they come 
+due. It does not apply to any specific financial obligation, as it does not take into account the nature of and 
+provisions of the obligation, its standing in bankruptcy or liquidation, statutory preferences, or the legality and 
+enforceability of the obligation. 
+7. Sovereign credit ratings are forms of issuer credit ratings. 
+8. Issuer credit ratings can be either long-term or short-term. Long-term issuer credit ratings focus on the obligor's 
+capacity and willingness over the long-term to meet all of its financial commitments, both long- and short-term, 
+as they come due, whereas short-term issuer credit ratings focus on the obligor's capacity and willingness over 
+the short-term to meet all of its financial commitments as they come due. 
+ 
+1. Long-Term Issuer Credit Ratings 
+ 
+Table 3 
+ 
+Long-Term Issuer Credit Ratings* 
+ 
+Category Definition 
+AAA An obligor rated 'AAA' has extremely strong capacity to meet its financial commitments. 'AAA' is the highest issuer credit 
+rating assigned by S&P Global Ratings. 
+AA An obligor rated 'AA' has very strong capacity to meet its financial commitments. It differs from the highest-rated obligors 
+only to a small degree. 
+A An obligor rated 'A' has strong capacity to meet its financial commitments but is somewhat more susceptible to the adverse 
+effects of changes in circumstances and economic conditions than obligors in higher-rated categories. 
+BBB An obligor rated 'BBB' has adequate capacity to meet its financial commitments. However, adverse economic conditions or 
+changing circumstances are more likely to weaken the obligor's capacity to meet its financial commitments. 
+BB, B, CCC, 
+and CC 
+Obligors rated 'BB', 'B', 'CCC', and 'CC' are regarded as having significant speculative characteristics. 'BB' indicates the least 
+degree of speculation and 'CC' the highest. While such obligors will likely have some quality and protective characteristics,  
+these may be outweighed by large uncertainties or major exposure to adverse conditions.   
+BB An obligor rated 'BB' is less vulnerable in the near term than other lower-rated obligors. However, it faces major ongoing 
+uncertainties and exposure to adverse business, financial, or economic conditions that could lead to the obligor's 
+inadequate capacity to meet its financial commitments. 
+B An obligor rated 'B' is more vulnerable than the obligors rated 'BB', but the obligor currently has the capacity to meet its 
+financial commitments. Adverse business, financial, or economic conditions will likely impair the obligor's capacity or 
+willingness to meet its financial commitments. 
+CCC An obligor rated 'CCC' is currently vulnerable and is dependent upon favorable business, financial, and economic conditions 
+to meet its financial commitments. 
+CC 
+An obligor rated 'CC' is currently highly vulnerable. The 'CC' rating is used when a default has not yet occurred but S&P 
+Global Ratings expects default to be a virtual certainty, regardless of the anticipated time to default. 
+SD and D An obligor is rated 'SD' (selective default) or 'D' if S&P Global Ratings considers there to be a default on one or more of i ts 
+financial obligations, whether long- or short-term, including rated and unrated obligations but excluding hybrid instruments 
+classified as regulatory capital or in nonpayment according to terms. A 'D' rating is assigned when S&P Global Ratings 
+believes that the default will be a general default and that the obligor will fail to pay all or substantially all of its obligations 
+as they come due. An 'SD' rating is assigned when S&P Global Ratings believes that the obligor has selectively defaulted on 
+a specific issue or class of obligations but it will continue to meet its payment obligations on other issues or classes of 
+obligations in a timely manner. A rating on an obligor is lowered to 'D' or 'SD' if it is conducting a distressed debt 
+restructuring. 
+ 
+*Ratings from 'AA' to 'CCC' may be modified by the addition of a plus (+) or minus (-) sign to show relative standing within the rating categories. 
+ 
+  
+
+===== PDF PAGE 45 =====
+ 
+ 
+II. LOCAL CURRENCY AND FOREIGN CURRENCY RATINGS 
+9. S&P Global Ratings' issuer credit ratings make a distinction between foreign currency ratings and local currency 
+ratings. A foreign currency rating on an issuer can differ from the local currency rating on it when the obligor has a 
+different capacity to meet its obligations denominated in its local currency versus obligations denominated in a 
+foreign currency. 
+ 
+ 
+III. SPECIAL-PURPOSE RATINGS 
+ 
+A. SPUR (S&P Underlying Rating) 
+10. A SPUR is an opinion about the stand-alone capacity of an obligor to pay debt service on a credit-enhanced debt 
+issue, without giving effect to the enhancement that applies to it. These ratings are published only at the request 
+of the debt issuer or obligor with the designation SPUR to distinguish them from the credit-enhanced rating that 
+applies to the debt issue. S&P Global Ratings maintains surveillance of an issue with a published SPUR. 
+ 
+B. Swap Risk Ratings 
+11. An S&P Global Ratings swap risk rating is a forward-looking opinion about the likelihood of loss associated with a 
+specific swap transaction (the "swap transaction") entered into by two counterparties. 
+12. A swap risk rating takes into consideration S&P Global Ratings' view on the terms of the swap transaction 
+including, without limitation, the creditworthiness of one or more reference or underlying obligations or obligors 
+(the "portfolio") above a certain specified threshold percentage or amount, termination events, and potential 
+recovery percentage or amount on the portfolio. All swap risk ratings take into consideration the creditworthiness 
+of the portfolio. 
+13. A swap risk rating may be modified by the designation "portfolio," "single counterparty--protection buyer" and 
+"single counterparty--protection seller." A swap risk rating (portfolio) takes into consideration only S&P Global 
+Ratings' view on the creditworthiness of the credit default swap portfolio. A swap risk rating (single counterparty-
+-protection buyer) takes into consideration S&P Global Ratings' view on the creditworthiness of the portfolio and 
+the buyer of protection under the swap transaction. A swap risk rating (single counterparty--protection seller) 
+takes into consideration S&P Global Ratings' view on the creditworthiness of the portfolio and the seller of 
+protection under the swap transaction. Because the terms of each swap transaction are highly customized, a 
+swap risk rating may address different risks; therefore, the swap risk ratings should not be viewed as benchmarks 
+related to swap risk across different swap transactions. 
+14. Swap risk ratings will be modified by a suffix that identifies the type of swap risk rating assigned. The letter 
+ratings will be followed by the designations 'srp,' 'srb,' and 'srs' to correspond with related designations: 
+- Portfolio ('srp') ratings only take into consideration the creditworthiness of the reference portfolio 
+of the credit default swap; 
+- Single counterparty--protection buyer ('srb') ratings take into consideration the creditworthiness 
+of the reference portfolio and the buyer of protection under the swap transaction; and 
+- Single counterparty--protection seller ('srs') ratings take into consideration the creditworthiness 
+of the reference portfolio and the seller of protection under the swap transaction. 
+15. A swap risk rating (portfolio) does not address either counterparty risk (including risk of periodic payments). Each 
+of swap risk ratings (single counterparty--protection buyer) or (single counterparty--protection seller) addresses 
+the counterparty risk of one of the counterparties to the swap transaction, respectively. None of the swap risk 
+ratings address the specific amount of termination payments that would be payable under the swap transaction. 
+The specific risks addressed by each swap risk rating are stated in the rating letter and the terms and conditions 
+issued for each rated swap transaction. 
+  
+
+===== PDF PAGE 46 =====
+ 
+ 
+Table 4 
+ 
+Swap Risk Ratings* (see paragraph 14 for suffix) 
+ 
+Category Definition 
+AAA A swap transaction with a swap risk rating of 'AAA' has the highest rating assigned by S&P Global Ratings. The likelihood of 
+loss under the swap transaction is extremely low. 
+AA A swap transaction with a swap risk rating of 'AA' differs from the highest-rated swap transaction only to a small degree. 
+The likelihood of loss under the swap transaction is very low. 
+A A swap transaction with a swap risk rating of 'A' is somewhat more susceptible to the adverse effects of changes in 
+circumstances and economic conditions than swap transactions in higher-rated categories. However, the likelihood of loss 
+under the swap transaction is still low. 
+BBB A swap transaction with a swap risk rating of 'BBB' exhibits adequate protection parameters. However, adverse economic 
+conditions or changing circumstances are more likely to lead to an increased likelihood of loss under the swap transaction . 
+BB, B, CCC, 
+and CC 
+A swap transaction with a swap risk rating of 'BB', 'B', 'CCC', and 'CC' is regarded as having significant speculative 
+characteristics. 
+BB A swap transaction with a swap risk rating of 'BB' indicates less vulnerability to a risk of loss than other speculative issu es. 
+However, major ongoing uncertainties or exposure to adverse business, financial, or economic conditions could lead to a 
+substantial increase in the likelihood of loss under the swap transaction. 
+B A swap transaction with a swap risk rating of 'B' is more vulnerable to a risk of loss than a swap transaction with a swap 
+risk rating of 'BB'. However, major ongoing uncertainties or exposure to adverse business, financial, or economic conditions 
+will likely lead to a substantial increase in the likelihood of loss under the swap transaction. 
+CCC A swap transaction with a swap risk rating of 'CCC' is currently vulnerable to a risk of loss. In the event of adverse busine ss, 
+financial, or economic conditions, the swap transaction is likely to incur loss. 
+CC A swap transaction with a swap risk rating of 'CC' is currently highly vulnerable to loss. 
+D A swap transaction with a swap risk rating of 'D' has incurred or experienced loss. 
+* Swap risk ratings from 'AA' to 'CCC' may be modified by the addition of a plus (+) or minus (-) sign to show relative standing within the swap risk rating categories. 
+
+===== PDF PAGE 47 =====
+History of Rating Actions 
+In accordance with the rules of the Securities and Exchange Commission (the "Commission"), the 
+NRSRO makes and keeps publicly available on its internet website in an interactive data file in XBRL 
+format the ratings action information required pursuant to 17 CFR §240.17g-7(b), at the following URL:  
+https://disclosure.spglobal.com/ratings/en/regulatory/ratingshistory.  
+
+===== PDF PAGE 48 =====
+Method of Calculating Performance Measurement Statistics 
+S&P Global Ratings uses the single cohort approach method of calculating the performance measurement 
+statistics in Exhibit 1. The single cohort approach is used to calculate transition and default rates in order to 
+determine the percent of credit ratings at each notch in the rating scale for a given class or subclass and for 
+the applicable time period (1-, 3-, and 10-years) that were rated at the same notch or transitioned to another 
+notch as of the end of the period, and the percent of credit ratings at each notch that we re classified as a 
+default or paid off, or had been withdrawn for reasons other than being classified as a default or paid off 
+during the period. For example, a matrix containing 3-year transition and default rates for the class of 
+corporate issuers discloses the number of credit ratings of corporate issuers S&P Global Ratings had 
+outstanding as of the period start date that is three years prior to the most recent calendar year end at each 
+notch in the rating scale used by S&P Global Ratings, the percent of those credit ratings that were rated at 
+the same notch and the percent that transitioned to each other notch in the rating scale as of the end of the 
+3-year period, and the percent that were classified as a default or paid off, or had been withdrawn at an y time 
+during the 3-year period.  
+Single and average cohort approaches provide different information about rating performance. The single 
+cohort approach uses information from only the most recent 1-, 3-, and 10-year periods and thus presents 
+the rating performance at specific points in time. As such, it is useful for presenting the historical experience 
+of a particular group of ratings under a particular set of circumstances. On the other hand, the average 
+cohort approach uses information from multiple time periods and thus presents the weighted average rating 
+performance across all available 1-, 3-, or 10-year time periods. Both approaches are valid, depending on 
+the needs of the user, but they do not yield comparable information.  
+S&P Global Ratings uses both single and average cohort approaches in the rating performance 
+measurement statistics it publishes on its Internet website. As noted previously, single and average cohort 
+approaches provide different information about rating performance. S&P Global Ra tings uses both 
+approaches to present the rating performance measurement statistics to avoid the pitfalls in estimating 
+default and transition rates using one approach. 

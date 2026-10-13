@@ -1,0 +1,1137 @@
+
+===== PDF PAGE 1 =====
+KROLL BOND RATING AGENCY, 
+INC. 
+Form NRSRO Annual Certification filed as of 
+September 14, 2015 
+EXHIBIT 1: 
+Performance Measurement 
+Statistics 
+
+===== PDF PAGE 2 =====
+KROLL BOND RATING AGENCY, INC. 
+Form NRSRO Exhibit 1 - Filed as of Seotember 14, 2015 
+Exhibit 1. Provide in this Exhibit performance measurement statistics of the 
+credit ratings of the Applicant/NRSRO, including performance measurement 
+statistics of the credit ratings separately for each class of credit rating for 
+which the Applicant/NRSRO is seeking registration or is registered (as 
+indicated in Item 6 and/or 7 of Form NRSRO): 
+OVERVIEW 
+The Kroll Bond Rating Agency ("KBRA") Subscription Rating Service ("SRS") 
+and its corporate predecessor, LACE Financial Corporation (acquired in 
+August 2010), have provided financial strength ratings with respect to 
+financial institutions for over twenty-five years. KBRA began to issu,e publicly 
+credit ratings on structured finance and other asset classes in 2011. The 
+attached transition and default tables track changes in these ratings over 
+one-, three- and ten-year periods. 
+PERFORMANCE MEASUREMENT STATISTICS 
+Periods Shown; Institutions Rated; Frequency of Ratings 
+The data in the attached tables have been compiled from historical 
+ratings. The unit of study for Structured Finance ratings is the rated 
+tranche. For all other ratings, the issuer is the unit of study, regardless of 
+the number of obligations or classes of obligations rated. 
+Each table shown is based on a static pool or cohort analysis. The tables 
+show the percent of ratings outstanding at the start of the period (not 
+initial ratings) in each category, compared to where tlhey stood at the end 
+of the stated period. The diagonal is the percent of ratings that remained 
+the same at the start and end of the period. The periods covered are 1-
+year (comparing ratings on January 1, 2014 with ratings at December 31, 
+2014), 3-year (comparing ratings on January 1, 2012 with ratings at 
+December 31, 2014) and 10-year (comparing ratings on January 1, 2005 
+with ratings at December 31, 2014). For SRS subscription-based financial 
+strength ratings, year-end ratings were generally based on the prior 
+year's third quarter financ ial statement data. 
+If no table is shown, or if a table does not reflect every period called for 
+by the instructions to Form NRSRO, then no ratings were outstanding for 
+that sector at the start of the period. Thus: (a) there are no three and ten 
+year long-term transition tables for Asset-Backed Securities ratings 
+because KBRA did not have any ratings outstanding on Asset-Backed 
+2 
+
+===== PDF PAGE 3 =====
+KROLL BOND RATING AGENCY, INC. 
+Securities three and ten years ago; (b) there are no three and ten year 
+short-term transition tables for Asset-Backed Securities ratings because 
+KBRA did not have any ratings outstanding on Asset-Backed Securities 
+three and ten years ago; (c) there are no three and ten year long-term 
+transition tables for Residential Mortgage-Backed Securities ratings 
+because KBRA did not have any ratings outstanding in these categories 
+three and ten years ago; (d) there is no ten year long-term transition 
+table for Commercial Mortgage-Backed Securities ratings because KBRA 
+did not have any ratings outstanding on commercial mortgage-backed 
+securities ten years ago; (e) there are no three and ten year long-term 
+transition tables for U.S. Public Finance ratings because KBRA did not 
+have any ratings outstanding on U.S Public Finance issues and issuers 
+three and ten years ago; (f) there are no three and ten year short-term 
+transition tables for U.S. Public Finance ratings because KBRA did not 
+have any rati ngs outstanding on U.S Public Finance issues and issuers 
+three and ten years ago; (g) there are no three and ten year long-term 
+transition tables for Financial Institution ratings because KBRA did not 
+have any ratings outstanding on Financial Institutions three and ten years 
+ago; (h) there are no three and ten year short-term transition tables for 
+Financial Institution ratings because KBRA did not have any ratings 
+outstanding on Financial Institutions three and ten years ago; (i) there are 
+no three and ten year transition tables for Corporate ratings because 
+KBRA did not have any ratings outstanding on Corporate issuers and 
+issuances three and ten years ago; (j) there are no three and ten year 
+long-term transition tables for Financial Guarantors because KBRA did not 
+have any ratings outstanding on Financial Guarantors three and ten years 
+ago; (k) there are no three and ten year transition tables for Project 
+Finance issuers because KBRA did not have any ratings outstanding on 
+Proj ect Finance issuers and issuance three and ten years ago; (I) there are 
+no ten year transition t ables for Title Insurance Companies ratings 
+because KBRA did not have any ratings outstanding on Title Insurance 
+Companies ten years ago; and (m) there are no ten year transit ion tables 
+for financial strength ratings on Foreign Banks because KBRA did not have 
+any financial strength ratings outstanding on Foreign Banks ten years ago. 
+SRS Corporate ratings transitions are discussed below. 
+Government rating transitions are shown separately for U.S. Public 
+Finance issuers and SRS Sovereign issuers. The latter are shown as 
+financial strength ratings and all were withdrawn during 2013. Where 
+ratings for a sector were withdrawn, default statistics are shown in a 
+separate table. Consequently, there is no one year transition or default 
+table for SRS Sovereign issuers. 
+3 
+
+===== PDF PAGE 4 =====
+KROLL BOND RATING AGENCY, INC. 
+The transition and default tables reflect specific time periods. However, 
+the number of entities included may change from period to period, or from 
+the beginning of a period to the end of a period. For example, an 
+institution may merge, dissolve, or otherwise experience an organizational 
+change that causes it to cease to be included in a later period. 
+SRS initially rated U.S. Corporate issuers on June 3, 2009 using the 
+Financial Strength rating scale (A+ to E). The ratings for approximately 
+1,000 issuers were published every quarter until December 12, 2012. In 
+March 2013, KBRA introduced a new rating methodology and rating scale 
+for U.S. Corporates that incorporated market-based information. To reflect 
+the emphasis on bankruptcy, SRS employs a variant of KBRA's long-term 
+credit rating scale, but uses lower case letter s as the symbols for the 
+rating scale (aaa - d). The frequency of publication of SRS was also 
+shifted to a monthly cycle. Exhibit 1 reflects this change and shows the 
+distribution of SRS Corporate ratings as of January 1, 2012 and the fact 
+that they were Not Rated as of January 1, 2014 under the Financial 
+Strength rating scale. It also shows the one year transition table for SRS 
+Corporates using the new rating scale. KBRA had no SRS Corporate 
+ratings outstanding three and ten years ago using the new rating scale. 
+KBRA's definition of default differs across Financial Strength Ratings and 
+Credit Ratings. For Financial Strength Ratings, a financial institution is 
+considered to have defaulted (or failed) if a regulator seizes its assets, or 
+if a regulator announces that it has forced the institution to merger or 
+reorganize with another entity. For all Credit Ratings, KBRA defines default 
+as occurring if: 
+1. There is a missed interest or principal payment on a rated 
+obligation which is unlikely to be recovered; 
+2. The rated entity files for protection from creditors, is placed 
+into receivership or is closed by regulators such that a missed 
+payment is likel y to result; or 
+3. The rated entity seeks and completes a distressed exchange, 
+where existing rated obligations are replaced by new obligations 
+with a diminished economic value . 
+In all cases, defaulted entities are not dollar-weighted (i.e ., a failure of a 
+large entity and a small entity will be counted the same). 
+4 
+
+===== PDF PAGE 5 =====
+KROLL BOND RATING AGENCY, INC. 
+Definition of Credit Rating Categories Used by KBRA 
+Financial Strength Rating Scale 
+The KBRA SRS financial strength rating is a measure of the overall 
+financial condition of an institution and its ability to meet its credit 
+obligations. 
+A An institution in strong financial condition that is well capitalized, 
+liquid and profitable. The entity is highly likely to meet its credit 
+obligations under severe economic, financial and business 
+conditions. 
+B An institution in sound financial condition that is likely to meet its 
+credit obligations under difficult economic, financial and business 
+conditions. 
+C An institution with an adequate financial condition but is more 
+susceptible to adverse changes in economic conditions that could 
+affect its ability to meet its credit obligations. 
+D An institution whose financial condition is judged to be relatively 
+weak and its ability to meet financial obligations could be affected 
+by adverse economic, financial or business conditions. 
+E An institution that is likely to have financial problems and poor 
+financial ratios. Careful consideration should be made concerning 
+investments in this institution. The institution has a much higher 
+probability of failure than institutions with higher ratings. 
+Note: KBRA may append + or - modifiers to ratings in categories A 
+through C to indicate, respectively, upper and lower risk levels within the 
+broader category. 
+NB A new institution which is less than three years old and which is not 
+rated, but its financial data is presented and an "NB" is shown in the 
+rating field. 
+NT A new savings & loans which is less than three years old and which 
+is not rated, but its financial data is presented and an "NT" is shown 
+in its rating field. 
+NR An atypical bank, bank holding company or S&L, or an institution 
+missing key financial data necessary to derive a rating. 
+5 
+
+===== PDF PAGE 6 =====
+KROLL BOND RATING AGENCY, INC. 
+It should be noted that inaccurate financial reporting by institutions may 
+result in incorrect KBRA ratings. 
+Long-Term Credit Rating Scale 
+Kroll Bond Rating Agency (KBRA) uses the same rating scale to assign credit 
+ratings to issuers and their obligations. In both cases, KBRA's credit ratings 
+are intended to reflect both the probability of default and severity of loss in 
+the event of default, with greater emphasis on probability of default at 
+higher rating categories. For obligations, the determination of expected loss 
+severity is, among other things, a function of the seniority of the claim. 
+Generally speaking, issuer-level ratings assume a loss severity consistent 
+with a senior unsecured claim. KBRA appends an (sf) indicator to ratings on 
+structured finance obligations. 
+AAA Determined to have almost no risk of loss due to credit-related 
+events. Assigned only to the very highest quality obligors and 
+obligations able to survive extremely challenging economic events. 
+AA Determined to have minimal risk of loss due to credit-related events. 
+Such obligors and obligations are deemed very high quality. 
+A Determined to be of high quality with a small risk of loss due to 
+credit-related events. Issuers and obligations in this category are 
+expected to weather difficult times with low credit losses. 
+BBB Determined to be of medium quality with some risk of loss due to 
+credit-related events. Such issuers and obligations may experience 
+credit losses during stress environments. 
+BB Determined to be of low quality with moderate risk of loss due to 
+credit-related events. Such issuers and obligations have fundamental 
+weaknesses that create moderate credit risk. 
+B Determined to be of very low quality with high risk of loss due to 
+credit-related events. These issuers and obligations contain many 
+fundamental shortcomings that create significant credit risk. 
+CCC Determined to be at substantial risk of loss due to credit-related 
+events, or currently in default with high recovery expectations. 
+CC Determined to be near default or in default with average recovery 
+expectations. 
+C Determined to be near default or in default with low recovery 
+expectations. 
+D KBRA defines default as occurring if: 
+6 
+
+===== PDF PAGE 7 =====
+KROLL BOND RATING AGENCY, INC. 
+1. There is a missed interest or principal payment on a rated 
+obligation which is unlikely to be recovered. 
+2. The rated entity files for protection from creditors, is placed into 
+receivership or is closed by regulators such that a missed payment is 
+likely to result. 
+3. The rated entity seeks and completes a distressed exchange, 
+where existing rated obligations are replaced by new obligations with 
+a diminished economic value . 
+KBRA may append + or - modifiers to ratings in categories AA through 
+CCC to indicate, respectively, upper and lower risk levels within the 
+broader category. 
+Short-Term Credit Rating Scale 
+KBRA's short-term ratings indicate an ability to meet obligations that 
+typically have maturities of thirteen months or less when issued by 
+corporate entities, financial institutions, and in connection with structured 
+finance transactions. When applied to municipal obligations, KBRA's short­
+term ratings typically indicate an ability to meet obligations of three years or 
+less. Short-term ratings may be assigned to both issuers and to specific 
+obligations. As compared to long-term ratings, greater emphasis is placed 
+on an obligor's liquidity profile and access to funding. KBRA appends an (sf) 
+indicator to ratings assigned to structured finance obligations. 
+Kl Very strong ability to meet short-term obligations. 
+K2 Strong ability to meet short-term obligations. 
+K3 Adequate ability to meet short-term obligations. 
+B Questionab le ability to meet short-term obligations. 
+C Little ability to meet short-term obligations. 
+D KBRA defines default as occurring if: 
+1. There is a missed interest or principal payment on a rated 
+obligation which is unlikely to be recovered. 
+7 
+
+===== PDF PAGE 8 =====
+KROLL BOND RATING AGENCY, INC. 
+2. The rated entity files for protection from creditors, is placed 
+int·o receivership or is closed by regulators such that a missed 
+payment is likely to result. 
+3. The rated entity seeks and completes a distressed exchange, 
+where existing rated obligations are replaced by new 
+obligations with a diminished economic value. 
+KBRA may append a + modifier to ratings in the Kl category to indicate 
+exceptional ability to meet short-term obligations. 
+SRS Default Ratings 
+In addition to Financial Strength ratings, KBRA's Subscription Rating Service 
+may assign Default Ratings to certain entities. KBRA's default ratings are 
+intended to reflect and entity's risk of default and/or bankruptcy. The use of 
+lower case symbols distinguishes these ratings from KBRA's Long-Term 
+Credit Ratings, which address both default probability and severity of loss. 
+aaa Determi ned to have almost no risk of default or bankruptcy. 
+Assigned only to the very highest quality entities able to survive 
+extremely challenging economic events. 
+aa Determined to have minimal risk of default or bankruptcy. Such 
+entities are deemed very high quality. 
+a Determined to be of high quality with a small risk of default or 
+bankrup t cy. Entities in this category are expected to survive stress 
+environments. 
+bbb Determined to be of medium quality with some risk of default or 
+bankrup t cy. Such entities may experience difficulties during stress 
+environments. 
+bb Determined to be of low quality with moderate risk of default or 
+bankrup t cy. Such entities have fundamental weaknesses and may 
+be vulnerable. 
+8 
+
+===== PDF PAGE 9 =====
+KROLL BOND RATING AGENCY, INC. 
+b Determined to be of very low quality with high risk of default or 
+bankrup t cy. These entities contain many fundamental 
+shortcomings. 
+ccc Determined to be at substantial risk of default or bankruptcy, or 
+currently in default. 
+cc Determined to be near default or in default. 
+c Determined to be very near default or in default. 
+d In default. 
+DEFAULT RATES ON NEW ISSUES OF TRUST-PREFERRED SECURITIES 
+KBRA's corporate predecessor, LACE Financial Corporation, issued 295 new 
+issue ratings on structured trust-preferred securities between December 
+2003 and December 2008. As of December 31, 2008 there were five failures 
+of institutions held in the pools, for a failure/default rate of 1.7°/o. Four of 
+the five failed institutions were rated E, while the fifth was rated D. LACE 
+Financial Corporation discontinued the ratings of the pools after June 2008. 
+RATING ACTION HISTORY 
+Ratings information that is required to be made available pursuant to SEC 
+Rule 17g-2(d) can be found first by clicking on the link 
+https://www.krollbondratinqs.com/requlatory , and then clicking the 
+hyperlinks "Issuer Paid Ratings" and "Subscription Ratings" under the 
+heading "Rating Action History." 
+Attachments 
+Below is a list of attachments that accompany Exhibit 1; if particular 
+transition tables are omitted from the attachments, or if the transition tables 
+relate to some--but not all--periods called for by the filing instructions for 
+Form NRSRO, the reason for the omission is listed below the name of the 
+attachment: 
+9 
+
+===== PDF PAGE 10 =====
+KROLL BOND RATING AGENCY, INC. 
+Table 1: ABS Long-Term Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+Asset-Backed Securities three and ten years ago. 
+Table 2: ABS Short-Term Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+Asset-Backed Securities three and ten years ago. 
+Table 3: RMBS Long-Term Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+Residential Mortgage-Backed Securities three and ten years ago. 
+Table 4: CMBS Long-Term Transitions 2014 
+• One and three year transitions only; KBRA did not have ratings 
+outstand ing on Commercial Mortgage-Backed Securities ten years 
+ago. 
+Table 5: U.S. Public Finance Long-Term Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+U.S. Public Finance issuers and issuances three and ten years ago. 
+Table 6: U.S. Public Finance Short-Term Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+U.S. Public Finance issuers and issuances three and ten years ago. 
+Table 7: Financial Institution Long-Term Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+Financial Institution issuers and issuances three and ten years ago. 
+Table 8: Financial Institutions Short-Term Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+Financial Institution issuers and issuances three and ten years ago. 
+Table 9: Corporate Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+Corporate issuers and issuances three and ten years ago. 
+10 
+
+===== PDF PAGE 11 =====
+KROLL BOND RATING AGENCY, INC. 
+Table 10: Financial Guaranty Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+Financial Guaranty issuers and issuances three and ten years ago. 
+Table 11: Project Finance Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+Project Finance issuers and issuances three and ten years ago. 
+Table 12: Financial Strength Ratings Transitions 2014 
+(Banks, Savings and Loans, Bank Holding Companies, Credit Unions) 
+Table 13: Financial Strength Ratings Defaults 2014 
+(Banks, Savings and Loans, Bank Holding Companies, Credit Unions) 
+Table 14: Title Insurance Company Ratings Transitions 2014 
+• One and three year transitions only; KBRA did not have ratings 
+outstand ing on Title Insurance Companies ten years ago. 
+Table 15: Title Insurance Company Ratings Defaults 2014 
+• One and three year defaults only; KBRA did not have ratings 
+outstand ing on Title Insurance Companies ten years ago. 
+Table 16: Financial Strength Ratings - Foreign Banks Transitions 2014 
+• One and three year transitions only; KBRA did not have Financial 
+Strength Ratings outstanding on Foreign Banks ten years ago. 
+Table 17: SRS Sovereigns Transitions 2014 
+• Three and ten year transitions only; KBRA discontinued rating 
+sovereigns as of May 31, 2013, and thus there are no outstanding 
+ratings in this category for which one year transitions can be shown. 
+Table 18: SRS Sovereigns Defaults 2014 
+• Three and ten year defaults only; KBRA discontinued rating 
+sovereigns as of May 31, 2013, and thus there are no outstanding 
+ratings in this category for which one year transitions can be shown. 
+11 
+
+===== PDF PAGE 12 =====
+KROLL BOND RATING AGENCY, INC. 
+Table 19: SRS Corporate Transitions 2014 
+• One year transitions only; KBRA did not have ratings outstanding on 
+Corporate issuers or issuances three and ten years ago using this 
+scale. (see Table 21). 
+Table 20: SRS Corporate Defaults 2014 
+• One year defaults only; KBRA did not have ratings outstanding on 
+Corporate issuers or issuances three and ten years ago using this 
+scale (see Table 21). 
+Table 21: SRS Corporate Transitions/Defaults 2014 (old methodology) 
+• Three year transitions and defaults only using previous corporate 
+financial strength rating scale; KBRA did not have ratings 
+outstand ing on Corporate issuers or issuances ten years ago that 
+used this scale. 
+12 
+
+===== PDF PAGE 13 =====
+KROLL BOND RATING AGENCY 
+Kroll Bond Rating Agency, Inc. 
+Form NRSRO - Annual 
+Certification Filed as of 
+September 14, 2015 
+EXHIBIT 1: 
+Transition and Default Studies 
+
+===== PDF PAGE 14 =====
+Table 1: ABS Long-Term Transitions 2014 
+One-Year Transition Table (1 1/ 14 Cohort, endi ng 12/31L14 
+Issuers of Asset Backed Securities 
+To 
+AAA AA+ AA AA- A+ A A- BBB+ BBB 
+From AA 73% 
+A+ 100'/6 
+A 33% 33% 22% 
+A- 67% 33% 
++ 20% 20% 20% 40% 
+6% 6% 35% 47% 
+25% 25% 50% 
+BBB+ 50% 50% 
+BBB 8% 25% 58% 
+BBB-
+BB+ 
+BB 
+BB-
+B+ 
+B 
+B-
+CCC+ 
+CCC 
+CCC-
+cc 
+c 
+D 
+KROLL BOND RATING AGENCY 
+BBB- BB+ BB BB- B+ B B- CCC+ CCC 
+100'/6 
+100% 
+www.kbra.com 
+CCC- CC c D WR 
+27% 
+11% 
+6% 
+8% 
+2 
+
+===== PDF PAGE 15 =====
+Table 2: ABS Short-Term Transitions 2014 
+One-Year Transition Table (1/ 1/ 14 Cohort, ending 12/ 31/14) 
+Short Term Issuers of Asset Backed Securities 
+To 
+Kl+ Kl K2+ K2 
+From Kl+ 
+Kl 
+K2+ 
+K2 
+K3+ 
+K3 
+B+ 
+B 
+C+ 
+c 
+D+ 
+D 
+K3+ K3 B+ B C+ C D+ D 
+www.kbra.com 
+WR 
+100% 
+3 
+
+===== PDF PAGE 16 =====
+Table 3: RMBS Long-Term Transitions 2014 
+One-Year Transit ion Table (1/1/ 14 Cohort, ending 12/31/ 14) 
+To 
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC c D WR 
+From AA 100% 
+A+ 
+A 1000.A. 
+A-
++ 
+1000/0 
+1000.A. 
+BBB+ 
+BBB 1000.A. 
+BBB-
+BB+ 
+BB 100% 
+BB-
+B+ 
+B 
+B-
+CCC+ 
+CCC 
+CCC-
+cc 
+c 
+D 
+KROLL BOND RATING AGENCY www.kbra.com 4 
+
+===== PDF PAGE 17 =====
+Table 4: CMBS Long-Term Transitions 2014 
+One-Year Transition Table (1/1/14 Cohort, ending 12/31/14) 
+To 
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC c D WR 
+From AA 99% 0% 1% 
+A+ 100% 
+A 3% 93% 3% 
+A- 100% 
++ 13% 75% 13% 
+2% 95% 2% 
+100"'6 
+BBB+ 5% 95% 
+BBB 93% 7% 
+BBB- 1% 96% 3% 
+BB+ 90% 10% 
+BB 98% 2% 
+BB- 100"'6 
+B+ 100% 
+B 100% 
+B- 100"'6 
+CCC+ 
+CCC 
+CCC-
+cc 
+c 
+D 
+www.kbra.com 5 
+
+===== PDF PAGE 18 =====
+Table 4: CMBS Long-Term Transitions 2014 
+Three -Year Transition Table (1/1/12 Cohort, ending 12/3 1/ 14) 
+BBB+ 
+BBB 
+BBB­
+BB+ 
+BB 
+BB-
+B+ 
+B 
+B­
+CCC + 
+CCC 
+CCC­
+CC 
+c 
+D 
+To 
+AAA AA+ AA AA- A+ A 
+25% 50% 
+25% 500'6 
+A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C 
+33% 33% 
+www.kbra.com 
+D WR 
+20% 
+25% 
+25% 
+33% 
+100% 
+lOOo/c 
+6 
+
+===== PDF PAGE 19 =====
+Table 5: U.S. Public Finance Long-Term Transitions 2014 
+One-Year Transition Table (1/1/14 Cohort, ending 12/3 1/14) 
+To 
+AAA AA+ AA AA- A+ A 
+From AA 100% 
+A+ 50% 50".16 
+A 100"/6 
+A- 100% 
++ 100"/6 
+BBB+ 
+BBB 
+BBB-
+BB+ 
+BB 
+BB-
+B+ 
+B 
+B­
+CCC + 
+CCC 
+CCC­
+CC 
+c 
+D 
+A- BBB+ BBB BBB- BB+ BB BB- B+ B 
+100"/6 
+www.kbra.com 
+B- CCC+ CCC CCC- CC C D WR 
+7 
+
+===== PDF PAGE 20 =====
+Table 6: U.S. Public Finance Short-Term Transitions 2014 
+One-Year Transition Table (1/ 1/ 14 Cohort, ending 12/ 31/14) 
+To 
+Kl+ Kl K2+ K2 K3+ K3 B+ B C+ C D+ D WR 
+From Kl+ 100% 
+Kl 100% 
+K2+ 
+K2 
+K3+ 
+K3 
+B+ 
+B 
+C+ 
+c 
+D+ 
+D 
+www.kbra.com 8 
+
+===== PDF PAGE 21 =====
+Table 7: Financial Institution Long-Term Transitions 2014 
+One-Year Transition Table (1/ 1/ 14 Cohort, ending 12/3 1/ 14) 
+BBB+ 
+BBB 
+BBB­
+BB+ 
+BB 
+BB
+­
+B+ 
+B 
+B­
+CCC + 
+CCC 
+CCC­
+CC 
+c 
+D 
+To 
+AAA AA+ AA AA - A+ A 
+67% 
+60% 
+A- BBB+ BBB BBB- BB+ BB BB - B+ B B- CCC+ CCC CCC- CC C 
+45% 
+69% 
+10% 80% 
+800A. 
+100% 
+l OOOA. 
+www.kbra.com 
+D WR 
+33% 
+40% 
+55% 
+31% 
+10% 
+20% 
+9 
+
+===== PDF PAGE 22 =====
+Table 8: Financial Institutions Short-Term Transitions 2014 
+One-Year Transition Table (1/1/14 Cohort , ending 12/31/14) 
+To 
+Kl+ Kl K2+ K2 K3+ K3 B+ B C+ C D+ D WR 
+From Kl+ 100% 
+Kl 44% 56% 
+K2+ 
+K2 54% 46% 
+K3+ 
+K3 50% 50% 
+B+ 
+B 100% 
+C+ 
+c 
+D+ 
+D 
+www.kbra.com 10 
+
+===== PDF PAGE 23 =====
+Table 9: Corporate Transitions 2014 
+One-Year Transition Table (1 1 14Cohort, ending 12 31/14) 
+To 
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC+ CCC CCC- CC C D WR 
+From 
+BBB+ 
+BBB 100% 
+BBB- 100% 
+BB+ 
+BB 
+BB-
+B+ 
+B 
+B-
+CCC+ 
+CCC 
+CCC-
+cc 
+c 
+D 
+KROLL BOND RATING AGENCY www.kbra .com 11 
+
+===== PDF PAGE 24 =====
+Table 10: Financial Guaranty Transitions 2014 
+One-Year Transition Table (1 1 14Cohort, ending 12 31/ 14) 
+From 
+BBB+ 
+BBB 
+BBB­
+BB+ 
+BB 
+BB­
+B+ 
+B 
+B­
+CCC + 
+CCC 
+CCC­
+CC 
+c 
+D 
+To 
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB - BB+ BB BB - B+ B B - CCC+ CCC CCC- CC C 
+100% 
+100% 
+www.kbra .com 
+D WR 
+12 
+
+===== PDF PAGE 25 =====
+Table 11: Project Finance Transitions 2014 
+One-Year Transition Table (1 1 14Cohort, ending 12 31/ 14) 
+From 
+BBB+ 
+BBB 
+BBB­
+BB+ 
+BB 
+BB­
+B+ 
+B 
+B­
+CCC + 
+CCC 
+CCC­
+CC 
+c 
+D 
+To 
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B 
+KROLL BOND RATING AGENCY 
+100% 
+100% 
+100% 
+100% 
+www.kbra .com 
+B- CCC+ CCC CCC- CC C D WR 
+13 
+
+===== PDF PAGE 26 =====
+Table 12: Financial Strength Ratings Transitions 2014 
+(Banks, Savings and Loans, Bank Holding Companies, Credit Unions) 
+To 
+A+ A A- B+ B B- C+ c C- D E NR NA 
+From A+ 6.56% 16.39% 14.75% 13.11% 3.28% 3.28% 1.64% 3.28% 37.70% 
+A 0.04 % 2.12% 9.48 % 13.96% 18.17% 9.94% 3.53% 1.10% 0.61 % 0.46% 1.02% 0.23% 39.34% 
+A-
+B+ 0.02 % 2.77 % 9.11 % 15.41% 18.00% 11.51% 3.76% 1.61% 1.20% 0.75 % 1.41% 0.09% 34.36% 
+B 0.18 % 2.80% 10.74 % 13.96% 14.38% 9.55% 4.42% 1.79% 1.31% 1.49% 2.63 % 0.06% 36.69% 
+B- 0.19 % 2.31% 6.55 % 6.74% 12.52% 8.67% 4.05% 2.12% 2.50 % 1.16% 2.70% 0.19% 50.29% 
+C+ 5.66% 5.66% 13.21% 11.32% 5.66% 0.94% 0.94 % 0.94% 1.89% 53.77% 
+,.. 1.56% 6.25% 8 .59% 10.16% 10.16% 6.25% 3.13% 4.69% 4.69% 44.53% -,.. 3.59% 8.98% 11.98% 11.98% 11.38% 4.19% 2.40% 1.20% 2.40% 4.79% 37.13% --
+D 1.22% 3.66% 13.41% 13.41% 4.88% 3.66% 1.22% 4.88% 1.22% 52.44% 
+E 2.70 % 5.41% 5.41% 7.21% 9.01% 3.60% 5.41% 1.80% 1.80% 6.31% 51.35% 
+3-Year Transition Table 
+(1/1/12 Cohort , ending 12/31/14) 
+To 
+A+ A A- B+ B B- C+ c C- D E NR NA 
+From A+ 12.50% 26.56% 18.75 % 15.63% 10.94% 1.56% 1.56% 1.56% 1.56% 9.38% 
+A 1.11% 32.45 % 21.80"Ai 16.86% 12.42% 6.27% 2.22% 0.72% 0.44 % 0.17% 0.06% 5.49% 
+A- 0.35 % 14.79% 26.42 % 22.47% 14.96% 9.52% 3.33% 1.10% 0.57 % 0.26% 0.26% 5.97% 
+B+ 0.23 % 7.58% 18.68% 24.85% 21.18% 12.39% 4.53% 2.03% 0.70 % 0.27% 0.31% 0.08% 7.15% 
+B 0.08 % 4.86% 11.39 % 19.74% 26.18% 17.58% 6.48% 2.37% 0.83 % 0.29 % 0.46% 0.12% 9.60% 
+B- 0.15 % 4.18 % 11.47 % 15.31% 22.83% 20.57% 8.86% 3.49% 0.94 % 0.69 % 0.34 % 0.15% 11.02% 
+~+ 0.06 % 1.91% 8.56% 13.25% 20.89% 17.99% 11.95% 6.22 % 2.83 % 1.36% 1.05% 0.18% 13.74% 
+,.. 1.46% 4.72% 9.89% 17.08% 17.08% 15.39% 8.99% 3.26% 1.91% 2.36% 0.34% 17.53 % -,.. 
+1.39% 2.19 % 8.57% 12.55% 13.94% 13.94% 7.37 % 7.57% 5.18% 5.18% 0.20% 21.91% ~-
+D 1.66% 2.99 % 6.31% 7.64% 8.31% 10.96% 7.31 % 5.65% 7.97% 8.31% 0.33% 32.56% 
+E 0.27% 0.95% 1.76% 5.41% 5.01% 5.14% 5.14% 5.55% 8.53% 24.09% 0.27% 37.89% 
+www.kbra.com 14 
+
+===== PDF PAGE 27 =====
+Table 12: Financial Strength Ratings Transitions 2014 
+(Banks, Savings and Loans, Bank Holding Companies, Credit Unions) 
+1-YearTransition Table 
+1 1 / 14 Cohort , ending 12/ 31/14 ) 
+To 
+A+ A A- B+ B B- C+ c C- 0 E NR NA 
+From A+ 36.36% 31.82 % 13.64 % 6.82% 2.27% 2.27% 2.27% 2.27% 2.27% 
+A 1.57% 54.06% 21.16% 10.85% 6.55% 2.46% 1.09% 0.61 % 0.34 % 0.07% 0.07% 1.16% 
+A- 0.17 % 15.08 % 35.46 % 22 .19% 14.61% 7.33% 1.91% 0.48 % 0.26% 0.04 % 0.09 % 2.38% 
+B+ 0.04 % 4.07% 20.83 % 34.54% 21.44% 11.54% 3.66% 0.61 % 0.23 % 0.08% 0.11 % 2.86% 
+B 0.12% 2.84% 10.74 % 22 .84% 34.82% 16.55% 5.73% 1.56% 0.48% 0.16% 0.12 % 0.08% 3.97% 
+B- 0.05 % 1.99% 6.83 % 13.70% 28.71% 29.93% 9.49 % 2.89% 1.18% 0.54 % 0.27 % 0.23% 4.20% 
+C+ 0.96% 6.13% 11.70% 17.55% 23.68% 21.54 % 8.74% 2.62 % 0.76% 0.76% 0.21% 5.37% 
+r 0.29% 2.47 % 3.78% 13.81% 18.17% 20.93 % 22.24% 6.40 % 2.76% 2.03 % 7.12% -
+r 
+0.32% 0.97% 3.57% 9.09% 16.56% 16.23 % 21.75 % 11.69% 7.79 % 12.01% --
+D 0.49 % 0.99 % 0.99% 1.97% 4.93% 11.82 % 9.85 % 12.32 % 29.56% 11. 33% 1.48% 14.29% 
+E 0.25% 0.25% 1.53% 3.05% 3.05% 5.09% 11.70% 55.73% 0.25% 19.08% 
+• NA - Ratings that were withdrawn or not available at the time of publication . 
+www.kbra .com 15 
+
+===== PDF PAGE 28 =====
+Table 13: Financial Strength Ratings Defaults 2014 
+(Banks, Savings and Loans, Bank Holding Companies, Credit Unions) 
+Default Rates 
+Rating 10 Year 3 Year 1 Year 
+~+ 0.01% 0.01% 0.00% 
+~ 0.60% 0.01% 0.01% 
+~- 0.00% 0.02% 0.01% 
+B+ 1.23% 0.02% 0.01% 
+B 0.78% 0.03% 0.01% 
+B- 0.24% 0.04% 0.01% 
+K:+ 0.07% 0.05% 0.01% 
+K: 0.04% 0.02% 0.01% 
+( - 0.05% 0.03% 0.01% 
+D 0.05% 0.05% 0.03% 
+E 0.07% 0.64% 0.12% 
+www.kbra.com 16 
+
+===== PDF PAGE 29 =====
+Table 14: Title Insurance Company Ratings Transitions 2014 
+3-Year Transition Table 
+(1/ 1/ 12 Coho rt, ending 12/31/14 ) 
+From ~+ 
+~ 
+~-
+8+ 
+8 
+8-
+~+ 
+K: 
+~-
+D 
+E 
+1-Year Transition Ta ble 
+(1/ 1/ 14 Coho rt, ending 12/ 31/ 14) 
+From + 
++ 
+D 
+E 
+To 
+A+ 
+100.00% 
+28.57% 
+To 
+A+ 
+100.00% 
+16.67 % 
+A A- 8+ 8 
+57.14% 14.29% 28.57% 
+66.67% 33.33% 
+57.14% 14.29% 
+14.29% 28.57% 
+25.00% 
+25.00% 25.00% 
+25.00% 
+A A- 8+ 8 
+33.33 % 41.67 % 8.33% 
+50.00% 50.00% 
+33.33% 41.67% 
+40.00% 
+8- C+ c C- D E NR 
+14.29% 14.29% 14.29% 14.29% 
+50.00% 25.00% 
+25.00% 12.50% 12.50% 
+25.00% 50.00% 
+20.00% 20.00% -----i 20.00% 40.00% 
+33.33% I 66.67% 
+I 100.00% 
+8- C+ c C- D E NR 
+16.67% 8.33% 
+30.00% 20.00% 10.00% 
+33.33% 33.33% 33.33% 
+100.00% 
+100.000A. 
+www.kbra .com 
+NA 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+NA 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+17 
+
+===== PDF PAGE 30 =====
+Table 15: Title Insurance Company Ratings Defaults 2014 
+Default Rates 
+Rating 3 Year 1 Year 
+A+ 0% Oo/c 
+A 0% Oo/c 
+A- 0% Oo/c 
+B+ 0% Oo/c 
+B 0% Oo/c 
+B- 0% Oo/c 
+C+ 0% Oo/c 
+c 0% Oo/c 
+C- 2% Oo/c 
+D 2% Oo/c 
+E 0% Oo/c 
+www.kbra.com 18 
+
+===== PDF PAGE 31 =====
+Table 16: Financial Strength Ratings - Foreign Banks Transitions 
+2014 
+3-Year Transit ion Table 
+(1/1/ 12 Cohort, ending 12/31/ 14) 
+To 
+A+ A A- B+ B B- C+ c C- D E NR 
+From ~+ -
+~ 100.00% 
+~- 100.00% 
+B+ 5.56% 27.78% 44.44% 22.22% 
+B 3.03% 45.45% 39.39% 12.12% 
+B- 13.51% 35.14% 35.14% 13.51% 2.70% 
+(+ 1.49% 19.40% 35.82% 37.31% 4.48% 1.49% 
+t 20.69% 37.93% 24.14% 6.90% 10.34% 
+t - 15.00% 30.00% 40.00% 10.00% 5.00% 
+D 16.67% 16.67% 12.50% 29.17% 25.00% 
+E 2.86% 2.86% 5.71% 20.00% 68.57% 
+1-Year Transition Table 
+(1/ 1/ 14 Cohort, ending 12/ 31/ 14) 
+To 
+A+ A A- B+ B B- C+ c C- D E NR 
+From ~+ -
+~ 100.00%1 
+~- 100.00% 
+B+ 12.50% 84.38% 3.13% 
+B 4.88% 82.93% 7.32% 2.44% 2.44% 
+B- 16.33% 75.51% 6.12% 2.04% 
+( + 17.86% 78.57% 3.57% 
+t 22.73% 77.27 % 
+( - 30.00% 70.00% 
+D 6.25% 93.75% 
+E 8.82% 91.18% 
+www.kbra .com 
+NA 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+NA 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+19 
+
+===== PDF PAGE 32 =====
+Table 17: SRS Sovereigns Transitions 2014 
+10-Year Transition Table 
+1/1/05 Cohort, ending 12/31/14 ) 
+3-Year Transition Table 
+D 
+E 
+1 1/12 Cohort, ending 12/31/14) 
+D 
+E 
+To 
+A+ A A-
+To 
+A+ A A -
+B+ B B - C+ c C-
+B+ B B - C+ c C-
+www.kbra.com 
+D E 
+D E 
+NR 
+100.00% 
+100.00% 
+100.0 0% 
+100.00% 
+100.00 % 
+100.00% 
+100.00% 
+NR 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+100.00% 
+20 
+
+===== PDF PAGE 33 =====
+Table 18: SRS Sovereigns Defaults 2014 
+Default Rates 
+Rating 10 Year 3 Year 
+~+ 0.00% 0.00% 
+~ 0.00% 0.00% 
+~- 0.00% 0.00% 
+B+ 0.00% 0.00% 
+B 2.27% 0.00% 
+B- 0.00% 0.00% 
+C+ 0.00% 0.00% 
+c 2.27% 0.00% 
+C- 0.00% 1.72% 
+D 2.27% 1.72% 
+E 0.00% 1.72% 
+www.kbra.com 21 
+
+===== PDF PAGE 34 =====
+1-Vear Transition Matrix 
+{1/1/14 - 12/31/14) 
+From "aa 
+~ a + 
+" a 
+~ a-
+'1+ 
+~ 
+,.. 
+bbb+ 
+bbb 
+bbb-
+bl>+ 
+bb 
+bb-
+b+ 
+b 
+b-
+cc+ 
+~ 
+~CC· 
+~ 
+~ 
+II 
+To 
+aaa 
+0.29 
+" 
+Table 19: SRS Corporate Transitions 2014 
+aa+ aa aa- a+ a a- bbb+ bbb bbb- bb+ bb bb- b+ b b- ccc+ CCC CCC· cc c d NA 
+31.03" 27.59% 24.14% 3.45" 10.34% 3.45% 
+11.32" 31.13% 25.47" 12.26" 7.55% 1.89% 0.94% 0.94" 1.89% 5.66% 0.94" 
+2.50% 13.50% 42.50% 22.00% 8.50% 4.00% 0.50% 1.00% 0.50% 0.50% 0.50% 4.00% 
+0.37" 4.49% 20.22% 35.21% 26.22% 3.37% 1.50% 0.75% 0.37% 0.75% 0.37% 0.37% 5.62% 0.37% 
+0.33% 0.33% 6.29% 17.88% 41.72% 19.87% 3.31% 2.32% 0.99% 0.33% 0.66% 1.66% 3.31% 0.99% 
+1.34% 5.03% 21.81% 43.96% 14.77% 3.69% 1.01% 1.68% 1.01% 1.01% 3.02% 1.01% 0.67% 
+1.13% 0.56% 4.52% 29.38% 32.20% 14.12% 4.52% 3.39% 3.39% 2.82% 1.69% 1.69% 0.56% 
+0.83% 5.79% 5.79% 20.66% 38.02% 13.22% 3.31% 3.31% 6.61% 0.83% 1.65% 
+1.27% 1.27" 2.53% 11.39% 10.13% 16.46% 26.58% 6.33" 10.13% 8.86% 2.53% 1.27% 1.27% 
+5.45% 3.64" 14.55% 20.00% 10.91" 20.00% 12.73% 7.27" 5.45% 
+1.32% 2.63" 2.63% 1.32% 10.53" 2.63% 7.89% 9.21" 32.89% 14.47% 9.21% 3.95" 1.32% 
+1.37% 2.74% 3.42% 4.11% 2.05% 3.42% 7.53% 19.18% 36.30% 11.64% 7.53% 0.68% 
+0.59% 2.06" 2.36" 3.54% 2.36% 2.06" 0.59% 0.88% 2.06% 1.47% 11.50% 48.6 16.22% 3.83% 1.18% 0.29% 
+0.53% 1.05% 2.63% 1.58% 1.05% 1.05% 1.05% 5.26% 27.89% 38.95" 16.84% 1.05% 1.05" 
+0.73% 1.46% 2.19% 5.84% 32.12% 50.36% 2.92% 0.73% 0.73% 2.92% 
+9.09% 18.18% 45.45% 9.09% 18.18% 
+28.57% 28.57" 14.29% 28.57" 
+16.67% 16.67% 50.00% 16.67% 
+33.33% 33.33% 33.33% 
+-
+1 
+www.kbra.com 22 
+
+===== PDF PAGE 35 =====
+Table 20: SRS Corporate Defaults 2014 
+Default Rates 
+Rating 1 Year 
+aa 0.00% 
+a+ 0.00% 
+a 0.00% 
+a- 0.00% 
++ 0.00% 
+0.00% 
+0.00% 
+bbb+ 0.00% 
+bbb 0.00% 
+bbb- 0.00% 
+bb+ 0.00% 
+bb 0.00% 
+bb- 0.00% 
+b+ 0.04% 
+b 0.08% 
+b- 0.24% 
+0.00% 
+0.00% 
+0.00% 
+0.00% 
+0.00% 
+0.00% 
+www.kbra.com 23 
+
+===== PDF PAGE 36 =====
+Table 21: SRS Corporate Transitions/Defaults (old methodology) 
+3-Year Transition Table 
+(1/ 1/ 12 - 12/3 1/ 14) 
+To 
+A+ A A - B+ B B- C+ c c- D E NR 
+From 100.00o/c 
+100.00% 
+100.00o/c 
+B+ 100.00o/c 
+B 100.00o/c 
+B- 100.00o/c 
+C+ 100.00% 
+c 100.00o/c 
+C- 100.00o/c 
+D 100.00% 
+E 100.00% 
+Default Rates 
+Rating 3 Year 
++ 0% 
+0% 
+0% 
+B+ 0% 
+B 0% 
+B- 0% 
+C+ 0% 
+c 0% 
+C- 0% 
+D 0% 
+E 100% 
+www.kbra.com 24 

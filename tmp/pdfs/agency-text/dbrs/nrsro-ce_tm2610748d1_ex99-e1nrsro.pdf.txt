@@ -1,0 +1,1718 @@
+
+===== PDF PAGE 1 =====
+Exhibit 1 – Transition/Default Rates 
+Form NRSRO
+March 2026
+This Exhibit includes the 2025 transition and default rates for the Morningstar DBRS Group of 
+Companies1 (Morningstar DBRS) for a 1 -year, 3-year, and 10 -year time period  in each class of 
+ratings for which Morningstar DBRS was registered as an NRSRO through the most recent calendar 
+year end. 
+Following the transition and default rates are: (1) descriptions of each symbol, number, or score in 
+the rating scale used to denote a credit rating category and notches within a category for each class 
+and subclass of credit ratings in the Morningstar DBRS transition/default matrices, as applicable, 
+(2) an explanation of the conditions under which Morningstar DBRS classifies obligors, securities,
+or money market instruments as being in default, and (3)  the uniform resource locator (URL) of
+Morningstar DBRS’ corporate Internet website where Morningstar DBRS’ credit rating history is
+required to be disclosed pursuant to 17 CFR 17g-7(b).
+1 The Morningstar DBRS Group of Companies is comprised of DBRS, Inc., DBRS Limited, DBRS Ratings Limited, DBRS 
+Ratings GmbH and DBRS Ratings Pty Limited. 
+1
+
+===== PDF PAGE 2 =====
+Morningstar DBRS
+Credit 
+Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 14 100.00 %
+AA (high) 26 80.77% 19.23%
+AA 38 89.47% 5.26% 2.63% 2.63%
+AA (low) 82 2.44% 86.59 % 1.22% 9.76%
+A (high) 440 0.45% 93.18 % 0.23% 6.14%
+A 68 5.88% 82.35 % 1.47% 10.29%
+A (low) 48 16.67% 66.67% 16.67%
+BBB (high) 38 28.95% 50.00% 7.89% 2.63% 10.53%
+BBB 42 35.71% 45.24% 19.05%
+BBB (low) 42 16.67% 71.43% 11.90%
+BB (high) 10 30.00% 10.00% 40.00% 20.00%
+BB 3 100.00%
+BB (low) 3 33.33% 66.67%
+B (high) 3 33.33% 66.67%
+B6 50.00% 33.33% 16.67%
+B (low) 3 66.67% 33.33%
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 866
+Financial Institutions - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2024-12/31/2025 (Percent)
+2
+
+===== PDF PAGE 3 =====
+Morningstar DBRS
+Credit 
+Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 11 100.00 %
+AA (high) 28 75.00% 25.00%
+AA 38 84.21% 13.16% 2.63%
+AA (low) 74 2.70% 74.32 % 4.05% 18.92%
+A (high) 441 0.68% 88.21 % 0.91% 10.20%
+A 51 3.92% 74.51 % 3.92% 17.65%
+A (low) 58 8.62% 24.14 % 41.38% 1.72% 5.17% 8.62% 10.34 %
+BBB (high) 44 2.27% 29.55 % 38.64% 6.82% 2.27% 2.27% 18.18 %
+BBB 34 5.88% 26.47% 32.35% 8.82% 5.88% 20.59 %
+BBB (low) 39 5.13% 10.26 % 15.38% 46.15% 23.08%
+BB (high) 11 9.09% 27.27 % 27.27% 18.18% 18.18%
+BB 3 33.33% 66.67%
+BB (low) 5 40.00% 20.00% 40.00%
+B (high) 7 28.57% 14.29% 14.29% 42.86%
+B6 16.67% 16.67% 33.33% 33.33%
+B (low) 0
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 850
+Financial Institutions - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2022-12/31/2025 (Percent)
+3
+
+===== PDF PAGE 4 =====
+Morningstar DBRS
+Credit 
+Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 9 88.89 % 11.11%
+AA (high) 3 33.33% 66.67%
+AA 34 26.47% 52.94% 11.76% 2.94% 5.88%
+AA (low) 29 3.45% 31.03 % 27.59% 3.45% 3.45% 3.45% 27.59 %
+A (high) 49 28.57% 18.37% 4.08% 2.04% 46.94 %
+A 452 0.22% 0.66% 74.34 % 1.99% 0.66% 22.12 %
+A (low) 44 4.55% 13.64 % 22.73% 18.18% 2.27% 2.27% 2.27% 34.09 %
+BBB (high) 25 12.00% 20.00% 16.00% 4.00% 4.00% 44.00%
+BBB 17 11.76% 11.76% 5.88% 5.88% 5.88% 58.82%
+BBB (low) 24 12.50% 4.17% 8.33% 20.83 % 20.83% 33.33%
+BB (high) 12 16.67% 16.67% 8.33% 8.33% 50.00 %
+BB 7 14.29% 85.71%
+BB (low) 3 33.33% 33.33% 33.33%
+B (high) 1 100.00%
+B8 75.00% 12.50% 12.50%
+B (low) 0
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C3 100.00%
+C (low) 0
+Total 720
+Financial Institutions - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2015-12/31/2025 (Percent)
+4
+
+===== PDF PAGE 5 =====
+Morningstar DBRS
+Credit 
+Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 0
+AA (high) 0
+AA 32 84.38% 15.62%
+AA (low) 5 100.00%
+A (high) 23 82.61% 17.39%
+A 38 5.26% 44.74 % 50.00%
+A (low) 11 36.36% 45.45% 9.09% 9.09%
+BBB (high) 25 20.00 % 24.00% 56.00%
+BBB 3 33.33% 33.33% 33.33%
+BBB (low) 4 25.00% 50.00% 25.00%
+BB (high) 0
+BB 0
+BB (low) 0
+B (high) 0
+B0
+B (low) 0
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 141
+Insurance Companies - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2024 -12/31/2025 (Percent)
+5
+
+===== PDF PAGE 6 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 0
+AA (high) 0
+AA 13 38.46% 61.54%
+AA (low) 27 81.48% 3.70% 14.81%
+A (high) 18 11.11% 61.11% 27.78%
+A 27 22.22% 29.63% 3.70% 44.44 %
+A (low) 20 50.00% 10.00% 40.00%
+BBB (high) 11 27.27% 18.18% 9.09% 45.45 %
+BBB 6 16.67% 50.00% 33.33%
+BBB (low) 2 50.00% 50.00%
+BB (high) 0
+BB 0
+BB (low) 0
+B (high) 0
+B0
+B (low) 0
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 124
+Insurance Companies - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2022 -12/31/2025 (Percent)
+6
+
+===== PDF PAGE 7 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 0
+AA (high) 0
+AA 3 66.67% 33.33%
+AA (low) 11 81.82% 9.09% 9.09%
+A (high) 3 33.33 % 66.67%
+A 6 66.67% 16.67% 16.67%
+A (low) 3 66.67% 33.33%
+BBB (high) 0
+BBB 4 25.00% 25.00% 25.00% 25.00%
+BBB (low) 0
+BB (high) 0
+BB 0
+BB (low) 0
+B (high) 0
+B0
+B (low) 0
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 30
+Insurance Companies - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2015-12/31/2025 (Percent)
+7
+
+===== PDF PAGE 8 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 2 100.00%
+AA (high) 1 100.00%
+AA 5 100.00%
+AA (low) 24 95.83% 4.17%
+A (high) 19 100.00 %
+A 47 95.74% 4.26%
+A (low) 70 4.29% 92.86 % 1.43% 1.43%
+BBB (high) 63 4.76% 88.89 % 1.59% 4.76%
+BBB 128 0.78% 4.69% 88.28 % 2.34% 0.78% 3.12%
+BBB (low) 97 7.22% 82.47 % 2.06% 2.06% 1.03% 5.15%
+BB (high) 21 4.76% 90.48 % 4.76%
+BB 10 10.00% 80.00% 10.00%
+BB (low) 14 7.14% 71.43 % 7.14% 7.14% 7.14%
+B (high) 94 2.13% 62.77 % 11.70% 1.06% 1.06% 2.13% 1.06% 18.09 %
+B 193 5.70% 63.21 % 9.33% 2.59% 0.52% 1.55% 17.10 %
+B (low) 89 8.99% 58.43 % 13.48% 2.25% 1.12% 5.62% 1.12% 8.99%
+CCC (high) 29 3.45% 41.38 % 13.79% 6.90% 20.69% 13.79%
+CCC 9 11.11% 22.22% 11.11% 22.22% 33.33%
+CCC (low) 1 100.00%
+CC (high) 0
+CC 1 100.00%
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 917
+Corporate Issuers - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2024-12/31/2025(Percent)
+8
+
+===== PDF PAGE 9 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 2 100.00%
+AA (high) 1 100.00%
+AA 4 75.00% 25.00%
+AA (low) 17 5.88% 88.24 % 5.88%
+A (high) 18 77.78 % 5.56% 16.67%
+A 37 2.70% 89.19 % 2.70% 5.41%
+A (low) 66 12.12 % 74.24% 3.03% 4.55% 3.03% 3.03%
+BBB (high) 53 1.89% 9.43% 62.26 % 9.43% 3.77% 1.89% 11.32 %
+BBB 100 10.00% 75.00% 4.00% 1.00% 10.00 %
+BBB (low) 69 1.45% 17.39 % 55.07% 5.80% 2.90% 1.45% 4.35% 11.59 %
+BB (high) 20 5.00% 5.00% 25.00 % 50.00% 5.00% 10.00%
+BB 15 6.67% 13.33 % 13.33% 26.67% 6.67% 6.67% 26.67 %
+BB (low) 6 16.67% 50.00% 33.33%
+B (high) 71 2.82% 16.90 % 16.90% 11.27% 5.63% 2.82% 2.82% 2.82% 38.03%
+B 127 7.87% 23.62 % 9.45% 4.72% 3.15% 0.79% 2.36% 9.45% 38.58%
+B (low) 47 12.77% 19.15% 19.15% 2.13% 2.13% 10.64% 34.04%
+CCC (high) 7 14.29% 14.29% 71.43%
+CCC 2 50.00% 50.00%
+CCC (low) 4 25.00% 50.00% 25.00%
+CC (high) 1 100.00%
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 667
+Corporate Issuers - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2022-12/31/2025 (Percent)
+9
+
+===== PDF PAGE 10 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 2 100.00%
+AA (high) 2 50.00% 50.00%
+AA 7 14.29% 28.57% 57.14%
+AA (low) 8 12.50% 87.50%
+A (high) 20 5.00% 50.00 % 5.00% 5.00% 35.00 %
+A 41 9.76% 39.02 % 4.88% 4.88% 41.46 %
+A (low) 53 5.66% 43.40 % 13.21% 3.77% 1.89% 7.55% 24.53 %
+BBB (high) 32 3.12% 9.38% 18.75 % 25.00% 6.25% 3.12% 6.25% 28.12 %
+BBB 54 5.56% 14.81 % 16.67% 16.67% 9.26% 37.04 %
+BBB (low) 47 2.13% 21.28 % 14.89% 2.13% 2.13% 6.38% 51.06 %
+BB (high) 9 11.11% 22.22% 11.11% 11.11% 44.44%
+BB 7 28.57% 14.29% 57.14%
+BB (low) 7 14.29% 14.29% 71.43%
+B (high) 5 20.00% 20.00% 60.00%
+B9 22.22% 77.78%
+B (low) 4 100.00%
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 307
+Corporate Issuers - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2015-12/31/2025 (Percent)
+10
+
+===== PDF PAGE 11 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 7,929              95.61% 4.39%
+AA (high) 694                 40.49% 53.75% 5.76%
+AA 708                 18.36% 14.69% 59.75% 7.20%
+AA (low) 436                 1.61% 5.73% 41.06% 48.39% 3.21%
+A (high) 454                 0.88% 6.61% 12.78% 24.45% 44.05% 11.01% 0.22%
+A 475                 1.05% 1.26% 13.05% 6.32% 26.53% 46.74% 5.05%
+A (low) 530                 0.19% 0.19% 2.08% 6.98% 11.13% 15.66% 61.13% 2.64%
+BBB (high) 507                 0.59% 0.39% 6.90% 4.14% 19.33% 65.09% 3.55%
+BBB 543                 1.66% 0.74% 6.63% 8.10% 18.05% 61.33% 3.50%
+BBB (low) 418                 0.24% 0.48% 1.20% 6.46% 8.37% 16.51% 60.05% 6.70%
+BB (high) 319                 0.31% 1.88% 3.76% 12.23% 23.82% 54.23% 3.76%
+BB 347                 0.29% 3.75% 8.07% 5.19% 13.54% 65.42% 0.29% 3.46%
+BB (low) 259                 0.39% 1.93% 1.16% 3.09% 5.02% 11.97% 72.20% 4.25%
+B (high) 155                 2.58% 9.68% 7.74% 17.42% 59.35% 3.23%
+B 221                 1.36% 1.36% 3.17% 8.60% 10.41% 70.59% 4.52%
+B (low) 133                 0.75% 0.75% 6.02% 87.97% 4.51%
+CCC (high) -                  
+CCC 1                     100.00%
+CCC (low) -                  
+CC (high) -                  
+CC 1                     100.00%
+CC (low) -                  
+C (high) -                  
+C 558                 0.54% 0.54% 97.67% 0.18% 1.08%
+C (low) -                  
+Total 14,688           
+RMBS - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2024-
+12/31/2025 (Percent)
+11
+
+===== PDF PAGE 12 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 5,73 4             88.59% 11.41%
+AA (high) 603                 58.54% 9.62% 0.17% 31.67%
+AA 640                 50.31% 13.28% 12.19% 24.22%
+AA (low) 293                 21.50% 30.38% 11.60% 7.85% 28.67%
+A (high) 429                 39.39% 7.69% 24.24% 5.13% 4.43% 19.11%
+A 630                 19.52% 4.13% 26.03% 8.25% 7.62% 11.11% 23.33%
+A (low) 330                 16.67% 3.64% 21.21% 15.76% 9.09% 5.76% 13.03% 14.85%
+BBB (high) 360                 16.94% 6.11% 21.67% 6.67% 6.39% 2.50% 6.39% 8.89% 24.44%
+BBB 562                 9.07% 5.52% 8.01% 3.38% 12.81% 9.96% 11.39% 7.30% 19.75% 12.81%
+BBB (low) 299                 4.01% 3.34% 5.35% 2.68% 14.38% 11.37% 12.37% 3.01% 7.36% 13.71% 22.41%
+BB (high) 287                 0.70% 1.05% 11.50% 0.70% 16.72% 6.27% 10.80% 11.50% 8.01% 8.36% 10.45% 0.35% 0.35% 13.24%
+BB 413                 3.15% 4.36% 1.45% 8.47% 7.75% 2.66% 2.66% 12.59% 6.78% 16.46% 20.58% 13.08%
+BB (low) 245                 0.82% 2.86% 1.22% 4.90% 6.12% 9.39% 7.76% 5.71% 4.90% 13.47% 22.45% 20.41%
+B (high) 161                 0.62% 1.86% 0.62% 3.73% 7.45% 18.63% 8.70% 16.77% 9.94% 8.70% 7.45% 9.94% 5.59%
+B 301                 0.66% 2.66% 1.33% 5.98% 10.63% 5.98% 5.98% 6.64% 15.95% 9.97% 22.92% 0.33% 10.96%
+B (low) 77                   1.30% 2.60% 3.90% 3.90% 9.09% 7.79% 5.19% 10.39% 45.45% 10.39%
+CCC (high) -                  
+CCC 1                     100.00%
+CCC (low) -                  
+CC (high) -                  
+CC 1                     100.00%
+CC (low) -                  
+C (high) -                  
+C 598                 0.17% 0.17% 0.33% 0.33% 0.84% 0.33% 0.33% 1.67% 0.67% 91.14% 0.33% 3.68%
+C (low) -                  
+Total 11,964           
+RMBS - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2022-
+12/31/2025 (Percent)
+12
+
+===== PDF PAGE 13 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 2,652              31.67% 0.34% 67.87% 0.11%
+AA (high) 244                 8.20% 0.41% 1.23% 90.16%
+AA 507                 7.30% 0.20% 1.18% 0.20% 0.79% 89.35% 0.99%
+AA (low) 43                   9.30% 6.98% 83.72%
+A (high) 39                   7.69% 5.13% 87.18%
+A 444                 7.88% 0.23% 0.23% 5.18% 0.68% 0.23% 0.23% 0.23% 0.68% 84.01% 0.45%
+A (low) 27                   14.81% 3.70% 3.70% 74.07% 3.70%
+BBB (high) 20                   15.00% 5.00% 15.00% 65.00%
+BBB 395                 3.80% 2.28% 1.01% 0.51% 0.25% 0.25% 0.25% 0.51% 0.25% 2.78% 86.58% 1.52%
+BBB (low) 24                   8.33% 4.17% 4.17% 83.33%
+BB (high) 25                   20.00% 4.00% 28.00% 4.00% 4.00% 40.00%
+BB 104                 10.58% 4.81% 11.54% 0.96% 2.88% 0.96% 2.88% 64.42% 0.96%
+BB (low) 25                   4.00% 20.00% 4.00% 4.00% 68.00%
+B (high) 10                   10.00% 90.00%
+B 146                 0.68% 1.37% 6.16% 2.05% 2.05% 1.37% 2.05% 2.05% 0.68% 2.74% 0.68% 7.53% 1.37% 4.79% 0.68% 63.01% 0.68%
+B (low) 3                     100.00%
+CCC (high) -                  
+CCC 8                     100.00%
+CCC (low) -                  
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C 1,028             2.43% 0.68% 1.17% 0.10% 0.68% 1.36% 0.19% 1.07% 0.68% 0.68% 1.17% 1.26% 0.68% 0.49% 2.43% 0.29% 52.24% 10.80% 21.40% 0.19%
+C (low) -                  
+Total 5,744             
+RMBS - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2015-
+12/31/2025 (Percent)
+13
+
+===== PDF PAGE 14 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 2,067              79.25% 0.24% 0.29% 0.05% 0.34% 0.10% 0.10% 0.10% 0.29% 19.25%
+AA (high) 191                 20.42% 57.59% 0.52% 0.52% 1.57% 0.52% 1.57% 1.05% 14.66% 1.57%
+AA 285                 8.77% 8.77% 57.54% 0.70% 2.11% 1.75% 0.35% 0.70% 0.35% 0.35% 1.05% 17.19% 0.35%
+AA (low) 319                 3.13% 5.02% 10.03% 50.16% 0.63% 2.51% 2.82% 0.63% 0.31% 0.63% 24.14%
+A (high) 217                 0.92% 8.29% 3.69% 6.45% 53.92% 0.46% 4.15% 2.76% 0.46% 1.38% 0.46% 0.46% 0.46% 0.46% 15.67%
+A 229                 2.62% 7.42% 3.93% 1.31% 57.64% 1.75% 3.93% 2.62% 0.87% 0.87% 0.87% 0.44% 0.87% 0.87% 0.44% 13.54%
+A (low) 355                 0.28% 1.13% 6.20% 1.41% 6.48% 3.94% 54.37% 0.28% 2.54% 1.41% 0.85% 0.28% 0.28% 0.28% 0.85% 1.13% 0.56% 17.46% 0.28%
+BBB (high) 172                 2.33% 1.74% 2.33% 1.16% 4.65% 4.65% 54.65% 2.91% 5.23% 1.16% 1.74% 0.58% 1.74% 2.91% 1.74% 9.30% 1.16%
+BBB 292                 0.34% 0.34% 2.05% 0.34% 2.05% 5.14% 2.40% 5.14% 44.86% 4.79% 3.08% 3.08% 0.68% 0.68% 4.11% 2.74% 18.15%
+BBB (low) 426                 0.47% 0.94% 1.41% 1.64% 1.17% 2.11% 3.99% 53.29% 3.52% 1.41% 2.58% 0.94% 1.17% 0.70% 3.76% 2.58% 18.08% 0.23%
+BB (high) 195                 1.03% 1.03% 3.08% 1.54% 71.28% 1.54% 1.54% 2.05% 1.54% 0.51% 4.62% 2.05% 8.21%
+BB 168                 1.19% 1.19% 4.17% 53.57% 4.76% 3.57% 4.76% 1.19% 7.14% 4.17% 14.29%
+BB (low) 317                 0.32% 0.63% 0.32% 1.26% 0.63% 0.95% 2.21% 1.58% 7.57% 51.42% 0.95% 1.89% 2.21% 5.36% 4.73% 17.98%
+B (high) 125                 0.80% 0.80% 1.60% 0.80% 46.40% 1.60% 4.00% 18.40% 14.40% 10.40% 0.80%
+B 147                 0.68% 1.36% 0.68% 4.08% 53.06% 2.04% 18.37% 10.20% 0.68% 8.84%
+B (low) 274                 0.36% 0.36% 1.46% 0.73% 2.92% 3.28% 52.92% 12.04% 8.03% 0.36% 17.52%
+CCC (high) -                  
+CCC 242                 0.41% 0.83% 0.41% 0.41% 0.41% 41.74% 0.41% 51.24% 4.13%
+CCC (low) 1                     100.00%
+CC (high) -                  
+CC 1                     100.00%
+CC (low) -                  
+C (high) -                  
+C 234                 0.43% 0.43% 85.90% 11.54% 1.71%
+C (low) -                  
+Total 6,257             
+CMBS - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2024-
+12/31/2025 (Percent)
+14
+
+===== PDF PAGE 15 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 2,513              56.59% 0.40% 0.72% 0.24% 0.40% 0.28% 0.36% 0.20% 0.32% 0.24% 0.44% 0.20% 0.04% 39.24% 0.36%
+AA (high) 210                 19.52% 38.57% 1.43% 1.90% 3.33% 0.95% 0.48% 0.48% 0.95% 0.95% 0.48% 1.43% 1.43% 27.62% 0.48%
+AA 344                 13.37% 4.65% 34.88% 1.74% 2.91% 3.49% 0.58% 0.58% 0.58% 0.29% 0.58% 0.58% 1.74% 1.16% 1.16% 30.52% 1.16%
+AA (low) 373                 8.58% 3.22% 6.97% 28.15% 2.68% 4.29% 3.49% 1.07% 1.34% 0.54% 0.54% 1.07% 0.54% 0.80% 1.07% 1.34% 34.32%
+A (high) 233                 3.00% 2.58% 1.29% 3.43% 33.05% 1.72% 6.01% 3.86% 1.29% 1.29% 1.29% 0.86% 1.72% 0.43% 2.58% 2.58% 1.29% 30.47% 1.29%
+A 257                 0.39% 3.50% 3.50% 3.11% 2.72% 32.68% 3.11% 3.89% 2.72% 3.11% 1.56% 0.78% 0.39% 1.17% 1.17% 3.50% 2.33% 28.79% 1.56%
+A (low) 414                 0.72% 2.90% 5.07% 0.72% 5.56% 3.14% 32.13% 2.42% 4.59% 3.38% 2.17% 2.17% 0.24% 0.97% 2.17% 2.42% 3.38% 25.36% 0.48%
+BBB (high) 201                 0.50% 4.98% 4.48% 3.48% 0.50% 1.99% 3.98% 25.37% 3.98% 6.97% 4.48% 1.00% 1.99% 1.00% 1.49% 1.00% 4.98% 1.99% 24.88% 1.00%
+BBB 336                 0.60% 3.27% 2.68% 0.60% 2.08% 2.38% 1.19% 5.65% 24.40% 5.36% 4.76% 2.08% 3.27% 1.49% 2.08% 0.89% 8.33% 4.76% 22.62% 1.49%
+BBB (low) 504                 0.20% 1.59% 0.60% 0.79% 3.37% 1.19% 1.79% 3.57% 29.37% 4.76% 2.58% 2.98% 2.58% 1.98% 1.39% 6.94% 6.94% 0.79% 26.39% 0.20%
+BB (high) 161                 1.24% 1.24% 1.24% 4.35% 1.86% 41.61% 1.86% 1.86% 1.86% 1.86% 1.24% 10.56% 9.32% 18.63% 1.24%
+BB 184                 0.54% 0.54% 1.09% 6.52% 28.80% 1.63% 3.80% 3.80% 4.35% 12.50% 15.22% 0.54% 19.57% 1.09%
+BB (low) 351                 0.28% 0.57% 0.28% 1.71% 0.57% 0.57% 1.71% 2.28% 4.84% 31.91% 1.14% 5.13% 3.70% 5.98% 10.26% 1.42% 27.35% 0.28%
+B (high) 142                 0.70% 1.41% 1.41% 23.24% 2.11% 7.04% 15.49% 1.41% 26.76% 18.31% 2.11%
+B 148                 0.68% 0.68% 1.35% 0.68% 1.35% 4.73% 21.62% 3.38% 13.51% 32.43% 14.86% 4.73%
+B (low) 290                 0.34% 0.34% 1.38% 0.69% 2.07% 3.45% 32.07% 13.45% 18.97% 1.38% 25.86%
+CCC (high) -                  
+CCC 80  12.50% 71.25% 8.75% 7.50%
+CCC (low) -                  
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C 100                 59.00% 37.00% 3.00% 1.00%
+C (low) -                  
+Total 6,841             
+CMBS - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2022-
+12/31/2025 (Percent)
+15
+
+===== PDF PAGE 16 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 1,283              2.34% 0.23% 0.16% 0.16% 0.31% 0.39% 0.55% 0.23% 0.31% 0.39% 0.16% 0.16% 0.16% 1.87% 2.88% 0.08% 79.89% 9.74%
+AA (high) 17  5.88% 5.88% 5.88% 82.35%
+AA 97  3.09% 5.15% 1.03% 1.03% 1.03% 1.03% 2.06% 1.03% 84.54%
+AA (low) 84  2.38% 1.19% 1.19% 2.38% 3.57% 1.19% 1.19% 1.19% 1.19% 83.33% 1.19%
+A (high) 48  4.17% 4.17% 2.08% 2.08% 87.50%
+A 113                 0.88% 1.77% 0.88% 7.08% 0.88% 0.88% 1.77% 1.77% 5.31% 2.65% 0.88% 75.22%
+A (low) 127                 0.79% 1.57% 3.15% 3.15% 0.79% 3.15% 1.57% 3.94% 1.57% 2.36% 4.72% 0.79% 72.44%
+BBB (high) 33  3.03% 3.03% 93.94%
+BBB 86  2.33% 1.16% 2.33% 94.19%
+BBB (low) 184                 0.54% 0.54% 2.17% 2.72% 1.63% 1.09% 1.09% 0.54% 0.54% 6.52% 11.41% 2.17% 67.39% 1.63%
+BB (high) 30  3.33% 10.00% 3.33% 83.33%
+BB 94  1.06% 1.06% 1.06% 3.19% 1.06% 4.26% 14.89% 9.57% 63.83%
+BB (low) 67  1.49% 2.99% 10.45% 23.88% 5.97% 53.73% 1.49%
+B (high) 28  3.57% 3.57% 3.57% 25.00% 10.71% 53.57%
+B7 5 1.33% 2.67% 2.67% 28.00% 10.67% 54.67%
+B (low) 57  1.75% 5.26% 29.82% 14.04% 49.12%
+CCC (high) 1  100.00%
+CCC 27  7.41% 40.74% 51.85%
+CCC (low) -                  
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C1 7 5.88% 76.47% 17.65%
+C (low) -                  
+Total 2,468             
+CMBS - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2015-
+12/31/2025 (Percent)
+16
+
+===== PDF PAGE 17 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 79  62.03% 34.18% 3.80%
+AA (high) 20  70.00% 30.00%
+AA 90  3.33% 73.33% 23.33%
+AA (low) 13  15.38% 38.46% 7.69% 38.46%
+A (high) 19  5.26% 78.95% 15.79%
+A5 8 1.72% 3.45% 84.48% 10.34%
+A (low) 5  60.00% 40.00%
+BBB (high) 10  20.00% 30.00% 50.00%
+BBB 50  98.00% 2.00%
+BBB (low) 10  50.00% 40.00% 10.00%
+BB (high) 4  100.00%
+BB 40  95.00% 5.00%
+BB (low) 11  54.55% 9.09% 9.09% 9.09% 18.18%
+B (high) 7  100.00%
+B1 9 94.74% 5.26%
+B (low) 1  100.00%
+CCC (high) 1  100.00%
+CCC 1  100.00%
+CCC (low) -                  
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C1  100.00%
+C (low) -                  
+Total 439                 
+CLO - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2024-
+12/31/2025 (Percent)
+17
+
+===== PDF PAGE 18 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 44                    45.45% 52.27% 2.27%
+AA (high) 23                    4.35% 17.39% 78.26%
+AA 62                    3.23% 1.61% 45.16% 50.00%
+AA (low) 11                    18.18% 9.09% 72.73%
+A (high) 19                   26.32% 73.68%
+A4 0                   2.50% 2.50% 7.50% 5.00% 55.00% 20.00% 7.50%
+A (low) 6                     16.67% 83.33%
+BBB (high) 10                   10.00% 20.00% 70.00%
+BBB 30                   3.33% 3.33% 3.33% 73.33% 16.67%
+BBB (low) 9                     11.11% 77.78% 11.11%
+BB (high) 6                     16.67% 33.33% 50.00%
+BB 25                   4.00% 76.00% 20.00%
+BB (low) 6                     16.67% 16.67% 33.33% 33.33%
+B (high) 4                     25.00% 75.00%
+B5                      20.00% 20.00% 20.00% 20.00% 20.00%
+B (low) 2                     100.00%
+CCC (high) 1                     100.00%
+CCC 3                     33.33% 66.67%
+CCC (low) 1                     100.00%
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C1                      100.00%
+C (low) -                  
+Total 308                 
+CLO - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2022-
+12/31/2025 (Percent)
+18
+
+===== PDF PAGE 19 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 27                    100.00%
+AA (high) 4                      100.00%
+AA 23                    4.35% 91.30% 4.35%
+AA (low) 2                     100.00%
+A (high) 11                   100.00%
+A1 5                   6.67% 93.33%
+A (low) 14                   92.86% 7.14%
+BBB (high) 2                     100.00%
+BBB 4                     100.00%
+BBB (low) 5                     80.00% 20.00%
+BB (high) 3                     100.00%
+BB 5                     80.00% 20.00%
+BB (low) -                  
+B (high) -                  
+B1                      100.00%
+B (low) 1                     100.00%
+CCC (high) 2                     100.00%
+CCC 2                     100.00%
+CCC (low) 4                     100.00%
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C4                      100.00%
+C (low) -                  
+Total 129                 
+CLO - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2015-
+12/31/2025 (Percent)
+19
+
+===== PDF PAGE 20 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 1  100.00%
+AA (high) -                  
+AA 2  100.00%
+AA (low) -                  
+A (high) -                  
+A1  100.00%
+A (low) -                  
+BBB (high) -                  
+BBB 1  100.00%
+BBB (low) 1  100.00%
+BB (high) 1  100.00%
+BB -                  
+BB (low) 1  100.00%
+B (high) -                  
+B-                  
+B (low) -                  
+CCC (high) -                  
+CCC -                  
+CCC (low) -                  
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C-                  
+C (low) -                  
+Total 8  
+CDO - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2024-
+12/31/2025 (Percent)
+20
+
+===== PDF PAGE 21 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA -                  
+AA (high) -                  
+AA 1  100.00%
+AA (low) -                  
+A (high) -                  
+A-                  
+A (low) -                  
+BBB (high) -                  
+BBB -                  
+BBB (low) 1  100.00%
+BB (high) -                  
+BB -                  
+BB (low) -                  
+B (high) -                  
+B-                  
+B (low) -                  
+CCC (high) -                  
+CCC -                  
+CCC (low) -                  
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C-                  
+C (low) -                  
+Total 2  
+CDO - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2022-
+12/31/2025 (Percent)
+21
+
+===== PDF PAGE 22 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 12                    100.00%
+AA (high) -                  
+AA 6                      83.33% 16.67%
+AA (low) -                  
+A (high) -                  
+A1                      100.00%
+A (low) 62                    6.45% 93.55%
+BBB (high) -                  
+BBB -                  
+BBB (low) 1                      100.00%
+BB (high) -                  
+BB -                  
+BB (low) -                  
+B (high) -                  
+B-                  
+B (low) -                  
+CCC (high) -                  
+CCC -                  
+CCC (low) -                  
+CC (high) -                  
+CC 1                      100.00%
+CC (low) -                  
+C (high) -                  
+C2                      100.00%
+C (low) -                  
+Total 85                    
+CDO - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2015-
+12/31/2025 (Percent)
+22
+
+===== PDF PAGE 23 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding R-1 (high) R-1 (middle) R-1 (low) R-2 (high) R-2 (middle) R-2 (low) R-3 R-4 R-5 Default Paid Off
+Withdrawn 
+(other)
+R-1 (high) 22  100.00%
+R-1 (middle) 3  100.00%
+R-1 (low) -                   
+R-2 (high) -                   
+R-2 (middle) -                   
+R-2 (low) -                   
+R-3 -                   
+R-4 -                   
+R-5 -                   
+Total 25  
+ABCPR - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2024-
+12/31/2025 (Percent)
+23
+
+===== PDF PAGE 24 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding R-1 (high) R-1 (middle) R-1 (low) R-2 (high) R-2 (middle) R-2 (low) R-3 R-4 R-5 Default Paid Off
+Withdrawn 
+(other)
+R-1 (high) 21  100.00%
+R-1 (middle) 4  75.00% 25.00%
+R-1 (low) -                   
+R-2 (high) -                   
+R-2 (middle) -                   
+R-2 (low) -                   
+R-3 -                   
+R-4 -                   
+R-5 -                   
+Total 25  
+ABCPR - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2022-
+12/31/2025 (Percent)
+24
+
+===== PDF PAGE 25 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding R-1 (high) R-1 (middle) R-1 (low) R-2 (high) R-2 (middle) R-2 (low) R-3 R-4 R-5 Default Paid Off
+Withdrawn 
+(other)
+R-1 (high) 15                    100.00%
+R-1 (middle) 5                      40.00% 20.00% 40.00%
+R-1 (low) -                   
+R-2 (high) -                   
+R-2 (middle) -                   
+R-2 (low) -                   
+R-3 -                   
+R-4 -                   
+R-5 -                   
+Total 20                    
+ABCPR - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2015-
+12/31/2025 (Percent)
+25
+
+===== PDF PAGE 26 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 882                 70.75% 29.14% 0.11%
+AA (high) 149                 30.20% 51.68% 2.01% 0.67% 15.44%
+AA 257                 14.40% 15.18% 55.25% 15.18%
+AA (low) 79                    3.80% 10.13% 12.66% 50.63% 3.80% 17.72% 1.27%
+A (high) 116                 19.83% 6.03% 11.21% 7.76% 40.52% 14.66%
+A 230                 3.48% 0.87% 8.70% 1.30% 5.65% 66.96% 0.43% 12.61%
+A (low) 72                   1.39% 1.39% 2.78% 2.78% 9.72% 69.44% 12.50%
+BBB (high) 82                   7.32% 3.66% 2.44% 9.76% 2.44% 3.66% 58.54% 12.20%
+BBB 199                 2.01% 1.51% 0.50% 2.01% 3.02% 4.02% 6.03% 66.33% 0.50% 14.07%
+BBB (low) 66                   6.06% 1.52% 6.06% 6.06% 3.03% 50.00% 1.52% 25.76%
+BB (high) 48                   2.08% 2.08% 79.17% 16.67%
+BB 133                 0.75% 0.75% 0.75% 1.50% 4.51% 6.77% 71.43% 1.50% 0.75% 2.26% 8.27% 0.75%
+BB (low) 28                   3.57% 7.14% 7.14% 64.29% 3.57% 3.57% 3.57% 7.14%
+B (high) 21                   9.52% 4.76% 33.33% 33.33% 19.05%
+B2 4                   4.17% 8.33% 75.00% 4.17% 8.33%
+B (low) 11                   18.18% 54.55% 9.09% 18.18%
+CCC (high) -                  
+CCC 10                   80.00% 10.00% 10.00%
+CCC (low) -                  
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C2                      50.00% 50.00%
+C (low) -                  
+Total 2,409             
+ABS - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2024-
+12/31/2025 (Percent)
+26
+
+===== PDF PAGE 27 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 777                 40.80% 58.94% 0.26%
+AA (high) 124                 13.71% 23.39% 2.42% 60.48%
+AA 239                 12.97% 11.30% 22.18% 52.72% 0.84%
+AA (low) 64  7.81% 14.06% 7.81% 23.44% 45.31% 1.56%
+A (high) 89  11.24% 1.12% 2.25% 4.49% 12.36% 68.54%
+A 220                 5.91% 2.27% 6.82% 2.73% 3.18% 27.73% 0.45% 50.91%
+A (low) 63  4.76% 1.59% 6.35% 6.35% 19.05% 60.32% 1.59%
+BBB (high) 76  11.84% 9.21% 5.26% 5.26% 3.95% 14.47% 1.32% 48.68%
+BBB 160                 7.50% 2.50% 1.88% 1.25% 2.50% 3.13% 0.63% 4.38% 26.88% 1.25% 47.50% 0.63%
+BBB (low) 63  6.35% 1.59% 3.17% 3.17% 11.11% 4.76% 9.52% 1.59% 58.73%
+BB (high) 32  9.38% 3.13% 6.25% 28.13% 53.13%
+BB 112                 8.93% 0.89% 3.57% 1.79% 3.57% 0.89% 3.57% 23.21% 2.68% 0.89% 0.89% 48.21% 0.89%
+BB (low) 27  3.70% 3.70% 3.70% 3.70% 11.11% 11.11% 3.70% 3.70% 55.56%
+B (high) 17  17.65% 5.88% 11.76% 64.71%
+B2 8 3.57% 10.71% 7.14% 14.29% 64.29%
+B (low) 4  25.00% 25.00% 25.00% 25.00%
+CCC (high) -                  
+CCC 2  50.00% 50.00%
+CCC (low) -                  
+CC (high) -                  
+CC 1  100.00%
+CC (low) -                  
+C (high) -                  
+C3  100.00%
+C (low) -                  
+Total 2,101             
+ABS - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2022-
+12/31/2025 (Percent)
+27
+
+===== PDF PAGE 28 =====
+p
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 477                 4.40% 0.21% 89.94% 5.45%
+AA (high) 27                   7.41% 92.59%
+AA 118                 4.24% 90.68% 5.08%
+AA (low) 16                   6.25% 93.75%
+A (high) 98                   1.02% 1.02% 92.86% 5.10%
+A 198                 0.51% 1.52% 94.95% 3.03%
+A (low) 25                   92.00% 8.00%
+BBB (high) 32                   3.13% 90.63% 6.25%
+BBB 142                 0.70% 1.41% 97.18% 0.70%
+BBB (low) 18                   94.44% 5.56%
+BB (high) 14                   7.14% 78.57% 14.29%
+BB 50                   2.00% 98.00%
+BB (low) 6                     100.00%
+B (high) 4                     100.00%
+B1 0                   90.00% 10.00%
+B (low) 1                     100.00%
+CCC (high) -                  
+CCC 1                     100.00%
+CCC (low) -                  
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C2                      100.00%
+C (low) -                  
+Total 1,239             
+ABS - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2015-
+12/31/2025 (Percent)
+28
+
+===== PDF PAGE 29 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 114                 96.49% 2.63% 0.88%
+AA (high) 7                      14.29% 57.14% 28.57%
+AA 139                 0.72% 2.16% 89.93% 7.19%
+AA (low) 22                    9.09% 13.64% 40.91% 31.82% 4.55%
+A (high) 80                   5.00% 86.25% 8.75%
+A 137                 0.73% 3.65% 85.40% 8.76% 1.46%
+A (low) 77                   2.60% 66.23% 7.79% 23.38%
+BBB (high) 86                   1.16% 3.49% 3.49% 83.72% 8.14%
+BBB 126                 0.79% 3.97% 82.54% 1.59% 9.52% 1.59%
+BBB (low) 26                   88.46% 11.54%
+BB (high) 10                   10.00% 80.00% 10.00%
+BB 13                   61.54% 7.69% 7.69% 15.38% 7.69%
+BB (low) 21                   4.76% 85.71% 9.52%
+B (high) 3                     33.33% 33.33% 33.33%
+B5                      40.00% 20.00% 20.00% 20.00%
+B (low) 7                     71.43% 14.29% 14.29%
+CCC (high) 1                     100.00%
+CCC 5                     20.00% 80.00%
+CCC (low) 1                     100.00%
+CC (high) -                  
+CC 8                     87.50% 12.50%
+CC (low) -                  
+C (high) -                  
+C4                      100.00%
+C (low) -                  
+Total 892                 
+Other Structured Finance contains: Insurance Premium Finance, Structured Settlements, Healthcare Receivables, Film Rights, Property Assessed Clean Energy (PACE) Assessments, Aircraft Leases, Covered Bonds(*), Nonperforming and Reperforming Loans, and other structured finance products not included elsewhere.
+(*) For Covered Bonds, one rating per program is counted
+Other SF Products - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2024-
+12/31/2025 (Percent)
+29
+
+===== PDF PAGE 30 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 95                    94.74% 1.05% 3.16% 1.05%
+AA (high) 5                      20.00% 20.00% 40.00% 20.00%
+AA 83                    1.20% 4.82% 48.19% 1.20% 25.30% 19.28%
+AA (low) 13                    15.38% 7.69% 15.38% 61.54%
+A (high) 73                   24.66% 5.48% 57.53% 1.37% 10.96%
+A 123                 2.44% 5.69% 49.59% 37.40% 4.88%
+A (low) 64                   3.13% 1.56% 53.13% 15.63% 26.56%
+BBB (high) 49                   2.04% 6.12% 67.35% 24.49%
+BBB 102                 2.94% 0.98% 8.82% 50.98% 1.96% 0.98% 1.96% 0.98% 29.41% 0.98%
+BBB (low) 23                   8.70% 43.48% 4.35% 39.13% 4.35%
+BB (high) 9                     11.11% 11.11% 22.22% 11.11% 11.11% 33.33%
+BB 14                   14.29% 7.14% 7.14% 7.14% 7.14% 57.14%
+BB (low) 16                   6.25% 56.25% 12.50% 6.25% 18.75%
+B (high) 3                     33.33% 33.33% 33.33%
+B2                      100.00%
+B (low) 2                     50.00% 50.00%
+CCC (high) 3                     33.33% 33.33% 33.33%
+CCC 9                     11.11% 77.78% 11.11%
+CCC (low) 2                     100.00%
+CC (high) -                  
+CC 3                     100.00%
+CC (low) -                  
+C (high) -                  
+C2                      100.00%
+C (low) -                  
+Total 695                 
+Other Structured Finance contains: Insurance Premium Finance, Structured Settlements, Healthcare Receivables, Film Rights, Property Assessed Clean Energy (PACE) Assessments, Aircraft Leases, Covered Bonds(*), Nonperforming and Reperforming Loans, and other structured finance products not included elsewhere.
+(*) For Covered Bonds, one rating per program is counted
+Other SF Products - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2022-
+12/31/2025 (Percent)
+30
+
+===== PDF PAGE 31 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low) BBB (high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 41                    53.66% 46.34%
+AA (high) 3                      100.00%
+AA 38                    2.63% 7.89% 65.79% 23.68%
+AA (low) 10                   20.00% 10.00% 40.00% 30.00%
+A (high) 13                   7.69% 15.38% 7.69% 46.15% 23.08%
+A3 7                   5.41% 16.22% 54.05% 24.32%
+A (low) 49                   10.20% 6.12% 67.35% 16.33%
+BBB (high) 16                   6.25% 25.00% 68.75%
+BBB 24                   29.17% 8.33% 54.17% 8.33%
+BBB (low) 4                     75.00% 25.00%
+BB (high) 2                     100.00%
+BB 5                     20.00% 40.00% 40.00%
+BB (low) 1                     100.00%
+B (high) -                  
+B-                  
+B (low) -                  
+CCC (high) -                  
+CCC -                  
+CCC (low) -                  
+CC (high) -                  
+CC -                  
+CC (low) -                  
+C (high) -                  
+C3                      100.00%
+C (low) -                  
+Total 246                 
+Other Structured Finance contains: Insurance Premium Finance, Structured Settlements, Healthcare Receivables, Film Rights, Property Assessed Clean Energy (PACE) Assessments, Aircraft Leases, Covered Bonds(*), Nonperforming and Reperforming Loans, and other structured finance products not included elsewhere.
+(*) For Covered Bonds, one rating per program is counted
+Other SF Products - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 12/31/2015-
+12/31/2025 (Percent)
+31
+
+===== PDF PAGE 32 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 18 100.00%
+AA (high) 2 50.00% 50.00%
+AA 4 100.00%
+AA (low) 3 33.33% 66.67%
+A (high) 6 16.67% 83.33%
+A 6 33.33% 50.00% 16.67%
+A (low) 1 100.00%
+BBB (high) 2 50.00% 50.00%
+BBB 2 100.00%
+BBB (low) 4 50.00% 25.00% 25.00%
+BB (high) 0
+BB 1 100.00%
+BB (low) 0
+B (high) 1 100.00%
+B0
+B (low) 1 100.00%
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 51
+Sovereign Issuers - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2024-12/31/2025 (Percent)
+32
+
+===== PDF PAGE 33 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 19 94.74% 5.26%
+AA (high) 3 33.33 % 66.67%
+AA 2 100.00%
+AA (low) 2 50.00% 50.00%
+A (high) 7 14.29% 14.29% 42.86% 14.29% 14.29%
+A 5 60.00% 40.00%
+A (low) 1 100.00%
+BBB (high) 1 100.00%
+BBB 3 33.33% 66.67%
+BBB (low) 2 50.00% 50.00%
+BB (high) 1 100.00%
+BB 0
+BB (low) 1 100.00%
+B (high) 1 100.00%
+B0
+B (low) 0
+CCC (high) 0
+CCC 1 100.00%
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 49
+Sovereign Issuers - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2022-12/31/2025 (Percent)
+33
+
+===== PDF PAGE 34 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 18 83.33% 5.56% 11.11 %
+AA (high) 1 100.00%
+AA 0
+AA (low) 1 100.00%
+A (high) 2 50.00% 50.00%
+A 3 33.33% 33.33% 33.33%
+A (low) 2 50.00% 50.00%
+BBB (high) 2 50.00% 50.00%
+BBB 2 50.00% 50.00%
+BBB (low) 4 25.00% 25.00% 25.00% 25.00%
+BB (high) 0
+BB 0
+BB (low) 0
+B (high) 0
+B 1 100.00 %
+B (low) 0
+CCC (high) 1 100.00%
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 37
+Sovereign Issuers - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2015-12/31/2025 (Percent)
+34
+
+===== PDF PAGE 35 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA
+AA (high)
+AA
+AA (low)
+A (high)
+A
+A (low)
+BBB (high)
+BBB
+BBB (low)
+BB (high)
+BB
+BB (low)
+B (high)
+B
+B (low)
+CCC (high)
+CCC
+CCC (low)
+CC (high)
+CC
+CC (low)
+C (high)
+C
+C (low)
+Total
+United States Public Finance - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2024-12/31/2025 (Percent)
+35
+
+===== PDF PAGE 36 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA
+AA (high)
+AA
+AA (low)
+A (high)
+A
+A (low)
+BBB (high)
+BBB
+BBB (low)
+BB (high)
+BB
+BB (low)
+B (high)
+B
+B (low)
+CCC (high)
+CCC
+CCC (low)
+CC (high)
+CC
+CC (low)
+C (high)
+C
+C (low)
+Total
+United States Public Finance - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2022-12/31/2025 (Percent)
+36
+
+===== PDF PAGE 37 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA
+AA (high)
+AA
+AA (low)
+A (high)
+A
+A (low)
+BBB (high)
+BBB
+BBB (low)
+BB (high)
+BB
+BB (low)
+B (high)
+B
+B (low)
+CCC (high)
+CCC
+CCC (low)
+CC (high)
+CC
+CC (low)
+C (high)
+C
+C (low)
+Total
+United States Public Finance - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2015-12/31/2025 (Percent)
+37
+
+===== PDF PAGE 38 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 7 100.00%
+AA (high) 5 40.00% 60.00%
+AA 13 100.00%
+AA (low) 12 33.33% 50.00% 16.67%
+A (high) 11 100.00%
+A 9 11.11% 88.89%
+A (low) 1 100.00%
+BBB (high) 2 100.00%
+BBB 2 50.00% 50.00%
+BBB (low) 3 33.33% 33.33% 33.33%
+BB (high) 0
+BB 0
+BB (low) 0
+B (high) 0
+B0
+B (low) 0
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 65
+International Public Finance - 1-Year Transition and Default Rates (December 31, 2024 through December 31, 2025)
+Credit Ratings as of 
+12/31/2024 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2024-12/31/2025 (Percent)
+38
+
+===== PDF PAGE 39 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 7 100.00%
+AA (high) 5 40.00% 60.00%
+AA 6 100.00%
+AA (low) 14 42.86% 35.71% 21.43%
+A (high) 15 26.67% 53.33% 6.67% 13.33%
+A 7 28.57% 71.43%
+A (low) 6 33.33% 33.33% 33.33%
+BBB (high) 0
+BBB 1 100.00%
+BBB (low) 3 33.33% 33.33% 33.33%
+BB (high) 1 100.00%
+BB 0
+BB (low) 0
+B (high) 0
+B0
+B (low) 0
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 65
+International Public Finance - 3-Year Transition and Default Rates (December 31, 2022 through December 31, 2025)
+Credit Ratings as of 
+12/31/2022 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2022-12/31/2025(Percent)
+39
+
+===== PDF PAGE 40 =====
+Morningstar DBRS
+Credit Rating
+Number of 
+Ratings 
+Outstanding AAA AA (high) AA AA (low) A (high) A A (low)
+BBB 
+(high) BBB BBB (low) BB (high) BB BB (low) B (high) B B (low) CCC (high) CCC CCC (low) CC (high) CC CC (low) C (high) C C (low) Default Paid Off
+Withdrawn 
+(other)
+AAA 7 57.14% 14.29% 14.29% 14.29%
+AA (high) 2 100.00%
+AA 7 57.14% 28.57% 14.29%
+AA (low) 4 50.00% 25.00% 25.00%
+A (high) 10 10.00% 60.00% 30.00%
+A 6 16.67% 50.00% 16.67% 16.67%
+A (low) 3 66.67% 33.33%
+BBB (high) 1 100.00%
+BBB 0
+BBB (low) 1 100.00 %
+BB (high) 0
+BB 0
+BB (low) 0
+B (high) 0
+B0
+B (low) 0
+CCC (high) 0
+CCC 0
+CCC (low) 0
+CC (high) 0
+CC 0
+CC (low) 0
+C (high) 0
+C0
+C (low) 0
+Total 41
+International Public Finance - 10-Year Transition and Default Rates (December 31, 2015 through December 31, 2025)
+Credit Ratings as of 
+12/31/2015 Credit Ratings as of 12/31/2025 (Percent)
+Other Outcomes During 
+12/31/2015-12/31/2025 (Percent)
+40
+
+===== PDF PAGE 41 =====
+Exhibit 1 – Transition/Default Rates 
+Form NRSRO 
+March 2026 
+ 
+Categories and notches within a categ ory for each class and subclass of credit ratings in 
+Morningstar DBRS’ Transition/Default Matrix: 
+All rating categories from AA to CCC  contain subcategories "(high)" and "(low)".  The absence 
+of either a "(high)" or "(low)" designation indicates the credit rating is in the middle of the 
+category.  Subcategory “(high)” reflects a lower risk that an issuer will fail to satisfy its financial 
+obligations in accordance with the terms under which an obligations has been issued, while 
+subcategory “(low)” reflects a higher risk.   
+AAA 
+Highest credit quality. The capacity for the payment of financial obligations is exceptionally high 
+and unlikely to be adversely affected by future events. 
+AA 
+Superior credit quality.  The capacity for the payment of financial obligations is considered high. 
+Credit quality differs from AAA only to a small degree.  Unlikely to be significantly vulnerable to 
+future events. 
+A 
+Good credit quality. The capacity for the payment of financial obligations is substantial, but of 
+lesser credit quality than AA. May be vulnerable to future events, but qualifying negative factors 
+are considered manageable. 
+BBB 
+Adequate credit quality. The capacity for the payment of financial obligations is considered 
+acceptable. May be vulnerable to future events. 
+BB 
+Speculative, non -investment grade credit quality. The capacity for the payment of financial 
+obligations is uncertain. Vulnerable to future events. 
+B 
+Highly speculative credit quality. There is a high level of uncertainty as to the capacity to meet 
+financial obligations. 
+CCC 
+ Very highly speculative credit quality. In danger of defaulting on financial obligations. 
+CC / C 
+Distressed. The CC rating level is generally applied to financial obligations that are seen as highly 
+likely to default or that are subordinated to financial obligations rated in the CCC to B range. The 
+C rating level characterizes financial obligations for which default has not technically taken place 
+but is considered unavoidable.  
+41
+
+===== PDF PAGE 42 =====
+Exhibit 1 – Transition/Default Rates 
+Form NRSRO 
+March 2026 
+ 
+D / SD 
+When the issuer has filed under any applicable bankruptcy, insolvency or winding up statute or 
+there is a failure to satisfy a financial obligation after the exhaustion of grace periods, or in cases 
+of a “distressed exchange”, a downgrade to D (Default) ma y occur. Morningstar DBRS may also 
+use SD (Selective Default) in cases where only some securities are affected, for example in a 
+“distressed exchange”.  
+Conditions under which Morningstar DBRS classifies obligors, securities, or money market 
+instruments as being in default in this exhibit: 
+In computing the numbers reported in this exhibit, Morningstar DBRS has classified 
+obligors, securities or money market instruments as in default when their rating was 
+downgraded to a default rating or when a security or money market instrument was subject 
+to a write-down. 
+We assign an issuer rating of ‘D’ if one or more of the issuer’s debt instruments is rated 
+‘D’ (or would be rated ‘D’ if we rated the instrument) and we consider the default event 
+general in nature. We assign an issuer rating of ‘SD’(selective default) if one or more of 
+the issuer’s debt instruments are (or would be) rated ‘D’ but we expect the issuer to 
+continue making timely payments on other instruments 
+Morningstar DBRS assigns an instrument rating of ‘D’ in these cases: 
+1. Bankruptcy: The instrument’s issuer has become subject to any applicable
+bankruptcy, insolvency, receivership, winding up, or similar proceeding.
+2. Payment default: There is failure to pay or satisfy a financial obligation (subject
+to applicable grace periods) in accordance with the instrument’s underlying
+transaction documents.
+3. Distressed Exchange: The instrument is subject to a Distressed Exchange. We
+classify a debt restructuring, or a series of transactions to that effect, as a
+Distressed Exchange when it (1) is disadvantageous, as a whole, to debtholders
+and (2) has the effect of avoiding the issuer’s payment default or bankruptcy (or
+similar legal proceeding). In evaluating both (1) and (2), we consider the totality
+of the circumstances of a debt restructuring.
+Morningstar DBRS may also assign an instrument rating of ‘D’ when we believe that 
+bankruptcy (or such other similar proceeding) or a payment default is both unavoidable 
+and imminent. 
+Following a downgrade to ‘D’, we may Discontinue-Withdraw ‘D’ instrument ratings at 
+our discretion. 
+42
+
+===== PDF PAGE 43 =====
+Exhibit 1 – Transition/Default Rates 
+Form NRSRO 
+March 2026 
+ 
+The preceding categories and subcategories are publicly available at: 
+https://dbrs.morningstar.com/research/236754/long-term-obligations-rating-scale.pdf 
+Morningstar DBRS’s framework for assigning Default and Selective Default credit ratings is 
+publicly available at:  
+https://dbrs.morningstar.com/research/236735/framework-for-assigning-default-and-
+selective-default-credit-ratings 
+For completeness, all of Morningstar DBRS’ rating scales are publicly available at: 
+https://dbrs.morningstar.com/understanding-ratings/#about-ratings 
+URL Page: 
+Please note below the uniform resource locator (URL) of the website which provides the credit 
+rating history of the Morningstar DBRS credit ratings that are required to be disclosed pursuant 
+to 17 CFR 17g-7(b):  
+https://dbrs.morningstar.com/about/historyAgree/ 
+43

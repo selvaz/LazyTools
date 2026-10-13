@@ -1,0 +1,88 @@
+
+===== PDF PAGE 1 =====
+
+
+===== PDF PAGE 2 =====
+        Credit Ratings Performance Measurement StatisticsExhibit 1
+Clasificadora de Riesgo Pacific Credit Rating1Transition/ Default Matrices of NRSRO ratings are composed in the following subclasses:1. Financial Institutions, Brokers, or Dealers.2. Corporate Issuers.3. Sovereign Issuers.4. U.S. Public Finance.5. International Public Finance.
+Percentages may not add to exactly 100% due to rounding of decimal points.1
+
+===== PDF PAGE 3 =====
+
+
+===== PDF PAGE 4 =====
+
+
+===== PDF PAGE 5 =====
+
+
+===== PDF PAGE 6 =====
+
+
+===== PDF PAGE 7 =====
+
+
+===== PDF PAGE 8 =====
+
+
+===== PDF PAGE 9 =====
+
+
+===== PDF PAGE 10 =====
+
+
+===== PDF PAGE 11 =====
+
+
+===== PDF PAGE 12 =====
+
+
+===== PDF PAGE 13 =====
+
+
+===== PDF PAGE 14 =====
+
+
+===== PDF PAGE 15 =====
+
+
+===== PDF PAGE 16 =====
+
+
+===== PDF PAGE 17 =====
+
+
+===== PDF PAGE 18 =====
+
+
+===== PDF PAGE 19 =====
+
+
+===== PDF PAGE 20 =====
+
+
+===== PDF PAGE 21 =====
+
+
+===== PDF PAGE 22 =====
+
+
+===== PDF PAGE 23 =====
+
+
+===== PDF PAGE 24 =====
+
+
+===== PDF PAGE 25 =====
+Credit Ratings Performance Measurement Statistics  Exhibit 1  Default Criteria PCR Default Criteria is as follows:  1. Objective Describe the methods and criteria used by PCR to rate the risk of non-compliance level instruments. 2. Scope These instructions are applied in the evaluation of new and current clients by all PCR offices. For any information, please get in touch with us at metodologias@ratingspcr.com. 3. Basic conditions The methodology used by PCR evaluates both quantitative and qualitative aspects. Within the quantitative aspect, the analysis of the balance sheet and the profit and loss statement is the starting point for rating financial instruments. The evaluation seeks to identify when these do not meet the minimum conditions to proceed to assign them the level of non-compliance in the delivery of information or non-compliance with their financial obligations. 3.1. Non-compliance in the delivery of information. For these cases, the grade "E" will be assigned considering:  Annual financial statements of the issuer or guarantor, as applicable, are not accepted as reliable.  The issuer or the guarantor, having them, does not provide the information required for the rating.  The issuer or guarantor provides false or biased information.  When it is required to present consolidated financial statements but fails to do so.  When, despite the existence of reliable financial statements, the sponsors are ineligible for reasons of suitability.  Where other methodological sections of the PCR rating manual are so required, as stipulated in this rating manual.  a) No reliable information The annual financial statements will be considered to be unreliable, and therefore the instruments will be automatically classified as non-compliant when they are in any of the following situations:  When, having been requested by PCR and after the deadlines dictated by the competent authority for the mandatory submission of audited financial information have been met, the issuer does not provide financial statements audited by external auditing firms.  When the external auditors' opinions are withheld due to discrepancies with the application of the accounting plan, there are insufficient elements of judgment, there is a lack of uniformity in the presentation of information and in the preparation of financial statements, among others, or an adverse opinion is issued, the causes of which persist at the date of qualification.  When the external auditors have been changed, and the results are substantially different from those obtained in previous years.  When a high degree of manipulation is present.  When they should present consolidated financial statements but do not do so. Annual financial statements that are not externally audited and those examined by external auditors who at the time of the evaluation were not registered in the Register of Auditors kept by the competent authority or whose operating authorization has been suspended or canceled 
+
+===== PDF PAGE 26 =====
+Credit Ratings Performance Measurement Statistics  Exhibit 1  because of their lack of suitability or failure to perform their duties, shall be considered unreliable financial statements from the external audit point of view. Concerning previous financial statements, it must also be verified whether the external auditors have maintained, for at least the last two fiscal years, a professional relationship other than auditing with the issuer. Financial statements shall be considered to have a high degree of manipulation when this is significant or periodic. Manipulation shall be understood as those accounting entries that have affected the financial statements without economic justification and that distort the real financial situation of the company, showing pronounced changes about previous years without apparent support. To evaluate the significance and periodicity of the manipulations, proceed as follows: 1) All events susceptible to be considered as manipulation will be extracted from the financial statements of the period to be analyzed. 2) The periodicity of the manipulations will be established based on the number of manipulations detected in the period. 3) All financial indices will be recalculated, considering the effect of manipulation. b) Discontinuity in the delivery of information Any instrument whose issuer does not provide the risk rating agencies, in a complete and timely manner, with the minimum accounting and financial information required to carry out the instrument rating process, will be classified as non-compliant. Periodic information required shall be understood as all the public and private information needed to carry out the rating, following the rules appearing in the company's risk rating manual and the rules issued on the matter by the securities market authority. c) Delivery of false or biased information Those instruments for whose rating the issuer has provided false or biased information, in the sense that it leads to erroneous conclusions concerning a risk opinion, will be classified at a non-compliance level. d) Non-presentation of consolidated financial statements The financial position of an economic group is measured through the evaluation of the companies that comprise it. The consolidation of financial statements must effectively and clearly show the conditions it has to meet its obligations. The non-presentation of consolidated financial statements is a minimum condition for assessing the risk of a given economic group. e) Suitability of sponsors When, despite presenting reliable financial statements, they have as sponsors:  Groups or individuals expressly prohibited from doing business of any kind because they are involved in judicial, administrative, or tax proceedings.  Groups or individuals who lack experience in similar businesses. 3.2. Failure to meet financial obligations. It will be considered as non-compliance of financial obligations or "Default", assigning the rating "D" when the issuer does not comply with one or more of its financial obligations; "DD" in long and medium-term issues where the payment of interest and/or principal has defaulted; "DP" in preferred shares with delay in payment of preferred dividends; and assigning the rating "5" in short term issues. It is understood that such default refers to the payment of interest or principal in the agreed period or 
+
+===== PDF PAGE 27 =====
+Credit Ratings Performance Measurement Statistics  Exhibit 1  that the issuer has incurred other causes of default. This default may be general or partial, i.e., failure to comply punctually with all or most obligations. Likewise, it will be considered as default or "Default" when it is known that the issuer or institution has filed for bankruptcy, takes a similar action that threatens the payment of a financial obligation, or is in the process of liquidation. 3.2.1. Exceptions While non-compliance with the obligations is noted, PCR may consider an exception in the following cases:  In the process of restructuring.  When the creditors accept an agreement for a new term or form of payment, which may be nonmonetary, for example, fixed assets (real estate, machinery, equipment, etc.).  Whether payments will be made within five business days in the absence of any stated grace period. 3.2.2. Application of the appraisal The default rating shall apply to the following categories:  Short-term (ST), medium-term (MP), and long-term (LP) emissions.  Preference shares (AP)  Rating of insurance company obligations (CPAs)  Fiduciary risk  Securitizations (IT)  Trust-specific risk. 
+
+
+===== PDF PAGE 28 =====
+Credit Ratings Performance Measurement StatisticsExhibit 1History of Rating ActionsIn accordance with the rules of the Securities and Exchange Commission, PCR will make and keep publicly available on its internet website the ratings action information required pursuant to 17 CFR§240.17g-7(b), at the following URL:https://ratingspcr.com.mx/ww2/
+

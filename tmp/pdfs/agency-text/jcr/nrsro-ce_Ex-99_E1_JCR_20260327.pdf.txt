@@ -1,0 +1,789 @@
+
+===== PDF PAGE 1 =====
+JCR 
+Japan Credit Rating Agency, Ltd. 
+ 
+ 1 
+Exhibit 1. Credit ratings performance measurement statistics 
+ 
+Transition/Default Matrices  
+ 
+ 
+The Transition/Default Matrices presented below was produced by following the instructions regarding 
+“Sample Matrix” required as a part of Form NRSRO. 
+ 
+1. Financial Institutions, Brokers, or Dealers 
+ 
+Financial Institutions, Brokers, or Dealers - 1-Year Transition and Default Rates 
+(December 31, 2024 through December 31, 2025) 
+ 
+ 
+Financial Institutions, Brokers, or Dealers - 3-Year Transition and Default Rates 
+(December 31, 2022 through December 31, 2025) 
+ 
+ 
+ 
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 7 100%
+AA+ 4 75% 25%
+AA 34 100%
+AA- 22 100%
+A+ 28 11% 89%
+A 28 7% 89% 4%
+A- 36 3% 94% 3%
+BBB+ 20 95% 5%
+BBB 7 86% 14%
+BBB- 4 100%
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 190
+Other Outcomes During
+12/31/2024-12/31/2025
+(
+Percent)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025(Percent)
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 7 100%
+AA+ 4 75% 25%
+AA 21 100%
+AA- 28 32% 64% 4%
+A+ 27 4% 19% 74% 4%
+A 29 3% 17% 72% 3% 3%
+A- 28 14% 79% 7%
+BBB+ 20 5% 85% 10%
+BBB 7 14% 14% 57% 14%
+BBB- 6 33% 67%
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 177
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025(Percent)
+Other Outcomes During
+12/31/2022-12/31/2025
+(
+Percent)
+
+===== PDF PAGE 2 =====
+JCR 
+Japan Credit Rating Agency, Ltd. 
+ 
+ 2 
+Financial Institutions, Brokers, or Dealers - 10-Year Transition and Default Rates 
+(December 31, 2015 through December 31, 2025) 
+ 
+ 
+ 
+2. Insurance Companies 
+ 
+Insurance Companies - 1-Year Transition and Default Rates 
+(December 31, 2024 through December 31, 2025) 
+ 
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 6 100%
+AA+ 3 67% 33%
+AA 15 7% 93%
+AA- 19 32% 53% 11% 5%
+A+ 21 19% 29% 38% 14%
+A 36 3% 6% 22% 33% 14% 22%
+A- 25 4% 32% 40% 8% 16%
+BBB+ 22 5% 5% 5% 23% 41% 23%
+BBB 14 7% 43% 29% 21%
+BBB- 6 17% 67% 17%
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 167
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025(Percent)
+Other Outcomes During
+12/31/2015-12/31/2025
+(
+Percent)
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 2 100%
+AA+ 10 100%
+AA 15 20% 80%
+AA- 1 100%
+A+ 1 100%
+A 2 100%
+A- 4 100%
+BBB+ 0
+BBB 0
+BBB- 0
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 35
+Other Outcomes During
+12/31/2024-12/31/2025
+(
+Percent)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025(Percent)
+
+===== PDF PAGE 3 =====
+JCR 
+Japan Credit Rating Agency, Ltd. 
+ 
+ 3 
+Insurance Companies - 3-Year Transition and Default Rates 
+(December 31, 2022 through December 31, 2025) 
+ 
+ 
+Insurance Companies - 10-Year Transition and Default Rates 
+(December 31, 2015 through December 31, 2025) 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 2 100%
+AA+ 7 100%
+AA 12 42% 58%
+AA- 5 100%
+A+ 2 100%
+A 3 67% 33%
+A- 1 100%
+BBB+ 1 100%
+BBB 0
+BBB- 0
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 33
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025(Percent)
+Other Outcomes During
+12/31/2022-12/31/2025
+(
+Percent)
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 2 100%
+AA+ 3 100%
+AA 5 80% 20%
+AA- 3 100%
+A+ 8 63% 13% 25%
+A 1 100%
+A- 0
+BBB+ 2 100%
+BBB 1 100%
+BBB- 0
+BB+ 0
+BB 0
+BB- 1 100%
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 26
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025(Percent)
+Other Outcomes During
+12/31/2015-12/31/2025
+(
+Percent)
+
+===== PDF PAGE 4 =====
+JCR 
+Japan Credit Rating Agency, Ltd. 
+ 
+ 4 
+3. Corporate Issuers 
+ 
+Corporate Issuers - 1-Year Transition and Default Rates 
+(December 31, 2024 through December 31, 2025) 
+ 
+ 
+Corporate Issuers - 3-Year Transition and Default Rates 
+(December 31, 2022 through December 31, 2025) 
+ 
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 19 89% 11%
+AA+ 21 100%
+AA 78 3% 97%
+AA- 92 7% 91% 1% 1%
+A+ 113 2% 8% 90%
+A 121 1% 12% 83% 1% 2% 1%
+A- 104 7% 91% 2%
+BBB+ 51 2% 14% 80% 4%
+BBB 27 26% 59% 4% 11%
+BBB- 11 9% 9% 73% 9%
+BB+ 3 100%
+BB 3 33% 67%
+BB- 1 100%
+B+ 0
+B 1 100%
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 645
+Other Outcomes During
+12/31/2024-12/31/2025
+(
+Percent)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025(Percent)
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 17 94% 6%
+AA+ 18 6% 83% 11%
+AA 57 9% 89% 2%
+AA- 79 30% 63% 6%
+A+ 100 2% 24% 69% 2% 3%
+A 106 3% 3% 29% 55% 4% 2% 1% 4%
+A- 105 4% 30% 60% 1% 6%
+BBB+ 55 36% 55% 2% 7%
+BBB 36 3% 28% 36% 3% 31%
+BBB- 11 9% 18% 18% 55%
+BB+ 7 14% 14% 14% 43% 14%
+BB 1 100%
+BB- 2 50% 50%
+B+ 0
+B 0
+B- 1 100%
+CCC 0
+CC 0
+C 0
+To
+tal 595
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025(Percent)
+Other Outcomes During
+12/31/2022-12/31/2025
+(
+Percent)
+
+===== PDF PAGE 5 =====
+JCR 
+Japan Credit Rating Agency, Ltd. 
+ 
+ 5 
+Corporate Issuers - 10-Year Transition and Default Rates 
+(December 31, 2015 through December 31, 2025) 
+ 
+ 
+ 
+4. Sovereign Issuers 
+ 
+Sovereign Issuers - 1-Year Transition and Default Rates 
+(December 31, 2024 through December 31, 2025) 
+ 
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 10 70% 30%
+AA+ 14 7% 64% 21% 7%
+AA 34 15% 74% 12%
+AA- 55 5% 36% 36% 5% 4% 13%
+A+ 75 19% 29% 36% 4% 12%
+A 89 4% 17% 37% 25% 4% 12%
+A- 99 2% 18% 35% 25% 2% 1% 16%
+BBB+ 62 8% 18% 27% 18% 3% 3% 2% 21%
+BBB 47 2% 2% 23% 26% 9% 2% 2% 34%
+BBB- 23 4% 9% 9% 22% 4% 4% 48%
+BB+ 8 13% 13% 25% 13% 38%
+BB 0
+BB- 0
+B+ 1 100%
+B 0
+B- 1 100%
+CCC 0
+CC 0
+C 0
+To
+tal 518
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025(Percent)
+Other Outcomes During
+12/31/2015-12/31/2025
+(
+Percent)
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 14 100%
+AA+ 2 100%
+AA 3 100%
+AA- 3 33% 67%
+A+ 4 100%
+A 4 25% 75%
+A- 2 100%
+BBB+ 2 100%
+BBB 1 100%
+BBB- 0
+BB+ 0
+BB 1 100%
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 36
+Other Outcomes During
+12/31/2024-12/31/2025
+(
+Percent)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025(Percent)
+
+===== PDF PAGE 6 =====
+JCR 
+Japan Credit Rating Agency, Ltd. 
+ 
+ 6 
+Sovereign Issuers - 3-Year Transition and Default Rates 
+(December 31, 2022 through December 31, 2025) 
+ 
+ 
+Sovereign Issuers - 10-Year Transition and Default Rates 
+(December 31, 2015 through December 31, 2025) 
+ 
+5. U.S. Public Finance 
+ 
+U.S. Public Finance - 1-Year Transition and Default Rates 
+(December 31, 2024 through December 31, 2025) 
+Not Applicable, since no credit rating was determined during the period shown above. 
+ 
+U.S. Public Finance - 3-Year Transition and Default Rates 
+(December 31, 2022 through December 31, 2025) 
+Not Applicable, since no credit rating was determined during the period shown above. 
+ 
+U.S. Public Finance - 10-Year Transition and Default Rates 
+(December 31, 2015 through December 31, 2025) 
+Not Applicable, since no credit rating was determined during the period shown above. 
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 14 100%
+AA+ 2 100%
+AA 3 100%
+AA- 3 33% 67%
+A+ 4 100%
+A 4 25% 75%
+A- 2 100%
+BBB+ 2 100%
+BBB 1 100%
+BBB- 0
+BB+ 0
+BB 1 100%
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 36
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025(Percent)
+Other Outcomes During
+12/31/2022-12/31/2025
+(
+Percent)
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 13 100%
+AA+ 2 50% 50%
+AA 1 100%
+AA- 2 50% 50%
+A+ 6 17% 17% 50% 17%
+A 2 100%
+A- 0
+BBB+ 4 25% 25% 25% 25%
+BBB 2 50% 50%
+BBB- 1 100%
+BB+ 1 100%
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 34
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025(Percent)
+Other Outcomes During
+12/31/2015-12/31/2025
+(
+Percent)
+
+===== PDF PAGE 7 =====
+JCR 
+Japan Credit Rating Agency, Ltd. 
+ 
+ 7 
+ 
+6. International Public Finance 
+ 
+International Public Finance - 1-Year Transition and Default Rates 
+(December 31, 2024 through December 31, 2025) 
+ 
+ 
+International Public Finance - 3-Year Transition and Default Rates 
+(December 31, 2022 through December 31, 2025) 
+ 
+ 
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 11 100%
+AA+ 6 100%
+AA 2 100%
+AA- 0
+A+ 0
+A 1 100%
+A- 1 100%
+BBB+ 4 100%
+BBB 0
+BBB- 0
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 25
+Other Outcomes During
+12/31/2024-12/31/2025
+(
+Percent)
+Credit Ratings as of
+12/31/2024 Credit Ratings as of 12/31/2025(Percent)
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 9 100%
+AA+ 6 100%
+AA 2 100%
+AA- 0
+A+ 0
+A 1 100%
+A- 1 100%
+BBB+ 2 100%
+BBB 0
+BBB- 0
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 21
+Credit Ratings as of
+12/31/2022 Credit Ratings as of 12/31/2025(Percent)
+Other Outcomes During
+12/31/2022-12/31/2025
+(
+Percent)
+
+===== PDF PAGE 8 =====
+JCR 
+Japan Credit Rating Agency, Ltd. 
+ 
+ 8 
+International Public Finance - 10-Year Transition and Default Rates 
+(December 31, 2015 through December 31, 2025) 
+ 
+ 
+Rating Symbols and Definitions 
+ 
+(1) Long-term Issuer Rating Scale 
+AAA The highest level of certainty of an obligor to honor its financial obligations 
+AA A very high level of certainty to honor the financial obligations 
+A A high level of certainty to honor the financial obligations 
+BBB An adequate level of certainty to honor the financial obligations. However, this certainty is more 
+likely to diminish in the future than with the higher rating categories. 
+BB Although the level of certainty to honor the financial obligations is not currently considered 
+problematic, this certainty may not persist in the future. 
+B A low level of certainty to honor the financial obligations, giving cause for concern 
+CCC There are factors of uncertainty that the financial obligations will be honored, and there is a 
+possibility of default. 
+CC A high default risk 
+C A very high default risk 
+LD JCR judges that while an obligor does not honor part of the agreed to financial obligations, but it 
+honors all its other agreed to financial obligations. 
+D JCR judges that all the financial obligations are, in effect, in default. 
+A plus (+) or minus (-) sign may be affixed to the rating symbols from AA to B to indicate relative standing within each 
+of those rating scales. 
+(a) A Long-term Issuer Rating Scale enables comparison of the overall capacity of an obligor (issuer) to honor its entire 
+financial obligations with such overall capacity of others. 
+(b) The same Definitions of Rating Symbols and Scales shall be applied to the Ability to Pay Insurance Claims Rating. 
+ 
+ 
+ 
+Credit Rating
+Number of
+Ratings
+O
+utstanding
+AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C D efault Paid Off
+Withdraw
+n
+(ot
+her)
+AAA 8 88% 13%
+AA+ 2 50% 50%
+AA 4 75% 25%
+AA- 4 50% 50%
+A+ 0
+A 2 100%
+A- 0
+BBB+ 3 33% 67%
+BBB 0
+BBB- 0
+BB+ 0
+BB 0
+BB- 0
+B+ 0
+B 0
+B- 0
+CCC 0
+CC 0
+C 0
+To
+tal 23
+Credit Ratings as of
+12/31/2015 Credit Ratings as of 12/31/2025(Percent)
+Other Outcomes During
+12/31/2015-12/31/2025
+(
+Percent)
+
+===== PDF PAGE 9 =====
+JCR 
+Japan Credit Rating Agency, Ltd. 
+ 
+ 9 
+(2) Long-term Issue Rating Scale 
+AAA The highest level of certainty of an obligor to honor its financial obligations 
+AA A very high level of certainty to honor the financial obligations 
+A A high level of certainty to honor the financial obligations 
+BBB An adequate level of certainty to honor the financial obligations. However, this certainty is more 
+likely to diminish in the future than with the higher rating categories. 
+BB Although the level of certainty to honor the financial obligations is not currently considered 
+problematic, this certainty may not persist in the future. 
+B A low level of certainty to honor the financial obligations, giving cause for concern 
+CCC There are factors of uncertainty that the financial obligations will be honored, and there is a 
+possibility of default. 
+CC A high default risk 
+C A very high default risk 
+D JCR judges that the obligation is in default. 
+A plus (+) or minus (-) sign may be affixed to the rating symbols from AA to B to indicate relative standing within each 
+of those rating scales. 
+(a) A Long-term Issue Rating Scale enables comparison of certainty that the obligations of more than a year will be 
+honored. 
+(b) In light of attempting to call investors’ attention to this matter, JCR may make notch differences between a Long-
+term Issue Rating and Long-term Issuer Rating when it considers there is a difference in terms of probability of 
+recovery between the two as a result of assessing the degree of certainty that the obligation will be honored as agreed. 
+(c) A Long-term Issue Rating includes an issuer’s specific obligations it owes such as bonds and issue programs (e.g., 
+medium-term note program). 
+(d) The same Definitions of Rating Symbols and Scales shall be applied to ratings for hybrid securities such as preferred 
+stock. 
+ 
+Definition of “Default” 
+ 
+For the purpose of producing the Transition/Default Matrix shown in this exhibit, “Default” is defined 
+as a state, in which principal or interest payments of financial obligations cannot be honored as initially 
+agreed. This includes the following cases: (i) JCR judges that all the financial obligations are, in effect, 
+in default. (ii) JCR judges that while an obligor does not honor part of the agreed to financial obligations, 
+but it honors all its other agreed to financial obligations. Usually, when cases fall under the former, “D” 
+ratings are assigned, and “LD” ratings are assigned when cases fall under the latter. Commencement of 
+legal bankruptcy proceedings is a typical example of the former situation, and a situation where specific 
+creditor grants debt forgiveness or DES for debt relief is a typical example of the latter situation.  
+  
+
+===== PDF PAGE 10 =====
+JCR 
+Japan Credit Rating Agency, Ltd. 
+ 
+ 10 
+Credit Ratings Subject to the Disclosure Requirement 
+ 
+The following is the uniform resource locator (URL) of JCR’s corporate Internet Web site where the 
+credit rating histories required to be disclosed pursuant to 17 CFR 240. 17g-7(b) effective from June 15, 
+2015.  
+ 
+https://www.jcr.co.jp/en/service/company/regu/nrsro/ 
+ 

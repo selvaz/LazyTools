@@ -19,10 +19,34 @@ import asyncio
 import json
 import logging
 import os
+import sys
+from typing import Any
 
 from lazytools import __version__
 from lazytools.mcp_server.providers import PROVIDER_FACTORIES, default_providers
 from lazytools.mcp_server.server import build_server, serve_http, serve_stdio
+
+
+def configure_stdio_utf8(streams: tuple[Any, ...] | None = None) -> None:
+    """Make human diagnostics UTF-8-safe without changing the MCP protocol.
+
+    The MCP SDK writes JSON-RPC through binary stdout.  This setting protects
+    application diagnostics and any third-party text emitted during a tool
+    call on Windows, where the inherited console encoding may otherwise be
+    CP1252 and reject ordinary web-search punctuation such as ``10‑K``.
+    """
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    os.environ.setdefault("PYTHONUTF8", "1")
+    for stream in streams or (sys.stdin, sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="backslashreplace")
+            except (OSError, ValueError):
+                # A detached stream (for example under a GUI host) cannot be
+                # reconfigured. The inherited environment still covers new
+                # child interpreters and the MCP SDK uses binary stdout.
+                pass
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -98,6 +122,7 @@ def _load_data_source(config_path: str | None) -> dict[str, object] | None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    configure_stdio_utf8()
     args = _parse_args(argv)
 
     # Logs go to stderr — stdout is the JSON-RPC channel and must stay clean.

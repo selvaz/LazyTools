@@ -18,6 +18,25 @@ from lazytools.mcp_server import (
     expand_tools,
     result_to_text,
 )
+
+
+def test_mcp_entrypoint_forces_utf8_for_stdio_diagnostics(monkeypatch) -> None:
+    from lazytools.mcp_server.__main__ import configure_stdio_utf8
+
+    class Stream:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, str]] = []
+
+        def reconfigure(self, **kwargs):
+            self.calls.append(kwargs)
+
+    monkeypatch.delenv("PYTHONIOENCODING", raising=False)
+    monkeypatch.delenv("PYTHONUTF8", raising=False)
+    streams = (Stream(), Stream(), Stream())
+    configure_stdio_utf8(streams)
+    assert all(stream.calls == [{"encoding": "utf-8", "errors": "backslashreplace"}] for stream in streams)
+    assert __import__("os").environ["PYTHONIOENCODING"] == "utf-8"
+    assert __import__("os").environ["PYTHONUTF8"] == "1"
 from lazytools.mcp_server.server import UNSAFE_TOOL_PATTERNS
 
 mcp = pytest.importorskip("mcp")

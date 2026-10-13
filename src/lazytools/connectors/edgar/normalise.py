@@ -90,6 +90,16 @@ _DEBT_SCOPED = frozenset({
 })
 _LEASE_TABLE = re.compile(r"\blease", re.I)
 
+# A mapper is allowed to propose a line, not redefine the normalised
+# vocabulary.  These are semantic incompatibilities that can be recognised
+# from the presented label or XBRL tag alone; accepting them and hoping a
+# later reconciliation catches the error is too late, because the figure can
+# still be internally consistent.  The list is deliberately about accounting
+# meaning, never about a particular issuer or filing.
+_INCOMPATIBLE_LINE_TOKENS: dict[str, tuple[str, ...]] = {
+    "operating_income": ("grossprofit", "incomebeforetax", "pretaxincome"),
+}
+
 
 @dataclass(frozen=True)
 class _Column:
@@ -331,6 +341,8 @@ def _resolve_refs(mapping: Mapping, columns: list[_Column]) -> dict[str, _Presen
         column, line = found[0]
         if ref.element_id in _DEBT_SCOPED and _LEASE_TABLE.search(column.statement.title):
             continue
+        if _is_incompatible_line(ref.element_id, line.label, line.tag):
+            continue
         hits[ref.element_id] = (column, line)
         claims.setdefault((column.statement.report.short_name, line.label), []).append(ref.element_id)
 
@@ -344,6 +356,19 @@ def _resolve_refs(mapping: Mapping, columns: list[_Column]) -> dict[str, _Presen
         for element_id, (column, line) in hits.items()
         if element_id not in contested
     }
+
+
+def _is_incompatible_line(element_id: str, label: str, tag: str | None) -> bool:
+    """Whether a proposed line contradicts an element's basic meaning.
+
+    This is a narrow rejection gate, not a second mapping system.  It catches
+    relationships that are universal in a financial statement (for example,
+    gross profit is before operating expense and therefore cannot be operating
+    income) while leaving issuer-specific terminology to the registry and the
+    evidence review.
+    """
+    text = re.sub(r"[^a-z0-9]+", "", f"{label} {tag or ''}".casefold())
+    return any(token in text for token in _INCOMPATIBLE_LINE_TOKENS.get(element_id, ()))
 
 
 def _settle(claimants: list[str]) -> set[str]:
@@ -467,6 +492,17 @@ def _derive(elements: dict[str, Element]) -> None:
     """Everything the base computes rather than reads."""
     for total_id, component_ids in _TOTALS.items():
         _sum_into(elements, total_id, component_ids)
+    # Many filers present no operating income subtotal. Nike's income statement
+    # runs revenue, cost of sales, gross profit, expenses, income before taxes —
+    # and with nothing named "operating income" to map, gross profit arrived
+    # under that id: 19.8bn against a true 3.7bn, and EBITDA and FFO inherited
+    # it. Where the filer shows the two components instead, the subtotal it
+    # chose not to present is computed rather than borrowed from a line that
+    # means something else.
+    existing = elements.get("operating_income")
+    if existing is None or not existing.usable:
+        _combine(elements, "operating_income",
+                 {"gross_profit": 1, "operating_expenses_total": -1})
     _combine(elements, "house_operating_ebitda",
              {"operating_income": 1, "operating_da_total": 1})
     _combine(elements, "house_ffo",

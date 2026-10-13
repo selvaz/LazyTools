@@ -41,7 +41,10 @@ from typing import Any, Literal, get_args
 #:    arriving as ``capex_intangibles``.
 #: 3: ``revenue`` now asks for the TOTAL rather than a revenue subtotal.
 #:    Walmart was mapping to 'Net sales', which omits membership income.
-SCHEMA_VERSION = 3
+#: 4: added ``gross_profit`` and ``operating_expenses_total``, and sharpened
+#:    ``operating_income``. Nike presents no operating income line at all, so
+#:    gross profit was arriving as operating income - 19.8bn against a true 3.7bn.
+SCHEMA_VERSION = 4
 
 #: What is known about an element, in decreasing order of confidence.
 #:
@@ -129,7 +132,9 @@ class Contribution:
 ELEMENTS: dict[str, ElementSpec] = {
     # --- what the business earns ------------------------------------------ #
     "revenue": ElementSpec("duration", "TOTAL revenue for the period, on the issuer's own recognition policy. Where a filer shows a revenue subtotal and a total - 'Net sales' above 'Total revenues' - take the TOTAL: the subtotal omits income the business really earned.", sign="magnitude"),
-    "operating_income": ElementSpec("duration", "Profit after the cost of running the business, before financing and tax. Not EBIT: what an issuer places above this line varies, and recurring non-operating items may sit outside it."),
+    "operating_income": ElementSpec("duration", "Profit after ALL operating costs, before financing and tax. NOT gross profit, which is before selling and administrative expense, and NOT income before taxes, which is after financing. Many filers present no such subtotal at all: if none is presented, say so - it is computed here from gross profit and operating expenses instead."),
+    "gross_profit": ElementSpec("duration", "Revenue less the cost of what was sold, before any selling or administrative expense. Never operating income."),
+    "operating_expenses_total": ElementSpec("duration", "Selling, general and administrative expense in total - everything between gross profit and operating income. Use the filer's own TOTAL where it presents one.", sign="magnitude"),
     "depreciation": ElementSpec("duration", "The charge for consuming physical assets. A non-cash charge, but a business that keeps operating must eventually spend the cash again.", sign="magnitude"),
     "amortisation_intangibles": ElementSpec("duration", "The charge for consuming acquired intangibles. Can be split across cost of sales and operating expenses, so a figure from one location is not the total.", sign="magnitude"),
     "operating_da_total": ElementSpec("duration", "Depreciation and amortisation together, from ONE complete route. A combined figure summed with its own components double counts.", sign="magnitude"),

@@ -1,0 +1,2464 @@
+
+===== PDF PAGE 1 =====
+www.fitchratings.com 
+  
+ 
+2026 Form NRSRO 
+Exhibit 3 
+ 
+Policies and Procedures to Prevent the Misuse of 
+Material, Non-Public Information 
+The following policies and procedures have been established, and are maintained and enforced by  Fitch 
+to prevent the misuse of material, non-public information, and may be accessed at 
+www.fitchratings.com/ethics.  
+• Code of Conduct & Ethics 
+• Policy on Segregation of Commercial & Analytical Activities 
+• Global Securities Trading and Conflicts of Interest Policy 
+• Confidential Information Policy 
+
+===== PDF PAGE 2 =====
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+CODE OF CONDUCT 
+& ETHICS 
+ 
+ 
+ 
+ 
+fitchratings.com 
+
+
+===== PDF PAGE 3 =====
+ 
+                                                  2 
+  
+fitchratings.com  
+TABLE OF CONTENTS 
+ 
+DEFINITIONS ...................................................................................... 3 
+1. INTRODUCTION................................................................................ 4 
+1.1 General ................................ ................................ ................................ ......  4 
+1.2 Rating Activities ................................ ................................ .............................  4 
+1.3 Risk Management ................................ ................................ ............................  4 
+1.4 Training ................................ ................................ ................................ ......  4 
+2. QUALITY AND INTEGRITY OF THE RATING PROCESS  .................................... 5 
+2.1 Quality of the Rating Process ................................ ................................ ..................  5 
+2.2 Integrity of the Rating Process ................................ ................................ ................  6 
+3. INDEPENDENCE  AND AVOIDANCE OF  CONFLICTS OF INTEREST ...................... 7 
+3.1 General ................................ ................................ ................................ ......  7 
+3.2 Procedures and Policies ................................ ................................ .......................  8 
+3.3 Analyst and Employee Independence ................................ ................................ .........  9 
+4. RESPONSIBILITIES TO INVESTORS AND OTHER MARKET PARTICIPANTS ............. 10 
+4.1 Transparency and Timeliness of Ratings Disclosure ................................ ..........................  10 
+5. THE TREATMENT OF CONFIDENTIAL INFORMATION; DISCLOSURE OF THE CODE; 
+EXPECTATIONS OF ISSUERS ................................................................ 12 
+5.1 Disclosure of This Code and Communication with Market Participants ................................ ......  12 
+5.2 What Fitch Ratings Expects of Issuers................................ ................................ ........  12 
+6. DISCLAIMERS  ................................................................................ 13 
+6.1 Non-Reliance on This Code ................................ ................................ ...................  13 
+6.2 Purpose & Use of Ratings ................................ ................................ ....................  13 
+APPENDIX A  .................................................................................... 15 
+ 
+ 
+ 
+
+
+===== PDF PAGE 4 =====
+ 
+                                                  3 
+  
+fitchratings.com  
+DEFINITIONS  
+• “Boards” means the Boards of Directors of Fitch Ratings, Inc., Fitch Ratings Ltd and Fitch Ratings Ireland Limited . 
+• “Code” means this Code of Conduct and Ethics. 
+• “Chief Compliance Officer” is the individual who leads Fitch Ratings’  Compliance Department.  
+• “Compliance Department” or “Compliance” means a department of Fitch Ratings which is responsible for advising on, 
+supporting and overseeing compliance with credit rating agency regulation globally. 
+• “Fitch Ratings” means Fitch Ratings, Inc. and each of its credit rating affiliates that issues ratings under the trade name 
+“Fitch Ratings”.  
+• “IOSCO Code of Conduct” means the IOSCO Code of Conduct Fundamentals for Credit Rating Agencies , as amended 
+from time to time. 
+• “Ratings” is defined in Section 1.2.  
+• “Regional Compliance Officer” is a member of the Compliance Department who is responsible for overseeing the 
+compliance program within a specific geographic region.  
+• “Ten Percent Threshold” is defined in Section 3.2.3 of this Code. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PDF PAGE 5 =====
+ 
+                                                  4 
+  
+fitchratings.com  
+1. INTRODUCTION 
+1.1 General 
+Fitch Ratings is committed to providing the world’s securities markets with objective, timely, independent, and forward-
+looking credit opinions. In this respect, Fitch Ratings is dedicated to several core principles — objectivity, independence, 
+integrity, and transparency.  
+This Code is intended to provide information as to how Fitch Ratings will function in accordance with those principles and is 
+designed to comply with applicable laws, rules, and regulations in the jurisdictions in which Fitch Ratings operates. This Code 
+is based on the provisions of the IOSCO Code of Conduct. This Code is supplemented by and consistent with other internal 
+policies and procedures that govern Fitch Ratings’ activities, businesses, and operations, many of which are available on Fitch 
+Rating’s free public website, www.fitchratings.com (see also Appendix A). Fitch Ratings will disclose on a timely basis any 
+changes to (i) this Code or (ii) how this Code is implemented and enforced. 
+Fitch Ratings expects its employees to act in accordance with the highest standards of personal and professional integrity and 
+to comply with all applicable laws, rules and regulations, and all policies and procedures adopted by Fitch Ratings that govern 
+the conduct of Fitch Ratings employees. Each employee is personally responsible for maintaining the highest levels of integrity 
+to preserve the trust and confidence of global investors and market participants. 
+While Fitch Ratings will need to interpret how to most effectively implement the provisions in the Code when developing its 
+policies, procedures and controls, and while from time to time Fitch Ratings may need to deviate from certain requirements in 
+the Code, Fitch Ratings shall at all times remain true to its core principals and the underlying principles of the IOSCO Code of 
+Conduct. 
+1.2 Rating Activities 
+Fitch Ratings publishes opinions using a variety of scales (collectively, “ratings”), the most common of which are credit 
+ratings. Credit ratings are opinions on the relative ability of an entity to meet financial commitments, such as interest, 
+preferred dividends, repayment of principal, insurance claims, or counterparty obligations. Information about Fitch Ratings’ 
+ratings and rating scales, including Fitch Ratings’ ratings definitions and its definition of default, is available on Fitch Ratings’ 
+free public website at www.fitchratings.com. 
+Ratings may apply to a variety of entities, including sovereigns, financial institutions, and corporations, and to the securities or 
+other obligations they issue, as well as to structured finance securities backed by receivables and other financial assets. 
+Ratings may also reflect the financial strength of insurance companies, banks, and financial guarantors. 
+1.3 Risk Management 
+Fitch Ratings’ risk management function is comprised of individuals with the appropriate experience to identify, assess, 
+monitor, and report on risks arising from  Fitch Ratings’ activities, including, but not limited to regulatory, reputational, 
+operational, and strategic risk. The risk management function has a reporting line independent of Fitch Ratings’ internal 
+audit, analytical and commercial groups, and provides periodic updates to the Boards and to senior management  to assist 
+them in overseeing Fitch Ratings’ policies, procedures and internal controls, including this Code. 
+1.4 Training 
+In accordance with its policies and procedures, Fitch Ratings requires employees to complete formal training at reasonably 
+regular intervals. The subject matter covered by the training is specific to each employee’s responsibilities. The training 
+
+
+===== PDF PAGE 6 =====
+ 
+                                                  5 
+  
+fitchratings.com  
+addresses, as applicable, this Code, credit rating methodologies, certain requirements imposed by the laws governing credit 
+rating activities, and those internal policies, procedures, and controls for (i) managing conflicts of interest (ii) governing the 
+holding and transacting in trading instruments and (iii) handling confidential and/or material non-public information.  The 
+policies, procedures and controls with respect to this training include measures designed to verify that employees undergo 
+required training. 
+2. QUALITY AND INTEGRITY OF THE RATING PROCESS 
+2.1 Quality of the Rating Process 
+2.1.1  Credit ratings are Fitch Ratings’ opinions about creditworthiness. They do not provide a guarantee of future 
+performance of the rated entity or instrument. 
+2.1.2  When assigning ratings, Fitch Ratings shall use rating methodologies and criteria that are rigorous, systematic, and, 
+where possible and/or as required by law, result in ratings that can be subjected to some form of objective validation based 
+on historical experience. 
+2.1.3  The rating analysis and any rating action shall be based upon criteria and methodologies established by Fitch Ratings. 
+Analysts shall apply a given criteria or methodology, and Fitch Ratings’ rating scales, in a consistent manner, as determined by 
+Fitch Ratings.  
+2.1.4  Ratings and rating outlooks shall be assigned by Fitch Ratings and not by any individual analyst employed by Fitch 
+Ratings. Ratings shall reflect the consideration of all information (i) known to, and believed by, Fitch Ratings to be relevant, 
+(ii) of sufficient quality, and (iii) from reliable sources, all in a manner generally consistent with Fitch Ratings’ relevant 
+established criteria and applicable rating methodologies. Fitch Ratings shall use people who, individually or collectively, have 
+appropriate knowledge and experience in developing a rating opinion for the type of rating being considered.  
+2.1.5  Fitch Ratings shall maintain internal records to support its ratings and rating outlooks in accordance with its policies 
+and applicable laws, rules, and regulations. Additionally, Fitch Ratings has established guidelines for the management, 
+maintenance, retention and orderly disposition of its records, including records relating to the policies, procedures, criteria, 
+and methodologies used to determine credit ratings and the standards of training, experience, and competence for credit 
+analysts. 
+2.1.6  Fitch Ratings and its analysts shall take steps to avoid issuing any credit analyses or reports that knowingly contain 
+misrepresentations or are otherwise misleading as to the general creditworthiness of an issuer or obligation. In addition: 
+• When deciding whether to rate or continue rating an obligation or issuer, Fitch Ratings shall assess whether it is able 
+to devote sufficient personnel with sufficient skill sets to take an appropriate rating action, and whether its personnel 
+are likely to have access to sufficient information needed in order to take such action. If the credit rating or a rating 
+outlook involves a type of entity or financial instrument for which historical data is limited, Fitch Ratings shall 
+disclose, clearly and in a prominent place, that limitation. 
+• Fitch Ratings has established a review function comprised of one or more senior personnel with the appropriate 
+experience, to review the feasibility of providing a rating for a type of structure that is materially different from the 
+structures Fitch Ratings has previously rated. 
+• Fitch Ratings has established and implemented a rigorous and formal review function responsible for periodically 
+reviewing all aspects of its credit rating methodologies (including models and key assumptions) and significant 
+changes to the credit rating methodologies. This function  shall be separate from the business lines that are 
+
+===== PDF PAGE 7 =====
+ 
+                                                  6 
+  
+fitchratings.com  
+responsible for rating various classes of issuers and obligations. 
+• Fitch Ratings shall assess whether existing methodologies and models used in the process of determining ratings of 
+structured products remain appropriate when Fitch Ratings has determined that the risk characteristics of the assets 
+underlying the relevant structured product have changed materially. Fitch Ratings shall refrain from issuing a rating in 
+the case of a new, complex type of structured product, unless Fitch Ratings has determined that it has sufficient 
+information and expertise to analyze the product. 
+2.1.7  Fitch Ratings shall structure its rating teams to promote continuity and avoid bias in the rating process.  
+2.1.8  Fitch Ratings shall ensure that sufficient personnel and financial resources are allocated to assigning, monitoring, and 
+updating its ratings. Except for point-in- time ratings that Fitch Ratings clearly identifies as such, once a rating is published 
+Fitch Ratings shall, in accordance with its established policies and procedures on surveillance and based upon information it 
+receives from issuers and other information sources, monitor on an ongoing basis and update the rating by:  
+• Regularly reviewing the issuer’s creditworthiness; 
+• Initiating a review of the rating upon becoming aware of any information that it believes might reasonably be 
+expected to result in a rating action (including withdrawal of a rating), consistent with the relevant criteria and 
+methodologies; and updating on a timely basis the rating, as appropriate, based on the results of any such review; 
+• Where appropriate, incorporating into subsequent monitoring all cumulative experience obtained, and applying 
+changes in Fitch Ratings’ criteria and  assumptions to both existing ratings and subsequent ratings; and  
+• In cases where Fitch Ratings uses separate analytical teams for determining initial ratings and for subsequent 
+monitoring of structured finance products, ensuring that each team shall have the requisite level of expertise and 
+resources to perform its respective functions in a timely manner. 
+2.1.9  Fitch Ratings reserves the right to withdraw any rating at any time for any reason, including withdrawal without 
+notice, if Fitch Ratings deems there is insufficient market interest in the rating or if a rating committee concludes that Fitch 
+Ratings lacks sufficient information to maintain the rating or that any information provided to Fitch Ratings is unreliable. In 
+the event a public rating is withdrawn, Fitch Ratings shall, in accordance with its policies and procedures, publish an 
+appropriate commentary that includes the current rating(s) and states that the rating(s) has/have been withdrawn, the reason 
+for the withdrawal, and that Fitch Ratings will no longer provide the rating(s) or analytical coverage of the issuer.  
+2.2 Integrity of the Rating Process 
+2.2.1  Fitch Ratings and its employees shall comply with all applicable laws and regulations governing its activities in each 
+jurisdiction in which it operates. 
+2.2.2  Fitch Ratings and its employees shall deal fairly and honestly with issuers, investors, and other market participants. 
+2.2.3  Fitch Ratings’ analysts shall be held to high standards of integrity, ethical behavior, and, subject to applicable law, 
+Fitch Ratings shall not knowingly employ individuals where there is evidence that they have compromised integrity. 
+2.2.4  Fitch Ratings and its employees shall not, either implicitly or explicitly, give any assurance or guarantee of a 
+particular rating prior to the final rating decision being  taken in accordance with Fitch Ratings’ established policies and 
+procedures. Nothing in this Code shall preclude Fitch Ratings from providing rating assessments or other types of assessments 
+(e.g., an assessment of creditworthiness that does not constitute a rating because the analysis is based on hypothetical 
+scenarios and/or limited information). 
+
+===== PDF PAGE 8 =====
+ 
+                                                  7 
+  
+fitchratings.com  
+2.2.5  Fitch Ratings and its employees shall not make promises or threats about potential credit rating actions to influence 
+issuers, investors and other market participants to pay for credit ratings or other services. 
+2.2.6  Fitch Ratings’ analysts are prohibited from making proposals or recommendations regarding the activities of rated 
+entities or obligors, including but not limited to proposals or recommendations about corporate or legal structure, assets and 
+liabilities, business operations, investment plans, lines of financing, business combinations, and the design of structured 
+finance products. Consistent with this prohibition, in assessing the credit risk of a structured finance transaction, Fitch 
+Ratings’ analysts may properly hold a series of discussions with an issuer or its agents in order to: 
+• Understand and incorporate into their analysis the particular facts and features of the structured finance transaction, 
+and any modification, as proposed by the issuer or its agents; and  
+• Explain to the issuer or its agents the rating implications of Fitch Ratings’ methodologies as applied to the issuer’s 
+proposed facts and features. 
+2.2.7  Fitch Ratings’ Chief Compliance Officer and staff oversee compliance with this Code, the policies referenced in this 
+Code and the laws, rules, and regulations governing the activities of credit rating agencies. The Chief Compliance Officer, and 
+any member of the Compliance Department, shall not vote on any rating committees and shall not report to any party 
+responsible for the operational management of the rating function. Their compensation shall be independent of Fitch Ratings’ 
+rating operations. The Chief Compliance Officer also oversees the design, implementation, and performance of a periodic 
+review and testing process through which compliance with this Code and related policies and procedures of Fitch Ratings shall 
+be thoroughly assessed. The Compliance Team is also responsible for reviewing the adequacy of policies, procedures, and 
+controls designed to ensure compliance with this Code and applicable laws and regulations. 
+2.2.8  Fitch Ratings’ employees are not expected to be experts in the law. Nonetheless, they are expected to report to the 
+Chief Compliance Officer, or their designee, the activities about which they have knowledge that a reasonable person would 
+question as a potential violation of this Code or applicable law. The Chief Compliance Officer, or their designee, shall 
+determine the merits of the situation and, if warranted, take appropriate action. Any employee who, in good faith, makes 
+such a report shall not be retaliated against by Fitch Ratings or any other employees of Fitch Ratings. The Chief Compliance 
+Officer has established and shall maintain procedures for employees to report any illegal, unethical, or inappropriate conduct, 
+including, to the extent practical, through various telephonic and electronic means, on both an anonymous and a disclosed 
+basis. Failure by any Fitch Ratings employee to comply with the provisions of this Code may result in disciplinary action being 
+taken against the employee, up to and in cluding the dismissal of the employee.  
+3. INDEPENDENCE  AND AVOIDANCE OF  CONFLICTS OF INTEREST 
+3.1 General 
+3.1.1  Fitch Ratings shall not forbear or refrain from taking a rating action based on the potential effect (economic, 
+political, or otherwise) of the rating action on Fitch Ratings, an issuer, an investor, a subscriber, or other market participant. 
+3.1.2  Fitch Ratings and its analysts shall use care and professional judgment to maintain both the substance and 
+appearance of independence and objectivity. 
+3.1.3  The determination of a rating shall be influenced only by factors known to Fitch Ratings and believed by Fitch Ratings 
+to be relevant to such rating. 
+3.1.4  The rating or rating action Fitch Ratings assigns to an issuer or security shall not be affected by the existence of or 
+potential for a business relationship between Fitch Ratings (or its affiliates or shareholders) and the issuer (or its affiliates) or 
+
+===== PDF PAGE 9 =====
+ 
+                                                  8 
+  
+fitchratings.com  
+any other party, or the non-existence of such a relationship. As a result, in accordance with applicable regulations, the 
+following actions are prohibited: 
+• Conditioning or threatening (directly, indirectly, or implicitly) to condition the issuance of a rating on the purchase of 
+any other products or services of Fitch Ratings; 
+• Issuing, or offering (either directly, indirectly, or implicitly) or threatening (either directly, indirectly, or implicitly) to 
+issue a rating that is not determined in accordance with Fitch Ratings’ established criteria and methodologies, based 
+on whether the issuer (or its affiliates) purchases, or will purchase, any other products or services of Fitch Ratings; 
+• Modifying, or offering (either directly, indirectly, or implicitly) or threatening (either directly, indirectly, or implicitly) 
+to modify a rating that is not determined in accordance with Fitch Ratings’ established criteria and methodologies, 
+based on whether the issuer (or its affiliates) purchases, or will purchase, any other products or services of Fitch 
+Ratings; and 
+• Issuing or threatening (either directly, indirectly, or implicitly) to issue a lower rating, lowering or threatening (either 
+directly, indirectly, or implicitly) to lower an existing rating, refusing to issue a rating, or withdrawing or threatening 
+(either directly, indirectly, or implicitly) to withdraw a rating, with respect to securities or money market instruments 
+issued by an asset pool or as part of any asset-backed or mortgage -backed securities transaction, unless all or a 
+portion of the assets within such pool or part of such transaction also are rated by Fitch Ratings, where such practice 
+is engaged in by Fitch Ratings for an anticompetitive purpose.  
+3.1.5  Fitch Ratings shall where practical separate, operationally, legally, and physically, its rating business and rating 
+analysts from other Fitch Ratings businesses that may present a conflict of interest. Fitch Ratings shall maintain policies 
+establishing firewalls and governing the segregation of operations between Fitch Ratings and its non-rating affiliates designed 
+to mitigate potential conflicts of interest. Fitch Ratings shall disclose why it believes those other businesses do not present a 
+conflict of interest with its credit rating business. 
+3.2 Procedures and Policies 
+3.2.1  Fitch Ratings has adopted written internal procedures and mechanisms to identify and eliminate, or to manage and 
+disclose, as appropriate, actual or potential conflicts of interest that may influence the opinions and analyses Fitch Ratings 
+makes or the judgment and analyses of Fitch Ratings’ employees involved in credit rating activities or who approve credit 
+ratings and rating outlooks. Fitch Ratings has disclosed certain of its conflict avoidance and management measures on its free 
+public website at www.fitchratings.com. 
+3.2.2  Fitch Ratings’ disclosures of known actual and potential conflicts of interest shall be timely, clear, concise, specific, 
+and prominent. When the actual or potential conflict of interest is unique or specific to a credit rating action with respect to a 
+particular rated issuer, such conflict of interest should be disclosed in the same form and through the same means as the 
+relevant credit rating action. 
+3.2.3  The general nature of Fitch Ratings’ compensation arrangements with rated entities, along with certain other related 
+considerations, is as follows: 
+• Fitch Ratings shall make every effort to manage the potential conflict arising from the payment of fees by issuers and 
+ensure that Fitch Ratings’ receipt of fees from issuers does not impair the independence, objectivity, or integrity of 
+its ratings and rating actions. 
+• Fitch Ratings shall maintain a set fee schedule or schedules and make it available to all issuers and their agents; 
+
+
+===== PDF PAGE 10 =====
+ 
+                                                  9 
+  
+fitchratings.com  
+provided, however, that Fitch Ratings reserves the right to periodically revise its fee schedule(s) or, as may be 
+permitted by applicable law or contractual arrangements, otherwise adjust pricing without prior notice. 
+• Fitch Ratings shall not base any fees on the success of a bond issue or the issuer achieving any particular rating or 
+other result. 
+• Fitch Ratings shall disclose in all of its published research that Fitch Ratings is paid fees by the issuers it rates, as well 
+as an estimated range of typical fees. 
+• Any issuer may terminate its fee arrangement with Fitch Ratings without fear that its rating will be lowered for that 
+reason. 
+• If Fitch Ratings were to receive from a rated entity compensation unrelated to Fitch Ratings’ ratings and routine 
+subscription and license fees for its published research and data (e.g., in respect of ancillary business), Fitch Ratings 
+shall disclose the proportion such non-rating fees constitute against the fees Fitch Ratings (and its affiliates) receives 
+from the entity for ratings and routine subscriptions and licenses. 
+• Fitch Ratings shall publicly disclose if it receives 10 percent or more of its annual revenue (the “Ten Percent 
+Threshold”) for a fiscal year (for Fitch Ratings, currently 1 January to 31 December) from a single issuer, originator, 
+arranger, subscriber, or any of its affiliates. Moreover, in certain jurisdictions Fitch Ratings shall neither issue nor 
+maintain a credit rating solicited by an entity if the Ten Percent Threshold is exceeded in respect of that specific 
+entity in the most recently ended fiscal year. 
+3.2.4  Fitch Ratings will not hold or transact in trading instruments presenting a conflict of interest with Fitch Ratings’ credit 
+rating activities. For the avoidance of doubt, this prohibition does not prevent Fitch Ratings from investing in diversified 
+collective investment schemes, including managed funds, or in maintaining bank accounts and/or holdings and/or investments 
+in financial instruments that are consistent with routine treasury or other ordinary course of business operations, or in insuring 
+Fitch Ratings’ business in the ordinary course. 
+3.2.5  Fitch Ratings shall encourage issuers and originators of structured finance products to disclose publicly all relevant 
+information with respect to such products to enable investors to conduct their own analyses independently of that of rating 
+agencies. As specified below, Fitch Ratings expects that such public disclosure will happen. 
+3.2.6  If a rated entity (for example, a government or central bank) has, or is simultaneously pursuing, oversight functions 
+related to Fitch Ratings, Fitch Ratings shall use different employees to conduct its rating actions with respect to such entity, 
+and to develop or modify criteria that apply to such entity, than those employees involved in its oversight issues. 
+3.3 Analyst and Employee Independence 
+3.3.1  Reporting lines for Fitch Ratings employees and their compensation arrangements shall be structured to eliminate or 
+effectively manage actual and potential conflicts of interest. 
+• Analysts and other employees who participate in or who might otherwise have an effect on the rating process shall 
+not be compensated or evaluated on the basis of the amount of revenue that Fitch Ratings derives from issuers that 
+the analyst rates or with which the analyst regularly interacts. 
+• Fitch Ratings shall conduct formal and periodic reviews of its compensation policies and practices for its analysts and 
+other employees who participate in or who might otherwise have an effect on the rating process to ensure that these 
+policies and practices do not compromise the objectivity of Fitch Ratings’ rating process.  
+
+===== PDF PAGE 11 =====
+ 
+                                                  10 
+  
+fitchratings.com  
+3.3.2  Analysts and other employees who participate in or who might otherwise have an effect on the rating process shall 
+not initiate, or participate in, discussions regarding fees or payments related to the rating process with any entity that is rated 
+or to be rated or with any third party related to that entity or related to a particular transaction that is rated or to be rated. 
+3.3.3  Fitch Ratings’ employees, and in some cases family members of the employee (e.g., spouse, domestic partner, or 
+dependent), shall not hold or transact in trading instruments or engage in any securities trading or other activities presenting 
+conflicts of interest with such employees’ involvement in Fitch Ratings’ rating activities. The details as to these and similar 
+restrictions are set forth in Fitch Ratings’ Global Securities Trading and Conflicts of Interest Policy, made available on its free 
+public website, www.fitchratings.com. 
+3.3.4  Fitch Ratings employees are prohibited from soliciting money, gifts, or favors from anyone with whom Fitch Ratings 
+does business, and are prohibited from accepting gifts offered in the form of cash or cash equivalents or any gifts exceeding a 
+minimal monetary value. 
+3.3.5  Any Fitch Ratings analyst who becomes involved in any personal relationship that creates the potential for any real or 
+apparent conflict of interest (including, for example, any personal relationship with an employee of a rated entity or agent of 
+such entity within his or her area of analytical responsibility), shall, in accordance with Fitch Ratings’ policies and procedures 
+and subject to applicable law, disclose the relationship to the appropriate manager or to a member of the Compliance team. 
+3.3.6  Fitch Ratings has established policies and related procedures for reviewing, as appropriate, the past work of analysts 
+who leave the employ of Fitch Ratings and join an issuer that the analyst has been involved with, as  set forth in Fitch Ratings’  
+Look Back Procedure Reviewing Analytical Work of Leavers, made available on its free public website, www.fitchratings.com. 
+If it appears that a conflict has influenced a credit rating, then Fitch Ratings will, in accordance with its policies and 
+procedures, promptly disclose the potential conflict and, as appropriate, convene a committee to re-rate all credit ratings 
+influenced by the potential conflict. 
+3.3.7  In certain jurisdictions, local law requires individuals performing credit rating activities to rotate coverage 
+responsibilities on a periodic basis. Fitch Ratings has established and shall maintain policies providing for analytical rotation in 
+accordance with applicable local regulatory requirements. 
+4. RESPONSIBILITIES TO INVESTORS AND OTHER MARKET PARTICIPANTS 
+4.1 Transparency and Timeliness of Ratings Disclosure 
+4.1.1  Fitch Ratings shall assist investors and market participants in developing a greater understanding of credit ratings by 
+disclosing in language understandable to market participants, among other things, the nature and limitations of credit ratings 
+and the risks of unduly relying on them to make investment or other financial decisions. Any Fitch Ratings credit rating agency 
+that is subject to a credit rating agency registration and oversight program administered by a regional or national authority 
+shall not state or imply that the authority endorses its credit ratings or use its registration status to advertise the quality of its 
+credit ratings. 
+4.1.2  Fitch Ratings shall make every reasonable effort to ensure that the time between a rating committee determining  a 
+final rating action and the distribution of that rating action and related commentary should be as short as reasonably possible, 
+consistent with applicable law. 
+4.1.3  Fitch Ratings’ policy for distributing public ratings and the related commentary and updates is as follows: 
+• Fitch Ratings shall publish all public ratings and rating outlooks, and related rating actions and opinions, including any 
+withdrawal of a rating, free of charge on a non-selective basis on its public website, www.fitchratings.com; and 
+
+
+===== PDF PAGE 12 =====
+ 
+                                                  11 
+  
+fitchratings.com  
+• As appropriate or as is otherwise required, Fitch Ratings shall simultaneously distribute an announcement of the rating 
+or rating action, together with any related commentary including rating outlooks, through wire services or other 
+media outlets. 
+4.1.4  Among other disclosures, Fitch Ratings shall indicate with each of its published ratings: 
+• When such rating (including rating outlooks) was last updated or reviewed; 
+• A list of relevant methodologies (i.e., criteria reports), along with any applicable criteria variations or limitations on the 
+rating, and where those criteria reports can be found; and 
+• The key rating drivers (i.e., what factors would impact the rating) so as to facilitate an understanding of the rating(s)’ 
+sensitivity (to the extent the relevant rating action is not based in whole or in part on confidential information) . 
+4.1.5  Fitch Ratings shall base its rating analyses and rating decisions, which are Fitch Ratings’ opinions, upon Fitch 
+Ratings’ established criteria, methodologies, and ratings definitions, applied in a consistent manner. All rating criteria 
+and methodologies shall be available on Fitch Ratings’ free public website, www.fitchratings.com . Fitch Ratings’ criteria, 
+methodologies, and ratings definitions shall identify the specific factors that it considers during the rating and surveillance 
+processes. 
+• Where Fitch Ratings assigns an initial rating to a structured finance product, it shall provide information about the loss 
+and cash-flow analysis upon which Fitch Ratings has relied, so as to enable investors and market participants to 
+understand the basis for the rating. To the extent practical or as may be required by applicable law, Fitch Ratings shall 
+also disclose the degree to which it analyzes how sensitive a rating of a structured finance product is to changes in 
+Fitch Ratings’ underlying rating assumptions. 
+• In its rating action commentary, Fitch Ratings shall differentiate its ratings of structured finance products from 
+traditional corporate bond ratings through the inclusion of additional commentary or an appropriate modifier to the 
+ratings, and in accordance with applicable law. Fitch Ratings shall clearly define a given rating symbol and apply it in 
+a consistent manner for all types of securities to which that symbol is assigned. 
+• Fitch Ratings shall clearly indicate the attributes and limitations of each rating or rating outlook and the limits to which 
+Fitch Ratings verifies information provided to it by the issuer or originator of a rated security (as to which latter point, 
+see below). 
+4.1.6  When Fitch Ratings publishes a rating or rating outlook, or takes any other rating action with respect to a published 
+rating or rating outlook, Fitch Ratings shall explain in the related commentary and reports the elements the rating committee 
+found key to such rating or rating outlook or rating action (including key assumptions and data, as well as financial statement 
+adjustments that deviate materially from those contained in the issuer’s published financial statements (if not otherwise 
+explained in the relevant criteria)), subject to any applicable laws with respect to the disclosure of confidential information and 
+any restrictions imposed by applicable confidentiality agreements. Fitch Ratings shall always maintain complete editorial 
+control over all rating actions, related commentaries, and all of its other published materials, including all reports, criteria, 
+methodologies, ratings definitions, and other policies and procedures. Subject to applicable law, this control shall extend to 
+when, and whether, Fitch Ratings shall take, or publish, any rating action.  
+4.1.7  To the extent reasonably feasible and appropriate (and, in certain jurisdictions, as may be required by law), prior to 
+issuing or revising a rating, Fitch Ratings shall provide to the issuer advance, written notification of the rating action and the 
+critical information and principal considerations upon which the rating decision was based. Fitch Ratings provides such 
+information solely to allow the issuer to check for factual accuracy or the presence of non-public information. Fitch Ratings 
+
+
+===== PDF PAGE 13 =====
+ 
+                                                  12 
+  
+fitchratings.com  
+shall duly evaluate any comments made by the issuer and accept them in its discretion as appropriate to correct factual errors 
+or remove references to non-public information. Except as required by law, Fitch Ratings retains the right to publish the 
+commentary at the most appropriate time and in whatever form it deems most appropriate in its editorial judgment. In certain 
+circumstances, except as required by law, Fitch Ratings in its sole discretion may decide not to provide such advance 
+notification if timely dissemination of the rating committee decision would be compromised. In such cases, Fitch Ratings shall 
+inform the issuer as soon as practical thereafter and, generally, shall explain the reason for not notifying the issuer.   
+4.1.8  In order to promote transparency and to enable the market participants to best judge the aggregate  performance 
+of its ratings on debt instruments, Fitch Ratings, where possible or as may be required by applicable law, shall conduct 
+periodic studies on the performance of Fitch Ratings-rated securities and issuers, including current and historical default 
+rates by rating category and rating transition analyses. Fitch Ratings shall make all transition and default studies available 
+on Fitch Ratings’ free public website, www.fitchratings.com. Where feasible, this information shall include verifiable, 
+quantifiable historical information about the performance of its ratings, organized and structured, and, where possible, 
+standardized in such a way to assist investors and market participants in drawing performance comparisons between different 
+rating  agencies.  
+4.1.9  For each rating, Fitch Ratings shall, in accordance with its Rating Solicitation and Participation Disclosure Policy, 
+publicly disclose whether the issuer participated in the rating process, and the solicitation status of the rating. 
+4.1.10  Fitch Ratings shall review and update, to the extent it deems appropriate or as is required by applicable law, its criteria 
+and methodologies on a regular basis. Fitch Ratings shall publicly disclose, in a non-selective manner, any material 
+modification to its methodologies. Where feasible and appropriate or as may otherwise be required by applicable law, Fitch 
+Ratings shall undertake to disclose planned material modifications prior to the effective dates of such modifications. 
+5. THE TREATMENT OF CONFIDENTIAL INFORMATION; DISCLOSURE OF THE 
+CODE; EXPECTATIONS OF ISSUERS  
+5.1 Disclosure of This Code and Communication with Market Participants 
+5.1.1  Fitch Ratings disclosures, including those specified in the provisions of this Code, shall be complete, fair, accurate, 
+timely, and understandable to market participants. 
+5.1.2  Fitch Ratings shall use, maintain, and protect confidential and/or material non-public information in accordance with its 
+policies governing the treatment of confidential information and applicable laws, rules, and regulations. Without limitation, these 
+policies establish various restrictions on the sharing of confidential, ratings- related information with persons not involved in the 
+performance of Fitch Ratings’ credit rating activities .  
+5.1.3  Fitch Ratings welcomes comments and input from market participants and the public, including any questions, concerns, or 
+complaints they may have regarding the business, operations, or activities of Fitch Ratings and its policies.  
+• Comments or complaints should be directed to a Regional Compliance Officer or submitted through the Report an 
+Issue / Whistleblowing page on Fitch Ratings’ free public website, www.fitchratings.com. 
+• Contact information for the Regional Compliance Officers is available on Fitch Ratings’ free public website, 
+www.fitchratings.com. 
+5.1.4  Fitch Ratings shall publish in a prominent position on the homepage of its free public website, 
+www.fitchratings.com, links to: (1) this Code; (2) its methodologies; (3) its transition and default studies; (4) any other disclosures 
+specified in the provisions of this Code, as applicable; and (5) certain other internal policies relevant to addressing and managing 
+
+
+===== PDF PAGE 14 =====
+ 
+                                                  13 
+  
+fitchratings.com  
+conflicts of interest, preventing the misuse of material, non-public information, and ensuring compliance with applicable laws, 
+rules, and regulations (see Appendix A to this Code). 
+5.2 What Fitch Ratings Expects of Issuers 
+5.2.1  Fitch Ratings expects that each issuer that has agreed to participate in the rating process, or its agents, will promptly 
+supply to Fitch Ratings all information relevant to evaluating the ratings on such issuer or the relevant securities, including, 
+without limitation, all material changes in any information previously provided, potential material events and the issuer’s 
+overall financial condition, which may require communication of non- public information to Fitch Ratings. 
+5.2.2  Fitch Ratings expects all such information to be timely, accurate, and complete in all respects. 
+5.2.3  Fitch Ratings expects issuers to respond to its questions as quickly as possible and to explain the reasons for any 
+delay. 
+5.2.4  During any time period in which an issuer is reviewing commentary or reports to be published by Fitch Ratings, Fitch 
+Ratings expects such issuer will not disclose the commentary or reports in advance of Fitch Ratings’ publication or take 
+advantage of the delay in publication in any way. 
+5.2.5  Should an issuer choose to stop cooperating with Fitch Ratings in the rating process, Fitch Ratings also reserves the right 
+to continue to rate the issuer or any securities issued by the issuer, based on the information previously provided to Fitch Ratings 
+by the issuer or its agents and any other public and/or non-public information available to Fitch Ratings. 
+5.2.6  Fitch Ratings expects that structured finance issuers and arrangers, and originators of structured finance products, will 
+publicly disclose all relevant information regarding these products so that investors and other rating agencies can conduct their 
+own analyses independently of the rating agency/agencies solicited by or on behalf of the issuers and/or originators to provide 
+ratings. 
+6. DISCLAIMERS 
+6.1 Non-Reliance on This Code 
+6.1.1  Fitch Ratings does not intend to assume, and is not assuming, any responsibility or liability to any party arising out of, 
+or with respect to, this Code. This Code is not intended to, and does not, form a part of any contract with anyone, and no one 
+shall have any right (contractual or otherwise) to enforce any of this Code’s provisions, either directly or indirectly. 
+6.1.2  Fitch Ratings may amend this Code at its sole discretion, in any way Fitch Ratings sees fit at any time. Fitch Ratings will 
+disclose as soon as practicable any changes to this Code or changes to how Fitch Ratings is implementing or enforcing it . 
+6.2 Purpose & Use of Ratings  
+All Fitch Ratings credit ratings are subject to certain limitations and disclaimers. For a comprehensive or detailed list of 
+these limitations and disclaimers, please refer to Fitch Ratings’ Rating Definitions, available on Fitch Ratings’ public website 
+at www.fitchratings.com. 
+6.2.1  Fitch Ratings’ ratings are opinions reflecting the ability of an entity or a securities issue to meet financial 
+commitments such as interest, preferred dividends, and repayment of principal, in accordance with their terms. Ratings are 
+not themselves facts and therefore cannot be described as being “accurate” or “inaccurate”. Credit ratings do not directly 
+address any risk other than credit risk. In particular, ratings do not deal with the risk of loss due to changes in interest rates 
+and other market considerations. 
+
+===== PDF PAGE 15 =====
+ 
+                                                  14 
+  
+fitchratings.com  
+ 
+6.2.2  In issuing and maintaining its ratings or rating outlooks, Fitch Ratings relies on factual information it receives from 
+issuers, underwriters, and from other sources Fitch Ratings believes to be credible. Fitch Ratings conducts a reasonable 
+investigation of the factual information relied upon by it in accordance with its ratings methodology and obtains reasonable 
+verification of that information from independent sources, to the extent such sources are available for a given security or in a 
+given jurisdiction. 
+6.2.3  The manner of Fitch Ratings’ factual investigation and the scope of the third-party verification it obtains will vary 
+depending on the nature of the rated security and its issuer, the requirements and practices in the jurisdiction in which the 
+rated security is offered and sold and/or the issuer is located, the availability and nature of relevant public information, 
+access to the management of the issuer and its advisers, the availability of pre-existing third-party verifications such as audit 
+reports, agreed- upon procedures letters, appraisals, actuarial reports, engineering reports, legal opinions, and other reports 
+provided by third parties, the availability of independent and competent third-party verification sources with respect to the 
+particular security or in the particular jurisdiction of the issuer, and a variety of other factors. 
+6.2.4  Neither an enhanced factual investigation nor any third-party verification can ensure that all of the information Fitch 
+Ratings relies on in connection with a rating  will be accurate and complete. Ultimately, the issuer and its advisers are 
+responsible for the accuracy of the information they provide to Fitch Ratings and to the market in offering documents and 
+other reports. In issuing its ratings Fitch Ratings must rely on the work of experts, including independent auditors with 
+respect to financial statements, and attorneys with respect to legal and tax matters. Further, ratings are inherently forward-
+looking and embody assumptions and predictions about future events that by their nature cannot be verified as facts. As a 
+result, despite any verification of current facts, ratings can be affected by future events or conditions that were not 
+anticipated at the time a rating was issued or affirmed. If any such information should turn out to contain misrepresentations 
+or to be otherwise misleading, the rating or rating outlook associated with that information may not be appropriate. The 
+assignment of a rating to any issuer or any security should not be viewed as a guarantee of the accuracy, completeness or 
+timeliness of the information relied on in connection with the rating or the results obtained from the use of such information. 
+6.2.5  Fitch Ratings does not have a fiduciary relationship with any issuer, subscriber, or other individual. Nothing is 
+intended to or should be construed as creating a fiduciary relationship between Fitch Ratings and any issuer or between Fitch 
+Ratings and any user of its ratings. 
+6.2.6  Ratings do not constitute recommendations to buy, sell, or hold any security nor do they comment on the adequacy 
+of market price, the suitability of any security for a particular investor, or the tax-exempt nature or taxability of any 
+payments of any security. 
+6.2.7  Ratings may be changed, qualified, placed on Rating Watch, or withdrawn as a result of changes in, additions to, 
+accuracy of, unavailability of, or inadequacy of information, or for any reason Fitch Ratings deems sufficient. 
+6.2.8  Fitch Ratings does not provide to any party any financial advice or legal, auditing, accounting, appraisal, valuation, or 
+actuarial services. A rating should not be viewed as a replacement for such advice or services. 
+6.2.9  The assignment of a rating by Fitch Ratings shall not constitute consent by Fitch Ratings to use its name as an expert 
+in connection with any registration statement, offering document, or other filings under any relevant securities laws. 
+
+===== PDF PAGE 16 =====
+ 
+                                                  15 
+  
+fitchratings.com  
+APPENDIX A 
+Select Fitch Ratings Policies 
+ 
+Set forth below are a list of those policies that Fitch  Ratings has made available on its free public  website, 
+www.fitchratings.com. These policies, along with other Fitch Ratings policies and procedures, are intended to 
+be read in conjunction with, and to supplement and support, this Code. However, where more detailed 
+requirements are set forth in a particular policy or procedure, the more detailed of such requirements shall 
+apply. 
+• Firewall Policy 
+• Global Confidentiality  Policy 
+• Global Securities Trading and Conflicts of Interest Policy 
+• Segregation of Commercial and Analytical Activities 
+• Policy on Complaint Handling 
+• Protocol for Responding to Confidential Tips Related to Fitch Rated Entities 
+• Rating Solicitation and Participation Disclosure Policy 
+• Restrictions on Advising Issuers and Others 
+• Rotation Policy 
+• Look Back Procedure Reviewing Analytical Work of Leavers 
+• Ancillary Business and Ancillary Services 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+===== PDF PAGE 17 =====
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+fitchratings.com 
+
+
+===== PDF PAGE 18 =====
+fitchratings.com  
+Bulletin 04: Segregation of 
+Commercial & Analytical Activities 
+1 
+ 
+ 
+EXECUTIVE SUMMARY  
+Objective: To set forth the requirements regarding the segregation of commercial and Analytical 
+Activities . 
+Application: Fitch Ratings, Inc. and each of  its credit rating affiliates  that issues Ratings under the trade 
+name “Fitch Ratings” (collectively “Fitch Ratings”) .  
+ 
+1. OVERVIEW 
+Fitch Ratings is a commercial enterprise. It receives compensation from Rated Entities and other third parties, in 
+return for analysis performed with respect to Ratings.  
+When assigning Ratings , rating committees may only consider factors relevant to the creditworthiness of a Rated 
+Entity or a Security. An existing or potential business relationship between Fitch Ratings (or its Non -Rating Affiliates) 
+and the Rated Entity or any other third party must not be considered  as part of the Analytical Activities .  
+To manage potential conflicts of interest arising from Analysts being influenced  by business or financial 
+considerations , Analysts are prohibited from participating  in negotiations  or discussions  regarding fees or payments 
+from  Rated Entities or other third parties. Rather, Business and Relationship Management  Group (“BRM”) is 
+responsible  for  carrying out all marketing and commercial activities  on behalf of Fitch Ratings.  
+For the avoidance  of  doubt,  the fact  that Analysts  are aware generally that Fitch Ratings receives compensation  for 
+its analytical work does not mean that Analysts are influenced by business considerations.  
+All Fitch Ratings employees are subject to this policy and must not take any action that could result in a  
+contravention of  any provision herein.  
+2. DEFINITIONS 
+“Analyst” and “Primary Analyst” shall have the meaning as set forth in Fitch Ratings: Bulletin 02: The Rating 
+Process Manual (RPM)  Fitch Ratings: Bulletin 02: The Rating Process Manual (RPM)  
+“Analytical Activities” means the evaluation, approval,  review and issuance of  Ratings, including  the analysis of 
+data and information,  and developing  or approving  criteria or methodologies  used for  determining Ratings, including 
+qualitative and quantitative models.  
+“Analytical Views” means the views of an Analyst or Analysts relating to Ratings, Securities, Rated Entities, 
+transactions, sectors, countries, markets, research, criteria, methodologies, credit considerations or other related 
+matters, including, without limitation, factual discussions about the products or services of the Fitch Group.  
+“Confidential Information” shall have the meaning as set forth  in Fitch Ratings: Bulletin 41: Confidential Information 
+Policy 
+“EU Analyst” means an analyst based in an EU CRA. 
+“EU CRA” means Fitch Ratings Ireland Limited (including any of  its branches (wherever located)).  
+“EU CRA Regulation” means Regulation (EC) No 1060/2009 of  the European Parliament and of  the Council of  16 
+September 2009 on credit rating agencies (as amended from time to time).  
+“EU Endorsed CRA” means any of Fitch Ratings, Inc., Fitch Ratings Ltd., Fitch Ratings CIS Ltd., Fitch Australia 
+Pty Ltd., Fitch Ratings Brasil Ltda.,  Fitch (Hong Kong) Ltd.,  Fitch Ratings Japan Ltd.,  Fitch Mexico S.A.  de C.V. or 
+Fitch Singapore Pte. Ltd. (including any of their branches (wherever located)).  
+“EU Endorsed CRA Analyst” means an analyst based in an EU Endorsed  CRA. 
+
+
+===== PDF PAGE 19 =====
+fitchratings.com  
+Bulletin 04: Segregation of 
+Commercial & Analytical Activities 
+2 
+ 
+ 
+“EU Endorsed Rating” means a Public International Rating where the relevant Primary Analyst is employed  by an 
+EU Endorsed CRA.  
+“EMS” means the Exception  Management System.  
+“EU Public Rating” means a Public Rating with respect to which the primary analyst, as that term is used in the 
+Fitch Ratings: Bulletin 02: The Rating Process Manual (RPM)  is employed  by an EU CRA. 
+“Fitch Group” means Fitch Group, Inc. and its subsidiaries  and affiliates.  
+“Market Share Information” means the information as to the relative size, however measured, of Fitch Ratings’ 
+share of the Ratings business, compared to other rating agencies, in a particular country, sector, product or other 
+category or classification group, which information is no t otherwise publicly available.  
+“Need to Know” shall have the meaning set forth  in Fitch Ratings: Bulletin 41: Confidential Information Policy  
+“Non-Rating Affiliate” shall have the meaning as set forth  in Fitch Group Bulletin 08. 
+“Private Ratings” are Ratings that Fitch Ratings has not published  on its website, www.fitchratings.com . 
+“Public Rating” means a “credit rating” as described in  Fitch Ratings’  Rating Definitions,  which (i) is publicly 
+available on Fitch Ratings’ website, www.fitchratings.com  and/or (ii) the issuer has indicated to Fitch in writing that 
+the issuer intends to request that Fitch publish.  
+“Rated Entity” means, along with its agents: (i) the issuer or obligor  with respect to any Security that has received 
+or is expected to receive, as the case may be, a Rating from Fitch Ratings or (ii) an entity to which Fitch Ratings 
+has assigned or is expected to assign, as the case may be, a Rating.  
+“Rating” shall have the meaning set forth  in Fitch Ratings: Bulletin 07: Credit Products – Defined: Ratings, 
+Assessments, Opinions and Scores  Fitch Ratings: Bulletin 07: Credit Products – Defined: Ratings, Assessments, 
+Opinions and Scores . 
+“Rating Action” shall have the meaning set forth in Fitch Ratings’ Rating Definitions, published on Fitch Ratings’ 
+website, www.fitchratings.com . 
+“Security” or “Securities” means any security, programme or other financial instrument. 
+“Senior Global Group Head”  has the meaning as is set forth in  Fitch Ratings: Bulletin 22: Senior Global, Global, 
+Regional & Enhanced Analytics Group Heads  Fitch Ratings: Bulletin 22: Senior Global, Global, Regional & 
+Enhanced Analytics Group Heads  
+“Senior Analytical Management” means, collectively,  the Global Analytical Head and all other managers listed in 
+Fitch Ratings: Bulletin 22: Senior Global, Global, Regional & Enhanced Analytics Group Heads  
+“UK Analyst” means an analyst based in a UK CRA. 
+“UK CRA” means each of  Fitch Ratings Ltd. and Fitch Ratings CIS Ltd. (including any of  their branches (wherever 
+located)).  
+“UK CRA Regulation” means Credit Rating Agencies (Amendment etc.) (EU Exit) Regulations 2019 (as amended 
+from time to time).  
+“UK Endorsed CRA” means any of  Fitch Ratings, Inc., Fitch Ratings Ireland Limited, Fitch Ratings España, S.A.U., 
+Fitch Australia Pty Ltd., Fitch Ratings Brasil Ltda., Fitch  (Hong Kong) Ltd., Fitch  Ratings Japan Ltd., Fitch  Mexico  
+S.A. de C.V. or Fitch Singapore  Pte. Ltd. (including any of  their branches (wherever located)).  
+“UK Endorsed CRA Analyst” means an analyst based in a UK Endorsed  CRA. 
+
+
+===== PDF PAGE 20 =====
+fitchratings.com  
+Bulletin 04: Segregation of 
+Commercial & Analytical Activities 
+3 
+ 
+ 
+“UK Endorsed Rating” means a Public International Rating where the relevant Primary Analyst is employed  by a 
+UK Endorsed CRA.  
+“UK Public Rating” means a Public Rating  with respect to which the Primary Analyst, as that term is used in  the 
+Fitch Ratings: Bulletin 02: The Rating Process Manual (RPM)  is employed  by UK CRA. 
+3. ANALYST COMMUNICATIONS OF ANALYTICAL VIEWS 
+Subject to the confidentiality  obligations  in Fitch Ratings: Bulletin 41: Confidential Information Policy  and the 
+prohibitions  set forth in Section 8 below, Analysts may discuss or communicate their Analytical Views with BRM or 
+any third party.  
+Further requirements relating to communications with journalists and in social media are outlined in Fitch Group: 
+Bulletin 05:  Social Media Policy .  
+ 
+4. PROHIBITION ON ANALYST INVOLVEMENT IN FEE NEGOTIATIONS 
+4.1.  Analysts  are prohibited  from:  
+4.1.1.  Initiating or participating in negotiations or discussions regarding fees or payments to Fitch Ratings 
+related to any Rating, with any Rated Entity or other third party, or otherwise being provided 
+information pertaining to engagement -specific fees or bill ing relating to a Rating. 
+4.1.2.  Subject to Sections  9, 10 and 11 below, participating  in sales or marketing of  Ratings or other products 
+or services of Fitch Ratings or any of its affiliates; and  
+4.1.3.  Otherwise considering  sales or marketing considerations  when assigning,  or taking any subsequent 
+actions with respect to, Ratings.  
+4.2.  Despite Fitch Ratings’ controls, it is not always possible to prevent Analysts from receiving communications 
+that contain fee or billing  information.  If an Analyst receives such information  in violation  of  this Policy,  relevant 
+staff must ensure that the matter is promptly recorded in EMS, documenting all required remediation steps 
+as is set forth in applicable operating procedures or process manuals , for example, Fitch Ratings: Bulletin 02: 
+The Rating Process Manual (RPM)  section 2 Separation between Commercial and Analytical Activities, and 
+Fitch Ratings: Bulletin 02A The BRM Process Manual  section 1.3 Segregation of Duties .  
+ 
+4.3.  It is permissible for Analysts to become aware of fee or billing information related to a Rating that is publicly 
+disclosed  (e.g., through public  offering  documents  for  capital market issuance purposes  or in a public  tender 
+document ) or included in a prospectus or offering document. Receipt of fee or billing information in such 
+circumstances is not a violation of this Policy and  need not be recorded in EMS.  
+5. BRM NEGOTIATION OF FEES AND BILLINGS 
+5.1.  BRM is responsible for pricing each request for Ratings. Only BRM (and on their behalf members of the 
+Finance, accounting or billing departments, referred to collectively as “Finance”, and members of the Legal 
+Department) may communicate with a Rated Entit y or other third -party regarding fees or billings.  
+5.2.  BRM and Finance are responsible for obtaining and recording all fee -related information, and for entering it 
+into the appropriate systems.  
+5.3.  All questions  regarding fees,  billings  or general pricing policies  received by Analysts,  must be referred to the 
+appropriate contact within BRM or Finance. Analysts may not provide the information to the requestor.  
+5.4.  BRM and Finance must not communicate (in email or otherwise) information concerning individual fees or 
+billings for Ratings to or with Analysts.  
+
+
+===== PDF PAGE 21 =====
+fitchratings.com  
+Bulletin 04: Segregation of 
+Commercial & Analytical Activities 
+4 
+ 
+ 
+6. BRM COMMUNICATIONS TO ANALYSTS 
+To ensure that Analysts can  perform their Analytical Activities in an environment  free from commercial  or financial 
+pressure or influence, BRM must appropriately manage their communications with Analysts.  
+6.1.  BRM may make a reasonable and balanced enquiry to an Analyst regarding Analytical Activities that is 
+intended to clarify facts or the basis for an Analytical View.  
+6.2.  However, BRM may not call into question,  lobby  or otherwise pressure an Analyst with respect to: 
+6.2.1.  Taking (or refraining to take) a particular Rating Action.  
+6.2.2.  Proposed  changes to criteria or methodologies.  
+6.2.3.  Instances where the level of  an indicative/initial, expected,  or final Rating was lower than preliminary 
+feedback initially provided to a Rated Entity or other third party. 
+6.2.4.  The recommendation  or vote of  a particular Analyst in a rating committee;  or 
+6.2.5.  Other negative commercial implications  or relationship issues that may arise from  Analytical Activities 
+and/or a  Rating Action, including without limitation,  negative commercial implications or relationship 
+issues that may arise in connection  with a product or  service offered  by an entity of the  Fitch Group. 
+7. FITCH RATINGS’ FINANCIAL & MARKET SHARE INFORMATION 
+Analysts  may not be provided  Fitch Ratings’ financial or Market Share Information  other than as is set forth  below. 
+7.1.  Fitch Ratings’ Financial Information 
+Analysts  are prohibited  from  receiving revenue information,  P&L statements and other non-public  documents 
+describing  the financial performance  of  the Fitch Group or Fitch Ratings (collectively,  “Financial Information”) 
+other than as follows:  
+7.1.1.  Global/Regional/Sector-Level Information. Finance may periodically  provide  aggregated  Fitch 
+Ratings revenue, budget,  and expense items such as salary and travel, to Senior Analytical 
+Management, to assist  them in planning hiring needs for  Analysts,  and managing Analysts’  expenses. 
+This information may also be provided to Senior Analytical Management in the course of internal 
+planning sessions,  consistent with  the requirements set  forth  below, and to monitor the  execution of 
+those plans, and also as part of regular update meetings for Senior Analytical Management.  
+7.1.2.  Country-Level Information. Finance may periodically  provide  aggregated  country-level Fitch Ratings’ 
+Financial Information to Analysts who are board members of local operating entities (“Local Board 
+Members”), where the Financial Information is necessary to fulfill their local board or regulatory 
+responsibilities.  
+7.1.3.  Aggregated Financial  Information. Analysts  may periodically  receive aggregated information on the 
+overall financial performance  of  Fitch Ratings, in the context  of  discussions  related to compensation.  
+7.2.  Market Share Information. 
+Analysts  may receive Market Share Information  only as follows:  
+7.2.1.  For purposes of demonstrating Fitch Ratings’ knowledge of, coverage of or depth in a particular market 
+or sector, BRM may include or mention Market Share Information in joint Analytical / BRM 
+presentations, discussions and meetings with Rated Entities and other third parties.  
+7.2.2.  Senior Analytical Management may receive relevant Market Share Information during internal planning 
+sessions, consistent with the requirements set forth below in Section 9, and to monitor the execution of 
+those plans.  
+
+===== PDF PAGE 22 =====
+fitchratings.com  
+Bulletin 04: Segregation of 
+Commercial & Analytical Activities 
+5 
+ 
+ 
+7.2.3.  If they are Local Board Members, where country -level Market Share Information is necessary for  them 
+to fulfill their local board or regulatory responsibilities.  
+7.2.4.  If, as part of communicating strategic objectives set by the Fitch Group or Fitch Ratings, high -level 
+Market Share Information is disclosed to all Fitch Group or Fitch Ratings’ employees.  
+ 
+8. INFORMATION SHARING BETWEEN BRM & ANALYSTS 
+ 
+8.1.  Providing Advance Notice of Rating-Related Information to BRM 
+ 
+8.1.1.  Rating Action Rule: EU & UK Ratings and EU & UK Endorsed Ratings . 
+Irrespective of any other provision of this Bulletin, a nalysts working on an EU or UK Public Rating or 
+EU or UK Endorsed Rating are prohibited from disclosing to BRM staff located anywhere in the world 
+(and BRM is prohibited from soliciting the information from Analysts  or Rated Entities) advance, pre-
+publication  notice or information  regarding any Rating Action on an EU or UK Public Rating or an EU 
+or UK Endorsed Rating 1, the timing as to when a rating committee for an EU or UK Public Rating or 
+an EU or UK Endorsed Rating is to be held or is expected  to be held2, or the withdrawal of an EU or 
+UK Public  Rating or EU or UK Endorsed  Rating for analytical reasons. 3 
+ 
+- Analysts  may only provide  this information  to BRM simultaneously  with the public release of the 
+information.  
+ 
+- All questions  that BRM staff  receive with respect to the above,  must be referred to the appropriate 
+Analysts.   
+8.1.2.  Need to Know Rule.  In many cases BRM has a Need -to-Know about Rating Actions and other 
+related information  in advance of  the publication. 4 These reasons may include enabling BRM to be 
+prepared for calls from Rated Entities and other third parties, or to manage a commercial relationship 
+more effectively. Accordingly, Analysts may provide to BRM staff with Need -to-Know advance (pre - 
+publication) information regarding:  
+- A Rating Action  with respect to a Private Rating because the Rated Entity has specified in writing 
+its intention that the Rating be published at a future point ( NOTE: this is not permitted i f the 
+Rating Action Rule  in Section 8.1.1 regarding  EU & UK Ratings and EU & UK Endorsed 
+Ratings applies); 
+- A Rating Action with respect to a Public Rating  (NOTE: this is not permitted if the Rating 
+Action Rule  in Section 8.1.1 regarding  EU & UK Ratings and EU & UK Endorsed Ratings 
+applies); 
+ 
+- A research or other report to be issued. However, if such a report  includes or is issued 
+ 
+1 Accordingly, it would not be permitted for BRM to be part of the standard review or approval process for RACs or other reports with respect to EU Public Ratings or EU Endorsed Ratings as well 
+as with respect to UK Public Ratings or UK Endorsed Ratings. 
+2 Target dates and deadlines for assigning new Ratings are a commercial term that may be negotiated by BRM. Accordingly, BRM is  not prohibited from having information regarding target dates 
+or deadlines, so long as they are not made aware of specific dates on which a rating committee for an EU Public Rating or EU Endorsed Rating as well as for a UK Public Rating or UK Endorsed 
+Rating is to be held prior to those dates. For the avoidance of doubt, BRM is not prohibited from having information on dates on which a rating committee for an EU Public Rating or EU Endorsed 
+Rating and for a UK Public Rating or UK Endorsed Rating was held after the final rating committee has already taken place. 
+3 As BRM would trigger a withdrawal of an EU Public Rating, EU Endorsed Rating, UK Public Rating or UK Endorsed Rating for commercial reasons, BRM is not prohibited from having 
+information with respect to the fact of the withdrawal. However, BRM is still subject to the prohibitions in this Section regarding the associated Rating Action or the timing of the rating committee. 
+4 Securities trading by an employee that holds such Need to Know Confidential Information remains subject to Bulletin 13: Global Securities Trading and Conflicts of Interest Policy Bulletin 13: 
+Global Securities Trading and Conflicts of Interest Policy Questions should be directed to the Compliance Department. 
+Tip:  Any communication  of Market Share Information to an Analyst should  be appropriately  balanced to 
+not suggest that an Analyst is involved in commercial efforts designed to increase Fitch Ratings’ market 
+share. 
+
+
+===== PDF PAGE 23 =====
+fitchratings.com  
+Bulletin 04: Segregation of 
+Commercial & Analytical Activities 
+6 
+ 
+ 
+contemporaneously  with a Rating  Action  with respect to an EU Public Rating, EU Endorsed 
+Rating, UK Public Rating or UK Endorsed Rating then this is not permitted as the Rating Action 
+Rule in Section 8.1.1  applies ; and 
+ 
+- Criteria exposure drafts  to be posted  for  comment.  
+8.1.3.  If BRM receives Confidential  Information  pursuant to this Section,  it must maintain the confidentiality of 
+that Confidential Information per the requirements in Fitch Ratings: Bulletin 41: Confidential 
+Information Policy  until the information becomes publicly available.  
+8.2.  Sharing of Market Intelligence 
+8.2.1.  Analysts  may notify  BRM (and vice versa) of  changes in other rating agencies’ staff,  products, 
+services or criteria, or issues/errors of other rating agencies.  
+8.2.2.  In addition to other types of permissible sharing of Confidential Information as may be set forth in 
+Bulletin 41, BRM may share with Analysts  (and vice versa) feedback  they receive from  Rated Entities 
+or other third parties regarding:  
+- Rating Actions;  
+- Other analytical products,  criteria or publications;  or 
+- The products or services of other rating agencies, including relative strengths/weaknesses of 
+those products or services.  
+ 
+However, if negative feedback or an unfavorable comparison of Fitch Ratings or its Analytical 
+Activities  is provided  to BRM from an issuer or investor , then BRM should deliver the information  to 
+an Analyst of a  sufficiently senior level, with care taken so as to not appear to be pressuring or 
+influencing the applicable Analytical Activities.  Care should be taken in passing on feedback about 
+potential changes to criteria . 
+ 
+8.2.3.  For planning, educational or market intelligence purposes,  BRM may solicit  information  or views from 
+Analysts, and Analysts may provide information or views to BRM, relating to:  
+- Subject to Fitch Ratings: Bulletin 41: Confidential Information Policy  Rated Entities and other third 
+parties (including  unrated entities to whom BRM is marketing Fitch Ratings’ products  and services) 
+which BRM may seek to contact to establish or advance a commercial relationship;  
+- Which Rated Entities or sectors may be more (or less) active in the capital markets at a given 
+point of time; and  
+- Fitch Ratings’ credit or other views on a Rated Entity, sector or market compared to those of other 
+rating agencies, including the rating level of competitors and whether their criteria is likely to lead 
+to higher or lower ratings.  
+9. INTERNAL JOINT MEETINGS WITH BRM & ANALYSTS 
+ 
+9.1.  Analytical Team Meetings 
+ 
+9.1.1.  While periodic attendance at analytical team meetings may be appropriate, BRM staff may not 
+regularly attend internal analytical team meetings where  analytical matters such as upcoming  rating 
+committees, likely Rating Actions, etc., are expected to be discussed.  
+9.1.2.  If BRM attends an internal analytical team meeting, they must leave the room/meeting prior to any 
+discussion of non -public Rating Actions or other information prohibited by this Policy or Fitch Ratings: 
+Bulletin 41: Confidential Information Policy  Fitch Ratings: Bulletin 41: Confidential Information Policy  
+being disclosed to BRM.  
+ 
+
+
+===== PDF PAGE 24 =====
+fitchratings.com  
+Bulletin 04: Segregation of 
+Commercial & Analytical Activities 
+7 
+ 
+ 
+9.2.  Internal Planning Sessions 
+ 
+9.2.1.  BRM and Analysts may attend or participate in certain parts of each other’s planning sessions or  
+similar meetings, provided that:  
+- Analysts are assigned topics, presentations and agenda items that focus only  on credit, criteria 
+and other analytical matters, including capital market developments.  
+- BRM staff are assigned topics, presentations and agenda items that focus only on commercial 
+or competitive aspects; and  
+- BRM and Analyst managing directors participating in the planning sessions are responsible for 
+carefully considering and managing any perception issues that may arise from “joint” 
+presentations or materials.  
+9.2.2.  In addition, BRM may, during this planning process, consult Senior Analytical Management in 
+developing revenue budgets, in revising relevant fee schedules, and to better understand the 
+complexity of transactions for fee -setting purposes.  
+9.2.3.  However, in the context of these meetings and consultations, only Senior Analytical Management 
+may access materials containing, or participate in discussions relating to, non -public Financial 
+Information or Market Share Information. All other Analysts must  leave the room/meeting prior to such 
+discussions and  may not receive or review the related documentation or presentations.  
+ 
+10. EXTERNAL JOINT MEETINGS WITH BRM & ANALYSTS 
+ 
+10.1.  Joint meetings with BRM, Analysts,  Rated Entities and/or other third parties are permitted  so long as: 
+ 
+10.1.1.  Analysts leave the room/meeting before BRM begins discussing commercial matters or fee 
+structures; and  
+10.1.2.  BRM leaves the room/meeting before the Rated Entity or other third parties begin the process of 
+providing  Confidential  Information  of  the Rated Entity relevant to the assignment of  ratings. However, 
+Confidential Information may be shared subsequently with BRM as permitted by Fitch Ratings: 
+Bulletin 41: Confidential Information Policy  Fitch Ratings: Bulletin 41: Confidential Information Policy  
+10.2.  In addition to the requirements above, the following additional restrictions and conditions apply depending 
+on the type of meeting:  
+ 
+10.2.1.  Commercial-Focused Meetings . Meetings, discussions  or other interactions organized for  the 
+primary purpose of enabling Fitch Ratings to secure new business, or future business from existing 
+Rated Entities, must be led by BRM. Analysts may attend or participate in such meetings only for the 
+purpose of communicating Analytical Views.  
+10.2.2.  Dual-Purpose Commercial/Analytical Meetings . Meetings, discussions  or other interactions designed 
+to cover both commercial and analytical topics, must include both a BRM representative and an 
+Analyst to address their respective topics.  
+10.2.3.  Meetings that include a discussion of criteria or methodologies. If such meetings include any 
+discussion of the potential commercial impact of Fitch’s criteria (including potential changes to 
+criteria) then this element of the meeting must only involve BRM and any analysts must leave the 
+room.  
+ 
+ 
+
+
+===== PDF PAGE 25 =====
+fitchratings.com  
+Bulletin 04: Segregation of 
+Commercial & Analytical Activities 
+8 
+ 
+ 
+11. BUSINESS EVENTS & ENTERTAINMENT 
+Analysts  may attend or be present at social  events, networking events, conferences  or dinners together with BRM, 
+Rated Entities and other third parties, provided  they do so in accordance  with Fitch Ratings: Bulletin 13: Global 
+Securities Trading and Conflicts of Interest Policy  Fitch Ratings: Bulletin 13: Global Securities Trading and Conflicts 
+of Interest Policy  
+12. QUESTIONS 
+For questions  or issues concerning this Policy,  please contact  the Compliance Department at 
+reporting@fitchratings.com . 
+ 
+ 
+ 
+ 
+ 
+ 
+Owner: 
+ Chief Compliance Officer  
+Summary of Changes: 
+ Appendix  A 
+Supplements: 
+ The following  policies  or procedures  are referenced in this Bulletin and should 
+be consulted when interpreting and revising this Bulletin:  
+Fitch Rating Definitions  
+Fitch Ratings: Bulletin 02: The Rating Process Manual (RPM)  
+Fitch Group: Bulletin 05:  Social Media Policy  
+Fitch Ratings: Bulletin 07: Credit Products – Defined: Ratings, 
+Assessments, Opinions and Scores  Fitch Ratings: Bulletin 07: Credit 
+Products – Defined: Ratings, Assessments, Opinions and Scores  
+Fitch Ratings: Bulletin 13: Global Securities Trading and Conflicts of 
+Interest Policy  
+Fitch Ratings: Bulletin 22: Senior Global, Global, Regional & Enhanced 
+
+
+===== PDF PAGE 26 =====
+fitchratings.com  
+Bulletin 04: Segregation of 
+Commercial & Analytical Activities 
+9 
+ 
+ 
+Appendix A 
+Summary of Changes 
+August 27, 2025 
+Non-material changes to correct typos and clarify existing requirements in sections 4 and 8.  
+August 6, 2025 
+Update to the definition of Public Rating  
+August 20, 2024  
+Section 10.2.3 and a clarifying statement in section 8.2.2 have been added to reinforce the independence of 
+analytical staff from business -related considerations. References to Sustainable Fitch have been excluded.  
+Minor editorial changes have been made to section 1 to simplify language and add clarity.  
+August 16, 2022  
+The clarifying statement  “All Fitch Ratings employees are subject to this policy and must not take any action that 
+could result in a contravention of any provision herein ” was added to the preamble.  
+June 23, 2022 
+Bulletin 4 Section 8.1.1 footnote  3 was updated  in relation to circumstances  in which rating committee  dates can 
+be disclosed to BRM.  
+December 17, 2021 
+Bulletin 04 has been updated  to include references to Sustainable Fitch. 
+December 2020 
+Bulletin 04 was modified to reflect Brexit -related changes to definitions in readiness for the FCA assuming 
+regulatory oversight  for  Fitch Ratings UK business from 31  December 2020. No material changes have been 
+made to this document.  
+March 2018 
+Bulletin 04 was modified  to fix  the numbering scheme. No material changes have been made to this document.  
+
+===== PDF PAGE 27 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 1 
+ 
+ 
+EXECUTIVE SUMMARY 
+Objective: To establish employee reporting and other obligations  designed  to help identify  and manage 
+potential conflicts of interest.  
+Application: Individuals employed  by Fitch Ratings and their Family Members, and all Fitch Group, Inc. 
+employees who have access to Confidential Information and/or perform material services for Fitch 
+Ratings. 
+ 
+1. OVERVIEW 
+This Policy, which  addresses Securities trading  and other potential  conflicts of interest between  Fitch Ratings and 
+its employees, contains prohibitions, restrictions and disclosure requirements applicable to employees that help 
+identify and manage these potential conflicts, and ultimately protect Fitch Ratings’ reputation.  
+ 
+ 
+2. DEFINITIONS 
+“Account” means any brokerage account out of which an Employee or their Family Member has the legal 
+capability or potential to trade and/or hold Securities, unless the Account is maintained as a Blind Trust.  For the 
+avoidance of  doubt,  an “Account” includes brokerage accounts  in which the Employee  or his or her Family Member 
+has a beneficial ownership interest or over which the Employee or his or her Family Member has discretion or 
+control (e.g. as account owner, power of attorney, trustee, etc.). 1 
+ 
+“Analytical Activities” means data and information  analysis and the evaluation, approval,  issuing and review of  
+(i) credit ratings, (ii) other opinions  as to creditworthiness  and (iii) non-credit ratings. 
+ 
+“Analytical Employee” means any Employee  that performs  Analytical Activities.  
+ 
+“Analytical Group Employee” or “AG Employee” means any Employee, including Analytical Employees, 
+administrators and others that work in any of the following groups:  
+ 
+• Corporates, Infrastructure and Project Finance  
+• Structured Finance and Covered Bonds  
+• Risk 
+• Financial Institutions  Group including:  
+o Banks 
+o Non-Banks (“NBFI”) 
+o Insurance 
+o Fund and Asset Manager (“FAM”) 
+• Global Analytical Management 
+• Public Finance including:  
+o International Public Finance 
+o U.S. Public Finance 
+ 
+ 
+1 In Hong Kong, “Account” also includes brokerage accounts (i) belonging to an Employee’s minor children and (ii) in which an Employee’s  minor 
+children hold beneficial interests.  
+
+===== PDF PAGE 28 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 2 
+ 
+ 
+• Model Development  Team (“MDT”) 
+• Sovereigns  
+ 
+“Blind Trust” means a financial arrangement in which an owner of a brokerage account has granted the 
+administration of the assets and trading activity within the account to an independent trust to prevent conflicts of 
+interest. A brokerage account that an Employee  or Family Member maintains under such an arrangement will not 
+be an Account under this Bulletin if it meets the following criteria:  
+• The trust executor(s) has full discretion  over the assets and is independent of  the Employee  and his or 
+her Family Members and not otherwise related to the Employee; and  
+• The Employee  and his or her Family Members have no knowledge  of  the holdings  or trading activity of 
+the trust. 
+ 
+“BRM” means Business & Relationship Management. 
+ 
+“Business Entertainment” means any activity where the primary purpose is to further business relations and 
+includes, but is not limited to such activities as dinners, golf outings, sporting events, and theatre and concert 
+performances.  
+ 
+“Business Event” means any activity, such as an industry conference, networking event, meeting or business 
+meal, where the primary purpose is to engage in analytical, research or information -gathering activities (for AG 
+Employees) or to conduct commercial activities (for B RM Employees).  
+ 
+“Bulletin 13 Exceptions Committee ” is comprised of the Chief Compliance Officer, the General Counsel, the 
+Chief Risk and Credit Officer,  the relevant Executive Committee member and a Managing Director in the requesting 
+employee’s direct management hierarchy.  
+ 
+“Compliance” means Fitch Ratings’ Global Compliance Group, which is responsible for supervising compliance 
+with this Bulletin as well as other Fitch Ratings policies  and procedures designed  to control,  mitigate and manage 
+conflicts of interest or the appearance of conflicts of interest.  
+ 
+“Close Personal Relationship” is a personal relationship with a level of intimacy that would create the appearance 
+of a personal influence in the management of business and/or Analytical Activities in a reasonable observer.  A 
+Close Personal Relationship is meant to cover relationships with a closer personal connection than mere 
+friendships or acquaintances, and is often, but not exclusively, romantic or relational.  
+ 
+“Compliance Monitoring System” refers to the software system used to disclose and manage certain potential 
+conflicts  of  interest, including but not limited to Securities trading activity  and Account  ownership of  Employees  and 
+their Family Members.  
+ 
+“Confidential Account” means an Account owned by an EU or UK -based non -Analytical Employee’s Family 
+Member, where the non-Analytical Employee has provided written certification that:  
+ 
+• The Employee  has no knowledge  of  his or her respective  Family Member’s Account  and holdings;  
+• The Employee understands that he or she is prohibited from sharing inside information and that the 
+Employee takes all reasonable steps to ensure that the respective Family Member has no access to 
+such information; and  
+• That the Employee will notify  Compliance immediately should he or she develop knowledge of his or 
+her Family Member’s Account or holdings.
+
+===== PDF PAGE 29 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 3 
+ 
+ 
+“Confidential Information” has the meaning as set forth  in Fitch Ratings: Bulletin 41: Confidential Information Policy 
+ 
+“Dependent Child” means someone who is (i) under 18, (ii) unmarried and (iii) does  not have a civil partner. 
+ 
+“E-feed Broker” means a financial institution  that participates  in automated electronic reporting of  Securities 
+transactions and holdings to Fitch Ratings.  
+ 
+“Employee” means an individual  employed  by Fitch Ratings or an employee of  another Fitch Group, Inc. company 
+who has access to Confidential Information and/or performs material services for Fitch Ratings.  
+ 
+“ETF” means exchange-traded fund.  
+ 
+“FAM” means the Fund & Asset Managers Group within Fitch Ratings. 
+“Family Members” means: 
+• An Employee’s spouse or any partner of that person considered by national law as equivalent to the 
+spouse;  
+• An Employee’s  Dependent Child, regardless of  residence; 
+• Any relative or dependent sharing the Employee’s  home, to the extent allowed by local law; 
+• Any legal entity (e.g.: company, partnership, trust, etc.) whose managerial responsibilities are 
+discharged by, controlled by, or established for the benefit of an Employee or a person listed above 
+(excluding, for the avoidance of doubt, a Blind Trust);  
+• Any person that has granted investment discretion  or trading authorization to an Employee  or a person 
+listed above; or  
+• In relation to employment related recusals see Exhibit A for variations to this definition applicable to 
+the Employees specified in Exhibit A.  
+The definition does not include: 
+- An Employee’s  spouse  during divorce  proceedings;  or 
+- An Employee’s  parent residing in the Employee’s  home if the Employee  can certify  that he or she 
+does not have any knowledge of the parent’s Securities holdings or trading activity.  
+“Fitch Ratings” means Fitch Ratings, Inc. and any of its credit  ratings affiliates that  issue ratings under the trade 
+name Fitch Ratings.  
+ 
+“Gift” means a tangible item, a favor, credit or points received as part of a loyalty program under which an 
+Employee  has not earned the points  or credits,  or money received (in all cases, free of  charge) by an Employee  in 
+connection with their work at Fitch Ratings. Gifts do not include Business Events or Business Entertainment.  
+ 
+“GSE” means government sponsored  enterprise. 
+ 
+“Group Investment Restriction” means a restriction applicable to an Employee and his  or her Family Members 
+that is described in the Bulletin 13 Annex.  
+ 
+“Insider Trading” (sometimes  referred to as “Insider Dealing”) means purchasing or selling a Security while aware 
+of MNPI relating to or impacting the price of the Security.  
+
+
+===== PDF PAGE 30 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 4 
+ 
+ 
+“Key Management Position” in a Rated Entity means: 
+ 
+• A member of  a board of  directors  of  that entity; 
+• An executive officer (e.g.: President, Chief Executive Officer, Chief Operating  Officer, Chief Financial 
+Officer, Chief Legal Officer, Treasurer, etc.) of that entity;  
+• Any role that reports directly  to the Chief Financial Officer  or Treasurer of  that entity; or 
+• A role in that entity that regularly interfaces with Fitch Ratings or other credit rating agencies. 
+“Managed Account” means an Account where the owner does not have input into the specific investment 
+decisions made in the Account. A Managed Account is under the control of an independent third -party who is a 
+licensed broker, investment advisor  or equivalent. Unlike a brokerage account that is maintained as a Blind Trust, 
+an owner may have knowledge of the holdings and transactional activity in a Managed Account.  
+ 
+“Material Non-Public Information” or “MNPI” has the meaning as set forth  in Fitch Ratings: Bulletin 41: Confidential 
+Information Policy  Fitch Ratings: Bulletin 41: Confidential Information Policy  
+ 
+“Non-Active Account” means any Account that an Employee certifies in writing is not used for purchasing or 
+selling Reportable Securities. A  Non-Active Brokerage Account is not considered an  Account  under this Policy. If 
+a Reportable Securities transaction occurs in a Non -Active Brokerage Account, this account will be considered 
+under this Policy to be an Account for a period of one year after the date of the last Reportable Securities 
+transaction.  
+ 
+“Non-Marketable Security” means Securities or other ownership interests  issued by a sovereign nation or 
+any agency thereof, where those Securities or ownership interest are not tra nsferable on any market 
+exchanges. 
+ 
+“Outside Interest” is as described  in Section 7.1. 
+ 
+“Political Cause” is as defined  in Section 10.1. 
+ 
+“Private Investment” means Securities or other ownership interests in companies, organizations, partnerships, 
+funds, assets or businesses, where those Securities or ownership interest are not publicly listed or traded.  
+ 
+“Rated Entity” means: 
+ 
+• The issuer, obligor,  guarantor, or credit support  provider  with respect to any Security that is rated or in 
+the process of being rated by Fitch Ratings;  
+• An entity to which Fitch Ratings has assigned  or is in the process  of  assigning  an Issuer Default  Rating; 
+and 
+• Originator, arranger, sponsor/servicer or any other party that interacts with a credit rating agency on 
+behalf of an issuer, including any person directly or indirectly linked to that Rated Entity by control.  
+“Rating” is as defined  in Fitch Ratings: Bulletin 07: Credit Products – Defined: Ratings, Assessments, Opinions and 
+Scores 
+ 
+“Ratings Eligible Entity” means any entity with more than $25 million (or the equivalent in another currency) in 
+outstanding debt.  
+ 
+“Regional Group Head” means an individual who  has regional management responsibility  for a  specific product 
+area within an analytical group (e.g., the Regional Group Head for EMEA Corporates).  
+ 
+“Reportable Security” refers to any Security holding  that is required to be disclosed  to Fitch Ratings in accordance 
+with this Bulletin. For clarity, Securities may be Reportable Securities even though this Bulletin does  not restrict an
+
+
+===== PDF PAGE 31 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 5 
+ 
+ 
+Employee  or Family Member from  holding  or trading in that Security. For all Employees  and their Family Members, 
+a Reportable Security includes:  
+ 
+• Debt securities, such as bonds,  notes, exchange traded notes and debentures; 
+• Equities,  such as common  stock  and preferred stock;  
+• Financial derivative contracts, such as equity and index options (including employee stock options), 
+rights and warrants and futures contracts;  
+• Municipal securities; 
+• Private Investments in Rated Entities or Ratings Eligible  Entities;  
+• Structured products;  and 
+• Obligations  of  GSEs, such as Fannie Mae or Freddie Mac. 
+For Analytical Group Employees and their Family Members, a Reportable Security also includes: 
+ 
+- Sector Funds 
+ 
+For Analytical Group Employees in FAM and their Family Members, a Reportable Security also includes: 
+ 
+- Mutual funds,  ETFs, and other collective  investment schemes; and 
+- Money market funds.  
+ 
+For Analytical Group Employees in Sovereigns, International Public Finance, Financial Institutions and their 
+Family Members, this also includes:  
+ 
+- Direct obligations  of  a sovereign nation or any agency thereof;  and 
+- Obligations  fully  guaranteed by a sovereign nation or any agency thereof.  
+The definition does not include:  
+Non-Marketable Securities issued by a sovereign nation or any agency thereof  
+ 
+“Reportable Securities Transaction” refers to a buy or sell transaction in any Reportable Security or that occurs 
+in any Account.  
+ 
+“Reporting Groups” is as defined  in Section 10.1. 
+ 
+“Restricted Stock” means any Security that, by contract or law, cannot be freely sold or transferred to another 
+person. 
+ 
+“Sector Fund” means a mutual fund, ETF, or unit trust that concentrates its investments in a specific industry or 
+market sector (e.g.: technology, financial services, healthcare, precious metals, etc.).  
+ 
+“Security” means any negotiable  financial instrument or investment. 
+ 
+“Sri Lanka National Ratings – Associated Persons” means (1) directors,  CEO and employees  of  Fitch Ratings 
+Lanka and (2) members of Sri Lankan national rating committees.  
+ 
+“Temporary Worker” means any individual that is contracted for a fixed duration or an approximate end date  
+directly by Fitch Ratings or indirectly via a third party.  
+ 
+“Tipping”  means the act of  providing  MNPI about a publicly  traded company  to a person who is not authorized to 
+have that information.  
+
+===== PDF PAGE 32 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 6 
+ 
+ 
+3. INTRODUCTION 
+Employees are expected to understand the requirements set forth in this Bulletin, and to take reasonable 
+precautions to identify, manage and/or avoid conflicts of interest and the appearance of conflicts of interest.  
+ 
+Under no circumstance may an Employee  perform  Analytical Activities  involving  a Rated Entity or Security if he/she 
+might be unduly influenced  in any way and under no circumstance may an Employee  use Confidential  Information 
+in the context of making his/her own personal investment decisions.  
+ 
+Employees  are required to report  personal investment information  relating to Accounts  and Reportable Securities 
+belonging  to them and their Family Members, to the extent allowed by law. This information  will be used on a need 
+to know basis for  compliance  monitoring  purposes,  and stored  in secured servers and files.  However, Fitch Ratings 
+may be required to disclose this information in connection with a subpoena, court order, or as otherwise required 
+by applicable law or by any judicial, legislative or regulatory authority, and may do so without prior notice to you.  
+ 
+4. SECURITIES TRANSACTIONS 
+Reportable Securities Transaction prohibitions, restrictions and requirements are designed to help Fitch Ratings 
+and its Employees avoid conflicts of interest and Insider Trading violations. The type of applicable restriction(s) 
+depends on the Employee’s j ob function as follows:  
+ 
+All Employees  and their Family Members are subject  to the following,  as detailed below: 
+ 
+- Insider Trading Prohibition;  
+- Thirty-Day Holding  Period Restriction;  
+- Short Sale Prohibition;  
+- Futures and Options  Prohibition;  
+- Pre-Clearance (FAM only – see section  4.6); and 
+- Securities Reporting (unless exempt from  reporting as set forth  in Section 6). 
+ 
+ 
+In addition  to the above,  Analytical Group Employees  and certain non-Analytical Group Employees  and their Family 
+Members are subject to the following as detailed in the Bulletin 13 Annexes:  
+ 
+- Group Investment Restrictions  
+ 
+- Sri Lanka National Ratings – Associated  Persons and their Family Members, are prohibited  from trading in 
+all securities rated or in the progress of being rated by  Fitch Ratings Lanka which are set out in the Sri 
+Lankan Securities Restricted List as detailed in Sri Lanka – Associated Persons’ Employees Restricted 
+Lists section on the Compliance Monitoring System for impacted employees.  
+ 
+Insider Trading Prohibition 
+ 
+Transacting in any security while in possession  of  MNPI (i.e., Insider Trading) or passing  along such information 
+to others who are not authorized  to have it (i.e., Tipping) is illegal. Penalties for Insider Trading  or Tipping  can 
+be severe. For example,  the person who trades on MNPI, or who  provides such information  to others, may be 
+subject  to civil penalties, criminal fines and imprisonment.  Additionally,  the improper use or disclosure  of  MNPI 
+could result in significant reputational damage to, or legal liability or regulatory liability for, Fitch Ratings.  
+ 
+Fitch Ratings strictly  prohibits  Insider Trading and Tipping.  An Employee’s  failure to adhere to this requirement 
+could result in dismissal from employment in addition to civil and criminal penalties.  
+
+
+===== PDF PAGE 33 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 7 
+ 
+ 
+Thirty Day Holding Period Restriction 
+ 
+Employees and their Family Members must hold Securities they purchase in any Account for at least 30 
+calendar days prior to selling the Security. The time frame is calculated on a last in, first  out basis. This restriction 
+does not apply to Securities transactions in Managed Accounts.  
+ 
+Short Sale Prohibition 
+ 
+Employees  and their Family Members are prohibited  from engaging  in short selling strategies seeking to profit 
+from downward  price movements  of  Securities. Similarly, Employees  and their Family Members are prohibited 
+from selling Securities they have borrowed or that they do not own outright.  
+ 
+This prohibition  does  not apply  to Securities transactions  in Managed Accounts.  
+ 
+Futures and Options Prohibition 
+ 
+Employees and their Family Members are prohibited from engaging in futures and options trading, with the 
+exception  of buying protective  puts.  As protective  puts are also subject  to the 30-day holding  period  restriction 
+described above, both the option expiration date as well as any sales to close or unwind some or all of the 
+position, must be more than 30 calendar days after the initial purchase date of the put.  
+ 
+This prohibition  does  not apply  to Securities transactions  in Managed Accounts.  
+ 
+Group Investment Restrictions 
+ 
+Analytical Group Employees and certain non -Analytical Group Employees and their Family Members are 
+subject  to the Group Investment Restrictions  applicable  to the Employee’s  group,  which restrict Employees  and 
+their Family Members from investing in certain industries, issuers, fund types and Security types. Group 
+Investment Restrictions  apply  whether or not Fitch Ratings assigns  or maintains a rating in respect of  a specific 
+issuer or Security. These restrictions are published in the Annex to this Policy.  
+ 
+If an Employee’s Group Investment Restrictions change as a result of a transfer to a different group, the 
+Employee and his or her Family Members remain subject to the previous Group Investment Restrictions for 
+sixty  (60) calendar days following  the transfer, while also being subject  to the Group Investment Restrictions, if 
+any, applicable to the new group.  
+ 
+Analytical Group Employee Group Investment Restrictions apply to Securities transactions in Managed 
+Accounts. It is each Analytical Group Employee’s and his or her Family Members responsibility to ensure 
+investment advisors comply with such restrictions. H owever, Group Investment Restrictions do not apply to 
+Securities transactions in Managed Accounts for non -Analytical Employees.  
+ 
+Global Group Heads or their designees  are responsible  for  establishing  and maintaining their respective  Group 
+Investment Restrictions, and for promptly informing Compliance when changes are required.  
+ 
+Pre-Clearance 
+ 
+Employees may obtain pre -clearance in the Compliance Monitoring System prior to the execution of a 
+Reportable Securities Transaction in their Accounts  or their Family Members’ Accounts.  Approval  will constitute 
+an affirmation  by Compliance that the transaction will not  result in a violation  of the provisions of this Bulletin if 
+executed within seven business days following the date of approval. Employees who do not pre -clear 
+transactions  in Accounts  and who transact in violation  of  any of  the rules herein (including any applicable  Group 
+Investment Restrictions) will be subject to discipline, and the failure to preclear the transaction will be viewed  
+
+
+===== PDF PAGE 34 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 8 
+ 
+ 
+as an aggravating factor in the determination of the level of disciplinary  penalty. FAM Employees must follow 
+the FAM Trade Pre -Approval Request Procedure.  
+ 
+Reportable Securities Transactions in Managed Accounts  are not subject  to pre-clearance. 
+ 
+Fitch Ratings’ President and Global Analytical Head must seek approval from the Fitch Ratings, Inc. Board of 
+Directors prior to executing a Reportable Securities transaction.  
+ 
+5. DIVESTMENT AND RECUSAL  REQUIREMENTS 
+5.1  Divestment Requirement 
+ 
+No Employee is permitted to perform Analytical Activities involving a Rated Entity or Security if he/she holds 
+that Security  or Securities of that  Rated Entity. Employees  and their Family Members who hold Securities that 
+conflict  with the Group Investment Restrictions  must divest  such Securities as soon  as possible,  but by no later 
+than the timeframes below. Recusals may need to be put in place when such Securities cannot be divested 
+immediately.  
+ 
+New Employee  Prior to the Employee’s  start date 
+ 
+Employee Transfer  As soon  as practical,  in communication  with 
+Compliance 
+ 
+Securities Acquired through a Gift or Inheritance,   As soon  as practical,  in communication  with 
+or which become restricted following marriage  Compliance 
+ 
+5.2  Recusal Requirement 
+ 
+It may be necessary in certain cases for Analytical Group Employees to recuse themselves from performing 
+Analytical Activities for a Rated Entity  or Security. A recusal  may be required if an Analytical Group Employee 
+or his or her Family Members hold a Security not permitted by the applicable Group Investment Restrictions, 
+until the Security can be divested. This may exist where:  
+ 
+- An Employee  or his or her Family Member purchased the Security in contravention  of  the requirements 
+of this Policy;  
+- An Employee  transfers to a Group which restricts ownership in a previously  held Security; 
+- A Security held by an Employee  or his or her Family Member becomes  restricted following  marriage; 
+- An Employee  or his or her Family Member receives a restricted Security through inheritance or gift;  
+- An Employee  or his or her Family Member holds  Restricted Stock;  or 
+- An Employee’s Family Member is employed by an issuer of Securities, and holds Securities of that 
+issuer (including Securities received as compensation).  
+In addition,  other potential  conflicts  may arise that would require recusal, such as where: 
+Reason Employee  or Family Member 
+Holds Restricted Securities  
+Divestment  Deadline 
+
+===== PDF PAGE 35 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 9 
+ 
+ 
+- An Analytical Group Employee has a Close Personal Relationship with someone who holds a Key 
+Management Position at an entity that operates in a sector prohibited under the Analytical Group 
+Employee’s Group Investment Restrictions; 2 and 
+- An Analytical Group Employee or his or her Family Member has an Outside Interest (as described in 
+section 7.1 below)  that creates a conflict of interest or  the appearance of a  conflict of interest with the 
+Employee’s work for or with Fitch Ratings.  
+ 
+6. ACCOUNTS AND SECURITIES REPORTING 
+This Section sets forth  the requirements regarding the reporting of  certain Accounts  and Securities. 
+ 
+6.1  Reporting Obligations and Exemptions 
+ 
+Unless explicitly exempted in accordance with one of the three Exemptions set forth below, Employees must 
+ensure that they and their Family Members disclose  Accounts,  Reportable Securities holdings and  Reportable 
+Securities Transactions in the manner set forth  below. However, transactions  and holdings  in investments other 
+than Securities, and the opening of Accounts that are prohibited by law from holding any type of Reportable 
+Security (e.g., mutual -fund only -accounts, bank accounts that can only hold cash, etc.), are not subject to the 
+disclosure,  reporting and/or pre -clearance requirements of  this Policy,  except with respect to FAM employees, 
+who are subject to the disclosure, reporting and/or pre -clearance requirements wit h respect to mutual fund 
+accounts and mutual fund trading activity.  
+ 
+Exemption 1: Employees  who by virtue of  their role do not have routine access to electronic files  and systems 
+storing confidential ratings, or commercial or financial information are not subject to the Securities Reporting 
+requirement. These roles include:  
+ 
+- Messengers, drivers, cleaning and cafeteria staff;  
+- HR staff;  
+- Front desk staff;  
+- Facilities;  and 
+- Employees who work exclusively for non -ratings affiliates, but who are legally employed and paid by 
+Fitch Ratings because the affiliate does not have a separate legal entity in the country in which the 
+Employee works or resides, provided there are proper p hysical segregation and access controls 
+between the Fitch Ratings’ office and the affiliate’s office.  
+Exemption 2: Reporting is not required for  the following  types  of  Securities transactions:  
+ 
+- Changes in the number, nature or character of  Securities previously  reported due to subsequent 
+corporate actions (e.g.: stock splits, dividends, mergers and acquisitions, etc.);  
+- Securities transactions  made in accordance  with automatic investment plans, such as dividend 
+reinvestments (provided that the initial investment in the Security and plan was Reported);  
+- Securities transactions  in Blind Trusts (Accounts  maintained as Blind Trusts are not reportable); and 
+ 
+ 
+ 
+ 
+2 For Analytical Group Employees in Japan, Hong Kong, Singapore , Taiwan and voting members of Fitch Ratings Japan rating committees, 
+please refer to Exhibit A for the variation in the definition of Family Members who would be deemed as having a “Close Personal Relationship” 
+with the Employee.  
+
+===== PDF PAGE 36 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 10 
+ 
+ 
+- Securities transactions in Managed Accounts belonging to non -AG Employees and their Family 
+Members, provided that Compliance has reviewed the Account agreement and confirmed that the 
+Account qualifies for treatment as a Managed Account.  
+Exemption 3:  Reporting of transactions, holdings or account statements is not required for the following 
+Accounts, after written certification regarding Account status is provided to Compliance:  
+ 
+- Non-Active Brokerage Accounts of Employees and their Family Members, so long as the Account 
+retains its Non -Active status; and  
+- Confidential  Accounts  belonging  to Family Members of Employees,  so long as the Account  retains its 
+Confidential Account status.  
+6.2  Accounts 
+ 
+Employees must report all Accounts owned by themselves and their Family Members via the Compliance 
+Monitoring System unless specifically exempt from the reporting requirements under this Bulletin. For the 
+avoidance of doubt, this requirement applies to Man aged Accounts, and Accounts designated as Confidential 
+Accounts or Non -Active Brokerage Accounts.  
+ 
+6.3  Reporting of Securities Transactions and Accounts 
+ 
+6.3.1  Manual Reporting Requirements 
+Unless an exemption is available or the Account is held at an Efeed Broker, Employees must manually 
+report all Reportable Securities Transactions and other Securities holdings, and manually submit all 
+Account statements, as set forth below. Employees who f ail to submit required information or documents 
+will be subject to disciplinary measures which may include being required to move their Account(s) to an 
+Efeed Broker.  
+ 
+- Reportable Securities Transactions. Securities transactions in  Accounts  belonging to  Employees  and 
+their Family Members must be reported by the Employee manually to the Compliance Monitoring 
+System within 10 business days 3 of the trade date. 4 
+ 
+- Account Statements. Employees and their Family Members must upload quarterly statements for 
+Accounts to the Compliance Monitoring System within 15 business days following the end of the 
+calendar quarter, or as soon  as practical.  If there have been no transactions  in an Account  in any given 
+quarter and the reporting in the Account  is otherwise current, in lieu of  uploading  a quarterly statement 
+an Employee  may certify  that there have been no transactions in  the Account in  a manner suitable to 
+Compliance. 
+ 
+- Other Reportable Securities Holdings. An Employee must report the acquisition of Securities by 
+Employees or their Family Members through other means such as by gift, inheritance, marriage, 
+compensation payment (e.g., stock options or Restricted Stock), etc., manually via the Compliance 
+Monitoring System.  If such holdings result in a potential conflict under the Employee’s Group 
+Investment Restrictions, the Employee must discuss possible recusals and liquidations with 
+Compliance and follow any required remediation plan set by Compliance.  
+ 
+ 
+3 All Analytical Group Employees who have an individual license with the Monetary  Authority  of Singapore  (whether  based in Singapore  or 
+elsewhere) must report listed Securities transactions in their accounts within 7 calendar days of the trade date.  
+4 This transaction reporting requirement does not apply to securities transactions executed in Accounts that Compliance has certified to be 1) 
+Managed Accounts held by non -Analytical Employees or 2) Confidential Accounts.  
+
+===== PDF PAGE 37 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 11 
+ 
+ 
+6.3.2  Electronic (“EFeed”) Reporting Requirements 
+Fitch Ratings has arranged to receive automated electronic reporting of Securities holdings and 
+transactions from a number of Efeed Brokers as discussed below. If Reportable Securities Transactions 
+are electronically reported to Fitch Ratings through an Ef eed Account, the Employee is not required to 
+manually report them via the Compliance Monitoring System. A list of Efeed Brokers and instructions on 
+how to link Accounts to electronic feeds is available from Compliance.  
+ 
+6.4  Efeed Broker Requirement 
+ 
+Any Account held by Fitch Ratings Employees and/or their Family Members in the US must be held at an E - 
+feed Broker, unless the Account  has been grandfathered 5 in or one of  the below exceptions  applies.  Employees 
+who are not residents of  the US may maintain Accounts  at Brokers that do not provide  an E-feed,  but any such 
+Account is subject to increased manual reporting under Section 6.3.1, and adherence to the manual reporting 
+requirements will be strictly construed against the Employee. New Fitch Ratings Employees must transfer all 
+non-E-feed Reportable Accounts to a n approved E -feed Broker within 60 days of notification.  
+ 
+Employees  are exempt from  the Efeed  Broker requirement in the following  cases: 
+- Where an Employee’s Family Member works at a brokerage firm that does not provide Fitch Ratings 
+with an electronic feed, but requires its employees to maintain their Accounts at that firm;  
+- Where an Employee  or his or her Family Member holds  a Security that cannot be legally sold  or 
+transferred to an E -feed Broker; and  
+- Accounts  owned by an Employee  or his or her Family Member set up for  employee stock  option plans 
+that are limited to transactions in the sponsoring company’s stock.  
+ 
+ 
+7. OUTSIDE INTERESTS AND EXTERNAL RELATIONSHIPS 
+Employees are prohibited from holding any position as a partner, officer, director, trustee, board member, or 
+controlling stakeholder of any Rated Entity or Ratings Eligible Entity that operates in a sector that is covered by 
+the Employee’s  group,  or that otherwise presents a conflict  of interest in respect of  their position  of employment at 
+Fitch Ratings.  
+ 
+7.1  Employee Outside Interests 
+Employees are required to obtain approval from their Global Group Head (or, for non -Analytical Group 
+Employees,  other global  management) and notify  Compliance prior to engaging in any type of  “Outside Interest” 
+as described below:  
+ 
+- A position  as a partner, officer,  director,  trustee, board  member, or controlling  stakeholder  of  any Rated 
+Entity or Ratings Eligible Entity that the Employee is not outright prohibited from serving;  
+- A position  as an officer  or board member of  a trade or professional  organization or association;  
+- A position  as an officer,  board member or trustee of  an educational institution;  
+- An elected or appointed  government office;  or 
+ 
+ 
+5 Accounts  that are maintained in the United States and belong to Employees and their Family Members are not subject to the Efeed requirement 
+if, prior to February 7, 2011 the Account was opened and the employee worked at Fitch Ratings. However, the employee will be required to 
+close or transfer the Account if reporting requirements are not fulfilled or the employee violates Fitch Policy.  
+
+===== PDF PAGE 38 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 12 
+ 
+ 
+- Any position serving a government, public agency, authority, commission, regulatory body, or self - 
+regulatory organization.  
+These requirements apply to both for -profit and non -profit organizations. Employees seeking approval to 
+engage in an  Outside Interest must submit a request for  approval via  the Compliance Monitoring  System prior 
+to beginning to engage in the Outside Interest.  
+7.1.1 Outside Employment 
+ 
+In addition  to the Outside Interest requirements set forth  in this Policy,  Employees  are directed  to Fitch Group 
+Bulletin 6: Employee Code of Conduct.  That policy contains additional prohibitions and requirements relating to 
+outside employment/ activities  under section 7 ‘Conflicts of Interest’ including fully disclosing and obtaining 
+approval in advance all Outside Employment by the Human Resources Department . For the avoidance of 
+doubt, all Outside Interests are deemed Outside Employment  
+ 
+7.2  External Relationships 
+An Analytical Employee must immediately notify his/her Managing Director and Compliance if he/she has a 
+Close Personal Relationship with someone who holds  a Key Management Position  at a Rated Entity or Ratings 
+Eligible Entity that operates in any sector that is covered by the Analytical Employee’s group. Similarly, an 
+Analytical Employee in the International Public Finance, US Public Finance, or Sovereigns groups must notify 
+his/her Managing Director and  Compliance if he/she has a Close Personal Relationship with someone who 
+holds an elected or appointed government office.  
+ 
+If the Analytical Employee has a Close Personal Relationship with someone who holds a Key Management 
+Position at a Rated Entity or Ratings Eligible Entity that operates in any sector covered by the Analytical 
+Employee’s group, the Analytical Employee must file a recusal.  
+ 
+For Analytical Group Employees in Japan, Hong Kong, Singapore and Taiwan, and voting members of Fitch 
+Ratings Japan rating committees  please refer to Exhibit  A for  the variation in definition  of  Family Members who 
+would be deemed as having a Close Personal Relationship with the employee.  
+ 
+ 
+8. GIFTS 
+All Employees, regardless of job function, are prohibited from soliciting or accepting Gifts in connection with their 
+work at Fitch Ratings, other than as set forth in the below chart.  
+ 
+While Analytical Group Employees are also prohibited from extending gifts in connection with their work at Fitch 
+Ratings, BRM and non -Analytical Group Employees may extend Gifts that are appropriate and reasonable given 
+the circumstances.  
+ 
+Solicit or accept a Gift  Not Permitted  Not Permitted 
+Extend a Gift   Not Permitted  Permitted 
+ 
+Any exception to this requirement  must be granted in advance  by Compliance.  
+ 
+8.1  Protocol to be followed when a Gift is received: 
+ 
+- The Gift  must be returned, donated  or destroyed;  
+- The Employee  must send a letter to the donor that explains Fitch Ratings’ restriction against accepting 
+Gifts and requests no Gifts be proffered in the future; and  
+ 
+Action  Analytical Employees  BRM and Non-Analytical Employees  
+
+===== PDF PAGE 39 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 13 
+ 
+ 
+- The Employee must disclose the Gift and upload a copy of the letter to the Compliance Monitoring  
+System.  
+ 
+9. BUSINESS EVENTS AND BUSINESS ENTERTAINMENT POLICY 
+9.1  Business Events 
+When participating  in Business Events, Employees  are required to maintain a clear separation of  analytical and 
+commercial activity, and adhere to the requirements set forth in Fitch Ratings: Bulletin 04: Segregation of 
+Commercial & Analytical Activities  Fitch Ratings: Bulletin 04: Segregation of Commercial & Analytical Activities  
+Additional considerations and restrictions applicable to Analytical Group Employees are set forth below.  
+ 
+9.1.1  Analytical Group Employees  may attend or present at Business  Events, provided they  remain 
+aware of,  and appropriately  manage, perception issues that may arise from attendance  at these 
+events. 
+9.1.2  Furthermore, Business Event expenses incurred by Analytical Group Employees  must be paid 
+for by Fitch Ratings and must conform to Fitch Ratings’ expense reimbursement policy. 
+However: 
+- An entity may only pay for  an Analytical Group Employee’s  travel or lodging  expense when 
+attending a Business Event if it is related to an activity  necessary to conduct  Fitch Ratings’ 
+business, and if payment of that expense has been incorporated into the commercial 
+agreement between the entity and Fitch Ratings;  
+- A conference sponsor  may pay for  an Analytical Group Employee’s  attendance fee  only if 
+he or she is a speaker or panelist; and  
+- Analytical Group Employees  are permitted  to accept supplies,  food,  and beverage during 
+a Business Event only if the value of such items does not exceed $25, or the equivalent 
+in other currencies. 
+ 
+9.1.3  With the prior approval  of their Regional Group Head, Analytical  Group Employees  may invite 
+employee(s) of a Rated Entity, its affiliates, or investors to be their guest at appropriate 
+Business Events.  
+9.1.4  An Analytical  Group Employee  may attend a reception at  a Business Event, if the reception  is 
+open to all conference attendees without charge.  
+9.2  Business Entertainment 
+Business Entertainment must: 
+ 
+9.2.1  Be reasonable, customary  and not overly frequent; 
+ 
+9.2.2  Include both Fitch Ratings Employees  and those of  the entity extending or sponsoring  the 
+Entertainment (otherwise it is deemed a Gift); and  
+ 
+9.2.3  Not lead to an influence in ratings or any decision  to purchase goods  or services from a 
+supplier, or create the perception that such influence may exist.  
+ 
+Business Entertainment that is extravagant, prohibited by law or known to violate an external party’s policy is 
+prohibited  under this Policy.  Details as to the restrictions  on Business Entertainment are set forth  on the below 
+chart: 
+
+
+===== PDF PAGE 40 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 14 
+ 
+ 
+ 
+ 
+Attend a Business Event paid by Fitch 
+Ratings 
+Permitted  Permitted
+ 
+ 
+Attend a Business Event paid by a third party  Not Permitted  Permitted   
+Extend Business Event Permitted   Permitted 
+Attend Business Entertainment  Fitch Sponsored  Only* Permitted  
+ 
+Extend Business Entertainment  Not Permitted**  Permitted  
+ 
+Accept supplies  and food/beverage  during 
+A business  meeting  (not exceeding  $25 or 
+equivalent in other currency)  
+ 
+Permitted  Permitted  
+ 
+ 
+*Analytical Group Employee must excuse themselves from any fee related or commercial discussion while BRM employees must 
+exclude themselves from any analytical discussion. 
+** Analytical Group Employees who are members of the Fitch Ratings Executive Committee are permitted to extend Business 
+Entertainment. 
+ 
+10. POLITICAL OR CHARITABLE CONTRIBUTIONS 
+10.1  Political Contributions 
+Under no circumstances may  corporate funds, facilities, or services of any  kind be paid or furnished (i) to any 
+political candidate or prospective candidate for public office, (ii) to any political party, or (iii) to any political 
+initiative, referendum, or other form  of  political campaign (each such candidate,  party or campaign,  individually, 
+a “Political Cause”) by any Employee or representative on behalf of Fitch Ratings.  Nothing in this Bulletin 
+prohibits an individual Employee or Fitch Ratings’ representative from making a political contribution on his or 
+her own behalf; however, any proposed contribution by any BRM Employee within the U.S. Public Finance 
+group, Internati onal Public Finance group, or Sovereigns group (collectively referred to as the “Reporting 
+Groups”) or Analytical  Employee within a Reporting Group i n excess of US$500, or the local currency 
+equivalent, in the same calendar year to the same Political Cause must first be reported to and approved by 
+the Personal Conflicts Monitoring team in Compliance.  
+ 
+10.2  Charitable Contributions 
+A charitable contribution  on behalf of  Fitch Ratings, excluding  any gift  made pursuant to an existing  matching 
+gift  program,  may only be made with the prior written approval  in accordance  with Section 3.7 of  Fitch Group: 
+Bulletin 01: Anti -Corruption Policy  Fitch Group: Bulletin 01: Anti -Corruption Policy  Nothing in this Bulletin 
+prohibits an individual employee or representative of Fitch from making a charitable contribution on his or her 
+own behalf.  
+ 
+11. EXCEPTIONS TO POLICY REQUIREMENTS 
+Under limited circumstances, exceptions to specific requirements of this Bulletin may  be granted. The Bulletin 13 
+Exceptions Committee will consider exceptions not expressly contemplated in this Bulletin. To request an 
+exception,  the Employee  and his/her Managing Director,  Global Group Head or Regional Group Head must submit 
+a request on the Compliance Monitoring System.  
+Action 
+ Analytical  Employees  
+ BRM and Non-Analytical 
+Employees  
+
+
+===== PDF PAGE 41 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 15 
+ 
+ 
+12. NON-COMPLIANCE 
+Failure to comply with this policy may lead to disciplinary action, up to and including dismissal from employment. 
+In addition, with respect to certain policy requirements (e.g., the prohibitions on Insider Trading), the Employee 
+may be subject to personal  civil and criminal liability.  
+ 
+As may be required by law, Fitch Ratings will as soon as practicable disclose any case where a rating was 
+potentially impacted by a conflict of interest, and indicate whether there was an actual impact to the rating.  
+ 
+If a violation  involves  a Security purchased by an Employee  while in possession  of MNPI, the Employee  in violation 
+must not sell the Security  until he/she is no longer in possession  of MNPI, typically  after the rating action  or other 
+relevant event occurs and is published.  In this event, the Employee must be in consultation with and follow the 
+directions of Compliance.  
+ 
+13. QUESTIONS 
+For questions  or issues concerning this Policy,  please contact  compliance@fitchratings.com.  
+ 
+ 
+ 
+Owner: 
+ Chief Compliance Officer  
+Summary of Changes: 
+ Appendix  A 
+Supplements: 
+ The following policies or procedures are referenced in this Bulletin 
+and should be consulted  when interpreting and revising this Bulletin: 
+Fitch Rating Definitions  
+Fitch Group: Bulletin 01: Anti -Corruption Policy  
+Fitch Ratings: Bulletin 04: Segregation of 
+Commercial & Analytical Activities  Fitch Ratings: 
+Bulletin 04: Segregation of Commercial & Analytical 
+Activities  
+Fitch Ratings: Bulletin 13: Annexes  
+
+
+===== PDF PAGE 42 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 16 
+ 
+ 
+Exhibit A 
+Family Member definition for Employment Related Recusals 
+ 
+“Family Members” may be defined  with additional  variations or specifications  in the following  jurisdictions  for  the 
+purpose of recusal from participation in or otherwise influencing the determination of a rating.  
+ 
+An employee must be recused in the following  jurisdictions  if he or she: 
+ 
+LATAM 
+Colombia Has a spouse  or relatives up to the first  degree of  consanguinity,  affinity  or civil. Article 
+2.22.1.1.9, Decree 2555, 2010. 
+ 
+In Colombia  the family  is established  taking into the following  issues among others: (i) degree 
+of consanguinity; (ii) degree of affinity and (iii) civil. Articles 35 to 62, Civil Code:  
+ 
+First degree of consanguinity/affinity 
+• Consanguinity:  Parents 
+• Consanguinity:  Children 
+• Affinity:  Spouses  
+• Affinity:  Parents-in-law 
+• Affinity:  Son-in-law / Daughter-in-law 
+ 
+First Civil 
+• Adoptive  parents and adopted  children 
+El Salvador Has a spouse or relative within the first degree of consanguinity who are debtors of the 
+financial system  for  credits that have been established  sanitation reserves of  50% or more of 
+the balance. Article 23 Stock Market Regulation . 
+ 
+Has a spouse or relative within the fourth degree of consanguinity or second affinity of the 
+members of  the Board of  Directors  of  the Ratings Agency or their respective  spouses. Annex 
+3- Administrators Registration Regulation in the Public Stock Registration of the  
+Superintendencia de Valores . 
+ 
+Has a spouse  and relatives within the first  degree of  consanguinity  of the issuer´s employees. 
+Article 95 (e) of Stock Market Regulation . 
+Honduras Has a spouse or relative up to the fourth degree of consanguinity  or second degree of affinity 
+that are in any of the situations provided below:  
+ 
+• People who have a subordination  or dependency  link with the issuer or companies  related 
+to it.  
+• Officials  who have a contract  for  the provision  of  professional  services with the issuer or its 
+related companies,  with the issue being rated, or with a shareholder of  more than 10% of  their 
+share capital.  
+• People who provide or have provided within 12 months prior to the rating of financial 
+advisory,  consulting  or auditing services for  the financial statements of  the issuer or its related 
+companies.  
+• The partners or administrators of the aforementioned persons as well as those who sign 
+audit reports and opinions.  
+• People who have provided  directly  or indirectly in the design,  analysis, authorization  and 
+
+
+===== PDF PAGE 43 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 17 
+ 
+ 
+ 
+ placement of  the issue being rated. 
+• People who have directly  or indirectly held securities issued by the issuer or have received 
+securities issued by the issuer as collateral.  
+• The holders of securities issued by the issuer or have received securities issued by the 
+issuer under guarantee.  
+• People who have links with the issuer or issuance or who may be compromised  by it. 
+ 
+Article 25 #7 of  CRAs Regulation (C-066/2010) 
+Nicaragua The members of the Rating Committee, directors and shareholders of a Rating Company, 
+must not be involved in the impediments established in articles 29,30,31,34 and 35 of the 
+General Law of  Banks, Non-Banking Financial Institutions  and Financial Groups.  Article 15 of 
+CRA Regulation - Resolution No CD -SIBOIF-579-2-ABR1-2009. 
+ 
+Has a spouse  or partner permanently in de facto  union or having a kinship relationship within 
+the second degree of consanguinity or second affinity with a member of the Board of 
+Directors  of  a rated bank. Article 29 #2 of  CRA Regulation- Resolution No CD-SIBOIF-579-2- 
+ABR1-2009. 
+ 
+Has a spouse  or relative within the fourth degree of  consanguinity  or second  of  affinity  and 
+that the latter had a personal interest or conflict  of interest with rated banks. Article 34 of  CRA 
+Regulation - Resolution No CD -SIBOIF-579-2-ABR1-2009. 
+APAC 
+Hong Kong Has a spouse,  partner, parent, child or sibling  who works for  a Rated Entity,  pursuant to SFC 
+Code of Conduct for Persons Providing Credit Rating Services, Para. 42(d)  
+Singapore Has a spouse, son, adopted son, step -son, daughter, adopted daughter, step -daughter, 
+father, step -father, mother, step -mother, brother, step -brother, sister or step-sister, who works 
+for a Rated Entity, pursuant to MAS Code of Conduct for Credit Rating Agencies, Para. 7.5  
+Japan 
+(also applies  to 
+Fitch Rating 
+Japan rating 
+committees)  
+Has a spouse,  or a relative by blood  or a relative by affinity  of the first  degree of  kinship who 
+works for  a Rated Entity as an officer  or in a similar role, pursuant to Articles 66-35 of  Financial 
+Instrument Exchange Acts and Article 308 of Cabinet Office Ordinance 52/2007  
+Taiwan Has a spouse or a relative within the second degree of kinship who is a responsible person 
+or managerial officer of a Rated Entity, pursuant to FSC Regulations Governing the 
+Administration of Credit Rating Agencies, Article 22  
+
+
+===== PDF PAGE 44 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 18 
+ 
+ 
+Appendix A 
+Summary of Changes 
+• An Exhibit  was added  to address  the expanded  definition  of  Family Members for  employment  related 
+recusals for employees in the APAC region.  
+• Analytical Group names were updated  to reflect organizational changes. 
+• The following  provisions  within Securities trading and reporting were amended: 
+- removing the deadline for  reporting an account;  
+- reporting of transactions was reduced from 10 business days to 7 calendar days for employees 
+licensed with the MAS authority; and  
+- pre-clearance was made optional.  
+• Restrictions  on Political  Contributions  were added  for  certain groups.  
+• Guidance was added  for  Charitable Contributions.  
+ 
+1 June 2021 
+Definition  of  Rated Entity changed to reflect relevant related third parties. 
+ 
+2 July 2021 
+Modified  section  6.3.1 to reflect the method by which employees  report manual account statements.  
+6 August 2021 
+Re-inserted footnote  on pg. 9 that  was inadvertently removed. Updated table  in section  8 to  remove permitted 
+business expense already included in section 9.2.3. Fixed general formatting issues.  
+17 February 2022 
+This policy  was modified  to include the definition  of  Dependent Child and to add hyperlinks to the Bulletins 
+referenced in the text.  
+24 February 2022 
+Typo corrected  in Definition  of  Rated Entity.  
+27 May 2022 
+Updates made to Exhibit  A to include LATAM countries. 
+25 Nov 2022 
+Definition  of  Sri Lanka National Ratings – Associated  Persons added  and additional  investment restrictions  for  this 
+group added under section 4.  
+Modified section 6.4 to clarify Efeed broker requirement for US resident employees including those living abroad 
+but with accounts in the US.  
+Typos corrected in Exhibit A for Colombia and Honduras. 
+Removed reference to Compliance Hotlines under section  13. 10 
+May 2023 
+Typo corrected  to remove blank footnote.  
+ 
+25 April 2024 
+ 
+Addition of policy application to all Fitch Group, Inc. employees who have access to Confidential Information and/or 
+perform material services for Fitch Ratings.  
+ 
+
+===== PDF PAGE 45 =====
+Bulletin 13: Global Securities Trading 
+and Conflicts of Interest Policy 
+fitchratings.com 19 
+ 
+ 
+Section 7.3 on Outside Employment updated to remove reference to HR’s Outside Employment and Consulting policy 
+and replaced with correct policy reference, Fitch Group Bulletin 6: Employee Code of Conduct.  
+ 
+Section 2 clarification to definition under ‘Reportable Security’ to add ‘Non -Marketable Securities’ which will  not be 
+included in the scope of Government/Sovereign Reportable Securities  
+ 
+Section 2 new definition of Non -Marketable Security  
+ 
+10 December 2024 
+ 
+Moved Outside Employment section under Outside Interest s as a new subsection  7.1.1. 
+ 
+March 2025 
+ 
+Section 2 deleted references to "Credit Policy" and "Criteria" under definition of “Analytical Group Employee” or “AG 
+Employee.”  
+ 
+Section 2 removed reference to “Chief Credit Officer” under definition of “Bulletin 13 Exceptions Committee”  to reflect 
+current team structure . 
+ 
+August 2025 
+ 
+Section 2 - added  reference to “Chief Risk and Credit Officer” under definition of “Bulletin 13 Exceptions Committee”.  
+ 
+September 2025 
+ 
+Section 2 – updated group name to “Corporates, Infrastructure and Project Finance” and removed “Global 
+Infrastructure Group” to reflect structure change as part of Global Analytical Group Realignment.  
+ 
+Section 2 – clarification to definition ‘Confidential Account’  
+ 
+Section 10.1 - removed reference to “Global Infrastructure Group” to reflect structure change as part of Global 
+Analytical Group Realignment.  
+ 
+ 
+
+===== PDF PAGE 46 =====
+Bulletin 41: Confidential Information 
+Policy 
+ 
+ 
+ 
+EXECUTIVE SUMMARY  
+ 
+Objective: To communicate Fitch Ratings’ policy regarding the protection and permissible dissemination  of  
+Confidential Information, including Material Non -Public Information  (MNPI). 
+ 
+Application:  
+ 
+Fitch Ratings, Inc. and each of its credit rating affiliates that issues ratings under the trade name 
+“Fitch Ratings”. 
+ 
+1. OVERVIEW 
+ 
+This Policy sets forth those requirements applicable to Fitch Ratings Representatives regarding the protection and 
+permissible dissemination of Confidential Information, including MNPI and Confidential Analytical Information.  
+ 
+As outlined in this Policy, different restrictions apply to the dissemination of the different types of Confidential 
+Information.  
+ 
+2. DEFINITIONS 
+ 
+“Analyst” shall have the meaning as set forth in Bulletin 02: Rating Process Manual. 
+ 
+“Confidential Information” means information that is not generally known to the public and that pertains to Fitch 
+Ratings’ finances, business or operations, or to a Rated Entity’s finances, business or operations, or to an Analytical 
+Product that Fitch Ratings has produced, or expec ts to produce, whether the information was provided by a third 
+party or created or obtained by Fitch Ratings. Confidential Information includes but is not limited to Confidential 
+Analytical Information and MNPI.  
+ 
+“Confidential Analytical Information” means any Confidential Information entrusted to a Fitch Ratings 
+Representative by a Rated Entity or its agents or representatives for purposes of Fitch Ratings performing data and 
+information analysis and the evaluation, approval, issuing and review of Cre dit Ratings.  
+ 
+“Credit Rating” means a Rating that assesses the creditworthiness of an issuer or its Securities.  
+ 
+“Analytical Products” shall have the meaning as set forth in Fitch Ratings: Bulletin 07: Credit Products – Defined: 
+Ratings, Assessments, Opinions and Scores . 
+ 
+“EU” means the European Union.  
+ 
+“EU CRA” means Fitch Ratings Ireland Limited (including any of their branches (wherever located)) . 
+ 
+“EU Endorsed CRA” means any of Fitch Ratings, Inc., Fitch Ratings Ltd., Fitch Ratings CIS Ltd., Fitch Australia 
+Pty Ltd., Fitch Ratings Brasil Ltda., Fitch (Hong Kong) Ltd., Fitch Ratings Japan Ltd., Fitch Mexico S.A. de C.V. or 
+Fitch Singapore Pte. Ltd. (including any of their branches (wherever located)) . 
+EU Endorsed Rating means a  Public International Rating where the relevant Primary Analyst is employed by 
+Fitch Ratings Ltd (including its branch in Dubai), Fitch Ratings CIS Ltd (including its branch in Moscow), Fitch 
+Ratings, Inc., Fitch Australia Pty Ltd. (including its branches in Taiwan and Korea), Fitch Ratings Brasil Ltda., Fitch 
+(Hong Kong) Ltd., Fitch Ratings Japan Ltd., Fitch Mexico S.A. de C.V. or Fitch Singapore Pte. Ltd.  
+“Fitch Ratings” means Fitch Ratings, Inc. and each of its credit rating affiliates that issues Ratings under the trade 
+name “Fitch Ratings”.  
+“Fitch Ratings Representatives” means all officers, directors and employees of Fitch Ratings and  other persons 
+performing similar functions for or on behalf of Fitch Ratings.  
+
+
+===== PDF PAGE 47 =====
+Bulletin 41: Confidential Information 
+Policy 
+ 
+ 
+ 
+“Legitimate Business Interest” means that a prospective recipient of Confidential Information would be able to 
+derive a legitimate business benefit from access to, or knowledge or possession of, the Confidential Information. 
+That benefit may be to Fitch Ratings or its affiliates, or to the owner and/or provider of the Confidential Information 
+and/or a third party. The Legitimate Business Interest standard is broader in scope (i.e., it permits a wider 
+dissemination of the information) than the “Need to Know”  principle.  
+“Material Nonpublic Information (“MNPI”)” , also referred to as “Inside Information” in some jurisdictions, means 
+Confidential Information that a reasonable investor would consider important in deciding whether to buy, hold or 
+sell a Security, or that relates, directly or indirectly, to one or mor e issuers or to one or more Securities which, if it 
+were made public, would likely have a significant effect on the prices of those Securities. Examples of MNPI may 
+include but are not limited  to: 
+ 
+- potential or pending rating actions and non -rating opinions or views, and any related analyses, 
+reports or press releases created by Fitch  Ratings; 
+ 
+- information regarding the date/time that a rating committee has been scheduled if the resulting 
+rating action is likely to have a significant effect on the price of issued and outstanding Securities, 
+unless the date/time has been publicly disclosed in acco rdance with applicable legal or regulatory 
+requirements; 
+ 
+- Fitch Ratings being awarded a mandate to produce an Analytical Product vis -à-vis a Rated Entity 
+or Security, if knowledge of the mandate would itself result in disclosure of a material, nonpublic 
+transaction or event of a Rated  Entity;  
+ 
+- the withdrawal of an Analytical Product for analytical  reasons; 
+ 
+- earnings or earnings  projections;  
+ 
+- strategic  plans; 
+ 
+- new products, discoveries or  services; 
+ 
+- a pending or prospective merger, acquisition, tender offer or  financing;  
+ 
+- the disposition of a subsidiary or a significant sale of  assets;  
+ 
+- the gain or loss of a material contract, customer or  supplier;  
+ 
+- a change in  management; 
+ 
+- an increase or decrease in dividends, the declaration of a stock split, or the offering of  Securities; 
+ 
+- government investigations or other actions;  and 
+ 
+- material litigation, including potential litigation and litigation  developments.  
+“Need to Know” means that, at the time information is to be provided, a prospective recipient of the information 
+requires that specific information to perform his or her duly assigned tasks or services for or on behalf of Fitch 
+Ratings. The Need to Know standard is narro wer in scope (i.e., it permits less dissemination of the information) 
+than the “Legitimate Business Interest” standard.  
+“Rated Entity” means: (i) the issuer or obligor with respect to any Security that has received or is expected to 
+receive, as the case may be, a Rating from Fitch Ratings or (ii) an entity to which Fitch Ratings has assigned or is 
+expected to assign, as the case may be, a Rating.  
+“Rating” means a “Rating” as defined in Fitch Ratings: Bulletin 07: Credit Products – Defined: Ratings, 
+Assessments, Opinions and Scores . 
+
+
+===== PDF PAGE 48 =====
+Bulletin 41: Confidential Information 
+Policy 
+ 
+ 
+ 
+“Security(ies)” means any note, stock, treasury stock, security future, security -based swap or derivative, bond, 
+debenture, evidence of indebtedness, certificate of interest or participation, money market instrument, units in 
+collective investment undertakings, or other t ype of financial instrument representing a tradable asset.  
+ 
+“UK CRA” means each of Fitch Ratings Ltd. and Fitch Ratings CIS Ltd. (including any of their branches (wherever 
+located)). 
+ 
+ “UK Endorsed CRA” means any of Fitch Ratings, Inc., Fitch Ratings Ireland Limited, Fitch Australia Pty Ltd., 
+Fitch Ratings Brasil Ltda., Fitch (Hong Kong) Ltd., Fitch Ratings Japan Ltd., Fitch Mexico S.A. de C.V. or Fitch 
+Singapore Pte. Ltd. (including any of their branches (wherever located)) . 
+ 
+UK Endorsed Rating means a Public International Rating where the relevant Primary Analyst is employed by 
+Fitch Ratings, Inc., Fitch Ratings Ireland Limited (including its branch offices in Frankfurt, Milan, Paris, Madrid, 
+Barcelona, Stockholm and Warsaw), Fitch Australia Pty  Ltd. (including its branches in Taiwan and Korea), Fitch 
+Ratings Brasil Ltda., Fitch (Hong Kong) Ltd., Fitch Ratings Japan Ltd., Fitch Mexico S.A. de C.V. or Fitch Singapore 
+Pte. Ltd.  
+ 
+3. PERMISSIBLE USES OF CONFIDENTIAL INFORMATION 
+ 
+Fitch Ratings Representatives who have access to Confidential Information are not permitted to use or share that 
+information for any purpose other than the conduct of Fitch Ratings’ business or operations or as expressly provided 
+in this Policy.  
+ 
+4. PROTECTING CONFIDENTIAL INFORMATION 
+ 
+Fitch Ratings Representatives are required to protect and safeguard Confidential Information entrusted or made 
+available to them from fraud, theft, misuse and inappropriate disclosure. This obligation includes but is not limited 
+to undertaking the followin g: 
+ 
+- Fitch Ratings Representatives must store, maintain and transmit Confidential Information exclusively 
+on or via Fitch -managed networks, systems and devices. Without limitation, this means that Fitch 
+Ratings Representatives may not send Confidential Information to their personal email or 
+messaging accounts, other than in accordance with Fitch Group Bulletin 17: Mobile Device 
+Management Policy . Confidential Information may be disseminated through Fitch Ratings’ large file 
+secure transfer solution only as described in the IT: Fitch Group: Bulletin 11: Acceptable Use Policy . 
+ 
+- When communicating with the public, investors or market participants, Fitch Ratings 
+Representatives must support their analyses, opinions or views without revealing Confidential 
+Information unless, in respect of Confidential Information pertaining to a par ticular Rated Entity, 
+expressly permitted by the Rated Entity or its agents or representatives. In addition, these 
+communications must not reflect or signal that a change in Rating or outlook may be forthcoming; 
+and 
+ 
+- Fitch Ratings Representatives must access, use and maintain Confidential Information in a secure 
+location, outside the view of persons not authorized to access the information. In addition, they 
+must refrain from discussing Confidential Information where n on-authorized persons might 
+overhear it, such as in public places, at conferences or outside events, or in other conversations 
+with third parties. 
+ 
+ 
+
+
+===== PDF PAGE 49 =====
+Bulletin 41: Confidential Information 
+Policy 
+ 
+ 
+ 
+5. RESTRICTIONS ON DISSEMINATING CONFIDENTIAL INFORMATION 
+5.1  Permissible Sharing of Confidential Information other than MNPI or Confidential Analytical 
+Information 
+ 
+Subject to the restrictions set forth in Fitch Ratings: Bulletin 04: Segregation of Commercial & Analytical 
+Activities , Fitch Ratings Representatives may share Confidential Information that does not constitute either 
+MNPI or Confidential Analytical Information, with:  
+- other Fitch Ratings Representatives who have a Legitimate Business Interest in the Confidential 
+Information;  
+ 
+- advisors and experts providing services to Fitch Ratings under a duty of confidentiality;  and 
+ 
+- affiliates of Fitch Ratings that have a Legitimate Business Interest in the information, and are 
+subject to a duty of  confidentiality.  
+ 
+5.2  Permissible Sharing of  MNPI 
+ 
+Subject to the restrictions set forth in Bulletin 4 and elsewhere in this Policy, Fitch Ratings Representatives 
+may share MNPI only with:  
+ 
+- Fitch Ratings Representatives who have a Need to Know the  MNPI; 
+ 
+- advisors and experts providing services to Fitch Ratings under a duty of confidentiality who have a 
+Need to Know the  MNPI; 
+ 
+- the Rated Entity or the issuer of the Security (or their agents or representatives) to which the MNPI 
+pertains; and 
+ 
+- in connection with an Analytical Product relating to an issuer, obligor or Security that Fitch Ratings 
+produced at the request of a third party, such third  party. 
+Note that Fitch Ratings: Bulletin 13: Global Securities Trading and Conflicts of Interest Policy  imposes 
+additional prohibitions on transacting in Securities while in possession of MNPI (i.e., the Insider Trading 
+prohibition).  
+5.3  Permissible Sharing of Confidential Analytical Information by Non -EU/Non-UK Employees 
+ 
+Subject to the restrictions set forth in Bulletin 4 and elsewhere in this Policy, employees of Fitch Ratings 
+outside the EU and UK may share Confidential Analytical Information, unless it is with respect to an EU or UK 
+Endorsed Rating, with other Fitch Rat ings Representatives, and advisors and experts providing services to 
+Fitch Ratings under a duty of confidentiality, who have a Need to Know the information.  
+5.4  Permissible Sharing of Confidential Analytical Information by EU and UK Employees and by All 
+Employees with respect to EU and UK Endorsed  Ratings 
+ 
+Subject to the restrictions set forth in Bulletin 4 and elsewhere in this Policy, Analysts employed by an EU 
+CRA or a UK CRA, and Analysts working on an EU or UK Endorsed Rating, may share Confidential Analytical 
+Information only with:  
+ 
+- other Analysts who have a Need to Know the  information;  
+ 
+- advisors and experts providing services to Fitch Ratings under a duty of confidentiality who have a 
+Need to Know the information;  and 
+ 
+- Fitch Ratings Representatives whose role involves advising or supporting Analysts or Analytical 
+Activities (e.g., Legal, Compliance, Publishing, Credit Policy, Criteria, etc.) who have a Need to 
+Know the information.  
+
+
+===== PDF PAGE 50 =====
+Bulletin 41: Confidential Information 
+Policy 
+ 
+ 
+ 
+To the extent BRM staff (i) employed by an EU CRA or a UK CRA receive Confidential Analytical Information 
+from a third party or (ii) receive Confidential Analytical Information with respect to an EU or UK Endorsed 
+Rating from a third party, they may share the information only with Analysts, advisors/experts and Fitch  
+ 
+Ratings Representatives consistent with this Section, and with other BRM staff who have a Need to Know the  
+information.  
+ 
+5.5  Production of Confidential Information in Governmental, Legal and Regulatory  Processes 
+Nothing in this Policy shall prohibit Fitch Ratings from producing Confidential Information to any third party:  
+ 
+- as required under any applicable law, rule or regulation, or in response to a request for information 
+in a subpoena or from any governmental or regulatory agency or authority;  or 
+ 
+-  in connection with any legal proceeding in which Fitch Ratings or any of its officers, directors, 
+employees or affiliates is a named party.  
+5.6  Sharing of Confidential  Analytical Information by Employees of Fitch Ratings Canada, Inc.  (the 
+“DRO”) 
+Employees of Fitch Ratings Canada Inc. (which includes BRM employees of Fitch Ratings Canada Inc.)  may 
+share Confidential Analytical Information only with other employees of  Fitch Ratings Canada Inc. and 
+employees of  DRO affiliates of Fitch Ratings Canada, Inc. 1 
+ 
+6. RELIANCE BY  ISSUERS 
+ 
+Fitch Ratings acknowledges that issuers and Rated Entities who disclose their Confidential Information to Fitch 
+Ratings may rely upon Fitch Ratings’ obligations and limitations regarding the nondisclosure and protection of their 
+Confidential Information as  set forth in this  Policy.  
+ 
+7. NO RESTRICTIONS ON REPORTING UNLAWFUL  CONDUCT 
+ 
+Nothing in this Policy prohibits any Fitch Ratings Representative from reporting possible violations of law or 
+regulations to any governmental agency or entity, including but not limited to the U.S. Department of Justice, the  
+U.S. Securities and Exchange Commission, the U.S. Congress, and any U.S. agency Inspector General, or making 
+other disclosures that are protected under the whistleblower provisions of laws or regulations of any jurisdiction. 
+Fitch Ratings Representatives a re not required to seek authorization or notify Fitch Ratings that they have made 
+such reports or disclosures.  
+ 
+8. QUESTIONS 
+ 
+For questions concerning this Policy, please contact the Compliance Department at reporting@fitchratings.com . 
+ 
+ 
+ 
+1 A complete list of the DRO affiliates can be found at https://www.fitchratings.com/regulatory.  
+
+
+===== PDF PAGE 51 =====
+Bulletin 41: Confidential Information 
+Policy 
+ 
+ 
+ 
+Owner: 
+              Chief Compliance Officer  
+Supplements: 
+Fitch Ratings: Bulletin 02: The Rating Process Manual (RPM)  
+ 
+Fitch Ratings: Bulletin 04: Segregation of Commercial & Analytical Activities  
+ 
+Fitch Ratings: Bulletin 07: Credit Products – Defined: Ratings, Assessments, 
+Opinions and Scores  
+ 
+Fitch Ratings: Bulletin 13: Global Securities Trading and Conflicts of Interest Policy  
+IT: Fitch Group: Bulletin 17: Mobile Device Management Policy  
+ 
+ 
+Appendix A  Summary of Changes: 
+
+
+===== PDF PAGE 52 =====
+Bulletin 41: Confidential Information 
+Policy 
+ 
+ 
+ 
+Appendix A  
+Summary of  Changes 
+ 
+July 21, 2025 
+ 
+Non-material change to add  section 5.6 regarding s haring of Confidential Analytical Information by Employees of 
+Fitch Ratings Canada, Inc.    
+ 
+September 9, 2022  
+ 
+Referenced Fitch Group 17: Mobile Device Management Policy removing reference to former BYOD policy.  
+Removed named secure large file transfer BigMail as that is no longer in use.  
+ 
+November 9, 2021 
+ 
+Hyperlinks removed for the BYOD Policy - Email on Personal Devices  as this policy was archived on October 11, 
+2021.  
+ 
+September 23, 2021 
+ 
+Hyperlinks were updated throughout the policy  and the effective date and version number were removed as 
+PolicyTech keeps track of this information.  
+  
+December 31, 2020 
+ 
+The policy was modified to add UK next to references of EU. This is to reflect the Financial Conduct Authority 
+(FCA), assuming regulatory oversight from ESMA for Fitch Ratings’ UK business, effect ive December 31, 2020. 
+ 
+August 28, 2019 
+ 
+This policy was modified to satisfy a Compliance Testing Finding regarding the acceptable use of large file transfer 
+applications, such as BigMail. This policy was specifically modified to incorporate the Information Technology 
+Acceptable Use Policy by ref erence. 
+ 
+December 31, 2018 
+ 
+Eliminated definition of Analytical Activities and modified definition of Rated Entities. Added language to apply to 
+endorsed ratings the EU restriction about sharing certain confidential info with BRM. Finally, we tidied up some of 
+the definitions and eli minated a footnote as unnecessary.  
+ 
+ 

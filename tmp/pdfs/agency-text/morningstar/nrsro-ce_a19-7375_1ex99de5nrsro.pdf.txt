@@ -1,0 +1,715 @@
+
+===== PDF PAGE 1 =====
+Effective Date: May 31, 2018 Page 1 
+Version 14.3
+MORNINGSTAR CREDIT RATINGS, LLC (MCR) 
+Policy and Procedure 
+Code of Ethics 
+Table of Contents 
+1. Introduction ................................................................................................................ ............................................ 2
+2. Standards of Business Conduct................................................................................................ .............................. 2 
+3. Managing Conflicts of Interest .............................................................................................. ................................. 3 
+4. Personal Securities Transactions ............................................................................................ ................................ 7 
+5. Complaint Policy............................................................................................................. ...................................... 11 
+6. Reporting of Violations ..................................................................................................... .................................... 14 
+7. Remedial Actions ............................................................................................................ ..................................... 15 
+8. Administration .............................................................................................................. ....................................... 15 
+9. Designated Compliance Officer Activities .................................................................................... ......................... 15 
+10. $SSHQGL[ $  &RPSODLQW 5HSRUWLQJ )RUP 17 
+
+===== PDF PAGE 2 =====
+Effective Date: May 31, 2018 Page 2 
+Version 14.3
+1. Introduction
+This Code of Ethics (the Code) sets forth the standards of conduct expected of all Access Persons  of MCR. This
+Code is designed to guide Access Persons with respect to standards of business conduct and personal investment 
+activities.  
+MCR is required to provide all Access Persons with a copy of this Code and any amendments hereto. Each Access 
+Person is required to provide the compliance department  with a written acknowledgement of his or her receipt of the 
+Code and any amendments hereto.  
+MCR requires its Access Persons to comply with this Code, MCR’s Code of Conduct and Confidential Information 
+and Analytical Firewall Policy, which are incorporated herein by reference. Copies of MCR’s Code of Conduct and 
+Confidential Information and Analytical Firewall Policy are made available on MCR’s public website, at 
+www.morningstarcreditratings.com as part of MCR’s form NRSRO, exhibits 7 and 3, respectively.  
+2. Standards of Business Conduct
+A. Placing the Interests of our Clients First
+This Code is based on the principle that MCR and you, as an Access Person, owe a responsibility to best serve our 
+Clients. Accordingly, you must avoid activities, interests and relationships that might interfere or appear to interfere with 
+making decisions in the best interests of our Clients. The Code seeks to place the interests of our Clients over the 
+interests of MCR and any Access Person. 
+At all times, you must: 
+1. Place the Interests of our Clients First . In other words, you must scrupulously avoid serving your own
+personal interests ahead of the interests of our Clients.
+2. Conduct all of your Personal Securities Transactions in full compliance with this Code. You must
+not take any action in connection with your personal investments that could cause even the appearance of
+unfairness or impropriety. Accordingly, you must comply with the policies and procedures set forth in this
+Code. Doubtful situations should be resolved against your personal trading.
+3. Avoid Taking Inappropriate Advantage of your Position . The receipt of investment opportunities, Gifts,
+or gratuities from persons seeking business with MCR directly or on behalf of a Client could call into question
+the independence of your business judgment. Doubtful situations should be resolved against your personal
+interest.
+B. Legal Compliance
+Access Persons must obey all laws and regulations applicable to MCR’s business, including but not limited 
+to, the applicable Federal Securities Laws. You should contact the compliance department or MCR legal counsel with 
+any question. 
+
+===== PDF PAGE 3 =====
+Effective Date: May 31, 2018  Page 3 
+Version 14.3
+C. Compliance Department 
+
+No member of the compliance department may take part in a decision relating to a Covered Security in which 
+such person has or, as part of the transaction in question, would acquire Beneficial Ownership. For any decision relating 
+to a Covered Security for which a compliance department member has or, as part of the transaction in question, would 
+acquire Beneficial Ownership in a Covered Security, the other compliance department member will have final decision 
+making authority. If both members of the compliance department have or, as part of the transaction in question, would 
+acquire Beneficial Ownership in a Covered Security, the matter will be referred to the general counsel office of 
+Morningstar, Inc. 
+3. Managing Conflicts of Interest
+
+A.Prohibited Conflicts 
+
+MCR is prohibited from having the following conflicts of interest relating to the issuance or maintenance of a 
+Credit Rating as a Credit Rating Agency: 
+
+1. Issuing or maintaining a Credit Rating solicited by a person that, in the most recently ended fiscal year, provided 
+MCR with net revenue (as reported under rule 17g-3 of the Exchange Act) equaling or exceeding 10% of its 
+total net revenue for the fiscal year; 
+
+2. Issuing or maintaining a Credit Rating with respect to a person (excluding a sovereign nation or an agency of 
+a sovereign nation) where MCR, a credit analyst that participated in determining the Credit Rating, or a person 
+responsible for approving the Credit Rating, directly owns Securities of, or has any other direct ownership 
+interest in, the person that is subject to the Credit Rating; 
+ 
+3. Issuing or maintaining a Credit Rating with respect to a person associated with MCR; 
+ 
+4. Issuing or maintaining a Credit Rating with respect to an obligor or Security where MCR or a person associated 
+with MCR made recommendations to the obligor or the issuer, underwriter, or sponsor of the Security about 
+the corporate or legal structure, assets, liabilities, or activities of the obligor or issuer of the Security;  
+ 
+5. Issuing or maintaining a Credit Rating where the fee paid for the rating was negotiated, discussed, or arranged 
+by a person within MCR who has responsibility for participating in determining Credit Ratings or for developing 
+or approving procedures or methodologies used for determining Credit Ratings, including qualitative and 
+quantitative Models; or 
+ 
+6. Issuing or maintaining a Credit Rating where a person within MCR who participates in determining or 
+monitoring the Credit Rating, or developing or approving procedures or methodologies used for determining or 
+monitoring the Credit Rating, including qu alitative and quantitative Models also: 
+ 
+(a) Participates in sales or marketing of a MCR product or service or a product or service of an affiliate of MCR 
+(including, but not limited to, Morningstar, Inc.); or 
+  
+(b) Is influenced by sales or marketing considerations.  
+ 
+With regard to the prohibitions in paragraphs (1),  (5), and (6) above, to the extent the Commission  permits 
+exemptions by rule, order, and waiver or otherwise, it shall not be a violation of this Code to engage in the forgoing 
+
+===== PDF PAGE 4 =====
+Effective Date: May 31, 2018 Page 4 
+Version 14.3
+activities, if MCR obtains such an applicable exemption. Wi th respect to paragraph (1) above, actual and forecasted 
+revenues will be analyzed by the compliance department each month for concentrations exceeding 10%. When it is 
+reasonably certain to assume that revenues will not change significantly from the forecast and the concentrations shown 
+reflect revenues for a particular Client will exceed 10% for a particular Client by the fiscal year-end, an exemption request 
+will be submitted to the Commission. Generally, MCR will not be  able to determine this prior to the close of the third 
+quarter of its fiscal year. At which time, a request for an exemption, if required, will be initiated. M CR will disclose such 
+conflict of interest in its form NRSRO, even if an exception, waiver, or order by the Commission grants MCR relief from 
+the above prohibition. 
+With regard to paragraph (6) above, the prohibition applies to all applicable employees and to members of the board or 
+similar body which carries out oversight of MCR pursuant to requirements set out within the Dodd-Frank Act and related 
+Commission rules.  
+B. Gifts
+MCR is prohibited from issuing or maintaining a Credit Rating where a credit analyst who participated in determining 
+or monitoring the Credit Rating, or a person responsible for approving the Credit Rating received Gifts, including 
+entertainment, from the obligor being rated, or from the issuer, underwriter, or sponsor of the Securities being rated, other 
+than items provided in the context of normal business activities, such as meetings, that have an aggregate value of no 
+more than $25. Therefore, credit analysts may not accept any such Gifts.  
+Access Persons must not accept any investment opportunity, Gift, gratuity, or other item of more than nominal value 
+(not to exceed $100), from any person or entity that does business, or desires to do business, with MCR directly or on 
+behalf of a Client. This is not limited to issuers, underwriters, or sponsors, and can include any other users of our Credit 
+Ratings, vendors, data and service providers, or similar such persons or entities who would like to do business with MCR 
+in the future. 
+All Gifts should be promptly reported to the compliance department before being consumed or accepted via the 
+NRSRO compliance email box. If the Gift is tangible and the receipt of the Gift violated applicable Federal Securities Laws 
+and/or this Code, the compliance department may make arrangements to have the Gift returned, donated, or destroyed. 
+If the Gift violates this Code or applicable Federal Securities Laws, a letter explaining MCR’s policy with respect to Gifts 
+will be sent to the applicable issuer, arranger, underwriter, or sponsor. 
+Annually, you will be asked to certify that you have not received any such Gifts for which your receipt thereof was 
+not approved by the compliance department or permissible under this Code. 
+All employees are prohibited from giving anything of value to foreign government officials, other than light 
+refreshments in the course of normal business meetings. “Anything of value” includes, but is not limited to, paying for 
+extravagant meals, providing money, Gifts, or entertainment, as well as paying for travel expenses or conference fees. 
+C. Service as a Director, Officer, or Similar Function of Other Entities
+MCR is prohibited from issuing or maintaining a Credit Rating where a credit analyst, who participated in determining 
+the Credit Rating, or a person responsible for approving the Credit Rating, is an officer or director of the person that is 
+subject to the Credit Rating. In determining whether Securities are rated by MCR, you must obtain confirmation from the 
+compliance department.  
+
+===== PDF PAGE 5 =====
+Effective Date: May 31, 2018  Page 5 
+Version 14.3
+ 
+Access Persons may not engage in any outside employment, consulting or other activity that would create an actual 
+or apparent conflict of interest with their employment with MCR. In determining whether any outside employment, 
+consulting, or other activity would create an actual or apparent conflict of interest with your employment with MCR, you 
+must obtain confirmation from the compliance department. 
+ 
+Access Persons may not serve on the board of directors or other governing board of a publicly traded company, 
+even though it is not an obligor, issuer, sponsor, underwriter or arranger of any Securities for which MCR issues or 
+maintains a Credit Rating, unless the Access Person has received the prior written approval of the compliance department. 
+Approval may be withheld at the discretion of the compliance department and will not be given unless a determination is 
+made that your service on the board would not be inconsistent with the interests of our Clients or violate or potentially 
+violate any Federal Securities Laws. Even if MCR approves your serving in such capacity for another company, you may 
+not have any ownership interest in, or affiliation, business relationship or other financial or personal interest with, that 
+company, unless you have received the prior written approval of the compliance department.  Approval may be withheld 
+at the discretion of the compliance department and will not be given unless a determination is made that such interest 
+would not be inconsistent with the interests of our Clients or violate or potentially violate any Federal Securities Laws. 
+ 
+In cases where an Access Person has an Immediate Family who currently works for a rated entity (for structured 
+finance, this includes any party to a structured finance transaction that could be impacted monetarily by a given rating 
+level assigned by MCR), the Access Person must notify the compliance department of such employment prior to 
+becoming involved in any analytical wo rk pertaining to the rated entity. The co mpliance department will evaluate the 
+circumstances of such employment to determine whether a conflict of interest exists. The compliance department will 
+then inform the Access Person whether it is appropriate to be come involved in analytical work pertaining to the rated 
+entity.  
+ 
+Annually, you will be asked to certify that you have not violated the foregoing Code provisions. In addition, 
+appropriate measures must be taken in accordance with the non-Morningstar business activities section of Morningstar 
+Inc.’s Code of Ethics.  
+
+D. Insider Trading and Safeguarding Material Nonpublic or Confidential Information 
+
+1. Access Persons are prohibited from engaging in transactions in any Securities while in possession of material 
+and/or Nonpublic Information regarding the Securities (so-called Insider Trading). Access Persons are also 
+prohibited from providing material and/or Nonpublic Information to any person who might use the information 
+to purchase or sell Securities (so-called Tipping). Any questions regarding MCR’s policy on Insider Trading or 
+the application of the Insider Trading policy to any specific information should be directed to a member of the 
+compliance department. Insider Trading can result in significant civil penalties and can result in criminal 
+prosecution. 
+ 
+(a) Confidential Information. Access Persons should observe the confidentiality of information that they acquire 
+by virtue of their employment at MCR, including information concerning customers, competitors and other 
+Access Persons, except where disclosure is approved by the DCO of MCR or otherwise legally mandated. Of 
+special sensitivity is financial information, which shou ld under all circumstances be considered confidential 
+except where its disclosure is approved by MCR, or when it has been made pu blicly available in a press 
+release or a report filed with the Commission or other comparable regulatory authority. 
+
+2. Information safeguarding. Access Persons are required to take all reasonable steps to safeguard all material, 
+
+===== PDF PAGE 6 =====
+Effective Date: May 31, 2018  Page 6 
+Version 14.3
+nonpublic and/or Confidential Information obtained through their employment at MCR from fraud, 
+misappropriation or misuse, and to maintain the analytical firewalls set forth in MCR’s Confidential Information 
+and Analytical Firewall Policy. To protect this type of information and maintain adequate analytical firewalls, 
+Access Persons should maintain the following safeguards: 
+
+(a) Analysts may discuss the analysis supporting the Credit Rating for a particular transaction or Security with 
+an investor or subscriber. In the case of an initial rating, analysts may discuss the analysis supporting the 
+rating on investor calls only after the issuer or one of its agents have distributed the preliminary disclosure 
+documents or similar materials. However, an analyst should never discuss material, nonpublic, and/or 
+Confidential Information with any investor or subscriber. Analysts should discuss only the information publicly 
+disclosed and their analysis of the rating. 
+
+If investors or subscribers make an inquiry regarding fees, contract provisions, or new products, analysts 
+should refer these persons to the Sales and Marketing Staff. 
+
+If an investor or subscriber provides the analyst with new or different information that may be relevant for his 
+or her rating analysis, the analyst may investigate the information provided. Analysts should notify the 
+compliance department if they are unable to determine whether such claims are material, nonpublic, and/or 
+Confidential Information, before utilizing the information in any rating analysis. 
+
+(b) Access Persons are prohibited from having discussions regarding Material, Nonpublic, and/or Confidential 
+Information under circumstances in which others could overhear these conversations or in locations where 
+applicable analytical firewalls between MCR groups could be compromised. Furthermore, information that is 
+covered by this provision applies at all times to communications both inside and outside MCR’s offices. 
+Access Persons should enter or reserve a private conference room for these discussions. Access Persons 
+must refrain from having conversations related to such information in public locations, such as restaurants, 
+subways, trains, elevators, taxis, and airplanes, and from using speakerphones in those locations. 
+
+(c) Credit Ratings files, documents, and related work products must not be left in the open for unauthorized 
+personnel to see. Excess or additional copies of materials and documents 
+properly stored in accordance with 
+applicable law should shredded when no longer used. In  addition, issuer files may not be released to any 
+third parties without the express written consent or dire ction of the issuer, except in response to any valid 
+request for such information contained in a subpoena, court order, or as otherwise required by applicable law 
+or by any judicial, legislative, or regulatory authority. 
+
+If a matter is of a particularly sensitive nature, additio nal precautions may be approp riate. These could include 
+keeping files secured in locked cabinets or other secure places, arranging for special handling of files, and utilizing private 
+conference rooms when speaking on the te lephone to avoid being overheard. If an Access Person’s desk is situated 
+where unauthorized persons may see such materials, sensitive papers should be locked and/or kept in drawers, turned 
+face side down, or otherwise concealed. 
+
+E. Monitoring, Investigations and Other Conflicts of Interest 
+
+1. MCR Access Persons must cooperate with all monitoring, controls, and investigations conducted by the 
+compliance department in its efforts to manage and monitor conflicts of interest. This includes, but is not 
+limited to: 
+ 
+
+===== PDF PAGE 7 =====
+Effective Date: May 31, 2018  Page 7 
+Version 14.3
+(a) Making yourself available for interviews as part of the internal audit process and answering questions asked 
+honestly; 
+
+(b) Completing all periodic and one-time certifications required under this Code and any other policies and 
+procedures adopted from time to time; 
+
+(c) Participating in all personal Securities reporting and monitoring activities as required by this Code; 
+
+(d) Maintaining proper records of rating actions as required under applicable law; 
+ 
+(e) MCR’s policies and procedures; 
+
+(f) Completing annual internal questionnaires and certifications regarding your background, business 
+relationships, and experience; and 
+
+(g) Properly documenting and tracking calls and correspondences with investors, subscribers, issuers or 
+arrangers as may be requested by the compliance department. 
+
+2. From time to time, the compliance department may monitor potential conflicts of interest that are not directly 
+prohibited under applicable law but may affect the inte grity of the Credit Rating process. Access Persons are 
+subject to such policies, protocols and procedures that may be developed to address such conflicts of interest 
+in the future.   
+ 
+4. Personal Securities Transactions 
+ 
+A. Trading in General 
+An Access Person is prohibited from using or sharing material, nonpublic and/or Confidential Information for the 
+purpose of trading any Security. Please refer to section 3 D. 1 of this Code for more details. 
+ 
+An Access Person or an Immediate Family is prohibited from buying, selling, engaging in any type of transaction 
+or having any direct/indirect Beneficial Ownership in any Covered Security issued, guaranteed, or otherwise supported 
+by any entity (i.e. issuer, obligor) within an Access Person’s analytical responsibility in MCR. For structured finance 
+analytical groups, this prohibition also extends to other transaction parties of a structured finance transaction. 
+Analytical responsibility includes but is not limited to participating in determining the Credit Rating in any capacity, 
+approving the Credit Rating and monitoring the Credit Rating. 
+ 
+Additionally, Analytical Staff or an Immediate Family may not hold or trade sector Funds that correspond to the 
+sector(s) in which they either regularly influence a Credit Rating or have access to material, nonpublic and/or 
+Confidential Information.  
+ 
+Restricted lists are provided for all Analytical Staff in order to allow clear understanding of what constitutes 
+analytical responsibility. Restricted lists contain a listing of Securities that cannot be held or traded by Analytical Staff 
+within the practice area or by their Immediate Family. Restricted lists are posted on P: Æ Templates and Lists and 
+updated periodically by compliance in collaboration with analytical group heads. If you conduct analytical work or have 
+access to Nonpublic Information in more than one practice area, the restricted lists of all such analytical practice areas 
+
+===== PDF PAGE 8 =====
+Effective Date: May 31, 2018 Page 8 
+Version 14.3
+will apply to you. For guidance on the restricted lists and sector Funds, please refer to the Personal Securities Transaction 
+(PST) guidelines. 
+An Access Person must report, in compliance with the provisions set forth below, any Purchase or Sale of a 
+Covered Security in which such Access Person or an Immediate Family have, or by reason of the transaction will acquire 
+any direct or indirect Beneficial Ownership. 
+At any time, the compliance department may identify actual or potential conflicts of interest and by email notify 
+Access Persons that personal Securities transactions in a certain Client or Security may be prohibited, limited or subject 
+to pre-clearance. An Access Person or an Immediate Family could be asked to divest their interests or hold their 
+interests for an indefinite period of time. 
+MCR Access Person or an Immediate Family are also subject to relevant requirements in Morningstar Inc.’s 
+Securities trading and disclosure policy such as but not limit ed to blackout periods for buying or selling Morningstar 
+Inc’s Securities. Restricted stock units are subject to reporting requirements upon execution of any transactions. 
+B. Pre-Clearance
+Access Persons must seek to obtain pre-clearance trading approval from the analyst’s manager, the manager’s 
+designee, or the compliance department to purchase or sell  any Covered Security for which the Access Person or an 
+Immediate Family have or will have by reason of the trade acquire Beneficial Ownership of a Covered Security that 
+MCR provides a Credit Rating or other forms of opinion including ranking and assessment on such Covered Security.  
+Securities that MCR rates, which are not on an analyst’s restricted list, may be traded subject to pre-clearance 
+by the analyst’s manager, the manager’s designee, or the compliance department. 
+Access Persons can seek pre-clearance for certain transactions that may otherwise be prohibited by this Code 
+in the event of a documented financial hardship or the settlement of an estate, so long as the transaction would not 
+violate Federal Securities Laws. 
+The analyst’s manager, the manager’s designee, or the compliance department retains the sole discretion to 
+pre-clear transactions. Pre-clearance approvals need to be obtained prior to the transaction’s execution. Requests can 
+be made via email or another form acceptable to the compliance department. Compliance will generally reach out to 
+the individual’s manager to discuss access to and influence over, the Credit Rating in question. Pre-clearances are valid 
+until the end of the following business day.  
+This pre-clearance requirement does not apply to the Purchase or Sale of a Covered Security in a blind trust, 
+separately managed accounts, wrap account, or similar arrangement where the person covered by this policy does 
+not direct the trustee, money manager, or other investment advisor who has discretion over the Funds to make the 
+particular purchase or sale. 
+C. Reporting
+The compliance department shall identify and inform all Access Persons of their duty to complete and provide 
+the account statements and reports described below in sections E - H. The compliance department will review such 
+
+===== PDF PAGE 9 =====
+Effective Date: May 31, 2018  Page 9 
+Version 14.3
+account statements and reports. 
+ 
+Such account statements and reports received by MCR shall be kept confidential except to the extent that 
+disclosure may be required by regulatory authorities and that disclosure, on a confidential basis, may be made for an 
+audit of compliance procedures. 
+ 
+D. Additional Restrictions for Certain Analysts, Divisions or Groups 
+
+Certain MCR Access Person or an Immediate Family may be  subject to additional restrictions with respect to 
+whether they may hold certain Securities. 
+ 
+Analytical Staff or an Immediate Family must not engage in any Purchase or Sale of a Covered Security in which 
+such analyst has, or by reason of the transaction will acquire, any direct or indirect Beneficial Ownership, if that Covered 
+Security is: 
+(a) Issued by a Third-Party Service Provider that is subject to a current ranking or assessment (or similar 
+determination, regardless of title) issued and maintained by MCR; and (ii) the analyst either participated in 
+determining, or was responsible for approving, that ranking or assessment (or similar determination, 
+regardless of title); or 
+ 
+(b) Issued by a Third-Party Service Provider, or the parent or an affiliate thereof, that the compliance 
+department, in its sole discretion, has designated as a Third-Party Service Provider whose Securities may 
+not be held by an analyst within the operational risk assessment group who either participated in 
+determining, or was responsible for approving, that Third-Party Service Provider’s ranking or assessment 
+(or similar determination, regardless of title); and (ii) the analyst either participated in determining, or was 
+responsible for approving, that ranking or assessment (or similar determination, regardless of title). In 
+furtherance of this subparagraph, the compliance department may, from time to time, designate a Third-
+Party Service Provider, or the parent or certain or all affiliates thereof, as an issuer whose Securities may 
+not be held by an analyst within the operational risk assessment group who either participated in 
+determining, or was responsible for approving, that Third-Party Service Provider’s ranking or assessment 
+(or similar determination, regardless of title). 
+ 
+An analyst is deemed to have participated in determining or approving a ranking or assessment if the analyst 
+participated in its determination or approval in any manner, including participation on a committee that was responsible 
+for such determination or approval. 
+ 
+E.Initial Accounts and Holdings Reports 
+ 
+If you are an Access Person, you must report no later than  ten (10) days after becomi ng an Access Person to 
+the compliance department the following information: 
+ 
+(a) The name, holding type, holding account, and number of shares of each Covered Security in which the 
+Access Person or an Immediate Family had any direct or indirect Beneficial Ownership as of the date the 
+person became an Access Person;  
+ 
+(b) The name of the account, account number, account type and broker, dealer or bank with which the Access 
+
+===== PDF PAGE 10 =====
+Effective Date: May 31, 2018  Page 10 
+Version 14.3
+Person or an Immediate Family maintains an account in which any Covered Securities are held for the direct 
+or indirect benefit of the Access Person or an Immediate Family as of the date the person became an 
+Access Person; and 
+ 
+(c) The date that each report is submitted by the Access Person. 
+ 
+F. Quarterly Transaction Reports 
+ 
+Every Access Person must report to the compliance department no later than thirty (30) days after each calendar 
+quarter end the following information: 
+ 
+(a) With respect to any transaction during the quarter in a Covered Security in which the Access Person or an 
+Immediate Family had or acquired any direct or indirect Beneficial Ownership:  
+1. The date of the transaction, the name, the interest rate and maturity date (if applicable), and the 
+number of shares of each Covered Security involved; 
+ 
+2. The nature of the transaction (i.e., purchase, sale or any other type of acquisition or disposition); 
+3. The price of the Covered Security at which the transaction was effected; 
+4. The name broker, dealer or bank with or through which the transaction was effected; and 
+5. The date that the report is submitted by the Access Person. 
+The foregoing includes reporting Securities acquired through a Gift, inhe ritance, marriage or similar event. 
+ 
+(b) With respect to any account established by the Access Person or an Immediate Family in which any Covered 
+Securities were held during the quarter for the direct or indirect benefit of the Access Person. 
+ 
+1. The name of the account, account number, account type, and broker, dealer or bank with which the 
+Access Person or an Immediate Family established the account; 
+ 
+2. The date the account was established; and 
+ 
+3. The date that the report is submitted by the Access Person. 
+ 
+(c) If an electronic feed is received on the account(s) reported, then the Access Person should review the 
+quarterly transaction report and make any edits needed before certifying it. If an electronic feed is not 
+provided, then the Access Person must manually enter any transactions and upload the relevant 
+statements.  
+ 
+G. Annual Holdings Reports 
+ 
+If you are an Access Person, you must report no later than thirty (30) days after the calendar year end, the 
+following information: 
+ 
+
+===== PDF PAGE 11 =====
+Effective Date: May 31, 2018  Page 11 
+Version 14.3
+(a) The name, holding type, holding account, and number of shares, of each Covered Security in which the 
+Access Person or an Immediate Family has any direct or indirect Beneficial Ownership and is not held in an 
+account reported in subsection (b) below; 
+ 
+(b) The name of any broker, dealer or bank and the rela ted account number with which the Access Person or 
+an Immediate Family maintains an account in which any covered Securities are held for the direct or indirect 
+benefit of the Access Person; and 
+ 
+(c) The date that the report is submitted by the Access Person. 
+ 
+If an electronic feed is received on the account(s) reported, then the Access Person should review the 
+transactions section of the annual combined report and make any edits needed before certifying it.  
+ 
+The above information is required to be updated annually. More specifically, each Access Person must submit 
+annually a holdings report setting forth the above-specified information, which must be current as of a date no more 
+than forty-five (45) days before the report is submitted. 
+ 
+H. Exceptions to Reporting Requirements 
+ 
+Individuals who are not in an analytical role are not required to report any mutual Fund holdings. Analytical 
+Staff are only required to report sector mutual Fund holdings, and are not required to report diversified mutual 
+Fund holdings. Analytical Staff are not required to report sector mutual Funds purchased pursuant to an 
+automatic allocation feature within Morningstar’s 401(k) plan on the quarterly transaction report. Furthermore, 
+sector Funds that are purchased pursuant to an automatic allocation feature within Morningstar’s 401(k) plan 
+shall not be deemed to be restricted or prohibited.  
+5. Complaint Policy 
+
+A. Regulatory Requirement 
+ 
+Section 15e(j) of the Securities Exchange Act of 1934 (the Exchange Act) requires that the DCO of MCR to 
+establish procedures for the receipt, retention, and tr eatment of Complaints regarding Credit Ratings, Models, 
+methodologies, and compliance with the Federal Securities Laws and the policies and procedures developed under 
+section 15e of the Exchange Act and that may be submitted on a confidential, anonymous basis by employees or users 
+of MCR’s Credit Ratings. 
+ 
+B. What Constitutes a Complaint 
+
+ 
+Complaints need not be hostile and can be merely suggestions, concerns, inquiries, allegations, suspicions, or 
+questions that may suggest: (i) a failure to follow published methodologies, criteria, and Models; (ii) errors in the 
+application of methodologies, criteria or Models, including the selection of the Model used; (iii) unfair or inappropriate 
+application of our ratings, Models, criteria or methodologies; (iv) inappropriate activity or errors by an analyst; and (v) 
+a possible violation of the law. 
+ 
+This can include, but is not limited to, Complaints that: 
+
+===== PDF PAGE 12 =====
+Effective Date: May 31, 2018  Page 12 
+Version 14.3
+(a) Mention MCR Models, methodologies, criteria, ratings, or any processes, policies or procedures related to the 
+forgoing; 
+(b) Mention conduct of an Access Persons at a ratings or criteria committee meeting or conduct attempting to 
+influence the outcome of these meetings; 
+(c) Relate to analyst’s compensation being affected by or threatened by a given course of action; 
+(d) Relate to an analyst’s competency or ability to do his or her job; 
+(e) May indicate an error was made by the analyst with respect to his or her rating analysis or in the development 
+or testing of a Model that was published or impacted MCR’s ratings; 
+(f) Suggest that MCR’s controls or protocols were not followed or bypassed; 
+(g) Suggest that Confidential Information may have been shared inappropriately - either externally or internally;  
+(h) Suggest that financial or sales information was shared with analysts or other Access Persons who are 
+responsible for developing Models, methodologies, or criteria used in the rating process or actively participate 
+in the rating process; 
+(i) Suggest that an Access Person has a conflict of interest--which may be personal or professional; 
+(j) Relate to an Access Person’s outside business activities, like outside directorships, employment or businesses; 
+(k) Suggest that an Access Person received a Gift from a Client, vendor, or other party who is or would like to be 
+doing business with MCR;   
+(l) Suggest that an Access Person is not following policies and procedures with respect to the appropriate use of 
+information technology; or 
+(m)Suggests that an Access Person is not following policies and procedures regarding safeguarding confidential 
+or other sensitive information. 
+ 
+Complaints may be submitted on a confidential, anonymous basis. If you are unsure whether a communication 
+you receive or a concern that you have is a Complaint, you should report it as such and allow the compliance 
+department to make the final determination as to wh ether it is a Complaint subject to this policy. 
+  
+C. Complaint Reporting 
+ 
+Complaint reporting pertaining to MCR’s Credit Ratings, Models, and methodologies --or compliance with applicable 
+Federal Securities Laws--should be conducted as follows: 
+ 
+Access Persons and/or a Morningstar, Inc. human resource representative are required to immediately notify their 
+direct supervisor and the compliance department in writing of any Complaints that (a) the Access Person has; (b) the 
+Access Person receives from users of MCR’s Credit Ratings; or (c) the Access Person receives from another MCR Access 
+Person.  
+ 
+Access Persons and/or a Morningstar, Inc. human resource representative should not independently respond to or 
+settle any Complaint made by a user of MCR’s Credit Ratings or by another MCR Access Person. If the Complaint involves 
+the Access Person’s director supervisor or MCR’s president, the Access Person need not notify such supervisor or the 
+president of such Complaint. If a Complaint involves inappropriate action by the DCO, it should be forwarded to the global 
+chief compliance officer of Morningstar Inc. 
+ 
+Access Persons and users of MCR’s Credit Ratings may submit any Complaints to MCR’s compliance department 
+by one of the following methods: 
+
+===== PDF PAGE 13 =====
+Effective Date: May 31, 2018  Page 13 
+Version 14.3
+ 
+(a) Via email to the NRSRO compliance mailbox:  
+NRSROcompliance@morningstar.com  
+ 
+(b) Via website:  
+i. Submit a Complaint under regulatory affairs on the MCR website; or 
+ii. Global compliance website: 
+www.integrity-helpline.com/morn.jsp 
+ 
+(c) Via phone call: 
+i. To an Access Person; 
+ii. Toll-free number to MCR general hotline 1-800-299-1665; or 
+iii. Morningstar Inc. ethics hotline at 1-800-555-8316. 
+ 
+The caller should request to speak to someone in the compliance department.  
+   
+(d) Via mail or courier to:  
+Morningstar Credit Ratings, LLC  
+4 World Trade Center, 48th floor 
+150 Greenwich Street 
+New York, NY 10007 
+Attn: Compliance Department 
+ 
+Access Persons and/or a Morningstar, Inc. human resource representative shall encourage complainants to submit 
+Complaints in writing. If the complainant is unwilling to submit the Complaint in writing, the Access Person who receives 
+the oral Complaint must endeavor to obtain all the information laid out below and report the information to the compliance 
+department via email at NRSROcompliance@morningstar.com by the end of the next two business days. Any Complaints 
+received via voicemail should not be erased and must be forwarded to the MCR compliance department. 
+ 
+Unless the Complaints are submitted anonymously, the recipient of the Complaint should forward all information and 
+documentation, if any, associated with the Complaint. The information and documentation provided should assist the 
+compliance department in creating the Complaint file that it is required to maintain under its policies. Therefore, it would 
+expect to receive the following information and copies of documentation, to the extent available (a Complaint reporting 
+form is available in appendix a): 
+ 
+(a) A copy, transcript, or recording of the Complaint (if not available, a summary of the Complaint); 
+(b) The dates the incidents described in the Complaint occurred; 
+(c) The date the Complaint was received; 
+(d) Documents gathered during the investigation of the Complaint; 
+(e) Any follow-up communications with the complainant after the Complaint was received; 
+(f) Whether the complainant requested confidentiality; and 
+(g) Any actions or response taken, and any dates associated therewith. 
+ 
+The compliance department in its discretion can return documents that in its determination are irrelevant to the 
+
+===== PDF PAGE 14 =====
+Effective Date: May 31, 2018  Page 14 
+Version 14.3
+Complaint or its investigation. 
+ 
+Complaints will be shared internally only when such persons have a legitimate business reason to know or are 
+actively assisting in the investigation and/or resolution of the Complaint. 
+ 
+D.  Responsibility for and Treatment of Complaints 
+ 
+Supervisors and the compliance department will deal with Complaints in a responsive and fair manner. 
+ 
+Each supervisor has a responsibility for ensuring that his or her direct reports are aware of their responsibilities in 
+handling Complaints in accordance with fi rm’s policies. Each supervisor is responsible for supporting the compliance 
+department and MCR in fulfilling its responsibility to investigate Complaints in a timely manner and provide all information 
+requested by the compliance department that is responsive to a Complaint. Each supervisor is responsible for reminding 
+his or her direct reports that they are responsible for in forming the compliance department  of Complaints they have 
+regarding the firm’s Credit Ratings, Models and methodologies, and suspected violations of applicable Securities laws 
+and that they have the ability to submit Complaints on an  anonymous and confidential basis using one of the methods 
+in section C above.  
+ 
+The compliance department is responsible for investigating in a timely and complete manner all Complaints received. 
+After careful consideration of all the facts, circumstances, and information received pertaining to the Complaint, the DCO 
+is responsible for providing a recommendation to the applicable supervisor and/or MCR’s president as to what action or 
+actions should be taken. 
+ 
+The compliance department is responsible for ensuring that MCR appropriately addresses and responds to all 
+written and oral Complaints received. 
+ 
+The compliance department will maintain a Complaint file for a period no less than is required under applicable law 
+that can contain the following items, as applicable: 
+ 
+(a) A copy, transcript or recording of the Complaint (if not available, a summary of the Complaint); 
+(b) The dates the incidents described in the Complaint occurred; 
+(c) The date the Complaint was received; 
+(d) Documents gathered during the investigation of the Complaint; 
+(e) Any follow-up communications with the complainant after the Complaint was received; 
+(f) Whether the complainant requested confidentiality; 
+(g) Any actions or response taken, and any dates associated therewith; 
+(h) Recommendations as to what action or actions should be taken with respect to this Complaint; 
+(i) The date and content of any final written response; and 
+(j) Action taken by MCR in light of the Complaint and recommendations.  
+6. Reporting of Violations 
+
+If an Access Person becomes aware of any violation(s) or potential violation(s) of any of the provisions of this 
+Code, such Access Person must report such violation(s) or potential violation(s) promptly to a member of the 
+compliance department. The DCO is required to receive all reports of such violations. Failure to report in a prompt 
+
+===== PDF PAGE 15 =====
+Effective Date: May 31, 2018  Page 15 
+Version 14.3
+manner any violation(s) of this Code that an Access Person is aware of will be considered itself a violation of the Code 
+and subject to remedial action. 
+ 
+Access Persons shall refer to the DCO any information that alleges that an issuer of Securities rated by MCR has 
+committed or is committing a material violation of law that has not been adjudicated by a federal or state court. 
+7. Remedial Actions 
+ 
+If you violate this Code, you are subject to remedial actions, which may be recommended by the compliance 
+department, that may include, but are not limited to, progre ssive discipline, disgorgement of profits, imposition of a 
+substantial fine, demotion, suspension or termination. 
+8. Administration 
+
+
+A. Interpretations and Exceptions 
+
+Please refer any questions regarding the applicability, meaning or administration of this Code to a member of the 
+compliance department in advance of  any contemplated transaction. Exemptions from certain provisions of this Code 
+m a y be granted by the com plia nce depa rtm ent if it is  determ ined th a t the Funda m enta l obligations  of the p ers on 
+involved are not and will not be compromised. In no instance will exemptions be granted if the exemptions are not 
+permitted under the applicable Federal Securities Laws. 
+
+B. Questions 
+
+Questions regarding this Code of Ethics should be addressed to a member of the compliance department.  
+
+C. Review 
+
+The compliance department will annually review the adequacy of the Code and the effectiveness of its 
+implementation. 
+
+D. Annual Certificate of Compliance 
+
+You are required to certify upon commencement of your employment or the effective date of this Code, whichever 
+occurs later, and annually thereafter, that you have read and understand this Code and recognize that you are subject 
+to this Code. Each annual certificate will also state that you have complied with the requirements of this Code during 
+the prior year, and that you have disclosed, reported, or caused to be reported all transactions during the prior year in 
+covered Securities of which you had or acquired Beneficial Ownership. 
+
+9. Designated Compliance Officer Activities 
+A. General 
+ 
+MCR shall designate an individual as the DCO, who will be responsible for administering its policies and 
+procedures with respect to the management of conflicts of interest and the prevention of the misuse of Nonpublic 
+Information. The DCO shall also be resp onsible for establishing the procedures with respect to the receipt, retention 
+and treatment of Complaints (including those provided on  a confidential, anonymous basis) regarding MCR’s Credit 
+
+===== PDF PAGE 16 =====
+Effective Date: May 31, 2018 Page 16 
+Version 14.3
+Ratings, Models, methodologies, and compliance with applicable Securities laws and its policies and procedures. 
+B. Limitations
+The DCO, while serving in this capacity, may not (without a specific exemption from the Commission): 
+1. Perform Credit Ratings;
+2. Participate in the development of ratings methodologies and Models;
+3. Perform marketing or sales functions; or
+4. Participate in establishing compensation levels, other than for employees working for that individual.
+The forgoing limitations do not limit the access the DCO (or other members of the compliance department) has
+to ratings files, Credit Ratings, committee meetings, sales information, and compensation information that he or she 
+may need to execute his or her oversight, monitoring and reporting responsibilities. Furthermore, the presence of the 
+DCO at committee meetings related to the rating process in an oversight or monitoring capacity shall not be considered 
+performing Credit Ratings, so long as the DCO or a person who he or she supervises does not vote in such a committee. 
+ The above limitations do not prevent the DCO from advising on the development of ratings methodologies and 
+Models with respect to internal control processes, legal and compliance considerations, or considerations with respect 
+to investors (including making editorial corrections or suggestions to enhance readability and understanding by 
+investors and to avoid misleading investors). This can include monitoring that adequate testing of the Model is being 
+conducted; providing guidance on the Commission’s expectations for published methodologies and best practices with 
+respect to internal controls, governance, and promoting the use of plain English with respect to published 
+methodologies and communications regarding criteria and Mode ls. However, the above limitation does prohibit the 
+DCO or a person he or she supervises from voting in any committee to approve such methodologies, criteria or Models. 
+
+===== PDF PAGE 17 =====
+Effective Date: May 31, 2018 Page  
+Version 14.3
+1. Appendix A - Complaint Reporting Form
+Complaint Reporting Form 
+The Recipient of the Complaint 
+Name: Phone: 
+Email: 
+Complainants Information 
+Name: Phone: 
+Address: 
+Email: Did the complainan t request confidentiality? 
+Complaint Details 
+Date of Incident: Date of Complaint received: 
+Summary of the Complaint (including follow-up): 
+Any actions or response taken? 
+Please forward all information and documentations related to this Complaint to the compliance department. 

@@ -1,0 +1,1013 @@
+
+===== PDF PAGE 1 =====
+ 
+ 
+ 
+ 
+1 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+Description of the Rating Procedures and Methodologies Used by 
+Morningstar DBRS   
+ 
+Description of the Rating Procedures and Methodologies Used by Morningstar DBRS 
+ 
+Morningstar DBRS provides independent credit rating services for financial institutions, corporate and 
+sovereign entities ( Fundamental Ratings ) and structured finance ( Structured Finance  Ratings ) 
+products and instruments, which include, but are not limited to: issuing and monitoring public and 
+private credit ratings; conducting credit related assessments; conducting evaluations of originators, 
+servicers and other relevant parties; preparing credit ratings related research such as press releases, pre-
+sale reports, rating reports, and surveillance reports; publishing rating Methodologies1 and other similar 
+reports; and selling subscriptions to credit ratings and certain research products, data and/or 
+information. 
+ 
+What is a Credit Rating? 
+Credit ratings2 are forward looking opinions about credit risk which reflect the creditworthiness of an 
+issuer, rated entity, security and/or obligations. Credit ratings are not statements of fact. While historical 
+statistics and performance can be important considerations, credit ratings are not based solely on such; 
+they include subjective considerations and involve expectations for future performance that cannot be 
+guaranteed. To the extent that future events and economic conditions do not match expectations, credit 
+ratings assigned to issuers, entities,  securities and/or obligations can change. Credit ratings are also 
+based on approved and applicable M ethodologies, which are periodically updated and when material  
+changes are deemed necessary, which may also lead to changes in ratings.  
+ 
+Credit ratings typically provide an opinion on the risk that an issuer will fail to satisfy the financial 
+obligations in accordance with the terms under which the obligation was issued. In some cases, credit 
+ratings may also include consideration for the relative ranking of claims and recovery, should default 
+occur. Credit ratings are meant to provide opinions on relative measures of risk and are not based on 
+expectations of any specific default probability, nor are they meant to predict such. 
+ 
+Morningstar DBRS does not provide investment advice, and a Morningstar DBRS credit rating is not 
+a buy, sell or hold recommendation. Credit ratings deal with only one characteristic of the investors’ 
+decision-making process, which is credit risk. They make no assessment of the appropriateness of 
+ownership for a given investor within their investment objectives.  Specifically, investors will have an 
+interest in many areas which are outside the bounds of credit risk, such as the level of market prices, 
+tax related issues and investment losses that could result from changes in interest rates, market liquidity 
+ 
+1 A Methodology is an approach that sets forth the framework Morningstar DBRS uses to determine and monitor credit ratings 
+and other opinions. Methodologies describe quantitative and qualitative analytical considerations, key rating assumptions, 
+fundamental factors and other criteria, as appropriate and is not an all-inclusive list of the considerations and factors included in 
+Morningstar DBRS’ credit ratings and other opinions. For Structured Finance ratings, a Methodology may also incorporate one 
+or more predictive models that are a substantial component of a Methodology. 
+ 
+2 Credit ratings can be public or private. In addition, credit ratings can relate to specific securities or money market instru ments 
+or evaluate the fundamental creditworthiness of an issuer (i.e., a “issuer rating”). Credit ratings may also be provisional, 
+indicative, or “point-in-time.” Provisional credit ratings are denoted with a (P) prefix. For more information on different types of 
+Morningstar DBRS credit ratings, see Credit Ratings Global Policy.  
+
+===== PDF PAGE 2 =====
+ 
+ 
+ 
+ 
+2 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+and other factors. The data and information on which Morningstar DBRS  bases its opinions is not 
+audited or verified by Morningstar DBRS, although Morningstar DBRS  conducts a reasonableness 
+review of information received and relied upon in accordance with its Methodologies and policies. 
+ 
+Morningstar DBRS credit ratings are underpinned by a wide range of policies and Methodologies. 
+Ratings p olicies are generally published on the “ Understanding Ratings – About Rating” page at 
+dbrs.morningstar.com, and are further supported by detailed internal procedures. Methodologies are 
+published on the “Understanding Ratings – Methodologies & Criteria” page at dbrs.morningstar.com.   
+ 
+This Exhibit 2, which is divided into two parts, briefly describes the rating procedures and Methodologies 
+Morningstar DBRS uses to determine credit ratings.   
+ 
+Part A of this Item outlines the policies and procedures Morningstar DBRS  uses to determine credit 
+ratings, including unsolicited credit ratings.  These policies and procedures include those for:   
+ 
+• determining whether to initiate a credit rating;  
+• using public and non-public sources of information, including information and analysis 
+provided by third-party vendors;  
+• reviewing information pertaining to assets underlying or referenced by a security or 
+money market instrument issued by an asset pool, or as party of any asset -backed or 
+mortgage-backed securities transaction;  
+• the rating committee processes, including a discussion of Morningstar DBRS ’ 
+interactions with the management of a rated obligor or issuer of rated securities or money 
+market instruments;   
+• informing rated obligors or issuers of rated securities or money market instruments about 
+credit rating decisions and for appeals of credit rating decisions;  
+• publishing credit ratings and issuing presale reports, rating reports and press releases;  
+• monitoring, reviewing and updating credit ratings; and 
+• other rating actions and disclosures made by Morningstar DBRS, including its policies 
+for placing credit ratings “Under Review” and the discontinuance of its ratings coverage. 
+ 
+Part B  of this Item describes the quantitative and qualitative models, methodologies and metrics 
+Morningstar DBRS uses by which credit ratings of other rating agencies are treated to determine credit 
+ratings for securities or money market instruments issued by an asset pool or as part of an asset-backed 
+or mortgaged-backed securities transaction.   
+  
+PART A – GENERAL RATING POLICIES AND PROCEDURES 
+ 
+1. Rating Process Initiation  
+ 
+As outlined in “The Rating Process” section ( section 6 below), Morningstar DBRS initiates the credit 
+rating process to either provide credit ratings coverage of an issuer upon the request of an issuer, sponsor 
+or third party, or to provide depth of coverage within an industry or sector. 
+
+===== PDF PAGE 3 =====
+ 
+ 
+ 
+ 
+3 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+ 
+ 
+2. Sources of Information Used in Determining Credit Ratings  
+ 
+Morningstar DBRS uses a variety of data and information in its analysis and determination of credit 
+ratings. Data and information is obtained from sources that a reasonable person would consider to be 
+reliable.  Sources of data and information typically include the issuer and/or its agent(s). Credit ratings 
+are only assigned when there is sufficient data and information available to support a credit rating(s) on 
+an ongoing basis until a credit rating is discontinued.3  
+ 
+Morningstar DBRS has expectations regarding the data and information it should receive from, or on 
+behalf of, issuers for each industry, sector, geographic region and asset class it rates. If appropriate, for 
+example, with respect to Structured Finance credit ratings, such expectations typically include: the time 
+period covered by the data; loan  level characteristics; pool stratifications, pool eligibility criteria, and 
+certain key ratios including delinquency, default and loss.  Data and information received is reviewed 
+against expectations in terms of overall completeness and completeness for each asset class in the form 
+of a “reasonableness review” that is appropriate for the data and information received.  The 
+“reasonableness review” may include: (1) checking the data and information for overall completeness, 
+and/or (2) assessing consistency with the Morningstar DBRS data and information expectations set forth 
+in an applic able Methodology(ies).  The “reasonableness review” is expected to be conducted in 
+accordance with related Morningstar DBRS policies and procedures.  However, data and information 
+on which Morningstar DBRS bases its opinion are not audited or verified by Morningstar DBRS.  
+ 
+Morningstar DBRS refrains from assigning credit ratings, and will discontinue-withdraw outstanding 
+credit ratings, where there is a lack of sufficient data and information; the quality of information is not 
+sufficient; or the complexity of the structure of a new type of financial instrument or structured product, 
+or the quality of information raises serious questions as to whether a credible credit rating can be 
+provided. 
+ 
+— Structured Finance – Rating Information Disclosed per SEC Rule 17g-5 
+ 
+When Morningstar DBRS  is engaged to assign a credit rating to securities or money market 
+instruments issued by an asset pool or as part of an asset -backed or mortgage -backed securities 
+transaction, Morningstar DBRS generally discloses specific information about the transaction on a 
+password-protected Internet web site that it makes available to other nationally recognized statistical 
+rating organizations who have furnished Morningstar DBRS with an appropriate certification 
+regarding their use of the information ( Non-Hired NRSROs ).  Morningstar DBRS also obtains 
+written representations from the arranger of such Structured Finance products that it will make all the 
+information it gives to Morningstar DBRS to determine an initial credit rating or to monitor that credit 
+rating available to the Non -Hired NRSROs through its own password- protected web  site, which   
+enables  Non-Hired  NRSROs  to  provide unsolicited credit rating opinions on the subject securities.   
+ 
+In accordance with the terms of the applicable regulatory requirements, Morningstar DBRS does not 
+provide this disclosure with regard to credit ratings initiated and paid for by investors, or certain credit 
+ratings with respect to securities or money market instruments issued by non- US persons if the 
+ 
+3  Certain ratings, such as point in time credit ratings, are not monitored.  For more information, see Credit Ratings 
+Global Policy. 
+
+===== PDF PAGE 4 =====
+ 
+ 
+ 
+ 
+4 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+transaction in question occurs outside of the United States.   
+ 
+3. The Rating Symbol 
+ 
+Morningstar DBRS uses rating symbols as a concise method of expressing its opinion to the market, but 
+there are a limited number of rating categories for the possible slight risk differentials that exist across 
+the rating spectrum and Morningstar DBRS does not assert that credit ratings in the same category are 
+of “exactly” the same quality. When using the rating symbols, investors should also be aware of the 
+additional value that may be provided by Under Review statuses, Rating Trends and the comments and 
+opinions referenced in Morningstar DBRS press releases, rating reports and other publications.   
+ 
+Morningstar DBRS differentiates credit ratings of certain Structured Finance products from traditional 
+Fundamental Ratings through the use of a different rating symbol modifier: (sf).  The (sf) modifier 
+indicates that the credit rating is for the relevant Structured Finance product; it does not change the 
+meaning or definition of the credit rating in any way and does not change the risk of the particular 
+Structured Finance product.  
+ 
+Morningstar DBRS marks the credit ratings of the following Structured Finance products with the 
+“(sf)” modifier: 
+ 
+• Asset-backed securities (ABS) 
+• Asset-backed commercial paper (ABCP) 
+• Residential mortgage-backed securities (RMBS) 
+• Single- and multi-tranched collateralized debt obligations and credit default swaps (CDSs)  
+with the exception of single-name CDSs. 
+• Commercial mortgage-backed securities (CMBS) 
+• Multi-tranched insurance securitizations 
+• Structured investment vehicles (SIV) 
+• Repackaged instruments where any of the underlying assets is a Structured Finance instrument 
+ 
+See also: DBRS Implements Global Structured Finance Modifier 
+ 
+4. Morningstar DBRS Rating Scales 
+ 
+The vast majority of Morningstar DBRS credit ratings fall under two primary scales: 
+ 
+(1)  Virtually all long-term credit ratings use the Morningstar DBRS  long-term obligations scale 
+with symbols ranging from AAA (highest credit quality) to C (very highly speculative). 
+ 
+(2)  The scale for commercial paper and short- term credit ratings ranges from the highest credit 
+quality of R-1 (high) to the highly speculative category of R-5.   
+ 
+In addition, Morningstar DBRS uses other rating scales to assign and monitor credit ratings, including:  
+ 
+• preferred share rating scale (Canadian scale only); 
+• credit fund rating scale; 
+• national scale credit ratings; 
+
+===== PDF PAGE 5 =====
+ 
+ 
+ 
+ 
+5 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+• financial strength rating scale; and  
+• expected loss rating scale.   
+ 
+Morningstar DBRS rating scales also have “D” and “SD” classifications to signify Default and Selective 
+Default respectively as defined by Morningstar DBRS. 
+ 
+For further detail on Morningstar DBRS  Rating Scales, including a comparison of the Morningstar 
+DBRS short-term and long- term ratings scales, refer to the “About Ratings - Rating Scales” page at 
+dbrs.morningstar.com.    
+ 
+5. Morningstar DBRS Unsolicited Credit Ratings  
+ 
+In the United States and Canada, Morningstar DBRS defines an unsolicited credit rating to be a credit 
+rating that is: 
+• not made at the request of, nor initiated by, the issuer, rated entity or other third party; and 
+• assigned without participation by the issuer, rated entity or other third party. 
+ 
+For greater clarity, if the issuer does not make a request for or initiate the credit rating but participates 
+in the credit rating process, the credit rating is considered a solicited credit rating. As such, DBRS, Inc. 
+and DBRS Limited do not issue “Unsolicited-Participating” credit ratings. 
+ 
+In the European Union and Australia, Morningstar DBRS defines an unsolicited credit rating to be a 
+credit rating that is not requested by the issuer, rated entity or a related third party. A related third party 
+is a party that is interacting with Morningstar DBRS  on behalf of a rated entity, and could include, 
+among others, an originator, arranger or sponsor. 
+ 
+Unsolicited credit ratings, which may be public or private, are only assigned when sufficient information 
+is available to support the analysis and to monitor the credit rating on an ongoing basis. Unsolicited 
+credit ratings are determined in accordance with established Morningstar DBRS policies, procedures 
+and methodologies, and are covered by its conflicts of interest and unfair, coercive or abusive business 
+practices, policies and procedures. 
+ 
+Unless otherwise stated, Morningstar DBRS credit ratings are solicited.  There are certain disclosures 
+that must be included in press releases, presale reports and rating reports for unsolicited credit ratings 
+as outlined in the applicable related unsolicited credit rating procedures. 
+ 
+6. The Rating Process 
+ 
+— Morningstar DBRS Analyst Teams 
+ 
+Morningstar DBRS analysts work within specific industries and product groups in the Fundamental 
+Ratings and Structured Finance R atings business sectors. Each entity rated by Morningstar DBRS  is 
+normally covered by a team of two or more analysts (one of whom acts as “lead analyst”) who may 
+work together on the credit rating, attend meetings with the issuer’s senior management, and make a 
+recommendation with regard to a rating action. The analysts also monitor outstanding Morningstar 
+DBRS Fundamental credit ratings, while outstanding Structured Finance credit ratings may be 
+monitored by the original analytical team or by one or more dedicated surveillance analysts.   
+ 
+
+===== PDF PAGE 6 =====
+ 
+ 
+ 
+ 
+6 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+— Rating Committees 
+ 
+All Morningstar DBRS credit ratings are determined by rating committees. Morningstar DBRS  uses 
+rating committees to make these determinations primarily because rating committees: 
+• provide credit rating decisions that are a reflection of Morningstar DBRS’ opinion, rather than 
+the view of an individual analyst or analysts;  
+• make credit rating decisions that are based on sufficient information, incorporate both global 
+and local considerations, and apply approved methodologies;  
+• provide a checkpoint for actual and perceived conflicts of interest among analysts; and  
+• standardize the rules, procedures and documentation processes to drive efficiency and 
+consistency with respect to credit rating decisions. 
+ 
+Rating committees typically meet on an as -needed basis, such as when new credit rating coverage is 
+initiated, as rating actions are requested or rating events occur, in accordance with Morningstar DBRS 
+policies and procedures.  Rating committees have member composition requirements, which vary 
+depending upon a number of factors, including, but not limited to, the nature of the issue or rating action 
+under consideration, the Fundamental Ratings industry sector and the type of Structured Finance Ratings 
+transaction. Rating committees are comprised of experienced and knowledgeable analytical personnel. 
+Each rating committee typically includes analytical staff with expertise in the industry, sector/product 
+group or asset class, lead and rating analyst(s) assigned to the rating, and may include  an independent 
+voter from outside the rating team or product group.  Analysts from both sectors may attend the same 
+rating committee process, where appropriate. Each voting member in a rating committee is permitted 
+one vote, with a majority vote cast at the conclusion of a rating committee meeting, which generally 
+constitutes approval of a rating decision. 
+ 
+In certain circumstances, credit ratings may be assigned without a rating committee as part of 
+Morningstar DBRS’ subsequent ratings process. 
+ 
+— The Fundamental Ratings Process 
+ 
+While there can be minor differences in the rating process across different jurisdictions and product 
+lines, outlined below are general principles and the steps generally taken during the Fundamental rating 
+process: 
+(1) Initial Contact 
+In most cases, Morningstar DBRS is contacted by the issuer, its investment banker or dealer and is 
+requested to conduct a Fundamental credit rating. 
+ 
+(2) Letter of Engagement 
+To formalize the rating assignment, Morningstar DBRS generally requests the issuer to confirm the 
+terms of the engagement. 
+ 
+(3) Information on the Issuer 
+Relevant information about the issuer is obtained from a variety of sources, including the issuer and 
+third parties, for the purposes of conducting the rating analysis. 
+ 
+(4) Meeting with Management 
+Morningstar DBRS generally conducts one or more management meeting s to understand all relevant 
+
+===== PDF PAGE 7 =====
+ 
+ 
+ 
+ 
+7 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+aspects of the issuer’s business.  In addition to learning more about the issuer and its financing plans, 
+the areas outlined in the applicable Methodologies are addressed when speaking with senior 
+management.  
+  
+(5) Draft Rating Report  
+Following analysis of the information obtained, a draft rating report is typically prepared. 
+ 
+(6) Rating Committee 
+The analysis, draft rating report (if prepared), proposed credit rating and other applicable material are 
+submitted to the rating committee, which determines the credit rating. 
+ 
+(7) Review by the Issuer 
+Subject to regulatory requirements, Morningstar DBRS may provide the issuer, arranger and/or their 
+respective agent with a draft press release, presale report or rating report for review prior to publication. 
+The purpose of this review is to confirm the factual a ccuracy of the document and to identify any 
+confidential, material non -public or sensitive information that might otherwise be inadvertently 
+disclosed.  
+ 
+(8) Publishing 
+Morningstar DBRS may publish a form of disclosure for public credit ratings (press release, presale 
+report and/or final rating report) as part of the rating process. Private credit ratings may be conveyed by 
+means of a rating letter. 
+ 
+(9) Surveillance 
+In accordance with Morningstar DBRS  policies and procedures, surveillance activities are conducted  
+by Morningstar DBRS  analysts. Issuers and sponsors/servicers are expected to supply data and 
+information over the life of the credit rating. The maintenance of a credit rating is conditional upon the 
+on-going timely receipt of this data and/or information, which must be obtained from reasonably reliable 
+sources as part of the surveillance process.  
+ 
+In accordance with applicable regulations, Morningstar DBRS reviews its outstanding credit ratings as 
+needed, or at least on an annual basis. Surveillance activities that result in a rating action being taken on 
+public credit ratings are published on dbrs .morningstar.com in accordance with Morningstar DBRS  
+policies and procedures. 
+ 
+— Structured Finance Ratings Process 
+ 
+While there can be minor differences in the rating process across different jurisdictions and product 
+lines, outlined below are general principles and the steps generally taken during the Structured Finance 
+rating process. 
+ 
+(1) Initial Contact 
+In most cases, Morningstar DBRS is contacted by the issuer , its investment banker or dealer and is 
+requested to conduct a Structured Finance credit rating. 
+ 
+(2) Letter of Engagement 
+To formalize the rating assignment, Morningstar DBRS  generally requires the sponsor to confirm the 
+terms of the engagement. 
+
+===== PDF PAGE 8 =====
+ 
+ 
+ 
+ 
+8 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+ 
+(3) Information on the Issuer or Sponsor 
+Morningstar DBRS evaluates the issuer’s or sponsor’s proposed transaction terms and pool of assets to 
+be securitized, and may consider information from third party sources.   
+ 
+(4) Structural and Legal Review 
+The sponsor typically provides Morningstar DBRS  with legal documents for Morningstar DBRS to 
+evaluate the consistency of the legal structure with the Morningstar DBRS legal criteria.   
+ 
+(5) Draft Rating Report  
+A presale or rating report may be drafted which focuses on the rating rationale and the structural features 
+of the transaction or program, the roles performed by various parties as well as the structural risk 
+mitigants that exist within the transaction or program. 
+ 
+(6) Rating Committee 
+The analysis, draft rating report (if prepared), and proposed credit rating are submitted to the rating 
+committee that determines the credit rating.  
+ 
+(7) Review by the Issuer, Sponsor and/or Agent 
+Subject to regulatory requirements, Morningstar DBRS  may provide an issuer, arranger and/or their 
+respective agent with a draft press release, presale report or rating report for review prior to publication. 
+The purpose of the review is to confirm the factual accuracy of the document and to identif y any 
+confidential, material non -public, or sensitive information that might otherwise be inadvertently 
+disclosed. 
+ 
+(8) Publishing 
+Morningstar DBRS may publish a form of disclosure for public credit ratings (press release, presale 
+report and/or final rating report) as part of the rating process. Private credit ratings may be conveyed by 
+means of a rating letter. 
+ 
+(9) Surveillance 
+In accordance with Morningstar DBRS  policies and procedures, surveillance activities are conducted 
+by Morningstar DBRS analysts.  Issuers and sponsors/servicers are expected to supply data and 
+information over the life of the credit rating. The maintenance of a credit rating is conditional upon the 
+on-going timely receipt of this data and/or information, which must be obtained from reasonably reliable 
+sources as part of the surveillance process. Morningstar DBRS does not audit the information it receives 
+in connection with the rating process, and it does not and cannot independently verify that information 
+in every instance. 
+ 
+In accordance with applicable regulations, Morningstar DBRS reviews its outstanding credit ratings as 
+on at least an annual basis. Surveillance activities that result in a rating action being taken on public 
+credit ratings are published on dbrs .morningstar.com in accordance with Morningstar DBRS  policies 
+and procedures.  
+ 
+ 
+7. Morningstar DBRS Credit Ratings Appeal Procedure  
+ 
+ 
+An issuer, sponsor or any other related entity that requests a credit rating may request an appeal of a 
+
+===== PDF PAGE 9 =====
+ 
+ 
+ 
+ 
+9 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+Morningstar DBRS rating action before it is published when material new information is provided to 
+Morningstar DBRS. 
+ 
+Morningstar DBRS considers rating appeals on a case-by-case basis. Morningstar DBRS defers issuing 
+the press release and any related report pending disposition of the appeal request and resolution of the 
+appeal, as applicable. 
+ 
+8. Publishing Credit Ratings and Issuing Press Releases  
+ 
+Press releases cover topics including, but not limited to, Morningstar DBRS public credit rating opinions, 
+new and updated rating M ethodologies, the availability of industry- specific studies and commentaries, 
+and significant regulatory-related events.  
+ 
+Morningstar DBRS endeavors to issue all press releases in a timely manner, placing a high priority on 
+informing the public of its  public credit rating opinions as soon as possible following the rendering of 
+the decision by the Rating Committee. 
+9. Rating Actions, Designations and Commentaries  
+— Rating Actions and Designations 
+Credit ratings may be assigned, upgraded, downgraded, placed “Under Review”, confirmed or 
+discontinued.  Furthermore, certain ratings may be assigned—or undergo a change to—a Rating Trend. 
+ 
+(1) Credit Ratings “Under Review” 
+ 
+Morningstar DBRS maintains surveillance of the entities that it rates and therefore all credit ratings are 
+monitored on an ongoing basis.   When a significant event occurs that directly impacts the credit quality 
+of a particular entity or group of entities, Morningstar DBRS attempts to provide a prompt credit rating 
+opinion. However, if there is uncertainty regarding the outcome of the event, and Morningstar DBRS is 
+unable to provide an objective, forward-looking opinion in a timely fashion, the credit rating(s) of the 
+issuer(s) are placed "Under Review"  with the appropriate implication designation of “positive”, 
+“negative” or “developing”. 
+ 
+Morningstar DBRS may place credit ratings “Under Review” in situations where there has been no 
+major announcement or event for the issuer, but in the opinion of Morningstar DBRS the current credit 
+rating may no longer be appropriate , for example as a consequence of a change in the credit status or 
+results of the issuing entity  and/or the outlook for the industry.  In most such cases, where additional 
+time is required for further analysis, Morningstar DBRS places the credit rating “Under Review”. 
+ 
+Morningstar DBRS may also place a credit rating “Under Review” if Morningstar DBRS has announced 
+that one or more of its M ethodologies that apply to such a credit rating is being revised and the 
+announcement indicates that the outcome of the credit ratings affected by the revision is to be taken at 
+a later time after the Methodologies have been approved.  
+ 
+See also:  Rating Actions, Designations, Commentaries and Press Releases Global Policy 
+ 
+
+===== PDF PAGE 10 =====
+ 
+ 
+ 
+ 
+10 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+(2) Interest in Arrears Designation 
+ 
+There may be Structured Finance transactions, such as commercial mortgage- backed securities 
+("CMBS") transactions, where one or more classes of certificates experience an interest shortfall. In 
+such circumstances, Morningstar DBRS assesses whether the related interest shortfall is expected to be 
+temporary and recovered within a certain period of time. Accordingly, Morningstar DBRS may place 
+an 'Interest in Arrears' designation on the affected class(es) of certificates depending on rating level, as 
+appropriate.  
+ 
+An example of interest in arrears occurs when one or more loans in a CMBS deal has been subject to 
+an appraisal reduction event, a feature within CMBS structures, which prompts a servicer to advance a 
+partial payment based on a lower valuation. This event may cause a particular class to have an interest 
+shortfall; however, the interest shortfall is deemed to be ultimately recoverable at the time the loan is 
+resolved.  
+ 
+Using this designation enables market participants to be aware that Morningstar DBRS believes that the 
+interest shortfall is not expected to impact a certificate’s credit rating. 
+ 
+(3) Rating Trends 
+ 
+Morningstar DBRS uses “ Rating Trends” for its credit ratings in the Fundamentals sector, pension 
+funds, global CMBS, and European non-performing loan (NPL) securitizations. Rating Trends provide 
+guidance in respect of an opinion of Morningstar DBRS  regarding the outlook for the credit rating in 
+question.  Rating Trends have three categories - "Positive", "Stable" or "Negative". The Rating Trend 
+indicates the direction in which Morningstar DBRS  considers the credit rating may move if present 
+circumstances continue, or in certain cases as it relates to the Fundamentals sector, unless challenges 
+are addressed by the issuer. Certain asset classes in Structured Finance that utilize Trends may not assign 
+Trends to CCC/CC/C rating levels. 
+ 
+See also:  Rating Actions, Designations, Commentaries and Press Releases Global Policy 
+ 
+(4) Discontinued Credit Ratings 
+ 
+When an entity retires all of its outstanding securities within a particular category of rated instruments 
+and has no plans to reissue in the near future (e.g., commercial paper, long- term debt, or preferred 
+shares), Morningstar DBRS discontinues the credit rating. Morningstar DBRS may also discontinue a 
+credit rating where the rated debt is no longer in the public market, where a defeasance structure removes 
+the credit risk of the issuer as a consideration, where the debt comes to be held by a few large institutions 
+that do not want  ongoing Morningstar DBRS credit ratings, or where Morningstar DBRS  elects to 
+discontinue its credit rating coverage of a particular entity or security. 
+ 
+To reflect the two general types of discontinued credit rating actions, Morningstar DBRS  uses 
+“Discontinued - Repaid” and “Discontinued - Withdrawn”. 
+ 
+In the specific case where an issuer’s credit ratings have been downgraded to “D”, Morningstar DBRS 
+may maintain or discontinue the credit rating. In rendering this decision, Morningstar DBRS will 
+consider the value for investors of Morningstar DBRS continuing to have credit ratings coverage of the 
+issuer, and the likelihood of the rated debt being upgraded as the default situation is remedied, which 
+
+===== PDF PAGE 11 =====
+ 
+ 
+ 
+ 
+11 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO 
+March 2026 
+may include a debt restructuring action. In cases where neither of these factors support continuing 
+coverage, the credit rating will generally be discontinued. 
+ 
+See also: Framework for Assigning Default and Selective Default Ratings 
+ 
+— Commentaries 
+ 
+A commentary is a publication by which Morningstar DBRS  may make its opinions known to the 
+market without taking a rating action.  Morningstar DBRS issues a commentary, in the form of a short 
+press release or a longer document, to address situations that may have implications for a specific issuer, 
+a group of issuers or an entire industry, often following a release of new information or an 
+announcement. 
+ 
+ 
+ 
+
+===== PDF PAGE 12 =====
+ 
+ 
+ 
+ 
+12 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO – Annual Certification 
+March 2026 
+PART B – QUANTITATIVE AND QUALITATIVE MODELS, 
+METHODOLOGIES AND METRICS USED BY MORNINGSTAR 
+DBRS 
+ 
+ 
+1. Rating Philosophy and Principle 
+ 
+Morningstar DBRS considers the following when determining credit ratings: 
+ 
+(a) Rating Through the Cycle Philosophy 
+ 
+Credit ratings provide forward looking assessments of the credit quality of an issuer or debt obligation. 
+Morningstar DBRS takes a longer-term "rating through the cycle" view of an issuer or debt obligation 
+that seeks to look through the current phase of economic cycles in assessing the longer run performance 
+of an issuer and avoid changing credit ratings with each phase of an economic cycle.  C onsequently, 
+credit rating changes are more likely to occur when it is clear that a structural change in the economy  
+has occurred impacting certain issuers or the phase of the cycle has revealed weaknesses or strengths in 
+the creditworthiness of an issuer.   
+ 
+(b) Hierarchy Principle 
+ 
+When rating long-term debt instruments, Morningstar DBRS considers the ranking of each instrument 
+class relative to adjacent instrument classes and to the issuer’s debt structure to determine whether rating 
+distinctions are warranted, noting that the starting point for such ranking is typically the issuer credit 
+rating or the most senior level of debt instrument. 
+ 
+When issuers have classes of debt  instruments that do not rank equally, in most cases, lower ranking 
+classes receive a lower Morningstar DBRS  credit rating in relation to the most senior debt instrument 
+or issuer credit rating, subject to certain exceptions. With respect to investment grade corporate credit 
+ratings (excluding credit ratings for financial institutions and sovereigns), Morningstar DBRS generally 
+assigns a credit rating that is one notch lower for each successive level of subordination. The issuer 
+credit rating typically remains unchanged. 
+ 
+Where the outstanding amount owning in a senior debt instrument class is low relative to an issuer’s 
+overall debt burden, and Morningstar DBRS has a degree of comfort that the issuer will not be increasing 
+the outstanding amount in the senior debt instrument class in the future, Morningstar DBRS may assign 
+the same credit rating to the senior and junior classes as the presence of the senior debt instrument class 
+may be deemed to not be materially adverse to the interests of the junior debt instrument class. For 
+investment grade corporate credits, the materiality threshold is general ly 10%, such that a one notch 
+differential would generally be warranted when senior debt exceeds 10% of total debt.  
+ 
+See also:  Credit Ratings Global Policy 
+ 
+2. Methodologies  
+ 
+Methodologies are reviewed on a periodic basis and updated, as necessary. The public is advised of 
+material changes to Methodologies and the implications to outstanding credit ratings, and 
+
+===== PDF PAGE 13 =====
+ 
+ 
+ 
+ 
+13 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO – Annual Certification 
+March 2026 
+Methodologies are generally available on the “Understanding Ratings – Methodologies & Criteria” page 
+at dbrs.morningstar.com.  
+ 
+Methodologies are reviewed by Fundamental R atings and Structured Finance R atings criteria 
+committees, as applicable. Generally speaking, a criteria committee is responsible for: 
+ 
+• Reviewing and approving new, and updates to existing, Methodologies prior to final approval by 
+the Methodology Review Function (MRF) and certain Morningstar DBRS boards of directors or 
+a committee of those boards, when applicable, for publication and use by Morningstar DBRS  in 
+accordance with applicable regulations;  
+• Reviewing that material changes to Methodologies are applied consistently to all relevant 
+outstanding credit ratings within a reasonable period of time after final approval in accordance 
+with applicable regulations; 
+• Determining the appropriate method for dissemination of Methodologies, which may include 
+request for comment periods, in accordance with applicable regulations and Morningstar DBRS  
+policies and procedures; 
+ 
+• In the case of Fundamental Ratings criteria committees: 
+o Reviewing and opining on the feasibility of providing a credit rating for a new corporate 
+industry that is significantly different from the industries Morningstar DBRS  currently 
+rates; and for those class of obligors, securities or money market instruments that 
+Morningstar DBRS has not previously rated, determining that Morningstar DBRS  has 
+sufficient competency, access to necessary information and resources to rate these types 
+of obligors, securities or money market instruments; 
+ 
+• In the case of Structured Finance Ratings criteria committees:  
+o Reviewing and opining on the classification or reclassification of certain predictive 
+models, cash flow engines and analytical tools;  
+o Reviewing and opining on the feasibility of methodology proposals in respect of new 
+sectors, products, asset classes, asset types or property types;  
+o Reviewing and opining on the suitability of existing methodological coverage to assign 
+and monitor credit ratings i n sectors, asset classes, product types or property types that 
+are broadly similar to  the types in which Morningstar DBRS  assigns and monitors 
+associated credit ratings, as applicable; and 
+o Approving the ability of  Analytical Personnel based on their respect ive Morningstar 
+DBRS entity to assign and monitor credit ratings using an approved Methodology; and 
+o Providing approval prior to the first use of an approved Methodology to assign credit 
+ratings with respect to an additional sub-region within the scope thereof. 
+ 
+All criteria committees are comprised of experienced Analytical Personnel.  
+ 
+A Morningstar DBRS  credit rating may be determined or monitored by applying one or more 
+Methodologies, as appropriate. 
+ 
+
+===== PDF PAGE 14 =====
+ 
+ 
+ 
+ 
+14 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO – Annual Certification 
+March 2026 
+Morningstar DBRS  has implemented an M RF which is responsible for periodically reviewing and 
+approving new and existing Methodologies and any significant changes made thereto.  The Morningstar 
+DBRS Boards oversee and monitor the MRF’s performance of its regulatory responsibilities, and the 
+head of MRF is accountable to the Morningstar DBRS Boards.  The MRF regulatory interacts with, and 
+provides reporting to, the relevant Morningstar DBRS Boards.   
+  
+(a) Fundamental Ratings Methodologies 
+ 
+The following is a sample list of some of the broader areas covered by Fundamental R atings 
+Methodologies: 
+ 
+• Banking Organizations  
+• Insurance Organizations 
+• Non-Bank Financial Institutions 
+• Sovereigns 
+• Public Finance 
+• Project Finance 
+• Infrastructure 
+• Diversified Industries 
+• Utilities & Independent Power Producers 
+• Oil & Gas 
+ 
+A list of all current Fundamental Ratings Methodologies may be found on the “Understanding Ratings 
+– Methodologies & Criteria” page at dbrs.morningstar.com. 
+ 
+Overview of Quantitative and Qualitative Inputs – Fundamental Ratings 
+When assigning a credit rating to a particular issuer or security, Morningstar DBRS  considers all 
+meaningful factors , both qualitative and quantitative,  that could impact the ability of the issuer to 
+maintain timely payment of interest and principal in the future. 
+ 
+Morningstar DBRS  Methodologies also allow for the possible impact of issues such as ranking, 
+covenants and collateral to determine the credit rating. As discussed within individual Methodologies, 
+most Fundamental credit ratings at Morningstar DBRS  are based on a mixture of non- exhaustive 
+quantitative and qualitative considerations.  In many cases, there is an overlap, as quantitative 
+considerations must be understood in the context of the situation, including subjective considerations.   
+ 
+— Qualitative Inputs – Fundamental Ratings 
+Morningstar DBRS  Fundamental R atings Methodologies include consideration of historical and 
+expected business and financial risk factors as well as industry -specific issues, regional nuances, peer 
+comparisons, and other subjective factors.  The qualitative inputs differ across the various sectors and 
+industries, but typical  broad considerations will often include brand or franchise strength, 
+diversification, the competitive landscape, and in some industries, regulation.  While key factors are not 
+exhaustive, M ethodologies attempt to provide clarity on the key elements for the industry.  Most 
+Methodologies note that considerations for the strength or weakness of management, boards, 
+governance and the relevant sovereign credit ratings can be important considerations.  There are cases 
+where a weak or strong parent or related entity may also  be a meaningful consideration. Most issuers 
+
+===== PDF PAGE 15 =====
+ 
+ 
+ 
+ 
+15 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO – Annual Certification 
+March 2026 
+will also be assessed with respect to a variety of liquidity aspects that can include the funding 
+philosophy, ability to access markets and the availability of alternative sources of funds.    
+ 
+— Quantitative Inputs– Fundamental Ratings 
+ 
+Morningstar DBRS Fundamental Ratings Methodologies will typically reference key financial metrics 
+and in most cases will also provide ranges expected for specific levels of creditworthiness within this 
+assessment of the entities financial risk profile.  For base corporate industries, ratios typically include 
+key cash flow and coverage metrics.  Other sectors such as governments, financial institutions and public 
+finance will each have their own unique metrics.  Numerical comparisons of key data and metrics with 
+peer competitors is a standard part of the ratings process.  Where applicable, assessments may include 
+consideration for off-balance-sheet items, derivatives, the quality of the capital structure and bank-lines.  
+Individual security credit ratings will consider relative ranking.  
+ 
+— Monitoring Existing Fundamental Ratings 
+ 
+As noted above, Morningstar DBRS  generally updates its outstanding Fundamental credit ratings at 
+least on an annual basis. Surveillance activities are generally conducted by Morningstar DBRS analysts 
+in accordance with Morningstar DBRS policies and procedures. Issuers and sponsors/servicers are 
+expected to supply data and information over the life of the credit ratings. The maintenance of a credit 
+rating is conditional upon the on- going timely receipt of this data and/or information, which may be 
+obtained from reasonably reliable sources as part of the surveillance process. 
+ 
+Surveillance activities that result in a rating action being taken on public credit ratings are published on 
+dbrs.morningstar.com in accordance with Morningstar DBRS policies and procedures. 
+ 
+When Morningstar DBRS makes a material change to a Fundamental Ratings Methodology, it applies 
+the updated Methodology to its existing credit ratings.  
+ 
+See also: Credit Ratings Surveillance Global Policy for Fundamental Ratings 
+ 
+(b) Structured Finance Ratings Methodologies 
+ 
+Morningstar DBRS has established Methodologies that address the structural features common to many 
+jurisdictions in addition to the spectrum of sectors or asset classes typically securitized.  Credit r atings 
+for Structured Finance vehicles reflect an opinion of the ability of the transaction to fund repayment to 
+investors according to each security’s stated payment obligation. The asset classes include pools of 
+relatively homogeneous assets, such as credit card receivables, retail auto loans and leases and student 
+loans.  In some cases, assets pools may be comprised of more heterogeneous assets, such as commercial 
+mortgage loans or securities and loans that serve as collateral for collateralized debt obligation 
+securities.    
+ 
+Each Methodology typically considers the following key analytical considerations: (1) the types of legal 
+structures used and legal opinions reviewed by Morningstar DBRS; (2) the quality of participants, 
+including the seller and/or loan originators, the servicer of the assets, the collateral manager, notably if 
+the financing is actively managed, in addition to other types participants that Morningstar DBRS deems 
+material from a credit risk perspective; (3) asset quality; (4) the  types of funding structures;  (5) the 
+types and amounts of available credit enhancement and; (6) financial viability of the transaction. 
+
+===== PDF PAGE 16 =====
+ 
+ 
+ 
+ 
+16 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO – Annual Certification 
+March 2026 
+ 
+For those Methodologies for which a model constitutes a substantial component, the Methodologies 
+include a rating process diagram and set forth what would constitute a material deviation from the 
+credit rating implied by the model output. 
+ 
+The following list is a sample of Morningstar DBRS  published sector specific and cross-
+jurisdictional Methodologies: 
+ 
+•   ABCP  
+•     Auto ABCP 
+•   CMBS  
+• Commercial Mortgages 
+• Covered Bonds 
+• Credit Card & Consumer Lending 
+• Equipment 
+• RMBS  
+• Split Shares & Funds 
+• Structured Credit 
+• Structured Finance 
+• Student Loans 
+ 
+ 
+A list of all current Structured Finance Ratings Methodologies may be found on the “Understanding 
+Ratings – Methodologies & Criteria” page at dbrs.morningstar.com. 
+ 
+Overview of Qualitative and Quantitative Inputs - Structured Finance Ratings 
+ 
+When assigning a credit rating to a particular class or tranche of a Structured Finance transaction, 
+Morningstar DBRS considers the factors, both qualitative and quantitative, that could impact the ability 
+of the relevant issuer to repay investors. The following considerations provide an overview of the key 
+quantitative and qualitative information that Morningstar DBRS considers when rating securities. 
+ 
+ 
+— Qualitative Inputs – Structured Finance Ratings 
+ 
+The qualitative components for assigning a credit rating may include inputs that include a review of the 
+transaction parties and counterparties.  Notably, other qualitative factors may include the quality of the 
+seller’s financial condition, operational capabilities, the transaction’s legal structure and documentation, 
+and the ability of the seller to provide ongoing reporting.  This reporting details the current performance 
+of the transaction.  To gain additional insight into the seller’s financial condition, Morningstar DBRS 
+Structured Finance Ratings Group may liaise with the Fundamental Ratings Group. 
+ 
+Morningstar DBRS reviews the legal structure chosen by the issuer, specifically the structure of the 
+special purpose vehicle (SPV), the characteristics of the SPV and the transaction’s legal opinions. The 
+purpose of this qualitative input is to assess the bankruptcy remoteness of the SPV from the seller of the 
+assets.  Depending on the transaction type, the legal opinions rendered may include a true sale opinion, 
+non-consolidation opinion and first perfected security interest opinion. Also, depending on the 
+transaction type , the legal documents reviewed may include the trust indenture, administration 
+
+===== PDF PAGE 17 =====
+ 
+ 
+ 
+ 
+17 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO – Annual Certification 
+March 2026 
+agreement, purchase and sale agreement, pooling and servicing agreement and other key agreements 
+with various transaction participants i.e. interest rate swap counterparties.  
+ 
+Within the legal documents, Morningstar DBRS typically considers the following: 
+ 
+• Asset eligibility criteria including the following key items:  concentrations; delinquency and 
+default attributes of assets in the pool; rights of set -off; and/or presence of liens or 
+encumbrances; 
+• Bankruptcy remoteness provisions; 
+• Cash flow waterfalls; 
+• Covenant package provided by the seller and the strength of any indemnities; 
+• Seller representations and warranties; 
+• Performance based triggers that may divert payments to investors who hold higher priority debt; 
+• Credit ratings and downgrade provisions relating to institutions providing transaction support, 
+such as hedge counterparties, liquidity providers or credit enhancers;  
+•    Servicing and back-up servicing obligations; and 
+• If applicable, the nature and form of liquidity back-up facility.  
+
+===== PDF PAGE 18 =====
+ 
+ 
+ 
+ 
+18 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO – Annual Certification 
+March 2026 
+— Quantitative Inputs – Structured Finance Ratings 
+ 
+From a quantitative perspective, Morningstar DBRS analysis typically incorporates an evaluation of the 
+asset pool and financial structure, which is used to evaluate the amount of available credit enhancement 
+for each rating level.  For financial structures that rely on cash flows for repayment, Morningstar DBRS 
+generally evaluates the cash flow scenarios for each credit rating assigned. 
+ 
+The data and information reviewed by Morningstar DBRS  may include loan level data, pool 
+stratifications that break down the components of the pool’s characteristics in addition to an issuer’s 
+historical performance data, including delinquencies, defaults, repossessions and losses. Morningstar 
+DBRS may also consider the following items when evaluating an asset pool:  
+ 
+• Volatility with regards to historical performance metrics; 
+• Historical prepayment rates; 
+• Diversification with regards to the obligor base and the presence of various pool concentrations; 
+• Default probabilities, recoveries and correlations extracted from historical credit performance 
+data; 
+• Performance of comparable asset pools; 
+• Evaluation of the sensitivity of performance to external factors; 
+• Monte Carlo or other simulations projecting future performance; and 
+• The contractual repayment terms of the assets. 
+ 
+Morningstar DBRS may also determine the stress assumptions to be applied to the expected cash flow 
+profile under contractual as well as differing default, loss and prepayment scenarios.  As warranted, the 
+cash flow scenarios also incorporate stresses with regards to the level of interest rates, basis and currency 
+risks, if not hedged by a derivative counterparty.  The cash flows also reflect transaction performance 
+tests and thresholds as described in the legal documents.   These tests may act to dynamicall y increase 
+transaction protections by building credit enhancement or restricting the excess cash flow released back 
+to the seller. 
+ 
+— Monitoring Outstanding Credit Ratings – Structured Finance Ratings 
+ 
+As noted above, Morningstar DBRS typically monitors all of its outstanding Structured Finance credit 
+ratings on a periodic basis.  Morningstar DBRS generally applies Methodologies consistent with those 
+used in determining the initial credit rating for all S tructured Finance asset classes, however different 
+assumptions or additional criteria may be applied and/or actual performance may be considered during 
+the surveillance process. A rating committee may be convened when credit events occur, or otherwise 
+as warranted. 
+ 
+When Morningstar DBRS implements a material change to one of its Methodologies for determining 
+initial credit ratings, it subsequently applies the material change to existing credit ratings through the 
+surveillance process to the extent the material change is applicable.   
+ 
+Morningstar DBRS uses a separate team for initial credit ratings and ongoing surveillance of Structured 
+Finance transactions, wherever feasible.  Overlap of analysts from both teams may occur in the rating 
+analysis and rating committee process.  
+ 
+See also: Credit Ratings Surveillance Global Policy for Structured Finance Ratings 
+
+===== PDF PAGE 19 =====
+ 
+ 
+ 
+ 
+19 
+ 
+Exhibit 2 – Rating Procedures and Methodologies 
+Form NRSRO – Annual Certification 
+March 2026 
+ 
+(c) Internal Assessments 
+ 
+An Internal Assessment is an opinion regarding the creditworthiness of an issuer, security or transaction, 
+as applicable.  They are typically private and used as an input into a different credit rating; for example, 
+an Internal Assessment of a financial institution (acting as an account bank or a hedge counterparty) used 
+as part of a structured finance credit rating. 
+ 
+Internal Assessments are typically assigned using the Long- Term Obligations Scale, but are not credit 
+ratings, and are generally denoted using the Morningstar DBRS  rating scales definitions with an (iax) 
+modifier.   
+ 
+Internal Assessments are assigned by Internal Assessment review committees and may be determined (1) 
+by using public credit ratings issued and maintained by other credit rating agencies, (2) based on 
+Morningstar DBRS’ own analysis or (3) using a combination of both.  Morningstar DBRS has developed 
+internal criteria for determining what public credit rating should be used when multiple public credit 
+ratings may be available.   
+ 
+See also:  Internal Assessments Global Policy 
+ 
+ 
+ 

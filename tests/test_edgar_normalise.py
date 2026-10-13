@@ -51,6 +51,8 @@ def _table(title: str, rows: str, header: str = "Dec. 31, 2024") -> str:
 OPERATIONS = _table(
     "Consolidated Statements of Operations - USD ($) $ in Millions",
     _line("Revenues", "Total revenue", "53,803")
+    + _line("GrossProfit", "Gross profit", "20,000")
+    + _line("SellingGeneralAndAdministrativeExpense", "Operating expenses", "7,819")
     + _line("OperatingIncomeLoss", "OPERATING INCOME", "12,181")
     + _line("DebtCurrent", "Short-term debt", "11,341"))
 
@@ -165,6 +167,22 @@ def test_an_ambiguous_label_is_dropped_rather_than_resolved_by_luck() -> None:
     base = normalise(_Ambiguous(), company="TST", period="FY2024", as_of=date(2025, 3, 1),
                      agent=_agent([GOOD[0]]))
     assert base.get("revenue") is None
+
+
+def test_a_semantically_incompatible_line_is_rejected_and_the_standard_formula_is_used() -> None:
+    mapped = [
+        {"element_id": "gross_profit", "statement": "Operations", "label": "Gross profit"},
+        {"element_id": "operating_expenses_total", "statement": "Operations",
+         "label": "Operating expenses"},
+        {"element_id": "operating_income", "statement": "Operations", "label": "Gross profit"},
+    ]
+    base = _run(mapped)
+    operating_income = base.elements["operating_income"]
+    assert operating_income.state == "derived"
+    assert operating_income.value == 12_181 * M
+    assert {part.source for part in operating_income.contributions} == {
+        "gross_profit", "operating_expenses_total"
+    }
 
 
 # --- derivations, which the model has no part in --------------------------- #

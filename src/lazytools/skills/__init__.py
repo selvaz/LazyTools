@@ -67,6 +67,11 @@ from lazytools.skills.stats_report import (
     build_stats_report_specialists,
     stats_report_pipeline,
 )
+from lazytools.skills.financial_investigator import (
+    FinancialInvestigatorMemory,
+    financial_investigator,
+    financial_investigator_baseline,
+)
 
 __all__ = [
     # documentation skills
@@ -113,4 +118,8 @@ __all__ = [
     "STATS_REPORT_SKILLS",
     "build_stats_report_specialists",
     "stats_report_pipeline",
+    # evidence-backed global financial investigator
+    "FinancialInvestigatorMemory",
+    "financial_investigator",
+    "financial_investigator_baseline",
 ]

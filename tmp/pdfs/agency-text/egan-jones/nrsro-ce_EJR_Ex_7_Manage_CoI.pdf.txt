@@ -1,0 +1,2122 @@
+
+===== PDF PAGE 1 =====
+Form NRSRO 
+Egan-Jones Ratings Company 
+("EJR") 
+Exhibit #7: Policies and Procedures to Address and Manage Conflicts of Interest 
+► Code of Conduct 
+► Conflicts and Compliance Manual (sections to address and manage conflicts of interest) 
+► Management/ Avoidance of Conflicts of Interest 
+► Books and Records 
+► Treatment of Complaints 
+► Duty to Report Tips Alleging Material Violations of Law 
+► Conflict-Related Compliance Policy Oversight- Board of Directors 
+► Standard for Shared E-mail Addresses 
+► EJR System Access Control Policy 
+
+===== PDF PAGE 2 =====
+Dear Colleagues, 
+EGAN-JONES RATINGS 
+COMPANY CODE OF CONDUCT 
+Code of Conduct 
+(Code of Conduct Effective 5/13/2024) 
+As global events such as the pandemic have changed the way people around the world work and interact 
+with one-another, Egan-Jones remains committed to doing business and serving clients with integrity and 
+in accordance with the highest ethical standards. Whether you work remotely, in an Egan-Jones office 
+setting, or in a hybrid work environment, each of us is responsible for understanding and following the 
+Code of Conduct and all other applicable policies and procedures. This updated Code of Conduct is a 
+critical component of the Company's internal control structure. 
+Please be sure to familiarize yourself with, and attest to, this Code of Conduct and other relevant policies 
+and procedures contained on EJ System, and complete all required training sessions throughout the year. 
+If you have any questions regarding the Code of Conduct or related matters, please contact your 
+manager or the Compliance Department . If you become aware of violations of this Code of Conduct, law, 
+or regulation, you may report them to your manager and to the Compliance Department. 
+Thank you for your ongoing commitment to ethics and integrity. 
+Sincerely, 
+Juan Marcelino 
+Independent Chairman of the Board 
+Sean Egan 
+CEO 
+Gus Macedo 
+Designated Compliance Officer 
+
+===== PDF PAGE 3 =====
+Table of Content 
+EGAN-TONES RATINGS COMPANY CODE OF CONDUCT ................................................................................................ 4 
+PRINCIPLES OF THE CODE ......................................................................................................................................................... 4 
+Statement on Core values and Mission ............................................................................................................................... 4 
+Fostering a Culture of Compliance ........................................................................................................................................ 4 
+Know and Understand the Laws and Regulations ......................................................................................................... 5 
+Professionals Serving Professionals .................................................................................................................................... 5 
+Trust but Verify ............................................................................................................................................................................ 5 
+ACT IN THE BEST INTERESTS OF THE FIRM. CLIENTS & THE PUBLIC ................................................................ 6 
+Fair Dealing & Integrity ............................................................................................................................................................. 6 
+Personal Email Usage Policy and Off-Channel Communications ............................................................................ 6 
+Conflict of Interest. ....................................................................................................................................................................... 7 
+Examples of Conflicts oflnterest that can be Managed and Disclosed .............................................................................................. 8 
+Examples of Prohibited Conflicts oflnterest .............................................................................................................................................. 10 
+Identified Conflicts oflnterest .......................................................................................................................................................................... 13 
+Gifts & Entertainment ............................................................................................................................................................... 14 
+Corporate Opportunities ......................................................................................................................................................... 15 
+Firm Systems and Assets ......................................................................................................................................................... 15 
+Personal Securities Transactions and Holdings ........................................................................................................... 15 
+Insider Trading Policies and Procedures ......................................................................................................................... 16 
+ENFORCEMENT AND ADMINISTRATION OF THE CODE ............................................................................................ 18 
+What to Do if You Learn Inside Information .................................................................................................................. 18 
+How to Preserve the Confidentiality of Material Non-Public Information ....................................................... 19 
+Provide Fair and Truthful Disclosures to Our Clients & the Public ...................................................................... 19 
+Reporting Violations ................................................................................................................................................................. 20 
+Policy Against Retaliation ....................................................................................................................................................... 20 
+Measures to be Undertaken in the Event of a Material Breach .............................................................................. 20 
+Consequences of Violating the Code .................................................................................................................................. 21 
+Attestation. Waivers. Amendments and Contact Information ............................................................................... 21 
+
+===== PDF PAGE 4 =====
+EGAN-JONES RATINGS COMPANY 
+CODE OF CONDUCT 
+PRINCIPLES OF THE CODE 
+Statement on Core values and Mission 
+The mission of Egan-Jones Ratings Company ("EJR" or the "Firm") is to provide market 
+participants with timely and accurate credit ratings and other services. EJR serves clients 
+in the private debt markets, as well as certain other markets, by providing analytical insights 
+in a clear and concise format. As a market leader in the provision of private credit ratings, 
+all ratings are based on sound analytical methodologies. The firm's other services are 
+similarly provided in accordance with robust procedures and methodologies. 
+The firm's values are centered on analytical integrity and independence. Analytical 
+methodologies are developed by industry experts with relevant skills and experience in an 
+environment that is free from inappropriate commercial influence. 
+As a regulated credit rating agency, compliance is afforded the highest priority at Egan­
+Jones. The Firm has established a system of internal controls to ensure an exceptionally high 
+level of compliance with applicable laws and regulations. 
+EJR is committed to fostering a work environment that allows the views of its Associated 
+Persons to be expressed in a committee or other consensus-oriented setting. For example, 
+committee voting will take place after voting members have each had an opportunity to 
+express their views. 
+Fostering a Culture of Compliance 
+The Firm has a Code of Conduct (the "Code"), which serves as its code of ethics. The purpose 
+of this Code is to set forth basic principles to guide you in your day-to-day activities as an 
+Associated Person, and to outline the expectations the Firm has of all its Associated Persons. 
+The Firm requires its Associated Persons to read and adopt the Code to enhance their 
+understanding of the Firm's practices, including procedures regarding personal securities 
+and money market instruments transactions, insider trading and personal email usage 
+provisions. This Code is intended to provide basic principles and behavior guidelines and 
+foster a "culture of compliance" at EJR. 
+The Code does not cover every regulatory, legal or ethical issue that you may confront at 
+the Firm. Indeed, no code of conduct can attempt to anticipate the myriad of issues that 
+arise in a fast-moving, financial-related enterprise like EJR. However, by following this Code 
+and the Firm's policies and procedures, by adhering to the letter and the spirit of all 
+applicable laws and regulations, and above all, by applying sound judgment to your 
+activities, the Associated Persons will be able to adhere not only to the regulatory 
+requirements applicable to EJR, but also to the Firm's commitment to compliance and 
+
+===== PDF PAGE 5 =====
+ethical behavior in all of its activities. 
+In addition to this Code, you are required to read and acknowledge acceptance of, and 
+compliance with, the EJR Conflicts and Compliance Manual (the "Manual"). The Manual 
+contains additional information on the regulations governing NRSROs, issues that are 
+presented in the operation of a credit ratings business- most notably, conflicts of interest, 
+and other subjects that may or may not be addressed in this Code. 
+Know and Understand the Laws and Regulations 
+EJR is registered as a nationally recognized statistical rating organization ("NRSRO") with 
+the U.S. Securities & Exchange Commission ("SEC" or the "Commission") in the following 
+classes of credit ratings: (1) financial institutions, brokers or dealers; (2) insurance 
+companies; and (3) corporate issuers, and is therefore subject to regulation and oversight 
+in the United States by the Commission. EJR is also subject various laws of the 
+Commonwealth of Pennsylvania where its main office is located as well as state and local 
+laws of each of EJR's offices. It is your responsibility to know and understand the laws and 
+regulations applicable to your job responsibilities, and to comply with both the letter and 
+the spirit of these regulations, as well as the Firm's policies and procedures. EJR requires 
+that you avoid not only any actual misconduct but also even the appearance of 
+impropriety. We require Associated Persons to rely on common sense, good judgment, 
+individual integrity and a discerning mind to guide you in your day-to-day activities. 
+Assume that any action you take ultimately could be publicized; therefore, when taking an 
+action consider how you and the Firm would be perceived. When in doubt, seek guidance 
+from the Firm's knowledgeable regulatory and compliance personnel. Such personnel will 
+assist you in obtaining any guidance you might need. 
+Professionals Serving Professionals 
+EJR provides credit rating products and services for institutional clients. The majority of 
+its clients have long-term high-level experience within the securities business, and have 
+internal capability for independent analysis and investment decision making. Our product 
+is a tool for such professional institutional clients. 
+Trust, but Verify 
+Trust your instincts. If something does not appear to be lawful or ethical, or you have a 
+question about it, ask the Firm's Designated Compliance Officer ("DCO"), raise a flag, and 
+ask for help from the Firm's resources. Seek guidance rather than making assumptions that 
+you are aware of regulatory nuances. The Firm strongly encourages you to discuss freely 
+any concerns with knowledgeable persons, and requires you to report to the Compliance 
+Department violations of law and regulation as well as internal policies and procedures. If you 
+are unclear about the applicability of regulations to your job responsibilities, or if you are 
+unsure about the propriety of a particular course of action, you should seek the advice of 
+your supervisor and / or the Firm's DCO. You should never assume that an activity is 
+compliant merely because others in the industry engage in it or you do not see any pitfalls 
+in the course of action. EJR encourages you to reach out to any of the foregoing with your 
+questions prior to pursuing a course of action if you are not 100% positive you know the 
+
+===== PDF PAGE 6 =====
+regulatory ramifications of that action. 
+ACT IN THE BEST INTERESTS OF THE FIRM, CLIENTS & THE PUBLIC 
+Fair Dealing & Integrity 
+The Firm's basic core concept is that we provide a valuable service to our institutional 
+clients. We rely on the trust of our clientele, for their belief and respect for our products and 
+services, and the trust they invest in our abilities and integrity. The Firm seeks to 
+outperform its competition fairly and honestly through timely superior analysis and 
+experience. Every Associated Person must therefore always keep the best interests of the 
+Firm's clients paramount and endeavor to fairly and properly deal with its clients, 
+competitors, public, and vendors. No one should take unfair advantage of anyone through 
+manipulation, abuse of privileged information, misrepresentation of facts, intimidation, or 
+any other unfair practice. No Associated Persons should ever position themselves for, or 
+take, personal gain through their association with the Firm. 
+Personal Email Usage Policy and Off-Channel Communications 
+As discussed more broadly in EJR's Conflicts and Compliance Manual and Information 
+Security Policy, EJR maintains standards governing approved communications devices and 
+channels, as well as unapproved communications devices and channels which include use 
+of any personal or non EJR controlled communication device or channels ("Off-Channel 
+Communications"). Associated persons are expected to read and be familiar with policies 
+and procedures prohibiting the use of Off-Channel Communications, such as SMS/text 
+messages, encrypted mobile phone messaging, and personal e-mail accounts for business 
+purposes. 
+EJR's Associated Persons are strictly prohibited from using their personal email accounts to 
+transmit and/or receive confidential information and/or confidential workplace documents 
+or to conduct workplace business, provided certain limited exceptions may be granted by 
+the Compliance Department for Associated Persons working from home. The Code of 
+Conduct attestation includes a clause requiring all EJR Associated Persons to attest to use 
+only their EJR email address to transmit and/or receive Confidential Information and/or 
+confidential work papers or to conduct workplace business. Attestations are collected and 
+reviewed by the Compliance Department. As part of the Firm's annual compliance training, 
+all Associated Persons will be reminded of EJR's policies and procedures with regards to 
+safeguarding confidential information and material nonpublic information. 
+On a periodic basis, the Compliance Department will conduct an email search on 
+randomly-selected Associated Persons to ensure emails sent to or received from personal 
+email accounts did not contain Confidential Information and/ or confidential workplace 
+documents (see "Email Review Policies and Procedures" in the Conflicts and Compliance 
+Manual). Email search results will be retained within a compliance surveillance folder. Any 
+Associated Persons who use a personal email account are required to attest to their 
+awareness of this Personal Email Usage Policy. Associated Persons who commit an 
+infraction of this Policy may be subject to disciplinary action, including termination at the 
+recommendation of the DCO. 
+
+===== PDF PAGE 7 =====
+Associated Persons are also prohibited from using the Firm's email to transmit material 
+that may be deemed to be offensive to a prudent person, or emails that reflect badly on the 
+corporate culture of the Firm. Those include (but are limited to) any email that could be 
+deemed pornographic, sexist, hateful, racist, discriminatory, terroristic, harassing, 
+disparaging to the Firm or any of its Associated Persons, or any email that could be 
+considered workplace brutality. Any emails with the aforementioned content will not be 
+tolerated in the Firm's email environment, and may lead to immediate disciplinary action, 
+including termination. Note that these email policies also apply to personal email accounts 
+accessed via the Firm's systems . 
+The following is a real-world example of a code violation pertaining to off-channel 
+communications: 
+1. An associated person forwarded confidential information to their personal e-mail 
+address. This was detected in connection with ongoing compliance monitoring. 
+Conflicts of Interest-- Background 
+Broadly speaking, there are two categories of conflicts of interest that associated persons 
+need to be aware of: 
+1) Conflicts of interest that can be managed and disclosed; and 
+2) Prohibited conflicts of interest 
+Below is an overview of both types of conflicts. Associated Persons should read and be 
+familiar with EJR's Conflicts and Compliance Manual, which provides significant additional 
+information pertaining to conflicts of interest and how EJR manages and/ or avoids conflicts 
+through its system of internal controls. 
+In addition to being paid by issuers and subscribers, the NRSRO is also paid to determine 
+ratings by investors and asset managers. Frequently these engagements contemplate the 
+issuance of the credit rating on a private basis. In these cases, the NRSRO provides the credit 
+rating directly to its client but does not publish ( or make available to all its subscribers) the 
+credit rating or a report detailing its credit analysis ( although such a report may be provided 
+to the client with the rating). This business model is subject to conflicts of interest, which 
+are oftentimes related to the objectives of the client for obtaining the rating. 
+As discussed above, in addition to conflicts of interest that must be managed and disclosed, 
+the Securities and Exchange Commission prohibits certain conflicts of interest relating to 
+the issuance of credit ratings by an NRSRO. The Commission believes this regulation is 
+necessary and appropriate in the public interest and for the protection of investors because 
+it addresses a practice that could impair the objectivity, and, correspondingly, the quality, 
+of a credit rating. Commission believes the prohibition creates a strong incentive for 
+NRSROs to improve their disclosures, which, in turn, will benefit the users of credit ratings 
+and, by extension, the credit markets. 
+
+===== PDF PAGE 8 =====
+Section lSE and the related Commission rules address conflicts of interest. For example, 
+Rule 17g-5 identifies certain conflicts of interest that are prohibited under all circumstances 
+(Rule 17g-S(c)) and other conflicts of interest that are prohibited unless an NRSRO has 
+publicly disclosed the existence of the conflict and has implemented policies and procedures 
+reasonably designed to address and manage such conflict (Rule 17g-S(b)(1)-(10)). 
+Consistent with applicable regulatory requirements, EJR establishes and maintains a system 
+of internal controls to ensure that applicable staff maintain EJR's analytical independence 
+and avoid prohibited conflicts. EJR Associated Persons are prohibited from engaging in any 
+activity that might constitute or result in, or create the appearance of, any impropriety or 
+conflict of interest. 
+The primary responsibility of EJR Associated Persons is to perform their jobs in an efficient, 
+compliant and productive manner. EJR Associated Person are expected to meet EJR's 
+standards of work performance and personal conduct, including following company rules 
+and adhering to established internal controls and working practices. 
+Conflict disclosure- When an Associated Person becomes aware of an actual or potential 
+conflict of interest, they are responsible for taking appropriate action in accordance with 
+legal and regulatory requirements and EJR's policies and procedures. For example, EJR 
+Associated Persons are required to disclose to their supervisors and the EJR Compliance 
+Department their involvement with any transaction or business relationship that might 
+reasonably give rise to an actual conflict of interest or the appearance of a conflict of interest. 
+Examples of Conflicts of Interest that can be Managed and Disclosed 
+Many of EJR's clients have an economic interest in achieving a particular rating level. This 
+creates a conflict of interest that needs to be managed and disclosed. Such conflicts are 
+disclosed on Form NRSRO. Examples of EJR clients who may have an economic interest in 
+achieving a particular rating level can include: 
+• Issuers 
+• Underwriters 
+• Obligors 
+• Entities that may own investments or have entered into transactions that could be 
+impacted by a credit rating issued by EJR 
+• Clients who may use credit ratings to comply with, and obtain benefits or relief 
+under, statutes and regulations using the term "nationally recognized statistical 
+rating organization." 
+• Subscription clients who may own investments or have entered into transactions 
+that could be favorably or adversely impacted by a credit rating issued by EJR. 
+Many of the above conflicts fall, broadly speaking, under the "issuer-pays" business model. 
+To help manage these sorts of conflicts and ensure the integrity and independence of EJR's 
+credit ratings, EJR segregates various functions. The most fundamental aspect of this 
+segregation entails the segregation of Analytical and Sales/Marketing roles. Analytical staff 
+are not permitted to become involved in sales or marketing activities and Sales/Marketing 
+staff are not permitted to influence Analytical staff. As an example, it is not appropriate for 
+
+===== PDF PAGE 9 =====
+Sales/Marketing staff to share with Analytical staff any information pertaining to fees or 
+contract terms or to indicate to Analytical staff that a particular client is important to the 
+firm. Beyond role segregation, EJR also physically segregates Analytical and 
+Sales/Marketing staff during times when both roles may be located in a physical office 
+setting. Finally, data and information segregation is enforced so that each role views 
+information pertinent to their legitimate business purposes. 
+Where clients purchase multiple products from a rating agency (for example, credit ratings 
+and proxy services) this has the potential to give rise to conflicts of interest. This general 
+type of conflict is disclosed on Form NRSRO and, as specific instances are identified in course 
+of regular monitoring performed by Ratings Sales staff, those instances are disclosed on the 
+17g-7 Disclosure Form pertaining to the relevant rating action . 
+Associated persons are allowed to own securities of issuers or obligors subject to a credit 
+rating determined by EJR as long as they do not participate in or influence such credit 
+ratings. This is disclosed on Form NRSRO. EJR employs an array of controls, including 
+systems-based controls that help prevent analysts from voting in a rating committee where 
+their personal securities holdings may pose a conflict of interest. In addition, EJR's 
+Compliance team collects and reviews brokerage statements to help enforce the more 
+detailed guidance set out below. 
+EJR allows persons within EJR to have a business relationship that is more than an arm's 
+length ordinary course of business relationship with issuers or obligors subject to a credit 
+rating determined by EJR as long as they do not participate in or otherwise influence the 
+credit rating for such issuers or obligors. This is disclosed on Form NRSRO. EJR's 
+Compliance Department administers Outside Business Activity (OBA) disclosure forms and, 
+where necessary, conducts follow up interviews with associated persons in order to manage 
+any potential conflicts of interest that may arise in connection with outside business 
+relationships. 
+Examples of Prohibited Conflicts of Interest 
+As an NRSRO, the Firm is prohibited under Rule 17g-S(c) of the Securities Exchange Act of 
+1934, as amended ("Exchange Act") from having the following conflicts of interest relating 
+to the issuance or maintenance of a credit rating as a credit rating agency, and we therefore 
+do not engage in the PROHIBITED CONFLICTS listed below: 
+(1) Issue or maintain a credit rating solicited by a person that, in the most recently ended 
+fiscal year, provided the Firm with net revenue (as reported under §240.17g-3) 
+equaling or exceeding 10% of the total net revenue of the Firm for the fiscal year; 1 
+EJR's Accounting team performs monitoring and reporting of client net revenues. 
+Compliance and other firm leadership, as well as EJR's Board of Directors, receive reports 
+1 Unless the Firm receives an exemption from the Commission. 
+
+===== PDF PAGE 10 =====
+and conduct oversight to help ensure that this prohibited conflict is not violated. 
+(2) Issue or maintain a credit rating with respect to a person ( excluding a sovereign 
+nation or an agency of a sovereign nation) where the Firm, a credit analyst that 
+participated in determining the credit rating, or a person responsible for approving 
+the credit rating, directly owns securities of, or has any other direct ownership 
+interest in, the person that is subject to the credit rating . 
+Please refer to "Personal Securities Transactions and Holdings" herein for detailed 
+information. 
+(3) Issue or maintain a credit rating with respect to a person associated with the Firm; 
+or Issue or maintain a credit rating where a credit analyst who participated in 
+determining the credit rating, or a person responsible for approving the credit rating, 
+is an officer or director of the person that is subject to the credit rating; 
+The Compliance Department administers and reviews outside business activity disclosure 
+forms. Where potential risks are identified on outside business activity disclosure forms, 
+Compliance will conduct additional inquiries/interviews with staff in order to effectively 
+identify and restrict certain activities, as necessary and appropriate. 
+( 4) Issue or maintain a credit rating with respect to an obligor or security where the 
+Firm or a person associated with the Firm made recommendations to the obligor or 
+the issuer, underwriter, or sponsor of the security about the corporate or legal 
+structure, assets, liabilities, or activities of the obligor or issuer of the security; 
+The purpose of this rule is to address the potential lack of impartiality that could arise when an 
+NRSRO determines a credit rating based on a corporate structure that was developed after 
+consultations with the NRSRO or its affiliate on how to achieve a desired credit rating. In 
+simple terms, the rule prohibits an NRSRO from rating its own work or the work of an 
+affiliate. 
+The following specific example pertaining to structuring may surface when dealing with 
+clients: 
+When a client requests an NRSRO rating that the Firm cannot rate due to the Firm's NRSRO 
+registration status ( e.g., a request for a rating on a municipal security, government 
+security, foreign government security or ABS security), you must inform the client that the 
+Firm is unable to provide an NRSRO rating for such security because the Firm is not 
+registered as an NRSRO in respect of such class(es) of credit ratings. You may not make 
+any suggestions or recommendations to the client about ways in which the security could 
+provide an NRSRO rating. 
+(5) Issue or maintain a credit rating where the fee paid for the rating was negotiated, 
+discussed, or arranged by a person within the Firm who has responsibility for 
+participating in determining credit ratings or for developing or approving 
+procedures or methodologies used for determining credit ratings, including 
+
+===== PDF PAGE 11 =====
+qualitative and quantitative models; or Issue or maintain a credit rating where a 
+person within the Firm who participates in determining or monitoring the credit 
+rating, or developing or approving procedures or methodologies used for 
+determining the credit rating, including qualitative and quantitative models, also: 
+i. Participate in sales or marketing of a product or service of the Firm or a product or 
+service of an affiliate of the Firm; or 
+ii. Is influenced by sales or marketing considerations. 
+The purpose of this rule is to remove the persons directly involved in making the 
+judgments that credit ratings are based on from fee negotiations and, thereby, insulate 
+them from considerations that could make them more or less favorably disposed toward 
+a client or class of clients. It is essential to insulate rating analysts from business pressures 
+by separating rating agencies' business-development function from their analytical 
+function. 
+In addition to controls pertaining to the segregation of roles and information ( discussed 
+above and in EJR's Conflicts and Compliance Manual), EJR maintains 'tainted procedures', 
+effectively providing for a cooling-off period where Analytical staff inadvertently come into 
+contact with commercial information ( e.g., fee information, contractterms ). 
+(6) Issue or maintain a credit rating where a credit analyst who participated in 
+determining or monitoring the credit rating, or a person responsible for approving 
+the credit rating received gifts, including entertainment, from the obligor being rated, 
+or from the issuer, underwriter, or sponsor of the securities being rated, other than 
+items provided in the context of normal business activities such as meetings that 
+have an aggregate value of no more than $25 (See Section "Gifts & Entertainment" 
+below). 
+The purpose of this rule is to eliminate the potential for undue influence that gifts and 
+entertainment can have on those responsible for determining credit ratings. 
+Please see guidance pertaining to gifts and entertainment below and more detailed guidance 
+in the Conflicts and Compliance Manual. 
+For the purposes of the above Prohibited Conflicts, the term person within an NRSRO means 
+the Firm itself, its credit rating affiliates identified on Form NRSRO, and any partner, officer, 
+director, branch manager, and employee (including all Associated Persons) of the Firm or 
+its credit rating affiliates ( or any person occupying a similar status or performing similar 
+functions). Any questions with respect to the meaning or scope of such conflicts should be 
+referred to the Compliance Department. 
+As discussed above, EJR maintains a comprehensive system of internal controls. This 
+system of internal controls is documented and maintained by the Compliance Department. 
+Some examples of internal controls intended to help the organization avoid certain 
+prohibited conflicts of interest include: 
+
+===== PDF PAGE 12 =====
+Prohibited conflict pertaining to clients who could provide the NRSRO with net 
+revenue equaling or exceeding 10% to the total net revenue of the NRSRO for the fiscal 
+year. 
+Internal control: Accounting periodically monitors and circulates a report showing 
+year-to-date net revenue by client/revenue type. The 10% analysis report is used 
+for the purpose of monitoring adherence to Rule 17g-S(c)(1). Compliance and 
+senior management review the report and propose appropriate action, as 
+necessary. 
+Example of prohibited conflict dealing with personal securities holdings: An analyst 
+that participates in the rating process for XYZ Inc. may not hold securities of XYZ Inc. 
+Internal Control: New Associated Persons submit their securities holdings along with 
+brokerage statements as part of EJR's onboarding procedures. Associated Persons 
+submit applicable brokerage account statements to the Compliance Department on 
+a quarterly basis. Analyst(s) are required to attest that they do not have any 
+prohibited conflicts prior to determining credit ratings. 
+Prohibited conflict: Credit rating analysts are not permitted to negotiate ratings fees. 
+Internal control: EJR ratings analyst(s) are strictly prohibited from discussing fee 
+information, types/structures of fees, or any other fee-related information, even if 
+the specific amount is not discussed. 
+Public Disclosure of Identified Conflicts of Interest and Related Conflict Procedures 
+Under Rule 17g-S(b)(1)-(10) of the Securities Exchange Act of 1934, as amended 
+("Exchange Act") EJR has adopted internal procedures and mechanisms to identify and 
+eliminate, or to manage and disclose, as appropriate, actual or potential conflicts of 
+interest that may influence the opinions and analyses EJR makes or the judgment and 
+analyses of EJR Associated Person involved in credit rating activities or who approve credit 
+ratings and rating outlooks. 
+(1) EJR is paid by issuers or underwriters to determine credit ratings with respect to 
+securities or money market instruments they issue or underwrite. 
+(2) EJR is paid by obligors to determine credit ratings with respect to the obligors. 
+(3) EJR is paid by entities to determine credit ratings with respect to obligations of 
+third parties where such entities may own investments or have entered into 
+transactions that could be impacted by a credit rating issued by EJR. 
+( 4) EJR is paid for services in addition to determining credit ratings by issuers, 
+underwriters, or obligors that have paid EJR to determine a credit rating. 
+
+===== PDF PAGE 13 =====
+(5) EJR is paid by persons for subscriptions to receive or access the credit ratings of 
+EJR and/or for other services offered by EJR where such persons may use the credit 
+ratings of EJR to comply with, and obtain benefits or relief under, statutes and 
+regulations using the term "nationally recognized statistical rating organization." 
+(6) EJR is paid by persons for subscriptions to receive or access the credit ratings of 
+EJR and/ or for other services offered by EJR where such persons also may own 
+investments or have entered into transactions that could be favorably or adversely 
+impacted by a credit rating issued by EJR. 
+(7) EJR allows persons within EJR to directly own securities or money market 
+instruments of, or having other direct ownership interests in, issuers or obligors 
+subject to a credit rating determined by EJR as long as they do not participate in or 
+otherwise influence the credit rating for such issuers or obligors. 
+(8) EJR allows persons within EJR to have a business relationship that is more than an 
+arm's length ordinary course of business relationship with issuers or obligors 
+subject to a credit rating determined by EJR as long as they do not participate in or 
+otherwise influence the credit rating for such issuers or obligors. 
+Policies, procedures and internal controls associated with the above identified conflicts of 
+interest are also discussed in EJR's Conflicts and Compliance Manual. 
+EJR has also disclosed certain of its conflict avoidance and management measures on its 
+free public website at https: //www.egan-jones.com . EJR's disclosures of known actual and 
+potential conflicts of interest shall be timely, clear, concise, specific, and prominent. Please 
+refer to Exhibit 6, "Identification of Conflicts of Interest Relating to the Issuance of Credit 
+Ratings," and Exhibit 7, "Policies and Procedures to Address and Manage Conflicts of 
+Interest," to Form NRSRO, which are available on the Firm's website, www.egan­
+jones.com/nrsro, for a description of policies and procedures which must be followed by 
+Associated Persons in relation to conflicts of interest. 
+Gifts & Entertainment 
+Gifts and entertainment may create an inappropriate expectation or feeling of obligation. 
+You are required to follow gifts standards detailed in the NRSRO rules and note that gifts 
+that fall outside the standard are prohibited. You and members of your family may not 
+accept gifts or gifts offered in the form of cash or cash equivalents, or special favors ( other 
+than an occasional non-cash gift of nominal value - i.e., coffee mugs with logos, etc.) from 
+any person or organization with which the Firm has a current or potential business 
+relationship or from any Company that the Firm does or may rate. Further, business gifts 
+to, and entertainment of, non-government employees in connection with business 
+discussions or the development of business relationships are only appropriate if they are 
+in the ordinary course of business and their value is modest. If you have any questions 
+about the appropriateness of a business gift or expense, you should contact your 
+supervisor or the DCO. Associated Persons are required to receive preapproval from the 
+
+===== PDF PAGE 14 =====
+Compliance Department before giving gifts and any gifts which are received need to be 
+reported to the Compliance Department to ensure the gift is appropriate per NRSRO rules. 
+Detailed guidance pertaining to gifts and entertainment is provided in EJR's Conflicts and 
+Compliance Manual. 
+Giving gifts to, or entertaining, government employees (including employees of 
+international organizations and or regulatory bodies) may be prohibited. The United 
+States Foreign Corrupt Practices Act, for example, prohibits giving anything of value, 
+directly or indirectly, to any "foreign official" for the purpose of obtaining or retaining 
+business. Check with your supervisor or the DCO if you have any questions about the 
+acceptability of conduct in any foreign country, including contacting foreign officials with 
+respect to the Firm's sovereign ratings or the sales of Firm products to foreign 
+governments or agencies. 
+Corporate Opportunities 
+As an Associated Person, you owe a duty to the Firm to advance its interests. No Associated 
+Person may use their position or corporate property or information for personal gain. 
+Additionally, no Associated Person may take for themselves the Firm's opportunities for 
+sales or purchases of products, services or interests. Business opportunities that arise as 
+a result of your position in the Firm or through the use of corporate property or 
+information belong to the Firm. 
+Firm Systems and Assets 
+The Firm's policies regulate use of the Firm's systems, including telephones, computer 
+networks, electronic mail, and remote access capabilities. Generally, you should use the 
+Firm's systems and properties only for legitimate Firm business. Under no conditions may 
+you use the Firm's systems to view, store, or send unlawful, offensive or other 
+inappropriate materials. In addition, protecting the Firm's assets against loss, theft, waste, 
+or other misuse is the responsibility of every Associated Person. Any suspected misuse 
+should be reported to your supervisor or the DCO. 
+Personal Securities Transactions and Holdings 
+The Firm's personal securities policy is designed to address potential conflicts of interest 
+in cases where Associated Persons have ownership positions in issuers or related entities 
+the Firm does or may do business with. This policy applies to accounts of the Associated 
+Person and the Associated Person's direct family members. As used herein, direct family 
+members include an Associated Person's spouse and minor and dependent children and 
+references should be interpreted accordingly. If there are questions about whether 
+someone constitutes a direct family member, the Associated Person should speak with the 
+Compliance Department. 
+An Associated Person must disclose brokerage or other investment accounts, including 
+private investments, trusts or investment clubs, in which the Associated Person has direct 
+or indirect influence or control (such as joint ownership, trading authorization, third-party 
+accounts*, or the authority to exercise investment discretion) and/or a direct or indirect 
+
+===== PDF PAGE 15 =====
+beneficial ownership interest. 
+*A third-party investment account ("Third-Party Account") is an account that is managed 
+by someone other than yourself (employee), on your behalf. This "third party" could be a 
+professional money manager, financial adviser, or even a trust or attorney acting according 
+to your instructions. 
+Accounts related to money market instruments and commercial paper are also subject to 
+this Personal Securities Transactions and Holdings policy. Notwithstanding the foregoing, 
+an Associated Person is not required to disclose the following types of accounts or 
+accounts that can only hold the following types of investments: open-end mutual funds; 
+foreign exchange; cryptocurrency; pension or retirement accounts in which the Associated 
+Person does not have investment discretion and where the Associated Person is not 
+permitted to invest directly in securities; commodities; futures on commodities, 
+currencies and indices; certificates of deposit; bank accounts; 529 accounts or plans; and 
+401K or similar retirement accounts that are not able to hold individual securities or 
+closed-end funds. All Associated Persons are required to disclose all applicable third-party 
+managed accounts, personal securities accounts and holdings, including US and non-US 
+(China, India etc.) accounts and holdings, and, if possible, ask their account custodian to 
+send "duplicate" or "interested party" statements to the Firm's Compliance Department. 
+The purchase, sale and holding of individual equity and/ or fixed income securities, 
+including options on such securities and exercise of such options, and closed-end funds is 
+prohibited. The purchase, sale and holding of ETF's is permissible without preclearance. 
+As a best practice, new Associated Persons should liquidate pre-existing positions in non­
+Third-Party Accounts. For third-party accounts, the Compliance Department will review all 
+disclosed accounts and advise on any potential conflicts of interest or the need to obtain a 
+waiver. 
+The Firm recognizes that liquidations may incur transaction fees and have unwanted tax 
+consequences in taxable accounts. Affected Associated Persons may request a limited 
+waiver from this provision of the Code from the DCO. Waiver requests must be in writing. 
+Should the Associated Person wish to liquidate a position in respect of which a waiver had 
+previously been granted, he/she must request, and receive, pre-clearance approval from 
+the DCO, noting the name of the security, ticker symbol or CUSIP, and size of the position 
+to be liquidated. The DCO will check with the Firm's Ratings Group to make sure the Firm 
+has no active engagements or outstanding work with the issuer or the security involved, 
+and, if there are no other potential conflicts identified, open up a trading window during 
+which the Associated Person can make the trade. DCO trading approvals generally are 
+valid for five business days unless specified. All Associated Persons must inform their 
+third-party account managers about EJR's requirements and restrictions regarding the 
+ownership of individual securities, holdings, and trading limitations imposed on 
+individuals who have discretion over EJR's associated persons' "Third-Party accounts." 
+Example of Inadvertent Policy Violation: A broker with discretionary authority traded 
+individual securities on behalf of an Associated Person without Compliance Department 
+
+===== PDF PAGE 16 =====
+pre-approval. 
+Compliance Guidance: Accounts with discretionary authority should not have the ability 
+to trade or hold individual securities. 
+Insider Trading Policies and Procedures 
+NRSRO firms are required to establish, maintain, enforce, and document policies and 
+procedures to prevent the misuse of material non-public information ("MNPI"). MNPI 
+generally includes (a) information that is not generally known to the public aboutthe Firm, 
+its clients, or other parties with whom the Firm has a relationship and that have an 
+expectation of confidentiality ("Confidential Information"); and (b) non-public 
+information that might be useful to competitors or that could be harmful to the Firm or its 
+customers if disclosed, such as, the names of clients, intellectual property, IT security 
+systems, business plans, personal employee information and unpublished financial 
+information ("Proprietary information" or, collectively, "Inside Information"). 
+Inside Information generated and gathered in our business is a valuable asset of the Firm. 
+Protecting Inside Information is critical to the Firm's reputation for integrity and its 
+relationship with its clients, and ensures the Firm's compliance with the complex 
+regulations governing the financial services industry. Accordingly, you should maintain all 
+such information in strict confidence. You should also respect the property rights, including 
+Inside Information, of other companies. 
+Unauthorized use or distribution of Inside Information violates the Firm's internal policy 
+and could be illegal. Such use or distribution could result in negative consequences for 
+both the Firm and the individuals involved, including potential legal and disciplinary 
+actions. Your obligation to protect the Inside Information you come into contact with 
+continues even after you leave the Firm, and you must return all documents containing such 
+information in your possession to the Firm upon your departure. 
+If Associated Persons receive Inside Information, they are prohibited from securities 
+trading ("Insider Trading"), whether for the account of themselves, their family, friends, or 
+any customer, any accounts in which they have a direct or indirect beneficial interest 
+(including accounts for family members) and any other account over which they have 
+control, discretionary authority or power of attorney and any account on their behalf. This 
+absolute trading prohibition is in effect should the Firm cover that issuer or not. 
+Additionally, Associated Persons are prohibited from sending or sharing Inside 
+Information to others. Insider Trading for these purposes is any trading activity where 
+persons trade while in possession of material information that is not known to the 
+investing public and which provides the holder or recipient of the information with a 
+potentially unfair advantage in the marketplace. 
+The penalties for Insider Trading can be considerable, including loss of profits plus 
+damages, criminal sanctions including incarceration, loss of employment and permanent 
+bar from the securities industry. If you are in possession of Inside Information about a 
+company or the market for a company's securities, you must refrain from acting upon it. 
+
+===== PDF PAGE 17 =====
+You also may not communicate Inside Information to another person who has no official 
+need to know it. 
+If you are in possession of Inside Information, you are required to safeguard it based on a 
+"legitimate business need to know" standard, and to promptly notify the DCO of any 
+inappropriate internal or external dissemination Please see NRSRO Exhibit 3: Policies or 
+procedures adopted and implemented to prevent the misuse of material, nonpublic 
+information., which is reasonably designed to prevent the misuse of Inside Information 
+considering the Firm's business, structure, size and other relevant factors. The Firm 
+recognizes thatin the course of its work it may be exposed to Inside Information so all 
+Associated Persons must be able to identify material non-public information and handle 
+such information properly. 
+The Firm anticipates that instances of exposure to Insider Information may occur, 
+including inadvertently, in the course of research activities. For instance, company 
+projections often constitute material non-public information. Any kind of trading while in 
+possession of Inside Information may constitute Insider Trading and, at a minimum, may 
+be improper, if not illegal. In addition, trading while in possession of information 
+concerning the pending issuance of a rating by the Firm (front-running) is also prohibited. 
+These activities are STRICTLY PROHIBITED. In addition, all of the Firm's credit analysis 
+work is highly confidential and proprietary information and shall not be disclosed. The 
+Firm's decision to upgrade, downgrade or, in some cases, review or update a rating on a 
+security or an instrument, may be material non- public information and thus is to be very 
+closely guarded prior to the rating publication. No ratings action decision should ever be 
+disclosed, prior to dissemination, to anyone outside of the Credit Analysts at the Firm. 
+Below are selected real world examples of violations dealing with the safeguarding of 
+confidential information: 
+1. EJR Associated Person inadvertently sent client confidential data to an unrelated third 
+party; the Associated Person's email auto-filled the incorrect recipient. 
+2.An analyst inadvertently sent a partially completed private rating information form to a 
+person other than the individual that requested the rating. 
+Compliance Guidance: Double-check the accuracy of auto-filled e-mail addresses prior to 
+clicking Send. 
+ENFORCEMENT AND ADMINISTRATION OF THE CODE 
+What to Do if You Learn Inside Information 
+It is not illegal to learn Inside Information. The Firm or its Associated Persons may learn 
+material non-public information from its clientele or in thecourse of its ratings work. It is, 
+however, illegal for you to act or trade while in the possession of such information, or to 
+pass it on to others other than the DCO of the Firm. You should tell the DCO that you are in 
+receipt of such information for the purpose of sequestering the information and making 
+
+===== PDF PAGE 18 =====
+sure it does not affect any ratings decision. 
+If you believe you have learned Inside Information, contact the Firm's DCO immediately so 
+that they may address all potential issues and preserve the integrity of the Firm's 
+commitment to information handling. If you become aware of a breach of these policies or 
+of a leak of Inside Information, advise the Firm's DCO immediately. You must refrain from 
+distributing that information to others, make sure it is not openly available on your 
+computer and sequester it within your email to prevent easy accessibility by others. 
+How to Preserve the Confidentiality of Material Non-Public Information 
+The following are non-exclusive steps you must take to preserve the confidentiality of non­
+public information: 
+• Do not discuss confidential matters (in person or via phone) in elevators, hallways, 
+restaurants, airplanes, taxicabs or any place where you can be overheard. 
+• Do not leave sensitive memoranda on your desk or in other places where they can 
+be read by others. Do not leave a computer terminal without exiting the file in which 
+you are working. 
+• Do not read confidential documents in public places or discard them where they 
+can be retrieved by others. Do not carry confidential documents in an exposed 
+manner. 
+• On drafts of sensitive documents use redacted names if necessary. 
+• Do not discuss confidential business information with spouses, other relatives or 
+friends. 
+• Avoid even the appearance of impropriety. Serious repercussions may follow from 
+insider trading or using non-public information to benefit yourself or another. You 
+should consult with Compliance whenever you have questions about this subject. 
+• Shred confidential documents that are no longer needed per the Firm's 
+document and record retention policies 
+At no time may the Firm or any member of the Firm discuss or disclose such information 
+or perform any personal securities and money market instruments transactions related to 
+MNPI until the MNPI is in the public domain or otherwise is no longer material. 
+The Firm has a vital interest in its reputation, the reputation of its Associated Persons, and 
+in the integrity of the securities markets. Trading while in possession of inside or 
+confidential Firm information would destroy that reputation and integrity. The Firm is 
+committed to preventing this conduct and to punishing any Associated Person who 
+engages in this practice or fails to comply with the above steps designed to preserve 
+confidentiality of Inside Information. These procedures are a vital part of the Firm's 
+compliance efforts and must be adhered to. 
+Provide Fair and Truthful Disclosures to Our Clients & the Public 
+The Firm has a responsibility under the law to communicate effectively so that its clients 
+
+===== PDF PAGE 19 =====
+are provided with full and accurate information in all material respects. To the extent that 
+you are involved in the preparation of materials for dissemination to clients, you should 
+be careful to ensure that the information in these materials is truthful, accurate and 
+complete. In particular, the Firm's officers and directors shall endeavor to promote full, 
+fair, accurate, timely and understandable disclosure in the Firm's communications, 
+including documents that the Firm files with or submits to the SEC Staff and other 
+regulatory bodies. If you become aware of a materially inaccurate or misleading statement 
+in any communication to the Firm's clients, the SEC Staff, other regulatory bodies, or the 
+public, you should report it immediately to your supervisor and the Compliance 
+Department. 
+Reporting Violations 
+You are the Firm's first line of defense against unethical or improper business practices. If 
+you observe or become aware of any conduct that you believe is unethical or improper -
+whether by another employee, a consultant, a supplier, a client, or other third party - you 
+must communicate that information to the Firm's ownership, compliance officer (DCO), 
+counsel, or to the 24-hour independently operated helpline . They will take appropriate 
+action. If you are a supervisor, you have an additional responsibility to take appropriate 
+steps to stop any misconduct that you are aware of, and to prevent its occurrence and/or 
+recurrence. Supervisors that do not take appropriate action may be held responsible for 
+failure to supervise properly. If you prefer to report an allegation anonymously, you must 
+provide enough information about the incident or situation to allow the Firm to investigate 
+properly. 
+Individuals - whether they are located in the U.S. or in other jurisdictions - have the option 
+to report misconduct and unethical conduct directly to the SEC through its Whistle blower 
+program. The Office of the Whistleblower Hotline is 202-551-4790 and to report concerns 
+or possible violations through an independent third-party that specializes in the discrete 
+reporting of integrity concerns, and are available 24 hours a day, seven days a week. The 
+telephone number to the independent helpline is 1-484-789-6596. Calls to the helpline 
+may be made anonymously or on a disclosed basis. 
+Credit rating agencies must disclose and manage certain types of conflicts of interest 
+("Manageable Conflicts") and prevent certain other types of conflicts of interest 
+("Prohibited Conflicts"). Additional detail pertaining to conflicts of interest and EJR's 
+approach to managing/avoiding them is found in the Conflicts and Compliance Manual. 
+Manageable Conflicts that are not in practice being properly managed and Prohibited 
+Conflicts that are not being prevented are reportable events. 
+Policy Against Retaliation 
+EJR is committed to ensuring that all of our people feel safe and protected when reporting 
+issues. The firm prohibits and will not tolerate any kind of retaliation or retribution for 
+reports or complaints (internally or via the independent helpline) regarding firm 
+misconduct or the misconduct of others that were made in good faith. Open 
+communication of issues and concerns by all Associated Persons without fear of 
+retribution or retaliation is vital to the continued success of the Firm. Unless the Firm's 
+management learns of a problem, the Firm cannot deal with it. Concealing improper 
+
+===== PDF PAGE 20 =====
+conduct often compounds the problem and may delay or hamper responses that could 
+prevent or mitigate actual damage. 
+Measures to be Undertaken in the Event of a Material Breach 
+The DCO is primarily responsibility for monitoring the Firm's compliance with its policies 
+and procedures. This Code of Conduct details prohibited conflicts of interest, identified 
+conflicts and many other areas of compliance concern. All Associated Persons are required 
+to notify the DCO whenever they become aware of a possible violation of a policy or 
+procedure. The DCO will, upon discovering a possible violation or having been provided 
+with evidence that indicates a possible violation, immediately assess the available evidence 
+and document the results of the investigation. In the case of serious violations, the CEO, 
+Independent Board members and, if appropriate, counsel, maybe contacted by the DCO and 
+provided with the details of the violation. If the violation is indeed a material violation, the 
+DCO will consider whether the appropriate regulatory bodies must be notified. 
+Consequences of Violating the Code 
+If you are an Associated Person ( other than an independent contractor), this Code forms 
+part of the terms and conditions of your employment at the Firm; if you are an independent 
+contractor this Code forms part of your agreement to provide services to the Firm. All 
+Associated Persons are expected to cooperate in internal investigations of allegations of 
+violations of the Code, and actual violations may subject you to the full range of disciplinary 
+action by the Firm, including termination. The Firm may also report certain activities to its 
+regulators, which could give rise to regulatory or criminal investigations. The penalties for 
+regulatory and criminal violations may include significant fines, permanent bar from 
+employment in the securities industry and, for criminal violations, imprisonment. 
+Attestation, Waivers, Amendments and Contact Information 
+Associated Persons are required to attest their knowledge of, and compliance with, the 
+above-mentioned policies and procedures. Waivers and amendments to this Code, and any 
+specific policy exemptions, must be approved and documented by the DCO. It is your 
+responsibility to be familiar with the Code. If you have any questions regarding 
+the Firm's Code of Conduct, the contact information is: 
+By mail to: Egan~onesRatingsCompany 
+Attn: Compliance Department 
+840 1st Avenue, Suite 400 
+King of Prussia, PA 19406 
+Compliance@egan-jones.com 
+
+===== PDF PAGE 21 =====
+EGAN-JONES RATINGS COMPANY 
+CONFLICTS AND COMPLIANCE MANUAL 
+
+===== PDF PAGE 22 =====
+(Effective 3/27/2026) 
+Conflicts of Interest (17g-5) 
+The Firm is required to analyze its operations to identify potential conflicts of interest with respect to its ratings 
+business. On an at least annual basis, the Compliance Department shall consider revisions pertaining to conflicts of 
+interest controls. Such revisions may also materially contribute to the NRSRO filings, if applicable. 
+EJR Identified Conflicts 
+At this time the Firm identifies the following potential or actual conflicts of interest (17g-S(b)): 
+(1) EJR is paid by issuers or underwriters to determine credit ratings with respect to securities or money market 
+instruments they issue or underwrite. Example: A paying client and requestor of a rating has an economic interest 
+in achieving a certain rating level. 
+(2) EJR is paid by obligors to determine credit ratings with respect to the obligors. 
+Example: A paying client/ obligor has an economic interest in achieving a certain rating level. 
+(3) EJR is paid by entities to determine credit ratings with respect to obligations of third parties where such 
+entities may own investments or have entered into transactions that could be impacted by a credit rating issued 
+by EJR. 
+Example: A paying client/ obligor has an economic interest in achieving a certain rating level. 
+(4) EJR is paid for services in addition to determining credit ratings by issuers, underwriters, or obligors that have 
+paid EJR to determine a credit rating. 
+Example: A good client may (wrongly) feel entitled to special treatment. 
+(S) EJR is paid by persons for subscriptions to receive or access the credit ratings of EJR and/or for other services 
+offered by EJR where such persons may use the credit ratings of EJR to comply with, and obtain benefits or relief 
+under, statutes and regulations using the term "nationally recognized statistical rating organization". 
+Example: A paying client uses regulated credit ratings to obtain capital relief. 
+(6) EJR is paid by persons for subscriptions to receive or access the credit ratings of EJR and/or for other services 
+offered by EJR where such persons also may own investments or have entered into transactions that could be 
+favorably or adversely impacted by a credit rating issued by EJR. 
+Example: A paying client uses regulated credit ratings to obtain capital relief. 
+(7) EJR allows persons within EJR to directly own securities or money market instruments of, or having other 
+direct ownership interests in, issuers or obligors subject to a credit rating determined by EJR as long as they do 
+not participate in or otherwise influence the credit rating for such issuers or obligors. 
+Example: An analyst may own securities of EJR clients provided they do not participate in/influence the credit 
+ratings on these securities. 
+Guidance: Staff seeking to sell personal securities holdings need to confirm to Compliance that they are not in 
+possession of material nonpublic information (such as a rating level not yet made public). 
+
+===== PDF PAGE 23 =====
+(8) EJR allows persons within EJR to have a business relationship that is more than an arm's length ordinary 
+course of business relationship with issuers or obligors subject to a credit rating determined by EJR as long as 
+they do not participate in or otherwise influence the credit rating for such issuers or obligors. 
+Example: An analyst may have a business relationship with EJR clients provided they do not participate 
+in/influence the credit ratings for these clients. 
+Other Type of Conflicts are "Prohibited Conflicts" (17g-5 (c)): 
+The firm identifies the following as "Prohibited Conflicts", in which Egan-Jones has established and maintains 
+written policies and procedures to prevent prohibited conflicts (see the Table of Contents and/or the Index of 
+Conflict-Related Topics for additional information) . 
+• 17g-S(c)(l) Issuing/maintaining a credit rating for a person who provided 10% or more of net revenue of 
+the NRSRO for the fiscal year. 
+Example: EJR periodically monitors its revenue report to assess whether a person issuing/maintaining a credit rating 
+which accounts for 10% or more of net revenue within a fiscal year. 
+• 17g-S(c)(2) You or your immediate family own a security of, or have any other direct ownership interest in, 
+the entity that is subject to the credit rating; or 
+Example: An analyst that analyzes or votes on a credit rating where they or their immediate family member owns 
+a security that is subject to the credit rating. The analyst should immediately disclose any type of potential conflict 
+and recuse themselves from participating in the rating process. 
+• 17g-S(c)(3) Issuing/maintaining a credit rating with respect to a person associated with the NRSRO. 
+Example: EJR may not issue/maintain a credit rating with respect to the issuer/entity is associated with the firm . Staff 
+must disclose potential conflicts to their direct manager, compliance, and/or general counsel immediately. 
+• 17g-S(c)(4) You are an officer or director of the entity that is subject to the credit rating. 
+Example: An analyst that analyzes or votes on a credit rating where they are an officer or director of the entity that is 
+being rated prohibited, analyst should immediately disclose any type of potential conflict and recuse themselves from 
+participating in the rating process. 
+• 17g-S(c)(S) Issuing/maintaining a credit rating with respect to an obligor or security where the NRSRO or a 
+person associated with the NRSRO made recommendations to the obligor or the issuer, underwriter, or 
+sponsor of the security about the corporate or legal structure, assets, liabilities, or activities of the obligor 
+or issuer of the security. 
+Example: The firm prohibits an analyst from providing recommendations on the security being rated to obtain a higher 
+rating. 
+• 17g-5(c)(6) Issuing/maintaining a credit rating where an Analyst who has responsibility for participating in 
+determining credit ratings or developing or approving procedures, methodologies, or models used for 
+determining credit ratings also negotiated, discussed, or arranged the fee paid for the rating. 
+Example: An analyst is prohibited from participating in fee negotiations. This is a prohibited conflict, as the separation 
+of roles is the very foundation of credit rating agency regulation. Performing both analytical and sales activities harms 
+the independence of a credit rating agency. 
+
+===== PDF PAGE 24 =====
+• 17g-S(c)(7) Issuing/maintaining a credit rating where an Analyst who participated in determining or 
+monitoring the credit rating, or a person responsible for approving the credit rating received gifts, including 
+entertainment, from the obligor being rated, or from the issuer, underwriter, or sponsor of the securities 
+being rated, other than items provided in the context of normal business activities such as meetings that 
+have an aggregate value of no more than $25. 
+Example: Receiving items of value from a client/user of credit ratings who has interest in achieving a particular rating 
+level can create a real or perceived conflict of interest. 
+• 17g-S(c)(8) Issuing/maintaining a credit rating where an Analyst who was involved in the rating or in 
+developing/approving methodologies or models used to determine the rating also: (i) participates in sales 
+or marketing of a product or service of the NRSRO; or (ii) is influenced by sales or marketing considerations . 
+Example: This is a prohibited conflict, as the separation of roles is the very foundation of credit rating agency regulation . 
+The integrity of EJR's credit ratings relies on analysts being free from commercial influence. Also, analytical staff must 
+not participate in commercial activities. 
+In addition to the examples noted above, below are a handful of real-world examples where conflicts of interest 
+provisions have been violated, along with suggestions to help Associated Persons avoid these pitfalls going forward: 
+Violation of 17g-S(c)(8): A Sales associate forwarded to Analytical staff a lengthy e-mail correspondence with a 
+client; the sales associate didn't notice that the e-mail chain included commercial information at the bottom of the 
+e-mail. 
+Violation of 17g-S(c)(8): An Operations associate was working too quickly and forwarded to analytical staff an e­
+mail that contained commercial terms . 
+Suggestion: When communicating with analytical staff, Sales and Operations staff should avoid forwarding e­
+mail chains. Instead, start a fresh e-mail. 
+Violation of 17g-S(c)(6): Trying to be helpful, an analyst attempted to answer a client's question about a ratings 
+fee. The Analyst needed to be removed from the committee that participates in determining that credit rating . 
+Suggestion: Analytical staff should have a standard answer when clients inquire about fees or commercial 
+terms. For example, they might say, "Due to SEC regulations, Analysts are not permitted to discuss fees or 
+commercial terms. I can, however, provide the contact information for someone on the Sales team." 
+Violation of 17g-S(b)(7): An Associated Person failed to obtain Compliance Department pre-approval when selling 
+individual securities. 
+Suggestion: Consider simplifying your securities holdings by obtaining Compliance Department pre-approval to 
+liquidate all individual securities for which you previously received a waiver allowing you to continue holding them. 
+Invest in mutual funds, which do not require approval for either purchases or sales. 
+Management/ Avoidance of Conflicts of Interest 
+The company's internal control structure in place to help ensure the effective avoidance or management of 
+conflicts of interest includes, but is not limited to, the controls, policies and procedures discussed in this section 
+immediately below . 
+
+===== PDF PAGE 25 =====
+Certain other controls, policies and procedures which are mentioned elsewhere in this Conflicts and Compliance 
+Manual also include internal controls relating (sometimes indirectly) to conflicts of interest, as well as other aspects of 
+regulatory expectations. This includes, for example, internal controls around prohibited acts and practices (Rule 17g-
+6), Proxy business unit procedures, and certain Ratings group functional procedures which are discussed in various 
+places within this Conflicts and Compliance Manual (see the Table of Contents and/or the Index for additional 
+information). 
+Solicited Ratings 
+The guidance set forth below is aimed to manage the firm's conflict with respect to: 
+"Issuer Pays Conflict": 
+• Identified Conflicts 17g-5(b)(l), 17g-5(b)(5), 17g-5(b)(6) 
+• Prohibited Conflicts 17g-5(c)(6) and 17g-5(c)(8) 
+Private ratings are not published to the website unless requested by the client. Analysts may provide the requestor 
+of a solicited credit rating advance notification of a credit rating prior to its formal dissemination. Analysts may take 
+into account feedback pertaining to factual inaccuracies and errors. If a material inaccuracy or error is identified, EJR 
+may re-convene a RRC to re-evaluate any new material information. EJR nevertheless maintains ultimate control and 
+independence over its ratings opinions, as well as editorial control over its publications. Analysts shall adhere to more 
+detailed guidance within the ROG pertaining to feedback and appeals. 
+The Firm has established policies and procedures to protect the integrity of the ratings process and to reasonably 
+prevent undue influence by non-Analytical employees or unaffiliated parties with the ratings process. 
+Policies and controls associated with the above identified Conflicts of Interest include: 
+Separation of Roles 
+The effective separation of roles (discussed in more detail immediately below) is key to managing conflicts that 
+could arise from solicited credit ratings (such as the "Issuer Pays" conflict). The Index to the Conflicts and Compliance 
+Manual provides additional detail pertaining to controls governing the effective separation of roles and how the 
+Compliance Department monitors and enforces these controls. 
+Separation between Ratings and Marketing 2 
+The guidance set forth below is aimed to manage the firm's conflict with respect to: 
+"Issuer Pays Conflict": 
+• Identified Conflicts 17g-S(b)(l), 17g-S(b)(S), 17g-S(b)(6) 
+• Prohibited Conflicts 17g-5(c)(6) and 17g-5(c)(8) 
+The Firm's Ratings Group is separated from the Sales and Marketing areas and isolated from information regarding 
+fees. Analysts are prohibited from inquiring about fees pertaining to EJR's credit ratings. Analysts are prohibited from 
+determining a credit rating in a manner inconsistent with EJR's policies, procedures, methodologies and models for 
+determining credit ratings. 
+2 For purposes of this Manual, "Marketing" staff also includes individuals who perform Sales activities 
+
+===== PDF PAGE 26 =====
+Electronic segregation- EJR's analytical staff members ("Rating" staff) are required to store the following written 
+and electronic records and communications ("Documents") in a manner that is not accessible to EJR's sales and 
+marketing staff members ("Marketing" staff) : 
+• Documents containing EJR's proprietary credit rating analysis 
+• Documents containing EJR's proprietary model inputs and/or outputs 
+• Documents containing RRC recommendations 
+• Documents containing RRC decisions 
+Marketing staff are required to store the following written and electronic communications in a manner that is not 
+accessible to Ratings staff: 
+• Contracts and statements of work {SOW) with credit ratings clients 
+• Documents containing sales/marketing strategy 
+• Documents containing fees and/or contract terms 
+Physical segregation in EJR office locations- EJR maintains separate workspaces in its New York offices which are 
+dedicated Ratings and non-Ratings staff . While communication between Ratings and Marketing roles is often 
+necessary, Ratings staff are not permitted to become involved in any sales or marketing activities. Likewise, Marketing 
+staff are not permitted to become involved in or attempt to influence any analytical activities . As a general rule, 
+communications between Ratings and Marketing staff should take place by phone, e-mail, or in a conference room 
+outside of workspaces that are exclusively dedicated to one role. Limited exceptions to the above may be permitted 
+subject to written pre-approval from the DCO. The DCO will centrally retain records of any limited exceptions, along 
+with the rationale for such exceptions. 
+Remote work considerations- Staff working remotely must maintain at all times a clean desk policy in their home 
+office workspace. This helps EJR to safeguard client confidential information and material nonpublic information. 
+Escalation to Compliance- In the event that Ratings or Marketing staff identify any concerns regarding the 
+effectiveness of EJR's physical or electronic segregation protocols, they should immediately contact the Compliance 
+Department . 
+Legitimate Business Need to Know- EJR is obligated to safeguard client confidential information and material 
+nonpublic information (MNPI} in accordance with legitimate business purpose. Individuals who do not have a 
+legitimate business need to know client confidential information and/or M NPI should not receive such information via 
+e-mail or other means of written, electronic, or oral communication. 
+Members of the Ratings Group are prohibited from emailing or otherwise sharing information regarding unissued 
+and final credit ratings reviews and non-public credit ratings reports or company-related MNPI with anyone not directly 
+involved in reviewing the credit rating itself . Individuals directly involved in reviewing the credit rating typically 
+include-with respect to the specific credit rating - the primary analyst, the reviewing analyst, personnel responsible 
+for collecting/inputting ratings-related data and information into EJRs analytical models and related formats, personnel 
+responsible for performing analytical file or ratings quality reviews, and rating committee members (i.e., those who are 
+attending the relevant rating committee for voting or training purposes). 
+
+===== PDF PAGE 27 =====
+Pursuant to Rule 17g-S(c)(6), a person who participates in negotiating, discussing, or arranging rating fees shall not 
+participate in determining credit ratings, or developing or approving procedures or methodologies used for determining 
+credit ratings, including qualitative and quantitative models. 
+Importantly, pursuant to Rule 17g-S(c)(8), no Firm Employees who participate in determining or monitoring credit 
+ratings, or developing or approving procedures or methodologies used for determining credit ratings, including 
+qualitative and quantitative models, may also: (i) Participate in sales or marketing of an EJR, EJP, or other ancillary 
+product or services (including the determination and negotiation of fees for ratings, proxy, and other ancillary services); 
+or (ii) be influenced by sales or marketing considerations. The sales staff is responsible for negotiating, discussing, and 
+arranging fees. The responsibility of fee determination and negotiation is specifically segregated away from the Ratings 
+so that the ratings analysts are not exposed and possibly influenced by the sales and marketing considerations. 
+Employees must also ensure to abide the above rules while they attend conferences, professional events, and other 
+similar settings. 
+The sales and marketing department should not include commercial terms in any e-mail correspondence with 
+ratings staff and should instruct clients of such limitation. 
+In the event that analysts become aware of any fees, they shall report to their supervisor (without forwarding the fee 
+information to other analyst) and Compliance Department immediately. Unless the Compliance Department 
+determines that Analytical staff who have come into contact with fee information have not: (a) participated in and (b) 
+been influenced by sales or marketing considerations, they shall be removed from the process of rating that issuer or 
+follow the direction given by the Compliance Department. 
+In the event that a sales/marketing employee is exposed to rating information before the rating is finalized, the 
+employee shall promptly report such fact to the Compliance Department and follow their guidance. The Compliance 
+Department shall review the cause of the event and provide prevention if possible. 
+Separation between Compliance and Marketing 
+Compliance personnel are prohibited from acting in any marketing capacity. The Compliance staff may at times 
+participate in client meetings or meetings with the commercial team for the purpose of explaining regulatory 
+requirements, discuss compliance controls, or clarify relevant regulatory obligations; not to promote the firm's 
+products or service. The DCO provides an annual attestation that Compliance personnel has not acted in any marketing 
+capacity. Further, annual testing by the internal audit function would confirm that there was no indication of such 
+activity. 
+Procedure for Internal Role Changes 
+Scope of this Procedure- This procedure provides guidance to staff members when changing roles internally. 
+The guidance set forth below is aimed to manage the firm's conflict with respect to: 
+"Issuer Pays Conflict": 
+• Identified Conflicts 17g-S(b )(1), 17g-S(b )(5 ), 17g-S(b)(6) 
+• Prohibited Conflicts 17g-S(c)(6) and 17g-S(c)(8) 
+Definitions 
+
+===== PDF PAGE 28 =====
+Analytical Role- The staff member participates in performing credit rating analysis, voting in a rating committee, or 
+developing or approving models, procedures or methodologies used to determine credit ratings. An Analytical staff 
+member may never participate in sales or marketing activities. 
+Analytical Activities- Analytical Activities means: (i) participation in determining or approving credit ratings, as well 
+as (ii) participation in developing or approving models, methodologies or procedures that are used to determine credit 
+ratings. 
+Commercial Role- The staff member's primary responsibilities entail the day-to-day performance (either as an 
+individual contributor or as a department manager) of sales and/ or marketing activities. A Commercial staff member 
+may never participate in Analytical Activities. 
+General Management Role- The staff member's primary responsibilities entail the day-to-day performance (either 
+as an individual contributor or as a department manager) of functions such as operations, business strategy, IT, HR, 
+compliance, legal, risk management or similar roles. A General Management staff member may directly or indirectly 
+supervise staff members in a Commercial Role or Analytical Role, though not in the capacity of a department head. A 
+General Management staff member may participate from time to time in sales and marketing activities. A General 
+Management staff member may never participate in Analytical Activities . 
+Cooling Off Period-A period of time during which a staff member may not perform some or all of the responsibilities 
+associated with their new role. A Cooling Off Period lasts for two months from the date the staff member begins their 
+new role. A Cooling Off Period is not required in all instances. In addition, the DCO is empowered to make certain 
+exceptions to a Cooling Off Period, provided that enhanced compliance monitoring is performed and documented in 
+all cases where exceptions are made. See below for further detail. 
+Changing Roles 
+Transitioning from a Commercial Role or a General Management Role to an Analytical Role- Staff members shall 
+observe a Cooling Off Period pertaining to the following activities : voting in a rating committee; developing models, 
+procedures and methodologies used to determine credit ratings; and approving models, procedures and 
+methodologies used to determine credit ratings. Staff members may perform credit rating analysis provided they do 
+not act as a Primary Analyst during the Cooling Off Period. During a Cooling Off Period, staff members may attend 
+internal meetings pertaining to models, procedures and methodologies used to determine credit ratings in order to 
+facilitate learning/ getting up to speed on analytical matters. Effective Date: February 23, 2021 
+Transitioning from an Analytical Role to either a Commercial Role or a General Management Role- Staff members 
+shall observe a Cooling Off Period pertaining to the marketing or selling of credit ratings to any Person (as defined in 
+the federal securities laws) for whom the staff member either voted in a rating committee or acted as a Primary Analyst 
+during the preceding six months. 
+Transitioning within or between General Management Roles and Commercial Roles- No Cooling Off Period is 
+required . 
+Other Matters to Consider 
+Network Access- Staff members are accountable for ensuring that their network appropriately reflects their role 
+on the day they begin their new role. Consultations with Compliance should take place prior to effective date of any 
+new role, as necessary. 
+
+===== PDF PAGE 29 =====
+Training- Staff members are accountable for ensuring they complete any required training (as determined by their 
+manager) within one month of beginning a new role. 
+Separation between Ratings and Proxy, and other Ancillary Services 
+The guidance set forth below are aimed to manage the firm's conflicts with respect to: 
+"Issuer Pays Conflict": 
+• Identified Conflicts 17g-5(b )(1), 17g-5(b )(5 ), 17g-5(b)(6) 
+• Prohibited Conflicts 17g-5(c)(6) and 17g-5(c)(8) 
+"Client Pays for Both Credit Ratings and Other Services": 
+• Identified Conflicts 17g-5(b)(4) 
+Egan-Jones Proxy Services ("EJP") provides research, recommendations, voting, and voting record keeping services 
+on various shareholder proxy voting matters . The service includes an evaluation of the various agenda items in the 
+proxy statements, recommended voting action, and an overall rating of the firms' corporate governance. In addition, 
+EJP provides a web-based interface to enable clients to access reports prior to the voting date which are archived 
+thereafter for up to five years. EJP and EJR personnel do not have access to each other's client websites, client holdings, 
+draft reports, and other aspects related to the issuance of reports for each business. EJP personnel may not be involved 
+in the generation of EJR ratings reports and EJR personnel may not be involved in the generation of EJP reports . The 
+Firm restricts rating analysts from initiating meetings with current and prospective proxy clients, and they are also 
+restricted from exposure to sales and marketing efforts . The Firm's executives who might be involved in the rating 
+review process must also comply with such rules even though they are allowed to communicate general Firm support 
+to current and prospective clients. 
+EJP* and EJR personnel must remain separate from each other's social media websites . For example, no tweets or 
+re-tweets are permitted from EJP to EJR, or vice-versa involving proxy positions, voting, client information, and any 
+other information that may influence the independence of ratings. Access to any social media websites shall be 
+approved by the Compliance Department. The Compliance Department monitors social media activities in accordance 
+with procedures set out in the Compliance Operating Guide section 40. 
+Prohibited Acts and Practices (Implications for Conflicts) 
+Prohibited Acts and Practices are discussed in detail below. While separate from Rule 17g-5 dealing with conflicts, 
+controls relating to the prohibited acts and practices specified in Rule 17g-6 nevertheless assist EJR in avoiding and/or 
+managing certain conflicts of interest. For instance, EJR's separation of its credit rating and proxy businesses, and 
+other ancillary services helps to ensure that other (non-credit ratings) products and services do not pose conflicts of 
+interest with respect to the provision of credit ratings. 
+Personal Securities Transactions and Holdings 
+Detailed guidance pertaining to personal securities transactions and holdings is provided in EJR's Code Conduct on 
+page 15. These standards and controls help the firm comply with regulatory expectations pertaining to prohibited 
+conflicts of interest that might arise in connection with analysts' (or their direct family members') personal securities 
+holdings, as well as preventing the misuse of material nonpublic information . EJR's personal securities policy is 
+designed to address potential conflicts of interest in cases where its Associated Persons have ownership positions in 
+issuers the Firm does business with. The policy generally only allows for the ownership or trading of mutual funds, 
+
+===== PDF PAGE 30 =====
+ETFs and the existence of blind trusts and similar investment vehicles managed by a third-party, where the Associated 
+Person has no direct or indirect influence or control over the trust or account ("Third-Party Accounts"). Any waivers 
+and exemptions shall be granted by the Compliance Department. Monitoring of personal securities transactions and 
+holdings is performed by EJR's Compliance Department. Compliance Department standards for monitoring 
+compliance with EJR's Personal Securities Transactions and Holdings Policy are contained in the Compliance 
+Operating Guide section 33. 
+*This also includes other ancillary services. 
+
+===== PDF PAGE 31 =====
+Outside Business Activity Reviews 
+The reviews set forth below is aimed to manage the firm's conflict with respect to: 
+"Other Business Relationship Conflicts": 
+• Identified Conflicts 17g-S(b)(8) 
+• Prohibited Conflicts 17g-S(c)(4) 
+The Compliance Department performs reviews of Associated Persons' outside business activities in 
+order to identify and address any potential conflicts with respect to EJR business activities. The Outside 
+Business Activities Disclosure Form is located in the Conflicts and Compliance Manual Appendix on page 
+7. Associated Persons provide certifications with respect to their outside business activities when 
+completing the annual Compliance Response Sheet questionnaire. Board members provide certifications 
+with respect to their outside business activities when annually attesting to the Board Code of Conduct. 
+Outside business activities are defined as any activity undertaken by an Associated Persons or Board 
+member involving a business enterprise unrelated to the Firm or involving an entity which might be rated 
+by the Firm, including any employment, paid consulting activities or serving on a company board. 
+Excluded from this definition are activities with civic, religious, academic, non-profit, and other similar 
+enterprises . The firm requires Associated Persons and Board members to disclose their outside business 
+activities during the on-boarding process. Any new outside business activities must be pre-approved by 
+the Compliance Department. Ratings analysts specifically are not permitted to have outside business 
+activities which conflict with the issuance of ratings. 
+EJR's Compliance Department performs reviews of outside business activities in accordance with 
+procedures set out in the Compliance Operating Guide sections 32 and 19. 
+Accounting Manual 
+The manual set forth below is aimed to manage the firm's conflict with respect to: 
+"10% Net Revenue Conflict" : 
+• Prohibited Conflicts 17g-S(c)(l) 
+EJR's Accounting Manual includes standards pertaining to the monitoring of 10% net revenue. EJR 
+has adopted policies, procedures and internal controls to monitor the risk of exceeding the 10% threshold 
+of total net revenue in accordance with Rule17g-S(c)(l) (the "10% Rule"). 
+Accounting personnel will recognize net revenue periodically and calculate the percentage per client 
+against the total net revenue by using appropriate methods. Accounting will report the calculated results 
+to the Marketing and Compliance Departments periodically, the latter of which will analyze the reports 
+and follow up with the appropriate actions permitted by the law. Sales and Marketing personnel must 
+monitor client sales and alert the Accounting Department if at any time a client is expected to exceed the 
+10% threshold . The Board of Directors receives periodic reports pertaining to the 10% Rule and oversee 
+the firm's procedures to monitor compliance . 
+EJR's Compliance Department performs 10% revenue monitoring in accordance with procedures set 
+out in the Compliance Operating Guide section 20. 
+
+===== PDF PAGE 32 =====
+Post-Employment Conflict Determination 
+The review set forth below is aimed to manage the firm's conflict with respect to: 
+"Look Back Conflict": 
+• Prohibited Conflicts 17g-S(c)(7) 
+The Firm is required to perform "look-back" reviews related to former personnel who had been directly 
+involved in the rating process. 
+1. Look-back reviews must be conducted in those cases where EJR knows or reasonably can be 
+expected to know that : (1) a former EJR Associated Person has taken a position as an employee 
+of an obliger, issuer, underwriter or sponsor of a security or money market instrument for which 
+EJR issued a credit rating, and (2) such former EJR Associated Person participated in any capacity 
+in determining such credit rating during the 12 month period preceding the date an action was 
+taken with respect to the credit rating (24 months if the former EJR Associated Person worked in 
+a European Union (EU) office) prior to departing EJR's employ; 
+2. For a five year period after such former EJR Associated Person departs EJR's employ, EJR must 
+undertake reasonable efforts to track that person's employment and report such information to 
+the SEC under certain circumstances, as described in EJR's Post-Employment Procedures; and 
+3. Former EJR Associated Persons in the EU and other related persons, and persons closely 
+associated with any of them, are prohibited from taking key management positions at a rated 
+entity for which the former EJR Associated Person participated in the credit rating process for at 
+least six months after the last credit rating in which the former EJR Associated Person 
+participated. 
+The Firm conducts a best-efforts review of 5-year subsequent employment after leaving the Firm to 
+reasonably detect if such former Associated Person gains employment with an obliger, issuer, underwriter 
+or sponsor of a security or money market instrument the Firm rates. The Firm will also perform such 
+review to meet the other regulatory bodies' requirements (such as ESMA). Please see the Look-Back 
+Review Procedures and Transition Reports Procedures located on page 2 of the Appendix to the Conflicts 
+and Compliance Manual. 
+Policy Governing Consulting services For Credit Rating Clients 
+The policy set forth below is aimed to manage the firm's conflict with respect to: 
+"No Structuring Rule": 
+• Prohibited Conflicts 17g-S(c)(S) 
+EJR does not provide consultancy or advisory services to Rated Entities or their related third parties 
+(whether in the role of obliger, issuer, underwriter, arranger, sponsor or otherwise) regarding the 
+corporate or legal structure, assets, liabilities or activities of that Rated Entity or related third party . EJR 
+does not make proposals or recommendations on the design of debt instruments . 
+
+===== PDF PAGE 33 =====
+Post-Employment Conflict Determination 
+The review set forth below is aimed to manage the firm's conflict with respect to: 
+"Look Back Conflict": 
+• Prohibited Conflicts 17g-S(c)(7) 
+The Firm is required to perform "look-back" reviews related to former personnel who had been directly 
+involved in the rating process. 
+4. Look-back reviews must be conducted in those cases where EJR knows or reasonably can be 
+expected to know that : (1) a former EJR Associated Person has taken a position as an employee 
+of an obliger, issuer, underwriter or sponsor of a security or money market instrument for which 
+EJR issued a credit rating, and (2) such former EJR Associated Person participated in any capacity 
+in determining such credit rating during the 12 month period preceding the date an action was 
+taken with respect to the credit rating (24 months if the former EJR Associated Person worked in 
+a European Union (EU) office) prior to departing EJR's employ; 
+5. For a five year period after such former EJR Associated Person departs EJR's employ, EJR must 
+undertake reasonable efforts to track that person's employment and report such information to 
+the SEC under certain circumstances, as described in EJR's Post-Employment Procedures; and 
+6. Former EJR Associated Persons in the EU and other related persons, and persons closely 
+associated with any of them, are prohibited from taking key management positions at a rated 
+entity for which the former EJR Associated Person participated in the credit rating process for at 
+least six months after the last credit rating in which the former EJR Associated Person 
+participated. 
+The Firm conducts a best-efforts review of 5-year subsequent employment after leaving the Firm to 
+reasonably detect if such former Associated Person gains employment with an obliger, issuer, underwriter 
+or sponsor of a security or money market instrument the Firm rates. The Firm will also perform such 
+review to meet the other regulatory bodies' requirements (such as ESMA). Please see the Look-Back 
+Review Procedures and Transition Reports Procedures located on page 2 of the Appendix to the Conflicts 
+and Compliance Manual. 
+Policy Governing Consulting services For Credit Rating Clients 
+The policy set forth below is aimed to manage the firm's conflict with respect to: 
+"No Structuring Rule": 
+• Prohibited Conflicts 17g-S(c)(5) 
+EJR does not provide consultancy or advisory services to Rated Entities or their related third parties 
+(whether in the role of obliger, issuer, underwriter, arranger, sponsor or otherwise) regarding the 
+corporate or legal structure, assets, liabilities or activities of that Rated Entity or related third party . EJR 
+does not make proposals or recommendations on the design of debt instruments . 
+Other Services Guidelines 
+The guidelines set forth below is aimed to manage the firm's conflict with respect to: 
+"Client Pays for Both Credit Ratings and Other Services": 
+• Identified Conflicts 17g-S(b)(4) 
+
+===== PDF PAGE 34 =====
+Sections: 
+1. Background 
+2. Documentation Requirements 
+3. Prohibited Acts and Practices 
+4. 17g-7 disclosures 
+5. Accounting procedures 
+6. Initial (pre-launch) risk assessment 
+7. Periodic risk assessments 
+8. Ratings Analytical staff participation 
+9. Disclaimers 
+10. Listing of all products and services offered by NRSRO 
+Section 1: Background- These guidelines have been put in place to assist staff in understanding and 
+meeting industry best practices pertaining to the provision of non-credit ratings products and services 
+("Other Services"). All products or services shall be designated as a credit rating product or as an Other 
+Service. 
+Section 2: Documentation Requirements- Before offering Other Services to clients, EJR should have in 
+place the following final (i.e., non-draft) versions of documents: (a) An internal procedure and/or 
+methodology governing the manner in which the Other Service is to be produced; and (b) A public-facing 
+document (e.g., methodology, brochure or marketing document describing the Other Service). All such 
+procedures and documents shall be reviewed and approved by Compliance and Legal prior to use. 
+Section 3: Prohibited Acts and Practices- The purchase of Other Services is always optional and the 
+issuance of a credit rating is never contingent on the purchase of any Other Service. The decision to 
+purchase Other Services shall have no impact on any credit rating level. Credit ratings are determined by 
+the RRC in accordance with established policies, procedures, methodologies and models. The following 
+constitute prohibited acts and practices and no staff may engage in any such conduct: (a) Conditioning or 
+threatening to condition the issuance of a credit rating on the purchase of any Other Services, including 
+pre-credit rating assessment products; (b) Offering to issue a credit rating that is not determined in 
+accordance with established procedures and methodologies based on whether the person purchases the 
+credit rating or any Other Service; (c) Offering to modify a credit rating in a manner that is contrary to 
+established procedures and methodologies based on whether the person purchases the credit rating or 
+any Other Service; and (d) Threatening to issue a lower ABS credit rating, refusing to issue an ABS credit 
+rating, or withdrawing or threatening to withdraw an ABS credit rating unless all or a portion of the assets 
+within the pool are also rated, where such practice is engaged in for an anticompetitive purpose. 
+Compensation for sales & marketing staff shall not be structured to incentivize any such prohibited acts 
+and practices. 
+Section 4: 17g-7 Disclosures-The Sales and Marketing team shall maintain a procedure for identifying 
+and notifying the Analytical team about all clients which account for revenue in respect of Other Services 
+(but not the amount of any such revenue) . Such list of clients shall be provided following the end of each 
+calendar year. The Analytical team is accountable for making the required disclosure as part of any 
+applicable ratings report. 
+
+===== PDF PAGE 35 =====
+Section 5: Accounting procedures- Prior to offering any Other Services, the Accounting group shall be 
+consulted so that appropriate ledgers may be created and billing practices established for such Other 
+Services. Section 6: Initial (pre-launch) risk assessment- Prior to providing a new Other Service, the Sales 
+and Marketing team shall schedule a meeting with the Compliance Department to evaluate potential 
+conflicts of interest. The Accounting team will also be consulted to ensure proper accounting principles 
+are applied. The DCO is accountable for documenting the results of the meeting. All identified potential 
+conflicts of interest must be appropriately addressed prior to offering any such Other Service to third 
+parties. Section 6: Periodic risk assessments-The Compliance Department is accountable for performing 
+and documenting Other Services risk assessments at least once each calendar year. Such risk assessment 
+shall take into account, among other factors, the level of revenue derived from such Other Service relative 
+to other activities, the number and nature of clients purchasing such Other Service, the number of staff 
+involved with such Other Service and potential conflicts of interest with such Other Service. 
+Section 6: Ratings Analytical staff participation- Ratings Analytical staff are permitted to produce 
+Other Services, but are not permitted to participate in selling or marketing Other Services. 
+Section 7: Periodic Risk Assessments- The Compliance Department includes in its periodic risk 
+assessments an evaluation of the risks that Other Services may present in connection with the firm's credit 
+rating activities. 
+Section 8: Ratings Analytical Staff Participation- Ratings Analytical staff may perform analytical work 
+in connection with the provision of Other Services. They may not, however, participate in any sales and 
+marketing activities in connection with the provision of Other Services. 
+Section 9: Disclaimers- Prior to providing a new Other Service, the Sales and Marketing team shall 
+inquire with the General Counsel about appropriate disclaimers and shall ensure that any such disclaimers 
+are included with any materials. 
+Section 10: Listing of all products and services offered by the NRSRO- EJR's CEO or his designee is 
+accountable for maintaining the comprehensive list of all products and services offered by the NRSRO. 
+Roles and Responsibilities Limitations: Supplemental Policies and Procedures 
+The policies and procedures set forth below is aimed to manage the firm's conflict with respect to: 
+"Issuer Pays Conflict": 
+• Identified Conflicts 17g-5(b)(l), 17g-5(b)(5), 17g-5(b)(6) 
+• Prohibited Conflicts 17g-5(c)(6) and 17g-5(c)(8) 
+Background- The firm is required to comply with Securities Exchange Act of 1934 Release No. 95127 
+dated June 21, 2022 (the "Order") which requires the establishment of policies and procedures designed 
+to implement and maintain a prohibition on the "Subject Person" 1 from (a) determining or monitoring 
+any credit rating issued or maintained by the firm or (b) developing or approving procedures or 
+methodologies used for determining credit ratings issued or maintained by the firm, including qualitative 
+and quantitative models. 
+This policy is in addition to and is meant to supplement the firm's existing policies and procedures 
+designed to address the restrictions set forth in Rule 17g-5 under the Securities Exchange Act of 1934, as 
+amended, and should be read in conjunction with the general restrictions and prohibitions set forth in 
+such other policies and procedures.Roles and Responsibilities Pertaining to the Subject Person- The 
+
+===== PDF PAGE 36 =====
+Subject Person shall be prohibited from participating directly or indirectly, regardless of capacity, in (a) 
+determining or monitoring any credit rating issued or maintained by the firm or (b) developing or 
+approving procedures or methodologies used for determining credit ratings issued or maintained by the 
+firm, including qualitative and quantitative models. This prohibition shall at all times be interpreted in 
+such a manner as to comply with the terms of the Order. 
+1 Sean J. Egan and family members employed at EJR 
+As a result of the prohibition, the Subject Person may not (1) hold a role, as a credit analyst or 
+otherwise, which is responsible for determining any credit rating, (2) assist in the review of any specific 
+transaction or issuer for which the firm has been retained to provide a credit rating, (3) participate or vote 
+at any committee meeting held to determine a credit rating (including but not limited to the Ratings 
+Review and Policy Committee), (4) suggest to any member of the Analytical team an expectation about 
+any particular credit rating level or (5) suggest to any member of the Analytical team an expectation about 
+any particular analytical approach (collectively, the "Credit Rating Prohibitions"). The Credit Rating 
+Prohibitions apply to all final ratings and surveillance ratings produced by the firm in its capacity as a 
+NRSRO. 
+Notwithstanding the foregoing Credit Rating Prohibitions, the Subject Person may communicate with 
+senior management of the Analytical team about general economic, political, current events or similar 
+conditions and issues, provided such communication is not in relation to a specific credit rating or series 
+of credit ratings to be issued by the firm. In addition, the Subject Person may participate in discussions 
+about general staffing levels for, and overall structure of, the Analytical team, provided such discussions 
+do not relate to any specific credit rating or series of credit ratings to be issued by the firm. 
+As a result of the prohibition, the Subject Person may not (1) draft, review or comment upon proposed 
+credit rating methodologies (whether an existing or a new methodology), (2) participate or vote at any 
+committee meeting held to review or approve a credit rating methodology (including but not limited to 
+the Ratings Review and Policy Committee) or (3) vote at any meeting of the board of directors in relation 
+to approving a credit rating methodology (collectively, the "Methodology Prohibitions"). The 
+Methodology Prohibitions apply to all credit rating methodologies produced by the firm in its capacity as 
+an NRSRO. 
+Notwithstanding the foregoing Methodology Prohibitions, the Subject Person may from time to time, 
+and to the same extent as other members of general management, suggest to senior management of the 
+Analytical team potential new credit rating methodologies to consider developing, so long as the Subject 
+Person has no involvement in the decision whether to pursue such suggestion or other direct input into 
+any such methodology. The Subject Person may attend discussions of the board of directors in relation 
+to any credit rating methodology, so long as the Subject Person does not in any way influence the 
+methodology or vote in his capacity as a director or indicate the manner in which any other director should 
+vote in relation thereto. 
+As a result of the prohibition, the Subject Person may not (1) develop, structure, revise, modify or 
+calibrate any credit rating model, (2) review or comment upon proposed updates or changes to credit 
+rating models (whether an existing or a new model), (3) participate or vote at any committee meeting 
+held to review or approve a credit rating model (including but not limited to the Ratings Review and Policy 
+
+===== PDF PAGE 37 =====
+Committee) or (4) vote at any meeting of the board of directors in relation to approving a credit rating 
+model (collectively, the "Model Prohibitions"). The Model Prohibitions apply to all credit rating models 
+used by the firm in its capacity as an NRSRO. 
+Notwithstanding the foregoing Model Prohibitions, the Subject Person may attend discussions of the 
+board of directors in relation to any credit rating model, so long as the Subject Person does not in any way 
+influence the model or vote in his capacity as a director or indicate the manner in which any other director 
+should vote in relation thereto. 
+Subject to the foregoing prohibitions, the Subject Person may serve in a general management role 
+overseeing the Analytical team and may serve as a member of the firm's board of directors in overseeing 
+the overall activities of the firm. 
+The foregoing prohibitions are meant to provide guidance on permissible activities for the Subject 
+Person and are at all times subject to compliance with the terms of the Order. To the extent that specific 
+circumstances are not covered by this policy and procedure, interpretation of permissibility with the Order 
+shall be made by the DCO or General Counsel. 
+The DCO periodically reports to EJR's Board of Directors on compliance with the prohibitions discussed 
+in the Roles and Responsibilities Limitations: Supplemental Policies and Procedures. Standards pertaining 
+to training, monitoring, reporting and escalation for the prohibitions discussed in the Roles and 
+Responsibilities Limitations: Supplemental Policies and Procedures are maintained in the Compliance 
+Operating Guide section 10. 
+Below is an illustrated example where a violation to the above policy may occur, along with suggestions 
+to help Associated Persons identify and report these types of violations going forward: 
+Violation: A "subject person" is asked to provide analysis or commentary on a rating transaction by 
+an analyst. 
+Suggestion: Analytical staff should be familiar with the Roles and Responsibilities Limitations: 
+Supplemental Policy that prohibits the "subject person" from assisting in the review of any specific 
+transaction or issuer for which the firm has been retained to provide a credit rating. Any potential 
+violations should be escalated to the DCO. 
+TRAVEL, GIFTS & ENTERTAINMENT POLICY 
+The policy set forth below is aimed to manage the firm's conflict with respect to: 
+"Gifts and Entertainment Conflict": 
+• Prohibited Conflicts 17g-S(c)(7) 
+This policy applies to all Egan-Jones Ratings Company (the "Company") offices and its employees 
+(which term is used in this policy to include full-time and part-time employees, contractors, interns and 
+others working on behalf of the Company). The expense policy guidelines are effective for all employees 
+and defines the policy and procedures pertaining to travel and gifts. It has been designed to provide 
+guidance to employees and managers on the effective management of related costs. It is intended to 
+describe the types of business expenditures that are reimbursable. It is the primary responsibility of each 
+business unit to ensure that their employees are in compliance with this policy. It is the policy of the 
+Company to reimburse employees for reasonable and approved expenses incurred in the conduct of 
+Company business. All employees are expected to comply with this policy. Failure to do so, or 
+
+===== PDF PAGE 38 =====
+misrepresentation of expenses, may result in disciplinary action, including denial of non-compliant 
+charges and termination. This policy sets forth general guidelines meant to address typical situations. 
+Exceptions to the guidelines may be granted by a manager depending on the circumstances, however, if 
+possible, any such exceptions should be granted prior to incurring any extraordinary charges. 
+TRAVEL POLICY 
+I. PRE-APPROVAL OF TRAVEL Prior to incurring any travel expenses in the aggregate in excess of $100, 
+all employees should receive pre-approval from their manager. A form for pre-approval of expenses is 
+included as Annex A. The preapproval review should include review of the purpose for the travel and 
+appropriateness of the anticipated expenses. To the extent practicable, any anticipated expenses in excess 
+of designated limits should be pre-approved before such expenses are incurred . 
+II. TRAVEL Travel is generally permissible to visit clients or prospective clients and to attend business­
+related conferences. In general, any out-of-town travel to visit clients is only permissible if multiple client 
+visits for the same destination have been pre-arranged. As part of any pre-approval of travel, employees 
+should include a list of all clients scheduled to be visited and/or the rationale for attending the conference. 
+Travel may also be necessary for regulatory reasons {e.g., visits to Washington, DC) or to visit key vendors 
+or other business partners. Travel should generally be limited to an as-necessary basis. 
+A. PLANE TRAVEL Air travel is appropriate for any destinations further than a three hour drive or train 
+ride. For the avoidance of doubt, in general, air travel is not appropriate for travel between destinations 
+in the U.S. northeast {locations between Washington, DC and Boston). Any air travel within the same 
+continent should be booked in economy or coach class {or the equivalent) or the lowest cost class 
+available; for example, this would apply for travel between the U.S. and Canada or between destinations 
+in the U.S. Travel within the same continent may be booked on any major carrier and on a non-stop flight 
+if available. 2 Air travel between the U.S. {or any continent) and any other continent (e.g., Europe, Asia, 
+Africa) may be booked on any major carrier and may be booked in business {or the equivalent) class {but 
+not first class or its equivalent). The Company will not reimburse fees for extra leg room or similar special 
+seating, charges for travel and luggage insurance or baggage fees for more than one bag {unless an extra 
+bag is needed to transport brochures, banners or similar Company items) . 
+B. TRAIN TRAVEL Trains should generally be utilized for travel less than three hours and between all 
+U.S. northeast locations {locations between Washington, DC and Boston). Train travel should be booked 
+in the lowest priced available class. Amtrak Acela train service may be booked for travel within the U.S. 
+C. RENTAL CAR/TAXI/UBER TRAVEL Reasonable taxi (or Uber/Lyft/other) and ground t ransportation 
+costs will be reimbursed for necessary travel. If a trip will require driving over an hour, the Company will 
+reimburse fees for a rental car. Any rental car should be an intermediate/midsize class or smaller. The 
+Company will reimburse reasonable tolls, parking costs and gas costs for any rental car or personal car 
+used for Company travel. Fines for parking, traffic violations or towing charges will not be reimbursed . 
+D. HOTEL Reimbursement for overnight lodging is appropriate when there's a legitimate business 
+purpose. Hotel lodging will be reimbursed up to USD$300/night in major metropolitan areas and up to 
+USD$250/night for regional areas; provided, however, employees will be reimbursed for the full 
+conference rate if the employee is staying at a designated hotel for a specific conference . Depending upon 
+the need to be in a specific location and room availability, lodging may be reimbursed at a higher rate with 
+pre-approval. No-show charges incurred by failing to cancel unused hotel reservations will not be 
+reimbursed . 
+
+===== PDF PAGE 39 =====
+E. MEALS The Company will reimburse meals for an employee for business travel at up to USD$25 for 
+breakfast and lunch and up to USD$40 for dinner, including tax and tip. If a hotel or conference makes 
+meals available for free, then the Company will not reimburse costs for such meals. 
+F. OTHER EXPENSES The Company will reimburse reasonable cellular phone charges related to 
+international travel. Normal cellular phone charges unrelated to international travel are not reimbursable. 
+General travel expenses incurred during travel which are not required to be incurred by the Company are 
+not reimbursable; examples of such non-reimbursable expenses include fees or costs related to 
+minibar/refreshments, shoeshine, haircuts or styling, laundry and dry-cleaning, in-room movies or 
+entertainment, spa or health club charges, car washes and sightseeing. Costs for travel of spouses, 
+relatives, or other third parties are not reimbursable by the Company. 3 
+Ill. REIMBURSEMENT PROCEDURES An employee must complete an expense reimbursement form (to 
+be obtained from Accounting) and provide an original receipt (including an e-mail version or photocopy) 
+for all expenditures in excess of USD$50. A copy of a credit card statement is generally insufficient if an 
+original receipt was able to be obtained . Any amounts incurred in a currency other than U.S. dollars should 
+be converted to U.S. dollars at the approximate prevailing rate when such expenses were incurred. The 
+Accounting Department shall have final authority to fix any exchange rate. All reimbursement claims 
+should be submitted within two weeks of the incursion of such fees, or within five business days of return 
+from any travel in excess of two weeks. The expense report should be submitted to 
+accountspayable@egan-jones.com. Following receipt of a report, the report will be routed to the 
+employee's immediate supervisor or the next higher manager for approval. No employee is authorized to 
+approve their own, a peer's, or a superior's travel expense report (provided expenses incurred by the CEO 
+shall be submitted to and approved by Operations) . Each employee expense report should be reviewed 
+to ensure proper business purpose, correct totals and sufficiency of supporting documentation and 
+receipts. Receipt of manager approval is a prerequisite to reimbursement of any costs. 
+GIFTS & ENTERTAINMENT POLICY 
+In order to strengthen relationships and better serve clients' needs, the Company recognizes that it 
+may be beneficial to engage with clients and third parties outside of the office . To ensure that gifts or 
+entertainment provided are appropriate and non-lavish, employees must strictly adhere to this policy. In 
+all cases, it is important that the exchanging of gifts and offers of entertainment not improperly influence, 
+nor given the impression of improper influence of, any business decision. If there are any questions as to 
+the appropriateness of any gift or entertainment, please speak with Compliance. 
+A. RECEIPT OF GIFTS/ENTERTAINMENT As a Nationally Recognized Statistical Rating Organization, the 
+Company is subject to Rule 17g-5(c)(7) which prohibits the Company from "issu[ing] or maintain[ing] a 
+credit rating where a credit analyst who participated in determining or monitoring the credit rating, or a 
+person responsible for approving the credit rating received gifts, including entertainment, from the 
+obligor being rated, or from the issuer, underwriter or sponsor of the securities being rated, other than 
+items provided in the context of normal business activities such as meetings that have an aggregate value 
+of no more than $25." Accordingly, no personnel of the Company should accept any gifts other than 
+tokens or items of nominal value given in the ordinary course of business (such an inexpensive holiday 
+gift) . Any such gifts received from any one person or related group of persons should be occasional and 
+infrequent. In no cases may an employee accept cash from any current, prospective or former client or 
+vendor . Any gifts of excessive value or which may otherwise be considered inappropriate should be 
+returned. 
+
+===== PDF PAGE 40 =====
+Nonetheless, if you are offered a gift or entertainment in the course of your work which you believe 
+may create an appearance or impression of an improper influence, you must not accept such a gift. In all 
+cases, 4 any decisions made on behalf of the Company must be based only upon legitimate business 
+considerations and not be influenced by any gift . 
+B. GIVING OF GIFTS/ENTERTAINMENT It is permissible to provide clients, prospective clients or 
+vendors with inexpensive gifts of nominal value (generally less than $25) on an occasional and infrequent 
+basis, such as a small holiday gift. Cash may not be given as a gift. Any gifts should be pre-approved by an 
+employee's manager before they are offered . In no cases may any gift be given if such gift could appear 
+to create a conflict of interest. 
+In addition, it is permissible for sales and marketing staff or senior management to attend and pay for 
+(1) a business meal or drinks or (2) a local sporting event or other activity with, a client, prospective client 
+or vendor provided the cost is moderate and such activity is only occasional. Such meals or events must 
+be pre-approved by an employee's manager . 
+Notwithstanding the foregoing, in no cases may an employee provide a git of any kind, or provide 
+entertainment, to Government officials, employees or representatives of Governments, Government 
+agencies, public international organizations, Government-owned enterprises or public pension funds, 
+Congressional staffers or any other person associated or affiliated with an international, national, state or 
+local Government . As used herein, "Government" refers to any federal, state or local government body 
+and any political subdivision thereof, any agency or instrumentality thereof, any corporate instrumentality 
+thereof or any similar body. 
+Compliance Policy and Procedure- Conflict of Interest Training 
+EJR's Compliance Department provides ongoing training to Associated Persons regarding various 
+aspects of the firm's internal controls intended to help ensure compliance with regulatory expectations. 
+Conflict of interest training is a critical aspect of the firm's overall training program . The full procedure 
+for providing conflict-related training is located in the Compliance Operating Guide. In addition, the 
+Compliance Department monitors and enforces compliance with the procedure in accordance with 
+standards set out in the Compliance Operating Guide sections 20 and 43. 
+EJR Attestation Standards 
+Background and context- EJR requires periodic attestations pertaining to certain: 
+• Policies and procedures; 
+• RRC activities; and 
+• Annual questionnaires 
+The attestation grid (see Compliance Manual Appendix) provides detailed standards governing items 
+where attestation is required for specific individuals or roles, as well as the frequency of attestation and 
+trigger events where an off-calendar attestation may be required. 
+New Policies and Procedures incorporation into the attestation framework 
+a. Attestation requirement : 
+
+===== PDF PAGE 41 =====
+The established compliance policies, procedures, and Code of Conduct, created in accordance with the 
+requirements outlined in the 2006 Act and the Dodd-Frank Act, form the cornerstone of NRSRO 
+regulation by statute and thus inform EJR's attestation requirements. 
+At a minimum, policies and procedures requiring attestation address the following topics: 
+• The adherence to the NRSRO's policies, procedures, and rating methodologies; 
+• Management of conflicts of interest; 
+• Implementation of ethics policies; 
+• Internal supervisory controls; 
+• Governance; 
+• Activities of the designated compliance officer; 
+• Processing of complaints; 
+• And policies governing post-employment activities of NRSRO staff. 
+b. Attestation population Determination 
+All Attestations - Attestations for all employees and contractors ("Associated Persons") are required 
+where these individuals are expected to comply with applicable SEC Rules and company policies and 
+procedures. 
+Group Attestations - Certain Associated Persons are also required to attest to policies and procedures 
+related to their function only. 
+The attestation grid (see Appendix) specifies which policy/procedure attestations are applicable to all 
+Associated Persons and which policy/procedure attestations are applicable to various groups. 
+c. Attestation Frequency 
+The frequency of attestation is risk-based and laid out in the attestation grid. The frequency may be 
+periodically updated based on the results of EJR's annual risk assessment. At a minimum, policies and 
+procedures should be attested to at least once a year and upon any relevant update. New hires should 
+promptly attest to required policies and procedures upon joining the company. 
+Material revision of policies and procedures attestation requirement 
+Non-Substantive revisions include editorial changes, file directory updates, typo, format and etc. 
+Substantive revision includes, among other things, adding new statements, removing outdated 
+statements, or updating a key business process current process. 
+Attestation is required where policies and procedures are revised materially. Most substantive changes 
+are considered material, particularly those dealing with SEC rule changes, SEC exam remediation, and 
+key business changes. 
+Policies and Procedures 
+Policy and procedure attestation language- EJR's policy/procedure attestation language is as follows: 
+Instructions: "Please review the 'NAME OF DOCUMENT' and confirm that you have read, understood, 
+and will comply with all of the provisions of the document. If you have questions or concerns regarding 
+
+===== PDF PAGE 42 =====
+the document, please contact the Designated Compliance Officer for clarification before proceeding 
+further with this attestation." 
+Attestation: "I confirm that I have read, fully understand, and will comply with all relevant provisions of 
+the 'NAME OF DOCUMENT." 
+EJR systems standards- Systems deployed for policy/procedure attestations shall function as follows: 
+Name: The "Name" field in the attestation form shall be programmed to pre-populate the name of the 
+person logged into EJR's system and will not allow for freeform data entry. 
+Date: The "Date attested" field shall be prepopulated with the current date and will not allow for a 
+selectable date field . 
+RRC Meetings 
+The RRC attestation standards set forth below are aimed to manage the firm's conflicts with respect to : 
+"Issuer Pays Conflict": 
+• Identified Conflicts 17g-5(b)(l), 17g-5(b)(5), 17g-5(b)(6) 
+• Prohibited Conflicts 17g-S(c)(6) and 17g-S(c)(8) 
+"Personal Securities Conflict": 
+• Identified Conflicts 17g-S(b)(7) 
+• Prohibited Conflicts 17g-S(c)(2) 
+"Other Business Relationship Conflicts": 
+• Identified Conflicts 17g-S(b)(8) 
+• Prohibited Conflicts 17g-S(c)(4) 
+"Associated Person Conflict" : 
+• Prohibited Conflicts 17g-S(c)(3) 
+"No Structuring Rule": 
+• Prohibited Conflicts 17g-S(c)(S) 
+"Gifts and Entertainment Conflict" : 
+• Prohibited Conflicts 17g-S(c)(7) 
+RRC attestations- The attestations contained in the corresponding attestation grid apply to credit ratings 
+that are determined in accordance with EJR's credit rating analysis. This excludes certain types of 
+withdrawals, such as withdrawals for business reasons. Note that, in an effort to streamline compliance 
+activities, annual RRC attestations are to be consolidated into annual Compliance Response Sheet 
+questions. 
+Instructions: [Above the conflicts section] "Prior to voting in an RRC, voting analysts are required to 
+review each of the types of conflicts of interest and prohibited activities discussed below and confirm 
+that no such conflicts of interest are presented/ no such prohibited activities have taken place with 
+respect to the activities of the applicable RRC. If you have any questions regarding any of these 
+potential conflicts of interest, please contact the Designated Compliance Officer for clarification before 
+proceeding." 
+Attestation: [Below the conflicts section] "I confirm that I have reviewed each of the types of conflicts of 
+interest and prohibited activities discussed herein and I attest that I do not have, nor am I aware of, any 
+actual or potential conflict of interest, nor am I aware of any such prohibited activities taking place, with 
+respect to this RRC." 
+Compliance Response Sheets 
+
+===== PDF PAGE 43 =====
+Compliance Response Sheet Questionnaires- EJR's Compliance Department administers the annual 
+Compliance Response Sheet for all EJR staff annually. Certain sections (as specified in the corresponding 
+attestation grid) are applicable to all EJR staff; certain other sections apply to individuals according to 
+their organizational role. 
+Additional detail to help Compliance staff administer Compliance Response Sheets is provided in the 
+Compliance Operating Guide. 
+Compensation and Promotion Policy 
+The compensation and promotion policy set forth below is aimed to manage the firm's conflict with 
+respect to: 
+"Issuer Pays Conflict": 
+• Identified Conflicts 17g-S(b)(l), 17g-S(b)(S), 17g-S(b)(6) 
+• Prohibited Conflicts 17g-S(c)(6) and 17g-S(c)(8) 
+Background and general information- EJR's compensation and promotion standards align with 
+applicable SEC rules and federal securities laws. The Compliance Department's reporting line to the Board 
+helps foster the independence of his/her judgement. Salaries are determined mainly based on years of 
+experience, employment and educational background, skill sets, market rates, location, counteroffer, the 
+firm's needs, etc. Employee promotions are generally based on the individual's performance, skill sets, 
+the firm's needs, and managerial feedback. Management may consult with the Board of Directors as 
+needed. 
+Analytical staff- Compensation for Analytical staff shall not be based on the firm's financial 
+performance. Management evaluates employee self-reviews and supervisor evaluations when 
+determining salary increases, bonus payments and promotions. Supervisor evaluations will take into 
+account analytical quality, team leadership and thought leadership, including research activities. 
+Supervisor evaluations will not take into account whether EJR was hired to rate a debt instrument or 
+corporation. 
+Commercial staff- Compensation for Commercial staff will typically be based on a combination of 
+business and financial result achieved by both the individual and the firm. Management evaluates 
+employee self-reviews and supervisor evaluations when determining salary increases, bonus payments 
+and promotions. 
+Compliance staff- Compensation for Compliance staff shall not be based on the firm's financial 
+performance. Executive management will solicit Board feedback when determining the DCO's salary 
+increases, bonus payments and promotions. For other Compliance staff, the DCO will conduct a 
+performance evaluation and will review employee self-reviews. 
+Other non-Analytical support staff- Compensation for Other non-Analytical support staff will typically 
+be based on employee performance. Management evaluates employee self-reviews and supervisor 
+evaluations when determining salary increases, bonus payments and promotions. 
+While the Compliance Department provides advisory support with respect to compensation and 
+promotion policies, it does not become directly involved in compensation decisions (except for those 
+relating directly to Compliance staff members). 
+
+===== PDF PAGE 44 =====
+Prohibited Acts and Practices (17g-6) 
+The Firm and its Associated Persons are specifically prohibited from engaging in any unfair, coercive 
+or abusive practices. The Firm educates its Associated Persons on the identification of unfair practices to 
+ensure that the personnel do not engage in any such practices. The Compliance department monitors the 
+firm's electronic communications for possible unfair, coercive, or abusive activities in connection with 
+procedures set out in the Compliance Operating Guide section 21,Examples of such practices are 
+conditioning ratings on certain actions or threatening to issue a lower rating for an issuer's securities than 
+otherwise warranted based on certain actions, or threatening to lower ratings of an issuer in certain cases. 
+Specifically, the following practices are prohibited: 
+(1) Conditioning or threatening to condition the issuance of a credit rating on the purchase by an 
+obligor or issuer, or an affiliate of the obligor or issuer, of any other services or products, including pre­
+credit rating assessment products, of the Firm and its Associated Persons. 
+(2) Issuing, or offering or threatening to issue, a credit rating that is not determined in accordance 
+with the Firm's established procedures and methodologies for determining credit ratings, based on 
+whether the rated person, or an affiliate of the rated person, purchases or will purchase the credit rating 
+or any other service or product of the Firm and its Associated Persons. 
+(3) Modifying, or offering or threatening to modify, a credit rating in a manner that is contrary to the 
+Firm's established procedures and methodologies for modifying credit ratings based on whether the rated 
+person, or an affiliate of the rated person, purchases or will purchase the credit rating or any other service 
+or product of the Firm and its Associated Persons. 
+(4) Issuing or threatening to issue a lower credit rating, lowering or threatening to lower an existing 
+credit rating, refusing to issue a credit rating, or withdrawing or threatening to withdraw a credit rating, 
+with respect to securities or money market instruments issued by an asset pool or as part of any asset­
+backed securities transaction, unless all or a portion of the assets within such pool or part of such 
+transaction also are rated by the Firm, where such practice is engaged in by the Firm for an anticompetitive 
+purpose. 
+Below are a handful of hypothetical situations to help illustrate prohibited acts and practices: 
+1. It is prohibited to suggest that a client may receive a higher credit rating if they were to purchase 
+a proxy service or other ancillary services. 
+2. It is prohibited to suggest that a client may receive a lower credit rating unless they purchase a 
+proxy service or other ancillary services. 
+3. It is prohibited to suggest that credit ratings are bundled together with proxy and/or other 
+ancillary services and that a client is encouraged to purchase both products together. 
+Books and Records, Retention Notification & Disclosure (17g-2) 
+The Firm has a requirement pursuant to Rule 17g-2 and other applicable rules to create and/ or 
+maintain certain Firm books and records. EJR maintains standards for creating and/or retaining records 
+which may discuss and memorialize (among various other things discussed immediately below) conflicts 
+of interest identified in compliance reports, audit reports, complaint logs, and exception logs. The 
+
+===== PDF PAGE 45 =====
+maintenance of these reports and logs is the responsibility of the firm's Compliance Department. Further 
+detail is provided in the Compliance Operating Guide. 
+Retention requirements are mentioned throughout this manual but are summarized below. The 
+Compliance Department is responsible for overseeing the overall maintenance of Firm records, for 
+coordination with different departments on their record retention responsibilities, and for sending 
+records to regulatory bodies upon proper request . EJR has set up a control system for monitoring the 
+retention of these records pursuant to its record retention policy. 
+Description of Record to Be Maintained Manner of Retention # Years 
+Original Entries for General Ledger Electronic Three 
+Records of Current Credit Ratings (All Issuers) Electronic Three 
+Identity of Credit Analyst(s) Participating in Electronic Three 
+Rating 
+Identity of Person Who Approved Rating before Electronic Three 
+Issue 
+If Quant Model Used, Backup for Material Electronic Three 
+Difference Between Implied Model Rating and 
+Final Rating 
+If Rating was Solicited From Issuer, Investment Electronic Three 
+Bank, Subscriber, or Unsolicited 
+If Solicited - Name & Address of Person or Entity Electronic Three 
+Who Paid for Issuance or Maintenance of Credit 
+Rating 
+If Solicited - Credit Rating Determined or Electronic Three 
+Maintained for Person or Entity Who Paid for 
+Issuance or Maintenance of Credit Rating 
+For Subscribers to EJR Services, Identity and Electronic Three 
+Address of the Subscriber 
+List of General Types of Services and Products Electronic or Paper Three 
+Offered 
+Documentation of Established Procedures and Electronic Three 
+Methodologies Used to Determine Credit Ratings 
+For Structured, Money Market or Asset-Backed Electronic Three 
+Ratings, List of Assets Contained in Asset Pool, 
+Underlying Credit Rating of Assets in Pool & 
+
+===== PDF PAGE 46 =====
+Manner In Which Rating Was Determined for 
+Rated and Unrated Assets 
+Record of All Ratings, All Historical Changes In Electronic Three 
+Ratings (Including Dates), and CUSIP or CIK 
+Policies and Procedures required to Establish, Electronic Three 
+Maintain, and Enforce Look-Back Reviews 
+Pursuant to Section 15E(h)(4)(A) of the Act 
+Bank Statements, Invoices, Trial Balances, Paper or Electronic Three 
+Cleared Checks, Bills, and Other Significant 
+Business Records Underlying Information in 
+Financial Reports 
+Internal Records, Including Nonpublic Paper or Electronic Three 
+Information and Work Papers, Used to Form the 
+Basis of a Credit Rating 
+Credit Analysis Reports, Credit Assessment Paper or Electronic Three 
+Reports, Private Credit Rating Reports, Internal 
+Records (Including Nonpublic Information and 
+Work Papers) Used to Form the Basis for Report 
+Opinions 
+Compliance Reports & Compliance Exception Paper or Electronic Three 
+Reports 
+Internal Audit Plans, Audit Reports, Related Paper or Electronic Three 
+Documents, and Follow-Up Measures Necessary 
+to Perform a Credit Rating Agency Audit 
+Marketing Materials Published or Otherwise Paper or Electronic Three 
+Made Available to Persons Not Associated with 
+Firm (including approvals) 
+External and Internal Communications, Including Electronic Three 
+Electronic Communications, Received and Sent 
+Related to Initiating, Determining, Maintaining, 
+Monitoring, Changing, or Withdrawing a Credit 
+Rating 
+Written Communication Containing Complaints Paper or Electronic Three 
+on Credit Analysts, Ratings & Products 
+Internal documents that contain information, Paper or Electronic Three 
+analysis, or statistics that were used to develop a years 
+procedure or methodology to treat the credit after 
+ratings of another nationally recognized record 
+statistical rating organization for the purpose of 
+
+===== PDF PAGE 47 =====
+determining a credit rating for a security or 
+money market instrument issued by an asset 
+pool or part of any asset-backed securities 
+transaction . 
+For each security or money market instrument Paper or Electronic 
+identified in the record required to be made and 
+retained under paragraph (a)(7) of this section, 
+any document that contains a description of how 
+assets within such pool or as a part of such 
+transaction not rated by the nationally 
+recognized statistical rating organization but 
+rated by another nationally recognized statistical 
+rating organization were treated for the purpose 
+of determining the credit rating of the security or 
+money market instrument. 
+Forms NRSRO (including Exhibits and Paper or Electronic 
+accompanying information and documents) the 
+nationally recognized statistical rating 
+organization filed with or furnished to, as 
+applicable, the Commission. 
+The internal control structure the nationally Paper or Electronic 
+recognized statistical rating organization is 
+required to establish, maintain, enforce, and 
+document an effective internal control structure 
+governing the implementation of and adherence 
+to policies, procedures, and methodologies for 
+determining credit ratings pursuant to Section 
+15E(c)(3)(A) of the Act. 
+The policies and procedures the nationally Paper or Electronic 
+recognized statistical rating organization is 
+required to establish, maintain, enforce, and 
+document with respect to the procedures and 
+methodologies used to determine credit ratings 
+pursuant to Rule 17g-8(a). 
+The policies and procedures the nationally Paper or Electronic 
+recognized statistical rating organization is 
+required to establish, maintain, enforce, and 
+document with respect to credit rating symbols, 
+numbers, or scores, pursuant to Rule 17g-8(b). 
+The standards of training, experience, and Paper or Electronic 
+competence for credit analysts the nationally 
+recognized statistical rating organization is 
+updated/ 
+replaced 
+Three 
+Three 
+Three 
+years 
+after 
+record 
+updated/ 
+replaced 
+Three 
+years 
+after 
+record 
+updated/ 
+replaced 
+Three 
+years 
+after 
+record 
+updated/ 
+replaced 
+Three 
+years 
+after 
+
+===== PDF PAGE 48 =====
+required to establish, maintain, enforce, and record 
+document pursuant to Rule 17g-9. updated/ 
+replaced 
+The Firm maintains its records mainly in electronic format. Ratings, disclosures, ratings changes, and 
+Form NRSRO are maintained on the website for access by clients. Private ratings are generally delivered 
+to the clients via email or a format mutually accepted by the client and the Firm. Email acts as the main 
+form of communication within the Firm. Email hosting and archiving is performed and maintained by an 
+appropriate outside electronic storage vendor . Research reports are maintained electronically, in most 
+cases are broadcast via email to customers upon publication, and are posted to the Firm's website. 
+Backup files supporting the activities are maintained on servers in the main office . Paper records are 
+backed up by scanning them so they are captured and retained. 
+The Firm's email system constitutes Electronic Storage pursuant to SEC Rules 17a-4(f) and 17g-2(b)(7), 
+and requires a notification for provisioning or a written undertaking to be supplied to the SEC. Such notice 
+from the storage provider should state something materially similar to : 
+The undersigned acknowledges that books and records it has made or is retaining for Egan-Jones 
+Ratings Co. are the exclusive property of Egan-Jones Ratings Co. The undersigned undertakes that 
+upon the request of Egan-Jones Ratings Co, it will promptly provide the books and records to Egan­
+Jones Ratings Co. or the U.S. Securities and Exchange Commission ("Commission") or its 
+representatives and that upon the request of the Commission it will promptly permit examination by 
+the Commission or its representatives of the records at any time or from time to time during business 
+hours and promptly furnish to the Commission or its representatives a true and complete copy of any 
+or all or any part of such books and records. 
+The Compliance Department oversees obtaining such provisioning or undertaking representations 
+and maintains copies. 
+Original Entries/or General ledger- The Accounting personnel is responsible for bookkeeping entries 
+for the financial books and records. Backup for entries into the General Ledger are contained within the 
+QuickBooks (QB, or other compatible software) files. Such QB files are password protected with access 
+restricted to the Accounting personnel. 
+Treatment of Complaints 
+EJR has established a procedure so that any complaints received regarding credit ratings opinions, 
+models, methodologies and its adherence to securities laws, rating and compliance policies and 
+procedures are subject to standard intake, evaluation and remediation processes. Complaint is a 
+communication received by EJR that contains grievance or allegations involving the activities of EJR or 
+associated persons of EJR of a specific violation of laws, rules, regulations, policies and/or procedures with 
+respect to any ratings' actions, including the solicitation, execution, or the disposition of ratings' action 
+and any communications that contain grievance or allegations about the performance of an EJR associated 
+person involving the initiation, determination, approval, maintenance, monitoring, changing, or 
+withdrawal of any rating action , excluding general expressions of disagreement with particular ratings 
+(including requests to appeal a rating) and/or methodologies are not considered Complaints. ( (Appendix 
+- EJR Complaint Procedures) 
+
+===== PDF PAGE 49 =====
+For purposes of this requirement, unless they meet one of the definitions above, the following are 
+not in and of themselves considered to be Complaints: 
+1) general expressions of disagreement with particular Credit Ratings, the outcome of a rating group, 
+or the models and/or methodologies used by EJR in formulating its Credit Ratings; 
+2) an external request to appeal a Credit Rating; 
+3) a comment on whether in-use methodologies for determining Credit Ratings should be updated; 
+or 
+4) a comment received by EJR as part of the Request for Comment process. 
+Anyone may report a complaint regarding EJR or tips alleging a violation of legal or regulatory 
+obligations directed to the DCO of EJR, as follows: 
+• Verbally: DCO or Compliance Department 
+Telephone: 646-693-5174 
+• Verbally (on-the-record or anonymously): 24-hour Independently Operated Helpline 
+Telephone: 484-789-6596 
+• Email: Complaints@egan-jones.com 
+• By Mail: Egan-Jones Ratings Company 
+Attn: Compliance 
+840 1st Avenue, Suite 400 
+King of Prussia, PA 19406 
+• Through the "Contact Us" page of the Egan-Jones website https://www.egan­
+jones.com/trial?contact=l 
+Complaints may be made on a confidential or anonymous basis by an employee or user of credit 
+ratings. Complaints will be investigated according to the Company's standard procedures and a written 
+response may be provided in due course, in cases where the identity of the complainant has been 
+provided . 
+EJR personnel who are the direct recipients of external complaints are required to forward the details 
+of the complaint and the complainant's contact information to the Compliance Department on a timely 
+basis. 
+All complaints and relevant information, including any written complaints that were submitted by 
+persons outside the NRSRO concerning the performance of an analyst in initiating, determining, 
+maintaining, monitoring, changing, or withdrawing a rating which must be retained under Rule 17g-
+2(b)(8), will be retained for three years under Rule 17g-2(c). Please see "EJR COMPLAINT PROCEDURES" 
+located on page 9 of the Appendix to the Conflicts and Compliance Manual for detailed information. 
+Duty to Report Tips Alleging Material Violations of Law- 15E(u) 
+EJR follows the Rule lSE(u) requirement regarding the duty to report tips alleging material 
+violations of law: 
+
+===== PDF PAGE 50 =====
+(1) Duty to Report: EJR shall refer to the appropriate law enforcement or regulatory authorities 
+any information that EJR receives from a third party and finds credible that alleges that an issuer of 
+securities rated by EJR has committed or is committing a material violation of law that has not been 
+adjudicated by a Federal or State court . 
+(2) Rule of Construction: Nothing in paragraph (1) may be construed to require EJR to verify the 
+accuracy of the information described in paragraph (1). 
+Conflict-related Compliance Policy Oversight- Board of Directors 
+In addition to the overall board responsibilities, the Board is empowered by mandate to oversee the 
+establishment, maintenance and enforcement of the NRSRO's policies and procedures related to the 
+determination of credit ratings and for the addressing, management and disclosure of conflicts of interest, 
+the effectiveness of internal control system with respect to policies and procedures for determining credit 
+ratings and the compensation and promotion policies and practices of the firm . 
+Standard for Shared E-mail Addresses 
+The standards for shared e-mail addresses set forth below is aimed to manage the firm's conflict with 
+respect to: 
+"Issuer Pays Conflict": 
+• Identified Conflicts 17g-5(b)(1), 17g-5(b)(5), 17g-5(b)(6) 
+• Prohibited Conflicts 17g-5(c)(6) and 17g-5(c)(8) 
+Background and scope- NRSROs are subject to laws and regulations pertaining to (among other 
+things): (i) safeguarding client confidential information; and (ii) the separation of roles. This policy and 
+procedure seeks to formalize standards governing the creation and maintenance of shared e-mail 
+addresses that are intended to be utilized with or by external parties for either analytical purposes or sales 
+and marketing purposes. This policy is not designed to address e-mail addresses used by external parties 
+for other purposes (e.g., complaints@egan-jones.com) or e-mail addresses designed for internal 
+communications (e.g., employees@egan-jones.com). 
+Analytical communications- Shared e-mail addresses that are utilized with external parties to facilitate 
+credit rating analysis may include only the following types of roles: Analytical and Operations. For each 
+non-Analytical individual on a shared Analytical e-mail address, EJR's Compliance Department will retain 
+documentation pertaining to their legitimate business need to receive the intended client 
+communications and consideration of any conflicts of interest. 
+Sales and Marketing communications- Shared e-mail addresses that are utilized with external parties 
+to facilitate sales and marketing objectives may include only the following types of roles: Sales, Marketing 
+and Operations . For each non-Sales and Marketing individual on a shared Sales and Marketing e-mail 
+address, EJR's Compliance Department will retain documentation pertaining to their legitimate business 
+need to receive the intended client communications and consideration of any conflicts of interest. 
+Audit trail- EJR's IT Department is accountable for retaining an audit trail of each individual added to 
+/ dropped from a shared e-mail address that is utilized with external parties. 
+
+===== PDF PAGE 51 =====
+DCO Exceptions- The DCO is authorized to grant access to other individuals on a case-by-case basis, 
+provided the DCO confirms and documents: (i) that the individual has a legitimate business purpose for 
+obtaining access; and (ii) that Sales/Marketing and Analytical roles will not be on the same shared e-mail 
+address. 
+EJR System Access Control Policy 
+(EJR System Access Control Policy Effective 1/6/2025) 
+Contents 
+About this Document 
+Table 1 - Revision History 
+Version 
+Date 
+Author 
+Description of Change 
+Contents 
+Scope 
+Policy 
+User Onboarding and Provisioning 
+Role-Based Access Control (RBAC) 
+On boarding and Provisioning 
+Access Requests 
+User Access Changes 
+User Access Revocation and De-provisioning 
+User Access Reviews 
+Authentication Requirements 
+Multi-Factor Authentication {MFA) 
+1 
+1 
+2 
+3 
+3 
+3 
+3 
+4 
+4 
+4 
+4 
+5 
+5 
+5 
+
+===== PDF PAGE 52 =====
+Remote Access 
+Enforcement 
+5 
+6 
+
+===== PDF PAGE 53 =====
+Scope 
+This policy applies to personnel, consultants, contractors, and other workers 
+who require access to systems utilized by EJR. This policy focuses on systems 
+(e.g., applications, databases, operating systems, and networks). While 
+considerations for managing access to individual files or documents, especially 
+those containing confidential or sensitive/regulated information, are essential, 
+the intent of this policy is not to define specific requirements for files or 
+documents. 
+Policy 
+EJR utilizes multiple types of accounts across various systems. This policy 
+provides coverage over the following: 
+User Accounts: An account that is unique to a specific individual. 
+Shared Accounts: An account shared among a group of users. EJR discourages 
+the use of shared accounts, but management understands that there may be 
+scenarios where they are necessary. 
+Non-interactive Service Accounts/Bot Accounts: These are accounts used 
+when systems need to authenticate to other systems without a direct 
+association with a person, such as an account used to pull or push data from or 
+into another system. Non-interactive means that an individual cannot 
+authenticate to the account and use it to perform system functions. 
+Interactive Service Accounts/Bot Accounts: These accounts are used 
+similarly to non-interactive service accounts or bot accounts, but allow an 
+individual or group to authenticate and log in to perform various system 
+functions. 
+Privileged Accounts: An account assigned privileged system roles, such as the 
+ability to create, modify, or remove other accounts, delete or modify data 
+directly, modify system configurations, modify or delete system event logs, etc. 
+The types of privileges available will vary by system ( e.g., Cloud service 
+providers may provide an access privilege that allows a user assigned the 
+privilege to create, modify, or delete encryption keys). 
+Egan-Jones Rating's Security Team will define the specific types of privileged 
+access for systems used throughout the environment. 
+User Onboarding and Provisioning 
+Access granted to users within EJR's system boundaries leverages the principle 
+of least privilege. This means that individuals are given the minimum level of 
+access necessary to fulfill the job responsibilities defined by their role within the 
+organization. 
+
+===== PDF PAGE 54 =====
+Role-Based Access Control (RBAC) 
+Where feasible, permissions to administer and operate technology services and 
+products should be granted through roles (or groups). Roles should be created 
+with sets of permissions tailored to specific job responsibilities. Individual users 
+should not be assigned permissions directly. Reviewers should consider the level 
+of access granted to users during user access reviews based on their role 
+assignments. 
+
+===== PDF PAGE 55 =====
+On boarding and Provisioning 
+New personnel onboarding to EJR's environment will have access provisioned 
+according to their role and the initial access request submitted during the 
+onboarding process. New accounts created for systems within the environment 
+must be unique and assigned using a standard naming convention, where 
+possible. 
+Access Requests 
+As previously defined in the preceding sections, personnel requmng access 
+privileges beyond the initial roles provided should submit a formal access 
+request. Personnel (IT) responsible for provisioning access are charged with 
+ensuring that proper access rights are configured. If there is uncertainty, the IT 
+resource will verify with the requester and/or Information Security before 
+provisioning or creating the access request. 
+EJR maintains a formal access request template that can be completed and 
+submitted through the organization's ticketing system . The template specifies 
+the required approvals. Other forms of written requests are allowed, but formal 
+tickets are preferred. 
+User Access Changes 
+From time to time, personnel may be promoted, demoted, or transferred to a 
+new role. As part of this process, the access personnel requirements may 
+change based on promotions, demotions, or transfers. Regardless of whether a 
+promotion, demotion, or transfer warrants changes in access, each time a 
+promotion, demotion, or transfer occurs, the following actions are taken: 
+• An access change request is submitted via EJR's ticketing system. 
+• If the personnel received access to a shared account, the password for that account is rotated . 
+• If the personnel had privileged accounts, their manager will be engaged to determine whether the 
+privileged access is still required 
+• All access revocations and non-changes are documented within the respective access change 
+request ticket . 
+• In addition to the actions above, the Access Management Policy will be considered in full for access 
+changes. 
+User Access Revocation and De-provisioning 
+Upon a personnel's resignation or suspension, all access previously granted to 
+the personnel is revoked. Access should be withdrawn according to the 
+schedule below, or earlier if necessary. 
+Privileged Accounts: Access is revoked immediately to minimize the window 
+of opportunity for personnel to exploit their privileged access and harm the 
+
+===== PDF PAGE 56 =====
+organization or individuals. 
+Shared Accounts: Access is revoked immediately, and the password is rotated 
+since shared accounts do not provide non-repudiation. 
+Remote Access should be revoked immediately. 
+All other non-administrative access: Access must be removed within 2 Business 
+Days. 
+
+===== PDF PAGE 57 =====
+A formal access de-provisioning request will be filed through EJR's ticketing 
+system to maintain an audit trail for access revocations. A user's account may 
+sometimes be suspended or reactivated to access or manage emails or other 
+services. Management must be informed of and approve such circumstances in 
+writing. 
+User Access Reviews 
+To ensure correct user permissions throughout the EJR's environment, user 
+access reviews must be performed at least annually. Asset owners must generate 
+or obtain a list of all users and their associated system permissions. Asset 
+owners must review the users and permissions, note any deviations or 
+inappropriate permissions, update permissions to the appropriate level, record 
+their actions in a ticket, and retain review results, including notes, for 
+evidentiary purposes. During these reviews, system owners should review the 
+following: 
+• Users with overly permissive access 
+• Users who have recently changed roles and require access level changes 
+• Users whom the organization no longer employs 
+Users should not individually review and approve their access. When system 
+owners review their access to a system, a secondary reviewer should also review 
+their results. 
+Authentication Requirements 
+Personnel authentication to EJR's systems is subject to strict requirements to 
+ensure the security of data stored and processed within these systems. 
+Multi-Factor Authentication (MFA) 
+Systems rated as High or Critical in their Business Impact Analysis should be 
+configured to require users to leverage MF A capabilities. If MFA is not deployed, 
+then alternative methods need to be researched. EJR allows the use of the 
+following MFA mechanisms: 
+Hardware Token: A physical device plugged into a machine from which a user 
+tries to authenticate ( e.g., YubiKey, Google's Titan Security Key, etc.). 
+Time-based One-Time Passcode: Application or small physical device that 
+provides a rotating code, such as Google's Authenticator Mobile App (may only 
+be installed on an approved EJR-issued mobile device) 
+Biometric: Fingerprint, retina, facial recognition, etc. 
+Remote Access 
+
+===== PDF PAGE 58 =====
+All employees must notify EJR's information security team in advance before 
+traveling outside their normal 
+work location. 
+
+===== PDF PAGE 59 =====
+Personnel who require remote access to EJR's systems must first authenticate 
+to EJR's Virtual Private Network ("VPN") or similar technology. A VPN ensures 
+that all activities performed are sufficiently encrypted while being transferred 
+over the web. 
+Personnel remotely accessing backend infrastructure assets via a console ( e.g., 
+terminal, command line) will be required to use the Secure Shell (SSH) or other 
+equally strong encryption protocols. In addition, all EJR-maintained servers 
+will be configured to block authentication requests that do not enforce 
+encryption and will require MFA 
+Enforcement 
+EJR will enforce this policy through appropriate disciplinary action for any 
+violations. The disciplinary action may include, but is not limited to, 
+termination of employment, legal action, and reporting to the proper law 
+enforcement authorities. 

@@ -1,0 +1,962 @@
+
+===== PDF PAGE 1 =====
+ 
+ 
+Exhibit 5 – Code of Ethics 
+Form NRSRO – Annual Certification 
+March 2024 
+Codes of Ethics 
+ 
+Morningstar DBRS Business Code of Conduct 
+ 
+x Business Code of Conduct 
+ 
+ 
+
+===== PDF PAGE 2 =====
+1 Morningstar DBRS Business Code of Conduct
+Morningstar DBRS 
+Business Code  
+of Conduct 
+January 2024
+Table of Contents
+1        Introduction
+2       Morningstar DBRS Credit Ratings
+4        1. Quality and Integrity of the Credit Rating 
+Process
+8        2. Morningstar DBRS Independence and 
+$YRLGDQFHRI&RQĬLFWVRI,QWHUHVW
+8        A. General
+8        B. Morningstar DBRS Policies Procedures, 
+Controls and Disclosures
+9        C. Morningstar DBRS Analyst and Employee 
+Independence
+12       3. Morningstar DBRS Responsibilities to the 
+Investing Public and Issuers
+12       A. Transparency and Timeliness of Ratings 
+Disclosure
+14    %7KH7UHDWPHQWRI&RQīGHQWLDO,QIRUPDWLRQ
+16       4. Governance, Risk Management and 
+Employee Training
+18       5. Enforcement and Disclosure of the Code and 
+Communication with Market Participants
+19     $SSHQGL[,'HīQLWLRQV
+22       Appendix II: Reporting Complaints Regarding 
+Morningstar DBRS — Submissions by Non-
+Employees
+Introduction
+7KH0RUQLQJVWDU'%56%XVLQHVV&RGHRI&RQGXFWWKH%XVLQHVV&RG HUHĬHFWV0RUQLQJVWDU'%56
+ 1 
+(Morningstar DBRS or the Company) adherence to the International Organization of Securities 
+Commissions (IOSCO) Code of Conduct Fundamentals for Credit Rating Agencies (IOSCO Code). 
+The IOSCO Code is a framework of principles and practical measures designed to improve investor 
+SURWHFWLRQDQGWKHIDLUQHVVHĮFLHQF\DQGWUDQVSDUHQF\RIWKHV HFXULWLHVPDUNHWVDQGWRUHGXFH
+systemic risk. The Business Code substantially follows the IOSCO Code structure to assist readers 
+LQUHIHUHQFLQJ0RUQLQJVWDU'%56UHVSRQVHVWRVSHFLīFDVSHFWVRI WKH,26&2&RGH
+The Business Code is a summary of a range of policies, procedures and controls that Morningstar 
+DBRS has established 2 to promote the objectivity and integrity of its credit ratings and the 
+transparency of its operations. To the extent possible, Morningstar DBRS implements global 
+policies and procedures. Morningstar DBRS also has established policies and practices to meet 
+VSHFLīFMXULVGLFWLRQDOUHTXLUHPHQWVLQDGGLWLRQWRWKRVHZKLFK DUHUHĬHFWHGLQWKH%XVLQHVV&RGH 3
+7RWKHH[WHQWWKHUHLVDQ\FRQĬLFWRULQFRQVLVWHQF\EHWZHHQWKL VVHFWLRQDQGWKHGHVFULSWLRQV
+otherwise contained in this Code, the text of this section shall prevail.  
+1 The Morningstar DBRS group of companies consists of DBRS, Inc., DBRS Limited, DBRS Ratings GmbH, 
+and DBRS Ratings Limited.
+2 Morningstar DBRS maintains, documents, and enforces the policies, procedures and controls it has 
+established.
+3 Morningstar DBRS presently complies with the following regulatory regimes through one or more of 
+its operating companies: in Canada, the Designated Rating Organization (DRO) regime under National 
+Instrument 25-101 DRO; in the United States, the Nationally Recognized Statistical Rating Organization 
+(NRSRO) regime under Section 15E of the Securities Exchange Act of 1934 and the Securities and 
+Exchange Commission (SEC) rules thereunder; in th e European Union (EU), the regime established 
+in accordance with Regulation (EC) No1060/2009 of the European Parliament, as amended (the EU 
+CRA Regulation); and in the United Kingdom (UK) in accordance with the EU CRA Regulation that was 
+RQVKRUHGLQWR8.ODZRQ'HFHPEHUZLWKWKHQHFHVVDU\PR GLīFDWLRQVFRQWDLQHGLQWKH&UHGLW
+Rating Agencies (Amendment etc.) (EU Exit) Regulations 2019.
+
+===== PDF PAGE 3 =====
+2 Morningstar DBRS Business Code of Conduct
+Morningstar DBRS also maintains an Employee Code of Conduct that sets out and provides 
+guidance in respect of the Morningstar DBRS standards of conduct to be followed by Covered 
+Personnel and underpins Morningstar DBRS’ commitmen t to conducting its business in an ethical 
+manner and with integrity.
+Please note that by adopting and publishing the Business Code, Morningstar DBRS does not 
+assume any responsibility or liability to any party arising from or in connection with the Business 
+Code or the underlying policies, procedures and internal controls. The Business Code does not 
+form a contract of any kind with any party and no party shall have any right whatsoever to 
+enforce the Business Code in any respect. Morningstar DBRS may, in its sole discretion, amend 
+the Business Code at any time.
+7KH%XVLQHVV&RGHXVHVFHUWDLQVWDQGDUGWHUPVWKDWDUHFDSLWDOL ]HGDQGGHīQHGKHUHLQRULQWKH
+attached Appendix I.
+MORNINGSTAR DBRS CREDIT RATINGS
+Credit ratings 4DUHIRUZDUGORRNLQJRSLQLRQVDERXWFUHGLWULVNZKLFKUHĬHFWWK HFUHGLWZRUWKLQHVV
+of an issuer, rated entity (Issuer), security, and/or obligation. Credit ratings are not statements of 
+IDFW:KLOHKLVWRULFDOVWDWLVWLFVSHUIRUPDQFHDQGH[SHUWRSLQ LRQRQHJīQDQFLDOVWDWHPHQWVRU
+legal matters) can be important considerations, credit ratings are not based solely on such; they 
+include subjective considerations and involve expectations for future performance or events that 
+cannot be guaranteed. As such, and to the extent that future events and economic conditions 
+do not match expectations, credit ratings assigned to Issuers, securities, and/or obligations can 
+change. Credit ratings are also based on approved and applicable methodologies, models and 
+criteria (Methodologies), which includes key rating assumptions. Methodologies are periodically 
+updated and, when material changes are deemed necessary, may also lead to rating changes.
+5
+Credit ratings typically provide an opinion on the risk that investors may not be repaid in 
+accordance with the terms under which an obligation was issued. In some cases, credit ratings 
+may also include consideration for the relative ranking of claims and recovery, should default 
+occur. Credit ratings are meant to provide opinions on relative measures of risk, but are neither 
+EDVHGRQH[SHFWDWLRQVRIDQ\VSHFLīFGHIDXOWSUREDELOLW\QRUPH DQWWRSUHGLFWVXFK
+Morningstar DBRS does not provide investment advice and a Morningstar DBRS credit rating 
+is not a buy, sell or hold recommendation. Credit ratings address only credit risk, which is one 
+element in an investor’s decision-making process, and not any non-credit risks that may be 
+relevant to investors (including, without limitation, any accounting, change in law or regulatory 
+risk).  Credit ratings make no assessment of the appropriateness of ownership for a given 
+LQYHVWRUZLWKLQWKHLULQYHVWPHQWREMHFWLYHV6SHFLīFDOO\LQYHV WRUVPD\KDYHDQLQWHUHVWLQ
+areas outside the bounds of credit risk, such as the level of market prices, tax-related issues, or 
+investment losses that could result from market-related or other changes, some of which could 
+be unforeseeable. The data and information on which Morningstar DBRS bases its opinions is not 
+DXGLWHGRUYHULīHGE\0RUQLQJVWDU'%56DOWKRXJK0RUQLQJVWDU'% 56FRQGXFWVDUHDVRQDEOHQHVV
+review of information received and relied upon in accordance with its Methodologies and policies. 
+ $VGHīQHGE\WKH,26&2&RGHDFUHGLWUDWLQJLVDQDVVHVVPHQWUHJDUGLQJWKHFUHGLWZRUWKLQHVVRIDQ
+HQWLW\RUREOLJDWLRQH[SUHVVHGXVLQJDQHVWDEOLVKHGDQGGHīQHGUDQNLQJV\VWHP
+5 Morningstar DBRS maintains procedures for developing, reviewing, updating and approving 
+Methodologies.  
+
+===== PDF PAGE 4 =====
+3 Morningstar DBRS Business Code of Conduct
+Morningstar DBRS is not an investment advisor. Morningstar DBRS does not provide investment, 
+īQDQFLDORURWKHUDGYLFH1RFUHGLWUDWLQJRUUDWLQJDFWLRQVK DOOFRQVWLWXWHRUEHFRQVWUXHG
+RUUHSUHVHQWHGDVLīQDQFLDOLQYHVWPHQWWD[OHJDORURWKH UDGYLFHRULLDVROLFLWDWLRQ
+UHFRPPHQGDWLRQHQGRUVHPHQWRURĭHUWREX\KROGRUVHOODQ\V HFXULW\RWKHULQYHVWPHQWRU
+īQDQFLDOLQVWUXPHQWRUWRPDNHDQ\LQYHVWPHQWīQDQFLDORURWK HUGHFLVLRQ
+Morningstar DBRS uses rating symbols as a concise method of expressing its opinion to the 
+PDUNHWEXWWKHUHDUHDOLPLWHGQXPEHURIUDWLQJFDWHJRULHVIRU WKHSRVVLEOHVOLJKWULVNGLĭHUHQWLDOV
+that will exist across the rating spectrum and Morningstar DBRS does not assert that credit 
+UDWLQJVLQWKHVDPHFDWHJRU\DUHRIH[DFWO\WKHVDPHTXDOLW\,QYHVWRUVVKRXOGDOVREHDZDUH
+of the additional value that may be provided by under review statuses, rating trends and the 
+comments and opinions referenced in Morningstar DBRS press releases, rating reports and other 
+publications, and/or other information posted to dbrs.morningstar.com.
+Morningstar DBRS uses rating scales to assign and monitor credit ratings, including: (1) 
+commercial paper and short-term debt rating scale, (2) long-term obligations scale (including 
+bonds), (3) preferred share rating scale (Canadian scale only), (4) credit fund rating scale, (5) 
+QDWLRQDOVFDOHFUHGLWUDWLQJVīQDQFLDOVWUHQJWKUDWLQJVFD OHDQGH[SHFWHGORVVUDWLQJ
+scale. For non-investment-grade Issuers, Morningstar DBRS uses a recovery rating scale that is 
+GLVFORVHGLQWKH0HWKRGRORJ\7KHPRVWFXUUHQW0RUQLQJVWDU'%56UDWLQJVFDOHVDQGGHīQLWLRQVLQ
+HĭHFWDUHDYDLODEOHDWQRFKDUJHRQ dbrs.morningstar.com. 
+
+===== PDF PAGE 5 =====
+4 Morningstar DBRS Business Code of Conduct
+1. Quality and Integrity of the Rating Process
+(1.1) Morningstar DBRS credit ratings are formed and disseminated based on established 
+Methodologies, policies and processes. Morningstar DBRS’ rating Methodologies are published 
+on the Morningstar DBRS website and cover Issuers and obligations that Morningstar DBRS 
+UDWHVLQFOXGLQJFRUSRUDWHīQDQFH,VVXHUVīQDQFLDOLQVWLWXWLRQ VLQVXUDQFHFRPSDQLHVSXEOLF
+īQDQFHDQGVRYHUHLJQHQWLWLHVFROOHFWLYHO\UHIHUUHGWRDV&RUS RUDWHRU&RUSRUDWH)LQDQFHDVZHOO
+DVVWUXFWXUHGīQDQFHWUDQVDFWLRQV6WUXFWXUHG)LQDQFH7KH0RU QLQJVWDU'%56UDWLQJSURFHVV
+LQFOXGHVD5DWLQJ&RPPLWWHHGHVLJQHGWRFKHFNWKDWVXĮFLHQWGDW DDQGLQIRUPDWLRQDUHIDFWRUHG
+into a rating.
+Morningstar DBRS maintains rigorous, systematic and continuous rating Methodologies that 
+are subject to validation, including back-testing, where possible. Morningstar DBRS publishes 
+historical performance data, which includes default and transition studies, on an annual basis at 
+a minimum.
+(1.2)&UHGLWUDWLQJVUHĬHFWDOOLQIRUPDWLRQNQRZQDQGEHOLHYHGWREH UHOHYDQWWR0RUQLQJVWDU
+'%56FRQVLVWHQWZLWKWKHDSSOLFDEOH0HWKRGRORJ\WKDWLVLQHĭH FW0RUQLQJVWDU'%56ŒSROLFLHV
+procedures and controls are designed so that credit ratings are based on an appropriate analysis 
+of all such information.
+(1.3) When deciding whether to rate or continue to rate an Issuer, Morningstar DBRS considers 
+ZKHWKHULWV$QDO\WLFDO3HUVRQQHOKDYHRUZLOOKDYHDFFHVVWRVX ĮFLHQWLQIRUPDWLRQDQGWKH
+appropriate knowledge and experience, to perform the rating analysis. Morningstar DBRS has 
+adopted reasonable measures to check that the information it uses in assigning and maintaining 
+DFUHGLWUDWLQJLVVXĮFLHQWWRVXSSRUWWKHFUHGLWUDWLQJDQGW KDWLWKDVWKHDSSURSULDWHNQRZOHGJH
+and experience. These measures generally include a review of asset data, legal documents and 
+transaction party information. All such information is obtained from sources determined to be 
+reliable. Morningstar DBRS does not audit or verify any information it receives. If Morningstar 
+'%56LVDVNHGWRUDWHDW\SHRIīQDQFLDOSURGXFWSUHVHQWLQJOLP LWHGKLVWRULFDOGDWDVXFKDVDQ
+LQQRYDWLYHīQDQFLDOYHKLFOH0RUQLQJVWDU'%56LGHQWLīHVWKHOL PLWDWLRQVRIWKHFUHGLWUDWLQJLQWKH
+rating report or press release.
+(1.4) Morningstar DBRS avoids issuing credit ratings for Issuers for which it does not have 
+appropriate information, knowledge and experience. For example, where the complexity of 
+a security or the structure of a type of security, or the lack of robust data about the assets 
+XQGHUO\LQJWKHVHFXULW\UDLVHVHULRXVTXHVWLRQVDVWRZKHWKHU0 RUQLQJVWDU'%56FDQGHWHUPLQHD
+credit rating for the security, Morningstar DBRS refrains from issuing a credit rating.
+(1.5) In assessing creditworthiness, Analytical Personnel involved in the credit rating action use 
+the Morningstar DBRS Methodology for the type of Issuer that is subject to the credit rating 
+action. The Methodology is applied in a manner that is consistent across all Issuers for which that 
+Methodology is used.
+(1.6)0RUQLQJVWDU'%56GHīQHVWKHPHDQLQJRIHDFKFDWHJRU\LQLWVUD WLQJVFDOHVDQGDSSOLHV
+those categories consistently across all classes of rated Issuers to which a given rating scale 
+applies.
+
+===== PDF PAGE 6 =====
+5 Morningstar DBRS Business Code of Conduct
+(1.7) Morningstar DBRS credit ratings are determined by a Rating Committee structure. Each 
+Rating Committee includes experienced Covered Personnel. The Rating Committee process 
+facilitates rating decisions that are a collective assessment of Morningstar DBRS opinion rather 
+WKDQWKHYLHZRILQGLYLGXDODQDO\VWVEDVHGRQVXĮFLHQWLQIRUPD WLRQLQFRUSRUDWLQJERWKJOREDO
+and local considerations and applying approved Methodologies; and independent, free of any 
+DFWXDODQGSHUFHLYHGFRQĬLFWVRILQWHUHVW
+(1.8) Morningstar DBRS assigns Analytical Personnel who, individually or collectively, have 
+appropriate knowledge and experience for assessing the creditworthiness of the type of Issuer 
+being rated.
+(1.9) Morningstar DBRS maintains records to support its credit ratings in accordance with 
+DSSOLFDEOHODZVDQGUHJXODWRU\UHTXLUHPHQWVLQWKHMXULVGLFWLRQ VLQZKLFK0RUQLQJVWDU'%56
+conducts business. Morningstar DBRS’ policies, procedures, and controls are designed so that its 
+Covered Personnel comply with Morningstar DBRS’ internal record maintenance, retention, and 
+GHVWUXFWLRQUHTXLUHPHQWVDQGZLWKDSSOLFDEOHODZVDQGUHJXODWLR QV
+(1.10) Morningstar DBRS has established policies, procedures and controls designed to avoid 
+knowingly issuing any credit ratings or reports that contain misrepresentations or that are 
+otherwise misleading about the general creditworthiness of an Issuer or obligation. Such steps 
+may include having an Issuer’s management or Related Third Party review rating reports and 
+press releases for factual errors prior to public dissemination.
+(1.11)0RUQLQJVWDU'%56PDLQWDLQVDVXĮFLHQWSRRORI$QDO\WLFDO3HUVR QQHOWRSURYLGHWLPHO\
+credit ratings of all obligations and Issuers it rates.
+When deciding whether to issue a credit rating for an Issuer, Morningstar DBRS assesses 
+ZKHWKHULWLVDEOHWRGHYRWHDVXĮFLHQWQXPEHURI$QDO\WLFDO3H UVRQQHOZLWKWKHVNLOOVHWV
+WRGHWHUPLQHFUHGLWUDWLQJVDQGZKHWKHUWKH$QDO\WLFDO3HUVRQQH OKDYHDFFHVVWRVXĮFLHQW
+information to determine a credit rating.
+(1.12) Morningstar DBRS has established criteria committees for each of the Corporate and 
+Structured Finance sectors composed of Analytical Personnel and senior managers. The 
+Structured Finance Criteria Committee (SFCC) responsibilities include a review of the feasibility 
+RISURYLGLQJDUDWLQJIRUDQHZSURGXFWRUDVVHWFODVVWKDWLV VLJQLīFDQWO\GLĭHUHQWIURPWKH
+asset classes that Morningstar DBRS currently rates and a review of new and changed 
+Structured Finance Methodologies. The Corporate Finance Criteria Committee (CFCC) has 
+similar responsibilities to SFCC regarding review of Corporate Methodologies. In line with 
+MXULVGLFWLRQDOUHJXODWRU\UHTXLUHPHQWV0RUQLQJVWDU'%56SXEOLV KHVQHZDQGPDWHULDOO\FKDQJHG
+Methodologies for comment and, as appropriate, may incorporate stakeholder comments. 
+Morningstar DBRS also has an additional screening process that provides a mechanism and forum 
+to evaluate the feasibility of rating a proposed transaction, debt obligation or other credit opinion, 
+as appropriate.
+(1.13) Morningstar DBRS has implemented an Independent Review Function (IRF) in each 
+jurisdiction where it operates, and the IRF is a team that includes one or more senior Analytical 
+Personnel. The IRF is responsible for periodically reviewing and approving new and existing 
+0HWKRGRORJLHVDQGDQ\VLJQLīFDQWFKDQJHVPDGHWKHUHWRLQDFFRU GDQFHZLWKUHJXODWRU\
+UHTXLUHPHQWVDQG0RUQLQJVWDU'%56SROLFLHVDQGSURFHGXUHV7KH 6)&&DQG&)&&UHYLHZVQHZ
+and changed Methodologies prior to the IRF review and approval of them. The IRF is independent 
+of analytical and business development activities and reports to the Morningstar DBRS Boards or 
+a Supervisory Board that has been established in each of the jurisdictions in which Morningstar 
+DBRS operates.
+
+===== PDF PAGE 7 =====
+6 Morningstar DBRS Business Code of Conduct
+Morningstar DBRS assesses whether existing Methodologies for determining credit ratings of 
+structured products are appropriate when the risk characteristics of the assets underlying a 
+structured product change materially. 
+If a Methodology is changed, Morningstar DBRS promptly publishes on the Morningstar DBRS 
+website a summary of the changes and the potential impact on outstanding credit ratings. To the 
+extent any outstanding credit ratings may be impacted by a change in Methodology, such credit 
+ratings may be placed under review and are reviewed by a Rating Committee no later than six 
+PRQWKVIURPWKHHĭHFWLYHGDWHRIWKH0HWKRGRORJ\SXEOLFDWLRQGD WH
+(1.14) Morningstar DBRS structures its rating teams to promote continuity and avoid bias in its 
+credit rating process. Each major Morningstar DBRS Corporate industry and Structured Finance 
+product group is headed by a member of Morningstar DBRS Management who oversees a team 
+FRQVLVWLQJRIVHQLRUDQGMXQLRU$QDO\WLFDO3HUVRQQHO,QMXULVG LFWLRQVLQZKLFKLWLVUHTXLUHGWRGR
+so by regulation, Morningstar DBRS rotates membership in its rating teams, which are done 
+gradually and in a manner designed to promote continuity.
+(1.15) For Morningstar DBRS to provide timely credit ratings for all rated industry and product 
+VHFWRUV0RUQLQJVWDU'%56KDVDOORFDWHGDGHTXDWHUHVRXUFHVWRPRQLWRULWVFUHGLWUDWLQJVDV
+necessary, on an ongoing basis and update its credit ratings at least on an annual basis, except 
+for credit ratings which indicate that they do not entail ongoing monitoring, in accordance with 
+UHJXODWRU\UHTXLUHPHQWVDQG0RUQLQJVWDU'%56SROLFLHVDQGSURFH GXUHV0RUQLQJVWDU'%56Œ
+monitoring of credit ratings incorporates all cumulative experience obtained and applies changes 
+LQFUHGLWUDWLQJVFULWHULDDQGDVVXPSWLRQVZKHUHDSSURSULDWH WRVXEVHTXHQWUDWLQJV3UHVV
+releases are published when rating actions are taken and, where applicable, rating reports are 
+updated and published.
+(1.16) Morningstar DBRS may maintain separate surveillance teams from the analytical teams 
+that are responsible for the initial rating of Structured Finance products. Where separate teams 
+DUHXVHGHDFKWHDPPDLQWDLQVDUHTXLVLWHOHYHORIH[SHUWLVHDQ GUHVRXUFHVWRSHUIRUPWKHLU
+respective functions in a timely manner.
+(1.17) Morningstar DBRS has policies and procedures that clearly set forth guidelines for 
+disseminating credit ratings that are the result or subject of credit rating actions and the related 
+reports, and for when a credit rating is discontinued - withdrawn.
+(1.18) Morningstar DBRS and its Covered Personnel interact fairly and honestly with rated Issuers,  
+originators, underwriters, arrangers and users of credit ratings.
+(1.19) Morningstar DBRS holds its Analytical Personnel to standards of integrity and seeks to 
+employ only those individuals who meet these standards. 
+(1.20) Morningstar DBRS does not implicitly or explicitly provide any assurance or guarantee of a 
+particular rating to Issuers, originators, underwriters, arrangers and users of credit ratings prior 
+to a credit rating. From time to time, Morningstar DBRS may develop a provisional rating for new 
+,VVXHUV6WUXFWXUHG)LQDQFHDQGRWKHUWUDQVDFWLRQVEXWWKHVHU DWLQJVDUHQRWīQDO0RUQLQJVWDU
+'%56LGHQWLīHVWKHEDVLVIRUWKHSURYLVLRQDOFUHGLWUDWLQJDVZ HOODVWKHIDFWWKDWWKHīQDOFUHGLW
+UDWLQJPD\EHGLĭHUHQWLIFKDQJHGFRQGLWLRQVRUQHZO\GLVFRYHUHGIDFWVZDUUDQW
+(1.21) Morningstar DBRS and its Covered Personnel do not make promises or threats about 
+SRWHQWLDOFUHGLWUDWLQJDFWLRQVWRLQĬXHQFHUDWHG,VVXHUVRUL JLQDWRUVXQGHUZULWHUVDUUDQJHUVRU
+users of Morningstar DBRS’ credit ratings to pay for credit ratings or other services. 
+
+===== PDF PAGE 8 =====
+ Morningstar DBRS Business Code of Conduct
+(1.22)0RUQLQJVWDU'%56LWV&RYHUHG3HUVRQQHODQG$ĮOLDWHVGRQRWPD NHSURSRVDOVRU
+recommendations regarding the activities of rated Issuers, including but not limited to proposals 
+or recommendations about corporate or legal structure, assets, liabilities, activities, business 
+RSHUDWLRQVLQYHVWPHQWSODQVOLQHVRIīQDQFLQJEXVLQHVVFRPELQDWLRQVRUWKHGHVLJQRI
+Structured Finance products.
+To produce credit ratings, there may be iterative dialogue and interaction between Morningstar 
+DBRS and one or more of the parties previously noted during the rating process. When rating a 
+Structured Finance transaction, for example, Analytical Personnel are permitted to describe the 
+assumptions and rationales used by Morningstar DBRS to arrive at a credit rating decision and 
+explain how such assumptions and rationales apply to the transaction presented. In addition, 
+$QDO\WLFDO3HUVRQQHOPD\SURYLGHLQIRUPDWLRQRQWKHTXDQWLWDWLY HRXWSXWRIWKHFUHGLWUDWLQJ
+analysis to further explain the applicable rating Methodology. During the course of providing any 
+VXFKLQIRUPDWLRQ$QDO\WLFDO3HUVRQQHOGRQRWRĭHUUHFRPPHQGDWLRQVDERXWSRWHQWLDOFKDQJHVWR
+obtain a desired credit rating.
+(1.23) In each jurisdiction that Morningstar DBRS operates, Morningstar DBRS has policies, 
+procedures and controls designed so that Covered Personnel comply with the internal policies, 
+procedures and codes as well as applicable laws and regulations. Among other things, Covered 
+3HUVRQQHODUHUHTXLUHGWRFRPSO\ZLWKWKH(PSOR\HH&RGHRI&RQG XFWDQGWRDQQXDOO\FHUWLI\WKDW
+WKH\DUHGRLQJVR)XUWKHUPRUHDVSDUWRIWKHKLULQJSURFHVVQHZ&RYHUHG3HUVRQQHODUHUHTXLUHG
+to review the Employee Code of Conduct, to be familiar with all related policies and procedures 
+DQGWRFRQīUPWKHLUDELOLW\DQGLQWHQWWRFRPSO\ZLWKWKHP7KHDQQXDOFHUWLīFDWLRQDOVRUHTXLUHV
+Covered Personnel to acknowledge that they have read and understood the Business Code.
+Morningstar DBRS has a compliance function responsible for monitoring and reviewing the 
+compliance of Morningstar DBRS and its Covered Personnel with the provisions of Morningstar 
+DBRS policies, procedures and codes, and with applicable laws and regulations.  The compliance 
+IXQFWLRQDOVRUHYLHZVWKHDGHTXDF\RI0RUQLQJVWDU'%56ŒSROLFLH VSURFHGXUHVDQGFRQWUROV
+0RUQLQJVWDU'%56KDVDSSRLQWHGD*OREDO&KLHI&RPSOLDQFH2ĮFHU *&&2WRRYHUVHHDQG
+maintain the Morningstar DBRS global compliance program. 
+7KH*&&2LVVXSSRUWHGE\5HJLRQDO&RPSOLDQFH2ĮFHUV5&2VLQY DULRXVMXULVGLFWLRQV$WSUHVHQW
+the U.S. RCO serves as the Nationally Recognized Statistical Ratings Organizations (NRSRO) 
+'HVLJQDWHG&RPSOLDQFH2ĮFHU'&27KH*&&2UHSRUWVGLUHFWO\WRWKH%RDUGVRI0RUQLQJVWDU
+DBRS. The compensation of the GCCO and RCOs is not linked to business performance and is 
+reviewed by the Board’s Independent Non-Executive Directors (INEDs). The RCOs also have direct 
+access to the Boards.
+(1.24) Covered Personnel are expected to promptly report any conduct that they reasonably 
+believe is illegal, unethical or contrary to the Employee Code of Conduct or any Morningstar DBRS 
+policy or procedure to the GCCO or their RCO. Morningstar DBRS allows matters to be reported on 
+DFRQīGHQWLDORUDQRQ\PRXVEDVLV8SRQUHFHLYLQJVXFKDUHSRUW WKH*&&2RU5&2DVDSSOLFDEOH
+takes appropriate action, in accordance with Morningstar DBRS policies and procedures, and 
+applicable laws and regulations. In addition to reporting concerns internally, Covered Personnel 
+may also report externally to the appropriate federal, state or local agencies and commissions, 
+including but not limited to the Securities and Exchange Commission through its Whistleblower 
+Program. 
+Morningstar DBRS prohibits retaliation against any Covered Personnel reporting a breach or 
+complaint, even if turns out that there has been no actual breach. Retaliation would, in itself, be a 
+breach and present grounds for disciplinary action.
+
+===== PDF PAGE 9 =====
+8 Morningstar DBRS Business Code of Conduct
+2. Morningstar DBRS Independence and 
+$YRLGDQFHRI&RQĬLFWVRI,QWHUHVW
+A. GENERAL
+(2.1) Morningstar DBRS does not delay or refrain from taking a credit rating action based on the 
+SRWHQWLDOHĭHFWHFRQRPLFSROLWLFDORURWKHUZLVHRIWKHDFWLR QRQ0RUQLQJVWDU'%56DQ,VVXHU
+originator, underwriter, arranger, an investor or other market participant.
+(2.2)0RUQLQJVWDU'%56DQGLWV&RYHUHG3HUVRQQHODUHUHTXLUHGWRXVH FDUHDQGSURIHVVLRQDO
+judgment to maintain both the substance and appearance of Morningstar DBRS’ and their own 
+independence and objectivity. 
+(2.3)7KHGHWHUPLQDWLRQRIDFUHGLWUDWLQJLVLQĬXHQFHGRQO\E\IDFW RUVUHOHYDQWWRDVVHVVLQJWKH
+creditworthiness of the rated Issuer.
+(2.4)&UHGLWUDWLQJVWKDW0RUQLQJVWDU'%56DVVLJQVDUHQRWDĭHFWHGE \WKHH[LVWHQFHRIRU
+SRWHQWLDOIRUDEXVLQHVVUHODWLRQVKLSEHWZHHQ0RUQLQJVWDU'%56 RULWV$ĮOLDWHVDQGWKH,VVXHULWV
+$ĮOLDWHVRU5HODWHG7KLUG3DUWLHVRUDQ\RWKHUSDUW\RUWKHQ RQH[LVWHQFHRIVXFKDUHODWLRQVKLS@
+(2.5) Morningstar DBRS is in the credit ratings business and it does not engage in any other 
+EXVLQHVVHVWKDWPD\SUHVHQWDFRQĬLFWRILQWHUHVWZLWKLWVFUHG LWUDWLQJVEXVLQHVV0RUQLQJVWDU
+DBRS discloses the credit rating, ancillary as well as consulting and advisory services it conducts, 
+if any, on the Morningstar DBRS website.
+B. MORNINGSTAR DBRS POLICIES, PROCEDURES, CONTROLS AND DISCLOSURES
+(2.6) Morningstar DBRS has adopted written internal policies, procedures and controls to identify 
+DQGHOLPLQDWHRUPDQDJHDQGGLVFORVHDVDSSURSULDWHDQ\DFWXD ORUSRWHQWLDOFRQĬLFWVRILQWHUHVW
+WKDWPD\LQĬXHQFHWKH&RPSDQ\ŒVRSLQLRQVDQGDQDO\VHVRUWKHMX GJPHQWDQGDQDO\VHVRIDQ
+Analytical Person or Rating Committee member. Among other things, these address how the 
+IROORZLQJFRQĬLFWVFDQSRWHQWLDOO\LQĬXHQFH0RUQLQJVWDU'%56FUHGLWUDWLQJ0HWKRGRORJLHVRU
+credit rating actions: 
+A. %HLQJSDLGWRLVVXHDFUHGLWUDWLQJE\WKHUDWHG,VVXHURUE\ LWV$ĮOLDWHVRU5HODWHG7KLUG
+Parties;
+B. %HLQJSDLGE\VXEVFULEHUVZLWKDīQDQFLDOLQWHUHVWWKDWFRXOGE HDĭHFWHGE\D0RUQLQJVWDU
+DBRS credit rating action;
+C. %HLQJSDLGE\UDWHG,VVXHUVRU$ĮOLDWHVRU5HODWHG7KLUG3DUW LHVRIDUDWHG,VVXHURU
+subscribers for services other than issuing credit ratings or providing access to Morningstar 
+DBRS credit ratings;
+D. 3URYLGLQJDSUHOLPLQDU\LQGLFDWLRQRUVLPLODULQGLFDWLRQRIFUH GLWTXDOLW\WRDQ,VVXHURULWV
+$ĮOLDWHVRU5HODWHG7KLUG3DUWLHVSULRUWREHLQJKLUHGWRGHWH UPLQHWKHīQDOFUHGLWUDWLQJIRUWKH
+,VVXHURULWV$ĮOLDWHVRU5HODWHG7KLUG3DUWLHVDQG
+E. Having a direct or indirect ownership interest in a rated Issuer, or having a rated Issuer have a 
+direct or indirect ownership interest in Morningstar DBRS.
+0RUQLQJVWDU'%56ZLOOQRWUDWHDQHQWLW\WKDWLVDQ$ĮOLDWHRU$VVRFLDWHRI0RUQLQJVWDU'%56RU
+its Analytical Personnel. In addition, Morningstar DBRS does not permit its Analytical Personnel 
+
+===== PDF PAGE 10 =====
+9 Morningstar DBRS Business Code of Conduct
+WRSDUWLFLSDWHLQRURWKHUZLVHLQĬXHQFHWKHGHWHUPLQDWLRQRID FUHGLWUDWLQJLIWKH$QDO\WLFDO
+3HUVRQQHOKDVDQ$VVRFLDWHZKRFXUUHQWO\ZRUNVIRUWKHUDWHGHQWLW\LWV$ĮOLDWHVRU5HODWHG7KLUG
+Parties.
+Morningstar DBRS will not issue a credit rating if a Covered Person has an actual or potential 
+FRQĬLFWRILQWHUHVWZLWKDQ,VVXHU,IWKHFUHGLWUDWLQJKDVDOUHDG\EHHQLVVXHG0RUQLQJVWDU'%56
+ZLOOSXEOLFO\GLVFORVHLQDWLPHO\PDQQHUWKDWWKHFUHGLWUDWLQ JPD\EHDĭHFWHG
+(2.7)0RUQLQJVWDU'%56GLVFORVHVLWVDFWXDODQGSRWHQWLDOFRQĬLFWVR ILQWHUHVWLQFOXGLQJEXW
+QRWOLPLWHGWRWKRVHFRQĬLFWVRILQWHUHVWLGHQWLīHGLQ3ULQFLS OHDERYHLQDFRPSOHWHWLPHO\
+FOHDUFRQFLVHVSHFLīFDQGSURPLQHQWPDQQHU:KHQWKHDFWXDOR USRWHQWLDOFRQĬLFWRILQWHUHVWLV
+XQLTXHRUVSHFLīFWRDFUHGLWUDWLQJDFWLRQZLWKUHVSHFWWRDS DUWLFXODUUDWHG,VVXHUVXFKFRQĬLFW
+of interest is disclosed in the same form and through the same means as the relevant credit rating 
+action. 
+(2.8) Morningstar DBRS discloses the general nature of its compensation arrangements with 
+rated Issuers on the Morningstar DBRS website.  Morningstar DBRS is prohibited from issuing or 
+maintaining a credit rating solicited by a person (including any single Issuer, originator, arranger, 
+FOLHQWRUVXEVFULEHULQFOXGLQJDĮOLDWHVRIWKHVHHQWLWLHVIUR PZKRPLQWKHPRVWUHFHQWO\
+HQGHGīVFDO\HDU0RUQLQJVWDU'%56UHFHLYHGQHWUHYHQXHWKDWLV HTXDOLQJRUH[FHHGLQJRI
+Morningstar DBRS’ total net annual revenue.  Morningstar DBRS currently does not receive more 
+WKDQRILWVDQQXDOUHYHQXHIURPDQ\VLQJOH,VVXHURULJLQDW RUDUUDQJHUFOLHQWRUVXEVFULEHU
+LQFOXGLQJDĮOLDWHVRIWKHVHHQWLWLHV0RUQLQJVWDU'%56DOVRFRP SOLHVZLWKVSHFLīFMXULVGLFWLRQDO
+UHYHQXHFRQFHQWUDWLRQUHTXLUHPHQWVRUOLPLWV
+(2.9)0RUQLQJVWDU'%56VXSSRUWVWKHUHTXLUHPHQWVIRU6WUXFWXUHG)LQD QFH,VVXHUVDQGRULJLQDWRUV
+of Structured Finance products to make all relevant information regarding these products 
+available to investors to conduct their own analyses.
+(2.10)0RUQLQJVWDU'%56GRHVQRWKROGRUWUDQVDFWLQWUDGLQJLQVWUXPH QWVSUHVHQWLQJFRQĬLFWVRI
+interest with Morningstar DBRS credit rating activities. 
+(2.11) In instances where rated entities, such as governments, have or are simultaneously 
+pursuing, oversight functions related to Morningstar DBRS, Morningstar DBRS does not use 
+Analytical Personnel to conduct its rating actions who are responsible for interacting with the 
+RĮFLDOVRIVXFKUDWHGHQWLWLHVLQYROYHGLQLWVRYHUVLJKWLVVXHV 
+C. MORNINGSTAR DBRS ANALYST AND EMPLOYEE INDEPENDENCE
+(2.12) Reporting lines for Covered Personnel and their compensation arrangements are structured 
+WRHOLPLQDWHRUPDQDJHDFWXDODQGSRWHQWLDOFRQĬLFWVRILQWHUHV W$QDO\WLFDO3HUVRQQHODUHQRW
+compensated or evaluated on the basis of the amount of revenue that Morningstar DBRS derives 
+from Issuers that the Analytical Personnel rate or with which the Analytical Personnel regularly 
+interact.
+Morningstar DBRS periodically, as necessary, conducts reviews of compensation policies 
+and practices for its Analytical Personnel to check that these policies and practices do not 
+compromise the objectivity of the rating process.
+(2.13) Morningstar DBRS maintains an organizational structure with supporting policies, 
+SURFHGXUHVDQGLQWHUQDOFRQWUROVGHVLJQHGWRHĭHFWXDWHWKHVHSD UDWLRQRILWV&RYHUHG3HUVRQQHO
+directly involved in credit rating activities from those who are involved in sales and marketing 
+GLVFXVVLRQVZLWK,VVXHUVRUWKHLU$ĮOLDWHVRU5HODWHG7KLUG3DUWLHVZKRPD\VHHND0RUQLQJVWDU
+DBRS credit rating.
+
+===== PDF PAGE 11 =====
+10 Morningstar DBRS Business Code of Conduct
+Analytical Personnel are prohibited from initiating, arranging, negotiating or participating in 
+discussions involving commercial matters related to selling or marketing of any Morningstar DBRS 
+VHUYLFHV$OOVXFKVDOHVRUPDUNHWLQJDFWLYLWLHVDUHUHTXLUHGW REHFRQGXFWHGE\1RQ$QDO\WLFDO
+Personnel who are excluded from credit rating activities.
+(2.14) Morningstar DBRS has adopted policies and procedures designed to check that the credit 
+UDWLQJVLWLVVXHVDUHIUHHIURPFRPSURPLVLQJLQĬXHQFHV
+If any Analytical Personnel owns Securities of an Issuer (other than as noted in Section 2.15), has 
+a prohibited interest in the Issuer or if any of the other situations described below causes or is 
+SHUFHLYHGWRFDXVHDFRQĬLFWRILQWHUHVWWKH$QDO\WLFDO3HUVRQ ZLOOQRWEHSHUPLWWHGWRSDUWLFLSDWH
+LQRURWKHUZLVHLQĬXHQFHWKHGHWHUPLQDWLRQRIWKHVXEMHFWFUHGL WUDWLQJ
+A. Holds or transacts in a trading instrument issued by the rated Issuer;
+B. +ROGVRUWUDQVDFWVLQDWUDGLQJLQVWUXPHQWRWKHUWKDQDGLYHUV LīHGFROOHFWLYHLQYHVWPHQW
+scheme) that itself owns an interest in the rated Issuer, or is a derivative based on a trading 
+instrument issued by the rated Issuer;
+C. +ROGVRUWUDQVDFWVLQDWUDGLQJLQVWUXPHQWLVVXHGE\DQDĮOLDWH RIWKHUDWHG,VVXHUWKH
+RZQHUVKLSRIZKLFKPD\FDXVHRUPD\EHSHUFHLYHGDVFDXVLQJDF RQĬLFWRILQWHUHVW
+D. Holds or transacts in a trading instrument issued by a Related Third Party of the rated Issuer, 
+WKHRZQHUVKLSRIZKLFKPD\FDXVHRUPD\EHSHUFHLYHGDVFDXVLQJDFRQĬLFWRILQWHUHVW
+E. ,VFXUUHQWO\HPSOR\HGRUKDGDUHFHQWHPSOR\PHQWRURWKHUVLJQL īFDQWEXVLQHVVUHODWLRQVKLS
+ZLWKWKH,VVXHULWV$ĮOLDWHVRU5HODWHG7KLUG3DUWLHVWKDWPD\FDXVHRUEHSHUFHLYHGDVFDXVLQJ
+DFRQĬLFWRILQWHUHVW
+F. ,VDGLUHFWRURIWKH,VVXHULWV$ĮOLDWHVRU5HODWHG7KLUG3DUW LHVRU
+G. +DVKDGDQRWKHUUHODWLRQVKLSZLWKRULQWHUHVWLQWKH,VVXHULW V$ĮOLDWHVRU5HODWHG7KLUG3DUWLHV
+WKDWPD\FDXVHRUEHSHUFHLYHGDVFDXVLQJDFRQĬLFWRILQWHUHVW 
+(2.15) Analytical Personnel and their Immediate Family Members are prohibited from directly 
+or indirectly buying, selling or engaging in any transaction in any Securities issued, guaranteed 
+or otherwise supported by any entity rated by Morningstar DBRS within their area of primary 
+responsibility. The Personal Securities Ownership and Trading Global Policy and Procedure as well 
+as the Employee Code of Conduct are designed, together with supporting policies and procedures, 
+WRSURYLGHJXLGDQFHWR&RYHUHG3HUVRQQHOUHJDUGLQJ6HFXULWLHVW UDGLQJDFWLYLWLHVWRDYRLGFRQĬLFWV
+of interest with Morningstar DBRS credit rating activities.
+(2.16) Analytical Personnel and their Immediate Family Members are not permitted to give or 
+accept gifts or entertainment, other than incidentals of nominal value provided as part of a 
+meeting, to or from anyone associated with a customer or prospective customer, or investor or 
+prospective investor in an issuance or entity rated by Morningstar DBRS. Covered Personnel are 
+not permitted to solicit gifts from anyone with whom Morningstar DBRS does ratings-related 
+EXVLQHVVRUDFFHSWJLIWVLQWKHIRUPRIFDVKRUFDVKHTXLYDOHQW VRUWKDWPD\FUHDWHSRWHQWLDO
+SHUFHLYHGRUDFWXDOFRQĬLFWVRILQWHUHVW
+(2.17)6XEMHFWWRDSSOLFDEOHODZV0RUQLQJVWDU'%56SROLFLHVDQGSURF HGXUHVUHTXLUH&RYHUHG
+Personnel to disclose to the GCCO or their RCO, personal relationships that create the potential 
+IRUDQ\UHDORUDSSDUHQWFRQĬLFWRILQWHUHVWLQFOXGLQJIRUH[ DPSOHDQ\SHUVRQDOUHODWLRQVKLS
+with an employee of a rated Issuer, originator or the lead underwriter or arranger of the rated 
+obligation within his or her area of analytic responsibility).
+
+===== PDF PAGE 12 =====
+11 Morningstar DBRS Business Code of Conduct
+(2.18) Morningstar DBRS has established policies and procedures regarding situations in which 
+Analytical Personnel leave the employment of Morningstar DBRS and join an entity that they 
+participated in rating; an obligor whose obligation they participated in rating; an originator, 
+XQGHUZULWHURUDUUDQJHUZLWKZKLFKWKH\KDGVLJQLīFDQWGHDOLQJ VDVSDUWRIKLVRUKHUGXWLHV
+at Morningstar DBRS and takes actions as needed in accordance with applicable regulatory 
+UHTXLUHPHQWV
+(2.19)&RYHUHG3HUVRQQHODUHHQFRXUDJHGWRUDLVHDQ\FRQFHUQVWKH\KD YHDQGDUHUHTXLUHGWR
+report known or suspected violations of applicable laws, rules or Morningstar DBRS policies and 
+procedures. Covered Personnel can report using any of the options detailed within the How to 
+Report Violations or Get Advice section of the Employee Code of Conduct.
+(2.20)&RYHUHG3HUVRQQHOPXVWQRWEULQJSURSULHWDU\RU&RQīGHQWLDO,Q IRUPDWLRQZLWKWKHPZKHQ
+they join Morningstar DBRS. Morningstar DBRS does not tolerate the unauthorized receipt or 
+XVHRILQWHOOHFWXDOSURSHUW\RU&RQīGHQWLDO,QIRUPDWLRQLQFOXG LQJSODJLDUL]LQJWKHZRUNRIRWKHUV
+which is prohibited).
+
+===== PDF PAGE 13 =====
+12 Morningstar DBRS Business Code of Conduct
+3. Morningstar DBRS Responsibilities to the 
+Investing Public and Issuers
+A. TRANSPARENCY AND TIMELINESS OF RATINGS DISCLOSURE
+(3.1) Morningstar DBRS provides information on the Morningstar DBRS website to assist 
+investors in developing a greater understanding of what a credit rating is, including the nature 
+and limitations of each credit rating and the risks of relying on credit ratings to make investment 
+RURWKHUīQDQFLDOGHFLVLRQV0RUQLQJVWDU'%56GRHVQRWVWDWHRU LPSO\WKDWLWVUHJXODWRU\
+authorities endorse Morningstar DBRS credit ratings and does not use its registration status to 
+DGYHUWLVHWKHTXDOLW\RI0RUQLQJVWDU'%56FUHGLWUDWLQJV
+(3.2)0RUQLQJVWDU'%56SXEOLVKHVRQWKH0RUQLQJVWDU'%56ZHEVLWHVXĮ FLHQWLQIRUPDWLRQ
+about its policies, credit ratings, credit rating process and its credit rating Methodologies so that 
+market participants can understand the manner in which Morningstar DBRS determines its credit 
+ratings. Morningstar DBRS press releases, announcements and invitations to industry forums are 
+disclosed on the Morningstar DBRS website, Bloomberg, Thomson Reuters and other electronic 
+and print services. In addition to the aforementioned disclosed ratings information, Morningstar 
+DBRS also makes rating reports, industry studies, commentaries and securitization servicer 
+reports available to subscribers, which may be free of charge in certain jurisdictions.
+(3.3) In accordance with Morningstar DBRS policies, new Methodologies and material changes 
+to existing Methodologies are typically disclosed via press release on the Morningstar DBRS 
+ZHEVLWH:KHUHIHDVLEOHDQGDSSURSULDWHWKLVGLVFORVXUHLVPDG HEHIRUHWKHFKDQJHWDNHVHĭHFW
+Morningstar DBRS carefully considers the various uses of its credit ratings before modifying its 
+Methodologies, policies, procedures and processes. 
+(3.4) Morningstar DBRS discloses the Credit Ratings Global Policy on the Morningstar DBRS 
+website, which addresses the issuance of unsolicited credit ratings.
+(3.5) Morningstar DBRS discloses its policies for distributing its credit ratings, reports and 
+updates and for when a credit rating is discontinued - withdrawn. Morningstar DBRS provides 
+rationales to support each rating action. 
+(3.6)0RUQLQJVWDU'%56GLVFORVHVFOHDUGHīQLWLRQVRIWKHPHDQLQJRI HDFKFUHGLWUDWLQJFDWHJRU\
+LQLWVUDWLQJVFDOHVWKHGHīQLWLRQRIGHIDXOWDQGWKHWLPHKRU L]RQ0RUQLQJVWDU'%56XVHVZKHQ
+making a rating decision. Except as noted in its Credit Ratings Global Policy, Morningstar DBRS 
+credit ratings are monitored on an ongoing basis as new information becomes available. 
+(3.7)0RUQLQJVWDU'%56GLĭHUHQWLDWHVFUHGLWUDWLQJVRI6WUXFWXUHG)L QDQFHSURGXFWVIURP
+WUDGLWLRQDO&RUSRUDWHUDWLQJVWKURXJKWKHXVHRIDGLĭHUHQWUDW LQJV\PEROPRGLīHUVI
+7KH6)PRGLīHULQGLFDWHVWKDWWKHFUHGLWUDWLQJLVIRUD6WUXFW XUHG)LQDQFHSURGXFWDQGGRHV
+QRWFKDQJHWKHPHDQLQJRUGHīQLWLRQRIWKHFUHGLWUDWLQJLQDQ\ RWKHUZD\DQGGRHVQRWFKDQJH
+WKHULVNRIWKHSDUWLFXODU6WUXFWXUHG)LQDQFHSURGXFW0RUQLQJV WDU'%56FOHDUO\GHīQHVDQG
+consistently applies its rating symbols.
+(3.8) Morningstar DBRS is transparent about the manner in which each credit rating is 
+determined. 
+
+===== PDF PAGE 14 =====
+13 Morningstar DBRS Business Code of Conduct
+(3.9) In accordance with the Company’s credit rating policies and procedures, prior to issuing 
+or revising a credit rating, Morningstar DBRS, where feasible or appropriate and in accordance 
+ZLWKMXULVGLFWLRQDOUHTXLUHPHQWVLQIRUPVWKH,VVXHURUDUUDQJH URIWKHUDWHGREOLJDWLRQRIWKH
+information and principal considerations upon which the intended rating action is based and 
+provides the Issuer or arranger with an opportunity to review for factual accuracy and inclusion 
+IRU0DWHULDO1RQ3XEOLF,QIRUPDWLRQ013,$QDO\WLFDO3HUVRQQH OHYDOXDWHWKHVHFODULīFDWLRQV
+and all relevant information. If the Issuer takes exception to the credit rating, Morningstar DBRS 
+is generally prepared to consider an appeal where the Issuer or arranger provides material new 
+information to Morningstar DBRS. Morningstar DBRS considers credit rating appeals on a case-
+by-case basis. Morningstar DBRS defers issuing the press release and any related report pending 
+GLVSRVLWLRQRIWKHDSSHDOUHTXHVWDQGUHVROXWLRQRIWKHDSSHDO DVDSSOLFDEOH
+(3.10) When Morningstar DBRS publicly discloses or distributes to its subscribers a credit rating 
+that is the result or subject of the credit rating action, it does so as soon as is practicable after 
+WDNLQJWKHFUHGLWUDWLQJDFWLRQVXEMHFWWRMXULVGLFWLRQDOUHJX ODWRU\UHTXLUHPHQWV
+(3.11) Except for private credit ratings and credit ratings for certain private placement 
+transactions provided only to the Issuer, Morningstar DBRS discloses to the public, on a non-
+selective basis and at no cost, any credit rating regarding publicly issued Securities or Issuers as 
+ZHOODVDQ\VXEVHTXHQWGHFLVLRQVWRGLVFRQWLQXHVXFKDFUHGLWU DWLQJ
+(3.12) The solicitation status of Morningstar DBRS credit ratings is set at the issuer or transaction 
+level, as applicable. Accordingly, the solicitation status of all Morningstar DBRS credit ratings 
+associated with a particular issuer or a transaction would typically be the same.
+With respect to credit ratings issued by a Morningstar DBRS entity located in the United States 
+and Canada, Morningstar DBRS unsolicited credit ratings are ratings that are not initiated at the 
+UHTXHVWRIWKH,VVXHURURWKHUWKLUGSDUW\DQGDUHDVVLJQHGZLW KRXWSDUWLFLSDWLRQE\WKH,VVXHURU
+other third party. As such, DBRS, Inc. and DBRS Limited do not issue “unsolicited-participating” 
+credit ratings.  For each credit rating, Morningstar DBRS discloses whether the Issuer or other 
+third party participated in the rating process and whether Morningstar DBRS had access to the 
+accounts and other relevant internal documents of the Issuer or other third party. Each credit 
+UDWLQJQRWLQLWLDWHGDWWKHUHTXHVWRIWKH,VVXHURURWKHUWKLU GSDUW\LVLGHQWLīHGDVVXFK
+With respect to credit ratings issued by a Morningstar DBRS entity located in the Europe, 
+0RUQLQJVWDU'%56XQVROLFLWHGFUHGLWUDWLQJVDUHUDWLQJVWKDWDU HQRWUHTXHVWHGE\WKH,VVXHURU
+a Related Third Party. For each unsolicited credit rating in Europe, Morningstar DBRS discloses 
+whether the Issuer or a Related Third Party participated in the rating process and whether 
+Morningstar DBRS had access to the accounts and other relevant internal documents of the 
+Issuer or Related Third Party. 
+0RUQLQJVWDU'%56SURYLGHVWKHUHTXLUHGGLVFORVXUHVLQUHVSHFWR IHDFKXQVROLFLWHGSXEOLFFUHGLW
+rating in the relevant press release, presale report and/or rating report. Morningstar DBRS also 
+LGHQWLīHVDQGPDLQWDLQVUHFRUGVRILWVXQVROLFLWHGFUHGLWUDWLQ JV
+(3.13) Morningstar DBRS clearly indicates the attributes and limitations of each credit rating as 
+ZHOODVWKHH[WHQWWRZKLFK0RUQLQJVWDU'%56YHULīHVLQIRUPDWLR QSURYLGHGWRLWE\WKHUDWHG
+Issuer, or originator, or the underwriter, or arranger of the rated obligation. For example, if the 
+credit rating involves a type of entity or obligation for which there is limited historical data, 
+Morningstar DBRS discloses its presence and the manner in which it may limit the credit rating.
+(3.14) For each of its public credit ratings, Morningstar DBRS indicates when the credit rating 
+was last updated. Morningstar DBRS references the last rating report and/or press release date, 
+
+===== PDF PAGE 15 =====
+14 Morningstar DBRS Business Code of Conduct
+the principal Methodology(ies) and other Methodology(ies), as applicable, which were used in 
+determining the credit rating(s) in its press releases. Further, the other Methodologies used may 
+either be referenced as related research in the principal Methodology and/or listed in the ratings 
+press release(s). These can be found on the Morningstar DBRS website under “Methodologies & 
+Criteria.” 
+Where the credit rating is based on more than one Methodology or where a review of only the 
+principal Methodology might cause users of credit ratings to overlook important aspects of 
+WKHFUHGLWUDWLQJ0RUQLQJVWDU'%56H[SODLQVWKHPDQQHULQZKLF KWKHGLĭHUHQWFUHGLWUDWLQJ
+Methodologies and other important aspects factored into the credit rating decision in the credit 
+UDWLQJSUHVVUHOHDVHDQGRUUDWLQJUHSRUWLQOLQHZLWKDSSOLFDE OHUHJXODWRU\UHTXLUHPHQWV
+0RUQLQJVWDU'%56SXEOLVKHVWKHDSSOLFDEOHUDWLQJGLVFORVXUHVDV UHTXLUHGE\HDFKMXULVGLFWLRQLQ
+its credit ratings press releases and/or rating reports and/or on the Morningstar DBRS website.
+(3.15) Generally, when Morningstar DBRS issues a public credit rating on a Structured Finance 
+SURGXFW0RUQLQJVWDU'%56SURYLGHVVXĮFLHQWLQIRUPDWLRQDERXWL WVORVVDQGFDVKĬRZDQDO\VLV
+in its disclosure to assist investors in their review of Morningstar DBRS analysis and credit ratings. 
+Morningstar DBRS also analyzes the sensitivity of a Structured Finance product credit rating to 
+changes in the underlying rating assumptions and discloses the risk sensitivities as appropriate.
+(3.16) When issuing or revising a credit rating, where applicable, Morningstar DBRS explains in its 
+announcement and/or report the key assumptions and data underlying the credit rating, including 
+īQDQFLDOVWDWHPHQWDGMXVWPHQWVWKDWGHYLDWHPDWHULDOO\IURPWKR VHFRQWDLQHGLQWKHSXEOLVKHG
+īQDQFLDOVWDWHPHQWVRIWKH,VVXHU
+(3.17) Morningstar DBRS publicly announces when it has discontinued a credit rating on an 
+Issuer, security or obligation, which indicates the date the credit rating was last updated and 
+the reasons for the decision to discontinue the credit rating, with the exception of Discontinued 
+ś5HSDLGFUHGLWUDWLQJVZKLFKGRQRWDOZD\VUHTXLUHDSUHVVUH OHDVH$FFRUGLQJO\LQFDVHVZKHQ
+Morningstar DBRS discontinues monitoring a credit rating for a rated Issuer, Morningstar DBRS 
+either discontinues – withdraws the credit rating or discloses such discontinuation as soon as 
+practicable.
+(3.18) To promote transparency and to enable the market to best judge the performance of the 
+FUHGLWUDWLQJV0RUQLQJVWDU'%56ZKHUHSRVVLEOHSXEOLVKHVVXĮ FLHQWLQIRUPDWLRQDERXWWKH
+historical default rates of Morningstar DBRS credit rating categories and whether the default 
+rates of these categories have changed over time. This allows interested parties to understand 
+the historical performance of each category and if and how credit rating categories have changed. 
+7KHVWDWLVWLFVHQDEOHWKHPDUNHWWRGUDZTXDOLW\FRPSDULVRQVDP RQJFUHGLWUDWLQJVLVVXHGE\
+GLĭHUHQWFUHGLWUDWLQJDJHQFLHV0RUQLQJVWDU'%56SXEOLVKHVGHI DXOWDQGWUDQVLWLRQVWXGLHVRQDQ
+DQQXDOEDVLVDWDPLQLPXP7KHVHVWXGLHVLQFOXGHYHULīDEOHTXDQWLīDEOHKLVWRULFDOLQIRUPDWLRQ
+about the performance of Morningstar DBRS credit rating opinions, organized, structured 
+and, where possible, standardized in such a way to assist investors in drawing performance 
+FRPSDULVRQVDPRQJGLĭHUHQWFUHGLWUDWLQJDJHQFLHV,IWKHQDWXU HRIWKHFUHGLWUDWLQJRURWKHU
+circumstances make a historical default rate inappropriate, statistically invalid or otherwise likely 
+to mislead the users of the credit rating, Morningstar DBRS would explain this.
+B. THE TREATMENT OF CONFIDENTIAL INFORMATION
+(3.19)0RUQLQJVWDU'%56KDVDGRSWHGSURFHGXUHVDQGPHFKDQLVPVWRSURW HFWWKH&RQīGHQWLDO
+Information and/or MNPI, including that received from a rated Issuer, or originator, or the 
+underwriter, or arranger of a rated obligation. Unless otherwise permitted by the Issuer, 
+0RUQLQJVWDU'%56DQGLWV&RYHUHG3HUVRQQHOUHIUDLQIURPGLVFORV LQJ&RQīGHQWLDO,QIRUPDWLRQ
+
+===== PDF PAGE 16 =====
+15 Morningstar DBRS Business Code of Conduct
+in press releases, research conferences or in conversations with investors, other Issuers or any 
+other persons.
+Notwithstanding the foregoing, Morningstar DBRS and its Covered Personnel:
+A. 'RQRWXVHRUGLVFORVH&RQīGHQWLDO,QIRUPDWLRQDQGRU013,IRU DQ\SXUSRVHXQUHODWHGWR
+Morningstar DBRS’ credit rating activities, including disclosing such information to other 
+Covered Personnel where the disclosure is not necessary in connection with Morningstar 
+'%56ŒFUHGLWUDWLQJDFWLYLWLHVXQOHVVGLVFORVXUHLVUHTXLUHGE \DSSOLFDEOHODZRUUHJXODWLRQ
+B. 7DNHUHDVRQDEOHVWHSVWRSURWHFW&RQīGHQWLDO,QIRUPDWLRQDQGRU 013,IURPIUDXGWKHIW
+misuse or inadvertent disclosure; 
+C. 'RQRWXVHRUGLVFORVH&RQīGHQWLDO,QIRUPDWLRQUHFHLYHGIURPDUDWHG,VVXHULQYLRODWLRQRIWKH
+terms of any applicable agreement or mutual understanding. Morningstar DBRS keeps the 
+LQIRUPDWLRQFRQīGHQWLDOXQOHVVGLVFORVXUHLVUHTXLUHGE\DSSOL FDEOHODZRUUHJXODWLRQRU
+D. Do not selectively disclose information about a pending credit rating action, except to the rated 
+,VVXHURUDVUHTXLUHGE\DSSOLFDEOHODZRUUHJXODWLRQ
+(3.20) Morningstar DBRS has adopted policies, procedures and controls designed to prevent 
+YLRODWLRQVRIDSSOLFDEOHODZVDQGUHJXODWLRQJRYHUQLQJWKHWUHD WPHQWDQGXVHRI&RQīGHQWLDO
+Information and/or MNPI.
+(3.21) Morningstar DBRS prohibits its Covered Personnel from engaging in transactions in 
+6HFXULWLHVZKHQWKH\SRVVHVV&RQīGHQWLDO,QIRUPDWLRQDERXWWKH ,VVXHURIVXFK6HFXULWLHV
+&RYHUHG3HUVRQQHOVKRXOGQRWVKDUH&RQīGHQWLDO,QIRUPDWLRQIRU WKHSXUSRVHRIWUDGLQJ6HFXULWLHV
+or for any other purpose, except in the conduct of the Morningstar DBRS credit ratings business. 
+&RYHUHG3HUVRQQHODUHUHTXLUHGWRFRPSO\ZLWKWKH&RPSDQ\ŒVSHU VRQDOVHFXULWLHVRZQHUVKLSDQG
+trading policies and procedures as well as to periodically certify their compliance with the same 
+as part of the annual statement of understanding. 
+
+===== PDF PAGE 17 =====
+16 Morningstar DBRS Business Code of Conduct
+4. Governance, Risk Management and 
+Employee Training
+(4.1) Morningstar DBRS has established a Board of Directors for each jurisdiction in which it 
+operates (Morningstar DBRS Boards). Among other accountabilities, the Morningstar DBRS 
+%RDUGVDUHUHTXLUHGWRPRQLWRUWKHGHYHORSPHQWRIFUHGLWSROLF\ DQG0HWKRGRORJLHVWKH
+HĭHFWLYHQHVVRIWKHLQWHUQDOFRQWUROV\VWHPWKHHĭHFWLYHQHVVR IFRQĬLFWVRILQWHUHVWPHDVXUHV
+and compliance and governance processes as well as adherence to the Business Code. In addition 
+to Morningstar DBRS executive management directors, the Morningstar DBRS Boards include 
+INEDs. The composition of the Morningstar DBRS Boards is driven by jurisdictional regulatory 
+UHTXLUHPHQWVKRZHYHUDOO,1('VPXVWPDLQWDLQWKHLULQGHSHQGHQ FHRIDQDO\VLVGHFLVLRQDQG
+DFWLRQLQDOOFLUFXPVWDQFHVDQGDUHVXEMHFWWR0RUQLQJVWDU'%56 ŒSROLFLHVUHJDUGLQJFRQĬLFWVRI
+interest.
+Morningstar DBRS does not issue a credit rating unless a majority of the members of the 
+Morningstar DBRS Boards, including its independent directors, have what a reasonable person 
+ZRXOGFRQVLGHUWREHVXĮFLHQWH[SHUWLVHLQīQDQFLDOVHUYLFHVWRIXOO\XQGHUVWDQGDQGSURSHUO\
+oversee the business activities of Morningstar DBRS. In addition, at least one independent 
+member and one other member possesses, using a reasonable person’s standard, senior-level 
+in-depth knowledge and experience regarding the Structured Finance product.
+Morningstar DBRS does not issue a credit rating if a member of it Morningstar DBRS Boards 
+SDUWLFLSDWHGLQDQ\GHOLEHUDWLRQLQYROYLQJDVSHFLīFFUHGLWUDW LQJLQZKLFKWKHPHPEHUKDVD
+īQDQFLDOLQWHUHVWLQWKHRXWFRPHRIWKHFUHGLWUDWLQJ
+Morningstar DBRS compensates the independent members of the Morningstar DBRS Boards 
+WKURXJKDĬDWDQQXDOIHH$FFRUGLQJO\WKHLUFRPSHQVDWLRQLVQR WOLQNHGWRWKHEXVLQHVV
+SHUIRUPDQFHRI0RUQLQJVWDU'%56RULWV$ĮOLDWHV
+As part of its governance structure, Morningstar DBRS has also implemented a global Policy 
+Review Group to review and approve all new and revised Morningstar DBRS credit ratings and 
+compliance policies and procedures. 
+(4.2) Morningstar DBRS has established a global risk management function that is responsible 
+for the development, implementation and ongo ing management of the Group Risk Management 
+Policy and Risk Management Framework. This function uses a systematic and disciplined 
+DSSURDFKWRWKHLGHQWLīFDWLRQDVVHVVPHQWPLWLJDWLRQPRQLWRUL QJDQGUHSRUWLQJRIULVNV7KH
+function makes periodic reports to the Morningstar DBRS Boards and senior management to 
+DVVLVWWKHPLQDVVHVVLQJWKHDGHTXDF\RIWKHSROLFLHVSURFHGXU HVDQGFRQWUROVWKDW0RUQLQJVWDU
+'%56HVWDEOLVKHGWRPDQDJHULVNLQFOXGLQJWKHSROLFLHVSURFHG XUHVDQGFRQWUROVVSHFLīHGLQWKH
+IOSCO Code.
+Morningstar DBRS has designed and implemente d administrative and accounting procedures, 
+internal control mechanisms, procedures for risk assessment and control as well as safeguard 
+arrangements for information processing systems (mechanisms). Morningstar DBRS monitors 
+DQGHYDOXDWHVWKHDGHTXDF\DQGHĭHFWLYHQHVVRIWKHVHPHFKDQLVPVRQDUHJXODUEDVLVDQGWDNHV
+DSSURSULDWHPHDVXUHVWRDGGUHVVDQ\GHīFLHQFLHV
+
+===== PDF PAGE 18 =====
+ Morningstar DBRS Business Code of Conduct
+Morningstar DBRS has implemented and maintains a decision-making approach and an 
+organizational structure with clear reporting lines, functions and responsibilities.
+0RUQLQJVWDU'%56GRHVQRWRXWVRXUFHDFWLYLWLHVLIGRLQJVRPDWH ULDOO\LPSDLUVWKHHĭHFWLYHQHVV
+of its internal controls or the ability of a regulatory authority to conduct compliance reviews of 
+Morningstar DBRS’ compliance with applicable legislation or its code of conduct. Morningstar 
+'%56GRHVQRWRXWVRXUFHWKHIXQFWLRQVRUGXWLHVRILWVFRPSOLDQ FHRĮFHU
+(4.3)0RUQLQJVWDU'%56KDVSROLFLHVSURFHGXUHVDQGFRQWUROVUHTXLULQJ&RYHUHG3HUVRQQHOWR
+undergo ongoing training periodically, as appropri ate. The subject matter covered by training 
+is relevant to their responsibilities and covers, as applicable; the Morningstar DBRS codes of 
+conduct; credit rating Methodologies; Morningstar DBRS’ policies, procedures and controls for 
+PDQDJLQJFRQĬLFWVRILQWHUHVWDQGJRYHUQLQJWKHKROGLQJDQGWUD QVDFWLQJLQWUDGLQJLQVWUXPHQWV
+DQG0RUQLQJVWDU'%56ŒSROLFLHVDQGSURFHGXUHVIRUKDQGOLQJ&RQī GHQWLDO,QIRUPDWLRQDQGRU
+MNPI. Morningstar DBRS’ policies, procedures, and controls include measures to check that 
+&RYHUHG3HUVRQQHOFRPSOHWHUHTXLUHGWUDLQLQJ
+
+===== PDF PAGE 19 =====
+18 Morningstar DBRS Business Code of Conduct
+5. Enforcement and Disclosure of the Code and 
+Communication with Market Participants
+(5.1) Morningstar DBRS disclosures are, to the best of its knowledge, complete, fair, accurate, 
+timely and understandable to investors and other users of credit ratings.
+(5.2) The Business Code has been drafted in accordance with the IOSCO Code. In the case of 
+Section 2.9, Morningstar DBRS supports a Structured Finance Issuer disclosure regime; however, 
+Morningstar DBRS does not disclose in its credit rating announcements the extent to which 
+the Issuer complies with its disclosure obligations as Morningstar DBRS believes that it is the 
+REOLJDWLRQRIWKH,VVXHUWRSURYLGHWKLVLQIRUPDWLRQ0RUQLQJVW DU'%56EHOLHYHVWKDWWKLVPRGLīHG
+provision achieves the objectives contained in the IOSCO Code and the principles that underlie 
+it. In the case of Section 3.11, Morningstar DBRS does not publicly disclose private credit rating 
+DFWLRQVZKLFKLVDGHSDUWXUHIURPWKH,26&2&RGHGLVFORVXUHUH TXLUHPHQWV
+The GCCO and RCOs are responsible for the oversight of Morningstar DBRS compliance with the 
+Business Code and the compliance of Covered Personnel with the Employee Code of Conduct. 
+0RUQLQJVWDU'%56GLVFORVHVDQ\PDWHULDOPRGLīFDWLRQVPDGHWRWK LV%XVLQHVV&RGHRUKRZLWLV
+implemented and enforced on a timely basis.
+(5.3) The GCCO is charged with communicating with market participants and the public regarding 
+any complaints that Morningstar DBRS may receive. Contact details for the GCCO are included in 
+Appendix II to the Business Code.
+(5.4) The Business Code, Methodologies, historical performance data and any other disclosures, 
+as applicable, are all publicly and prominently available free of charge on the Morningstar DBRS 
+website.
+
+===== PDF PAGE 20 =====
+19 Morningstar DBRS Business Code of Conduct
+$SSHQGL[,'HīQLWLRQV
+ANALYTICAL PERSONNEL
+Analytical Personnel (singular, Analytical Person or analyst) means Covered Personnel who 
+participate in the determination, approval, monitoring, or discontinuation of credit ratings 
+or who participate in the development, review, approval, or discontinuation/withdrawal of 
+Methodologies used in determining credit ratings.
+AFFILIATE
+$Q$ĮOLDWHPHDQVDQHQWLW\WKDWGLUHFWO\RULQGLUHFWO\FRQWUROV LVFRQWUROOHGE\RULVXQGHU
+common control with another entity.
+ASSOCIATE
+Where used to indicate a relationship with Morningstar DBRS or an Analytical Person, Associate 
+means,
+A. $Q\FRPSDQ\RIZKLFK0RUQLQJVWDU'%56RUDQ$QDO\WLFDO3HUVRQE HQHīFLDOO\RZQVGLUHFWO\RU
+LQGLUHFWO\YRWLQJVHFXULWLHVFDUU\LQJPRUHWKDQRIWKHYRW LQJULJKWVDWWDFKHGWRDOOYRWLQJ
+securities of the company for the time being outstanding,
+B. Any partner of Morningstar DBRS or an Analytical Person,
+C. $Q\WUXVWRUHVWDWHLQZKLFKDQ$QDO\WLFDO3HUVRQKDVDVXEVWDQ WLDOEHQHīFLDOLQWHUHVWRUDVWR
+which he or she serves as trustee or in a similar capacity, or
+D. Any immediate family member of an Analytical Person who resides in the same home as that 
+person.
+CONFIDENTIAL INFORMATION
+0RUQLQJVWDU'%56GHīQHV&RQīGHQWLDO,QIRUPDWLRQWRLQFOXGH
+A. Data and information Morningstar DBRS receives from or on behalf of an issuer or entity in 
+connection with Morningstar DBRS’ business which Morningstar DBRS knows, or should 
+UHDVRQDEO\NQRZLVLQIRUPDWLRQFRQīGHQWLDOWRWKHLVVXHUHQWL W\RUDJHQW7KLVGRHVQRW
+include data or information that: (i) was previously known to Morningstar DBRS through 
+independent sources; (ii) was lawfully received from a third party without an obligation 
+RIFRQīGHQFHLLLZDVLQRUKDVEHFRPHSDUWRIWKHSXEOLFG RPDLQLYKDVEHHQSXEOLFO\
+UHOHDVHGE\WKHLVVXHUHQWLW\DQGRULWVDXWKRUL]HGDJHQWRQD SULRUEDVLVRUYLVUHTXLUHGWR
+be released or disclosed by law.  
+B. Data and information with respect to a pending Morningstar DBRS credit opinions that has not 
+yet been publicly disclosed. 
+C. &RQīGHQWLDO,QIRUPDWLRQIXUWKHULQFOXGHV013,
+COVERED PERSONNEL
+Covered Personnel means (i) Morningstar DBRS Credit Personnel; and (ii) any Morningstar 
+employee as designated by the Morningstar DBRS Compliance Department.
+
+===== PDF PAGE 21 =====
+20 Morningstar DBRS Business Code of Conduct
+CREDIT PERSONNEL
+Credit Personnel (or Credit Personnel/Person) means (i) all full-time or part-time Morningstar 
+DBRS employees, interns, co-ops, contractors and consultants (this includes Analytical Personnel 
+and Non-Analytical Personnel, which includes Business Development Personnel).
+MORNINGSTAR DBRS MANAGEMENT
+Morningstar DBRS Management means those Covered Personnel who have personnel 
+PDQDJHPHQWUHVSRQVLELOLWLHVDQGRUKDYHVLJQLīFDQWDFFRXQWDELOL WLHVDQGLPSDFWRQ0RUQLQJVWDU
+'%56EXVLQHVV&HUWDLQ0RUQLQJVWDU'%560DQDJHPHQWDUHDOVR0RUQLQJVWDU'%56RĮFHUVDQG
+directors.
+IMMEDIATE FAMILY MEMBER
+Immediate Family Member means the spouse, domestic partner, child or other relative or person 
+OLYLQJZLWKRUīQDQFLDOO\GHSHQGHQWRQDQ$QDO\WLFDO3HUVRQ
+ISSUER
+Issuer means an entity that issues debt, debt-like securities or a credit commitment or an 
+REOLJDWLRQ)RUWKHSXUSRVHVRIWKLVGHīQLWLRQœ(QWLW\ŔDVGHī QHGE\WKH,26&2&RGHPHDQV
+a government; political subdivision, agency or instrumentality of a government; or a company, 
+FRUSRUDWLRQSDUWQHUVKLSWUXVWHVWDWHRUDVVRFLDWLRQDQGœ2EO LJDWLRQŔDVGHīQHGE\WKH,26&2
+Code means a trading instrument, credit commitment, loan or other similar product or transaction 
+that has inherent credit risk.
+MATERIAL NON-PUBLIC INFORMATION (MNPI)
+0RUQLQJVWDU'%56GHīQHV013,DVLQIRUPDWLRQWKDWKDVQRWEHHQG LVFORVHGLQVXFKDZD\DVWR
+achieve a broad dissemination to the investing public generally, and:
+A. If it were publicly known, that information would or would reasonably be expected to result in 
+DVLJQLīFDQWFKDQJHLQWKHPDUNHWSULFHRUYDOXHRIDWUDGHG6H FXULW\RU
+B. There is a substantial likelihood that a reasonable investor would consider that information 
+important in making an investment decision.
+NON-ANALYTICAL PERSONNEL
+Non-Analytical Personnel means all Covered Personnel not categorized as Analytical Personnel.
+RATING COMMITTEE
+Rating Committee means the body that determines and approves rating decisions and actions 
+on behalf of Morningstar DBRS. Rating Committees are composed of Analytical Personnel who 
+have the appropriate knowledge and experience in developing a rating opinion for the type of 
+UDWLQJEHLQJFRQVLGHUHGDQGDUHFRPSRVHGRIDTXRUXPRIYRWLQJ PHPEHUVLQDFFRUGDQFHZLWK
+the Company’s established policies and procedures. There are separate Rating Committees for 
+Corporate and Structured Finance.
+RELATED THIRD PARTY
+Related Third Party means an Originator, arranger, Sponsor, servicer or any other party that 
+interacts with Morningstar DBRS on behalf of a rated entity, including any person directly or 
+indirectly linked to that rated entity by control.
+SECURITIES
+6HFXULWLHVDUHDQ\QRQGHSRVLWīQDQFLDOLQVWUXPHQWWKDWLVRULVGHULYHGIURPDQ\HTXLW\RUī[HG
+LQFRPHVHFXULW\7KLVLQFOXGHVEXWLVQRWOLPLWHGWRVWRFNV ERQGVGHEHQWXUHVRSWLRQVHTXLW\
+securities, convertible securities, warrants, derivative instruments (including swaps, commodities 
+DQGIXWXUHVEDVHGRQRUOLQNHGWRHTXLW\RUī[HGLQFRPHVHFXULW LHVQRWHVFROOHFWLYHLQYHVWPHQW
+
+===== PDF PAGE 22 =====
+21 Morningstar DBRS Business Code of Conduct
+VFKHPHVī[HGDQQXLWLHVYDULDEOHDQQXLWLHVRSHQRUFORVHGHQ GPXWXDOIXQGV([FKDQJH7UDGHG
+Funds (ETFs) and Unit Investment Trusts (UITs).
+
+===== PDF PAGE 23 =====
+22 Morningstar DBRS Business Code of Conduct
+Appendix II: Reporting Complaints Regarding 
+Morningstar DBRS — Submissions by Non-
+Employees
+Morningstar DBRS has established a procedure so that any complaints received from external 
+parties regarding credit ratings opinions, Methodologies and its adherence to securities laws, 
+rating and compliance policies  and procedures are subject to standard intake, evaluation, 
+remediation and retention processes.
+Anyone may report a complaint regarding Morningstar DBRS or tips alleging a violation of legal or 
+regulatory obligations directed to the GCCO of Morningstar DBRS in writing, as follows:
+0RUQLQJVWDU'%56*OREDO&KLHI&RPSOLDQFH2ĮFHU
+%URDGZD\UGĬRRU
+New York, New York 10005
+United States
+creditcompliance@morningstar.com
+“Submit a Complaint” link on dbrs.morningstar.com 
+Complaints may also be submitted to Morningstar, Inc., via the website (www.integrity-helpline.
+com/morn.jsp) or the Ethics hotline (800-555-8316).
+&RPSODLQWVPD\EHPDGHRQDFRQīGHQWLDORUDQRQ\PRXVEDVLV&RP SODLQWVZLOOEHLQYHVWLJDWHG
+according to the Company’s standard procedures and a written response will be provided in due 
+course, in cases where the identity of the complainant has been provided.
+The GCCO directs any complaint(s)to the NRSRO DCO, if the DCO is not the current GCCO. 
+Tips alleging that an Issuer of Securities rated by Morningstar DBRS has committed or is 
+committing a material violation of the law may be referred to an appropriate law enforcement or 
+UHJXODWRU\ERG\DVUHTXLUHGE\VWDWXWH
+&RYHUHG3HUVRQQHOZKRDUHWKHGLUHFWUHFLSLHQWVRIH[WHUQDOFRP SODLQWVDUHUHTXLUHGWR
+immediately forward the details of the complaint and the complainant’s contact information to 
+the GCCO.
+
+===== PDF PAGE 24 =====
+23 Morningstar DBRS Business Code of Conduct
+7KH0RUQLQJVWDU'%56JURXSRIFRPSDQLHVFRQVLVWVRI'%56,QF'HODZDUH8615652'52DĮOLDWH'%56/LPLWHG2QWDULR&DQDGD'52
+15652DĮOLDWH'%565DWLQJV*0%+)UDQNIXUW*HUPDQ\(8&5$15652DĮOLDWH'52DĮOLDWHDQG'%565DWLQJV/LPLWHG(QJODQGDQG
+:DOHV8.&5$15652DĮOLDWH'52DĮOLDWH0RUQLQJVWDU'%56GRHVQRWKROGDQ$XVWUDOLDQīQDQFLDOVHUYLFHVOLFHQVH0RUQLQJVWDU'%56FUHGLW
+ratings, and other types of credit opinions and reports, are not intended for Australian residents or entities. Morningstar DBRS does not authorize 
+their distribution to Australian resident individuals or entities, and accepts no responsibility or liability whatsoever for the actions of third parties 
+in this respect. For more information on regulatory registrations, recognitions and approvals of the Morningstar DBRS group of companies please 
+see: https://dbrs.morningstar.com/research/highlights.pdf.
+The Morningstar DBRS Group of companies are wholly-owned subsidiaries of Morningstar, Inc.
+© 2024 Morningstar DBRS. All Rights Reserved. The information upon which Morningstar DBRS credit ratings and other types of credit opinions 
+and reports are based is obtained by Morningstar DBRS from sources Morningstar DBRS believes to be reliable. Morningstar DBRS does not 
+audit the information it receives in connection with the analytical process, and it does not and cannot independently verify that information 
+LQHYHU\LQVWDQFH7KHH[WHQWRIDQ\IDFWXDOLQYHVWLJDWLRQRULQGHSHQGHQWYHULīFDWLRQGHSHQGVRQIDFWVDQGFLUFXPVWDQFHV0RUQLQJVWDU'%56
+credit ratings, other types of credit opinions, reports and any other information provided by Morningstar DBRS are provided “as is” and without 
+representation or warranty of any kind and Morningstar DBRS assumes no obligation to update any such credit ratings, opinions, reports or other 
+information. Morningstar DBRS hereby disclaims any representation or warranty, express or implied, as to the accuracy, timeliness, completeness, 
+PHUFKDQWDELOLW\īWQHVVIRUDQ\SDUWLFXODUSXUSRVHRUQRQLQIULQJHPHQWRIDQ\RIVXFKLQIRUPDWLRQ,QQRHYHQWVKDOO0RUQLQJVWDU'%56RULWV
+GLUHFWRUVRĮFHUVHPSOR\HHVLQGHSHQGHQWFRQWUDFWRUVDJHQWVDĮOLDWHVDQGUHSUHVHQWDWLYHVFROOHFWLYHO\0RUQLQJVWDU'%565HSUHVHQWDWLYHV
+be liable (1) for any inaccuracy, delay, loss of data, interruption in service, error or omission or for any damages resulting therefrom, or (2) for any 
+GLUHFWLQGLUHFWLQFLGHQWDOVSHFLDOFRPSHQVDWRU\RUFRQVHTXHQWLDOGDPDJHVDULVLQJIURPDQ\XVHRIFUHGLWUDWLQJVRWKHUW\SHVRIFUHGLWRSLQLRQV
+and reports or arising from any error (negligent or otherwise) or other circumstance or contingency within or outside the control of Morningstar 
+DBRS or any Morningstar DBRS Representative, in connection with or related to obtaining, collecting, compiling, analyzing, interpreting, 
+communicating, publishing or delivering any such information. IN ANY EVENT, TO THE EXTENT PERMITTED BY LAW, THE AGGREGATE LIABILITY 
+OF MORNINGSTAR DBRS AND THE MORNINGSTAR DBRS REPRESENTATIVES FOR ANY REASON WHATSOEVER SHALL NOT EXCEED THE 
+GREATER OF (A) THE TOTAL AMOUNT PAID BY THE USER FOR SERVICES PROVIDED BY MORNINGSTAR DBRS DURING THE TWELVE (12) 
+0217+6,00(',$7(/<35(&(',1*7+((9(17*,9,1*5,6(72/,$%,/,7< $1'%860RUQLQJVWDU'%56GRHVQRWDFWDVDīGXFLDU\RU
+DQLQYHVWPHQWDGYLVRU0RUQLQJVWDU'%56GRHVQRWSURYLGHLQYHVWPHQWīQDQFLDORURWKHUDGYLFH
+Credit ratings, other types of credit opinions and other analysis and research issued by Morningstar DBRS (a) are, and must be construed solely as, 
+VWDWHPHQWVRIRSLQLRQDQGQRWVWDWHPHQWVRIIDFWDVWRFUHGLWZRUWKLQHVVLQYHVWPHQWīQDQFLDORURWKHUDGYLFHRUUHFRPPHQGDWLRQVWRSXUFKDVH
+VHOORUKROGDQ\VHFXULWLHVEGRQRWWDNHLQWRDFFRXQW\RXUSHUVRQDOREMHFWLYHVīQDQFLDOVLWXDWLRQVRUQHHGVFVKRXOGEHZHLJKHGLIDWDOOVROHO\
+as one factor in any investment or credit decision; (d) are not intended for use by retail investors; and (e) address only credit risk and do not address 
+RWKHULQYHVWPHQWULVNVVXFKDVOLTXLGLW\ULVNRUPDUNHWYRODWLOLW\ULVN$FFRUGLQJO\FUHGLWUDWLQJVRWKHUW\SHVRIFUHGLWRSLQLRQVDQGRWKHUDQDO\VLV
+and research issued by Morningstar DBRS are not a substitute for due care and the study and evaluation of each investment decision, security or 
+credit that one may consider making, purchasing, holding, selling, or providing, as applicable.
+A report with respect to a Morningstar DBRS credit rating or other credit opinion is neither a prospectus nor a substitute for the information 
+DVVHPEOHGYHULīHGDQGSUHVHQWHGWRLQYHVWRUVE\WKHLVVXHUDQGLWVDJHQWVLQFRQQHFWLRQZLWKWKHVDOHRIWKHVHFXULWLHV
+Morningstar DBRS may receive compensation for its credit ratings and other credit opinions from, among others, issuers, insurers, guarantors 
+and/or underwriters of debt securities.
+This publication may not be reproduced, retransmitted or distributed in any form without the prior written consent of Morningstar DBRS. ALL 
+MORNINGSTAR DBRS CREDIT RATINGS AND OTHER TYPES OF CREDIT OPINIONS ARE SUBJECT TO DEFINITIONS, LIMITATIONS, POLICIES 
+AND METHODOLOGIES THAT ARE AVAILABLE ON HTTPS://DBRS.MORNINGSTAR.COM. Users may, through hypertext or other computer links, 
+gain access to or from websites operated by persons other than Morningstar DBRS. Such hyperlinks or other computer links are provided for 
+convenience only. Morningstar DBRS does not endorse the content, the operator or operations of third party websites. Morningstar DBRS is not 
+responsible for the content or operation of such third party websites and Morningstar DBRS shall have no liability to you or any other person or 
+entity for the use of third party websites.
+Document Control Number: 20231212-094
+About Morningstar DBRS
+0RUQLQJVWDU'%56LVDIXOOVHUYLFHJOREDOFUHGLWUDWLQJVEXVLQHVVZLWKDSSUR[LPDWHO\HPSOR\HHVDURXQGWKHZRUOG:HŒUHDPDUNHWOHDGHULQ
+Canada, and in multiple asset classes across the U.S. and Europe. 
+:HUDWHPRUHWKDQLVVXHUVDQGQHDUO\VHFXULWLHVZRUOGZLGHSURYLGLQJLQGHSHQGHQWFUHGLWUDWLQJVIRUīQDQFLDOLQVWLWXWLRQVFRUSRUDWH
+DQGVRYHUHLJQHQWLWLHVDQGVWUXFWXUHGīQDQFHSURGXFWVDQGLQVWUXPHQWV0DUNHWLQQRYDWRUVFKRRVHWRZRUNZLWKXVEHFDXVHRIRXUDJLOLW\
+transparency, and tech-forward approach.
+Morningstar DBRS is empowering investor success as the go-to source for independent credit ratings. And we are bringing transparency, 
+responsiveness, and leading-edge technology to the industry. 
+That’s why Morningstar DBRS is the next generation of credit ratings. 
+Learn more at dbrs.morningstar.com.
+Canada 
+'%56/LPLWHG+HDGTXDUWHUV
+DBRS Tower
+8QLYHUVLW\$YHQXH6XLWH
+7RURQWR210+0
+7HO
+Fax +1 416 593-8432
+Email: info-dbrs@morningstar.com
+United States
+DBRS, Inc.
+22 W. Washington St.
+Chicago, IL 60602
+Tel. +1 312 332-3429
+Fax +1 312 332-3492
+DBRS, Inc.
+4 World Trade Center, 48th Floor
+150 Greenwich Street
+1HZ<RUN1<
+Tel. +1 646 560-4556
+DBRS, Inc.
+140 Broadway, 43rd Floor
+New York, NY 10005
+7HO
+Fax +1 212 806-3201
+DBRS, Inc.
+100 First Stamford Place
+Bldg 100 2 West
+Stamford, CT 06902
+7HO
+Fax +1 203 614-1396 
+Europe
+DBRS Ratings Limited
+1 Oliver’s Yard 
+&LW\5RDGQG)ORRU
+London EC1Y 1HQ
+7HO
+)D[
+DBRS Ratings GmbH
+1HXH0DLQ]HU6WUDĎH
+60311 Frankfurt am Main 
+Germany
+Tel. +49 (69) 8088 3500
+ 
+DBRS Ratings GmbH, Sucursal en España
+Paseo de la Castellana, 81
+)ORRUV	
+28046 Madrid  
+Spain
+Tel. +34 (91) 903 6500

@@ -1,0 +1,649 @@
+
+===== PDF PAGE 1 =====
+www.fitchratings.com 
+  
+ 
+2026 Form NRSRO 
+Exhibit 5 
+ 
+Code of Ethics 
+Fitch Code of Conduct & Ethics may be accessed at www.fitchratings.com/ethics .  
+
+===== PDF PAGE 2 =====
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+CODE OF CONDUCT 
+& ETHICS 
+ 
+ 
+ 
+ 
+fitchratings.com 
+
+
+===== PDF PAGE 3 =====
+ 
+                                                  2 
+  
+fitchratings.com  
+TABLE OF CONTENTS 
+ 
+DEFINITIONS ...................................................................................... 3 
+1. INTRODUCTION................................................................................ 4 
+1.1 General ................................ ................................ ................................ ......  4 
+1.2 Rating Activities ................................ ................................ .............................  4 
+1.3 Risk Management ................................ ................................ ............................  4 
+1.4 Training ................................ ................................ ................................ ......  4 
+2. QUALITY AND INTEGRITY OF THE RATING PROCESS  .................................... 5 
+2.1 Quality of the Rating Process ................................ ................................ ..................  5 
+2.2 Integrity of the Rating Process ................................ ................................ ................  6 
+3. INDEPENDENCE  AND AVOIDANCE OF  CONFLICTS OF INTEREST ...................... 7 
+3.1 General ................................ ................................ ................................ ......  7 
+3.2 Procedures and Policies ................................ ................................ .......................  8 
+3.3 Analyst and Employee Independence ................................ ................................ .........  9 
+4. RESPONSIBILITIES TO INVESTORS AND OTHER MARKET PARTICIPANTS ............. 10 
+4.1 Transparency and Timeliness of Ratings Disclosure ................................ ..........................  10 
+5. THE TREATMENT OF CONFIDENTIAL INFORMATION; DISCLOSURE OF THE CODE; 
+EXPECTATIONS OF ISSUERS ................................................................ 12 
+5.1 Disclosure of This Code and Communication with Market Participants ................................ ......  12 
+5.2 What Fitch Ratings Expects of Issuers................................ ................................ ........  12 
+6. DISCLAIMERS  ................................................................................ 13 
+6.1 Non-Reliance on This Code ................................ ................................ ...................  13 
+6.2 Purpose & Use of Ratings ................................ ................................ ....................  13 
+APPENDIX A  .................................................................................... 15 
+ 
+ 
+ 
+
+
+===== PDF PAGE 4 =====
+ 
+                                                  3 
+  
+fitchratings.com  
+DEFINITIONS  
+• “Boards” means the Boards of Directors of Fitch Ratings, Inc., Fitch Ratings Ltd and Fitch Ratings Ireland Limited . 
+• “Code” means this Code of Conduct and Ethics. 
+• “Chief Compliance Officer” is the individual who leads Fitch Ratings’  Compliance Department.  
+• “Compliance Department” or “Compliance” means a department of Fitch Ratings which is responsible for advising on, 
+supporting and overseeing compliance with credit rating agency regulation globally. 
+• “Fitch Ratings” means Fitch Ratings, Inc. and each of its credit rating affiliates that issues ratings under the trade name 
+“Fitch Ratings”.  
+• “IOSCO Code of Conduct” means the IOSCO Code of Conduct Fundamentals for Credit Rating Agencies , as amended 
+from time to time. 
+• “Ratings” is defined in Section 1.2.  
+• “Regional Compliance Officer” is a member of the Compliance Department who is responsible for overseeing the 
+compliance program within a specific geographic region.  
+• “Ten Percent Threshold” is defined in Section 3.2.3 of this Code. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PDF PAGE 5 =====
+ 
+                                                  4 
+  
+fitchratings.com  
+1. INTRODUCTION 
+1.1 General 
+Fitch Ratings is committed to providing the world’s securities markets with objective, timely, independent, and forward-
+looking credit opinions. In this respect, Fitch Ratings is dedicated to several core principles — objectivity, independence, 
+integrity, and transparency.  
+This Code is intended to provide information as to how Fitch Ratings will function in accordance with those principles and is 
+designed to comply with applicable laws, rules, and regulations in the jurisdictions in which Fitch Ratings operates. This Code 
+is based on the provisions of the IOSCO Code of Conduct. This Code is supplemented by and consistent with other internal 
+policies and procedures that govern Fitch Ratings’ activities, businesses, and operations, many of which are available on Fitch 
+Rating’s free public website, www.fitchratings.com (see also Appendix A). Fitch Ratings will disclose on a timely basis any 
+changes to (i) this Code or (ii) how this Code is implemented and enforced. 
+Fitch Ratings expects its employees to act in accordance with the highest standards of personal and professional integrity and 
+to comply with all applicable laws, rules and regulations, and all policies and procedures adopted by Fitch Ratings that govern 
+the conduct of Fitch Ratings employees. Each employee is personally responsible for maintaining the highest levels of integrity 
+to preserve the trust and confidence of global investors and market participants. 
+While Fitch Ratings will need to interpret how to most effectively implement the provisions in the Code when developing its 
+policies, procedures and controls, and while from time to time Fitch Ratings may need to deviate from certain requirements in 
+the Code, Fitch Ratings shall at all times remain true to its core principals and the underlying principles of the IOSCO Code of 
+Conduct. 
+1.2 Rating Activities 
+Fitch Ratings publishes opinions using a variety of scales (collectively, “ratings”), the most common of which are credit 
+ratings. Credit ratings are opinions on the relative ability of an entity to meet financial commitments, such as interest, 
+preferred dividends, repayment of principal, insurance claims, or counterparty obligations. Information about Fitch Ratings’ 
+ratings and rating scales, including Fitch Ratings’ ratings definitions and its definition of default, is available on Fitch Ratings’ 
+free public website at www.fitchratings.com. 
+Ratings may apply to a variety of entities, including sovereigns, financial institutions, and corporations, and to the securities or 
+other obligations they issue, as well as to structured finance securities backed by receivables and other financial assets. 
+Ratings may also reflect the financial strength of insurance companies, banks, and financial guarantors. 
+1.3 Risk Management 
+Fitch Ratings’ risk management function is comprised of individuals with the appropriate experience to identify, assess, 
+monitor, and report on risks arising from  Fitch Ratings’ activities, including, but not limited to regulatory, reputational, 
+operational, and strategic risk. The risk management function has a reporting line independent of Fitch Ratings’ internal 
+audit, analytical and commercial groups, and provides periodic updates to the Boards and to senior management  to assist 
+them in overseeing Fitch Ratings’ policies, procedures and internal controls, including this Code. 
+1.4 Training 
+In accordance with its policies and procedures, Fitch Ratings requires employees to complete formal training at reasonably 
+regular intervals. The subject matter covered by the training is specific to each employee’s responsibilities. The training 
+
+
+===== PDF PAGE 6 =====
+ 
+                                                  5 
+  
+fitchratings.com  
+addresses, as applicable, this Code, credit rating methodologies, certain requirements imposed by the laws governing credit 
+rating activities, and those internal policies, procedures, and controls for (i) managing conflicts of interest (ii) governing the 
+holding and transacting in trading instruments and (iii) handling confidential and/or material non-public information.  The 
+policies, procedures and controls with respect to this training include measures designed to verify that employees undergo 
+required training. 
+2. QUALITY AND INTEGRITY OF THE RATING PROCESS 
+2.1 Quality of the Rating Process 
+2.1.1  Credit ratings are Fitch Ratings’ opinions about creditworthiness. They do not provide a guarantee of future 
+performance of the rated entity or instrument. 
+2.1.2  When assigning ratings, Fitch Ratings shall use rating methodologies and criteria that are rigorous, systematic, and, 
+where possible and/or as required by law, result in ratings that can be subjected to some form of objective validation based 
+on historical experience. 
+2.1.3  The rating analysis and any rating action shall be based upon criteria and methodologies established by Fitch Ratings. 
+Analysts shall apply a given criteria or methodology, and Fitch Ratings’ rating scales, in a consistent manner, as determined by 
+Fitch Ratings.  
+2.1.4  Ratings and rating outlooks shall be assigned by Fitch Ratings and not by any individual analyst employed by Fitch 
+Ratings. Ratings shall reflect the consideration of all information (i) known to, and believed by, Fitch Ratings to be relevant, 
+(ii) of sufficient quality, and (iii) from reliable sources, all in a manner generally consistent with Fitch Ratings’ relevant 
+established criteria and applicable rating methodologies. Fitch Ratings shall use people who, individually or collectively, have 
+appropriate knowledge and experience in developing a rating opinion for the type of rating being considered.  
+2.1.5  Fitch Ratings shall maintain internal records to support its ratings and rating outlooks in accordance with its policies 
+and applicable laws, rules, and regulations. Additionally, Fitch Ratings has established guidelines for the management, 
+maintenance, retention and orderly disposition of its records, including records relating to the policies, procedures, criteria, 
+and methodologies used to determine credit ratings and the standards of training, experience, and competence for credit 
+analysts. 
+2.1.6  Fitch Ratings and its analysts shall take steps to avoid issuing any credit analyses or reports that knowingly contain 
+misrepresentations or are otherwise misleading as to the general creditworthiness of an issuer or obligation. In addition: 
+• When deciding whether to rate or continue rating an obligation or issuer, Fitch Ratings shall assess whether it is able 
+to devote sufficient personnel with sufficient skill sets to take an appropriate rating action, and whether its personnel 
+are likely to have access to sufficient information needed in order to take such action. If the credit rating or a rating 
+outlook involves a type of entity or financial instrument for which historical data is limited, Fitch Ratings shall 
+disclose, clearly and in a prominent place, that limitation. 
+• Fitch Ratings has established a review function comprised of one or more senior personnel with the appropriate 
+experience, to review the feasibility of providing a rating for a type of structure that is materially different from the 
+structures Fitch Ratings has previously rated. 
+• Fitch Ratings has established and implemented a rigorous and formal review function responsible for periodically 
+reviewing all aspects of its credit rating methodologies (including models and key assumptions) and significant 
+changes to the credit rating methodologies. This function  shall be separate from the business lines that are 
+
+===== PDF PAGE 7 =====
+ 
+                                                  6 
+  
+fitchratings.com  
+responsible for rating various classes of issuers and obligations. 
+• Fitch Ratings shall assess whether existing methodologies and models used in the process of determining ratings of 
+structured products remain appropriate when Fitch Ratings has determined that the risk characteristics of the assets 
+underlying the relevant structured product have changed materially. Fitch Ratings shall refrain from issuing a rating in 
+the case of a new, complex type of structured product, unless Fitch Ratings has determined that it has sufficient 
+information and expertise to analyze the product. 
+2.1.7  Fitch Ratings shall structure its rating teams to promote continuity and avoid bias in the rating process.  
+2.1.8  Fitch Ratings shall ensure that sufficient personnel and financial resources are allocated to assigning, monitoring, and 
+updating its ratings. Except for point-in- time ratings that Fitch Ratings clearly identifies as such, once a rating is published 
+Fitch Ratings shall, in accordance with its established policies and procedures on surveillance and based upon information it 
+receives from issuers and other information sources, monitor on an ongoing basis and update the rating by:  
+• Regularly reviewing the issuer’s creditworthiness; 
+• Initiating a review of the rating upon becoming aware of any information that it believes might reasonably be 
+expected to result in a rating action (including withdrawal of a rating), consistent with the relevant criteria and 
+methodologies; and updating on a timely basis the rating, as appropriate, based on the results of any such review; 
+• Where appropriate, incorporating into subsequent monitoring all cumulative experience obtained, and applying 
+changes in Fitch Ratings’ criteria and  assumptions to both existing ratings and subsequent ratings; and  
+• In cases where Fitch Ratings uses separate analytical teams for determining initial ratings and for subsequent 
+monitoring of structured finance products, ensuring that each team shall have the requisite level of expertise and 
+resources to perform its respective functions in a timely manner. 
+2.1.9  Fitch Ratings reserves the right to withdraw any rating at any time for any reason, including withdrawal without 
+notice, if Fitch Ratings deems there is insufficient market interest in the rating or if a rating committee concludes that Fitch 
+Ratings lacks sufficient information to maintain the rating or that any information provided to Fitch Ratings is unreliable. In 
+the event a public rating is withdrawn, Fitch Ratings shall, in accordance with its policies and procedures, publish an 
+appropriate commentary that includes the current rating(s) and states that the rating(s) has/have been withdrawn, the reason 
+for the withdrawal, and that Fitch Ratings will no longer provide the rating(s) or analytical coverage of the issuer.  
+2.2 Integrity of the Rating Process 
+2.2.1  Fitch Ratings and its employees shall comply with all applicable laws and regulations governing its activities in each 
+jurisdiction in which it operates. 
+2.2.2  Fitch Ratings and its employees shall deal fairly and honestly with issuers, investors, and other market participants. 
+2.2.3  Fitch Ratings’ analysts shall be held to high standards of integrity, ethical behavior, and, subject to applicable law, 
+Fitch Ratings shall not knowingly employ individuals where there is evidence that they have compromised integrity. 
+2.2.4  Fitch Ratings and its employees shall not, either implicitly or explicitly, give any assurance or guarantee of a 
+particular rating prior to the final rating decision being  taken in accordance with Fitch Ratings’ established policies and 
+procedures. Nothing in this Code shall preclude Fitch Ratings from providing rating assessments or other types of assessments 
+(e.g., an assessment of creditworthiness that does not constitute a rating because the analysis is based on hypothetical 
+scenarios and/or limited information). 
+
+===== PDF PAGE 8 =====
+ 
+                                                  7 
+  
+fitchratings.com  
+2.2.5  Fitch Ratings and its employees shall not make promises or threats about potential credit rating actions to influence 
+issuers, investors and other market participants to pay for credit ratings or other services. 
+2.2.6  Fitch Ratings’ analysts are prohibited from making proposals or recommendations regarding the activities of rated 
+entities or obligors, including but not limited to proposals or recommendations about corporate or legal structure, assets and 
+liabilities, business operations, investment plans, lines of financing, business combinations, and the design of structured 
+finance products. Consistent with this prohibition, in assessing the credit risk of a structured finance transaction, Fitch 
+Ratings’ analysts may properly hold a series of discussions with an issuer or its agents in order to: 
+• Understand and incorporate into their analysis the particular facts and features of the structured finance transaction, 
+and any modification, as proposed by the issuer or its agents; and  
+• Explain to the issuer or its agents the rating implications of Fitch Ratings’ methodologies as applied to the issuer’s 
+proposed facts and features. 
+2.2.7  Fitch Ratings’ Chief Compliance Officer and staff oversee compliance with this Code, the policies referenced in this 
+Code and the laws, rules, and regulations governing the activities of credit rating agencies. The Chief Compliance Officer, and 
+any member of the Compliance Department, shall not vote on any rating committees and shall not report to any party 
+responsible for the operational management of the rating function. Their compensation shall be independent of Fitch Ratings’ 
+rating operations. The Chief Compliance Officer also oversees the design, implementation, and performance of a periodic 
+review and testing process through which compliance with this Code and related policies and procedures of Fitch Ratings shall 
+be thoroughly assessed. The Compliance Team is also responsible for reviewing the adequacy of policies, procedures, and 
+controls designed to ensure compliance with this Code and applicable laws and regulations. 
+2.2.8  Fitch Ratings’ employees are not expected to be experts in the law. Nonetheless, they are expected to report to the 
+Chief Compliance Officer, or their designee, the activities about which they have knowledge that a reasonable person would 
+question as a potential violation of this Code or applicable law. The Chief Compliance Officer, or their designee, shall 
+determine the merits of the situation and, if warranted, take appropriate action. Any employee who, in good faith, makes 
+such a report shall not be retaliated against by Fitch Ratings or any other employees of Fitch Ratings. The Chief Compliance 
+Officer has established and shall maintain procedures for employees to report any illegal, unethical, or inappropriate conduct, 
+including, to the extent practical, through various telephonic and electronic means, on both an anonymous and a disclosed 
+basis. Failure by any Fitch Ratings employee to comply with the provisions of this Code may result in disciplinary action being 
+taken against the employee, up to and in cluding the dismissal of the employee.  
+3. INDEPENDENCE  AND AVOIDANCE OF  CONFLICTS OF INTEREST 
+3.1 General 
+3.1.1  Fitch Ratings shall not forbear or refrain from taking a rating action based on the potential effect (economic, 
+political, or otherwise) of the rating action on Fitch Ratings, an issuer, an investor, a subscriber, or other market participant. 
+3.1.2  Fitch Ratings and its analysts shall use care and professional judgment to maintain both the substance and 
+appearance of independence and objectivity. 
+3.1.3  The determination of a rating shall be influenced only by factors known to Fitch Ratings and believed by Fitch Ratings 
+to be relevant to such rating. 
+3.1.4  The rating or rating action Fitch Ratings assigns to an issuer or security shall not be affected by the existence of or 
+potential for a business relationship between Fitch Ratings (or its affiliates or shareholders) and the issuer (or its affiliates) or 
+
+===== PDF PAGE 9 =====
+ 
+                                                  8 
+  
+fitchratings.com  
+any other party, or the non-existence of such a relationship. As a result, in accordance with applicable regulations, the 
+following actions are prohibited: 
+• Conditioning or threatening (directly, indirectly, or implicitly) to condition the issuance of a rating on the purchase of 
+any other products or services of Fitch Ratings; 
+• Issuing, or offering (either directly, indirectly, or implicitly) or threatening (either directly, indirectly, or implicitly) to 
+issue a rating that is not determined in accordance with Fitch Ratings’ established criteria and methodologies, based 
+on whether the issuer (or its affiliates) purchases, or will purchase, any other products or services of Fitch Ratings; 
+• Modifying, or offering (either directly, indirectly, or implicitly) or threatening (either directly, indirectly, or implicitly) 
+to modify a rating that is not determined in accordance with Fitch Ratings’ established criteria and methodologies, 
+based on whether the issuer (or its affiliates) purchases, or will purchase, any other products or services of Fitch 
+Ratings; and 
+• Issuing or threatening (either directly, indirectly, or implicitly) to issue a lower rating, lowering or threatening (either 
+directly, indirectly, or implicitly) to lower an existing rating, refusing to issue a rating, or withdrawing or threatening 
+(either directly, indirectly, or implicitly) to withdraw a rating, with respect to securities or money market instruments 
+issued by an asset pool or as part of any asset-backed or mortgage -backed securities transaction, unless all or a 
+portion of the assets within such pool or part of such transaction also are rated by Fitch Ratings, where such practice 
+is engaged in by Fitch Ratings for an anticompetitive purpose.  
+3.1.5  Fitch Ratings shall where practical separate, operationally, legally, and physically, its rating business and rating 
+analysts from other Fitch Ratings businesses that may present a conflict of interest. Fitch Ratings shall maintain policies 
+establishing firewalls and governing the segregation of operations between Fitch Ratings and its non-rating affiliates designed 
+to mitigate potential conflicts of interest. Fitch Ratings shall disclose why it believes those other businesses do not present a 
+conflict of interest with its credit rating business. 
+3.2 Procedures and Policies 
+3.2.1  Fitch Ratings has adopted written internal procedures and mechanisms to identify and eliminate, or to manage and 
+disclose, as appropriate, actual or potential conflicts of interest that may influence the opinions and analyses Fitch Ratings 
+makes or the judgment and analyses of Fitch Ratings’ employees involved in credit rating activities or who approve credit 
+ratings and rating outlooks. Fitch Ratings has disclosed certain of its conflict avoidance and management measures on its free 
+public website at www.fitchratings.com. 
+3.2.2  Fitch Ratings’ disclosures of known actual and potential conflicts of interest shall be timely, clear, concise, specific, 
+and prominent. When the actual or potential conflict of interest is unique or specific to a credit rating action with respect to a 
+particular rated issuer, such conflict of interest should be disclosed in the same form and through the same means as the 
+relevant credit rating action. 
+3.2.3  The general nature of Fitch Ratings’ compensation arrangements with rated entities, along with certain other related 
+considerations, is as follows: 
+• Fitch Ratings shall make every effort to manage the potential conflict arising from the payment of fees by issuers and 
+ensure that Fitch Ratings’ receipt of fees from issuers does not impair the independence, objectivity, or integrity of 
+its ratings and rating actions. 
+• Fitch Ratings shall maintain a set fee schedule or schedules and make it available to all issuers and their agents; 
+
+
+===== PDF PAGE 10 =====
+ 
+                                                  9 
+  
+fitchratings.com  
+provided, however, that Fitch Ratings reserves the right to periodically revise its fee schedule(s) or, as may be 
+permitted by applicable law or contractual arrangements, otherwise adjust pricing without prior notice. 
+• Fitch Ratings shall not base any fees on the success of a bond issue or the issuer achieving any particular rating or 
+other result. 
+• Fitch Ratings shall disclose in all of its published research that Fitch Ratings is paid fees by the issuers it rates, as well 
+as an estimated range of typical fees. 
+• Any issuer may terminate its fee arrangement with Fitch Ratings without fear that its rating will be lowered for that 
+reason. 
+• If Fitch Ratings were to receive from a rated entity compensation unrelated to Fitch Ratings’ ratings and routine 
+subscription and license fees for its published research and data (e.g., in respect of ancillary business), Fitch Ratings 
+shall disclose the proportion such non-rating fees constitute against the fees Fitch Ratings (and its affiliates) receives 
+from the entity for ratings and routine subscriptions and licenses. 
+• Fitch Ratings shall publicly disclose if it receives 10 percent or more of its annual revenue (the “Ten Percent 
+Threshold”) for a fiscal year (for Fitch Ratings, currently 1 January to 31 December) from a single issuer, originator, 
+arranger, subscriber, or any of its affiliates. Moreover, in certain jurisdictions Fitch Ratings shall neither issue nor 
+maintain a credit rating solicited by an entity if the Ten Percent Threshold is exceeded in respect of that specific 
+entity in the most recently ended fiscal year. 
+3.2.4  Fitch Ratings will not hold or transact in trading instruments presenting a conflict of interest with Fitch Ratings’ credit 
+rating activities. For the avoidance of doubt, this prohibition does not prevent Fitch Ratings from investing in diversified 
+collective investment schemes, including managed funds, or in maintaining bank accounts and/or holdings and/or investments 
+in financial instruments that are consistent with routine treasury or other ordinary course of business operations, or in insuring 
+Fitch Ratings’ business in the ordinary course. 
+3.2.5  Fitch Ratings shall encourage issuers and originators of structured finance products to disclose publicly all relevant 
+information with respect to such products to enable investors to conduct their own analyses independently of that of rating 
+agencies. As specified below, Fitch Ratings expects that such public disclosure will happen. 
+3.2.6  If a rated entity (for example, a government or central bank) has, or is simultaneously pursuing, oversight functions 
+related to Fitch Ratings, Fitch Ratings shall use different employees to conduct its rating actions with respect to such entity, 
+and to develop or modify criteria that apply to such entity, than those employees involved in its oversight issues. 
+3.3 Analyst and Employee Independence 
+3.3.1  Reporting lines for Fitch Ratings employees and their compensation arrangements shall be structured to eliminate or 
+effectively manage actual and potential conflicts of interest. 
+• Analysts and other employees who participate in or who might otherwise have an effect on the rating process shall 
+not be compensated or evaluated on the basis of the amount of revenue that Fitch Ratings derives from issuers that 
+the analyst rates or with which the analyst regularly interacts. 
+• Fitch Ratings shall conduct formal and periodic reviews of its compensation policies and practices for its analysts and 
+other employees who participate in or who might otherwise have an effect on the rating process to ensure that these 
+policies and practices do not compromise the objectivity of Fitch Ratings’ rating process.  
+
+===== PDF PAGE 11 =====
+ 
+                                                  10 
+  
+fitchratings.com  
+3.3.2  Analysts and other employees who participate in or who might otherwise have an effect on the rating process shall 
+not initiate, or participate in, discussions regarding fees or payments related to the rating process with any entity that is rated 
+or to be rated or with any third party related to that entity or related to a particular transaction that is rated or to be rated. 
+3.3.3  Fitch Ratings’ employees, and in some cases family members of the employee (e.g., spouse, domestic partner, or 
+dependent), shall not hold or transact in trading instruments or engage in any securities trading or other activities presenting 
+conflicts of interest with such employees’ involvement in Fitch Ratings’ rating activities. The details as to these and similar 
+restrictions are set forth in Fitch Ratings’ Global Securities Trading and Conflicts of Interest Policy, made available on its free 
+public website, www.fitchratings.com. 
+3.3.4  Fitch Ratings employees are prohibited from soliciting money, gifts, or favors from anyone with whom Fitch Ratings 
+does business, and are prohibited from accepting gifts offered in the form of cash or cash equivalents or any gifts exceeding a 
+minimal monetary value. 
+3.3.5  Any Fitch Ratings analyst who becomes involved in any personal relationship that creates the potential for any real or 
+apparent conflict of interest (including, for example, any personal relationship with an employee of a rated entity or agent of 
+such entity within his or her area of analytical responsibility), shall, in accordance with Fitch Ratings’ policies and procedures 
+and subject to applicable law, disclose the relationship to the appropriate manager or to a member of the Compliance team. 
+3.3.6  Fitch Ratings has established policies and related procedures for reviewing, as appropriate, the past work of analysts 
+who leave the employ of Fitch Ratings and join an issuer that the analyst has been involved with, as  set forth in Fitch Ratings’  
+Look Back Procedure Reviewing Analytical Work of Leavers, made available on its free public website, www.fitchratings.com. 
+If it appears that a conflict has influenced a credit rating, then Fitch Ratings will, in accordance with its policies and 
+procedures, promptly disclose the potential conflict and, as appropriate, convene a committee to re-rate all credit ratings 
+influenced by the potential conflict. 
+3.3.7  In certain jurisdictions, local law requires individuals performing credit rating activities to rotate coverage 
+responsibilities on a periodic basis. Fitch Ratings has established and shall maintain policies providing for analytical rotation in 
+accordance with applicable local regulatory requirements. 
+4. RESPONSIBILITIES TO INVESTORS AND OTHER MARKET PARTICIPANTS 
+4.1 Transparency and Timeliness of Ratings Disclosure 
+4.1.1  Fitch Ratings shall assist investors and market participants in developing a greater understanding of credit ratings by 
+disclosing in language understandable to market participants, among other things, the nature and limitations of credit ratings 
+and the risks of unduly relying on them to make investment or other financial decisions. Any Fitch Ratings credit rating agency 
+that is subject to a credit rating agency registration and oversight program administered by a regional or national authority 
+shall not state or imply that the authority endorses its credit ratings or use its registration status to advertise the quality of its 
+credit ratings. 
+4.1.2  Fitch Ratings shall make every reasonable effort to ensure that the time between a rating committee determining  a 
+final rating action and the distribution of that rating action and related commentary should be as short as reasonably possible, 
+consistent with applicable law. 
+4.1.3  Fitch Ratings’ policy for distributing public ratings and the related commentary and updates is as follows: 
+• Fitch Ratings shall publish all public ratings and rating outlooks, and related rating actions and opinions, including any 
+withdrawal of a rating, free of charge on a non-selective basis on its public website, www.fitchratings.com; and 
+
+
+===== PDF PAGE 12 =====
+ 
+                                                  11 
+  
+fitchratings.com  
+• As appropriate or as is otherwise required, Fitch Ratings shall simultaneously distribute an announcement of the rating 
+or rating action, together with any related commentary including rating outlooks, through wire services or other 
+media outlets. 
+4.1.4  Among other disclosures, Fitch Ratings shall indicate with each of its published ratings: 
+• When such rating (including rating outlooks) was last updated or reviewed; 
+• A list of relevant methodologies (i.e., criteria reports), along with any applicable criteria variations or limitations on the 
+rating, and where those criteria reports can be found; and 
+• The key rating drivers (i.e., what factors would impact the rating) so as to facilitate an understanding of the rating(s)’ 
+sensitivity (to the extent the relevant rating action is not based in whole or in part on confidential information) . 
+4.1.5  Fitch Ratings shall base its rating analyses and rating decisions, which are Fitch Ratings’ opinions, upon Fitch 
+Ratings’ established criteria, methodologies, and ratings definitions, applied in a consistent manner. All rating criteria 
+and methodologies shall be available on Fitch Ratings’ free public website, www.fitchratings.com . Fitch Ratings’ criteria, 
+methodologies, and ratings definitions shall identify the specific factors that it considers during the rating and surveillance 
+processes. 
+• Where Fitch Ratings assigns an initial rating to a structured finance product, it shall provide information about the loss 
+and cash-flow analysis upon which Fitch Ratings has relied, so as to enable investors and market participants to 
+understand the basis for the rating. To the extent practical or as may be required by applicable law, Fitch Ratings shall 
+also disclose the degree to which it analyzes how sensitive a rating of a structured finance product is to changes in 
+Fitch Ratings’ underlying rating assumptions. 
+• In its rating action commentary, Fitch Ratings shall differentiate its ratings of structured finance products from 
+traditional corporate bond ratings through the inclusion of additional commentary or an appropriate modifier to the 
+ratings, and in accordance with applicable law. Fitch Ratings shall clearly define a given rating symbol and apply it in 
+a consistent manner for all types of securities to which that symbol is assigned. 
+• Fitch Ratings shall clearly indicate the attributes and limitations of each rating or rating outlook and the limits to which 
+Fitch Ratings verifies information provided to it by the issuer or originator of a rated security (as to which latter point, 
+see below). 
+4.1.6  When Fitch Ratings publishes a rating or rating outlook, or takes any other rating action with respect to a published 
+rating or rating outlook, Fitch Ratings shall explain in the related commentary and reports the elements the rating committee 
+found key to such rating or rating outlook or rating action (including key assumptions and data, as well as financial statement 
+adjustments that deviate materially from those contained in the issuer’s published financial statements (if not otherwise 
+explained in the relevant criteria)), subject to any applicable laws with respect to the disclosure of confidential information and 
+any restrictions imposed by applicable confidentiality agreements. Fitch Ratings shall always maintain complete editorial 
+control over all rating actions, related commentaries, and all of its other published materials, including all reports, criteria, 
+methodologies, ratings definitions, and other policies and procedures. Subject to applicable law, this control shall extend to 
+when, and whether, Fitch Ratings shall take, or publish, any rating action.  
+4.1.7  To the extent reasonably feasible and appropriate (and, in certain jurisdictions, as may be required by law), prior to 
+issuing or revising a rating, Fitch Ratings shall provide to the issuer advance, written notification of the rating action and the 
+critical information and principal considerations upon which the rating decision was based. Fitch Ratings provides such 
+information solely to allow the issuer to check for factual accuracy or the presence of non-public information. Fitch Ratings 
+
+
+===== PDF PAGE 13 =====
+ 
+                                                  12 
+  
+fitchratings.com  
+shall duly evaluate any comments made by the issuer and accept them in its discretion as appropriate to correct factual errors 
+or remove references to non-public information. Except as required by law, Fitch Ratings retains the right to publish the 
+commentary at the most appropriate time and in whatever form it deems most appropriate in its editorial judgment. In certain 
+circumstances, except as required by law, Fitch Ratings in its sole discretion may decide not to provide such advance 
+notification if timely dissemination of the rating committee decision would be compromised. In such cases, Fitch Ratings shall 
+inform the issuer as soon as practical thereafter and, generally, shall explain the reason for not notifying the issuer.   
+4.1.8  In order to promote transparency and to enable the market participants to best judge the aggregate  performance 
+of its ratings on debt instruments, Fitch Ratings, where possible or as may be required by applicable law, shall conduct 
+periodic studies on the performance of Fitch Ratings-rated securities and issuers, including current and historical default 
+rates by rating category and rating transition analyses. Fitch Ratings shall make all transition and default studies available 
+on Fitch Ratings’ free public website, www.fitchratings.com. Where feasible, this information shall include verifiable, 
+quantifiable historical information about the performance of its ratings, organized and structured, and, where possible, 
+standardized in such a way to assist investors and market participants in drawing performance comparisons between different 
+rating  agencies.  
+4.1.9  For each rating, Fitch Ratings shall, in accordance with its Rating Solicitation and Participation Disclosure Policy, 
+publicly disclose whether the issuer participated in the rating process, and the solicitation status of the rating. 
+4.1.10  Fitch Ratings shall review and update, to the extent it deems appropriate or as is required by applicable law, its criteria 
+and methodologies on a regular basis. Fitch Ratings shall publicly disclose, in a non-selective manner, any material 
+modification to its methodologies. Where feasible and appropriate or as may otherwise be required by applicable law, Fitch 
+Ratings shall undertake to disclose planned material modifications prior to the effective dates of such modifications. 
+5. THE TREATMENT OF CONFIDENTIAL INFORMATION; DISCLOSURE OF THE 
+CODE; EXPECTATIONS OF ISSUERS  
+5.1 Disclosure of This Code and Communication with Market Participants 
+5.1.1  Fitch Ratings disclosures, including those specified in the provisions of this Code, shall be complete, fair, accurate, 
+timely, and understandable to market participants. 
+5.1.2  Fitch Ratings shall use, maintain, and protect confidential and/or material non-public information in accordance with its 
+policies governing the treatment of confidential information and applicable laws, rules, and regulations. Without limitation, these 
+policies establish various restrictions on the sharing of confidential, ratings- related information with persons not involved in the 
+performance of Fitch Ratings’ credit rating activities .  
+5.1.3  Fitch Ratings welcomes comments and input from market participants and the public, including any questions, concerns, or 
+complaints they may have regarding the business, operations, or activities of Fitch Ratings and its policies.  
+• Comments or complaints should be directed to a Regional Compliance Officer or submitted through the Report an 
+Issue / Whistleblowing page on Fitch Ratings’ free public website, www.fitchratings.com. 
+• Contact information for the Regional Compliance Officers is available on Fitch Ratings’ free public website, 
+www.fitchratings.com. 
+5.1.4  Fitch Ratings shall publish in a prominent position on the homepage of its free public website, 
+www.fitchratings.com, links to: (1) this Code; (2) its methodologies; (3) its transition and default studies; (4) any other disclosures 
+specified in the provisions of this Code, as applicable; and (5) certain other internal policies relevant to addressing and managing 
+
+
+===== PDF PAGE 14 =====
+ 
+                                                  13 
+  
+fitchratings.com  
+conflicts of interest, preventing the misuse of material, non-public information, and ensuring compliance with applicable laws, 
+rules, and regulations (see Appendix A to this Code). 
+5.2 What Fitch Ratings Expects of Issuers 
+5.2.1  Fitch Ratings expects that each issuer that has agreed to participate in the rating process, or its agents, will promptly 
+supply to Fitch Ratings all information relevant to evaluating the ratings on such issuer or the relevant securities, including, 
+without limitation, all material changes in any information previously provided, potential material events and the issuer’s 
+overall financial condition, which may require communication of non- public information to Fitch Ratings. 
+5.2.2  Fitch Ratings expects all such information to be timely, accurate, and complete in all respects. 
+5.2.3  Fitch Ratings expects issuers to respond to its questions as quickly as possible and to explain the reasons for any 
+delay. 
+5.2.4  During any time period in which an issuer is reviewing commentary or reports to be published by Fitch Ratings, Fitch 
+Ratings expects such issuer will not disclose the commentary or reports in advance of Fitch Ratings’ publication or take 
+advantage of the delay in publication in any way. 
+5.2.5  Should an issuer choose to stop cooperating with Fitch Ratings in the rating process, Fitch Ratings also reserves the right 
+to continue to rate the issuer or any securities issued by the issuer, based on the information previously provided to Fitch Ratings 
+by the issuer or its agents and any other public and/or non-public information available to Fitch Ratings. 
+5.2.6  Fitch Ratings expects that structured finance issuers and arrangers, and originators of structured finance products, will 
+publicly disclose all relevant information regarding these products so that investors and other rating agencies can conduct their 
+own analyses independently of the rating agency/agencies solicited by or on behalf of the issuers and/or originators to provide 
+ratings. 
+6. DISCLAIMERS 
+6.1 Non-Reliance on This Code 
+6.1.1  Fitch Ratings does not intend to assume, and is not assuming, any responsibility or liability to any party arising out of, 
+or with respect to, this Code. This Code is not intended to, and does not, form a part of any contract with anyone, and no one 
+shall have any right (contractual or otherwise) to enforce any of this Code’s provisions, either directly or indirectly. 
+6.1.2  Fitch Ratings may amend this Code at its sole discretion, in any way Fitch Ratings sees fit at any time. Fitch Ratings will 
+disclose as soon as practicable any changes to this Code or changes to how Fitch Ratings is implementing or enforcing it . 
+6.2 Purpose & Use of Ratings  
+All Fitch Ratings credit ratings are subject to certain limitations and disclaimers. For a comprehensive or detailed list of 
+these limitations and disclaimers, please refer to Fitch Ratings’ Rating Definitions, available on Fitch Ratings’ public website 
+at www.fitchratings.com. 
+6.2.1  Fitch Ratings’ ratings are opinions reflecting the ability of an entity or a securities issue to meet financial 
+commitments such as interest, preferred dividends, and repayment of principal, in accordance with their terms. Ratings are 
+not themselves facts and therefore cannot be described as being “accurate” or “inaccurate”. Credit ratings do not directly 
+address any risk other than credit risk. In particular, ratings do not deal with the risk of loss due to changes in interest rates 
+and other market considerations. 
+
+===== PDF PAGE 15 =====
+ 
+                                                  14 
+  
+fitchratings.com  
+ 
+6.2.2  In issuing and maintaining its ratings or rating outlooks, Fitch Ratings relies on factual information it receives from 
+issuers, underwriters, and from other sources Fitch Ratings believes to be credible. Fitch Ratings conducts a reasonable 
+investigation of the factual information relied upon by it in accordance with its ratings methodology and obtains reasonable 
+verification of that information from independent sources, to the extent such sources are available for a given security or in a 
+given jurisdiction. 
+6.2.3  The manner of Fitch Ratings’ factual investigation and the scope of the third-party verification it obtains will vary 
+depending on the nature of the rated security and its issuer, the requirements and practices in the jurisdiction in which the 
+rated security is offered and sold and/or the issuer is located, the availability and nature of relevant public information, 
+access to the management of the issuer and its advisers, the availability of pre-existing third-party verifications such as audit 
+reports, agreed- upon procedures letters, appraisals, actuarial reports, engineering reports, legal opinions, and other reports 
+provided by third parties, the availability of independent and competent third-party verification sources with respect to the 
+particular security or in the particular jurisdiction of the issuer, and a variety of other factors. 
+6.2.4  Neither an enhanced factual investigation nor any third-party verification can ensure that all of the information Fitch 
+Ratings relies on in connection with a rating  will be accurate and complete. Ultimately, the issuer and its advisers are 
+responsible for the accuracy of the information they provide to Fitch Ratings and to the market in offering documents and 
+other reports. In issuing its ratings Fitch Ratings must rely on the work of experts, including independent auditors with 
+respect to financial statements, and attorneys with respect to legal and tax matters. Further, ratings are inherently forward-
+looking and embody assumptions and predictions about future events that by their nature cannot be verified as facts. As a 
+result, despite any verification of current facts, ratings can be affected by future events or conditions that were not 
+anticipated at the time a rating was issued or affirmed. If any such information should turn out to contain misrepresentations 
+or to be otherwise misleading, the rating or rating outlook associated with that information may not be appropriate. The 
+assignment of a rating to any issuer or any security should not be viewed as a guarantee of the accuracy, completeness or 
+timeliness of the information relied on in connection with the rating or the results obtained from the use of such information. 
+6.2.5  Fitch Ratings does not have a fiduciary relationship with any issuer, subscriber, or other individual. Nothing is 
+intended to or should be construed as creating a fiduciary relationship between Fitch Ratings and any issuer or between Fitch 
+Ratings and any user of its ratings. 
+6.2.6  Ratings do not constitute recommendations to buy, sell, or hold any security nor do they comment on the adequacy 
+of market price, the suitability of any security for a particular investor, or the tax-exempt nature or taxability of any 
+payments of any security. 
+6.2.7  Ratings may be changed, qualified, placed on Rating Watch, or withdrawn as a result of changes in, additions to, 
+accuracy of, unavailability of, or inadequacy of information, or for any reason Fitch Ratings deems sufficient. 
+6.2.8  Fitch Ratings does not provide to any party any financial advice or legal, auditing, accounting, appraisal, valuation, or 
+actuarial services. A rating should not be viewed as a replacement for such advice or services. 
+6.2.9  The assignment of a rating by Fitch Ratings shall not constitute consent by Fitch Ratings to use its name as an expert 
+in connection with any registration statement, offering document, or other filings under any relevant securities laws. 
+
+===== PDF PAGE 16 =====
+ 
+                                                  15 
+  
+fitchratings.com  
+APPENDIX A 
+Select Fitch Ratings Policies 
+ 
+Set forth below are a list of those policies that Fitch  Ratings has made available on its free public  website, 
+www.fitchratings.com. These policies, along with other Fitch Ratings policies and procedures, are intended to 
+be read in conjunction with, and to supplement and support, this Code. However, where more detailed 
+requirements are set forth in a particular policy or procedure, the more detailed of such requirements shall 
+apply. 
+• Firewall Policy 
+• Global Confidentiality  Policy 
+• Global Securities Trading and Conflicts of Interest Policy 
+• Segregation of Commercial and Analytical Activities 
+• Policy on Complaint Handling 
+• Protocol for Responding to Confidential Tips Related to Fitch Rated Entities 
+• Rating Solicitation and Participation Disclosure Policy 
+• Restrictions on Advising Issuers and Others 
+• Rotation Policy 
+• Look Back Procedure Reviewing Analytical Work of Leavers 
+• Ancillary Business and Ancillary Services 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+===== PDF PAGE 17 =====
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+fitchratings.com 
+
