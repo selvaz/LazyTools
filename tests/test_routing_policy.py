@@ -70,7 +70,7 @@ def _packaged():
 def test_packaged_catalogue_matches_contract_table():
     catalogue = _packaged()
     expected = {
-        "basic": [[("codex", "gpt-6.1-sol", "medium"), ("claude_code", "claude-sonnet-5-5", "medium")]],
+        "basic": [[("codex", "gpt-6-luna", "medium"), ("claude_code", "claude-haiku-5-5", "medium")]],
         "writing": [
             [("codex", "gpt-6.1-sol", "high"), ("claude_code", "claude-sonnet-5-5", "high")],
             [("codex", "gpt-6.1-sol", "xhigh"), ("claude_code", "claude-opus-5-5", "high")],
@@ -112,7 +112,7 @@ def test_custom_policy_is_used_by_loader(tmp_path):
     path = tmp_path / "tiers.toml"
     text = files("lazytools.routing").joinpath("default_tiers.toml").read_text()
     path.write_text(
-        text.replace("gpt-6.1-sol", "custom-codex").replace('effort = "medium"', 'effort = "custom-effort"')
+        text.replace("gpt-6.1-sol", "custom-codex").replace("gpt-6-luna", "custom-codex").replace('effort = "medium"', 'effort = "custom-effort"')
     )
     policy = replace(
         DEFAULT_POLICY,
@@ -188,7 +188,7 @@ def test_custom_model_efforts_and_engine_fallback():
 def test_catalogue_uses_model_specific_efforts(tmp_path, model):
     path = tmp_path / "tiers.toml"
     text = files("lazytools.routing").joinpath("default_tiers.toml").read_text()
-    text = text.replace("gpt-6.1-sol", model).replace('effort = "medium"', 'effort = "ultra"')
+    text = text.replace("gpt-6.1-sol", model).replace("gpt-6-luna", model).replace('effort = "medium"', 'effort = "ultra"')
     path.write_text(text)
     with pytest.raises(ModelTiersError, match=model):
         load_tiers(path)

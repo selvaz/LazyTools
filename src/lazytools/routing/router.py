@@ -91,6 +91,7 @@ FIVE_HOUR_WINDOW_MAX_MINUTES = 6 * 60
 _API_PRICE_RANK: dict[tuple[Engine, str], float] = {
     ("codex", "gpt-6-luna"): 1.0,
     ("claude_code", "claude-haiku-4-5"): 1.5,
+    ("claude_code", "claude-haiku-5-5"): 1.5,
     ("codex", "gpt-6-sol"): 2.0,
     ("codex", "gpt-6.1-sol"): 2.0,
     ("claude_code", "claude-sonnet-5-5"): 2.0,

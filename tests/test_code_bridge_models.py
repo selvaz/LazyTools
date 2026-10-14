@@ -174,7 +174,7 @@ def test_models_probes_unique_catalogue_models_and_aliases_and_retains_warning(d
     assert payload["mismatches"] == [] and payload["errors"] == []
     assert payload["probe_claude"] is True
     rows = {row["model"]: row for row in payload["models"]}
-    assert len(rows) == 11
+    assert len(rows) == 12
     assert rows["sonnet"]["answered_models"] == ["claude-sonnet-5"]
     assert rows["opus"]["answered_models"] == ["claude-opus-5-5"]
     assert rows["claude-sonnet-5-5"]["available"] is True
@@ -183,7 +183,13 @@ def test_models_probes_unique_catalogue_models_and_aliases_and_retains_warning(d
     assert rows["gpt-6.1-sol"]["is_default"] is True
     assert rows["gpt-6.1-sol"]["default_effort"] == "medium"
     assert "ultra" not in rows["gpt-6-luna"]["efforts"]
-    assert [call[call.index("--model") + 1] for call in discovery[1]] == ["claude-sonnet-5-5", "claude-opus-5-5", "sonnet", "opus"]
+    assert [call[call.index("--model") + 1] for call in discovery[1]] == [
+        "claude-haiku-5-5",
+        "claude-sonnet-5-5",
+        "claude-opus-5-5",
+        "sonnet",
+        "opus",
+    ]
 
 
 def test_models_human_table_shows_alias_resolution_and_warning(discovery, capsys):

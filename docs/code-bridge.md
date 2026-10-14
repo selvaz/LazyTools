@@ -264,7 +264,7 @@ lazytools-code-bridge run --tier writing --review-of JOB_ID --cwd /path/to/repo 
 
 | Tier | Rung 1 | Rung 2 | Rung 3 |
 | --- | --- | --- | --- |
-| `basic` | Sol 6.1 medium / Sonnet 5.5 medium | | |
+| `basic` | Luna 6 medium / Haiku 5.5 medium | | |
 | `writing` | Sol 6.1 high / Sonnet 5.5 high | Sol 6.1 xhigh / Opus 5.5 high | |
 | `thinking` | Sol 6.1 xhigh / Opus 5.5 medium | Opus 5.5 high | Astra high |
 | `critical` | Opus 5.5 high / Astra high | Opus 5.5 max / Astra xhigh | |
