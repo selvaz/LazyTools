@@ -69,6 +69,10 @@ class Market:
     volume_24hr: float | None
     liquidity: float | None
     end_date: str | None
+    #: The short per-horizon label Gamma attaches within a grouped event, e.g.
+    #: "September 4" on a market whose full question is "... by September 4?".
+    #: Empty/absent on a standalone (non-grouped) market -- ``None`` then.
+    group_item_title: str | None = None
 
 
 def _decode_json_field(raw: Any) -> list[Any]:
@@ -88,6 +92,42 @@ def _decode_json_field(raw: Any) -> list[Any]:
     except (TypeError, ValueError):
         return []
     return decoded if isinstance(decoded, list) else []
+
+
+@dataclass(frozen=True)
+class SearchEvent:
+    """One Gamma *event* from ``/public-search``, with its markets grouped.
+
+    An event is the unit ``/public-search`` matches and returns -- a
+    multi-horizon question ("by Sept 4", "by Sept 11", ... "by Sept 30") is
+    one event carrying several markets, each with its own
+    :attr:`Market.group_item_title`, rather than several unrelated rows a
+    caller has to notice belong together.
+    """
+
+    slug: str
+    title: str
+    tags: list[str]
+    markets: list[Market]
+    #: Markets on the event before any caller-side truncation -- an event can
+    #: carry over a hundred (e.g. one row per named candidate), so replies
+    #: cap :attr:`markets` and report the true count here instead of silently
+    #: dropping rows.
+    n_markets_total: int
+
+
+def _to_search_event(row: dict[str, Any]) -> SearchEvent:
+    raw_markets = row.get("markets")
+    markets = [_to_market(m) for m in raw_markets if isinstance(m, dict)] if isinstance(raw_markets, list) else []
+    raw_tags = row.get("tags")
+    tags = [t["label"] for t in raw_tags if isinstance(t, dict) and t.get("label")] if isinstance(raw_tags, list) else []
+    return SearchEvent(
+        slug=str(row.get("slug") or ""),
+        title=str(row.get("title") or ""),
+        tags=tags,
+        markets=markets,
+        n_markets_total=len(markets),
+    )
 
 
 def _to_market(row: dict[str, Any]) -> Market:
@@ -110,6 +150,7 @@ def _to_market(row: dict[str, Any]) -> Market:
         volume_24hr=_num("volume24hr"),
         liquidity=_num("liquidityNum") if row.get("liquidityNum") is not None else _num("liquidity"),
         end_date=row.get("endDate"),
+        group_item_title=(str(row["groupItemTitle"]).strip() or None) if row.get("groupItemTitle") else None,
     )
 
 
@@ -254,6 +295,50 @@ class PolymarketClient:
         rows = payload if isinstance(payload, list) else []
         return [_to_market(row) for row in rows if isinstance(row, dict)]
 
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        page: int = 1,
+        active_only: bool = True,
+    ) -> tuple[list[SearchEvent], dict[str, Any]]:
+        """Full-text search over Gamma's event catalog via ``/public-search``.
+
+        Undocumented in Polymarket's public API reference but public,
+        keyless, and the exact endpoint polymarket.com's own search bar
+        calls -- verified live 2026-09-03. Unlike :meth:`markets` (no
+        free-text support at all on ``/markets``), this one actually matches
+        event/question text, and groups hits by event rather than returning
+        a flat list -- see :class:`SearchEvent`.
+
+        Args:
+            limit: events per page (Gamma calls this ``limit_per_type``,
+                since the same endpoint can in principle return other result
+                types; this client only asks for events).
+            page: 1-indexed, not an offset -- page size is fixed at
+                ``limit`` for every page of one search.
+            active_only: sends ``events_status=active``; without it, closed/
+                resolved events are mixed into the results (verified live:
+                the same query without this returns ~7x more matches, mostly
+                already-resolved markets).
+        """
+        params: dict[str, Any] = {
+            "q": query,
+            "limit_per_type": max(1, min(int(limit), 20)),
+            "page": max(1, int(page)),
+        }
+        if active_only:
+            params["events_status"] = "active"
+        payload = self._get(self._gamma, "/public-search", params)
+        if not isinstance(payload, dict):
+            return [], {}
+        raw_events = payload.get("events")
+        events = [_to_search_event(e) for e in raw_events if isinstance(e, dict)] if isinstance(raw_events, list) else []
+        raw_pagination = payload.get("pagination")
+        pagination: dict[str, Any] = raw_pagination if isinstance(raw_pagination, dict) else {}
+        return events, pagination
+
     def market(self, slug: str) -> Market | None:
         """One market by its stable slug, or ``None`` if it does not exist."""
         payload = self._get(self._gamma, "/markets", {"slug": slug})
@@ -299,6 +384,7 @@ __all__ = [
     "PolymarketError",
     "PolymarketBudgetExceeded",
     "Market",
+    "SearchEvent",
     "GAMMA_URL",
     "CLOB_URL",
 ]

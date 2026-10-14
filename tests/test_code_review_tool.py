@@ -15,6 +15,8 @@ import pytest
 from lazytools.connectors.code_support import (
     CODE_CONSULTANT_SYSTEM,
     CODE_REVIEWER_SYSTEM,
+    DEFAULT_CLAUDE_MAX_TURNS,
+    ReviewNotPerformed,
     claude_consultant,
     claude_reviewer,
     codex_consultant,
@@ -199,7 +201,16 @@ class TestCodexReviewer:
         tool = codex_reviewer(root=str(tmp_path))
         assert tool.name == "codex_code_review"
         params = tool.definition().parameters
-        assert set(params["properties"]) == {"task", "repo_path", "diff_ref", "paths", "thread_id"}
+        assert set(params["properties"]) == {
+            "task",
+            "repo_path",
+            "diff_ref",
+            "paths",
+            "thread_id",
+            "model",
+            "effort",
+            "session_name",
+        }
         assert params["required"] == ["task"]
 
     @pytest.mark.parametrize("timeout", [0, -1.0, float("inf"), float("nan")])
@@ -273,7 +284,10 @@ class TestCodexReviewer:
     @pytest.mark.asyncio
     async def test_the_thread_id_survives_a_failed_turn(self, tmp_path, monkeypatch, faked):
         # The id matters most on failure: an interrupted turn is exactly what
-        # someone needs to go and inspect.
+        # someone needs to go and inspect. A failed turn now raises
+        # ReviewNotPerformed (see test_engine_failure_raises_review_not_performed
+        # below) rather than returning text, but the handle must still be on
+        # the exception so the caller can go and resume the conversation.
         async def failing(self, prompt):
             from lazybridge import Envelope
 
@@ -282,9 +296,10 @@ class TestCodexReviewer:
         monkeypatch.setattr(_FakeAgent, "run", failing)
         tool = codex_reviewer(root=str(tmp_path))
 
-        out = await tool.run(task="review", thread_id=".#thread-42")
+        with pytest.raises(ReviewNotPerformed) as excinfo:
+            await tool.run(task="review", thread_id=".#thread-42")
 
-        assert "thread_id=.#thread-42" in out and "outcome unknown" in out
+        assert excinfo.value.handle == ".#thread-42" and "outcome unknown" in str(excinfo.value)
 
     @pytest.mark.asyncio
     async def test_a_relative_root_is_pinned_at_build_time(self, tmp_path, monkeypatch, faked):
@@ -311,7 +326,12 @@ class TestCodexReviewer:
             await tool.run(task="summarise", repo_path="repo", paths=str(secret))
 
     @pytest.mark.asyncio
-    async def test_engine_failure_is_returned_not_raised(self, tmp_path, monkeypatch, faked):
+    async def test_engine_failure_raises_review_not_performed(self, tmp_path, monkeypatch, faked):
+        # An engine error (timeout, max-turns, non-zero exit, ...) must be
+        # unmistakable to the caller -- not a findings string that merely
+        # starts with "[codex_code_review] failed", which a caller that does
+        # not parse prose (LazyCEO's accept gate, before this fix) recorded
+        # as a passed review.
         async def failing(self, prompt):
             from lazybridge import Envelope
 
@@ -320,10 +340,22 @@ class TestCodexReviewer:
         monkeypatch.setattr(_FakeAgent, "run", failing)
         tool = codex_reviewer(root=str(tmp_path))
 
+        with pytest.raises(ReviewNotPerformed) as excinfo:
+            await tool.run(task="anything")
+
+        assert str(excinfo.value).startswith("[codex_code_review] failed")
+        assert "codex exploded" in str(excinfo.value)
+        assert excinfo.value.reason == "codex exploded"
+        assert excinfo.value.label == "codex_code_review"
+
+    @pytest.mark.asyncio
+    async def test_a_successful_review_still_returns_findings(self, tmp_path, faked):
+        # The success path must be unchanged by the failure-signal change.
+        tool = codex_reviewer(root=str(tmp_path))
+
         out = await tool.run(task="anything")
 
-        assert out.startswith("[codex_code_review] failed")
-        assert "codex exploded" in out
+        assert "No bugs found." in out
 
     @pytest.mark.asyncio
     async def test_escaping_repo_path_is_refused(self, tmp_path, faked):
@@ -392,7 +424,14 @@ class TestCodexConsultant:
         tool = codex_consultant(root=str(tmp_path))
         assert tool.name == "codex_ask"
         params = tool.definition().parameters
-        assert set(params["properties"]) == {"question", "repo_path", "thread_id", "model", "effort"}
+        assert set(params["properties"]) == {
+            "question",
+            "repo_path",
+            "thread_id",
+            "model",
+            "effort",
+            "session_name",
+        }
         assert params["required"] == ["question"]
 
     @pytest.mark.asyncio
@@ -506,7 +545,14 @@ class TestNativeReviewTool:
     def test_tool_name_and_schema(self, tmp_path):
         tool = codex_native_reviewer(root=str(tmp_path))
         assert tool.name == "codex_review_changes"
-        assert set(tool.definition().parameters["properties"]) == {"repo_path", "scope", "ref"}
+        assert set(tool.definition().parameters["properties"]) == {
+            "repo_path",
+            "scope",
+            "ref",
+            "model",
+            "effort",
+            "session_name",
+        }
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -594,6 +640,9 @@ class TestClaudeTools:
             "diff_ref",
             "paths",
             "session_id",
+            "model",
+            "effort",
+            "session_name",
         }
         assert ask.name == "claude_ask"
         assert set(ask.definition().parameters["properties"]) == {
@@ -602,6 +651,8 @@ class TestClaudeTools:
             "session_id",
             "model",
             "thinking",
+            "effort",
+            "session_name",
         }
 
     @pytest.mark.parametrize("timeout", [0, -1.0, float("inf"), float("nan")])
@@ -740,6 +791,54 @@ class TestClaudeTools:
         await review.run(task="look")
         config = _FakeClaudeEngine.last_kwargs["config"]
         assert config.claude.preapprove_application_tools is True
+
+    @pytest.mark.asyncio
+    async def test_max_turns_defaults_to_60_not_the_sdk_default_of_20(self, tmp_path, faked_claude):
+        # Left unset this would be ClaudeCodeEngine's own default (20) --
+        # sized for a short back-and-forth, not a real PR review. This is
+        # the live incident's second cause: job 9ad3b31c's review hit that
+        # ceiling mid-review.
+        review = claude_reviewer(root=str(tmp_path))
+        await review.run(task="look")
+        assert _FakeClaudeEngine.last_kwargs["max_turns"] == DEFAULT_CLAUDE_MAX_TURNS == 60
+
+        ask = claude_consultant(root=str(tmp_path))
+        await ask.run(question="?")
+        assert _FakeClaudeEngine.last_kwargs["max_turns"] == 60
+
+    @pytest.mark.asyncio
+    async def test_max_turns_is_overridable_per_factory_call(self, tmp_path, faked_claude):
+        review = claude_reviewer(root=str(tmp_path), max_turns=15)
+        await review.run(task="look")
+        assert _FakeClaudeEngine.last_kwargs["max_turns"] == 15
+
+    @pytest.mark.asyncio
+    async def test_engine_failure_raises_review_not_performed(self, tmp_path, monkeypatch, faked_claude):
+        # Same contract as the Codex side: "reached maximum number of turns"
+        # (or any other engine error) must not come back as a plausible
+        # findings string -- it must be unmistakable to the caller.
+        async def failing(self, prompt):
+            from lazybridge import Envelope
+
+            return Envelope.error_envelope(RuntimeError("Reached maximum number of turns (20)"))
+
+        monkeypatch.setattr(_FakeAgent, "run", failing)
+        tool = claude_reviewer(root=str(tmp_path))
+
+        with pytest.raises(ReviewNotPerformed) as excinfo:
+            await tool.run(task="review")
+
+        assert str(excinfo.value).startswith("[claude_code_review] failed")
+        assert "Reached maximum number of turns (20)" in str(excinfo.value)
+        assert excinfo.value.label == "claude_code_review"
+
+    @pytest.mark.asyncio
+    async def test_a_successful_claude_review_still_returns_findings(self, tmp_path, faked_claude):
+        tool = claude_reviewer(root=str(tmp_path))
+
+        out = await tool.run(task="look")
+
+        assert "No bugs found." in out
 
 
 class TestConsultantToolset:

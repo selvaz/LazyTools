@@ -248,6 +248,163 @@ def test_client_redacts_token_from_api_error_description() -> None:
     assert "SECRET-TOKEN" not in str(excinfo.value)
 
 
+def test_client_400_preserves_description_and_hides_url_and_token() -> None:
+    """The real-world incident this fixes: a 400 response whose JSON body
+    has the actual reason (e.g. "message is too long") must not be thrown
+    away by raise_for_status() firing before the body is read."""
+    from lazytools.connectors.telegram.client import TelegramAPIError, TelegramClient
+
+    class _Resp:
+        status_code = 400
+        reason_phrase = "Bad Request"
+
+        def raise_for_status(self) -> None:  # pragma: no cover — not called on this path
+            raise RuntimeError("Client error '400 Bad Request' for url 'https://api.telegram.org/bot123456:ABC-DEF/sendMessage'")
+
+        def json(self) -> dict:
+            return {"ok": False, "error_code": 400, "description": "Bad Request: message is too long"}
+
+    class _Http:
+        def post(self, url: str, json: dict | None = None) -> _Resp:
+            return _Resp()
+
+    client = TelegramClient("123456:ABC-DEF", http=_Http())
+    with pytest.raises(TelegramAPIError) as excinfo:
+        client.send_message(chat_id=1, text="hi")
+    exc = excinfo.value
+    assert str(exc) == "Telegram API call 'sendMessage' failed: HTTP 400: Bad Request: message is too long"
+    assert exc.method == "sendMessage"
+    assert exc.http_status == 400
+    assert exc.error_code == 400
+    assert exc.description == "Bad Request: message is too long"
+    for haystack in (str(exc), repr(exc), str(exc.args)):
+        assert "123456:ABC-DEF" not in haystack
+        assert "bot123456" not in haystack
+        assert "api.telegram.org" not in haystack
+    assert exc.__cause__ is None
+    assert exc.__suppress_context__ is True
+
+
+def test_client_429_exposes_retry_after() -> None:
+    from lazytools.connectors.telegram.client import TelegramAPIError, TelegramClient
+
+    class _Resp:
+        status_code = 429
+
+        def raise_for_status(self) -> None:  # pragma: no cover
+            raise RuntimeError("429 for url ...botSECRET/sendMessage")
+
+        def json(self) -> dict:
+            return {
+                "ok": False,
+                "error_code": 429,
+                "description": "Too Many Requests: retry after 7",
+                "parameters": {"retry_after": 7},
+            }
+
+    class _Http:
+        def post(self, url: str, json: dict | None = None) -> _Resp:
+            return _Resp()
+
+    client = TelegramClient("SECRET", http=_Http())
+    with pytest.raises(TelegramAPIError) as excinfo:
+        client.send_message(chat_id=1, text="hi")
+    assert excinfo.value.retry_after == 7
+    assert excinfo.value.migrate_to_chat_id is None
+
+
+def test_client_migrate_to_chat_id_surfaced() -> None:
+    from lazytools.connectors.telegram.client import TelegramAPIError, TelegramClient
+
+    class _Resp:
+        status_code = 400
+
+        def json(self) -> dict:
+            return {
+                "ok": False,
+                "description": "group chat was upgraded to a supergroup chat",
+                "parameters": {"migrate_to_chat_id": -100123456},
+            }
+
+    class _Http:
+        def post(self, url: str, json: dict | None = None) -> _Resp:
+            return _Resp()
+
+    client = TelegramClient("SECRET", http=_Http())
+    with pytest.raises(TelegramAPIError) as excinfo:
+        client.send_message(chat_id=1, text="hi")
+    assert excinfo.value.migrate_to_chat_id == -100123456
+
+
+def test_client_non_json_error_body_falls_back_without_url() -> None:
+    from lazytools.connectors.telegram.client import TelegramAPIError, TelegramClient
+
+    class _Resp:
+        status_code = 502
+        reason_phrase = "Bad Gateway"
+
+        def raise_for_status(self) -> None:  # pragma: no cover — status/reason available instead
+            raise RuntimeError("502 for url 'https://api.telegram.org/bot123456:ABC-DEF/sendMessage'")
+
+        def json(self) -> dict:
+            raise ValueError("not json")
+
+    class _Http:
+        def post(self, url: str, json: dict | None = None) -> _Resp:
+            return _Resp()
+
+    client = TelegramClient("123456:ABC-DEF", http=_Http())
+    with pytest.raises(TelegramAPIError) as excinfo:
+        client.send_message(chat_id=1, text="hi")
+    exc = excinfo.value
+    assert exc.http_status == 502
+    assert "123456:ABC-DEF" not in str(exc)
+    assert "api.telegram.org" not in str(exc)
+    assert "502" in str(exc)
+
+
+def test_client_200_ok_false_raises_telegram_api_error() -> None:
+    from lazytools.connectors.telegram.client import TelegramAPIError, TelegramClient
+
+    class _Resp:
+        status_code = 200
+
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict:
+            return {"ok": False, "description": "chat not found"}
+
+    class _Http:
+        def post(self, url: str, json: dict | None = None) -> _Resp:
+            return _Resp()
+
+    client = TelegramClient("SECRET", http=_Http())
+    with pytest.raises(TelegramAPIError, match="chat not found"):
+        client.send_message(chat_id=1, text="hi")
+
+
+def test_client_success_unaffected() -> None:
+    from lazytools.connectors.telegram.client import TelegramClient
+
+    class _Resp:
+        status_code = 200
+
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict:
+            return {"ok": True, "result": {"message_id": 42}}
+
+    class _Http:
+        def post(self, url: str, json: dict | None = None) -> _Resp:
+            return _Resp()
+
+    client = TelegramClient("SECRET", http=_Http())
+    result = client.send_message(chat_id=1, text="hi")
+    assert result == {"message_id": 42}
+
+
 def test_client_close_closes_injected_http() -> None:
     from lazytools.connectors.telegram.client import TelegramClient
 

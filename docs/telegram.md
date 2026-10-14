@@ -171,7 +171,7 @@ attachments.
 
     client = TelegramClient.from_token("BOT_TOKEN")
     tools = TelegramTools(client)                          # confirmation ON, no allow-list
-    agent = Agent("claude-opus-4-8", tools=[tools])
+    agent = Agent("claude-opus-5-5", tools=[tools])
 
     # A send is blocked until you authorize exactly one:
     tools.confirm_send(chat_id=987654321)                  # human-in-the-loop approval

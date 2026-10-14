@@ -1,225 +1,185 @@
-"""Tests for the ALFRED vintage connector.
+"""The ALFRED connector against a stub transport, not the real FRED.
 
-These tests never depend on the installed ``market_data_hub`` package's real
-``read_alfred_vintage`` behavior:
-
-* the happy-path / filter-translation / empty-result tests install a fake
-  ``market_data_hub.reader`` module via monkeypatch (the same
-  ``sys.modules`` technique ``tests/test_treasury_fiscal.py`` and
-  ``tests/test_cftc_cot.py`` use for their own hub functions);
-* the ``series_id`` validation test is deliberately run against the real,
-  *unpatched* package -- if ``alfred_vintage``'s guard clause ever moved to
-  after the ``from market_data_hub.reader import read_alfred_vintage`` line,
-  a broken/absent reader would surface as an unrelated error instead of the
-  expected ``ValueError``, and this test would catch the regression.
+The interesting behaviour here is not "does it parse JSON" but the things
+that would quietly produce a wrong answer: a vintage silently dropped, a
+truncated list that looks complete, the missing-value sentinel read as a
+number, and the API key leaking into an error message a model will see.
 """
 
 from __future__ import annotations
 
-import sys
-import types
+import json
+import os
 
 import pytest
 
-pytest.importorskip("market_data_hub")
+from lazytools.connectors.alfred import ALFREDClient, ALFREDError, ALFREDTools
 
-import pandas as pd  # must follow the importorskip above
-
-from lazytools.connectors.alfred import ALFREDTools
+ALFRED_TOOLS = {"alfred_vintage", "alfred_vintage_dates"}
 
 
-def _install_fake_reader(monkeypatch, **fakes):
-    import market_data_hub
+class _Response:
+    def __init__(self, payload, status=200):
+        self._payload = payload
+        self.status_code = status
 
-    fake_reader = types.SimpleNamespace(**fakes)
-    monkeypatch.setattr(market_data_hub, "reader", fake_reader, raising=False)
-    monkeypatch.setitem(sys.modules, "market_data_hub.reader", fake_reader)
-
-
-def _empty_frame() -> pd.DataFrame:
-    return pd.DataFrame(columns=["date", "series_id", "value", "as_of", "source"])
-
-
-def test_the_tool_surface_is_exactly_one_tool() -> None:
-    provider = ALFREDTools()
-    assert {t.name for t in provider.as_tools()} == {"alfred_vintage"}
+    def json(self):
+        if isinstance(self._payload, Exception):
+            raise self._payload
+        return self._payload
 
 
-def test_a_revision_round_trips_as_two_plain_dict_rows(monkeypatch) -> None:
-    # A real CPI revision, live-verified against FRED: the same observation
-    # date (2020-03-01) reported at two different vintages, with the
-    # earlier-vintage figure since revised upward -- exactly the kind of
-    # thing a backtest must not blend into one "the" value for that date.
-    frame = pd.DataFrame([
-        {"date": "2020-03-01", "series_id": "CPIAUCSL", "value": 257.953,
-         "as_of": "2020-04-10", "source": "fred"},
-        {"date": "2020-03-01", "series_id": "CPIAUCSL", "value": 257.989,
-         "as_of": "2021-02-08", "source": "fred"},
-    ])
+class _Transport:
+    """A stub httpx.Client. Records every query it is handed."""
 
-    def fake_read_alfred_vintage(series_id, *, date=None, as_of=None, db_path=None):
-        return frame
+    def __init__(self, *responses):
+        self._responses = list(responses)
+        self.queries: list[dict] = []
 
-    _install_fake_reader(monkeypatch, read_alfred_vintage=fake_read_alfred_vintage)
-
-    result = ALFREDTools().alfred_vintage("CPIAUCSL")
-
-    assert result["returned"] == 2
-    observations = result["observations"]
-    assert isinstance(observations, list)
-    assert all(isinstance(row, dict) and not isinstance(row, pd.DataFrame) for row in observations)
-    by_as_of = {row["as_of"]: row["value"] for row in observations}
-    assert by_as_of == {"2020-04-10": 257.953, "2021-02-08": 257.989}
-    assert all(row["date"] == "2020-03-01" for row in observations)
-    assert "note" not in result
+    def get(self, url, params=None):
+        self.queries.append(dict(params or {}))
+        return self._responses.pop(0) if self._responses else _Response({}, 404)
 
 
-def test_real_hub_dtypes_survive_json_serialization(monkeypatch) -> None:
-    # The hub's actual read_alfred_vintage returns real datetime64 `date`/
-    # `as_of` columns and NaN for a legitimately-absent `value` -- neither
-    # is JSON-safe via a bare `to_dict(orient="records")`. This is the exact
-    # shape that regressed on the sibling treasury_fiscal.py/cftc_cot.py
-    # connectors, so it must be exercised here too, not just with
-    # pre-formatted string fixtures.
-    frame = pd.DataFrame({
-        "date": pd.to_datetime(["2020-03-01", "2020-04-01"]),
-        "series_id": ["CPIAUCSL", "CPIAUCSL"],
-        "value": [257.953, float("nan")],
-        "as_of": pd.to_datetime(["2020-04-10", "2020-04-10"]),
-        "source": ["fred", "fred"],
-    })
-
-    def fake_read_alfred_vintage(series_id, *, date=None, as_of=None, db_path=None):
-        return frame
-
-    _install_fake_reader(monkeypatch, read_alfred_vintage=fake_read_alfred_vintage)
-
-    result = ALFREDTools().alfred_vintage("CPIAUCSL")
-
-    import json
-    json.dumps(result)  # must not raise -- Timestamp/NaN are not JSON-safe
-
-    observations = result["observations"]
-    assert observations[0]["date"] == "2020-03-01"
-    assert observations[0]["as_of"] == "2020-04-10"
-    assert observations[0]["value"] == 257.953
-    assert observations[1]["value"] is None
+def _tools(*responses, api_key="test-key"):
+    transport = _Transport(*responses)
+    client = ALFREDClient(api_key=api_key, transport=transport, min_interval=0)
+    return ALFREDTools(client=client), transport
 
 
-def test_series_id_is_stripped_consistently(monkeypatch) -> None:
-    # The hub call and the returned "series_id" field must agree on the
-    # stripped value -- a caller passing " CPIAUCSL " should neither query
-    # nor be told about a series literally named " CPIAUCSL ".
-    calls: list[str] = []
-
-    def fake_read_alfred_vintage(series_id, *, date=None, as_of=None, db_path=None):
-        calls.append(series_id)
-        return _empty_frame()
-
-    _install_fake_reader(monkeypatch, read_alfred_vintage=fake_read_alfred_vintage)
-
-    result = ALFREDTools().alfred_vintage("  CPIAUCSL  ")
-
-    assert calls == ["CPIAUCSL"]
-    assert result["series_id"] == "CPIAUCSL"
+# ------------------------------------------------------------------ surface
+def test_the_tool_surface_is_exactly_the_two_reads() -> None:
+    tools, _ = _tools()
+    assert {t.name for t in tools.as_tools()} == ALFRED_TOOLS
 
 
-def test_an_empty_series_id_is_rejected_before_any_hub_call() -> None:
-    # No monkeypatch here on purpose -- see module docstring.
-    with pytest.raises(ValueError):
-        ALFREDTools().alfred_vintage("")
+# ------------------------------------------------------------------ vintage
+def test_the_vintage_is_sent_on_both_ends_of_the_realtime_window() -> None:
+    """Pinning only one end returns a range, not a point in time."""
+    tools, transport = _tools(_Response({"observations": []}))
+    tools.alfred_vintage("CPIAUCSL", as_of="2020-04-10")
+    q = transport.queries[0]
+    assert q["realtime_start"] == "2020-04-10"
+    assert q["realtime_end"] == "2020-04-10"
 
 
-def test_a_whitespace_only_series_id_is_also_rejected() -> None:
-    with pytest.raises(ValueError):
-        ALFREDTools().alfred_vintage("   ")
+def test_a_missing_as_of_is_refused_rather_than_defaulted() -> None:
+    """Defaulting to today would answer with revised data and look fine."""
+    tools, transport = _tools()
+    with pytest.raises(ValueError, match="as_of is required"):
+        tools.alfred_vintage("CPIAUCSL", as_of="")
+    assert transport.queries == []  # refused before reaching the network
 
 
-@pytest.mark.parametrize(
-    ("date", "as_of", "expected_date", "expected_as_of"),
-    [
-        pytest.param("", "", None, None, id="neither-given"),
-        pytest.param("2020-03-01", "", "2020-03-01", None, id="only-date"),
-        pytest.param("", "2020-05-12", None, "2020-05-12", id="only-as_of"),
-        pytest.param("2020-03-01", "2020-05-12", "2020-03-01", "2020-05-12", id="both-given"),
-    ],
-)
-def test_empty_string_filters_translate_to_none(
-    monkeypatch, date, as_of, expected_date, expected_as_of
-) -> None:
-    calls: list[dict] = []
-
-    def fake_read_alfred_vintage(series_id, *, date=None, as_of=None, db_path=None):
-        calls.append({"series_id": series_id, "date": date, "as_of": as_of, "db_path": db_path})
-        return _empty_frame()
-
-    _install_fake_reader(monkeypatch, read_alfred_vintage=fake_read_alfred_vintage)
-
-    ALFREDTools(db_path="hub.duckdb").alfred_vintage("CPIAUCSL", date=date, as_of=as_of)
-
-    assert len(calls) == 1
-    assert calls[0]["series_id"] == "CPIAUCSL"
-    assert calls[0]["date"] == expected_date
-    assert calls[0]["as_of"] == expected_as_of
-    assert calls[0]["db_path"] == "hub.duckdb"
+def test_an_empty_series_id_is_refused() -> None:
+    tools, _ = _tools()
+    with pytest.raises(ValueError, match="series_id is required"):
+        tools.alfred_vintage("   ", as_of="2020-04-10")
 
 
-def test_an_empty_result_carries_a_not_yet_backfilled_note(monkeypatch) -> None:
-    def fake_read_alfred_vintage(series_id, *, date=None, as_of=None, db_path=None):
-        return _empty_frame()
-
-    _install_fake_reader(monkeypatch, read_alfred_vintage=fake_read_alfred_vintage)
-
-    result = ALFREDTools().alfred_vintage("NOTBACKFILLEDYET")
-
-    # This is a deliberate distinction the implementation draws: an empty
-    # result for a real series most likely means the hub ingestion job has
-    # not backfilled it yet, not that the series genuinely has no history.
-    # Pin it so a future refactor can't silently drop the note.
-    assert result["returned"] == 0
-    assert result["observations"] == []
-    assert "note" in result
-    assert "not" in result["note"]
-    assert "backfilled" in result["note"]
-    assert "alfred_vintage_observations" in result["note"]
+def test_the_vendors_missing_marker_becomes_none_not_a_number() -> None:
+    """FRED writes "." for an unpublished period. Read as a float that is a
+    crash; read as 0.0 it is a lie."""
+    tools, _ = _tools(_Response({"observations": [
+        {"date": "2020-01-01", "value": "258.82", "realtime_start": "2020-04-10"},
+        {"date": "2020-02-01", "value": ".", "realtime_start": "2020-04-10"},
+    ]}))
+    out = tools.alfred_vintage("CPIAUCSL", as_of="2020-04-10")
+    assert [o["value"] for o in out["observations"]] == [258.82, None]
+    json.dumps(out)  # must stay JSON-safe
 
 
-def test_a_filtered_empty_result_carries_a_different_note(monkeypatch) -> None:
-    # A miss with date/as_of set is ambiguous in a way an unfiltered miss is
-    # not: it could mean this exact vintage isn't stored, OR that the series
-    # isn't backfilled at all. The note must not claim the narrower "not
-    # backfilled" explanation as the only one.
-    def fake_read_alfred_vintage(series_id, *, date=None, as_of=None, db_path=None):
-        return _empty_frame()
-
-    _install_fake_reader(monkeypatch, read_alfred_vintage=fake_read_alfred_vintage)
-
-    result = ALFREDTools().alfred_vintage("CPIAUCSL", date="1999-01-01")
-
-    assert "note" in result
-    assert "may mean" in result["note"]
+def test_a_long_answer_is_truncated_newest_first_and_says_so() -> None:
+    rows = [{"date": f"2020-{m:02d}-01", "value": str(m),
+             "realtime_start": "2026-01-01"} for m in range(1, 13)] * 40
+    tools, _ = _tools(_Response({"observations": rows}))
+    out = tools.alfred_vintage("X", as_of="2026-01-01")
+    assert out["returned"] == 400
+    assert "truncated" in out
+    # newest kept: the last source row survives, the first does not
+    assert out["observations"][-1]["date"] == rows[-1]["date"]
 
 
-def test_the_docstrings_first_paragraph_explains_alfred_and_the_filters() -> None:
-    # LazyBridge's SIGNATURE-mode schema builder only exposes the docstring
-    # text up to the first blank line as the tool's LLM-visible description
-    # -- an Args: section added below a blank line would never reach the
-    # model. This asserts against the actual built description, not the raw
-    # docstring, so a regression there is caught even if the source
-    # docstring still reads fine to a human.
+def test_an_empty_vintage_is_explained_rather_than_left_bare() -> None:
+    tools, _ = _tools(_Response({"observations": []}))
+    out = tools.alfred_vintage("CPIAUCSL", as_of="2020-04-10")
+    assert out["returned"] == 0
+    assert "note" in out
+
+
+# ------------------------------------------------------------- vintage dates
+def test_vintage_dates_reports_the_vendor_total_so_truncation_is_visible() -> None:
+    """A partial list that looks complete is how a caller concludes a series
+    has a short history."""
+    tools, _ = _tools(_Response({"vintage_dates": ["2026-08-12", "2026-07-14"],
+                                 "count": 668}))
+    out = tools.alfred_vintage_dates("CPIAUCSL", limit=2)
+    assert out["returned"] == 2
+    assert out["total"] == 668
+    assert "truncated" in out
+
+
+def test_a_complete_vintage_list_is_not_flagged_as_truncated() -> None:
+    tools, _ = _tools(_Response({"vintage_dates": ["2026-08-12"], "count": 1}))
+    out = tools.alfred_vintage_dates("CPIAUCSL")
+    assert "truncated" not in out
+
+
+# -------------------------------------------------------------------- errors
+def test_the_api_key_never_reaches_an_error_message() -> None:
+    """The message goes to a model and often into a log. The key must not."""
+    tools, _ = _tools(
+        _Response({"error_message": "Bad Request. Invalid series."}, status=400),
+        api_key="SUPER-SECRET-KEY",
+    )
+    with pytest.raises(ALFREDError) as excinfo:
+        tools.alfred_vintage("NOPE", as_of="2020-04-10")
+    assert "SUPER-SECRET-KEY" not in str(excinfo.value)
+
+
+def test_a_vintage_before_the_archive_says_so_instead_of_the_wrong_fix() -> None:
+    """FRED's own advice here is to drop realtime_start -- which turns a
+    point-in-time read into a revised-data read, the exact mistake this
+    connector exists to prevent."""
+    tools, _ = _tools(_Response(
+        {"error_message": "Bad Request.  The series does not exist in ALFRED "
+                          "but may exist in FRED."}, status=400))
+    with pytest.raises(ALFREDError) as excinfo:
+        tools.alfred_vintage("CPIAUCSL", as_of="1950-01-01")
+    message = str(excinfo.value)
+    assert "alfred_vintage_dates" in message
+    assert "Do not drop the vintage" in message
+
+
+def test_a_missing_key_is_refused_before_any_request() -> None:
+    transport = _Transport()
+    client = ALFREDClient(api_key=None, transport=transport, min_interval=0)
+    saved = os.environ.pop("FRED_API_KEY", None)
+    try:
+        with pytest.raises(ALFREDError, match="FRED_API_KEY"):
+            client.observations("CPIAUCSL", as_of="2020-04-10")
+    finally:
+        if saved is not None:
+            os.environ["FRED_API_KEY"] = saved
+    assert transport.queries == []
+
+
+def test_the_call_budget_refuses_rather_than_looping() -> None:
+    client = ALFREDClient(api_key="k", transport=_Transport(), max_calls=0,
+                          min_interval=0)
+    with pytest.raises(ALFREDError, match="budget"):
+        client.observations("CPIAUCSL", as_of="2020-04-10")
+
+
+# --------------------------------------------------------------- description
+def test_the_first_paragraph_survives_into_the_tool_description() -> None:
+    """LazyBridge's SIGNATURE mode exposes only the text before the first blank
+    line, so an Args: section below one would never reach the model."""
     from lazybridge import Tool
 
-    tool = Tool.wrap(ALFREDTools().alfred_vintage, name="alfred_vintage")
+    tools, _ = _tools()
+    tool = Tool.wrap(tools.alfred_vintage, name="alfred_vintage")
     description = tool.definition().description
-
     assert description
-    assert "\n\n" not in description, "description leaked past the first paragraph"
-
-    assert "ALFRED" in description
-    assert "historically published" in description
-
-    # the four date/as_of combinations, each named in the first paragraph
-    assert "only date" in description
-    assert "only as_of" in description
-    assert "both" in description
-    assert "neither" in description
+    assert "\n\n" not in description
+    assert "as_of" in description

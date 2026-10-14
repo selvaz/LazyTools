@@ -195,7 +195,7 @@ audit-friendly and never leak the body.
 
     # Drafting is always allowed; sending is allow-listed + confirmation-gated.
     tools = GmailTools(client, allowed_recipients=["teammate@example.com"])
-    agent = Agent("claude-opus-4-8", tools=[tools])
+    agent = Agent("claude-opus-5-5", tools=[tools])
 
     # The agent can draft freely:
     agent("Draft a thank-you note to teammate@example.com")

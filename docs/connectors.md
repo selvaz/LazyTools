@@ -16,22 +16,25 @@ The **Extra** column below is what goes in the brackets (`—` = no extra needed
 
 | Tool | What it gives an agent | Extra | Guide |
 |---|---|---|---|
+| **Async bridge** | Detached Claude/Codex jobs, durable approval tickets, results and opposite-engine tier review. | `[engines]` | [Code bridge](code-bridge.md) |
+| **Projects** | Shared records, plans, schedule/Gantt, claims, contracts, verification and quota brake. | `[mcp]` for MCP; core Python needs no extra | [Projects](projects.md) |
 | **Gmail** | Safe Gmail access: ungated reads (`gmail_list_emails` structured search, `gmail_get_email`) + ungated `gmail_create_draft` + guarded `gmail_send`, plus inbound auth-header verification. | `[gmail]` | [Gmail](gmail.md) |
 | **Outlook** | Safe Outlook access on the user's signed-in Windows desktop (over COM): ungated reads (`outlook_list_emails`, `outlook_get_email`) + ungated `outlook_create_draft` + guarded `outlook_send` — the same allow-list + confirmation model as Gmail. | `[outlook]` | — |
 | **Telegram** | A guarded Telegram outbox: `telegram_send_message` with allow-list + one-shot confirmation. | `[telegram]` | [Telegram](telegram.md) |
 | **MCP** | Drop an existing Model Context Protocol server's tool catalogue into an agent, deny-by-default. | `[mcp]` | [MCP](mcp.md) |
-| **Code Support Agent** | Delegate coding work to Claude Code & Codex — each in CLI or MCP mode, plus a collaboration pipeline. | — | [Code Support Agent](code-support/index.md) |
+| **Code support** | Engine-backed Claude/Codex write, review and named sessions over MCP; long work uses the async bridge. | `[engines,mcp]` for both engines over MCP | [Code support](code-support/index.md) |
 | **External tool gateway** | Adapt a remote JSON-HTTP tool registry (Composio / Pipedream / Arcade / internal) into LazyBridge tools. | — | [Gateway](gateway.md) |
 | **market-data-hub** | The single source of financial data: `datahub_*` discovery, instrument resolution, financial facts and coverage. Raw series are off the default surface (`allow_raw_series=True` to add capped `datahub_get_series`/`datahub_get_returns`); `allow_refresh=True` adds the `datahub_ensure_*` ingestion write tools. | — (needs the hub installed from git) | [Financial data](datahub.md) |
 | **Regime detection** | `lazystats.regimes` HMM/MS engines as `regime_*` tools: fit, state scans, summaries/changes, window comparison, plots, SQLite depot. Reads always on; `allow_write=True` gates fit/persist/delete. Data loads only via market-data-hub. | — (needs `lazystats[regimes]` from git) | [Regime detection](regimes.md) |
 | **TradingView screener** | Live market cross-section as six read-only tools: breadth counts, named ranked screens, and fund/fundamental/technical/consensus snapshots. Closed vocabularies — the model never composes a filter — with units and provenance on every reply. Snapshot only: no history, nothing stored. | `[tradingview]` | [TradingView screener](tradingview.md) |
-| **Polymarket** | Prediction-market data as five read-only tools: market discovery/metadata (Gamma) plus live order book, best price, and midpoint (CLOB), keyed by outcome token id. No wallet, no order placement. | `[polymarket]` | [Polymarket](polymarket.md) |
+| **Polymarket** | Prediction-market data as six read-only tools: market discovery/metadata/topic search (Gamma) plus live order book, best price, and midpoint (CLOB), keyed by outcome token id. No wallet, no order placement. | `[polymarket]` | [Polymarket](polymarket.md) |
 | **GLEIF** | Legal-entity identifier (LEI) lookup as five read-only tools: search, single-record lookup, direct/ultimate parent, direct/ultimate children, fuzzy name completion. Public, keyless JSON:API. | `[gleif]` | [GLEIF](gleif.md) |
 | **Manifold Markets** | A second prediction-market connector, mostly play-money: listing/search, single-market lookup, probability, recent bets. No wallet, no order placement. | `[manifold]` | [Manifold Markets](manifold.md) |
 | **Web** | LazyCrawler's search/crawl/get-page surfaced as LLM tools (interface only — the crawler engine stays standalone). | `[web]` | — |
 | **Documents** | Read `.txt/.md/.pdf/.docx/.html` from a file or folder, sandboxed, for LLM consumption. | `[docs]` | [Documents](documents.md) |
 | **Skills** | Index docs into a portable BM25 skill bundle and query it for grounded answers — stdlib only. | — | [Skills](skills.md) |
 | **Report (LazyReport)** | Deterministic memo rendering: `Memo` → Markdown/HTML, no LLM. Embeds figures (charts/images) into self-contained HTML via artifact refs. Core needs no extra; the `chart:` figure scheme needs `[charts]`. | `[charts]` (figures only) | [Report](report.md) |
+| **Workspace** | Confined `Read`/`Write`/`Edit` file tools (any engine, not just Claude Code) plus an opt-in, unconfined `Bash` — structural (not string-prefix) path confinement, process-tree cleanup on a Bash timeout (kernel-enforced on Windows, best-effort signals on POSIX). | — | [Workspace](workspace.md) |
 
 Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
 `ConfirmationGate`, `ActionBlocked`) are what gate the dangerous outbound tools.
@@ -63,7 +66,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     # gmail_create_draft is always allowed; gmail_send is gated (allow-list +
     # one-shot confirmation). See Gmail + Safety.
     tools = GmailTools(client, allowed_recipients=["teammate@example.com"])
-    agent = Agent("claude-opus-4-8", tools=[tools])
+    agent = Agent("claude-opus-5-5", tools=[tools])
     ```
 
 === "Outlook"
@@ -99,10 +102,10 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
         args=["-y", "@modelcontextprotocol/server-filesystem", "/tmp/project"],
         allow=["fs.read_*"],          # deny-by-default least-privilege filtering
     )
-    agent = Agent("claude-opus-4-8", tools=[fs])
+    agent = Agent("claude-opus-5-5", tools=[fs])
     ```
 
-=== "Code Support Agent"
+=== "Code support (older CLI wrappers)"
 
     ```python
     from lazybridge import Agent, LLMEngine
@@ -112,7 +115,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     # collaboration packaged as a single tool. tool_timeout=None lets each CLI
     # subprocess own its own deadline. (MCP mode: claude_code_mcp / codex_mcp.)
     agent = Agent(
-        engine=LLMEngine("claude-opus-4-8", tool_timeout=None),
+        engine=LLMEngine("claude-opus-5-5", tool_timeout=None),
         tools=[claude_code, codex, build_cli_collaboration()],
     )
     ```
@@ -136,7 +139,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     # datahub_* discovery + resolution + extraction. MarketDataHubBackend
     # imports market_data_hub lazily (GitHub-only package). Raw series are
     # opt-in (allow_raw_series=True); allow_refresh=True adds the write tool.
-    agent = Agent("claude-opus-4-8", tools=[DataHubTools()])
+    agent = Agent("claude-opus-5-5", tools=[DataHubTools()])
     ```
 
 === "Polymarket"
@@ -145,10 +148,10 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     from lazybridge import Agent
     from lazytools.connectors.polymarket import PolymarketTools
 
-    # polymarket_list_markets/_get_market read Gamma (the catalog);
-    # polymarket_order_book/_price/_midpoint read CLOB, keyed by the
-    # clob_token_ids a market listing returns. Public, keyless, read-only.
-    agent = Agent("claude-opus-4-8", tools=[PolymarketTools()])
+    # polymarket_list_markets/_search_markets/_get_market read Gamma (the
+    # catalog); polymarket_order_book/_price/_midpoint read CLOB, keyed by
+    # the clob_token_ids a market listing returns. Public, keyless, read-only.
+    agent = Agent("claude-opus-5-5", tools=[PolymarketTools()])
     ```
 
 === "GLEIF"
@@ -159,7 +162,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
 
     # gleif_search/_get_record read the LEI catalog; gleif_parents/_children
     # walk the ownership graph. Public, keyless JSON:API, read-only.
-    agent = Agent("claude-opus-4-8", tools=[GLEIFTools()])
+    agent = Agent("claude-opus-5-5", tools=[GLEIFTools()])
     ```
 
 === "Manifold Markets"
@@ -170,7 +173,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
 
     # manifold_list_markets/_search_markets never populate answers; only
     # manifold_get_market/_probability do. Public, keyless, read-only.
-    agent = Agent("claude-opus-4-8", tools=[ManifoldTools()])
+    agent = Agent("claude-opus-5-5", tools=[ManifoldTools()])
     ```
 
 === "Web"
@@ -180,7 +183,7 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     from lazytools.connectors.web import WebTools
 
     # Thin pass-through over lazycrawler.CrawlerTools — LLM tool interface only.
-    agent = Agent("claude-opus-4-8", tools=[WebTools()])
+    agent = Agent("claude-opus-5-5", tools=[WebTools()])
     ```
 
 === "Documents"
@@ -202,6 +205,20 @@ Cross-cutting: the [Safety](safety.md) primitives (`Allowlist`,
     meta = build_skill(["./docs"], "my-project")
     brief = query_skill(meta["skill_dir"], "How does auth work?")
     tools = skill_tools(skill_dir=meta["skill_dir"])   # expose to an agent
+    ```
+
+=== "Workspace"
+
+    ```python
+    from lazybridge import Agent
+    from lazytools.workspace import WorkspaceTools
+
+    # Read/Write/Edit confined to file_roots. Bash is opt-in and NOT
+    # path-confined -- leave it off here and see the Workspace guide for
+    # wiring enable_bash=True through an actual approval_gate before
+    # turning it on.
+    tools = WorkspaceTools(file_roots=["/workspace"], cwd="/workspace")
+    agent = Agent("claude-opus-5-5", tools=tools.as_tools())
     ```
 
 Follow any guide above for the full, reference-grade treatment.

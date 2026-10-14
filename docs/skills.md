@@ -177,7 +177,7 @@ skill_pipeline(*, skill_dir, provider="anthropic", router_model=None,
 
     meta = build_skill(["./docs"], "my-project")
     tools = skill_tools(skill_dir=meta["skill_dir"])
-    agent = Agent("claude-opus-4-8", tools=tools)
+    agent = Agent("claude-opus-5-5", tools=tools)
     print(agent("How do I rotate credentials?").text())
     ```
 
@@ -190,7 +190,7 @@ skill_pipeline(*, skill_dir, provider="anthropic", router_model=None,
     pipe = skill_pipeline(skill_dir=meta["skill_dir"], provider="anthropic")
     # The router sharpens the query (keeping identifiers); the executor calls the
     # skill tool and answers only from the retrieved evidence, naming its sources.
-    agent = Agent("claude-opus-4-8", tools=[pipe])
+    agent = Agent("claude-opus-5-5", tools=[pipe])
     ```
 
 === "Agent builds the skill"
@@ -201,7 +201,7 @@ skill_pipeline(*, skill_dir, provider="anthropic", router_model=None,
 
     # base_dir is the sandbox: source dirs must resolve inside it, and
     # bundles land in <base_dir>/generated_skills.
-    agent = Agent("claude-opus-4-8", tools=skill_builder_tools(base_dir="."))
+    agent = Agent("claude-opus-5-5", tools=skill_builder_tools(base_dir="."))
     agent("Index ./docs and ./api into a skill called 'platform-docs'")
     ```
 

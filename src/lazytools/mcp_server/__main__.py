@@ -127,10 +127,12 @@ def main(argv: list[str] | None = None) -> None:
             "credentials/opt-in env vars are set; sends are allow-listed. With --allow-unsafe "
             "and a local Codex login, codex_code_review(task, repo_path, diff_ref, paths) "
             "delegates a read-only code review of a local repository to Codex (minutes, one "
-            "model turn per call). With --allow-unsafe, codex_write(task, cwd, resume_last) "
+            "model turn per call). With --allow-unsafe, codex_write(task, cwd, session_name) "
             "delegates a coding task to Codex WITH write access (workspace-write sandbox), "
             "confined to the same root, with no per-call confirmation gate -- treat it as "
-            "fully trusted within that scope."
+            "fully trusted within that scope. The code tools take optional per-call model, "
+            "effort and session_name (a durable, renamable conversation alias; see "
+            "code_sessions_list)."
         ),
     )
     if args.http:

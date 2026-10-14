@@ -48,6 +48,28 @@ class TestClaudeCode:
         assert "invalid mode" in result
         assert "CodeWriteTools" in result
 
+    def test_effort_becomes_the_effort_flag_and_model_is_overridable(self):
+        payload = json.dumps({"subtype": "success", "result": "ok"})
+        with patch("subprocess.run", return_value=_proc(stdout=payload)) as mock_run:
+            claude_code("task", model="opus", effort="high")
+        cmd = mock_run.call_args[0][0]
+        assert cmd[cmd.index("--model") + 1] == "opus"
+        assert cmd[cmd.index("--effort") + 1] == "high"
+
+    def test_no_effort_means_no_effort_flag(self):
+        payload = json.dumps({"subtype": "success", "result": "ok"})
+        with patch("subprocess.run", return_value=_proc(stdout=payload)) as mock_run:
+            claude_code("task")
+        assert "--effort" not in mock_run.call_args[0][0]
+
+    def test_a_bad_effort_is_refused_before_any_process_starts(self):
+        with (
+            patch("subprocess.run") as mock_run,
+            pytest.raises(ValueError, match="use one of: low, medium, high, xhigh, max"),
+        ):
+            claude_code("task", effort="none")
+        mock_run.assert_not_called()
+
     def test_plan_mode_flags(self):
         payload = json.dumps({"subtype": "success", "result": "plan ready"})
         with patch("subprocess.run", return_value=_proc(stdout=payload)) as mock_run:
@@ -87,6 +109,22 @@ class TestClaudeCode:
         with patch("subprocess.run", return_value=_proc(stdout=payload)):
             result = claude_code("task")
         assert "model overloaded" in result
+
+    def test_subprocess_stdin_is_devnull(self):
+        # Found live: two real claude_code_write calls each burned the full
+        # 1500s timeout with ZERO output on genuinely substantial multi-file
+        # tasks, while trivial tasks (a one-line reply, a single test file)
+        # completed in seconds -- indistinguishable from "just slow" until
+        # traced to this. Without stdin=DEVNULL, `claude -p` inherits the
+        # MCP server's own stdin; nothing is ever there to answer a prompt
+        # a given CLI build might emit (a trust dialog, a config migration
+        # notice, anything version-specific), so the subprocess blocks on a
+        # read that never completes. The identical bug, and this identical
+        # regression test, already existed for `codex()` -- this connector's
+        # own claude_code() path had never gotten the matching fix.
+        with patch("subprocess.run", return_value=_proc(stdout="ok")) as mock_run:
+            claude_code("task")
+        assert mock_run.call_args.kwargs["stdin"] == subprocess.DEVNULL
 
     def test_non_json_output_returned_raw(self):
         with patch("subprocess.run", return_value=_proc(stdout="raw text output\n")):
@@ -185,6 +223,29 @@ class TestCodex:
             codex("continue analysis", resume_last=True)
         cmd = mock_run.call_args[0][0]
         assert cmd[cmd.index("--last") + 1] == "continue analysis"
+
+    def test_model_and_effort_become_exec_flags_before_the_subcommand(self):
+        with patch("subprocess.run", return_value=_proc(stdout="ok")) as mock_run:
+            codex("task", model="gpt-x", effort="xhigh", resume_last=True)
+        cmd = mock_run.call_args[0][0]
+        assert cmd[cmd.index("-m") + 1] == "gpt-x"
+        assert 'model_reasoning_effort="xhigh"' in cmd
+        assert cmd.index("-m") < cmd.index("resume")
+
+    def test_model_and_effort_default_to_the_cli_config(self):
+        with patch("subprocess.run", return_value=_proc(stdout="ok")) as mock_run:
+            codex("task")
+        cmd = mock_run.call_args[0][0]
+        assert "-m" not in cmd
+        assert not any("model_reasoning_effort" in part for part in cmd)
+
+    def test_a_bad_effort_is_refused_before_any_process_starts(self):
+        with (
+            patch("subprocess.run") as mock_run,
+            pytest.raises(ValueError, match="use one of: none, minimal, low, medium, high, xhigh, max, ultra"),
+        ):
+            codex("task", effort="ultrahigh")
+        mock_run.assert_not_called()
 
     def test_subprocess_stdin_is_devnull(self):
         # Found live: without this, `codex exec` inherits the MCP server's

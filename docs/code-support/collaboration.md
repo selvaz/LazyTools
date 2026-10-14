@@ -1,110 +1,43 @@
-# Collaboration
+# Claude Code + Codex collaboration
 
-`build_cli_collaboration` makes **Claude Code and Codex work together** on a
-task — *Claude Code analyses, Codex critiques, a synthesizer plans, an executor
-implements* — packaged as a **single tool**, the same way you'd pass
-[`claude_code`](claude-code.md) or [`codex`](codex.md).
+LazyTools connects writing, independent review, durable projects and quota
+decisions. Start with the [worked toy-repo bridge flow](../code-bridge.md#claude-writes-codex-reviews):
+Claude writes the weekday deployment guard, Codex reviews, code executes the
+boundary tests, and the operator inspects the evidence. Reverse the engines
+by choosing Codex as writer; tier-based `--review-of` then requires Claude.
 
-```python
-from lazytools.connectors.code_support import build_cli_collaboration
+| Work | Integration | Evidence |
+| --- | --- | --- |
+| Long write / review | Bridge `run --detach`, `--session`, `--tier`, `--review-of` | Jobs, routing, native session, result, failure workspace snapshot |
+| Approval | Bridge `pending`, `approve`, `reject` | Durable tickets, actor, reason, expiry |
+| Short turn | Engine-backed [MCP tools](index.md) | Reply header, findings or error, session alias |
+| Shared project | [Projects](../projects.md) on a configured Store | Plan, claims, contracts, checks, review, decision, notes |
+| Schedule | `python -m lazytools.projects.gantt` | English HTML/SVG and text computed from recorded dates |
+| Quota | Bridge `route`; Python `route()` / `recommend()` | Rung, exclusions, windows, reservations, admission reason |
 
-build_cli_collaboration(
-    *,
-    name: str = "cli_collaboration",
-    description: str | None = None,
-    claude_model: str = "claude-opus-4-8",
-    codex_model: str = "gpt-5.4",
-    synthesizer_model: str = "claude-opus-4-8",
-    executor_model: str = "claude-opus-4-8",
-    execute: bool = True,
-) -> Agent
-```
+Tier-based bridge `--review-of` excludes the producing engine and refuses
+with `human_review_required` if no opposite reviewer is eligible. MCP callers
+choose their reviewer themselves. The bridge runs a write-capable job even
+for review prompts; MCP reviewers provide a read-only surface when required.
 
-It returns a named `Agent` whose engine is a four-step `Plan`. Because an
-`Agent` *is* a tool in LazyBridge, the whole pipeline looks to the parent agent
-like one callable that takes a single `task` string.
+Checks and acceptance are separate steps. Reviewer prose is not a test result.
+Timeout does not mean no files changed: inspect workspace evidence, Git diff,
+and checks before continuing. Project verification has evidence gates and
+an injectable caller authorization policy. Neither a successful job nor the
+last output of an exhausted LazyBridge `verify=` loop implies acceptance.
 
-**Default: three sessions, nothing is written** — two read-only CLI sessions
-plus one synthesizer that writes the *plan*, not code:
+Native conversations do not migrate. Use separate writer/reviewer aliases;
+share the task, diff and project records. The bridge locks one job per Git
+repository: wait for the writer to finish before reviewing in that checkout.
 
-```
-Step 1  claude_analyst   claude_code(read)    analyse, propose an approach
-Step 2  codex_analyst    codex (read-only)    critique/confirm  (sees step 1 via shared Memory)
-Step 3  synthesizer      —                    merge into one concrete written plan
-Step 4  executor         claude_code_write    implement the plan   (ONLY with execute=True + base_dir=)
-```
+## Existing CLI collaboration builder
 
-| Parameter | Type | Default | Meaning |
-|---|---|---|---|
-| `name` | `str` | `"cli_collaboration"` | Tool name the parent agent sees (tool-map key). |
-| `description` | `str \| None` | `None` | Tool description shown to the parent LLM; a sensible default is used when `None`. |
-| `claude_model` | `str` | `"claude-opus-4-8"` | Model for the Claude-Code analyst (step 1). |
-| `codex_model` | `str` | `"gpt-5.4"` | Model for the Codex analyst/critic (step 2). |
-| `synthesizer_model` | `str` | `"claude-opus-4-8"` | Model that merges the analyses (step 3). |
-| `executor_model` | `str` | `"claude-opus-4-8"` | Model that implements the plan (step 4). |
-| `execute` | `bool` | `False` | `False` (default) → stop after synthesis: the read-only three-session pipeline. `True` → append the executor, which implements the plan via the gated `claude_code_write` tool. |
-| `base_dir` | `str \| None` | `None` | **Required when `execute=True`**: the sandbox root the executor may write inside (ideally a git checkout). |
-| `writer` | `CodeWriteTools \| None` | `None` | Bring your own writer for the executor (mutually exclusive with `base_dir`). This is the only way to run a **gate-enabled** executor: you hold the instance, so you can call `writer.confirm_write()` per executor write while the pipeline runs. |
+`build_cli_collaboration()` remains available for the older read/plan workflow:
+Claude analyses, Codex critiques, a provider-model synthesizer plans and an
+executor produces the response. It uses CLI subprocess wrappers and separate
+provider engines, so it is not a detached bridge or an enforced acceptance
+gate. See its full signature in the [reference](../reference.md).
 
-## Examples
-
-=== "Analyse + plan (default)"
-
-    ```python
-    from lazytools.connectors.code_support import build_cli_collaboration
-
-    # The default three-session pipeline: two read-only CLI analysts plus a
-    # synthesizer that writes the plan. Nothing on disk is modified.
-    planner = build_cli_collaboration()
-    print(planner("Propose a refactor of the payments module").text())
-    ```
-
-=== "As a sub-tool"
-
-    ```python
-    from lazybridge import Agent, LLMEngine
-    from lazytools.connectors.code_support import build_cli_collaboration
-
-    # Hand the collaboration to a higher-level orchestrator, alongside any
-    # other tools — it behaves like any other tool that takes a task string.
-    orchestrator = Agent(
-        engine=LLMEngine("claude-opus-4-8"),
-        tools=[build_cli_collaboration(name="deep_code_task")],
-    )
-    orchestrator("Use deep_code_task to add retries to the HTTP client")
-    ```
-
-=== "Implement (opt-in)"
-
-    ```python
-    from lazytools.connectors.code_support import build_cli_collaboration
-
-    # execute=True appends the executor: the plan is implemented through the
-    # gated claude_code_write tool, sandboxed to base_dir (use a git checkout).
-    pipeline = build_cli_collaboration(execute=True, base_dir="/path/to/project")
-    print(pipeline("Add rate limiting to the /api/login endpoint").text())
-    ```
-
-## Why `Plan`, not `AgentPool`?
-
-The flow is fixed and sequential (analyse → critique → synthesise [→ execute]).
-`Plan` with `from_step` is simpler and more predictable, and each step frees
-memory before the next. Reach for `AgentPool` only when you need dynamic routing
-or a multi-round back-and-forth.
-
-## Pitfalls
-
-- **The default never writes.** `execute=True` requires `base_dir=` and
-  routes all writes through the `CodeWriteTools` sandbox; keep `base_dir` a
-  git checkout so every change is reviewable.
-- **Shared `Memory` is sequential-only.** The pipeline's `dialogue` memory is
-  safe because `Plan` steps don't overlap; don't reuse the pattern under
-  parallel execution without a per-agent memory.
-- **Both CLIs must be installed and authenticated** — the pipeline drives
-  `claude_code` and `codex` in CLI mode. Run `check_clis_available()` first.
-
-## See also
-
-- [Claude Code](claude-code.md) — the analyst/executor side.
-- [Codex](codex.md) — the critic side.
-- [Code Support Agent](index.md) — install, modes, timeouts, startup check.
+**Benchmark in progress.** Functional tests establish mechanisms; no
+comparative quality, time, quota-efficiency or subscription-savings result is
+published here. Tier ladders are deterministic policy, not a measured ranking.

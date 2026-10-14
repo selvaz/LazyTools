@@ -8,12 +8,188 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-10-09
+
+### Added
+- Code bridge `run --timeout SECONDS` (default 3600, finite and > 0), forwarded to detached children, the engine and the job metadata. Before, 3600 s was hard-coded, and 11 of 87 jobs on record had failed at exactly that limit.
+- Code bridge `cancel JOB [--reason]`. It verifies the process is a code-bridge Python process and kills its tree; on POSIX it kills the whole process group only when the job leads its own session. It then marks the job `interrupted` and rejects the job's open approval tickets. It also works in the startup window right after `run --detach`, and it never overwrites a record that is already terminal.
+- Workspace evidence on unfinished jobs (failed, interrupted, reclaimed): `workspace: HEAD unchanged; N uncommitted path(s)` or `HEAD a -> b (N commit(s) not reachable from start)`. It is stored as `workspace_at_end`, with `head_at_start` and `owns_process_group` recorded at launch. A failed start snapshot is reported as unavailable and never counted as history. "Whether it was committed is unknown" no longer requires a manual repo inspection.
+
+## [0.10.0] — 2026-10-08
+
+### Added
+- **`lazytools.routing`** — LazyCEO's deterministic model router as a shared package: per-engine/per-model policy, tier catalogue (`default_tiers.toml`), `route()` (parity-tested against LazyCEO), `recommend()` with concurrent quota reads and a 120 s file cache.
+- Code bridge: `route --tier` (dry run), `run --tier`, `--review-of` (opposite-engine review), `--needs images`, session pinning, `models [--probe-claude]` live audit; operator-directed admission for direct work.
+- `engines` extra (`lazybridge[claude-code]`): the Claude Agent SDK that the bridge's Claude engine and Claude quota reading need. A clean install without it failed at the first Claude quota read.
+
+### Changed
+- Bridge tier launches admit the effective model's weekly bucket and its
+  engine's short window after the weekly router pick, exclude refused engines
+  and retry with the same constraints. Unrelated Fable/Codex model buckets do
+  not gate the pick; explicit Fable overrides require their own weekly telemetry.
+  Ceiling warnings include short windows without forecast data, and failures
+  report applicable windows/reset times instead of suggesting a manual bypass.
+  Image/session conflicts explain that images need Codex; errors do not suggest
+  supplying an engine when it was already restricted.
+- Quota reads run concurrently and retain failure causes without caching
+  failures. Human errors avoid duplicate exclusions and give review/session
+  guidance; engine-only launches enforce session pins, dead job PIDs no longer
+  reserve quota, and explicit tier models infer and restrict the engine.
+- Claude model probes disable MCP servers, settings and hooks; timeout cleanup
+  kills the process tree and bounds every subsequent wait on Windows.
+- Codex effort validation uses per-model capabilities in catalogues and bridge
+  overrides. Both Luna models support `low` through `max`, without `ultra`;
+  unknown model capabilities fall back to the engine's effort set.
+- Bridge tier routing uses operator-directed admission for its direct work:
+  autonomous-boundary and forecast breaches are informational, while absolute
+  ceilings and telemetry failures still exclude engines. Forecast margins still
+  rank choices, and human output shows forecasts and warning lines. Shared
+  `route()`/`recommend()` default to autonomous admission for LazyCEO parity.
+
+### Added
+- **Bridge `models` command:** reads Codex App Server model/effort capabilities
+  and audits the active catalogue and default policy. Optional `--probe-claude`
+  uses one tool-free turn per catalogue model and `sonnet`/`opus` alias, reports
+  the answering model and `unrecognized_model` warnings, and consumes a small
+  amount of quota. Human and JSON output report every mismatch; exit 2 on
+  mismatches or discovery/probe errors.
+- **`lazytools.routing`** — shared deterministic tier router, model/effort policy,
+  validated catalogue, and live quota adapter with per-engine timeouts and an
+  atomic 120-second file cache. The packaged Claude Code catalogue can be
+  replaced by `~/.lazytools/model_tiers.toml`.
+- **Quota-aware code bridge:** `route --tier T` explains a dry-run choice and
+  both engines' weekly/session quota; `run --tier T` launches that choice.
+  Engine restrictions, explicit model/effort overrides, image capability,
+  session engine pinning and consecutive-failure notices, opposite-engine
+  reviews, and routing metadata are supported. `status`/`jobs` show the
+  tier, model and effort. Detached launches retain the parent's decision.
+
+## [0.9.0] — 2026-10-08
+
+### Changed
+- Requires `lazybridge>=1.8.0` (delegation hooks; `Store` no longer fails with
+  "database is locked" when several bridge jobs open their database at once).
+- Declares `tzdata`: `lazytools.projects` resolves IANA time zones (`UTC`
+  included), and Windows — like minimal Linux containers — has no system zone
+  database, so a clean install failed every schedule/Gantt call with
+  `ZoneInfoNotFoundError`.
+
+### Added
+- **`lazytools.projects`** — LazyCEO's project management as a shared layer over
+  the CEO's Store: records, plans, schedule/timeline, contracts and verifications,
+  intake/promotion, task claims, quota telemetry (incl. Claude's five-hour session
+  window), admission/brake, cost report incl. fleet aggregation. Per-project owner
+  (`ceo` | `claude` | `shared`) and brake switch. Model-free Gantt as HTML and text.
+  MCP provider `projects` (core profile by default, `LAZYTOOLS_PROJECTS_TOOLS=full`).
+- **`lazytools-code-bridge`** — async delegation of coding work to Codex / Claude
+  Code with approvals over a durable ticket queue; `run --detach` + `wait` so a job
+  outlives its launcher; tickets show the real command and reason; web access for
+  both engines.
+
+## [0.8.1] — 2026-10-01
+
+### Changed
+- Requires `lazybridge>=1.6.2` (Codex transport hardening: diagnosable
+  `CodexTransportError`, bounded child cleanup, per-loop engine locks).
+
+### Added
+- **Codex: `ultra` effort accepted, `gpt-6.1-sol` default.** `ultra` (maximum
+  reasoning with automatic task delegation) joins the allowed Codex efforts on
+  every per-call `effort` argument; Claude's set is unchanged (Claude Code has no
+  `ultra`). The collaboration flow's `codex_model` default moves from `gpt-6-sol`
+  to `gpt-6.1-sol` (the current Codex workhorse; `gpt-6-sol` stays selectable by
+  passing it explicitly).
+- **Per-call `model` / `effort` / `session_name` on every code tool.**
+  `codex_code_review`, `codex_review_changes`, `codex_ask`,
+  `claude_code_review`, `claude_ask`, `codex_write`, `claude_code_write` and
+  the plain `codex()` / `claude_code()` tools take optional `model` and
+  reasoning `effort` (default: the provider's own). `effort` is validated and a
+  bad value raises a `ValueError` listing the allowed ones (Claude: `low`,
+  `medium`, `high`, `xhigh`, `max`; Codex: `none`, `minimal`, `low`, `medium`,
+  `high`, `xhigh`, `max`, `ultra`). `claude_ask` keeps `thinking` and gains `effort`.
+  The seven engine-backed tools also take `session_name`: a renamable alias for
+  a durable conversation, stored in LazyBridge's `SessionRegistry` (scope = the
+  resolved repository). An unknown name opens a thread/session and binds it, a
+  known name resumes it, an explicit `thread_id` / `session_id` wins and
+  re-points the name. The reply header gains `session_name=`, and failures keep
+  both the native handle and the name.
+- **`code_sessions_list` / `_bind` / `_rename` / `_forget`** (`CodeSessionTools`,
+  MCP provider `code_sessions`): inspect and manage those names. The list is
+  read-only; the mutators are served only with `--allow-unsafe`.
+- `LAZYTOOLS_CLAUDE_REVIEW_EFFORT`: sets the default
+  effort of `claude_code_review` / `claude_ask` in the MCP server.
+- **`polymarket_search_markets`** — full-text topic search for the
+  Polymarket connector, via Gamma's undocumented-but-public
+  `/public-search` (the endpoint polymarket.com's own search bar calls;
+  verified live 2026-09-03). `polymarket_list_markets` cannot do this at
+  all — `/markets` silently ignores any keyword or name-based category
+  filter, so without this an agent with no web search of its own could
+  only find a market it already had the exact slug for, or one popular
+  enough to surface on a volume-sorted page. Results group by event, so a
+  question asked across several horizons ("by Sept 4", "by Sept 11", ...
+  "by Sept 30") comes back as one event carrying all of those markets
+  together with each one's short `group_item_title`, rather than scattered
+  rows a caller has to notice belong together.
+
+### Changed
+- **`codex_write` and `claude_code_write` now run on the LazyBridge engines**
+  (`CodexEngine`, `ClaudeCodeEngine`) instead of a CLI subprocess. The gate is
+  unchanged (`base_dir`, one-shot grants, the git rail, result shape). Behaviour
+  that differs: Claude's `Write`/`Edit` are confined to the call's `cwd`; its
+  `Bash` is still not path-confined and is now approved by an allow-list gate
+  (`CodeWriteTools(claude_bash=False)` drops it); a Claude write is capped at 60
+  turns and never retried; the model defaults to the engine's (`sonnet`) unless
+  `model=` is given; the result text starts with a header line carrying the
+  `session_id` / `thread_id` (and `session_name`); the Codex git-repo refusal is
+  done by the tool, since the App Server has no `--skip-git-repo-check`.
+- **Requires `lazybridge>=1.6.0`** (engine `session_alias=` / `SessionRegistry`).
+
+### Removed
+- **BREAKING: `codex_write` no longer takes `resume_last`.** `exec resume
+  --last` was ambiguous whenever sessions shared a directory. Use
+  `session_name=` or the `thread_id` from the previous reply. The plain
+  `codex()` tool keeps `resume_last`. No shim. The write-mode CLI plumbing
+  (`_WRITE_FLAGS`) is gone with it.
+
+## [0.8.0] — 2026-08-29
+
+### Added
+- **Six new read-only connectors**, each a `ToolProvider` with its own
+  surface-contract test and reference page:
+  - **Polymarket** (`polymarket_*`) — public Gamma catalog + CLOB order
+    book, keyless. `side` follows the vendor's own convention (buy reads
+    the best bid, sell the best ask) and the order book is truncated
+    worst-to-best: both verified against the live endpoint rather than
+    assumed.
+  - **GLEIF** (`gleif_*`) — legal-entity identifier lookup and the
+    parent/child graph. A confirmed "no parent" is told apart from a
+    nonexistent LEI by the shape of the 404 body, because the vendor
+    answers both with the same status code.
+  - **Manifold Markets** (`manifold_*`) — a second prediction-market feed
+    beside Polymarket, with the pagination its list and search endpoints
+    actually support.
+  - **Treasury Fiscal Data** (`treasury_*`), **CFTC Commitments of
+    Traders** (`cftc_positioning_*`) and **ALFRED** (`alfred_vintage`) —
+    thin read-only wrappers over market-data-hub's readers, in the shape
+    `econ_calendar`/`earnings_calendar` already use. The hub's ingestion
+    job owns the data; these add no write surface at all.
+
+  The three hub-backed wrappers keep `pandas` out of module scope
+  (`TYPE_CHECKING` only, imported inside the row-serialising helper), so
+  the modules stay importable — and the MCP surface contract stays
+  checkable — where market-data-hub is not installed.
+
 ### Changed
 - **The verified combination moves to current releases.** `lazytoolkit`
-  `v0.6.0` → `v0.7.0`, `lazyportfolio` → `3f2d4cd4` (docs-only, and its
-  `datacore` extra still pins the same market-data-hub revision as the
-  manifest, so the coupled refs stay in agreement), and `lazybridge`
-  `1.0.1` → `1.2.0`.
+  `v0.7.0` → `v0.8.0`, `market-data-hub` `636b38a7` → `50e57e53` (the
+  Treasury, CFTC COT and ALFRED sources, the global earnings calendar and
+  two data-correctness fixes), and `lazyportfolio` `3f2d4cd4` → the
+  revision whose `datacore` extra pins that same market-data-hub commit.
+  Those two refs are coupled and must move together, or the released
+  combination resolves two different refs for one package.
+- The previous `[Unreleased]` promotion is folded into this release:
+  `lazytoolkit` `v0.6.0` → `v0.7.0`, `lazyportfolio` → `3f2d4cd4`, and
+  `lazybridge` `1.0.1` → `1.2.0`.
 - **The `lazybridge` floor is raised to `>=1.2.0,<2.0`** (was `>=1.0.1`), in
   `pyproject.toml` and `[minimums]` alike. This is deliberately breaking: the
   InvestmentCommittee environments were found running a `lazybridge 1.0.2`

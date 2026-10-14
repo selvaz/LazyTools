@@ -1,70 +1,88 @@
 # ALFRED
 
-One read-only tool, `alfred_vintage`, over market-data-hub's stored ALFRED
-data. ALFRED is FRED's real-time/vintage view of a series: instead of
-today's revised figure, it reports what a series *said as of a historical
-publication date*. A real example, live-verified against FRED: `CPIAUCSL`
-for March 2020 -- first published as `257.953` (as of 2020-04-10), later
-revised to `257.989` once more source data came in (as of 2021-02-08), and
-revised further since. A plain FRED pull silently substitutes today's fully
-revised number for "the" March 2020 value; ALFRED (and this connector) keep
-every vintage, each tagged with the date (`as_of`) it was known on.
+Two read-only tools over ALFRED, FRED's real-time (vintage) view. Instead of
+today's revised figure, ALFRED reports what a series *said as of a historical
+publication date*.
+
+A real example, verified live against FRED: `CPIAUCSL` for March 2020 was
+first published as `257.953` (vintage 2020-04-10), then revised to `257.989`
+(vintage 2021-02-08), and revised again since. A plain FRED pull silently
+substitutes today's fully revised number for "the" March 2020 value. ALFRED
+keeps every vintage, each tagged with the date it was known on.
 
 ```python
 from lazybridge import Agent, LLMEngine
 from lazytools.connectors.alfred import ALFREDTools
 
 agent = Agent(name="macro", engine=LLMEngine("deepseek-v4-flash"),
-              tools=[ALFREDTools(db_path="hub.duckdb")])
+              tools=[ALFREDTools()])
 ```
 
-## What it is, and what it is not
+## The two tools
 
-**Read-only, and there is no write tool to gate.** `ALFREDTools` does not
-accept an `allow_write` argument at all -- unlike the connectors that expose
-both read and write tools and gate the write ones behind
-`allow_write=True`, there is simply nothing to write here. The hub's own
-ingestion job owns downloading and backfilling ALFRED vintages; this
-provider only translates an LLM call into a hub reader call and hands back
-plain dicts.
+| Tool | Answers |
+|---|---|
+| `alfred_vintage(series_id, as_of, start="", end="")` | What was this series publishing on `as_of`? |
+| `alfred_vintage_dates(series_id, limit=200)` | Which vintages exist at all, newest first? |
 
-**Only what the hub has already backfilled.** `alfred_vintage` never talks
-to FRED. If a real, valid series comes back with zero rows, the far more
-likely explanation is that the hub's ingestion job has not backfilled that
-series into its vintage table yet -- not that the series has no history.
-The tool distinguishes the two: an empty result carries a `note` key saying
-so explicitly, so a caller does not misread "not backfilled yet" as "this
-series has never had a value."
+`as_of` is **required** on `alfred_vintage`. Defaulting it to today would
+return revised data through a tool whose whole purpose is not to — the call
+is refused instead, before any request goes out.
 
-## The four filter combinations
+## Live, not warehoused
 
-`alfred_vintage(series_id, date="", as_of="")` takes two optional string
-filters, both `YYYY-MM-DD`, both translated from `""` to `None` before
-reaching the hub:
+This connector calls FRED at request time and stores nothing. That is a
+deliberate change from its first shape, which read a table market-data-hub
+ingested.
 
-| `date` | `as_of` | Meaning | Example |
-|---|---|---|---|
-| unset | unset | Everything stored for the series -- every observation date, at every vintage. | `alfred_vintage("CPIAUCSL")` |
-| set | unset | Every vintage of one observation date -- how a single month's figure changed as it was revised. | `alfred_vintage("CPIAUCSL", date="2020-03-01")` -> `257.953`, `257.989`, and every later revision, one row per vintage |
-| unset | set | Everything known as of one vintage/realtime date -- a snapshot of the whole series exactly as it stood on one day. | `alfred_vintage("CPIAUCSL", as_of="2020-04-10")` -> the March 2020 row still reads `257.953`, before the 2021 revision |
-| set | set | One exact observation at one exact vintage. | `alfred_vintage("CPIAUCSL", date="2020-03-01", as_of="2020-04-10")` -> exactly `257.953` |
+Vintage data is asked for one series and one date at a time, when a backtest
+reaches a decision point. It is not a series anyone sweeps daily. Ingesting
+it would mean choosing in advance which series and which vintages might
+someday be wanted — and being wrong about that is invisible until the
+question is asked and the answer is missing. Asking at call time has no such
+guess in it.
 
-`series_id` is required; an empty or whitespace-only value raises
-`ValueError` before any hub call is attempted. A `date`/`as_of` combination
-that matches no stored vintage returns an empty result with an explanatory
-`note`, rather than a bare empty list -- the note's wording depends on
-whether a filter was given, since a filtered miss can mean either "this
-exact vintage isn't stored" or "this series isn't backfilled at all",
-while an unfiltered miss can only mean the latter.
+The trade is the usual one for a live connector: it needs the network and a
+key, and it is not available to a job running offline.
+
+## Credential
+
+Needs a free FRED API key in `FRED_API_KEY` — the same variable
+market-data-hub already resolves, deliberately not a second name for one
+credential. Keys are free from
+[fredaccount.stlouisfed.org](https://fredaccount.stlouisfed.org/apikeys).
+
+Resolution is lazy: importing the module and constructing the provider never
+require the key, so the MCP server mounts the provider either way. Only a
+call fails, and it fails with an instruction rather than a `KeyError`.
+
+The key is never written into an error message. FRED reports a bad series
+id, an impossible date and an invalid key alike as HTTP 400 with an
+explanatory body; that body is passed through because it is the useful part,
+but the query string — which carries the key — is not. A test pins this.
+
+## Two failure modes worth knowing
+
+**A vintage older than the archive.** ALFRED's vintage history for a series
+starts later than the series itself. `CPIAUCSL` has observations from 1947
+but only 668 vintages, the oldest being 1972-07-21. Asking for a vintage
+before that returns HTTP 400, and FRED's own advice in the body is to
+*remove* `realtime_start` — which would turn a point-in-time read into a
+revised-data read, precisely the mistake this connector exists to prevent.
+That advice is therefore replaced with a pointer to `alfred_vintage_dates`.
+
+**A truncated answer that looks complete.** `alfred_vintage_dates` returns
+the vendor's own total alongside the dates, and flags the reply as truncated
+when the two differ. A partial list that looks whole is how a caller
+concludes a series has a short history. Observations truncate at 400,
+keeping the **newest** — a vintage read is almost always asked backwards
+from a decision date, so the recent end carries the answer.
 
 ## Why this matters for walk-forward backtests
 
-A backtest that asks "what was CPI for March 2020?" using a plain FRED pull
-gets whatever FRED serves *today* -- the fully revised, several-times-since
-figure -- even for a simulated decision date in April 2020, when only
-`257.953` had ever been published. That is look-ahead bias: the strategy
-sees a number nobody could have known at the time. Filtering
-`alfred_vintage` by `as_of` (the decision date, or just before it) instead
-of by `date` alone reproduces exactly what was publicly known on that day,
-which is the only version of the series a walk-forward simulation is
-entitled to use.
+A backtest asking "what was CPI for March 2020?" through a plain FRED pull
+gets whatever FRED serves *today*, even for a simulated decision date in
+April 2020 when only `257.953` had ever been published. That is look-ahead
+bias: the strategy sees a number nobody could have known. Pinning `as_of` to
+the decision date reproduces exactly what was public that day, which is the
+only version of the series a walk-forward simulation is entitled to use.

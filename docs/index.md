@@ -1,8 +1,35 @@
 # LazyTools (`lazytoolkit`)
 
-Reusable **tool providers**, **connector clients**, and **safety wrappers** for
-agents built on [LazyBridge](https://github.com/selvaz/LazyBridge) (and
-[LazyPulse](https://github.com/selvaz/LazyPulse)).
+LazyTools is the **integration layer for Claude Code + Codex collaboration**.
+It connects engine-backed coding tools, detached jobs with durable approval
+tickets, shared project evidence and deterministic quota routing. One engine
+writes, the other reviews; code runs the checks and records the acceptance.
+
+**LazyTools 0.10.1 is Alpha.** It requires LazyBridge 1.8.0 or later within
+1.x. LazyBridge core is Stable; that does not make every integration Stable.
+With a subscription login, coding runtimes use your plan's quota; LazyTools
+inherits runtime authentication and does not force a billing path.
+
+Start with the [async code bridge](code-bridge.md) and its full
+Claude-writes/Codex-reviews toy-repo flow. Use the [MCP code-support tools](code-support/index.md)
+for short calls and named native conversations. Keep plans, claims, contracts,
+verification and notes in [Projects](projects.md); render the recorded
+schedule as a deterministic English Gantt. [Quota routing](code-bridge.md#choose-a-model-from-quota)
+explains tier selection and admission. **Benchmark in progress**; no measured
+quality, time, quota-efficiency or subscription savings result is claimed.
+
+```sh
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.1"
+lazytools-mcp projects code_review claude_review code_write code_sessions --allow-unsafe
+```
+
+Configure the code root and persistent project Store using the
+[MCP setup](mcp-server.md#collaboration-setup). Coding providers are
+explicitly opt-in. `--allow-unsafe` exposes mutating MCP tools without per-call
+confirmation; bridge jobs use their own approval-ticket queue.
+
+Connectors, data tools, documents and safety wrappers support the same agent
+workflow. They plug into LazyBridge `Agent(tools=[...])` and LazyPulse.
 
 !!! info "Part of the LazyBridge ecosystem"
     LazyBridge is the stable core runtime; **LazyTools is where capabilities
@@ -11,11 +38,10 @@ agents built on [LazyBridge](https://github.com/selvaz/LazyBridge) (and
     how the three packages stack.
 
 LazyTools is distributed from GitHub (only LazyBridge is on PyPI). Add an
-extra to the direct reference — this pulls the current `main`; append
-`@vX.Y.Z` to pin a release tag:
+extra to the pinned direct reference:
 
 ```bash
-G="git+https://github.com/selvaz/LazyTools.git"
+G="git+https://github.com/selvaz/LazyTools.git@v0.10.1"
 pip install "lazytoolkit @ $G"                 # core (just lazybridge)
 pip install "lazytoolkit[gmail] @ $G"          # Gmail client + guarded draft/send tools
 pip install "lazytoolkit[telegram] @ $G"       # Telegram client + guarded send tool

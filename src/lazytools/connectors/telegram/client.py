@@ -22,6 +22,41 @@ from typing import Any, Protocol
 MAX_MESSAGE_CHARS = 4096
 
 
+class TelegramAPIError(RuntimeError):
+    """A Telegram Bot API call failed with a machine-readable reason.
+
+    Raised instead of a bare ``RuntimeError`` whenever the Bot API responds
+    with ``ok: false`` (whether or not the HTTP status was also an error) or
+    the error body couldn't be parsed as JSON. ``str(exc)`` never contains
+    the request URL or bot token — only ``method`` and the redacted
+    ``description`` — so it is safe to log directly, unlike the ``httpx``
+    exception it replaces (whose message embeds the token in the URL).
+
+    Kept a subclass of ``RuntimeError`` with the same
+    ``"Telegram API call '<method>' failed: ..."`` message prefix so
+    existing callers that pattern-match on that text keep working.
+    """
+
+    def __init__(
+        self,
+        method: str,
+        *,
+        http_status: int | None = None,
+        error_code: int | None = None,
+        description: str,
+        retry_after: int | None = None,
+        migrate_to_chat_id: int | None = None,
+    ) -> None:
+        self.method = method
+        self.http_status = http_status
+        self.error_code = error_code
+        self.description = description
+        self.retry_after = retry_after
+        self.migrate_to_chat_id = migrate_to_chat_id
+        detail = f"HTTP {http_status}: {description}" if http_status is not None else description
+        super().__init__(f"Telegram API call {method!r} failed: {detail}")
+
+
 def split_message(text: str, *, limit: int = MAX_MESSAGE_CHARS) -> list[str]:
     """Split ``text`` into chunks the Bot API will accept (each ≤ ``limit``).
 
@@ -106,22 +141,69 @@ class TelegramClient:
     def _redact(self, text: str) -> str:
         return text.replace(self._token, "<bot-token>") if self._token else text
 
+    def _api_error(self, method: str, resp: Any, data: dict[str, Any]) -> TelegramAPIError:
+        """Build a :class:`TelegramAPIError` from a parsed ``ok: false`` body.
+
+        Applies whether the HTTP status was itself an error (4xx/5xx, the
+        common case) or the call returned ``200`` with ``ok: false`` in the
+        body (Telegram does this for some soft failures) — the Bot API's own
+        ``description`` is what actually explains the failure either way.
+        """
+        parameters = data.get("parameters") or {}
+        description = self._redact(str(data.get("description") or data))
+        return TelegramAPIError(
+            method,
+            http_status=getattr(resp, "status_code", None),
+            error_code=data.get("error_code"),
+            description=description,
+            retry_after=parameters.get("retry_after"),
+            migrate_to_chat_id=parameters.get("migrate_to_chat_id"),
+        )
+
+    def _fallback_error(self, method: str, resp: Any) -> TelegramAPIError:
+        """Build a :class:`TelegramAPIError` when the error body wasn't JSON
+        (or wasn't a Telegram-shaped object), from HTTP status alone."""
+        status = getattr(resp, "status_code", None)
+        reason = getattr(resp, "reason_phrase", None) or getattr(resp, "reason", None)
+        if status is None:
+            # No status attribute to build a description from (e.g. a bare
+            # test double) — fall back to whatever raise_for_status says,
+            # redacted; it may embed the URL, so never chain it (`from None`
+            # at the call site) and never surface it unredacted.
+            try:
+                resp.raise_for_status()
+            except Exception as exc:
+                return TelegramAPIError(method, description=self._redact(str(exc)))
+            return TelegramAPIError(method, description="response body was not valid JSON")
+        description = f"response body was not valid JSON (status {status}"
+        description += f" {reason})" if reason else ")"
+        return TelegramAPIError(method, http_status=status, description=self._redact(description))
+
+    def _parse_response(self, method: str, resp: Any) -> Any:
+        try:
+            data = resp.json()
+        except Exception:
+            data = None
+        if isinstance(data, dict) and "ok" in data:
+            if data.get("ok", False):
+                return data.get("result")
+            raise self._api_error(method, resp, data) from None
+        raise self._fallback_error(method, resp) from None
+
     def _call(self, method: str, payload: dict[str, Any]) -> Any:
         if self._http is None:
             raise RuntimeError("TelegramClient has no HTTP client; use from_token() or inject http=")
         try:
             resp = self._http.post(f"{self._base}/{method}", json=payload)
-            resp.raise_for_status()
-            data = resp.json()
         except Exception as exc:
             # The Bot API embeds the token in the URL, and httpx error
             # messages include the URL — re-raise with the token redacted
             # and without chaining (the original message would leak it into
-            # logged tracebacks).
+            # logged tracebacks). This is the network/timeout path; HTTP
+            # error *responses* are handled below, after we've had a chance
+            # to read the JSON body Telegram sends with them.
             raise RuntimeError(f"Telegram API call {method!r} failed: {self._redact(str(exc))}") from None
-        if not data.get("ok", False):
-            raise RuntimeError(f"Telegram API error on {method}: {self._redact(str(data.get('description', data)))}")
-        return data.get("result")
+        return self._parse_response(method, resp)
 
     def _call_multipart(self, method: str, data: dict[str, Any], files: dict[str, Any]) -> Any:
         """Like :meth:`_call` but for a ``multipart/form-data`` upload
@@ -130,13 +212,9 @@ class TelegramClient:
             raise RuntimeError("TelegramClient has no HTTP client; use from_token() or inject http=")
         try:
             resp = self._http.post(f"{self._base}/{method}", data=data, files=files)
-            resp.raise_for_status()
-            payload = resp.json()
         except Exception as exc:
             raise RuntimeError(f"Telegram API call {method!r} failed: {self._redact(str(exc))}") from None
-        if not payload.get("ok", False):
-            raise RuntimeError(f"Telegram API error on {method}: {self._redact(str(payload.get('description', payload)))}")
-        return payload.get("result")
+        return self._parse_response(method, resp)
 
     # ------------------------------------------------------------------ #
     # TelegramService

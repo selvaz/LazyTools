@@ -159,7 +159,7 @@ output starting with `"{"`).
 
     # base_dir is REQUIRED — the agent can only read inside /safe/docs.
     tools = read_docs_tools(base_dir="/safe/docs")
-    agent = Agent("claude-opus-4-8", tools=tools)
+    agent = Agent("claude-opus-5-5", tools=tools)
     agent("Summarise every PDF in the reports subfolder")
     ```
 

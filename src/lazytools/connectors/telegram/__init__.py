@@ -7,11 +7,18 @@ is fully testable with a fake client.
 
 from __future__ import annotations
 
-from lazytools.connectors.telegram.client import MAX_MESSAGE_CHARS, TelegramClient, TelegramService, split_message
+from lazytools.connectors.telegram.client import (
+    MAX_MESSAGE_CHARS,
+    TelegramAPIError,
+    TelegramClient,
+    TelegramService,
+    split_message,
+)
 from lazytools.connectors.telegram.tools import TelegramSendBlocked, TelegramTools
 
 __all__ = [
     "MAX_MESSAGE_CHARS",
+    "TelegramAPIError",
     "TelegramClient",
     "TelegramService",
     "TelegramTools",

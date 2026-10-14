@@ -133,14 +133,30 @@ def _treasury_fiscal(allow_write: bool = False, *,
 @_register("alfred")
 def _alfred(allow_write: bool = False, *,
            data_source: dict[str, Any] | None = None) -> Any:
-    """ALFRED point-in-time/vintage FRED data in market-data-hub.
+    """ALFRED, FRED's point-in-time view: what a series said on a past date.
 
-    Written by the hub's ingestion job, like the economic/earnings calendars,
-    so there is no write surface and ``allow_write`` is accepted and ignored.
+    Reads FRED live rather than a warehoused copy. Vintage data is asked for
+    one series and one date at a time, when a backtest reaches a decision
+    point -- it is not a series anyone sweeps daily, so ingesting it would
+    mean choosing in advance which series and which vintages might be wanted.
+    Asking at call time has no such guess in it.
+
+    No write surface at all, so ``allow_write`` is accepted and ignored.
+    Needs ``FRED_API_KEY``, resolved lazily: the provider constructs without
+    it and only a call fails. One environment knob, same convention as the
+    other live connectors: ``LAZYTOOLS_ALFRED_MAX_CALLS`` (default 200,
+    ``0`` to remove the guard).
     """
     from lazytools.connectors.alfred import ALFREDTools
 
-    return ALFREDTools(db_path=(data_source or {}).get("path"))
+    raw = os.environ.get("LAZYTOOLS_ALFRED_MAX_CALLS", "200")
+    try:
+        budget: int | None = int(raw)
+    except ValueError:
+        budget = 200
+    if budget is not None and budget <= 0:
+        budget = None
+    return ALFREDTools(max_calls=budget)
 
 
 @_register("tradingview")
@@ -653,9 +669,11 @@ def _code_review(allow_write: bool = False, *, data_source: dict[str, Any] | Non
       server process' cwd) — the directory every call's ``repo_path`` is
       confined to;
     * ``LAZYTOOLS_CODE_REVIEW_MODEL`` / ``LAZYTOOLS_CODE_REVIEW_EFFORT`` —
-      left unset, the local Codex config (``~/.codex/config.toml``) decides;
+      the *defaults*; left unset, the local Codex config
+      (``~/.codex/config.toml``) decides. Every call may override both with its
+      own ``model`` / ``effort`` and may name its thread with ``session_name``;
     * ``LAZYTOOLS_CODE_REVIEW_TIMEOUT`` — seconds per review (default:
-      ``DEFAULT_REVIEW_TIMEOUT``, 900).
+      ``DEFAULT_REVIEW_TIMEOUT``, 3600).
       A host-side MCP tool timeout shorter than this cancels the call first.
     """
     if not allow_write:
@@ -713,8 +731,11 @@ def _claude_review(allow_write: bool = False, *, data_source: dict[str, Any] | N
 
     Configuration: ``code_root`` / ``LAZYTOOLS_CODE_ROOT`` (the confinement
     root, shared with ``code_review``), ``LAZYTOOLS_CLAUDE_REVIEW_MODEL``
-    (default ``sonnet``), ``LAZYTOOLS_CLAUDE_REVIEW_THINKING``, and
-    ``LAZYTOOLS_CODE_REVIEW_TIMEOUT`` (shared, seconds per call).
+    (default ``sonnet``), ``LAZYTOOLS_CLAUDE_REVIEW_EFFORT`` (default: the
+    engine's), ``LAZYTOOLS_CLAUDE_REVIEW_THINKING``, and
+    ``LAZYTOOLS_CODE_REVIEW_TIMEOUT`` (shared, seconds per call). These are
+    defaults: each call may pass its own ``model`` / ``effort`` and a
+    ``session_name``.
     """
     if not allow_write:
         raise RuntimeError("claude_review is opt-in only: pass allow_write=True (--allow-unsafe).")
@@ -741,6 +762,7 @@ def _claude_review(allow_write: bool = False, *, data_source: dict[str, Any] | N
     settings: dict[str, Any] = {
         "root": (data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
         "model": os.environ.get("LAZYTOOLS_CLAUDE_REVIEW_MODEL") or "sonnet",
+        "effort": os.environ.get("LAZYTOOLS_CLAUDE_REVIEW_EFFORT") or None,
         "thinking": os.environ.get("LAZYTOOLS_CLAUDE_REVIEW_THINKING") or None,
         "timeout": timeout,
     }
@@ -749,17 +771,25 @@ def _claude_review(allow_write: bool = False, *, data_source: dict[str, Any] | N
 
 @_register("code_write")
 def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
-    """Codex with write access (``codex_write``), sandboxed to the code root.
+    """Claude Code and/or Codex with write access, sandboxed to the code root.
 
-    A thin ``CodeWriteTools(codex=True, claude=False)`` wrapper: Codex runs in
-    its CLI's ``workspace-write`` sandbox (with ``approval_policy=never``
-    pinned so it never blocks waiting on stdin), confined to the configured
-    code root — the same root ``code_review`` confines its ``repo_path``
-    argument to.
+    A thin ``CodeWriteTools`` wrapper exposing ``claude_code_write`` and
+    ``codex_write`` side by side — the same engine pairing as
+    ``claude_review``/``code_review`` (Claude Code's ``acceptEdits`` with
+    file edits confined to the call's directory, and Codex's
+    ``workspace-write`` sandbox, with ``approval_policy=never`` pinned so
+    Codex never blocks waiting on stdin), confined to the configured code
+    root — the same root ``code_review`` confines its ``repo_path`` argument
+    to. Both take per-call ``model``, ``effort`` and ``session_name``; Claude
+    Code's shell (``Bash``) is granted, as it always was, and cannot be
+    confined to the directory.
+
+    Each engine is included only if its CLI is actually found; the whole
+    provider is skipped only when *neither* is available. A single missing
+    CLI does not take the other one down with it.
 
     Same opt-in gating as ``code_review``/``claude_review``: absent unless
-    ``allow_write=True`` (``--allow-unsafe``), and skipped when the ``codex``
-    CLI can't be located.
+    ``allow_write=True`` (``--allow-unsafe``).
 
     Unlike ``CodeWriteTools``'s own default, the one-shot ``confirm_write()``
     gate is disabled here (``require_confirmation=False``). That gate exists
@@ -775,7 +805,7 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
     else the server process' cwd) — same fallback chain ``code_review`` uses
     for its confinement root. Unlike a review call, a write has no per-call
     ``repo_path``, so this is resolved once, at provider construction.
-    ``LAZYTOOLS_CODE_WRITE_TIMEOUT`` — seconds per call (default: 300).
+    ``LAZYTOOLS_CODE_WRITE_TIMEOUT`` — seconds per call (default: 3600).
     ``LAZYTOOLS_CODE_WRITE_DEFAULT_CWD`` — subdirectory (relative to the code
     root) a call runs in when it omits ``cwd`` (default: the code root
     itself). Set this to whichever project the calling agent is actually
@@ -785,19 +815,25 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
     if not allow_write:
         raise RuntimeError("code_write is opt-in only: pass allow_write=True (--allow-unsafe).")
 
+    import shutil
     from pathlib import Path
 
     from lazytools.connectors.code_support import CodeWriteTools, resolve_codex_bin
 
-    if resolve_codex_bin() is None:
-        raise RuntimeError("codex CLI not found on PATH or in the Codex app install directory; code_write skipped.")
+    have_claude = shutil.which("claude") is not None
+    have_codex = resolve_codex_bin() is not None
+    if not have_claude and not have_codex:
+        raise RuntimeError(
+            "neither claude nor codex CLI was found on PATH (or, for codex, the Codex app "
+            "install directory); code_write skipped."
+        )
 
     root = (data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT")
     base_dir = str(Path(root or Path.cwd()).expanduser().resolve())
 
     raw_timeout = os.environ.get("LAZYTOOLS_CODE_WRITE_TIMEOUT")
     try:
-        timeout = float(raw_timeout) if raw_timeout else 300.0
+        timeout = float(raw_timeout) if raw_timeout else 3600.0
     except ValueError as exc:
         raise RuntimeError(f"LAZYTOOLS_CODE_WRITE_TIMEOUT is not a number: {raw_timeout!r}") from exc
     if not math.isfinite(timeout) or timeout <= 0:
@@ -806,12 +842,37 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
     writer = CodeWriteTools(
         base_dir=base_dir,
         default_cwd=os.environ.get("LAZYTOOLS_CODE_WRITE_DEFAULT_CWD") or None,
-        claude=False,
-        codex=True,
+        claude=have_claude,
+        codex=have_codex,
         require_confirmation=False,
         timeout=timeout,
     )
     return writer.as_tools()
+
+
+@_register("code_sessions")
+def _code_sessions(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Named-session management for the code tools (``code_sessions_*``).
+
+    ``code_sessions_list`` shows the ``session_name`` aliases the review, ask
+    and write tools keep (LazyBridge's session registry) and what native
+    thread/session each points at; ``code_sessions_bind`` / ``_rename`` /
+    ``_forget`` curate them. Present exactly when the review tools are —
+    absent unless ``allow_write=True`` (``--allow-unsafe``) — and the three
+    mutators are exposed only then too. Every ``repo_path`` is confined to
+    ``code_root`` / ``LAZYTOOLS_CODE_ROOT`` (else the process' cwd), and a list
+    without one shows only scopes under that root. Forgetting a name never
+    touches the native session.
+    """
+    if not allow_write:
+        raise RuntimeError("code_sessions is opt-in only: pass allow_write=True (--allow-unsafe).")
+
+    from lazytools.connectors.code_support import CodeSessionTools
+
+    return CodeSessionTools(
+        root=(data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
+        allow_mutate=allow_write,
+    )
 
 
 @_register("telegram")
@@ -911,6 +972,49 @@ def _outlook(allow_write: bool = False, *, data_source: dict[str, Any] | None = 
     allow_env = os.environ.get("LAZYTOOLS_EMAIL_ALLOWLIST")
     allow = [a.strip() for a in allow_env.split(",") if a.strip()] if allow_env else None
     return OutlookTools(client, allowed_recipients=allow, require_confirmation=allow is None)
+
+
+@_register("pulse")
+def _pulse(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Read-only visibility into a LazyCEO deployment's shared state (backlog,
+    approval tickets) -- NOT its PulseAgent task schedules, which would
+    require importing lazypulse (forbidden; see the connector's docstring).
+
+    Needs the ``lazyceo`` package (an application built on lazypulse/
+    lazybridge, not a LazyTools extra) -- skipped like any other provider
+    whose optional dependency is missing. No write surface: ``allow_write``
+    is accepted and ignored, same convention as ``econ_calendar`` -- this
+    provider's tools are inherently read-only in v1.0 of the CEO blueprint's
+    phased rollout, not read-only-by-default.
+
+    ``data_source`` key: ``ceo_state_db`` (path to the shared CEO state
+    SQLite store; defaults to an in-memory Store if omitted, which is only
+    useful for tests -- a real deployment must set it).
+    """
+    from lazytools.connectors.pulse import PulseTools
+
+    ds = data_source or {}
+    return PulseTools(ceo_state_db=ds.get("ceo_state_db"))
+
+
+@_register("projects")
+def _projects(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """The shared project registry (``lazytools.projects``) -- read tools always;
+    bookkeeping write tools (create/promote/pause/plan-edit/contracts/verification
+    decisions) only with ``allow_write=True``.
+
+    Points at the SAME Store a live LazyCEO deployment writes, PROVIDED one is
+    configured -- see ``lazytools.connectors.projects.tools`` for the resolution
+    order (``data_source["projects_store_db"]`` > ``LAZYTOOLS_PROJECTS_STORE_DB``
+    > ``LAZYCEO_CEO_STORE_DB`` env var). With none of those set this opens an
+    in-memory store, never LazyCEO's real file by default -- see that module's
+    docstring. Never delegation, Telegram, specialist lifecycle, autonomy-level
+    changes, or merges -- those stay LazyCEO's own policy, or
+    ``lazytools-code-bridge``'s.
+    """
+    from lazytools.connectors.projects import ProjectsTools
+
+    return ProjectsTools(store_db=(data_source or {}).get("projects_store_db"), allow_write=allow_write)
 
 
 @_register("registry")

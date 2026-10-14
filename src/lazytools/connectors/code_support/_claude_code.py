@@ -21,6 +21,7 @@ import subprocess
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
+from lazytools.connectors.code_support._common import CLAUDE_EFFORTS, check_effort
 from lazytools.connectors.mcp import MCP
 
 if TYPE_CHECKING:
@@ -38,13 +39,13 @@ _TOOL_FLAGS: dict[str, list[str]] = {
     "plan": ["--permission-mode", "plan"],
 }
 
-#: Write-mode flags — used only by ``CodeWriteTools`` (gated, sandboxed).
-_WRITE_FLAGS: list[str] = [
-    "--allowedTools",
-    "Read,Write,Edit,Bash,Grep,Glob",
-    "--permission-mode",
-    "acceptEdits",
-]
+#: One hour. Was five minutes for writes and fifteen for reviews, which
+#: is shorter than a real refactor across a large repository: a long job
+#: was killed mid-work and the caller was told only that the call
+#: failed -- indistinguishable from a job that never started. Override
+#: per deployment with LAZYTOOLS_CODE_WRITE_TIMEOUT /
+#: LAZYTOOLS_CODE_REVIEW_TIMEOUT.
+DEFAULT_TIMEOUT = 3600.0
 
 
 def _run_claude(
@@ -55,13 +56,16 @@ def _run_claude(
     session_id: str | None,
     timeout: float,
     model: str | None = None,
+    effort: str | None = None,
 ) -> str:
     """Run the ``claude`` CLI once and return its result text (or an error
-    string starting with ``[claude_code]``). Shared by the read/plan tool and
-    the gated writer."""
+    string starting with ``[claude_code]``). Used by the read/plan tool only —
+    the gated writer runs on the LazyBridge engine instead."""
     cmd = ["claude", "-p", task, "--output-format", "json", *flags]
     if model:
         cmd += ["--model", model]
+    if effort:
+        cmd += ["--effort", effort]
     if session_id:
         cmd += ["--resume", session_id]
 
@@ -70,8 +74,23 @@ def _run_claude(
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             cwd=cwd,
+            # Found live (two 1500s timeouts with zero output, on real
+            # multi-file tasks -- trivial tasks never hit this): without
+            # this, `claude -p` inherits this process's stdin. In a
+            # non-interactive MCP server, nothing is ever there to answer a
+            # prompt this CLI build might emit (a trust dialog, a config
+            # migration notice, anything version-specific) -- the
+            # subprocess blocks on a read that can never complete, burning
+            # the full `timeout` with zero output and no partial result,
+            # indistinguishable from the process just being slow. Same
+            # fix already applied to _run_codex for the identical failure
+            # mode -- see that function's own comment. DEVNULL makes any
+            # such read fail/return EOF immediately instead of hanging.
+            stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired:
         return f"[claude_code] timeout after {timeout}s"
@@ -98,8 +117,9 @@ def claude_code(
     mode: str = "read",
     cwd: str | None = None,
     session_id: str | None = None,
-    timeout: float = 300.0,
-    model: str | None = "claude-sonnet-5",
+    timeout: float = DEFAULT_TIMEOUT,
+    model: str | None = "claude-sonnet-5-5",
+    effort: str | None = None,
 ) -> dict[str, Any] | str:
     """Delegate a read-only task to Claude Code CLI.
 
@@ -136,11 +156,16 @@ def claude_code(
         ``LLMEngine`` so the engine never cancels before the subprocess
         finishes (zombie-process hazard when engine fires first).
     model:
-        ``--model`` passed to the CLI. Defaults to ``"claude-sonnet-5"`` so
+        ``--model`` passed to the CLI. Defaults to ``"claude-sonnet-5-5"`` so
         the delegated session has a pinned, predictable model regardless of
         the CLI's own interactive default; pass an alias (``"opus"``,
         ``"sonnet"``) or a full model name, or ``None`` to omit the flag and
         let the CLI decide.
+    effort:
+        Reasoning effort, passed as ``--effort``: one of ``low``, ``medium``,
+        ``high``, ``xhigh``, ``max``. ``None`` (default) leaves the CLI's own
+        default. An unknown value raises ``ValueError`` listing the allowed
+        ones, before anything is launched.
 
     Notes
     -----
@@ -159,8 +184,9 @@ def claude_code(
             "(lazytools.connectors.code_support.CodeWriteTools)."
         )
 
+    effort = check_effort(effort, CLAUDE_EFFORTS, provider="Claude Code")
     out = _run_claude(
-        task, _TOOL_FLAGS[mode], cwd=cwd, session_id=session_id, timeout=timeout, model=model
+        task, _TOOL_FLAGS[mode], cwd=cwd, session_id=session_id, timeout=timeout, model=model, effort=effort
     )
     if out.startswith("[claude_code]"):
         return out
