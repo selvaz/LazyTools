@@ -61,7 +61,7 @@ class CFTCPositioningTools:
         end: str,
         contract_market_name: str = "",
     ) -> dict:
-        """Financial futures ONLY (rates, FX, equity indices, credit), with dealer/asset-manager/leveraged-money breakdowns; for energy, metals, or agricultural commodities use ``cftc_positioning_commodities`` instead, which has a coarser commercial/non-commercial split and no leveraged-money category.
+        """Financial futures (rates, FX, equity indices, credit) from the Traders in Financial Futures report, with dealer/asset-manager/leveraged-money breakdowns; for energy, metals, or agricultural commodities, or for the coarser commercial/non-commercial view of any contract, use ``cftc_positioning_commodities``.
 
         Args:
             start: Inclusive first report date in YYYY-MM-DD format; this required value cannot be empty.
@@ -97,12 +97,12 @@ class CFTCPositioningTools:
         end: str,
         contract_market_name: str = "",
     ) -> dict:
-        """Commodity futures ONLY (including energy, metals, and agriculture), with a coarser commercial/non-commercial split and no dealer/asset-manager/leveraged-money breakdown; use ``cftc_positioning_financial`` for financial futures and those detailed trader categories.
+        """The Legacy report: commodity futures (energy, metals, agriculture) and also some financial contracts (e.g. S&P 500 index futures), with a coarser commercial/non-commercial split and no dealer/asset-manager/leveraged-money breakdown; use ``cftc_positioning_financial`` for those detailed trader categories on financial futures.
 
         Args:
             start: Inclusive first report date in YYYY-MM-DD format; this required value cannot be empty.
             end: Inclusive last report date in YYYY-MM-DD format; this required value cannot be empty.
-            contract_market_name: Exact contract market name to filter on, or an empty string for all commodity contracts.
+            contract_market_name: Exact contract market name to filter on, or an empty string for every contract in the Legacy report.
         """
         if not start or not start.strip():
             raise ValueError("start is required")
