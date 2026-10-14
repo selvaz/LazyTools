@@ -36,16 +36,18 @@ traders differently:**
 
 | Tool | Covers | Trader breakdown | Hub reader |
 |---|---|---|---|
-| `cftc_positioning_financial` | Financial futures only — rates, FX, equity indices, credit | Dealer / Asset Manager / Leveraged Money (the CFTC's Traders in Financial Futures, TFF, categories) | `read_cftc_tff` |
-| `cftc_positioning_commodities` | Commodity futures only — energy, metals, agriculture | Commercial / Non-Commercial (the CFTC's Legacy report categories) | `read_cftc_legacy` |
+| `cftc_positioning_financial` | Financial futures — rates, FX, equity indices, credit | Dealer / Asset Manager / Leveraged Money (the CFTC's Traders in Financial Futures, TFF, categories) | `read_cftc_tff` |
+| `cftc_positioning_commodities` | The Legacy report: commodity futures (energy, metals, agriculture) and also some financial contracts, e.g. S&P 500 index futures | Commercial / Non-Commercial (the CFTC's Legacy report categories) | `read_cftc_legacy` |
 
-The two reports are not two views of the same data: a financial contract
-never appears in the Legacy split and a commodity contract never appears in
-the TFF one, and the trader categories themselves differ — TFF's
+The two reports use different trader categories: TFF's
 dealer/asset-manager/leveraged-money breakdown has no equivalent in the
-coarser Legacy commercial/non-commercial split. Picking the wrong tool for a
-contract does not error, it just returns nothing, which is why each tool's
-description names the other as the alternative.
+coarser Legacy commercial/non-commercial split. Coverage overlaps only one
+way: a commodity contract never appears in TFF, but the Legacy report also
+lists financial contracts (S&P 500 index futures, for example, are in both).
+For financial futures prefer the TFF tool, which has the finer categories;
+use the Legacy one when you need its commercial/non-commercial view. Asking
+TFF for a commodity contract does not error, it just returns nothing, which
+is why each tool's description names the other as the alternative.
 
 ## The tools
 
