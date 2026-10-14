@@ -33,7 +33,11 @@ from pathlib import Path
 AUTOMATED_CLAUDE = frozenset({"sdk-py"})
 AUTOMATED_CODEX = frozenset({"lazybridge"})
 
-_HEAD_BYTES = 64 * 1024
+_CHUNK_BYTES = 1024 * 1024
+#: The marker sits on the first message line, which can carry a very large prompt
+#: (LazyCommittee packets reach several MB), so read in chunks instead of a fixed head.
+_SCAN_LIMIT_BYTES = 64 * 1024 * 1024
+_OVERLAP = 256
 _ENTRYPOINT = re.compile(r'"entrypoint"\s*:\s*"([^"]*)"')
 _ORIGINATOR = re.compile(r'"originator"\s*:\s*"([^"]*)"')
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
@@ -63,13 +67,23 @@ class Transcript:
 
 
 def _origin(path: Path, pattern: re.Pattern[str]) -> str | None:
+    tail = ""
+    read = 0
     try:
         with path.open("rb") as stream:
-            head = stream.read(_HEAD_BYTES).decode("utf-8", "ignore")
+            while read < _SCAN_LIMIT_BYTES:
+                chunk = stream.read(_CHUNK_BYTES)
+                if not chunk:
+                    return None
+                read += len(chunk)
+                text = tail + chunk.decode("utf-8", "ignore")
+                match = pattern.search(text)
+                if match:
+                    return match.group(1)
+                tail = text[-_OVERLAP:]
     except OSError:
         return None
-    match = pattern.search(head)
-    return match.group(1) if match else None
+    return None
 
 
 def claude_transcripts(root: Path) -> Iterable[Transcript]:
