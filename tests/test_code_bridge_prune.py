@@ -113,3 +113,16 @@ def test_destructive_retention_values_are_refused(tmp_path, capsys):
         args = ["prune-sessions", "--claude-root", str(claude), "--codex-root", str(codex), "--older-than-days", bad]
         assert main([*args, "--apply"]) == 2
     assert all(path.exists() for path in paths.values())
+
+
+def test_origin_found_after_a_very_large_first_prompt(tmp_path):
+    folder = tmp_path / "claude" / "p"
+    folder.mkdir(parents=True)
+    sid = "99999999-9999-9999-9999-999999999999"
+    line = {"type": "user", "message": "x" * 3_000_000, "entrypoint": "sdk-py", "sessionId": sid}
+    path = folder / f"{sid}.jsonl"
+    path.write_text(json.dumps(line) + "\n", encoding="utf-8")
+
+    (item,) = _prune.claude_transcripts(tmp_path / "claude")
+
+    assert item.origin == "sdk-py" and item.automated
