@@ -43,6 +43,7 @@ UNKNOWN_ID = "44444444-4444-4444-4444-444444444444"
 ALIASED_ID = "55555555-5555-5555-5555-555555555555"
 BRIDGE_ID = "66666666-6666-6666-6666-666666666666"
 DESKTOP_ID = "77777777-7777-7777-7777-777777777777"
+REMOTE_ID = "88888888-8888-8888-8888-888888888888"
 
 
 def _layout(tmp_path: Path):
@@ -52,7 +53,8 @@ def _layout(tmp_path: Path):
         "mine": _claude(claude, "p1", MINE_ID, "claude-desktop"),
         "fresh": _claude(claude, "p2", FRESH_ID, "sdk-py", mtime=time.time()),
         "unknown": _claude(claude, "p2", UNKNOWN_ID, None),
-        "aliased": _claude(claude, "p2", ALIASED_ID, "sdk-cli"),
+        "aliased": _claude(claude, "p2", ALIASED_ID, "sdk-py"),
+        "remote": _claude(claude, "p2", REMOTE_ID, "sdk-cli"),
         "bridge": _codex(codex, BRIDGE_ID, "lazybridge"),
         "desktop": _codex(codex, DESKTOP_ID, "Codex Desktop"),
     }
@@ -66,7 +68,7 @@ def test_only_old_unaliased_automated_sessions_are_candidates(tmp_path):
     chosen, kept = _prune.candidates(found, older_than_days=7, protected_ids={ALIASED_ID})
 
     assert {item.session_id for item in chosen} == {SDK_ID, BRIDGE_ID}
-    assert kept == {"not automated": 2, "unknown origin": 1, "too recent": 1, "aliased": 1}
+    assert kept == {"not automated": 3, "unknown origin": 1, "too recent": 1, "aliased": 1}
 
 
 def test_codex_session_id_comes_from_the_rollout_name(tmp_path):
@@ -101,5 +103,13 @@ def test_cli_apply_deletes_candidates_and_subagent_folders_only(tmp_path, monkey
     assert summary["deleted"] == 2 and summary["kept"]["aliased"] == 1
     assert not paths["sdk"].exists() and not (paths["sdk"].parent / SDK_ID).exists()
     assert not paths["bridge"].exists()
-    for name in ("mine", "fresh", "unknown", "aliased", "desktop"):
+    for name in ("mine", "fresh", "unknown", "aliased", "desktop", "remote"):
         assert paths[name].exists(), name
+
+
+def test_destructive_retention_values_are_refused(tmp_path, capsys):
+    claude, codex, paths = _layout(tmp_path)
+    for bad in ("-1", "nan", "inf"):
+        args = ["prune-sessions", "--claude-root", str(claude), "--codex-root", str(codex), "--older-than-days", bad]
+        assert main([*args, "--apply"]) == 2
+    assert all(path.exists() for path in paths.values())

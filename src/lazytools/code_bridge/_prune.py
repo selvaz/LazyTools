@@ -3,9 +3,10 @@
 Both engines already record who started a session, so no extra tagging is
 needed:
 
-* Claude Code writes ``"entrypoint"`` into every transcript line: ``sdk-py`` /
-  ``sdk-cli`` for sessions driven through the SDK (LazyBridge, LazyCEO, the
-  bridge), ``cli`` / ``claude-desktop`` for a person's own sessions.
+* Claude Code writes ``"entrypoint"`` into every transcript line: ``sdk-py``
+  for sessions driven through the Python SDK (LazyBridge, LazyCEO, the
+  bridge); ``cli``, ``claude-desktop`` and ``sdk-cli`` (print mode, Remote
+  Control) are a person's own.
 * Codex writes ``"originator"`` into the rollout's ``session_meta``:
   ``lazybridge`` for app-server sessions LazyBridge opened, ``Codex Desktop`` /
   ``codex_exec`` for a person's own.
@@ -18,6 +19,7 @@ resume). The default is a dry run.
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import shutil
@@ -26,7 +28,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-AUTOMATED_CLAUDE = frozenset({"sdk-py", "sdk-cli"})
+#: Only the Python SDK (LazyBridge, LazyCEO, this bridge). ``sdk-cli`` is NOT here:
+#: Claude Code also uses it for a person's ``claude -p`` and Remote Control sessions.
+AUTOMATED_CLAUDE = frozenset({"sdk-py"})
 AUTOMATED_CODEX = frozenset({"lazybridge"})
 
 _HEAD_BYTES = 64 * 1024
@@ -106,6 +110,8 @@ def candidates(
     now: float | None = None,
 ) -> tuple[list[Transcript], dict[str, int]]:
     """Automated, old enough and not aliased; plus a count of why the rest were kept."""
+    if not math.isfinite(older_than_days) or older_than_days < 0:
+        raise ValueError("older_than_days must be a finite number >= 0")
     cutoff = (time.time() if now is None else now) - older_than_days * 86400
     chosen: list[Transcript] = []
     kept = {"not automated": 0, "unknown origin": 0, "too recent": 0, "aliased": 0}

@@ -381,8 +381,9 @@ Every engine session leaves a transcript on disk, and automated ones pile up:
 Claude Code under `~/.claude/projects`, Codex under `~/.codex/sessions` (which
 the Codex desktop app also lists). No tagging is needed to tell them apart,
 because both engines record who started a session. Claude Code transcripts carry
-`"entrypoint": "sdk-py"` / `"sdk-cli"` for SDK-driven sessions (LazyBridge,
-LazyCEO, this bridge), against `cli` / `claude-desktop` for a person's own.
+`"entrypoint": "sdk-py"` for Python-SDK sessions (LazyBridge, LazyCEO, this
+bridge), against `cli`, `claude-desktop` and `sdk-cli` (print mode and Remote
+Control) for a person's own.
 Codex rollouts carry `"originator": "lazybridge"` against `Codex Desktop` /
 `codex_exec`.
 

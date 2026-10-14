@@ -701,6 +701,9 @@ def _cmd_prune_sessions(args: argparse.Namespace) -> int:
     from lazytools.code_bridge import _prune
     from lazytools.connectors.code_support._common import session_registry
 
+    if not math.isfinite(args.older_than_days) or args.older_than_days < 0:
+        print("--older-than-days must be a finite number >= 0", file=sys.stderr)
+        return 2
     roots = _prune.default_roots()
     if args.claude_root:
         roots["claude"] = Path(args.claude_root)
