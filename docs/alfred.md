@@ -18,6 +18,11 @@ agent = Agent(name="macro", engine=LLMEngine("deepseek-v4-flash"),
               tools=[ALFREDTools()])
 ```
 
+Install with the extra: `pip install "lazytoolkit[alfred] @ git+https://github.com/selvaz/LazyTools.git"`
+(pulls in `httpx`, unlike Treasury Fiscal Data / CFTC COT, which translate
+the hub's own readers and need no HTTP client of their own). A free FRED API
+key is also required to actually call it — see **Credential** below.
+
 ## The two tools
 
 | Tool | Answers |
