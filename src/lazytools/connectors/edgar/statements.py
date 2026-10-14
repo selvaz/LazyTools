@@ -271,7 +271,7 @@ def _scale(note: str, kind: str) -> int | None:
 
 
 def _is_structural(concept: str | None) -> bool:
-    return bool(concept) and concept.endswith(_STRUCTURAL_SUFFIXES)
+    return concept is not None and concept.endswith(_STRUCTURAL_SUFFIXES)
 
 
 def _classes(attributes: str) -> set[str]:
@@ -290,7 +290,7 @@ def _plain(cell: str) -> str:
 
 def _number(text: str) -> float | None:
     cleaned = text.replace("$", "").replace(",", "").strip()
-    if not cleaned or cleaned in {"-", "—", "–"}:
+    if not cleaned or cleaned in {"-", "—", "–"}:  # noqa: RUF001 -- dashes printed as "nil"
         return None
     negative = cleaned.startswith("(") and cleaned.endswith(")")
     cleaned = cleaned.strip("()").rstrip("%").strip()

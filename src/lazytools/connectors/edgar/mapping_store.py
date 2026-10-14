@@ -28,7 +28,7 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from lazytools.connectors.edgar.mapping import Absence, LineRef, Mapping
@@ -122,7 +122,7 @@ class MappingStore:
                 "(accession, schema_version, model, created_at, payload) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (accession, SCHEMA_VERSION, model,
-                 datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                 datetime.now(UTC).isoformat(timespec="seconds"),
                  json.dumps(_to_payload(mapping))),
             )
             connection.commit()

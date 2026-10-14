@@ -10,6 +10,7 @@ fiscal Q2 FY2026 ended 31 December 2025 while calendar Q2 2026 ended 30 June
 from __future__ import annotations
 
 from datetime import date
+from itertools import pairwise
 
 import pytest
 
@@ -193,7 +194,7 @@ def test_quarters_leave_no_day_unassigned_for_a_30_january_year_end() -> None:
     quarters = [
         resolve(interpret(f"Q{n} 2025")[0], fiscal_year_end="0130") for n in (1, 2, 3, 4)
     ]
-    for earlier, later in zip(quarters, quarters[1:]):
+    for earlier, later in pairwise(quarters):
         assert (later.start - earlier.end).days == 1
 
 

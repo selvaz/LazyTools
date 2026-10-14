@@ -462,7 +462,6 @@ class EdgarClient:
         before any fiscal period can be turned into dates — without it, "Q2
         2026" cannot be told apart from calendar Q2 2026.
         """
-        padded = _pad_cik(cik)
         return self.issuer_profile(cik).get("fiscal_year_end")
 
     def issuer_profile(self, cik: str) -> dict[str, Any]:

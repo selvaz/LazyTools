@@ -13,7 +13,6 @@ from datetime import date
 
 import pytest
 
-from lazytools.financials.normalised import Element
 from lazytools.connectors.edgar.normalise import (
     _DEBT_SCOPED,
     _LEASE_TABLE,
@@ -21,6 +20,7 @@ from lazytools.connectors.edgar.normalise import (
     _settle,
     normalise,
 )
+from lazytools.financials.normalised import Element
 
 M = 1_000_000
 

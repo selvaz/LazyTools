@@ -40,7 +40,7 @@ class Reconciliation:
     name: str
     total: float | None
     components: dict[str, float | None]
-    #: total − sum(parts), or ``None`` when there was nothing to compare.
+    #: total - sum(parts), or ``None`` when there was nothing to compare.
     gap: float | None
     status: ReconciliationStatus
     detail: str
@@ -128,7 +128,7 @@ def reconcile(
                    f"leaves {gap:+,.0f} unexplained{expected}")
 
 
-def _result(name, total, components, gap, status, detail) -> Reconciliation:  # noqa: ANN001
+def _result(name, total, components, gap, status, detail) -> Reconciliation:
     return Reconciliation(name=name, total=total, components=dict(components),
                           gap=gap, status=status, detail=detail)
 

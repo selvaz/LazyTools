@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from lazytools.financials.period import ResolvedWindow
 
@@ -220,15 +220,16 @@ def pick(
             f"unknown version policy {policy!r}; expected 'original', 'latest', or 'as_of'"
         )
 
+    # Undated candidates returned above, so every ``filed`` below is a date.
     pool = candidates
     if policy == "as_of":
         if as_of is None:
             raise ValueError('policy="as_of" requires an as_of date')
-        pool = [f for f in candidates if f.filed <= as_of]
+        pool = [f for f in candidates if cast(date, f.filed) <= as_of]
         if not pool:
             raise ValueError(
                 f"no candidate was filed on or before {as_of.isoformat()}; "
-                f"the earliest was {min(f.filed for f in candidates).isoformat()}"
+                f"the earliest was {min(cast(date, f.filed) for f in candidates).isoformat()}"
             )
 
     reverse = policy != "original"
@@ -241,7 +242,7 @@ def pick(
     if tied:
         raise AmbiguousFactError(
             f"{len(tied) + 1} different values for {chosen.concept} were filed on "
-            f"{chosen.filed.isoformat()} ({', '.join(str(f.value) for f in [chosen, *tied])}); "
+            f"{cast(date, chosen.filed).isoformat()} ({', '.join(str(f.value) for f in [chosen, *tied])}); "
             "the period is reported more than once and no version policy separates them",
             candidates=[chosen, *tied],
         )

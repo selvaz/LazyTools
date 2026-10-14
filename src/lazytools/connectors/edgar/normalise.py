@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from lazytools.connectors.edgar.client import EdgarService
@@ -175,7 +175,7 @@ def normalise(
         currency=currency,
         period_start=window.start,
         period_end=window.end,
-        information_cutoff=as_of or datetime.now(timezone.utc).date(),
+        information_cutoff=as_of or datetime.now(UTC).date(),
         perimeter_status="unavailable",
         accession=accession,
         elements=elements,
@@ -242,7 +242,7 @@ def _read_statements(client: EdgarService, cik: str, accession: str) -> list[Ren
             continue
         try:
             statements.append(read_statement(client, cik, accession, report))
-        except Exception:  # noqa: BLE001 - one unreadable report is not a failed filing
+        except Exception:
             continue
     return statements
 
@@ -378,9 +378,9 @@ def _settle(claimants: list[str]) -> set[str]:
         if all(part in _WHOLES[wholes[0]] for part in parts):
             return set(parts)
     if not wholes:
-        for whole, parts in _EQUAL_WEIGHT_WHOLES.items():
-            if all(claimant in parts for claimant in claimants):
-                keeps = next(part for part in parts if part in claimants)
+        for group in _EQUAL_WEIGHT_WHOLES.values():
+            if all(claimant in group for claimant in claimants):
+                keeps = next(part for part in group if part in claimants)
                 return {c for c in claimants if c != keeps}
     return set(claimants)
 
@@ -424,8 +424,9 @@ def _check_totals(elements: dict[str, Element], columns: list[_Column]) -> None:
         current = elements.get(total_id)
         if current is None or not current.usable:
             continue
-        known = {cid: elements[cid].value for cid in component_ids
-                 if cid in elements and elements[cid].usable}
+        known: dict[str, float] = {
+            cid: value for cid in component_ids
+            if cid in elements and elements[cid].usable and (value := elements[cid].value) is not None}
         if not known:
             # A filer that presents one "Depreciation and amortization" line has
             # presented the total, and nothing here contradicts it. It stays
@@ -503,8 +504,9 @@ def _sum_into(elements: dict[str, Element], total_id: str, component_ids: tuple[
     existing = elements.get(total_id)
     if existing is not None and existing.usable:
         return
-    known = {cid: elements[cid].value for cid in component_ids
-             if cid in elements and elements[cid].usable}
+    known: dict[str, float] = {
+        cid: value for cid in component_ids
+        if cid in elements and elements[cid].usable and (value := elements[cid].value) is not None}
     if not known:
         if existing is None:
             elements[total_id] = Element(

@@ -209,7 +209,7 @@ def propose(
     try:
         text = agent(task) if agent is not None else _default_agent(model)(task)
         return parse_mapping(json.loads(_json_block(text)))
-    except Exception as exc:  # noqa: BLE001 - a bad answer is an empty mapping, not a crash
+    except Exception as exc:
         return Mapping(refs=(), absences=(), rejected=(f"the model's answer was unusable: {exc}",))
 
 

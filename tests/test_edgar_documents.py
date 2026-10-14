@@ -150,7 +150,7 @@ def test_a_double_digit_exhibit_sorts_after_the_single_digit_one() -> None:
 def test_a_pdf_exhibit_is_reported_unreadable_rather_than_offered() -> None:
     # This connector's media allowlist refuses a PDF, so a caller reaching one
     # needs a different extraction path -- not a retry, and not silence.
-    docs = MSFT_8K + [_doc("14", "EX-99.2", None, "release.pdf", "application/pdf")]
+    docs = [*MSFT_8K, _doc("14", "EX-99.2", None, "release.pdf", "application/pdf")]
     result = classify(docs, accession="x", form="8-K")
     assert [d.filename for d in result.unreadable] == ["release.pdf"]
     assert "release.pdf" not in {d.filename for d in result.release_candidates}
@@ -162,7 +162,7 @@ def test_an_unreadable_exhibit_still_counts_towards_ambiguity() -> None:
     # HTML is a supplement, reporting a single unambiguous candidate makes the
     # caller read the supplement as the release with nothing warning it. An
     # exhibit we cannot open is still an exhibit that might be the answer.
-    docs = MSFT_8K + [_doc("14", "EX-99.2", None, "release.pdf", "application/pdf")]
+    docs = [*MSFT_8K, _doc("14", "EX-99.2", None, "release.pdf", "application/pdf")]
     assert classify(docs, accession="x", form="8-K").ambiguous
 
 

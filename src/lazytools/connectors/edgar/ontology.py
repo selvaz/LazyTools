@@ -139,7 +139,7 @@ def classify(
             names = [report.short_name for report in list_reports(client, cik, accession)]
             signals = _signals_from(names)
             scanned = True
-        except Exception:  # noqa: BLE001 - an unreadable index is a note, not a failure
+        except Exception:
             signals = ()
 
     return Classification(

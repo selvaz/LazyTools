@@ -29,7 +29,7 @@ about the issuer and not noise to be smoothed away.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from lazytools.connectors.edgar.client import EdgarService
@@ -186,7 +186,7 @@ def normalise_series(
                 currency=currency,
                 period_start=window.start,
                 period_end=window.end,
-                information_cutoff=as_of or datetime.now(timezone.utc).date(),
+                information_cutoff=as_of or datetime.now(UTC).date(),
                 perimeter_status="unavailable",
                 accession=accession,
                 elements=_elements_for(mapping, columns, accession),
