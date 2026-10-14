@@ -375,6 +375,31 @@ record in the final JSON; detached JSON includes it in the launch record.
 Detached children use the parent's frozen decision, without a second quota
 read or a different pick.
 
+## Prune old automated sessions
+
+Every engine session leaves a transcript on disk, and automated ones pile up:
+Claude Code under `~/.claude/projects`, Codex under `~/.codex/sessions` (which
+the Codex desktop app also lists). No tagging is needed to tell them apart,
+because both engines record who started a session. Claude Code transcripts carry
+`"entrypoint": "sdk-py"` for Python-SDK sessions (LazyBridge, LazyCEO, this
+bridge), against `cli`, `claude-desktop` and `sdk-cli` (print mode and Remote
+Control) for a person's own.
+Codex rollouts carry `"originator": "lazybridge"` against `Codex Desktop` /
+`codex_exec`.
+
+```console
+lazytools-code-bridge prune-sessions                      # dry run: what would go, and why the rest stays
+lazytools-code-bridge prune-sessions --older-than-days 14 --engine claude
+lazytools-code-bridge prune-sessions --apply              # delete
+```
+
+Only automated sessions older than the cut-off (default 7 days) are deleted,
+together with a Claude session's sub-agent folder. A transcript whose origin
+cannot be read is kept, as is any session a named alias (`--session`, `code_sessions_*`)
+still points at. Your own sessions are never candidates. `--json` prints the
+summary for scripts. The Codex desktop app also keeps its own thread index;
+pruning rollouts frees the transcripts but does not edit that index.
+
 ## Check live model availability
 
 ```console

@@ -697,6 +697,55 @@ def _cmd_reject(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_prune_sessions(args: argparse.Namespace) -> int:
+    from lazytools.code_bridge import _prune
+    from lazytools.connectors.code_support._common import session_registry
+
+    if not math.isfinite(args.older_than_days) or args.older_than_days < 0:
+        print("--older-than-days must be a finite number >= 0", file=sys.stderr)
+        return 2
+    roots = _prune.default_roots()
+    if args.claude_root:
+        roots["claude"] = Path(args.claude_root)
+    if args.codex_root:
+        roots["codex"] = Path(args.codex_root)
+    engines = ("claude", "codex") if args.engine == "all" else (args.engine,)
+    # A session a named alias still points at stays: deleting it would break --session resume.
+    protected = {row["native_id"] for row in session_registry().entries() if row.get("native_id")}
+    found: list[_prune.Transcript] = []
+    for engine in engines:
+        scan = _prune.claude_transcripts if engine == "claude" else _prune.codex_transcripts
+        found.extend(scan(roots[engine]))
+    chosen, kept = _prune.candidates(found, older_than_days=args.older_than_days, protected_ids=protected)
+    size = sum(item.total_size for item in chosen)
+    summary = {
+        "mode": "apply" if args.apply else "dry-run",
+        "older_than_days": args.older_than_days,
+        "candidates": len(chosen),
+        "candidate_mb": round(size / 1e6, 1),
+        "by_engine": {e: sum(1 for i in chosen if i.engine == e) for e in engines},
+        "kept": kept,
+    }
+    if args.apply:
+        count, freed, errors = _prune.delete(chosen)
+        summary.update(deleted=count, freed_mb=round(freed / 1e6, 1), errors=errors)
+    if args.json:
+        _print_json(summary)
+        return 1 if summary.get("errors") else 0
+    print(
+        f"{summary['mode']}: {len(chosen)} automated session(s) older than {args.older_than_days:g} days, "
+        f"{summary['candidate_mb']} MB ({', '.join(f'{e} {n}' for e, n in summary['by_engine'].items())})"
+    )
+    print("kept: " + ", ".join(f"{n} {why}" for why, n in kept.items()))
+    if args.apply:
+        print(f"deleted {summary['deleted']}, freed {summary['freed_mb']} MB")
+        for error in summary["errors"]:
+            print(f"error: {error}", file=sys.stderr)
+        return 1 if summary["errors"] else 0
+    print("nothing deleted; re-run with --apply to delete")
+    return 0
+
+
 # --------------------------------------------------------------------------- #
 # argparse wiring
 # --------------------------------------------------------------------------- #
@@ -826,6 +875,18 @@ def build_parser() -> argparse.ArgumentParser:
     reject_p.add_argument("--actor", default="operator")
     _add_db_option(reject_p)
     reject_p.set_defaults(func=_cmd_reject)
+
+    prune_p = sub.add_parser(
+        "prune-sessions",
+        help="Delete old transcripts of automated (SDK / LazyBridge) Claude Code and Codex sessions. Dry run by default.",
+    )
+    prune_p.add_argument("--older-than-days", type=float, default=7.0)
+    prune_p.add_argument("--engine", choices=["all", "claude", "codex"], default="all")
+    prune_p.add_argument("--apply", action="store_true", help="Actually delete (default: list only).")
+    prune_p.add_argument("--claude-root", default=None, help="Default: ~/.claude/projects.")
+    prune_p.add_argument("--codex-root", default=None, help="Default: ~/.codex/sessions.")
+    prune_p.add_argument("--json", action="store_true")
+    prune_p.set_defaults(func=_cmd_prune_sessions)
 
     return parser
 
