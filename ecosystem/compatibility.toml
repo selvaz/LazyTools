@@ -20,13 +20,13 @@ schema_version = 1
 
 [verified]
 python = ["3.11", "3.12", "3.13"]
-lazybridge = "1.8.0"
+lazybridge = "1.8.1"
 
 # Immutable GitHub refs of the verified, co-installable combination.
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.10.1"
+ref = "v0.10.2"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
@@ -34,20 +34,20 @@ ref = "v0.4.0"
 
 [verified.github.lazycrawler]
 repo = "https://github.com/selvaz/LazyCrawler"
-ref = "v0.19.4"
+ref = "v0.19.5"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "9ad84122261e034b0eb38644afc9e53654727d7d"  # pre-tag pin; finance train replaces with a release tag
+ref = "v0.2.0"
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
-ref = "e1b1f4f0eb2c44e5f3987bf406ff01a26bb33eea"  # pre-tag pin; finance train replaces with a release tag
+ref = "v0.3.0"
 extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "3490f565c3edb30061e808023e456202c785f69e"  # pre-tag pin; no release tags yet -- includes its own datacore extra's matching market-data-hub pin (must move together, or the released job's resolver sees two conflicting refs for the same package)
+ref = "v0.2.0"  # its datacore extra pins market-data-hub v0.2.0 too (must move together)
 extras = ["datacore"]
 
 [verified.github.lazyfin]
@@ -71,4 +71,4 @@ repo = "https://github.com/selvaz/LazyRay"
 reason = "LazyRay still pins market-data-hub at 636b38a7, the revision this manifest verified until 2026-08-29; the combination has since moved to 50e57e53, so the two disagree again. It was re-aligned once before (ECO-007) and will need the same treatment: bump LazyRay's own pin to the verified revision, then move it to [verified.github] once the ecosystem-released CI installs and smokes it. Nothing in production depends on the two agreeing today, because LazyRay's runtime worktree is pinned independently and this entry is not installed by the released-combination job."
 
 [minimums]
-lazybridge = ">=1.8.0,<2.0"
+lazybridge = ">=1.8.1,<2.0"
