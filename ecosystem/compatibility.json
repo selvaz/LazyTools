@@ -6,7 +6,7 @@
   "verified": {
     "github": {
       "lazycrawler": {
-        "ref": "v0.19.5",
+        "ref": "v0.19.6",
         "repo": "https://github.com/selvaz/LazyCrawler"
       },
       "lazydataspace": {
@@ -25,7 +25,7 @@
         "extras": [
           "datacore"
         ],
-        "ref": "v0.2.0",
+        "ref": "v0.2.1",
         "repo": "https://github.com/selvaz/LazyPortfolio"
       },
       "lazypulse": {
@@ -33,7 +33,7 @@
         "repo": "https://github.com/selvaz/LazyPulse"
       },
       "lazyray": {
-        "ref": "v0.2.0",
+        "ref": "v0.2.1",
         "repo": "https://github.com/selvaz/LazyRay"
       },
       "lazystats": {
@@ -48,11 +48,11 @@
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
-        "ref": "v0.2.0",
+        "ref": "v0.2.1",
         "repo": "https://github.com/selvaz/market-data-hub"
       }
     },
-    "lazybridge": "1.8.1",
+    "lazybridge": "1.8.2",
     "python": [
       "3.11",
       "3.12",
