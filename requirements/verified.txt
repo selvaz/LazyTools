@@ -3,7 +3,7 @@
 #   pip install -r requirements/verified.txt
 
 lazybridge==1.8.1
-lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.2
+lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.1
 lazypulse @ git+https://github.com/selvaz/LazyPulse.git@v0.4.0
 lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@v0.19.5
 market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@v0.2.0
