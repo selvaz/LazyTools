@@ -19,7 +19,7 @@ explains tier selection and admission. **Benchmark in progress**; no measured
 quality, time, quota-efficiency or subscription savings result is claimed.
 
 ```sh
-python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.1"
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.2"
 lazytools-mcp projects code_review claude_review code_write code_sessions --allow-unsafe
 ```
 
@@ -41,7 +41,7 @@ LazyTools is distributed from GitHub (only LazyBridge is on PyPI). Add an
 extra to the pinned direct reference:
 
 ```bash
-G="git+https://github.com/selvaz/LazyTools.git@v0.10.1"
+G="git+https://github.com/selvaz/LazyTools.git@v0.10.2"
 pip install "lazytoolkit @ $G"                 # core (just lazybridge)
 pip install "lazytoolkit[gmail] @ $G"          # Gmail client + guarded draft/send tools
 pip install "lazytoolkit[telegram] @ $G"       # Telegram client + guarded send tool

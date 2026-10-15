@@ -10,7 +10,7 @@ approval tickets, use the [async code bridge](../code-bridge.md).
 The distribution is `lazytoolkit`; imports use `lazytools`.
 
 ```sh
-python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.1"
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.2"
 lazytools-mcp projects code_review claude_review code_write code_sessions --allow-unsafe
 ```
 
