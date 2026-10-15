@@ -48,8 +48,17 @@ def test_stale_sibling_ref_and_unknown_repo_fail(tmp_path):
 def test_lazybridge_exact_pin_and_range_must_admit_the_verified_version(tmp_path):
     repo = _repo(tmp_path, '  "lazybridge==1.8.0",\n  "lazybridge[anthropic]>=1.9,<2.0",')
     errors = check_pins.check(repo, MANIFEST)
-    assert any("lazybridge pinned to 1.8.0" in e for e in errors)
-    assert any("excludes the verified 1.8.1" in e for e in errors)
+    assert any("lazybridge ==1.8.0 excludes the verified 1.8.1" in e for e in errors)
+    assert any("<2.0,>=1.9 excludes the verified 1.8.1" in e for e in errors)
+
+
+def test_lazybridge_name_case_wildcards_and_inline_comments(tmp_path):
+    (tmp_path / "requirements.txt").write_text(
+        "LazyBridge==1.8.0\nlazybridge==1.8.*  # same minor\nlazybridge==1.8.1,!=1.8.1\nlazybridge>=1.9  # minimum\n",
+        encoding="utf-8",
+    )
+    errors = check_pins.check(tmp_path, MANIFEST)
+    assert [e.split(":")[1] for e in errors] == ["1", "3", "4"]
 
 
 def test_requirements_files_and_comments(tmp_path):

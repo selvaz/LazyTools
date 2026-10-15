@@ -29,11 +29,12 @@ import urllib.request
 from pathlib import Path
 
 from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import Version
 
 MANIFEST_URL = "https://raw.githubusercontent.com/selvaz/LazyTools/main/ecosystem/compatibility.toml"
 GIT_REF_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?@([A-Za-z0-9._-]+)")
-REQ_STRING_RE = re.compile(r"""["']([^"'\n]*lazybridge[^"'\n]*)["']""")
+REQ_STRING_RE = re.compile(r"""["']([^"'\n]*lazy[-_.]?bridge[^"'\n]*)["']""", re.IGNORECASE)
 
 
 def load_manifest(source: str | None) -> dict:
@@ -69,18 +70,18 @@ def check(repo: Path, manifest: dict) -> list[str]:
                     errors.append(f"{rel}:{lineno}: {name} is not in the ecosystem manifest")
                 elif ref != want:
                     errors.append(f"{rel}:{lineno}: {name} pinned to {ref!r}, manifest says {want!r}")
-            for raw in REQ_STRING_RE.findall(line) or ([line.strip()] if path.suffix == ".txt" else []):
+            # pip requirement files allow inline comments after whitespace.
+            plain = re.split(r"\s#", line, maxsplit=1)[0].strip()
+            for raw in REQ_STRING_RE.findall(line) or ([plain] if path.suffix == ".txt" and plain else []):
                 try:
                     req = Requirement(raw)
                 except InvalidRequirement:
                     continue
-                if req.name != "lazybridge" or req.url:
+                if canonicalize_name(req.name) != "lazybridge" or req.url:
                     continue
-                exact = [s for s in req.specifier if s.operator == "=="]
-                if exact and Version(exact[0].version) != bridge:
-                    errors.append(f"{rel}:{lineno}: lazybridge pinned to {exact[0].version}, manifest says {bridge}")
-                elif not exact and req.specifier and bridge not in req.specifier:
-                    errors.append(f"{rel}:{lineno}: lazybridge range {req.specifier} excludes the verified {bridge}")
+                # The whole specifier set decides (``==1.8.*``, ``==1.8.1,!=1.8.1`` ...).
+                if req.specifier and bridge not in req.specifier:
+                    errors.append(f"{rel}:{lineno}: lazybridge {req.specifier} excludes the verified {bridge}")
     return errors
 
 
