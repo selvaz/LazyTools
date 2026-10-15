@@ -34,6 +34,9 @@ from packaging.version import Version
 
 MANIFEST_URL = "https://raw.githubusercontent.com/selvaz/LazyTools/main/ecosystem/compatibility.toml"
 GIT_REF_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?@([A-Za-z0-9._-]+)")
+# A selvaz Git URL with no ``@ref`` installs whatever the default branch is that day.
+UNPINNED_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?(?![A-Za-z0-9_.@-])")
+SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "site-packages", ".tox", "build", "dist"}
 REQ_STRING_RE = re.compile(r"""["']([^"'\n]*lazy[-_.]?bridge[^"'\n]*)["']""", re.IGNORECASE)
 
 
@@ -46,7 +49,13 @@ def load_manifest(source: str | None) -> dict:
 
 def scanned_files(repo: Path) -> list[Path]:
     files = [repo / "pyproject.toml"] if (repo / "pyproject.toml").exists() else []
-    files += sorted(repo.glob("requirements*.txt")) + sorted(repo.glob("requirements/*.txt"))
+    # Requirement files anywhere (deploy bundles, docker images...), outside virtualenvs/builds.
+    files += sorted(
+        path
+        for path in repo.rglob("requirements*.txt")
+        if not SKIP_DIRS.intersection(path.relative_to(repo).parts[:-1])
+    )
+    files += sorted(path for path in repo.glob("requirements/*.txt") if not path.name.startswith("requirements"))
     # CI installs count too: a workflow that installs a sibling "@main" tests another version.
     files += sorted(repo.glob(".github/workflows/*.yml")) + sorted(repo.glob(".github/workflows/*.yaml"))
     return files
@@ -70,6 +79,10 @@ def check(repo: Path, manifest: dict) -> list[str]:
                     errors.append(f"{rel}:{lineno}: {name} is not in the ecosystem manifest")
                 elif ref != want:
                     errors.append(f"{rel}:{lineno}: {name} pinned to {ref!r}, manifest says {want!r}")
+            for name in UNPINNED_RE.findall(line):
+                want = refs.get(name.lower())
+                hint = f"use @{want}" if want else "not in the manifest (LazyBridge: lazybridge==X from PyPI)"
+                errors.append(f"{rel}:{lineno}: {name} has no ref, so it installs a moving branch; {hint}")
             # pip requirement files allow inline comments after whitespace.
             plain = re.split(r"\s#", line, maxsplit=1)[0].strip()
             for raw in REQ_STRING_RE.findall(line) or ([plain] if path.suffix == ".txt" and plain else []):
