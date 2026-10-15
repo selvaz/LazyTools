@@ -1,3 +1,4 @@
+# pin-check: ignore-file -- this job installs every sibling's main on purpose.
 name: ecosystem-source-head
 
 # Anticipatory compatibility check: install THIS checkout in editable mode

@@ -61,3 +61,25 @@ def test_requirements_files_and_comments(tmp_path):
     )
     errors = check_pins.check(tmp_path, MANIFEST)
     assert errors == ["requirements.txt:2: LazyTools pinned to 'v0.9.0', manifest says 'v0.10.2'"]
+
+
+def test_workflow_installs_from_a_moving_branch_fail(tmp_path):
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "ci.yml").write_text(
+        'run: pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools@main"\n'
+        'run: pip install "lazystats @ git+https://github.com/selvaz/LazyStats@main"  # pin-check: ignore\n',
+        encoding="utf-8",
+    )
+    errors = check_pins.check(tmp_path, MANIFEST)
+    assert errors == [".github/workflows/ci.yml:1: LazyTools pinned to 'main', manifest says 'v0.10.2'"]
+
+
+def test_a_file_can_opt_out_entirely(tmp_path):
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "source-head.yml").write_text(
+        '# pin-check: ignore-file\nrun: pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools@main"\n',
+        encoding="utf-8",
+    )
+    assert check_pins.check(tmp_path, MANIFEST) == []

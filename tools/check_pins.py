@@ -5,13 +5,16 @@ Run from any ecosystem repo's CI (the manifest is fetched from LazyTools main by
     python check_pins.py --repo .                       # manifest from GitHub
     python check_pins.py --repo . --manifest path.toml  # manifest from a file
 
-Scanned: ``pyproject.toml`` and ``requirements*.txt`` (the files that decide what gets
-installed). Rules:
+Scanned: ``pyproject.toml``, ``requirements*.txt`` and ``.github/workflows/*.yml`` (the files
+that decide what gets installed, in production and in CI). Rules:
 
 * every ``git+https://github.com/selvaz/<Repo>.git@<ref>`` reference must name a repo in the
   manifest and use exactly its ref;
 * an exact ``lazybridge==X`` pin must equal the verified LazyBridge version, and any other
   ``lazybridge`` range must admit it.
+
+A line that deliberately installs a moving ref opts out with a trailing ``# pin-check: ignore``;
+a whole file (e.g. a source-head job that tests every ``main``) with ``pin-check: ignore-file``.
 
 Exit 0 when aligned, 1 with one line per mismatch otherwise.
 """
@@ -43,6 +46,8 @@ def load_manifest(source: str | None) -> dict:
 def scanned_files(repo: Path) -> list[Path]:
     files = [repo / "pyproject.toml"] if (repo / "pyproject.toml").exists() else []
     files += sorted(repo.glob("requirements*.txt")) + sorted(repo.glob("requirements/*.txt"))
+    # CI installs count too: a workflow that installs a sibling "@main" tests another version.
+    files += sorted(repo.glob(".github/workflows/*.yml")) + sorted(repo.glob(".github/workflows/*.yaml"))
     return files
 
 
@@ -52,8 +57,11 @@ def check(repo: Path, manifest: dict) -> list[str]:
     errors: list[str] = []
     for path in scanned_files(repo):
         rel = path.relative_to(repo).as_posix()
-        for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-            if line.lstrip().startswith("#"):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "pin-check: ignore-file" in text:
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if line.lstrip().startswith("#") or "pin-check: ignore" in line:
                 continue
             for name, ref in GIT_REF_RE.findall(line):
                 want = refs.get(name.lower())
