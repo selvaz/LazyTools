@@ -88,6 +88,7 @@ jobs:
           import lazycrawler
           import lazyportfolio
           import lazypulse
+          import lazyray
           import lazytools
 
           # lazyfin is the one PRIVATE manifest component: without
@@ -101,7 +102,7 @@ jobs:
               _have_lazyfin = False
               print("lazyfin not installed (ECOSYSTEM_PAT not set) -- skipping its checks")
 
-          pkgs = ["lazybridge", "lazytoolkit", "lazypulse", "lazycrawler", "market-data-hub", "lazystats", "lazyportfolio"]
+          pkgs = ["lazybridge", "lazytoolkit", "lazypulse", "lazycrawler", "market-data-hub", "lazystats", "lazyportfolio", "lazyray"]
           if _have_lazyfin:
               pkgs.append("lazyfin")
           for pkg in pkgs:
@@ -255,9 +256,17 @@ jobs:
           done
 
           if ls *.whl >/dev/null 2>&1; then
-            pip install *.whl
+            # lazyray declares market-data-hub as a direct Git reference; pip refuses to
+            # satisfy that with the (identical) market-data-hub Release wheel, so lazyray's
+            # wheel goes in without dependencies and its other requirements are added after.
+            pip install $(ls *.whl | grep -v '^lazyray-')
+            if ls lazyray-*.whl >/dev/null 2>&1; then
+              pip install --no-deps lazyray-*.whl
+              python -c "import importlib.metadata as md; print(*[r for r in (md.requires('lazyray') or []) if 'extra ==' not in r and not r.startswith('market-data-hub')], sep=chr(10))" > lazyray-deps.txt
+              pip install -r lazyray-deps.txt
+            fi
             pip check
-            python -c "import lazytools, lazypulse; print('release wheels import OK')"
+            python -c "import lazytools, lazypulse, lazyray; print('release wheels import OK')"
           else
             echo "::warning::no Release wheels found for any manifest component"
           fi
