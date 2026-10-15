@@ -35,7 +35,7 @@ from packaging.version import Version
 MANIFEST_URL = "https://raw.githubusercontent.com/selvaz/LazyTools/main/ecosystem/compatibility.toml"
 GIT_REF_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?@([A-Za-z0-9._-]+)")
 # A selvaz Git URL with no ``@ref`` installs whatever the default branch is that day.
-UNPINNED_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_-]+)(?:\.git)?(?![A-Za-z0-9_.@-])")
+UNPINNED_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?(?![A-Za-z0-9_.@-])")
 SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "site-packages", ".tox", "build", "dist"}
 REQ_STRING_RE = re.compile(r"""["']([^"'\n]*lazy[-_.]?bridge[^"'\n]*)["']""", re.IGNORECASE)
 
