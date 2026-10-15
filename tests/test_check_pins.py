@@ -84,6 +84,24 @@ def test_workflow_installs_from_a_moving_branch_fail(tmp_path):
     assert errors == [".github/workflows/ci.yml:1: LazyTools pinned to 'main', manifest says 'v0.10.2'"]
 
 
+def test_unpinned_git_urls_in_nested_requirement_files_fail(tmp_path):
+    deploy = tmp_path / "deploy" / "bot"
+    deploy.mkdir(parents=True)
+    (deploy / "requirements.txt").write_text(
+        "lazytoolkit[telegram] @ git+https://github.com/selvaz/LazyTools.git\n"
+        "lazybridge[deepseek] @ git+https://github.com/selvaz/LazyBridge.git\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".venv" / "lib").mkdir(parents=True)
+    (tmp_path / ".venv" / "lib" / "requirements.txt").write_text(
+        "x @ git+https://github.com/selvaz/LazyTools.git\n", encoding="utf-8"
+    )
+    errors = check_pins.check(tmp_path, MANIFEST)
+    assert len(errors) == 2
+    assert errors[0].startswith("deploy/bot/requirements.txt:1: LazyTools has no ref") and "use @v0.10.2" in errors[0]
+    assert "LazyBridge has no ref" in errors[1] and "PyPI" in errors[1]
+
+
 def test_a_file_can_opt_out_entirely(tmp_path):
     workflows = tmp_path / ".github" / "workflows"
     workflows.mkdir(parents=True)
