@@ -8,6 +8,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.2] — 2026-10-15
+
+### Added
+- `lazytools-code-bridge prune-sessions`: delete old transcripts of automated Claude Code
+  (`sdk-py`) and Codex (`lazybridge`) sessions; dry run by default, keeps a person's own,
+  unreadable, recent and aliased sessions (#195, #196).
+
+### Changed
+- Routing: the `basic` tier uses Luna 6 / Haiku 5.5 (#191).
+- Requires `lazybridge>=1.8.1`; the `web` extra pins lazycrawler `v0.19.5` (ecosystem-2026.10).
+
+### Documentation
+- Connectors table lists Treasury Fiscal Data, CFTC COT and ALFRED; the CFTC Legacy tool is
+  described as the full Legacy report (#193, #194).
+
 ## [0.10.1] — 2026-10-09
 
 ### Added

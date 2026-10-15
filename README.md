@@ -5,7 +5,7 @@ It connects engine-backed coding tools, detached jobs with durable approval
 tickets, shared project evidence and deterministic quota routing. One engine
 writes, the other reviews; code runs the checks and records the acceptance.
 
-**LazyTools 0.10.1 is Alpha.** It requires LazyBridge 1.8.0 or later within
+**LazyTools 0.10.2 is Alpha.** It requires LazyBridge 1.8.1 or later within
 1.x. LazyBridge core is Stable; that does not make every integration Stable.
 With a subscription login, coding runtimes use your plan's quota; LazyTools
 inherits runtime authentication and does not force a billing path.

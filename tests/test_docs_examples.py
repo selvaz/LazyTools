@@ -297,7 +297,11 @@ def test_changed_install_snippets_and_tree_flags(isolated, monkeypatch):
     pytest.importorskip("lazyfin")
     import tomllib
 
-    extras = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["optional-dependencies"]
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    extras = project["optional-dependencies"]
+    # Docs install the verified release, which can trail the package version during a release.
+    manifest = tomllib.loads((ROOT / "ecosystem" / "compatibility.toml").read_text(encoding="utf-8"))
+    verified_toolkit_ref = manifest["verified"]["github"]["lazytoolkit"]["ref"]
     for name in ("README.md", "docs/index.md", "docs/mcp-server.md", "docs/code-support/index.md",
                  "docs/skills-council.md"):
         for lang, code in blocks(ROOT / name):
@@ -310,7 +314,7 @@ def test_changed_install_snippets_and_tree_flags(isolated, monkeypatch):
                     argv = shlex.split(line.split("#", 1)[0])
                     requirement = Requirement(argv[-1].replace("$G", git_url) if "$G" in argv[-1] else argv[-1])
                     if requirement.name == "lazytoolkit":
-                        assert requirement.url.endswith("@v0.10.1")
+                        assert requirement.url.endswith(f"@{verified_toolkit_ref}")
                         assert requirement.extras <= extras.keys()
     # Mock only the optional portfolio dependency, preserving the real constructor.
     module = ModuleType("lazyportfolio")

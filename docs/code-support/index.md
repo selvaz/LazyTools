@@ -6,7 +6,7 @@ under names. The synchronous MCP tools use LazyBridge's `CodexEngine`
 (App Server) and `ClaudeCodeEngine` (Agent SDK). For long jobs and durable
 approval tickets, use the [async code bridge](../code-bridge.md).
 
-**LazyTools 0.10.1 is Alpha**, with `lazybridge>=1.8.0,<2.0`.
+**LazyTools 0.10.2 is Alpha**, with `lazybridge>=1.8.1,<2.0`.
 The distribution is `lazytoolkit`; imports use `lazytools`.
 
 ```sh
