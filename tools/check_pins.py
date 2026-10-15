@@ -13,6 +13,11 @@ that decide what gets installed, in production and in CI). Rules:
 * an exact ``lazybridge==X`` pin must equal the verified LazyBridge version, and any other
   ``lazybridge`` range must admit it.
 
+During a release train the next set is staged as a *candidate* manifest on the LazyTools branch
+``train/next``: a repository passes when its pins match main's manifest, or (all of them) the
+candidate. The train ends by merging ``train/next`` into main through the ecosystem-released
+gate, after which the candidate branch is deleted.
+
 A line that deliberately installs a moving ref opts out with a trailing ``# pin-check: ignore``;
 a whole file (e.g. a source-head job that tests every ``main``) with ``pin-check: ignore-file``.
 
@@ -25,6 +30,7 @@ import argparse
 import re
 import sys
 import tomllib
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -33,6 +39,7 @@ from packaging.utils import canonicalize_name
 from packaging.version import Version
 
 MANIFEST_URL = "https://raw.githubusercontent.com/selvaz/LazyTools/main/ecosystem/compatibility.toml"
+CANDIDATE_URL = "https://raw.githubusercontent.com/selvaz/LazyTools/train/next/ecosystem/compatibility.toml"
 GIT_REF_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?@([A-Za-z0-9._-]+)")
 # A selvaz Git URL with no ``@ref`` installs whatever the default branch is that day.
 UNPINNED_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?(?![A-Za-z0-9_.@-])")
@@ -40,11 +47,23 @@ SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "site-packages", ".tox", "
 REQ_STRING_RE = re.compile(r"""["']([^"'\n]*lazy[-_.]?bridge[^"'\n]*)["']""", re.IGNORECASE)
 
 
-def load_manifest(source: str | None) -> dict:
+def load_manifest(source: str | None, url: str = MANIFEST_URL) -> dict:
     if source:
         return tomllib.loads(Path(source).read_text(encoding="utf-8"))
-    with urllib.request.urlopen(MANIFEST_URL, timeout=30) as response:
+    with urllib.request.urlopen(url, timeout=30) as response:
         return tomllib.loads(response.read().decode("utf-8"))
+
+
+def load_candidate(source: str | None) -> dict | None:
+    """The staged next release set, or ``None`` when no train is running (no branch)."""
+    if source:
+        return load_manifest(source)
+    try:
+        return load_manifest(None, CANDIDATE_URL)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise
 
 
 def scanned_files(repo: Path) -> list[Path]:
@@ -102,10 +121,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", default=".", help="repository root to scan (default: .)")
     parser.add_argument("--manifest", default=None, help="manifest TOML path (default: LazyTools main on GitHub)")
+    parser.add_argument(
+        "--candidate",
+        default=None,
+        help="candidate manifest TOML path (default: LazyTools train/next on GitHub, if that branch exists)",
+    )
     args = parser.parse_args(argv)
-    manifest = load_manifest(args.manifest)
-    errors = check(Path(args.repo).resolve(), manifest)
+    repo = Path(args.repo).resolve()
+    errors = check(repo, load_manifest(args.manifest))
     if errors:
+        candidate = load_candidate(args.candidate)
+        if candidate is not None and not check(repo, candidate):
+            print("ecosystem pins match the candidate release set (LazyTools train/next)")
+            return 0
         print("ecosystem pins differ from the manifest:")
         for error in errors:
             print(f"  - {error}")
