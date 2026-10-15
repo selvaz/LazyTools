@@ -8,6 +8,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `tools/check_pins.py`: any ecosystem repo can check in CI that its `pyproject.toml` /
+  `requirements*.txt` pin siblings exactly as `ecosystem/compatibility.toml` says.
+- The manifest now lists DataSpace (`lazydataspace` v0.1.0), pinned by four siblings.
+
 ## [0.10.2] — 2026-10-15
 
 ### Added

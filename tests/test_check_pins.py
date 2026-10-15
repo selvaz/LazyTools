@@ -1,0 +1,63 @@
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+_spec = importlib.util.spec_from_file_location("check_pins", ROOT / "tools" / "check_pins.py")
+check_pins = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(check_pins)
+
+MANIFEST = {
+    "verified": {
+        "lazybridge": "1.8.1",
+        "github": {
+            "lazytoolkit": {"repo": "https://github.com/selvaz/LazyTools", "ref": "v0.10.2"},
+            "market-data-hub": {"repo": "https://github.com/selvaz/market-data-hub", "ref": "v0.2.0"},
+        },
+    }
+}
+
+
+def _repo(tmp_path: Path, deps: str) -> Path:
+    (tmp_path / "pyproject.toml").write_text(f'[project]\nname = "x"\ndependencies = [\n{deps}\n]\n', encoding="utf-8")
+    return tmp_path
+
+
+def test_aligned_repo_passes(tmp_path):
+    repo = _repo(
+        tmp_path,
+        '  "lazybridge>=1.8.1,<2.0",\n'
+        '  "lazytoolkit[telegram] @ git+https://github.com/selvaz/LazyTools.git@v0.10.2",\n'
+        '  "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@v0.2.0",',
+    )
+    assert check_pins.check(repo, MANIFEST) == []
+
+
+def test_stale_sibling_ref_and_unknown_repo_fail(tmp_path):
+    repo = _repo(
+        tmp_path,
+        '  "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@636b38a7f9039113b935315fbf5f205ff9180160",\n'
+        '  "lazything @ git+https://github.com/selvaz/LazyThing.git@v1.0.0",',
+    )
+    errors = check_pins.check(repo, MANIFEST)
+    assert any("market-data-hub pinned to '636b38a" in e and "v0.2.0" in e for e in errors)
+    assert any("LazyThing is not in the ecosystem manifest" in e for e in errors)
+
+
+def test_lazybridge_exact_pin_and_range_must_admit_the_verified_version(tmp_path):
+    repo = _repo(tmp_path, '  "lazybridge==1.8.0",\n  "lazybridge[anthropic]>=1.9,<2.0",')
+    errors = check_pins.check(repo, MANIFEST)
+    assert any("lazybridge pinned to 1.8.0" in e for e in errors)
+    assert any("excludes the verified 1.8.1" in e for e in errors)
+
+
+def test_requirements_files_and_comments(tmp_path):
+    (tmp_path / "requirements.txt").write_text(
+        "# lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.1.0\n"
+        "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.9.0\n"
+        "lazybridge==1.8.1\n",
+        encoding="utf-8",
+    )
+    errors = check_pins.check(tmp_path, MANIFEST)
+    assert errors == ["requirements.txt:2: LazyTools pinned to 'v0.9.0', manifest says 'v0.10.2'"]

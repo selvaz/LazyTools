@@ -56,6 +56,10 @@ extras = ["datacore"]
 repo = "https://github.com/selvaz/LazyRay"
 ref = "v0.2.0"  # pins market-data-hub v0.2.0 and lazytoolkit v0.10.2 itself (ecosystem-2026.10)
 
+[verified.github.lazydataspace]
+repo = "https://github.com/selvaz/DataSpace"
+ref = "v0.1.0"  # pinned by market-data-hub, LazyStats, LazyCrawler and LazyPortfolio
+
 [verified.github.lazyfin]
 repo = "https://github.com/selvaz/LazyFin"
 ref = "d5ef4cbccf8c688144dd7f9dc4a7a3e80e49347d"  # pre-tag pin; no release tags yet
