@@ -19,7 +19,7 @@ explains tier selection and admission. **Benchmark in progress**; no measured
 quality, time, quota-efficiency or subscription savings result is claimed.
 
 ```sh
-python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.1"
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.2"
 lazytools-mcp projects code_review claude_review code_write code_sessions --allow-unsafe
 ```
 
@@ -41,7 +41,7 @@ LazyTools is distributed from GitHub (only LazyBridge is on PyPI). Add an
 extra to the pinned direct reference:
 
 ```bash
-G="git+https://github.com/selvaz/LazyTools.git@v0.10.1"
+G="git+https://github.com/selvaz/LazyTools.git@v0.10.2"
 pip install "lazytoolkit @ $G"                 # core (just lazybridge)
 pip install "lazytoolkit[gmail] @ $G"          # Gmail client + guarded draft/send tools
 pip install "lazytoolkit[telegram] @ $G"       # Telegram client + guarded send tool
@@ -107,7 +107,7 @@ Everything below installs from GitHub (only `lazybridge` is on PyPI):
 | [LazyCrawler](https://github.com/selvaz/LazyCrawler) | Web crawl & search | surfaced as LLM tools via the `[web]` extra (`WebTools`) |
 | [market-data-hub](https://github.com/selvaz/market-data-hub) | **The single source of financial data** | `datahub_*` tools (discovery/resolution/facts/extraction) |
 | [LazyStats](https://github.com/selvaz/LazyStats) | Statistics + HMM/MS regime engines | `statistical_*` tools and `regime_*` tools (`[regimes]` extra of lazystats) |
-| [LazyRay](https://github.com/selvaz/LazyRay) | Debt-cycle & regime engine | reads market-data-hub directly; no LazyTools connector (not an agent surface). *Not yet part of the verified co-installable combination (pending released-CI verification) — install it on its own for now.* |
+| [LazyRay](https://github.com/selvaz/LazyRay) | Debt-cycle & regime engine | reads market-data-hub directly; no LazyTools connector (not an agent surface). Part of the verified combination since `ecosystem-2026.10`. |
 | [LazyFin](https://github.com/selvaz/LazyFin) (private) | Portfolio Manager AI — the finance **domain layer** (canonical models, deterministic kernel, scoring, optimizer, PM agents) | consumes LazyTools' connectors and the `datahub_*`/`regime_*` surfaces; `LazyFin → {LazyPulse, LazyCrawler, LazyTools} → LazyBridge`, never the reverse |
 
 ## Dependency rules

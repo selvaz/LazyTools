@@ -2,12 +2,6 @@
   "minimums": {
     "lazybridge": ">=1.8.1,<2.0"
   },
-  "pending": {
-    "lazyray": {
-      "reason": "LazyRay still pins market-data-hub at 636b38a7, the revision this manifest verified until 2026-08-29; the combination has since moved to 50e57e53, so the two disagree again. It was re-aligned once before (ECO-007) and will need the same treatment: bump LazyRay's own pin to the verified revision, then move it to [verified.github] once the ecosystem-released CI installs and smokes it. Nothing in production depends on the two agreeing today, because LazyRay's runtime worktree is pinned independently and this entry is not installed by the released-combination job.",
-      "repo": "https://github.com/selvaz/LazyRay"
-    }
-  },
   "schema_version": 1,
   "verified": {
     "github": {
@@ -31,8 +25,12 @@
         "repo": "https://github.com/selvaz/LazyPortfolio"
       },
       "lazypulse": {
-        "ref": "v0.4.0",
+        "ref": "v0.5.4",
         "repo": "https://github.com/selvaz/LazyPulse"
+      },
+      "lazyray": {
+        "ref": "v0.2.0",
+        "repo": "https://github.com/selvaz/LazyRay"
       },
       "lazystats": {
         "extras": [
@@ -42,7 +40,7 @@
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
-        "ref": "v0.10.1",
+        "ref": "v0.10.2",
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
