@@ -103,10 +103,10 @@ run_plan(pid, task="Compare Apple and Google headcounts")
 - To combine exactly **two** branches, use `task_kind="from_parallel"` for A
   plus `context_kind="from_parallel"` + `context_step` for B.
 
-On the supported LazyBridge 1.8.0 baseline, the `add_step` builder schema
+On the supported LazyBridge 1.8.1 baseline, the `add_step` builder schema
 includes `from_parallel_all`, matching the typed `PlanSpec` / `StepSpec` path.
 Older 0.9.0/0.9.1 schemas omitted it; those core versions are outside LazyTools
-0.10.1's dependency range.
+0.10.2's dependency range.
 
 ## Troubleshooting
 

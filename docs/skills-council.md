@@ -127,12 +127,12 @@ Install current LazyBridge with Claude Code support and LazyTools with web
 support:
 
 ```bash
-pip install "lazybridge[claude-code]==1.8.0"
-pip install "lazytoolkit[engines,web] @ git+https://github.com/selvaz/LazyTools.git@v0.10.1"
+pip install "lazybridge[claude-code]==1.8.1"
+pip install "lazytoolkit[engines,web] @ git+https://github.com/selvaz/LazyTools.git@v0.10.2"
 ```
 
-`ClaudeCodeEngine` ships in LazyBridge 1.8.0. LazyTools 0.10.1 requires
-`lazybridge>=1.8.0,<2.0`; the core Stable label does not imply that every
+`ClaudeCodeEngine` ships in LazyBridge 1.8.x. LazyTools 0.10.2 requires
+`lazybridge>=1.8.1,<2.0`; the core Stable label does not imply that every
 engine/integration is Stable. LazyTools remains Alpha.
 
 Configure DeepSeek normally:
