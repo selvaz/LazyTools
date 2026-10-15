@@ -9,6 +9,10 @@
         "ref": "v0.19.5",
         "repo": "https://github.com/selvaz/LazyCrawler"
       },
+      "lazydataspace": {
+        "ref": "v0.1.0",
+        "repo": "https://github.com/selvaz/DataSpace"
+      },
       "lazyfin": {
         "extras": [
           "bridge",

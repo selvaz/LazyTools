@@ -24,3 +24,4 @@ jobs:
         run: |
           python -m pip install --upgrade pip packaging
           python tools/render_compatibility.py --check
+          python tools/check_pins.py --repo . --manifest ecosystem/compatibility.toml

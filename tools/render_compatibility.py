@@ -138,7 +138,7 @@ GITHUB_ONLY_NAMES = frozenset(
     canonicalize_name(n)
     for n in (
         "lazytoolkit", "lazypulse", "lazycrawler", "lazystats", "lazyray",
-        "market-data-hub", "lazyportfolio", "lazyfin",
+        "market-data-hub", "lazyportfolio", "lazyfin", "lazydataspace",
     )
 )
 # Capture the install argument after ``pip install`` (optionally quoted): the

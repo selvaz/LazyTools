@@ -10,4 +10,5 @@ market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@v0.2.0
 lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@v0.3.0
 lazyportfolio[datacore] @ git+https://github.com/selvaz/LazyPortfolio.git@v0.2.0
 lazyray @ git+https://github.com/selvaz/LazyRay.git@v0.2.0
+lazydataspace @ git+https://github.com/selvaz/DataSpace.git@v0.1.0
 lazyfin[bridge,datacore] @ git+https://github.com/selvaz/LazyFin.git@d5ef4cbccf8c688144dd7f9dc4a7a3e80e49347d
