@@ -110,3 +110,22 @@ def test_a_file_can_opt_out_entirely(tmp_path):
         encoding="utf-8",
     )
     assert check_pins.check(tmp_path, MANIFEST) == []
+
+
+def test_candidate_release_set_is_accepted_whole(tmp_path):
+    main_toml = tmp_path / "main.toml"
+    cand_toml = tmp_path / "cand.toml"
+    body = '[verified]\nlazybridge = "1.8.1"\n[verified.github.market-data-hub]\nrepo = "https://github.com/selvaz/market-data-hub"\nref = "{ref}"\n[verified.github.lazytoolkit]\nrepo = "https://github.com/selvaz/LazyTools"\nref = "{tk}"\n'
+    main_toml.write_text(body.format(ref="v0.2.0", tk="v0.10.2"), encoding="utf-8")
+    cand_toml.write_text(body.format(ref="v0.2.1", tk="v0.10.2"), encoding="utf-8")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "requirements.txt").write_text(
+        "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@v0.2.1\n", encoding="utf-8"
+    )
+    args = ["--repo", str(repo), "--manifest", str(main_toml), "--candidate", str(cand_toml)]
+    assert check_pins.main(args) == 0
+    (repo / "requirements.txt").write_text(
+        "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@v0.1.9\n", encoding="utf-8"
+    )
+    assert check_pins.main(args) == 1
