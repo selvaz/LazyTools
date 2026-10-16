@@ -7,7 +7,7 @@ lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.2
 lazypulse @ git+https://github.com/selvaz/LazyPulse.git@v0.5.4
 lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@v0.19.6
 market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@v0.2.1
-lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@v0.3.0
+lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@v0.3.1
 lazyportfolio[datacore] @ git+https://github.com/selvaz/LazyPortfolio.git@v0.2.1
 lazyray @ git+https://github.com/selvaz/LazyRay.git@v0.2.1
 lazydataspace @ git+https://github.com/selvaz/DataSpace.git@v0.1.0
