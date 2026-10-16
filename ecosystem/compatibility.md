@@ -11,7 +11,7 @@ Python: 3.11, 3.12, 3.13
 | lazypulse | GitHub | `v0.5.4` |
 | lazycrawler | GitHub | `v0.19.6` |
 | market-data-hub | GitHub | `v0.2.1` |
-| lazystats | GitHub | `v0.3.0` |
+| lazystats | GitHub | `v0.3.1` |
 | lazyportfolio | GitHub | `v0.2.1` |
 | lazyray | GitHub | `v0.2.1` |
 | lazydataspace | GitHub | `v0.1.0` |
