@@ -1,9 +1,11 @@
-"""Per-engine machine-wide concurrency limit, and the Codex sandbox's temp root."""
+"""Per-engine machine-wide concurrency limit, and the per-job temp directory."""
 
 from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -12,8 +14,10 @@ from pathlib import Path
 import pytest
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _concurrency, _engines, _jobs, _lockfile, _store, cli
+from lazytools.code_bridge import _concurrency, _jobs, _lockfile, _store, _tempdir, cli
 from lazytools.code_bridge._concurrency import EngineBusy, EngineSlot
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture
@@ -24,17 +28,46 @@ def env(tmp_path, monkeypatch):
     script = fakes.install(monkeypatch)
     repos = []
     for name in ("repo-a", "repo-b"):
-        path = tmp_path / name
+        path = tmp_path / "work" / name
         (path / ".git").mkdir(parents=True)
         repos.append(path)
-    return script, repos, tmp_path / "store.sqlite"
+    return script, repos, tmp_path / "work" / "store.sqlite"
 
 
-def hold(db: Path, engine: str, job_id: str, limit: int = 1) -> EngineSlot:
+def configure(**limits: int) -> None:
+    """Append limit keys to this test's config (conftest leaves it inside [concurrency])."""
+    with open(os.environ[_concurrency.CONFIG_ENV], "a", encoding="utf-8") as fh:
+        for engine, value in limits.items():
+            fh.write(f"{engine} = {value}\n")
+
+
+def slot_dir() -> Path:
+    return _concurrency.load_config().slot_dir
+
+
+def hold(engine: str, job_id: str, limit: int | None = 1, db: Path | None = None) -> EngineSlot:
     """A slot held by THIS (live) process, standing in for another running job."""
-    slot = EngineSlot(_store.locks_dir(db), engine, limit)
+    slot = EngineSlot(engine, limit, slot_dir(), db_path=db)
     slot.try_acquire(job_id)
     return slot
+
+
+def write_stale_slot(engine: str, job_id: str, db: Path | None) -> Path:
+    directory = slot_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{engine}-{job_id}.slot"
+    payload = {"pid": DEAD_PID, "job_id": job_id, "engine": engine, "db_path": str(db) if db else None}
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+DEAD_PID = 1_999_999_999
+
+
+@pytest.fixture
+def dead_pid(monkeypatch):
+    real_alive = _lockfile._pid_alive
+    monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: pid != DEAD_PID and real_alive(pid))
 
 
 def run(repo: Path, db: Path, engine: str = "codex", **kwargs):
@@ -48,7 +81,7 @@ def run(repo: Path, db: Path, engine: str = "codex", **kwargs):
 
 def test_second_codex_run_is_refused_naming_the_running_job(env):
     _, (_, repo_b), db = env
-    holder = hold(db, "codex", "job-already-running")
+    holder = hold("codex", "job-already-running")
     try:
         with pytest.raises(EngineBusy) as exc_info:
             run(repo_b, db)
@@ -64,17 +97,19 @@ def test_second_codex_run_is_refused_naming_the_running_job(env):
 
 def test_claude_is_unlimited_by_default(env):
     _, (repo_a, _), db = env
-    holder = hold(db, "codex", "codex-job")
+    holder = hold("codex", "codex-job")
+    other = hold("claude", "claude-job", limit=None)
     try:
         assert run(repo_a, db, engine="claude").status == "done"
-        assert _concurrency.engine_at_limit(_store.locks_dir(db), "claude") == []
+        assert _concurrency.engine_at_limit("claude") == []
     finally:
         holder.release()
+        other.release()
 
 
 def test_wait_for_slot_queues_until_the_running_job_ends(env):
     _, (_, repo_b), db = env
-    holder = hold(db, "codex", "job-ahead")
+    holder = hold("codex", "job-ahead")
     waiting = threading.Event()
     box: dict = {}
 
@@ -95,42 +130,199 @@ def test_wait_for_slot_queues_until_the_running_job_ends(env):
     assert box["result"].status == "done"
 
 
-def test_stale_slot_from_a_dead_process_is_reclaimed_and_its_job_marked_interrupted(env, monkeypatch):
-    _, (_, repo_b), db = env
-    dead_pid = 4_000_000_000 % (2**31)
-    real_alive = _lockfile._pid_alive
-    monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: pid != dead_pid and real_alive(pid))
-    store = _store.build_store(db)
-    _store.build_job_registry(store).write("dead-job", "old", tool_name="codex", status="running")
-    _store.write_meta(store, "dead-job", {"job_id": "dead-job", "engine": "codex", "cwd": str(repo_b)})
-    lock_dir = _store.locks_dir(db)
-    lock_dir.mkdir(parents=True, exist_ok=True)
-    (lock_dir / "engine-codex-0.lock").write_text(json.dumps({"pid": dead_pid, "job_id": "dead-job"}))
-
-    assert _concurrency.engine_at_limit(lock_dir, "codex") == []
-    assert run(repo_b, db).status == "done"
-    old = _store.build_job_registry(_store.build_store(db)).find("dead-job")
-    assert old["status"] == "interrupted"
-
-
-def test_configured_limit_of_two_allows_two_codex_jobs(env, tmp_path, monkeypatch):
-    _, (_, repo_b), db = env
-    config = tmp_path / "code-bridge.toml"
-    config.write_text("[concurrency]\ncodex = 2\n", encoding="utf-8")
-    monkeypatch.setenv(_concurrency.CONFIG_ENV, str(config))
-    holder = hold(db, "codex", "first", limit=2)
-    try:
-        assert run(repo_b, db).status == "done"
-    finally:
-        holder.release()
-
-
 def test_slot_is_released_after_a_failed_job(env):
     script, (repo_a, repo_b), db = env
     script.mode = "error"
     assert run(repo_a, db).status == "failed"
     script.mode = "ok"
     assert run(repo_b, db).status == "done"
+    assert list(slot_dir().glob("codex-*.slot")) == []
+
+
+# --------------------------------------------------------------------------- #
+# P2-5: simultaneous stale reclaim
+# --------------------------------------------------------------------------- #
+
+
+def test_stale_slot_is_reclaimed_and_its_job_marked_interrupted(env, dead_pid):
+    _, (_, repo_b), db = env
+    store = _store.build_store(db)
+    _store.build_job_registry(store).write("dead-job", "old", tool_name="codex", status="running")
+    _store.write_meta(store, "dead-job", {"job_id": "dead-job", "engine": "codex", "cwd": str(repo_b)})
+    write_stale_slot("codex", "dead-job", db.resolve())
+
+    assert _concurrency.engine_at_limit("codex") == []
+    assert run(repo_b, db).status == "done"
+    assert _store.build_job_registry(_store.build_store(db)).find("dead-job")["status"] == "interrupted"
+
+
+def test_stale_slot_from_another_store_is_marked_interrupted_in_that_store(env, tmp_path, dead_pid):
+    _, (_, repo_b), db = env
+    other_db = tmp_path / "other" / "store.sqlite"
+    other = _store.build_store(other_db)
+    _store.build_job_registry(other).write("foreign-dead", "old", tool_name="codex", status="running")
+    _store.write_meta(other, "foreign-dead", {"job_id": "foreign-dead", "engine": "codex", "cwd": str(repo_b)})
+    write_stale_slot("codex", "foreign-dead", other_db.resolve())
+
+    assert run(repo_b, db).status == "done"
+    assert _store.build_job_registry(_store.build_store(other_db)).find("foreign-dead")["status"] == "interrupted"
+    assert _store.build_job_registry(_store.build_store(db)).find("foreign-dead") is None
+
+
+def test_threads_racing_to_reclaim_the_same_stale_slot_exactly_one_wins(env, dead_pid):
+    write_stale_slot("codex", "dead-job", None)
+    contenders = 8
+    barrier = threading.Barrier(contenders)
+    won: list[EngineSlot] = []
+    lost: list[str] = []
+    lock = threading.Lock()
+
+    def contend(i: int) -> None:
+        slot = EngineSlot("codex", 1, slot_dir())
+        barrier.wait()
+        try:
+            slot.try_acquire(f"job-{i}")
+        except EngineBusy:
+            with lock:
+                lost.append(f"job-{i}")
+        else:
+            with lock:
+                won.append(slot)
+
+    threads = [threading.Thread(target=contend, args=(i,)) for i in range(contenders)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(30)
+    try:
+        assert len(won) == 1 and len(lost) == contenders - 1
+        assert sum(len(slot.reclaimed) for slot in won) == 1  # the dead slot was reclaimed once
+        assert len(list(slot_dir().glob("codex-*.slot"))) == 1
+    finally:
+        for slot in won:
+            slot.release()
+
+
+_CONTENDER = """
+import os, sys, time
+from pathlib import Path
+from lazytools.code_bridge._concurrency import EngineBusy, EngineSlot
+go, slot_dir, name = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
+while not go.exists():
+    time.sleep(0.005)
+slot = EngineSlot("codex", 1, slot_dir)
+try:
+    slot.try_acquire(name)
+except EngineBusy:
+    print("lost", flush=True)
+    sys.exit(0)
+print("won", flush=True)
+time.sleep(2.0)  # hold it, live, while the others try
+slot.release()
+"""
+
+
+def test_processes_racing_for_one_slot_exactly_one_wins(env, tmp_path):
+    go = tmp_path / "go"
+    env_vars = {**os.environ, "PYTHONPATH": os.pathsep.join([str(ROOT / "src"), os.environ.get("PYTHONPATH", "")])}
+    procs = [
+        subprocess.Popen(
+            [sys.executable, "-c", _CONTENDER, str(go), str(slot_dir()), f"proc-{i}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env_vars,
+        )
+        for i in range(4)
+    ]
+    time.sleep(1.0)  # let every interpreter start and reach the spin on `go`
+    go.write_text("go", encoding="utf-8")
+    outcomes = []
+    for proc in procs:
+        out, err = proc.communicate(timeout=60)
+        assert proc.returncode == 0, err
+        outcomes.append(out.strip())
+    assert sorted(outcomes) == ["lost", "lost", "lost", "won"]
+
+
+# --------------------------------------------------------------------------- #
+# P2-6: lowering the limit / jobs started while unlimited
+# --------------------------------------------------------------------------- #
+
+
+def test_lowering_the_limit_counts_every_live_slot(env):
+    _, (_, repo_b), db = env
+    configure(codex=2)
+    first = hold("codex", "job-in-slot-0", limit=2)
+    second = hold("codex", "job-in-slot-1", limit=2)
+    first.release()  # only the job in the "second" slot remains
+    # Lower the limit to 1 (rewrite: TOML forbids a duplicate key).
+    path = Path(os.environ[_concurrency.CONFIG_ENV])
+    path.write_text(f"[concurrency]\nslot_dir = '{slot_dir()}'\ncodex = 1\n", encoding="utf-8")
+    try:
+        with pytest.raises(EngineBusy) as exc_info:
+            run(repo_b, db)
+        assert "job-in-slot-1" in str(exc_info.value)
+    finally:
+        second.release()
+
+
+def test_a_job_started_while_unlimited_counts_once_a_limit_is_set(env):
+    _, (_, repo_b), db = env
+    path = Path(os.environ[_concurrency.CONFIG_ENV])
+    original = path.read_text(encoding="utf-8")
+    path.write_text(original + "codex = 0\n", encoding="utf-8")
+    unlimited_job = hold("codex", "started-unlimited", limit=None)
+    path.write_text(original + "codex = 1\n", encoding="utf-8")
+    try:
+        with pytest.raises(EngineBusy) as exc_info:
+            run(repo_b, db)
+        assert "started-unlimited" in str(exc_info.value)
+    finally:
+        unlimited_job.release()
+
+
+# --------------------------------------------------------------------------- #
+# P2-7: one machine-wide slot directory, whatever --db says
+# --------------------------------------------------------------------------- #
+
+
+def test_two_different_db_directories_share_the_limit(env, tmp_path):
+    _, (repo_a, repo_b), _ = env
+    db_one = tmp_path / "store-one" / "bridge.sqlite"
+    db_two = tmp_path / "store-two" / "bridge.sqlite"
+    started = threading.Event()
+    release = threading.Event()
+    script = env[0]
+    script.request_approval = True  # park the first job on a ticket so it stays live
+
+    box: dict = {}
+    thread = threading.Thread(target=lambda: box.setdefault("r", run(repo_a, db_one)), daemon=True)
+    thread.start()
+    try:
+        queue = _store.build_approval_queue(_store.build_store(db_one))
+        deadline = time.monotonic() + 10
+        while not queue.list_pending_tickets():
+            assert time.monotonic() < deadline and thread.is_alive()
+            time.sleep(0.02)
+        started.set()
+        with pytest.raises(EngineBusy):
+            run(repo_b, db_two)
+    finally:
+        ticket = queue.list_pending_tickets()[0]
+        queue.reject_ticket(ticket.approval_id, actor="test", channel="test", reason="done")
+        release.set()
+        thread.join(10)
+    assert started.is_set() and not thread.is_alive()
+
+
+def test_slot_dir_does_not_depend_on_the_db(monkeypatch, tmp_path):
+    monkeypatch.setenv(_concurrency.CONFIG_ENV, str(tmp_path / "missing.toml"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
+    expected = _concurrency.default_slot_dir()
+    assert _concurrency.load_config().slot_dir == expected
+    assert expected.name == "engine-slots"
+    assert "sqlite" not in str(expected)
 
 
 # --------------------------------------------------------------------------- #
@@ -142,17 +334,29 @@ def test_limits_default_and_config(tmp_path):
     missing = tmp_path / "none.toml"
     assert _concurrency.load_limits(missing) == {"codex": 1, "claude": None}
     path = tmp_path / "c.toml"
-    path.write_text("[concurrency]\ncodex = 0\nclaude = 2\n", encoding="utf-8")
-    assert _concurrency.load_limits(path) == {"codex": None, "claude": 2}
+    path.write_text(f"[concurrency]\ncodex = 0\nclaude = 2\nslot_dir = '{tmp_path / 's'}'\n", encoding="utf-8")
+    config = _concurrency.load_config(path)
+    assert config.limits == {"codex": None, "claude": 2}
+    assert config.slot_dir == tmp_path / "s"
 
 
-@pytest.mark.parametrize("body", ["[concurrency]\ncodex = -1\n", "[concurrency]\ncodex = 'x'\n",
-                                  "[concurrency]\ngemini = 1\n", "[concurrency]\ncodex = true\n", "not toml ["])
+@pytest.mark.parametrize(
+    "body",
+    [
+        "[concurrency]\ncodex = -1\n",
+        "[concurrency]\ncodex = 'x'\n",
+        "[concurrency]\ngemini = 1\n",
+        "[concurrency]\ncodex = true\n",
+        "[concurrency]\nslot_dir = 3\n",
+        "[concurrency]\nslot_dir = ''\n",
+        "not toml [",
+    ],
+)
 def test_bad_limits_are_rejected(tmp_path, body):
     path = tmp_path / "c.toml"
     path.write_text(body, encoding="utf-8")
     with pytest.raises(ValueError):
-        _concurrency.load_limits(path)
+        _concurrency.load_config(path)
 
 
 # --------------------------------------------------------------------------- #
@@ -162,12 +366,12 @@ def test_bad_limits_are_rejected(tmp_path, body):
 
 def _run_args(repo: Path, db: Path, *extra: str) -> list[str]:
     return ["run", "--engine", "codex", "--cwd", str(repo), "--root", str(repo.parent), "--task", "t",
-            "--db", str(db), *extra]
+            "--db", str(db), *extra]  # fmt: skip
 
 
 def test_cli_run_refuses_with_a_clear_message(env, capsys):
     _, (_, repo_b), db = env
-    holder = hold(db, "codex", "busy-job-id")
+    holder = hold("codex", "busy-job-id")
     try:
         assert cli.main(_run_args(repo_b, db)) == 2
     finally:
@@ -180,7 +384,7 @@ def test_cli_detach_refuses_early_and_queues_with_wait_for_slot(env, monkeypatch
     _, (_, repo_b), db = env
     spawned = []
     monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: spawned.append(argv) or 4321)
-    holder = hold(db, "codex", "busy-job-id")
+    holder = hold("codex", "busy-job-id")
     try:
         assert cli.main(_run_args(repo_b, db, "--detach")) == 2
         assert "busy-job-id" in capsys.readouterr().err and spawned == []
@@ -190,42 +394,142 @@ def test_cli_detach_refuses_early_and_queues_with_wait_for_slot(env, monkeypatch
     assert "--wait-for-slot" in spawned[0]
 
 
-def test_cli_bad_config_is_a_clean_error(env, tmp_path, monkeypatch, capsys):
+def test_cli_bad_config_is_a_clean_error(env, monkeypatch, capsys):
     _, (_, repo_b), db = env
-    config = tmp_path / "bad.toml"
-    config.write_text("[concurrency]\ncodex = -3\n", encoding="utf-8")
-    monkeypatch.setenv(_concurrency.CONFIG_ENV, str(config))
+    configure(codex=-3)
     assert cli.main(_run_args(repo_b, db)) == 2
     assert "codex must be an integer" in capsys.readouterr().err
 
 
 # --------------------------------------------------------------------------- #
-# Codex sandbox: temp dir writable, network untouched
+# P1-3: a dedicated per-job temp directory, fail closed on an unsafe base
 # --------------------------------------------------------------------------- #
 
 
-def test_codex_sandbox_gets_the_os_temp_dir_as_a_writable_root(env, tmp_path):
+@pytest.fixture
+def os_temp(tmp_path, monkeypatch):
+    """A safe OS temp base, sibling of the repos (never their ancestor)."""
+    base = tmp_path / "ostemp" / "Temp"
+    base.mkdir(parents=True)
+    set_temp(monkeypatch, base)
+    return base
+
+
+def set_temp(monkeypatch, value, *, names=("TMPDIR", "TEMP", "TMP")) -> None:
+    for name in ("TMPDIR", "TEMP", "TMP"):
+        monkeypatch.delenv(name, raising=False)
+    for name in names:
+        monkeypatch.setenv(name, str(value))
+    monkeypatch.setattr(tempfile, "tempdir", str(value))
+
+
+def test_normal_temp_dir_adds_only_the_per_job_subdir(env, os_temp):
     script, (repo_a, _), db = env
-    run(repo_a, db)
+    result = run(repo_a, db)
+    job_dir = os_temp.resolve() / "lazytools-bridge" / result.job_id
     codex_policy = script.kwargs["config"].codex
-    assert codex_policy.sandbox == "workspace-write"
-    assert codex_policy.approval_policy == "on-request"
-    roots = codex_policy.writable_roots
-    assert str(Path(tempfile.gettempdir()).resolve()) in roots
-    # pytest's own tmp_path lives under the temp dir, so a job's tests can use it.
-    assert any(tmp_path.resolve().is_relative_to(Path(root)) for root in roots)
-    # Only the temp directories were added -- never a drive root.
-    assert set(roots) == set(_engines.temp_writable_roots())
-    assert all(Path(root) != Path(Path(root).anchor) for root in roots)
+    assert codex_policy.writable_roots == (str(job_dir),)
+    assert codex_policy.sandbox == "workspace-write" and codex_policy.approval_policy == "on-request"
+    meta = _store.read_meta(_store.build_store(db), result.job_id)
+    assert meta["temp_dir"] == str(job_dir)
+    assert not job_dir.exists()  # removed at job end
 
 
-def test_temp_roots_include_distinct_temp_and_tmp_env(tmp_path, monkeypatch):
-    other = tmp_path / "other-temp"
-    other.mkdir()
-    monkeypatch.setenv("TMP", str(other))
-    roots = _engines.temp_writable_roots()
-    assert str(other.resolve()) in roots
-    assert len({os.path.normcase(r) for r in roots}) == len(roots)
+def test_engine_subprocess_env_carries_the_job_temp_dir(env, os_temp, monkeypatch):
+    _, (repo_a, _), db = env
+    seen: dict = {}
+    before = {name: os.environ.get(name) for name in ("TEMP", "TMP", "TMPDIR")}
+
+    async def recording_agent(engine, task, agent_name):
+        from lazybridge import Envelope
+
+        seen["env"] = {name: os.environ.get(name) for name in ("TEMP", "TMP", "TMPDIR")}
+        seen["exists"] = Path(os.environ["TEMP"]).is_dir()
+        # A real child process inherits it -- which is how the engine subprocess sees it.
+        child = subprocess.run(
+            [sys.executable, "-c", "import os, tempfile; print(os.environ['TMP']); print(tempfile.gettempdir())"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        seen["child"] = child.stdout.split()
+        return Envelope(task=task, payload="ok")
+
+    monkeypatch.setattr(_jobs, "_run_agent", recording_agent)
+    result = run(repo_a, db)
+    job_dir = str(os_temp.resolve() / "lazytools-bridge" / result.job_id)
+    assert seen["env"] == {"TEMP": job_dir, "TMP": job_dir, "TMPDIR": job_dir}
+    assert seen["exists"]
+    assert [os.path.normcase(p) for p in seen["child"]] == [os.path.normcase(job_dir)] * 2
+    assert {name: os.environ.get(name) for name in ("TEMP", "TMP", "TMPDIR")} == before  # restored
+
+
+def test_claude_gets_the_job_temp_dir_as_a_file_root_and_in_its_instructions(env, os_temp):
+    script, (repo_a, _), db = env
+    result = run(repo_a, db, engine="claude")
+    job_dir = str(os_temp.resolve() / "lazytools-bridge" / result.job_id)
+    assert script.kwargs["file_roots"] == [str(repo_a.resolve()), job_dir]
+    assert job_dir in script.kwargs["system"]
+    assert "Write and Edit tools" in script.kwargs["system"]
+
+
+def test_temp_set_to_a_drive_root_adds_no_root(env, tmp_path, monkeypatch):
+    script, (repo_a, _), db = env
+    set_temp(monkeypatch, Path(tmp_path.anchor), names=("TEMP",))
+    result = run(repo_a, db)
+    assert result.status == "done"
+    assert script.kwargs["config"].codex.writable_roots is None
+    meta = _store.read_meta(_store.build_store(db), result.job_id)
+    assert meta["temp_dir"] is None and "root" in meta["temp_dir_refused"]
+
+
+def test_tmp_set_to_the_repos_parent_is_rejected(env, os_temp, monkeypatch):
+    script, (repo_a, _), db = env
+    monkeypatch.setenv("TMP", str(repo_a.parent))  # TEMP/TMPDIR stay safe: any unsafe value refuses
+    result = run(repo_a, db)
+    assert script.kwargs["config"].codex.writable_roots is None
+    meta = _store.read_meta(_store.build_store(db), result.job_id)
+    assert "ancestor of the job cwd" in meta["temp_dir_refused"]
+    assert not (os_temp / "lazytools-bridge").exists()
+
+
+def test_cleanup_failure_does_not_fail_the_job(env, os_temp, monkeypatch):
+    _, (repo_a, _), db = env
+
+    def boom(*args, **kwargs):
+        raise OSError("locked by antivirus")
+
+    monkeypatch.setattr(_tempdir.shutil, "rmtree", boom)
+    assert run(repo_a, db).status == "done"
+
+
+@pytest.mark.parametrize("label", ["drive_root", "short", "windows", "programdata", "home", "cwd_ancestor", "db_ancestor"])
+def test_unsafe_reason_cases(label, tmp_path, monkeypatch):
+    cwd = tmp_path / "a" / "b" / "repo"
+    db = tmp_path / "x" / "y" / "store.sqlite"
+    windows = tmp_path / "fakewin" / "Windows"
+    programdata = tmp_path / "fakewin" / "ProgramData"
+    monkeypatch.setenv("SystemRoot", str(windows))
+    monkeypatch.setenv("WINDIR", str(windows))
+    monkeypatch.setenv("ProgramData", str(programdata))
+    monkeypatch.setenv("ALLUSERSPROFILE", str(programdata))
+    base = {
+        "drive_root": Path(tmp_path.anchor),
+        "short": Path(tmp_path.anchor) / "Temp",
+        "windows": windows / "Temp",
+        "programdata": programdata,
+        "home": Path.home().resolve(),
+        "cwd_ancestor": tmp_path / "a",
+        "db_ancestor": tmp_path / "x" / "y",
+    }[label]
+    assert _tempdir.unsafe_reason(base, cwd=cwd, db_path=db) is not None
+    assert _tempdir.unsafe_reason(tmp_path / "ok" / "Temp", cwd=cwd, db_path=db) is None
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="UNC paths are a Windows concept")
+def test_unc_share_root_is_unsafe(tmp_path):
+    share = Path("\\\\server\\share\\")
+    assert _tempdir.unsafe_reason(share, cwd=tmp_path / "r", db_path=tmp_path / "d") is not None
 
 
 def test_codex_sandbox_has_no_network_setting():

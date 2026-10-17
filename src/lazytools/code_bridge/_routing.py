@@ -282,13 +282,13 @@ def choose(
             in_flight[provider(str(row.get("engine", row.get("kind"))))] += 1
     refused: dict[str, str] = {}
     if respect_slots:
-        limits = _concurrency.load_limits()
-        lock_dir = _store.locks_dir(db_path)
+        # Machine-wide slots (independent of --db): see _concurrency.
+        slot_config = _concurrency.load_config()
         for slot_engine in ENGINES:
             name = bridge_engine(slot_engine)
-            holders = _concurrency.engine_at_limit(lock_dir, name, limits)
+            holders = _concurrency.engine_at_limit(name, slot_config)
             if holders:
-                limit = limits.get(name) or len(holders)
+                limit = slot_config.limits.get(name) or len(holders)
                 refused[slot_engine] = _concurrency.busy_reason(name, limit, holders)
                 available -= frozenset((slot_engine,))
     readings = read_readings()

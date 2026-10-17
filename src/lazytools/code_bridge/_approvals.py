@@ -1,6 +1,6 @@
 """Structural approval helpers for the code bridge: explicit classifiers, not more fnmatch.
 
-Three things a ``TieredGate`` rule table cannot express safely with ``fnmatch``
+Two things a ``TieredGate`` rule table cannot express safely with ``fnmatch``
 alone, each implemented here as a small, unit-tested predicate:
 
 * :func:`is_readonly_gh_query` -- a Codex sandbox escalation that is purely a
@@ -12,11 +12,9 @@ alone, each implemented here as a small, unit-tested predicate:
   a false "allow" is not.
 * :func:`is_simple_git_add` / :func:`is_simple_git_commit` -- an escalated
   ``git add`` / ``git commit`` that is ONE simple command (no chaining, no
-  substitution, no redirection), so the session grant a human gives on the
-  first one covers exactly that form and nothing chained onto it.
-* :func:`strip_literal_heredocs` -- the Claude ``Bash`` text with the BODY of
-  a literal heredoc written to a file by ``cat``/``tee`` removed, so file
-  content (``delete=False`` in a Python script) is not mistaken for a command.
+  substitution, no redirection) whose options, after quote removal, all come
+  from a short allow-list, so the session grant a human gives on the first
+  one covers exactly that form.
 
 :class:`ClassifiedRule` plugs a classifier into the ordinary rule table, and
 :class:`BridgeGate` (a ``TieredGate``) evaluates those rules on the WHOLE
@@ -30,9 +28,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from fnmatch import fnmatch
-from typing import Any
 
 from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import Rule, TieredGate
@@ -256,25 +253,77 @@ def _simple_git(command: str, subcommand: str) -> list[_Word] | None:
     return words[2:]
 
 
+#: The ONLY options a session-granted escalated ``git add`` may carry. Every
+#: word is judged AFTER quote removal, so ``"--force"`` is ``--force``. Exact
+#: matches only: git accepts unambiguous abbreviations (``--forc``), so a
+#: prefix-free deny-list cannot work -- this is an allow-list.
+_GIT_ADD_OPTIONS = frozenset({"-A", "--all", "-u", "--update"})
+
+
+def _repo_relative(path: str) -> bool:
+    """A non-empty relative path with no ``..`` component (so it stays inside the repo)."""
+    if not path or path == "-" or path.startswith(("/", "~")) or re.match(r"^[A-Za-z]:", path):
+        return False
+    return ".." not in re.split(r"[/\\]", path)
+
+
 def is_simple_git_add(command: str) -> bool:
-    """One unchained ``git add ...`` (powershell-wrapped or not)."""
-    return _simple_git(command, "add") is not None
+    """One unchained ``git add`` with only paths and ``-A``/``--all``/``-u``/``--update``/``--``."""
+    args = _simple_git(command, "add")
+    if args is None:
+        return False
+    paths_only = False
+    for word in args:
+        text = word.text
+        if paths_only or not text.startswith("-"):
+            if not text:
+                return False
+            continue  # a path
+        if text == "--":
+            paths_only = True
+        elif text not in _GIT_ADD_OPTIONS:
+            return False  # --force, -f, -p, --chmod=..., abbreviations, anything else
+    return True
 
 
 def is_simple_git_commit(command: str) -> bool:
-    """One unchained ``git commit ...`` that neither rewrites a commit nor skips hooks."""
+    """One unchained ``git commit`` whose options are exactly from a short allow-list.
+
+    Allowed, after quote removal: ``-m <msg>``, ``--message=<msg>``, ``-a``,
+    ``--all``, ``-am <msg>``, ``-F <file>``, ``--file=<file>`` (file a
+    relative path inside the repository), ``--`` and repo-relative paths.
+    Everything else -- ``--amend``, ``--no-verify``/``-n``, ``--fixup``,
+    ``-c``/``-C``, ``--author``, any abbreviation such as ``--amen`` --
+    means "not this form" and falls through to ``ask``.
+    """
     args = _simple_git(command, "commit")
     if args is None:
         return False
-    for word in args:
-        if word.quoted or not word.text.startswith("-"):
-            continue  # a message or a pathspec
-        name = word.text.partition("=")[0]
-        if name in ("--amend", "--no-verify"):
+    i = 0
+    paths_only = False
+    while i < len(args):
+        text = args[i].text
+        if paths_only or not text.startswith("-"):
+            if not _repo_relative(text):
+                return False
+        elif text == "--":
+            paths_only = True
+        elif text in ("-m", "-am"):
+            if i + 1 >= len(args):
+                return False
+            i += 1  # the message: any text, quoted or not
+        elif text == "-F":
+            if i + 1 >= len(args) or not _repo_relative(args[i + 1].text):
+                return False
+            i += 1
+        elif text.startswith("--message="):
+            pass
+        elif text.startswith("--file="):
+            if not _repo_relative(text.removeprefix("--file=")):
+                return False
+        elif text not in ("-a", "--all"):
             return False
-        # A short-option cluster carrying -n (= --no-verify), e.g. "-nm".
-        if re.fullmatch(r"-[A-Za-z]+", name) and "n" in name[1:]:
-            return False
+        i += 1
     return True
 
 
@@ -333,125 +382,31 @@ class ClassifiedRule(Rule):
 
 
 # --------------------------------------------------------------------------- #
-# heredoc bodies (Claude Bash)
-# --------------------------------------------------------------------------- #
-
-#: A heredoc delimiter: fully single-quoted, fully double-quoted, or a plain
-#: identifier. Partially quoted forms (``E"O"F``, ``\\EOF``) are not
-#: recognised and so never stripped.
-_DELIM = r"""(?:'(?P<sq>[A-Za-z_][A-Za-z0-9_]*)'|"(?P<dq>[A-Za-z_][A-Za-z0-9_]*)"|(?P<bare>[A-Za-z_][A-Za-z0-9_]*))"""
-#: A redirect target / tee path: no quoting, no metacharacters, no substitution.
-_PATH = r"[A-Za-z0-9_./~:+-][A-Za-z0-9_./~:+=,@-]*"
-_HEREDOC_SHAPE = r"""<<-?\s*(?:'[A-Za-z_][A-Za-z0-9_]*'|"[A-Za-z_][A-Za-z0-9_]*"|[A-Za-z_][A-Za-z0-9_]*)"""
-_HEREDOC = re.compile(rf"<<(?P<dash>-)?\s*{_DELIM}")
-#: The ONLY heredoc-consuming commands whose body is stripped: a pure data
-#: sink writing the body to a file. ``bash <<EOF``, ``python - <<EOF``,
-#: ``cat <<EOF | sh`` and the like are code and are left fully visible.
-_SINK = re.compile(
-    rf"""^(?:
-        cat\s+(?:>>?\s*{_PATH}\s+)?{_HEREDOC_SHAPE}(?:\s+>>?\s*{_PATH})?
-      | tee(?:\s+-a)?(?:\s+{_PATH})+\s+{_HEREDOC_SHAPE}(?:\s+>\s*/dev/null)?
-    )$""",
-    re.VERBOSE,
-)
-_LINE_SEPARATORS = re.compile(r"&&|\|\||;")
-
-
-def _sink_heredoc(line: str) -> tuple[str, bool, bool] | None:
-    """``(delimiter, dash, quoted)`` if ``line`` ends in a data-sink heredoc, else ``None``.
-
-    Earlier ``&&``/``;``/``||`` segments on the same line are allowed (they
-    stay in the command and are matched as usual); the LAST segment must be
-    exactly a ``cat``/``tee`` sink, and the line may contain no ``|`` pipe
-    at all and only one ``<<``.
-    """
-    if line.count("<<") != 1 or re.search(r"(?<!\|)\|(?!\|)", line):
-        return None
-    last = _LINE_SEPARATORS.split(line)[-1].strip()
-    if _SINK.match(last) is None:
-        return None
-    match = _HEREDOC.search(last)
-    if match is None:  # pragma: no cover - the sink shape guarantees one
-        return None
-    delimiter = match.group("sq") or match.group("dq") or match.group("bare")
-    quoted = match.group("bare") is None
-    return delimiter, bool(match.group("dash")), quoted
-
-
-def strip_literal_heredocs(command: str) -> str:
-    """``command`` with the bodies of literal, data-sink heredocs removed.
-
-    A body is removed only when ALL hold:
-
-    * the heredoc feeds ``cat`` / ``tee`` writing to a file (a data sink),
-      never an interpreter (``bash``, ``sh``, ``python``, ...);
-    * its delimiter is quoted (``<<'EOF'``: the body is literal), or the body
-      contains no ``$``, backtick or backslash (an unquoted ``<<EOF`` body
-      would otherwise run ``$( )`` substitutions);
-    * the terminating delimiter line is actually found.
-
-    The ``cat > file <<'EOF'`` line itself and everything after the
-    terminator stay in the text and are matched as usual. When in doubt the
-    body is kept, which can only produce an extra ``ask``.
-    """
-    if "<<" not in command:
-        return command
-    lines = command.split("\n")
-    out: list[str] = []
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        out.append(line)
-        i += 1
-        found = _sink_heredoc(line)
-        if found is None:
-            continue
-        delimiter, dash, quoted = found
-        end = None
-        for j in range(i, len(lines)):
-            candidate = lines[j].lstrip("\t") if dash else lines[j]
-            if candidate == delimiter:
-                end = j
-                break
-        if end is None:
-            continue  # no terminator: keep everything visible
-        body = lines[i:end]
-        if not quoted and any(ch in text for text in body for ch in "$`\\"):
-            continue  # an expanding body can run substitutions: keep it visible
-        out.append(lines[end])  # the terminator line, harmless and kept for readability
-        i = end + 1
-    return "\n".join(out)
-
-
-# --------------------------------------------------------------------------- #
 # the gate
 # --------------------------------------------------------------------------- #
 
 
 @dataclass
 class BridgeGate(TieredGate):
-    """``TieredGate`` plus the two structural steps above.
+    """``TieredGate`` that tries :class:`ClassifiedRule` entries first, on the whole command.
 
-    1. :class:`ClassifiedRule` entries are tried first, on the request's
-       whole, unsplit command (first match in table order wins).
-    2. For Claude's ``Bash`` tool, literal data-sink heredoc bodies are
-       removed before the stock segment matching (:func:`strip_literal_heredocs`).
+    First classified match in table order wins; otherwise the stock
+    ``TieredGate`` matching runs on the UNMODIFIED request text -- Claude
+    ``Bash`` included, heredoc bodies and all. (An earlier revision hid
+    "data" heredoc bodies from the patterns; review showed a commented-out
+    ``cat`` or a heredoc fed to ``bash -c "$(...)"`` turned that into a way to
+    hide executed commands, so it was removed. Claude is instead instructed
+    to write file content with Write/Edit -- see ``_engines``.)
 
-    Everything else -- the audit record, the prompt shown to a human (always
-    the ORIGINAL command), session-grant scoping -- is ``TieredGate``'s own.
+    Everything else -- the audit record, the prompt shown to a human,
+    session-grant scoping -- is ``TieredGate``'s own.
     """
 
     def _match(self, request: ApprovalRequest) -> Rule | None:
-        command = request.arguments.get("command")
-        if isinstance(command, str):
+        if isinstance(request.arguments.get("command"), str):
             for rule in self.rules:
                 if isinstance(rule, ClassifiedRule) and rule.matches(request):
                     return rule
-            if request.kind == "tool" and request.name == "Bash":
-                stripped = strip_literal_heredocs(command)
-                if stripped != command:
-                    arguments: dict[str, Any] = {**dict(request.arguments), "command": stripped}
-                    request = replace(request, arguments=arguments)
         return super()._match(request)
 
 
@@ -462,6 +417,5 @@ __all__ = [
     "is_readonly_gh_query",
     "is_simple_git_add",
     "is_simple_git_commit",
-    "strip_literal_heredocs",
     "unwrap_powershell",
 ]

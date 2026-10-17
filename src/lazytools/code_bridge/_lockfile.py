@@ -172,7 +172,7 @@ class JobLock:
                 existing = json.loads(self.path.read_text())
             pid = existing.get("pid")
             if isinstance(pid, int) and _pid_alive(pid):
-                raise self._held(pid, str(existing.get("job_id", "?")))
+                raise LockHeld(self.cwd, pid, str(existing.get("job_id", "?")))
 
             # Stale: the pid that wrote it is gone. Reclaim via an atomic
             # rename of the SAME already-fully-written tmp file -- not a
@@ -188,18 +188,6 @@ class JobLock:
             # raised `LockHeld` (the orphaned tmp must not leak).
             with contextlib.suppress(OSError):
                 tmp.unlink()
-
-    def _held(self, pid: int, job_id: str) -> Exception:
-        """The error raised when a live process owns this lock (overridden by engine slots)."""
-        return LockHeld(self.cwd, pid, job_id)
-
-    def holder(self) -> dict | None:
-        """The lock file's content if a LIVE process holds it, else ``None`` (never modifies it)."""
-        existing: dict = {}
-        with contextlib.suppress(OSError, ValueError):
-            existing = json.loads(self.path.read_text())
-        pid = existing.get("pid")
-        return existing if isinstance(pid, int) and _pid_alive(pid) else None
 
     def release(self) -> None:
         """Remove the lock, but only if THIS process still owns it."""

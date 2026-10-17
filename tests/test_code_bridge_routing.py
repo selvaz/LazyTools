@@ -814,9 +814,9 @@ def test_route_accepts_the_same_model_and_effort_overrides_as_run(bridge, monkey
 
 
 def _hold_codex(bridge, job_id="codex-busy-job"):
-    from lazytools.code_bridge._concurrency import EngineSlot
+    from lazytools.code_bridge._concurrency import EngineSlot, load_config
 
-    slot = EngineSlot(_store.locks_dir(bridge[3]), "codex", 1)
+    slot = EngineSlot("codex", 1, load_config().slot_dir, db_path=bridge[3])
     slot.try_acquire(job_id)
     return slot
 

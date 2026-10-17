@@ -465,7 +465,8 @@ search set explicitly per job rather than inherited from `~/.codex/config.toml`.
 
 The `--cwd` argument must resolve inside `$LAZYTOOLS_CODE_ROOT` / `--root`
 (default: the launching directory). Codex uses workspace-write; Claude file
-hooks confine file tools to `cwd`, while Bash is not path-confined. Requests
+hooks confine file tools to `cwd` and the job's own temp directory, while
+Bash is not path-confined. Requests
 are gated by one `BridgeGate` (a `lazybridge.ext.approval.TieredGate`
 with the structural steps described below) whose rule table
 (`lazytools.code_bridge._policy.CODING_RULES`) mirrors the generic coding
@@ -494,10 +495,10 @@ classifiers on the **whole** command before the stock fnmatch rules.
 
 | Request | Before | Now | Why it is safe |
 | --- | --- | --- | --- |
-| Codex runs `pytest` (needs `tmp_path`) | escalation → ask | runs **inside** the sandbox | The OS temp dir (`tempfile.gettempdir()`, plus `%TEMP%`/`%TMP%` when different) is an extra Codex writable root. It is per-user scratch space: no repo history, no other repository, no network. |
+| Codex runs `pytest` (needs `tmp_path`) | escalation → ask | runs **inside** the sandbox | The job gets its own temp directory, `<os temp>/lazytools-bridge/<job_id>`, as its **only** extra writable root, with `TEMP`/`TMP`/`TMPDIR` pointing at it (see "Per-job temp directory"). No repo history, no other repository, no network. |
 | Codex escalates a read-only GitHub query: `gh pr view\|checks\|diff`, `gh run view\|list`, `gh api` GET on `repos/...`, bare or inside `powershell.exe -Command '...'` | ask | **allow** | An allow-list over a strict tokeniser (see below). Codex escalates these only because its sandbox has no network; they read and never write. |
-| Codex escalates `git add ...` / `git commit ...` | ask, every time | **session**: first asks, rest of the run granted | The same session semantics the Claude `Bash` rules already give `git add`/`commit`, for one simple command only — no chaining, no `git -C`, no `--amend`/`--no-verify`. Scoped to cwd and to that exact rule. |
-| Claude `cat > file <<'EOF' ... EOF` whose *body* contains `delete`/`rm ` | ask | **allow** | Only the body of a *literal data* heredoc is hidden from the patterns (see below). The command line itself and everything after the terminator are matched as before. |
+| Codex escalates `git add ...` / `git commit ...` | ask, every time | **session**: first asks, rest of the run granted | The same session semantics the Claude `Bash` rules already give `git add`/`commit`, for one simple command whose options, after quote removal, all come from a short allow-list (below). Scoped to cwd and to that exact rule. |
+| Claude writes a file through a shell heredoc whose *body* contains `delete`/`rm ` | ask | **still asks** — but the writer is told not to do it | Option B: the Claude writer's instructions say to create files only with Write/Edit (already allowed), never heredocs or `echo >`, and to put helper files in its job temp dir. The gate matches the whole `Bash` text, exactly as stock `TieredGate` does. |
 
 **The read-only `gh` classifier** (`is_readonly_gh_query`) returns "allow"
 only when every check passes; anything it does not positively recognise
@@ -520,22 +521,73 @@ falls through to the catch-all `ask`. A false "ask" is cheap; a false
 - Any other `gh` subcommand (`pr merge`, `pr comment`, `release create`,
   `run rerun`, `auth token`, ...) and anything that is not `gh` mean "ask".
 
-**Heredoc bodies** (`strip_literal_heredocs`, Claude `Bash` only). Stock
-`TieredGate` splits a command on newlines, so every line of a heredoc body
-was matched as if it were a command. A body is now hidden from matching only
-when it is *data written to a file*: the heredoc feeds `cat`/`tee` with a
-plain redirect target, nothing is piped, the delimiter is quoted (or the
-body has no `$`, backtick or `\`), and the terminator line exists.
-`bash <<EOF`, `python - <<EOF`, `cat <<EOF | sh` and `python -c "..."`
-payloads are **code** and stay fully visible: hiding a `python -c` payload
-would turn `python -c "os.system('rm -rf x')"` from ask into allow, so it was
-deliberately not done (the brief's option A, restricted to data). The human
-shown a ticket always sees the original command, body included.
+**Escalated `git add` / `git commit` allow-list.** Every word is judged
+*after* quote removal (so `"--amend"` is `--amend`) and options must match
+exactly — git accepts unambiguous abbreviations (`--amen`, `--no-ver`), so a
+deny-list cannot work.
+
+- `git add`: paths, `-A`, `--all`, `-u`, `--update`, `--`. Anything else
+  (`-f`/`--force`, `-p`, `--chmod`, abbreviations) asks.
+- `git commit`: `-m <msg>`, `--message=<msg>`, `-a`, `--all`, `-am <msg>`,
+  `-F <file>` / `--file=<file>` (a relative path with no `..`), `--` and
+  repo-relative paths. Anything else asks: `--amend`, `--no-verify`/`-n`,
+  `--fixup`, `-c`/`-C`, `--author`, `-mx`, abbreviations, absolute or `..`
+  paths.
+
+**Heredocs: why the gate does not look past them.** Stock `TieredGate` splits
+a command on newlines, so every line of a heredoc body is matched as if it
+were a command. A first version of this work hid the bodies of "data"
+heredocs (`cat > file <<'EOF'`). The opposite-engine review showed that this
+could hide commands that really run: `echo ok # ; cat > x <<'EOF'` (bash
+ignores the commented `cat`, so the "body" lines execute),
+`bash -c "$(cat <<'EOF' ... EOF)"`, or a data file that is then run with
+`bash x`. It was removed. The Bash text is matched in full again, and the
+Claude writer is instructed instead (system prompt, see
+`_engines.claude_writer_instructions`):
+
+- create and change files **only with Write/Edit** — no heredocs, no
+  `echo`/`printf` redirection, no `python -c` that writes files;
+- use Bash to run programs, not to author files;
+- put temporary helper files in the job's temp directory, created with Write.
+
+A heredoc that slips through still asks, which is the safe failure.
+
+### Per-job temp directory
+
+Each job gets `<os temp>/lazytools-bridge/<job_id>`. It is created at job
+start and removed (best effort; a cleanup failure never fails the job) at
+job end. The directory is:
+
+- the Codex sandbox's **only** extra writable root;
+- a second Claude file root, so Write can create helpers there;
+- what `TEMP`, `TMP` and `TMPDIR` point at for the engine subprocess, so
+  pytest's `tmp_path` lands there.
+
+The engines take no `env` argument; the variables are set in the job
+process, which is the engine's parent, for exactly the engine run, and then
+restored. The job record keeps `temp_dir`.
+
+The base comes from the environment, which can say anything (`TMP=C:\` once
+made the whole drive writable). **Every** configured `TMPDIR`/`TEMP`/`TMP`
+value, plus Python's default, is checked. If any one of them is:
+
+- a drive, filesystem or UNC share root;
+- inside the Windows directory or `ProgramData`;
+- the user profile root;
+- an ancestor of the job's cwd or of the bridge DB;
+- shorter than 3 path components (`C:\Temp`, `/tmp`);
+
+then the job gets **no** extra root. The reason is logged and stored as
+`temp_dir_refused` in the job record, and pytest in the Codex sandbox will
+then escalate (and ask), which is the safe failure. On Linux and macOS, `/tmp`
+is refused by the length rule; Codex's own workspace-write sandbox already
+allows `/tmp` and `$TMPDIR` there.
 
 **What still asks, unchanged:** every escalated command not covered above
 (including `git push`, `gh pr create`, any `gh` write, `pytest` if it ever
 escalates); merge, `git reset --hard`, `*rm *`, `*delete*`, pushes to
-`main`/`master` and every dangerous push form for Claude `Bash`; `rm` of a
+`main`/`master` and every dangerous push form for Claude `Bash`; any Bash
+text containing `rm `/`delete`, heredoc bodies included; `rm` of a
 job's own scratch files (deliberately — `*rm *` is not weakened). Codex
 sandbox **network stays off**: that is what forces every `git push` and `gh`
 write to escalate, and so to reach a human.
@@ -567,10 +619,23 @@ claude = 2   # absent or 0 = unlimited
   If no free engine is eligible (for example the session is pinned to Codex),
   the error names the job; with `--wait-for-slot` the busy engine is picked
   and the launch queues.
-- A slot is the same reclaimable lock file as the repository lock
-  (`<store dir>/locks/engine-<engine>-<n>.lock`): a slot whose pid died is
-  reclaimed on the next launch and its job marked `interrupted`. Slots live
-  next to the job Store, so every launch sharing a Store shares the limit.
+- **Machine-wide, whatever `--db` says.** Slots live in one canonical
+  directory: `%LOCALAPPDATA%\lazytools\engine-slots` on Windows, else
+  `~/.lazytools/engine-slots`. Only the `slot_dir` key under `[concurrency]`
+  moves it; that key is meant for tests.
+- **Every check is serialised.** Inspect, reclaim, acquire and release all
+  run under one OS-backed exclusive lock on `guard.lock` in that directory
+  (`msvcrt.locking` on Windows, `fcntl.flock` elsewhere), held only for that
+  short section. Two launches can never both reclaim one dead slot, or both
+  take the last free one.
+- **Every live slot counts.** There is one file per job,
+  `<engine>-<job_id>.slot`, with no slot indices. Admission counts every live
+  file of the engine, so lowering a limit from 2 to 1 while jobs run still
+  sees them all. Jobs take a slot file even while their engine is unlimited,
+  so they count once a limit is set.
+- **Reclaim.** A slot whose pid died is reclaimed at the next acquire. The
+  slot records its owner's Store path, so that job is marked `interrupted`
+  in the right Store, even a different `--db`.
 
 ## One job per repository at a time
 

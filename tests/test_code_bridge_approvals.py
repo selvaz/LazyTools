@@ -13,13 +13,13 @@ import pytest
 from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import TieredGate
 
+from lazytools.code_bridge import _engines
 from lazytools.code_bridge._approvals import (
     BridgeGate,
     ClassifiedRule,
     is_readonly_gh_query,
     is_simple_git_add,
     is_simple_git_commit,
-    strip_literal_heredocs,
     unwrap_powershell,
 )
 from lazytools.code_bridge._policy import CODING_RULES
@@ -123,6 +123,34 @@ def test_codex_git_add_grant_is_scoped_to_the_cwd():
         "git commit --amend --no-edit",
         "git commit --no-verify -m x",
         "git commit -nm x",
+        # P2-4 review examples: quoted and abbreviated options.
+        'git commit "--amend" -m x',
+        "git commit '--amend'",
+        'git commit "--no-verify" -m x',
+        "git commit --amen -m x",
+        "git commit --no-ver -m x",
+        "powershell.exe -Command 'git commit \"--amend\" -m x'",
+        # Everything else outside the allow-list.
+        "git commit -n -m x",
+        "git commit --fixup HEAD",
+        "git commit --fixup=HEAD",
+        "git commit -c HEAD",
+        "git commit -C HEAD",
+        "git commit --author=x -m y",
+        "git commit -m",
+        "git commit -mx",
+        "git commit -ma x",
+        "git commit -F /etc/passwd",
+        "git commit -F ../outside.txt",
+        "git commit --file=C:/outside.txt",
+        "git commit -F -",
+        "git commit -m x ../other/file.py",
+        'git add "--force" ignored.txt',
+        "git add --forc ignored.txt",
+        "git add -f ignored.txt",
+        "git add -p",
+        "git add --chmod=+x run.sh",
+        "git add --al",
         "git -C ../other add -A",
         "git add $(evil)",
         "git add x > out.txt",
@@ -163,10 +191,21 @@ CLAUDE_5 = "python _docs.py && rm _docs.py && git diff --stat docs; cat C:/Users
 
 
 @pytest.mark.parametrize("command", [CLAUDE_1, CLAUDE_3], ids=["1-heredoc-delete", "3-heredoc-rm"])
-def test_claude_fixtures_1_3_heredoc_bodies_no_longer_ask(command):
-    # Before: the body lines were matched as commands and hit *delete* / *rm *.
-    assert TieredGate(channel=None, rules=CODING_RULES)._match(claude_bash(command)).tier == "ask"
-    assert tier(claude_bash(command)) == "allow"
+def test_claude_fixtures_1_3_heredocs_are_matched_in_full_and_ask(command):
+    """Option B (fix round 1): the gate matches the WHOLE Bash text again, so a
+    heredoc whose body says delete/rm asks. The fix for 1 and 3 is upstream:
+    the writer is told to create files with Write/Edit, never heredocs."""
+    assert tier(claude_bash(command)) == "ask"
+    stock = TieredGate(channel=None, rules=CODING_RULES)._match(claude_bash(command))
+    assert stock is not None and stock.tier == "ask"  # identical to the stock gate
+
+
+def test_claude_writer_is_told_to_write_files_with_write_edit_and_use_its_temp_dir():
+    text = _engines.claude_writer_instructions("C:/Temp/lazytools-bridge/job1")
+    assert "Write and Edit tools" in text
+    assert "no heredocs" in text and "echo" in text
+    assert "C:/Temp/lazytools-bridge/job1" in text
+    assert "temp directory" in _engines.claude_writer_instructions(None)
 
 
 @pytest.mark.parametrize("command", [CLAUDE_2, CLAUDE_4, CLAUDE_5], ids=["2", "4", "5"])
@@ -174,50 +213,39 @@ def test_claude_fixtures_2_4_5_still_ask_because_of_rm(command):
     assert tier(claude_bash(command)) == "ask"
 
 
-def test_the_human_still_sees_the_original_heredoc_command():
-    channel = RecordingChannel()
-    gate = BridgeGate(channel=channel, rules=CODING_RULES)
-    command = CLAUDE_1 + "\npython /tmp/new_archive.py && rm -rf build"
-    assert decide(gate, claude_bash(command)) == ("allow", True)
-    assert "NamedTemporaryFile" in channel.prompts[0]
+#: Bypasses found by the opposite-engine review of the removed heredoc
+#: stripping (P1-1, P1-2) and its neighbours. Every one must ASK.
+HEREDOC_BYPASSES = [
+    # P1-1: bash ignores the commented cat, so the "body" runs as commands.
+    "echo ok # ; cat > x <<'EOF'\nrm -rf target\nEOF",
+    # P1-2: the heredoc body becomes the program of bash -c "$(...)".
+    "bash -c \"$(true; cat <<'EOF'\ngit push origin main\nEOF\n)\"",
+    # A data sink that is then executed.
+    "cat > x.sh <<'EOF'\nrm -rf target\nEOF\nbash x.sh",
+    "cat > x.sh <<'EOF'\ngit push origin main\nEOF\nsh x.sh",
+    # Classic code heredocs.
+    "bash <<'EOF'\nrm -rf ~\nEOF",
+    "python - <<'EOF'\nimport os; os.system('rm -rf x')\nEOF",
+    "cat <<'EOF' | bash\nrm -rf x\nEOF",
+    "cat > f.txt <<EOF\n$(rm -rf ~)\nEOF",
+    "python -c \"import os; os.system('rm -rf x')\"",
+    # rm before / after a heredoc.
+    CLAUDE_1 + "\nrm -rf /tmp/x",
+    "rm -rf build && " + CLAUDE_1,
+]
 
 
-@pytest.mark.parametrize(
-    "command",
-    [
-        # A real rm/delete after (or before) the heredoc still asks.
-        CLAUDE_1 + "\nrm -rf /tmp/x",
-        "rm -rf build && " + CLAUDE_1,
-        CLAUDE_1 + "\ngit push origin --delete feature",
-        # The body is CODE, not data: an interpreter consumes it.
-        "bash <<'EOF'\nrm -rf ~\nEOF",
-        "python - <<'EOF'\nimport os; os.system('rm -rf x')\nEOF",
-        "sh <<EOF\nrm -rf x\nEOF",
-        # A data heredoc piped into a shell is code too.
-        "cat <<'EOF' | bash\nrm -rf x\nEOF",
-        # An unquoted delimiter expands $( ) in the body.
-        "cat > f.txt <<EOF\n$(rm -rf ~)\nEOF",
-        "cat > f.txt <<EOF\n`rm -rf ~`\nEOF",
-        # No terminator: everything stays visible.
-        "cat > f.txt <<'EOF'\nrm -rf x",
-        # Redirect target built by substitution: not a plain sink.
-        "cat > $(rm -rf x) <<'EOF'\nhello\nEOF",
-        # python -c payloads are code being executed NOW: never hidden.
-        "python -c \"import os; os.system('rm -rf x')\"",
-    ],
-)
-def test_real_rm_and_delete_still_ask_around_and_inside_code(command):
+@pytest.mark.parametrize("command", HEREDOC_BYPASSES)
+def test_review_heredoc_bypasses_ask(command):
     assert tier(claude_bash(command)) == "ask"
+    channel = RecordingChannel(answer=False)
+    assert decide(BridgeGate(channel=channel, rules=CODING_RULES), claude_bash(command)) == ("deny", True)
 
 
-def test_strip_literal_heredocs_keeps_everything_but_the_data_body():
-    command = "mkdir -p out && cat > out/a.py <<'EOF'\nrm -rf /\nEOF\necho done"
-    assert strip_literal_heredocs(command) == "mkdir -p out && cat > out/a.py <<'EOF'\nEOF\necho done"
-    # <<- strips leading tabs from the terminator; tee is a sink too.
-    assert strip_literal_heredocs("tee -a log.txt <<-'X'\n\tdelete me\n\tX\nls") == "tee -a log.txt <<-'X'\n\tX\nls"
-    # Unquoted delimiter with an inert body is literal enough to strip.
-    assert strip_literal_heredocs("cat > n.txt <<EOF\ndelete=False\nEOF") == "cat > n.txt <<EOF\nEOF"
-    assert strip_literal_heredocs("echo hi") == "echo hi"
+@pytest.mark.parametrize("command", [CLAUDE_1, *HEREDOC_BYPASSES, CLAUDE_2, "ls -la", "git push origin main"])
+def test_bridge_gate_matches_bash_exactly_like_the_stock_gate(command):
+    stock = TieredGate(channel=None, rules=CODING_RULES)._match(claude_bash(command))
+    assert tier(claude_bash(command)) == (stock.tier if stock else "unmatched")
 
 
 def test_rm_is_not_weakened_globally():
@@ -351,6 +379,41 @@ def test_git_classifiers():
     assert is_simple_git_commit("git commit -m 'feat: x; not a separator'")
     assert not is_simple_git_commit("git commit --amend")
     assert not is_simple_git_commit("git commit -m x && git push")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git add -A",
+        "git add --all",
+        "git add -u",
+        "git add --update",
+        "git add src/a.py tests/b.py",
+        "git add -- -weird-name.txt",
+        "git add 'docs/with space.md'",
+    ],
+)
+def test_git_add_allow_list_accepts(command):
+    assert is_simple_git_add(command)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit -m 'msg'",
+        'git commit -m "--amend is only the message"',
+        "git commit --message=fix",
+        "git commit -a -m x",
+        "git commit --all -m x",
+        "git commit -am 'x'",
+        "git commit -F docs/msg.txt",
+        "git commit --file=msg.txt",
+        "git commit -m x -- src/a.py",
+        "git commit -m x src/a.py",
+    ],
+)
+def test_git_commit_allow_list_accepts(command):
+    assert is_simple_git_commit(command)
 
 
 def test_classified_rules_never_match_a_split_segment_under_a_plain_tieredgate():

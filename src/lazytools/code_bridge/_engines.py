@@ -15,7 +15,6 @@ of a one-shot CLI process instead.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -50,33 +49,34 @@ def _make_claude_engine(**kwargs: Any) -> Any:
     return ClaudeCodeEngine(**kwargs)
 
 
-def temp_writable_roots() -> tuple[str, ...]:
-    """The OS temp directory (resolved) plus ``%TEMP%``/``%TMP%`` when they differ.
+def claude_writer_instructions(temp_dir: str | None) -> str:
+    """System instructions for the Claude writer (option B of the 17/10 approvals work).
 
-    Added to the Codex sandbox's writable roots so a job's own tests can use
-    ``tmp_path``/``tempfile`` without asking to leave the sandbox. Found
-    live (17/10/2026): every pytest run escalated with "the sandbox blocked
-    pytest's temporary-directory access". Temp is per-user scratch space, so
-    letting the sandbox write there does not let it touch the repo's
-    history, other repositories, or the network.
+    The approval gate matches ``Bash`` command TEXT, so file content written
+    through a shell heredoc or ``echo >`` is matched as if it were commands
+    (a script containing ``delete=False`` asks). Writing files with the
+    Write/Edit tools avoids that and is already allowed. Hiding heredoc bodies
+    from the gate instead was tried and removed: it could hide executed
+    commands (see ``_approvals.BridgeGate``).
     """
-    import tempfile
-
-    candidates = [tempfile.gettempdir(), os.environ.get("TEMP"), os.environ.get("TMP")]
-    roots: list[str] = []
-    seen: set[str] = set()
-    for raw in candidates:
-        if not raw:
-            continue
-        try:
-            resolved = str(Path(raw).expanduser().resolve())
-        except OSError:
-            continue
-        key = os.path.normcase(resolved)
-        if key not in seen:
-            seen.add(key)
-            roots.append(resolved)
-    return tuple(roots)
+    lines = [
+        "File-writing rules for this job (they keep approval prompts for real decisions only):",
+        "- Create and change files ONLY with the Write and Edit tools. Never write file content through"
+        " the shell: no heredocs (cat > f <<EOF), no echo/printf redirection, no python -c that writes files.",
+        "- Use Bash to run programs (tests, linters, git, your own helper scripts), not to author files.",
+    ]
+    if temp_dir:
+        lines.append(
+            f"- Put temporary helper files (scratch scripts, notes, outputs) under {temp_dir}, creating them"
+            " with Write. That directory is yours for this job and is removed when it ends; do not leave"
+            " helpers in the repository."
+        )
+    else:
+        lines.append(
+            "- No dedicated temp directory is available for this job: avoid temporary helper files in the"
+            " repository where you can, and list any you create in your final answer."
+        )
+    return "\n".join(lines)
 
 
 def build_codex_engine(
@@ -89,6 +89,7 @@ def build_codex_engine(
     session_alias: str | None,
     session_registry: SessionRegistry,
     timeout: float = DEFAULT_TIMEOUT,
+    temp_dir: str | None = None,
 ) -> Any:
     """A ``CodexEngine`` for one foreground job: workspace-write, on-request escalations gated.
 
@@ -96,21 +97,21 @@ def build_codex_engine(
     ``~/.codex/config.toml``, so a job can research what it is building
     whatever that file says.
 
-    The OS temp directory is an extra writable root (see
-    :func:`temp_writable_roots`). Sandbox NETWORK access is deliberately left
-    off: with no network inside the sandbox, every ``git push`` and ``gh``
-    write has to escalate, and the escalation is what the approval gate
-    sees. (Live web search is Codex's own tool, not shell network access.)"""
+    ``temp_dir`` -- the job's own temp directory (``_tempdir``), already
+    vetted -- is the ONE extra writable root; ``None`` adds none. Sandbox
+    NETWORK access is deliberately left off: with no network inside the
+    sandbox, every ``git push`` and ``gh`` write has to escalate, and the
+    escalation is what the approval gate sees. (Live web search is Codex's
+    own tool, not shell network access.)"""
     import dataclasses
 
     from lazybridge.engines.coding import CodingAgentConfig
 
     config = CodingAgentConfig.writer(gate)
-    existing = tuple(config.codex.writable_roots or ())
-    roots = existing + tuple(r for r in temp_writable_roots() if r not in existing)
-    config = dataclasses.replace(
-        config, codex=dataclasses.replace(config.codex, web_search="live", writable_roots=roots)
-    )
+    codex_policy = dataclasses.replace(config.codex, web_search="live")
+    if temp_dir:
+        codex_policy = dataclasses.replace(codex_policy, writable_roots=(temp_dir,))
+    config = dataclasses.replace(config, codex=codex_policy)
     return _make_codex_engine(
         model=model,
         cwd=cwd,
@@ -136,8 +137,13 @@ def build_claude_engine(
     session_alias: str | None,
     session_registry: SessionRegistry,
     timeout: float = DEFAULT_TIMEOUT,
+    temp_dir: str | None = None,
 ) -> Any:
-    """A ``ClaudeCodeEngine`` for one foreground job: Write/Edit/Bash, every call gated."""
+    """A ``ClaudeCodeEngine`` for one foreground job: Write/Edit/Bash, every call gated.
+
+    ``temp_dir`` (the job's own, vetted temp directory) becomes a second file
+    root, so helper files can be created there with Write as the
+    instructions ask (:func:`claude_writer_instructions`)."""
     from lazybridge.engines.coding import ClaudeCodePolicy, CodingAgentConfig
 
     config = CodingAgentConfig(
@@ -155,7 +161,8 @@ def build_claude_engine(
         **kwargs,
         reasoning_effort=effort,
         cwd=cwd,
-        file_roots=[cwd],
+        file_roots=[cwd, temp_dir] if temp_dir else [cwd],
+        system=claude_writer_instructions(temp_dir),
         # WebSearch/WebFetch on: jobs may look things up while they work.
         # Both are allowed by the bridge's rule table, so they run unprompted.
         web=True,
@@ -190,6 +197,6 @@ __all__ = [
     "DEFAULT_TIMEOUT",
     "build_claude_engine",
     "build_codex_engine",
+    "claude_writer_instructions",
     "resolve_cwd",
-    "temp_writable_roots",
 ]

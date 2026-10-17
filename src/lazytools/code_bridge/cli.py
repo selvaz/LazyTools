@@ -138,13 +138,14 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
     # (and takes the slot) itself; this is the early, visible answer.
     if not getattr(args, "wait_for_slot", False):
         try:
-            limits = _concurrency.load_limits()
+            slot_config = _concurrency.load_config()
         except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
-        holders = _concurrency.engine_at_limit(_store.locks_dir(_db_path(args)), args.engine, limits)
+        holders = _concurrency.engine_at_limit(args.engine, slot_config)
         if holders:
-            print(str(EngineBusy(args.engine, limits.get(args.engine) or len(holders), holders)), file=sys.stderr)
+            limit = slot_config.limits.get(args.engine) or len(holders)
+            print(str(EngineBusy(args.engine, limit, holders)), file=sys.stderr)
             return 2
     # Hand the child absolute paths, so nothing depends on its working directory.
     args.root = str(root)

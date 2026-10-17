@@ -14,8 +14,8 @@ catch-all ``Rule("allow", "Bash")``, and the generic command escalation rule
 stays last.
 
 The table is meant for :class:`~lazytools.code_bridge._approvals.BridgeGate`,
-which evaluates the :class:`ClassifiedRule` entries on the whole command and
-hides literal heredoc bodies from the ``Bash`` patterns. Under a plain
+which evaluates the :class:`ClassifiedRule` entries on the whole command
+(``Bash`` text is matched unmodified, heredoc bodies included). Under a plain
 ``TieredGate`` it stays safe -- a ``ClassifiedRule`` never matches a split
 segment, so those requests simply ask.
 """
