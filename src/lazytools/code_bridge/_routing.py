@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _jobs, _lockfile, _store
+from lazytools.code_bridge import _concurrency, _jobs, _lockfile, _store
 from lazytools.projects.admission import (
     ENGINES,
     LONG_WINDOW_MINUTES,
@@ -195,6 +195,8 @@ class Selection:
                 reasons.append(why)
         exclusions = "; ".join(f"{engine}: {'; '.join(reasons)}" for engine, reasons in grouped.items())
         notice = f" {self.notice}" if self.notice else ""
+        if any("engine_at_concurrency_limit" in why for why in self.decision.ineligible.values()):
+            notice += " An engine is at its concurrency limit: pass --wait-for-slot to queue for it."
         ceilings = self._ceiling_guidance()
         if self.decision.reason == "session_conflict":
             return self.notice or exclusions
@@ -221,7 +223,16 @@ def choose(
     tier: str, *, cwd: str, db_path: Path | None = None, engine: str | None = None,
     session: str | None = None, needs: str | None = None, review_of: str | None = None,
     model: str | None = None, effort: str | None = None, tiers_path: Path | None = None,
+    respect_slots: bool = True,
 ) -> Selection:
+    """Pick an engine/model for ``tier``.
+
+    With ``respect_slots`` (the default) an engine already at its machine-wide
+    concurrency limit (see ``_concurrency``) is excluded, with the running job
+    named in the exclusion -- so a busy Codex routes the job to Claude when
+    Claude is eligible. ``respect_slots=False`` is for ``--wait-for-slot``
+    when no free engine is eligible: pick as if the slot were free, then queue.
+    """
     catalogue = load_tiers(tiers_path) if tiers_path is not None else load_default_tiers()
     # Unknown tiers should fail before the slow telemetry read.
     if tier not in catalogue:
@@ -269,6 +280,17 @@ def choose(
         # another admission check, so it keeps its reservation (Codex review on #186).
         if row.get("status") in ("running", "awaiting_approval") and type(pid) is int and _lockfile._pid_alive(pid):
             in_flight[provider(str(row.get("engine", row.get("kind"))))] += 1
+    refused: dict[str, str] = {}
+    if respect_slots:
+        # Machine-wide slots (independent of --db): see _concurrency.
+        slot_config = _concurrency.load_config()
+        for slot_engine in ENGINES:
+            name = bridge_engine(slot_engine)
+            holders = _concurrency.engine_at_limit(name, slot_config)
+            if holders:
+                limit = slot_config.limits.get(name) or len(holders)
+                refused[slot_engine] = _concurrency.busy_reason(name, limit, holders)
+                available -= frozenset((slot_engine,))
     readings = read_readings()
     routing_catalogue = catalogue
     if model is not None:
@@ -297,7 +319,6 @@ def choose(
     # jobs. If attribution is introduced, a project with its brake enabled must pass
     # operator_directed=False here, using the project's existing brake setting.
     operator_directed = True
-    refused: dict[str, str] = {}
     scores: dict[str, dict[str, Any]] = {}
     while True:
         decision = recommend(

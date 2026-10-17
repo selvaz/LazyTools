@@ -23,7 +23,8 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _engines, _store
+from lazytools.code_bridge import _concurrency, _engines, _store, _tempdir
+from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._lockfile import JobLock
 from lazytools.code_bridge._policy import CODING_RULES
 
@@ -274,11 +275,17 @@ def run_job(
     job_id: str | None = None,
     routing: dict[str, Any] | None = None,
     timeout: float = _engines.DEFAULT_TIMEOUT,
+    wait_for_slot: bool = False,
+    on_slot_wait: Callable[[_concurrency.EngineBusy], None] | None = None,
 ) -> RunResult:
     """Run one job to completion. Raises before any job is recorded for a
     bad engine name or a ``cwd`` outside the confinement root; raises
     :class:`~lazytools.code_bridge._lockfile.LockHeld` if another live
-    process already owns this ``cwd``. Every other failure (engine error,
+    process already owns this ``cwd``, and
+    :class:`~lazytools.code_bridge._concurrency.EngineBusy` if the engine is
+    at its machine-wide concurrency limit (unless ``wait_for_slot``, which
+    blocks until a slot frees up -- holding this repository's lock, so the
+    queued job keeps its place). Every other failure (engine error,
     denied action, expired approval) is captured into the job record and
     returned as ``status="failed"`` rather than raised, so the CLI can
     report it and exit non-zero without a traceback.
@@ -311,6 +318,21 @@ def run_job(
     lock = JobLock(_store.locks_dir(db_path), _git_repo_root(resolved_cwd))
     stale_job_id = lock.acquire(job_id)  # raises LockHeld -- job_id was reported but nothing else is recorded
 
+    # Engine slot AFTER the repo lock: the repo lock never waits (it raises),
+    # so a job queued here cannot deadlock against one holding a slot. Taken
+    # before anything is recorded, like the repo lock: a refused or
+    # interrupted wait leaves no job record behind.
+    store_path = (db_path or _store.default_db_path()).expanduser().resolve()
+    try:
+        slot_config = _concurrency.load_config()
+        slot = _concurrency.EngineSlot(
+            engine_name, slot_config.limits.get(engine_name), slot_config.slot_dir, db_path=store_path
+        )
+        slot.acquire(job_id, wait=wait_for_slot, on_wait=on_slot_wait)
+    except BaseException:
+        lock.release()
+        raise
+
     # Everything from here on holds the lock; a single `finally` at the
     # bottom covers the whole rest of the function, INCLUDING the initial
     # bookkeeping writes just below -- not only the engine run further down.
@@ -322,6 +344,7 @@ def run_job(
     # function other callers may embed). Found by Codex review.
     head_at_start = None
     head_at_start_error = None
+    temp_dir: Path | None = None
     try:
         # Defined FIRST, before anything below that could itself raise:
         # the `except BaseException` handler further down calls this to
@@ -367,6 +390,13 @@ def run_job(
         head_at_start, head_at_start_error = _head_at_start(lock.cwd)
         if stale_job_id is not None:
             _mark_interrupted(store, registry, stale_job_id, db_path=db_path)
+        for stale_slot in slot.reclaimed:
+            _mark_slot_interrupted(stale_slot, store, registry, current_db=store_path, db_path=db_path)
+
+        # The job's own temp dir: the ONLY extra writable root it gets, and
+        # what TEMP/TMP/TMPDIR point at for the engine. None (with the reason
+        # recorded) when the OS temp base is unsafe -- fail closed.
+        temp_dir, temp_refused = _tempdir.create_job_temp_dir(job_id, cwd=resolved_cwd, db_path=store_path)
 
         now = time.time()
         registry.write(job_id, task, tool_name=engine_name, status="running")
@@ -388,17 +418,18 @@ def run_job(
                 "created_at": now,
                 "updated_at": now,
                 **({"routing": routing} if routing is not None else {}),
+                "temp_dir": str(temp_dir) if temp_dir is not None else None,
+                **({"temp_dir_refused": temp_refused} if temp_refused is not None else {}),
             },
         )
+        temp_arg = str(temp_dir) if temp_dir is not None else None
 
         channel = _StatusTrackingChannel(
             _store_channel(queue, job_id),
             on_waiting=lambda: _set_status("awaiting_approval"),
             on_resumed=lambda: _set_status("running"),
         )
-        from lazybridge.ext.approval import TieredGate
-
-        gate = TieredGate(channel=channel, rules=CODING_RULES)
+        gate = BridgeGate(channel=channel, rules=CODING_RULES)
 
         from lazybridge.engines.sessions import default_session_registry
 
@@ -415,6 +446,7 @@ def run_job(
                 session_alias=session_name,
                 session_registry=session_registry,
                 timeout=timeout,
+                temp_dir=temp_arg,
             )
             agent_name = "code-bridge-codex"
         else:
@@ -428,10 +460,14 @@ def run_job(
                 session_alias=session_name,
                 session_registry=session_registry,
                 timeout=timeout,
+                temp_dir=temp_arg,
             )
             agent_name = "code-bridge-claude"
 
-        env = asyncio.run(_run_agent(engine, task, agent_name))
+        # The engine subprocess inherits this process's environment: point its
+        # TEMP/TMP/TMPDIR at the job's own temp dir for exactly this run.
+        with _tempdir.temp_env(temp_dir):
+            env = asyncio.run(_run_agent(engine, task, agent_name))
         if not env.ok:
             message = env.error.message if env.error else "unknown error"
             return _finish("failed", "", message)
@@ -454,7 +490,34 @@ def run_job(
             raise  # propagate the signal rather than reporting a fabricated RunResult; `finally` below still releases the lock
         return finished
     finally:
+        _tempdir.remove_job_temp_dir(temp_dir)  # best effort, never raises
+        slot.release()
         lock.release()
+
+
+def _mark_slot_interrupted(
+    stale: dict[str, Any], store: Any, registry: Any, *, current_db: Path, db_path: Path | None
+) -> None:
+    """Mark a reclaimed engine slot's job interrupted in the Store IT recorded into.
+
+    Slots are machine-wide, so the dead job may belong to a different
+    ``--db``. Best effort: a missing or unreadable other Store is skipped.
+    """
+    job_id = stale.get("job_id")
+    if not job_id:
+        return
+    owner = stale.get("db_path")
+    try:
+        if not owner or Path(owner) == current_db:
+            _mark_interrupted(store, registry, str(job_id), db_path=db_path)
+            return
+        other = Path(owner)
+        if not other.is_file():
+            return
+        other_store = _store.build_store(other)
+        _mark_interrupted(other_store, _store.build_job_registry(other_store), str(job_id), db_path=other)
+    except Exception:  # bookkeeping for ANOTHER job must never fail this one
+        return
 
 
 def _mark_interrupted(store: Any, registry: Any, old_job_id: str, *, db_path: Path | None = None) -> None:
