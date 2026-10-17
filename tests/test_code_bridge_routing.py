@@ -806,3 +806,63 @@ def test_route_accepts_the_same_model_and_effort_overrides_as_run(bridge, monkey
     cli.main(["route", "--tier", "writing", "--model", "claude-opus-5-5", "--effort", "medium",
               "--cwd", str(bridge[2]), "--db", str(bridge[3])])
     assert seen["model"] == "claude-opus-5-5" and seen["effort"] == "medium"
+
+
+# --------------------------------------------------------------------------- #
+# engine concurrency limit
+# --------------------------------------------------------------------------- #
+
+
+def _hold_codex(bridge, job_id="codex-busy-job"):
+    from lazytools.code_bridge._concurrency import EngineSlot
+
+    slot = EngineSlot(_store.locks_dir(bridge[3]), "codex", 1)
+    slot.try_acquire(job_id)
+    return slot
+
+
+def test_route_falls_back_to_claude_when_codex_is_at_its_limit_and_says_why(bridge, capsys):
+    assert cli.main(args(bridge)) == 0
+    assert "chosen: codex/" in capsys.readouterr().out  # baseline: codex has more quota
+    slot = _hold_codex(bridge)
+    try:
+        assert cli.main(args(bridge)) == 0
+    finally:
+        slot.release()
+    out = capsys.readouterr().out
+    assert "chosen: claude/" in out
+    assert "excluded" in out and "engine_at_concurrency_limit" in out and "codex-busy-job" in out
+
+
+def test_route_json_records_the_slot_exclusion(bridge, capsys):
+    slot = _hold_codex(bridge)
+    try:
+        assert cli.main(args(bridge, "route", "--json")) == 0
+    finally:
+        slot.release()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["engine"] == "claude"
+    assert any("engine_at_concurrency_limit" in why for why in payload["ineligible"].values())
+
+
+def test_tier_run_pinned_to_busy_codex_refuses_naming_the_job(bridge, capsys):
+    slot = _hold_codex(bridge)
+    try:
+        assert cli.main(args(bridge, "run", "--engine", "codex")) == 2
+    finally:
+        slot.release()
+    err = capsys.readouterr().err
+    assert "engine_at_concurrency_limit" in err and "codex-busy-job" in err
+    assert bridge[0].engines == []
+
+
+def test_tier_run_with_wait_for_slot_keeps_the_busy_engine_and_queues(bridge, monkeypatch, capsys):
+    seen = {}
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.update(argv=argv) or 99)
+    slot = _hold_codex(bridge)
+    try:
+        assert cli.main(args(bridge, "run", "--engine", "codex", "--wait-for-slot", "--detach")) == 0
+    finally:
+        slot.release()
+    argv = seen["argv"]
+    assert argv[argv.index("--engine") + 1] == "codex" and "--wait-for-slot" in argv

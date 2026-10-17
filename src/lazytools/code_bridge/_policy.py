@@ -12,11 +12,19 @@ First matching rule wins (see ``lazybridge.ext.approval.tiered.TieredGate``);
 order matters. The specific ``Bash``/git/gh patterns must come before the
 catch-all ``Rule("allow", "Bash")``, and the generic command escalation rule
 stays last.
+
+The table is meant for :class:`~lazytools.code_bridge._approvals.BridgeGate`,
+which evaluates the :class:`ClassifiedRule` entries on the whole command and
+hides literal heredoc bodies from the ``Bash`` patterns. Under a plain
+``TieredGate`` it stays safe -- a ``ClassifiedRule`` never matches a split
+segment, so those requests simply ask.
 """
 
 from __future__ import annotations
 
 from lazybridge.ext.approval import Rule
+
+from lazytools.code_bridge._approvals import ClassifiedRule
 
 #: Pure reads/navigation/web run free. Write/Edit are "allow" here because
 #: this gate is the ONLY thing standing between the agent and a file change
@@ -84,9 +92,28 @@ CODING_RULES: tuple[Rule, ...] = (
     # forms; anything else (tests, scripts, curl, ...) runs free, matching
     # how this bridge's own human operates at the terminal.
     Rule("allow", "Bash"),
-    # Every command a coding engine escalates beyond its own sandbox reaches
-    # a human. Codex's approval_policy="on-request" only fires when Codex
-    # ITSELF decides it needs more than workspace-write, so a request
+    # --- Sandbox escalations (kind="command", Codex's "codex-shell") ------
+    # Decided by explicit, unit-tested classifiers over the WHOLE command
+    # (see _approvals.py), never by fnmatch: each is an allow-list over a
+    # strict tokenisation, so anything compound, redirected, substituted or
+    # simply unrecognised falls through to the catch-all "ask" below.
+    #
+    # A read-only GitHub query (gh pr view|checks|diff, gh run view|list,
+    # gh api GET on repos/...). Codex escalates these only because its
+    # sandbox has no network; they read, never write. Network stays OFF in
+    # the sandbox, so every gh/git WRITE still needs an escalation -- and
+    # still reaches the catch-all ask.
+    ClassifiedRule("allow", "*", kind_pattern="command", classifier="readonly_gh_query"),
+    # The same session semantics the Bash rules above give git add/commit,
+    # for the escalated form: the first one asks, the rest of this run is
+    # granted -- but only for ONE simple git add / git commit (no chaining,
+    # no `git -C`, no --amend/--no-verify). Escalated pushes are NOT here:
+    # they keep asking every time via the catch-all.
+    ClassifiedRule("session", "*", kind_pattern="command", classifier="simple_git_add"),
+    ClassifiedRule("session", "*", kind_pattern="command", classifier="simple_git_commit"),
+    # Every other command a coding engine escalates beyond its own sandbox
+    # reaches a human. Codex's approval_policy="on-request" only fires when
+    # Codex ITSELF decides it needs more than workspace-write, so a request
     # arriving here is already "I want to step outside what I was granted" --
     # exactly the moment for a person to decide, not a pattern match.
     Rule("ask", "*", kind_pattern="command"),

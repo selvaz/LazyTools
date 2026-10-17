@@ -466,21 +466,111 @@ search set explicitly per job rather than inherited from `~/.codex/config.toml`.
 The `--cwd` argument must resolve inside `$LAZYTOOLS_CODE_ROOT` / `--root`
 (default: the launching directory). Codex uses workspace-write; Claude file
 hooks confine file tools to `cwd`, while Bash is not path-confined. Requests
-are gated by one
-`lazybridge.ext.approval.TieredGate` whose rule table
+are gated by one `BridgeGate` (a `lazybridge.ext.approval.TieredGate`
+with the structural steps described below) whose rule table
 (`lazytools.code_bridge._policy.CODING_RULES`) mirrors the generic coding
 rules in LazyCEO's own agent: reads/`Write`/`Edit`/`Bash` run free; `git
 add`/`commit`/`push`/`gh pr create` get a one-time-per-run session grant;
 dangerous push forms, pushing to `main`/`master`, `gh pr merge`, `git reset
 --hard`, and anything matching `*rm *`/`*delete*` ask every time; and any
 command a coding engine escalates beyond its own sandbox (Codex's
-`approval_policy="on-request"`) always asks. The channel behind "ask" is a
+`approval_policy="on-request"`) asks, except read-only GitHub queries and
+the session-granted simple `git add`/`git commit` described below. The channel behind "ask" is a
 durable, `Store`-backed `ApprovalQueue`
 (default `~/.lazytools/code-bridge.sqlite`, override with
 `LAZYTOOLS_CODE_BRIDGE_DB` / `--db`) — the ticket survives this process
 exiting, which is the whole point: a human answers it from an entirely
 different process (this bridge's `approve`/`reject`, or any other surface
 that reads the same queue).
+
+### Structural approval rules (what no longer asks, and why it is safe)
+
+On 17/10/2026 one day of delegated work filed about fifteen tickets in
+fifteen minutes, nearly all harmless. Three changes, all in the bridge
+itself (`_approvals.py`, `_policy.py`, `_engines.py`), remove that noise
+without loosening anything that matters. The gate is a
+`BridgeGate` — a `TieredGate` that consults explicit, unit-tested
+classifiers on the **whole** command before the stock fnmatch rules.
+
+| Request | Before | Now | Why it is safe |
+| --- | --- | --- | --- |
+| Codex runs `pytest` (needs `tmp_path`) | escalation → ask | runs **inside** the sandbox | The OS temp dir (`tempfile.gettempdir()`, plus `%TEMP%`/`%TMP%` when different) is an extra Codex writable root. It is per-user scratch space: no repo history, no other repository, no network. |
+| Codex escalates a read-only GitHub query: `gh pr view\|checks\|diff`, `gh run view\|list`, `gh api` GET on `repos/...`, bare or inside `powershell.exe -Command '...'` | ask | **allow** | An allow-list over a strict tokeniser (see below). Codex escalates these only because its sandbox has no network; they read and never write. |
+| Codex escalates `git add ...` / `git commit ...` | ask, every time | **session**: first asks, rest of the run granted | The same session semantics the Claude `Bash` rules already give `git add`/`commit`, for one simple command only — no chaining, no `git -C`, no `--amend`/`--no-verify`. Scoped to cwd and to that exact rule. |
+| Claude `cat > file <<'EOF' ... EOF` whose *body* contains `delete`/`rm ` | ask | **allow** | Only the body of a *literal data* heredoc is hidden from the patterns (see below). The command line itself and everything after the terminator are matched as before. |
+
+**The read-only `gh` classifier** (`is_readonly_gh_query`) returns "allow"
+only when every check passes; anything it does not positively recognise
+falls through to the catch-all `ask`. A false "ask" is cheap; a false
+"allow" is not.
+
+- One command only. Outside quotes, only `[A-Za-z0-9_./:,=+-]` are allowed —
+  so `;`, `&&`, `||`, `|`, `>`, `<`, `(`, `{`, globs and `#` all mean "ask".
+  `|` and `{}` are fine **inside** a quoted `--jq '...'` filter.
+- `$`, backtick, `\` and any non-ASCII character mean "ask" anywhere, quoted
+  or not (bash/PowerShell substitution; PowerShell treats Unicode smart
+  quotes as quotes).
+- The PowerShell wrapper is unwrapped only in its exact form:
+  `powershell.exe|pwsh [-NoProfile|-NonInteractive|-NoLogo] -Command '<one payload>'`
+  with nothing after the closing quote and no quote of the same kind inside.
+- Per subcommand, an explicit list of permitted flags. `gh api` may carry only
+  output/pagination flags — `-X`/`--method`, `-f`/`-F`/`--field`/`--raw-field`,
+  `--input`, `-H` all mean "ask" — and exactly one positional matching
+  `repos/<owner>/<repo>/...` (no `..`, no query string, no `graphql`).
+- Any other `gh` subcommand (`pr merge`, `pr comment`, `release create`,
+  `run rerun`, `auth token`, ...) and anything that is not `gh` mean "ask".
+
+**Heredoc bodies** (`strip_literal_heredocs`, Claude `Bash` only). Stock
+`TieredGate` splits a command on newlines, so every line of a heredoc body
+was matched as if it were a command. A body is now hidden from matching only
+when it is *data written to a file*: the heredoc feeds `cat`/`tee` with a
+plain redirect target, nothing is piped, the delimiter is quoted (or the
+body has no `$`, backtick or `\`), and the terminator line exists.
+`bash <<EOF`, `python - <<EOF`, `cat <<EOF | sh` and `python -c "..."`
+payloads are **code** and stay fully visible: hiding a `python -c` payload
+would turn `python -c "os.system('rm -rf x')"` from ask into allow, so it was
+deliberately not done (the brief's option A, restricted to data). The human
+shown a ticket always sees the original command, body included.
+
+**What still asks, unchanged:** every escalated command not covered above
+(including `git push`, `gh pr create`, any `gh` write, `pytest` if it ever
+escalates); merge, `git reset --hard`, `*rm *`, `*delete*`, pushes to
+`main`/`master` and every dangerous push form for Claude `Bash`; `rm` of a
+job's own scratch files (deliberately — `*rm *` is not weakened). Codex
+sandbox **network stays off**: that is what forces every `git push` and `gh`
+write to escalate, and so to reach a human.
+
+## Engine concurrency limit (machine-wide)
+
+Besides the per-repository lock, each engine has a machine-wide limit on live
+jobs. Defaults: **codex = 1**, claude = unlimited. Configure them in
+`~/.lazytools/code-bridge.toml` (or the file named by
+`LAZYTOOLS_CODE_BRIDGE_CONFIG`) — not in `model_tiers.toml`, whose loader
+rejects unknown tables:
+
+```toml
+[concurrency]
+codex = 1    # 0 = unlimited
+claude = 2   # absent or 0 = unlimited
+```
+
+- `run` with the engine at its limit is refused with a message naming the
+  running job id(s) and pid(s). `run --wait-for-slot` queues instead: it
+  takes the repository lock, then polls until a slot frees, then starts (it
+  prints `waiting for a codex slot ...`; a detached child prints it to its
+  log, and `wait` reports it as still starting).
+- `--detach` refuses in the launcher, where you see it, unless
+  `--wait-for-slot` is given; the child holds the slot for as long as it runs.
+- `--tier` routing excludes an engine at its limit, so a busy Codex sends the
+  job to Claude when Claude is eligible. `route` shows why:
+  `excluded codex: engine_at_concurrency_limit: codex 1/1 (running job ...)`.
+  If no free engine is eligible (for example the session is pinned to Codex),
+  the error names the job; with `--wait-for-slot` the busy engine is picked
+  and the launch queues.
+- A slot is the same reclaimable lock file as the repository lock
+  (`<store dir>/locks/engine-<engine>-<n>.lock`): a slot whose pid died is
+  reclaimed on the next launch and its job marked `interrupted`. Slots live
+  next to the job Store, so every launch sharing a Store shares the limit.
 
 ## One job per repository at a time
 
@@ -501,7 +591,60 @@ session and remembers it (in LazyBridge's own `SessionRegistry`,
 per repository, so the same name in two different repos is two different
 sessions.
 
+## Delegation method
+
+The reusable workflow for handing a piece of work to an engine and getting it
+merged safely. The orchestrator is a human or a Claude Code session; the
+bridge never merges on its own.
+
+1. **Brief file.** Write the task to a file (`brief.md`): context, the exact
+   change, files in and out of scope, the checks to run, "do not push to
+   main", and what "done" means. A file, not a long `--task` string: it is
+   reviewable, reusable for rework, and survives the session.
+2. **Launch detached, routed by tier.**
+
+    ```text
+    lazytools-code-bridge route --tier writing --cwd REPO          # dry run: who, which model, why
+    lazytools-code-bridge run --detach --tier writing --cwd REPO --task @brief.md --session feat-x --json
+    ```
+
+    The router respects quota and the engine concurrency limit (a busy Codex
+    goes to Claude). Add `--wait-for-slot` to queue rather than re-route when
+    the session is pinned to a busy engine.
+3. **Wait, and watch approvals.** Run `wait JOB_ID` in the host's background
+   mechanism and poll `pending --json` meanwhile. Read each ticket's command
+   and reason; `approve` only what the brief authorises, `reject --reason`
+   anything else. With the structural rules above, expect tickets only for
+   real decisions: pushes, PR creation, first `git add`/`commit` escalation,
+   deletes.
+4. **Orchestrator verification.** `result JOB_ID`, then check the work
+   yourself: read the diff, run the full test suite and linters in the
+   repository, confirm the scope matches the brief. A `done` job is not an
+   acceptance verdict.
+5. **Opposite-engine review.**
+
+    ```text
+    lazytools-code-bridge run --detach --tier writing --review-of JOB_ID --cwd REPO --task @review-brief.md --json
+    ```
+
+    `--review-of` always picks the engine that did *not* write; if it is not
+    eligible the bridge refuses with `human_review_required` rather than
+    letting the writer review itself. Feed findings back to the writer's
+    `--session` for rework, then review again.
+6. **PR with green CI.** The writer (or the orchestrator) opens a PR from a
+   feature branch (`gh pr create` asks, once per run). Wait for every CI
+   check to pass; read-only `gh pr checks`/`gh run view` escalations no
+   longer ask.
+7. **Merge.** A human merges (or explicitly approves `gh pr merge`, which
+   always asks). Never push to `main`.
+
 ## Known limits
+
+- A session grant for an escalated `git commit` runs the repository's commit
+  hooks outside the sandbox. Codex's sandbox keeps `.git` read-only, but a
+  repository configured with `core.hooksPath` pointing at a tracked
+  directory lets a job edit the hook it will later trigger — the first
+  commit escalation is the moment to notice that.
 
 - The per-`cwd` lock's "is this pid alive, and is the stale lock still the
   same lock file" check is two separate steps, not one atomic operation —

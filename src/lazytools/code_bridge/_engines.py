@@ -15,6 +15,7 @@ of a one-shot CLI process instead.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -49,6 +50,35 @@ def _make_claude_engine(**kwargs: Any) -> Any:
     return ClaudeCodeEngine(**kwargs)
 
 
+def temp_writable_roots() -> tuple[str, ...]:
+    """The OS temp directory (resolved) plus ``%TEMP%``/``%TMP%`` when they differ.
+
+    Added to the Codex sandbox's writable roots so a job's own tests can use
+    ``tmp_path``/``tempfile`` without asking to leave the sandbox. Found
+    live (17/10/2026): every pytest run escalated with "the sandbox blocked
+    pytest's temporary-directory access". Temp is per-user scratch space, so
+    letting the sandbox write there does not let it touch the repo's
+    history, other repositories, or the network.
+    """
+    import tempfile
+
+    candidates = [tempfile.gettempdir(), os.environ.get("TEMP"), os.environ.get("TMP")]
+    roots: list[str] = []
+    seen: set[str] = set()
+    for raw in candidates:
+        if not raw:
+            continue
+        try:
+            resolved = str(Path(raw).expanduser().resolve())
+        except OSError:
+            continue
+        key = os.path.normcase(resolved)
+        if key not in seen:
+            seen.add(key)
+            roots.append(resolved)
+    return tuple(roots)
+
+
 def build_codex_engine(
     *,
     cwd: str,
@@ -64,13 +94,23 @@ def build_codex_engine(
 
     Live web search is set explicitly rather than inherited from the user's
     ``~/.codex/config.toml``, so a job can research what it is building
-    whatever that file says."""
+    whatever that file says.
+
+    The OS temp directory is an extra writable root (see
+    :func:`temp_writable_roots`). Sandbox NETWORK access is deliberately left
+    off: with no network inside the sandbox, every ``git push`` and ``gh``
+    write has to escalate, and the escalation is what the approval gate
+    sees. (Live web search is Codex's own tool, not shell network access.)"""
     import dataclasses
 
     from lazybridge.engines.coding import CodingAgentConfig
 
     config = CodingAgentConfig.writer(gate)
-    config = dataclasses.replace(config, codex=dataclasses.replace(config.codex, web_search="live"))
+    existing = tuple(config.codex.writable_roots or ())
+    roots = existing + tuple(r for r in temp_writable_roots() if r not in existing)
+    config = dataclasses.replace(
+        config, codex=dataclasses.replace(config.codex, web_search="live", writable_roots=roots)
+    )
     return _make_codex_engine(
         model=model,
         cwd=cwd,
@@ -151,4 +191,5 @@ __all__ = [
     "build_claude_engine",
     "build_codex_engine",
     "resolve_cwd",
+    "temp_writable_roots",
 ]
