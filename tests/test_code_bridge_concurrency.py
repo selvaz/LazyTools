@@ -318,6 +318,78 @@ def test_refused_launch_keeps_a_dead_jobs_slot_until_its_bookkeeping_runs(env, d
     assert not stale_path.exists()
 
 
+def _killed_job_with_ticket(db: Path, repo: Path, job_id: str = "killed-job", ttl=None):
+    from datetime import timedelta
+
+    store = _store.build_store(db)
+    _store.build_job_registry(store).write(job_id, "old", tool_name="codex", status="awaiting_approval")
+    _store.write_meta(store, job_id, {"job_id": job_id, "engine": "codex", "cwd": str(repo)})
+    queue = _store.build_approval_queue(store)
+    ticket = queue.create_ticket(
+        task_id=job_id, prompt="[TieredGate] agent asks to run command 'codex-shell'", ttl=ttl or timedelta(hours=1)
+    )
+    return queue, ticket, write_stale_slot("codex", job_id, db.resolve())
+
+
+def test_ticket_rejection_failing_once_is_retried_before_the_slot_is_removed(env, dead_pid, monkeypatch):
+    """Round-3 review (P2): interrupt_job persists `interrupted` BEFORE rejecting
+    tickets. A one-time reject failure must not let the next attempt see an
+    `interrupted` job, call the bookkeeping complete and drop the slot while
+    the ticket is still pending."""
+    from lazybridge.ext.approval import ApprovalQueue
+
+    _, (repo_a, repo_b), db = env
+    queue, ticket, stale_path = _killed_job_with_ticket(db, repo_b)
+
+    real_reject = ApprovalQueue.reject_ticket
+    calls = {"n": 0}
+
+    def flaky_reject(self, approval_id, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("store busy, once")
+        return real_reject(self, approval_id, **kwargs)
+
+    monkeypatch.setattr(ApprovalQueue, "reject_ticket", flaky_reject)
+    real_discard = EngineSlot.discard_stale
+    seen_at_discard: list = []
+
+    def recording_discard(self, paths):
+        if stale_path in paths:
+            seen_at_discard.append(queue.get_ticket(ticket.approval_id).status)
+        return real_discard(self, paths)
+
+    monkeypatch.setattr(EngineSlot, "discard_stale", recording_discard)
+
+    # First launch: status persisted, rejection fails -> NOT complete: slot kept.
+    assert run(repo_a, db).status == "done"
+    registry = _store.build_job_registry(_store.build_store(db))
+    assert registry.find("killed-job")["status"] == "interrupted"
+    assert queue.get_ticket(ticket.approval_id).status == "pending"
+    assert stale_path.exists() and seen_at_discard == []
+
+    # Second launch: the job is ALREADY interrupted, the rejection is retried,
+    # and only after it succeeded is the slot file removed.
+    assert run(repo_a, db).status == "done"
+    assert queue.get_ticket(ticket.approval_id).status == "rejected"
+    assert seen_at_discard == ["rejected"]
+    assert not stale_path.exists()
+
+
+def test_an_expired_but_pending_ticket_does_not_pin_the_slot_forever(env, dead_pid, monkeypatch):
+    """reject_ticket refuses a ticket past its TTL (still "pending" on disk);
+    bookkeeping expires it instead, so the slot can be released."""
+    from datetime import timedelta
+
+    _, (repo_a, repo_b), db = env
+    queue, ticket, stale_path = _killed_job_with_ticket(db, repo_b, ttl=timedelta(milliseconds=50))
+    time.sleep(0.2)
+    assert queue.get_ticket(ticket.approval_id).status == "pending"  # expired by time only
+    assert run(repo_a, db).status == "done"
+    assert queue.get_ticket(ticket.approval_id).status == "expired"
+    assert not stale_path.exists()
+
+
 def test_stale_slot_is_kept_when_its_bookkeeping_fails(env, dead_pid, monkeypatch):
     _, (_, repo_b), db = env
     stale_path = write_stale_slot("codex", "unlucky-job", db.resolve())

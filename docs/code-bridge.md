@@ -518,6 +518,22 @@ falls through to the catch-all `ask`. A false "ask" is cheap; a false
   would reach gh as `--jq --template -XDELETE …` (a DELETE), and
   `git commit -m '' -m --amend` as `-m -m --amend`. The classifier does not
   try to emulate PowerShell's argument passing; it fails closed.
+- **No quote or escape character inside an argument.** If any argument,
+  *after* quote removal, contains `"`, `'`, backtick, `\` or `$`, the command
+  asks. This applies to the `gh` classifier and the `git` grants, wrapped or
+  not. Windows PowerShell 5.1 does not escape an embedded `"` when it builds
+  a native command line, so the program splits that value again:
+  `gh api --jq '". -XDELETE -q" .' repos/…` reaches gh with an extra
+  `-XDELETE` (a DELETE), and `git commit -m '"x --amend -m" y'` reaches git
+  with `--amend`. After three review rounds on PowerShell quoting, the rule is
+  to refuse these characters rather than model PowerShell's behaviour.
+
+  **Trade-off:** a jq filter or template that needs a string literal
+  (`--jq '.title + "x"'`) asks, and so does a commit message with an
+  apostrophe (`-m "it's"`). Quoted values *without* inner quotes keep working:
+  `--jq '{reviews: .reviews, comments: [.comments[] | {author: .author.login}]}'`,
+  `-m 'fix: the typo'`. The plain forms (`gh pr view 77 --repo a/b --json state`,
+  `git commit -m fix-typo`) never needed quotes at all.
 - The PowerShell wrapper is unwrapped only in its exact form:
   `powershell.exe|pwsh [-NoProfile|-NonInteractive|-NoLogo] -Command '<one payload>'`
   with nothing after the closing quote and no quote of the same kind inside.
@@ -642,10 +658,14 @@ claude = 2   # absent or 0 = unlimited
   so they count once a limit is set.
 - **Reclaim.** A slot whose pid died stops counting at once. The slot records
   its owner's Store path, and the next *successful* launch marks that job
-  `interrupted` in the right Store (even a different `--db`), rejecting its
-  open tickets. Only then is the slot file deleted. A refused launch leaves
-  stale slot files untouched, and a failed bookkeeping attempt keeps the file
-  for a later launch, so the record of a dead job is never lost.
+  `interrupted` in the right Store (even a different `--db`) and closes its
+  pending tickets: they are rejected, or marked `expired` if their TTL has
+  already run out. Bookkeeping counts as complete only when the job has **no
+  pending tickets left**, and only then is the slot file deleted. If ticket
+  rejection fails after the status was saved, the next launch sees an
+  already-`interrupted` job and retries the rejection. A refused launch
+  leaves stale slot files untouched, and an incomplete bookkeeping attempt
+  keeps the file for a later launch, so the record of a dead job is never lost.
 
 ## One job per repository at a time
 

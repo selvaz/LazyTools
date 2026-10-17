@@ -247,12 +247,36 @@ def interrupt_job(store: Any, registry: Any, job: dict[str, Any], error: str, *,
         status="interrupted",
         error=error,
     )
-    queue = _store.build_approval_queue(store)
-    # Avoid list_pending_tickets' default 100-ticket cap and reject only this job.
-    for key, raw in store.items(prefix=_store.APPROVAL_PREFIX):
-        if isinstance(raw, dict) and raw.get("task_id") == job_id and raw.get("status") == "pending":
-            queue.reject_ticket(key.removeprefix(_store.APPROVAL_PREFIX), actor="operator", channel="cli", reason=error)
+    close_pending_tickets(store, job_id, error)
     return error
+
+
+def pending_ticket_ids(store: Any, job_id: str) -> list[str]:
+    """Ids of this job's tickets still recorded as ``pending`` -- expired-by-time ones included.
+
+    Reads the raw records rather than ``list_pending_tickets``: that has a
+    100-ticket cap and hides a ticket whose TTL ran out, which is still
+    ``"pending"`` on disk until someone transitions it.
+    """
+    return [
+        key.removeprefix(_store.APPROVAL_PREFIX)
+        for key, raw in store.items(prefix=_store.APPROVAL_PREFIX)
+        if isinstance(raw, dict) and raw.get("task_id") == job_id and raw.get("status") == "pending"
+    ]
+
+
+def close_pending_tickets(store: Any, job_id: str, reason: str) -> None:
+    """Reject this job's pending tickets; a ticket already past its TTL is marked expired.
+
+    ``reject_ticket`` refuses a ticket whose TTL ran out (it is no longer
+    actionable) yet leaves it ``"pending"`` on disk -- ``expire_ticket``
+    closes those, so "no pending tickets left" is reachable. May raise if the
+    queue's Store fails; callers decide whether that is fatal.
+    """
+    queue = _store.build_approval_queue(store)
+    for approval_id in pending_ticket_ids(store, job_id):
+        if not queue.reject_ticket(approval_id, actor="operator", channel="cli", reason=reason):
+            queue.expire_ticket(approval_id)
 
 
 async def _run_agent(engine: Any, task: str, agent_name: str) -> Any:
@@ -509,10 +533,12 @@ def _mark_slot_interrupted(
     """Mark a reclaimed engine slot's job interrupted in the Store IT recorded into.
 
     Slots are machine-wide, so the dead job may belong to a different
-    ``--db``. Returns ``True`` when the bookkeeping is done (or there is
-    nothing to do: no job id, or its Store no longer exists) -- only then may
-    the stale slot file be deleted. ``False`` on a failure, which never fails
-    THIS job; the slot file stays for a later launch to retry.
+    ``--db``. Returns ``True`` only when the bookkeeping is COMPLETE -- the
+    job is marked interrupted (or already terminal) AND it has no pending
+    tickets left -- or there is nothing to do (no job id, or its Store no
+    longer exists). Only then may the stale slot file be deleted. ``False``
+    on any failure, which never fails THIS job; the slot file stays and the
+    next launch retries, ticket rejection included.
     """
     job_id = stale.get("job_id")
     if not job_id:
@@ -520,14 +546,15 @@ def _mark_slot_interrupted(
     owner = stale.get("db_path")
     try:
         if not owner or Path(owner) == current_db:
-            _mark_interrupted(store, registry, str(job_id), db_path=db_path)
-            return True
-        other = Path(owner)
-        if not other.is_file():
-            return True
-        other_store = _store.build_store(other)
-        _mark_interrupted(other_store, _store.build_job_registry(other_store), str(job_id), db_path=other)
-        return True
+            target_store, target_registry, target_db = store, registry, db_path
+        else:
+            other = Path(owner)
+            if not other.is_file():
+                return True
+            target_store = _store.build_store(other)
+            target_registry, target_db = _store.build_job_registry(target_store), other
+        _mark_interrupted(target_store, target_registry, str(job_id), db_path=target_db)
+        return not pending_ticket_ids(target_store, str(job_id))
     except Exception:  # bookkeeping for ANOTHER job must never fail this one
         return False
 
@@ -535,9 +562,18 @@ def _mark_slot_interrupted(
 def _mark_interrupted(store: Any, registry: Any, old_job_id: str, *, db_path: Path | None = None) -> None:
     """Best-effort: a reclaimed lock means that job's process died without
     ever updating its own record, which would otherwise sit at ``running``/
-    ``awaiting_approval`` forever. No-op if the old record is gone."""
+    ``awaiting_approval`` forever.
+
+    Closing the job's pending tickets is PART of this bookkeeping, and is
+    retried even when the record already says ``interrupted``/``failed``/
+    ``done``: ``interrupt_job`` persists the status before it rejects the
+    tickets, so a rejection that failed once would otherwise never be
+    retried -- the job would look finished while a human could still be
+    asked to approve an action for a process that no longer exists. Found by
+    review, round 3."""
     old = registry.find(old_job_id)
     if old is None or old.get("status") in ("done", "failed", "interrupted"):
+        close_pending_tickets(store, old_job_id, "the process running this job appears to have died")
         return
     interrupt_job(
         store, registry, old, "lock reclaimed: the process running this job appears to have died", db_path=db_path

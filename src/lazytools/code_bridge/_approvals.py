@@ -51,6 +51,12 @@ _UNQUOTED = re.compile(r"[A-Za-z0-9_./:,=+\-]")
 #: a quoted string this tokeniser believes is still open.
 _FORBIDDEN_ANYWHERE = re.compile(r"[$`\\]|[^\x20-\x7e]")
 
+#: Refused inside any argument AFTER quote removal: every quote and every
+#: escape/substitution character. ``$``, backtick and ``\`` are already
+#: refused anywhere by ``_FORBIDDEN_ANYWHERE``; listed again so this one rule
+#: states the whole contract on its own.
+_FAIL_CLOSED_CHARS = re.compile(r"""["'`\\$]""")
+
 
 @dataclass(frozen=True)
 class _Word:
@@ -68,7 +74,8 @@ def _tokenize(command: str) -> list[_Word] | None:
     simple command" -- for any unquoted character outside :data:`_UNQUOTED`,
     which is how chaining (``;`` ``&&`` ``||`` ``|``), redirection (``>``
     ``<``), subshells and globbing are all refused without enumerating them,
-    and for any empty argument (see the comment at the end).
+    for any empty argument, and for any argument that still contains a quote
+    or escape character after quote removal (see the comments at the end).
     """
     if _FORBIDDEN_ANYWHERE.search(command):
         return None
@@ -110,6 +117,17 @@ def _tokenize(command: str) -> list[_Word] | None:
     # fail closed: every classifier built on this tokeniser rejects it, so it
     # asks. Found by review (round 2).
     if any(not word.text for word in words):
+        return None
+    # Same reasoning, round 3: Windows PowerShell 5.1 re-quotes each argument
+    # for the native command line WITHOUT escaping embedded double quotes, so
+    # a single-quoted value holding a `"` is split again by the program:
+    # `gh api --jq '". -XDELETE -q" .' repos/...` reaches gh as extra
+    # arguments `-XDELETE -q ...` (a DELETE), and `git commit -m '"x --amend -m" y'`
+    # as `--amend`. After three rounds on PowerShell quoting the rule is
+    # fail-closed, not a model of it: no argument, after quote removal, may
+    # contain ANY quote or escape/substitution character. A jq filter that
+    # needs a string literal ("...") therefore asks; documented trade-off.
+    if any(_FAIL_CLOSED_CHARS.search(word.text) for word in words):
         return None
     return words
 

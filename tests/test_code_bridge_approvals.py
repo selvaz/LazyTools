@@ -137,6 +137,61 @@ EMPTY_ARG_GIT = [
 ]
 
 
+#: Round-3 review (P1): Windows PowerShell 5.1 does not escape a `"` inside an
+#: argument when it builds the native command line, so a single-quoted value
+#: holding double quotes is split again by the program. Fail-closed rule: no
+#: argument may contain `"` `'` backtick `\` `$` after quote removal.
+NESTED_QUOTE_GH = [
+    "gh api --jq '\". -XDELETE -q\" .' repos/a/b/git/refs/heads/topic",
+    "powershell.exe -Command 'gh api --jq ''\". -XDELETE -q\" .'' repos/a/b/git/refs/heads/topic'",
+    'powershell.exe -Command "gh api --jq \'\\". -XDELETE -q\\" .\' repos/a/b/git/refs/heads/topic"',
+    "gh pr view 77 --jq '.title + \"x\"'",
+    "gh pr view 77 --jq \"'\"",
+    "powershell.exe -Command \"gh pr view 77 --jq '.body'\" ; gh pr merge 77",
+]
+NESTED_QUOTE_GIT = [
+    "git commit -m '\"x --amend -m\" y'",
+    "powershell.exe -Command 'git commit -m ''\"x --amend -m\" y'''",
+    'powershell.exe -Command "git commit -m \'\\"x --amend -m\\" y\'"',
+    "git commit -m \"it's\"",
+    "git commit -F '\"msg.txt\"'",
+    "git add '\"-f\" ignored.txt'",
+]
+
+
+@pytest.mark.parametrize("command", NESTED_QUOTE_GH)
+def test_nested_quote_gh_queries_ask(command):
+    assert not is_readonly_gh_query(command)
+    assert decide(BridgeGate(channel=RecordingChannel(), rules=CODING_RULES), codex(command))[1] is True
+
+
+@pytest.mark.parametrize("command", NESTED_QUOTE_GIT)
+def test_nested_quote_git_forms_ask_even_after_the_grants(command):
+    assert not is_simple_git_add(command) and not is_simple_git_commit(command)
+    gate = BridgeGate(channel=RecordingChannel(), rules=CODING_RULES)
+    assert decide(gate, codex("git add -A")) == ("allow_session", True)
+    assert decide(gate, codex("git commit -m ok")) == ("allow_session", True)
+    assert decide(gate, codex(command))[1] is True
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["gh pr view 77 --repo a/b --json state", "powershell.exe -Command 'gh pr view 77 --repo a/b --json state'"],
+)
+def test_documented_safe_gh_form_still_auto_allows(command):
+    gate = BridgeGate(channel=RecordingChannel(), rules=CODING_RULES)
+    assert decide(gate, codex(command)) == ("allow", False)
+
+
+@pytest.mark.parametrize(
+    "command", ["git commit -m fix-typo", "powershell.exe -Command 'git commit -m fix-typo'"]
+)
+def test_documented_safe_commit_form_is_still_session_granted(command):
+    gate = BridgeGate(channel=RecordingChannel(), rules=CODING_RULES)
+    assert decide(gate, codex("git commit -m first")) == ("allow_session", True)
+    assert decide(gate, codex(command)) == ("allow", False)
+
+
 @pytest.mark.parametrize("command", EMPTY_ARG_GH)
 def test_empty_argument_gh_queries_are_never_auto_allowed(command):
     assert not is_readonly_gh_query(command)
