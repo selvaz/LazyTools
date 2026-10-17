@@ -48,7 +48,18 @@ def _inside(path: Path, parent: Path) -> bool:
 
 
 def unsafe_reason(base: Path, *, cwd: Path, db_path: Path) -> str | None:
-    """Why ``base`` must not host job temp dirs, or ``None`` if it is acceptable."""
+    """Why ``base`` must not host job temp dirs, or ``None`` if it is acceptable.
+
+    ``base`` is resolved first (8.3 short names such as ``ADMINI~1`` expand
+    to their long form) and every comparison folds case on Windows, so a
+    short or differently-cased spelling of a forbidden path is still caught.
+    """
+    # Roots first, on the raw spelling: resolving a UNC share root could
+    # start a network lookup, and a root is unsafe however it resolves.
+    if base.parent == base or base == Path(base.anchor):
+        return f"{base} is a drive, filesystem or share root"
+    with contextlib.suppress(OSError):
+        base = base.resolve()
     if base.parent == base or base == Path(base.anchor):
         return f"{base} is a drive, filesystem or share root"
     if len(base.parts) < 3:

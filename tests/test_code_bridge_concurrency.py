@@ -196,7 +196,9 @@ def test_threads_racing_to_reclaim_the_same_stale_slot_exactly_one_wins(env, dea
         thread.join(30)
     try:
         assert len(won) == 1 and len(lost) == contenders - 1
-        assert sum(len(slot.reclaimed) for slot in won) == 1  # the dead slot was reclaimed once
+        (winner,) = won
+        assert [meta["job_id"] for meta in winner.reclaimed] == ["dead-job"]  # handed to the winner only
+        winner.discard_stale([path for path, _ in winner.stale])
         assert len(list(slot_dir().glob("codex-*.slot"))) == 1
     finally:
         for slot in won:
@@ -280,6 +282,52 @@ def test_a_job_started_while_unlimited_counts_once_a_limit_is_set(env):
         assert "started-unlimited" in str(exc_info.value)
     finally:
         unlimited_job.release()
+
+
+def test_refused_launch_keeps_a_dead_jobs_slot_until_its_bookkeeping_runs(env, dead_pid):
+    """Round-2 review: limit 2 with two jobs; one dies; the limit drops to 1; a
+    launch WITHOUT --wait-for-slot is refused. The refusal must not throw away
+    the dead job's slot (its only death record) without marking it interrupted."""
+    _, (_, repo_b), db = env
+    configure(codex=2)
+    live = hold("codex", "live-job", limit=2, db=db.resolve())
+    # The second job "was killed": its slot remains, owned by a dead pid, and
+    # its record still says awaiting_approval with an open ticket.
+    store = _store.build_store(db)
+    _store.build_job_registry(store).write("killed-job", "old", tool_name="codex", status="awaiting_approval")
+    _store.write_meta(store, "killed-job", {"job_id": "killed-job", "engine": "codex", "cwd": str(repo_b)})
+    queue = _store.build_approval_queue(store)
+    ticket = queue.create_ticket(task_id="killed-job", prompt="[TieredGate] agent asks to run command 'codex-shell'")
+    stale_path = write_stale_slot("codex", "killed-job", db.resolve())
+    path = Path(os.environ[_concurrency.CONFIG_ENV])
+    path.write_text(f"[concurrency]\nslot_dir = '{slot_dir()}'\ncodex = 1\n", encoding="utf-8")
+    try:
+        with pytest.raises(EngineBusy) as exc_info:
+            run(repo_b, db)
+        assert "live-job" in str(exc_info.value)
+        # Refused: the dead job's slot file -- and so its death record -- is still there.
+        assert stale_path.exists()
+        assert json.loads(stale_path.read_text(encoding="utf-8"))["job_id"] == "killed-job"
+    finally:
+        live.release()
+    # The next successful launch does the bookkeeping, and only then drops the file.
+    assert run(repo_b, db).status == "done"
+    registry = _store.build_job_registry(_store.build_store(db))
+    assert registry.find("killed-job")["status"] == "interrupted"
+    assert queue.get_ticket(ticket.approval_id).status != "pending"
+    assert not stale_path.exists()
+
+
+def test_stale_slot_is_kept_when_its_bookkeeping_fails(env, dead_pid, monkeypatch):
+    _, (_, repo_b), db = env
+    stale_path = write_stale_slot("codex", "unlucky-job", db.resolve())
+
+    def failing(*args, **kwargs):
+        raise OSError("store locked")
+
+    monkeypatch.setattr(_jobs, "_mark_interrupted", failing)
+    assert run(repo_b, db).status == "done"  # never fails THIS job
+    assert stale_path.exists()  # kept for a later launch to retry
 
 
 # --------------------------------------------------------------------------- #
@@ -462,6 +510,63 @@ def test_engine_subprocess_env_carries_the_job_temp_dir(env, os_temp, monkeypatc
     assert seen["exists"]
     assert [os.path.normcase(p) for p in seen["child"]] == [os.path.normcase(job_dir)] * 2
     assert {name: os.environ.get(name) for name in ("TEMP", "TMP", "TMPDIR")} == before  # restored
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("engine blew up"), KeyboardInterrupt(), "cancelled"])
+def test_temp_env_is_restored_when_the_engine_raises_or_is_cancelled(env, os_temp, monkeypatch, failure):
+    import asyncio
+
+    _, (repo_a, _), db = env
+    before = {name: os.environ.get(name) for name in ("TEMP", "TMP", "TMPDIR")}
+    inside: dict = {}
+
+    async def failing_agent(engine, task, agent_name):
+        inside["TEMP"] = os.environ["TEMP"]
+        if failure == "cancelled":
+            raise asyncio.CancelledError()
+        raise failure
+
+    monkeypatch.setattr(_jobs, "_run_agent", failing_agent)
+    if isinstance(failure, RuntimeError):
+        assert run(repo_a, db).status == "failed"
+    else:
+        with pytest.raises((KeyboardInterrupt, asyncio.CancelledError)):
+            run(repo_a, db)
+    assert "lazytools-bridge" in inside["TEMP"]
+    assert {name: os.environ.get(name) for name in ("TEMP", "TMP", "TMPDIR")} == before
+    assert not Path(inside["TEMP"]).exists()  # removed on the failure path too
+
+
+def _short_path(path: Path) -> str:
+    import ctypes
+
+    buffer = ctypes.create_unicode_buffer(1024)
+    length = ctypes.windll.kernel32.GetShortPathNameW(str(path), buffer, len(buffer))  # type: ignore[attr-defined]
+    return buffer.value if length else str(path)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="8.3 short names and case folding are Windows behaviour")
+def test_temp_base_validation_sees_through_short_names_and_case(tmp_path, monkeypatch):
+    long_dir = tmp_path / "Long Directory Name" / "Projects"
+    cwd = long_dir / "repo"
+    cwd.mkdir(parents=True)
+    db = tmp_path / "db-home" / "store.sqlite"
+    short = _short_path(tmp_path / "Long Directory Name")
+    if "~" not in short:
+        pytest.skip("8.3 short names are disabled on this volume")
+    # A short-name spelling of the cwd's ancestor is still its ancestor.
+    reason = _tempdir.unsafe_reason(Path(short), cwd=cwd, db_path=db)
+    assert reason is not None and "ancestor of the job cwd" in reason
+    # So is a differently-cased spelling.
+    upper = Path(str(tmp_path / "Long Directory Name").upper())
+    reason = _tempdir.unsafe_reason(upper, cwd=cwd, db_path=db)
+    assert reason is not None and "ancestor of the job cwd" in reason
+    # And a forbidden system path given in another case.
+    windows = tmp_path / "fakewin" / "Windows"
+    (windows / "Temp").mkdir(parents=True)
+    monkeypatch.setenv("SystemRoot", str(windows))
+    reason = _tempdir.unsafe_reason(Path(str(windows / "Temp").lower()), cwd=cwd, db_path=db)
+    assert reason is not None and "SystemRoot" in reason
 
 
 def test_claude_gets_the_job_temp_dir_as_a_file_root_and_in_its_instructions(env, os_temp):

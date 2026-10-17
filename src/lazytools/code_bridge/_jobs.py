@@ -390,8 +390,16 @@ def run_job(
         head_at_start, head_at_start_error = _head_at_start(lock.cwd)
         if stale_job_id is not None:
             _mark_interrupted(store, registry, stale_job_id, db_path=db_path)
-        for stale_slot in slot.reclaimed:
-            _mark_slot_interrupted(stale_slot, store, registry, current_db=store_path, db_path=db_path)
+        # Stale engine slots: mark each dead job interrupted in ITS Store, and
+        # only then delete the slot file -- the file is the only record that
+        # the job died. A bookkeeping failure keeps the file for a later try.
+        slot.discard_stale(
+            [
+                path
+                for path, stale_meta in slot.stale
+                if _mark_slot_interrupted(stale_meta, store, registry, current_db=store_path, db_path=db_path)
+            ]
+        )
 
         # The job's own temp dir: the ONLY extra writable root it gets, and
         # what TEMP/TMP/TMPDIR point at for the engine. None (with the reason
@@ -497,27 +505,31 @@ def run_job(
 
 def _mark_slot_interrupted(
     stale: dict[str, Any], store: Any, registry: Any, *, current_db: Path, db_path: Path | None
-) -> None:
+) -> bool:
     """Mark a reclaimed engine slot's job interrupted in the Store IT recorded into.
 
     Slots are machine-wide, so the dead job may belong to a different
-    ``--db``. Best effort: a missing or unreadable other Store is skipped.
+    ``--db``. Returns ``True`` when the bookkeeping is done (or there is
+    nothing to do: no job id, or its Store no longer exists) -- only then may
+    the stale slot file be deleted. ``False`` on a failure, which never fails
+    THIS job; the slot file stays for a later launch to retry.
     """
     job_id = stale.get("job_id")
     if not job_id:
-        return
+        return True
     owner = stale.get("db_path")
     try:
         if not owner or Path(owner) == current_db:
             _mark_interrupted(store, registry, str(job_id), db_path=db_path)
-            return
+            return True
         other = Path(owner)
         if not other.is_file():
-            return
+            return True
         other_store = _store.build_store(other)
         _mark_interrupted(other_store, _store.build_job_registry(other_store), str(job_id), db_path=other)
+        return True
     except Exception:  # bookkeeping for ANOTHER job must never fail this one
-        return
+        return False
 
 
 def _mark_interrupted(store: Any, registry: Any, old_job_id: str, *, db_path: Path | None = None) -> None:

@@ -67,7 +67,8 @@ def _tokenize(command: str) -> list[_Word] | None:
     ``$``/backtick/``\\`` are refused outright). Returns ``None`` -- "not a
     simple command" -- for any unquoted character outside :data:`_UNQUOTED`,
     which is how chaining (``;`` ``&&`` ``||`` ``|``), redirection (``>``
-    ``<``), subshells and globbing are all refused without enumerating them.
+    ``<``), subshells and globbing are all refused without enumerating them,
+    and for any empty argument (see the comment at the end).
     """
     if _FORBIDDEN_ANYWHERE.search(command):
         return None
@@ -99,6 +100,17 @@ def _tokenize(command: str) -> list[_Word] | None:
         i += 1
     if in_word:
         words.append(_Word("".join(buf), quoted))
+    # An EMPTY argument ('' or "", alone or after quote removal) means "not a
+    # command this module can vouch for". Windows PowerShell 5.1 DROPS empty
+    # arguments when it starts a native exe, so the program would receive a
+    # different argument list from the one classified here:
+    # `gh api --jq '' --template -XDELETE ...` reaches gh as
+    # `--jq --template -XDELETE ...` (a DELETE), and `git commit -m '' -m --amend`
+    # as `-m -m --amend`. Rather than emulate PowerShell's argument passing,
+    # fail closed: every classifier built on this tokeniser rejects it, so it
+    # asks. Found by review (round 2).
+    if any(not word.text for word in words):
+        return None
     return words
 
 

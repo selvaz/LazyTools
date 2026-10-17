@@ -111,6 +111,49 @@ def test_codex_fixture_3_git_add_is_session_granted_after_the_first_approval():
     assert decide(gate, codex("git commit -m 'second'")) == ("allow", False)
 
 
+#: Round-2 review (P1): Windows PowerShell 5.1 DROPS empty arguments when it
+#: starts a native exe, so an empty argument makes the program see a different
+#: argument list from the one classified. Any empty argument must ASK.
+EMPTY_ARG_GH = [
+    "powershell.exe -Command \"gh api --jq '' --template -XDELETE repos/a/b/git/refs/heads/topic\"",
+    "gh api --jq '' --template -XDELETE repos/a/b/git/refs/heads/topic",
+    'gh api --jq "" --template -XDELETE repos/a/b/git/refs/heads/topic',
+    'gh pr view 1 --jq ""',
+    "powershell.exe -Command 'gh pr view 1 --jq \"\"'",
+    "gh pr view 1 --jq ''",
+    "gh api repos/a/b/pulls --jq ''",
+    "gh api repos/a/b/pulls --jq ''\"\"",  # empty after quote removal
+]
+EMPTY_ARG_GIT = [
+    "git commit -m '' -m --amend",
+    "powershell.exe -Command \"git commit -m '' -m --amend\"",
+    "git commit -m '' -m --no-verify",
+    "powershell.exe -Command \"git commit -m '' -m --no-verify\"",
+    'git commit -m ""',
+    "git commit -m ''",
+    "powershell.exe -Command 'git commit -m \"\"'",
+    "git add '' -f ignored.txt",
+    'git add "" --force ignored.txt',
+]
+
+
+@pytest.mark.parametrize("command", EMPTY_ARG_GH)
+def test_empty_argument_gh_queries_are_never_auto_allowed(command):
+    assert not is_readonly_gh_query(command)
+    gate = BridgeGate(channel=RecordingChannel(), rules=CODING_RULES)
+    assert decide(gate, codex(command))[1] is True
+
+
+@pytest.mark.parametrize("command", EMPTY_ARG_GIT)
+def test_empty_argument_git_forms_ask_even_after_the_grants(command):
+    assert not is_simple_git_add(command) and not is_simple_git_commit(command)
+    gate = BridgeGate(channel=RecordingChannel(), rules=CODING_RULES)
+    assert decide(gate, codex("git add -A")) == ("allow_session", True)
+    assert decide(gate, codex("git commit -m ok")) == ("allow_session", True)
+    assert decide(gate, codex("git commit -m 'still granted'")) == ("allow", False)  # the grants are live
+    assert decide(gate, codex(command))[1] is True
+
+
 def test_codex_git_add_grant_is_scoped_to_the_cwd():
     gate = BridgeGate(channel=RecordingChannel(), rules=CODING_RULES)
     assert decide(gate, codex(CODEX_GIT_ADD, cwd="C:/repo"))[1] is True

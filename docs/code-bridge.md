@@ -511,6 +511,13 @@ falls through to the catch-all `ask`. A false "ask" is cheap; a false
 - `$`, backtick, `\` and any non-ASCII character mean "ask" anywhere, quoted
   or not (bash/PowerShell substitution; PowerShell treats Unicode smart
   quotes as quotes).
+- An **empty argument** (`''`, `""`, or empty after quote removal) means
+  "ask", for the `gh` classifier and the `git add`/`commit` grants alike,
+  wrapped in PowerShell or not. Windows PowerShell 5.1 drops empty arguments
+  when it starts a native program, so `gh api --jq '' --template -XDELETE …`
+  would reach gh as `--jq --template -XDELETE …` (a DELETE), and
+  `git commit -m '' -m --amend` as `-m -m --amend`. The classifier does not
+  try to emulate PowerShell's argument passing; it fails closed.
 - The PowerShell wrapper is unwrapped only in its exact form:
   `powershell.exe|pwsh [-NoProfile|-NonInteractive|-NoLogo] -Command '<one payload>'`
   with nothing after the closing quote and no quote of the same kind inside.
@@ -633,9 +640,12 @@ claude = 2   # absent or 0 = unlimited
   file of the engine, so lowering a limit from 2 to 1 while jobs run still
   sees them all. Jobs take a slot file even while their engine is unlimited,
   so they count once a limit is set.
-- **Reclaim.** A slot whose pid died is reclaimed at the next acquire. The
-  slot records its owner's Store path, so that job is marked `interrupted`
-  in the right Store, even a different `--db`.
+- **Reclaim.** A slot whose pid died stops counting at once. The slot records
+  its owner's Store path, and the next *successful* launch marks that job
+  `interrupted` in the right Store (even a different `--db`), rejecting its
+  open tickets. Only then is the slot file deleted. A refused launch leaves
+  stale slot files untouched, and a failed bookkeeping attempt keeps the file
+  for a later launch, so the record of a dead job is never lost.
 
 ## One job per repository at a time
 

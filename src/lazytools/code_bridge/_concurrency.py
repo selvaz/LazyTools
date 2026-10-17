@@ -22,8 +22,10 @@ Design (after review found the first version could be exceeded three ways):
   even for an unlimited engine, so jobs started while the engine was
   unlimited count against a limit configured later.
 * A slot file records the pid, job id and **owning Store path**; a slot whose
-  pid is gone is reclaimed at the next acquire and returned to the caller,
-  which marks that job ``interrupted`` in the right Store.
+  pid is gone stops counting at once, is handed to the next SUCCESSFUL
+  acquire, and is deleted only after that caller has marked the job
+  ``interrupted`` in the right Store (:meth:`EngineSlot.discard_stale`). A
+  refused acquire leaves it untouched.
 
 Limits come from ``~/.lazytools/code-bridge.toml`` (path overridable with
 ``LAZYTOOLS_CODE_BRIDGE_CONFIG``)::
@@ -237,21 +239,32 @@ class EngineSlot:
     #: The Store this job records into, written into the slot so a later
     #: reclaim can mark this job interrupted in the RIGHT Store.
     db_path: Path | None = None
-    #: Metadata of STALE slots (dead pids) this acquire reclaimed.
-    reclaimed: list[dict] = field(default_factory=list)
+    #: STALE slot files (dead pids) seen by a SUCCESSFUL acquire, as
+    #: ``(path, metadata)``. They are NOT deleted here: their metadata is the
+    #: only record that a job died, and must survive until the caller has
+    #: marked that job interrupted -- then :meth:`discard_stale` removes them.
+    stale: list[tuple[Path, dict]] = field(default_factory=list)
     path: Path | None = None
 
+    @property
+    def reclaimed(self) -> list[dict]:
+        """Metadata of the stale slots (other jobs) this acquire found."""
+        return [meta for _, meta in self.stale]
+
     def try_acquire(self, job_id: str) -> None:
-        """Take a slot, or raise :class:`EngineBusy` naming the running job(s). Atomic machine-wide."""
+        """Take a slot, or raise :class:`EngineBusy` naming the running job(s). Atomic machine-wide.
+
+        A refusal changes NOTHING on disk -- in particular it leaves stale
+        slot files in place. (The first version deleted them before checking
+        the limit, so a refused launch threw away the only record of a dead
+        job, which then stayed "running" with its tickets open forever.
+        Found by review, round 2.) Stale files never count against the limit.
+        """
         with _guard(self.slot_dir):
             live, stale = _scan(self.slot_dir, self.engine)
-            for path, meta in stale:
-                with contextlib.suppress(OSError):
-                    path.unlink()
-                if meta.get("job_id") and meta.get("job_id") != job_id:
-                    self.reclaimed.append(meta)
             if self.limit and len(live) >= self.limit:
                 raise EngineBusy(self.engine, self.limit, live)
+            self.stale = [(path, meta) for path, meta in stale]
             path = self.slot_dir / f"{self.engine}-{job_id}.slot"
             payload = {
                 "pid": os.getpid(),
@@ -286,6 +299,27 @@ class EngineSlot:
                     on_wait(busy)
                     announced = True
                 time.sleep(poll_seconds if poll_seconds is not None else WAIT_POLL_SECONDS)
+
+    def discard_stale(self, paths: list[Path]) -> None:
+        """Delete stale slot files whose job's bookkeeping is DONE.
+
+        Re-checked under the guard: a file is removed only if its pid is
+        still dead. Two launches may both see the same stale slot; both mark
+        the job interrupted (idempotent) and whichever comes second finds the
+        file already gone.
+        """
+        if not paths:
+            return
+        with _guard(self.slot_dir):
+            for path in paths:
+                meta = _read(path) or {}
+                pid = meta.get("pid")
+                if isinstance(pid, int) and _lockfile._pid_alive(pid):
+                    continue
+                with contextlib.suppress(OSError):
+                    path.unlink()
+        done = set(paths)
+        self.stale = [(p, m) for p, m in self.stale if p not in done]
 
     def release(self) -> None:
         """Remove this job's slot file, if it is still this process's."""
