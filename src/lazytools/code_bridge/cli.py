@@ -21,7 +21,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _engines, _jobs, _routing, _store
+from lazytools.code_bridge import _concurrency, _engines, _jobs, _routing, _store
+from lazytools.code_bridge._concurrency import EngineBusy
 from lazytools.code_bridge._lockfile import LockHeld
 from lazytools.routing.policy import DEFAULT_POLICY
 
@@ -86,6 +87,8 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
         argv += ["--db", args.db]
     if getattr(args, "routing", None) is not None:
         argv += ["--routing-record", json.dumps(args.routing)]
+    if getattr(args, "wait_for_slot", False):
+        argv += ["--wait-for-slot"]
     return argv
 
 
@@ -130,6 +133,20 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    # A busy engine is refused HERE too, naming the running job, rather than
+    # in a child whose refusal only reaches its log. The child re-checks
+    # (and takes the slot) itself; this is the early, visible answer.
+    if not getattr(args, "wait_for_slot", False):
+        try:
+            slot_config = _concurrency.load_config()
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        holders = _concurrency.engine_at_limit(args.engine, slot_config)
+        if holders:
+            limit = slot_config.limits.get(args.engine) or len(holders)
+            print(str(EngineBusy(args.engine, limit, holders)), file=sys.stderr)
+            return 2
     # Hand the child absolute paths, so nothing depends on its working directory.
     args.root = str(root)
     args.cwd = str(resolved_cwd)
@@ -179,6 +196,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
             resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
             selection = _select(args, cwd=str(resolved_cwd))
+            if selection.decision.provider is None and args.wait_for_slot and _slot_excluded(selection):
+                # Nothing free is eligible, but a busy engine would be: with
+                # --wait-for-slot, pick as if its slot were free and queue.
+                selection = _select(args, cwd=str(resolved_cwd), respect_slots=False)
             if selection.decision.provider is None:
                 if args.json:
                     _print_json({**selection.payload(), "error": selection.error()})
@@ -224,8 +245,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
             job_id=args.job_id,
             routing=args.routing,
             timeout=args.timeout,
+            wait_for_slot=args.wait_for_slot,
+            on_slot_wait=_announce_slot_wait,
         )
-    except LockHeld as exc:
+    except (LockHeld, EngineBusy) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     except ValueError as exc:
@@ -267,7 +290,16 @@ def _job_line(job: dict[str, Any]) -> str:
     return f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}"
 
 
-def _select(args: argparse.Namespace, *, cwd: str) -> _routing.Selection:
+def _announce_slot_wait(busy: EngineBusy) -> None:
+    jobs = ", ".join(str(h.get("job_id", "?")) for h in busy.holders)
+    print(f"waiting for a {busy.engine} slot (limit {busy.limit}; running: {jobs})", flush=True)
+
+
+def _slot_excluded(selection: _routing.Selection) -> bool:
+    return any("engine_at_concurrency_limit" in why for why in selection.decision.ineligible.values())
+
+
+def _select(args: argparse.Namespace, *, cwd: str, respect_slots: bool = True) -> _routing.Selection:
     return _routing.choose(
         args.tier,
         cwd=cwd,
@@ -279,6 +311,7 @@ def _select(args: argparse.Namespace, *, cwd: str) -> _routing.Selection:
         model=getattr(args, "model", None),
         effort=getattr(args, "effort", None),
         tiers_path=Path(args.tiers).expanduser() if args.tiers else None,
+        respect_slots=respect_slots,
     )
 
 
@@ -792,6 +825,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Start the job in its own process, which outlives this one and the session that launched it, "
         "print its id and return at once. Follow it with `wait`.",
+    )
+    run_p.add_argument(
+        "--wait-for-slot",
+        action="store_true",
+        help="If the engine is at its machine-wide concurrency limit (default: codex 1, claude unlimited; "
+        "[concurrency] in ~/.lazytools/code-bridge.toml), queue until a slot frees instead of refusing.",
     )
     run_p.add_argument("--job-id", default=None, help=argparse.SUPPRESS)
     run_p.add_argument("--routing-record", default=None, help=argparse.SUPPRESS)
