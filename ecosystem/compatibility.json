@@ -25,30 +25,30 @@
         "extras": [
           "datacore"
         ],
-        "ref": "v0.2.1",
+        "ref": "v0.2.2",
         "repo": "https://github.com/selvaz/LazyPortfolio"
       },
       "lazypulse": {
-        "ref": "v0.5.4",
+        "ref": "v0.5.5",
         "repo": "https://github.com/selvaz/LazyPulse"
       },
       "lazyray": {
-        "ref": "v0.2.1",
+        "ref": "v0.2.2",
         "repo": "https://github.com/selvaz/LazyRay"
       },
       "lazystats": {
         "extras": [
           "regimes"
         ],
-        "ref": "v0.3.1",
+        "ref": "v0.3.2",
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
-        "ref": "v0.10.2",
+        "ref": "v0.10.3",
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
-        "ref": "v0.2.1",
+        "ref": "v0.3.0",
         "repo": "https://github.com/selvaz/market-data-hub"
       }
     },

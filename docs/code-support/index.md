@@ -6,11 +6,11 @@ under names. The synchronous MCP tools use LazyBridge's `CodexEngine`
 (App Server) and `ClaudeCodeEngine` (Agent SDK). For long jobs and durable
 approval tickets, use the [async code bridge](../code-bridge.md).
 
-**LazyTools 0.10.2 is Alpha**, with `lazybridge>=1.8.1,<2.0`.
+**LazyTools 0.10.3 is Alpha**, with `lazybridge>=1.8.1,<2.0`.
 The distribution is `lazytoolkit`; imports use `lazytools`.
 
 ```sh
-python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.2"
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.3"
 lazytools-mcp projects code_review claude_review code_write code_sessions --allow-unsafe
 ```
 
