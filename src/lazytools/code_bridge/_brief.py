@@ -187,7 +187,9 @@ def _extent(line: str, start: int, cwd_re: re.Pattern[str] | None) -> str:
             sibling = _CONTINUATION.match(line, end)
             if sibling is None:
                 return line[start:end]
-    end = _TOKEN.match(line, end).end()
+    token = _TOKEN.match(line, end)
+    if token is not None:
+        end = token.end()
     for _ in range(_MAX_CONTINUATIONS):
         if line[start:end].endswith(("/", "\\", *_TRAILING)):
             break
