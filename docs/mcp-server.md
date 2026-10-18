@@ -139,7 +139,8 @@ read tools merge the two stores. There is no write-through and no copying:
 | Tool | Reads |
 |---|---|
 | `get_page` | the interactive row if present, else the production row |
-| `get_session_pages`, `get_crawl_graph`, `get_artifacts`, `get_rag_document` | the interactive store if it has rows for that session/url, else production |
+| `get_session_pages`, `get_crawl_graph` | the interactive store if it has rows for that session, else production |
+| `get_artifacts`, `get_rag_document` | the one store that owns the page (or session): interactive if it holds it, even with no artifacts, else production. A newer interactive copy of a URL never inherits the production copy's tables or images |
 | `search_cached` | interactive hits first, then production hits, de-duplicated by page, cut to `limit` |
 | `get_cache_stats` | `{"interactive": {...}, "production": {...} or null}` instead of flat counts |
 

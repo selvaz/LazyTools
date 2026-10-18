@@ -26,8 +26,12 @@ consulted first, then production; there is no write-through and no copying.
 
 ==================  ==========================================================
 ``get_page``        interactive row if present, else the production row
-``get_session_pages``/``get_crawl_graph``/``get_artifacts``
-                    interactive if it has any rows for the key, else production
+``get_session_pages``/``get_crawl_graph``
+                    interactive if it has any rows for the session, else production
+``get_artifacts``/``get_rag_document``
+                    from the one store that owns the page (or session): the
+                    interactive cache if it holds that page/session -- even
+                    with no artifacts -- else production. Never mixed per field
 ``search_cached``   interactive hits first, then production hits, de-duplicated
                     by page (url hash), truncated to ``limit``
 ``get_cache_stats`` ``{"interactive": {...}, "production": {...} | null}``
@@ -38,6 +42,8 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+import socket
 import sqlite3
 from typing import Any
 
@@ -89,8 +95,40 @@ def resolve_web_cache_path(explicit: str | None = None) -> str | None:
     return os.path.expanduser(value)
 
 
+#: UNC hosts that mean "this machine" (``\\localhost\C$\...`` is ``C:\...``).
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]", "0--1.ipv6-literal.net"})
+_ADMIN_SHARE = re.compile(r"^\\\\([^\\]+)\\([A-Za-z])\$(?:\\(.*))?$")
+
+
+def _strip_extended_prefix(path: str) -> str:
+    r"""Windows namespace prefixes -> the ordinary form (``\\?\C:\x`` -> ``C:\x``).
+
+    ``\\?\UNC\server\share`` becomes ``\\server\share``, and a UNC admin share of
+    this machine (``\\localhost\C$\x``, ``\\<this host>\C$\x``) becomes ``C:\x``,
+    so none of those spellings can dodge a drive-letter containment check.
+    No-op off Windows, where those strings are just odd file names.
+    """
+    if os.name != "nt":
+        return path
+    path = path.replace("/", "\\")
+    low = path.lower()
+    if low.startswith("\\\\?\\unc\\"):
+        path = "\\\\" + path[8:]
+    elif low.startswith(("\\\\?\\", "\\\\.\\")):
+        path = path[4:]
+    m = _ADMIN_SHARE.match(path)
+    if m:
+        local = {h.lower() for h in (socket.gethostname(), os.environ.get("COMPUTERNAME", "")) if h}
+        if m.group(1).lower() in _LOOPBACK_HOSTS | local:
+            path = f"{m.group(2)}:\\{m.group(3) or ''}"
+    return path
+
+
 def _canon(path: str) -> str:
-    return os.path.normcase(os.path.realpath(os.path.abspath(os.path.expanduser(path))))
+    """One comparable spelling: no ``\\?\\`` prefix, absolute, symlinks/junctions resolved, case-folded."""
+    path = _strip_extended_prefix(os.path.expanduser(path))
+    resolved = _strip_extended_prefix(os.path.realpath(os.path.abspath(path)))
+    return os.path.normcase(resolved)
 
 
 def _is_under(path: str, root: str) -> bool:
@@ -191,9 +229,27 @@ class LayeredReadDB:
         return self._prod("get_crawl_graph", session_id, limit=limit) or graph  # type: ignore[no-any-return]
 
     def get_artifacts(self, **kwargs: Any) -> list[dict[str, Any]]:
-        rows = self.interactive.get_artifacts(**kwargs)
-        if rows:
-            return rows  # type: ignore[no-any-return]
+        """Artifacts from the ONE store that owns the page / session asked about.
+
+        Never a per-field merge: if the interactive cache holds a copy of the
+        page (``url_hash``) or the session (``session_id``), its artifacts are
+        the answer -- even when empty (a newer copy fetched without table
+        extraction must not inherit the production copy's old table). Only a
+        page or session the interactive cache has never seen is read from
+        production. Queries with neither scope (a bare ``content_hash``) are
+        content-addressed, so the first non-empty store wins.
+        """
+        uh = kwargs.get("url_hash")
+        sid = kwargs.get("session_id")
+        if sid:
+            interactive_owns = bool(self.interactive.get_pages(session_id=sid, status=None, limit=1))
+        elif uh:
+            interactive_owns = bool(self.interactive.get_page(uh))
+        else:
+            rows = self.interactive.get_artifacts(**kwargs)
+            return rows if rows else (self._prod("get_artifacts", **kwargs) or [])  # type: ignore[no-any-return]
+        if interactive_owns:
+            return self.interactive.get_artifacts(**kwargs)  # type: ignore[no-any-return]
         return self._prod("get_artifacts", **kwargs) or []  # type: ignore[no-any-return]
 
     def stats(self) -> dict[str, Any]:

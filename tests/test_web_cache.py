@@ -314,3 +314,142 @@ def test_missing_production_file_degrades_to_interactive_only(tmp_path: Path, mo
     assert json.loads(tools.search_cached("anything"))["found"] == 0
     assert not missing.parent.exists()  # not created
     tools.db.close()
+
+
+# --------------------------------------------------------------------------- #
+# Round 1: Windows namespace spellings of a protected path
+# --------------------------------------------------------------------------- #
+_WIN = pytest.mark.skipif(sys.platform != "win32", reason="Windows path namespaces")
+_PROTECTED_TAIL = r"ProgramData\InvestmentCommittee\live\db\review-cache.sqlite"
+_HOST = os.environ.get("COMPUTERNAME", "SOMEHOST")
+
+
+@_WIN
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        r"\\?\C:\ProgramData\InvestmentCommittee\live\db\review-cache.sqlite",
+        r"\\?\c:\PROGRAMDATA\investmentcommittee\live\db\review-cache.sqlite",
+        r"\\.\C:\ProgramData\InvestmentCommittee\live\db\review-cache.sqlite",
+        "//?/C:/ProgramData/InvestmentCommittee/live/db/review-cache.sqlite",
+        r"\\?\C:\ProgramData\InvestmentCommittee\..\InvestmentCommittee\live\review-cache.sqlite",
+        # UNC forms of this machine's C: drive
+        r"\\?\UNC\localhost\C$\ProgramData\InvestmentCommittee\live\db\review-cache.sqlite",
+        r"\\localhost\C$\ProgramData\InvestmentCommittee\live\db\review-cache.sqlite",
+        r"\\127.0.0.1\c$\programdata\investmentcommittee\live\db\review-cache.sqlite",
+        rf"\\?\UNC\{_HOST}\C$\ProgramData\InvestmentCommittee\live\db\review-cache.sqlite",
+    ],
+)
+def test_guard_refuses_extended_and_unc_spellings_of_protected_dir(spelling: str) -> None:
+    with pytest.raises(WebCachePathError, match="InvestmentCommittee"):
+        check_cache_path(spelling, [])
+
+
+@_WIN
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        r"\\?\C:\Users\someone\.lazytools\web_cache.sqlite",
+        r"\\?\UNC\fileserver\share\web_cache.sqlite",
+        r"\\fileserver\share\InvestmentCommittee\web_cache.sqlite",  # another machine's share
+        r"\\localhost\D$\scratch\web_cache.sqlite",  # another drive
+    ],
+)
+def test_guard_allows_unrelated_extended_and_unc_paths(spelling: str) -> None:
+    check_cache_path(spelling, [])
+
+
+@_WIN
+def test_extended_prefix_cannot_create_cache_inside_protected_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    protected = tmp_path / "InvestmentCommittee"
+    monkeypatch.setattr(wc, "PROTECTED_DIRS", (str(protected),))
+    target = "\\\\?\\" + str(protected / "live" / "db" / "review-cache.sqlite")
+    with pytest.raises(WebCachePathError):
+        build_interactive_crawler_tools(web_cache_db=target, content="pure")
+    assert not protected.exists()  # refused before anything was created
+
+
+@_WIN
+def test_extended_prefix_spelling_of_production_file_is_refused(prod: Path) -> None:
+    for spelling in ("\\\\?\\" + str(prod), "\\\\?\\" + str(prod) + "-wal", str(prod).upper()):
+        with pytest.raises(WebCachePathError, match="production"):
+            build_interactive_crawler_tools(web_cache_db=spelling, content="pure")
+
+
+# --------------------------------------------------------------------------- #
+# Round 1: a page and its artifacts come from one store only
+# --------------------------------------------------------------------------- #
+OLD_TABLE = "OLD_PRODUCTION_TABLE_VALUE=123"
+NEW_TEXT = "NEW_INTERACTIVE_NARRATIVE"
+
+
+def _production_with_table(path: Path) -> Path:
+    _make_production(path)
+    db = CrawlerDB(DBConfig(db_path=str(path)))
+    db.add_artifacts(
+        url_hash(PROD_URL),
+        [{"artifact_type": "table", "content": OLD_TABLE, "content_hash": "tbl1", "position": 0}],
+    )
+    db.close()
+    return path
+
+
+def _interactive_copy_without_artifacts(cache: Path) -> None:
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    db = CrawlerDB(DBConfig(db_path=str(cache)))
+    db.create_session("interactive_1", seed=PROD_URL)
+    uh = db.upsert_page(
+        {"url": PROD_URL, "status": "done", "mode": "pure", "title": "Newer copy", "clean_text": NEW_TEXT}
+    )
+    db.add_edge("interactive_1", uh, depth=0)
+    db.close()
+
+
+def test_interactive_page_never_inherits_production_artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    prod_path = _production_with_table(tmp_path / "prod" / "news.db")
+    monkeypatch.setenv("LAZYCRAWLER_NEWS_DB", str(prod_path))
+    cache = tmp_path / "c.sqlite"
+    _interactive_copy_without_artifacts(cache)
+    before = _fingerprint(prod_path)
+    tools = _tools(cache, prod_path)
+
+    rag = json.loads(tools.get_rag_document(PROD_URL))["rag_document"]
+    assert NEW_TEXT in rag
+    assert OLD_TABLE not in rag  # the review scenario: new narrative + stale table
+
+    by_url = json.loads(tools.get_artifacts(url=PROD_URL))
+    assert by_url["found"] == 0  # legitimately empty, not a fallback to production
+    assert json.loads(tools.get_artifacts(url=PROD_URL, artifact_type="table"))["found"] == 0
+    assert json.loads(tools.get_artifacts(session_id="interactive_1"))["found"] == 0
+    assert json.loads(tools.get_artifacts(session_id="interactive_1", artifact_type="table"))["found"] == 0
+    tools.db.close()
+    assert _fingerprint(prod_path) == before
+
+
+def test_production_only_page_keeps_its_artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    prod_path = _production_with_table(tmp_path / "prod" / "news.db")
+    monkeypatch.setenv("LAZYCRAWLER_NEWS_DB", str(prod_path))
+    tools = _tools(tmp_path / "c.sqlite", prod_path)  # interactive cache has never seen the URL
+
+    rag = json.loads(tools.get_rag_document(PROD_URL))["rag_document"]
+    assert OLD_TABLE in rag
+    found = json.loads(tools.get_artifacts(url=PROD_URL, artifact_type="table"))
+    assert found["found"] == 1
+    assert json.loads(tools.get_artifacts(url=PROD_URL, artifact_type="image"))["found"] == 0
+    assert json.loads(tools.get_artifacts(session_id="news_prod_1"))["found"] == 1
+    tools.db.close()
+
+
+def test_interactive_artifacts_win_when_the_interactive_copy_has_them(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    prod_path = _production_with_table(tmp_path / "prod" / "news.db")
+    monkeypatch.setenv("LAZYCRAWLER_NEWS_DB", str(prod_path))
+    cache = tmp_path / "c.sqlite"
+    _interactive_copy_without_artifacts(cache)
+    db = CrawlerDB(DBConfig(db_path=str(cache)))
+    db.add_artifacts(url_hash(PROD_URL), [{"artifact_type": "table", "content": "NEW_TABLE", "content_hash": "t2"}])
+    db.close()
+    tools = _tools(cache, prod_path)
+    rag = json.loads(tools.get_rag_document(PROD_URL))["rag_document"]
+    assert "NEW_TABLE" in rag and OLD_TABLE not in rag
+    assert json.loads(tools.get_artifacts(url=PROD_URL))["found"] == 1
+    tools.db.close()
