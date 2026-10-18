@@ -733,6 +733,97 @@ bridge never merges on its own.
 7. **Merge.** A human merges (or explicitly approves `gh pr merge`, which
    always asks). Never push to `main`.
 
+## Brief check
+
+`run` checks the task text before it launches anything, because a few shapes of
+brief reliably cause rework: a missing section, a path the engine cannot read, a
+quoting pattern that files an approval ticket, a persona line. Each finding is
+printed on **stderr**, one line, before the launch (stdout keeps its contract:
+the job id first, then the result or the `--json` line):
+
+```text
+brief-check: error missing-goal: no 'Goal' section heading
+brief-check: warn brief-too-short: brief too short to carry context
+```
+
+- **Default:** findings are printed and the job still launches.
+- **`--strict`:** any `error` stops the launch with exit code 2, before a job
+  record, a session or a lock is created. Warnings alone never stop it.
+- **`--no-brief-check`:** skips the check and prints
+  `brief-check: skipped (--no-brief-check)`.
+
+The same check runs for `--tier`/`--review-of` jobs (after the engine is
+chosen, since the path rule depends on it) and for `--detach` (once, in the
+launcher; the detached child does not repeat it). For `--task @brief.md` the
+file is read once: the launcher checks that text and hands the child a snapshot
+of exactly that text (`<job-id>.brief.md` beside the job's `.log`), so editing,
+replacing or deleting the file after launch changes nothing the child runs. The
+check reads no other file and does not check that a path exists.
+
+| Code | Severity | Raised when |
+| --- | --- | --- |
+| `missing-goal` | error | no `Goal` heading (Italian: `Obiettivo`) |
+| `missing-done-when` | error | no `Done when` heading (`Fatto quando`) |
+| `missing-context` | warn | no `Context` heading (`Contesto`) |
+| `missing-constraints` | warn | no `Constraints` heading (`Vincoli`) |
+| `missing-report` | warn | no `Report` heading (`Rapporto`) |
+| `path-outside-cwd` | error | `--engine claude` only: an absolute Windows or POSIX path that resolves outside `--cwd`; the message names it |
+| `quoting-jq` | warn | a command in the brief runs `gh ... --jq '<filter>'` |
+| `quoting-commit-message` | warn | a command in the brief runs `git ... -m "<text>"` |
+| `persona-line` | warn | a line starting `You are a/an ...` |
+| `step-by-step` | warn | the brief says "think step by step" |
+| `brief-too-short` | warn | fewer than 200 characters (once) |
+
+Details that decide a match:
+
+- Headings are matched case-insensitively and may carry a colon or markup:
+  `## Done when`, `## Done when:`, `**Done when**`. A heading inside a fenced
+  code block does not count.
+- **Paths.** A Claude job can read only its own repository (`--cwd`); a Codex
+  job can read the whole `--root`, so Codex briefs never raise
+  `path-outside-cwd`. Comparison is lexical and by path component (a sibling
+  `repo-copy` is outside `repo`). Ignored: URLs, `C:\ProgramData\spyder-6\`
+  (interpreters) and placeholders such as `C:\...\dir` or `C:\Users\<name>`.
+- **Paths with spaces.** Prose has spaces too, so a path is cut as follows,
+  most exact first: a path in quotes or backticks is taken whole; a path that
+  starts with `--cwd` itself is matched against the cwd text, so spaces in the
+  cwd (or below it) never truncate it; any other path is joined across a space
+  only to a next word that carries a separator (`C:\Program Files\Tool\a.exe`,
+  `repo copy/file.py`), so ordinary prose after a path is not absorbed.
+  Trade-off: a sibling of the cwd whose own name has several unquoted words
+  (`/home/me/my repo two words/x`) reads as the cwd followed by prose and is
+  not caught; **quote paths that contain spaces** and it is. A path cut short
+  elsewhere is still outside the cwd, so the verdict stays `path-outside-cwd`.
+- **Quoting.** Any argument containing quotes, backslashes, backticks or `$`
+  files an approval ticket, so a brief should ask for `gh ... --json <fields>`
+  (filter the output afterwards) and `git commit -F <file>` instead of `-m`.
+  The pattern is flagged only inside a code span that is itself a `gh`/`git`
+  command, inside a fenced block, or on a line that starts with `gh`/`git`; a
+  bare flag mentioned in prose is not.
+
+A template that passes with no findings:
+
+```text
+# Brief: <one line>
+
+## Goal
+What must be true afterwards, in a sentence or two.
+
+## Context
+- Where the code lives; what already exists; what the engine cannot see.
+
+## Constraints
+- Scope in and out; what must not change; branch name; no push to main.
+- Use `gh ... --json <fields>` without a jq filter, and `git commit -F <file>`.
+
+## Done when
+- A command that passes, with its expected result (a test, a linter, an output).
+- Every criterion is something the orchestrator can check without asking.
+
+## Report
+What to hand back: the diff summary, the command output, anything undecided.
+```
+
 ## Known limits
 
 - A session grant for an escalated `git commit` runs the repository's commit

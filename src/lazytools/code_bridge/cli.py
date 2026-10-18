@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _concurrency, _engines, _jobs, _routing, _store
+from lazytools.code_bridge import _brief, _concurrency, _engines, _jobs, _routing, _store
 from lazytools.code_bridge._concurrency import EngineBusy
 from lazytools.code_bridge._lockfile import LockHeld
 from lazytools.routing.policy import DEFAULT_POLICY
@@ -89,6 +89,8 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
         argv += ["--routing-record", json.dumps(args.routing)]
     if getattr(args, "wait_for_slot", False):
         argv += ["--wait-for-slot"]
+    # The launcher already checked the brief and printed its findings.
+    argv += ["--brief-checked"]
     return argv
 
 
@@ -118,7 +120,7 @@ def _spawn_detached(argv: list[str], log_path: Path) -> int:
         log.close()
 
 
-def _cmd_run_detached(args: argparse.Namespace) -> int:
+def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
     # Everything the child would refuse is checked HERE, where the caller sees
     # it: a detached child's error only reaches its log file. Found live -- a
     # --cwd outside the default root (the launcher's own cwd) died in the
@@ -127,7 +129,6 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
     from lazytools.connectors.code_support._claude_review import _build_root
 
     try:
-        _read_task(args.task)
         root = _build_root(args.root)
         resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
     except (OSError, ValueError) as exc:
@@ -150,10 +151,19 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
     # Hand the child absolute paths, so nothing depends on its working directory.
     args.root = str(root)
     args.cwd = str(resolved_cwd)
-    if args.task.startswith("@"):
-        args.task = "@" + str(Path(args.task[1:]).expanduser().resolve())
     job_id = _jobs.new_job_id()
     out_dir = _store.results_dir(_db_path(args))
+    if args.task.startswith("@"):
+        # The brief was read (and checked) once, by the caller. The child gets that
+        # exact text as a snapshot, not the file: an edit, a swap or a delete
+        # between this check and the child's start must not change what runs.
+        snapshot = out_dir / f"{job_id}.brief.md"
+        try:
+            snapshot.write_bytes(task.encode("utf-8"))
+        except OSError as exc:
+            print(f"error: could not snapshot the brief: {exc}", file=sys.stderr)
+            return 2
+        args.task = "@" + str(snapshot.resolve())  # absolute: nothing depends on the child's cwd
     log_path = out_dir / f"{job_id}.log"
     pid = _spawn_detached(_child_argv(args, job_id), log_path)
     (out_dir / f"{job_id}.pid").write_text(str(pid), encoding="utf-8")
@@ -172,6 +182,34 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
         db_flag = f' --db "{args.db}"' if args.db else ""
         print(f"wait for it with: lazytools-code-bridge wait {job_id}{db_flag}")
     return 0
+
+
+def _check_brief_before_launch(args: argparse.Namespace, task: str) -> int | None:
+    """Print the brief's findings; return an exit code only when ``--strict`` refuses the launch.
+
+    Findings go to stderr, one line each: stdout's first line is the job id
+    (and ``--json`` callers parse the rest), so the check must not add to it.
+    """
+    if args.no_brief_check:
+        print("brief-check: skipped (--no-brief-check)", file=sys.stderr)
+        return None
+    try:
+        cwd = _engines.resolve_cwd(args.cwd, args.root)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    findings = _brief.check_brief(task, engine=args.engine, cwd=cwd, root=args.root)
+    for finding in findings:
+        print(f"brief-check: {finding.format()}", file=sys.stderr)
+    errors = [f for f in findings if f.severity == "error"]
+    if args.strict and errors:
+        print(
+            f"error: brief refused by --strict: {len(errors)} error(s) "
+            f"({', '.join(f.code for f in errors)}); fix the brief, or drop --strict to launch anyway",
+            file=sys.stderr,
+        )
+        return 2
+    return None
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
@@ -223,8 +261,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    if not args.brief_checked:
+        refusal = _check_brief_before_launch(args, task)
+        if refusal is not None:
+            return refusal
     if args.detach:
-        return _cmd_run_detached(args)
+        return _cmd_run_detached(args, task)
     job_id_holder: dict[str, str] = {}
 
     def _announce(job_id: str) -> None:
@@ -832,6 +874,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="If the engine is at its machine-wide concurrency limit (default: codex 1, claude unlimited; "
         "[concurrency] in ~/.lazytools/code-bridge.toml), queue until a slot frees instead of refusing.",
     )
+    run_p.add_argument(
+        "--strict",
+        action="store_true",
+        help="Refuse to launch (exit 2, no job record) when the brief check finds an error. "
+        "Without it, findings are printed and the job still launches.",
+    )
+    run_p.add_argument(
+        "--no-brief-check", action="store_true", help="Skip the pre-launch brief check (a note is printed)."
+    )
+    run_p.add_argument("--brief-checked", action="store_true", help=argparse.SUPPRESS)
     run_p.add_argument("--job-id", default=None, help=argparse.SUPPRESS)
     run_p.add_argument("--routing-record", default=None, help=argparse.SUPPRESS)
     _add_db_option(run_p)
