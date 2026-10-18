@@ -161,12 +161,33 @@ contract and prior-attempt eligibility; caller policy can add contract adequacy.
 checks claim status/owner and can reject a newer job via `expected_job_id`;
 the caller must establish that work never started. `complete_todo_without_verification` is only for an
 unclaimed todo task with no running job and no contract; contracted work must
-close through acceptance. The function enforces this itself: it looks the
-contract up (`contracts.find_contract_for_task`) right before every board CAS
-and refuses with a message pointing to `accept()`. There is no caller flag to
-skip or assert it (the old `contract_exists` keyword was removed), so a contract
-opened concurrently is caught too. The MCP tools expose no shortcut-close verb:
-contracted tasks close only through `projects_accept_verification`.
+close through acceptance. The function enforces this itself and refuses with a
+message pointing to `accept()`. There is no caller flag to skip or assert it
+(the old `contract_exists` keyword was removed).
+
+The gate is **atomic**, because the contract and the closure coordinate through
+the same board CAS. `contracts.open_task_contract` first stamps
+`task["contract_id"]` on the project board (one board CAS; it raises if the task
+is already `done`), and only then writes the contract key. The closure refuses
+when the marker is present, judged on the same board snapshot its own CAS
+compares against. So a contract created at any moment either lands before that
+snapshot (refused) or changes the board and makes the closure's CAS fail (the
+retry refuses); exactly one of "contract opened" and "task closed" wins. This
+holds with or without a caller `check` hook. A contract key alone is not
+enough: a separate key cannot invalidate a board CAS, which is why the marker
+exists. `find_contract_for_task` still runs as defence in depth for contracts
+written without a marker. If the project has no board (or the index is outside
+it) there is nothing to race against and no marker is written.
+
+Contracts created before the marker existed need a one-off, idempotent
+backfill, run by the store's owner (dry run by default, `--apply` to write):
+
+```
+python -m lazytools.projects.contract_markers --store-db <ceo-store.sqlite> [--apply]
+```
+
+The MCP tools expose no shortcut-close verb: contracted tasks close only through
+`projects_accept_verification`.
 
 ## Contracts and verification
 

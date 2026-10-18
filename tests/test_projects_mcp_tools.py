@@ -55,6 +55,7 @@ def test_projects_create_defaults_owner_to_claude(tmp_path) -> None:
     pt = _rw(tmp_path)
     pt.projects_create("alpha", "Alpha", "an objective")
     record = pt.projects_get("alpha")
+    assert record is not None
     assert record["owner"] == "claude"
     assert record["brake_enabled"] is True
 
@@ -154,7 +155,8 @@ def test_projects_set_owner_and_set_deadline(tmp_path) -> None:
     pt = _rw(tmp_path)
     pt.projects_create("alpha", "Alpha", "x")
     assert "now owned by 'shared'" in pt.projects_set_owner("alpha", "shared")
-    assert pt.projects_get("alpha")["owner"] == "shared"
+    shared = pt.projects_get("alpha")
+    assert shared is not None and shared["owner"] == "shared"
 
     bad = pt.projects_set_deadline("alpha", "not-a-date")
     assert bad.startswith("REJECTED")

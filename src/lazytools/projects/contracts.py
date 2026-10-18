@@ -17,6 +17,7 @@ import contextlib
 import json
 import shlex
 import subprocess
+import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,12 +25,13 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from lazytools.projects.keys import TASK_CONTRACT_PREFIX
+from lazytools.projects.keys import BOARD_KEY_PREFIX, TASK_CONTRACT_PREFIX
 
 if TYPE_CHECKING:
     from lazybridge import Store
 
 _VALID_RISKS = ("low", "medium", "high")
+_MARK_ATTEMPTS = 8
 
 
 class TaskContract(BaseModel):
@@ -82,11 +84,18 @@ def open_task_contract(
     base_branch: str | None = None,
     allowed_check_exclusions: list[str] | None = None,
     prefix: str = TASK_CONTRACT_PREFIX,
+    board_prefix: str = BOARD_KEY_PREFIX,
 ) -> TaskContract:
     """Create a task's durable acceptance contract, BEFORE it is delegated.
 
     ``contract_id`` -- not ``task_index`` -- is what every later attempt and
     verification references.
+
+    Also stamps ``task["contract_id"]`` on the project's board (one board CAS),
+    and raises ``ValueError`` if that task is already ``done``. This marker is
+    what makes the contract atomic with ``task_claims.complete_todo_without_verification``.
+    If the project has no board, or ``task_index`` is outside it, there is
+    nothing to race against and no marker is written.
     """
     if not repo.strip():
         raise ValueError("repo must not be blank")
@@ -107,6 +116,12 @@ def open_task_contract(
             raise ValueError("waiving review requires review_waiver: say why this work does not need one")
 
     contract_id = str(uuid.uuid4())
+    # Mark the board FIRST, in a board CAS that fails if the task is already done.
+    # The shortcut closure refuses on this marker inside its own board CAS, so the
+    # two operations serialize on one key: whichever commits second sees the other.
+    # Marker-before-contract is deliberate: a closure that slips between the two
+    # writes is refused by the marker alone (the contract key may not exist yet).
+    mark_task_has_contract(store, project_id, task_index, contract_id, board_prefix=board_prefix)
     contract = TaskContract(
         contract_id=contract_id,
         project_id=project_id,
@@ -128,6 +143,43 @@ def open_task_contract(
     if not store.compare_and_swap(_contract_key(contract_id, prefix=prefix), None, contract.model_dump(mode="json")):
         raise ValueError(f"contract {contract_id!r} already exists")  # a uuid4 collision; never happens in practice
     return contract
+
+
+def mark_task_has_contract(
+    store: Store,
+    project_id: str,
+    task_index: int,
+    contract_id: str,
+    *,
+    board_prefix: str = BOARD_KEY_PREFIX,
+    allow_done: bool = False,
+    only_if_unmarked: bool = False,
+) -> bool:
+    """Stamp ``contract_id`` on the board task in a board CAS.
+
+    Returns True if a marker is on the board (``only_if_unmarked`` leaves a
+    different existing one in place), False if there is no board task to mark.
+    Raises ``ValueError`` if the task is ``done`` (unless ``allow_done``, used
+    only by the backfill, which must not fail on history)
+    or if the board kept changing across ``_MARK_ATTEMPTS`` retries.
+    """
+    key = f"{board_prefix}project:{project_id}"
+    for _ in range(_MARK_ATTEMPTS):
+        raw = store.read(key)
+        tasks = raw.get("tasks") if isinstance(raw, dict) else None
+        if not isinstance(tasks, list) or not 0 <= task_index < len(tasks):
+            return False
+        task = tasks[task_index]
+        if task.get("status") == "done" and not allow_done:
+            raise ValueError(f"task {task_index} of project {project_id!r} is already done -- a contract cannot govern closed work")
+        if task.get("contract_id") == contract_id or (only_if_unmarked and task.get("contract_id")):
+            return True
+        new_tasks = [dict(t) for t in tasks]
+        new_tasks[task_index] = {**new_tasks[task_index], "contract_id": contract_id}
+        assert isinstance(raw, dict)
+        if store.compare_and_swap(key, raw, {**raw, "tasks": new_tasks, "updated_at": time.time()}):
+            return True
+    raise ValueError(f"could not mark task {task_index} of project {project_id!r}: the board kept changing across {_MARK_ATTEMPTS} retries; try again")
 
 
 def get_task_contract(store: Store, contract_id: str, *, prefix: str = TASK_CONTRACT_PREFIX) -> TaskContract | None:
@@ -363,6 +415,7 @@ __all__ = [
     "diff_is_empty_snapshot",
     "find_contract_for_task",
     "get_task_contract",
+    "mark_task_has_contract",
     "open_task_contract",
     "repos_for_project",
     "resolve_review_base",

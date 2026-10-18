@@ -41,6 +41,7 @@ def test_closure_matches_original(state, monkeypatch):
             # Give both stores the same contract identity for exact refusal parity.
             store.delete(contracts._contract_key(contract.contract_id))
             store.write(contracts._contract_key("fixed"), {**raw, "contract_id": "fixed"})
+            contracts.mark_task_has_contract(store, "alpha", 0, "fixed")  # same board marker on both stores
     original = original_function("complete_todo_without_verification", time=time, CAS_ATTEMPTS=8,
         _running_job_exists=lambda store, plan, index: task_claims._running_job_exists(store, plan, index, job_prefix=JOB_PREFIX),
         touch_project_progress=records.touch_project_progress, find_contract_for_task=contracts.find_contract_for_task)
@@ -54,7 +55,9 @@ def test_closure_matches_original(state, monkeypatch):
     else:
         assert before == after
     assert stores[0].read("blackboard:project:alpha") == stores[1].read("blackboard:project:alpha")
-    assert bool(records.get_project(stores[0], "alpha").last_progress_at) == bool(records.get_project(stores[1], "alpha").last_progress_at)
+    first, second = records.get_project(stores[0], "alpha"), records.get_project(stores[1], "alpha")
+    assert first is not None and second is not None
+    assert bool(first.last_progress_at) == bool(second.last_progress_at)
 
 
 def test_check_repeated_per_cas_and_hook_once(monkeypatch):
@@ -71,10 +74,15 @@ def test_check_repeated_per_cas_and_hook_once(monkeypatch):
         return cas(key, expected, value)
 
     monkeypatch.setattr(store, "compare_and_swap", race)
-    kwargs = dict(check=lambda *args: checks.append(args), on_closed=lambda *args: closed.append(args))
-    assert "marked done" in task_claims.complete_todo_without_verification(store, "alpha", 0, "verified", **kwargs)
+    def count_check(*args):
+        checks.append(args)
+
+    def count_closed(*args):
+        closed.append(args)
+
+    assert "marked done" in task_claims.complete_todo_without_verification(store, "alpha", 0, "verified", check=count_check, on_closed=count_closed)
     assert len(checks) == 2 and len(closed) == 1
-    assert task_claims.complete_todo_without_verification(store, "alpha", 0, "again", **kwargs).startswith("REJECTED")
+    assert task_claims.complete_todo_without_verification(store, "alpha", 0, "again", check=count_check, on_closed=count_closed).startswith("REJECTED")
     assert len(closed) == 1 and board.snapshot().tasks[0]["result"] == "verified"
 
 
@@ -97,7 +105,8 @@ def test_competing_close_does_not_call_losing_hook(monkeypatch):
 def test_new_contract_on_retry_refuses_before_next_cas(monkeypatch):
     store = Store()
     setup(store)
-    calls, closed = [], []
+    calls: list[str] = []
+    closed: list[tuple] = []
 
     def guard(*args):
         return "REJECTED: new contract" if calls else None

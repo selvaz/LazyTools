@@ -58,12 +58,20 @@ def _running_job_exists(store: Store, plan_id: str, task_index: int, *, job_pref
     return False
 
 
+_CONTRACT_REFUSAL = "REJECTED: task {task_index} has an acceptance contract -- close it through accept() instead."
+
+
 def contract_gate_refusal(store: Store, project_id: str, task_index: int, *, prefix: str = TASK_CONTRACT_PREFIX) -> str | None:
     """The REJECTED message if ``(project_id, task_index)`` has an acceptance
-    contract, else None. Every shortcut-close path must call this itself, right
-    before its board write -- never trust a flag from the caller."""
+    contract, else None.
+
+    This is the lookup half only (defence in depth: it also catches contracts
+    written by older code that never stamped the board). It is NOT atomic with
+    a board write on its own: a closer must also refuse on the board marker
+    ``task["contract_id"]`` inside its own board CAS, as
+    ``complete_todo_without_verification`` does. Never trust a flag from the caller."""
     if find_contract_for_task(store, project_id, task_index, prefix=prefix) is not None:
-        return f"REJECTED: task {task_index} has an acceptance contract -- close it through accept() instead."
+        return _CONTRACT_REFUSAL.format(task_index=task_index)
     return None
 
 
@@ -87,12 +95,17 @@ def complete_todo_without_verification(
     Refused while a job is still ``running``/``awaiting_approval`` against it
     (an inconsistent state for a todo task).
 
-    This function enforces the contract gate itself: immediately before every
-    board CAS it looks up ``contracts.find_contract_for_task`` for this
-    ``(project_id, task_index)`` and refuses if one exists, since a task with
-    an acceptance contract must close through ``verification.accept``. There is
-    no caller-supplied flag to skip or assert it, so a contract opened
-    concurrently (between the board read and the CAS) is caught too.
+    This function enforces the contract gate itself, in two layers. (1) Atomic:
+    it refuses when the board task carries ``contract_id`` (stamped by
+    ``contracts.open_task_contract`` in a board CAS), judged on the same board
+    snapshot its own CAS compares against -- so a contract created at any
+    moment either lands before that snapshot (refused) or changes the board
+    and makes this CAS fail (the retry refuses). (2) Defence in depth: it also
+    runs ``contracts.find_contract_for_task``, which catches a contract written
+    without a marker (before the marker existed; see
+    ``contract_markers.backfill_contract_markers``). A task with an acceptance
+    contract must close through ``verification.accept``. There is no
+    caller-supplied flag to skip or assert either layer.
 
     ``check(store, project_id, task_index)`` is an EXTRA caller refusal that
     runs after the built-in gate, immediately before every board CAS. None
@@ -125,6 +138,13 @@ def complete_todo_without_verification(
                 f"REJECTED: task {task_index} is {task.get('status')!r} (owner={task.get('owner')!r}), "
                 "not an unclaimed todo task -- this path is only for a task nobody has touched yet."
             )
+        # The atomic part of the gate: the marker is read from the SAME board
+        # snapshot (``raw``) the CAS below compares against, so a contract that
+        # stamps the board after this read makes that CAS fail and the retry
+        # lands here. ``open_task_contract`` stamps the board before it writes
+        # the contract key, so there is no window with a contract but no marker.
+        if task.get("contract_id"):
+            return _CONTRACT_REFUSAL.format(task_index=task_index)
         new_tasks = [dict(t) for t in tasks]
         updated = dict(new_tasks[task_index])
         updated.update(status="done", result=summary, error="", cancel_reason="", owner=None, claimed_at=None, completed_at=time.time())

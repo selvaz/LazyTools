@@ -130,26 +130,9 @@ def test_contract_opened_between_read_and_cas_is_caught(monkeypatch: pytest.Monk
     assert board.snapshot().tasks[0]["status"] == "todo"
 
 
-def test_contract_opened_while_cas_loses_is_caught_on_retry(monkeypatch: pytest.MonkeyPatch) -> None:
-    store = Store()
-    board = _board(store, "alpha", ["t0"])
-    cas = store.compare_and_swap
-    attempts = {"n": 0}
-
-    def lose_once_while_contract_opens(key, expected, value):
-        if key != "blackboard:project:alpha":
-            return cas(key, expected, value)  # e.g. the contract write itself
-        attempts["n"] += 1
-        if attempts["n"] == 1:
-            _open_contract(store)
-            return False
-        return cas(key, expected, value)
-
-    monkeypatch.setattr(store, "compare_and_swap", lose_once_while_contract_opens)
-    msg = task_claims.complete_todo_without_verification(store, "alpha", 0, "summary")
-    assert msg.startswith("REJECTED") and "acceptance contract" in msg
-    assert attempts["n"] == 1  # refused before a second CAS was even attempted
-    assert board.snapshot().tasks[0]["status"] == "todo"
+# (The "contract commits after the lookup but before the board CAS" race is
+# covered with the REAL board CAS in test_projects_contract_atomic.py; a faked
+# losing CAS proved nothing, since a separate contract key never invalidated the board.)
 
 
 def test_contract_for_another_task_does_not_block_closure() -> None:
