@@ -17,6 +17,7 @@ from lazybridge import Store
 from lazybridge.ext.planners import DurableBlackboard
 
 from lazytools.projects import contract_markers, contracts, task_claims
+from lazytools.projects.intake import install_project_plan
 
 BOARD_KEY = "blackboard:project:alpha"
 
@@ -197,13 +198,127 @@ def test_open_contract_stamps_marker_and_refuses_done_task() -> None:
     assert contracts.find_contract_for_task(store, "alpha", 1) is None
 
 
-def test_open_contract_without_a_board_task_still_works() -> None:
+def _contract_keys(store: Store) -> list[str]:
+    return [key for key, _raw in store.items(prefix=contracts.TASK_CONTRACT_PREFIX)]
+
+
+# ---- P1a: a contract for a task that is not on the board is refused ----------------
+
+
+@pytest.mark.parametrize("shape", ["no_board", "empty_board", "index_out_of_range"])
+def test_open_contract_refuses_when_the_marker_cannot_be_written(shape: str) -> None:
     store = Store()
-    contract = _open(store, 7)  # no board at all
-    assert contracts.find_contract_for_task(store, "alpha", 7) == contract
+    if shape == "empty_board":
+        store.write(BOARD_KEY, {"version": 1, "plan_id": "project:alpha", "reasoning": "r", "tasks": []})
+    elif shape == "index_out_of_range":
+        _board(store, ["only"])
+    with pytest.raises(ValueError, match="not on the board of project 'alpha'"):
+        _open(store, 1)
+    assert _contract_keys(store) == []  # no key written, so nothing can escape the gate
+
+
+def test_no_ghost_contract_lets_a_later_installed_task_close_by_shortcut() -> None:
+    # The review's P1a: contract for a task that does not exist yet, then the plan
+    # is installed and the task closes with a contract that was never marked.
+    store = Store()
     _board(store, ["only"])
-    again = _open(store, 7)  # index outside the board
-    assert again.contract_id != contract.contract_id
+    with pytest.raises(ValueError):
+        _open(store, 1)
+    assert task_claims.complete_todo_without_verification(store, "alpha", 0, "verified").startswith("task 0 marked done")
+    assert _contract_keys(store) == []
+    assert contracts.find_contract_for_task(store, "alpha", 1) is None
+
+
+def test_mcp_tool_reports_rejected_for_a_task_not_on_the_board(tmp_path) -> None:
+    from lazytools.connectors.projects import ProjectsTools
+
+    pt = ProjectsTools(store_db=str(tmp_path / "s.sqlite"), allow_write=True)
+    pt.projects_create("alpha", "Alpha", "x")
+    result = pt.projects_open_contract("alpha", 0, "repo", "obs", ["c0 passes"], ["pytest"], risk="low", allowed_effects="files")
+    assert isinstance(result, str) and result.startswith("REJECTED") and "not on the board of project" in result
+    assert pt.projects_find_contract("alpha", 0) is None
+
+
+# ---- P1b: plan installation must not erase (or replace around) the marker ----------
+
+
+def _install(store: Store, tasks: list[str], objective: str = "obj") -> str | None:
+    return install_project_plan(store, "alpha", objective=objective, tasks=tasks)
+
+
+def test_install_plan_keeps_the_marker_on_a_kept_task_so_the_gate_still_holds() -> None:
+    store = Store()
+    _board(store, ["t0", "t1"])
+    contract = _open(store, 0)
+    # Same index + same text, different objective: tasks are rebuilt, marker carried over.
+    assert _install(store, ["t0", "t1"], objective="a changed objective") is None
+    assert _task(store, 0)["contract_id"] == contract.contract_id
+    assert "contract_id" not in _task(store, 1)
+    msg = task_claims.complete_todo_without_verification(store, "alpha", 0, "verified")
+    assert msg.startswith("REJECTED") and "accept()" in msg
+    # The marker alone carries it (the contract key is not consulted for this check).
+    store.delete(contracts._contract_key(contract.contract_id))
+    assert task_claims.complete_todo_without_verification(store, "alpha", 0, "verified").startswith("REJECTED")
+
+
+def test_install_plan_between_stamp_and_contract_key_does_not_open_the_shortcut(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The review's P1b interleaving, with real CASes: the opener has stamped the board
+    # and is about to persist the contract key; a plan reinstall (same text, new
+    # objective) lands in that window; then the closure runs.
+    store = Store()
+    _board(store, ["t0", "t1"])
+    real_cas = store.compare_and_swap
+    reinstalled: list[str | None] = []
+    mid_window: list[str] = []
+
+    def reinstall_before_key_write(key, expected, value):
+        if key.startswith(contracts.TASK_CONTRACT_PREFIX) and not reinstalled:
+            reinstalled.append(_install(store, ["t0", "t1"], objective="changed under the opener"))
+            # The contract KEY does not exist yet, so only the board marker can refuse.
+            assert contracts.find_contract_for_task(store, "alpha", 0) is None
+            mid_window.append(task_claims.complete_todo_without_verification(store, "alpha", 0, "verified"))
+        return real_cas(key, expected, value)
+
+    monkeypatch.setattr(store, "compare_and_swap", reinstall_before_key_write)
+    contract = _open(store, 0)
+    monkeypatch.setattr(store, "compare_and_swap", real_cas)
+
+    assert reinstalled == [None]  # the reinstall really happened and succeeded
+    assert len(mid_window) == 1 and mid_window[0].startswith("REJECTED") and "accept()" in mid_window[0]
+    assert _task(store, 0)["contract_id"] == contract.contract_id
+    msg = task_claims.complete_todo_without_verification(store, "alpha", 0, "verified")
+    assert msg.startswith("REJECTED") and "accept()" in msg
+    assert _task(store, 0)["status"] == "todo"
+
+
+def test_install_plan_refuses_to_replace_or_drop_a_task_with_a_marker() -> None:
+    store = Store()
+    _board(store, ["t0", "t1"])
+    contract = _open(store, 1)
+    before = store.read(BOARD_KEY)
+
+    changed = _install(store, ["t0", "different"])
+    assert changed is not None and changed.startswith("REJECTED") and "acceptance contract" in changed and "1: 't1'" in changed
+    shifted = _install(store, ["new first", "t0", "t1"])  # t1 would move to index 2
+    assert shifted is not None and shifted.startswith("REJECTED") and "acceptance contract" in shifted
+    dropped = _install(store, ["t0"])
+    assert dropped is not None and dropped.startswith("REJECTED") and "acceptance contract" in dropped
+    assert store.read(BOARD_KEY) == before  # nothing was written
+    assert _task(store, 1)["contract_id"] == contract.contract_id
+
+
+def test_install_plan_still_replaces_an_untouched_unmarked_plan() -> None:
+    store = Store()
+    _board(store, ["t0", "t1"])
+    _open(store, 0)
+    assert _install(store, ["t0", "t1", "t2 appended"]) is None  # extending is fine: marked task kept
+    assert [t["text"] for t in DurableBlackboard(store, plan_id="project:alpha").snapshot().tasks] == ["t0", "t1", "t2 appended"]
+    assert "contract_id" in _task(store, 0)
+
+    other = Store()
+    _board(other, ["a", "b"])
+    assert _install(other, ["x", "y", "z"]) is None  # nothing marked: replaced as before
+    assert "contract_id" not in _task(other, 0)
 
 
 def test_marker_survives_a_claim_and_a_second_contract_replaces_it() -> None:
@@ -310,6 +425,41 @@ def test_backfill_marks_an_already_done_task_without_failing() -> None:
     report = contract_markers.backfill_contract_markers(store, apply=True)
     assert "alpha:2" in report.marked
     assert _task(store, 2)["status"] == "done" and _task(store, 2)["contract_id"] == "late-2"
+
+
+def test_backfill_reports_a_task_that_vanishes_after_the_scan_as_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The review's P2: a live plan replacement removes the task after the backfill's
+    # first read; the helper then returns False and nothing may be reported as marked.
+    store = _legacy_store()
+    real_mark = contract_markers.mark_task_has_contract
+
+    def plan_shrinks_then_mark(st, project_id, task_index, contract_id, **kwargs):
+        if task_index == 1:
+            board = st.read(BOARD_KEY)
+            st.write(BOARD_KEY, {**board, "tasks": board["tasks"][:1]})
+        return real_mark(st, project_id, task_index, contract_id, **kwargs)
+
+    monkeypatch.setattr(contract_markers, "mark_task_has_contract", plan_shrinks_then_mark)
+    report = contract_markers.backfill_contract_markers(store, apply=True)
+    assert report.marked == ["alpha:0"]
+    assert report.skipped_no_board_task == ["alpha:1", "alpha:9"]
+    assert "marked 1" in report.summary() and "skipped (no board task) 2" in report.summary()
+    assert len(DurableBlackboard(store, plan_id="project:alpha").snapshot().tasks) == 1
+
+
+def test_backfill_reports_a_marker_stamped_by_someone_else_as_already_marked(monkeypatch: pytest.MonkeyPatch) -> None:
+    store = _legacy_store()
+    real_mark = contract_markers.mark_task_has_contract
+
+    def someone_stamps_first(st, project_id, task_index, contract_id, **kwargs):
+        if task_index == 0:
+            real_mark(st, project_id, 0, "stamped-by-a-new-contract")
+        return real_mark(st, project_id, task_index, contract_id, **kwargs)
+
+    monkeypatch.setattr(contract_markers, "mark_task_has_contract", someone_stamps_first)
+    report = contract_markers.backfill_contract_markers(store, apply=True)
+    assert "alpha:0" in report.already_marked and "alpha:0" not in report.marked
+    assert _task(store, 0)["contract_id"] == "stamped-by-a-new-contract"
 
 
 def test_backfill_cli_dry_run_then_apply(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:

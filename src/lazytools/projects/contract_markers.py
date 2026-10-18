@@ -82,13 +82,31 @@ def backfill_contract_markers(
         elif apply:
             # Re-reads and CASes the board; a marker stamped concurrently (e.g.
             # by a brand-new contract) is left alone, never overwritten.
-            mark_task_has_contract(
+            stamped = mark_task_has_contract(
                 store, project_id, task_index, contract.contract_id, board_prefix=board_prefix, allow_done=True, only_if_unmarked=True
             )
-            report.marked.append(label)
+            # Report what is actually on the board now, not what we hoped for: the
+            # task may have vanished (live plan replacement) after our first read,
+            # or someone else may have stamped it first.
+            after = _board_marker(store, project_id, task_index, board_prefix=board_prefix)
+            if not stamped or after is None:
+                report.skipped_no_board_task.append(label)
+            elif after == contract.contract_id:
+                report.marked.append(label)
+            else:
+                report.already_marked.append(label)
         else:
             report.marked.append(label)
     return report
+
+
+def _board_marker(store: Store, project_id: str, task_index: int, *, board_prefix: str) -> str | None:
+    board = store.read(f"{board_prefix}project:{project_id}")
+    tasks = board.get("tasks") if isinstance(board, dict) else None
+    if not isinstance(tasks, list) or not 0 <= task_index < len(tasks):
+        return None
+    marker = tasks[task_index].get("contract_id")
+    return str(marker) if marker else None
 
 
 def main(argv: list[str] | None = None) -> int:

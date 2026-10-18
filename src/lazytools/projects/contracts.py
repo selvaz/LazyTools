@@ -94,8 +94,9 @@ def open_task_contract(
     Also stamps ``task["contract_id"]`` on the project's board (one board CAS),
     and raises ``ValueError`` if that task is already ``done``. This marker is
     what makes the contract atomic with ``task_claims.complete_todo_without_verification``.
-    If the project has no board, or ``task_index`` is outside it, there is
-    nothing to race against and no marker is written.
+    Raises ``ValueError`` too when the project has no board task at
+    ``task_index`` (no board, an empty board, or an index out of range): the
+    marker cannot be written, and a contract without one would escape the gate.
     """
     if not repo.strip():
         raise ValueError("repo must not be blank")
@@ -121,7 +122,16 @@ def open_task_contract(
     # two operations serialize on one key: whichever commits second sees the other.
     # Marker-before-contract is deliberate: a closure that slips between the two
     # writes is refused by the marker alone (the contract key may not exist yet).
-    mark_task_has_contract(store, project_id, task_index, contract_id, board_prefix=board_prefix)
+    #
+    # A contract for a task that is not on the board is meaningless, and, worse, it
+    # could not be marked: a plan installed afterwards would then close that task
+    # through the shortcut with the contract committed but unmarked. So no marker
+    # means no contract.
+    if not mark_task_has_contract(store, project_id, task_index, contract_id, board_prefix=board_prefix):
+        raise ValueError(
+            f"task {task_index} is not on the board of project {project_id!r} (no board, an empty board, or the index is out of range) "
+            "-- install the plan first; a contract must govern a task that exists"
+        )
     contract = TaskContract(
         contract_id=contract_id,
         project_id=project_id,

@@ -176,8 +176,13 @@ retry refuses); exactly one of "contract opened" and "task closed" wins. This
 holds with or without a caller `check` hook. A contract key alone is not
 enough: a separate key cannot invalidate a board CAS, which is why the marker
 exists. `find_contract_for_task` still runs as defence in depth for contracts
-written without a marker. If the project has no board (or the index is outside
-it) there is nothing to race against and no marker is written.
+written without a marker. A contract for a task that is not on the board (no
+board, an empty board, or an index out of range) is refused with `ValueError`
+(`projects_open_contract` returns `REJECTED`): the marker could not be written,
+and an unmarked contract would escape the gate once the plan is installed.
+`intake.install_project_plan` keeps the gate intact too: a task carrying a marker
+survives a reinstall only at the same index with the same text (the marker is
+carried over); replacing, shifting or dropping it is refused, like a started task.
 
 Contracts created before the marker existed need a one-off, idempotent
 backfill, run by the store's owner (dry run by default, `--apply` to write):
