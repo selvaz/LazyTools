@@ -108,13 +108,20 @@ def _check_sections(text: str) -> list[Finding]:
 # --------------------------------------------------------------------------- #
 
 _URL = re.compile(r"\b[a-z][a-z0-9+.\-]*://\S+", re.IGNORECASE)
-# 'C:\dir\file' or 'C:/dir/file'; '<', '>' and '*' stay inside the match so a
-# placeholder is seen as one and dropped, not truncated into a wrong path.
-_WINDOWS_PATH = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z]:[\\/][^\s\"'`|?,;()\[\]{}]*")
-# '/a/b' with at least two segments, not glued to a word ('and/or', 'origin/main').
-_POSIX_PATH = re.compile(r"(?<![\w.:/\\~\-])/(?:[\w.\-@+]+/)+[\w.\-@+]*")
+# Where an absolute path starts: 'C:\' or 'C:/', or '/a/b' with at least two
+# segments that is not glued to a word ('and/or', 'origin/main').
+_PATH_START = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z]:[\\/]|(?<![\w.:/\\~\-])/(?=[\w.\-@+]+/)")
+# An unquoted path token stops at whitespace and at these characters.
+_TOKEN = re.compile(r"[^\s\"'`|?,;()\[\]{}]*")
+# One more word that continues a path across a space: 'repo copy/file.py'. It
+# must carry a separator, so plain prose after a path never joins it.
+_CONTINUATION = re.compile(r" (?![-\\/]|[A-Za-z]:[\\/])[^\s\"'`|?,;()\[\]{}\\/]+[\\/][^\s\"'`|?,;()\[\]{}]*")
+_QUOTES = "\"'`"
 _PLACEHOLDER = re.compile(r"\.\.\.|\u2026|[<>*$%]")
 _TRAILING = ".:!"
+_MAX_CONTINUATIONS = 5
+# What may follow the cwd for the cwd to be a whole path (not 'repo-copy' or 'repo.bak').
+_BOUNDARY = r"(?=[\\/]|\s|$|[`'\")\],;:!?]|\.(?:\s|$))"
 
 
 def _split(path: str) -> tuple[str, ...]:
@@ -141,12 +148,62 @@ def _inside(path: tuple[str, ...], base: tuple[str, ...]) -> bool:
     return path[: len(base)] == base
 
 
-def _absolute_paths(text: str) -> list[str]:
+def _cwd_pattern(cwd: str | Path) -> re.Pattern[str] | None:
+    """The cwd as it would be written in a brief, spaces and either slash included."""
+    text = str(cwd).rstrip("\\/")
+    parts = [re.escape(part) for part in re.split(r"[\\/]+", text) if part]
+    if not parts:
+        return None
+    lead = r"[\\/]+" if text.startswith(("/", "\\")) else ""
+    flags = re.IGNORECASE if re.match(r"[A-Za-z]:", text) else 0  # drive paths are case-insensitive
+    return re.compile(lead + r"[\\/]+".join(parts) + _BOUNDARY, flags)
+
+
+def _extent(line: str, start: int, cwd_re: re.Pattern[str] | None) -> str:
+    """The path that begins at ``line[start]``.
+
+    A path is cut in three ways, most exact first:
+
+    * quoted (``"..."``, ``'...'``, backticks): everything up to the closing quote;
+    * it begins with ``--cwd`` itself: the cwd text is taken whole, so spaces in
+      the cwd cannot truncate it, and a following word that carries a separator
+      (``repo copy/file.py``) is a sibling directory, not the repo;
+    * otherwise a token, joined across a space only to a next word that carries a
+      separator (``C:/Program Files/x``).
+
+    Anything else with a space must be quoted. Cutting a path short never turns an
+    outside path into an inside one, except a sibling of the cwd whose own name has
+    several words.
+    """
+    if start > 0 and line[start - 1] in _QUOTES:
+        closing = line.find(line[start - 1], start)
+        if closing > start:
+            return line[start:closing]
+    end = start
+    cwd_match = cwd_re.match(line, start) if cwd_re else None
+    if cwd_match:
+        end = cwd_match.end()
+        if line[end : end + 1] not in ("\\", "/"):
+            sibling = _CONTINUATION.match(line, end)
+            if sibling is None:
+                return line[start:end]
+    end = _TOKEN.match(line, end).end()
+    for _ in range(_MAX_CONTINUATIONS):
+        if line[start:end].endswith(("/", "\\", *_TRAILING)):
+            break
+        more = _CONTINUATION.match(line, end)
+        if more is None:
+            break
+        end = more.end()
+    return line[start:end]
+
+
+def _absolute_paths(text: str, cwd_re: re.Pattern[str] | None = None) -> list[str]:
     text = _URL.sub(" ", text)
     seen: dict[str, None] = {}
-    for pattern in (_WINDOWS_PATH, _POSIX_PATH):
-        for match in pattern.finditer(text):
-            raw = match.group(0).rstrip(_TRAILING)
+    for line in text.splitlines():
+        for match in _PATH_START.finditer(line):
+            raw = _extent(line, match.start(), cwd_re).rstrip(_TRAILING)
             if _PLACEHOLDER.search(raw):
                 continue
             seen.setdefault(raw)
@@ -160,7 +217,7 @@ def _check_paths(text: str, *, engine: str, cwd: str | Path) -> list[Finding]:
         return []
     base = _split(str(cwd))
     found: list[Finding] = []
-    for raw in _absolute_paths(text):
+    for raw in _absolute_paths(text, _cwd_pattern(cwd)):
         parts = _split(raw)
         joined = "/".join(parts)
         if any(joined.startswith(prefix) for prefix in _IGNORED_PATH_PREFIXES):

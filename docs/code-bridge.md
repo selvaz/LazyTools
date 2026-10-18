@@ -754,8 +754,11 @@ brief-check: warn brief-too-short: brief too short to carry context
 
 The same check runs for `--tier`/`--review-of` jobs (after the engine is
 chosen, since the path rule depends on it) and for `--detach` (once, in the
-launcher; the detached child does not repeat it). It reads no file and does not
-check that a path exists.
+launcher; the detached child does not repeat it). For `--task @brief.md` the
+file is read once: the launcher checks that text and hands the child a snapshot
+of exactly that text (`<job-id>.brief.md` beside the job's `.log`), so editing,
+replacing or deleting the file after launch changes nothing the child runs. The
+check reads no other file and does not check that a path exists.
 
 | Code | Severity | Raised when |
 | --- | --- | --- |
@@ -781,6 +784,16 @@ Details that decide a match:
   `path-outside-cwd`. Comparison is lexical and by path component (a sibling
   `repo-copy` is outside `repo`). Ignored: URLs, `C:\ProgramData\spyder-6\`
   (interpreters) and placeholders such as `C:\...\dir` or `C:\Users\<name>`.
+- **Paths with spaces.** Prose has spaces too, so a path is cut as follows,
+  most exact first: a path in quotes or backticks is taken whole; a path that
+  starts with `--cwd` itself is matched against the cwd text, so spaces in the
+  cwd (or below it) never truncate it; any other path is joined across a space
+  only to a next word that carries a separator (`C:\Program Files\Tool\a.exe`,
+  `repo copy/file.py`), so ordinary prose after a path is not absorbed.
+  Trade-off: a sibling of the cwd whose own name has several unquoted words
+  (`/home/me/my repo two words/x`) reads as the cwd followed by prose and is
+  not caught; **quote paths that contain spaces** and it is. A path cut short
+  elsewhere is still outside the cwd, so the verdict stays `path-outside-cwd`.
 - **Quoting.** Any argument containing quotes, backslashes, backticks or `$`
   files an approval ticket, so a brief should ask for `gh ... --json <fields>`
   (filter the output afterwards) and `git commit -F <file>` instead of `-m`.

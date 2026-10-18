@@ -355,7 +355,11 @@ def test_detach_hands_the_child_absolute_root_cwd_and_task_paths(tmp_path, monke
 
     assert Path(argv[argv.index("--root") + 1]).is_absolute()
     assert Path(argv[argv.index("--cwd") + 1]) == repo.resolve()
-    assert argv[argv.index("--task") + 1] == "@" + str(brief.resolve())
+    # The child reads a snapshot of the brief the launcher read, not the file itself.
+    task = argv[argv.index("--task") + 1]
+    assert task.startswith("@") and Path(task[1:]).is_absolute()
+    assert Path(task[1:]) != brief.resolve()
+    assert Path(task[1:]).read_text(encoding="utf-8") == "do it"
 
 
 def test_result_prints_characters_outside_the_console_codepage(tmp_path, monkeypatch, capsysbinary):

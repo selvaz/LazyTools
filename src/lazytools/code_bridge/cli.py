@@ -120,7 +120,7 @@ def _spawn_detached(argv: list[str], log_path: Path) -> int:
         log.close()
 
 
-def _cmd_run_detached(args: argparse.Namespace) -> int:
+def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
     # Everything the child would refuse is checked HERE, where the caller sees
     # it: a detached child's error only reaches its log file. Found live -- a
     # --cwd outside the default root (the launcher's own cwd) died in the
@@ -129,7 +129,6 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
     from lazytools.connectors.code_support._claude_review import _build_root
 
     try:
-        _read_task(args.task)
         root = _build_root(args.root)
         resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
     except (OSError, ValueError) as exc:
@@ -152,10 +151,19 @@ def _cmd_run_detached(args: argparse.Namespace) -> int:
     # Hand the child absolute paths, so nothing depends on its working directory.
     args.root = str(root)
     args.cwd = str(resolved_cwd)
-    if args.task.startswith("@"):
-        args.task = "@" + str(Path(args.task[1:]).expanduser().resolve())
     job_id = _jobs.new_job_id()
     out_dir = _store.results_dir(_db_path(args))
+    if args.task.startswith("@"):
+        # The brief was read (and checked) once, by the caller. The child gets that
+        # exact text as a snapshot, not the file: an edit, a swap or a delete
+        # between this check and the child's start must not change what runs.
+        snapshot = out_dir / f"{job_id}.brief.md"
+        try:
+            snapshot.write_bytes(task.encode("utf-8"))
+        except OSError as exc:
+            print(f"error: could not snapshot the brief: {exc}", file=sys.stderr)
+            return 2
+        args.task = "@" + str(snapshot.resolve())  # absolute: nothing depends on the child's cwd
     log_path = out_dir / f"{job_id}.log"
     pid = _spawn_detached(_child_argv(args, job_id), log_path)
     (out_dir / f"{job_id}.pid").write_text(str(pid), encoding="utf-8")
@@ -258,7 +266,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         if refusal is not None:
             return refusal
     if args.detach:
-        return _cmd_run_detached(args)
+        return _cmd_run_detached(args, task)
     job_id_holder: dict[str, str] = {}
 
     def _announce(job_id: str) -> None:
