@@ -46,8 +46,13 @@ def test_closure_matches_original(state, monkeypatch):
         touch_project_progress=records.touch_project_progress, find_contract_for_task=contracts.find_contract_for_task)
     summary = "" if state == "blank" else "verified"
     before = original(stores[0], "alpha", 0, summary)
-    after = task_claims.complete_todo_without_verification(stores[1], "alpha", 0, summary, check=check, on_closed=lambda store, project, index: records.touch_project_progress(store, project))
-    assert before == after
+    # No caller ``check`` here: the contract gate is built into the function now.
+    after = task_claims.complete_todo_without_verification(stores[1], "alpha", 0, summary, on_closed=lambda store, project, index: records.touch_project_progress(store, project))
+    if state == "contract":
+        # Same refusal, deliberately different wording: the built-in gate points to accept().
+        assert before.startswith("REJECTED") and after == "REJECTED: task 0 has an acceptance contract -- close it through accept() instead."
+    else:
+        assert before == after
     assert stores[0].read("blackboard:project:alpha") == stores[1].read("blackboard:project:alpha")
     assert bool(records.get_project(stores[0], "alpha").last_progress_at) == bool(records.get_project(stores[1], "alpha").last_progress_at)
 

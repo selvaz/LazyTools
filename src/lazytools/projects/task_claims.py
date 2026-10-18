@@ -27,7 +27,8 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from lazytools.projects.keys import BOARD_KEY_PREFIX, JOB_PREFIX
+from lazytools.projects.contracts import find_contract_for_task
+from lazytools.projects.keys import BOARD_KEY_PREFIX, JOB_PREFIX, TASK_CONTRACT_PREFIX
 
 if TYPE_CHECKING:
     from lazybridge import Store
@@ -57,6 +58,15 @@ def _running_job_exists(store: Store, plan_id: str, task_index: int, *, job_pref
     return False
 
 
+def contract_gate_refusal(store: Store, project_id: str, task_index: int, *, prefix: str = TASK_CONTRACT_PREFIX) -> str | None:
+    """The REJECTED message if ``(project_id, task_index)`` has an acceptance
+    contract, else None. Every shortcut-close path must call this itself, right
+    before its board write -- never trust a flag from the caller."""
+    if find_contract_for_task(store, project_id, task_index, prefix=prefix) is not None:
+        return f"REJECTED: task {task_index} has an acceptance contract -- close it through accept() instead."
+    return None
+
+
 def complete_todo_without_verification(
     store: Store,
     project_id: str,
@@ -65,7 +75,7 @@ def complete_todo_without_verification(
     *,
     board_prefix: str = BOARD_KEY_PREFIX,
     job_prefix: str = JOB_PREFIX,
-    contract_exists: bool = False,
+    contract_prefix: str = TASK_CONTRACT_PREFIX,
     check: ClosureCheck | None = None,
     on_closed: ClosedHook | None = None,
 ) -> str:
@@ -75,22 +85,24 @@ def complete_todo_without_verification(
 
     Only closes a task that is EXACTLY ``todo`` with no ``owner``/``claimed_at``.
     Refused while a job is still ``running``/``awaiting_approval`` against it
-    (an inconsistent state for a todo task), and refused when ``contract_exists``
-    is True -- the caller is expected to have already checked
-    ``contracts.find_contract_for_task`` for this ``(project_id, task_index)``
-    and pass that result in, since a contract means the task should close
-    through ``verification.accept`` instead.
+    (an inconsistent state for a todo task).
 
-    ``check(store, project_id, task_index)`` runs immediately before every
-    board CAS. None allows closure; a string refuses (for example, a newly
-    opened contract). ``on_closed`` runs once after the winning CAS. These
+    This function enforces the contract gate itself: immediately before every
+    board CAS it looks up ``contracts.find_contract_for_task`` for this
+    ``(project_id, task_index)`` and refuses if one exists, since a task with
+    an acceptance contract must close through ``verification.accept``. There is
+    no caller-supplied flag to skip or assert it, so a contract opened
+    concurrently (between the board read and the CAS) is caught too.
+
+    ``check(store, project_id, task_index)`` is an EXTRA caller refusal that
+    runs after the built-in gate, immediately before every board CAS. None
+    allows closure; a string refuses. It can only add refusals, never bypass
+    the contract gate. ``on_closed`` runs once after the winning CAS. These
     hooks are synchronous and their exceptions propagate; a hook failure
     after CAS does not undo the close or cause a second invocation.
     """
     if not summary.strip():
         return "REJECTED: a 1-3 sentence summary is required."
-    if contract_exists:
-        return f"REJECTED: task {task_index} has an acceptance contract -- close it through accept() instead."
 
     plan_id = f"project:{project_id}"
     if _running_job_exists(store, plan_id, task_index, job_prefix=job_prefix):
@@ -118,6 +130,9 @@ def complete_todo_without_verification(
         updated.update(status="done", result=summary, error="", cancel_reason="", owner=None, claimed_at=None, completed_at=time.time())
         new_tasks[task_index] = updated
         new_doc = {**raw, "tasks": new_tasks, "updated_at": time.time()}
+        gate = contract_gate_refusal(store, project_id, task_index, prefix=contract_prefix)
+        if gate is not None:
+            return gate
         if check is not None:
             refusal = check(store, project_id, task_index)
             if refusal is not None:
@@ -186,4 +201,4 @@ def release_claim(
         return False
 
 
-__all__ = ["ClosedHook", "ClosureCheck", "complete_todo_without_verification", "release_claim"]
+__all__ = ["ClosedHook", "ClosureCheck", "complete_todo_without_verification", "contract_gate_refusal", "release_claim"]
