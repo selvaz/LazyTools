@@ -25,6 +25,8 @@ import os
 from collections.abc import Callable
 from typing import Any
 
+from lazytools.connectors.web.cache import WebCachePathError
+
 
 def _data_home() -> str:
     """Per-user directory for LazyTools-owned SQLite stores / artifacts.
@@ -356,13 +358,32 @@ def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     matching provider key (e.g. ``DEEPSEEK_API_KEY``) must be present in the
     server's environment or every smart-mode page fails with ``llm_error``;
     the zero-token ``*_ml`` presets need no key.
+
+    **Interactive isolation (opt-in).** With ``LAZYTOOLS_WEB_CACHE_DB`` unset
+    (or no ``web_cache_db`` key in ``--config``) nothing changes: the crawler
+    reads *and writes* ``LAZYCRAWLER_NEWS_DB``, which is what production
+    agents rely on. When it is set, the fetch tools write to a separate
+    disposable cache (``none`` = keep nothing; empty/``default`` =
+    ``~/.lazytools/web_cache.sqlite``) and the production store is opened
+    read-only; see :mod:`lazytools.connectors.web.cache`. A cache path that
+    aliases the production store raises ``WebCachePathError`` (not skipped).
     """
     from lazycrawler import CrawlerDB, CrawlerTools, DBConfig, LLMConfig
     from lazycrawler.config import resolve_news_db_path
 
     from lazytools.connectors.web import WebTools
+    from lazytools.connectors.web.cache import build_interactive_crawler_tools, web_cache_requested
 
     model = os.environ.get("LAZYTOOLS_WEB_MODEL", "deepseek-v4-flash")
+    cache_override = (data_source or {}).get("web_cache_db")
+    if web_cache_requested(cache_override):
+        return WebTools(
+            provider=build_interactive_crawler_tools(
+                web_cache_db=cache_override,
+                news_db=(data_source or {}).get("news_db_path"),
+                llm_cfg=LLMConfig(model=model),
+            )
+        )
     # A dedicated ``news_db_path`` key -- NOT the shared ``path`` key every
     # other provider here uses for the market-data-hub db, which this is
     # unrelated to. Reusing "path" would mean a single --config JSON setting
@@ -1067,6 +1088,8 @@ def default_providers(
     for provider_id in selected:
         try:
             built = PROVIDER_FACTORIES[provider_id](allow_write, data_source=data_source)
+        except WebCachePathError:
+            raise  # a cache path aliasing the production store must stop startup, not be skipped
         except Exception as exc:  # construction failure is non-fatal
             import logging
 
