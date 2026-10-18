@@ -6,6 +6,12 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def _no_ambient_web_cache_switch(monkeypatch):
+    """The operator's shell may set LAZYTOOLS_WEB_CACHE_DB; tests start from 'unset'."""
+    monkeypatch.delenv("LAZYTOOLS_WEB_CACHE_DB", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _isolated_code_bridge_config(tmp_path_factory, monkeypatch):
     """Never read the operator's real ``~/.lazytools/code-bridge.toml`` nor touch the
     machine-wide engine-slot directory: each test gets its own config file whose

@@ -8,6 +8,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- MCP `web` provider: opt-in interactive cache isolation. With `LAZYTOOLS_WEB_CACHE_DB` set
+  (a path, `default` = `~/.lazytools/web_cache.sqlite`, or `none`), `web_search`, `web_crawl`
+  and `web_crawl_many` write to a separate disposable SQLite cache while `LAZYCRAWLER_NEWS_DB`
+  is opened read-only (`mode=ro`) and merged into the read tools (`search_cached`, `get_page`,
+  `get_session_pages`, `get_crawl_graph`, `get_cache_stats`). A cache path equal to the
+  production DB or under `C:\ProgramData\InvestmentCommittee` raises `WebCachePathError`.
+  Unset, behaviour is unchanged (production agents keep writing to `news.db`).
+
 ## [0.10.3] — 2026-10-18
 
 Release train `ecosystem-2026.10.3`.

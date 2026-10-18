@@ -78,6 +78,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=os.environ.get("LAZYTOOLS_MCP_CONFIG"),
         help="Path to a JSON file populating each provider factory's data_source dict "
         "(e.g. {\"path\": \"...\", \"regime_db_path\": \"...\", \"news_db_path\": \"...\", "
+        "\"web_cache_db\": \"...\" (opt-in interactive web cache; see LAZYTOOLS_WEB_CACHE_DB), "
         "\"tree_store_db\": \"...\"}). "
         "Without this, every provider falls back to its own individual env-var/default "
         "resolution (MARKET_DATA_DB, LAZYTOOLS_REGIME_DB, LAZYCRAWLER_NEWS_DB, ...) -- this "

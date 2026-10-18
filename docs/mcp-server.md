@@ -115,6 +115,67 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
 | `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — Tools that delegate through `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
 
+### `web` — keep interactive research out of the production news DB
+
+By default the `web` provider uses `LAZYCRAWLER_NEWS_DB` for everything,
+**read and write**: this is what scheduled production agents rely on, and it is
+unchanged when the variable below is unset. An *interactive* session (Claude
+Code through the workspace `.mcp.json`, one-off research) should not share that
+store: its pages land in the same `pages`/`sessions` tables with nothing marking
+them as interactive, and its writes contend with the scheduled crawl's lock
+(`database is locked`). Set `LAZYTOOLS_WEB_CACHE_DB` to isolate it:
+
+| `LAZYTOOLS_WEB_CACHE_DB` | Effect |
+|---|---|
+| unset | Today's behaviour: the crawler reads and writes `LAZYCRAWLER_NEWS_DB`. |
+| a file path | `web_search`, `web_crawl`, `web_crawl_many` write to that SQLite file (created on demand, with its directory; safe to delete). |
+| empty or `default` | Same, at `~/.lazytools/web_cache.sqlite` (`LAZYTOOLS_DATA_DIR` replaces `~/.lazytools`). |
+| `none` (or `:memory:`) | Nothing on disk: pages live in process memory and vanish on exit. |
+
+When it is set, `LAZYCRAWLER_NEWS_DB` (if it names an existing file) is opened
+**read-only** (SQLite `mode=ro`: no writes, no WAL pragma, no migrations) and the
+read tools merge the two stores. There is no write-through and no copying:
+
+| Tool | Reads |
+|---|---|
+| `get_page` | the interactive row if present, else the production row |
+| `get_session_pages`, `get_crawl_graph`, `get_artifacts`, `get_rag_document` | the interactive store if it has rows for that session/url, else production |
+| `search_cached` | interactive hits first, then production hits, de-duplicated by page, cut to `limit` |
+| `get_cache_stats` | `{"interactive": {...}, "production": {...} or null}` instead of flat counts |
+
+The fetch tools do not reuse production pages as a fetch cache (they only know
+the interactive store), so a URL already in `news.db` is fetched again.
+
+**Guard.** If the cache path is the same file as `LAZYCRAWLER_NEWS_DB` (or its
+`-wal`/`-shm`/`-journal` side files), or lies anywhere under
+`C:\ProgramData\InvestmentCommittee`, the provider raises `WebCachePathError`
+and the server refuses to start: this error is not downgraded to a skipped
+provider. The guard only runs when `LAZYTOOLS_WEB_CACHE_DB` is set.
+
+Enable it for interactive use by adding the variable to the workspace
+`.mcp.json` server `env` (never to the production project.toml env):
+
+```json
+{
+  "mcpServers": {
+    "lazytools": {
+      "command": "lazytools-mcp",
+      "args": ["web"],
+      "env": {
+        "LAZYCRAWLER_NEWS_DB": "C:\\ProgramData\\InvestmentCommittee\\live\\db\\news.db",
+        "LAZYTOOLS_WEB_CACHE_DB": "default"
+      }
+    }
+  }
+}
+```
+
+`.mcp.json` variables relevant to `web`: `LAZYCRAWLER_NEWS_DB` (production store,
+read-only once isolation is on), `LAZYTOOLS_WEB_CACHE_DB` (this section),
+`LAZYTOOLS_WEB_MODEL` (smart-mode extraction model, default `deepseek-v4-flash`),
+`LAZYTOOLS_DATA_DIR` (base of the default cache path). `--config` accepts
+`web_cache_db` (same values) and `news_db_path` for the same two settings.
+
 `optimizer_agent`/`report_agent` are two providers that construct a real
 `lazybridge.Agent` instead of a deterministic `ToolProvider` — calling their
 tool runs a live LLM-driven loop (its own internal tool calls) and returns
