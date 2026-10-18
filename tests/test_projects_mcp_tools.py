@@ -55,6 +55,7 @@ def test_projects_create_defaults_owner_to_claude(tmp_path) -> None:
     pt = _rw(tmp_path)
     pt.projects_create("alpha", "Alpha", "an objective")
     record = pt.projects_get("alpha")
+    assert record is not None
     assert record["owner"] == "claude"
     assert record["brake_enabled"] is True
 
@@ -154,7 +155,8 @@ def test_projects_set_owner_and_set_deadline(tmp_path) -> None:
     pt = _rw(tmp_path)
     pt.projects_create("alpha", "Alpha", "x")
     assert "now owned by 'shared'" in pt.projects_set_owner("alpha", "shared")
-    assert pt.projects_get("alpha")["owner"] == "shared"
+    shared = pt.projects_get("alpha")
+    assert shared is not None and shared["owner"] == "shared"
 
     bad = pt.projects_set_deadline("alpha", "not-a-date")
     assert bad.startswith("REJECTED")
@@ -189,3 +191,58 @@ def test_projects_cost_report_and_jobs_empty_for_new_project(tmp_path) -> None:
     report = pt.projects_cost_report("alpha")
     assert report["job_count"] == 0
     assert pt.projects_jobs("alpha") == []
+
+
+def _promoted(tmp_path) -> ProjectsTools:
+    pt = _rw(tmp_path)
+    pt.projects_create("alpha", "Alpha", "x")
+    subtasks = [
+        {"text": "t0", "acceptance_criteria": ["c0 passes"]},
+        {"text": "t1", "acceptance_criteria": ["c1 passes"]},
+    ]
+    assert pt.projects_review_plan("alpha", "obs", "2026-12-01", subtasks)["ok"] is True
+    pt.projects_promote("alpha", "obs", "2026-12-01", subtasks)
+    return pt
+
+
+def test_mcp_contract_opened_through_tool_blocks_shortcut_close(tmp_path) -> None:
+    # A contract opened through the MCP tool must be seen by the shortcut-close
+    # gate on the same store: the closer does the lookup itself.
+    from lazybridge.ext.planners import DurableBlackboard
+
+    from lazytools.projects import task_claims
+
+    pt = _promoted(tmp_path)
+    opened = pt.projects_open_contract(
+        "alpha", 0, "repo", "obs", ["c0 passes"], ["pytest"], risk="low", allowed_effects="files"
+    )
+    assert isinstance(opened, dict), opened
+    assert pt.projects_find_contract("alpha", 0) is not None
+
+    msg = task_claims.complete_todo_without_verification(pt._store, "alpha", 0, "looks done to me")
+    assert msg.startswith("REJECTED") and "accept()" in msg
+    assert DurableBlackboard(pt._store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "todo"
+    # ...and the MCP-level project close refuses too, because the task is still open.
+    assert pt.projects_close("alpha").startswith("REJECTED")
+
+
+def test_mcp_task_without_contract_still_closes_by_shortcut(tmp_path) -> None:
+    from lazybridge.ext.planners import DurableBlackboard
+
+    from lazytools.projects import task_claims
+
+    pt = _promoted(tmp_path)
+    assert pt.projects_find_contract("alpha", 0) is None
+    assert "marked done" in task_claims.complete_todo_without_verification(pt._store, "alpha", 0, "verified by hand")
+    assert DurableBlackboard(pt._store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "done"
+
+
+def test_mcp_surface_exposes_no_unguarded_task_close_tool(tmp_path) -> None:
+    # The MCP tools expose no direct "mark task done" verb: a task with a
+    # contract closes only via projects_accept_verification. If a shortcut-close
+    # tool is ever added it must go through complete_todo_without_verification
+    # (which gates by itself); this test is the reminder to cover it.
+    pt = ProjectsTools(store_db=str(tmp_path / "full.sqlite"), allow_write=True, profile="full")
+    names = {t.name for t in pt.as_tools()}
+    closers = {n for n in names if any(word in n for word in ("mark_done", "complete", "close_task"))}
+    assert closers == set()

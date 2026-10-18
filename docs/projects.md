@@ -161,7 +161,38 @@ contract and prior-attempt eligibility; caller policy can add contract adequacy.
 checks claim status/owner and can reject a newer job via `expected_job_id`;
 the caller must establish that work never started. `complete_todo_without_verification` is only for an
 unclaimed todo task with no running job and no contract; contracted work must
-close through acceptance. The caller supplies authoritative closure checks.
+close through acceptance. The function enforces this itself and refuses with a
+message pointing to `accept()`. There is no caller flag to skip or assert it
+(the old `contract_exists` keyword was removed).
+
+The gate is **atomic**, because the contract and the closure coordinate through
+the same board CAS. `contracts.open_task_contract` first stamps
+`task["contract_id"]` on the project board (one board CAS; it raises if the task
+is already `done`), and only then writes the contract key. The closure refuses
+when the marker is present, judged on the same board snapshot its own CAS
+compares against. So a contract created at any moment either lands before that
+snapshot (refused) or changes the board and makes the closure's CAS fail (the
+retry refuses); exactly one of "contract opened" and "task closed" wins. This
+holds with or without a caller `check` hook. A contract key alone is not
+enough: a separate key cannot invalidate a board CAS, which is why the marker
+exists. `find_contract_for_task` still runs as defence in depth for contracts
+written without a marker. A contract for a task that is not on the board (no
+board, an empty board, or an index out of range) is refused with `ValueError`
+(`projects_open_contract` returns `REJECTED`): the marker could not be written,
+and an unmarked contract would escape the gate once the plan is installed.
+`intake.install_project_plan` keeps the gate intact too: a task carrying a marker
+survives a reinstall only at the same index with the same text (the marker is
+carried over); replacing, shifting or dropping it is refused, like a started task.
+
+Contracts created before the marker existed need a one-off, idempotent
+backfill, run by the store's owner (dry run by default, `--apply` to write):
+
+```
+python -m lazytools.projects.contract_markers --store-db <ceo-store.sqlite> [--apply]
+```
+
+The MCP tools expose no shortcut-close verb: contracted tasks close only through
+`projects_accept_verification`.
 
 ## Contracts and verification
 
@@ -418,10 +449,14 @@ best-effort across keys rather than a multi-key transaction.
 
 `task_claims.complete_todo_without_verification(store, project_id, task_index,
 summary, *, board_prefix=BOARD_KEY_PREFIX, job_prefix=JOB_PREFIX,
-contract_exists=False, check=None, on_closed=None) -> str` retains the existing
-default guards. `check(store, project_id, task_index) -> str | None` runs just
-before every CAS attempt; return a refusal string or `None`. This supports a
-fresh contract lookup. `on_closed(store, project_id, task_index) -> None` runs
+contract_prefix=TASK_CONTRACT_PREFIX, check=None, on_closed=None) -> str` retains
+the existing guards and adds a built-in contract gate: immediately before every
+CAS attempt it runs `find_contract_for_task` itself and returns
+`REJECTED: task N has an acceptance contract -- close it through accept() instead.`
+if one exists (`task_claims.contract_gate_refusal` is the reusable helper; any
+future shortcut-close path must call it). `check(store, project_id, task_index)
+-> str | None` runs after that gate, still before every CAS; return a refusal
+string or `None`. It can only add refusals, never bypass the gate. `on_closed(store, project_id, task_index) -> None` runs
 once after a winning close, for example to touch progress. A losing/repeated
 close never calls it. Hooks propagate exceptions; an exception after success
 does not roll back the close, and this is not a durable delivery guarantee.

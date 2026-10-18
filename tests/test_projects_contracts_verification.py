@@ -4,14 +4,17 @@ replace LazyCEO's own autonomy/contract-adequacy checks."""
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from lazybridge import Store
+from lazybridge.ext.planners import DurableBlackboard
 
 from lazytools.projects import contracts, verification
 
 
 def _open_contract(store: Store, **overrides) -> contracts.TaskContract:
-    kwargs = dict(
+    kwargs: dict[str, Any] = dict(
         project_id="alpha",
         task_index=0,
         repo="some-repo",
@@ -22,6 +25,10 @@ def _open_contract(store: Store, **overrides) -> contracts.TaskContract:
         allowed_effects="write files in some-repo",
     )
     kwargs.update(overrides)
+    # A contract must govern a task that is on the board (it is marked there);
+    # these tests are about the contract, so give the project a plan if it has none.
+    if store.read("blackboard:project:alpha") is None:
+        DurableBlackboard(store, plan_id="project:alpha").set_plan("r", ["t0", "t1", "t2"])
     return contracts.open_task_contract(store, **kwargs)
 
 
@@ -78,7 +85,8 @@ def test_contract_requires_full_suite_and_exclusion_flag_detection() -> None:
 
 def _verification_flow(store: Store, contract: contracts.TaskContract, job_id: str = "job12345678") -> None:
     assert verification.claim_verification(store, contract_id=contract.contract_id, job_id=job_id) is not None
-    assert verification.start_running(store, job_id).status == "running"
+    running = verification.start_running(store, job_id)
+    assert running is not None and running.status == "running"
     verification.record_checks(
         store, job_id, checks=[verification.CheckResult(command="pytest -q", exit_code=0, output_tail="ok")], diff_summary="+1"
     )
@@ -179,7 +187,8 @@ def test_accept_required_check_coverage(command, allowed, accepted) -> None:
         verification.CheckResult(command=command, exit_code=0, output_tail="ok")
     ], diff_summary="+1")
     if accepted:
-        assert verification.accept(store, "job12345678", reviewer="r", reason="ok").status == "accepted"
+        done = verification.accept(store, "job12345678", reviewer="r", reason="ok")
+        assert done is not None and done.status == "accepted"
     else:
         with pytest.raises(ValueError, match="missing required checks: 'pytest -q'"):
             verification.accept(store, "job12345678", reviewer="r", reason="ok")
@@ -249,13 +258,13 @@ def test_request_rework_and_block() -> None:
     contract = _open_contract(store)
     _verification_flow(store, contract)
     reworked = verification.request_rework(store, "job12345678", reviewer="claude", reason="not quite")
-    assert reworked.status == "rework"
+    assert reworked is not None and reworked.status == "rework"
 
     store2 = Store()
     contract2 = _open_contract(store2)
     _verification_flow(store2, contract2)
     blocked = verification.block(store2, "job12345678", reviewer="claude", reason="needs a human")
-    assert blocked.status == "blocked"
+    assert blocked is not None and blocked.status == "blocked"
 
 
 def test_retry_harness_only_applies_to_harness_blocked() -> None:
@@ -283,7 +292,8 @@ def test_reclaim_interrupted_verifications_resets_running_to_pending() -> None:
     verification.start_running(store, "job12345678")
     reclaimed = verification.reclaim_interrupted_verifications(store)
     assert "job12345678" in reclaimed
-    assert verification.get_verification(store, "job12345678").status == "pending"
+    pending = verification.get_verification(store, "job12345678")
+    assert pending is not None and pending.status == "pending"
 
 
 def test_claim_blocker_contract_adequacy_hook() -> None:

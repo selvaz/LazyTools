@@ -227,6 +227,9 @@ def install_project_plan(store: Store, project_id: str, *, objective: str, tasks
 
     An identical plan is a no-op, preserving claims, results and schedules.
     Started tasks include previous attempts returned to todo or cancelled.
+    A task carrying a ``contract_id`` marker is kept only if it stays at the same
+    index with the same text (the marker is carried over); otherwise the
+    replacement is refused, exactly like a started task.
     """
     from lazybridge.ext.planners.durable_blackboard import BLACKBOARD_VERSION
 
@@ -248,11 +251,24 @@ def install_project_plan(store: Store, project_id: str, *, objective: str, tasks
         ]
         if started:
             return "REJECTED: cannot replace a different plan; tasks already started: " + ", ".join(started)
+        # A task carrying an acceptance-contract marker (``contract_id``, stamped by
+        # ``contracts.open_task_contract``) is not "untouched": the shortcut-close gate
+        # refuses on that marker inside its board CAS, so replacing the task with a
+        # fresh dict would silently reopen the shortcut. A marked task may be KEPT
+        # (same index AND same text, matched like the started-task guard) and then
+        # carries its marker over; replacing or dropping it is refused.
+        contracted = [(i, t) for i, t in enumerate(old_tasks) if t.get("contract_id")]
+        replaced = [f"{i}: {t.get('text')!r}" for i, t in contracted if i >= len(tasks) or tasks[i] != t.get("text")]
+        if replaced:
+            return "REJECTED: cannot replace a different plan; tasks already carry an acceptance contract: " + ", ".join(replaced)
+        new_tasks = [_fresh_task(text) for text in tasks]
+        for i, t in contracted:
+            new_tasks[i]["contract_id"] = t["contract_id"]
         moment = time.time()
         updated = {
             **current, "version": BLACKBOARD_VERSION, "plan_id": f"project:{project_id}",
             "reasoning": objective.strip(), "created_at": moment, "updated_at": moment,
-            "tasks": [_fresh_task(text) for text in tasks], "schedule_events": [],
+            "tasks": new_tasks, "schedule_events": [],
         }
         if current_digest is not None:
             project = get_project(store, project_id)

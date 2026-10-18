@@ -3,10 +3,11 @@ honest "SENZA VERIFICA" shortcut for a task nobody claimed."""
 
 from __future__ import annotations
 
+import pytest
 from lazybridge import Store
 from lazybridge.ext.planners import DurableBlackboard
 
-from lazytools.projects import task_claims
+from lazytools.projects import contracts, task_claims
 from lazytools.projects.keys import JOB_PREFIX
 
 
@@ -68,11 +69,89 @@ def test_complete_todo_without_verification_refuses_claimed_task() -> None:
     assert msg.startswith("REJECTED")
 
 
+def _open_contract(store: Store, task_index: int = 0) -> None:
+    contracts.open_task_contract(
+        store,
+        project_id="alpha",
+        task_index=task_index,
+        repo="r",
+        observable_result="files",
+        acceptance_criteria=["file exists"],
+        required_checks=["pytest"],
+        risk="low",
+        allowed_effects="files",
+    )
+
+
 def test_complete_todo_without_verification_refuses_when_contract_exists() -> None:
     store = Store()
-    _board(store, "alpha", ["t0"])
-    msg = task_claims.complete_todo_without_verification(store, "alpha", 0, "summary", contract_exists=True)
+    board = _board(store, "alpha", ["t0"])
+    _open_contract(store)
+    # The function looks the contract up itself; the caller passes nothing.
+    msg = task_claims.complete_todo_without_verification(store, "alpha", 0, "summary")
+    assert msg.startswith("REJECTED") and "acceptance contract" in msg and "accept()" in msg
+    assert board.snapshot().tasks[0]["status"] == "todo"
+
+
+def test_caller_cannot_claim_there_is_no_contract() -> None:
+    # The old ``contract_exists`` flag (defaulting to False) is gone: there is no
+    # keyword through which a caller can assert "no contract".
+    store = Store()
+    board = _board(store, "alpha", ["t0"])
+    _open_contract(store)
+    with pytest.raises(TypeError):
+        task_claims.complete_todo_without_verification(store, "alpha", 0, "summary", contract_exists=False)  # type: ignore[call-arg]
+    # A permissive caller hook cannot override the built-in gate either.
+    msg = task_claims.complete_todo_without_verification(store, "alpha", 0, "summary", check=lambda *_: None)
     assert msg.startswith("REJECTED") and "acceptance contract" in msg
+    assert board.snapshot().tasks[0]["status"] == "todo"
+
+
+def test_contract_opened_between_read_and_cas_is_caught(monkeypatch: pytest.MonkeyPatch) -> None:
+    store = Store()
+    board = _board(store, "alpha", ["t0"])
+    closed: list[tuple] = []
+    real_read = store.read
+    reads = {"n": 0}
+
+    def read_then_open_contract(key, *args, **kwargs):
+        value = real_read(key, *args, **kwargs)
+        if key == "blackboard:project:alpha":
+            reads["n"] += 1
+            if reads["n"] == 1:
+                # The board was just read as an untouched todo; a contract appears now.
+                _open_contract(store)
+        return value
+
+    monkeypatch.setattr(store, "read", read_then_open_contract)
+    msg = task_claims.complete_todo_without_verification(store, "alpha", 0, "summary", on_closed=lambda *a: closed.append(a))
+    assert msg.startswith("REJECTED") and "acceptance contract" in msg
+    assert closed == []
+    assert board.snapshot().tasks[0]["status"] == "todo"
+
+
+# (The "contract commits after the lookup but before the board CAS" race is
+# covered with the REAL board CAS in test_projects_contract_atomic.py; a faked
+# losing CAS proved nothing, since a separate contract key never invalidated the board.)
+
+
+def test_contract_for_another_task_does_not_block_closure() -> None:
+    store = Store()
+    board = _board(store, "alpha", ["t0", "t1"])
+    _open_contract(store, task_index=1)
+    assert "marked done" in task_claims.complete_todo_without_verification(store, "alpha", 0, "verified")
+    assert board.snapshot().tasks[0]["status"] == "done"
+    assert task_claims.complete_todo_without_verification(store, "alpha", 1, "verified").startswith("REJECTED")
+    assert board.snapshot().tasks[1]["status"] == "todo"
+
+
+def test_contract_gate_refusal_helper() -> None:
+    store = Store()
+    _board(store, "alpha", ["t0"])
+    assert task_claims.contract_gate_refusal(store, "alpha", 0) is None
+    _open_contract(store)
+    refusal = task_claims.contract_gate_refusal(store, "alpha", 0)
+    assert refusal is not None and refusal.startswith("REJECTED") and "accept()" in refusal
 
 
 def test_complete_todo_without_verification_refuses_blank_summary() -> None:
