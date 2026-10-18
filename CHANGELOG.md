@@ -8,10 +8,38 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.3] — 2026-10-18
+
+Release train `ecosystem-2026.10.3`.
+
 ### Added
-- `tools/check_pins.py`: any ecosystem repo can check in CI that its `pyproject.toml` /
-  `requirements*.txt` pin siblings exactly as `ecosystem/compatibility.toml` says.
+- Code bridge brief check (#205): `run` checks every brief before launch (section headings in
+  English or Italian, absolute paths outside `--cwd` for Claude jobs, quoting that raises
+  approval tickets, persona lines, very short briefs) and prints the findings on stderr; stdout
+  is unchanged. `--strict` refuses a brief with errors (exit 2) before any job record exists;
+  `--no-brief-check` skips it. `--review-of`, `--tier` and `--detach` jobs are checked once.
+- Code bridge engine concurrency limit (#204): at most N live jobs per engine, machine-wide,
+  configured under `[concurrency]` in `~/.lazytools/code-bridge.toml` (defaults: codex = 1,
+  claude = unlimited). A launch at the limit is refused and `--tier` routing excludes the busy
+  engine. Slots of dead jobs are reclaimed under an OS lock, after their job is marked
+  `interrupted` and its open tickets are closed.
+- Code bridge structural approvals (#204): `BridgeGate` classifies the whole command before the
+  stock rules. Read-only `gh pr view|checks|diff`, `gh run view|list` and `gh api` GET queries are
+  allowed, bare or wrapped in `powershell.exe -Command`; `git add` / `git commit` get a session
+  grant over an exact flag allow-list. Empty arguments and nested quotes always ask. Push, merge,
+  reset and delete still ask.
+- Code bridge per-job temp dir (`<temp>\lazytools-bridge\<job_id>`): the only extra writable root
+  for Codex and a file root for Claude, removed at the end. Unsafe temp bases (drive or share
+  roots, Windows, ProgramData, the profile root, ancestors of the cwd) add no root.
+- `tools/check_pins.py` (#199–#201): any ecosystem repo can check in CI that its `pyproject.toml`,
+  `requirements*.txt` and workflows pin siblings exactly as `ecosystem/compatibility.toml` says,
+  or all of them as the candidate set on the `train/next` branch.
 - The manifest now lists DataSpace (`lazydataspace` v0.1.0), pinned by four siblings.
+
+### Changed
+- Manifest `ecosystem-2026.10.1` and `ecosystem-2026.10.2` (#202, #203): lazybridge 1.8.2,
+  market-data-hub v0.2.1, lazycrawler v0.19.6, lazystats v0.3.1, lazyportfolio v0.2.1,
+  lazyray v0.2.1; the `web` extra pins lazycrawler `v0.19.6`.
 
 ## [0.10.2] — 2026-10-15
 
