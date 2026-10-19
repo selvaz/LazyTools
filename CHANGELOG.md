@@ -36,8 +36,6 @@ Release set `ecosystem-2026.10.6`.
   production DB or under `C:\ProgramData\InvestmentCommittee` raises `WebCachePathError`.
   Unset, behaviour is unchanged (production agents keep writing to `news.db`).
 
-### Changed
-- `web` extra pins `lazycrawler` at `v0.19.7` (was `v0.19.6`).
 
 ## [0.10.3] — 2026-10-18
 
