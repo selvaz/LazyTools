@@ -18,7 +18,7 @@
 
 schema_version = 1
 
-# Release set: ecosystem-2026.10.5 (18/10/2026). Every repo, runtime and production
+# Release set: ecosystem-2026.10.6 (19/10/2026). Every repo, runtime and production
 # environment uses exactly these refs. LazyFin is deliberately outside the train.
 [verified]
 python = ["3.11", "3.12", "3.13"]
@@ -28,33 +28,33 @@ lazybridge = "1.8.2"
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.10.3"
+ref = "v0.10.4"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
-ref = "v0.5.5"
+ref = "v0.5.6"
 
 [verified.github.lazycrawler]
 repo = "https://github.com/selvaz/LazyCrawler"
-ref = "v0.19.6"
+ref = "v0.19.7"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "v0.3.2"
+ref = "v0.3.3"
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
-ref = "v0.3.4"
+ref = "v0.3.5"
 extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "v0.2.4"  # its datacore extra pins market-data-hub v0.3.2 too (must move together)
+ref = "v0.2.5"  # its datacore extra pins market-data-hub v0.3.3 too (must move together)
 extras = ["datacore"]
 
 [verified.github.lazyray]
 repo = "https://github.com/selvaz/LazyRay"
-ref = "v0.2.4"  # pins market-data-hub v0.3.2 and lazytoolkit v0.10.3 itself (ecosystem-2026.10.5)
+ref = "v0.2.5"  # pins market-data-hub v0.3.3 and lazytoolkit v0.10.4 itself (ecosystem-2026.10.6)
 
 [verified.github.lazydataspace]
 repo = "https://github.com/selvaz/DataSpace"
