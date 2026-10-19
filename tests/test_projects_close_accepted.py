@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from lazybridge import Store
 from lazybridge.ext.planners import DurableBlackboard
 
-from lazytools.projects import close_accepted_task, contracts, records, verification
-from lazytools.projects.keys import BOARD_KEY_PREFIX, TASK_CONTRACT_PREFIX, VERIFICATION_PREFIX
+from lazytools.projects import close_accepted_task, contract_markers, contracts, plan_edit, records, verification
+from lazytools.projects.keys import BOARD_KEY_PREFIX, PROJECT_PREFIX, TASK_CONTRACT_PREFIX, VERIFICATION_PREFIX
 from lazytools.projects.task_claims import CAS_ATTEMPTS
 
 BOARD_KEY = f"{BOARD_KEY_PREFIX}project:alpha"
@@ -96,8 +98,13 @@ def test_missing_or_mismatching_board_marker_refuses(marker):
     store.write(BOARD_KEY, raw)
     result = close_accepted_task(store, "alpha", 0, JOB)
     assert result.startswith("REJECTED:")
-    assert ("complete_todo_without_verification" if marker is None else "does not match") in result
+    assert ("backfill_contract_markers(..., apply=True)" if marker is None else "does not match") in result
     assert store.read(BOARD_KEY) == raw
+    if marker is None:
+        # Follow the refusal's advice for a legacy contract, rather than being
+        # bounced into the shortcut closer (which correctly refuses contracts).
+        assert contract_markers.backfill_contract_markers(store, apply=True).marked == ["alpha:0"]
+        assert "marked done" in close_accepted_task(store, "alpha", 0, JOB)
 
 
 @pytest.mark.parametrize("status", ["done", "cancelled", "retired", "failed"])
@@ -187,3 +194,170 @@ def test_custom_prefixes():
         contract_prefix=f"custom:{TASK_CONTRACT_PREFIX}", verification_prefix=f"custom:{VERIFICATION_PREFIX}",
     )
     assert store.read(f"custom:{BOARD_KEY}")["tasks"][0]["status"] == "done"
+
+
+@pytest.mark.parametrize("retire_and_reopen", [False, True])
+def test_verification_cannot_close_again_after_reopen(retire_and_reopen):
+    store = Store()
+    _setup(store)
+    assert "marked done" in close_accepted_task(store, "alpha", 0, JOB)
+    assert "reopened" in plan_edit.reopen_done_task_for_invalid_closure(
+        store, "alpha", 0, "one", owner="worker", reason="The original closure was invalid",
+    )
+    if retire_and_reopen:
+        assert "retired" in plan_edit.retire_task(store, "alpha", 0, "one", "needs replanning", "obsolete")
+        assert "reopened" in plan_edit.reopen_task(store, "alpha", 0, "one", "New work is needed to repair the invalid closure")
+    before = store.read(BOARD_KEY)
+    project = records.get_project(store, "alpha")
+    closed = []
+    result = close_accepted_task(store, "alpha", 0, JOB, on_closed=lambda *args: closed.append(args))
+    assert result.startswith("REJECTED:") and "already closed" in result
+    assert store.read(BOARD_KEY) == before and closed == []
+    assert records.get_project(store, "alpha") == project
+    assert sum(e["event"] == "closed_accepted" for e in before["plan_events"]) == 1
+
+
+def _newer_verification(store, contract_id, status="pending"):
+    newer = verification.claim_verification(store, contract_id=contract_id, job_id="newer-job-id")
+    previous = verification.get_verification(store, JOB)
+    # Make the ordering deterministic even on a clock with low resolution.
+    store.write(f"{VERIFICATION_PREFIX}{newer.job_id}", {
+        **newer.model_dump(mode="json"), "status": status,
+        "created_at": (previous.created_at + timedelta(seconds=1)).isoformat(),
+    })
+
+
+@pytest.mark.parametrize("status", ["pending", "running", "rework", "blocked", "accepted"])
+def test_newer_verification_supersedes_old_acceptance(status):
+    store = Store()
+    contract, _ = _setup(store)
+    _newer_verification(store, contract.contract_id, status)
+    before = store.read(BOARD_KEY)
+    assert "latest accepted verification" in close_accepted_task(store, "alpha", 0, JOB)
+    assert store.read(BOARD_KEY) == before
+    assert records.get_project(store, "alpha").last_progress_at is None
+
+
+@pytest.mark.parametrize("status", ["paused", "done", "draft", None])
+def test_project_must_exist_and_be_open(status):
+    store = Store()
+    _setup(store)
+    key = f"{PROJECT_PREFIX}alpha"
+    if status is None:
+        store.delete(key)
+    else:
+        store.write(key, {**store.read(key), "status": status})
+    before, project = store.read(BOARD_KEY), store.read(key)
+    closed = []
+    assert "must be open" in close_accepted_task(store, "alpha", 0, JOB, on_closed=lambda *args: closed.append(args))
+    assert store.read(BOARD_KEY) == before and store.read(key) == project and closed == []
+
+
+@pytest.mark.parametrize("change", ["reopen_verification", "newer_verification", "pause_project"])
+def test_cross_record_change_after_board_read_is_rechecked_before_cas(monkeypatch, change):
+    store = Store()
+    contract, _ = _setup(store)
+    read, cas = store.read, store.compare_and_swap
+    board_writes = []
+
+    def change_after_read(key, *args, **kwargs):
+        raw = read(key, *args, **kwargs)
+        if key == BOARD_KEY:
+            if change == "reopen_verification":
+                assert verification.reopen_for_empty_review(store, JOB)
+            elif change == "newer_verification":
+                _newer_verification(store, contract.contract_id)
+            else:
+                records.pause_project(store, "alpha")
+        return raw
+
+    def count_cas(key, expected, value):
+        if key == BOARD_KEY:
+            board_writes.append(key)
+        return cas(key, expected, value)
+
+    monkeypatch.setattr(store, "read", change_after_read)
+    monkeypatch.setattr(store, "compare_and_swap", count_cas)
+    assert close_accepted_task(store, "alpha", 0, JOB).startswith("REJECTED:")
+    assert board_writes == [] and read(BOARD_KEY)["tasks"][0]["status"] == "todo"
+
+
+def test_competing_closure_event_is_seen_on_cas_retry(monkeypatch):
+    store = Store()
+    _setup(store)
+    cas = store.compare_and_swap
+    writes = []
+
+    def consume_before_cas(key, expected, value):
+        if key == BOARD_KEY:
+            writes.append(key)
+            concurrent = {**expected, "plan_events": [{"event": "closed_accepted", "verification_id": JOB}]}
+            store.write(key, concurrent)
+        return cas(key, expected, value)
+
+    monkeypatch.setattr(store, "compare_and_swap", consume_before_cas)
+    assert "already closed" in close_accepted_task(store, "alpha", 0, JOB)
+    assert len(writes) == 1 and store.read(BOARD_KEY)["tasks"][0]["status"] == "todo"
+
+
+@pytest.mark.parametrize("bad_board", [
+    "garbage", {}, {"tasks": None}, {"tasks": {"0": {}}}, {"tasks": "garbage"},
+    {"tasks": ["garbage"]}, {"tasks": [{}, "garbage"]},
+    {"plan_events": None}, {"plan_events": {}}, {"plan_events": ["garbage"]},
+])
+def test_malformed_board_returns_rejection_without_writing(bad_board):
+    store = Store()
+    _setup(store)
+    raw = store.read(BOARD_KEY)
+    # An empty document exercises a missing tasks field; other overrides retain
+    # valid contract markers so validation of plan_events is reached as well.
+    raw = {**raw, **bad_board} if isinstance(bad_board, dict) and bad_board else bad_board
+    store.write(BOARD_KEY, raw)
+    assert "REJECTED: malformed board" in close_accepted_task(store, "alpha", 0, JOB)
+    assert store.read(BOARD_KEY) == raw
+    assert records.get_project(store, "alpha").last_progress_at is None
+
+
+@pytest.mark.parametrize("index", ["0", None, True, 0.0])
+def test_malformed_task_index_is_rejected(index):
+    store = Store()
+    _setup(store)
+    assert "task_index must be an integer" in close_accepted_task(store, "alpha", index, JOB)
+    assert store.read(BOARD_KEY)["tasks"][0]["status"] == "todo"
+
+
+def test_failing_hook_propagates_after_completion_and_progress():
+    store = Store()
+    _setup(store)
+    called = []
+
+    def fail(*args):
+        called.append(args)
+        raise RuntimeError("hook failed")
+
+    with pytest.raises(RuntimeError, match="hook failed"):
+        close_accepted_task(store, "alpha", 0, JOB, on_closed=fail)
+    assert len(called) == 1
+    assert store.read(BOARD_KEY)["tasks"][0]["status"] == "done"
+    assert records.get_project(store, "alpha").last_progress_at is not None
+    assert close_accepted_task(store, "alpha", 0, JOB, on_closed=fail).startswith("REJECTED:")
+    assert len(called) == 1
+
+
+def test_unique_verification_prefix_uses_full_id_in_result_and_consumption_event():
+    store = Store()
+    _setup(store)
+    assert "marked done" in close_accepted_task(store, "alpha", 0, JOB[:8])
+    doc = store.read(BOARD_KEY)
+    assert JOB in doc["tasks"][0]["result"] and doc["plan_events"][0]["verification_id"] == JOB
+    plan_edit.reopen_done_task_for_invalid_closure(store, "alpha", 0, "one", owner="worker", reason="invalid closure")
+    assert "already closed" in close_accepted_task(store, "alpha", 0, JOB[:8])
+
+
+def test_ambiguous_verification_prefix_refuses():
+    store = Store()
+    contract, _ = _setup(store)
+    verification.claim_verification(store, contract_id=contract.contract_id, job_id="finished-other-id")
+    before = store.read(BOARD_KEY)
+    assert "not found (or ambiguous)" in close_accepted_task(store, "alpha", 0, JOB[:8])
+    assert store.read(BOARD_KEY) == before

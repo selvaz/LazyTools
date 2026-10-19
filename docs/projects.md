@@ -244,22 +244,35 @@ known defects. `retry_review`, `retry_harness`, `reopen_for_empty_review` retain
 an audit trail and have specific eligibility rules.
 Acceptance records do not automatically close board tasks. After acceptance,
 call `close_accepted_task(store, project_id, task_index, verification_id)`
-(also exported from `lazytools.projects`). It accepts only a `todo` or `claimed`
-task whose board `contract_id` matches the accepted verification and whose
-contract identifies the same project and task index. A task without a contract
-must use `complete_todo_without_verification`.
+(also exported from `lazytools.projects`). The project must exist and be `open`.
+It accepts only a `todo` or `claimed` task whose board `contract_id` matches the
+accepted verification and whose contract identifies the same project and task
+index. The verification must still be the contract's latest attempt: a newer
+pending, running or rework attempt blocks the older acceptance. A prior
+`closed_accepted` event for that verification refuses reuse, including after a
+task is reopened; a new verification is required. A task without a contract
+must use `complete_todo_without_verification`. A legacy contract missing its
+board marker must first be repaired with
+`contract_markers.backfill_contract_markers(store, apply=True)`.
 
 The closer writes `done`, `completed_at`, clears the claim and stale error/cancel
 reason, and records a result citing the verification id, decision reviewer and
 decision reason. It appends a `closed_accepted` plan event in the **same board
 CAS**, preserving existing history. A conflict re-reads all records and retries
-up to eight times, including checking the board marker again. Expected refusals
-return `REJECTED: ...` strings. On success it touches project progress, then calls
+up to eight times, including checking the board marker and prior closure events
+again. Expected refusals, including malformed board data, return `REJECTED: ...`
+strings. On success it touches project progress, then calls
 the optional `on_closed(store, project_id, task_index)` hook once; hook exceptions
-propagate without undoing completion. `board_prefix`, `contract_prefix` and
-`verification_prefix` are configurable. Verification/contract keys and project
-progress remain separate from the board transaction; concurrent changes to those
-keys are not serialized by the board CAS.
+propagate without undoing completion or progress. Unlike the shortcut closer,
+progress is automatic here: omit the usual progress-touching callback and reserve
+`on_closed` for other work. A callback that touches progress again causes a second
+touch; arbitrary callbacks cannot be deduplicated safely without changing their
+behaviour. `board_prefix`, `contract_prefix` and `verification_prefix` are
+configurable. The latest verification and project status are re-read just before
+CAS to narrow the race window. Verification/contract keys and project progress
+remain separate from the board transaction; changes after that final read are
+not serialized by the board CAS. Separate job records are not checked; callers
+must register a new attempt's verification to supersede an older acceptance.
 
 ## The brake rule and quota telemetry
 

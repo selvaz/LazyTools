@@ -245,6 +245,17 @@ def test_mcp_accepted_closer_requires_full_write_profile(tmp_path) -> None:
             assert ("projects_close_accepted_task" in names) == (profile == "full" and allow_write)
 
 
+def test_mcp_surface_exposes_no_unguarded_task_close_tool(tmp_path) -> None:
+    pt = ProjectsTools(store_db=str(tmp_path / "full.sqlite"), allow_write=True, profile="full")
+    names = {t.name for t in pt.as_tools()}
+    # projects_close is the project lifecycle verb, guarded by unfinished tasks.
+    # Every task closer must be explicitly reviewed here, including new names
+    # containing close/complete rather than only the old close_task spelling.
+    closers = {n for n in names if any(word in n for word in ("mark_done", "complete", "close"))}
+    assert closers == {"projects_close", "projects_close_accepted_task"}
+    assert pt.projects_close_accepted_task("missing", 0, "missing").startswith("REJECTED:")
+
+
 def test_mcp_accepted_closer_records_progress(tmp_path) -> None:
     from lazybridge.ext.planners import DurableBlackboard
 
@@ -259,6 +270,9 @@ def test_mcp_accepted_closer_records_progress(tmp_path) -> None:
     verification.record_checks(pt._store, "job", checks=[verification.CheckResult(command="pytest", exit_code=0, output_tail="ok")], diff_summary="files changed")
     verification.record_review(pt._store, "job", reviewer="reviewer", findings="no issues")
     assert isinstance(pt.projects_accept_verification("job", "operator", "checks passed"), dict)
+    before = pt._store.read("blackboard:project:alpha")
+    assert pt.projects_close_accepted_task("other", 0, "job").startswith("REJECTED:")
+    assert pt._store.read("blackboard:project:alpha") == before
     assert "marked done" in pt.projects_close_accepted_task("alpha", 0, "job")
     assert DurableBlackboard(pt._store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "done"
     assert pt.projects_get("alpha")["last_progress_at"] is not None

@@ -13,7 +13,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   contract's verification is accepted, recording completion and an audit event in one
   board CAS with retries, then touching project progress. Exposed as
   `projects_close_accepted_task` in the full, write-enabled MCP profile; refuses
-  missing/mismatched contracts, unaccepted verifications and already closed tasks.
+  missing/mismatched contracts, unaccepted or superseded verifications, reused
+  closure verifications after reopening, non-open projects, malformed boards and
+  already closed tasks. Legacy contracts without a marker are directed to backfill.
 - MCP `web` provider: opt-in interactive cache isolation. With `LAZYTOOLS_WEB_CACHE_DB` set
   (a path, `default` = `~/.lazytools/web_cache.sqlite`, or `none`), `web_search`, `web_crawl`
   and `web_crawl_many` write to a separate disposable SQLite cache while `LAZYCRAWLER_NEWS_DB`

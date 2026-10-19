@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING
 
 from lazytools.projects.contracts import find_contract_for_task, get_task_contract
 from lazytools.projects.keys import BOARD_KEY_PREFIX, JOB_PREFIX, TASK_CONTRACT_PREFIX, VERIFICATION_PREFIX
-from lazytools.projects.records import touch_project_progress
-from lazytools.projects.verification import get_verification
+from lazytools.projects.records import get_project, touch_project_progress
+from lazytools.projects.verification import get_verification, get_verification_for_contract
 
 if TYPE_CHECKING:
     from lazybridge import Store
@@ -167,17 +167,24 @@ def close_accepted_task(
     verification_prefix: str = VERIFICATION_PREFIX,
     on_closed: ClosedHook | None = None,
 ) -> str:
-    """Close a todo/claimed task whose current contract has been accepted.
+    """Close a todo/claimed task in an open project using its latest acceptance.
 
     The task update and plan event share one winning board CAS. Every retry
     re-reads the verification, contract and board marker, so a changed marker
-    cannot close under an earlier contract's acceptance. Separate verification
-    and contract keys are not part of a multi-key transaction.
+    cannot close under an earlier contract's acceptance. A ``closed_accepted``
+    event consumes that verification even if the task is later reopened. Just
+    before CAS, recheck that this is still the contract's latest verification
+    and the project is open. Separate verification, contract and project keys
+    are not part of a multi-key transaction.
 
     After the winning CAS, touch project progress (best effort), then call
     ``on_closed`` once. As with the shortcut closer, hook exceptions propagate
-    and do not undo the close or cause a second invocation.
+    and do not undo the close or cause a second invocation. Unlike the shortcut
+    closer, progress is automatic: hooks should not touch it again, or it will
+    be touched twice. Arbitrary callbacks cannot be deduplicated here.
     """
+    if isinstance(task_index, bool) or not isinstance(task_index, int):
+        return "REJECTED: task_index must be an integer."
     key = f"{board_prefix}project:{project_id}"
     for _ in range(CAS_ATTEMPTS):
         try:
@@ -195,18 +202,31 @@ def close_accepted_task(
             return f"REJECTED: verification's contract does not match project {project_id!r}, task {task_index}."
 
         raw = store.read(key)
-        if not isinstance(raw, dict) or not raw.get("tasks"):
+        if raw is None:
             return "REJECTED: no plan set for this project."
-        tasks = raw["tasks"]
+        if not isinstance(raw, dict):
+            return "REJECTED: malformed board -- expected a document."
+        tasks = raw.get("tasks")
+        if not isinstance(tasks, list) or not all(isinstance(task, dict) for task in tasks):
+            return "REJECTED: malformed board -- tasks must be a list of task documents."
+        events = raw.get("plan_events", [])
+        if not isinstance(events, list) or not all(isinstance(event, dict) for event in events):
+            return "REJECTED: malformed board -- plan_events must be a list of event documents."
         if not 0 <= task_index < len(tasks):
             return f"REJECTED: task_index out of range (valid: 0..{len(tasks) - 1})."
         task = tasks[task_index]
         if task.get("status") not in ("todo", "claimed"):
             return f"REJECTED: task {task_index} is {task.get('status')!r}, not todo or claimed."
         if not task.get("contract_id"):
-            return f"REJECTED: task {task_index} has no contract -- use complete_todo_without_verification instead."
+            return (
+                f"REJECTED: task {task_index} has a contract but no board contract marker -- "
+                "run contract_markers.backfill_contract_markers(..., apply=True) before closing it. "
+                "Only tasks without a contract may use complete_todo_without_verification."
+            )
         if task["contract_id"] != verification.contract_id:
             return f"REJECTED: task {task_index} contract_id does not match verification {verification.verification_id!r}."
+        if any(event.get("event") == "closed_accepted" and event.get("verification_id") == verification.verification_id for event in events):
+            return f"REJECTED: verification {verification.verification_id!r} already closed a task -- a reopened task needs a new verification."
 
         summary = (
             f"Accepted verification {verification.verification_id}; "
@@ -227,7 +247,18 @@ def close_accepted_task(
             "reviewer": verification.reviewer,
             "reason": verification.decision_reason,
         }
-        new_doc = {**raw, "tasks": new_tasks, "updated_at": now, "plan_events": [*raw.get("plan_events", []), event]}
+        new_doc = {**raw, "tasks": new_tasks, "updated_at": now, "plan_events": [*events, event]}
+        # Shrink the cross-record race window without claiming a multi-key
+        # transaction: re-read the governing decision immediately before CAS.
+        try:
+            project = get_project(store, project_id)
+            latest = get_verification_for_contract(store, contract.contract_id, prefix=verification_prefix)
+        except ValueError as exc:
+            return f"REJECTED: invalid project or verification record: {exc}"
+        if project is None or project.status != "open":
+            return f"REJECTED: project {project_id!r} must be open before a task can be closed."
+        if latest != verification:
+            return f"REJECTED: verification {verification.verification_id!r} is no longer the contract's latest accepted verification."
         if store.compare_and_swap(key, raw, new_doc):
             touch_project_progress(store, project_id)
             if on_closed is not None:
