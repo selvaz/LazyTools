@@ -1,19 +1,8 @@
-"""Releasing a claim that never got real work started against it, and
-closing a ``todo`` task that was verified by hand rather than through a
-contract.
+"""Release unused claims and close tasks with accepted or manual verification.
 
-Adapted from ``lazyceo.task_claims``. Left behind, as CEO/delegation policy:
-``close_accepted_task`` (closing a project task automatically once a
-verification is accepted) reaches into LazyCEO's own boost/autonomy
-(``effective_capability``) to decide whether the CALLER may finalize at
-all -- that gate belongs with ``verification.accept``'s injectable
-``authorization_check`` (see that module), and the "close the board slot
-once a verification is accepted" bookkeeping itself is thin enough that a
-caller can do it directly with
-``records.touch_project_progress``/``DurableBlackboard.mark_done`` once its
-own policy has decided the verification is accepted. Porting a second,
-parallel version of that bookkeeping here would just be a second place for
-it to drift from the first.
+Adapted from ``lazyceo.task_claims``, mechanism only. Acceptance policy belongs
+in ``verification.accept``'s injectable ``authorization_check``; closing an
+accepted task here only records that decision on its matching board slot.
 
 ``_newer_job_exists`` here reads job records under the configurable
 ``job_prefix`` directly (read-only) rather than importing LazyCEO's job
@@ -25,10 +14,12 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from lazytools.projects.contracts import find_contract_for_task
-from lazytools.projects.keys import BOARD_KEY_PREFIX, JOB_PREFIX, TASK_CONTRACT_PREFIX
+from lazytools.projects.contracts import find_contract_for_task, get_task_contract
+from lazytools.projects.keys import BOARD_KEY_PREFIX, JOB_PREFIX, TASK_CONTRACT_PREFIX, VERIFICATION_PREFIX
+from lazytools.projects.records import get_project, touch_project_progress
+from lazytools.projects.verification import get_verification, get_verification_for_contract
 
 if TYPE_CHECKING:
     from lazybridge import Store
@@ -165,6 +156,180 @@ def complete_todo_without_verification(
     return f"REJECTED: task {task_index} could not be closed safely -- another writer kept changing the board across {CAS_ATTEMPTS} retries; try again."
 
 
+def _rollback_accepted_close(
+    store: Store,
+    key: str,
+    task_index: int,
+    previous_task: dict[str, Any],
+    closed_task: dict[str, Any],
+    verification_id: str,
+    reason: str,
+) -> str:
+    """Compensate only while the slot still equals this call's done record."""
+    refusal = f"REJECTED: task {task_index} acceptance fence failed ({reason}); "
+    for _ in range(CAS_ATTEMPTS):
+        raw = store.read(key)
+        tasks = raw.get("tasks") if isinstance(raw, dict) else None
+        events = raw.get("plan_events", []) if isinstance(raw, dict) else None
+        if (
+            not isinstance(tasks, list)
+            or not 0 <= task_index < len(tasks)
+            or not isinstance(events, list)
+            or not all(isinstance(event, dict) for event in events)
+        ):
+            return refusal + "closure rollback could not be applied to a missing or malformed board -- reconcile the task."
+        if tasks[task_index] != closed_task:
+            return refusal + "closure rollback skipped because the task changed after this call's write -- reconcile the task."
+        now = time.time()
+        restored_tasks = list(tasks)
+        restored_tasks[task_index] = dict(previous_task)
+        event = {
+            "at": now,
+            "event": "close_accepted_rolled_back",
+            "task_index": task_index,
+            "verification_id": verification_id,
+            "contract_id": closed_task["contract_id"],
+            "closed_at": closed_task["completed_at"],
+            "restored_status": previous_task["status"],
+            "reason": reason,
+        }
+        restored = {**raw, "tasks": restored_tasks, "updated_at": now, "plan_events": [*events, event]}
+        if store.compare_and_swap(key, raw, restored):
+            return refusal + f"close rolled back to {previous_task['status']!r}."
+    return refusal + f"closure could not be rolled back safely across {CAS_ATTEMPTS} retries -- reconcile the task."
+
+
+def close_accepted_task(
+    store: Store,
+    project_id: str,
+    task_index: int,
+    verification_id: str,
+    *,
+    board_prefix: str = BOARD_KEY_PREFIX,
+    contract_prefix: str = TASK_CONTRACT_PREFIX,
+    verification_prefix: str = VERIFICATION_PREFIX,
+    on_closed: ClosedHook | None = None,
+) -> str:
+    """Close a todo/claimed task in an open project using its latest acceptance.
+
+    The task update and plan event share one winning board CAS. Every retry
+    re-reads the verification, contract and board marker, so a changed marker
+    cannot close under an earlier contract's acceptance. A ``closed_accepted``
+    event consumes that verification even if the task is later reopened. Just
+    before CAS, recheck that this is still the contract's latest verification
+    and the project is open. After CAS, fence the write by reading the selected
+    and latest verifications again. If acceptance changed, compensate with a
+    board CAS that restores the previous task only if it still equals the done
+    record this call wrote, preserving concurrent changes elsewhere on the board.
+    Separate verification, contract and project keys are not a multi-key
+    transaction: changes after the fence, or a crash before compensation, still
+    need reconciliation.
+
+    After the winning CAS AND fence pass, touch project progress, then call
+    ``on_closed`` once. As with the shortcut closer, hook exceptions propagate
+    and do not undo the close or cause a second invocation. Unlike the shortcut
+    closer, progress is automatic: hooks should not touch it again, or it will
+    be touched twice. Arbitrary callbacks cannot be deduplicated here.
+    """
+    if isinstance(task_index, bool) or not isinstance(task_index, int):
+        return "REJECTED: task_index must be an integer."
+    key = f"{board_prefix}project:{project_id}"
+    for _ in range(CAS_ATTEMPTS):
+        try:
+            verification = get_verification(store, verification_id, prefix=verification_prefix)
+            if verification is None:
+                return f"REJECTED: verification {verification_id!r} not found (or ambiguous)."
+            if verification.status != "accepted":
+                return f"REJECTED: verification {verification.verification_id!r} is {verification.status!r}, not accepted."
+            contract = get_task_contract(store, verification.contract_id, prefix=contract_prefix)
+        except ValueError as exc:
+            return f"REJECTED: invalid verification or contract record: {exc}"
+        if contract is None:
+            return f"REJECTED: contract {verification.contract_id!r} not found."
+        if contract.contract_id != verification.contract_id or contract.project_id != project_id or contract.task_index != task_index:
+            return f"REJECTED: verification's contract does not match project {project_id!r}, task {task_index}."
+
+        raw = store.read(key)
+        if raw is None:
+            return "REJECTED: no plan set for this project."
+        if not isinstance(raw, dict):
+            return "REJECTED: malformed board -- expected a document."
+        tasks = raw.get("tasks")
+        if not isinstance(tasks, list) or not all(isinstance(task, dict) for task in tasks):
+            return "REJECTED: malformed board -- tasks must be a list of task documents."
+        events = raw.get("plan_events", [])
+        if not isinstance(events, list) or not all(isinstance(event, dict) for event in events):
+            return "REJECTED: malformed board -- plan_events must be a list of event documents."
+        if not 0 <= task_index < len(tasks):
+            return f"REJECTED: task_index out of range (valid: 0..{len(tasks) - 1})."
+        task = tasks[task_index]
+        if task.get("status") not in ("todo", "claimed"):
+            return f"REJECTED: task {task_index} is {task.get('status')!r}, not todo or claimed."
+        if not task.get("contract_id"):
+            return (
+                f"REJECTED: task {task_index} has a contract but no board contract marker -- "
+                "run contract_markers.backfill_contract_markers(..., apply=True) before closing it. "
+                "Only tasks without a contract may use complete_todo_without_verification."
+            )
+        if task["contract_id"] != verification.contract_id:
+            return f"REJECTED: task {task_index} contract_id does not match verification {verification.verification_id!r}."
+        if any(event.get("event") == "closed_accepted" and event.get("verification_id") == verification.verification_id for event in events):
+            return f"REJECTED: verification {verification.verification_id!r} already closed a task -- a reopened task needs a new verification."
+
+        summary = (
+            f"Accepted verification {verification.verification_id}; "
+            f"reviewer: {verification.reviewer}; decision: {verification.decision_reason}"
+        )
+        now = time.time()
+        new_tasks = [dict(t) for t in tasks]
+        new_tasks[task_index].update(
+            status="done", result=summary, error="", cancel_reason="", owner=None, claimed_at=None, completed_at=now
+        )
+        event = {
+            "at": now,
+            "event": "closed_accepted",
+            "task_index": task_index,
+            "was": task["status"],
+            "contract_id": contract.contract_id,
+            "verification_id": verification.verification_id,
+            "reviewer": verification.reviewer,
+            "reason": verification.decision_reason,
+        }
+        new_doc = {**raw, "tasks": new_tasks, "updated_at": now, "plan_events": [*events, event]}
+        # Shrink the cross-record race window without claiming a multi-key
+        # transaction: re-read the governing decision immediately before CAS.
+        try:
+            project = get_project(store, project_id)
+            latest = get_verification_for_contract(store, contract.contract_id, prefix=verification_prefix)
+        except ValueError as exc:
+            return f"REJECTED: invalid project or verification record: {exc}"
+        if project is None or project.status != "open":
+            return f"REJECTED: project {project_id!r} must be open before a task can be closed."
+        if latest != verification:
+            return f"REJECTED: verification {verification.verification_id!r} is no longer the contract's latest accepted verification."
+        if store.compare_and_swap(key, raw, new_doc):
+            fence_reason = None
+            try:
+                current = get_verification(store, verification.verification_id, prefix=verification_prefix)
+                latest = get_verification_for_contract(store, contract.contract_id, prefix=verification_prefix)
+                if current is None or current.status != "accepted":
+                    fence_reason = f"verification {verification.verification_id!r} is no longer accepted"
+                elif current != verification or latest != verification:
+                    fence_reason = f"verification {verification.verification_id!r} changed or is no longer the contract's latest acceptance"
+            except ValueError as exc:
+                fence_reason = f"invalid verification record after closure: {exc}"
+            if fence_reason is not None:
+                return _rollback_accepted_close(
+                    store, key, task_index, task, new_tasks[task_index], verification.verification_id, fence_reason
+                )
+            touch_project_progress(store, project_id)
+            if on_closed is not None:
+                on_closed(store, project_id, task_index)
+            return f"task {task_index} marked done: {summary}"
+
+    return f"REJECTED: task {task_index} could not be closed safely -- another writer kept changing the board across {CAS_ATTEMPTS} retries; try again."
+
+
 def release_claim(
     store: Store,
     plan_id: str,
@@ -221,4 +386,4 @@ def release_claim(
         return False
 
 
-__all__ = ["ClosedHook", "ClosureCheck", "complete_todo_without_verification", "contract_gate_refusal", "release_claim"]
+__all__ = ["ClosedHook", "ClosureCheck", "close_accepted_task", "complete_todo_without_verification", "contract_gate_refusal", "release_claim"]

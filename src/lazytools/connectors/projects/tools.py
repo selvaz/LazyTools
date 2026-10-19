@@ -48,6 +48,7 @@ from lazytools.projects import plan_edit as _plan_edit
 from lazytools.projects import quota_telemetry as _quota
 from lazytools.projects import records as _records
 from lazytools.projects import schedule as _schedule
+from lazytools.projects import task_claims as _task_claims
 from lazytools.projects import timeline as _timeline
 from lazytools.projects import verification as _verification
 from lazytools.projects.keys import CEO_STORE_DB_ENV
@@ -565,6 +566,10 @@ class ProjectsTools:
             return f"REJECTED: no running verification found for job {job_id!r} (or it changed underneath this call)"
         return verification.model_dump(mode="json")
 
+    def projects_close_accepted_task(self, project_id: str, task_index: int, verification_id: str) -> str:
+        """Mark a todo/claimed task done using its matching accepted verification."""
+        return _task_claims.close_accepted_task(self._store, project_id, task_index, verification_id)
+
     def projects_request_rework(self, job_id: str, reviewer: str, reason: str) -> dict[str, Any] | str:
         """Send a finished attempt back for rework."""
         verification = _verification.request_rework(self._store, job_id, reviewer=reviewer, reason=reason)
@@ -654,6 +659,7 @@ class ProjectsTools:
             self.projects_schedule_task,
             self.projects_open_contract,
             self.projects_accept_verification,
+            self.projects_close_accepted_task,
             self.projects_request_rework,
             self.projects_block_verification,
             self.projects_retry_review,

@@ -237,12 +237,42 @@ def test_mcp_task_without_contract_still_closes_by_shortcut(tmp_path) -> None:
     assert DurableBlackboard(pt._store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "done"
 
 
+def test_mcp_accepted_closer_requires_full_write_profile(tmp_path) -> None:
+    for profile in ("core", "full"):
+        for allow_write in (False, True):
+            pt = ProjectsTools(store_db=str(tmp_path / f"{profile}-{allow_write}.sqlite"), allow_write=allow_write, profile=profile)
+            names = {t.name for t in pt.as_tools()}
+            assert ("projects_close_accepted_task" in names) == (profile == "full" and allow_write)
+
+
 def test_mcp_surface_exposes_no_unguarded_task_close_tool(tmp_path) -> None:
-    # The MCP tools expose no direct "mark task done" verb: a task with a
-    # contract closes only via projects_accept_verification. If a shortcut-close
-    # tool is ever added it must go through complete_todo_without_verification
-    # (which gates by itself); this test is the reminder to cover it.
     pt = ProjectsTools(store_db=str(tmp_path / "full.sqlite"), allow_write=True, profile="full")
     names = {t.name for t in pt.as_tools()}
-    closers = {n for n in names if any(word in n for word in ("mark_done", "complete", "close_task"))}
-    assert closers == set()
+    # projects_close is the project lifecycle verb, guarded by unfinished tasks.
+    # Every task closer must be explicitly reviewed here, including new names
+    # containing close/complete rather than only the old close_task spelling.
+    closers = {n for n in names if any(word in n for word in ("mark_done", "complete", "close"))}
+    assert closers == {"projects_close", "projects_close_accepted_task"}
+    assert pt.projects_close_accepted_task("missing", 0, "missing").startswith("REJECTED:")
+
+
+def test_mcp_accepted_closer_records_progress(tmp_path) -> None:
+    from lazybridge.ext.planners import DurableBlackboard
+
+    from lazytools.projects import verification
+
+    pt = _promoted(tmp_path)
+    opened = pt.projects_open_contract("alpha", 0, "r", "obs", ["file exists"], ["pytest"], "low", "files")
+    assert isinstance(opened, dict)
+    assert verification.claim_verification(pt._store, contract_id=opened["contract_id"], job_id="job")
+    assert pt.projects_close_accepted_task("alpha", 0, "job").startswith("REJECTED:")
+    verification.start_running(pt._store, "job")
+    verification.record_checks(pt._store, "job", checks=[verification.CheckResult(command="pytest", exit_code=0, output_tail="ok")], diff_summary="files changed")
+    verification.record_review(pt._store, "job", reviewer="reviewer", findings="no issues")
+    assert isinstance(pt.projects_accept_verification("job", "operator", "checks passed"), dict)
+    before = pt._store.read("blackboard:project:alpha")
+    assert pt.projects_close_accepted_task("other", 0, "job").startswith("REJECTED:")
+    assert pt._store.read("blackboard:project:alpha") == before
+    assert "marked done" in pt.projects_close_accepted_task("alpha", 0, "job")
+    assert DurableBlackboard(pt._store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "done"
+    assert pt.projects_get("alpha")["last_progress_at"] is not None

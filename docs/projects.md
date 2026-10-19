@@ -40,7 +40,7 @@ surface. This documentation change does not update or deploy a running CEO.
 | `schedule.py` | `lazyceo.project_schedule` | nothing — already pure mechanism |
 | `timeline.py` | `lazyceo.project_timeline` | nothing — `blocked_reasons` stays caller-supplied |
 | `plan_edit.py` | `lazyceo.plan_edit` | nothing — already pure mechanism |
-| `task_claims.py` | `lazyceo.task_claims` | `close_accepted_task` (reaches LazyCEO's boost/autonomy; see `verification.accept`'s hook instead) |
+| `task_claims.py` | `lazyceo.task_claims` | boost/autonomy acceptance policy (see `verification.accept`'s hook); accepted-task closure is generic bookkeeping |
 | `contracts.py` | `lazyceo.verification` (the `TaskContract` half) | nothing of substance — contract-open does presence/non-blank checks, not LazyCEO's `deterministic_contract_findings` wording |
 | `verification.py` | `lazyceo.verification` (the `Verification` state machine) | `_refuse_if_not_the_ceos_to_accept` → `accept`'s `authorization_check` hook; `_contract_inadequate_for` → `claim_blocker`'s `contract_adequate` hook |
 | `intake.py` | `lazyceo.project_intake` + a thin `promote_project_plan` | the LLM falsifiability reviewer call (`contract_review.review_contract_falsifiability`) — the calling agent plays that role itself |
@@ -191,8 +191,10 @@ backfill, run by the store's owner (dry run by default, `--apply` to write):
 python -m lazytools.projects.contract_markers --store-db <ceo-store.sqlite> [--apply]
 ```
 
-The MCP tools expose no shortcut-close verb: contracted tasks close only through
-`projects_accept_verification`.
+The MCP tools expose no shortcut-close verb. For contracted tasks, call
+`projects_accept_verification`, then `projects_close_accepted_task(project_id,
+task_index, verification_id)` to record completion on the board. Both tools
+require the `full` profile and write access.
 
 ## Contracts and verification
 
@@ -240,8 +242,53 @@ wiring, not universal enforcement by these generic records. Review findings
 need an explicit decision: `request_rework` or `block` instead of accepting
 known defects. `retry_review`, `retry_harness`, `reopen_for_empty_review` retain
 an audit trail and have specific eligibility rules.
-Acceptance records do not automatically close board tasks: caller policy
-performs `mark_done`/progress bookkeeping after acceptance.
+Acceptance records do not automatically close board tasks. After acceptance,
+call `close_accepted_task(store, project_id, task_index, verification_id)`
+(also exported from `lazytools.projects`). The project must exist and be `open`.
+It accepts only a `todo` or `claimed` task whose board `contract_id` matches the
+accepted verification and whose contract identifies the same project and task
+index. The verification must still be the contract's latest attempt: a newer
+pending, running or rework attempt blocks the older acceptance. A prior
+`closed_accepted` event for that verification refuses reuse, including after a
+task is reopened; a new verification is required. A task without a contract
+must use `complete_todo_without_verification`. A legacy contract missing its
+board marker must first be repaired with
+`contract_markers.backfill_contract_markers(store, apply=True)`.
+
+The closer writes `done`, `completed_at`, clears the claim and stale error/cancel
+reason, and records a result citing the verification id, decision reviewer and
+decision reason. It appends a `closed_accepted` plan event in the **same board
+CAS**, preserving existing history. A conflict re-reads all records and retries
+up to eight times, including checking the board marker and prior closure events
+again. Expected refusals, including malformed board data, return `REJECTED: ...`
+strings. After the close CAS succeeds, a post-write fence re-reads the selected
+verification and the contract's latest verification. If acceptance changed or was
+superseded, a compensating board CAS restores the exact previous open task and
+appends a `close_accepted_rolled_back` event with the reason. The original close
+event stays in the history and still prevents reuse of that verification. The
+closer returns `REJECTED` saying the close was rolled back. Compensation retries
+on board conflicts and preserves changes to other tasks and board fields. It
+only restores a task that still exactly equals the done record this call wrote;
+if another writer changed that task, or compensation exhausts its retry budget,
+the refusal explicitly says rollback was skipped or could not finish and asks
+for reconciliation.
+
+Only after the post-write fence passes does it touch project progress and call
+the optional `on_closed(store, project_id, task_index)` hook once. Neither runs
+when the fence fails, even when compensation cannot finish. Hook exceptions
+propagate without undoing completion or progress. Unlike the shortcut closer,
+progress is automatic here: omit the usual progress-touching callback and reserve
+`on_closed` for other work. A callback that touches progress again causes a second
+touch; arbitrary callbacks cannot be deduplicated safely without changing their
+behaviour. `board_prefix`, `contract_prefix` and `verification_prefix` are
+configurable. The latest verification and project status are re-read just before
+CAS to narrow the race window. This remains a compensating protocol, not a
+multi-key transaction: readers may briefly observe `done` before compensation;
+invalidation after the post-write fence, a process crash before the fence or
+compensation, or a failed compensation can leave a stale closure requiring
+reconciliation. Contract and project changes remain outside the board CAS as
+well. Separate job records are not checked; callers
+must register a new attempt's verification to supersede an older acceptance.
 
 ## The brake rule and quota telemetry
 
@@ -312,7 +359,7 @@ Writes require `allow_write=True` programmatically or the server's
 | Profile | Read-only menu | Write-enabled menu | Included work |
 | --- | --- | --- | --- |
 | `core` | 10 tools | 18 tools | Registry, schedule/timeline/Gantt, board summary, quota/brake status, cost/jobs; create, review/promote, owner/deadline/notes/plan/scheduling writes |
-| `full` | 16 tools | 38 tools | Core plus contracts, verification history/decisions, brake writes and additional lifecycle operations |
+| `full` | 16 tools | 39 tools | Core plus contracts, verification history/decisions, accepted-task closure, brake writes and additional lifecycle operations |
 
 These counts come from the current `as_tools()` output, including the added
 Gantt tool; the old “all 37” count was stale. Exposing `full` does not delegate
