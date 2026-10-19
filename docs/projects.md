@@ -40,7 +40,7 @@ surface. This documentation change does not update or deploy a running CEO.
 | `schedule.py` | `lazyceo.project_schedule` | nothing — already pure mechanism |
 | `timeline.py` | `lazyceo.project_timeline` | nothing — `blocked_reasons` stays caller-supplied |
 | `plan_edit.py` | `lazyceo.plan_edit` | nothing — already pure mechanism |
-| `task_claims.py` | `lazyceo.task_claims` | `close_accepted_task` (reaches LazyCEO's boost/autonomy; see `verification.accept`'s hook instead) |
+| `task_claims.py` | `lazyceo.task_claims` | boost/autonomy acceptance policy (see `verification.accept`'s hook); accepted-task closure is generic bookkeeping |
 | `contracts.py` | `lazyceo.verification` (the `TaskContract` half) | nothing of substance — contract-open does presence/non-blank checks, not LazyCEO's `deterministic_contract_findings` wording |
 | `verification.py` | `lazyceo.verification` (the `Verification` state machine) | `_refuse_if_not_the_ceos_to_accept` → `accept`'s `authorization_check` hook; `_contract_inadequate_for` → `claim_blocker`'s `contract_adequate` hook |
 | `intake.py` | `lazyceo.project_intake` + a thin `promote_project_plan` | the LLM falsifiability reviewer call (`contract_review.review_contract_falsifiability`) — the calling agent plays that role itself |
@@ -191,8 +191,10 @@ backfill, run by the store's owner (dry run by default, `--apply` to write):
 python -m lazytools.projects.contract_markers --store-db <ceo-store.sqlite> [--apply]
 ```
 
-The MCP tools expose no shortcut-close verb: contracted tasks close only through
-`projects_accept_verification`.
+The MCP tools expose no shortcut-close verb. For contracted tasks, call
+`projects_accept_verification`, then `projects_close_accepted_task(project_id,
+task_index, verification_id)` to record completion on the board. Both tools
+require the `full` profile and write access.
 
 ## Contracts and verification
 
@@ -240,8 +242,24 @@ wiring, not universal enforcement by these generic records. Review findings
 need an explicit decision: `request_rework` or `block` instead of accepting
 known defects. `retry_review`, `retry_harness`, `reopen_for_empty_review` retain
 an audit trail and have specific eligibility rules.
-Acceptance records do not automatically close board tasks: caller policy
-performs `mark_done`/progress bookkeeping after acceptance.
+Acceptance records do not automatically close board tasks. After acceptance,
+call `close_accepted_task(store, project_id, task_index, verification_id)`
+(also exported from `lazytools.projects`). It accepts only a `todo` or `claimed`
+task whose board `contract_id` matches the accepted verification and whose
+contract identifies the same project and task index. A task without a contract
+must use `complete_todo_without_verification`.
+
+The closer writes `done`, `completed_at`, clears the claim and stale error/cancel
+reason, and records a result citing the verification id, decision reviewer and
+decision reason. It appends a `closed_accepted` plan event in the **same board
+CAS**, preserving existing history. A conflict re-reads all records and retries
+up to eight times, including checking the board marker again. Expected refusals
+return `REJECTED: ...` strings. On success it touches project progress, then calls
+the optional `on_closed(store, project_id, task_index)` hook once; hook exceptions
+propagate without undoing completion. `board_prefix`, `contract_prefix` and
+`verification_prefix` are configurable. Verification/contract keys and project
+progress remain separate from the board transaction; concurrent changes to those
+keys are not serialized by the board CAS.
 
 ## The brake rule and quota telemetry
 
@@ -312,7 +330,7 @@ Writes require `allow_write=True` programmatically or the server's
 | Profile | Read-only menu | Write-enabled menu | Included work |
 | --- | --- | --- | --- |
 | `core` | 10 tools | 18 tools | Registry, schedule/timeline/Gantt, board summary, quota/brake status, cost/jobs; create, review/promote, owner/deadline/notes/plan/scheduling writes |
-| `full` | 16 tools | 38 tools | Core plus contracts, verification history/decisions, brake writes and additional lifecycle operations |
+| `full` | 16 tools | 39 tools | Core plus contracts, verification history/decisions, accepted-task closure, brake writes and additional lifecycle operations |
 
 These counts come from the current `as_tools()` output, including the added
 Gantt tool; the old “all 37” count was stale. Exposing `full` does not delegate

@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Projects: `close_accepted_task` closes a todo/claimed board task after its matching
+  contract's verification is accepted, recording completion and an audit event in one
+  board CAS with retries, then touching project progress. Exposed as
+  `projects_close_accepted_task` in the full, write-enabled MCP profile; refuses
+  missing/mismatched contracts, unaccepted verifications and already closed tasks.
 - MCP `web` provider: opt-in interactive cache isolation. With `LAZYTOOLS_WEB_CACHE_DB` set
   (a path, `default` = `~/.lazytools/web_cache.sqlite`, or `none`), `web_search`, `web_crawl`
   and `web_crawl_many` write to a separate disposable SQLite cache while `LAZYCRAWLER_NEWS_DB`

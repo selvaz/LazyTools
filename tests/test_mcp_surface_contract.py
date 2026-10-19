@@ -231,6 +231,7 @@ PROJECTS_WRITE = {
     "projects_schedule_task",
     "projects_open_contract",
     "projects_accept_verification",
+    "projects_close_accepted_task",
     "projects_request_rework",
     "projects_block_verification",
     "projects_retry_review",

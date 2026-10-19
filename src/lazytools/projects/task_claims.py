@@ -1,19 +1,8 @@
-"""Releasing a claim that never got real work started against it, and
-closing a ``todo`` task that was verified by hand rather than through a
-contract.
+"""Release unused claims and close tasks with accepted or manual verification.
 
-Adapted from ``lazyceo.task_claims``. Left behind, as CEO/delegation policy:
-``close_accepted_task`` (closing a project task automatically once a
-verification is accepted) reaches into LazyCEO's own boost/autonomy
-(``effective_capability``) to decide whether the CALLER may finalize at
-all -- that gate belongs with ``verification.accept``'s injectable
-``authorization_check`` (see that module), and the "close the board slot
-once a verification is accepted" bookkeeping itself is thin enough that a
-caller can do it directly with
-``records.touch_project_progress``/``DurableBlackboard.mark_done`` once its
-own policy has decided the verification is accepted. Porting a second,
-parallel version of that bookkeeping here would just be a second place for
-it to drift from the first.
+Adapted from ``lazyceo.task_claims``, mechanism only. Acceptance policy belongs
+in ``verification.accept``'s injectable ``authorization_check``; closing an
+accepted task here only records that decision on its matching board slot.
 
 ``_newer_job_exists`` here reads job records under the configurable
 ``job_prefix`` directly (read-only) rather than importing LazyCEO's job
@@ -27,8 +16,10 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from lazytools.projects.contracts import find_contract_for_task
-from lazytools.projects.keys import BOARD_KEY_PREFIX, JOB_PREFIX, TASK_CONTRACT_PREFIX
+from lazytools.projects.contracts import find_contract_for_task, get_task_contract
+from lazytools.projects.keys import BOARD_KEY_PREFIX, JOB_PREFIX, TASK_CONTRACT_PREFIX, VERIFICATION_PREFIX
+from lazytools.projects.records import touch_project_progress
+from lazytools.projects.verification import get_verification
 
 if TYPE_CHECKING:
     from lazybridge import Store
@@ -165,6 +156,87 @@ def complete_todo_without_verification(
     return f"REJECTED: task {task_index} could not be closed safely -- another writer kept changing the board across {CAS_ATTEMPTS} retries; try again."
 
 
+def close_accepted_task(
+    store: Store,
+    project_id: str,
+    task_index: int,
+    verification_id: str,
+    *,
+    board_prefix: str = BOARD_KEY_PREFIX,
+    contract_prefix: str = TASK_CONTRACT_PREFIX,
+    verification_prefix: str = VERIFICATION_PREFIX,
+    on_closed: ClosedHook | None = None,
+) -> str:
+    """Close a todo/claimed task whose current contract has been accepted.
+
+    The task update and plan event share one winning board CAS. Every retry
+    re-reads the verification, contract and board marker, so a changed marker
+    cannot close under an earlier contract's acceptance. Separate verification
+    and contract keys are not part of a multi-key transaction.
+
+    After the winning CAS, touch project progress (best effort), then call
+    ``on_closed`` once. As with the shortcut closer, hook exceptions propagate
+    and do not undo the close or cause a second invocation.
+    """
+    key = f"{board_prefix}project:{project_id}"
+    for _ in range(CAS_ATTEMPTS):
+        try:
+            verification = get_verification(store, verification_id, prefix=verification_prefix)
+            if verification is None:
+                return f"REJECTED: verification {verification_id!r} not found (or ambiguous)."
+            if verification.status != "accepted":
+                return f"REJECTED: verification {verification.verification_id!r} is {verification.status!r}, not accepted."
+            contract = get_task_contract(store, verification.contract_id, prefix=contract_prefix)
+        except ValueError as exc:
+            return f"REJECTED: invalid verification or contract record: {exc}"
+        if contract is None:
+            return f"REJECTED: contract {verification.contract_id!r} not found."
+        if contract.contract_id != verification.contract_id or contract.project_id != project_id or contract.task_index != task_index:
+            return f"REJECTED: verification's contract does not match project {project_id!r}, task {task_index}."
+
+        raw = store.read(key)
+        if not isinstance(raw, dict) or not raw.get("tasks"):
+            return "REJECTED: no plan set for this project."
+        tasks = raw["tasks"]
+        if not 0 <= task_index < len(tasks):
+            return f"REJECTED: task_index out of range (valid: 0..{len(tasks) - 1})."
+        task = tasks[task_index]
+        if task.get("status") not in ("todo", "claimed"):
+            return f"REJECTED: task {task_index} is {task.get('status')!r}, not todo or claimed."
+        if not task.get("contract_id"):
+            return f"REJECTED: task {task_index} has no contract -- use complete_todo_without_verification instead."
+        if task["contract_id"] != verification.contract_id:
+            return f"REJECTED: task {task_index} contract_id does not match verification {verification.verification_id!r}."
+
+        summary = (
+            f"Accepted verification {verification.verification_id}; "
+            f"reviewer: {verification.reviewer}; decision: {verification.decision_reason}"
+        )
+        now = time.time()
+        new_tasks = [dict(t) for t in tasks]
+        new_tasks[task_index].update(
+            status="done", result=summary, error="", cancel_reason="", owner=None, claimed_at=None, completed_at=now
+        )
+        event = {
+            "at": now,
+            "event": "closed_accepted",
+            "task_index": task_index,
+            "was": task["status"],
+            "contract_id": contract.contract_id,
+            "verification_id": verification.verification_id,
+            "reviewer": verification.reviewer,
+            "reason": verification.decision_reason,
+        }
+        new_doc = {**raw, "tasks": new_tasks, "updated_at": now, "plan_events": [*raw.get("plan_events", []), event]}
+        if store.compare_and_swap(key, raw, new_doc):
+            touch_project_progress(store, project_id)
+            if on_closed is not None:
+                on_closed(store, project_id, task_index)
+            return f"task {task_index} marked done: {summary}"
+
+    return f"REJECTED: task {task_index} could not be closed safely -- another writer kept changing the board across {CAS_ATTEMPTS} retries; try again."
+
+
 def release_claim(
     store: Store,
     plan_id: str,
@@ -221,4 +293,4 @@ def release_claim(
         return False
 
 
-__all__ = ["ClosedHook", "ClosureCheck", "complete_todo_without_verification", "contract_gate_refusal", "release_claim"]
+__all__ = ["ClosedHook", "ClosureCheck", "close_accepted_task", "complete_todo_without_verification", "contract_gate_refusal", "release_claim"]

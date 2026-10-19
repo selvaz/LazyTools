@@ -131,7 +131,13 @@ from lazytools.projects.schedule import (
     project_schedule_status,
     project_schedule_view,
 )
-from lazytools.projects.task_claims import ClosedHook, ClosureCheck, complete_todo_without_verification, release_claim
+from lazytools.projects.task_claims import (
+    ClosedHook,
+    ClosureCheck,
+    close_accepted_task,
+    complete_todo_without_verification,
+    release_claim,
+)
 from lazytools.projects.timeline import render_project_timeline
 from lazytools.projects.verification import (
     CheckResult,
@@ -196,6 +202,7 @@ __all__ = [
     "check_uses_exclusion_flag",
     "claim_blocker",
     "claim_verification",
+    "close_accepted_task",
     "close_project",
     "contract_requires_full_suite",
     "cost_totals",
