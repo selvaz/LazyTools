@@ -36,7 +36,7 @@ lazily. Both packages are separate installations; there is no LazyTools `fin`
 extra and no current `lazyfin[optimizer]` setup for this engine. Consult
 `ecosystem/compatibility.toml` and `requirements/verified.txt` for tested pins.
 That file's older LazyTools pin is an ecosystem CI baseline, distinct from
-LazyTools 0.10.3; this docs change does not update the ecosystem combination.
+LazyTools 0.10.4; this docs change does not update the ecosystem combination.
 
 ```python
 from lazytools.connectors.fin import PortfolioOptimizationTools

@@ -106,7 +106,7 @@ run_plan(pid, task="Compare Apple and Google headcounts")
 On the supported LazyBridge 1.8.1 baseline, the `add_step` builder schema
 includes `from_parallel_all`, matching the typed `PlanSpec` / `StepSpec` path.
 Older 0.9.0/0.9.1 schemas omitted it; those core versions are outside LazyTools
-0.10.3's dependency range.
+0.10.4's dependency range.
 
 ## Troubleshooting
 

@@ -4,7 +4,7 @@
 Store: project records, plans on `DurableBlackboard`, schedule dates, claims,
 contracts, verification, notes, cost reports and quota admission. The same
 mechanisms are exposed through `ProjectsTools` and the `projects` MCP provider.
-LazyTools 0.10.3 is Alpha. Caller policy chooses who may accept work and what
+LazyTools 0.10.4 is Alpha. Caller policy chooses who may accept work and what
 the checks must prove; project bookkeeping does not merge or release code.
 
 ## Layering
