@@ -8,7 +8,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.4] — 2026-10-19
+
+Release set `ecosystem-2026.10.6`.
+
 ### Added
+- Projects: atomic contract gate (#208). `contracts.open_task_contract` stamps
+  `contract_id` on the board task in a board CAS and refuses a task that is not on the
+  board; `complete_todo_without_verification` refuses a marked task inside its own CAS;
+  a plan reinstall preserves the markers. Backfill for existing contracts:
+  `python -m lazytools.projects.contract_markers --store-db <db> [--apply]`.
 - Projects: `close_accepted_task` closes a todo/claimed board task after its matching
   contract's verification is accepted, recording completion and an audit event in one
   board CAS with retries, then touching project progress. Exposed as
@@ -26,6 +35,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   `get_session_pages`, `get_crawl_graph`, `get_cache_stats`). A cache path equal to the
   production DB or under `C:\ProgramData\InvestmentCommittee` raises `WebCachePathError`.
   Unset, behaviour is unchanged (production agents keep writing to `news.db`).
+
 
 ## [0.10.3] — 2026-10-18
 
