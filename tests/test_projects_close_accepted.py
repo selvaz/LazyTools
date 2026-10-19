@@ -8,7 +8,15 @@ import pytest
 from lazybridge import Store
 from lazybridge.ext.planners import DurableBlackboard
 
-from lazytools.projects import close_accepted_task, contract_markers, contracts, plan_edit, records, verification
+from lazytools.projects import (
+    close_accepted_task,
+    contract_markers,
+    contracts,
+    plan_edit,
+    records,
+    task_claims,
+    verification,
+)
 from lazytools.projects.keys import BOARD_KEY_PREFIX, PROJECT_PREFIX, TASK_CONTRACT_PREFIX, VERIFICATION_PREFIX
 from lazytools.projects.task_claims import CAS_ATTEMPTS
 
@@ -361,3 +369,143 @@ def test_ambiguous_verification_prefix_refuses():
     before = store.read(BOARD_KEY)
     assert "not found (or ambiguous)" in close_accepted_task(store, "alpha", 0, JOB[:8])
     assert store.read(BOARD_KEY) == before
+
+
+def test_success_fences_after_cas_before_progress_and_hook(monkeypatch):
+    store = Store()
+    _setup(store)
+    cas = store.compare_and_swap
+    get_selected, get_latest = task_claims.get_verification, task_claims.get_verification_for_contract
+    progress = task_claims.touch_project_progress
+    calls = []
+
+    def write(key, expected, value):
+        won = cas(key, expected, value)
+        if key == BOARD_KEY and won:
+            calls.append("board CAS")
+        return won
+
+    def selected(*args, **kwargs):
+        result = get_selected(*args, **kwargs)
+        if store.read(BOARD_KEY)["tasks"][0]["status"] == "done":
+            assert records.get_project(store, "alpha").last_progress_at is None
+            calls.append("fence selected")
+        return result
+
+    def latest(*args, **kwargs):
+        result = get_latest(*args, **kwargs)
+        if store.read(BOARD_KEY)["tasks"][0]["status"] == "done":
+            calls.append("fence latest")
+        return result
+
+    def touch(*args):
+        calls.append("progress")
+        progress(*args)
+
+    monkeypatch.setattr(store, "compare_and_swap", write)
+    monkeypatch.setattr(task_claims, "get_verification", selected)
+    monkeypatch.setattr(task_claims, "get_verification_for_contract", latest)
+    monkeypatch.setattr(task_claims, "touch_project_progress", touch)
+    assert "marked done" in close_accepted_task(store, "alpha", 0, JOB, on_closed=lambda *args: calls.append("hook"))
+    assert calls == ["board CAS", "fence selected", "fence latest", "progress", "hook"]
+
+
+@pytest.mark.parametrize("claimed", [False, True])
+@pytest.mark.parametrize("change", ["invalidate", "supersede"])
+def test_acceptance_changed_after_cas_rolls_back_exact_open_task(monkeypatch, claimed, change):
+    store = Store()
+    contract, board = _setup(store)
+    if claimed:
+        assert board.claim_task(0, "one", owner="original-worker")
+    before = store.read(BOARD_KEY)
+    before["tasks"][0].update(result="prior result", error="prior error", custom="preserve")
+    before["plan_events"] = [{"event": "existing"}]
+    store.write(BOARD_KEY, before)
+    project = records.get_project(store, "alpha")
+    cas = store.compare_and_swap
+    writes, closed = [], []
+
+    def change_after_close(key, expected, value):
+        won = cas(key, expected, value)
+        if key == BOARD_KEY and won:
+            writes.append(value)
+            if value["tasks"][0]["status"] == "done":
+                # Both the verification write and the close CAS succeed. The
+                # post-write fence must catch this before publishing progress.
+                assert records.get_project(store, "alpha") == project and closed == []
+                if change == "invalidate":
+                    assert verification.reopen_for_empty_review(store, JOB)
+                else:
+                    _newer_verification(store, contract.contract_id)
+        return won
+
+    monkeypatch.setattr(store, "compare_and_swap", change_after_close)
+    result = close_accepted_task(store, "alpha", 0, JOB, on_closed=lambda *args: closed.append(args))
+    assert result.startswith("REJECTED:") and "close rolled back" in result
+    assert len(writes) == 2
+    after = store.read(BOARD_KEY)
+    assert after["tasks"] == before["tasks"]
+    assert records.get_project(store, "alpha") == project and closed == []
+    assert [e["event"] for e in after["plan_events"]] == ["existing", "closed_accepted", "close_accepted_rolled_back"]
+    rollback = after["plan_events"][-1]
+    assert rollback["task_index"] == 0 and rollback["verification_id"] == JOB
+    assert rollback["contract_id"] == contract.contract_id
+    assert rollback["restored_status"] == before["tasks"][0]["status"]
+    assert rollback["closed_at"] == writes[0]["tasks"][0]["completed_at"]
+    assert rollback["reason"] in result and after["updated_at"] == rollback["at"]
+    current = verification.get_verification(store, JOB)
+    if change == "invalidate":
+        assert current.status == "pending" and current.review is None
+        assert "no longer accepted" in rollback["reason"]
+    else:
+        assert current.status == "accepted" and "latest" in rollback["reason"]
+
+
+@pytest.mark.parametrize("conflict", ["other_task", "closed_task", "continuous"])
+def test_compensation_cas_preserves_concurrent_writes_and_is_bounded(monkeypatch, conflict):
+    store = Store()
+    _setup(store)
+    before = store.read(BOARD_KEY)
+    cas = store.compare_and_swap
+    attempts, closed = [], []
+
+    def race(key, expected, value):
+        if key != BOARD_KEY:
+            return cas(key, expected, value)
+        attempts.append(value)
+        if value["tasks"][0]["status"] == "done":
+            won = cas(key, expected, value)
+            if won:
+                assert verification.reopen_for_empty_review(store, JOB)
+            return won
+        if len(attempts) == 2 or conflict == "continuous":
+            concurrent = store.read(key)
+            concurrent["concurrent"] = len(attempts)
+            concurrent["plan_events"].append({"event": "concurrent"})
+            if conflict == "closed_task":
+                concurrent["tasks"][0]["result"] = "another writer's done record"
+            elif conflict == "other_task":
+                concurrent["tasks"][1]["result"] = "another writer's result"
+            store.write(key, concurrent)
+        return cas(key, expected, value)
+
+    monkeypatch.setattr(store, "compare_and_swap", race)
+    result = close_accepted_task(store, "alpha", 0, JOB, on_closed=lambda *args: closed.append(args))
+    assert result.startswith("REJECTED:") and closed == []
+    assert records.get_project(store, "alpha").last_progress_at is None
+    doc = store.read(BOARD_KEY)
+    if conflict == "other_task":
+        assert "close rolled back" in result and len(attempts) == 3
+        assert doc["tasks"][0] == before["tasks"][0]
+        assert doc["tasks"][1]["result"] == "another writer's result"
+        assert doc["concurrent"] == 2
+        assert [e["event"] for e in doc["plan_events"]] == ["closed_accepted", "concurrent", "close_accepted_rolled_back"]
+    else:
+        assert "reconcile the task" in result and doc["tasks"][0]["status"] == "done"
+        assert not any(e["event"] == "close_accepted_rolled_back" for e in doc["plan_events"])
+        if conflict == "closed_task":
+            assert "rollback skipped" in result and len(attempts) == 2
+            assert doc["tasks"][0]["result"] == "another writer's done record"
+        else:
+            assert "could not be rolled back safely" in result
+            assert len(attempts) == 1 + CAS_ATTEMPTS

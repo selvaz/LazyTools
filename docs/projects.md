@@ -261,17 +261,33 @@ decision reason. It appends a `closed_accepted` plan event in the **same board
 CAS**, preserving existing history. A conflict re-reads all records and retries
 up to eight times, including checking the board marker and prior closure events
 again. Expected refusals, including malformed board data, return `REJECTED: ...`
-strings. On success it touches project progress, then calls
-the optional `on_closed(store, project_id, task_index)` hook once; hook exceptions
+strings. After the close CAS succeeds, a post-write fence re-reads the selected
+verification and the contract's latest verification. If acceptance changed or was
+superseded, a compensating board CAS restores the exact previous open task and
+appends a `close_accepted_rolled_back` event with the reason. The original close
+event stays in the history and still prevents reuse of that verification. The
+closer returns `REJECTED` saying the close was rolled back. Compensation retries
+on board conflicts and preserves changes to other tasks and board fields. It
+only restores a task that still exactly equals the done record this call wrote;
+if another writer changed that task, or compensation exhausts its retry budget,
+the refusal explicitly says rollback was skipped or could not finish and asks
+for reconciliation.
+
+Only after the post-write fence passes does it touch project progress and call
+the optional `on_closed(store, project_id, task_index)` hook once. Neither runs
+when the fence fails, even when compensation cannot finish. Hook exceptions
 propagate without undoing completion or progress. Unlike the shortcut closer,
 progress is automatic here: omit the usual progress-touching callback and reserve
 `on_closed` for other work. A callback that touches progress again causes a second
 touch; arbitrary callbacks cannot be deduplicated safely without changing their
 behaviour. `board_prefix`, `contract_prefix` and `verification_prefix` are
 configurable. The latest verification and project status are re-read just before
-CAS to narrow the race window. Verification/contract keys and project progress
-remain separate from the board transaction; changes after that final read are
-not serialized by the board CAS. Separate job records are not checked; callers
+CAS to narrow the race window. This remains a compensating protocol, not a
+multi-key transaction: readers may briefly observe `done` before compensation;
+invalidation after the post-write fence, a process crash before the fence or
+compensation, or a failed compensation can leave a stale closure requiring
+reconciliation. Contract and project changes remain outside the board CAS as
+well. Separate job records are not checked; callers
 must register a new attempt's verification to supersede an older acceptance.
 
 ## The brake rule and quota telemetry

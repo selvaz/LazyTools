@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from lazytools.projects.contracts import find_contract_for_task, get_task_contract
 from lazytools.projects.keys import BOARD_KEY_PREFIX, JOB_PREFIX, TASK_CONTRACT_PREFIX, VERIFICATION_PREFIX
@@ -156,6 +156,49 @@ def complete_todo_without_verification(
     return f"REJECTED: task {task_index} could not be closed safely -- another writer kept changing the board across {CAS_ATTEMPTS} retries; try again."
 
 
+def _rollback_accepted_close(
+    store: Store,
+    key: str,
+    task_index: int,
+    previous_task: dict[str, Any],
+    closed_task: dict[str, Any],
+    verification_id: str,
+    reason: str,
+) -> str:
+    """Compensate only while the slot still equals this call's done record."""
+    refusal = f"REJECTED: task {task_index} acceptance fence failed ({reason}); "
+    for _ in range(CAS_ATTEMPTS):
+        raw = store.read(key)
+        tasks = raw.get("tasks") if isinstance(raw, dict) else None
+        events = raw.get("plan_events", []) if isinstance(raw, dict) else None
+        if (
+            not isinstance(tasks, list)
+            or not 0 <= task_index < len(tasks)
+            or not isinstance(events, list)
+            or not all(isinstance(event, dict) for event in events)
+        ):
+            return refusal + "closure rollback could not be applied to a missing or malformed board -- reconcile the task."
+        if tasks[task_index] != closed_task:
+            return refusal + "closure rollback skipped because the task changed after this call's write -- reconcile the task."
+        now = time.time()
+        restored_tasks = list(tasks)
+        restored_tasks[task_index] = dict(previous_task)
+        event = {
+            "at": now,
+            "event": "close_accepted_rolled_back",
+            "task_index": task_index,
+            "verification_id": verification_id,
+            "contract_id": closed_task["contract_id"],
+            "closed_at": closed_task["completed_at"],
+            "restored_status": previous_task["status"],
+            "reason": reason,
+        }
+        restored = {**raw, "tasks": restored_tasks, "updated_at": now, "plan_events": [*events, event]}
+        if store.compare_and_swap(key, raw, restored):
+            return refusal + f"close rolled back to {previous_task['status']!r}."
+    return refusal + f"closure could not be rolled back safely across {CAS_ATTEMPTS} retries -- reconcile the task."
+
+
 def close_accepted_task(
     store: Store,
     project_id: str,
@@ -174,10 +217,15 @@ def close_accepted_task(
     cannot close under an earlier contract's acceptance. A ``closed_accepted``
     event consumes that verification even if the task is later reopened. Just
     before CAS, recheck that this is still the contract's latest verification
-    and the project is open. Separate verification, contract and project keys
-    are not part of a multi-key transaction.
+    and the project is open. After CAS, fence the write by reading the selected
+    and latest verifications again. If acceptance changed, compensate with a
+    board CAS that restores the previous task only if it still equals the done
+    record this call wrote, preserving concurrent changes elsewhere on the board.
+    Separate verification, contract and project keys are not a multi-key
+    transaction: changes after the fence, or a crash before compensation, still
+    need reconciliation.
 
-    After the winning CAS, touch project progress (best effort), then call
+    After the winning CAS AND fence pass, touch project progress, then call
     ``on_closed`` once. As with the shortcut closer, hook exceptions propagate
     and do not undo the close or cause a second invocation. Unlike the shortcut
     closer, progress is automatic: hooks should not touch it again, or it will
@@ -260,6 +308,20 @@ def close_accepted_task(
         if latest != verification:
             return f"REJECTED: verification {verification.verification_id!r} is no longer the contract's latest accepted verification."
         if store.compare_and_swap(key, raw, new_doc):
+            fence_reason = None
+            try:
+                current = get_verification(store, verification.verification_id, prefix=verification_prefix)
+                latest = get_verification_for_contract(store, contract.contract_id, prefix=verification_prefix)
+                if current is None or current.status != "accepted":
+                    fence_reason = f"verification {verification.verification_id!r} is no longer accepted"
+                elif current != verification or latest != verification:
+                    fence_reason = f"verification {verification.verification_id!r} changed or is no longer the contract's latest acceptance"
+            except ValueError as exc:
+                fence_reason = f"invalid verification record after closure: {exc}"
+            if fence_reason is not None:
+                return _rollback_accepted_close(
+                    store, key, task_index, task, new_tasks[task_index], verification.verification_id, fence_reason
+                )
             touch_project_progress(store, project_id)
             if on_closed is not None:
                 on_closed(store, project_id, task_index)
