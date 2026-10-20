@@ -444,3 +444,10 @@ def test_result_to_text_sanitizes_pre_serialized_json_strings():
 )
 def test_result_to_text_leaves_plain_and_strict_strings_alone(text):
     assert result_to_text(text) == text
+
+
+def test_result_to_text_keeps_numpy_integers_exact():
+    np = pytest.importorskip("numpy")
+    big = np.uint64(2**63 + 1)
+    parsed = json.loads(result_to_text({"count": np.int64(7), "id": big, "ratio": np.float64("nan")}))
+    assert parsed == {"count": 7, "id": 2**63 + 1, "ratio": None}

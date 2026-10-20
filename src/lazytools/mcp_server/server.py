@@ -38,7 +38,7 @@ import logging
 import math
 import sys
 from collections.abc import Iterable, Sequence
-from numbers import Real
+from numbers import Integral, Real
 from typing import TYPE_CHECKING, Any
 
 from lazybridge import Tool
@@ -163,6 +163,10 @@ def expand_tools(
 
 def _json_safe(value: Any) -> Any:
     """Replace non-finite numeric values and pandas NA without optional imports."""
+    if isinstance(value, Integral) and not isinstance(value, (int, bool)):
+        # NumPy (and other) integer scalars: keep them exact. float() would
+        # round values above 2**53 and change counts or identifiers.
+        return int(value)
     if isinstance(value, Real) and not isinstance(value, (int, bool)):
         return float(value) if math.isfinite(value) else None
     pandas = sys.modules.get("pandas")
