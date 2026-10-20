@@ -427,3 +427,20 @@ def test_serve_http_defaults_allowed_hosts_to_what_it_binds(monkeypatch):
     assert "127.0.0.1:9191" in settings.allowed_hosts
     assert "localhost:9191" in settings.allowed_hosts
     assert captured["kwargs"]["host"] == "127.0.0.1"
+
+
+def test_result_to_text_sanitizes_pre_serialized_json_strings():
+    # DataHubTools wrappers return the backend's JSON as a string: datahub_describe("SPY")
+    # produced '"sector": NaN', which strict JSON parsers reject.
+    raw = '{"symbol": "SPY", "sector": NaN, "theme": NaN, "rows": [1.5, Infinity, -Infinity]}'
+    text = result_to_text(raw)
+    parsed = json.loads(text, parse_constant=lambda token: pytest.fail(f"non-strict token {token}"))
+    assert parsed == {"symbol": "SPY", "sector": None, "theme": None, "rows": [1.5, None, None]}
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["plain prose with NaN in it", "# Markdown\n- NaN rows", "42", '{"already": "strict"}', "{not json"],
+)
+def test_result_to_text_leaves_plain_and_strict_strings_alone(text):
+    assert result_to_text(text) == text

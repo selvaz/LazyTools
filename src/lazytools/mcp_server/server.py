@@ -194,18 +194,42 @@ def _json_default(obj: Any) -> Any:
     return str(obj)
 
 
+def _strict_json_text(text: str) -> str:
+    """Re-emit a JSON object/array string as strict JSON; leave anything else alone.
+
+    ``json.loads`` accepts the non-standard ``NaN``/``Infinity`` tokens that
+    ``json.dumps`` emits by default, so a provider's pre-serialized payload is
+    parsed, sanitized and dumped again with ``allow_nan=False``. Text that is
+    not a JSON container (prose, Markdown, a bare number) is returned as is.
+    """
+    stripped = text.lstrip()
+    if not stripped.startswith(("{", "[")):
+        return text
+    try:
+        parsed = json.loads(text)
+    except ValueError:
+        return text
+    if not isinstance(parsed, (dict, list)):
+        return text
+    if "NaN" not in text and "Infinity" not in text:
+        return text  # already strict: keep the provider's own formatting
+    return json.dumps(_json_safe(parsed), default=_json_default, ensure_ascii=False, indent=2, allow_nan=False)
+
+
 def result_to_text(result: Any) -> str:
     """Serialize a tool's return value to a single text payload for MCP.
 
-    Strings pass through untouched; bytes are decoded as UTF-8; everything
-    else is rendered as strict JSON. Non-finite floats and pandas NA become
-    null, including inside model/dataclass conversions and JSON serializers.
-    Serialization errors propagate to the MCP error handler.
+    Plain strings pass through untouched; a string that is a JSON object or
+    array (many providers return pre-serialized JSON) is re-emitted as strict
+    JSON; bytes are decoded as UTF-8; everything else is rendered as strict
+    JSON. Non-finite floats and pandas NA become null, including inside
+    model/dataclass conversions and JSON serializers. Serialization errors
+    propagate to the MCP error handler.
     """
     if result is None:
         return "null"
     if isinstance(result, str):
-        return result
+        return _strict_json_text(result)
     if isinstance(result, (bytes, bytearray)):
         try:
             return bytes(result).decode("utf-8")
