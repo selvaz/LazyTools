@@ -1,7 +1,7 @@
 """Structural approval helpers for the code bridge: explicit classifiers, not more fnmatch.
 
-Two things a ``TieredGate`` rule table cannot express safely with ``fnmatch``
-alone, each implemented here as a small, unit-tested predicate:
+Structural checks a ``TieredGate`` rule table cannot express with
+``fnmatch`` alone:
 
 * :func:`is_readonly_gh_query` -- a Codex sandbox escalation that is purely a
   read-only GitHub query (``gh pr view|checks|diff``, ``gh run view|list``,
@@ -15,6 +15,9 @@ alone, each implemented here as a small, unit-tested predicate:
   substitution, no redirection) whose options, after quote removal, all come
   from a short allow-list, so the session grant a human gives on the first
   one covers exactly that form.
+* :class:`BashRule` / :class:`BashGuardRule` -- normalize Claude Bash
+  segments and ask for opaque wrappers and truncating output redirects.
+  Unlike the Codex allow-lists, Bash retains a default-allow policy.
 
 :class:`ClassifiedRule` plugs a classifier into the ordinary rule table, and
 :class:`BridgeGate` (a ``TieredGate``) evaluates those rules on the WHOLE
@@ -28,7 +31,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fnmatch import fnmatch
 
 from lazybridge.engines.coding import ApprovalRequest
@@ -154,6 +157,107 @@ def unwrap_powershell(command: str) -> str:
         return command
     inner = match.group("single") if match.group("single") is not None else match.group("double")
     return inner.strip()
+
+
+# --------------------------------------------------------------------------- #
+# Claude Bash normalization (independent of the Codex allow-list classifiers)
+# --------------------------------------------------------------------------- #
+
+
+_BASH_WORD = re.compile(r"""(?:[^\s'"<>&;|]+|'[^']*'|"[^"]*")+|[<>&;|]+""")
+_BASH_QUOTES = re.compile(r"""(?:'[^']*'|"[^"]*")""")
+_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _bash_shape(command: str) -> tuple[str, bool]:
+    """Return pattern text and whether this segment needs unconditional review.
+
+    Reuse the strict tokenizer when possible. The lexical fallback only
+    removes quotes/normalizes whitespace and the executable prefix; it does
+    not interpret shell syntax or certify a command as safe. In particular,
+    argument globs remain visible to the existing deny-pattern policy.
+    """
+    command = command.strip()
+    # Ignore literal '>' in quoted data. A single output redirect can
+    # truncate a file even when there is no executable ("> important.db").
+    # Appending (>>) and descriptor duplication (2>&1) are not truncation.
+    unquoted = _BASH_QUOTES.sub("", command)
+    truncates = re.search(r"(?<!>)>(?![>&])", unquoted) is not None
+    strict = _tokenize(command)
+    if strict is not None:
+        words = [word.text for word in strict]
+    else:
+        # This is deliberately more permissive than the Codex tokenizer:
+        # ordinary Bash arguments may contain globs, Windows paths, etc.
+        words = [_BASH_QUOTES.sub(lambda quote: quote[0][1:-1], match[0]) for match in _BASH_WORD.finditer(command)]
+    i = 0
+    while i < len(words):
+        while i < len(words) and _ASSIGNMENT.match(words[i]):
+            i += 1
+        if i == len(words) or _bash_executable(words[i]) != "env":
+            break
+        i += 1
+        while i < len(words) and _ASSIGNMENT.match(words[i]):
+            i += 1
+        if i < len(words) and words[i] == "--":
+            i += 1
+        # Options such as env -S reinterpret their payload. Do not guess.
+        if i < len(words) and words[i].startswith("-"):
+            return command, True
+    if i == len(words):
+        return command, truncates
+    executable = _bash_executable(words[i])
+    args = words[i + 1 :]
+    wrapper = executable in {"eval", "xargs"}
+    if executable in {"bash", "sh", "zsh"}:
+        wrapper |= any(re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", arg) is not None for arg in args)
+    elif executable in {"pwsh", "powershell"}:
+        wrapper |= any(arg.lower().split(":", 1)[0] in {"-command", "-c", "-encodedcommand", "-enc"} for arg in args)
+    elif executable == "cmd":
+        wrapper |= any(arg.lower().startswith(("/c", "/k")) for arg in args)
+    elif executable.startswith("python"):
+        wrapper |= any(re.match(r"-[A-Za-z]*c", arg) is not None for arg in args)
+    elif executable in {"node", "nodejs"}:
+        wrapper |= any(arg in {"-e", "--eval"} or arg.startswith(("-e", "--eval=")) for arg in args)
+    return " ".join([executable, *args]), truncates or wrapper
+
+
+def _bash_executable(word: str) -> str:
+    """Path and Windows executable spelling must not hide a known command."""
+    return re.split(r"[/\\]", word)[-1].lower().removesuffix(".exe")
+
+
+@dataclass(frozen=True)
+class BashRule(Rule):
+    """Match Claude Bash against both its original and normalized segment.
+
+    Keeping the original match preserves broad rm/delete checks, including
+    heredoc bodies. Only matching probes change: prompts, audit arguments
+    and session-grant scoping continue to use the original request.
+    """
+
+    def matches(self, request: ApprovalRequest) -> bool:
+        command = request.arguments.get("command")
+        if (
+            request.provider == "claude-code"
+            and request.kind == "tool"
+            and request.name == "Bash"
+            and isinstance(command, str)
+        ):
+            normalized, _ = _bash_shape(command)
+            probe = replace(request, arguments={**dict(request.arguments), "command": normalized})
+            if super().matches(probe):
+                return True
+        return super().matches(request)
+
+
+@dataclass(frozen=True)
+class BashGuardRule(Rule):
+    """Ask for opaque wrappers and truncating output redirects before session rules."""
+
+    def matches(self, request: ApprovalRequest) -> bool:
+        command = request.arguments.get("command")
+        return super().matches(request) and isinstance(command, str) and _bash_shape(command)[1]
 
 
 # --------------------------------------------------------------------------- #
@@ -421,8 +525,9 @@ class BridgeGate(TieredGate):
     """``TieredGate`` that tries :class:`ClassifiedRule` entries first, on the whole command.
 
     First classified match in table order wins; otherwise the stock
-    ``TieredGate`` matching runs on the UNMODIFIED request text -- Claude
-    ``Bash`` included, heredoc bodies and all. (An earlier revision hid
+    ``TieredGate`` matching runs on the original request text. Claude
+    :class:`BashRule` entries also check normalized segments, without hiding
+    heredoc bodies. (An earlier revision hid
     "data" heredoc bodies from the patterns; review showed a commented-out
     ``cat`` or a heredoc fed to ``bash -c "$(...)"`` turned that into a way to
     hide executed commands, so it was removed. Claude is instead instructed
@@ -441,6 +546,8 @@ class BridgeGate(TieredGate):
 
 
 __all__ = [
+    "BashGuardRule",
+    "BashRule",
     "CLASSIFIERS",
     "BridgeGate",
     "ClassifiedRule",

@@ -15,7 +15,8 @@ stays last.
 
 The table is meant for :class:`~lazytools.code_bridge._approvals.BridgeGate`,
 which evaluates the :class:`ClassifiedRule` entries on the whole command
-(``Bash`` text is matched unmodified, heredoc bodies included). Under a plain
+(Claude ``Bash`` patterns also see normalized segments, with the original
+text and heredoc bodies retained). Under a plain
 ``TieredGate`` it stays safe -- a ``ClassifiedRule`` never matches a split
 segment, so those requests simply ask.
 """
@@ -24,7 +25,7 @@ from __future__ import annotations
 
 from lazybridge.ext.approval import Rule
 
-from lazytools.code_bridge._approvals import ClassifiedRule
+from lazytools.code_bridge._approvals import BashGuardRule, BashRule, ClassifiedRule
 
 #: Pure reads/navigation/web run free. Write/Edit are "allow" here because
 #: this gate is the ONLY thing standing between the agent and a file change
@@ -39,13 +40,17 @@ CODING_RULES: tuple[Rule, ...] = (
     Rule("allow", "Edit"),
     Rule("allow", "WebSearch"),
     Rule("allow", "WebFetch"),
+    # Opaque interpreter payloads and truncating redirects always ask, even
+    # after a session grant. Normalization is Claude-only; Codex classifiers
+    # below keep their existing strict whole-command behavior.
+    BashGuardRule("ask", "Bash", kind_pattern="tool", provider_pattern="claude-code"),
     # Session grant, not allow: a human reviews the FIRST add/commit of this
     # job, then the rest of the same run is auto-granted. Not allow, because
     # content these agents stage/commit can carry command substitution a
     # Bash gate can't see inside a non-compound segment (see TieredGate's
     # own module docstring) -- so the first look still matters.
-    Rule("session", "Bash", "git add*"),
-    Rule("session", "Bash", "git commit*"),
+    BashRule("session", "Bash", "git add*"),
+    BashRule("session", "Bash", "git commit*"),
     # These sit ABOVE the "git push*" session rule so the narrower, more
     # dangerous forms win first: a plain "git push" approved once must not
     # also auto-grant "--force" or a branch-deleting refspec for the rest of
@@ -55,14 +60,14 @@ CODING_RULES: tuple[Rule, ...] = (
     # A global option before the subcommand ("git -C repo push --force",
     # "git --git-dir=.git push origin main") hides the subcommand from every
     # "git push ..." pattern below, so any such form asks. Found by Codex review.
-    Rule("ask", "Bash", "git -*"),
-    Rule("ask", "Bash", "git push -*"),
-    Rule("ask", "Bash", "git push * -*"),
-    Rule("ask", "Bash", "git push*'-*"),
-    Rule("ask", "Bash", 'git push*"-*'),
-    Rule("ask", "Bash", "git push*\\-*"),
-    Rule("ask", "Bash", "git push *:*"),
-    Rule("ask", "Bash", "git push *+*"),
+    BashRule("ask", "Bash", "git -*"),
+    BashRule("ask", "Bash", "git push -*"),
+    BashRule("ask", "Bash", "git push * -*"),
+    BashRule("ask", "Bash", "git push*'-*"),
+    BashRule("ask", "Bash", 'git push*"-*'),
+    BashRule("ask", "Bash", "git push*\\-*"),
+    BashRule("ask", "Bash", "git push *:*"),
+    BashRule("ask", "Bash", "git push *+*"),
     # Pushing to the default branch is the same act as merging, by another
     # door -- always ask, never covered by a push session grant. Matched as
     # a token ANYWHERE in the push, not just the last argument: "git push
@@ -70,27 +75,46 @@ CODING_RULES: tuple[Rule, ...] = (
     # (matching only the final token) would miss it. Broader than strictly
     # necessary (a branch literally named "mainline" also asks) -- a false
     # "ask" is cheap; a missed push to main is not. Found by Codex review.
-    Rule("ask", "Bash", "git push *main*"),
-    Rule("ask", "Bash", "git push *master*"),
+    BashRule("ask", "Bash", "git push *main*"),
+    BashRule("ask", "Bash", "git push *master*"),
     # A push that names no branch ("git push", "git push origin", "git push
     # origin HEAD") goes wherever the checked-out branch goes -- main, if
     # that is what is checked out -- and the rules above cannot see it. Only
     # a push naming both remote and branch is session-grantable; every
     # implicit form asks. Found by Codex review.
-    Rule("ask", "Bash", "git push *HEAD*"),
-    Rule("session", "Bash", "git push * *"),
-    Rule("ask", "Bash", "git push*"),
-    Rule("session", "Bash", "gh pr create*"),
+    BashRule("ask", "Bash", "git push *HEAD*"),
+    BashRule("session", "Bash", "git push * *"),
+    BashRule("ask", "Bash", "git push*"),
+    BashRule("session", "Bash", "gh pr create*"),
     # Merging, resetting history, and deleting are not session-grantable:
     # each one is asked every time.
-    Rule("ask", "Bash", "gh pr merge*"),
-    Rule("ask", "Bash", "git reset --hard*"),
-    Rule("ask", "Bash", "*rm *"),
-    Rule("ask", "Bash", "*delete*"),
+    BashRule("ask", "Bash", "gh pr merge*"),
+    BashRule("ask", "Bash", "git reset --hard*"),
+    BashRule("ask", "Bash", "git branch *-D*"),
+    BashRule("ask", "Bash", "git branch *-d*"),
+    BashRule("ask", "Bash", "git clean*"),
+    BashRule("ask", "Bash", "git checkout --*"),
+    BashRule("ask", "Bash", "git checkout .*"),
+    # `git checkout <ref> -- <paths>` overwrites working-tree files as surely as
+    # `git checkout -- <paths>`; switching branches (`git checkout feature`) stays allowed.
+    BashRule("ask", "Bash", "git checkout * -- *"),
+    BashRule("ask", "Bash", "git checkout * ."),
+    BashRule("ask", "Bash", "git restore*"),
+    BashRule("ask", "Bash", "git stash drop*"),
+    BashRule("ask", "Bash", "git stash clear*"),
+    BashRule("ask", "Bash", "gh pr close*"),
+    BashRule("ask", "Bash", "gh * delete*"),
+    BashRule("ask", "Bash", "remove-item*"),
+    BashRule("ask", "Bash", "del *"),
+    BashRule("ask", "Bash", "rmdir*"),
+    BashRule("ask", "Bash", "rd *"),
+    BashRule("ask", "Bash", "truncate*"),
+    BashRule("ask", "Bash", "*rm *"),
+    BashRule("ask", "Bash", "*delete*"),
     # Default-allow catch-all for Bash, NOT an allow-list of safe commands --
-    # the specific ask/session patterns above already caught the dangerous
-    # forms; anything else (tests, scripts, curl, ...) runs free, matching
-    # how this bridge's own human operates at the terminal.
+    # recognized wrappers, redirects and destructive forms ask above.
+    # Unlisted commands (tests, scripts, curl, ...) run free; this is a
+    # heuristic policy, not a shell sandbox or a guarantee about script code.
     Rule("allow", "Bash"),
     # --- Sandbox escalations (kind="command", Codex's "codex-shell") ------
     # Decided by explicit, unit-tested classifiers over the WHOLE command

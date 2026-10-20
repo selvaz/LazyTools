@@ -8,6 +8,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Code bridge (LT-1): normalize Claude Bash executable paths and environment
+  prefixes before matching rules; ask on every call for interpreter/eval/xargs
+  wrappers, truncating redirects, and additional destructive git, gh and file
+  commands. Keep routine commands and existing session grants unchanged, retain
+  the default allow policy, and document its limits. Codex escalation classifiers
+  are unchanged.
+
 ## [0.10.4] — 2026-10-19
 
 Release set `ecosystem-2026.10.6`.
