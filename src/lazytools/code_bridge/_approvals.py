@@ -30,6 +30,7 @@ quote-aware tokenisation instead.
 from __future__ import annotations
 
 import re
+import shlex
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from fnmatch import fnmatch
@@ -169,6 +170,27 @@ _BASH_QUOTES = re.compile(r"""(?:'[^']*'|"[^"]*")""")
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
 
+#: Shell operators that open a file for writing from its start.
+_TRUNCATING_REDIRECTS = frozenset({">", ">|", "&>"})
+
+
+def _truncating_redirect(command: str) -> bool:
+    """True when the command has an unquoted truncating redirect, or cannot be read.
+
+    Uses POSIX shell lexing so escaped quotes (``echo \\" > x \\"``) are literal
+    characters, as Bash sees them, and the ``>`` between them is a real redirect.
+    Unbalanced quotes or a dangling escape make the command ambiguous: fail
+    closed and treat it as truncating so it asks.
+    """
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return True
+    return any(token in _TRUNCATING_REDIRECTS for token in tokens)
+
+
 def _bash_shape(command: str) -> tuple[str, bool]:
     """Return pattern text and whether this segment needs unconditional review.
 
@@ -181,8 +203,7 @@ def _bash_shape(command: str) -> tuple[str, bool]:
     # Ignore literal '>' in quoted data. A single output redirect can
     # truncate a file even when there is no executable ("> important.db").
     # Appending (>>) and descriptor duplication (2>&1) are not truncation.
-    unquoted = _BASH_QUOTES.sub("", command)
-    truncates = re.search(r"(?<!>)>(?![>&])", unquoted) is not None
+    truncates = _truncating_redirect(command)
     strict = _tokenize(command)
     if strict is not None:
         words = [word.text for word in strict]

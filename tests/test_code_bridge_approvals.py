@@ -684,3 +684,24 @@ def test_readonly_gh_is_not_allowed_for_tools_only_for_escalations():
     """Claude's Bash already runs gh reads via the Bash catch-all; the classified
     rules speak only about kind=command and never widen the tool rules."""
     assert tier(claude_bash("gh pr merge 1")) == "ask"
+
+
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        # Escaped quotes are literal to Bash: the '>' between them is a real redirect (review P1).
+        (r"echo \" > important.db \"", "ask"),
+        ("echo x >| important.db", "ask"),
+        ("cmd &> important.db", "ask"),
+        # Ambiguous input fails closed.
+        ('echo "unbalanced', "ask"),
+        # Quoted '>' is data; appends and descriptor duplication do not truncate.
+        ('echo "a > b"', "allow"),
+        ("echo 'x > y'", "allow"),
+        ("echo hi >> log.txt", "allow"),
+        ("python -m pytest -q 2>&1 | tail -5", "allow"),
+        ('git commit -m "don\'t break"', "session"),
+    ],
+)
+def test_redirect_detection_follows_shell_lexing(command, expected):
+    assert tier(claude_bash(command)) == expected
