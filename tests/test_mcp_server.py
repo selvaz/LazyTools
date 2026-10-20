@@ -8,6 +8,7 @@ the read-only guard and the result serializer.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 
 import pytest
 from lazybridge import Tool
@@ -118,7 +119,7 @@ def test_result_to_text_variants():
         def model_dump_json(self) -> str:
             return '{"x": 1}'
 
-    assert result_to_text(Model()) == '{"x": 1}'
+    assert json.loads(result_to_text(Model())) == {"x": 1}
 
     class Weird:
         def __str__(self) -> str:
@@ -126,6 +127,61 @@ def test_result_to_text_variants():
 
     # non-serializable object falls back to str via _json_default
     assert "weird" in result_to_text({"obj": Weird()})
+
+
+def _strict_json(text):
+    def reject(value):
+        raise AssertionError(f"non-JSON constant: {value}")
+
+    return json.loads(text, parse_constant=reject)
+
+
+def test_result_to_text_sanitizes_nested_nonfinite_floats():
+    payload = {"sector": float("nan"), "nested": [float("inf"), {"negative": -float("inf"), "finite": 1.5}]}
+    assert _strict_json(result_to_text(payload)) == {
+        "sector": None,
+        "nested": [None, {"negative": None, "finite": 1.5}],
+    }
+    assert _strict_json(result_to_text(float("nan"))) is None
+
+
+def test_result_to_text_sanitizes_numpy_floats():
+    np = pytest.importorskip("numpy")
+    payload = {"nested": [np.nan, np.float32("nan"), np.float64("inf"), np.float32("-inf"), np.float32(1.5)]}
+    assert _strict_json(result_to_text(payload)) == {"nested": [None, None, None, None, 1.5]}
+
+
+def test_result_to_text_sanitizes_pandas_na():
+    pd = pytest.importorskip("pandas")
+    assert _strict_json(result_to_text({"nested": [pd.NA]})) == {"nested": [None]}
+
+
+def test_result_to_text_sanitizes_object_conversions():
+    @dataclass
+    class Record:
+        value: float
+
+    class Model:
+        def model_dump(self):
+            return {"value": float("nan")}
+
+    class JsonModel:
+        def model_dump_json(self):
+            return '{"value": NaN}'
+
+    class JsonResult:
+        def to_json(self):
+            return '{"value": Infinity}'
+
+    for value in (Record(float("inf")), Model(), JsonModel(), JsonResult()):
+        assert _strict_json(result_to_text(value)) == {"value": None}
+    assert _strict_json(result_to_text({"model": Model()})) == {"model": {"value": None}}
+
+
+def test_result_to_text_rejects_unsanitized_nan(monkeypatch):
+    monkeypatch.setattr("lazytools.mcp_server.server._json_safe", lambda value: value)
+    with pytest.raises(ValueError, match="Out of range float"):
+        result_to_text({"value": float("nan")})
 
 
 # --------------------------------------------------------------------------- #
@@ -321,25 +377,27 @@ def test_http_rejects_foreign_host_and_origin_on_either_spelling(url_path):
     app = http_app(server, allowed_hosts=["testserver"])
 
     body = {
-        "jsonrpc": "2.0", "id": 1, "method": "initialize",
-        "params": {"protocolVersion": "2025-06-18", "capabilities": {},
-                   "clientInfo": {"name": "probe", "version": "0"}},
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "probe", "version": "0"},
+        },
     }
-    headers = {"Content-Type": "application/json",
-               "Accept": "application/json, text/event-stream"}
+    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
 
     with TestClient(app) as client:
         # A rebound DNS name reaches the loopback socket with its own Host.
-        rebound = client.post(url_path, json=body,
-                              headers={**headers, "Host": "evil.example.com"})
+        rebound = client.post(url_path, json=body, headers={**headers, "Host": "evil.example.com"})
         assert rebound.status_code == 421, (
             f"foreign Host answered {rebound.status_code} on {url_path}; "
             "a 307 here means the check was skipped by a slash redirect"
         )
 
         # A page in a browser sends its own Origin; a native client sends none.
-        cross_origin = client.post(url_path, json=body,
-                                   headers={**headers, "Origin": "https://evil.example.com"})
+        cross_origin = client.post(url_path, json=body, headers={**headers, "Origin": "https://evil.example.com"})
         assert cross_origin.status_code == 403
 
 

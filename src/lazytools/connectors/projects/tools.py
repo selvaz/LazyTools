@@ -189,7 +189,7 @@ class ProjectsTools:
         owners = _owners_filter(owner)
         if owners is None or len(owners) != 1:
             lines: list[str] = []
-            for one_owner in (owners or ("ceo", "claude", "shared")):
+            for one_owner in owners or ("ceo", "claude", "shared"):
                 rendered = _timeline.render_project_timeline(
                     self._store, blocked_reasons=blocked_reasons, owner=one_owner
                 )
@@ -197,7 +197,9 @@ class ProjectsTools:
             return "\n\n".join(lines)
         return _timeline.render_project_timeline(self._store, blocked_reasons=blocked_reasons, owner=owners[0])
 
-    def projects_gantt(self, owner: str = "all", include_closed: bool = False, out_path: str | None = None) -> dict[str, str]:
+    def projects_gantt(
+        self, owner: str = "all", include_closed: bool = False, out_path: str | None = None
+    ) -> dict[str, str]:
         """The Gantt of every open and paused project, rendered by plain code
         (no model call), in two forms: ``text`` -- one character per day, to
         paste as-is in a monospace block in chat -- and ``html_path`` -- a
@@ -212,7 +214,10 @@ class ProjectsTools:
         # with write access. Read-only, the page goes to the managed directory.
         # Found by review.
         if out_path and not self._allow_write:
-            return {"text": "REJECTED: out_path needs a write-enabled provider; omit it to use ~/.lazytools/gantt/", "html_path": ""}
+            return {
+                "text": "REJECTED: out_path needs a write-enabled provider; omit it to use ~/.lazytools/gantt/",
+                "html_path": "",
+            }
         target = Path(out_path).expanduser() if out_path else Path.home() / ".lazytools" / "gantt" / "gantt.html"
         written = _gantt.write_gantt_html(self._store, target, statuses=statuses, owners=owners)
         text = _gantt.render_gantt_text(self._store, statuses=statuses, owners=owners)
@@ -376,6 +381,8 @@ class ProjectsTools:
         passes, record that THIS caller reviewed it (by digest).
 
         ``subtasks`` is ``[{"text": ..., "acceptance_criteria": [...]}, ...]``.
+        ``deadline`` needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00;
+        date-only values are refused (they do not represent a whole day).
         Judging whether each criterion could actually FAIL is the caller's
         own job before calling this -- the checklist only catches mechanical
         gaps (missing fields, assurance-only criteria). Call projects_promote
@@ -385,6 +392,10 @@ class ProjectsTools:
         project = _records.get_project(self._store, project_id)
         if project is None:
             return {"ok": False, "findings": [f"no project named {project_id!r}"], "digest": None}
+        try:
+            _intake.parse_deadline(deadline, require_offset=True)
+        except ValueError as exc:
+            return {"ok": False, "findings": [f"REJECTED: deadline {exc}"], "digest": None}
         verdict = _intake.check_project_intake(
             objective=project.objective,
             observable_result=observable_result,
@@ -440,7 +451,9 @@ class ProjectsTools:
             return f"REJECTED: no project named {project_id!r}"
         unfinished = {
             index: task["status"]
-            for index, task in enumerate(DurableBlackboard(self._store, plan_id=f"project:{project_id}").snapshot().tasks)
+            for index, task in enumerate(
+                DurableBlackboard(self._store, plan_id=f"project:{project_id}").snapshot().tasks
+            )
             if task["status"] not in ("done", "cancelled")
         }
         if unfinished:
@@ -460,13 +473,18 @@ class ProjectsTools:
         _brake.set_project_brake_enabled(self._store, project_id, enabled)
         return f"project {project_id!r} quota brake is now {'ON' if enabled else 'OFF'}"
 
-    def projects_set_deadline(self, project_id: str, target_completion_at: str | None, schedule_timezone: str | None = None) -> str:
+    def projects_set_deadline(
+        self, project_id: str, target_completion_at: str | None, schedule_timezone: str | None = None
+    ) -> str:
         """Set or clear a project's deadline. ``target_completion_at`` is an ISO
         timestamp with an explicit offset (e.g. "2026-10-01T18:00+02:00"), or
-        None to clear it."""
+        None to clear it. Date-only values are refused (no whole-day semantics)."""
         parsed = None
         if target_completion_at is not None:
-            parsed = _intake.parse_deadline(target_completion_at)
+            try:
+                parsed = _intake.parse_deadline(target_completion_at, require_offset=True)
+            except ValueError as exc:
+                return f"REJECTED: target_completion_at {exc}"
             if parsed is None:
                 return f"REJECTED: target_completion_at {target_completion_at!r} names no date"
         try:
@@ -475,7 +493,11 @@ class ProjectsTools:
             )
         except ValueError as exc:
             return f"REJECTED: {exc}"
-        return f"deadline set for project {project_id!r}" if ok else f"REJECTED: no open/paused/done project named {project_id!r}"
+        return (
+            f"deadline set for project {project_id!r}"
+            if ok
+            else f"REJECTED: no open/paused/done project named {project_id!r}"
+        )
 
     def projects_add_note(self, project_id: str, text: str, origin: str = "claude") -> str:
         """Record a freeform note against a project."""
@@ -485,38 +507,73 @@ class ProjectsTools:
     # ---- write: plan editing ----------------------------------------------
 
     def projects_retire_task(
-        self, project_id: str, task_index: int, expected_text: str, reason: str, disposition: str, superseded_by_task_index: int | None = None
+        self,
+        project_id: str,
+        task_index: int,
+        expected_text: str,
+        reason: str,
+        disposition: str,
+        superseded_by_task_index: int | None = None,
     ) -> str:
         """Retire one task (no longer part of the work). ``disposition`` is one
         of obsolete/superseded/wrong_plan -- never for FINISHED work."""
-        return _plan_edit.retire_task(self._store, project_id, task_index, expected_text, reason, disposition, superseded_by_task_index)
+        return _plan_edit.retire_task(
+            self._store, project_id, task_index, expected_text, reason, disposition, superseded_by_task_index
+        )
 
     def projects_reopen_task(self, project_id: str, task_index: int, expected_text: str, reason: str) -> str:
         """Put a failed/retired task back to todo with a fresh attempt budget (bounded)."""
         return _plan_edit.reopen_task(self._store, project_id, task_index, expected_text, reason)
 
-    def projects_reopen_done_task(self, project_id: str, task_index: int, expected_text: str, owner: str, reason: str) -> str:
+    def projects_reopen_done_task(
+        self, project_id: str, task_index: int, expected_text: str, owner: str, reason: str
+    ) -> str:
         """Put a DONE task back to claimed because its closing verification is
         now known to have been vacuous. The one exception to "done stays done"."""
-        return _plan_edit.reopen_done_task_for_invalid_closure(self._store, project_id, task_index, expected_text, owner=owner, reason=reason)
+        return _plan_edit.reopen_done_task_for_invalid_closure(
+            self._store, project_id, task_index, expected_text, owner=owner, reason=reason
+        )
 
-    def projects_revise_plan(self, project_id: str, reason: str, new_tasks: list[str], keep: list[int] | None = None) -> str:
+    def projects_revise_plan(
+        self, project_id: str, reason: str, new_tasks: list[str], keep: list[int] | None = None
+    ) -> str:
         """Retire every retirable task (except those in ``keep``) and append
         ``new_tasks``, in one write."""
-        message, _retired, _first_new = _plan_edit.revise_plan(self._store, project_id, reason, new_tasks, keep=tuple(keep or ()))
+        message, _retired, _first_new = _plan_edit.revise_plan(
+            self._store, project_id, reason, new_tasks, keep=tuple(keep or ())
+        )
         return message
 
     def projects_schedule_task(
-        self, project_id: str, task_index: int, expected_text: str, reason: str, planned_start_at: str | None = None, due_at: str | None = None, hold: bool = False
+        self,
+        project_id: str,
+        task_index: int,
+        expected_text: str,
+        reason: str,
+        planned_start_at: str | None = None,
+        due_at: str | None = None,
+        hold: bool = False,
     ) -> str:
-        """Set or clear a task's planned-start/due dates (ISO timestamps) and its
-        start_hold flag (True = this date waits on something that is not a task)."""
-        start_epoch = _iso_to_epoch(planned_start_at)
-        due_epoch = _iso_to_epoch(due_at)
+        """Set or clear a task's planned-start/due dates and its start_hold flag
+        (True = this date waits on something that is not a task). Each timestamp
+        needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00, or None to clear.
+        Date-only values are refused (no whole-day semantics)."""
+        try:
+            start_epoch = _iso_to_epoch(planned_start_at, field="planned_start_at")
+            due_epoch = _iso_to_epoch(due_at, field="due_at")
+        except ValueError as exc:
+            return f"REJECTED: {exc}"
         if (planned_start_at is not None and start_epoch is None) or (due_at is not None and due_epoch is None):
             return "REJECTED: planned_start_at/due_at must be ISO timestamps or None"
         return _plan_edit.set_task_schedule(
-            self._store, project_id, task_index, expected_text, planned_start_at=start_epoch, due_at=due_epoch, reason=reason, hold=hold
+            self._store,
+            project_id,
+            task_index,
+            expected_text,
+            planned_start_at=start_epoch,
+            due_at=due_epoch,
+            reason=reason,
+            hold=hold,
         )
 
     # ---- write: contracts & verification decisions -------------------------
@@ -672,10 +729,13 @@ class ProjectsTools:
         return tools
 
 
-def _iso_to_epoch(value: str | None) -> float | None:
+def _iso_to_epoch(value: str | None, *, field: str) -> float | None:
     if value is None:
         return None
-    parsed = _intake.parse_deadline(value)
+    try:
+        parsed = _intake.parse_deadline(value, require_offset=True)
+    except ValueError as exc:
+        raise ValueError(f"{field} {exc}") from exc
     return parsed.timestamp() if parsed is not None else None
 
 

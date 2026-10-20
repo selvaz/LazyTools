@@ -117,6 +117,18 @@ rewriting active work as untouched tasks.
 Continue the example with explicit UTC dates. The project deadline and each
 task window are separate records; one does not infer the other.
 
+MCP `projects_set_deadline` (`target_completion_at`), `projects_review_plan`
+(`deadline`) and `projects_schedule_task` (`planned_start_at`, `due_at`) require
+an explicit UTC offset, for example `2026-11-13T18:00-08:00`, `+00:00` or `Z`.
+Naive timestamps return `REJECTED: <field> needs an explicit UTC offset, e.g.
+2026-11-13T18:00-08:00` (in `findings` for plan review), before any write.
+Date-only values are also refused: the parser previously treated them as midnight
+UTC, with no whole-day semantics. Use an explicit timestamp for the intended time.
+`None` still clears a project deadline or task date. Internal Python callers of
+`intake.parse_deadline(value, *, require_offset=False)` keep the existing UTC
+default; `require_offset=True` raises `ValueError` for a valid ISO value without
+an offset and returns `None` for invalid input.
+
 ```python
 from datetime import UTC, datetime, timedelta
 from lazytools.projects import gantt, schedule
