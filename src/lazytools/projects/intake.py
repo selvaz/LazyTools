@@ -64,14 +64,21 @@ def _blank(value: Any) -> bool:
     return not isinstance(value, str) or not value.strip()
 
 
-def parse_deadline(value: Any) -> datetime | None:
-    """The date a deadline names, or None if it names no date."""
+def parse_deadline(value: Any, *, require_offset: bool = False) -> datetime | None:
+    """Parse an ISO deadline, or return None for invalid input.
+
+    By default naive timestamps (including date-only midnight) use UTC for
+    compatibility. With require_offset=True they raise ValueError: date-only
+    values have never represented a whole day.
+    """
     if _blank(value):
         return None
     try:
         parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
     except ValueError:
         return None
+    if require_offset and parsed.utcoffset() is None:
+        raise ValueError("needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00")
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
@@ -171,9 +178,7 @@ def promotion_refusal(*, reviewed_digest: str | None, current_digest: str) -> st
     return None
 
 
-def record_project_review(
-    store: Store, project_id: str, *, reviewed_digest: str
-) -> bool:
+def record_project_review(store: Store, project_id: str, *, reviewed_digest: str) -> bool:
     """Remember which revision of the plan a reviewer (whoever played that role) accepted.
 
     Only meaningful on a draft. Mirrors ``lazyceo.projects.record_intake_review``.
@@ -211,7 +216,12 @@ def promote_project(store: Store, project_id: str, *, current_digest: str) -> st
 
 
 def _apply_intake_fields(
-    store: Store, project_id: str, *, observable_result: str, deadline: str, acceptance_criteria: list[str] | None = None
+    store: Store,
+    project_id: str,
+    *,
+    observable_result: str,
+    deadline: str,
+    acceptance_criteria: list[str] | None = None,
 ) -> bool:
     updates: dict[str, object] = {"observable_result": observable_result.strip()}
     if acceptance_criteria is not None:
@@ -222,7 +232,9 @@ def _apply_intake_fields(
     return _apply(store, project_id, updates, allowed_from=("draft", "open"))
 
 
-def install_project_plan(store: Store, project_id: str, *, objective: str, tasks: list[str], current_digest: str | None = None) -> str | None:
+def install_project_plan(
+    store: Store, project_id: str, *, objective: str, tasks: list[str], current_digest: str | None = None
+) -> str | None:
     """Install or replace an untouched plan with whole-board CAS; None means success.
 
     An identical plan is a no-op, preserving claims, results and schedules.
@@ -244,9 +256,14 @@ def install_project_plan(store: Store, project_id: str, *, objective: str, tasks
         if current.get("reasoning") == objective.strip() and [t.get("text") for t in old_tasks] == tasks:
             return None
         started = [
-            f"{i}: {t.get('text')!r}" for i, t in enumerate(old_tasks)
-            if t.get("status") in ("claimed", "done", "failed") or t.get("attempts", 0)
-            or t.get("owner") is not None or t.get("claimed_at") is not None or t.get("result") or t.get("error")
+            f"{i}: {t.get('text')!r}"
+            for i, t in enumerate(old_tasks)
+            if t.get("status") in ("claimed", "done", "failed")
+            or t.get("attempts", 0)
+            or t.get("owner") is not None
+            or t.get("claimed_at") is not None
+            or t.get("result")
+            or t.get("error")
             or (t.get("completed_at") is not None and t.get("status") != "cancelled")
         ]
         if started:
@@ -260,15 +277,23 @@ def install_project_plan(store: Store, project_id: str, *, objective: str, tasks
         contracted = [(i, t) for i, t in enumerate(old_tasks) if t.get("contract_id")]
         replaced = [f"{i}: {t.get('text')!r}" for i, t in contracted if i >= len(tasks) or tasks[i] != t.get("text")]
         if replaced:
-            return "REJECTED: cannot replace a different plan; tasks already carry an acceptance contract: " + ", ".join(replaced)
+            return (
+                "REJECTED: cannot replace a different plan; tasks already carry an acceptance contract: "
+                + ", ".join(replaced)
+            )
         new_tasks = [_fresh_task(text) for text in tasks]
         for i, t in contracted:
             new_tasks[i]["contract_id"] = t["contract_id"]
         moment = time.time()
         updated = {
-            **current, "version": BLACKBOARD_VERSION, "plan_id": f"project:{project_id}",
-            "reasoning": objective.strip(), "created_at": moment, "updated_at": moment,
-            "tasks": new_tasks, "schedule_events": [],
+            **current,
+            "version": BLACKBOARD_VERSION,
+            "plan_id": f"project:{project_id}",
+            "reasoning": objective.strip(),
+            "created_at": moment,
+            "updated_at": moment,
+            "tasks": new_tasks,
+            "schedule_events": [],
         }
         if current_digest is not None:
             project = get_project(store, project_id)
@@ -321,15 +346,21 @@ def promote_project_plan(
         from lazybridge.ext.planners import DurableBlackboard
 
         board = DurableBlackboard(store, plan_id=f"project:{project_id}").snapshot()
-        if board.reasoning != record.objective.strip() or [t.get("text") for t in board.tasks] != [str(s["text"]) for s in subtasks]:
+        if board.reasoning != record.objective.strip() or [t.get("text") for t in board.tasks] != [
+            str(s["text"]) for s in subtasks
+        ]:
             return "REJECTED: the open project's board does not match the reviewed plan"
         return f"promoted project {project_id!r} to open with the reviewed plan installed: {len(subtasks)} subtask(s), each with acceptance criteria"
 
     criteria = [str(c) for s in subtasks for c in s.get("acceptance_criteria", [])]
-    if not _apply_intake_fields(store, project_id, observable_result=observable_result, deadline=deadline, acceptance_criteria=criteria):
+    if not _apply_intake_fields(
+        store, project_id, observable_result=observable_result, deadline=deadline, acceptance_criteria=criteria
+    ):
         return "REJECTED: the project changed while it was being promoted -- read it again and retry"
 
-    refusal = install_project_plan(store, project_id, objective=record.objective, tasks=[str(s["text"]) for s in subtasks], current_digest=digest)
+    refusal = install_project_plan(
+        store, project_id, objective=record.objective, tasks=[str(s["text"]) for s in subtasks], current_digest=digest
+    )
     if refusal is not None:
         return refusal
 
@@ -343,8 +374,13 @@ def promote_project_plan(
 
 
 async def review_and_promote_project_plan(
-    store: Store, project_id: str, *, observable_result: str, deadline: str,
-    subtasks: list[dict[str, Any]], reviewer: PlanReviewer,
+    store: Store,
+    project_id: str,
+    *,
+    observable_result: str,
+    deadline: str,
+    subtasks: list[dict[str, Any]],
+    reviewer: PlanReviewer,
     reviewer_kwargs: Mapping[str, Any] | None = None,
 ) -> str:
     """Run the free checklist, then an injected async reviewer, then promotion.
@@ -360,19 +396,30 @@ async def review_and_promote_project_plan(
     if record is None:
         return f"REJECTED: no project named {project_id!r} -- call open_project first"
     if record.status == "open":
-        return promote_project_plan(store, project_id, observable_result=observable_result, deadline=deadline, subtasks=subtasks)
+        return promote_project_plan(
+            store, project_id, observable_result=observable_result, deadline=deadline, subtasks=subtasks
+        )
     if record.status != "draft":
         return f"REJECTED: project is {record.status!r}, not a draft"
     plan = deepcopy(subtasks)
-    verdict = check_project_intake(objective=record.objective, observable_result=observable_result, deadline=deadline, subtasks=plan)
+    verdict = check_project_intake(
+        objective=record.objective, observable_result=observable_result, deadline=deadline, subtasks=plan
+    )
     if not verdict.ok:
         return verdict.rejection_text()
-    digest = plan_digest(objective=record.objective, observable_result=observable_result, deadline=deadline, subtasks=plan)
+    digest = plan_digest(
+        objective=record.objective, observable_result=observable_result, deadline=deadline, subtasks=plan
+    )
     criteria = [str(c) for s in plan for c in s.get("acceptance_criteria", [])]
     findings, performed = await reviewer(
-        **{**(reviewer_kwargs or {}), "observable_result": observable_result,
-           "acceptance_criteria": criteria, "required_checks": [],
-           "allowed_effects": f"work inside the {project_id} project", "store": store},
+        **{
+            **(reviewer_kwargs or {}),
+            "observable_result": observable_result,
+            "acceptance_criteria": criteria,
+            "required_checks": [],
+            "allowed_effects": f"work inside the {project_id} project",
+            "store": store,
+        },
     )
     if findings or not performed:
         detail = "\n".join(f"  - {finding}" for finding in findings)
@@ -382,7 +429,9 @@ async def review_and_promote_project_plan(
     reviewed = record.model_copy(update={"reviewed_digest": digest})
     if not store.compare_and_swap(_key(project_id), raw, reviewed.model_dump(mode="json")):
         return "REJECTED: the project changed while it was being reviewed -- read it again and retry"
-    return promote_project_plan(store, project_id, observable_result=observable_result, deadline=deadline, subtasks=plan)
+    return promote_project_plan(
+        store, project_id, observable_result=observable_result, deadline=deadline, subtasks=plan
+    )
 
 
 __all__ = [

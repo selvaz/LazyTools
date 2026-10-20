@@ -320,7 +320,7 @@ trusted scope.
 ### `code_sessions` — see and manage session names
 
 ```text
-code_sessions_list(kind=None, repo_path=None) -> list[dict]
+code_sessions_list(kind=None, repo_path=None, limit=50, since_days=None) -> dict
 code_sessions_bind(kind, name, native_id, repo_path=None) -> dict
 code_sessions_rename(kind, old, new, repo_path=None) -> dict
 code_sessions_forget(kind, name, repo_path=None) -> dict
@@ -329,13 +329,22 @@ code_sessions_forget(kind, name, repo_path=None) -> dict
 `session_name` aliases live in LazyBridge's `SessionRegistry` (a JSON file,
 `~/.lazybridge/sessions.json` or `LAZYBRIDGE_SESSIONS_FILE`), keyed by
 `kind` (`codex` or `claude`), the resolved repository and the name.
-`code_sessions_list` returns `name`, `kind`, `native_id`, `scope`, `model`,
-`effort`, `updated_at` and is read-only. The three mutators adopt a thread you
+`code_sessions_list` is read-only and returns `sessions`, `total` (matching rows
+before the limit) and `returned` (included count). Each session has `name`, `kind`,
+`native_id`, `scope`, `model`, `effort` and `updated_at`. Sessions are sorted by
+`updated_at` descending. The default `limit` is 50, capped at 200 (minimum 1).
+Optional non-negative `since_days` keeps sessions updated within that many days;
+all filters apply before counting and limiting. The three mutators adopt a thread you
 already have (`bind`), rename, or drop a name (`forget` never deletes the
 underlying conversation); they are only served with `--allow-unsafe`, and
 `repo_path` is confined to the code root like every other path.
 
 ## Safety model
+
+Structured tool results use strict JSON: non-finite floats (`NaN`, positive or
+negative infinity, including NumPy floats) and pandas NA become `null` recursively.
+This also applies to model/dataclass conversions and JSON serializer output.
+Plain string and byte results retain their text behavior.
 
 The server is **read-only by default**, enforced in two layers:
 

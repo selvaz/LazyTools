@@ -23,6 +23,7 @@ review tools apply, and listing without one only shows scopes under that root.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -105,6 +106,9 @@ class CodeSessionTools:
                     "List the named Codex / Claude Code sessions the code tools keep (read-only). "
                     "Args: kind (str, optional -- 'codex' or 'claude'); repo_path (str, optional -- "
                     "only that repository's names; default: every repository under the code root). "
+                    "limit (int, default 50, capped at 200, minimum 1); since_days (int, optional, "
+                    "non-negative -- updated within this many days). Newest updated_at first. "
+                    "Returns sessions, total (matching before limit), returned (included count). "
                     "Each row: name, kind, native_id (thread_id for codex, session_id for claude), "
                     "scope (the repository), model, effort, updated_at. Pass a name back as "
                     "session_name to a review / ask / write tool to continue that conversation."
@@ -146,10 +150,19 @@ class CodeSessionTools:
     # ------------------------------------------------------------------ #
     # Tools
     # ------------------------------------------------------------------ #
-    def code_sessions_list(self, kind: str | None = None, repo_path: str | None = None) -> list[dict[str, Any]]:
-        """Named sessions (``name``, ``kind``, ``native_id``, ``scope``, ``model``, ``effort``, ``updated_at``)."""
+    def code_sessions_list(
+        self, kind: str | None = None, repo_path: str | None = None, limit: int = 50, since_days: int | None = None
+    ) -> dict[str, Any]:
+        """Return bounded named sessions, newest first, with matching and returned counts."""
         from lazybridge.engines.sessions import normalize_scope
 
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+            raise ValueError("limit must be a positive integer")
+        if since_days is not None and (
+            isinstance(since_days, bool) or not isinstance(since_days, int) or since_days < 0
+        ):
+            raise ValueError("since_days must be a non-negative integer")
+        limit = min(limit, 200)
         wanted = _kind(kind)
         reg = self._reg()
         if clean(repo_path):
@@ -158,8 +171,21 @@ class CodeSessionTools:
             root = normalize_scope(self._root)
             prefix = root.rstrip("/") + "/"
             rows = [r for r in reg.entries(wanted) if r["scope"] == root or r["scope"].startswith(prefix)]
+        cutoff = datetime.now(UTC) - timedelta(days=since_days) if since_days is not None else None
+
+        def updated_at(row: dict[str, Any]) -> datetime:
+            try:
+                parsed = datetime.fromisoformat(row.get("updated_at") or "")
+            except (TypeError, ValueError):
+                return datetime.min.replace(tzinfo=UTC)
+            return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
+
+        if cutoff is not None:
+            rows = [row for row in rows if updated_at(row) >= cutoff]
+        rows.sort(key=updated_at, reverse=True)
         keys = ("name", "kind", "native_id", "scope", "model", "effort", "updated_at")
-        return [{k: row.get(k) for k in keys} for row in rows]
+        sessions = [{k: row.get(k) for k in keys} for row in rows[:limit]]
+        return {"sessions": sessions, "total": len(rows), "returned": len(sessions)}
 
     def code_sessions_bind(self, kind: str, name: str, native_id: str, repo_path: str | None = None) -> dict[str, Any]:
         """Bind ``name`` to ``native_id`` for ``kind`` in ``repo_path``'s scope."""

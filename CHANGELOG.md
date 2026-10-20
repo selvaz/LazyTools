@@ -8,6 +8,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- MCP session listings default to the 50 most recently updated aliases (hard cap
+  200), support `since_days`, and return `sessions`, `total` and `returned` while
+  preserving repository and engine filters.
+- MCP JSON results recursively replace non-finite floats (including NumPy values)
+  and pandas NA with `null`, and enforce strict JSON serialization.
+- Project MCP review, deadline and task scheduling tools require explicit UTC
+  offsets and reject naive timestamps, including date-only midnight values, with
+  field-specific guidance. Internal deadline parsing keeps its UTC default.
+
 ## [0.10.4] — 2026-10-19
 
 Release set `ecosystem-2026.10.6`.

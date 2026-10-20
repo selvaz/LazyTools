@@ -9,6 +9,9 @@ constructing it with no configuration at all must never touch a real file.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
+import pytest
 from lazybridge import Store
 
 from lazytools.connectors.projects import ProjectsTools
@@ -119,7 +122,9 @@ def test_projects_brake_status_agrees_with_shadow_mode(tmp_path, monkeypatch) ->
         engine="codex",
         source="test",
         observed_at=__import__("datetime").datetime.now(__import__("datetime").UTC),
-        windows=(admission_module.WindowReading(window_id="w", used_percent=99.0, duration_minutes=300, resets_at=None),),
+        windows=(
+            admission_module.WindowReading(window_id="w", used_percent=99.0, duration_minutes=300, resets_at=None),
+        ),
     )
     monkeypatch.setattr("lazytools.connectors.projects.tools._quota.read_quota_sync", lambda engine: over_ceiling)
     status = pt.projects_brake_status("alpha", "codex")
@@ -131,12 +136,16 @@ def test_projects_pause_resume_close_lifecycle(tmp_path) -> None:
     pt = _rw(tmp_path)
     pt.projects_create("alpha", "Alpha", "x")
     review = pt.projects_review_plan(
-        "alpha", "obs", "2026-12-01",
+        "alpha",
+        "obs",
+        "2026-12-01T00:00:00+00:00",
         [{"text": "t0", "acceptance_criteria": ["c0 passes"]}, {"text": "t1", "acceptance_criteria": ["c1 passes"]}],
     )
     assert review["ok"] is True
     pt.projects_promote(
-        "alpha", "obs", "2026-12-01",
+        "alpha",
+        "obs",
+        "2026-12-01T00:00:00+00:00",
         [{"text": "t0", "acceptance_criteria": ["c0 passes"]}, {"text": "t1", "acceptance_criteria": ["c1 passes"]}],
     )
 
@@ -200,9 +209,83 @@ def _promoted(tmp_path) -> ProjectsTools:
         {"text": "t0", "acceptance_criteria": ["c0 passes"]},
         {"text": "t1", "acceptance_criteria": ["c1 passes"]},
     ]
-    assert pt.projects_review_plan("alpha", "obs", "2026-12-01", subtasks)["ok"] is True
-    pt.projects_promote("alpha", "obs", "2026-12-01", subtasks)
+    assert pt.projects_review_plan("alpha", "obs", "2026-12-01T00:00:00+00:00", subtasks)["ok"] is True
+    pt.projects_promote("alpha", "obs", "2026-12-01T00:00:00+00:00", subtasks)
     return pt
+
+
+@pytest.mark.parametrize("value", ["2026-11-13T18:00", "2026-11-13"])
+def test_mcp_deadlines_require_offset_without_mutating_state(tmp_path, value):
+    pt = _promoted(tmp_path)
+    before = pt.projects_get("alpha")
+    message = pt.projects_set_deadline("alpha", value)
+    assert message == "REJECTED: target_completion_at needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00"
+    assert pt.projects_get("alpha") == before
+
+    pt.projects_create("draft", "Draft", "objective")
+    draft = pt.projects_get("draft")
+    result = pt.projects_review_plan(
+        "draft",
+        "obs",
+        value,
+        [
+            {"text": "t0", "acceptance_criteria": ["c0 passes"]},
+            {"text": "t1", "acceptance_criteria": ["c1 passes"]},
+        ],
+    )
+    assert result == {
+        "ok": False,
+        "findings": ["REJECTED: deadline needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00"],
+        "digest": None,
+    }
+    assert pt.projects_get("draft") == draft
+
+
+@pytest.mark.parametrize("field", ["planned_start_at", "due_at"])
+@pytest.mark.parametrize("value", ["2026-11-13T18:00", "2026-11-13"])
+def test_mcp_schedule_requires_offset_without_mutating_board(tmp_path, field, value):
+    pt = _promoted(tmp_path)
+    before = pt._store.read("blackboard:project:alpha")
+    arguments = {"planned_start_at": "2026-11-13T10:00-08:00", "due_at": "2026-11-13T18:00-08:00", field: value}
+    message = pt.projects_schedule_task("alpha", 0, "t0", "date task", **arguments)
+    assert message == f"REJECTED: {field} needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00"
+    assert pt._store.read("blackboard:project:alpha") == before
+
+
+@pytest.mark.parametrize("value", ["2026-11-13T18:00-08:00", "2026-11-14T02:00Z", "2026-11-14T02:00+00:00"])
+def test_mcp_accepts_explicit_offsets_and_clearing_dates(tmp_path, value):
+    pt = _promoted(tmp_path)
+    expected = datetime(2026, 11, 14, 2, tzinfo=UTC)
+    assert "deadline set" in pt.projects_set_deadline("alpha", value)
+    assert datetime.fromisoformat(pt.projects_get("alpha")["target_completion_at"]) == expected
+    assert not pt.projects_schedule_task("alpha", 0, "t0", "date task", due_at=value).startswith("REJECTED")
+    assert pt._store.read("blackboard:project:alpha")["tasks"][0]["due_at"] == expected.timestamp()
+    assert not pt.projects_schedule_task("alpha", 0, "t0", "clear dates").startswith("REJECTED")
+    assert pt._store.read("blackboard:project:alpha")["tasks"][0]["due_at"] is None
+    assert "deadline set" in pt.projects_set_deadline("alpha", None)
+    assert pt.projects_get("alpha")["target_completion_at"] is None
+
+    pt.projects_create("draft", "Draft", "objective")
+    assert (
+        pt.projects_review_plan(
+            "draft",
+            "obs",
+            value,
+            [
+                {"text": "t0", "acceptance_criteria": ["c0 passes"]},
+                {"text": "t1", "acceptance_criteria": ["c1 passes"]},
+            ],
+        )["ok"]
+        is True
+    )
+
+
+def test_parse_deadline_default_preserves_internal_compatibility():
+    from lazytools.projects.intake import parse_deadline
+
+    assert parse_deadline("2026-11-13") == datetime(2026, 11, 13, tzinfo=UTC)
+    assert parse_deadline("2026-11-13T18:00") == datetime(2026, 11, 13, 18, tzinfo=UTC)
+    assert parse_deadline("not-a-date", require_offset=True) is None
 
 
 def test_mcp_contract_opened_through_tool_blocks_shortcut_close(tmp_path) -> None:
@@ -240,7 +323,9 @@ def test_mcp_task_without_contract_still_closes_by_shortcut(tmp_path) -> None:
 def test_mcp_accepted_closer_requires_full_write_profile(tmp_path) -> None:
     for profile in ("core", "full"):
         for allow_write in (False, True):
-            pt = ProjectsTools(store_db=str(tmp_path / f"{profile}-{allow_write}.sqlite"), allow_write=allow_write, profile=profile)
+            pt = ProjectsTools(
+                store_db=str(tmp_path / f"{profile}-{allow_write}.sqlite"), allow_write=allow_write, profile=profile
+            )
             names = {t.name for t in pt.as_tools()}
             assert ("projects_close_accepted_task" in names) == (profile == "full" and allow_write)
 
@@ -267,7 +352,12 @@ def test_mcp_accepted_closer_records_progress(tmp_path) -> None:
     assert verification.claim_verification(pt._store, contract_id=opened["contract_id"], job_id="job")
     assert pt.projects_close_accepted_task("alpha", 0, "job").startswith("REJECTED:")
     verification.start_running(pt._store, "job")
-    verification.record_checks(pt._store, "job", checks=[verification.CheckResult(command="pytest", exit_code=0, output_tail="ok")], diff_summary="files changed")
+    verification.record_checks(
+        pt._store,
+        "job",
+        checks=[verification.CheckResult(command="pytest", exit_code=0, output_tail="ok")],
+        diff_summary="files changed",
+    )
     verification.record_review(pt._store, "job", reviewer="reviewer", findings="no issues")
     assert isinstance(pt.projects_accept_verification("job", "operator", "checks passed"), dict)
     before = pt._store.read("blackboard:project:alpha")
@@ -276,3 +366,22 @@ def test_mcp_accepted_closer_records_progress(tmp_path) -> None:
     assert "marked done" in pt.projects_close_accepted_task("alpha", 0, "job")
     assert DurableBlackboard(pt._store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "done"
     assert pt.projects_get("alpha")["last_progress_at"] is not None
+
+
+def test_mcp_promote_refuses_a_naive_deadline_reviewed_before_offsets_were_required(tmp_path):
+    from lazytools.projects import intake as _intake
+
+    pt = _rw(tmp_path)
+    pt.projects_create("legacy", "Legacy", "objective")
+    subtasks = [
+        {"text": "t0", "acceptance_criteria": ["c0 passes"]},
+        {"text": "t1", "acceptance_criteria": ["c1 passes"]},
+    ]
+    naive = "2026-11-13T18:00"
+    # A durable review recorded by an older version, digest matching the naive deadline.
+    digest = _intake.plan_digest(objective="objective", observable_result="obs", deadline=naive, subtasks=subtasks)
+    assert _intake.record_project_review(pt._store, "legacy", reviewed_digest=digest)
+    before = pt.projects_get("legacy")
+    message = pt.projects_promote("legacy", "obs", naive, subtasks)
+    assert message == "REJECTED: deadline needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00"
+    assert pt.projects_get("legacy") == before

@@ -35,7 +35,10 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import math
+import sys
 from collections.abc import Iterable, Sequence
+from numbers import Integral, Real
 from typing import TYPE_CHECKING, Any
 
 from lazybridge import Tool
@@ -148,8 +151,7 @@ def expand_tools(
         for tool in tools:
             if read_only and _is_unsafe(tool.name, patterns):
                 logger.warning(
-                    "read_only: dropping mutating tool %r (matched unsafe pattern). "
-                    "Pass read_only=False to expose it.",
+                    "read_only: dropping mutating tool %r (matched unsafe pattern). Pass read_only=False to expose it.",
                     tool.name,
                 )
                 continue
@@ -159,36 +161,79 @@ def expand_tools(
     return result
 
 
+def _json_safe(value: Any) -> Any:
+    """Replace non-finite numeric values and pandas NA without optional imports."""
+    if isinstance(value, Integral) and not isinstance(value, (int, bool)):
+        # NumPy (and other) integer scalars: keep them exact. float() would
+        # round values above 2**53 and change counts or identifiers.
+        return int(value)
+    if isinstance(value, Real) and not isinstance(value, (int, bool)):
+        return float(value) if math.isfinite(value) else None
+    pandas = sys.modules.get("pandas")
+    if pandas is not None and value is pandas.NA:
+        return None
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 def _json_default(obj: Any) -> Any:
     """Best-effort JSON coercion for connector return values.
 
     Handles pydantic models, dataclasses, and the ``AnalysisResult`` /
     envelope-ish objects the analysis tools return, falling back to
-    ``str`` so serialization can never raise.
+    ``str`` for unknown objects. Coerced containers are sanitized too.
     """
     for meth in ("model_dump", "to_dict", "dict", "_asdict"):
         fn = getattr(obj, meth, None)
         if callable(fn):
             try:
-                return fn()
+                return _json_safe(fn())
             except Exception:
                 pass
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return dataclasses.asdict(obj)
+        return _json_safe(dataclasses.asdict(obj))
     return str(obj)
+
+
+def _strict_json_text(text: str) -> str:
+    """Re-emit a JSON object/array string as strict JSON; leave anything else alone.
+
+    ``json.loads`` accepts the non-standard ``NaN``/``Infinity`` tokens that
+    ``json.dumps`` emits by default, so a provider's pre-serialized payload is
+    parsed, sanitized and dumped again with ``allow_nan=False``. Text that is
+    not a JSON container (prose, Markdown, a bare number) is returned as is.
+    """
+    stripped = text.lstrip()
+    if not stripped.startswith(("{", "[")):
+        return text
+    try:
+        parsed = json.loads(text)
+    except ValueError:
+        return text
+    if not isinstance(parsed, (dict, list)):
+        return text
+    if "NaN" not in text and "Infinity" not in text:
+        return text  # already strict: keep the provider's own formatting
+    return json.dumps(_json_safe(parsed), default=_json_default, ensure_ascii=False, indent=2, allow_nan=False)
 
 
 def result_to_text(result: Any) -> str:
     """Serialize a tool's return value to a single text payload for MCP.
 
-    Strings pass through untouched; bytes are decoded as UTF-8; everything
-    else is rendered as pretty JSON (pydantic ``model_dump_json`` /
-    ``to_json`` fast-paths first), never raising.
+    Plain strings pass through untouched; a string that is a JSON object or
+    array (many providers return pre-serialized JSON) is re-emitted as strict
+    JSON; bytes are decoded as UTF-8; everything else is rendered as strict
+    JSON. Non-finite floats and pandas NA become null, including inside
+    model/dataclass conversions and JSON serializers. Serialization errors
+    propagate to the MCP error handler.
     """
     if result is None:
         return "null"
     if isinstance(result, str):
-        return result
+        return _strict_json_text(result)
     if isinstance(result, (bytes, bytearray)):
         try:
             return bytes(result).decode("utf-8")
@@ -198,7 +243,7 @@ def result_to_text(result: Any) -> str:
     dump_json = getattr(result, "model_dump_json", None)
     if callable(dump_json):
         try:
-            return dump_json()
+            result = json.loads(dump_json())
         except Exception:
             pass
 
@@ -206,14 +251,11 @@ def result_to_text(result: Any) -> str:
     if callable(to_json):
         try:
             value = to_json()
-            return value if isinstance(value, str) else json.dumps(value, default=_json_default, ensure_ascii=False)
+            result = json.loads(value) if isinstance(value, str) else value
         except Exception:
             pass
 
-    try:
-        return json.dumps(result, default=_json_default, ensure_ascii=False, indent=2)
-    except Exception:
-        return str(result)
+    return json.dumps(_json_safe(result), default=_json_default, ensure_ascii=False, indent=2, allow_nan=False)
 
 
 def build_server(
@@ -339,9 +381,7 @@ def http_app(
         allowed_hosts=list(allowed_hosts or []),
         allowed_origins=list(allowed_origins or []),
     )
-    manager = StreamableHTTPSessionManager(
-        app=server, json_response=json_response, security_settings=security
-    )
+    manager = StreamableHTTPSessionManager(app=server, json_response=json_response, security_settings=security)
 
     @contextlib.asynccontextmanager
     async def lifespan(_app):
@@ -368,10 +408,16 @@ def http_app(
     )
 
 
-def serve_http(server: Server, *, host: str = "127.0.0.1", port: int = 8787,
-               path: str = "/mcp", json_response: bool = False,
-               allowed_hosts: Sequence[str] | None = None,
-               allowed_origins: Sequence[str] | None = None) -> None:
+def serve_http(
+    server: Server,
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8787,
+    path: str = "/mcp",
+    json_response: bool = False,
+    allowed_hosts: Sequence[str] | None = None,
+    allowed_origins: Sequence[str] | None = None,
+) -> None:
     """Serve ``server`` over Streamable HTTP until interrupted.
 
     Binds to loopback by default: these tools read (and with

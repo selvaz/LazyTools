@@ -9,6 +9,8 @@ forget are exercised against LazyBridge's own rules. Nothing touches
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from _code_fakes import Script, install
@@ -277,7 +279,9 @@ class TestCodeSessionTools:
         registry.bind("codex", root / "repo-a", "notes", "thr-1", model="gpt-x", effort="high")
         provider = CodeSessionTools(root=str(root), session_registry=registry)
 
-        (row,) = provider.code_sessions_list()
+        result = provider.code_sessions_list()
+        assert result["total"] == result["returned"] == 1
+        (row,) = result["sessions"]
 
         assert set(row) == {"name", "kind", "native_id", "scope", "model", "effort", "updated_at"}
         assert (row["name"], row["kind"], row["native_id"]) == ("notes", "codex", "thr-1")
@@ -291,10 +295,12 @@ class TestCodeSessionTools:
         registry.bind("codex", root / "repo-b", "three", "t-2")
         provider = CodeSessionTools(root=str(root), session_registry=registry)
 
-        assert {r["name"] for r in provider.code_sessions_list()} == {"one", "two", "three"}
-        assert {r["name"] for r in provider.code_sessions_list(kind="codex")} == {"one", "three"}
-        assert {r["name"] for r in provider.code_sessions_list(repo_path="repo-a")} == {"one", "two"}
-        assert [r["name"] for r in provider.code_sessions_list(kind="claude", repo_path="repo-a")] == ["two"]
+        assert {r["name"] for r in provider.code_sessions_list()["sessions"]} == {"one", "two", "three"}
+        assert {r["name"] for r in provider.code_sessions_list(kind="codex")["sessions"]} == {"one", "three"}
+        assert {r["name"] for r in provider.code_sessions_list(repo_path="repo-a")["sessions"]} == {"one", "two"}
+        assert [r["name"] for r in provider.code_sessions_list(kind="claude", repo_path="repo-a")["sessions"]] == [
+            "two"
+        ]
         with pytest.raises(ValueError, match="kind must be one of"):
             provider.code_sessions_list(kind="gemini")
 
@@ -306,7 +312,56 @@ class TestCodeSessionTools:
 
         rows = CodeSessionTools(root=str(root), session_registry=registry).code_sessions_list()
 
-        assert [r["name"] for r in rows] == ["mine"]
+        assert [r["name"] for r in rows["sessions"]] == ["mine"]
+        assert rows["total"] == rows["returned"] == 1
+
+    @pytest.mark.parametrize(("limit", "returned"), [(None, 50), (3, 3), (200, 200), (999, 200)])
+    def test_list_is_bounded_and_newest_first(self, root, registry, monkeypatch, limit, returned):
+        import lazybridge.engines.sessions as sessions
+
+        now = datetime(2026, 10, 20, tzinfo=UTC)
+        for i in range(205):
+            stamp = (now + timedelta(minutes=i)).isoformat()
+            monkeypatch.setattr(sessions, "_now", lambda stamp=stamp: stamp)
+            registry.bind("codex", root, f"session-{i:03}", f"id-{i}")
+        provider = CodeSessionTools(root=str(root), session_registry=registry)
+        result = provider.code_sessions_list(**({} if limit is None else {"limit": limit}))
+        assert result["total"] == 205
+        assert result["returned"] == returned
+        assert [r["name"] for r in result["sessions"]] == [f"session-{i:03}" for i in range(204, 204 - returned, -1)]
+
+    def test_since_days_and_existing_filters_apply_before_total_and_limit(self, root, registry, monkeypatch):
+        import lazybridge.engines.sessions as sessions
+
+        now = datetime.now(UTC)
+        monkeypatch.setattr(sessions, "_now", lambda: (now - timedelta(days=10)).isoformat())
+        registry.bind("codex", root / "repo-a", "old", "old-id")
+        monkeypatch.setattr(sessions, "_now", lambda: (now - timedelta(hours=1)).isoformat())
+        registry.bind("codex", root / "repo-a", "recent-a", "a-id")
+        registry.bind("codex", root / "repo-a", "recent-b", "b-id")
+        registry.bind("claude", root / "repo-a", "other-kind", "s-id")
+        registry.bind("codex", root / "repo-b", "other-repo", "t-id")
+        provider = CodeSessionTools(root=str(root), session_registry=registry)
+        result = provider.code_sessions_list(kind="codex", repo_path="repo-a", since_days=7, limit=1)
+        assert result["total"] == 2
+        assert result["returned"] == 1
+        assert result["sessions"][0]["name"] in {"recent-a", "recent-b"}
+        assert provider.code_sessions_list(since_days=0) == {"sessions": [], "total": 0, "returned": 0}
+
+    @pytest.mark.parametrize("kwargs", [{"limit": 0}, {"limit": -1}, {"since_days": -1}])
+    def test_list_rejects_invalid_bounds(self, root, registry, kwargs):
+        provider = CodeSessionTools(root=str(root), session_registry=registry)
+        with pytest.raises(ValueError):
+            provider.code_sessions_list(**kwargs)
+
+    async def test_list_mcp_schema_and_defaults(self, root, registry):
+        tool = _tools(CodeSessionTools(root=str(root), session_registry=registry))["code_sessions_list"]
+        schema = tool.definition().parameters
+        properties = schema["properties"]
+        assert properties["limit"]["type"] == "integer"
+        assert "limit" not in schema.get("required", [])
+        assert "since_days" in properties
+        assert await tool.run() == {"sessions": [], "total": 0, "returned": 0}
 
     def test_repo_path_is_confined_to_the_root(self, root, registry):
         provider = CodeSessionTools(root=str(root), allow_mutate=True, session_registry=registry)
