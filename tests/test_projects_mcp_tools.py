@@ -366,3 +366,22 @@ def test_mcp_accepted_closer_records_progress(tmp_path) -> None:
     assert "marked done" in pt.projects_close_accepted_task("alpha", 0, "job")
     assert DurableBlackboard(pt._store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "done"
     assert pt.projects_get("alpha")["last_progress_at"] is not None
+
+
+def test_mcp_promote_refuses_a_naive_deadline_reviewed_before_offsets_were_required(tmp_path):
+    from lazytools.projects import intake as _intake
+
+    pt = _rw(tmp_path)
+    pt.projects_create("legacy", "Legacy", "objective")
+    subtasks = [
+        {"text": "t0", "acceptance_criteria": ["c0 passes"]},
+        {"text": "t1", "acceptance_criteria": ["c1 passes"]},
+    ]
+    naive = "2026-11-13T18:00"
+    # A durable review recorded by an older version, digest matching the naive deadline.
+    digest = _intake.plan_digest(objective="objective", observable_result="obs", deadline=naive, subtasks=subtasks)
+    assert _intake.record_project_review(pt._store, "legacy", reviewed_digest=digest)
+    before = pt.projects_get("legacy")
+    message = pt.projects_promote("legacy", "obs", naive, subtasks)
+    assert message == "REJECTED: deadline needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00"
+    assert pt.projects_get("legacy") == before

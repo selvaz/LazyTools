@@ -416,8 +416,14 @@ class ProjectsTools:
         """Move a project from draft to open, installing ``subtasks`` as its plan.
 
         Refused unless projects_review_plan already recorded a matching
-        digest for THESE EXACT arguments.
+        digest for THESE EXACT arguments, and refused when the deadline has
+        no explicit UTC offset (a draft reviewed before offsets were required
+        must not install a naive deadline as UTC).
         """
+        try:
+            _intake.parse_deadline(deadline, require_offset=True)
+        except ValueError as exc:
+            return f"REJECTED: deadline {exc}"
         return _intake.promote_project_plan(
             self._store, project_id, observable_result=observable_result, deadline=deadline, subtasks=subtasks
         )
