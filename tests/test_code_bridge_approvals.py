@@ -8,6 +8,7 @@ with only the human replaced by a recording channel.
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 from lazybridge.engines.coding import ApprovalRequest
@@ -45,9 +46,7 @@ def codex(command: str, *, cwd: str = "C:/repo") -> ApprovalRequest:
 
 
 def claude_bash(command: str, *, cwd: str = "C:/repo") -> ApprovalRequest:
-    return ApprovalRequest(
-        provider="claude-code", kind="tool", name="Bash", arguments={"command": command}, cwd=cwd
-    )
+    return ApprovalRequest(provider="claude-code", kind="tool", name="Bash", arguments={"command": command}, cwd=cwd)
 
 
 def tier(request: ApprovalRequest) -> str:
@@ -67,9 +66,7 @@ def decide(gate: BridgeGate, request: ApprovalRequest) -> tuple[str, bool]:
 # 17/10 fixtures -- Codex escalations
 # --------------------------------------------------------------------------- #
 
-CODEX_PYTEST_ONE = (
-    'powershell.exe -Command "& C:\\ProgramData\\spyder-6\\python.exe -m pytest -q tests\\test_x.py"'
-)
+CODEX_PYTEST_ONE = 'powershell.exe -Command "& C:\\ProgramData\\spyder-6\\python.exe -m pytest -q tests\\test_x.py"'
 CODEX_PYTEST_ALL = 'powershell.exe -Command "& C:\\ProgramData\\spyder-6\\python.exe -m pytest -q"'
 CODEX_GIT_ADD = "powershell.exe -Command 'git add -- config/databases.toml src/ic/archive.py tests/test_archive.py'"
 CODEX_READONLY_GH = [
@@ -77,7 +74,7 @@ CODEX_READONLY_GH = [
     f"powershell.exe -Command 'gh pr view 77 --repo {REPO} --json url,state,headRefName,baseRefName,body,comments,reviews'",
     f"powershell.exe -Command 'gh api repos/{REPO}/pulls/77/comments'",
     f"powershell.exe -Command 'gh run view 39028190857 --repo {REPO} --json status,conclusion,jobs'",
-    f"powershell.exe -Command \"gh pr view 77 --repo {REPO} --json reviews,comments --jq "
+    f'powershell.exe -Command "gh pr view 77 --repo {REPO} --json reviews,comments --jq '
     "'{reviews: .reviews, comments: [.comments[] | {author: .author.login, body: .body}]}'\"",
 ]
 
@@ -146,14 +143,14 @@ NESTED_QUOTE_GH = [
     "powershell.exe -Command 'gh api --jq ''\". -XDELETE -q\" .'' repos/a/b/git/refs/heads/topic'",
     'powershell.exe -Command "gh api --jq \'\\". -XDELETE -q\\" .\' repos/a/b/git/refs/heads/topic"',
     "gh pr view 77 --jq '.title + \"x\"'",
-    "gh pr view 77 --jq \"'\"",
+    'gh pr view 77 --jq "\'"',
     "powershell.exe -Command \"gh pr view 77 --jq '.body'\" ; gh pr merge 77",
 ]
 NESTED_QUOTE_GIT = [
     "git commit -m '\"x --amend -m\" y'",
     "powershell.exe -Command 'git commit -m ''\"x --amend -m\" y'''",
     'powershell.exe -Command "git commit -m \'\\"x --amend -m\\" y\'"',
-    "git commit -m \"it's\"",
+    'git commit -m "it\'s"',
     "git commit -F '\"msg.txt\"'",
     "git add '\"-f\" ignored.txt'",
 ]
@@ -183,9 +180,7 @@ def test_documented_safe_gh_form_still_auto_allows(command):
     assert decide(gate, codex(command)) == ("allow", False)
 
 
-@pytest.mark.parametrize(
-    "command", ["git commit -m fix-typo", "powershell.exe -Command 'git commit -m fix-typo'"]
-)
+@pytest.mark.parametrize("command", ["git commit -m fix-typo", "powershell.exe -Command 'git commit -m fix-typo'"])
 def test_documented_safe_commit_form_is_still_session_granted(command):
     gate = BridgeGate(channel=RecordingChannel(), rules=CODING_RULES)
     assert decide(gate, codex("git commit -m first")) == ("allow_session", True)
@@ -265,6 +260,148 @@ def test_escalated_git_forms_outside_the_session_grant_always_ask(command):
 
 
 # --------------------------------------------------------------------------- #
+# LT-1: Claude Bash wrappers, destructive forms, and routine-work compatibility
+# --------------------------------------------------------------------------- #
+
+LT1_NEW_ASK = [
+    "bash -c 'git push --force origin main'",
+    'sh -c "git push --force origin main"',
+    "python -c \"import subprocess;subprocess.run(['git','push','--force','origin','main'])\"",
+    "/usr/bin/git push --force origin main",
+    "env X=1 git push --force origin main",
+    'eval "git push --force origin main"',
+    "xargs git push --force origin main < list",
+    "git branch -D feature",
+    "git checkout -- .",
+    "git restore .",
+    "git clean -fdx",
+    "git stash drop",
+    "gh pr close 12",
+    "Remove-Item -Recurse -Force build",
+    "del /s /q build",
+    "truncate -s 0 important.db",
+    "> important.db",
+    # Found by the lead's independent probe: restoring paths from a ref overwrites them too.
+    "git checkout main -- src",
+    "git checkout HEAD -- file.py",
+    "git checkout HEAD .",
+]
+LT1_STILL_ASK = [
+    "git push --force origin main",
+    "cd sub && git push --force origin main",
+    "gh pr merge 1",
+    "git reset --hard",
+    "rm x",
+]
+LT1_ROUTINE = [
+    ("python -m pytest tests -q", "allow"),
+    ("ruff check src", "allow"),
+    ("git status", "allow"),
+    ("git diff", "allow"),
+    ("git log -5", "allow"),
+    ("git add -A", "session"),
+    ("git commit -m x", "session"),
+    ("ls", "allow"),
+    ("git checkout feature", "allow"),
+    ("cat file", "allow"),
+    ("pip show x", "allow"),
+    ("python scripts/foo.py --dry-run", "allow"),
+]
+
+
+@pytest.mark.parametrize("command", [*LT1_NEW_ASK, *LT1_STILL_ASK])
+def test_lt1_destructive_and_wrapped_bash_asks_on_every_call(command):
+    assert tier(claude_bash(command)) == "ask"
+    channel = RecordingChannel()
+    gate = BridgeGate(channel=channel, rules=CODING_RULES)
+    # Existing routine grants must never cover an opaque/destructive call.
+    for routine in ("git add -A", "git commit -m x", "git push origin feature", "gh pr create --fill"):
+        assert decide(gate, claude_bash(routine)) == ("allow_session", True)
+    for _ in range(2):
+        assert decide(gate, claude_bash(command)) == ("allow", True)
+        arguments = channel.prompts[-1].split("  arguments: ", 1)[1].splitlines()[0]
+        assert json.loads(arguments) == {"command": command}  # review the original text
+    assert decide(BridgeGate(channel=RecordingChannel(answer=False), rules=CODING_RULES), claude_bash(command)) == (
+        "deny",
+        True,
+    )
+
+
+@pytest.mark.parametrize(("command", "expected"), LT1_ROUTINE)
+def test_lt1_routine_bash_keeps_its_existing_tier(command, expected):
+    assert tier(claude_bash(command)) == expected
+    gate = BridgeGate(channel=RecordingChannel(), rules=CODING_RULES)
+    assert decide(gate, claude_bash(command)) == (
+        ("allow_session", True) if expected == "session" else ("allow", False)
+    )
+    assert decide(gate, claude_bash(command)) == ("allow", False)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "X=1 git push --force origin main",
+        "env X=1 /usr/bin/git push --force origin main",
+        "env X=1 env Y=2 /usr/bin/git push --force origin main",
+        "env -- X=1 git restore .",
+        "./git push --force origin main",
+        '"C:/Program Files/Git/bin/git.exe" push --force origin main',
+        r"C:\tools\git.exe push --force origin main",
+        "cd sub && env X=1 ./git restore .",
+        "zsh -c 'ls'",
+        "/bin/bash -lc 'ls'",
+        "pwsh -Command 'ls'",
+        "powershell.exe -NoProfile -c 'ls'",
+        'cmd /c "dir"',
+        'cmd /c"dir"',
+        "python3.11 -c 'print(1)'",
+        "pythonw.exe -c 'print(1)'",
+        "python -uc 'print(1)'",
+        "node -e 'console.log(1)'",
+        "node --eval='console.log(1)'",
+        "powershell.exe -EncodedCommand ZwBoAA==",
+        "env -S 'git push --force origin main'",
+        "git branch -d feature",
+        "git checkout -- *",
+        "git checkout .",
+        "git stash clear",
+        "gh repo delete a/b --yes",
+        "gh release delete v1",
+        "remove-item build",
+        "rmdir /s /q build",
+        "rd /s /q build",
+        "echo data > important.db",
+        "env X=1 > important.db",
+        "> important.db git status",
+        "echo data 2>important.db",
+        "git add -A > important.db",
+        "git commit -m x > important.db",
+        "git   restore *",
+        "git 'restore' *",
+        "git\trestore .",
+    ],
+)
+def test_lt1_normalized_and_additional_destructive_forms_ask(command):
+    assert tier(claude_bash(command)) == "ask"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "env X=1 /usr/bin/git status",
+        "X=1 ./ruff check src",
+        "ls *.py",
+        "cat 'file with spaces'",
+        "echo 'a > b'",
+        "python -m pytest tests -q 2>&1",
+        "echo log >> output.log",
+    ],
+)
+def test_lt1_prefixes_and_nontruncating_syntax_remain_allowed(command):
+    assert tier(claude_bash(command)) == "allow"
+
+
+# --------------------------------------------------------------------------- #
 # 17/10 fixtures -- Claude Bash calls
 # --------------------------------------------------------------------------- #
 
@@ -284,7 +421,9 @@ s = p.read_text()
 s = s.replace("self.rm (cache)", "self.cache.clear()")  # drop the old rm helper; delete stale rows
 p.write_text(s)
 PYEOF"""
-CLAUDE_4 = 'python _edit.py && rm _edit.py && python -m pytest -q tests/test_econ_calendar.py -k "calendar" 2>&1 | tail -30'
+CLAUDE_4 = (
+    'python _edit.py && rm _edit.py && python -m pytest -q tests/test_econ_calendar.py -k "calendar" 2>&1 | tail -30'
+)
 CLAUDE_5 = "python _docs.py && rm _docs.py && git diff --stat docs; cat C:/Users/x/AppData/Local/Temp/job.output | tail"
 
 
@@ -369,7 +508,7 @@ ADVERSARIAL = [
     # more of the same families
     "powershell.exe -Command 'gh pr view 1; gh pr merge 1'",
     "powershell.exe -Command 'gh pr view 1' ; Remove-Item 'x'",
-    "powershell.exe -Command \"gh pr view 1\" ; Remove-Item \"x\"",
+    'powershell.exe -Command "gh pr view 1" ; Remove-Item "x"',
     "gh pr view 1 | sh",
     "gh pr view 1 || gh pr merge 1",
     "gh pr view `rm -rf .`",
@@ -449,7 +588,7 @@ def test_a_denied_adversarial_escalation_is_denied():
         "gh api /repos/a/b/actions/runs --jq '.workflow_runs[] | .status'",
         "gh.exe pr view 77",
         "pwsh -NoProfile -Command 'gh pr view 77'",
-        "powershell -NoProfile -NonInteractive -c \"gh run list --limit 3\"",
+        'powershell -NoProfile -NonInteractive -c "gh run list --limit 3"',
         "gh pr view 77 --json body --jq=.body",
     ],
 )
@@ -523,7 +662,9 @@ def test_classified_rules_never_match_a_split_segment_under_a_plain_tieredgate()
 
 
 def test_classified_rule_requires_the_original_command():
-    request = ApprovalRequest(provider="codex", kind="command", name="codex-shell", arguments={"command": "gh pr view 1"})
+    request = ApprovalRequest(
+        provider="codex", kind="command", name="codex-shell", arguments={"command": "gh pr view 1"}
+    )
     assert tier(request) == "ask"  # no raw command to verify against: fail closed
 
 

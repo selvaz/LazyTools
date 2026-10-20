@@ -469,14 +469,13 @@ hooks confine file tools to `cwd` and the job's own temp directory, while
 Bash is not path-confined. Requests
 are gated by one `BridgeGate` (a `lazybridge.ext.approval.TieredGate`
 with the structural steps described below) whose rule table
-(`lazytools.code_bridge._policy.CODING_RULES`) mirrors the generic coding
-rules in LazyCEO's own agent: reads/`Write`/`Edit`/`Bash` run free; `git
-add`/`commit`/`push`/`gh pr create` get a one-time-per-run session grant;
-dangerous push forms, pushing to `main`/`master`, `gh pr merge`, `git reset
---hard`, and anything matching `*rm *`/`*delete*` ask every time; and any
-command a coding engine escalates beyond its own sandbox (Codex's
-`approval_policy="on-request"`) asks, except read-only GitHub queries and
-the session-granted simple `git add`/`git commit` described below. The channel behind "ask" is a
+(`lazytools.code_bridge._policy.CODING_RULES`) allows reads/`Write`/`Edit`
+and unlisted Bash commands. Claude Bash uses the explicit ask/session rules
+below; `git add`/`commit`, eligible feature-branch pushes and `gh pr create`
+get a one-time-per-run session grant. Commands a coding engine escalates
+beyond its own sandbox (Codex's `approval_policy="on-request"`) ask, except
+read-only GitHub queries and the session-granted simple `git add`/`git commit`
+described below. The channel behind "ask" is a
 durable, `Store`-backed `ApprovalQueue`
 (default `~/.lazytools/code-bridge.sqlite`, override with
 `LAZYTOOLS_CODE_BRIDGE_DB` / `--db`) — the ticket survives this process
@@ -498,7 +497,7 @@ classifiers on the **whole** command before the stock fnmatch rules.
 | Codex runs `pytest` (needs `tmp_path`) | escalation → ask | runs **inside** the sandbox | The job gets its own temp directory, `<os temp>/lazytools-bridge/<job_id>`, as its **only** extra writable root, with `TEMP`/`TMP`/`TMPDIR` pointing at it (see "Per-job temp directory"). No repo history, no other repository, no network. |
 | Codex escalates a read-only GitHub query: `gh pr view\|checks\|diff`, `gh run view\|list`, `gh api` GET on `repos/...`, bare or inside `powershell.exe -Command '...'` | ask | **allow** | An allow-list over a strict tokeniser (see below). Codex escalates these only because its sandbox has no network; they read and never write. |
 | Codex escalates `git add ...` / `git commit ...` | ask, every time | **session**: first asks, rest of the run granted | The same session semantics the Claude `Bash` rules already give `git add`/`commit`, for one simple command whose options, after quote removal, all come from a short allow-list (below). Scoped to cwd and to that exact rule. |
-| Claude writes a file through a shell heredoc whose *body* contains `delete`/`rm ` | ask | **still asks** — but the writer is told not to do it | Option B: the Claude writer's instructions say to create files only with Write/Edit (already allowed), never heredocs or `echo >`, and to put helper files in its job temp dir. The gate matches the whole `Bash` text, exactly as stock `TieredGate` does. |
+| Claude writes a file through a shell heredoc whose *body* contains `delete`/`rm ` | ask | **still asks** — but the writer is told not to do it | Option B: the Claude writer's instructions say to create files only with Write/Edit (already allowed), never heredocs or `echo >`, and to put helper files in its job temp dir. The gate retains the original text, including heredoc bodies, and also checks normalized command segments. |
 
 **The read-only `gh` classifier** (`is_readonly_gh_query`) returns "allow"
 only when every check passes; anything it does not positively recognise
@@ -573,7 +572,9 @@ Claude writer is instructed instead (system prompt, see
 - use Bash to run programs, not to author files;
 - put temporary helper files in the job's temp directory, created with Write.
 
-A heredoc that slips through still asks, which is the safe failure.
+A heredoc asks when its text hits an ask rule (for example `cat > file`
+or a body containing `rm ` or `delete`). Other heredocs can reach the Bash
+catch-all allow; the gate does not certify their contents.
 
 ### Per-job temp directory
 
@@ -606,14 +607,66 @@ then escalate (and ask), which is the safe failure. On Linux and macOS, `/tmp`
 is refused by the length rule; Codex's own workspace-write sandbox already
 allows `/tmp` and `$TMPDIR` there.
 
-**What still asks, unchanged:** every escalated command not covered above
-(including `git push`, `gh pr create`, any `gh` write, `pytest` if it ever
-escalates); merge, `git reset --hard`, `*rm *`, `*delete*`, pushes to
-`main`/`master` and every dangerous push form for Claude `Bash`; any Bash
-text containing `rm `/`delete`, heredoc bodies included; `rm` of a
-job's own scratch files (deliberately — `*rm *` is not weakened). Codex
-sandbox **network stays off**: that is what forces every `git push` and `gh`
-write to escalate, and so to reach a human.
+### Claude Bash: explicit review rules and default allow
+
+`TieredGate` splits Bash text on `&&`, `||`, `;`, `|` and newlines, then
+uses the most restrictive matching tier. For each segment, `BashRule`
+checks both the original text and a normalized form: leading `VAR=value`
+assignments and `env VAR=value` prefixes are removed, the executable path
+becomes its lowercase basename (also dropping `.exe`), and quotes and
+whitespace are normalized. `/usr/bin/git`, `./git` and `git.exe` therefore
+reach the same git rules. The strict tokenizer is reused where possible;
+a lexical fallback keeps glob arguments usable. Prompts and audit records
+keep the original command. These changes apply only to Claude Bash;
+Codex's whole-command escalation classifiers are unchanged.
+
+The guard asks **on every call**, including after a session grant, for:
+
+- Opaque wrappers: `bash`/`sh`/`zsh` with `-c` (also combined flags such as
+  `-lc`), `pwsh`/`powershell -Command`/`-c`/`-EncodedCommand`/`-enc`, `cmd /c`
+  or `/k`, `eval`, `python`/versioned `python` with `-c`, `node`/`nodejs -e`
+  or `--eval`, and `xargs`. The payload is not judged by command patterns.
+  Unrecognized `env` options, such as `env -S`, also ask.
+- A single unquoted output redirect `>` (including `> file` without an
+  executable, `command > file` and `2>file`). Quoted literal `>` data,
+  append redirects `>>` and descriptor duplication `2>&1` do not trigger
+  this rule.
+
+For other segments, the first matching rule wins. The remaining **ask**
+patterns cover:
+
+- Git: global options before the subcommand (`git -*`); push options,
+  deletion/forced refspecs, destinations containing `main`, `master` or
+  `HEAD`, and implicit pushes without both remote and branch; `git reset
+  --hard*`; branch deletion (`git branch *-D*`/`*-d*`); `git clean*`;
+  `git checkout --*` or `git checkout .*`; `git restore*`; `git stash drop*`
+  or `clear*`.
+- GitHub CLI: `gh pr merge*`, `gh pr close*`, `gh * delete*`.
+- File deletion/truncation: executable names `Remove-Item*`, `del` with
+  arguments, `rmdir*`, `rd` with arguments and `truncate*`, plus the
+  existing broad text patterns `*rm *` and `*delete*`. Those broad patterns
+  still see original text and heredoc bodies, including scratch-file `rm`.
+
+`git add*`, `git commit*`, `gh pr create*` and a push naming both remote and
+branch that avoids the push ask patterns retain their **session** tier: the first
+call asks, subsequent calls matching that rule in the same cwd/run are
+granted. The wrapper/redirect check runs before these session rules.
+The add/commit session rules precede the git/push rules; the `gh pr create`
+session rule precedes the merge/deletion rules. Thus text such as `delete`
+in a commit message or staged filename can still use the session grant.
+Other commands matching an ask rule ask again even after approval.
+
+Everything else reaches the final **allow** rule: for example `python -m
+pytest tests -q`, `ruff check src`, `git status`, `git diff`, `git log -5`,
+`ls`, `cat file`, `pip show x` and `python scripts/foo.py --dry-run`.
+This is a pattern-based review policy, not a shell sandbox or an analysis of
+arbitrary script contents. Unlisted destructive programs, shell aliases and
+other execution syntax can still be allowed. The patterns can also ask for
+innocent text (for example a filename containing `delete`).
+
+**Codex escalations:** every escalated command outside the read-only GitHub
+and simple git add/commit classifiers above still asks. Sandbox network
+stays off, forcing `git push` and `gh` writes to escalate to a human.
 
 ## Engine concurrency limit (machine-wide)
 
