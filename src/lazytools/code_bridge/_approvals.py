@@ -292,14 +292,22 @@ def _bash_shape(command: str) -> tuple[str, bool]:
     elif executable.startswith("python"):
         wrapper |= any(re.match(r"-[A-Za-z]*c", arg) is not None for arg in args)
     elif executable in {"node", "nodejs"}:
-        wrapper |= any(arg in {"-e", "--eval"} or arg.startswith(("-e", "--eval=")) for arg in args)
+        # -p/--print evaluates like -e/--eval; short options may be combined (-pe, -ep).
+        wrapper |= any(
+            arg in {"-e", "--eval", "-p", "--print"}
+            or arg.startswith(("--eval=", "--print="))
+            or (re.fullmatch(r"-[A-Za-z]+", arg) is not None and ("e" in arg[1:] or "p" in arg[1:]))
+            for arg in args
+        )
     elif executable == "git" and args[:1] == ["checkout"]:
         # `git checkout X` restores X when no branch X exists, so even one
         # positional can discard edits; without repository state the gate cannot
         # tell. Every checkout asks except creating a branch (-b/-B) or `-`;
         # switching branches has an unambiguous verb: `git switch`.
         rest = args[1:]
-        creates = bool(rest) and rest[0] in {"-b", "-B"} and len(rest) <= 3 and "--" not in rest
+        # Only a non-forcing `-b <new-branch> [<start-point>]` is exempt: -B resets an
+        # existing branch, and -f/--force (anywhere) throws local changes away.
+        creates = len(rest) in (2, 3) and rest[0] == "-b" and all(not arg.startswith("-") for arg in rest[1:])
         wrapper |= not (creates or rest == ["-"])
     if executable == "gh":
         args = _without_gh_repo_flags(args)

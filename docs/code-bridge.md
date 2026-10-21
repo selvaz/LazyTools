@@ -647,8 +647,9 @@ patterns cover:
   deletion/forced refspecs, destinations containing `main`, `master` or
   `HEAD`, and implicit pushes without both remote and branch; `git reset
   --hard*`; branch deletion (`git branch *-D*`/`*-d*`); `git clean*`;
-  **every `git checkout`** except creating a branch (`git checkout -b|-B
-  name [start]`) and `git checkout -` (a single positional can restore a
+  **every `git checkout`** except a non-forcing `git checkout -b name
+  [start]` and `git checkout -` (`-B` resets an existing branch and `-f`
+  discards local changes, so both ask; a single positional can restore a
   file when no branch of that name exists; use `git switch` to change
   branches, which stays allowed); `git restore*`; `git stash drop*` or
   `clear*`.

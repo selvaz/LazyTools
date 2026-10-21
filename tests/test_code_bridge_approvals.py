@@ -774,3 +774,21 @@ def test_review_comments_and_powershell_prefixes(command, expected):
 )
 def test_review_backslash_escapes_are_read_like_bash(command, expected):
     assert tier(claude_bash(command)) == expected
+
+
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        # Review P1s on #217: node print mode; forcing or resetting checkouts.
+        ("node -p \"require('fs').writeFileSync('important.db','')\"", "ask"),
+        ('node -pe "process.exit(0)"', "ask"),
+        ("node --print 1+1", "ask"),
+        ("node scripts/build.js", "allow"),
+        ("git checkout -b topic -f", "ask"),
+        ("git checkout -B topic origin/main", "ask"),
+        ("git checkout -b topic", "allow"),
+        ("git checkout -b topic origin/main", "allow"),
+    ],
+)
+def test_review_node_print_and_forcing_checkouts(command, expected):
+    assert tier(claude_bash(command)) == expected
