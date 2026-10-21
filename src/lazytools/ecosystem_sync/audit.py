@@ -11,6 +11,7 @@ import json
 import sys
 import tomllib
 from pathlib import Path
+from typing import Any
 
 
 def collect(root: Path, manifest: Path) -> dict:
@@ -25,13 +26,16 @@ def _collect(root: Path, manifest: Path) -> dict:
     script = root / "investmentcommittee" / "scripts" / "ecosystem_audit.py"
     sys.path.insert(0, str(script.parent))
     spec = importlib.util.spec_from_file_location("ecosystem_audit", script)
-    module = importlib.util.module_from_spec(spec)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {script}")
+    module: Any = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     old_root = module.GITHUB if hasattr(module, "GITHUB") else root
     module.GITHUB = root
     if hasattr(module, "APP_RUNTIMES"):
-        module.APP_RUNTIMES = tuple(root / p.relative_to(old_root) if p.is_relative_to(old_root) else p
-                                    for p in module.APP_RUNTIMES)
+        module.APP_RUNTIMES = tuple(
+            root / p.relative_to(old_root) if p.is_relative_to(old_root) else p for p in module.APP_RUNTIMES
+        )
     runtimes = []
     environments = {}
 
@@ -46,7 +50,7 @@ def _collect(root: Path, manifest: Path) -> dict:
         return versions
 
     problems = module.drift(manifest_path=manifest, tag_reader=tag_reader, version_reader=version_reader)
-    news_origin = {"checked": False}
+    news_origin: dict[str, Any] = {"checked": False}
     # The watchdog calls this existing helper separately from drift(). Reuse the
     # same declarative DB registry and policy, never open a DB ourselves.
     if hasattr(module, "news_origin_drift"):
@@ -60,8 +64,13 @@ def _collect(root: Path, manifest: Path) -> dict:
             news_origin = {"checked": True, "path": str(news), "cutover": cutover}
         except Exception as exc:
             problems.append(f"news origin: cannot check configuration ({type(exc).__name__})")
-    return {"problems": problems, "runtimes": runtimes, "environments": environments,
-            "news_origin": news_origin, "source": str(script)}
+    return {
+        "problems": problems,
+        "runtimes": runtimes,
+        "environments": environments,
+        "news_origin": news_origin,
+        "source": str(script),
+    }
 
 
 if __name__ == "__main__":

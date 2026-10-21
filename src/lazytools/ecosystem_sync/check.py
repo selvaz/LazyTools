@@ -11,6 +11,7 @@ import sys
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 CLASSES = ("auto_safe", "session", "owner")
 PROTECTED = "lazytools-mcp-main"
@@ -230,7 +231,8 @@ class Checker:
 
     def inspect_worktrees(self, path, repo, github):
         raw = self.git(path, "worktree", "list", "--porcelain", "-z")
-        records, record = [], {}
+        records: list[dict[str, Any]] = []
+        record: dict[str, Any] = {}
         for token in raw.split("\0"):
             if token.startswith("worktree "):
                 if record:
@@ -326,7 +328,7 @@ class Checker:
             "pr", "checks", number, "--repo", f"selvaz/{repo}", "--json", "name,state,bucket", allowed=(0, 1, 8)
         )
         # --slurp makes pagination one valid JSON array, including an empty page.
-        comments = []
+        comments: list[Any] = []
         for endpoint in (f"issues/{number}/comments", f"pulls/{number}/reviews", f"pulls/{number}/comments"):
             pages = self.gh("api", f"repos/selvaz/{repo}/{endpoint}", "--paginate", "--slurp")
             comments.extend(item for page in pages for item in page)
@@ -550,7 +552,7 @@ class Checker:
         paths = sorted(
             p for p in self.root.iterdir() if p.is_dir() and (p / ".git").exists() and p.name.lower() != PROTECTED
         )
-        groups = {}
+        groups: dict[str, list[Path]] = {}
         for path in paths:
             common = self.attempt(
                 path.name,

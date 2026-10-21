@@ -57,16 +57,34 @@ def main(argv=None):
     # Dates follow the operator's local day; all age calculations use aware times.
     now = datetime.now(UTC).astimezone()
     try:
-        plan = Checker(args.root.resolve(), args.manifest.resolve(), fetch=not args.no_fetch,
-                       stale_days=args.stale_days, now=now).check()
+        plan = Checker(
+            args.root.resolve(), args.manifest.resolve(), fetch=not args.no_fetch, stale_days=args.stale_days, now=now
+        ).check()
     except Exception as exc:
         fact = f"Check initialization failed: {type(exc).__name__}: {exc}"
-        plan = {"schema_version": 1, "generated_at": now.isoformat(), "root": str(args.root),
-                "manifest": str(args.manifest), "fetch": not args.no_fetch, "stale_days": args.stale_days,
-                "actions": [{"class": "session", "repo": "ecosystem", "fact": fact,
-                             "command": command("lazytools-ecosystem-sync", "check", "--root", args.root, "--no-fetch"),
-                             "risk": "Evidence incomplete"}], "observations": [], "errors": [{"repo": "ecosystem", "error": fact}],
-                "repositories": [], "worktrees": [], "pull_requests": [], "production_audit": {}}
+        plan = {
+            "schema_version": 1,
+            "generated_at": now.isoformat(),
+            "root": str(args.root),
+            "manifest": str(args.manifest),
+            "fetch": not args.no_fetch,
+            "stale_days": args.stale_days,
+            "actions": [
+                {
+                    "class": "session",
+                    "repo": "ecosystem",
+                    "fact": fact,
+                    "command": command("lazytools-ecosystem-sync", "check", "--root", args.root, "--no-fetch"),
+                    "risk": "Evidence incomplete",
+                }
+            ],
+            "observations": [],
+            "errors": [{"repo": "ecosystem", "error": fact}],
+            "repositories": [],
+            "worktrees": [],
+            "pull_requests": [],
+            "production_audit": {},
+        }
     try:
         md = write_plan(plan, args.out_dir)
         if args.telegram:
@@ -76,9 +94,15 @@ def main(argv=None):
                 # Never include credentials or arbitrary transport error text.
                 fact = f"Telegram summary delivery failed ({type(exc).__name__})"
                 plan["errors"].append({"repo": "telegram", "error": fact})
-                plan["actions"].append({"class": "session", "repo": "telegram", "fact": fact,
-                                        "command": command("Get-Item", "Env:TELEGRAM_CHAT_ID"),
-                                        "risk": "Check connector configuration and retry notification"})
+                plan["actions"].append(
+                    {
+                        "class": "session",
+                        "repo": "telegram",
+                        "fact": fact,
+                        "command": command("Get-Item", "Env:TELEGRAM_CHAT_ID"),
+                        "risk": "Check connector configuration and retry notification",
+                    }
+                )
                 md = write_plan(plan, args.out_dir)
         print("\n".join(md.splitlines()[:10]))
         print(f"Plans: {args.out_dir / (now.date().isoformat() + '-plan.md')} and .json")
