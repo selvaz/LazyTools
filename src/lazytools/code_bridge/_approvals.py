@@ -269,6 +269,12 @@ def _bash_shape(command: str) -> tuple[str, bool]:
         wrapper |= any(re.match(r"-[A-Za-z]*c", arg) is not None for arg in args)
     elif executable in {"node", "nodejs"}:
         wrapper |= any(arg in {"-e", "--eval"} or arg.startswith(("-e", "--eval=")) for arg in args)
+    elif executable == "git" and args[:1] == ["checkout"]:
+        # `git checkout <tree-ish> <path>` restores paths (discarding edits) even
+        # without `--`; a single positional argument is a branch switch. Two or
+        # more positionals ask (this also catches `-b new start`, a cheap false ask).
+        positional = [arg for arg in args[1:] if not arg.startswith("-")]
+        wrapper |= len(positional) >= 2
     if executable == "gh":
         args = _without_gh_repo_flags(args)
     return " ".join([executable, *args]), truncates or wrapper

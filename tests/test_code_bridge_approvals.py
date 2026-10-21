@@ -723,3 +723,17 @@ def test_redirect_detection_follows_shell_lexing(command, expected):
 )
 def test_review_gh_repo_flags_and_fd_redirects(command, expected):
     assert tier(claude_bash(command)) == expected
+
+
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        # Review P1 on #217: a path restore without `--` still discards edits.
+        ("git checkout HEAD tracked.txt", "ask"),
+        ("git checkout main src/app.py docs/x.md", "ask"),
+        ("git checkout feature", "allow"),
+        ("git checkout -", "allow"),
+    ],
+)
+def test_review_checkout_path_restore_without_separator(command, expected):
+    assert tier(claude_bash(command)) == expected
