@@ -705,3 +705,21 @@ def test_readonly_gh_is_not_allowed_for_tools_only_for_escalations():
 )
 def test_redirect_detection_follows_shell_lexing(command, expected):
     assert tier(claude_bash(command)) == expected
+
+
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        # Review P1s on #217.
+        ("echo replacement >& important.db", "ask"),
+        ("python -m pytest -q 2>&1", "allow"),
+        ("cmd 1>&2", "allow"),
+        ("gh -R owner/repo pr close 12", "ask"),
+        ("gh --repo owner/repo pr close 12", "ask"),
+        ("gh pr -R owner/repo close 12", "ask"),
+        ("gh --repo=owner/repo pr merge 3", "ask"),
+        ("gh -R owner/repo pr view 12", "allow"),
+    ],
+)
+def test_review_gh_repo_flags_and_fd_redirects(command, expected):
+    assert tier(claude_bash(command)) == expected

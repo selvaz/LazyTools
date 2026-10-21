@@ -188,7 +188,36 @@ def _truncating_redirect(command: str) -> bool:
         tokens = list(lexer)
     except ValueError:
         return True
-    return any(token in _TRUNCATING_REDIRECTS for token in tokens)
+    for index, token in enumerate(tokens):
+        if token in _TRUNCATING_REDIRECTS:
+            return True
+        if token == ">&":
+            # `2>&1` duplicates a descriptor; `>& file` opens and truncates a file.
+            target = tokens[index + 1] if index + 1 < len(tokens) else ""
+            if not (target.isdigit() or target == "-"):
+                return True
+    return False
+
+
+def _without_gh_repo_flags(args: list[str]) -> list[str]:
+    """Drop gh's inherited repository selector wherever it appears.
+
+    `gh -R owner/repo pr close 12` and `gh pr -R owner/repo close 12` are the
+    same act as `gh pr close 12`; the patterns are written for the latter.
+    """
+    kept: list[str] = []
+    skip = False
+    for arg in args:
+        if skip:
+            skip = False
+            continue
+        if arg in {"-R", "--repo"}:
+            skip = True
+            continue
+        if arg.startswith("--repo=") or (arg.startswith("-R") and len(arg) > 2):
+            continue
+        kept.append(arg)
+    return kept
 
 
 def _bash_shape(command: str) -> tuple[str, bool]:
@@ -240,6 +269,8 @@ def _bash_shape(command: str) -> tuple[str, bool]:
         wrapper |= any(re.match(r"-[A-Za-z]*c", arg) is not None for arg in args)
     elif executable in {"node", "nodejs"}:
         wrapper |= any(arg in {"-e", "--eval"} or arg.startswith(("-e", "--eval=")) for arg in args)
+    if executable == "gh":
+        args = _without_gh_repo_flags(args)
     return " ".join([executable, *args]), truncates or wrapper
 
 
