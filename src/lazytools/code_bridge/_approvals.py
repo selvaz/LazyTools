@@ -184,6 +184,10 @@ def _truncating_redirect(command: str) -> bool:
     """
     lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
+    # Bash starts a comment only at the beginning of a word; shlex's default
+    # `#` commenter would cut `echo foo#bar > x` before its redirect. With
+    # commenters off a real comment can only add tokens, i.e. extra asks.
+    lexer.commenters = ""
     try:
         tokens = list(lexer)
     except ValueError:
@@ -197,6 +201,14 @@ def _truncating_redirect(command: str) -> bool:
             if not (target.isdigit() or target == "-"):
                 return True
     return False
+
+
+def _powershell_payload_flag(arg: str) -> bool:
+    """True for -Command / -EncodedCommand and every prefix PowerShell accepts for them."""
+    if not arg.startswith(("-", "/")):
+        return False
+    name = arg.lstrip("-/").split(":", 1)[0].lower()
+    return bool(name) and ("command".startswith(name) or "encodedcommand".startswith(name))
 
 
 def _without_gh_repo_flags(args: list[str]) -> list[str]:
@@ -262,7 +274,9 @@ def _bash_shape(command: str) -> tuple[str, bool]:
     if executable in {"bash", "sh", "zsh"}:
         wrapper |= any(re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", arg) is not None for arg in args)
     elif executable in {"pwsh", "powershell"}:
-        wrapper |= any(arg.lower().split(":", 1)[0] in {"-command", "-c", "-encodedcommand", "-enc"} for arg in args)
+        # PowerShell accepts any unambiguous prefix of a parameter name
+        # (-c, -co, -com, ... -command; -e, -en, -enc, ... -encodedcommand).
+        wrapper |= any(_powershell_payload_flag(arg) for arg in args)
     elif executable == "cmd":
         wrapper |= any(arg.lower().startswith(("/c", "/k")) for arg in args)
     elif executable.startswith("python"):

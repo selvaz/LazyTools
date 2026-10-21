@@ -737,3 +737,20 @@ def test_review_gh_repo_flags_and_fd_redirects(command, expected):
 )
 def test_review_checkout_path_restore_without_separator(command, expected):
     assert tier(claude_bash(command)) == expected
+
+
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        # Review P1s on #217: a mid-word '#' is not a comment; PowerShell parameter prefixes.
+        ("echo foo#bar > important.db", "ask"),
+        ("echo hi # > not-a-redirect", "ask"),
+        ('powershell.exe -Com "git push --force origin main"', "ask"),
+        ('powershell -co "Remove-Item x"', "ask"),
+        ("pwsh -enc ZQBjAGgAbwA=", "ask"),
+        ("pwsh -File build.ps1", "allow"),
+        ("python -m pytest tests -q", "allow"),
+    ],
+)
+def test_review_comments_and_powershell_prefixes(command, expected):
+    assert tier(claude_bash(command)) == expected
