@@ -44,8 +44,11 @@ def workspace(tmp_path, monkeypatch):
     git(repo, "push", "-u", "origin", "main")
     git(repo, "remote", "set-head", "origin", "main")
     manifest = tmp_path / "compatibility.toml"
-    manifest.write_text('[verified]\nlazybridge = "1.0.0"\n[verified.github.demo]\n'
-                        'repo = "https://github.com/selvaz/Demo"\nref = "v1.0.0"\n', encoding="utf-8")
+    manifest.write_text(
+        '[verified]\nlazybridge = "1.0.0"\n[verified.github.demo]\n'
+        'repo = "https://github.com/selvaz/Demo"\nref = "v1.0.0"\n',
+        encoding="utf-8",
+    )
     monkeypatch.setattr(Checker, "disk", lambda self: None)
     return root, repo, origin, manifest
 
@@ -91,10 +94,18 @@ def github_git(argv, *, timeout):
 
 
 def pr(repo, state="MERGED", branch="feature", number=1):
-    return {"number": number, "title": "Example change", "state": state, "createdAt": "2026-10-01T00:00:00Z",
-            "updatedAt": "2026-10-20T00:00:00Z", "mergedAt": None if state == "OPEN" else "2026-10-20T00:00:00Z",
-            "headRefName": branch, "headRefOid": git(repo, "rev-parse", branch), "isCrossRepository": False,
-            "url": f"https://github.com/selvaz/Demo/pull/{number}"}
+    return {
+        "number": number,
+        "title": "Example change",
+        "state": state,
+        "createdAt": "2026-10-01T00:00:00Z",
+        "updatedAt": "2026-10-20T00:00:00Z",
+        "mergedAt": None if state == "OPEN" else "2026-10-20T00:00:00Z",
+        "headRefName": branch,
+        "headRefOid": git(repo, "rev-parse", branch),
+        "isCrossRepository": False,
+        "url": f"https://github.com/selvaz/Demo/pull/{number}",
+    }
 
 
 def test_ahead_behind_and_unpushed_branch(workspace, tmp_path):
@@ -164,8 +175,10 @@ def test_manifest_repo_identity_is_case_insensitive(workspace):
     assert plan["repositories"][0]["pinned_expected"]
 
 
-@pytest.mark.parametrize("dirty, state, expected", [(False, "MERGED", "auto_safe"), (True, "MERGED", "session"),
-                                                   (False, "CLOSED", "session")])
+@pytest.mark.parametrize(
+    "dirty, state, expected",
+    [(False, "MERGED", "auto_safe"), (True, "MERGED", "session"), (False, "CLOSED", "session")],
+)
 def test_worktree_pr_state_and_cleanup_class(workspace, dirty, state, expected):
     root, repo, _, _ = workspace
     tree = root / "_wt" / "feature"
@@ -197,15 +210,25 @@ def test_remote_merged_branch_requires_matching_tip(workspace):
     assert not any("Remote branch feature" in a["fact"] for a in plan["actions"])
 
 
-@pytest.mark.parametrize("unresolved, reviewed, buckets, ready", [(False, True, ["pass"], True),
-    (True, True, ["pass"], False), (False, False, ["pass"], False), (False, True, ["fail"], False),
-    (False, True, [], False)])
+@pytest.mark.parametrize(
+    "unresolved, reviewed, buckets, ready",
+    [
+        (False, True, ["pass"], True),
+        (True, True, ["pass"], False),
+        (False, False, ["pass"], False),
+        (False, True, ["fail"], False),
+        (False, True, [], False),
+    ],
+)
 def test_open_pr_review_head_and_ci(workspace, unresolved, reviewed, buckets, ready):
     _, repo, _, _ = workspace
     opened = pr(repo, "OPEN", "main")
-    summary = {"user": {"login": "chatgpt-codex-connector[bot]"}, "updated_at": "2026-10-20T00:00:00Z",
-               "body": json.dumps({"has_unresolved_findings": unresolved}),
-               "commit_id": opened["headRefOid"] if reviewed else "0" * 40}
+    summary = {
+        "user": {"login": "chatgpt-codex-connector[bot]"},
+        "updated_at": "2026-10-20T00:00:00Z",
+        "body": json.dumps({"has_unresolved_findings": unresolved}),
+        "commit_id": opened["headRefOid"] if reviewed else "0" * 40,
+    }
     gh = GitHub([opened], checks=[{"name": "test", "bucket": b, "state": b} for b in buckets], reviews=[summary])
     plan = checker(workspace, git_runner=github_git, gh_runner=gh).check()
     assert not plan["errors"]
@@ -286,7 +309,8 @@ def test_timeout_is_recorded(workspace):
 def test_audit_adapter_reuses_drift_and_captures_runtime_status(tmp_path):
     scripts = tmp_path / "investmentcommittee" / "scripts"
     scripts.mkdir(parents=True)
-    (scripts / "ecosystem_audit.py").write_text('''
+    (scripts / "ecosystem_audit.py").write_text(
+        """
 from pathlib import Path
 def exact_tag(path): return "v1.0.0"
 def installed_versions(python, names): return {"demo": "1.0.0"}
@@ -295,7 +319,9 @@ def drift(*, manifest_path, tag_reader, version_reader):
     tag_reader(GITHUB / "Demo-runtime")
     version_reader(Path("python"), ["demo"])
     return ["runtime Demo: tagged but not deployed"]
-''', encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
     original_path = sys.path[:]
     data = collect(tmp_path, tmp_path / "compatibility.toml")
     assert sys.path == original_path
@@ -311,13 +337,16 @@ def test_news_origin_reuses_sibling_helper_and_declarative_config(tmp_path):
     config.mkdir()
     (config / "job_health.toml").write_text('[watchdog]\nnews_origin_cutover = "2026-10-19T18:15:00Z"\n')
     (config / "databases.toml").write_text('[databases.crawler_raw]\npath = "news.db"\n')
-    (scripts / "ecosystem_audit.py").write_text('''
+    (scripts / "ecosystem_audit.py").write_text(
+        """
 def drift(**kwargs): return []
 def news_origin_drift(path, cutover):
     assert str(path) == "news.db"
     assert cutover == "2026-10-19T18:15:00Z"
     return [{"key": "news-origin", "text": "origin drift", "detail": "existing helper"}]
-''', encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
     data = collect(tmp_path, tmp_path / "compatibility.toml")
     assert data["news_origin"]["checked"]
     assert data["problems"][0]["key"] == "news-origin"
@@ -339,7 +368,9 @@ def test_origin_missing_still_inspects_local_evidence(workspace):
     git(repo, "remote", "remove", "origin")
     (repo / "unsaved.txt").write_text("save me")
     plan = checker(workspace).check()
-    assert plan["errors"]
+    # A missing origin is an owner action, not a check failure.
+    assert plan["errors"] == []
+    assert any(a["class"] == "owner" and "no origin remote" in a["fact"] for a in plan["actions"])
     assert plan["repositories"][0]["untracked"] == 1
     assert plan["repositories"][0]["ahead"] is None
     assert plan["worktrees"]
@@ -356,7 +387,8 @@ def test_unborn_repository_still_reports_dirty_files(workspace):
     assert row["head"] is None
     assert row["untracked"] == 1
     assert row["branch"] == "main"
-    assert len([e for e in plan["errors"] if e["repo"] == "Unborn"]) == 1
+    assert [e for e in plan["errors"] if e["repo"] == "Unborn"] == []
+    assert any(a["repo"] == "Unborn" and "no origin remote" in a["fact"] for a in plan["actions"])
 
 
 def test_audit_drift_is_owner_and_release_difference_session(workspace):
@@ -369,7 +401,9 @@ def test_audit_drift_is_owner_and_release_difference_session(workspace):
 
     def audit(argv, *, timeout):
         assert "-B" in argv and timeout == 300
-        return result({"problems": ["runtime Demo: release set mismatch"], "runtimes": [{"tag": "v0.9.0"}], "environments": {}})
+        return result(
+            {"problems": ["runtime Demo: release set mismatch"], "runtimes": [{"tag": "v0.9.0"}], "environments": {}}
+        )
 
     plan = checker(workspace, audit_runner=audit).check()
     assert plan["production_audit"]["runtimes"]
@@ -381,7 +415,9 @@ def test_cli_writes_ten_line_summary_json_and_exit_codes(workspace, tmp_path, mo
     root, _, _, manifest = workspace
     out = tmp_path / "plans"
     monkeypatch.setattr(cli, "notify", lambda text: pytest.fail("Telegram must be opt-in"))
-    assert cli.main(["check", "--root", str(root), "--manifest", str(manifest), "--out-dir", str(out), "--no-fetch"]) == 0
+    assert (
+        cli.main(["check", "--root", str(root), "--manifest", str(manifest), "--out-dir", str(out), "--no-fetch"]) == 0
+    )
     md = next(out.glob("*.md")).read_text(encoding="utf-8")
     data = json.loads(next(out.glob("*.json")).read_text(encoding="utf-8"))
     assert md.splitlines()[4:7] == ["auto_safe: 0", "session: 0", "owner: 0"]
@@ -401,8 +437,11 @@ def test_telegram_message_and_document(monkeypatch):
     messages, documents = [], []
 
     class Client:
-        def send_message(self, **kwargs): messages.append(kwargs)
-        def send_document(self, **kwargs): documents.append(kwargs)
+        def send_message(self, **kwargs):
+            messages.append(kwargs)
+
+        def send_document(self, **kwargs):
+            documents.append(kwargs)
 
     cli.notify("short summary", client=Client())
     cli.notify("x" * 4001, client=Client())
