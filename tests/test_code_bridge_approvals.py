@@ -302,7 +302,7 @@ LT1_ROUTINE = [
     ("git add -A", "session"),
     ("git commit -m x", "session"),
     ("ls", "allow"),
-    ("git checkout feature", "allow"),
+    ("git switch feature", "allow"),
     ("cat file", "allow"),
     ("pip show x", "allow"),
     ("python scripts/foo.py --dry-run", "allow"),
@@ -731,8 +731,12 @@ def test_review_gh_repo_flags_and_fd_redirects(command, expected):
         # Review P1 on #217: a path restore without `--` still discards edits.
         ("git checkout HEAD tracked.txt", "ask"),
         ("git checkout main src/app.py docs/x.md", "ask"),
-        ("git checkout feature", "allow"),
+        # A single positional can restore a file too (no branch of that name): asks.
+        ("git checkout feature", "ask"),
+        ("git checkout tracked.txt", "ask"),
         ("git checkout -", "allow"),
+        ("git checkout -b feature origin/main", "allow"),
+        ("git switch feature", "allow"),
     ],
 )
 def test_review_checkout_path_restore_without_separator(command, expected):
@@ -753,4 +757,20 @@ def test_review_checkout_path_restore_without_separator(command, expected):
     ],
 )
 def test_review_comments_and_powershell_prefixes(command, expected):
+    assert tier(claude_bash(command)) == expected
+
+
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        # Review P1 on #217: Bash removes backslash escapes before running the command.
+        (r"g\it restore .", "ask"),
+        (r"git branch -\D feature", "ask"),
+        # An unquoted Windows path is ambiguous to Bash (it drops the backslashes): asks.
+        (r"python C:\tools\build.py --dry-run", "ask"),
+        (r'python "C:\tools\build.py" --dry-run', "allow"),
+        ("echo 'unbalanced", "ask"),
+    ],
+)
+def test_review_backslash_escapes_are_read_like_bash(command, expected):
     assert tier(claude_bash(command)) == expected

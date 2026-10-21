@@ -632,6 +632,14 @@ The guard asks **on every call**, including after a session grant, for:
   append redirects `>>` and descriptor duplication `2>&1` do not trigger
   this rule.
 
+Segments are read the way Bash reads them (quotes removed, backslash escapes
+applied, `#` is not treated as a comment inside a word). A segment the lexer
+cannot read unambiguously — unbalanced quotes, a dangling escape, or an
+unquoted backslash such as a bare Windows path, which Bash would mangle —
+**asks**. The ask list is a best-effort deny list over normalised text, not a
+proof of safety: the catch-all allow below still applies to everything it
+does not name.
+
 For other segments, the first matching rule wins. The remaining **ask**
 patterns cover:
 
@@ -639,8 +647,11 @@ patterns cover:
   deletion/forced refspecs, destinations containing `main`, `master` or
   `HEAD`, and implicit pushes without both remote and branch; `git reset
   --hard*`; branch deletion (`git branch *-D*`/`*-d*`); `git clean*`;
-  `git checkout --*` or `git checkout .*`; `git restore*`; `git stash drop*`
-  or `clear*`.
+  **every `git checkout`** except creating a branch (`git checkout -b|-B
+  name [start]`) and `git checkout -` (a single positional can restore a
+  file when no branch of that name exists; use `git switch` to change
+  branches, which stays allowed); `git restore*`; `git stash drop*` or
+  `clear*`.
 - GitHub CLI: `gh pr merge*`, `gh pr close*`, `gh * delete*`.
 - File deletion/truncation: executable names `Remove-Item*`, `del` with
   arguments, `rmdir*`, `rd` with arguments and `truncate*`, plus the

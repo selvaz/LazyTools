@@ -165,8 +165,6 @@ def unwrap_powershell(command: str) -> str:
 # --------------------------------------------------------------------------- #
 
 
-_BASH_WORD = re.compile(r"""(?:[^\s'"<>&;|]+|'[^']*'|"[^"]*")+|[<>&;|]+""")
-_BASH_QUOTES = re.compile(r"""(?:'[^']*'|"[^"]*")""")
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
 
@@ -249,9 +247,21 @@ def _bash_shape(command: str) -> tuple[str, bool]:
     if strict is not None:
         words = [word.text for word in strict]
     else:
-        # This is deliberately more permissive than the Codex tokenizer:
-        # ordinary Bash arguments may contain globs, Windows paths, etc.
-        words = [_BASH_QUOTES.sub(lambda quote: quote[0][1:-1], match[0]) for match in _BASH_WORD.finditer(command)]
+        # More permissive than the Codex tokenizer (globs, paths), but words are
+        # read the way Bash reads them: quotes removed and backslash escapes
+        # applied (`g\it restore .` is `git restore .`). Input POSIX lexing
+        # cannot read (unbalanced quotes, dangling escape) asks.
+        # An unquoted backslash is ambiguous here (Bash drops it, so
+        # `C:\tools\git.exe` becomes `C:toolsgit.exe`): ask rather than guess.
+        if "\\" in re.sub(r"'[^']*'|\"[^\"]*\"", "", command):
+            return command, True
+        lexer = shlex.shlex(command, posix=True)
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        try:
+            words = list(lexer)
+        except ValueError:
+            return command, True
     i = 0
     while i < len(words):
         while i < len(words) and _ASSIGNMENT.match(words[i]):
@@ -284,11 +294,13 @@ def _bash_shape(command: str) -> tuple[str, bool]:
     elif executable in {"node", "nodejs"}:
         wrapper |= any(arg in {"-e", "--eval"} or arg.startswith(("-e", "--eval=")) for arg in args)
     elif executable == "git" and args[:1] == ["checkout"]:
-        # `git checkout <tree-ish> <path>` restores paths (discarding edits) even
-        # without `--`; a single positional argument is a branch switch. Two or
-        # more positionals ask (this also catches `-b new start`, a cheap false ask).
-        positional = [arg for arg in args[1:] if not arg.startswith("-")]
-        wrapper |= len(positional) >= 2
+        # `git checkout X` restores X when no branch X exists, so even one
+        # positional can discard edits; without repository state the gate cannot
+        # tell. Every checkout asks except creating a branch (-b/-B) or `-`;
+        # switching branches has an unambiguous verb: `git switch`.
+        rest = args[1:]
+        creates = bool(rest) and rest[0] in {"-b", "-B"} and len(rest) <= 3 and "--" not in rest
+        wrapper |= not (creates or rest == ["-"])
     if executable == "gh":
         args = _without_gh_repo_flags(args)
     return " ".join([executable, *args]), truncates or wrapper
