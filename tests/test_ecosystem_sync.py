@@ -211,18 +211,21 @@ def test_remote_merged_branch_requires_matching_tip(workspace):
 
 
 @pytest.mark.parametrize(
-    "unresolved, reviewed, buckets, ready",
+    "unresolved, reviewed, buckets, ready, draft",
     [
-        (False, True, ["pass"], True),
-        (True, True, ["pass"], False),
-        (False, False, ["pass"], False),
-        (False, True, ["fail"], False),
-        (False, True, [], False),
+        (False, True, ["pass"], True, False),
+        (True, True, ["pass"], False, False),
+        (False, False, ["pass"], False, False),
+        (False, True, ["fail"], False, False),
+        (False, True, [], False, False),
+        # Review P2 on #218: a draft is never proposed for merge.
+        (False, True, ["pass"], False, True),
     ],
 )
-def test_open_pr_review_head_and_ci(workspace, unresolved, reviewed, buckets, ready):
+def test_open_pr_review_head_and_ci(workspace, unresolved, reviewed, buckets, ready, draft):
     _, repo, _, _ = workspace
     opened = pr(repo, "OPEN", "main")
+    opened["isDraft"] = draft
     summary = {
         "user": {"login": "chatgpt-codex-connector[bot]"},
         "updated_at": "2026-10-20T00:00:00Z",

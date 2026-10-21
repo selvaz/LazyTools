@@ -219,7 +219,7 @@ class Checker:
                 "--limit",
                 "1000",
                 "--json",
-                "number,title,state,createdAt,updatedAt,mergedAt,headRefName,headRefOid,isCrossRepository,url",
+                "number,title,state,isDraft,createdAt,updatedAt,mergedAt,headRefName,headRefOid,isCrossRepository,url",
             ]
             if head:
                 args += ["--head", head]
@@ -354,7 +354,8 @@ class Checker:
             )
         )
         green = bool(checks) and all(c["bucket"] == "pass" for c in checks)
-        ready = green and reviewed and unresolved is False and not pr.get("isCrossRepository")
+        # A draft is intentionally not ready, whatever its checks and review say.
+        ready = green and reviewed and unresolved is False and not pr.get("isCrossRepository") and not pr.get("isDraft")
         row = {
             **pr,
             "repo": repo,
