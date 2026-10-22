@@ -18,11 +18,11 @@
 
 schema_version = 1
 
-# Release set: ecosystem-2026.10.7 (20/10/2026). Every repo, runtime and production
+# Release set: ecosystem-2026.10.8 (22/10/2026). Every repo, runtime and production
 # environment uses exactly these refs. LazyFin is deliberately outside the train.
 [verified]
 python = ["3.11", "3.12", "3.13"]
-lazybridge = "1.8.2"
+lazybridge = "1.8.3"
 
 # Immutable GitHub refs of the verified, co-installable combination.
 # ``extras`` are the extras exercised by the released-artifact CI.
