@@ -8,6 +8,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `lazytools-ecosystem-sync check`: deterministic daily Git/GitHub, worktree,
+  release/runtime audit and disk inspection that writes dated Markdown/JSON
+  realignment plans with `auto_safe`, `session` and `owner` actions. Fetch is
+  optional; all proposed realignment commands remain unapplied.
+
 ### Fixed
 - MCP session listings default to the 50 most recently updated aliases (hard cap
   200), support `since_days`, and return `sessions`, `total` and `returned` while
