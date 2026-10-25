@@ -8,6 +8,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Code bridge R12: checkpoint committed/pushed progress after a durable turn
+  timeout and resume the same thread, up to `--max-continuations` (default 3).
+  Add `partial`, per-turn commit/ref history in status/results, waiting across
+  continuations, and `--max-wall` alongside the per-turn `--timeout`.
+- Code bridge R13: enable an audited `routine-auto` TieredGate tier by default,
+  backed by a packaged, extensible TOML allow-list. Configure scratch roots and
+  Python paths in `[routine_auto]`, or opt out with `--no-routine-auto`.
+  Record consumed tickets with `approved_by` and matched rule ids; reject
+  compound commands, unsafe flags and output paths outside the scratch root.
+
 ### Fixed
 - MCP session listings default to the 50 most recently updated aliases (hard cap
   200), support `since_days`, and return `sessions`, `total` and `returned` while

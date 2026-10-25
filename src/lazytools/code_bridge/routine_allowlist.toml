@@ -1,0 +1,58 @@
+# Full matches over normalised, strictly tokenised commands. {python} is
+# escaped at load time. Named scratch/bridge_temp groups enforce confinement.
+[[rules]]
+id = "gh-pr-read"
+pattern = 'gh pr (?:view|checks) [0-9]+(?: .+)?'
+validator = "gh-read"
+
+[[rules]]
+id = "gh-pr-list"
+pattern = 'gh pr list --head [\w./-]+(?: .+)?'
+validator = "gh-read"
+
+[[rules]]
+id = "gh-run-read"
+pattern = 'gh run (?:view|watch) [0-9]+(?: .+)?'
+validator = "gh-read"
+
+[[rules]]
+id = "gh-run-list"
+pattern = 'gh run list(?: .+)?'
+validator = "gh-read"
+
+[[rules]]
+id = "gh-job-logs"
+pattern = 'gh api repos/selvaz/[\w.-]+/actions/jobs/[0-9]+/logs'
+
+[[rules]]
+id = "gh-comments-reviews"
+pattern = 'gh api repos/selvaz/[\w.-]+/(?:pulls|issues)/[0-9]+/(?:comments|reviews)'
+
+[[rules]]
+id = "gh-pr-body"
+pattern = 'gh pr edit [0-9]+ --body-file (?P<bridge_temp>[^ ]+)'
+
+[[rules]]
+id = "git-add-paths"
+pattern = 'git add -- .+'
+
+[[rules]]
+id = "git-fetch"
+pattern = 'git fetch origin'
+
+[[rules]]
+id = "git-merge"
+pattern = 'git merge --no-edit origin/(?:main|(?:feat|fix|docs|research)/[\w.-]+)'
+
+[[rules]]
+id = "git-push-feature"
+pattern = 'git push origin (?:feat|fix|docs|release)/[\w.-]+'
+
+[[rules]]
+id = "pytest-scratch"
+pattern = '{python} (?:-B )?-m pytest .+'
+validator = "pytest"
+
+[[rules]]
+id = "macro-verifier-scratch"
+pattern = '{python} -B scripts/verify_macro_\w+\.py --source C:/ProgramData/InvestmentCommittee/live/db/macro_releases\.sqlite --destination-root (?P<scratch>[^ ]+)(?: --families [\w,]+)?'

@@ -23,7 +23,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _concurrency, _engines, _progress, _store, _tempdir
+from lazytools.code_bridge import _concurrency, _engines, _progress, _routine, _store, _tempdir
 from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._lockfile import JobLock
 from lazytools.code_bridge._policy import CODING_RULES
@@ -303,6 +303,8 @@ def run_job(
     timeout: float = _engines.DEFAULT_TIMEOUT,
     max_continuations: int = DEFAULT_MAX_CONTINUATIONS,
     max_wall: float | None = None,
+    routine_auto: bool | None = None,
+    scratch_root: str | None = None,
     wait_for_slot: bool = False,
     on_slot_wait: Callable[[_concurrency.EngineBusy], None] | None = None,
 ) -> RunResult:
@@ -328,6 +330,7 @@ def run_job(
     if max_wall is not None and (not math.isfinite(max_wall) or max_wall <= 0):
         raise ValueError("--max-wall must be a finite number greater than 0")
     wall_started = time.monotonic()
+    routine_policy = _routine.load_policy(enabled=routine_auto, scratch_root=scratch_root)
     resolved_cwd = _engines.resolve_cwd(cwd, root)
 
     # A detached launch (`run --detach`) picks the id in the parent so it can
@@ -361,7 +364,8 @@ def run_job(
         slot = _concurrency.EngineSlot(
             engine_name, slot_config.limits.get(engine_name), slot_config.slot_dir, db_path=store_path
         )
-        slot.acquire(job_id, wait=wait_for_slot, on_wait=on_slot_wait)
+        slot.acquire(job_id, wait=wait_for_slot, on_wait=on_slot_wait,
+                     deadline=None if max_wall is None else wall_started + max_wall)
     except BaseException:
         lock.release()
         raise
@@ -408,7 +412,8 @@ def run_job(
             # whole contract is "never raises for an engine-side failure").
             # Found by Codex review.
             body = text if status == "done" else f"[{status}] {error}"
-            history = _progress.history_text((_store.read_meta(store, job_id) or {}).get("turns", []))
+            turns = (_store.read_meta(store, job_id) or {}).get("turns", [])
+            history = _progress.history_text(turns) if len(turns) > 1 or any(t["progress"] for t in turns) or status != "done" else ""
             if history:
                 body += f"\n\n{history}"
             try:
@@ -457,6 +462,8 @@ def run_job(
                 "timeout": timeout,
                 "max_continuations": max_continuations,
                 "max_wall": max_wall,
+                "routine_auto": routine_policy.enabled,
+                "scratch_root": routine_policy.scratch_root,
                 "continuations": 0,
                 "turns": [],
                 "head_at_start": head_at_start,
@@ -477,7 +484,8 @@ def run_job(
             on_waiting=lambda: _set_status("awaiting_approval"),
             on_resumed=lambda: _set_status("running"),
         )
-        gate = BridgeGate(channel=channel, rules=CODING_RULES)
+        gate = BridgeGate(channel=channel, rules=CODING_RULES,
+                          routine=_routine.RoutineAuto(routine_policy, store, queue, job_id))
 
         from lazybridge.engines.sessions import default_session_registry
 
@@ -530,16 +538,23 @@ def run_job(
                 _store.write_meta(store, job_id, meta)
                 started = time.time()
                 wall_expired = False
+                deadline = asyncio.timeout(min(timeout, remaining) if remaining is not None else timeout)
                 try:
-                    async with asyncio.timeout(min(timeout, remaining) if remaining is not None else timeout):
+                    async with deadline:
                         env = await _run_agent(engine, prompt, agent_name)
                 except TimeoutError as exc:
-                    wall_expired = remaining is not None and remaining <= timeout
+                    wall_expired = deadline.expired() and remaining is not None and remaining <= timeout
+                    env = Envelope.error_envelope(exc)
+                except Exception as exc:
+                    # Coding engines normally return an error Envelope, but
+                    # an embedding can raise the same durable timeout.
                     env = Envelope.error_envelope(exc)
                 evidence = _progress.changes(lock.cwd, before, _progress.snapshot(lock.cwd))
                 timed_out = not env.ok and env.error is not None and (
                     env.error.type == "TimeoutError" or "Turn timed out on durable thread" in env.error.message
                 )
+                if timed_out:
+                    close_pending_tickets(store, job_id, "turn timed out; approval no longer actionable")
                 turns.append({
                     "turn": turn, "started_at": started, "ended_at": time.time(),
                     "outcome": "done" if env.ok else "checkpoint" if timed_out and evidence["progress"] else "failed",
@@ -554,11 +569,13 @@ def run_job(
                 message = env.error.message if env.error else "unknown error"
                 if not timed_out:
                     return _finish("failed", "", message)
+                if wall_expired or (max_wall is not None and time.monotonic() - wall_started >= max_wall):
+                    progressed = any(t["progress"] for t in turns)
+                    return _finish("partial" if progressed else "failed", "",
+                                   "max wall reached after progress" if progressed else "no progress: max wall reached")
                 if not evidence["progress"]:
                     return _finish("failed", "", f"no progress: {message or 'turn timed out'}")
                 _set_status("checkpoint")
-                if wall_expired or (max_wall is not None and time.monotonic() - wall_started >= max_wall):
-                    return _finish("partial", "", "max wall reached after progress")
                 if turn == max_continuations:
                     return _finish("partial", "", "automatic continuations exhausted after progress")
                 if not turns[-1]["thread_id"]:

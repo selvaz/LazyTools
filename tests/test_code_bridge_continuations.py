@@ -3,12 +3,14 @@
 import asyncio
 import json
 import subprocess
+import time
+from types import SimpleNamespace
 
 import pytest
 from lazybridge import Envelope
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _jobs, _store, cli
+from lazytools.code_bridge import _concurrency, _jobs, _store, cli
 
 
 def git(repo, *args):
@@ -38,7 +40,18 @@ def row(repo, result):
     return _jobs.find_job(store, _store.build_job_registry(store), result.job_id)
 
 
-@pytest.mark.parametrize("raised", [False, True])
+@pytest.fixture
+def wall_clock(monkeypatch):
+    # Git startup latency is unrelated to the timeout behavior under test.
+    # Keep asyncio's real timer, but control the bridge's remaining budget.
+    now = [0.0]
+    clock = SimpleNamespace(time=time.time, monotonic=lambda: now[0], sleep=time.sleep)
+    monkeypatch.setattr(_jobs, "time", clock)
+    monkeypatch.setattr(_concurrency, "time", clock)
+    return now
+
+
+@pytest.mark.parametrize("raised", [False, "timeout", "durable"])
 def test_commit_then_timeout_resumes_same_thread_and_finishes(workspace, monkeypatch, capsys, raised):
     calls = []
     commits = []
@@ -49,8 +62,10 @@ def test_commit_then_timeout_resumes_same_thread_and_finishes(workspace, monkeyp
         git(workspace, "commit", "--allow-empty", "-m", f"step {len(calls)}")
         commits.append(git(workspace, "rev-parse", "HEAD"))
         if len(calls) == 1:
-            if raised:
+            if raised == "timeout":
                 raise TimeoutError("turn deadline")
+            if raised == "durable":
+                raise RuntimeError(f"Turn timed out on durable thread {engine.handle}; whether it was committed is unknown")
             return Envelope.error_envelope(RuntimeError(f"Turn timed out on durable thread {engine.handle}; whether it was committed is unknown"))
         return Envelope(payload="finished")
 
@@ -122,7 +137,7 @@ def test_push_only_progress_resumes(workspace, monkeypatch):
     assert checkpoint["pushed_refs"][0]["ref"] == "refs/heads/feat/progress"
 
 
-def test_wall_cap_cancels_turn_after_progress(workspace, monkeypatch):
+def test_wall_cap_cancels_turn_after_progress(workspace, monkeypatch, wall_clock):
     async def turn(engine, *args):
         engine.finish_turn()
         git(workspace, "commit", "--allow-empty", "-m", "step")
@@ -133,6 +148,41 @@ def test_wall_cap_cancels_turn_after_progress(workspace, monkeypatch):
     assert result.status == "partial"
     assert "max wall" in result.error
     assert row(workspace, result)["continuations"] == 0
+
+
+def test_wall_cap_keeps_earlier_checkpoint_when_latest_turn_has_no_commit(workspace, monkeypatch, wall_clock):
+    calls = []
+
+    async def turn(engine, *args):
+        engine.finish_turn()
+        calls.append(1)
+        if len(calls) == 1:
+            git(workspace, "commit", "--allow-empty", "-m", "step")
+            wall_clock[0] = 2.0
+            raise TimeoutError("turn deadline")
+        await asyncio.sleep(20)
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace, timeout=10, max_wall=3)
+    assert result.status == "partial"
+    assert "max wall" in result.error
+    assert row(workspace, result)["continuations"] == 1
+
+
+def test_wall_cap_during_approval_closes_ticket(workspace, monkeypatch, wall_clock):
+    async def turn(engine, *args):
+        engine.finish_turn()
+        store = _store.build_store(workspace.parent / "jobs.sqlite")
+        job = _jobs.list_jobs(store)[0]
+        _store.build_approval_queue(store).create_ticket(task_id=job["job_id"], prompt="waiting")
+        await asyncio.sleep(20)
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace, timeout=10, max_wall=2)
+    assert result.status == "failed"
+    assert result.error.startswith("no progress:")
+    tickets = [raw for _, raw in _store.build_store(workspace.parent / "jobs.sqlite").items(prefix=_store.APPROVAL_PREFIX)]
+    assert tickets[0]["status"] == "rejected"
 
 
 def test_wait_crosses_checkpoint(monkeypatch, capsys):
@@ -151,3 +201,30 @@ def test_invalid_limits_refused_before_detach(workspace, monkeypatch, flags):
     monkeypatch.setattr(cli, "_spawn_detached", lambda *a: pytest.fail("spawned"))
     assert cli.main(["run", "--detach", "--engine", "codex", "--cwd", str(workspace),
                      "--root", str(workspace.parent), "--task", "x", *flags]) == 2
+
+
+def test_slot_wait_respects_total_wall_cap(tmp_path, monkeypatch):
+    slot = _concurrency.EngineSlot("codex", 1, tmp_path)
+    now = [0.0]
+
+    def busy(*args):
+        raise _concurrency.EngineBusy("codex", 1, [])
+
+    monkeypatch.setattr(_concurrency.EngineSlot, "try_acquire", busy)
+    monkeypatch.setattr(_concurrency.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(_concurrency.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds))
+    with pytest.raises(ValueError, match="max-wall"):
+        slot.acquire("job", wait=True, deadline=2)
+    assert now[0] == 2
+
+
+def test_detached_child_receives_recovery_and_routine_options(tmp_path):
+    parser = cli.build_parser()
+    args = parser.parse_args(["run", "--engine", "codex", "--cwd", str(tmp_path), "--task", "x",
+                              "--max-continuations", "2", "--max-wall", "600", "--scratch-root", "E:/Scratch",
+                              "--no-routine-auto"])
+    child = parser.parse_args(cli._child_argv(args, "job")[3:])
+    assert child.max_continuations == 2
+    assert child.max_wall == 600
+    assert child.scratch_root == "E:/Scratch"
+    assert child.routine_auto is False

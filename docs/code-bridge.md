@@ -148,6 +148,54 @@ waiting and does not cancel the job. Read that evidence before starting over.
 
 ## Timeout, workspace evidence, and cancellation
 
+### Committed progress survives turn timeouts (R12)
+
+`--timeout` is a **per-turn** budget (default 3600 seconds), including time
+spent waiting for approvals. A durable turn timeout is not itself a job
+failure. Before each turn the worker snapshots HEAD and reads origin's branch
+refs with `git ls-remote --heads origin`; after the turn it records the new
+commit SHAs and changed remote refs. These reads do not fetch or change the
+workspace. A failed snapshot is recorded as unavailable evidence, never as
+an empty baseline that would count historical commits as new work.
+
+| Transition | Meaning |
+| --- | --- |
+| `running` → `awaiting_approval` → `running` | An ordinary ticket needs an answer |
+| `running` → `done` | The engine finished successfully |
+| Timeout with a new commit or pushed ref → `checkpoint` → `running` | Resume the same durable thread with a fresh per-turn budget |
+| Timeout without a new commit or pushed ref → `failed` | Error begins `no progress:`; dirty files alone do not count |
+| Timeout with progress after the continuation budget is spent → `partial` | Committed work is retained for review |
+| Wall cap reached → `partial` after progress, otherwise `failed` | No further continuation starts |
+| Explicit cancellation or worker interruption → `interrupted` | Existing cancellation behavior |
+
+`run --max-continuations N` defaults to **3** automatic continuations after
+the initial turn; `0` disables continuation. Each continuation sends exactly:
+
+> continue from the last commit; re-read the brief's Done-when; do not redo committed steps
+
+The worker keeps the same engine instance, thread/session, approval gate,
+repository lock and engine slot. A timeout closes that turn's outstanding
+tickets. Without a durable handle it records `partial` rather than starting
+a fresh thread. Non-timeout engine errors still fail normally.
+
+`run --max-wall SECONDS` adds a total wall-clock budget (default **unlimited**).
+Approval and engine-slot waits count toward it; the next turn receives at
+most the remaining budget. If it expires before slot admission, launch exits
+2 without starting a job. Final Git evidence and result persistence are
+best-effort cleanup and may outlast the engine deadline. `--timeout` and
+`wait --timeout` retain their separate meanings: the
+latter only stops the waiter. `wait` keeps polling through `checkpoint` and
+all continuations. `partial`, `failed` and `interrupted` return exit **1**;
+`done` returns **0**.
+
+`status` and `result` show each initial/continuation turn and its commit SHAs
+and pushed refs. Their JSON records include `continuations` (continuations
+started), `max_continuations`, `max_wall`, and `turns` with `turn` (initial is
+0), timestamps, durable handle, outcome, commit list and ref before/after
+SHAs. The result file retains the same history, including for `partial` jobs.
+Only origin is inspected for pushed-ref progress; an unavailable remote read
+still permits continuation on independently observed local commit progress.
+
 `run --timeout SECONDS` sets the engine request timeout for Codex or Claude
 (a positive, finite float; default **3600** seconds). It also applies to
 `run --detach`: the parent validates it before spawning and forwards it to
@@ -178,7 +226,8 @@ Git checks are best-effort, with a ten-second timeout per
 subprocess; a non-git directory reports `workspace: not a git repo`, and
 an inspection failure reports `workspace: unavailable (<reason>)` with
 unavailable fields set to `null`. This evidence helps assess a timed-out
-or crashed turn; the bridge does not resume or retry that turn.
+or crashed turn; only the progress-aware timeout continuation described above
+resumes automatically.
 
 Stop an active job by full id or unique prefix:
 
@@ -475,7 +524,7 @@ add`/`commit`/`push`/`gh pr create` get a one-time-per-run session grant;
 dangerous push forms, pushing to `main`/`master`, `gh pr merge`, `git reset
 --hard`, and anything matching `*rm *`/`*delete*` ask every time; and any
 command a coding engine escalates beyond its own sandbox (Codex's
-`approval_policy="on-request"`) asks, except read-only GitHub queries and
+`approval_policy="on-request"`) asks, except the routine-auto tier, read-only GitHub queries and
 the session-granted simple `git add`/`git commit` described below. The channel behind "ask" is a
 durable, `Store`-backed `ApprovalQueue`
 (default `~/.lazytools/code-bridge.sqlite`, override with
@@ -483,6 +532,85 @@ durable, `Store`-backed `ApprovalQueue`
 exiting, which is the whole point: a human answers it from an entirely
 different process (this bridge's `approve`/`reject`, or any other surface
 that reads the same queue).
+
+### Routine auto-approval (R13)
+
+`BridgeGate` adds a **routine-auto** tier before the existing rule table,
+enabled by default. Every match creates and consumes an approved ticket in
+the same Store, with `approved_by = "routine-auto"`, `actor = "routine-auto"`,
+`matched_rule_id`, the original command and cwd. Auto-approvals are auditable
+under `code-bridge:approval:` and do not appear in `pending`. A miss falls
+through to the existing rules and human ticket channel; it earns no routine
+session grant.
+
+Configuration lives beside `[concurrency]` in `~/.lazytools/code-bridge.toml`
+(or `$LAZYTOOLS_CODE_BRIDGE_CONFIG`):
+
+```toml
+[routine_auto]
+enabled = true
+scratch_root = "D:/Temp"
+# Defaults to the Python executable running the bridge:
+python_executable = "C:/ProgramData/spyder-6/python.exe"
+# Optional extra rules; relative paths resolve beside this config file:
+allowlist = "routine-extra.toml"
+```
+
+`scratch_root` defaults to `D:/Temp` on Windows and the system temp directory
+elsewhere. It must be absolute. `run --scratch-root PATH` overrides it.
+`--no-routine-auto` disables this tier; `--routine-auto` enables it regardless
+of the config. Neither changes the deployed environment or grants new
+sandbox writable roots. PR body files must be children of the system temp
+directory's `lazytools-bridge` folder.
+
+The packaged `lazytools/code_bridge/routine_allowlist.toml` contains:
+
+| Rule id | Allowed command |
+| --- | --- |
+| `gh-pr-read` | `gh pr view N`, `gh pr checks N`, including read-only output/watch flags |
+| `gh-pr-list` | `gh pr list --head BRANCH` with read-only filters/output |
+| `gh-run-read` | `gh run view N`, `gh run watch N` with read-only flags |
+| `gh-run-list` | `gh run list` with read-only filters/output |
+| `gh-job-logs` | `gh api repos/selvaz/REPO/actions/jobs/N/logs` |
+| `gh-comments-reviews` | GET `gh api repos/selvaz/REPO/{pulls,issues}/N/{comments,reviews}` |
+| `gh-pr-body` | `gh pr edit N --body-file FILE` under the bridge temp folder |
+| `git-add-paths` | `git add -- PATH...` |
+| `git-fetch` | `git fetch origin` |
+| `git-merge` | `git merge --no-edit origin/main` or `origin/{feat,fix,docs,research}/NAME` |
+| `git-push-feature` | `git push origin {feat,fix,docs,release}/NAME` |
+| `pytest-scratch` | Configured Python, optional `-B`, `-m pytest`, exactly one `--basetemp` strictly below `scratch_root` |
+| `macro-verifier-scratch` | Configured Python `-B scripts/verify_macro_NAME.py --source C:/ProgramData/InvestmentCommittee/live/db/macro_releases.sqlite --destination-root PATH`, optional `--families a,b`; PATH inside `scratch_root` |
+
+Commands are matched in full after normalising backslash runs to `/`,
+stripping a recognised PowerShell wrapper and removing literal argument
+quotes with strict tokenisation. Only the exact
+`$env:PYTHONPATH=(Get-Location).Path; ` prefix (pytest only) and a leading
+`& ` call operator are accepted. Semicolons (even inside quotes), `&`,
+backticks, `$`, newlines, redirection and shell pipes are rejected. A pipe
+inside a quoted `--jq`/`-q` expression is literal data and is accepted.
+Embedded quote/escape characters fail closed. Scratch paths reject traversal,
+sibling-prefix tricks, duplicate basetemp overrides and symlink escapes.
+Force pushes, pushes to main/master, PR merges, GraphQL mutations, process
+kills and impersonation downloads earn no routine approval.
+
+To extend the allow-list, create the optional TOML file with additional
+unique ids and Python regular expressions. Patterns use **fullmatch**, and
+still pass through the shared command syntax checks:
+
+```toml
+[[rules]]
+id = "local-git-status"
+pattern = 'git status --short'
+```
+
+Optional `validator = "gh-read"` applies the strict read-only GitHub flag
+parser; `validator = "pytest"` applies the scratch basetemp check. The
+`{python}` placeholder is replaced by the escaped configured executable.
+Named regex groups `(?P<scratch>...)` and `(?P<bridge_temp>...)` enforce the
+corresponding path root. Extensions are trusted operator policy: keep their
+patterns narrow. Duplicate ids, invalid expressions and unknown validators
+are errors before launch, including detached launches. Installed defaults
+remain intact; the extra file appends rules.
 
 ### Structural approval rules (what no longer asks, and why it is safe)
 

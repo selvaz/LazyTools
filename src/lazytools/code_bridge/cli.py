@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _brief, _concurrency, _engines, _jobs, _progress, _routing, _store
+from lazytools.code_bridge import _brief, _concurrency, _engines, _jobs, _progress, _routine, _routing, _store
 from lazytools.code_bridge._concurrency import EngineBusy
 from lazytools.code_bridge._lockfile import LockHeld
 from lazytools.routing.policy import DEFAULT_POLICY
@@ -81,6 +81,10 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
     argv += ["--max-continuations", str(args.max_continuations)]
     if args.max_wall is not None:
         argv += ["--max-wall", str(args.max_wall)]
+    if args.routine_auto is not None:
+        argv += ["--routine-auto" if args.routine_auto else "--no-routine-auto"]
+    if args.scratch_root is not None:
+        argv += ["--scratch-root", args.scratch_root]
     for flag, value in (("--session", args.session), ("--model", args.model), ("--effort", args.effort)):
         if value:
             argv += [flag, value]
@@ -223,6 +227,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             raise ValueError("--max-continuations must be an integer >= 0")
         if args.max_wall is not None and (not math.isfinite(args.max_wall) or args.max_wall <= 0):
             raise ValueError("--max-wall must be a finite number greater than 0")
+        _routine.load_policy(enabled=args.routine_auto, scratch_root=args.scratch_root)
         if args.engine is None and args.tier is None:
             raise ValueError(
                 "run requires --tier T or --engine E; choose a tier for quota-aware routing or an explicit engine"
@@ -296,6 +301,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             timeout=args.timeout,
             max_continuations=args.max_continuations,
             max_wall=args.max_wall,
+            routine_auto=args.routine_auto,
+            scratch_root=args.scratch_root,
             wait_for_slot=args.wait_for_slot,
             on_slot_wait=_announce_slot_wait,
         )
@@ -875,6 +882,10 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Automatic continuations after a timeout with committed/pushed progress (default: 3).")
     run_p.add_argument("--max-wall", type=float, default=None,
                        help="Total job wall-clock cap in seconds, including approvals (default: unlimited).")
+    run_p.add_argument("--routine-auto", action=argparse.BooleanOptionalAction, default=None,
+                       help="Enable the audited routine-auto approval tier (default: on, or [routine_auto] enabled).")
+    run_p.add_argument("--scratch-root", default=None,
+                       help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).")
     run_p.add_argument(
         "--root", default=None, help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT or cwd)."
     )
