@@ -23,12 +23,14 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _concurrency, _engines, _store, _tempdir
+from lazytools.code_bridge import _concurrency, _engines, _progress, _store, _tempdir
 from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._lockfile import JobLock
 from lazytools.code_bridge._policy import CODING_RULES
 
 ENGINES: tuple[str, ...] = ("codex", "claude")
+DEFAULT_MAX_CONTINUATIONS = 3
+CONTINUATION_PROMPT = "continue from the last commit; re-read the brief's Done-when; do not redo committed steps"
 
 #: Longer than lazybridge's own 2h ApprovalQueue default: a ticket filed
 #: overnight should still be answerable in the morning without extra
@@ -102,7 +104,7 @@ def new_job_id() -> str:
 @dataclass
 class RunResult:
     job_id: str
-    status: str  # "done" | "failed" | "interrupted"
+    status: str  # "done" | "partial" | "failed" | "interrupted"
     text: str
     error: str | None
     #: ``None`` only when persisting the result file itself failed (disk
@@ -299,6 +301,8 @@ def run_job(
     job_id: str | None = None,
     routing: dict[str, Any] | None = None,
     timeout: float = _engines.DEFAULT_TIMEOUT,
+    max_continuations: int = DEFAULT_MAX_CONTINUATIONS,
+    max_wall: float | None = None,
     wait_for_slot: bool = False,
     on_slot_wait: Callable[[_concurrency.EngineBusy], None] | None = None,
 ) -> RunResult:
@@ -319,6 +323,11 @@ def run_job(
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("--timeout must be a finite number greater than 0")
     timeout = float(timeout)
+    if type(max_continuations) is not int or max_continuations < 0:
+        raise ValueError("--max-continuations must be an integer >= 0")
+    if max_wall is not None and (not math.isfinite(max_wall) or max_wall <= 0):
+        raise ValueError("--max-wall must be a finite number greater than 0")
+    wall_started = time.monotonic()
     resolved_cwd = _engines.resolve_cwd(cwd, root)
 
     # A detached launch (`run --detach`) picks the id in the parent so it can
@@ -399,6 +408,9 @@ def run_job(
             # whole contract is "never raises for an engine-side failure").
             # Found by Codex review.
             body = text if status == "done" else f"[{status}] {error}"
+            history = _progress.history_text((_store.read_meta(store, job_id) or {}).get("turns", []))
+            if history:
+                body += f"\n\n{history}"
             try:
                 result_path: Path | None = _write_result(db_path, job_id, body)
             except OSError as exc:
@@ -443,6 +455,10 @@ def run_job(
                 "model": model,
                 "effort": effort,
                 "timeout": timeout,
+                "max_continuations": max_continuations,
+                "max_wall": max_wall,
+                "continuations": 0,
+                "turns": [],
                 "head_at_start": head_at_start,
                 **({"head_at_start_error": head_at_start_error} if head_at_start_error is not None else {}),
                 "pid": os.getpid(),
@@ -498,12 +514,60 @@ def run_job(
 
         # The engine subprocess inherits this process's environment: point its
         # TEMP/TMP/TMPDIR at the job's own temp dir for exactly this run.
+        async def run_turns() -> RunResult:
+            from lazybridge import Envelope
+
+            prompt = task
+            turns: list[dict[str, Any]] = []
+            for turn in range(max_continuations + 1):
+                before = _progress.snapshot(lock.cwd)
+                remaining = None if max_wall is None else max_wall - (time.monotonic() - wall_started)
+                if remaining is not None and remaining <= 0:
+                    return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", "max wall reached")
+                _set_status("running")
+                meta = _store.read_meta(store, job_id) or {}
+                meta["continuations"] = turn
+                _store.write_meta(store, job_id, meta)
+                started = time.time()
+                wall_expired = False
+                try:
+                    async with asyncio.timeout(min(timeout, remaining) if remaining is not None else timeout):
+                        env = await _run_agent(engine, prompt, agent_name)
+                except TimeoutError as exc:
+                    wall_expired = remaining is not None and remaining <= timeout
+                    env = Envelope.error_envelope(exc)
+                evidence = _progress.changes(lock.cwd, before, _progress.snapshot(lock.cwd))
+                timed_out = not env.ok and env.error is not None and (
+                    env.error.type == "TimeoutError" or "Turn timed out on durable thread" in env.error.message
+                )
+                turns.append({
+                    "turn": turn, "started_at": started, "ended_at": time.time(),
+                    "outcome": "done" if env.ok else "checkpoint" if timed_out and evidence["progress"] else "failed",
+                    "thread_id": getattr(engine, "thread_id", None) or getattr(engine, "session_id", None),
+                    **evidence,
+                })
+                meta = _store.read_meta(store, job_id) or {}
+                meta["turns"] = turns
+                _store.write_meta(store, job_id, meta)
+                if env.ok:
+                    return _finish("done", env.text(), None)
+                message = env.error.message if env.error else "unknown error"
+                if not timed_out:
+                    return _finish("failed", "", message)
+                if not evidence["progress"]:
+                    return _finish("failed", "", f"no progress: {message or 'turn timed out'}")
+                _set_status("checkpoint")
+                if wall_expired or (max_wall is not None and time.monotonic() - wall_started >= max_wall):
+                    return _finish("partial", "", "max wall reached after progress")
+                if turn == max_continuations:
+                    return _finish("partial", "", "automatic continuations exhausted after progress")
+                if not turns[-1]["thread_id"]:
+                    return _finish("partial", "", "progress recorded, but no durable thread is available to resume")
+                prompt = CONTINUATION_PROMPT
+            raise AssertionError("unreachable")
+
         with _tempdir.temp_env(temp_dir):
-            env = asyncio.run(_run_agent(engine, task, agent_name))
-        if not env.ok:
-            message = env.error.message if env.error else "unknown error"
-            return _finish("failed", "", message)
-        return _finish("done", env.text(), None)
+            return asyncio.run(run_turns())
     except BaseException as exc:
         # BaseException, not Exception: Ctrl+C (KeyboardInterrupt) and a
         # cancelled asyncio task (CancelledError) both derive from
@@ -572,7 +636,7 @@ def _mark_interrupted(store: Any, registry: Any, old_job_id: str, *, db_path: Pa
     asked to approve an action for a process that no longer exists. Found by
     review, round 3."""
     old = registry.find(old_job_id)
-    if old is None or old.get("status") in ("done", "failed", "interrupted"):
+    if old is None or old.get("status") in ("done", "partial", "failed", "interrupted"):
         close_pending_tickets(store, old_job_id, "the process running this job appears to have died")
         return
     interrupt_job(
@@ -612,7 +676,7 @@ def list_jobs(store: Any, *, all_jobs: bool = False) -> list[dict[str, Any]]:
         meta = _store.read_meta(store, str(job.get("job_id", ""))) or {}
         rows.append({**meta, **job})
     if not all_jobs:
-        rows = [r for r in rows if r.get("status") in ("running", "awaiting_approval")]
+        rows = [r for r in rows if r.get("status") in ("running", "checkpoint", "awaiting_approval")]
     rows.sort(key=lambda r: r.get("created_at") or 0, reverse=True)
     return rows
 

@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _brief, _concurrency, _engines, _jobs, _routing, _store
+from lazytools.code_bridge import _brief, _concurrency, _engines, _jobs, _progress, _routing, _store
 from lazytools.code_bridge._concurrency import EngineBusy
 from lazytools.code_bridge._lockfile import LockHeld
 from lazytools.routing.policy import DEFAULT_POLICY
@@ -61,7 +61,7 @@ def _print_json(payload: Any) -> None:
 
 #: Statuses a job record can end in. A record still "running" or
 #: "awaiting_approval" whose process is gone is reported as died by `wait`.
-_TERMINAL = ("done", "failed", "interrupted")
+_TERMINAL = ("done", "partial", "failed", "interrupted")
 
 # Windows process-creation flags for a child that must outlive its launcher:
 # no console tie to the parent, its own process group (so a Ctrl+C or a
@@ -78,6 +78,9 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
     argv = [sys.executable, "-m", "lazytools.code_bridge", "run", "--engine", args.engine, "--cwd", args.cwd]
     argv += ["--task", args.task, "--job-id", job_id]
     argv += ["--timeout", str(args.timeout)]
+    argv += ["--max-continuations", str(args.max_continuations)]
+    if args.max_wall is not None:
+        argv += ["--max-wall", str(args.max_wall)]
     for flag, value in (("--session", args.session), ("--model", args.model), ("--effort", args.effort)):
         if value:
             argv += [flag, value]
@@ -216,6 +219,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
     try:
         if not math.isfinite(args.timeout) or args.timeout <= 0:
             raise ValueError("--timeout must be a finite number greater than 0")
+        if args.max_continuations < 0:
+            raise ValueError("--max-continuations must be an integer >= 0")
+        if args.max_wall is not None and (not math.isfinite(args.max_wall) or args.max_wall <= 0):
+            raise ValueError("--max-wall must be a finite number greater than 0")
         if args.engine is None and args.tier is None:
             raise ValueError(
                 "run requires --tier T or --engine E; choose a tier for quota-aware routing or an explicit engine"
@@ -287,6 +294,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             job_id=args.job_id,
             routing=args.routing,
             timeout=args.timeout,
+            max_continuations=args.max_continuations,
+            max_wall=args.max_wall,
             wait_for_slot=args.wait_for_slot,
             on_slot_wait=_announce_slot_wait,
         )
@@ -424,6 +433,8 @@ def _cmd_status(args: argparse.Namespace) -> int:
         _print_json(job)
     else:
         print(_job_line(job))
+        if job.get("turns"):
+            print(_progress.history_text(job["turns"]))
     return 0
 
 
@@ -438,11 +449,13 @@ def _cmd_result(args: argparse.Namespace) -> int:
     # Same exit code either way -- a caller scripting on exit status must
     # not see a failed job reported as success merely because it asked for
     # --json. Found by Codex review (it previously always returned 0 here).
-    exit_code = 1 if status in ("failed", "interrupted") else 0
+    exit_code = 1 if status in ("partial", "failed", "interrupted") else 0
     if args.json:
         _print_json(job)
         return exit_code
     print(f"[{status}] job {job.get('job_id')}")
+    if job.get("turns"):
+        print(_progress.history_text(job["turns"]))
     if job.get("result"):
         print(job["result"])
     elif job.get("error"):
@@ -856,8 +869,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--timeout",
         type=float,
         default=_engines.DEFAULT_TIMEOUT,
-        help=f"Engine request timeout in seconds, greater than 0 (default: {_engines.DEFAULT_TIMEOUT:g}).",
+        help=f"Per-turn timeout in seconds, greater than 0 (default: {_engines.DEFAULT_TIMEOUT:g}).",
     )
+    run_p.add_argument("--max-continuations", type=int, default=_jobs.DEFAULT_MAX_CONTINUATIONS,
+                       help="Automatic continuations after a timeout with committed/pushed progress (default: 3).")
+    run_p.add_argument("--max-wall", type=float, default=None,
+                       help="Total job wall-clock cap in seconds, including approvals (default: unlimited).")
     run_p.add_argument(
         "--root", default=None, help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT or cwd)."
     )
