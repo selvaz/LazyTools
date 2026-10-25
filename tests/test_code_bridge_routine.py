@@ -4,6 +4,7 @@ import asyncio
 import os
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from lazybridge.engines.coding import ApprovalRequest
@@ -20,7 +21,9 @@ WRAPPER = '"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Com
 
 
 @pytest.fixture
-def policy():
+def policy(monkeypatch):
+    # The prototype fixtures are Windows commands, even on the Linux CI host.
+    monkeypatch.setattr(_routine, "os", SimpleNamespace(name="nt"))
     path = _concurrency.config_path()
     with path.open("a", encoding="utf-8") as stream:
         stream.write(f'\n[routine_auto]\npython_executable = "{PYTHON}"\nscratch_root = "D:/Temp"\n')
@@ -97,7 +100,8 @@ NEGATIVE = [
 @pytest.mark.parametrize("wrapped", [False, True])
 @pytest.mark.parametrize("command,rule_id", POSITIVE)
 def test_prototype_positive_examples(policy, command, rule_id, wrapped):
-    command = WRAPPER + '"' + command + '"' if wrapped else command
+    wrapper = WRAPPER if os.name == "nt" else WRAPPER.replace("\\", "/")
+    command = wrapper + '"' + command + '"' if wrapped else command
     # JSON transports can double backslashes; every run is normalised.
     assert policy.match(command.replace("\\", "\\\\")) == rule_id
 
@@ -138,7 +142,7 @@ def test_auto_approval_is_consumed_audited_ticket(policy, tmp_path):
 
     gate = BridgeGate(channel=Channel(), rules=CODING_RULES,
                       routine=_routine.RoutineAuto(policy, store, queue, "job"))
-    command = WRAPPER + '"git push origin feat/ticket"'
+    command = WRAPPER.replace("\\", "/") + '"git push origin feat/ticket"'
     request = ApprovalRequest(provider="codex", kind="command", name="codex-shell",
                               arguments={"command": command}, raw={"command": command})
     for _ in range(2):
@@ -181,7 +185,7 @@ def test_job_uses_routine_tier_by_default(policy, tmp_path, monkeypatch):
     monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(tmp_path / "sessions.json"))
     script = fakes.install(monkeypatch)
     script.request_approval = True
-    script.approval_overrides = {"arguments": {"command": WRAPPER + '"git fetch origin"'}}
+    script.approval_overrides = {"arguments": {"command": WRAPPER.replace("\\", "/") + '"git fetch origin"'}}
     result = _jobs.run_job(engine_name="codex", cwd=str(tmp_path), root=str(tmp_path),
                            task="x", db_path=tmp_path / "jobs.sqlite")
     assert result.status == "done"
@@ -229,3 +233,28 @@ def test_packaged_rules_present():
     assert Path(_routine.__file__).with_name("routine_allowlist.toml").is_file()
     assert _routine.load_policy().enabled
     assert _routine.load_policy().scratch_root == ("D:/Temp" if os.name == "nt" else _routine._slash(_routine.tempfile.gettempdir()))
+
+
+def test_windows_backslash_runs_still_normalise(policy, monkeypatch):
+    monkeypatch.setattr(_routine, "os", SimpleNamespace(name="nt"))
+    command = WRAPPER + '"gh pr view 123 --json state"'
+    assert policy.match(command.replace("\\", "\\\\")) == "gh-pr-read"
+
+
+@pytest.mark.parametrize("command", [
+    f"{PYTHON} -m pytest --basetemp '/tmp\\outside'",
+    f"{PYTHON} -B scripts/verify_macro_release.py --source {SOURCE} --destination-root '/tmp\\outside'",
+    "gh pr edit 123 --body-file '/tmp/lazytools-bridge\\outside.md'",
+])
+def test_posix_literal_backslash_is_not_a_separator(policy, monkeypatch, command):
+    monkeypatch.setattr(_routine, "os", SimpleNamespace(name="posix"))
+    policy = replace(policy, scratch_root="/tmp", bridge_temp_root="/tmp/lazytools-bridge")
+    assert policy.match(command) is None
+    assert policy.match(command.replace("\\", "/")) is not None
+
+
+def test_posix_rejects_windows_scratch_root_and_paths(policy, monkeypatch):
+    monkeypatch.setattr(_routine, "os", SimpleNamespace(name="posix"))
+    with pytest.raises(ValueError, match="absolute"):
+        _routine.load_policy(scratch_root="D:/Temp")
+    assert not _routine._inside("D:/Temp/output", "D:/Temp")

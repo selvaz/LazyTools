@@ -28,13 +28,22 @@ def _slash(text: str) -> str:
     return re.sub(r"\\+", "/", text)
 
 
+def _path_text(text: str) -> str:
+    return _slash(text) if os.name == "nt" else text
+
+
 def normalise(command: str) -> tuple[str, list[str]] | None:
     """Unwrap PowerShell and remove literal quotes without hiding shell syntax."""
     from lazytools.code_bridge._approvals import _tokenize
 
     if not command or any(c in command for c in "\r\n"):
         return None
-    body = _slash(command.strip())
+    # On POSIX a quoted backslash is part of a filename, not a separator:
+    # '/tmp\\outside' is NOT a child of '/tmp'. Never approve a different
+    # pathname from the one that the native shell would pass to pytest.
+    if os.name != "nt" and "\\" in command:
+        return None
+    body = _path_text(command.strip())
     wrapper = _WRAPPER.fullmatch(body)
     if wrapper:
         body = wrapper[1].strip()
@@ -68,9 +77,9 @@ def normalise(command: str) -> tuple[str, list[str]] | None:
 
 def _inside(value: str, root: str, *, child: bool = False) -> bool:
     """Absolute paths only; reject traversal, alternate streams and symlink escapes."""
-    win = bool(re.match(r"^[A-Za-z]:/", value))
+    win = os.name == "nt"
     cls = PureWindowsPath if win else PurePosixPath
-    path, base = cls(value), cls(_slash(root))
+    path, base = cls(value), cls(_path_text(root))
     if not path.is_absolute() or not base.is_absolute() or ".." in path.parts:
         return False
     if any(":" in part for part in path.parts[1:]):
@@ -79,9 +88,8 @@ def _inside(value: str, root: str, *, child: bool = False) -> bool:
         relative = path.relative_to(base)
         if child and not relative.parts:
             return False
-        # On the matching host, resolve junctions and symlinks as well.
-        if win == (os.name == "nt"):
-            Path(value).resolve().relative_to(Path(root).resolve())
+        # Resolve native filesystem junctions and symlinks as well.
+        Path(value).resolve().relative_to(Path(root).resolve())
         return True
     except (ValueError, OSError):
         return False
@@ -163,8 +171,11 @@ def load_policy(*, enabled: bool | None = None, scratch_root: str | None = None)
     for name, value in (("scratch_root", scratch), ("python_executable", python)):
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"[routine_auto] {name} must be a non-empty path")
-    scratch = _slash(str(Path(scratch).expanduser()))
-    if not (PureWindowsPath(scratch).is_absolute() or PurePosixPath(scratch).is_absolute()):
+        if os.name != "nt" and "\\" in value:
+            raise ValueError(f"[routine_auto] {name} cannot contain backslashes on POSIX")
+    scratch = _path_text(str(Path(scratch).expanduser()))
+    path_type = PureWindowsPath if os.name == "nt" else PurePosixPath
+    if not path_type(scratch).is_absolute():
         raise ValueError("[routine_auto] scratch_root must be absolute")
     sources = [Path(__file__).with_name("routine_allowlist.toml")]
     extra = table.get("allowlist")
@@ -185,12 +196,12 @@ def load_policy(*, enabled: bool | None = None, scratch_root: str | None = None)
             if not isinstance(pattern, str) or validator not in ("", "gh-read", "pytest"):
                 raise ValueError(f"{source}: invalid pattern/validator for {rule_id}")
             try:
-                compiled = re.compile(pattern.replace("{python}", re.escape(_slash(python).replace(" ", "\0"))))
+                compiled = re.compile(pattern.replace("{python}", re.escape(_path_text(python).replace(" ", "\0"))))
             except re.error as exc:
                 raise ValueError(f"{source}: invalid regex for {rule_id}: {exc}") from exc
             rules.append(RoutineRule(rule_id, compiled, validator))
             ids.add(rule_id)
-    return RoutinePolicy(active, scratch, _slash(str(Path(tempfile.gettempdir()) / "lazytools-bridge")), tuple(rules))
+    return RoutinePolicy(active, scratch, _path_text(str(Path(tempfile.gettempdir()) / "lazytools-bridge")), tuple(rules))
 
 
 @dataclass

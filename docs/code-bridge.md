@@ -581,9 +581,10 @@ The packaged `lazytools/code_bridge/routine_allowlist.toml` contains:
 | `pytest-scratch` | Configured Python, optional `-B`, `-m pytest`, exactly one `--basetemp` strictly below `scratch_root` |
 | `macro-verifier-scratch` | Configured Python `-B scripts/verify_macro_NAME.py --source C:/ProgramData/InvestmentCommittee/live/db/macro_releases.sqlite --destination-root PATH`, optional `--families a,b`; PATH inside `scratch_root` |
 
-Commands are matched in full after normalising backslash runs to `/`,
+Commands are matched in full after normalising Windows backslash runs to `/`,
 stripping a recognised PowerShell wrapper and removing literal argument
-quotes with strict tokenisation. Only the exact
+quotes with strict tokenisation. On POSIX, commands and configured paths with
+backslashes are rejected, preserving native filename semantics. Only the exact
 `$env:PYTHONPATH=(Get-Location).Path; ` prefix (pytest only) and a leading
 `& ` call operator are accepted. Semicolons (even inside quotes), `&`,
 backticks, `$`, newlines, redirection and shell pipes are rejected. A pipe
