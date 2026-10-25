@@ -68,6 +68,12 @@ POSITIVE = [
 ]
 
 NEGATIVE = [
+    *[f"git add -- {path}" for path in (
+        ".git/config", "sub/.GIT/config", "sub/.npmrc", ".NETRC", "sub/.pypirc",
+        "sub/cert.PFX", "cert.p12", "auth.token", "sub/keys.JKS",
+    )],
+    "git push origin feat/-x",
+    "git merge --no-edit origin/feat/-x",
     "gh pr view 123; gh pr merge 123",
     "gh pr view 123 && gh pr merge 123",
     "gh pr view 123 | Stop-Process",
@@ -346,6 +352,54 @@ def test_basetemp_is_fresh_or_job_owned_and_never_bridge_state(native_policy):
     prefix_only = root / "bridge-job-123-"
     prefix_only.mkdir()
     assert check(prefix_only) is None
+
+
+def test_basetemp_job_id_boundary_is_exact(native_policy):
+    other = Path(native_policy.scratch_root) / "bridge-job-123-other-unique"
+    other.mkdir()
+    command = f"{PYTHON} -m pytest tests --basetemp '{other.as_posix()}'"
+    assert native_policy.match(command) is None
+    assert replace(native_policy, job_id="job-123-other").match(command) == "pytest-scratch"
+
+
+@pytest.mark.parametrize("char", [
+    "\u00a0", "\u1680", "\u2000", "\u2007", "\u2028", "\u2029", "\u202f", "\u205f", "\u3000",
+    "\0", "\x1b", "\x7f", "\x85", "\v", "\f", "\r", "\n", "\u200b",
+])
+@pytest.mark.parametrize("shape", ["{char}git fetch origin", "git fetch origin{char}", 'powershell -Command "git fetch origin{char}"'])
+def test_unicode_whitespace_and_controls_are_never_trimmed_or_approved(policy, char, shape):
+    command = shape.format(char=char)
+    assert _routine.normalise(command) is None
+    assert policy.match(command) is None
+
+
+def test_only_ascii_spaces_and_tabs_can_be_trimmed(policy):
+    assert policy.match(" \tgit fetch origin\t ") == "git-fetch"
+    assert policy.match(' \tpowershell -Command \t"git fetch origin"\t ') == "git-fetch"
+
+
+@pytest.mark.parametrize("part", ["lazytools-bridge.", "lazytools-bridge ", "LAZYTO~1", "safe./child", "safe /child", "safe~1/child"])
+@pytest.mark.parametrize("command", [
+    f"{PYTHON} -m pytest tests --basetemp 'D:/Temp/{{part}}'",
+    f"{PYTHON} -B scripts/verify_macro_release.py --source {SOURCE} --destination-root 'D:/Temp/{{part}}'",
+    f"gh pr edit 123 --body-file '{BRIDGE_TEMP}/{{part}}/body.md'",
+    "git add -- 'src/{part}/file.py'",
+    f"{PYTHON} -m pytest 'tests/{{part}}/test_a.py' --basetemp D:/Temp/fresh",
+])
+def test_path_aliases_are_rejected_by_all_path_validators(policy, part, command):
+    assert policy.match(command.format(part=part)) is None
+
+
+@pytest.mark.parametrize("root", ["D:/Temp.", "D:/Temp ", "D:/TEMP~1"])
+def test_containment_rejects_alias_in_root(policy, root):
+    assert not _routine._inside(root + "/fresh", root)
+
+
+@pytest.mark.parametrize("endpoint", ["actions/jobs/123/logs", "pulls/123/comments", "issues/123/reviews"])
+def test_gh_api_requires_a_known_origin(policy, endpoint):
+    command = f"gh api repos/selvaz/LazyTools/{endpoint}"
+    assert policy.match(command) is not None
+    assert replace(policy, origin_repo=None).match(command) is None
 
 
 def test_pytest_test_roots_are_configurable(native_policy):

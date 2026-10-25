@@ -20,6 +20,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   compound commands, unsafe flags and output paths outside the scratch root.
 
 ### Fixed
+- Code bridge second security review (#220): reject Unicode whitespace/control
+  characters before normalisation, Windows dot/space/8.3 path aliases, additional
+  credential files and `.git` staging, and API reads without a known origin.
+  Require exact basetemp job ownership and disallow leading-hyphen branch suffixes;
+  exercise the 10-continuation limit.
 - Code bridge security review (#220): replace unrestricted pytest arguments
   with a strict flag/test-root allow-list; require fresh or job-owned basetemp
   and protect bridge state; restrict staging, branches and GitHub repo scope.

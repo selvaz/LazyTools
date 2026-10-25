@@ -102,18 +102,19 @@ def test_timeout_without_commit_fails_no_progress(workspace, monkeypatch):
     assert row(workspace, result)["continuations"] == 0
 
 
-def test_progress_each_turn_exhausts_budget_as_partial(workspace, monkeypatch):
+@pytest.mark.parametrize("budget", [0, 2, 10])
+def test_progress_each_turn_exhausts_budget_as_partial(workspace, monkeypatch, budget):
     async def turn(engine, *args):
         engine.finish_turn()
         git(workspace, "commit", "--allow-empty", "-m", "step")
         raise TimeoutError("turn deadline")
 
     monkeypatch.setattr(_jobs, "_run_agent", turn)
-    result = run(workspace, max_continuations=2)
+    result = run(workspace, max_continuations=budget)
     assert result.status == "partial"
     assert "exhausted" in result.error
-    assert len(row(workspace, result)["turns"]) == 3
-    assert row(workspace, result)["continuations"] == 2
+    assert len(row(workspace, result)["turns"]) == budget + 1
+    assert row(workspace, result)["continuations"] == budget
     assert cli.main(["wait", result.job_id, "--db", str(workspace.parent / "jobs.sqlite")]) == 1
 
 

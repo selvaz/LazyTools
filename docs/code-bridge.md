@@ -605,6 +605,9 @@ backslashes are rejected, preserving native filename semantics. Only the exact
 `& ` call operator are accepted. Semicolons (even inside quotes), `&`,
 backticks, `$`, newlines, redirection and shell pipes are rejected. A pipe
 inside a quoted `--jq`/`-q` expression is literal data and is accepted.
+Only ASCII spaces/tabs are trimmed; non-ASCII characters and control characters
+are rejected before trimming. All validated paths reject components ending in
+a dot or space, and components containing `~`, to exclude Windows path aliases.
 Embedded quote/escape characters fail closed. Scratch paths reject traversal,
 sibling-prefix tricks, duplicate basetemp overrides and symlink escapes.
 Force pushes, pushes to main/master, PR merges, GraphQL mutations, process
@@ -622,17 +625,20 @@ ask. In particular, `-o*`, `--ov*`, other `-p*`, `-c*`, `--root*`,
 
 Pytest removes basetemp before use. The path must be a strict child of
 `scratch_root` and either not exist, or resolve under an existing
-`bridge-JOB_ID-UNIQUE` prefix belonging to this job. Existing non-job
+`bridge-JOB_ID-UNIQUE` prefix belonging to this job. `UNIQUE` must be a non-empty
+single token of ASCII letters, digits or underscores, so the job ID boundary
+is exact even when one job ID is a prefix of another. Existing non-job
 directories, symlinks, the scratch root, the bridge's temp tree and the
 reserved `scratch_root/lazytools-bridge` tree are never approved as basetemp.
 The freshness check occurs at approval; it is not an atomic filesystem lease.
 
 Staging rejects `.`, `-A`, absolute paths, `..`, globs, directories (which
 could hide sensitive files), and any path component matching `.env*`,
-`*.pem`, `*.key`, `id_*`, `*secret*`, or `*credential*`, case-insensitively.
-Feature branch suffixes cannot start with `.`, contain `..`, or end with `/`;
+`.npmrc`, `.netrc`, `.pypirc`, `.git`, `*.pem`, `*.key`, `*.pfx`, `*.p12`,
+`*.token`, `*.jks`, `id_*`, `*secret*`, or `*credential*`, case-insensitively.
+Feature branch suffixes cannot start with `.` or `-`, contain `..`, or end with `/`;
 invalid dot/lock suffixes also ask. GitHub API repo segments cannot be `.` or
-`..` or contain `..`. API endpoints are scoped to the job's origin when known,
+`..` or contain `..`. API endpoints require a known job origin and must name it,
 and every `-R`/`--repo` override must name that origin. An unknown origin
 cannot earn an explicit repo override. A different execution cwd cannot
 borrow another job's relative-path, branch or origin validation.

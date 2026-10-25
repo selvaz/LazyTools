@@ -47,12 +47,12 @@ validator = "git-fetch"
 
 [[rules]]
 id = "git-merge"
-pattern = 'git merge --no-edit origin/(?:main|(?:feat|fix|docs|research)/[\w-][\w.-]*)'
+pattern = 'git merge --no-edit origin/(?:main|(?:feat|fix|docs|research)/\w[\w.-]*)'
 validator = "git-merge"
 
 [[rules]]
 id = "git-push-feature"
-pattern = 'git push origin (?:feat|fix|docs)/[\w-][\w.-]*'
+pattern = 'git push origin (?:feat|fix|docs)/\w[\w.-]*'
 validator = "git-push"
 
 [[rules]]

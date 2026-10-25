@@ -36,17 +36,19 @@ def normalise(command: str) -> tuple[str, list[str]] | None:
     """Unwrap PowerShell and remove literal quotes without hiding shell syntax."""
     from lazytools.code_bridge._approvals import _tokenize
 
-    if not command or any(c in command for c in "\r\n"):
+    # Check before trimming: Unicode whitespace/control characters must not
+    # disappear from the command we compare with the one the shell executes.
+    if not command or any(not (" " <= c <= "~" or c == "\t") for c in command):
         return None
     # On POSIX a quoted backslash is part of a filename, not a separator:
     # '/tmp\\outside' is NOT a child of '/tmp'. Never approve a different
     # pathname from the one that the native shell would pass to pytest.
     if os.name != "nt" and "\\" in command:
         return None
-    body = _path_text(command.strip())
+    body = _path_text(command.strip(" \t"))
     wrapper = _WRAPPER.fullmatch(body)
     if wrapper:
-        body = wrapper[1].strip()
+        body = wrapper[1].strip(" \t")
         if body[:1] in ("'", '"') and body[-1:] == body[:1]:
             body = body[1:-1]
     prefixed = body.startswith(_PREFIX)
@@ -77,6 +79,8 @@ def normalise(command: str) -> tuple[str, list[str]] | None:
 
 def _inside(value: str, root: str, *, child: bool = False) -> bool:
     """Absolute paths only; reject traversal, alternate streams and symlink escapes."""
+    if not all(_routine_commands.path_parts_safe(p) for p in (value, root)):
+        return False
     win = os.name == "nt"
     cls = PureWindowsPath if win else PurePosixPath
     path, base = cls(value), cls(_path_text(root))
@@ -171,6 +175,8 @@ def load_policy(*, enabled: bool | None = None, scratch_root: str | None = None)
             raise ValueError(f"[routine_auto] {name} must be a non-empty path")
         if os.name != "nt" and "\\" in value:
             raise ValueError(f"[routine_auto] {name} cannot contain backslashes on POSIX")
+        if not _routine_commands.path_parts_safe(value):
+            raise ValueError(f"[routine_auto] {name} cannot contain path aliases")
     scratch = _path_text(str(Path(scratch).expanduser()))
     path_type = PureWindowsPath if os.name == "nt" else PurePosixPath
     if not path_type(scratch).is_absolute():
@@ -221,7 +227,7 @@ class RoutineAuto:
         # cwd. A different execution cwd must not borrow that validation.
         if request.cwd is not None and self.policy.cwd is not None:
             try:
-                if not Path(request.cwd).is_absolute() or Path(request.cwd).resolve() != self.policy.cwd.resolve():
+                if not _routine_commands.path_parts_safe(request.cwd) or not Path(request.cwd).is_absolute() or Path(request.cwd).resolve() != self.policy.cwd.resolve():
                     return None
             except (OSError, RuntimeError):
                 return None

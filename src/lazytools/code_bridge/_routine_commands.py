@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from lazytools.code_bridge._routine import RoutinePolicy
 
 VALIDATORS = frozenset({"pytest", "gh-read", "gh-api", "gh-pr-body", "git-add", "git-fetch", "git-merge", "git-push", "git-status", "macro-verifier"})
-_SENSITIVE = (".env*", "*.pem", "*.key", "id_*", "*secret*", "*credential*")
+_SENSITIVE = (".env*", ".npmrc", ".netrc", ".pypirc", ".git", "*.pem", "*.key", "*.pfx", "*.p12", "*.token", "*.jks", "id_*", "*secret*", "*credential*")
 _SIMPLE_FLAGS = frozenset({"-q", "-x", "-v", "-vv", "--no-header", "-s"})
 
 
@@ -37,10 +37,15 @@ def repository(value: str, *, remote: bool = False) -> str | None:
     return value.casefold()
 
 
+def path_parts_safe(value: str) -> bool:
+    """Reject Windows aliases before PurePath/resolve can hide their spelling."""
+    return all(not part.endswith((".", " ")) and "~" not in part for part in re.split(r"[/\\]", value))
+
+
 def relative_path(value: str) -> bool:
     from lazytools.code_bridge._approvals import _repo_relative
 
-    return _repo_relative(value) and value not in (".", "./") and not value.startswith("-") and not any(c in value for c in ":*?[]{}\\")
+    return path_parts_safe(value) and _repo_relative(value) and value not in (".", "./") and not value.startswith("-") and not any(c in value for c in ":*?[]{}\\")
 
 
 def _within_repo(policy: RoutinePolicy, value: str) -> bool:
@@ -55,7 +60,7 @@ def _within_repo(policy: RoutinePolicy, value: str) -> bool:
 
 def branch(value: str, prefixes: tuple[str, ...]) -> bool:
     parts = value.split("/")
-    return len(parts) == 2 and parts[0] in prefixes and bool(re.fullmatch(r"[\w-][\w.-]*", parts[1])) and ".." not in value and not parts[1].endswith((".", ".lock"))
+    return len(parts) == 2 and parts[0] in prefixes and bool(re.fullmatch(r"\w[\w.-]*", parts[1])) and ".." not in value and not parts[1].endswith((".", ".lock"))
 
 
 def basetemp_safe(policy: RoutinePolicy, value: str) -> bool:
@@ -81,8 +86,9 @@ def basetemp_safe(policy: RoutinePolicy, value: str) -> bool:
         first = path.resolve().relative_to(Path(policy.scratch_root).resolve()).parts[0]
     except (ValueError, OSError, IndexError, RuntimeError):
         return False
-    prefix = f"bridge-{policy.job_id}-"
-    return first.startswith(prefix) and len(first) > len(prefix)
+    # A single-token nonce makes the last '-' the exact job-id boundary,
+    # including when another job id starts with this job's id plus '-'.
+    return re.fullmatch(re.escape(f"bridge-{policy.job_id}-") + r"[A-Za-z0-9_]+", first) is not None
 
 
 def pytest_safe(policy: RoutinePolicy, args: list[str]) -> bool:
@@ -172,7 +178,7 @@ def validate(policy: RoutinePolicy, validator: str, args: list[str]) -> bool:
         if len(args) != 3 or args[:2] != ["gh", "api"]:
             return False
         endpoint = re.fullmatch(r"repos/(selvaz/[\w-][\w.-]*)/(?:actions/jobs/[0-9]+/logs|(?:pulls|issues)/[0-9]+/(?:comments|reviews))", args[2])
-        return bool(endpoint and ".." not in endpoint[1] and (not policy.origin_repo or repository(endpoint[1]) == policy.origin_repo))
+        return bool(policy.origin_repo and endpoint and ".." not in endpoint[1] and repository(endpoint[1]) == policy.origin_repo)
     if validator == "gh-pr-body":
         return len(args) == 6 and args[:3] == ["gh", "pr", "edit"] and args[3].isdigit() and args[4] == "--body-file" and _inside(args[5], policy.bridge_temp_root, child=True)
     if validator == "git-add":
