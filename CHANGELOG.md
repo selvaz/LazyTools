@@ -20,6 +20,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   compound commands, unsafe flags and output paths outside the scratch root.
 
 ### Fixed
+- Code bridge security review (#220): replace unrestricted pytest arguments
+  with a strict flag/test-root allow-list; require fresh or job-owned basetemp
+  and protect bridge state; restrict staging, branches and GitHub repo scope.
+  Require capability validators on all rules, reject unknown config keys and
+  malformed extension files, and log/display routine tier status and counts.
+- Attribute continuation progress only to HEAD commits or the job's own
+  origin branch, cap continuations at 10, move Git probes off the event loop,
+  verify owned subprocess termination, drain callbacks and sweep late tickets
+  before resuming. Detect dead checkpoint owners without detached pid files.
 - MCP session listings default to the 50 most recently updated aliases (hard cap
   200), support `since_days`, and return `sessions`, `total` and `returned` while
   preserving repository and engine filters.

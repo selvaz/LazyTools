@@ -3,6 +3,8 @@
 import asyncio
 import json
 import subprocess
+import sys
+import threading
 import time
 from types import SimpleNamespace
 
@@ -10,7 +12,7 @@ import pytest
 from lazybridge import Envelope
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _concurrency, _jobs, _store, cli
+from lazytools.code_bridge import _concurrency, _jobs, _lockfile, _progress, _store, cli
 
 
 def git(repo, *args):
@@ -116,6 +118,7 @@ def test_progress_each_turn_exhausts_budget_as_partial(workspace, monkeypatch):
 
 
 def test_push_only_progress_resumes(workspace, monkeypatch):
+    git(workspace, "branch", "-m", "feat/progress")
     remote = workspace.parent / "remote.git"
     git(workspace, "init", "--bare", str(remote))
     git(workspace, "remote", "add", "origin", str(remote))
@@ -196,7 +199,7 @@ def test_wait_crosses_checkpoint(monkeypatch, capsys):
     assert "finished" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("flags", [["--max-continuations", "-1"], ["--max-wall", "0"], ["--max-wall", "nan"]])
+@pytest.mark.parametrize("flags", [["--max-continuations", "-1"], ["--max-continuations", "11"], ["--max-wall", "0"], ["--max-wall", "nan"]])
 def test_invalid_limits_refused_before_detach(workspace, monkeypatch, flags):
     monkeypatch.setattr(cli, "_spawn_detached", lambda *a: pytest.fail("spawned"))
     assert cli.main(["run", "--detach", "--engine", "codex", "--cwd", str(workspace),
@@ -228,3 +231,153 @@ def test_detached_child_receives_recovery_and_routine_options(tmp_path):
     assert child.max_wall == 600
     assert child.scratch_root == "E:/Scratch"
     assert child.routine_auto is False
+
+
+def test_unrelated_remote_commits_do_not_count_as_job_progress(workspace, monkeypatch):
+    git(workspace, "branch", "-m", "feat/own")
+    remote = workspace.parent / "remote.git"
+    git(workspace, "init", "--bare", str(remote))
+    git(workspace, "remote", "add", "origin", str(remote))
+    git(workspace, "push", "origin", "HEAD:refs/heads/feat/own")
+
+    async def turn(engine, *args):
+        engine.finish_turn()
+        tree = git(workspace, "rev-parse", "HEAD^{tree}")
+        commit = git(workspace, "commit-tree", tree, "-p", "HEAD", "-m", "unrelated")
+        git(workspace, "push", "origin", f"{commit}:refs/heads/feat/other")
+        raise TimeoutError("turn deadline")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace)
+    assert result.status == "failed"
+    assert result.error.startswith("no progress:")
+    assert row(workspace, result)["turns"][0]["pushed_refs"] == []
+    assert row(workspace, result)["turns"][0]["commits"] == []
+
+
+def test_git_evidence_probes_run_off_the_event_loop(workspace, monkeypatch):
+    main_thread = threading.get_ident()
+    observed = []
+    for name in ("snapshot", "changes"):
+        original = getattr(_progress, name)
+
+        def checked(*args, _original=original, **kwargs):
+            observed.append(threading.get_ident())
+            assert threading.get_ident() != main_thread
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(_progress, name, checked)
+    assert run(workspace).status == "done"
+    assert len(observed) == 3
+
+
+def test_timed_out_engine_subprocess_is_dead_before_continuation(workspace, monkeypatch):
+    processes = []
+    calls = []
+
+    async def turn(engine, *args):
+        engine.finish_turn()
+        calls.append(1)
+        if len(calls) == 1:
+            process = await asyncio.create_subprocess_exec(sys.executable, "-c", "import time; time.sleep(60)")
+            processes.append(process)
+            git(workspace, "commit", "--allow-empty", "-m", "step")
+            return Envelope.error_envelope(TimeoutError("turn deadline"))
+        assert processes[0].returncode is not None
+        assert await processes[0].wait() is not None
+        return Envelope(payload="finished")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace)
+    assert result.status == "done"
+    assert len(calls) == 2
+    assert processes[0].returncode is not None
+
+
+def test_late_cancellation_ticket_is_closed_before_continuation(workspace, monkeypatch):
+    store = _store.build_store(workspace.parent / "jobs.sqlite")
+    queue = _store.build_approval_queue(store)
+    sweeps = []
+    closed = _jobs.close_pending_tickets
+    calls = []
+    late = []
+
+    def close(*args):
+        sweeps.append(1)
+        closed(*args)
+
+    async def turn(engine, *args):
+        engine.finish_turn()
+        calls.append(1)
+        if len(calls) == 1:
+            job_id = _jobs.list_jobs(store)[0]["job_id"]
+            ready = asyncio.Event()
+
+            async def late_callback():
+                ready.set()
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    assert len(sweeps) == 1
+                    late.append(queue.create_ticket(task_id=job_id, prompt="late callback ticket"))
+
+            callback = asyncio.create_task(late_callback())
+            await ready.wait()
+            assert not callback.done()
+            git(workspace, "commit", "--allow-empty", "-m", "step")
+            raise TimeoutError("turn deadline")
+        assert len(sweeps) >= 2
+        assert queue.get_ticket(late[0].approval_id).status == "rejected"
+        return Envelope(payload="finished")
+
+    monkeypatch.setattr(_jobs, "close_pending_tickets", close)
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace)
+    assert result.status == "done"
+    assert len(late) == 1
+    assert _jobs.pending_ticket_ids(store, result.job_id) == []
+
+
+def test_cleanup_failure_prevents_automatic_continuation(workspace, monkeypatch):
+    original = _jobs.TurnCleanup
+    calls = []
+
+    class IncompleteCleanup(original):
+        async def __aexit__(self, *args):
+            await super().__aexit__(*args)
+            self.error = "subprocess termination could not be verified"
+
+    async def turn(engine, *args):
+        engine.finish_turn()
+        calls.append(1)
+        git(workspace, "commit", "--allow-empty", "-m", "step")
+        raise TimeoutError("turn deadline")
+
+    monkeypatch.setattr(_jobs, "TurnCleanup", IncompleteCleanup)
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace)
+    assert result.status == "partial"
+    assert "termination could not be verified" in result.error
+    assert len(calls) == 1
+
+
+def test_wait_reports_dead_checkpoint_owner_without_pid_file(monkeypatch, capsys):
+    job = {"job_id": "job", "status": "checkpoint", "pid": 999999}
+    monkeypatch.setattr(_store, "build_store", lambda *a: None)
+    monkeypatch.setattr(_store, "build_job_registry", lambda *a: None)
+    monkeypatch.setattr(_jobs, "find_job", lambda *a: job)
+    monkeypatch.setattr(cli, "_detached_pid", lambda *a: None)
+    monkeypatch.setattr(_lockfile, "_pid_alive", lambda pid: False)
+    assert cli.main(["wait", "job", "--json"]) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "died"
+    assert result["last_status"] == "checkpoint"
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_routine_rule_count_is_logged_and_visible_in_status(workspace, capsys, enabled):
+    result = run(workspace, routine_auto=enabled)
+    expected = "routine-auto: enabled; 13 active rules" if enabled else "routine-auto: disabled; 0 active rules"
+    assert expected in capsys.readouterr().err
+    assert cli.main(["status", result.job_id, "--db", str(workspace.parent / "jobs.sqlite")]) == 0
+    assert expected in capsys.readouterr().out

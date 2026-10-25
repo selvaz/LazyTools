@@ -152,8 +152,8 @@ waiting and does not cancel the job. Read that evidence before starting over.
 
 `--timeout` is a **per-turn** budget (default 3600 seconds), including time
 spent waiting for approvals. A durable turn timeout is not itself a job
-failure. Before each turn the worker snapshots HEAD and reads origin's branch
-refs with `git ls-remote --heads origin`; after the turn it records the new
+failure. Before each turn the worker snapshots HEAD and reads origin's ref
+for the job's starting branch with `git ls-remote --heads origin refs/heads/BRANCH`; after the turn it records the new
 commit SHAs and changed remote refs. These reads do not fetch or change the
 workspace. A failed snapshot is recorded as unavailable evidence, never as
 an empty baseline that would count historical commits as new work.
@@ -169,13 +169,21 @@ an empty baseline that would count historical commits as new work.
 | Explicit cancellation or worker interruption → `interrupted` | Existing cancellation behavior |
 
 `run --max-continuations N` defaults to **3** automatic continuations after
-the initial turn; `0` disables continuation. Each continuation sends exactly:
+the initial turn; `0` disables continuation and **10** is the maximum.
+Each continuation sends exactly:
 
 > continue from the last commit; re-read the brief's Done-when; do not redo committed steps
 
 The worker keeps the same engine instance, thread/session, approval gate,
 repository lock and engine slot. A timeout closes that turn's outstanding
-tickets. Without a durable handle it records `partial` rather than starting
+tickets. Before another turn, it seals approvals, cancels/drains outstanding
+callbacks, kills and verifies exit of any remaining async subprocesses owned
+by that turn, then closes tickets again to catch cancellation-time producers.
+Cleanup failure stops continuation (`partial` after progress, else `failed`).
+Git snapshots and commit probes run through `asyncio.to_thread`, keeping the
+event loop responsive. `wait` also reports a dead checkpoint owner from the
+job's stored pid when there is no detached pid file.
+Without a durable handle it records `partial` rather than starting
 a fresh thread. Non-timeout engine errors still fail normally.
 
 `run --max-wall SECONDS` adds a total wall-clock budget (default **unlimited**).
@@ -193,7 +201,9 @@ and pushed refs. Their JSON records include `continuations` (continuations
 started), `max_continuations`, `max_wall`, and `turns` with `turn` (initial is
 0), timestamps, durable handle, outcome, commit list and ref before/after
 SHAs. The result file retains the same history, including for `partial` jobs.
-Only origin is inspected for pushed-ref progress; an unavailable remote read
+Only the job's starting branch at origin is inspected for pushed-ref progress;
+pushes to other branches never count. Detached jobs use only local HEAD progress.
+An unavailable remote read
 still permits continuation on independently observed local commit progress.
 
 `run --timeout SECONDS` sets the engine request timeout for Codex or Claude
@@ -539,9 +549,10 @@ that reads the same queue).
 enabled by default. Every match creates and consumes an approved ticket in
 the same Store, with `approved_by = "routine-auto"`, `actor = "routine-auto"`,
 `matched_rule_id`, the original command and cwd. Auto-approvals are auditable
-under `code-bridge:approval:` and do not appear in `pending`. A miss falls
-through to the existing rules and human ticket channel; it earns no routine
-session grant.
+under `code-bridge:approval:` and do not appear in `pending`. Escalations that
+miss the tier ask the human; older allow/session classifiers cannot override
+the validator. Protected Claude Bash command families (`git`, `gh`, configured
+Python) also ask on a miss. Other native-tool policy remains in the legacy table.
 
 Configuration lives beside `[concurrency]` in `~/.lazytools/code-bridge.toml`
 (or `$LAZYTOOLS_CODE_BRIDGE_CONFIG`):
@@ -552,6 +563,7 @@ enabled = true
 scratch_root = "D:/Temp"
 # Defaults to the Python executable running the bridge:
 python_executable = "C:/ProgramData/spyder-6/python.exe"
+test_roots = ["tests"]  # repo-relative roots permitted for pytest test paths
 # Optional extra rules; relative paths resolve beside this config file:
 allowlist = "routine-extra.toml"
 ```
@@ -562,6 +574,10 @@ elsewhere. It must be absolute. `run --scratch-root PATH` overrides it.
 of the config. Neither changes the deployed environment or grants new
 sandbox writable roots. PR body files must be children of the system temp
 directory's `lazytools-bridge` folder.
+Startup logs whether routine-auto is enabled and the active rule count to
+stderr (the detached worker log). Plain `status` prints both, and JSON includes
+`routine_auto` and `routine_rule_count`. Unknown top-level configuration keys
+are errors; only `[concurrency]` and `[routine_auto]` are supported.
 
 The packaged `lazytools/code_bridge/routine_allowlist.toml` contains:
 
@@ -574,11 +590,11 @@ The packaged `lazytools/code_bridge/routine_allowlist.toml` contains:
 | `gh-job-logs` | `gh api repos/selvaz/REPO/actions/jobs/N/logs` |
 | `gh-comments-reviews` | GET `gh api repos/selvaz/REPO/{pulls,issues}/N/{comments,reviews}` |
 | `gh-pr-body` | `gh pr edit N --body-file FILE` under the bridge temp folder |
-| `git-add-paths` | `git add -- PATH...` |
+| `git-add-paths` | `git add -- FILE...`; explicit repo-relative files only, no traversal, globs, sensitive names or directories |
 | `git-fetch` | `git fetch origin` |
-| `git-merge` | `git merge --no-edit origin/main` or `origin/{feat,fix,docs,research}/NAME` |
-| `git-push-feature` | `git push origin {feat,fix,docs,release}/NAME` |
-| `pytest-scratch` | Configured Python, optional `-B`, `-m pytest`, exactly one `--basetemp` strictly below `scratch_root` |
+| `git-merge` | `git merge --no-edit origin/main` or `origin/{feat,fix,docs,research}/NAME`; current branch must be known and not main/master |
+| `git-push-feature` | `git push origin {feat,fix,docs}/NAME`; release branches stay manual |
+| `pytest-scratch` | Configured Python, optional `-B`, `-m pytest`, the exact flag allow-list below, and one fresh/job-owned `--basetemp` |
 | `macro-verifier-scratch` | Configured Python `-B scripts/verify_macro_NAME.py --source C:/ProgramData/InvestmentCommittee/live/db/macro_releases.sqlite --destination-root PATH`, optional `--families a,b`; PATH inside `scratch_root` |
 
 Commands are matched in full after normalising Windows backslash runs to `/`,
@@ -594,6 +610,45 @@ sibling-prefix tricks, duplicate basetemp overrides and symlink escapes.
 Force pushes, pushes to main/master, PR merges, GraphQL mutations, process
 kills and impersonation downloads earn no routine approval.
 
+Pytest accepts only `-q`, `-x`, `-v`, `-vv`, attached report flags such as
+`-rN`/`-ra`, `--tb=WORD`, `-k EXPR`, `-m EXPR`, `--maxfail=N`,
+`-p no:cacheprovider`, `--no-header`, and `-s`, plus exactly one separate
+`--basetemp PATH`. Positional test paths (including `::` node selectors) must
+be repo-relative, free of traversal/globs, and under `test_roots` (default
+`["tests"]`). Unknown flags, attached options, abbreviations, output flags,
+plugin loading, alternate config/root/discovery controls and argument files
+ask. In particular, `-o*`, `--ov*`, other `-p*`, `-c*`, `--root*`,
+`--conf*` and `--py*` cannot be used to bypass the allow-list.
+
+Pytest removes basetemp before use. The path must be a strict child of
+`scratch_root` and either not exist, or resolve under an existing
+`bridge-JOB_ID-UNIQUE` prefix belonging to this job. Existing non-job
+directories, symlinks, the scratch root, the bridge's temp tree and the
+reserved `scratch_root/lazytools-bridge` tree are never approved as basetemp.
+The freshness check occurs at approval; it is not an atomic filesystem lease.
+
+Staging rejects `.`, `-A`, absolute paths, `..`, globs, directories (which
+could hide sensitive files), and any path component matching `.env*`,
+`*.pem`, `*.key`, `id_*`, `*secret*`, or `*credential*`, case-insensitively.
+Feature branch suffixes cannot start with `.`, contain `..`, or end with `/`;
+invalid dot/lock suffixes also ask. GitHub API repo segments cannot be `.` or
+`..` or contain `..`. API endpoints are scoped to the job's origin when known,
+and every `-R`/`--repo` override must name that origin. An unknown origin
+cannot earn an explicit repo override. A different execution cwd cannot
+borrow another job's relative-path, branch or origin validation.
+
+**Known limit: engine-written Python runs code.** Pytest imports test modules,
+conftest, project configuration and installed plugins; a verifier is a Python
+script. The engine can edit those files, and they can execute arbitrary code,
+including writes outside scratch_root. The routine tier constrains the
+approved command line and does **not** sandbox Python or establish trust in
+its source. Ambient pytest configuration/environment can also alter behavior.
+Use trusted code/configuration or disable routine-auto when that trust is not
+appropriate. We deliberately permit new feature-branch verifier scripts:
+requiring an unchanged script from origin/main would prevent the intended
+workflow of verifying newly written helpers. This is a documented trust limit,
+not a claim that the verifier is read-only.
+
 To extend the allow-list, create the optional TOML file with additional
 unique ids and Python regular expressions. Patterns use **fullmatch**, and
 still pass through the shared command syntax checks:
@@ -602,10 +657,15 @@ still pass through the shared command syntax checks:
 [[rules]]
 id = "local-git-status"
 pattern = 'git status --short'
+validator = "git-status"
 ```
 
-Optional `validator = "gh-read"` applies the strict read-only GitHub flag
-parser; `validator = "pytest"` applies the scratch basetemp check. The
+Every rule must declare a known capability validator. Supported validators
+are `gh-read`, `gh-api`, `gh-pr-body`, `git-add`, `git-fetch`, `git-merge`,
+`git-push`, `git-status`, `pytest`, and `macro-verifier`. An extension must
+contain a `rules` array, even if empty. A broad regex such as `.*` cannot
+override the validator's command family, flags or scope. New capabilities
+need a reviewed Python validator; a TOML pattern alone cannot grant them. The
 `{python}` placeholder is replaced by the escaped configured executable.
 Named regex groups `(?P<scratch>...)` and `(?P<bridge_temp>...)` enforce the
 corresponding path root. Extensions are trusted operator policy: keep their
@@ -613,7 +673,12 @@ patterns narrow. Duplicate ids, invalid expressions and unknown validators
 are errors before launch, including detached launches. Installed defaults
 remain intact; the extra file appends rules.
 
-### Structural approval rules (what no longer asks, and why it is safe)
+### Legacy structural approval rules
+
+The following table describes the older policy, available with
+`--no-routine-auto`. With routine-auto enabled, rejected escalations and
+protected Bash commands ask as described above, rather than falling back to
+these older grants.
 
 On 17/10/2026 one day of delegated work filed about fifteen tickets in
 fifteen minutes, nearly all harmless. Three changes, all in the bridge

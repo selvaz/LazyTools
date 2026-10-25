@@ -27,9 +27,11 @@ from lazytools.code_bridge import _concurrency, _engines, _progress, _routine, _
 from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._lockfile import JobLock
 from lazytools.code_bridge._policy import CODING_RULES
+from lazytools.code_bridge._turn_cleanup import TurnCleanup
 
 ENGINES: tuple[str, ...] = ("codex", "claude")
 DEFAULT_MAX_CONTINUATIONS = 3
+MAX_CONTINUATIONS = 10
 CONTINUATION_PROMPT = "continue from the last commit; re-read the brief's Done-when; do not redo committed steps"
 
 #: Longer than lazybridge's own 2h ApprovalQueue default: a ticket filed
@@ -88,8 +90,11 @@ class _StatusTrackingChannel:
         self._on_waiting = on_waiting
         self._on_resumed = on_resumed
         self.name = getattr(inner, "name", "store-approval-queue")
+        self.accepting = True
 
     async def ask(self, prompt: str) -> bool:
+        if not self.accepting:
+            return False
         self._on_waiting()
         try:
             return await self._inner.ask(prompt)
@@ -325,8 +330,8 @@ def run_job(
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("--timeout must be a finite number greater than 0")
     timeout = float(timeout)
-    if type(max_continuations) is not int or max_continuations < 0:
-        raise ValueError("--max-continuations must be an integer >= 0")
+    if type(max_continuations) is not int or not 0 <= max_continuations <= MAX_CONTINUATIONS:
+        raise ValueError(f"--max-continuations must be an integer from 0 to {MAX_CONTINUATIONS}")
     if max_wall is not None and (not math.isfinite(max_wall) or max_wall <= 0):
         raise ValueError("--max-wall must be a finite number greater than 0")
     wall_started = time.monotonic()
@@ -340,6 +345,7 @@ def run_job(
     if job_id is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
         raise ValueError(f"job id must be 1-64 letters, digits, '-' or '_', got {job_id!r}")
     job_id = job_id or new_job_id()
+    routine_policy = routine_policy.for_job(resolved_cwd, job_id)
     if on_job_id is not None:
         on_job_id(job_id)
 
@@ -463,6 +469,7 @@ def run_job(
                 "max_continuations": max_continuations,
                 "max_wall": max_wall,
                 "routine_auto": routine_policy.enabled,
+                "routine_rule_count": len(routine_policy.rules) if routine_policy.enabled else 0,
                 "scratch_root": routine_policy.scratch_root,
                 "continuations": 0,
                 "turns": [],
@@ -478,6 +485,8 @@ def run_job(
             },
         )
         temp_arg = str(temp_dir) if temp_dir is not None else None
+        print(f"routine-auto: {'enabled' if routine_policy.enabled else 'disabled'}; "
+              f"{len(routine_policy.rules) if routine_policy.enabled else 0} active rules", file=sys.stderr)
 
         channel = _StatusTrackingChannel(
             _store_channel(queue, job_id),
@@ -527,8 +536,14 @@ def run_job(
 
             prompt = task
             turns: list[dict[str, Any]] = []
+            before = await asyncio.to_thread(_progress.snapshot, lock.cwd)
+            job_branch = before.get("branch")
             for turn in range(max_continuations + 1):
-                before = _progress.snapshot(lock.cwd)
+                if turn:
+                    before = await asyncio.to_thread(_progress.snapshot, lock.cwd, job_branch)
+                    close_pending_tickets(store, job_id, "continuation preflight: previous turn is closed")
+                    if pending_ticket_ids(store, job_id):
+                        raise RuntimeError("continuation preflight left pending approval tickets")
                 remaining = None if max_wall is None else max_wall - (time.monotonic() - wall_started)
                 if remaining is not None and remaining <= 0:
                     return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", "max wall reached")
@@ -539,31 +554,41 @@ def run_job(
                 started = time.time()
                 wall_expired = False
                 deadline = asyncio.timeout(min(timeout, remaining) if remaining is not None else timeout)
-                try:
-                    async with deadline:
-                        env = await _run_agent(engine, prompt, agent_name)
-                except TimeoutError as exc:
-                    wall_expired = deadline.expired() and remaining is not None and remaining <= timeout
-                    env = Envelope.error_envelope(exc)
-                except Exception as exc:
-                    # Coding engines normally return an error Envelope, but
-                    # an embedding can raise the same durable timeout.
-                    env = Envelope.error_envelope(exc)
-                evidence = _progress.changes(lock.cwd, before, _progress.snapshot(lock.cwd))
+                gate.accepting = channel.accepting = True
+                async with TurnCleanup() as cleanup:
+                    try:
+                        async with deadline:
+                            env = await _run_agent(engine, prompt, agent_name)
+                    except TimeoutError as exc:
+                        wall_expired = deadline.expired() and remaining is not None and remaining <= timeout
+                        env = Envelope.error_envelope(exc)
+                    except Exception as exc:
+                        env = Envelope.error_envelope(exc)
+                    finally:
+                        gate.accepting = channel.accepting = False
+                        close_pending_tickets(store, job_id, "turn ended; approval no longer actionable")
+                # A cancellation callback may have filed a ticket after the
+                # first sweep. All producers are now quiescent: sweep again.
+                close_pending_tickets(store, job_id, "turn cleanup completed; approval no longer actionable")
+                if pending_ticket_ids(store, job_id):
+                    raise RuntimeError("turn cleanup left pending approval tickets")
+                after = await asyncio.to_thread(_progress.snapshot, lock.cwd, job_branch)
+                evidence = await asyncio.to_thread(_progress.changes, lock.cwd, before, after)
                 timed_out = not env.ok and env.error is not None and (
                     env.error.type == "TimeoutError" or "Turn timed out on durable thread" in env.error.message
                 )
-                if timed_out:
-                    close_pending_tickets(store, job_id, "turn timed out; approval no longer actionable")
                 turns.append({
                     "turn": turn, "started_at": started, "ended_at": time.time(),
                     "outcome": "done" if env.ok else "checkpoint" if timed_out and evidence["progress"] else "failed",
                     "thread_id": getattr(engine, "thread_id", None) or getattr(engine, "session_id", None),
                     **evidence,
+                    "cleanup_error": cleanup.error,
                 })
                 meta = _store.read_meta(store, job_id) or {}
                 meta["turns"] = turns
                 _store.write_meta(store, job_id, meta)
+                if cleanup.error:
+                    return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", cleanup.error)
                 if env.ok:
                     return _finish("done", env.text(), None)
                 message = env.error.message if env.error else "unknown error"

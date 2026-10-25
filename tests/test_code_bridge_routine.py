@@ -2,6 +2,8 @@
 
 import asyncio
 import os
+import re
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,7 +12,7 @@ import pytest
 from lazybridge.engines.coding import ApprovalRequest
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _concurrency, _jobs, _routine, _store, cli
+from lazytools.code_bridge import _concurrency, _jobs, _routine, _routine_commands, _store, cli
 from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._policy import CODING_RULES
 
@@ -21,13 +23,22 @@ WRAPPER = '"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Com
 
 
 @pytest.fixture
-def policy(monkeypatch):
+def policy(monkeypatch, routine_repo):
     # The prototype fixtures are Windows commands, even on the Linux CI host.
     monkeypatch.setattr(_routine, "os", SimpleNamespace(name="nt"))
     path = _concurrency.config_path()
     with path.open("a", encoding="utf-8") as stream:
         stream.write(f'\n[routine_auto]\npython_executable = "{PYTHON}"\nscratch_root = "D:/Temp"\n')
-    return replace(_routine.load_policy(), bridge_temp_root=BRIDGE_TEMP)
+    return replace(_routine.load_policy(), bridge_temp_root=BRIDGE_TEMP, cwd=routine_repo,
+                   job_id="routine-test", origin_repo="selvaz/lazytools")
+
+
+@pytest.fixture(scope="module")
+def routine_repo(tmp_path_factory):
+    path = tmp_path_factory.mktemp("routine-repo")
+    for args in (("init",), ("symbolic-ref", "HEAD", "refs/heads/feat/routine")):
+        subprocess.run(["git", "-C", str(path), *args], check=True, capture_output=True)
+    return path
 
 
 POSITIVE = [
@@ -45,7 +56,7 @@ POSITIVE = [
     (f"gh pr edit 123 --body-file '{BRIDGE_TEMP}/job/body with spaces.md'", "gh-pr-body"),
     ("git add -- src/lazytools/a.py tests/test_a.py", "git-add-paths"),
     ("git add -- 'docs/a file.md'", "git-add-paths"),
-    *[(f"git push origin {prefix}/ticket", "git-push-feature") for prefix in ("feat", "fix", "docs", "release")],
+    *[(f"git push origin {prefix}/ticket", "git-push-feature") for prefix in ("feat", "fix", "docs")],
     ("git fetch origin", "git-fetch"),
     *[(f"git merge --no-edit origin/{branch}", "git-merge") for branch in ("main", "feat/ticket", "fix/ticket", "docs/ticket", "research/ticket")],
     (f"'{PYTHON}' -m pytest tests -q --basetemp D:/Temp/bridge-tests", "pytest-scratch"),
@@ -76,6 +87,7 @@ NEGATIVE = [
     f"{PYTHON} -m pytest --basetemp D:/Temp/safe --basetem C:/outside",
     f"{PYTHON} -m pytest -- --basetemp D:/Temp/safe",
     f"{PYTHON} -m pytest --basetemp D:/Temp",
+    f"{PYTHON} -m pytest --basetemp D:/Temp/lazytools-bridge",
     f"{PYTHON} -B scripts/verify_macro_release.py --source {SOURCE} --destination-root C:/outside",
     f"{PYTHON} -B scripts/verify_macro_release.py --source {SOURCE} --destination-root D:/Temp/../outside",
     f"{PYTHON} -B scripts/verify_macro_release.py --source {SOURCE} --destination-root 'D:/Temp --families cpi'",
@@ -197,7 +209,7 @@ def test_job_uses_routine_tier_by_default(policy, tmp_path, monkeypatch):
 
 def test_disable_and_extension_config(policy, tmp_path):
     extra = tmp_path / "routine-extra.toml"
-    extra.write_text('[[rules]]\nid = "git-status"\npattern = "git status --short"\n', encoding="utf-8")
+    extra.write_text('[[rules]]\nid = "git-status"\npattern = "git status --short"\nvalidator = "git-status"\n', encoding="utf-8")
     with _concurrency.config_path().open("a", encoding="utf-8") as stream:
         stream.write(f"allowlist = '{extra.as_posix()}'\n")
     extended = _routine.load_policy()
@@ -205,7 +217,8 @@ def test_disable_and_extension_config(policy, tmp_path):
     assert extended.match("git status --short; Stop-Process") is None
     assert _routine.load_policy(enabled=False).match("git fetch origin") is None
     assert _routine.load_policy(scratch_root="E:/Scratch").match(f"{PYTHON} -m pytest --basetemp D:/Temp/test") is None
-    assert _routine.load_policy(scratch_root="E:/Scratch").match(f"{PYTHON} -m pytest --basetemp E:/Scratch/test") == "pytest-scratch"
+    configured = replace(_routine.load_policy(scratch_root="E:/Scratch"), cwd=policy.cwd)
+    assert configured.match(f"{PYTHON} -m pytest --basetemp E:/Scratch/test") == "pytest-scratch"
 
 
 @pytest.mark.parametrize("config", ['enabled = "yes"', 'scratch_root = "relative"', 'unknown = true'])
@@ -258,3 +271,239 @@ def test_posix_rejects_windows_scratch_root_and_paths(policy, monkeypatch):
     with pytest.raises(ValueError, match="absolute"):
         _routine.load_policy(scratch_root="D:/Temp")
     assert not _routine._inside("D:/Temp/output", "D:/Temp")
+
+
+PYTEST_BYPASSES = [
+    "--junitxml=C:/Windows/x.xml", "--junitxml C:/Windows/x.xml",
+    "--log-file=C:/Windows/x.log", "--log-file C:/Windows/x.log",
+    "--debug=C:/Windows/debug.log", "--debug C:/Windows/debug.log",
+    "-oaddopts=-pevil", "-o addopts=-pevil", "--override-in addopts=-pevil",
+    "--override-ini=addopts=-pevil", "--override-ini addopts=-pevil",
+    "-p evilplugin", "-pevilplugin", "-pno:cacheprovider",
+    "-c C:/other/pytest.ini", "-cC:/other/pytest.ini",
+    "--rootdir C:/", "--rootdir=C:/", "--root C:/",
+    "--confcutdir=C:/", "--confcutdir C:/", "--conf C:/",
+    "--pyargs os", "--py os", "--pyargs=os",
+    "--import-mode=importlib", "--cache-clear", "--co", "--collect-only",
+    "--basetemp=C:/outside", "--basetem C:/outside", "-- --basetemp C:/outside",
+    "../outside/test_x.py", "C:/outside/test_x.py", "scripts/test_x.py", ".", "-A",
+    "'tests/../outside.py'", "'tests/*.py'", "'tests/[ab].py'",
+]
+
+
+@pytest.mark.parametrize("flags", PYTEST_BYPASSES)
+def test_review_pytest_bypasses_are_denied(policy, flags):
+    assert policy.match(f"{PYTHON} -m pytest --basetemp D:/Temp/rv220-fresh-nonexistent {flags}") is None
+
+
+@pytest.mark.parametrize("flags", ["-q", "-x", "-v", "-vv", "-rN", "-ra", "--tb=short", "-k 'test_alpha or test_beta'", "-m 'slow and not network'", "--maxfail=2", "-p no:cacheprovider", "--no-header", "-s"])
+def test_review_pytest_flag_allowlist(policy, flags):
+    assert policy.match(f"{PYTHON} -m pytest tests/test_x.py::TestClass::test_y --basetemp D:/Temp/rv220-fresh-nonexistent {flags}") == "pytest-scratch"
+
+
+def test_bypass_corpus_detects_a_permissive_pytest_validator(policy, monkeypatch):
+    def assert_denied():
+        for flags in PYTEST_BYPASSES:
+            assert policy.match(f"{PYTHON} -m pytest --basetemp D:/Temp/rv220-fresh-nonexistent {flags}") is None
+
+    assert_denied()
+    monkeypatch.setattr(_routine_commands, "pytest_safe", lambda *a: True)
+    with pytest.raises(AssertionError):
+        assert_denied()
+
+
+@pytest.fixture
+def native_policy(policy, tmp_path, monkeypatch):
+    monkeypatch.setattr(_routine, "os", SimpleNamespace(name=os.name))
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    bridge = scratch / "lazytools-bridge"
+    bridge.mkdir()
+    return replace(policy, scratch_root=scratch.as_posix(), bridge_temp_root=bridge.as_posix(), job_id="job-123")
+
+
+def test_basetemp_is_fresh_or_job_owned_and_never_bridge_state(native_policy):
+    root = Path(native_policy.scratch_root)
+
+    def check(path):
+        return native_policy.match(f"{PYTHON} -m pytest tests --basetemp '{path.as_posix()}'")
+    assert check(root / "fresh-unique") == "pytest-scratch"
+    unrelated = root / "existing"
+    unrelated.mkdir()
+    assert check(unrelated) is None
+    assert check(root) is None
+    assert check(Path(native_policy.bridge_temp_root)) is None
+    assert check(Path(native_policy.bridge_temp_root) / "new-child") is None
+    mine = root / "bridge-job-123-unique"
+    mine.mkdir()
+    assert check(mine) == "pytest-scratch"
+    other = root / "bridge-job-1234-other"
+    other.mkdir()
+    assert check(other) is None
+    other = root / "bridge-different-job-owned"
+    other.mkdir()
+    assert check(other) is None
+    prefix_only = root / "bridge-job-123-"
+    prefix_only.mkdir()
+    assert check(prefix_only) is None
+
+
+def test_pytest_test_roots_are_configurable(native_policy):
+    policy = replace(native_policy, test_roots=("checks",))
+    base = (Path(policy.scratch_root) / "fresh").as_posix()
+    assert policy.match(f"{PYTHON} -m pytest checks/test_a.py --basetemp {base}") == "pytest-scratch"
+    assert policy.match(f"{PYTHON} -m pytest tests/test_a.py --basetemp {base}") is None
+
+
+REVIEW_GIT_GH_BYPASSES = [
+    "git add -- .", "git add -- ./", "git add -- -A", "git add -- -f",
+    "git add -- ../outside", "git add -- tests/../../outside", "git add -- C:/outside",
+    "git add -- '/absolute'", "git add -- 'tests/*.py'", "git add -- 'tests/[ab].py'",
+    "git add -- .env", "git add -- .env.production", "git add -- tests/.env.local",
+    "git add -- keys/server.pem", "git add -- keys/server.KEY", "git add -- keys/id_rsa",
+    "git add -- tests/secrets.json", "git add -- config/CREDENTIALS", "git add -- safe.py .env",
+    "git push origin release/x", "git push origin feat/.hidden", "git push origin feat/a..b",
+    "git push origin feat/x/", "git push origin feat/..",
+    "git merge --no-edit origin/feat/.hidden", "git merge --no-edit origin/feat/a..b",
+    "gh api repos/selvaz/./actions/jobs/1/logs", "gh api repos/selvaz/../actions/jobs/1/logs",
+    "gh api repos/selvaz/A..B/pulls/1/comments",
+    "gh pr view 1 -R other/repo", "gh pr view 1 --repo other/repo",
+    "gh pr view 1 --repo=other/repo", "gh run view 1 -R other/repo",
+    "gh pr list --head feat/x --repo other/repo",
+]
+
+
+@pytest.mark.parametrize("command", REVIEW_GIT_GH_BYPASSES)
+def test_review_git_gh_bypasses_stay_pending_in_gate(policy, tmp_path, command):
+    store = _store.build_store(tmp_path / "store.sqlite")
+    prompts = []
+
+    class Channel:
+        async def ask(self, prompt):
+            prompts.append(prompt)
+            return False
+
+    gate = BridgeGate(channel=Channel(), rules=CODING_RULES,
+                      routine=_routine.RoutineAuto(policy, store, _store.build_approval_queue(store), "job"))
+    assert policy.match(command) is None
+    for kind, name in (("command", "codex-shell"), ("tool", "Bash")):
+        request = ApprovalRequest(provider="codex", kind=kind, name=name,
+                                  arguments={"command": command}, raw={"command": command})
+        assert asyncio.run(gate(request)).action == "deny"
+    assert len(prompts) == 2
+
+
+@pytest.mark.parametrize("branch", ["main", "master"])
+def test_merge_on_protected_current_branch_is_manual(policy, branch):
+    assert policy.cwd is not None
+    subprocess.run(["git", "-C", str(policy.cwd), "symbolic-ref", "HEAD", f"refs/heads/{branch}"], check=True)
+    try:
+        assert policy.match("git merge --no-edit origin/main") is None
+    finally:
+        subprocess.run(["git", "-C", str(policy.cwd), "symbolic-ref", "HEAD", "refs/heads/feat/routine"], check=True)
+
+
+@pytest.mark.parametrize("value", ["selvaz/LazyTools", "github.com/selvaz/LazyTools", "https://github.com/selvaz/LazyTools"])
+def test_gh_repo_override_can_only_name_origin(policy, value):
+    assert policy.match(f"gh pr view 1 --repo {value}") == "gh-pr-read"
+    assert policy.match(f"gh pr view 1 --repo={value}") == "gh-pr-read"
+
+
+@pytest.mark.parametrize("body", ["", "[other]\nx=1\n", '[[rules]]\nid="bare"\npattern=".*"\n', '[[rules]]\nid="bad"\npattern=".*"\nvalidator="anything"\n'])
+def test_extensions_require_rules_and_explicit_known_validator(policy, tmp_path, body):
+    extra = tmp_path / "extension.toml"
+    extra.write_text(body, encoding="utf-8")
+    with _concurrency.config_path().open("a", encoding="utf-8") as stream:
+        stream.write(f"allowlist = '{extra.as_posix()}'\n")
+    with pytest.raises(ValueError):
+        _routine.load_policy()
+
+
+def test_broad_extension_regex_cannot_override_pytest_capabilities(policy):
+    extra = _routine.RoutineRule("broad-pytest", re.compile(".*"), "pytest")
+    policy = replace(policy, rules=(extra,))
+    for flags in PYTEST_BYPASSES:
+        assert policy.match(f"{PYTHON} -m pytest --basetemp D:/Temp/rv220-fresh-nonexistent {flags}") is None
+    assert policy.match("git push --force origin main") is None
+
+
+def test_unknown_top_level_config_is_rejected(tmp_path, monkeypatch):
+    path = tmp_path / "config.toml"
+    path.write_text("[rountine_auto]\nenabled=true\n", encoding="utf-8")
+    monkeypatch.setenv(_concurrency.CONFIG_ENV, str(path))
+    for loader in (_routine.load_policy, _concurrency.load_config):
+        with pytest.raises(ValueError, match="top-level"):
+            loader()
+
+
+def test_test_roots_setting_is_loaded_and_enforced(policy):
+    with _concurrency.config_path().open("a", encoding="utf-8") as stream:
+        stream.write('test_roots = ["checks"]\n')
+    configured = replace(_routine.load_policy(), cwd=policy.cwd)
+    prefix = f"{PYTHON} -m pytest --basetemp D:/Temp/rv220-fresh-nonexistent"
+    assert configured.match(prefix + " checks/test_a.py") == "pytest-scratch"
+    assert configured.match(prefix + " tests/test_a.py") is None
+
+
+@pytest.mark.parametrize("url", ["https://github.com/selvaz/LazyTools.git", "git@github.com:selvaz/LazyTools.git", "ssh://git@github.com/selvaz/LazyTools.git"])
+def test_job_origin_is_bound_from_git_remote(policy, monkeypatch, url):
+    monkeypatch.setattr(_routine_commands, "git", lambda *a: url)
+    bound = policy.for_job(policy.cwd, "job-123")
+    assert bound.origin_repo == "selvaz/lazytools"
+    assert bound.job_id == "job-123"
+    assert bound.match("gh pr view 1 -R selvaz/LazyTools") == "gh-pr-read"
+    assert bound.match("gh pr view 1 -R other/repo") is None
+
+
+def test_existing_directories_with_hidden_sensitive_files_are_not_staged(policy, tmp_path):
+    directory = tmp_path / "data"
+    directory.mkdir()
+    (directory / ".env").write_text("fixture", encoding="utf-8")
+    policy = replace(policy, cwd=tmp_path)
+    assert policy.match("git add -- data") is None
+
+
+def test_legacy_session_grant_cannot_bypass_routine_git_add_validation(policy, tmp_path):
+    class Channel:
+        answer = True
+
+        async def ask(self, prompt):
+            return self.answer
+
+    channel = Channel()
+    gate = BridgeGate(channel=channel, rules=CODING_RULES)
+
+    def request(command):
+        return ApprovalRequest(provider="codex", kind="command", name="codex-shell",
+                               arguments={"command": command}, raw={"command": command})
+
+    assert asyncio.run(gate(request("git add -- safe.py"))).action == "allow_session"
+    store = _store.build_store(tmp_path / "store.sqlite")
+    gate.routine = _routine.RoutineAuto(policy, store, _store.build_approval_queue(store), "job")
+    channel.answer = False
+    assert asyncio.run(gate(request("git add -- .env"))).action == "deny"
+
+
+def test_test_path_symlink_cannot_escape_configured_test_root(native_policy):
+    cwd = Path(native_policy.scratch_root).parent
+    tests = cwd / "tests"
+    tests.mkdir()
+    source = cwd / "src"
+    source.mkdir()
+    (source / "test_a.py").write_text("# fixture", encoding="utf-8")
+    try:
+        (tests / "link").symlink_to(source, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation unavailable")
+    policy = replace(native_policy, cwd=cwd)
+    base = (Path(policy.scratch_root) / "fresh").as_posix()
+    assert policy.match(f"{PYTHON} -m pytest tests/link/test_a.py --basetemp {base}") is None
+
+
+@pytest.mark.parametrize("command", ["git add -- safe.py", "git merge --no-edit origin/main", "gh pr view 1 -R selvaz/LazyTools"])
+def test_different_execution_cwd_cannot_borrow_job_scope(policy, tmp_path, command):
+    store = _store.build_store(tmp_path / "store.sqlite")
+    routine = _routine.RoutineAuto(policy, store, _store.build_approval_queue(store), "job")
+    request = ApprovalRequest(provider="codex", kind="command", name="codex-shell", cwd=str(tmp_path),
+                              arguments={"command": command}, raw={"command": command})
+    assert routine.match(request) is None

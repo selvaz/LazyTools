@@ -7,14 +7,14 @@ import re
 import sys
 import tempfile
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from lazybridge.engines.coding import ApprovalDecision, ApprovalRequest
 
-from lazytools.code_bridge import _concurrency, _store
+from lazytools.code_bridge import _concurrency, _routine_commands, _store
 
 _WRAPPER = re.compile(
     r'''^(?:"?C:/WINDOWS/System32/WindowsPowerShell/v1\.0/powershell\.exe"?|powershell(?:\.exe)?|pwsh(?:\.exe)?)
@@ -91,7 +91,7 @@ def _inside(value: str, root: str, *, child: bool = False) -> bool:
         # Resolve native filesystem junctions and symlinks as well.
         Path(value).resolve().relative_to(Path(root).resolve())
         return True
-    except (ValueError, OSError):
+    except (ValueError, OSError, RuntimeError):
         return False
 
 
@@ -108,6 +108,16 @@ class RoutinePolicy:
     scratch_root: str
     bridge_temp_root: str
     rules: tuple[RoutineRule, ...]
+    python_executable: str = ""
+    test_roots: tuple[str, ...] = ("tests",)
+    cwd: Path | None = None
+    job_id: str | None = None
+    origin_repo: str | None = None
+
+    def for_job(self, cwd: Path, job_id: str) -> RoutinePolicy:
+        origin = _routine_commands.git(cwd, "config", "--get", "remote.origin.url")
+        return replace(self, cwd=cwd, job_id=job_id,
+                       origin_repo=_routine_commands.repository(origin, remote=True) if origin else None)
 
     def match(self, command: str) -> str | None:
         normal = normalise(command) if self.enabled else None
@@ -119,24 +129,11 @@ class RoutinePolicy:
             if matched is None:
                 continue
             paths = matched.groupdict()
-            if "scratch" in paths and not _inside(paths["scratch"].replace("\0", " "), self.scratch_root):
+            if "scratch" in paths and (paths["scratch"] is None or not _inside(paths["scratch"].replace("\0", " "), self.scratch_root)):
                 continue
-            if "bridge_temp" in paths and not _inside(paths["bridge_temp"].replace("\0", " "), self.bridge_temp_root, child=True):
+            if "bridge_temp" in paths and (paths["bridge_temp"] is None or not _inside(paths["bridge_temp"].replace("\0", " "), self.bridge_temp_root, child=True)):
                 continue
-            if rule.validator == "pytest":
-                # Exactly one basetemp, as a separate flag and an absolute
-                # child of scratch_root. No duplicate/abbreviated override.
-                flags = [a for a in args if a.startswith("--base")]
-                if flags != ["--basetemp"] or args[-1] == "--basetemp":
-                    continue
-                index = args.index("--basetemp")
-                if "--" in args[:index] or any(a.startswith("@") for a in args):
-                    continue
-                if not _inside(args[index + 1], self.scratch_root, child=True):
-                    continue
-                if any(a in ("-o", "--override-ini") or a.startswith("--override-ini=") for a in args):
-                    continue
-            if rule.validator == "gh-read" and not _gh_read(" ".join(f"'{a}'" if " " in a or "|" in a else a for a in args)):
+            if not _routine_commands.validate(self, rule.validator, args):
                 continue
             return rule.id
         return None
@@ -157,10 +154,11 @@ def _gh_read(command: str) -> bool:
 def load_policy(*, enabled: bool | None = None, scratch_root: str | None = None) -> RoutinePolicy:
     path = _concurrency.config_path()
     config = tomllib.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    _concurrency.validate_top_level(config, path)
     table = config.get("routine_auto", {})
     if not isinstance(table, dict):
         raise ValueError("[routine_auto] must be a table")
-    unknown = table.keys() - {"enabled", "scratch_root", "python_executable", "allowlist"}
+    unknown = table.keys() - {"enabled", "scratch_root", "python_executable", "allowlist", "test_roots"}
     if unknown:
         raise ValueError(f"unknown [routine_auto] keys: {sorted(unknown)}")
     active = table.get("enabled", True) if enabled is None else enabled
@@ -177,6 +175,9 @@ def load_policy(*, enabled: bool | None = None, scratch_root: str | None = None)
     path_type = PureWindowsPath if os.name == "nt" else PurePosixPath
     if not path_type(scratch).is_absolute():
         raise ValueError("[routine_auto] scratch_root must be absolute")
+    test_roots = table.get("test_roots", ["tests"])
+    if not isinstance(test_roots, list) or not test_roots or any(not isinstance(item, str) or not _routine_commands.relative_path(item) for item in test_roots):
+        raise ValueError("[routine_auto] test_roots must be non-empty repo-relative paths without traversal or globs")
     sources = [Path(__file__).with_name("routine_allowlist.toml")]
     extra = table.get("allowlist")
     if extra is not None:
@@ -187,13 +188,16 @@ def load_policy(*, enabled: bool | None = None, scratch_root: str | None = None)
     rules: list[RoutineRule] = []
     ids: set[str] = set()
     for source in sources:
-        for raw in tomllib.loads(source.read_text(encoding="utf-8")).get("rules", []):
+        data = tomllib.loads(source.read_text(encoding="utf-8"))
+        if set(data) != {"rules"} or not isinstance(data["rules"], list):
+            raise ValueError(f"{source}: allow-list must contain a rules array and no unknown top-level keys")
+        for raw in data["rules"]:
             if not isinstance(raw, dict) or set(raw) - {"id", "pattern", "validator"}:
                 raise ValueError(f"{source}: invalid routine rule")
-            rule_id, pattern, validator = raw.get("id"), raw.get("pattern"), raw.get("validator", "")
+            rule_id, pattern, validator = raw.get("id"), raw.get("pattern"), raw.get("validator")
             if not isinstance(rule_id, str) or not rule_id or rule_id in ids:
                 raise ValueError(f"{source}: missing or duplicate rule id {rule_id!r}")
-            if not isinstance(pattern, str) or validator not in ("", "gh-read", "pytest"):
+            if not isinstance(pattern, str) or not isinstance(validator, str) or validator not in _routine_commands.VALIDATORS:
                 raise ValueError(f"{source}: invalid pattern/validator for {rule_id}")
             try:
                 compiled = re.compile(pattern.replace("{python}", re.escape(_path_text(python).replace(" ", "\0"))))
@@ -201,7 +205,8 @@ def load_policy(*, enabled: bool | None = None, scratch_root: str | None = None)
                 raise ValueError(f"{source}: invalid regex for {rule_id}: {exc}") from exc
             rules.append(RoutineRule(rule_id, compiled, validator))
             ids.add(rule_id)
-    return RoutinePolicy(active, scratch, _path_text(str(Path(tempfile.gettempdir()) / "lazytools-bridge")), tuple(rules))
+    return RoutinePolicy(active, scratch, _path_text(str(Path(tempfile.gettempdir()) / "lazytools-bridge")), tuple(rules),
+                         python_executable=_path_text(python), test_roots=tuple(test_roots))
 
 
 @dataclass
@@ -210,6 +215,18 @@ class RoutineAuto:
     store: Any
     queue: Any
     job_id: str
+
+    def match(self, request: ApprovalRequest) -> str | None:
+        # Relative test/staging paths and origin checks belong to this job's
+        # cwd. A different execution cwd must not borrow that validation.
+        if request.cwd is not None and self.policy.cwd is not None:
+            try:
+                if not Path(request.cwd).is_absolute() or Path(request.cwd).resolve() != self.policy.cwd.resolve():
+                    return None
+            except (OSError, RuntimeError):
+                return None
+        command = request.arguments.get("command")
+        return self.policy.match(command) if isinstance(command, str) else None
 
     def approve(self, request: ApprovalRequest, rule_id: str) -> ApprovalDecision:
         # Use the queue's CAS transitions and consume the approval before

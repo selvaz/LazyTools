@@ -85,6 +85,12 @@ class ConcurrencyConfig:
     slot_dir: Path
 
 
+def validate_top_level(data: dict[str, Any], path: Path) -> None:
+    unknown = data.keys() - {"concurrency", "routine_auto"}
+    if unknown:
+        raise ValueError(f"{path}: unknown top-level config keys: {sorted(unknown)}")
+
+
 def load_config(path: Path | None = None) -> ConcurrencyConfig:
     """Limits and slot directory: defaults, overridden by the config file's ``[concurrency]`` table."""
     path = path or config_path()
@@ -96,6 +102,7 @@ def load_config(path: Path | None = None) -> ConcurrencyConfig:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise ValueError(f"{path}: not valid TOML: {exc}") from exc
+    validate_top_level(data, path)
     table = data.get("concurrency", {})
     if not isinstance(table, dict):
         raise ValueError(f"{path}: [concurrency] must be a table")

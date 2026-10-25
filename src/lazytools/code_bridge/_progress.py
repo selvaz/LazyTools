@@ -14,8 +14,8 @@ def _git(path: Path, *args: str) -> str:
     ).stdout.strip()
 
 
-def snapshot(path: Path) -> dict[str, Any]:
-    data: dict[str, Any] = {"head": None, "pushed_refs": None}
+def snapshot(path: Path, branch: str | None = None) -> dict[str, Any]:
+    data: dict[str, Any] = {"head": None, "pushed_refs": None, "branch": branch}
     try:
         _git(path, "rev-parse", "--is-inside-work-tree")
         # An unborn HEAD is a valid baseline, unlike a failed git probe.
@@ -26,12 +26,19 @@ def snapshot(path: Path) -> dict[str, Any]:
     except (OSError, subprocess.TimeoutExpired) as exc:
         data["head_error"] = str(exc)
     try:
+        if branch is None:
+            try:
+                branch = _git(path, "symbolic-ref", "--quiet", "HEAD")
+            except subprocess.CalledProcessError:
+                branch = None  # detached HEAD: only local commit progress counts
+        data["branch"] = branch
         remotes = _git(path, "remote").splitlines()
-        # The routine policy writes only to origin. Read the actual remote,
-        # rather than treating a fetch's remote-tracking update as a push.
+        # A different job's push is never evidence for this job. Query only
+        # the branch pinned at the initial snapshot, not every remote ref.
         data["pushed_refs"] = dict(
-            (ref, sha) for sha, ref in (line.split() for line in _git(path, "ls-remote", "--heads", "origin").splitlines())
-        ) if "origin" in remotes else {}
+            (ref, sha) for sha, ref in (line.split() for line in _git(path, "ls-remote", "--heads", "origin", branch).splitlines())
+            if ref == branch
+        ) if "origin" in remotes and branch else {}
     except (OSError, subprocess.SubprocessError) as exc:
         data["remote_error"] = str(exc)
     return data
@@ -50,7 +57,7 @@ def changes(path: Path, before: dict[str, Any], after: dict[str, Any]) -> dict[s
         refs = [
             {"ref": ref, "before": before["pushed_refs"].get(ref), "after": sha}
             for ref, sha in sorted(after["pushed_refs"].items())
-            if sha != before["pushed_refs"].get(ref)
+            if ref == before.get("branch") and ref == after.get("branch") and sha != before["pushed_refs"].get(ref)
         ]
     return {
         "head_before": before["head"], "head_after": after["head"],

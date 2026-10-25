@@ -434,6 +434,7 @@ class BridgeGate(TieredGate):
     """
 
     routine: Any = None
+    accepting: bool = True
 
     async def _decide(self, request: ApprovalRequest, rule: Rule | None) -> Any:
         if isinstance(rule, _RoutineMatch):
@@ -441,18 +442,23 @@ class BridgeGate(TieredGate):
         return await super()._decide(request, rule)
 
     def _match(self, request: ApprovalRequest) -> Rule | None:
+        if not self.accepting:
+            return Rule("deny", "*")
         command = request.arguments.get("command")
         if self.routine is not None and isinstance(command, str) and (request.kind == "command" or request.name == "Bash"):
-            rule_id = self.routine.policy.match(command)
+            rule_id = self.routine.match(request)
             if rule_id:
                 return _RoutineMatch(cast(Any, "routine-auto"), "*", rule_id=rule_id)
-            if self.routine.policy.enabled and request.kind == "command":
+            if self.routine.policy.enabled:
                 from lazytools.code_bridge._routine import normalise
 
-                # A legacy classifier must not turn a rejected compound or
-                # quoted metacharacter form into an unaudited auto-approval.
-                if normalise(command) is None:
-                    return Rule("ask", "*", kind_pattern="command")
+                normal = normalise(command)
+                # Escalations rejected by a capability validator must not
+                # earn an older classifier's allow/session grant. Apply the
+                # same rule to protected Claude Bash command families.
+                protected = normal is None or normal[1][0] in ("git", "gh", self.routine.policy.python_executable)
+                if request.kind == "command" or protected:
+                    return Rule("ask", "*")
         if isinstance(request.arguments.get("command"), str):
             for rule in self.rules:
                 if isinstance(rule, ClassifiedRule) and rule.matches(request):

@@ -223,8 +223,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
     try:
         if not math.isfinite(args.timeout) or args.timeout <= 0:
             raise ValueError("--timeout must be a finite number greater than 0")
-        if args.max_continuations < 0:
-            raise ValueError("--max-continuations must be an integer >= 0")
+        if not 0 <= args.max_continuations <= _jobs.MAX_CONTINUATIONS:
+            raise ValueError(f"--max-continuations must be an integer from 0 to {_jobs.MAX_CONTINUATIONS}")
         if args.max_wall is not None and (not math.isfinite(args.max_wall) or args.max_wall <= 0):
             raise ValueError("--max-wall must be a finite number greater than 0")
         _routine.load_policy(enabled=args.routine_auto, scratch_root=args.scratch_root)
@@ -440,6 +440,8 @@ def _cmd_status(args: argparse.Namespace) -> int:
         _print_json(job)
     else:
         print(_job_line(job))
+        if "routine_auto" in job:
+            print(f"routine-auto: {'enabled' if job['routine_auto'] else 'disabled'}; {job.get('routine_rule_count', 0)} active rules")
         if job.get("turns"):
             print(_progress.history_text(job["turns"]))
     return 0
@@ -635,15 +637,16 @@ def _cmd_wait(args: argparse.Namespace) -> int:
         status = job.get("status") if job else None
         if status in _TERMINAL:
             return _cmd_result(args)
-        if pid is not None and not _pid_alive(pid):
+        owner = pid if pid is not None else (job.get("pid") if job else None)
+        if type(owner) is int and not _pid_alive(owner):
             # Re-read once: the child may have written its final status just
             # before exiting, between the read above and this liveness check.
             job = _jobs.find_job(store, _store.build_job_registry(store), args.job_id)
             if job and job.get("status") in _TERMINAL:
                 return _cmd_result(args)
-            message = f"job {args.job_id}: its process {pid} is gone but the job record says {status or 'nothing'}"
+            message = f"job {args.job_id}: its process {owner} is gone but the job record says {status or 'nothing'}"
             if args.json:
-                _print_json({"job_id": args.job_id, "status": "died", "last_status": status, "pid": pid})
+                _print_json({"job_id": args.job_id, "status": "died", "last_status": status, "pid": owner})
             else:
                 print(message, file=sys.stderr)
             return 1
@@ -879,7 +882,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Per-turn timeout in seconds, greater than 0 (default: {_engines.DEFAULT_TIMEOUT:g}).",
     )
     run_p.add_argument("--max-continuations", type=int, default=_jobs.DEFAULT_MAX_CONTINUATIONS,
-                       help="Automatic continuations after a timeout with committed/pushed progress (default: 3).")
+                       help="Automatic continuations after a timeout with committed/pushed progress (0-10, default: 3).")
     run_p.add_argument("--max-wall", type=float, default=None,
                        help="Total job wall-clock cap in seconds, including approvals (default: unlimited).")
     run_p.add_argument("--routine-auto", action=argparse.BooleanOptionalAction, default=None,
