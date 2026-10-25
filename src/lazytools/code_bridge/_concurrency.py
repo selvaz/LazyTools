@@ -85,6 +85,12 @@ class ConcurrencyConfig:
     slot_dir: Path
 
 
+def validate_top_level(data: dict[str, Any], path: Path) -> None:
+    unknown = data.keys() - {"concurrency", "routine_auto"}
+    if unknown:
+        raise ValueError(f"{path}: unknown top-level config keys: {sorted(unknown)}")
+
+
 def load_config(path: Path | None = None) -> ConcurrencyConfig:
     """Limits and slot directory: defaults, overridden by the config file's ``[concurrency]`` table."""
     path = path or config_path()
@@ -96,6 +102,7 @@ def load_config(path: Path | None = None) -> ConcurrencyConfig:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise ValueError(f"{path}: not valid TOML: {exc}") from exc
+    validate_top_level(data, path)
     table = data.get("concurrency", {})
     if not isinstance(table, dict):
         raise ValueError(f"{path}: [concurrency] must be a table")
@@ -285,10 +292,13 @@ class EngineSlot:
         wait: bool = False,
         poll_seconds: float | None = None,
         on_wait: Callable[[EngineBusy], None] | None = None,
+        deadline: float | None = None,
     ) -> None:
         """:meth:`try_acquire`, or with ``wait`` keep retrying until a slot frees up."""
         announced = False
         while True:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise ValueError("--max-wall reached while waiting for an engine slot; no job started")
             try:
                 self.try_acquire(job_id)
                 return
@@ -298,7 +308,10 @@ class EngineSlot:
                 if on_wait is not None and not announced:
                     on_wait(busy)
                     announced = True
-                time.sleep(poll_seconds if poll_seconds is not None else WAIT_POLL_SECONDS)
+                delay = poll_seconds if poll_seconds is not None else WAIT_POLL_SECONDS
+                if deadline is not None:
+                    delay = min(delay, max(0, deadline - time.monotonic()))
+                time.sleep(delay)
 
     def discard_stale(self, paths: list[Path]) -> None:
         """Delete stale slot files whose job's bookkeeping is DONE.

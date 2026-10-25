@@ -278,7 +278,7 @@ def choose(
         pid = row.get("pid")
         # A paused job awaiting approval still owns a live engine and resumes without
         # another admission check, so it keeps its reservation (Codex review on #186).
-        if row.get("status") in ("running", "awaiting_approval") and type(pid) is int and _lockfile._pid_alive(pid):
+        if row.get("status") in ("running", "checkpoint", "awaiting_approval") and type(pid) is int and _lockfile._pid_alive(pid):
             in_flight[provider(str(row.get("engine", row.get("kind"))))] += 1
     refused: dict[str, str] = {}
     if respect_slots:

@@ -30,6 +30,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from fnmatch import fnmatch
+from typing import Any, cast
 
 from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import Rule, TieredGate
@@ -215,7 +216,7 @@ def _api_endpoint_ok(endpoint: str) -> bool:
     return bool(_API_ENDPOINT.fullmatch(endpoint)) and ".." not in endpoint.split("/")
 
 
-def is_readonly_gh_query(command: str) -> bool:
+def is_readonly_gh_query(command: str, *, shapes: dict[tuple[str, ...], _GhShape] | None = None) -> bool:
     """True only for ONE read-only ``gh`` query, optionally inside ``powershell.exe -Command '...'``.
 
     Everything else is ``False``: a compound command, any redirection or
@@ -229,7 +230,7 @@ def is_readonly_gh_query(command: str) -> bool:
         return False
     rest = words[1:]
     shape: _GhShape | None = None
-    for prefix, candidate in _GH_READONLY.items():
+    for prefix, candidate in (shapes or _GH_READONLY).items():
         head = rest[: len(prefix)]
         if len(head) == len(prefix) and all(not w.quoted and w.text == p for w, p in zip(head, prefix, strict=True)):
             shape, rest = candidate, rest[len(prefix) :]
@@ -432,12 +433,42 @@ class BridgeGate(TieredGate):
     session-grant scoping -- is ``TieredGate``'s own.
     """
 
+    routine: Any = None
+    accepting: bool = True
+
+    async def _decide(self, request: ApprovalRequest, rule: Rule | None) -> Any:
+        if isinstance(rule, _RoutineMatch):
+            return self.routine.approve(request, rule.rule_id), "routine-auto"
+        return await super()._decide(request, rule)
+
     def _match(self, request: ApprovalRequest) -> Rule | None:
+        if not self.accepting:
+            return Rule("deny", "*")
+        command = request.arguments.get("command")
+        if self.routine is not None and isinstance(command, str) and (request.kind == "command" or request.name == "Bash"):
+            rule_id = self.routine.match(request)
+            if rule_id:
+                return _RoutineMatch(cast(Any, "routine-auto"), "*", rule_id=rule_id)
+            if self.routine.policy.enabled:
+                from lazytools.code_bridge._routine import normalise
+
+                normal = normalise(command)
+                # Escalations rejected by a capability validator must not
+                # earn an older classifier's allow/session grant. Apply the
+                # same rule to protected Claude Bash command families.
+                protected = normal is None or normal[1][0] in ("git", "gh", self.routine.policy.python_executable)
+                if request.kind == "command" or protected:
+                    return Rule("ask", "*")
         if isinstance(request.arguments.get("command"), str):
             for rule in self.rules:
                 if isinstance(rule, ClassifiedRule) and rule.matches(request):
                     return rule
         return super()._match(request)
+
+
+@dataclass(frozen=True)
+class _RoutineMatch(Rule):
+    rule_id: str = ""
 
 
 __all__ = [
