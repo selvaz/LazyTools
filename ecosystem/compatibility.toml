@@ -49,12 +49,12 @@ extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "v0.2.6"  # its datacore extra pins market-data-hub v0.3.4 too (must move together)
+ref = "v0.2.7"  # its datacore extra pins market-data-hub v0.3.9 too (must move together)
 extras = ["datacore"]
 
 [verified.github.lazyray]
 repo = "https://github.com/selvaz/LazyRay"
-ref = "v0.2.6"  # pins market-data-hub v0.3.4 and lazytoolkit v0.10.4 itself (ecosystem-2026.10.7)
+ref = "v0.2.7"  # pins market-data-hub v0.3.9 and lazytoolkit v0.10.4 itself
 
 [verified.github.lazydataspace]
 repo = "https://github.com/selvaz/DataSpace"
@@ -62,7 +62,7 @@ ref = "v0.1.0"  # pinned by market-data-hub, LazyStats, LazyCrawler and LazyPort
 
 [verified.github.lazyfin]
 repo = "https://github.com/selvaz/LazyFin"
-ref = "ffa3689718e3c75412db3d12b8ab8fab00852614"  # pre-tag pin; LazyFin#49 aligns ecosystem extras
+ref = "300257308db7ff29d13e521f65e767aeaad116a9"  # LazyFin#49 merged: extras aligned, datacore on mdh v0.3.9
 # bridge+datacore is what LazyFin's own portfolio/BL surface actually needs;
 # LazyTools' pin already covers the rest. "tools"/"crawler"/"regime"/"all"
 # now point at current lazytoolkit/lazycrawler/lazystats too (the staleness

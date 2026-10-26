@@ -12,7 +12,7 @@ Python: 3.11, 3.12, 3.13
 | lazycrawler | GitHub | `v0.19.7` |
 | market-data-hub | GitHub | `v0.3.9` |
 | lazystats | GitHub | `v0.3.6` |
-| lazyportfolio | GitHub | `v0.2.6` |
-| lazyray | GitHub | `v0.2.6` |
+| lazyportfolio | GitHub | `v0.2.7` |
+| lazyray | GitHub | `v0.2.7` |
 | lazydataspace | GitHub | `v0.1.0` |
-| lazyfin | GitHub | `ffa3689718e3c75412db3d12b8ab8fab00852614` |
+| lazyfin | GitHub | `300257308db7ff29d13e521f65e767aeaad116a9` |
