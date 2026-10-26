@@ -18,7 +18,7 @@
 
 schema_version = 1
 
-# Release set: ecosystem-2026.10.8 (22/10/2026). Every repo, runtime and production
+# Release set: ecosystem-2026.10.9 (25/10/2026). Every repo, runtime and production
 # environment uses exactly these refs. LazyFin is deliberately outside the train.
 [verified]
 python = ["3.11", "3.12", "3.13"]
@@ -40,7 +40,7 @@ ref = "v0.19.7"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "v0.3.4"
+ref = "v0.3.9"
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
@@ -62,7 +62,7 @@ ref = "v0.1.0"  # pinned by market-data-hub, LazyStats, LazyCrawler and LazyPort
 
 [verified.github.lazyfin]
 repo = "https://github.com/selvaz/LazyFin"
-ref = "d5ef4cbccf8c688144dd7f9dc4a7a3e80e49347d"  # pre-tag pin; no release tags yet
+ref = "ffa3689718e3c75412db3d12b8ab8fab00852614"  # pre-tag pin; LazyFin#49 aligns ecosystem extras
 # bridge+datacore is what LazyFin's own portfolio/BL surface actually needs;
 # LazyTools' pin already covers the rest. "tools"/"crawler"/"regime"/"all"
 # now point at current lazytoolkit/lazycrawler/lazystats too (the staleness

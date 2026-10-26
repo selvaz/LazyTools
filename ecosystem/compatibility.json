@@ -18,7 +18,7 @@
           "bridge",
           "datacore"
         ],
-        "ref": "d5ef4cbccf8c688144dd7f9dc4a7a3e80e49347d",
+        "ref": "ffa3689718e3c75412db3d12b8ab8fab00852614",
         "repo": "https://github.com/selvaz/LazyFin"
       },
       "lazyportfolio": {
@@ -48,7 +48,7 @@
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
-        "ref": "v0.3.4",
+        "ref": "v0.3.9",
         "repo": "https://github.com/selvaz/market-data-hub"
       }
     },
