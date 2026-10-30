@@ -122,16 +122,10 @@ values = ["-e", "-A", "-B", "-C", "--max-depth"]
 operands = "pattern-paths"
 
 [[rules]]
-id = "git-remote-read"
-command = ["git", "remote", "-v"]
-max_positionals = 0
-operands = "none"
-
-[[rules]]
 id = "gh-pr-view"
 command = ["gh", "pr", "view"]
 flags = ["--comments", "-c"]
-values = ["--json", "--jq", "-q", "--template", "-t", "--repo", "-R"]
+values = ["--json", "--repo", "-R"]
 max_positionals = 1
 operands = "none"
 
@@ -139,7 +133,7 @@ operands = "none"
 id = "gh-pr-list"
 command = ["gh", "pr", "list"]
 flags = ["--draft"]
-values = ["--json", "--jq", "-q", "--template", "-t", "--repo", "-R", "--head", "--base", "--state", "--limit", "-L", "--search", "--author", "--assignee", "--label"]
+values = ["--json", "--repo", "-R", "--head", "--base", "--state", "--limit", "-L", "--search", "--author", "--assignee", "--label"]
 max_positionals = 0
 operands = "none"
 
@@ -147,7 +141,7 @@ operands = "none"
 id = "gh-pr-checks"
 command = ["gh", "pr", "checks"]
 flags = ["--required", "--fail-fast"]
-values = ["--json", "--jq", "-q", "--template", "-t", "--repo", "-R"]
+values = ["--json", "--repo", "-R"]
 max_positionals = 1
 operands = "none"
 
@@ -163,7 +157,7 @@ operands = "none"
 id = "gh-run-view"
 command = ["gh", "run", "view"]
 flags = ["--log", "--log-failed", "--exit-status", "--verbose", "-v"]
-values = ["--json", "--jq", "-q", "--template", "-t", "--repo", "-R", "--job", "-j", "--attempt", "-a"]
+values = ["--json", "--repo", "-R", "--job", "-j", "--attempt", "-a"]
 max_positionals = 1
 operands = "none"
 
@@ -171,7 +165,7 @@ operands = "none"
 id = "gh-run-list"
 command = ["gh", "run", "list"]
 flags = ["--all", "-a"]
-values = ["--json", "--jq", "-q", "--template", "-t", "--repo", "-R", "--limit", "-L", "--branch", "-b", "--workflow", "-w", "--status", "-s", "--event", "-e", "--user", "-u", "--commit", "-c", "--created"]
+values = ["--json", "--repo", "-R", "--limit", "-L", "--branch", "-b", "--workflow", "-w", "--status", "-s", "--event", "-e", "--user", "-u", "--commit", "-c", "--created"]
 max_positionals = 0
 operands = "none"
 
@@ -179,14 +173,14 @@ operands = "none"
 id = "gh-issue-view"
 command = ["gh", "issue", "view"]
 flags = ["--comments", "-c"]
-values = ["--json", "--jq", "-q", "--template", "-t", "--repo", "-R"]
+values = ["--json", "--repo", "-R"]
 max_positionals = 1
 operands = "none"
 
 [[rules]]
 id = "gh-issue-list"
 command = ["gh", "issue", "list"]
-values = ["--json", "--jq", "-q", "--template", "-t", "--repo", "-R", "--state", "--limit", "-L", "--search", "--author", "--assignee", "--label"]
+values = ["--json", "--repo", "-R", "--state", "--limit", "-L", "--search", "--author", "--assignee", "--label"]
 max_positionals = 0
 operands = "none"
 
@@ -195,6 +189,5 @@ id = "gh-api-get"
 command = ["gh", "api"]
 validator = "api"
 flags = ["--paginate", "--slurp", "--include", "-i", "--silent"]
-values = ["--jq", "-q", "--template", "-t"]
 max_positionals = 1
 operands = "none"

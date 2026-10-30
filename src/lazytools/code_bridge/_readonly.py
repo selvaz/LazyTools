@@ -62,6 +62,8 @@ def pipeline(command: str) -> list[str] | None:
 SENSITIVE_NAMES = (
     ".env*", "auth.json", ".ssh", ".codex", ".claude", ".aws", ".azure", ".gnupg", ".npmrc", ".pypirc",
     ".netrc", ".git-credentials", "credentials*", "*.pem", "*.key", "id_rsa*", "*secret*", "*token*", ".git",
+    "id_ed25519*", "id_ecdsa*", "id_dsa*", ".pgpass", "*.tfstate*", "*.tfvars*", "*.pfx", "*.p12", "kubeconfig",
+    ".kube", ".docker",
 )
 
 #: Windows device names (with or without an extension): opening one can block.
@@ -71,10 +73,13 @@ _DEVICE = re.compile(r"(?:con|prn|aux|nul|com[1-9]|lpt[1-9]|conin\$|conout\$)(?:
 def sensitive_name(segment: str) -> bool:
     # NTFS ignores trailing dots/spaces, so ".env." names the same file as ".env".
     name = segment.rstrip(". ").lower()
-    return any(fnmatchcase(name, pattern) for pattern in SENSITIVE_NAMES)
+    if any(fnmatchcase(name, pattern) for pattern in SENSITIVE_NAMES):
+        return True
+    # A backup copy of a credential file (auth.json.bak, id_rsa.bak.bak) is the same secret.
+    return name.endswith(".bak") and sensitive_name(name[: -len(".bak")])
 
 
-def operand_ok(operand: str, *, git: bool) -> bool:
+def operand_ok(operand: str, *, git: bool, pathspec: bool = False) -> bool:
     """A read operand that is relative, stays inside the cwd and names no credential file.
 
     ``git`` operands are revisions or pathspecs (``HEAD:README.md``), so ``:`` is
@@ -82,7 +87,15 @@ def operand_ok(operand: str, *, git: bool) -> bool:
     data stream) asks. Absolute paths (``/dev/zero``, ``/c/Users/...``), ``~``,
     ``..`` segments and stdin (``-``) always ask. Path checks are lexical:
     symlinks and junctions inside the cwd are not resolved (see docs).
+
+    ``pathspec`` operands (every git command except ``branch --list``, whose
+    operand is a ref-name pattern) additionally refuse wildcards
+    (``* ? [ ] { }``) and a leading ``:`` (pathspec magic such as ``:(top).env``):
+    git expands them against the tree, so ``".e*"`` would reach ``.env`` past the
+    name check above.
     """
+    if pathspec and (operand.startswith(":") or re.search(r"[*?\[\]{}]", operand)):
+        return False
     if not operand or operand == "-" or operand.startswith(("/", "~")) or re.match(r"[A-Za-z]:", operand):
         return False
     segments = re.split(r"[/:]" if git else r"/", operand)
@@ -181,7 +194,8 @@ class ReadRule:
             operands = positionals
             if self.operands == "pattern-paths" and not seen & {"-e", "--regexp", "--files"}:
                 operands = positionals[1:]  # the first positional is the search pattern, not a path
-            if not all(operand_ok(op, git=self.command[0] == "git") for op in operands):
+            git = self.command[0] == "git"
+            if not all(operand_ok(op, git=git, pathspec=git and self.validator != "branch") for op in operands):
                 return False
             if self.stdin and not operands and not piped and not seen & self.no_stdin_flags:
                 return False  # would read stdin and could block forever

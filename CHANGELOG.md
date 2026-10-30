@@ -21,6 +21,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   read-only capability; read tools refuse absolute/`..` paths, credential names,
   `rg --hidden/--no-ignore` and `git grep --no-index`; stdin-blocking reads and
   `gh pr checks --watch` ask.
+- Close the second review of the Claude Bash gate: `gh --jq/-q/--template/-t`
+  (which can print the process environment) are removed from every read-only
+  `gh` shape, the Codex `readonly_gh_query` table and routine-auto; allow-listed
+  git commands ask on pathspec wildcards/magic (`".e*"`, `":(top).env"`);
+  `git remote -v` asks; Write/Edit also ask on `.claude/**`, `.mcp.json`,
+  `.husky/**`, `.env*`, `.vscode/settings.json`, shell rc files and paths outside
+  the job; the credential-name list gains SSH/Postgres/Terraform/PKCS/kube/docker
+  names and `.bak` copies.
 
 ## [0.10.5] — 2026-10-30
 

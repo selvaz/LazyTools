@@ -162,7 +162,9 @@ def unwrap_powershell(command: str) -> str:
 # read-only gh queries
 # --------------------------------------------------------------------------- #
 
-_OUTPUT_FLAGS = frozenset({"--json", "--jq", "-q", "--template", "-t"})
+#: No --jq/-q/--template/-t anywhere: a jq filter can print the process environment
+#: (``--jq env``) and a Go template can reach more, leaking API keys and bot tokens.
+_OUTPUT_FLAGS = frozenset({"--json"})
 _REPO_FLAGS = frozenset({"--repo", "-R"})
 
 
@@ -204,7 +206,7 @@ _GH_READONLY: dict[tuple[str, ...], _GhShape] = {
     # No -X/--method, -f/-F/--field/--raw-field, --input, -H/--header: with
     # none of them gh sends a GET. Only output shaping and pagination.
     ("api",): _GhShape(
-        frozenset({"--jq", "-q", "--template", "-t", "--cache"}),
+        frozenset({"--cache"}),
         frozenset({"--paginate", "--slurp", "--include", "-i", "--silent"}),
         1,
     ),
@@ -466,6 +468,53 @@ def git_control_path(path: str) -> bool:
     return False
 
 
+_SHELL_RC = frozenset({
+    ".bashrc", ".bash_profile", ".bash_login", ".profile", ".zshrc", ".zprofile", ".zshenv",
+    "microsoft.powershell_profile.ps1", "profile.ps1",
+})
+
+
+def _slashed(path: str) -> str:
+    """Forward slashes, lower case, MSYS ``/c/x`` -> ``c:/x``, ``.`` and empty segments dropped."""
+    text = re.sub(r"^/([A-Za-z])(?=/|$)", r"\1:", path.replace("\\", "/")).lower()
+    return "/".join(part for part in text.split("/") if part not in ("", "."))
+
+
+def outside_roots(path: str, roots: tuple[str, ...]) -> bool:
+    """True unless ``path`` is relative without ``..``, or lies lexically inside one of ``roots``.
+
+    Claude's file tools usually pass absolute paths, so an absolute path is accepted
+    only under the job's cwd (or its own temp dir). Symlinks are not resolved.
+    """
+    parts = [part for part in re.split(r"[/\\]", path) if part]
+    if ".." in parts:
+        return True
+    if not (path.startswith(("/", "\\")) or re.match(r"[A-Za-z]:", path)):
+        return False
+    target = _slashed(path)
+    return not any(
+        root_text and (target == root_text or target.startswith(root_text + "/"))
+        for root_text in (_slashed(root) for root in roots if root)
+    )
+
+
+def protected_write_path(path: str, roots: tuple[str, ...]) -> bool:
+    """A Write/Edit target that always asks: outside the job, git control, agent/CI/shell config.
+
+    Beyond :func:`git_control_path` and :func:`outside_roots`: ``.claude/**`` (hooks,
+    settings, permissions), ``.mcp.json`` (spawns MCP servers), ``.husky/**`` (git
+    hooks), ``.env*``, ``.vscode/settings.json`` and shell start-up files. Segments
+    are normalised like :func:`git_control_path` (case, trailing dots/spaces, streams).
+    """
+    if git_control_path(path) or outside_roots(path, roots):
+        return True
+    names = [segment.split(":", 1)[0].rstrip(". ").lower() for segment in re.split(r"[/\\]", path) if segment]
+    return (
+        any(name in (".claude", ".husky", ".mcp.json") or name.startswith(".env") or name in _SHELL_RC for name in names)
+        or (len(names) >= 2 and names[-2] == ".vscode" and names[-1] == "settings.json")
+    )
+
+
 #: Registry of classifiers a :class:`ClassifiedRule` may name. A name, not a
 #: callable, so the rule stays a plain frozen, hashable, printable value and
 #: its fingerprint (which scopes session grants) is stable across processes.
@@ -548,6 +597,10 @@ class BridgeGate(TieredGate):
     #: set by the job runner. The only ref a push / ``gh pr create --head`` grant
     #: covers; ``None`` (unknown, detached HEAD) means those always ask.
     job_branch: str | None = None
+    #: The job's cwd and its own temp dir: the only roots Write/Edit may reach
+    #: unattended (set by the job runner). Unknown roots make every absolute path ask.
+    cwd: str | None = None
+    temp_dir: str | None = None
 
     async def _decide(self, request: ApprovalRequest, rule: Rule | None) -> Any:
         if isinstance(rule, _RoutineMatch):
@@ -591,7 +644,8 @@ class BridgeGate(TieredGate):
             # (git status -> core.fsmonitor, git diff -> textconv, ...) into code
             # execution, so it asks. A missing/odd path argument fails closed too.
             paths = [request.arguments[k] for k in _EDIT_PATH_KEYS if k in request.arguments]
-            if not paths or any(not isinstance(p, str) or not p or git_control_path(p) for p in paths):
+            roots = tuple(root for root in (self.cwd, self.temp_dir) if root)
+            if not paths or any(not isinstance(p, str) or not p or protected_write_path(p, roots) for p in paths):
                 return Rule("ask", request.name)
         return matched
 

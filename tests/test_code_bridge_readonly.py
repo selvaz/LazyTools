@@ -32,13 +32,13 @@ READS = [
     "grep -n word README.md", "rg --files", "rg -n 'a b' src", "find . -name '*.py' -type f -print",
     "git status --short", "git log --oneline -5", "git diff --stat", "git show HEAD:README.md",
     "git branch", "git branch --list 'feat/*'", "git branch -a", "git rev-parse --show-toplevel",
-    "git describe --tags --always", "git ls-files", "git grep -n text", "git remote -v",
+    "git describe --tags --always", "git ls-files", "git grep -n text",
     "gh pr view 1 --json state", "gh pr list --state open", "gh pr checks 1", "gh pr diff 1 --name-only",
     "gh run view 1 --log-failed", "gh run list --limit 5", "gh issue view 1", "gh issue list",
-    "gh api repos/a/b/pulls/1/comments --paginate --jq '.[].body'",
+    "gh api repos/a/b/pulls/1/comments --paginate",
     "git log --oneline | head -n 5", "cat README.md | grep text | wc -l",
     "git status 2>&1", "git status >/dev/null", "git status 2> /dev/null",
-    "gh pr view 1 --json reviews --jq '.reviews[] | .state'",
+    "gh pr view 1 --json reviews",
 ]
 
 

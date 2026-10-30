@@ -78,12 +78,11 @@ CODEX_READONLY_GH = [
     f"powershell.exe -Command 'gh pr view 77 --repo {REPO} --json url,state,headRefName,baseRefName,body,comments,reviews'",
     f"powershell.exe -Command 'gh api repos/{REPO}/pulls/77/comments'",
     f"powershell.exe -Command 'gh run view 39028190857 --repo {REPO} --json status,conclusion,jobs'",
-    f"powershell.exe -Command \"gh pr view 77 --repo {REPO} --json reviews,comments --jq "
-    "'{reviews: .reviews, comments: [.comments[] | {author: .author.login, body: .body}]}'\"",
+    f"powershell.exe -Command 'gh pr view 77 --repo {REPO} --json reviews,comments'",
 ]
 
 
-@pytest.mark.parametrize("command", CODEX_READONLY_GH, ids=["4-pr-checks", "5-pr-view", "6-api", "7-run-view", "8-jq"])
+@pytest.mark.parametrize("command", CODEX_READONLY_GH, ids=["4-pr-checks", "5-pr-view", "6-api", "7-run-view", "8-comments"])
 def test_codex_fixtures_4_to_8_readonly_gh_are_auto_allowed(command):
     assert is_readonly_gh_query(command)
     gate = BridgeGate(channel=RecordingChannel(), rules=CODING_RULES)
@@ -446,12 +445,12 @@ def test_a_denied_adversarial_escalation_is_denied():
         "gh pr checks 77 --required",
         "gh run list --repo a/b --limit 5 --json databaseId,status",
         "gh run view 1 --log-failed",
-        "gh api repos/a/b/pulls/77/comments --paginate --jq '.[].body'",
-        "gh api /repos/a/b/actions/runs --jq '.workflow_runs[] | .status'",
+        "gh api repos/a/b/pulls/77/comments --paginate",
+        "gh api /repos/a/b/actions/runs --cache 1h",
         "gh.exe pr view 77",
         "pwsh -NoProfile -Command 'gh pr view 77'",
         "powershell -NoProfile -NonInteractive -c \"gh run list --limit 3\"",
-        "gh pr view 77 --json body --jq=.body",
+        "gh pr view 77 --json body",
     ],
 )
 def test_readonly_gh_shapes_recognised(command):

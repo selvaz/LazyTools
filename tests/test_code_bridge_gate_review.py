@@ -22,8 +22,8 @@ class Unused:
         raise AssertionError("_match must not ask")
 
 
-def _tier(name, arguments, *, job_branch=BRANCH, rules=CODING_RULES):
-    gate = BridgeGate(channel=Unused(), rules=rules, job_branch=job_branch)
+def _tier(name, arguments, *, job_branch=BRANCH, rules=CODING_RULES, cwd="C:/repo", temp_dir="C:/tmp/job"):
+    gate = BridgeGate(channel=Unused(), rules=rules, job_branch=job_branch, cwd=cwd, temp_dir=temp_dir)
     rule = gate._match(ApprovalRequest(provider="claude-code", kind="tool", name=name, arguments=arguments))
     assert rule is not None
     return rule.tier

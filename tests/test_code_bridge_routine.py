@@ -44,7 +44,7 @@ def routine_repo(tmp_path_factory):
 POSITIVE = [
     ("gh pr view 123 --json state,mergeable", "gh-pr-read"),
     ("gh pr checks 123 --watch --interval 60", "gh-pr-read"),
-    ("gh pr view 123 --json reviews --jq '.reviews[] | .state'", "gh-pr-read"),
+    ("gh pr view 123 --json reviews,comments", "gh-pr-read"),
     ("gh pr list --head feat/ticket --json number,state", "gh-pr-list"),
     ("gh run view 432 --log-failed", "gh-run-read"),
     ("gh run watch 432 --exit-status", "gh-run-read"),

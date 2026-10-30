@@ -493,7 +493,7 @@ def run_job(
             on_waiting=lambda: _set_status("awaiting_approval"),
             on_resumed=lambda: _set_status("running"),
         )
-        gate = BridgeGate(channel=channel, rules=CODING_RULES,
+        gate = BridgeGate(channel=channel, rules=CODING_RULES, cwd=str(resolved_cwd), temp_dir=temp_arg,
                           routine=_routine.RoutineAuto(routine_policy, store, queue, job_id))
 
         from lazybridge.engines.sessions import default_session_registry

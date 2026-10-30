@@ -580,20 +580,31 @@ read option or command shape uses TOML; a new validator requires code review.
 
 The initial set covers `ls`, `pwd`, `cat`, `head`, non-following `tail`, `wc`,
 `grep`/`rg`, `find` with read predicates, Git status/log/diff/show, branch listing,
-rev-parse/describe/ls-files/grep and `remote -v`; GitHub PR
+rev-parse/describe/ls-files/grep; GitHub PR
 view/list/checks/diff, run view/list, issue view/list, and GET-only `gh api` on
 `repos/...` endpoints. `git fetch` is **not** read-only (it writes refs/objects
 and uses the network) and asks; routine-auto keeps its own validated
-`git fetch origin`. `gh pr checks --watch/--interval` and `gh run watch` poll
-until completion and ask. Output-writing, external-command and unknown options ask.
+`git fetch origin`. `git remote` (including `-v`) asks: it prints remote URLs,
+which can embed credentials. `gh pr checks --watch/--interval` and `gh run watch`
+poll until completion and ask. `gh ... --jq/-q/--template/-t` ask: a jq filter or
+template can print the process environment (`--jq env`). Output-writing,
+external-command and unknown options ask.
+
+Operands of every allow-listed `git` command are literal: one containing `*`, `?`,
+`[`, `]`, `{`, `}` or starting with `:` (pathspec magic such as `:(top).env`) asks,
+because git expands it against the tree and `".e*"` or `".en?"` would reach `.env`
+past the name check. `git branch --list 'feat/*'` is exempt, since its operand is a
+ref-name pattern and not a path.
 
 Every read tool also checks its operands. Paths must be relative, contain no
 `..`, and live in the job's cwd; absolute paths (`/`, `C:`, `~`, `/dev/*`), stdin
 (`-`), Windows device names (`CON`, `NUL`, ...), 8.3 aliases and NTFS stream
 names ask. Any path segment matching `.env*`, `auth.json`, `.ssh`, `.codex`,
 `.claude`, `.aws`, `.azure`, `.gnupg`, `.npmrc`, `.pypirc`, `.netrc`,
-`.git-credentials`, `credentials*`, `*.pem`, `*.key`, `id_rsa*`, `*secret*`,
-`*token*` (or `.git`) asks, so `cat src/tokenizer.py` asks too: a false ask is
+`.git-credentials`, `credentials*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`,
+`id_ecdsa*`, `id_dsa*`, `.pgpass`, `*.tfstate*`, `*.tfvars*`, `*.pfx`, `*.p12`,
+`kubeconfig`, `.kube`, `.docker`, `*secret*`, `*token*` (or `.git`), or a `.bak`
+copy of any of them (`auth.json.bak`, `.env.bak`), asks, so `cat src/tokenizer.py` asks too: a false ask is
 cheap. For `grep`/`rg`/`git grep` the search pattern is not a path, so
 `grep -r token src` is fine. `rg --hidden`, `--no-ignore`, `-u`, positive
 `-g` globs that could re-include dotfiles (`*`, `.*`, `**`), and
@@ -608,7 +619,13 @@ any path under `.git/` (including `.git/hooks/**` and `.git/config`) and for
 `.gitattributes`, `.gitmodules` and `.gitconfig`, after NTFS normalisation. Those
 files can make an allow-listed git read run a command: `core.fsmonitor` runs on
 `git status`, `core.sshCommand`/`ext::` remotes on network use, and
-`textconv`/external-diff drivers on `git diff|log|show`. A write call with no
+`textconv`/external-diff drivers on `git diff|log|show`. They also ask for
+`.claude/**`, `.mcp.json`, `.husky/**`, any `.env*`, `.vscode/settings.json`, the
+shell rc files (`.bashrc`, `.bash_profile`, `.profile`, `.zshrc`, `.zprofile`,
+`.zshenv`, `Microsoft.PowerShell_profile.ps1`, `profile.ps1`) and any path outside
+the job: absolute paths that are not under the job cwd or the job's temp dir
+(where the writer's helper files live), and any path with a `..` segment. Paths
+are compared lexically after slash/case normalisation. A write call with no
 usable path also asks.
 
 The parser rejects backslash escapes, substitution, comments, malformed quotes,
@@ -672,7 +689,9 @@ backslashes are rejected, preserving native filename semantics. Only the exact
 `$env:PYTHONPATH=(Get-Location).Path; ` prefix (pytest only) and a leading
 `& ` call operator are accepted. Semicolons (even inside quotes), `&`,
 backticks, `$`, newlines, redirection and shell pipes are rejected. A pipe
-inside a quoted `--jq`/`-q` expression is literal data and is accepted.
+inside a quoted argument is literal data and is accepted. `--jq`/`-q` and
+`--template`/`-t` are not accepted on any `gh` shape (they can print the
+environment).
 Only ASCII spaces/tabs are trimmed; non-ASCII characters and control characters
 are rejected before trimming. All validated paths reject components ending in
 a dot or space, and components containing `~`, to exclude Windows path aliases.
@@ -775,7 +794,7 @@ falls through to the catch-all `ask`. A false "ask" is cheap; a false
 
 - One command only. Outside quotes, only `[A-Za-z0-9_./:,=+-]` are allowed —
   so `;`, `&&`, `||`, `|`, `>`, `<`, `(`, `{`, globs and `#` all mean "ask".
-  `|` and `{}` are fine **inside** a quoted `--jq '...'` filter.
+  `|` and `{}` inside quotes are literal data (but `--jq`/`--template` themselves ask, below).
 - `$`, backtick, `\` and any non-ASCII character mean "ask" anywhere, quoted
   or not (bash/PowerShell substitution; PowerShell treats Unicode smart
   quotes as quotes).
@@ -796,12 +815,15 @@ falls through to the catch-all `ask`. A false "ask" is cheap; a false
   with `--amend`. After three review rounds on PowerShell quoting, the rule is
   to refuse these characters rather than model PowerShell's behaviour.
 
-  **Trade-off:** a jq filter or template that needs a string literal
-  (`--jq '.title + "x"'`) asks, and so does a commit message with an
-  apostrophe (`-m "it's"`). Quoted values *without* inner quotes keep working:
-  `--jq '{reviews: .reviews, comments: [.comments[] | {author: .author.login}]}'`,
-  `-m 'fix: the typo'`. The plain forms (`gh pr view 77 --repo a/b --json state`,
-  `git commit -m fix-typo`) never needed quotes at all.
+  **Trade-off:** a commit message with an apostrophe (`-m "it's"`) asks.
+  Quoted values *without* inner quotes keep working: `-m 'fix: the typo'`. The
+  plain forms (`gh pr view 77 --repo a/b --json state`, `git commit -m fix-typo`)
+  never needed quotes at all.
+- **No `--jq`/`-q` or `--template`/`-t` on any read-only `gh` shape.** A jq
+  filter can read the process environment (`--jq env`, `--jq 'env|keys'`), which
+  holds API keys and bot tokens, and a Go template can too. Every such use asks,
+  in the Claude Bash gate, the Codex `readonly_gh_query` classifier and
+  routine-auto alike. Use `--json <fields>` and read the result.
 - The PowerShell wrapper is unwrapped only in its exact form:
   `powershell.exe|pwsh [-NoProfile|-NonInteractive|-NoLogo] -Command '<one payload>'`
   with nothing after the closing quote and no quote of the same kind inside.
@@ -1133,3 +1155,9 @@ What to hand back: the diff summary, the command output, anything undecided.
   location is not resolved, and recursive searches (`grep -r`, `find`) inside the
   cwd can still reach dotfiles there (only `rg` skips hidden/ignored files by
   default). The `Read`, `Glob` and `Grep` tools are not covered by these checks.
+- The gate checks command text and operand names, never file contents. A
+  credential file that is tracked or sits inside the cwd can therefore still be
+  read by commands that name no path: `git grep -e KEY` without a path,
+  `git log -p --all`, `git show <sha>` and `grep -r KEY .`. `Read`, `Glob` and
+  `Grep` remain unconditional allow; Claude Code's own cwd boundary is the only
+  limit on them.
