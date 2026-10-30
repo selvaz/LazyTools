@@ -109,6 +109,7 @@ packages = ["src/lazytools"]
 "ecosystem/compatibility.toml" = "lazytools/ecosystem_sync/compatibility.toml"
 "src/lazytools/routing/default_tiers.toml" = "lazytools/routing/default_tiers.toml"
 "src/lazytools/code_bridge/routine_allowlist.toml" = "lazytools/code_bridge/routine_allowlist.toml"
+"src/lazytools/code_bridge/readonly_allowlist.toml" = "lazytools/code_bridge/readonly_allowlist.toml"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

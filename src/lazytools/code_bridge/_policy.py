@@ -1,16 +1,17 @@
 """The ``TieredGate`` rule table for the async code bridge.
 
-Mirrors the generic coding-agent rules in LazyCEO's
+Builds on the generic coding-agent rules in LazyCEO's
 ``lazyceo.simple.agent.SIMPLE_RULES`` (``origin/main:src/lazyceo/simple/
 agent.py``) -- the Read/Write/Edit/Bash/git/gh tiers every one of its
 delegated coding sub-agents is held to. Deliberately leaves out LazyCEO's
 own custom tool rules (blackboard verbs, specialist lifecycle, calendar,
 ...): this bridge only ever runs ONE coding engine per job, with no custom
-tool surface of its own to gate.
+tool surface of its own to gate. Claude Bash additionally uses a structured
+read-only allow-list and fails closed on commands it does not recognise.
 
 First matching rule wins (see ``lazybridge.ext.approval.tiered.TieredGate``);
 order matters. The specific ``Bash``/git/gh patterns must come before the
-catch-all ``Rule("allow", "Bash")``, and the generic command escalation rule
+catch-all ``Rule("ask", "Bash")``, and the generic command escalation rule
 stays last.
 
 The table is meant for :class:`~lazytools.code_bridge._approvals.BridgeGate`,
@@ -87,11 +88,9 @@ CODING_RULES: tuple[Rule, ...] = (
     Rule("ask", "Bash", "git reset --hard*"),
     Rule("ask", "Bash", "*rm *"),
     Rule("ask", "Bash", "*delete*"),
-    # Default-allow catch-all for Bash, NOT an allow-list of safe commands --
-    # the specific ask/session patterns above already caught the dangerous
-    # forms; anything else (tests, scripts, curl, ...) runs free, matching
-    # how this bridge's own human operates at the terminal.
-    Rule("allow", "Bash"),
+    # BridgeGate checks the packaged structured read-only allow-list before
+    # returning this fallback. Unknown syntax/capabilities always ask.
+    Rule("ask", "Bash"),
     # --- Sandbox escalations (kind="command", Codex's "codex-shell") ------
     # Decided by explicit, unit-tested classifiers over the WHOLE command
     # (see _approvals.py), never by fnmatch: each is an allow-list over a

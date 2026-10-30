@@ -18,7 +18,8 @@ alone, each implemented here as a small, unit-tested predicate:
 
 :class:`ClassifiedRule` plugs a classifier into the ordinary rule table, and
 :class:`BridgeGate` (a ``TieredGate``) evaluates those rules on the WHOLE
-command before the stock segment-by-segment matching runs. ``TieredGate``
+command for Codex escalations. Claude Bash uses its own whole-command,
+fail-closed capability check. ``TieredGate``
 splits on ``|`` and newlines, which is right for its fnmatch rules but would
 cut a quoted ``--jq '... | ...'`` filter in half; the classifier does its own
 quote-aware tokenisation instead.
@@ -28,7 +29,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fnmatch import fnmatch
 from typing import Any, cast
 
@@ -421,9 +422,10 @@ class ClassifiedRule(Rule):
 class BridgeGate(TieredGate):
     """``TieredGate`` that tries :class:`ClassifiedRule` entries first, on the whole command.
 
-    First classified match in table order wins; otherwise the stock
-    ``TieredGate`` matching runs on the UNMODIFIED request text -- Claude
-    ``Bash`` included, heredoc bodies and all. (An earlier revision hid
+    Routine-auto validators run first. Claude Bash then checks session rules
+    and the read-only allow-list on the whole command, asking on any miss.
+    Codex escalations try classified rules before stock ``TieredGate`` matching
+    on the unmodified text. (An earlier revision hid
     "data" heredoc bodies from the patterns; review showed a commented-out
     ``cat`` or a heredoc fed to ``bash -c "$(...)"`` turned that into a way to
     hide executed commands, so it was removed. Claude is instead instructed
@@ -439,6 +441,13 @@ class BridgeGate(TieredGate):
     async def _decide(self, request: ApprovalRequest, rule: Rule | None) -> Any:
         if isinstance(rule, _RoutineMatch):
             return self.routine.approve(request, rule.rule_id), "routine-auto"
+        if request.kind == "tool" and request.name == "Bash" and rule is not None:
+            label = (
+                f"matched {rule.tier} rule: {rule.arg_pattern}"
+                if rule.arg_pattern else "no allow rule matched (fail closed)"
+            )
+            arguments = {key: value for key, value in request.arguments.items() if key != "gate_rule"}
+            request = replace(request, arguments={"gate_rule": label, **arguments})
         return await super()._decide(request, rule)
 
     def _match(self, request: ApprovalRequest) -> Rule | None:
@@ -459,11 +468,48 @@ class BridgeGate(TieredGate):
                 protected = normal is None or normal[1][0] in ("git", "gh", self.routine.policy.python_executable)
                 if request.kind == "command" or protected:
                     return Rule("ask", "*")
+        if request.kind == "tool" and request.name == "Bash":
+            return self._match_bash(request)
         if isinstance(request.arguments.get("command"), str):
             for rule in self.rules:
                 if isinstance(rule, ClassifiedRule) and rule.matches(request):
                     return rule
         return super()._match(request)
+
+    def _match_bash(self, request: ApprovalRequest) -> Rule:
+        from lazytools.code_bridge import _readonly
+
+        command = request.arguments.get("command")
+        if not isinstance(command, str):
+            return Rule("ask", "Bash")
+        stages = _readonly.pipeline(command)
+        # Session grants cover a single command, with no redirects, wrappers,
+        # expansion or shell operators. Never classify split shell segments.
+        simple = stages is not None and len(stages) == 1 and stages[0] == command.strip()
+        words = _tokenize(command) if simple else None
+        for rule in self.rules:
+            if isinstance(rule, ClassifiedRule):
+                continue
+            if rule.name_pattern != "Bash" or not rule.matches(request):
+                continue
+            if rule.tier == "session":
+                if not words:
+                    continue
+                args = [word.text for word in words]
+                if rule.arg_pattern == "git add*" and not is_simple_git_add(command):
+                    continue
+                if rule.arg_pattern == "git commit*" and not is_simple_git_commit(command):
+                    continue
+                if rule.arg_pattern == "git push * *" and (len(args) != 4 or args[:2] != ["git", "push"]):
+                    continue
+                if rule.arg_pattern == "gh pr create*" and args[:3] != ["gh", "pr", "create"]:
+                    continue
+            if rule.tier == "ask" and rule.arg_pattern is None:
+                rule_id = _readonly.match(command)
+                if rule_id:
+                    return Rule("allow", "Bash", arg_pattern=f"readonly:{rule_id}")
+            return rule
+        return Rule("ask", "Bash")
 
 
 @dataclass(frozen=True)

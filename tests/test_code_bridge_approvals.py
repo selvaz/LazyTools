@@ -8,6 +8,7 @@ with only the human replaced by a recording channel.
 from __future__ import annotations
 
 import asyncio
+from typing import cast
 
 import pytest
 from lazybridge.engines.coding import ApprovalRequest
@@ -57,7 +58,7 @@ def tier(request: ApprovalRequest) -> str:
 
 def decide(gate: BridgeGate, request: ApprovalRequest) -> tuple[str, bool]:
     """``(action, asked_a_human)`` for one request through the full gate."""
-    channel = gate.channel
+    channel = cast(RecordingChannel, gate.channel)
     before = len(channel.prompts)
     decision = asyncio.run(gate(request))
     return decision.action, len(channel.prompts) > before
@@ -294,7 +295,7 @@ def test_claude_fixtures_1_3_heredocs_are_matched_in_full_and_ask(command):
     heredoc whose body says delete/rm asks. The fix for 1 and 3 is upstream:
     the writer is told to create files with Write/Edit, never heredocs."""
     assert tier(claude_bash(command)) == "ask"
-    stock = TieredGate(channel=None, rules=CODING_RULES)._match(claude_bash(command))
+    stock = TieredGate(channel=RecordingChannel(), rules=CODING_RULES)._match(claude_bash(command))
     assert stock is not None and stock.tier == "ask"  # identical to the stock gate
 
 
@@ -340,9 +341,9 @@ def test_review_heredoc_bypasses_ask(command):
     assert decide(BridgeGate(channel=channel, rules=CODING_RULES), claude_bash(command)) == ("deny", True)
 
 
-@pytest.mark.parametrize("command", [CLAUDE_1, *HEREDOC_BYPASSES, CLAUDE_2, "ls -la", "git push origin main"])
+@pytest.mark.parametrize("command", [CLAUDE_1, *HEREDOC_BYPASSES, CLAUDE_2, "git push origin main"])
 def test_bridge_gate_matches_bash_exactly_like_the_stock_gate(command):
-    stock = TieredGate(channel=None, rules=CODING_RULES)._match(claude_bash(command))
+    stock = TieredGate(channel=RecordingChannel(), rules=CODING_RULES)._match(claude_bash(command))
     assert tier(claude_bash(command)) == (stock.tier if stock else "unmatched")
 
 
@@ -516,10 +517,11 @@ def test_git_commit_allow_list_accepts(command):
 
 def test_classified_rules_never_match_a_split_segment_under_a_plain_tieredgate():
     """Defence in depth: the table stays safe even without BridgeGate's whole-command step."""
-    plain = TieredGate(channel=None, rules=CODING_RULES)
-    assert plain._match(codex("gh pr view 1; gh pr merge 1")).tier == "ask"
-    assert plain._match(codex("gh pr view 1 && git add -A")).tier == "ask"
-    assert plain._match(codex("gh pr view 1")).tier == "allow"
+    plain = TieredGate(channel=RecordingChannel(), rules=CODING_RULES)
+    for command, expected in (("gh pr view 1; gh pr merge 1", "ask"),
+                              ("gh pr view 1 && git add -A", "ask"), ("gh pr view 1", "allow")):
+        rule = plain._match(codex(command))
+        assert rule is not None and rule.tier == expected
 
 
 def test_classified_rule_requires_the_original_command():

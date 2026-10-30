@@ -15,6 +15,7 @@ from typing import Any
 from lazybridge.engines.coding import ApprovalDecision, ApprovalRequest
 
 from lazytools.code_bridge import _concurrency, _routine_commands, _store
+from lazytools.code_bridge._allowlist import load_rules
 
 _WRAPPER = re.compile(
     r'''^(?:"?C:/WINDOWS/System32/WindowsPowerShell/v1\.0/powershell\.exe"?|powershell(?:\.exe)?|pwsh(?:\.exe)?)
@@ -194,12 +195,7 @@ def load_policy(*, enabled: bool | None = None, scratch_root: str | None = None)
     rules: list[RoutineRule] = []
     ids: set[str] = set()
     for source in sources:
-        data = tomllib.loads(source.read_text(encoding="utf-8"))
-        if set(data) != {"rules"} or not isinstance(data["rules"], list):
-            raise ValueError(f"{source}: allow-list must contain a rules array and no unknown top-level keys")
-        for raw in data["rules"]:
-            if not isinstance(raw, dict) or set(raw) - {"id", "pattern", "validator"}:
-                raise ValueError(f"{source}: invalid routine rule")
+        for raw in load_rules(source, {"id", "pattern", "validator"}, required={"id", "pattern", "validator"}):
             rule_id, pattern, validator = raw.get("id"), raw.get("pattern"), raw.get("validator")
             if not isinstance(rule_id, str) or not rule_id or rule_id in ids:
                 raise ValueError(f"{source}: missing or duplicate rule id {rule_id!r}")

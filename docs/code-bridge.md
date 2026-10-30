@@ -528,10 +528,19 @@ hooks confine file tools to `cwd` and the job's own temp directory, while
 Bash is not path-confined. Requests
 are gated by one `BridgeGate` (a `lazybridge.ext.approval.TieredGate`
 with the structural steps described below) whose rule table
-(`lazytools.code_bridge._policy.CODING_RULES`) mirrors the generic coding
-rules in LazyCEO's own agent: reads/`Write`/`Edit`/`Bash` run free; `git
-add`/`commit`/`push`/`gh pr create` get a one-time-per-run session grant;
-dangerous push forms, pushing to `main`/`master`, `gh pr merge`, `git reset
+(`lazytools.code_bridge._policy.CODING_RULES`) allows file reads, `Write`,
+`Edit` and web tools. Claude **Bash fails closed**: its final rule is `ask`.
+A Bash command runs unattended only through one of three paths:
+
+1. An existing **routine-auto** capability validator approves it (and records
+   its matched rule id).
+2. An existing **session grant** covers a single simple `git add`, `git commit`,
+   explicit plain feature-branch push, or `gh pr create`. The first approval
+   still asks a human and is scoped to the run, cwd and rule.
+3. The packaged **read-only allow-list** positively recognises the whole command.
+
+Everything else asks. Existing restrictions take precedence: dangerous push
+forms, pushing to `main`/`master`, `gh pr merge`, `git reset
 --hard`, and anything matching `*rm *`/`*delete*` ask every time; and any
 command a coding engine escalates beyond its own sandbox (Codex's
 `approval_policy="on-request"`) asks, except the routine-auto tier, read-only GitHub queries and
@@ -552,7 +561,34 @@ the same Store, with `approved_by = "routine-auto"`, `actor = "routine-auto"`,
 under `code-bridge:approval:` and do not appear in `pending`. Escalations that
 miss the tier ask the human; older allow/session classifiers cannot override
 the validator. Protected Claude Bash command families (`git`, `gh`, configured
-Python) also ask on a miss. Other native-tool policy remains in the legacy table.
+Python) also ask on a miss, before the session/read-only fallbacks. Other
+native-tool policy remains in the rule table.
+
+### Claude Bash read-only allow-list
+
+`readonly_allowlist.toml`, packaged beside `routine_allowlist.toml`, lists exact
+command/subcommand tokens, permitted flags and value options, positional limits,
+and capability validators. Both files use the same strict TOML envelope loader:
+unknown keys, duplicate ids and malformed capabilities are errors. Adding a
+read option or command shape uses TOML; a new validator requires code review.
+
+The initial set covers `ls`, `pwd`, `cat`, `head`, non-following `tail`, `wc`,
+`grep`/`rg`, `find` with read predicates, Git status/log/diff/show, branch listing,
+rev-parse/describe/ls-files/grep, `remote -v` and plain fetch; GitHub PR
+view/list/checks/diff, run view/list, issue view/list, and GET-only `gh api` on
+`repos/...` endpoints. Fetch is an explicit capability despite updating local
+remote-tracking metadata. Output-writing, external-command and unknown options ask.
+
+The parser rejects backslash escapes, substitution, comments, malformed quotes,
+control/non-ASCII characters, environment prefixes, interpreters and wrappers.
+Shell chaining (`;`, `&&`, `||`) asks. A pipeline passes only if **every stage**
+matches a read capability; a quoted jq pipe remains an argument. File redirects
+ask; only numeric descriptor duplication and literal `/dev/null` output targets
+are accepted. Sessions cannot cover redirects or pipelines. Existing explicit
+ask patterns remain in force. Tickets show the matched rule, or
+`no allow rule matched (fail closed)` for the fallback.
+
+### Routine-auto configuration
 
 Configuration lives beside `[concurrency]` in `~/.lazytools/code-bridge.toml`
 (or `$LAZYTOOLS_CODE_BRIDGE_CONFIG`):
@@ -1051,7 +1087,8 @@ What to hand back: the diff summary, the command output, anything undecided.
   the same blind spot: if a detached job dies and its pid is reused before
   the next poll, `wait` keeps waiting (use `--timeout`, and `status`/`jobs`
   to check by hand).
-- `TieredGate`'s compound-command splitter is a text heuristic, not a shell
-  parser (see its own module docstring): it does not see `$(...)`/backtick
-  substitution inside a single non-compound command. This is the exact same
-  property LazyCEO's own rule table already accepts for the same reason.
+- Claude Bash uses BridgeGate's whole-command parser before any session or
+  read-only grant; substitution and ambiguous syntax ask. These checks are
+  capability checks, not an operating-system sandbox. Installed executables,
+  repository configuration and the existing routine-auto trust limits still
+  matter.

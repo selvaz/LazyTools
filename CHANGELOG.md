@@ -8,6 +8,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Make the Claude Bash gate fail closed: unknown commands and ambiguous shell
+  syntax ask for approval. Add a packaged, strictly parsed read-only capability
+  allow-list, validate every pipeline stage, and show the matched rule or closed
+  fallback in tickets. Preserve routine-auto validators and session scoping.
+
 ## [0.10.5] — 2026-10-30
 
 ### Added
