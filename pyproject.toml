@@ -88,6 +88,7 @@ lazytools-mcp = "lazytools.mcp_server.__main__:main"
 # run_in_background, with approvals filed to a durable ticket queue instead
 # of blocking a synchronous MCP call. See docs/code-bridge.md.
 lazytools-code-bridge = "lazytools.code_bridge.cli:main"
+lazytools-ecosystem-sync = "lazytools.ecosystem_sync.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/selvaz/LazyTools"
@@ -103,8 +104,9 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/lazytools"]
 
-# Keep the default ladder available in wheels, including builds from a clean checkout.
+# Include runtime configuration and version authority in wheels from a clean checkout.
 [tool.hatch.build.targets.wheel.force-include]
+"ecosystem/compatibility.toml" = "lazytools/ecosystem_sync/compatibility.toml"
 "src/lazytools/routing/default_tiers.toml" = "lazytools/routing/default_tiers.toml"
 "src/lazytools/code_bridge/routine_allowlist.toml" = "lazytools/code_bridge/routine_allowlist.toml"
 

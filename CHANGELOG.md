@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `lazytools-ecosystem-sync check`: deterministic daily Git/GitHub, worktree,
+  release/runtime audit and disk inspection that writes dated Markdown/JSON
+  realignment plans with `auto_safe`, `session` and `owner` actions. Fetch is
+  optional; all proposed realignment commands remain unapplied.
+
 - Code bridge R12: checkpoint committed/pushed progress after a durable turn
   timeout and resume the same thread, up to `--max-continuations` (default 3).
   Add `partial`, per-turn commit/ref history in status/results, waiting across
