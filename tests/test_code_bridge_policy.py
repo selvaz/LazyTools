@@ -16,9 +16,18 @@ from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._policy import CODING_RULES
 
 
-def _tier(command: str, *, kind: Literal["tool", "command"] = "tool", name: str = "Bash") -> str:
-    gate = BridgeGate(channel=_UnusedChannel(), rules=CODING_RULES)
-    request = ApprovalRequest(provider="claude-code", kind=kind, name=name, arguments={"command": command})
+def _tier(
+    command: str,
+    *,
+    kind: Literal["tool", "command"] = "tool",
+    name: str = "Bash",
+    arguments: dict | None = None,
+    job_branch: str | None = "feature",
+) -> str:
+    gate = BridgeGate(channel=_UnusedChannel(), rules=CODING_RULES, job_branch=job_branch)
+    request = ApprovalRequest(
+        provider="claude-code", kind=kind, name=name, arguments=arguments or {"command": command}
+    )
     rule = gate._match(request)
     return rule.tier if rule is not None else "unmatched"
 
@@ -30,8 +39,8 @@ class _UnusedChannel:
 
 def test_reads_and_edits_run_free():
     assert _tier("", kind="tool", name="Read") == "allow"
-    assert _tier("", kind="tool", name="Write") == "allow"
-    assert _tier("", kind="tool", name="Edit") == "allow"
+    assert _tier("", name="Write", arguments={"file_path": "src/x.py", "content": "x"}) == "allow"
+    assert _tier("", name="Edit", arguments={"file_path": "src/x.py"}) == "allow"
 
 
 def test_plain_git_status_diff_log_run_free_via_the_readonly_allowlist():

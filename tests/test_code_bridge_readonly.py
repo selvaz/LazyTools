@@ -16,8 +16,8 @@ def request(command):
     return ApprovalRequest(provider="claude-code", kind="tool", name="Bash", arguments={"command": command})
 
 
-def tier(command):
-    rule = BridgeGate(channel=UnusedChannel(), rules=CODING_RULES)._match(request(command))
+def tier(command, job_branch="topic"):
+    rule = BridgeGate(channel=UnusedChannel(), rules=CODING_RULES, job_branch=job_branch)._match(request(command))
     assert rule is not None
     return rule.tier
 
@@ -32,7 +32,7 @@ READS = [
     "grep -n word README.md", "rg --files", "rg -n 'a b' src", "find . -name '*.py' -type f -print",
     "git status --short", "git log --oneline -5", "git diff --stat", "git show HEAD:README.md",
     "git branch", "git branch --list 'feat/*'", "git branch -a", "git rev-parse --show-toplevel",
-    "git describe --tags --always", "git ls-files", "git grep -n text", "git remote -v", "git fetch origin",
+    "git describe --tags --always", "git ls-files", "git grep -n text", "git remote -v",
     "gh pr view 1 --json state", "gh pr list --state open", "gh pr checks 1", "gh pr diff 1 --name-only",
     "gh run view 1 --log-failed", "gh run list --limit 5", "gh issue view 1", "gh issue list",
     "gh api repos/a/b/pulls/1/comments --paginate --jq '.[].body'",
@@ -66,7 +66,7 @@ BYPASSES = [
     "git status\ncat README.md", "git status\t--short", "git status 'unterminated", 'git status ""',
     "git diff --output=output", "git log --output output", "git show --ext-diff", "git diff --textconv",
     "git branch new", "git branch -D old", "git branch --list old -D", "git branch new -- --list",
-    "git fetch origin main:main",
+    "git fetch origin main:main", "git fetch origin", "git fetch",
     "git fetch --output=output", "git grep --open-files-in-pager text", "tail -f output",
     "rg --pre script text", "rg --pre=script text", "rg --hostname-bin script text", "grep -f patterns x",
     "gh api repos/a/b -X GET", "gh api repos/a/b --method=GET", "gh api repos/a/b -f key=value",
@@ -92,7 +92,7 @@ def test_session_grants_still_require_the_first_approval(command):
             return True
 
     channel = Channel()
-    gate = BridgeGate(channel=channel, rules=CODING_RULES)
+    gate = BridgeGate(channel=channel, rules=CODING_RULES, job_branch="topic")
     assert asyncio.run(gate(request(command))).action == "allow_session"
     assert asyncio.run(gate(request(command))).action == "allow"
     assert len(channel.prompts) == 1

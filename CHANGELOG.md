@@ -13,6 +13,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   syntax ask for approval. Add a packaged, strictly parsed read-only capability
   allow-list, validate every pipeline stage, and show the matched rule or closed
   fallback in tickets. Preserve routine-auto validators and session scoping.
+- Harden the Claude Bash gate after independent review: the push session grant
+  covers only unquoted `git push origin <job branch>` (quote-split `ma"i"n` and
+  other remotes ask); `gh pr create` is granted only with an allow-list of flags
+  (no `--body-file`/`-F`/`--repo`/`--web`); Write/Edit under `.git/` or on
+  `.gitattributes`/`.gitmodules`/`.gitconfig` ask; `git fetch` is no longer a
+  read-only capability; read tools refuse absolute/`..` paths, credential names,
+  `rg --hidden/--no-ignore` and `git grep --no-index`; stdin-blocking reads and
+  `gh pr checks --watch` ask.
 
 ## [0.10.5] — 2026-10-30
 

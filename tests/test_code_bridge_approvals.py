@@ -443,7 +443,7 @@ def test_a_denied_adversarial_escalation_is_denied():
         "gh pr view",
         "gh pr view 77 --comments",
         "gh pr diff 77 --name-only",
-        "gh pr checks 77 --watch --interval 10",
+        "gh pr checks 77 --required",
         "gh run list --repo a/b --limit 5 --json databaseId,status",
         "gh run view 1 --log-failed",
         "gh api repos/a/b/pulls/77/comments --paginate --jq '.[].body'",

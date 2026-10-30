@@ -210,6 +210,15 @@ _GH_READONLY: dict[tuple[str, ...], _GhShape] = {
     ),
 }  # fmt: skip
 
+#: The shapes the Codex escalation classifier auto-allows. ``_GH_READONLY`` itself
+#: is also the base of routine-auto's own validated gh shapes (``_routine.py``,
+#: which keeps ``--watch``); the unattended classifier must not block the job by
+#: polling, so ``gh pr checks`` loses ``--watch`` and ``--interval`` here only.
+_GH_ESCALATION_READONLY: dict[tuple[str, ...], _GhShape] = {
+    **_GH_READONLY,
+    ("pr", "checks"): _GhShape(_OUTPUT_FLAGS | _REPO_FLAGS, frozenset({"--required", "--fail-fast"}), 1),
+}
+
 _API_ENDPOINT = re.compile(r"/?repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*/?")
 
 
@@ -231,7 +240,7 @@ def is_readonly_gh_query(command: str, *, shapes: dict[tuple[str, ...], _GhShape
         return False
     rest = words[1:]
     shape: _GhShape | None = None
-    for prefix, candidate in (shapes or _GH_READONLY).items():
+    for prefix, candidate in (shapes or _GH_ESCALATION_READONLY).items():
         head = rest[: len(prefix)]
         if len(head) == len(prefix) and all(not w.quoted and w.text == p for w, p in zip(head, prefix, strict=True)):
             shape, rest = candidate, rest[len(prefix) :]
@@ -359,6 +368,104 @@ def is_simple_git_commit(command: str) -> bool:
     return True
 
 
+# --------------------------------------------------------------------------- #
+# Claude Bash session grants: push and PR creation
+# --------------------------------------------------------------------------- #
+
+#: A ref the push grant can cover. Matched against the UNQUOTED token text, so
+#: ``ma"i"n`` / ``HE''AD`` (which the raw-text ``*main*`` / ``*HEAD*`` ask
+#: patterns miss, and which the tokeniser would otherwise reassemble into
+#: ``main`` / ``HEAD``) never reach a grant.
+_SAFE_REF = re.compile(r"[A-Za-z0-9_./][A-Za-z0-9_./-]*")
+_PROTECTED_REF = re.compile(r"main|master|head", re.IGNORECASE)
+
+
+def short_branch(ref: str | None) -> str | None:
+    """``refs/heads/feat/x`` -> ``feat/x``; ``None`` for a detached HEAD or any other ref."""
+    if ref and ref.startswith("refs/heads/") and _SAFE_REF.fullmatch(ref[len("refs/heads/") :]):
+        return ref[len("refs/heads/") :]
+    return None
+
+
+def push_grantable(words: list[_Word], job_branch: str | None) -> bool:
+    """``git push origin <job branch>`` and nothing else, every word unquoted.
+
+    Only the remote ``origin`` is grantable (not ``../other``, ``//host/x`` or
+    an arbitrary name), with exactly one refspec equal to this job's branch:
+    no ``:``/``+`` refspecs, no flags, no extra refs. With no known job branch
+    (detached HEAD, not a repository) nothing is grantable.
+    """
+    if not job_branch or not _SAFE_REF.fullmatch(job_branch) or _PROTECTED_REF.search(job_branch):
+        return False
+    if len(words) != 4 or any(word.quoted for word in words):
+        return False
+    return [word.text for word in words] == ["git", "push", "origin", job_branch]
+
+
+_PR_VALUE_FLAGS = frozenset({"--title", "-t", "--body", "-b", "--base", "-B", "--head", "-H", "--label", "-l"})
+_PR_HEAD_FLAGS = frozenset({"--head", "-H"})
+_PR_BOOL_FLAGS = frozenset({"--draft", "-d", "--fill"})
+
+
+def pr_create_grantable(words: list[_Word], job_branch: str | None) -> bool:
+    """``gh pr create`` with only title/body (inline text)/base/head/label/draft/fill.
+
+    Anything else asks: ``--body-file``/``-F`` (reads a local file into a public PR
+    body), ``--template``, ``--repo``/``-R``, ``--web``, ``--hostname``, ``--fill-*``,
+    ``--recover``, positionals. ``--head`` must be this job's branch. Flag values
+    may not start with ``-`` (a value could otherwise smuggle in a second flag).
+    """
+    if len(words) < 3 or any(word.quoted for word in words[:3]) or [w.text for w in words[:3]] != ["gh", "pr", "create"]:
+        return False
+    rest = words[3:]
+    i = 0
+    while i < len(rest):
+        word = rest[i]
+        name, equals, inline = word.text.partition("=")
+        if not name.startswith("-") or (word.quoted and word.text.startswith("-")):
+            return False  # positional, or a quoted flag name
+        if name in _PR_VALUE_FLAGS:
+            if equals and not name.startswith("--"):
+                return False
+            if equals:
+                value = inline
+            else:
+                i += 1
+                if i >= len(rest):
+                    return False
+                value = rest[i].text
+            if not value or value.startswith("-"):
+                return False
+            if name in _PR_HEAD_FLAGS and (not job_branch or value != job_branch):
+                return False
+        elif name not in _PR_BOOL_FLAGS or equals:
+            return False
+        i += 1
+    return True
+
+
+#: Tools that change a file and the argument(s) that name it.
+_EDIT_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
+_EDIT_PATH_KEYS = ("file_path", "notebook_path", "path")
+
+
+def git_control_path(path: str) -> bool:
+    """True when ``path`` is under ``.git/`` or is a git config-bearing file.
+
+    ``.git/config`` (``core.fsmonitor``, ``core.sshCommand``, remotes using
+    ``ext::``), ``.git/hooks/**``, ``.gitattributes`` (``textconv`` / ``filter`` /
+    external-diff drivers), ``.gitmodules`` and ``.gitconfig`` all make an
+    allow-listed git read execute a command, so a write to one is never
+    unattended. NTFS aliases are normalised: trailing dots/spaces, alternate data
+    streams (``.git::$INDEX_ALLOCATION``) and 8.3 short names (``GIT~1``).
+    """
+    for segment in re.split(r"[/\\]", path):
+        name = segment.split(":", 1)[0].rstrip(". ").lower()
+        if name in (".git", ".gitattributes", ".gitmodules", ".gitconfig") or re.match(r"git[a-z0-9_]*~[0-9]", name):
+            return True
+    return False
+
+
 #: Registry of classifiers a :class:`ClassifiedRule` may name. A name, not a
 #: callable, so the rule stays a plain frozen, hashable, printable value and
 #: its fingerprint (which scopes session grants) is stable across processes.
@@ -437,6 +544,10 @@ class BridgeGate(TieredGate):
 
     routine: Any = None
     accepting: bool = True
+    #: The branch this job started on (``feat/x``, not ``refs/heads/feat/x``),
+    #: set by the job runner. The only ref a push / ``gh pr create --head`` grant
+    #: covers; ``None`` (unknown, detached HEAD) means those always ask.
+    job_branch: str | None = None
 
     async def _decide(self, request: ApprovalRequest, rule: Rule | None) -> Any:
         if isinstance(rule, _RoutineMatch):
@@ -474,7 +585,15 @@ class BridgeGate(TieredGate):
             for rule in self.rules:
                 if isinstance(rule, ClassifiedRule) and rule.matches(request):
                     return rule
-        return super()._match(request)
+        matched = super()._match(request)
+        if request.kind == "tool" and request.name in _EDIT_TOOLS and matched is not None and matched.tier == "allow":
+            # A write into git's control files turns later allow-listed git reads
+            # (git status -> core.fsmonitor, git diff -> textconv, ...) into code
+            # execution, so it asks. A missing/odd path argument fails closed too.
+            paths = [request.arguments[k] for k in _EDIT_PATH_KEYS if k in request.arguments]
+            if not paths or any(not isinstance(p, str) or not p or git_control_path(p) for p in paths):
+                return Rule("ask", request.name)
+        return matched
 
     def _match_bash(self, request: ApprovalRequest) -> Rule:
         from lazytools.code_bridge import _readonly
@@ -495,14 +614,13 @@ class BridgeGate(TieredGate):
             if rule.tier == "session":
                 if not words:
                     continue
-                args = [word.text for word in words]
                 if rule.arg_pattern == "git add*" and not is_simple_git_add(command):
                     continue
                 if rule.arg_pattern == "git commit*" and not is_simple_git_commit(command):
                     continue
-                if rule.arg_pattern == "git push * *" and (len(args) != 4 or args[:2] != ["git", "push"]):
+                if rule.arg_pattern == "git push * *" and not push_grantable(words, self.job_branch):
                     continue
-                if rule.arg_pattern == "gh pr create*" and args[:3] != ["gh", "pr", "create"]:
+                if rule.arg_pattern == "gh pr create*" and not pr_create_grantable(words, self.job_branch):
                     continue
             if rule.tier == "ask" and rule.arg_pattern is None:
                 rule_id = _readonly.match(command)

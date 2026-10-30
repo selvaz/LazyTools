@@ -535,8 +535,14 @@ A Bash command runs unattended only through one of three paths:
 1. An existing **routine-auto** capability validator approves it (and records
    its matched rule id).
 2. An existing **session grant** covers a single simple `git add`, `git commit`,
-   explicit plain feature-branch push, or `gh pr create`. The first approval
-   still asks a human and is scoped to the run, cwd and rule.
+   `git push origin <the job's own branch>` (nothing else: the remote must be
+   `origin`, exactly one refspec equal to the branch the job started on, every
+   word unquoted, no flags, no `:`/`+`), or a `gh pr create` that uses only
+   `--title/-t`, `--body/-b` (inline text), `--base/-B`, `--head/-H` (= the job
+   branch), `--draft/-d`, `--label/-l` and `--fill`. `--body-file`/`-F`,
+   `--repo/-R`, `--web`, `--hostname`, templates and anything else ask. A quote-split
+   ref such as `ma"i"n` is never grantable. The first approval still asks a human
+   and is scoped to the run, cwd and rule.
 3. The packaged **read-only allow-list** positively recognises the whole command.
 
 Everything else asks. Existing restrictions take precedence: dangerous push
@@ -574,10 +580,36 @@ read option or command shape uses TOML; a new validator requires code review.
 
 The initial set covers `ls`, `pwd`, `cat`, `head`, non-following `tail`, `wc`,
 `grep`/`rg`, `find` with read predicates, Git status/log/diff/show, branch listing,
-rev-parse/describe/ls-files/grep, `remote -v` and plain fetch; GitHub PR
+rev-parse/describe/ls-files/grep and `remote -v`; GitHub PR
 view/list/checks/diff, run view/list, issue view/list, and GET-only `gh api` on
-`repos/...` endpoints. Fetch is an explicit capability despite updating local
-remote-tracking metadata. Output-writing, external-command and unknown options ask.
+`repos/...` endpoints. `git fetch` is **not** read-only (it writes refs/objects
+and uses the network) and asks; routine-auto keeps its own validated
+`git fetch origin`. `gh pr checks --watch/--interval` and `gh run watch` poll
+until completion and ask. Output-writing, external-command and unknown options ask.
+
+Every read tool also checks its operands. Paths must be relative, contain no
+`..`, and live in the job's cwd; absolute paths (`/`, `C:`, `~`, `/dev/*`), stdin
+(`-`), Windows device names (`CON`, `NUL`, ...), 8.3 aliases and NTFS stream
+names ask. Any path segment matching `.env*`, `auth.json`, `.ssh`, `.codex`,
+`.claude`, `.aws`, `.azure`, `.gnupg`, `.npmrc`, `.pypirc`, `.netrc`,
+`.git-credentials`, `credentials*`, `*.pem`, `*.key`, `id_rsa*`, `*secret*`,
+`*token*` (or `.git`) asks, so `cat src/tokenizer.py` asks too: a false ask is
+cheap. For `grep`/`rg`/`git grep` the search pattern is not a path, so
+`grep -r token src` is fine. `rg --hidden`, `--no-ignore`, `-u`, positive
+`-g` globs that could re-include dotfiles (`*`, `.*`, `**`), and
+`git grep --no-index` ask. `cat`, `head`, `tail`, `wc`, `grep` and `rg` given no
+path operand would read stdin and could block forever, so they ask unless they
+are the right side of an allowed pipe (`grep -r` and `rg --files` search the
+cwd instead). Operand rules live in the TOML (`operands`, `stdin`,
+`no_stdin_flags`, `globs`).
+
+Claude `Write`/`Edit` (and `MultiEdit`/`NotebookEdit` if ever allowed) ask for
+any path under `.git/` (including `.git/hooks/**` and `.git/config`) and for
+`.gitattributes`, `.gitmodules` and `.gitconfig`, after NTFS normalisation. Those
+files can make an allow-listed git read run a command: `core.fsmonitor` runs on
+`git status`, `core.sshCommand`/`ext::` remotes on network use, and
+`textconv`/external-diff drivers on `git diff|log|show`. A write call with no
+usable path also asks.
 
 The parser rejects backslash escapes, substitution, comments, malformed quotes,
 control/non-ASCII characters, environment prefixes, interpreters and wrappers.
@@ -1092,3 +1124,12 @@ What to hand back: the diff summary, the command output, anything undecided.
   capability checks, not an operating-system sandbox. Installed executables,
   repository configuration and the existing routine-auto trust limits still
   matter.
+- Residual risk of the allow-listed git reads: they carry no `-c` and `git config`
+  asks, but a `core.fsmonitor`, `textconv`/`filter` driver or `ext::` remote that
+  already exists in the repository's config before the job starts (or is written
+  through a route the gate does not see, such as a tool other than
+  Write/Edit/Bash) still executes when such a read runs. Operand checks are
+  lexical: a symlink or junction inside the cwd that points at a credential
+  location is not resolved, and recursive searches (`grep -r`, `find`) inside the
+  cwd can still reach dotfiles there (only `rg` skips hidden/ignored files by
+  default). The `Read`, `Glob` and `Grep` tools are not covered by these checks.
