@@ -8,6 +8,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.5] — 2026-10-30
+
 ### Added
 - `lazytools-ecosystem-sync check`: deterministic daily Git/GitHub, worktree,
   release/runtime audit and disk inspection that writes dated Markdown/JSON
