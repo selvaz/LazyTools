@@ -198,4 +198,3 @@ flags = ["--paginate", "--slurp", "--include", "-i", "--silent"]
 values = ["--jq", "-q", "--template", "-t"]
 max_positionals = 1
 operands = "none"
-
