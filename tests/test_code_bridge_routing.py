@@ -309,6 +309,7 @@ def test_in_flight_counts_live_running_and_approval_waiting_jobs_per_provider(br
     seed(bridge, "c2", status="running", cwd=bridge[2].parent / "elsewhere")
     seed(bridge, "a1", engine="claude", status="running")
     seed(bridge, "approval", engine="claude", status="awaiting_approval")
+    seed(bridge, "checkpoint", engine="claude", status="checkpoint")
     seed(bridge, "done")
     original = _routing.recommend
     seen = {}
@@ -319,7 +320,7 @@ def test_in_flight_counts_live_running_and_approval_waiting_jobs_per_provider(br
 
     monkeypatch.setattr(_routing, "recommend", recommend)
     assert cli.main(args(bridge)) == 0
-    assert seen["in_flight"] == {"codex": 2, "claude_code": 2}
+    assert seen["in_flight"] == {"codex": 2, "claude_code": 3}
 
 
 def test_detached_run_passes_frozen_selection_to_child_without_recomputing(bridge, monkeypatch, capsys):

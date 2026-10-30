@@ -108,6 +108,7 @@ packages = ["src/lazytools"]
 [tool.hatch.build.targets.wheel.force-include]
 "ecosystem/compatibility.toml" = "lazytools/ecosystem_sync/compatibility.toml"
 "src/lazytools/routing/default_tiers.toml" = "lazytools/routing/default_tiers.toml"
+"src/lazytools/code_bridge/routine_allowlist.toml" = "lazytools/code_bridge/routine_allowlist.toml"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
