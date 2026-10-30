@@ -8,6 +8,7 @@ with only the human replaced by a recording channel.
 from __future__ import annotations
 
 import asyncio
+from typing import cast
 
 import pytest
 from lazybridge.engines.coding import ApprovalRequest
@@ -57,7 +58,7 @@ def tier(request: ApprovalRequest) -> str:
 
 def decide(gate: BridgeGate, request: ApprovalRequest) -> tuple[str, bool]:
     """``(action, asked_a_human)`` for one request through the full gate."""
-    channel = gate.channel
+    channel = cast(RecordingChannel, gate.channel)
     before = len(channel.prompts)
     decision = asyncio.run(gate(request))
     return decision.action, len(channel.prompts) > before
@@ -77,12 +78,11 @@ CODEX_READONLY_GH = [
     f"powershell.exe -Command 'gh pr view 77 --repo {REPO} --json url,state,headRefName,baseRefName,body,comments,reviews'",
     f"powershell.exe -Command 'gh api repos/{REPO}/pulls/77/comments'",
     f"powershell.exe -Command 'gh run view 39028190857 --repo {REPO} --json status,conclusion,jobs'",
-    f"powershell.exe -Command \"gh pr view 77 --repo {REPO} --json reviews,comments --jq "
-    "'{reviews: .reviews, comments: [.comments[] | {author: .author.login, body: .body}]}'\"",
+    f"powershell.exe -Command 'gh pr view 77 --repo {REPO} --json reviews,comments'",
 ]
 
 
-@pytest.mark.parametrize("command", CODEX_READONLY_GH, ids=["4-pr-checks", "5-pr-view", "6-api", "7-run-view", "8-jq"])
+@pytest.mark.parametrize("command", CODEX_READONLY_GH, ids=["4-pr-checks", "5-pr-view", "6-api", "7-run-view", "8-comments"])
 def test_codex_fixtures_4_to_8_readonly_gh_are_auto_allowed(command):
     assert is_readonly_gh_query(command)
     gate = BridgeGate(channel=RecordingChannel(), rules=CODING_RULES)
@@ -294,7 +294,7 @@ def test_claude_fixtures_1_3_heredocs_are_matched_in_full_and_ask(command):
     heredoc whose body says delete/rm asks. The fix for 1 and 3 is upstream:
     the writer is told to create files with Write/Edit, never heredocs."""
     assert tier(claude_bash(command)) == "ask"
-    stock = TieredGate(channel=None, rules=CODING_RULES)._match(claude_bash(command))
+    stock = TieredGate(channel=RecordingChannel(), rules=CODING_RULES)._match(claude_bash(command))
     assert stock is not None and stock.tier == "ask"  # identical to the stock gate
 
 
@@ -340,9 +340,9 @@ def test_review_heredoc_bypasses_ask(command):
     assert decide(BridgeGate(channel=channel, rules=CODING_RULES), claude_bash(command)) == ("deny", True)
 
 
-@pytest.mark.parametrize("command", [CLAUDE_1, *HEREDOC_BYPASSES, CLAUDE_2, "ls -la", "git push origin main"])
+@pytest.mark.parametrize("command", [CLAUDE_1, *HEREDOC_BYPASSES, CLAUDE_2, "git push origin main"])
 def test_bridge_gate_matches_bash_exactly_like_the_stock_gate(command):
-    stock = TieredGate(channel=None, rules=CODING_RULES)._match(claude_bash(command))
+    stock = TieredGate(channel=RecordingChannel(), rules=CODING_RULES)._match(claude_bash(command))
     assert tier(claude_bash(command)) == (stock.tier if stock else "unmatched")
 
 
@@ -442,15 +442,15 @@ def test_a_denied_adversarial_escalation_is_denied():
         "gh pr view",
         "gh pr view 77 --comments",
         "gh pr diff 77 --name-only",
-        "gh pr checks 77 --watch --interval 10",
+        "gh pr checks 77 --required",
         "gh run list --repo a/b --limit 5 --json databaseId,status",
         "gh run view 1 --log-failed",
-        "gh api repos/a/b/pulls/77/comments --paginate --jq '.[].body'",
-        "gh api /repos/a/b/actions/runs --jq '.workflow_runs[] | .status'",
+        "gh api repos/a/b/pulls/77/comments --paginate",
+        "gh api /repos/a/b/actions/runs --cache 1h",
         "gh.exe pr view 77",
         "pwsh -NoProfile -Command 'gh pr view 77'",
         "powershell -NoProfile -NonInteractive -c \"gh run list --limit 3\"",
-        "gh pr view 77 --json body --jq=.body",
+        "gh pr view 77 --json body",
     ],
 )
 def test_readonly_gh_shapes_recognised(command):
@@ -516,10 +516,11 @@ def test_git_commit_allow_list_accepts(command):
 
 def test_classified_rules_never_match_a_split_segment_under_a_plain_tieredgate():
     """Defence in depth: the table stays safe even without BridgeGate's whole-command step."""
-    plain = TieredGate(channel=None, rules=CODING_RULES)
-    assert plain._match(codex("gh pr view 1; gh pr merge 1")).tier == "ask"
-    assert plain._match(codex("gh pr view 1 && git add -A")).tier == "ask"
-    assert plain._match(codex("gh pr view 1")).tier == "allow"
+    plain = TieredGate(channel=RecordingChannel(), rules=CODING_RULES)
+    for command, expected in (("gh pr view 1; gh pr merge 1", "ask"),
+                              ("gh pr view 1 && git add -A", "ask"), ("gh pr view 1", "allow")):
+        rule = plain._match(codex(command))
+        assert rule is not None and rule.tier == expected
 
 
 def test_classified_rule_requires_the_original_command():

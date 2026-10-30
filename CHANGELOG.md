@@ -8,6 +8,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Make the Claude Bash gate fail closed: unknown commands and ambiguous shell
+  syntax ask for approval. Add a packaged, strictly parsed read-only capability
+  allow-list, validate every pipeline stage, and show the matched rule or closed
+  fallback in tickets. Preserve routine-auto validators and session scoping.
+- Harden the Claude Bash gate after independent review: the push session grant
+  covers only unquoted `git push origin <job branch>` (quote-split `ma"i"n` and
+  other remotes ask); `gh pr create` is granted only with an allow-list of flags
+  (no `--body-file`/`-F`/`--repo`/`--web`); Write/Edit under `.git/` or on
+  `.gitattributes`/`.gitmodules`/`.gitconfig` ask; `git fetch` is no longer a
+  read-only capability; read tools refuse absolute/`..` paths, credential names,
+  `rg --hidden/--no-ignore` and `git grep --no-index`; stdin-blocking reads and
+  `gh pr checks --watch` ask.
+- Close the second review of the Claude Bash gate: `gh --jq/-q/--template/-t`
+  (which can print the process environment) are removed from every read-only
+  `gh` shape, the Codex `readonly_gh_query` table and routine-auto; allow-listed
+  git commands ask on pathspec wildcards/magic (`".e*"`, `":(top).env"`);
+  `git remote -v` asks; Write/Edit also ask on `.claude/**`, `.mcp.json`,
+  `.husky/**`, `.env*`, `.vscode/settings.json`, shell rc files and paths outside
+  the job; the credential-name list gains SSH/Postgres/Terraform/PKCS/kube/docker
+  names and `.bak` copies.
+
 ## [0.10.5] — 2026-10-30
 
 ### Added

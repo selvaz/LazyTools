@@ -18,7 +18,8 @@ alone, each implemented here as a small, unit-tested predicate:
 
 :class:`ClassifiedRule` plugs a classifier into the ordinary rule table, and
 :class:`BridgeGate` (a ``TieredGate``) evaluates those rules on the WHOLE
-command before the stock segment-by-segment matching runs. ``TieredGate``
+command for Codex escalations. Claude Bash uses its own whole-command,
+fail-closed capability check. ``TieredGate``
 splits on ``|`` and newlines, which is right for its fnmatch rules but would
 cut a quoted ``--jq '... | ...'`` filter in half; the classifier does its own
 quote-aware tokenisation instead.
@@ -28,7 +29,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fnmatch import fnmatch
 from typing import Any, cast
 
@@ -161,7 +162,9 @@ def unwrap_powershell(command: str) -> str:
 # read-only gh queries
 # --------------------------------------------------------------------------- #
 
-_OUTPUT_FLAGS = frozenset({"--json", "--jq", "-q", "--template", "-t"})
+#: No --jq/-q/--template/-t anywhere: a jq filter can print the process environment
+#: (``--jq env``) and a Go template can reach more, leaking API keys and bot tokens.
+_OUTPUT_FLAGS = frozenset({"--json"})
 _REPO_FLAGS = frozenset({"--repo", "-R"})
 
 
@@ -203,11 +206,20 @@ _GH_READONLY: dict[tuple[str, ...], _GhShape] = {
     # No -X/--method, -f/-F/--field/--raw-field, --input, -H/--header: with
     # none of them gh sends a GET. Only output shaping and pagination.
     ("api",): _GhShape(
-        frozenset({"--jq", "-q", "--template", "-t", "--cache"}),
+        frozenset({"--cache"}),
         frozenset({"--paginate", "--slurp", "--include", "-i", "--silent"}),
         1,
     ),
 }  # fmt: skip
+
+#: The shapes the Codex escalation classifier auto-allows. ``_GH_READONLY`` itself
+#: is also the base of routine-auto's own validated gh shapes (``_routine.py``,
+#: which keeps ``--watch``); the unattended classifier must not block the job by
+#: polling, so ``gh pr checks`` loses ``--watch`` and ``--interval`` here only.
+_GH_ESCALATION_READONLY: dict[tuple[str, ...], _GhShape] = {
+    **_GH_READONLY,
+    ("pr", "checks"): _GhShape(_OUTPUT_FLAGS | _REPO_FLAGS, frozenset({"--required", "--fail-fast"}), 1),
+}
 
 _API_ENDPOINT = re.compile(r"/?repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*/?")
 
@@ -230,7 +242,7 @@ def is_readonly_gh_query(command: str, *, shapes: dict[tuple[str, ...], _GhShape
         return False
     rest = words[1:]
     shape: _GhShape | None = None
-    for prefix, candidate in (shapes or _GH_READONLY).items():
+    for prefix, candidate in (shapes or _GH_ESCALATION_READONLY).items():
         head = rest[: len(prefix)]
         if len(head) == len(prefix) and all(not w.quoted and w.text == p for w, p in zip(head, prefix, strict=True)):
             shape, rest = candidate, rest[len(prefix) :]
@@ -358,6 +370,151 @@ def is_simple_git_commit(command: str) -> bool:
     return True
 
 
+# --------------------------------------------------------------------------- #
+# Claude Bash session grants: push and PR creation
+# --------------------------------------------------------------------------- #
+
+#: A ref the push grant can cover. Matched against the UNQUOTED token text, so
+#: ``ma"i"n`` / ``HE''AD`` (which the raw-text ``*main*`` / ``*HEAD*`` ask
+#: patterns miss, and which the tokeniser would otherwise reassemble into
+#: ``main`` / ``HEAD``) never reach a grant.
+_SAFE_REF = re.compile(r"[A-Za-z0-9_./][A-Za-z0-9_./-]*")
+_PROTECTED_REF = re.compile(r"main|master|head", re.IGNORECASE)
+
+
+def short_branch(ref: str | None) -> str | None:
+    """``refs/heads/feat/x`` -> ``feat/x``; ``None`` for a detached HEAD or any other ref."""
+    if ref and ref.startswith("refs/heads/") and _SAFE_REF.fullmatch(ref[len("refs/heads/") :]):
+        return ref[len("refs/heads/") :]
+    return None
+
+
+def push_grantable(words: list[_Word], job_branch: str | None) -> bool:
+    """``git push origin <job branch>`` and nothing else, every word unquoted.
+
+    Only the remote ``origin`` is grantable (not ``../other``, ``//host/x`` or
+    an arbitrary name), with exactly one refspec equal to this job's branch:
+    no ``:``/``+`` refspecs, no flags, no extra refs. With no known job branch
+    (detached HEAD, not a repository) nothing is grantable.
+    """
+    if not job_branch or not _SAFE_REF.fullmatch(job_branch) or _PROTECTED_REF.search(job_branch):
+        return False
+    if len(words) != 4 or any(word.quoted for word in words):
+        return False
+    return [word.text for word in words] == ["git", "push", "origin", job_branch]
+
+
+_PR_VALUE_FLAGS = frozenset({"--title", "-t", "--body", "-b", "--base", "-B", "--head", "-H", "--label", "-l"})
+_PR_HEAD_FLAGS = frozenset({"--head", "-H"})
+_PR_BOOL_FLAGS = frozenset({"--draft", "-d", "--fill"})
+
+
+def pr_create_grantable(words: list[_Word], job_branch: str | None) -> bool:
+    """``gh pr create`` with only title/body (inline text)/base/head/label/draft/fill.
+
+    Anything else asks: ``--body-file``/``-F`` (reads a local file into a public PR
+    body), ``--template``, ``--repo``/``-R``, ``--web``, ``--hostname``, ``--fill-*``,
+    ``--recover``, positionals. ``--head`` must be this job's branch. Flag values
+    may not start with ``-`` (a value could otherwise smuggle in a second flag).
+    """
+    if len(words) < 3 or any(word.quoted for word in words[:3]) or [w.text for w in words[:3]] != ["gh", "pr", "create"]:
+        return False
+    rest = words[3:]
+    i = 0
+    while i < len(rest):
+        word = rest[i]
+        name, equals, inline = word.text.partition("=")
+        if not name.startswith("-") or (word.quoted and word.text.startswith("-")):
+            return False  # positional, or a quoted flag name
+        if name in _PR_VALUE_FLAGS:
+            if equals and not name.startswith("--"):
+                return False
+            if equals:
+                value = inline
+            else:
+                i += 1
+                if i >= len(rest):
+                    return False
+                value = rest[i].text
+            if not value or value.startswith("-"):
+                return False
+            if name in _PR_HEAD_FLAGS and (not job_branch or value != job_branch):
+                return False
+        elif name not in _PR_BOOL_FLAGS or equals:
+            return False
+        i += 1
+    return True
+
+
+#: Tools that change a file and the argument(s) that name it.
+_EDIT_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
+_EDIT_PATH_KEYS = ("file_path", "notebook_path", "path")
+
+
+def git_control_path(path: str) -> bool:
+    """True when ``path`` is under ``.git/`` or is a git config-bearing file.
+
+    ``.git/config`` (``core.fsmonitor``, ``core.sshCommand``, remotes using
+    ``ext::``), ``.git/hooks/**``, ``.gitattributes`` (``textconv`` / ``filter`` /
+    external-diff drivers), ``.gitmodules`` and ``.gitconfig`` all make an
+    allow-listed git read execute a command, so a write to one is never
+    unattended. NTFS aliases are normalised: trailing dots/spaces, alternate data
+    streams (``.git::$INDEX_ALLOCATION``) and 8.3 short names (``GIT~1``).
+    """
+    for segment in re.split(r"[/\\]", path):
+        name = segment.split(":", 1)[0].rstrip(". ").lower()
+        if name in (".git", ".gitattributes", ".gitmodules", ".gitconfig") or re.match(r"git[a-z0-9_]*~[0-9]", name):
+            return True
+    return False
+
+
+_SHELL_RC = frozenset({
+    ".bashrc", ".bash_profile", ".bash_login", ".profile", ".zshrc", ".zprofile", ".zshenv",
+    "microsoft.powershell_profile.ps1", "profile.ps1",
+})
+
+
+def _slashed(path: str) -> str:
+    """Forward slashes, lower case, MSYS ``/c/x`` -> ``c:/x``, ``.`` and empty segments dropped."""
+    text = re.sub(r"^/([A-Za-z])(?=/|$)", r"\1:", path.replace("\\", "/")).lower()
+    return "/".join(part for part in text.split("/") if part not in ("", "."))
+
+
+def outside_roots(path: str, roots: tuple[str, ...]) -> bool:
+    """True unless ``path`` is relative without ``..``, or lies lexically inside one of ``roots``.
+
+    Claude's file tools usually pass absolute paths, so an absolute path is accepted
+    only under the job's cwd (or its own temp dir). Symlinks are not resolved.
+    """
+    parts = [part for part in re.split(r"[/\\]", path) if part]
+    if ".." in parts:
+        return True
+    if not (path.startswith(("/", "\\")) or re.match(r"[A-Za-z]:", path)):
+        return False
+    target = _slashed(path)
+    return not any(
+        root_text and (target == root_text or target.startswith(root_text + "/"))
+        for root_text in (_slashed(root) for root in roots if root)
+    )
+
+
+def protected_write_path(path: str, roots: tuple[str, ...]) -> bool:
+    """A Write/Edit target that always asks: outside the job, git control, agent/CI/shell config.
+
+    Beyond :func:`git_control_path` and :func:`outside_roots`: ``.claude/**`` (hooks,
+    settings, permissions), ``.mcp.json`` (spawns MCP servers), ``.husky/**`` (git
+    hooks), ``.env*``, ``.vscode/settings.json`` and shell start-up files. Segments
+    are normalised like :func:`git_control_path` (case, trailing dots/spaces, streams).
+    """
+    if git_control_path(path) or outside_roots(path, roots):
+        return True
+    names = [segment.split(":", 1)[0].rstrip(". ").lower() for segment in re.split(r"[/\\]", path) if segment]
+    return (
+        any(name in (".claude", ".husky", ".mcp.json") or name.startswith(".env") or name in _SHELL_RC for name in names)
+        or (len(names) >= 2 and names[-2] == ".vscode" and names[-1] == "settings.json")
+    )
+
+
 #: Registry of classifiers a :class:`ClassifiedRule` may name. A name, not a
 #: callable, so the rule stays a plain frozen, hashable, printable value and
 #: its fingerprint (which scopes session grants) is stable across processes.
@@ -421,9 +578,10 @@ class ClassifiedRule(Rule):
 class BridgeGate(TieredGate):
     """``TieredGate`` that tries :class:`ClassifiedRule` entries first, on the whole command.
 
-    First classified match in table order wins; otherwise the stock
-    ``TieredGate`` matching runs on the UNMODIFIED request text -- Claude
-    ``Bash`` included, heredoc bodies and all. (An earlier revision hid
+    Routine-auto validators run first. Claude Bash then checks session rules
+    and the read-only allow-list on the whole command, asking on any miss.
+    Codex escalations try classified rules before stock ``TieredGate`` matching
+    on the unmodified text. (An earlier revision hid
     "data" heredoc bodies from the patterns; review showed a commented-out
     ``cat`` or a heredoc fed to ``bash -c "$(...)"`` turned that into a way to
     hide executed commands, so it was removed. Claude is instead instructed
@@ -435,10 +593,25 @@ class BridgeGate(TieredGate):
 
     routine: Any = None
     accepting: bool = True
+    #: The branch this job started on (``feat/x``, not ``refs/heads/feat/x``),
+    #: set by the job runner. The only ref a push / ``gh pr create --head`` grant
+    #: covers; ``None`` (unknown, detached HEAD) means those always ask.
+    job_branch: str | None = None
+    #: The job's cwd and its own temp dir: the only roots Write/Edit may reach
+    #: unattended (set by the job runner). Unknown roots make every absolute path ask.
+    cwd: str | None = None
+    temp_dir: str | None = None
 
     async def _decide(self, request: ApprovalRequest, rule: Rule | None) -> Any:
         if isinstance(rule, _RoutineMatch):
             return self.routine.approve(request, rule.rule_id), "routine-auto"
+        if request.kind == "tool" and request.name == "Bash" and rule is not None:
+            label = (
+                f"matched {rule.tier} rule: {rule.arg_pattern}"
+                if rule.arg_pattern else "no allow rule matched (fail closed)"
+            )
+            arguments = {key: value for key, value in request.arguments.items() if key != "gate_rule"}
+            request = replace(request, arguments={"gate_rule": label, **arguments})
         return await super()._decide(request, rule)
 
     def _match(self, request: ApprovalRequest) -> Rule | None:
@@ -459,11 +632,56 @@ class BridgeGate(TieredGate):
                 protected = normal is None or normal[1][0] in ("git", "gh", self.routine.policy.python_executable)
                 if request.kind == "command" or protected:
                     return Rule("ask", "*")
+        if request.kind == "tool" and request.name == "Bash":
+            return self._match_bash(request)
         if isinstance(request.arguments.get("command"), str):
             for rule in self.rules:
                 if isinstance(rule, ClassifiedRule) and rule.matches(request):
                     return rule
-        return super()._match(request)
+        matched = super()._match(request)
+        if request.kind == "tool" and request.name in _EDIT_TOOLS and matched is not None and matched.tier == "allow":
+            # A write into git's control files turns later allow-listed git reads
+            # (git status -> core.fsmonitor, git diff -> textconv, ...) into code
+            # execution, so it asks. A missing/odd path argument fails closed too.
+            paths = [request.arguments[k] for k in _EDIT_PATH_KEYS if k in request.arguments]
+            roots = tuple(root for root in (self.cwd, self.temp_dir) if root)
+            if not paths or any(not isinstance(p, str) or not p or protected_write_path(p, roots) for p in paths):
+                return Rule("ask", request.name)
+        return matched
+
+    def _match_bash(self, request: ApprovalRequest) -> Rule:
+        from lazytools.code_bridge import _readonly
+
+        command = request.arguments.get("command")
+        if not isinstance(command, str):
+            return Rule("ask", "Bash")
+        stages = _readonly.pipeline(command)
+        # Session grants cover a single command, with no redirects, wrappers,
+        # expansion or shell operators. Never classify split shell segments.
+        simple = stages is not None and len(stages) == 1 and stages[0] == command.strip()
+        words = _tokenize(command) if simple else None
+        for rule in self.rules:
+            if isinstance(rule, ClassifiedRule):
+                continue
+            if rule.name_pattern != "Bash" or not rule.matches(request):
+                continue
+            if rule.tier == "session":
+                if not words:
+                    continue
+                if rule.arg_pattern == "git add*" and not is_simple_git_add(command):
+                    continue
+                if rule.arg_pattern == "git commit*" and not is_simple_git_commit(command):
+                    continue
+                if rule.arg_pattern == "git push * *" and not push_grantable(words, self.job_branch):
+                    continue
+                if rule.arg_pattern == "gh pr create*" and not pr_create_grantable(words, self.job_branch):
+                    continue
+            if rule.tier == "ask" and rule.arg_pattern is None:
+                rule_id = _readonly.match(command)
+                if rule_id:
+                    return Rule("allow", "Bash", arg_pattern=f"readonly:{rule_id}")
+            return rule
+        return Rule("ask", "Bash")
 
 
 @dataclass(frozen=True)

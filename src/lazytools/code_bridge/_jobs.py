@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from lazytools.code_bridge import _concurrency, _engines, _progress, _routine, _store, _tempdir
-from lazytools.code_bridge._approvals import BridgeGate
+from lazytools.code_bridge._approvals import BridgeGate, short_branch
 from lazytools.code_bridge._lockfile import JobLock
 from lazytools.code_bridge._policy import CODING_RULES
 from lazytools.code_bridge._turn_cleanup import TurnCleanup
@@ -493,7 +493,7 @@ def run_job(
             on_waiting=lambda: _set_status("awaiting_approval"),
             on_resumed=lambda: _set_status("running"),
         )
-        gate = BridgeGate(channel=channel, rules=CODING_RULES,
+        gate = BridgeGate(channel=channel, rules=CODING_RULES, cwd=str(resolved_cwd), temp_dir=temp_arg,
                           routine=_routine.RoutineAuto(routine_policy, store, queue, job_id))
 
         from lazybridge.engines.sessions import default_session_registry
@@ -538,6 +538,8 @@ def run_job(
             turns: list[dict[str, Any]] = []
             before = await asyncio.to_thread(_progress.snapshot, lock.cwd)
             job_branch = before.get("branch")
+            # The one branch a session push / `gh pr create --head` grant covers.
+            gate.job_branch = short_branch(job_branch)
             for turn in range(max_continuations + 1):
                 if turn:
                     before = await asyncio.to_thread(_progress.snapshot, lock.cwd, job_branch)

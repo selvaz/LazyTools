@@ -1,0 +1,193 @@
+# Capability options are exact tokens. Unknown flags and command families ask.
+# operands: "paths" (default; relative, no "..", no credential names), "pattern-paths"
+# (first positional is a search pattern unless -e/--regexp/--files) or "none" (gh).
+# stdin = true: with no path operand the tool reads stdin, so it asks unless piped
+# (or one of no_stdin_flags makes it search the cwd). globs: flags whose values are
+# rg globs; a positive glob overrides hidden/ignore rules so it must be narrow.
+[[rules]]
+id = "ls"
+command = ["ls"]
+flags = ["-a", "-l", "-h", "-la", "-al", "-lh", "-lah", "-R", "--all", "--long", "--human-readable"]
+
+[[rules]]
+id = "pwd"
+command = ["pwd"]
+flags = ["-L", "-P"]
+max_positionals = 0
+
+[[rules]]
+id = "cat"
+command = ["cat"]
+flags = ["-n", "-b", "-s", "-A", "--number", "--show-all"]
+stdin = true
+
+[[rules]]
+id = "head"
+command = ["head"]
+flags = ["-q", "-v"]
+values = ["-n", "--lines", "-c", "--bytes"]
+stdin = true
+
+[[rules]]
+id = "tail"
+command = ["tail"]
+flags = ["-q", "-v"]
+values = ["-n", "--lines", "-c", "--bytes"]
+stdin = true
+
+[[rules]]
+id = "wc"
+command = ["wc"]
+flags = ["-l", "-w", "-c", "-m", "-L", "--lines", "--words", "--bytes", "--chars"]
+stdin = true
+
+[[rules]]
+id = "grep"
+command = ["grep"]
+flags = ["-i", "-n", "-r", "-R", "-l", "-L", "-q", "-v", "-w", "-x", "-E", "-F", "-c", "-h", "-H", "-o"]
+values = ["-e", "--regexp", "-m", "--max-count", "-A", "-B", "-C", "--include", "--exclude"]
+operands = "pattern-paths"
+stdin = true
+no_stdin_flags = ["-r", "-R"]
+
+[[rules]]
+id = "rg"
+command = ["rg"]
+flags = ["--files", "--count", "--count-matches", "--files-with-matches", "--files-without-match", "-i", "-n", "-l", "-q", "-v", "-w", "-F", "--line-number", "--no-heading", "--stats"]
+values = ["-e", "--regexp", "-g", "--glob", "-t", "--type", "-T", "--type-not", "-m", "--max-count", "-A", "-B", "-C", "--context", "--max-depth"]
+operands = "pattern-paths"
+globs = ["-g", "--glob"]
+stdin = true
+no_stdin_flags = ["--files"]
+
+[[rules]]
+id = "find"
+command = ["find"]
+validator = "find"
+flags = ["-print", "-print0", "-empty", "-readable", "-writable", "-executable", "-depth", "-xdev", "-mount", "-not", "-and", "-or", "-a", "-o", "-true", "-false"]
+values = ["-name", "-iname", "-path", "-ipath", "-type", "-size", "-mtime", "-mmin", "-maxdepth", "-mindepth"]
+
+[[rules]]
+id = "git-status"
+command = ["git", "status"]
+flags = ["--short", "-s", "-b", "-sb", "--branch", "--porcelain", "--untracked-files", "--ignored"]
+
+[[rules]]
+id = "git-log"
+command = ["git", "log"]
+validator = "git-log"
+flags = ["--oneline", "--stat", "--name-only", "--name-status", "--graph", "--all", "--decorate", "--no-decorate", "-p", "--patch", "--no-patch", "--no-ext-diff", "--no-textconv"]
+values = ["-n", "--max-count", "--format", "--pretty", "--since", "--until", "--author", "--grep"]
+
+[[rules]]
+id = "git-diff"
+command = ["git", "diff"]
+flags = ["--stat", "--shortstat", "--name-only", "--name-status", "--cached", "--staged", "--check", "--quiet", "--exit-code", "--no-ext-diff", "--no-textconv", "--numstat", "--summary", "--patch", "-p", "--no-patch"]
+
+[[rules]]
+id = "git-show"
+command = ["git", "show"]
+flags = ["--stat", "--name-only", "--name-status", "--no-patch", "--patch", "-p", "--no-ext-diff", "--no-textconv"]
+values = ["--format", "--pretty"]
+
+[[rules]]
+id = "git-branch-list"
+command = ["git", "branch"]
+validator = "branch"
+flags = ["--list", "-a", "--all", "-r", "--remotes", "-v", "-vv", "--verbose", "--show-current"]
+values = ["--contains", "--no-contains", "--merged", "--no-merged", "--format", "--sort"]
+
+[[rules]]
+id = "git-rev-parse"
+command = ["git", "rev-parse"]
+flags = ["--show-toplevel", "--git-dir", "--absolute-git-dir", "--show-prefix", "--is-inside-work-tree", "--verify", "--short", "--abbrev-ref", "--symbolic-full-name"]
+
+[[rules]]
+id = "git-describe"
+command = ["git", "describe"]
+flags = ["--always", "--tags", "--all", "--long", "--dirty", "--exact-match"]
+values = ["--match", "--exclude", "--abbrev"]
+max_positionals = 1
+
+[[rules]]
+id = "git-ls-files"
+command = ["git", "ls-files"]
+flags = ["--stage", "-s", "--cached", "--others", "--exclude-standard", "--modified", "--deleted", "--error-unmatch", "-z"]
+
+[[rules]]
+id = "git-grep"
+command = ["git", "grep"]
+flags = ["-n", "-i", "-l", "-L", "-q", "-v", "-w", "-F", "-E", "-c", "--cached", "--untracked"]
+values = ["-e", "-A", "-B", "-C", "--max-depth"]
+operands = "pattern-paths"
+
+[[rules]]
+id = "gh-pr-view"
+command = ["gh", "pr", "view"]
+flags = ["--comments", "-c"]
+values = ["--json", "--repo", "-R"]
+max_positionals = 1
+operands = "none"
+
+[[rules]]
+id = "gh-pr-list"
+command = ["gh", "pr", "list"]
+flags = ["--draft"]
+values = ["--json", "--repo", "-R", "--head", "--base", "--state", "--limit", "-L", "--search", "--author", "--assignee", "--label"]
+max_positionals = 0
+operands = "none"
+
+[[rules]]
+id = "gh-pr-checks"
+command = ["gh", "pr", "checks"]
+flags = ["--required", "--fail-fast"]
+values = ["--json", "--repo", "-R"]
+max_positionals = 1
+operands = "none"
+
+[[rules]]
+id = "gh-pr-diff"
+command = ["gh", "pr", "diff"]
+flags = ["--name-only", "--patch"]
+values = ["--repo", "-R", "--color"]
+max_positionals = 1
+operands = "none"
+
+[[rules]]
+id = "gh-run-view"
+command = ["gh", "run", "view"]
+flags = ["--log", "--log-failed", "--exit-status", "--verbose", "-v"]
+values = ["--json", "--repo", "-R", "--job", "-j", "--attempt", "-a"]
+max_positionals = 1
+operands = "none"
+
+[[rules]]
+id = "gh-run-list"
+command = ["gh", "run", "list"]
+flags = ["--all", "-a"]
+values = ["--json", "--repo", "-R", "--limit", "-L", "--branch", "-b", "--workflow", "-w", "--status", "-s", "--event", "-e", "--user", "-u", "--commit", "-c", "--created"]
+max_positionals = 0
+operands = "none"
+
+[[rules]]
+id = "gh-issue-view"
+command = ["gh", "issue", "view"]
+flags = ["--comments", "-c"]
+values = ["--json", "--repo", "-R"]
+max_positionals = 1
+operands = "none"
+
+[[rules]]
+id = "gh-issue-list"
+command = ["gh", "issue", "list"]
+values = ["--json", "--repo", "-R", "--state", "--limit", "-L", "--search", "--author", "--assignee", "--label"]
+max_positionals = 0
+operands = "none"
+
+[[rules]]
+id = "gh-api-get"
+command = ["gh", "api"]
+validator = "api"
+flags = ["--paginate", "--slurp", "--include", "-i", "--silent"]
+max_positionals = 1
+operands = "none"

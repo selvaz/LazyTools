@@ -1,6 +1,6 @@
-"""Direct tests of the ``CODING_RULES`` table against a real ``TieredGate``.
+"""Direct tests of the ``CODING_RULES`` table against a real ``BridgeGate``.
 
-No engine involved: these drive ``TieredGate._match`` straight, the same way
+No engine involved: these drive ``BridgeGate._match`` straight, the same way
 ``lazybridge``'s own ``tests/unit/ext/approval/test_tiered.py`` tests a rule
 table, to pin tier decisions for the dangerous Bash forms independently of
 whether an engine ever actually asks for them.
@@ -8,26 +8,42 @@ whether an engine ever actually asks for them.
 
 from __future__ import annotations
 
-from lazybridge.engines.coding import ApprovalRequest
-from lazybridge.ext.approval import TieredGate
+from typing import Literal
 
+from lazybridge.engines.coding import ApprovalRequest
+
+from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._policy import CODING_RULES
 
 
-def _tier(command: str, *, kind: str = "tool", name: str = "Bash") -> str:
-    gate = TieredGate(channel=None, rules=CODING_RULES)  # channel unused: _match never asks
-    request = ApprovalRequest(provider="claude-code", kind=kind, name=name, arguments={"command": command})
+def _tier(
+    command: str,
+    *,
+    kind: Literal["tool", "command"] = "tool",
+    name: str = "Bash",
+    arguments: dict | None = None,
+    job_branch: str | None = "feature",
+) -> str:
+    gate = BridgeGate(channel=_UnusedChannel(), rules=CODING_RULES, job_branch=job_branch)
+    request = ApprovalRequest(
+        provider="claude-code", kind=kind, name=name, arguments=arguments or {"command": command}
+    )
     rule = gate._match(request)
     return rule.tier if rule is not None else "unmatched"
 
 
+class _UnusedChannel:
+    async def ask(self, prompt: str) -> bool:
+        raise AssertionError("_match must not ask")
+
+
 def test_reads_and_edits_run_free():
     assert _tier("", kind="tool", name="Read") == "allow"
-    assert _tier("", kind="tool", name="Write") == "allow"
-    assert _tier("", kind="tool", name="Edit") == "allow"
+    assert _tier("", name="Write", arguments={"file_path": "src/x.py", "content": "x"}) == "allow"
+    assert _tier("", name="Edit", arguments={"file_path": "src/x.py"}) == "allow"
 
 
-def test_plain_git_status_diff_log_run_free_via_the_bash_catchall():
+def test_plain_git_status_diff_log_run_free_via_the_readonly_allowlist():
     assert _tier("git status --short") == "allow"
     assert _tier("git diff") == "allow"
     assert _tier("git log --oneline -5") == "allow"
