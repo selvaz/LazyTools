@@ -128,10 +128,10 @@ support:
 
 ```bash
 pip install "lazybridge[claude-code]==1.8.1"
-pip install "lazytoolkit[engines,web] @ git+https://github.com/selvaz/LazyTools.git@v0.10.4"
+pip install "lazytoolkit[engines,web] @ git+https://github.com/selvaz/LazyTools.git@v0.10.5"
 ```
 
-`ClaudeCodeEngine` ships in LazyBridge 1.8.x. LazyTools 0.10.4 requires
+`ClaudeCodeEngine` ships in LazyBridge 1.8.x. LazyTools 0.10.5 requires
 `lazybridge>=1.8.1,<2.0`; the core Stable label does not imply that every
 engine/integration is Stable. LazyTools remains Alpha.
 
