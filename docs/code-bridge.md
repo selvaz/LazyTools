@@ -5,7 +5,7 @@
 Codex / Claude Code write access that `codex_write` / `claude_code_write`
 (see [Code Support Agent](code-support/index.md)) expose over MCP.
 
-Install with the `engines` extra — `pip install "lazytoolkit[engines] @ git+https://github.com/selvaz/LazyTools.git@v0.10.4"` —
+Install with the `engines` extra — `pip install "lazytoolkit[engines] @ git+https://github.com/selvaz/LazyTools.git@v0.10.5"` —
 when you use `--engine claude` or `--tier`: both need the Claude Agent SDK (Claude engine and
 Claude quota reading). Without it Claude jobs fail and quota-aware routing sees Claude as unreadable.
 

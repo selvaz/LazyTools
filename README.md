@@ -5,7 +5,7 @@ It connects engine-backed coding tools, detached jobs with durable approval
 tickets, shared project evidence and deterministic quota routing. One engine
 writes, the other reviews; code runs the checks and records the acceptance.
 
-**LazyTools 0.10.4 is Alpha.** It requires LazyBridge 1.8.1 or later within
+**LazyTools 0.10.5 is Alpha.** It requires LazyBridge 1.8.1 or later within
 1.x. LazyBridge core is Stable; that does not make every integration Stable.
 With a subscription login, coding runtimes use your plan's quota; LazyTools
 inherits runtime authentication and does not force a billing path.
@@ -19,7 +19,7 @@ explains tier selection and admission. **Benchmark in progress**; no measured
 quality, time, quota-efficiency or subscription savings result is claimed.
 
 ```sh
-python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.4"
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.5"
 lazytools-mcp projects code_review claude_review code_write code_sessions --allow-unsafe
 ```
 
@@ -48,10 +48,10 @@ lazyfin          Portfolio Manager AI — the finance domain layer on top of
 
 LazyTools is distributed from GitHub (only LazyBridge lives on PyPI). Install
 `lazytoolkit` and its extras with a PEP 508 direct reference — this pulls the
-release `v0.10.4`:
+release `v0.10.5`:
 
 ```bash
-G="git+https://github.com/selvaz/LazyTools.git@v0.10.4"
+G="git+https://github.com/selvaz/LazyTools.git@v0.10.5"
 pip install "lazytoolkit @ $G"                 # core (just lazybridge)
 pip install "lazytoolkit[gmail] @ $G"          # Gmail client + tools
 pip install "lazytoolkit[outlook] @ $G"        # Outlook client + tools (Windows desktop, COM)
