@@ -1,4 +1,4 @@
-﻿"""Shared strict TOML envelope for capability allow-lists."""
+"""Shared strict TOML envelope for capability allow-lists."""
 from __future__ import annotations
 
 import tomllib

@@ -1,4 +1,4 @@
-﻿"""Whole-command, fail-closed Claude Bash capability allow-list.
+"""Whole-command, fail-closed Claude Bash capability allow-list.
 
 No shell evaluation or normalization of wrappers. Unknown syntax and options
 ask; pipelines require a read-only match for every stage.
