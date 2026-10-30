@@ -8,6 +8,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.6] — 2026-10-30
+
 ### Fixed
 - Make the Claude Bash gate fail closed: unknown commands and ambiguous shell
   syntax ask for approval. Add a packaged, strictly parsed read-only capability
