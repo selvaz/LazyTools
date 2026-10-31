@@ -16,7 +16,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 LAZYTOOLS_ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE_ROOT = LAZYTOOLS_ROOT.parent
 
@@ -79,6 +78,7 @@ def main() -> None:
     os.environ["MARKET_DATA_DB"] = str(db_path)
 
     from lazybridge import Agent, LLMEngine, Session
+
     from lazytools.statistical_analysis import StatisticalAnalysisTools
 
     model = os.getenv("LB_LIVE_DEEPSEEK_MODEL", "deepseek-v4-flash")

@@ -124,17 +124,17 @@ def run_case(objective: str, tools, hub_db: str) -> None:
     # present ones to ~1.0, so this is a "compact target list" convention, not a
     # dropped instrument).
     tool_weights = np.array([tool_weights_dict.get(t, 0.0) for t in TICKERS])
-    print(f"TOOL   weights: {dict(zip(BARE, np.round(tool_weights, 4)))}")
+    print(f"TOOL   weights: {dict(zip(BARE, np.round(tool_weights, 4), strict=True))}")
     print(f"TOOL   resolved_mean_estimator={tool_result.get('resolved_mean_estimator')}  "
           f"exp_ret_ann={tool_result.get('expected_return_annualized')}  "
           f"actual_vol={tool_result.get('actual_volatility')}")
 
     mu, cov, weekly = independent_moments(hub_db)
     indep_weights = solve_hrp_independent(weekly) if objective == "hrp" else solve_independent(objective, mu, cov)
-    print(f"INDEP  weights: {dict(zip(BARE, np.round(indep_weights, 4)))}")
+    print(f"INDEP  weights: {dict(zip(BARE, np.round(indep_weights, 4), strict=True))}")
 
     diff = np.abs(tool_weights - indep_weights)
-    print(f"max abs weight diff: {diff.max():.5f}  (per-asset: {dict(zip(BARE, np.round(diff, 5)))})")
+    print(f"max abs weight diff: {diff.max():.5f}  (per-asset: {dict(zip(BARE, np.round(diff, 5), strict=True))})")
 
     def ann_vol(w):
         return float(np.sqrt(w @ cov @ w) * np.sqrt(52.0))
@@ -213,22 +213,22 @@ def run_bl_case(hub_db: str) -> None:
     estimate = HierarchicalV2Estimator().estimate(model, weekly, mode="flat", periods_per_year=periods_per_year)
     tool_weights_dict = dict(estimate.terminal_weights)
     tool_weights = np.array([tool_weights_dict.get(t, 0.0) for t in TICKERS])
-    print(f"TOOL (BL)     weights: {dict(zip(BARE, np.round(tool_weights, 4)))}")
+    print(f"TOOL (BL)     weights: {dict(zip(BARE, np.round(tool_weights, 4), strict=True))}")
 
     # INDEP side: from-scratch Idzorek BL posterior mean (prior covariance
     # unchanged, matching the default view_covariance_policy='prior_risk') +
     # my own max_ratio SLSQP solve, same as the non-BL cases above.
     posterior_mu = bl_posterior_independent(mu, cov, BL_VIEWS, VIEW_TAU, periods_per_year)
-    print(f"posterior mean (annualized): {dict(zip(BARE, np.round(posterior_mu * periods_per_year, 4)))}")
-    print(f"prior mean    (annualized): {dict(zip(BARE, np.round(mu * periods_per_year, 4)))}")
+    print(f"posterior mean (annualized): {dict(zip(BARE, np.round(posterior_mu * periods_per_year, 4), strict=True))}")
+    print(f"prior mean    (annualized): {dict(zip(BARE, np.round(mu * periods_per_year, 4), strict=True))}")
     indep_weights = solve_independent("max_ratio", posterior_mu, cov)
-    print(f"INDEP (BL)    weights: {dict(zip(BARE, np.round(indep_weights, 4)))}")
+    print(f"INDEP (BL)    weights: {dict(zip(BARE, np.round(indep_weights, 4), strict=True))}")
 
     diff = np.abs(tool_weights - indep_weights)
-    print(f"max abs weight diff: {diff.max():.5f}  (per-asset: {dict(zip(BARE, np.round(diff, 5)))})")
+    print(f"max abs weight diff: {diff.max():.5f}  (per-asset: {dict(zip(BARE, np.round(diff, 5), strict=True))})")
 
     baseline_weights = solve_independent("max_ratio", mu, cov)
-    print(f"BASELINE (no views, max_ratio) weights: {dict(zip(BARE, np.round(baseline_weights, 4)))}")
+    print(f"BASELINE (no views, max_ratio) weights: {dict(zip(BARE, np.round(baseline_weights, 4), strict=True))}")
 
     tol = 0.02
     status = "MATCH" if diff.max() <= tol else "MISMATCH"
@@ -244,6 +244,7 @@ def main() -> None:
     hub_db = str(Path(os.environ.get("MARKET_DATA_DB", default_hub)).resolve())
 
     from lazyportfolio import MarketDataHubOptimizationBackend
+
     from lazytools.connectors.fin import PortfolioOptimizationTools
 
     tools = PortfolioOptimizationTools(backend=MarketDataHubOptimizationBackend(db_path=hub_db))

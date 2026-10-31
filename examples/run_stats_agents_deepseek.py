@@ -85,6 +85,7 @@ def main() -> None:
     os.environ["MARKET_DATA_DB"] = _resolve_db()
 
     from lazybridge import Session
+
     from lazytools.skills.stats_agents import (
         regime_analyst,
         regression_analyst,
