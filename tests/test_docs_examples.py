@@ -230,7 +230,7 @@ def test_bridge_worked_flow_from_markdown(isolated, monkeypatch):
         assert len(outcomes) == 2 and all(outcome.status == "done" for outcome in outcomes)
         assert [engine.kind for engine in script.engines] == ["claude", "codex"]
         assert script.engines[0].kwargs["request_timeout"] == 120
-        assert script.engines[1].kwargs["model"] == "gpt-6.1-sol"
+        assert script.engines[1].kwargs["model"] == "gpt-6.1-terra"
         # Execute the docs' evidence recorder against the mock writer's real diff/tests.
         execute(python_blocks("docs/projects.md")[2], project_ns)
         accepted = project_ns["record_checked_attempt"](

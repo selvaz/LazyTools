@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Model tiers follow the one-to-one Anthropic/OpenAI ladder (Haiku/Luna, Sonnet/Terra 6.1, Opus/Sol 6.1, Fable/Astra): the `writing` ladder's first rung pairs `claude-sonnet-5-5` with `gpt-6.1-terra` (was `gpt-6.1-sol`); `gpt-6.1-terra` is an accepted Codex model. It has no `_API_PRICE_RANK` entry (list price unverified), so it never wins the price tie-break.
+
 ## [0.10.6] — 2026-10-30
 
 ### Fixed

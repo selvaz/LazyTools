@@ -1,4 +1,5 @@
 # Claude Code delegation ladders, ordered by capability. Fable is explicit-only.
+# Tier pairs (owner 31/10/2026): Haiku/Luna, Sonnet/Terra 6.1, Opus/Sol 6.1, Fable/Astra.
 [basic]
 [[basic.steps]]
 [basic.steps.providers.codex]
@@ -11,7 +12,7 @@ effort = "medium"
 [writing]
 [[writing.steps]]
 [writing.steps.providers.codex]
-model = "gpt-6.1-sol"
+model = "gpt-6.1-terra"
 effort = "high"
 [writing.steps.providers.claude_code]
 model = "claude-sonnet-5-5"

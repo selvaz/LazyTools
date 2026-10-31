@@ -67,7 +67,7 @@ def test_route_is_dry_run_with_pick_rung_reason_and_both_quota_windows(bridge, c
     assert cli.main(args(bridge)) == 0
     out = capsys.readouterr().out
     assert out.splitlines()[0].startswith(
-        "chosen: codex/gpt-6.1-sol effort=high tier=writing rung=1 because weekly_margin"
+        "chosen: codex/gpt-6.1-terra effort=high tier=writing rung=1 because weekly_margin"
     )
     assert "10% used; reset" in out and "40% used; reset" in out
     assert "20% used; reset" in out and "60% used; reset" in out
@@ -80,7 +80,7 @@ def test_route_json_is_one_complete_decision(bridge, capsys):
     assert cli.main(args(bridge, "route", "--json")) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["provider"] == "codex" and payload["engine"] == "codex"
-    assert payload["model"] == "gpt-6.1-sol" and payload["effort"] == "high"
+    assert payload["model"] == "gpt-6.1-terra" and payload["effort"] == "high"
     assert payload["rung"] == 1 and payload["override"] == {}
     assert set(payload["scores"]) == {"codex", "claude_code"}
     assert set(payload["readings"]) == {"codex", "claude_code"}
@@ -90,25 +90,25 @@ def test_run_launches_selected_model_and_records_decision(bridge, capsys):
     script, _, _, db = bridge
     assert cli.main(args(bridge, "run")) == 0
     lines = capsys.readouterr().out.splitlines()
-    assert lines[0].startswith("chosen: codex/gpt-6.1-sol effort=high")
+    assert lines[0].startswith("chosen: codex/gpt-6.1-terra effort=high")
     store = _store.build_store(db)
     (row,) = _jobs.list_jobs(store, all_jobs=True)
-    assert row["model"] == "gpt-6.1-sol" and row["effort"] == "high"
+    assert row["model"] == "gpt-6.1-terra" and row["effort"] == "high"
     assert row["routing"]["tier"] == "writing" and row["routing"]["reason"] == "weekly_margin"
     assert row["routing"]["scores"] and row["routing"]["override"] == {}
-    assert script.kwargs["model"] == "gpt-6.1-sol"
+    assert script.kwargs["model"] == "gpt-6.1-terra"
     assert script.kwargs["reasoning_effort"] == "high"
     assert cli.main(["status", row["job_id"], "--db", str(db)]) == 0
-    assert "tier=writing model=gpt-6.1-sol effort=high" in capsys.readouterr().out
+    assert "tier=writing model=gpt-6.1-terra effort=high" in capsys.readouterr().out
     assert cli.main(["jobs", "--all", "--db", str(db)]) == 0
-    assert "tier=writing model=gpt-6.1-sol effort=high" in capsys.readouterr().out
+    assert "tier=writing model=gpt-6.1-terra effort=high" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
     "extra,model,effort,override",
     [
         (["--model", "gpt-6-astra"], "gpt-6-astra", "high", {"model": "gpt-6-astra"}),
-        (["--effort", "ultra"], "gpt-6.1-sol", "ultra", {"effort": "ultra"}),
+        (["--effort", "ultra"], "gpt-6.1-terra", "ultra", {"effort": "ultra"}),
         (
             ["--model", " gpt-6-astra ", "--effort", " xhigh "],
             "gpt-6-astra",
@@ -134,7 +134,7 @@ def test_explicit_overrides_win_and_are_recorded(bridge, capsys, extra, model, e
     (row,) = _jobs.list_jobs(_store.build_store(db), all_jobs=True)
     assert (row["model"], row["effort"]) == (model, effort)
     assert script.kwargs["model"] == model
-    assert row["routing"]["model"] in ("gpt-6.1-sol", "claude-sonnet-5-5")
+    assert row["routing"]["model"] in ("gpt-6.1-terra", "claude-sonnet-5-5")
 
 
 @pytest.mark.parametrize(

@@ -72,7 +72,7 @@ def test_packaged_catalogue_matches_contract_table():
     expected = {
         "basic": [[("codex", "gpt-6-luna", "medium"), ("claude_code", "claude-haiku-5-5", "medium")]],
         "writing": [
-            [("codex", "gpt-6.1-sol", "high"), ("claude_code", "claude-sonnet-5-5", "high")],
+            [("codex", "gpt-6.1-terra", "high"), ("claude_code", "claude-sonnet-5-5", "high")],
             [("codex", "gpt-6.1-sol", "xhigh"), ("claude_code", "claude-opus-5-5", "high")],
         ],
         "thinking": [

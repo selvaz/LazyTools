@@ -32,7 +32,7 @@ _NON_OPENAI_MODEL_PREFIXES = ("claude-",)
 
 _NON_OPENAI_MODEL_EXACT_ALIASES = frozenset({"sonnet", "opus", "haiku", "fable"})
 
-CODEX_MODELS = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra", "gpt-6-sol", "gpt-6.1-sol", "gpt-6-luna")
+CODEX_MODELS = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra", "gpt-6-sol", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna")
 
 EFFORTS: dict[str, tuple[str, ...]] = {
     "codex": ("low", "medium", "high", "xhigh", "max", "ultra"),
