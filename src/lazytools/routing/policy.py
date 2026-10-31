@@ -34,6 +34,41 @@ _NON_OPENAI_MODEL_EXACT_ALIASES = frozenset({"sonnet", "opus", "haiku", "fable"}
 
 CODEX_MODELS = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra", "gpt-6-sol", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna")
 
+#: One-to-one tier ladder (owner decision 31/10/2026). LOCAL MIRROR of
+#: ``lazybridge.model_tiers.MODEL_TIERS`` (LazyBridge PR #203): the pinned PyPI
+#: lazybridge may predate it. tests/test_routing_policy.py asserts the two are equal
+#: whenever lazybridge ships the module; once the pin moves, import it instead.
+MODEL_TIERS: dict[str, dict[Engine, str]] = {
+    "small": {"claude_code": "claude-haiku-5-5", "codex": "gpt-6-luna"},
+    "mid": {"claude_code": "claude-sonnet-5-5", "codex": "gpt-6.1-terra"},
+    "high": {"claude_code": "claude-opus-5-5", "codex": "gpt-6.1-sol"},
+    "top": {"claude_code": "claude-fable-5-1", "codex": "gpt-6-astra"},
+}
+_CLAUDE_TIER_WORDS = (("haiku", "small"), ("sonnet", "mid"), ("opus", "high"), ("fable", "top"))
+_OPENAI_TIER_WORDS = (("luna", "small"), ("terra", "mid"), ("sol", "high"), ("astra", "top"))
+
+
+def translate_model(model: str | None, engine: Engine) -> str | None:
+    """Express ``model`` in ``engine``'s namespace when it is the other provider's tier name.
+
+    ``--engine codex --model opus`` becomes ``gpt-6.1-sol``; ``--engine claude --model gpt-6.1-terra``
+    becomes ``claude-sonnet-5-5``. Names outside the ladder (explicit pins, blanks) are returned
+    unchanged so the usual validation still applies to them.
+    """
+    if model is None:
+        return None
+    name = model.strip().lower()
+    if engine == "codex" and (name.startswith("claude-") or name in {w for w, _ in _CLAUDE_TIER_WORDS}):
+        for word, tier in _CLAUDE_TIER_WORDS:
+            if word in name:
+                return MODEL_TIERS[tier]["codex"]
+    if engine == "claude_code" and name.startswith("gpt-"):
+        for word, tier in _OPENAI_TIER_WORDS:
+            if name.endswith("-" + word):
+                return MODEL_TIERS[tier]["claude_code"]
+    return model
+
+
 EFFORTS: dict[str, tuple[str, ...]] = {
     "codex": ("low", "medium", "high", "xhigh", "max", "ultra"),
     "claude_code": ("low", "medium", "high", "xhigh", "max"),

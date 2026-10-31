@@ -208,7 +208,7 @@ def test_audit_reports_every_catalogue_and_policy_mismatch(discovery, tmp_path, 
     models.append(_models.ModelInfo("codex", "gpt-new", True, ("high",)))
     path = tmp_path / "tiers.toml"
     text = DEFAULT_PATH.read_text().replace("gpt-6.1-sol", "gpt-6-luna").replace('effort = "medium"', 'effort = "ultra"')
-    text = text.replace("gpt-6-astra", "gpt-missing")
+    text = text.replace("gpt-6.1-terra", "gpt-missing")
     path.write_text(text)
     assert cli.main(["models", "--tiers", str(path), "--json"]) == 2
     payload = json.loads(capsys.readouterr().out)
@@ -218,7 +218,7 @@ def test_audit_reports_every_catalogue_and_policy_mismatch(discovery, tmp_path, 
     assert any("gpt-6.1-sol" in item and "xhigh" in item and "not supported" in item for item in mismatches)
     assert any("new-effort" in item and "missing from the policy" in item for item in mismatches)
     assert any("basic.steps[0]" in item and "ultra" in item and "gpt-6-luna" in item for item in mismatches)
-    assert sum("model 'gpt-missing' is not offered" in item for item in mismatches) == 3
+    assert sum("model 'gpt-missing' is not offered" in item for item in mismatches) == 1
     assert any("default policy rejects effort 'ultra'" in item for item in mismatches)
     assert next(row for row in payload["models"] if row["model"] == "gpt-missing")["available"] is False
 

@@ -138,7 +138,7 @@ def test_explicit_overrides_win_and_are_recorded(bridge, capsys, extra, model, e
 
 
 @pytest.mark.parametrize(
-    "extra", [["--engine", "codex", "--model", "opus"], ["--effort", "none"], ["--engine", "claude", "--effort", "ultra"], ["--engine", "codex", "--model", " "]]
+    "extra", [["--effort", "none"], ["--engine", "claude", "--effort", "ultra"], ["--engine", "codex", "--model", " "]]
 )
 def test_bad_routed_overrides_are_rejected_before_launch(bridge, capsys, extra):
     assert cli.main(args(bridge, "run", *extra)) == 2
@@ -867,3 +867,12 @@ def test_tier_run_with_wait_for_slot_keeps_the_busy_engine_and_queues(bridge, mo
         slot.release()
     argv = seen["argv"]
     assert argv[argv.index("--engine") + 1] == "codex" and "--wait-for-slot" in argv
+
+
+@pytest.mark.parametrize(
+    "extra,expected",
+    [(["--engine", "codex", "--model", "opus"], "gpt-6.1-sol"), (["--engine", "claude", "--model", "gpt-6.1-terra"], "claude-sonnet-5-5")],
+)
+def test_other_providers_tier_name_is_translated_not_rejected(bridge, capsys, extra, expected):
+    assert cli.main(args(bridge, "run", *extra)) == 0
+    assert bridge[0].engines[-1].kwargs["model"] == expected
