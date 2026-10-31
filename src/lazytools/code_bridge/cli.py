@@ -24,7 +24,7 @@ from typing import Any
 from lazytools.code_bridge import _brief, _concurrency, _engines, _jobs, _progress, _routine, _routing, _store
 from lazytools.code_bridge._concurrency import EngineBusy
 from lazytools.code_bridge._lockfile import LockHeld
-from lazytools.routing.policy import DEFAULT_POLICY
+from lazytools.routing.policy import DEFAULT_POLICY, translate_model
 
 
 def _read_task(raw: str) -> str:
@@ -241,6 +241,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             _routing.check_session_engine(
                 cwd=str(resolved_cwd), session=args.session, engine=args.engine, db_path=_db_path(args)
             )
+        if not args.tier and args.model is not None and args.engine:
+            args.model = translate_model(args.model, _routing.provider(args.engine))
         if args.tier:
             from lazytools.code_bridge import _engines
 

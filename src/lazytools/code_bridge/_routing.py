@@ -25,7 +25,7 @@ from lazytools.routing import (
     recommend,
 )
 from lazytools.routing.live import read_readings, reading_record
-from lazytools.routing.policy import DEFAULT_POLICY
+from lazytools.routing.policy import DEFAULT_POLICY, translate_model
 from lazytools.routing.router import FIVE_HOUR_WINDOW_MAX_MINUTES, _five_hour_window_id, _weekly_window_id
 
 
@@ -241,6 +241,8 @@ def choose(
     rows = _jobs.list_jobs(store, all_jobs=True)
     continuity = session_hint(rows, cwd, session)
     requested = provider(engine) if engine else model_provider(model) if model is not None else None
+    if requested is not None and model is not None:
+        model = translate_model(model, requested)  # "opus" on codex -> gpt-6.1-sol (tier ladder)
     if requested is not None and model is not None:
         rejection = DEFAULT_POLICY.reject_model(requested, model)
         if rejection is not None:

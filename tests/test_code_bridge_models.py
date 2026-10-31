@@ -25,7 +25,7 @@ def codex_data():
             ],
             "defaultReasoningEffort": "medium",
         }
-        for model in ("gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-luna", "gpt-5.6-luna")
+        for model in ("gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6.1-terra", "gpt-6-luna", "gpt-5.6-luna")
     ]
 
 
@@ -78,7 +78,7 @@ async def test_app_server_handshake_reads_models_without_thread_or_turn(monkeypa
         {"id": 2, "result": {"data": codex_data(), "nextCursor": None}},
     ])
     models = await _models.fetch_codex_models(executable="fake-codex")
-    assert len(models) == 7 and models[0].is_default is True
+    assert len(models) == 8 and models[0].is_default is True
     assert models[0].default_effort == "medium"
     assert "ultra" not in models[-1].efforts and "ultra" in models[0].efforts
     assert [message["method"] for message in server.messages] == ["initialize", "initialized", "model/list"]
@@ -98,7 +98,7 @@ async def test_app_server_follows_model_pages_and_keeps_hidden_metadata(monkeypa
         {"id": 3, "result": {"data": data[2:], "nextCursor": None}},
     ])
     models = await _models.fetch_codex_models(executable="fake-codex")
-    assert len(models) == 7 and models[1].hidden is True
+    assert len(models) == 8 and models[1].hidden is True
     assert server.messages[-1] == {"method": "model/list", "id": 3, "params": {"cursor": "next"}}
 
 
@@ -174,7 +174,7 @@ def test_models_probes_unique_catalogue_models_and_aliases_and_retains_warning(d
     assert payload["mismatches"] == [] and payload["errors"] == []
     assert payload["probe_claude"] is True
     rows = {row["model"]: row for row in payload["models"]}
-    assert len(rows) == 12
+    assert len(rows) == 13
     assert rows["sonnet"]["answered_models"] == ["claude-sonnet-5"]
     assert rows["opus"]["answered_models"] == ["claude-opus-5-5"]
     assert rows["claude-sonnet-5-5"]["available"] is True
@@ -208,7 +208,7 @@ def test_audit_reports_every_catalogue_and_policy_mismatch(discovery, tmp_path, 
     models.append(_models.ModelInfo("codex", "gpt-new", True, ("high",)))
     path = tmp_path / "tiers.toml"
     text = DEFAULT_PATH.read_text().replace("gpt-6.1-sol", "gpt-6-luna").replace('effort = "medium"', 'effort = "ultra"')
-    text = text.replace("gpt-6-astra", "gpt-missing")
+    text = text.replace("gpt-6.1-terra", "gpt-missing")
     path.write_text(text)
     assert cli.main(["models", "--tiers", str(path), "--json"]) == 2
     payload = json.loads(capsys.readouterr().out)
@@ -218,7 +218,7 @@ def test_audit_reports_every_catalogue_and_policy_mismatch(discovery, tmp_path, 
     assert any("gpt-6.1-sol" in item and "xhigh" in item and "not supported" in item for item in mismatches)
     assert any("new-effort" in item and "missing from the policy" in item for item in mismatches)
     assert any("basic.steps[0]" in item and "ultra" in item and "gpt-6-luna" in item for item in mismatches)
-    assert sum("model 'gpt-missing' is not offered" in item for item in mismatches) == 3
+    assert sum("model 'gpt-missing' is not offered" in item for item in mismatches) == 1
     assert any("default policy rejects effort 'ultra'" in item for item in mismatches)
     assert next(row for row in payload["models"] if row["model"] == "gpt-missing")["available"] is False
 
