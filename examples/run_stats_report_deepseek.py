@@ -51,6 +51,7 @@ def main() -> None:
     os.environ["MARKET_DATA_DB"] = str(db)
 
     from lazybridge import Session
+
     from lazytools.skills import AnalystConfig, stats_report_pipeline
 
     model = os.getenv("LB_LIVE_DEEPSEEK_MODEL", "deepseek-v4-flash")

@@ -97,6 +97,7 @@ def main() -> None:
         print("NOTE: LazyCrawler/news.db not found -- macro specialist will run off macro/indicator data only.")
 
     from lazybridge import Session, Store
+
     from lazytools.skills.analyst import AnalystConfig
     from lazytools.skills.macro_views import build_macro_view_specialists, macro_views_plan
 

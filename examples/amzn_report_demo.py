@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Demo end-to-end dell'ecosistema Lazy* / market-data-hub — da lanciare in Spyder.
 
@@ -24,10 +23,11 @@ Serve connessione a internet (Yahoo + SEC) e la chiave DeepSeek in deepseek.env
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")  # niente finestre: rende i grafici headless (salvati su bytes)
 
 import numpy as np
@@ -55,7 +55,7 @@ _env = GITHUB / "deepseek.env"
 if not os.environ.get("DEEPSEEK_API_KEY") and _env.exists():
     os.environ["DEEPSEEK_API_KEY"] = _env.read_text(encoding="utf-8").strip()
 
-TODAY = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+TODAY = datetime.now(UTC).strftime("%Y-%m-%d")
 
 
 def usd(x) -> str:
@@ -77,7 +77,7 @@ def pct(x, dp=2) -> str:
 # 1) Ingestione prezzi (AMZN non è nell'universo config -> register + ensure)
 # --------------------------------------------------------------------------- #
 print(f"[1/5] Ingestione prezzi {TICKER} dal {START} ...")
-from market_data_hub.services.prices import register_listing, ensure_price_history
+from market_data_hub.services.prices import ensure_price_history, register_listing
 
 register_listing(TICKER, exchange="NASDAQ", currency="USD", kind="EQUITY", name=COMPANY)
 ing = ensure_price_history(TICKER, start=START)
@@ -91,7 +91,9 @@ print(f"[1/5] Bilancio SEC/EDGAR di {TICKER} ...")
 bs_items: dict = {}
 try:
     from market_data_hub.services.financials import (
-        ensure_filings_and_facts, get_statement, get_facts,
+        ensure_filings_and_facts,
+        get_facts,
+        get_statement,
     )
     ensure_filings_and_facts(TICKER)  # risolve AMZN->CIK e scarica facts XBRL
     bal = get_statement(TICKER, statement="balance", periods=4)
@@ -136,8 +138,8 @@ SERIES = TICKER if TICKER in rets_full.columns else rets_full.columns[0]
 ser = rets_full[SERIES].dropna()
 print(f"      {len(ser)} osservazioni giornaliere dal {ser.index[0].date()} al {ser.index[-1].date()}")
 
+from lazystats.core import return_outliers, return_volatility
 from lazystats.io.local import returns_from_dataframe
-from lazystats.core import return_volatility, return_outliers
 
 ytd = ser.loc[YTD_START:]
 ds_ytd = returns_from_dataframe(ytd.to_frame(SERIES))
@@ -151,8 +153,11 @@ print(f"      YTD: {vol_ytd['observations']} giorni, vol annualizzata "
 # --------------------------------------------------------------------------- #
 print("[3/5] Stima HMM a 3 regimi sull'intero campione (2015->oggi) ...")
 from lazystats.regimes import (
-    init_regime_db, fit_regimes, generate_regime_plots,
-    get_current_regime, regime_params_load,
+    fit_regimes,
+    generate_regime_plots,
+    get_current_regime,
+    init_regime_db,
+    regime_params_load,
 )
 from lazystats.regimes.tools import _swrite
 
@@ -193,13 +198,14 @@ print(f"      plot regimi generato: {regime_plot_key}")
 # NON l'argmax della marginale del singolo giorno. I due possono differire:
 # per non confondere, nel report mostriamo la marginale completa esplicita.
 import lazystats.regimes.db as _rdb
+
 _srow = _rdb.get_db().generic_read("amzn_hmm")["series"][SERIES]
 last_probs = np.asarray(_srow["state_probs"][-1], dtype=float)  # [Low, Mid, High]
 viterbi_state = int(np.asarray(_srow["states"])[-1])
 marg_state = int(np.argmax(last_probs))
 _vit_states = np.asarray(_srow["states"])
 _disagree_pct = 100.0 * float((_vit_states != np.asarray(_srow["state_probs"]).argmax(1)).mean())
-print(f"      marginale ultimo giorno: {dict(zip(labels, np.round(last_probs, 4)))} "
+print(f"      marginale ultimo giorno: {dict(zip(labels, np.round(last_probs, 4), strict=True))} "
       f"(argmax={labels[marg_state]}); Viterbi={labels[viterbi_state]}")
 
 # --------------------------------------------------------------------------- #
@@ -235,7 +241,12 @@ if bs_items:
 # --------------------------------------------------------------------------- #
 print("[5/5] Costruzione e salvataggio del report HTML ...")
 from lazytools.report import (
-    Memo, Section, TableBlock, FigureBlock, render_html, ecosystem_resolvers,
+    FigureBlock,
+    Memo,
+    Section,
+    TableBlock,
+    ecosystem_resolvers,
+    render_html,
 )
 
 # -- tabella regimi (dati precisi del modello) --
@@ -291,7 +302,7 @@ else:
 
 memo = Memo(
     title=f"{COMPANY} ({TICKER}) — Report quantitativo",
-    as_of=datetime.now(timezone.utc),
+    as_of=datetime.now(UTC),
     sections=[
         Section(
             title="Panoramica",

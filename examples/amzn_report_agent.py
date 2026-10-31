@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agente AUTONOMO che produce un report quantitativo su un titolo usando SOLO i
 tool provider di LazyTools — da lanciare in Spyder.
@@ -33,6 +32,7 @@ import os
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")  # rendering headless dei grafici dei regimi
 
 # --------------------------------------------------------------------------- #
@@ -57,16 +57,18 @@ if not os.environ.get("DEEPSEEK_API_KEY") and _env.exists():
 
 # Il depot dei regimi va inizializzato una volta: i tool regime_* vi scrivono.
 import lazystats.regimes.db as _rdb
+
 _rdb.init_regime_db(REGIME_DB)
 
 # --------------------------------------------------------------------------- #
 # Tool provider di LazyTools + agente
 # --------------------------------------------------------------------------- #
 from lazybridge import Agent, LLMEngine, Session
+
 from lazytools.connectors.datahub import DataHubTools
 from lazytools.connectors.regimes import RegimeTools
+from lazytools.report import ReportFiles, ReportTools, ecosystem_resolvers
 from lazytools.statistical_analysis import StatisticalAnalysisTools
-from lazytools.report import ReportTools, ReportFiles, ecosystem_resolvers
 
 # Cablaggio delle figure a build-time: senza ecosystem_resolvers, le figure
 # chart:/regimes: NON si risolvono al render.

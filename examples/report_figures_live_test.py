@@ -83,7 +83,7 @@ def _ensure_dependencies() -> None:
 
 _ensure_dependencies()
 
-import os  # noqa: E402
+import os
 
 
 def _load_deepseek_key() -> None:
@@ -100,16 +100,15 @@ _load_deepseek_key()
 # ---------------------------------------------------------------------------
 # Now safe to import third-party / lazybridge / lazytools symbols.
 # ---------------------------------------------------------------------------
-import base64  # noqa: E402
+import base64
 
-import pytest  # noqa: E402
+import pytest
+from lazybridge import Agent, LLMEngine, Session, Tool
 
-from lazybridge import Agent, LLMEngine, Session, Tool  # noqa: E402
-from lazytools.report import (  # noqa: E402
+from lazytools.report import (
     ArtifactResolvers,
     FigureBlock,
     Memo,
-    ReportFiles,
     ReportTools,
     Section,
     ecosystem_resolvers,
