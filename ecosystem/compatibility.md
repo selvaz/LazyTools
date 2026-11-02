@@ -15,4 +15,4 @@ Python: 3.11, 3.12, 3.13
 | lazyportfolio | GitHub | `v0.2.9` |
 | lazyray | GitHub | `v0.2.9` |
 | lazydataspace | GitHub | `v0.1.0` |
-| lazyfin | GitHub | `fe86de3de87f5877cfd4e50165fe27069a6f7f4f` |
+| lazyfin | GitHub | `565d83ecc5bc162abbb3ff8ad63018b54c6929c7` |
