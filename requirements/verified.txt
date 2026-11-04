@@ -11,4 +11,4 @@ lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@v0.3.10
 lazyportfolio[datacore] @ git+https://github.com/selvaz/LazyPortfolio.git@v0.2.10
 lazyray @ git+https://github.com/selvaz/LazyRay.git@v0.2.10
 lazydataspace @ git+https://github.com/selvaz/DataSpace.git@v0.1.0
-lazyfin[bridge,datacore] @ git+https://github.com/selvaz/LazyFin.git@565d83ecc5bc162abbb3ff8ad63018b54c6929c7
+lazyfin[bridge,datacore] @ git+https://github.com/selvaz/LazyFin.git@a558a6a4dffcf3fa2a37c082e971669e53392be7
