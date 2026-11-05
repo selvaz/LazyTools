@@ -1,0 +1,25 @@
+name: reserve PyPI name
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build placeholder
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build pypi-placeholder
+      - name: Publish placeholder to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: pypi-placeholder/dist/

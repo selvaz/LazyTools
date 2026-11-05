@@ -101,6 +101,9 @@ Documentation = "https://tools.lazybridge.com"
 [tool.hatch.metadata]
 allow-direct-references = true
 
+[tool.hatch.build]
+exclude = ["/pypi-placeholder"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/lazytools"]
 
@@ -113,6 +116,7 @@ packages = ["src/lazytools"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["--ignore=pypi-placeholder"]
 # Without this, `lazytools` resolves through whatever editable install the
 # machine carries, which can be a different checkout entirely: a suite run in
 # this tree then answers for code that is not in it. Found on 15 August, when
@@ -125,6 +129,7 @@ asyncio_mode = "auto"
 target-version = "py311"
 line-length = 120
 src = ["src", "tests"]
+extend-exclude = ["pypi-placeholder"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]

@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lazytoolkit"
+version = "0.0.1"
+description = "Reserved name for LazyTools"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+classifiers = ["Development Status :: 1 - Planning"]
+
+[project.urls]
+Homepage = "https://github.com/selvaz/LazyTools"
+Repository = "https://github.com/selvaz/LazyTools"
+
+[tool.hatch.build.targets.wheel]
+packages = ["lazytools"]
