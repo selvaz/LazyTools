@@ -44,15 +44,15 @@
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
-        "ref": "v0.10.5",
+        "ref": "v0.10.6",
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
-        "ref": "v0.3.22",
+        "ref": "v0.3.26",
         "repo": "https://github.com/selvaz/market-data-hub"
       }
     },
-    "lazybridge": "1.8.4",
+    "lazybridge": "1.8.6",
     "python": [
       "3.11",
       "3.12",

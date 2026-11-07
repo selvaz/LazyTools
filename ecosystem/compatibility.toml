@@ -22,13 +22,13 @@ schema_version = 1
 # environment uses exactly these refs. LazyFin is deliberately outside the train.
 [verified]
 python = ["3.11", "3.12", "3.13"]
-lazybridge = "1.8.4"
+lazybridge = "1.8.6"
 
 # Immutable GitHub refs of the verified, co-installable combination.
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.10.5"
+ref = "v0.10.6"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
@@ -40,7 +40,7 @@ ref = "v0.19.7"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "v0.3.22"
+ref = "v0.3.26"
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
