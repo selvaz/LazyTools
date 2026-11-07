@@ -128,7 +128,7 @@ support:
 
 ```bash
 pip install "lazybridge[claude-code]==1.8.1"
-pip install "lazytoolkit[engines,web] @ git+https://github.com/selvaz/LazyTools.git@v0.10.5"
+pip install "lazytoolkit[engines,web] @ git+https://github.com/selvaz/LazyTools.git@v0.10.6"
 ```
 
 `ClaudeCodeEngine` ships in LazyBridge 1.8.x. LazyTools 0.10.5 requires
