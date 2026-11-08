@@ -59,7 +59,7 @@ def test_module_entrypoint(tmp_path, installer):
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    assert (dest / "SKILL.md").read_bytes().startswith(b"---\n")
+    assert (dest / "SKILL.md").read_bytes().splitlines()[0] == b"---"
 
 
 def test_missing_installer(monkeypatch, tmp_path, capsys):
