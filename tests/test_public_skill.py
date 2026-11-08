@@ -116,3 +116,11 @@ def test_documented_commands_and_tools_exist(tmp_path):
     mentioned = set(re.findall(r"`((?:projects|codex|claude)_[a-z_]+)`", texts))
     assert mentioned
     assert mentioned - {"projects_store_db"} <= registered
+
+
+def test_skill_files_have_no_bom_and_start_with_frontmatter():
+    # A UTF-8 BOM before "---" hides the frontmatter from skill loaders.
+    root = Path(__file__).resolve().parents[1] / "src" / "lazytools" / "skill"
+    for path in root.rglob("*.md"):
+        assert not path.read_bytes().startswith(b"\xef\xbb\xbf"), path
+    assert (root / "SKILL.md").read_bytes().startswith(b"---")
