@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from hatchling.build import build_wheel
+from hatchling.builders.wheel import WheelBuilder
 
 from lazytools.code_bridge.cli import build_parser
 from lazytools.connectors.code_support._claude_review import claude_reviewer
@@ -17,6 +17,8 @@ from lazytools.connectors.code_support._review import codex_reviewer
 from lazytools.connectors.projects.tools import ProjectsTools
 from lazytools.skill import __main__ as skill_cli
 from lazytools.skill import skill_path
+
+ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED = {"SKILL.md", "references/mcp-server.md", "references/code-bridge.md", "references/projects.md"}
 
@@ -55,6 +57,7 @@ def test_module_entrypoint(tmp_path, installer):
     result = subprocess.run(
         [sys.executable, "-m", "lazytools.skill", "install", "--dest", str(dest)],
         capture_output=True,
+        cwd=ROOT,
         text=True,
         check=False,
     )
@@ -81,9 +84,7 @@ def test_default_targets(monkeypatch, tmp_path, installer):
 
 
 def test_wheel_contains_all_skill_documents(tmp_path):
-    wheel = Path(build_wheel(str(tmp_path)))
-    if not wheel.is_absolute():
-        wheel = tmp_path / wheel
+    wheel = Path(next(WheelBuilder(str(ROOT)).build(directory=str(tmp_path), versions=["standard"])))
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
     assert {f"lazytools/skill/{name}" for name in EXPECTED} <= names
