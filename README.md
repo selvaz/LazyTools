@@ -44,6 +44,22 @@ lazyfin          Portfolio Manager AI — the finance domain layer on top of
                  the whole stack (private repo)
 ```
 
+## Install the assistant skills
+
+After installing LazyTools with the `mcp` extra and LazyBridge 1.8.7 or newer,
+run these three commands to install both skills and register the read-only
+server in Claude Code:
+
+```sh
+python -m lazybridge.skill install
+python -m lazytools.skill install
+claude mcp add --transport stdio lazytools -- lazytools-mcp
+```
+
+The installers also target Codex when its home exists; see the
+[MCP setup](docs/mcp-server.md#install-the-assistant-skills) for Codex registration,
+persistent project state and write access. Rerun the installers after upgrades.
+
 ## Install
 
 LazyTools is distributed from GitHub (only LazyBridge lives on PyPI). Install

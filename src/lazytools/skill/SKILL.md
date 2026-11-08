@@ -1,4 +1,4 @@
-﻿---
+---
 name: lazytools
 description: Use LazyTools to configure its MCP server, run asynchronous coding jobs, and manage projects, plans, tasks, and schedules.
 ---

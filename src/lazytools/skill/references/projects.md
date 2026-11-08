@@ -1,4 +1,4 @@
-﻿# Projects, plans and schedules
+# Projects, plans and schedules
 
 Configure a persistent Store and enable the `projects` MCP provider with `--allow-unsafe` for changes (see [MCP setup](mcp-server.md)). Read tools remain available without it. Enable `LAZYTOOLS_PROJECTS_TOOLS=full` for contract and verification tools.
 

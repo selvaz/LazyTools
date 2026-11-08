@@ -1,4 +1,4 @@
-﻿# Async code bridge
+# Async code bridge
 
 Install the `engines` extra for Claude jobs and quota-aware tiers. Run from a workspace containing `<repo>`; the default code root is the launch directory. Authenticate the local coding runtimes first.
 

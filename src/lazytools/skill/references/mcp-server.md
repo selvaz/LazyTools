@@ -1,4 +1,4 @@
-﻿# MCP server
+# MCP server
 
 Install the MCP extra from GitHub (add `engines` for Claude-backed coding and tier routing):
 
