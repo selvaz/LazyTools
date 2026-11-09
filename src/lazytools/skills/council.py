@@ -425,7 +425,7 @@ class WizengAImot:
             aligned = sum(bool(v["aligned"]) and v["motion_id"] == current for v in votes.values())
             lines = [
                 f"{v['member']}: {'aligned' if v['aligned'] else 'not aligned'} "
-                f"(confidence={v['confidence']:.2f}) — {v['rationale']}"
+                f"on {v['motion_id']} (confidence={v['confidence']:.2f}) — {v['rationale']}"
                 for v in votes.values()
             ]
             detail = "\n".join(lines) if lines else "No votes recorded."
