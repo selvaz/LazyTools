@@ -234,3 +234,65 @@ def test_news_preset_wires_reasoning_and_shared_tools(
     assert all("web_search" in member._tool_map for member in council._members)
     assert "web_search" in council._moderator._tool_map
     assert "web_search" in council._synthesiser._tool_map
+
+
+def test_motion_tools_enforce_quorum_and_report_winner(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise the actual participant and moderator tools without an engine."""
+    import lazytools.skills.council as module
+
+    class Result:
+        error = None
+
+        def __init__(self, text):
+            self.value = text
+
+        def text(self):
+            return self.value
+
+    class Fake:
+        def __init__(self, name, tools=()):
+            self.name = name
+            self.sources = []
+            self.tools = {tool.name: tool.func for tool in tools}
+
+        def __call__(self, prompt):
+            if self.name == "alice" and "propose_motion" in self.tools:
+                alice = self.tools
+                bob = pool.members[1].tools
+                mod = pool.members[2].tools
+                assert "quorum not reached" in mod["check_quorum"]()
+                assert "Cannot close" in mod["close_discussion"]("early")
+                assert "motion:1" in alice["propose_motion"]("Expand")
+                alice["cast_vote"]("motion:1", True, 0.9, "Good")
+                assert "motion:2" in mod["propose_motion"]("Do not expand")
+                assert "motion:2" in bob["cast_vote"]("motion:1", True, 0.9, "stale")
+                bob["cast_vote"]("motion:2", True, 0.9, "Risk")
+                assert "quorum not reached" in mod["check_quorum"]()
+                assert "Cannot close" in mod["close_discussion"]("early")
+                alice["cast_vote"]("motion:2", True, 0.8, "Agreed")
+                assert "QUORUM REACHED" in mod["check_quorum"]()
+            if self.name == "synth":
+                assert "WINNING MOTION: Do not expand" in prompt
+            return Result("done")
+
+    class Pool:
+        def __init__(self, **kwargs):
+            nonlocal pool
+            pool = self
+
+        def register(self, *members):
+            self.members = members
+
+    pool = None
+    monkeypatch.setattr(module, "AgentPool", Pool)
+    monkeypatch.setattr(module.Agent, "parallel", lambda *args, **kwargs: lambda prompt: Result("done"))
+    monkeypatch.setattr(
+        WizengAImot, "_derive",
+        lambda self, agent, *, tools=None, **kw: Fake(kw.get("name", agent.name), tools or ()),
+    )
+    council = WizengAImot("Expand?", synthesiser=_agent("synth"), moderator=_agent("moderator"))
+    council.add(_agent("alice")).add(_agent("bob"))
+    result = council.run()
+    assert result.quorum_reached
+    assert result.motion == "Do not expand"
+    assert {vote["motion_id"] for vote in result.votes} == {"motion:2"}

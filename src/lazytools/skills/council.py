@@ -64,6 +64,7 @@ class CouncilResult:
     votes: list[dict]
     transcript: list[dict]
     synthesis: str
+    motion: str | None = None
 
     def text(self) -> str:
         return self.synthesis
@@ -386,6 +387,7 @@ class WizengAImot:
 
         vote_store = Store()
         member_names = [member.name for member in members]
+        motions: list[str] = []
         memory_summarizer = self._memory_summarizer or self._default_memory_summarizer()
 
         # Single, non-duplicated record of the debate, visible to every
@@ -412,13 +414,15 @@ class WizengAImot:
 
         def quorum_status() -> tuple[bool, dict[str, dict]]:
             votes = latest_votes()
-            aligned = sum(bool(v["aligned"]) for v in votes.values())
-            return aligned / len(members) >= self.quorum, votes
+            current = f"motion:{len(motions)}" if motions else None
+            aligned = sum(bool(v["aligned"]) and v["motion_id"] == current for v in votes.values())
+            return current is not None and aligned / len(members) >= self.quorum, votes
 
         def check_quorum() -> str:
             """Inspect the latest council votes and report whether quorum exists."""
             reached, votes = quorum_status()
-            aligned = sum(bool(v["aligned"]) for v in votes.values())
+            current = f"motion:{len(motions)}" if motions else None
+            aligned = sum(bool(v["aligned"]) and v["motion_id"] == current for v in votes.values())
             lines = [
                 f"{v['member']}: {'aligned' if v['aligned'] else 'not aligned'} "
                 f"(confidence={v['confidence']:.2f}) — {v['rationale']}"
@@ -426,10 +430,19 @@ class WizengAImot:
             ]
             detail = "\n".join(lines) if lines else "No votes recorded."
             return (
+                f"Current motion: {current or 'none'}"
+                f"{': ' + motions[-1] if motions else ''}. "
                 f"{aligned}/{len(members)} members aligned; {len(votes)} voted; "
                 f"threshold={self.quorum:.0%}; "
                 f"{'QUORUM REACHED' if reached else 'quorum not reached'}.\n{detail}"
             )
+
+        def propose_motion(text: str) -> str:
+            """Propose a new current motion and return its identifier."""
+            if not text.strip():
+                return "Motion rejected: text is required."
+            motions.append(text.strip())
+            return f"Current motion: motion:{len(motions)}: {motions[-1]}"
 
         def close_discussion(summary: str) -> str:
             """Close the council only when the latest votes satisfy quorum."""
@@ -446,8 +459,9 @@ class WizengAImot:
             f"Participants: {roster}; moderator. Use route(agent_name, task) to invite "
             "the person whose perspective is most relevant next. Challenge assumptions, "
             "respond to what others actually said, and revisit your view freely. Use "
-            "cast_vote whenever your position changes or becomes clearer. aligned=true "
-            "means you can endorse the emerging recommendation without a material "
+            "propose_motion(text) to put a specific recommendation to a vote. Use "
+            "cast_vote with the current motion_id whenever your position changes. aligned=true "
+            "means you can endorse that motion without a material "
             "reservation. Route to the moderator when the council may be ready to close. "
             "Only the moderator can close the discussion. Do not follow a fixed order. "
             "DEBATE HISTORY below shows the exchanges so far and stays up to date "
@@ -493,16 +507,19 @@ class WizengAImot:
 
         def make_vote_tool(member_name: str) -> Tool:
             def cast_vote(
+                motion_id: str,
                 aligned: bool,
                 confidence: float,
                 rationale: str,
-                recommendation: str,
             ) -> str:
-                """Record or update your current vote on the emerging recommendation."""
+                """Record or update your vote on the current motion."""
+                current = f"motion:{len(motions)}" if motions else None
+                if motion_id != current or current is None:
+                    return f"Vote rejected: current motion is {current or 'none'}."
                 if not 0.0 <= confidence <= 1.0:
                     return "Vote rejected: confidence must be between 0.0 and 1.0."
-                if not rationale.strip() or not recommendation.strip():
-                    return "Vote rejected: rationale and recommendation are required."
+                if not rationale.strip():
+                    return "Vote rejected: rationale is required."
                 timestamp = time.time_ns()
                 vote_store.write(
                     f"vote:{member_name}:{timestamp}",
@@ -511,7 +528,7 @@ class WizengAImot:
                         "aligned": aligned,
                         "confidence": confidence,
                         "rationale": rationale.strip(),
-                        "recommendation": recommendation.strip(),
+                        "motion_id": motion_id,
                         "timestamp": timestamp,
                     },
                 )
@@ -523,7 +540,8 @@ class WizengAImot:
             debaters.append(
                 self._derive(
                     member,
-                    tools=[make_route_tool(member.name), make_vote_tool(member.name)],
+                    tools=[make_route_tool(member.name), Tool.wrap(propose_motion, name="propose_motion"),
+                           make_vote_tool(member.name)],
                     memory=memory,
                     sources=[*member.sources, protocol, history],
                 )
@@ -535,6 +553,7 @@ class WizengAImot:
             tools=[
                 *kb_tools,
                 make_route_tool("moderator"),
+                Tool.wrap(propose_motion, name="propose_motion"),
                 Tool.wrap(check_quorum, name="check_quorum"),
                 Tool.wrap(close_discussion, name="close_discussion"),
             ],
@@ -572,7 +591,7 @@ class WizengAImot:
         vote_report = "\n".join(
             f"- {vote['member']}: {'aligned' if vote['aligned'] else 'not aligned'} "
             f"(confidence {vote['confidence']:.2f}) — {vote['rationale']}\n"
-            f"  Recommendation: {vote['recommendation']}"
+            f"  Motion: {vote['motion_id']}"
             for vote in votes
         ) or "No structured votes were recorded."
         transcript_report = "\n".join(
@@ -586,6 +605,8 @@ class WizengAImot:
             f"OPENING POSITIONS:\n{opinions}\n\n"
             f"DISCUSSION OUTCOME:\n{discussion_outcome}\n\n"
             f"LATEST VOTES:\n{vote_report}\n\nTRANSCRIPT:\n{transcript_report}\n\n"
+            f"CURRENT MOTION: {motions[-1] if motions else 'none'}\n\n"
+            f"WINNING MOTION: {motions[-1] if quorum_reached else 'none'}\n\n"
             f"QUORUM: {'reached' if quorum_reached else 'not reached'} "
             f"(threshold {self.quorum:.0%}). Write the final council report.{knowledge}"
         )
@@ -597,6 +618,7 @@ class WizengAImot:
             votes=votes,
             transcript=transcript,
             synthesis=synthesis,
+            motion=motions[-1] if quorum_reached else None,
         )
 
 
