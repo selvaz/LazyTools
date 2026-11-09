@@ -107,6 +107,7 @@ exclude = ["/pypi-placeholder"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/lazytools"]  # Includes skill Markdown and references.
 
+# The wheel package includes both bundled skill directories and their Markdown files.
 # Include runtime configuration and version authority in wheels from a clean checkout.
 [tool.hatch.build.targets.wheel.force-include]
 "ecosystem/compatibility.toml" = "lazytools/ecosystem_sync/compatibility.toml"

@@ -64,6 +64,7 @@ class CouncilResult:
     votes: list[dict]
     transcript: list[dict]
     synthesis: str
+    motion: str | None = None
 
     def text(self) -> str:
         return self.synthesis
@@ -79,6 +80,11 @@ class WizengAImot:
     ``max_rounds`` is retained for compatibility, but it does not schedule
     rounds. Unless ``max_depth`` is supplied, it only helps derive a generous
     AgentPool recursion limit. The conversation itself has no speaker order.
+
+    ``max_exchanges`` caps the total number of routed exchanges in the
+    debate (default ``max(8, 2 * max_rounds * members)``). Once it is used
+    up, further routes are refused and members are told to vote, so a
+    debate cannot fan out without bound.
     """
 
     def __init__(
@@ -88,6 +94,7 @@ class WizengAImot:
         quorum: float = 0.7,
         max_rounds: int = 3,
         max_depth: int | None = None,
+        max_exchanges: int | None = None,
         synthesiser: Agent | None = None,
         moderator: Agent | None = None,
         reasoning: bool = False,
@@ -111,11 +118,14 @@ class WizengAImot:
             raise ValueError("max_rounds must be at least 1.")
         if max_depth is not None and max_depth < 1:
             raise ValueError("max_depth must be at least 1.")
+        if max_exchanges is not None and max_exchanges < 1:
+            raise ValueError("max_exchanges must be at least 1.")
 
         self.question = question
         self.quorum = quorum
         self.max_rounds = max_rounds
         self.max_depth = max_depth
+        self.max_exchanges = max_exchanges
         self.reasoning = reasoning
         self.session = session
         self._members: list[Agent] = []
@@ -183,7 +193,7 @@ class WizengAImot:
             question=question or data.get("question", ""),
             **{
                 key: data[key]
-                for key in ("quorum", "max_rounds", "max_depth", "reasoning")
+                for key in ("quorum", "max_rounds", "max_depth", "max_exchanges", "reasoning")
                 if key in data
             },
         )
@@ -194,6 +204,7 @@ class WizengAImot:
             "quorum": self.quorum,
             "max_rounds": self.max_rounds,
             "max_depth": self.max_depth,
+            "max_exchanges": self.max_exchanges,
             "reasoning": self.reasoning,
         }
         Path(path).write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -386,6 +397,7 @@ class WizengAImot:
 
         vote_store = Store()
         member_names = [member.name for member in members]
+        motions: list[str] = []
         memory_summarizer = self._memory_summarizer or self._default_memory_summarizer()
 
         # Single, non-duplicated record of the debate, visible to every
@@ -412,24 +424,35 @@ class WizengAImot:
 
         def quorum_status() -> tuple[bool, dict[str, dict]]:
             votes = latest_votes()
-            aligned = sum(bool(v["aligned"]) for v in votes.values())
-            return aligned / len(members) >= self.quorum, votes
+            current = f"motion:{len(motions)}" if motions else None
+            aligned = sum(bool(v["aligned"]) and v["motion_id"] == current for v in votes.values())
+            return current is not None and aligned / len(members) >= self.quorum, votes
 
         def check_quorum() -> str:
             """Inspect the latest council votes and report whether quorum exists."""
             reached, votes = quorum_status()
-            aligned = sum(bool(v["aligned"]) for v in votes.values())
+            current = f"motion:{len(motions)}" if motions else None
+            aligned = sum(bool(v["aligned"]) and v["motion_id"] == current for v in votes.values())
             lines = [
                 f"{v['member']}: {'aligned' if v['aligned'] else 'not aligned'} "
-                f"(confidence={v['confidence']:.2f}) — {v['rationale']}"
+                f"on {v['motion_id']} (confidence={v['confidence']:.2f}) — {v['rationale']}"
                 for v in votes.values()
             ]
             detail = "\n".join(lines) if lines else "No votes recorded."
             return (
+                f"Current motion: {current or 'none'}"
+                f"{': ' + motions[-1] if motions else ''}. "
                 f"{aligned}/{len(members)} members aligned; {len(votes)} voted; "
                 f"threshold={self.quorum:.0%}; "
                 f"{'QUORUM REACHED' if reached else 'quorum not reached'}.\n{detail}"
             )
+
+        def propose_motion(text: str) -> str:
+            """Propose a new current motion and return its identifier."""
+            if not text.strip():
+                return "Motion rejected: text is required."
+            motions.append(text.strip())
+            return f"Current motion: motion:{len(motions)}: {motions[-1]}"
 
         def close_discussion(summary: str) -> str:
             """Close the council only when the latest votes satisfy quorum."""
@@ -446,8 +469,10 @@ class WizengAImot:
             f"Participants: {roster}; moderator. Use route(agent_name, task) to invite "
             "the person whose perspective is most relevant next. Challenge assumptions, "
             "respond to what others actually said, and revisit your view freely. Use "
-            "cast_vote whenever your position changes or becomes clearer. aligned=true "
-            "means you can endorse the emerging recommendation without a material "
+            "Only the moderator puts motions to a vote (propose_motion); to suggest or amend "
+            "a recommendation, route it to the moderator. Use cast_vote with the current "
+            "motion_id whenever your position changes. aligned=true "
+            "means you can endorse that motion without a material "
             "reservation. Route to the moderator when the council may be ready to close. "
             "Only the moderator can close the discussion. Do not follow a fixed order. "
             "DEBATE HISTORY below shows the exchanges so far and stays up to date "
@@ -459,6 +484,12 @@ class WizengAImot:
             Memory(strategy="summary", summarizer=memory_summarizer) for _ in members
         ]
         debaters: list[Agent] = []
+
+        # The depth limit only bounds how long one chain of routes can get;
+        # every agent may route several times per turn, so without a total
+        # budget a debate can fan out into thousands of calls.
+        exchange_limit = self.max_exchanges or max(8, 2 * self.max_rounds * len(members))
+        exchanges_used = 0
 
         def make_route_tool(caller_name: str) -> Tool:
             async def route(agent_name: str, task: str) -> str:
@@ -477,6 +508,14 @@ class WizengAImot:
                 # never swallow the signal, only observe it on the way past.
                 from lazybridge.signals import ConcludeSignal
 
+                nonlocal exchanges_used
+                if exchanges_used >= exchange_limit:
+                    return (
+                        f"Route refused: the discussion budget of {exchange_limit} exchanges "
+                        "is used up. Vote on the current motion now; the moderator should "
+                        "check quorum and close."
+                    )
+                exchanges_used += 1
                 try:
                     response = await pool.route(agent_name, task)
                 except ConcludeSignal as sig:
@@ -493,16 +532,19 @@ class WizengAImot:
 
         def make_vote_tool(member_name: str) -> Tool:
             def cast_vote(
+                motion_id: str,
                 aligned: bool,
                 confidence: float,
                 rationale: str,
-                recommendation: str,
             ) -> str:
-                """Record or update your current vote on the emerging recommendation."""
+                """Record or update your vote on the current motion."""
+                current = f"motion:{len(motions)}" if motions else None
+                if motion_id != current or current is None:
+                    return f"Vote rejected: current motion is {current or 'none'}."
                 if not 0.0 <= confidence <= 1.0:
                     return "Vote rejected: confidence must be between 0.0 and 1.0."
-                if not rationale.strip() or not recommendation.strip():
-                    return "Vote rejected: rationale and recommendation are required."
+                if not rationale.strip():
+                    return "Vote rejected: rationale is required."
                 timestamp = time.time_ns()
                 vote_store.write(
                     f"vote:{member_name}:{timestamp}",
@@ -511,7 +553,7 @@ class WizengAImot:
                         "aligned": aligned,
                         "confidence": confidence,
                         "rationale": rationale.strip(),
-                        "recommendation": recommendation.strip(),
+                        "motion_id": motion_id,
                         "timestamp": timestamp,
                     },
                 )
@@ -535,6 +577,7 @@ class WizengAImot:
             tools=[
                 *kb_tools,
                 make_route_tool("moderator"),
+                Tool.wrap(propose_motion, name="propose_motion"),
                 Tool.wrap(check_quorum, name="check_quorum"),
                 Tool.wrap(close_discussion, name="close_discussion"),
             ],
@@ -554,6 +597,28 @@ class WizengAImot:
         history.add("(council opens the debate)", f"{debaters[0].name}: {discussion_outcome}")
         transcript_log.insert(0, {"member": debaters[0].name, "text": discussion_outcome})
 
+        # Closing vote. The free debate may spend its whole exchange budget
+        # without ever routing to the moderator, so no motion would reach a
+        # vote. Run one deterministic round: the moderator states (or keeps)
+        # the motion, then every member votes on it once, directly.
+        if not quorum_status()[0]:
+            # Plain calls: a reply that is only a tool call has no text, and
+            # a failed closing vote must not abort the whole council.
+            moderator(
+                f"QUESTION: {q}\n\nThe free debate has ended. If no motion is on the "
+                "table, or the current one no longer reflects the debate, call "
+                "propose_motion with the single recommendation that best captures "
+                "it. Do not route. Reply with the motion text."
+            )
+            if motions:
+                current = f"motion:{len(motions)}"
+                for debater in debaters:
+                    debater(
+                        f"CLOSING VOTE on {current}: {motions[-1]}\n\nCall cast_vote "
+                        f"exactly once with motion_id={current!r}. aligned=true only if "
+                        "you can endorse it without a material reservation. Do not route."
+                    )
+
         # transcript_log was appended to in real time as route() calls
         # resolved, so it's already in true chronological order — unlike
         # reconstructing it after the fact from each agent's own memory,
@@ -572,7 +637,7 @@ class WizengAImot:
         vote_report = "\n".join(
             f"- {vote['member']}: {'aligned' if vote['aligned'] else 'not aligned'} "
             f"(confidence {vote['confidence']:.2f}) — {vote['rationale']}\n"
-            f"  Recommendation: {vote['recommendation']}"
+            f"  Motion: {vote['motion_id']}"
             for vote in votes
         ) or "No structured votes were recorded."
         transcript_report = "\n".join(
@@ -586,6 +651,8 @@ class WizengAImot:
             f"OPENING POSITIONS:\n{opinions}\n\n"
             f"DISCUSSION OUTCOME:\n{discussion_outcome}\n\n"
             f"LATEST VOTES:\n{vote_report}\n\nTRANSCRIPT:\n{transcript_report}\n\n"
+            f"CURRENT MOTION: {motions[-1] if motions else 'none'}\n\n"
+            f"WINNING MOTION: {motions[-1] if quorum_reached else 'none'}\n\n"
             f"QUORUM: {'reached' if quorum_reached else 'not reached'} "
             f"(threshold {self.quorum:.0%}). Write the final council report.{knowledge}"
         )
@@ -597,6 +664,7 @@ class WizengAImot:
             votes=votes,
             transcript=transcript,
             synthesis=synthesis,
+            motion=motions[-1] if quorum_reached else None,
         )
 
 

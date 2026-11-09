@@ -14,7 +14,7 @@ HOMES = {"claude": Path.home() / ".claude", "codex": Path.home() / ".codex"}
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m lazytools.skill")
     sub = parser.add_subparsers(dest="command", required=True)
-    cmd = sub.add_parser("install", help="install the LazyTools skill")
+    cmd = sub.add_parser("install", help="install the LazyTools and WizengAImot skills")
     cmd.add_argument("--to", choices=["claude", "codex", "all"], help="default: every assistant found")
     cmd.add_argument("--dest", type=Path, help="install into this folder instead")
     cmd.add_argument("--force", action="store_true", help="replace a foreign folder")
@@ -33,9 +33,14 @@ def main(argv: list[str] | None = None) -> int:
             list(HOMES) if args.to == "all" else [args.to] if args.to else [n for n, h in HOMES.items() if h.is_dir()]
         )
         targets = [HOMES[n] / "skills" / "lazytools" for n in names or ["claude"]]
+    if any(dest.name == "wizengaimot" for dest in targets):
+        print("refused: LazyTools and WizengAImot destinations must be different", file=sys.stderr)
+        return 1
     try:
         for dest in targets:
             print(f"installed {install_skill(dest, source=skill_path(), force=args.force)}")
+            council_dest = dest.parent / "wizengaimot"
+            print(f"installed {install_skill(council_dest, source=skill_path() / 'wizengaimot', force=args.force)}")
     except FileExistsError as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return 1
