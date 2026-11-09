@@ -88,6 +88,16 @@ def test_default_targets(monkeypatch, tmp_path, installer):
         assert (home / "skills/wizengaimot/SKILL.md").read_bytes().startswith(b"---")
 
 
+
+@pytest.mark.parametrize("target", ["claude", "codex"])
+def test_explicit_target_installs_both_skills(monkeypatch, tmp_path, installer, target):
+    homes = {name: tmp_path / name for name in ("claude", "codex")}
+    monkeypatch.setattr(skill_cli, "HOMES", homes)
+    assert installer(["install", "--to", target]) == 0
+    for name in ("lazytools", "wizengaimot"):
+        assert (homes[target] / "skills" / name / "SKILL.md").read_bytes().startswith(b"---")
+    assert not homes["codex" if target == "claude" else "claude"].exists()
+
 def test_wheel_contains_all_skill_documents(tmp_path):
     wheel = Path(next(WheelBuilder(str(ROOT)).build(directory=str(tmp_path), versions=["standard"])))
     with zipfile.ZipFile(wheel) as archive:
