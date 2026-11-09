@@ -12,8 +12,8 @@ import pytest
 from hatchling.builders.wheel import WheelBuilder
 
 from lazytools.code_bridge.cli import build_parser
-from lazytools.connectors.code_support._claude_review import claude_reviewer
-from lazytools.connectors.code_support._review import codex_reviewer
+from lazytools.connectors.code_support._claude_review import claude_consultant, claude_reviewer
+from lazytools.connectors.code_support._review import codex_consultant, codex_reviewer
 from lazytools.connectors.projects.tools import ProjectsTools
 from lazytools.skill import __main__ as skill_cli
 from lazytools.skill import skill_path
@@ -37,6 +37,9 @@ def test_install_reinstall_and_foreign(tmp_path, installer, capsys):
     assert installer(["install", "--dest", str(dest)]) == 0
     for name in EXPECTED:
         assert (dest / name).read_bytes() == (skill_path() / name).read_bytes()
+    council = dest.parent / "wizengaimot" / "SKILL.md"
+    assert council.read_bytes().startswith(b"---")
+    assert council.read_bytes() == (skill_path() / "wizengaimot/SKILL.md").read_bytes()
     assert not list(dest.rglob("*.py"))
     assert not dest.is_symlink()
     (dest / "stale").write_text("old")
@@ -81,6 +84,8 @@ def test_default_targets(monkeypatch, tmp_path, installer):
     homes["codex"].mkdir()
     assert installer(["install", "--to", "all"]) == 0
     assert (homes["codex"] / "skills/lazytools/SKILL.md").exists()
+    for home in homes.values():
+        assert (home / "skills/wizengaimot/SKILL.md").read_bytes().startswith(b"---")
 
 
 def test_wheel_contains_all_skill_documents(tmp_path):
@@ -88,6 +93,7 @@ def test_wheel_contains_all_skill_documents(tmp_path):
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
     assert {f"lazytools/skill/{name}" for name in EXPECTED} <= names
+    assert "lazytools/skill/wizengaimot/SKILL.md" in names
 
 
 def test_documented_commands_and_tools_exist(tmp_path):
@@ -112,7 +118,7 @@ def test_documented_commands_and_tools_exist(tmp_path):
         tool.name
         for tool in ProjectsTools(store_db=str(tmp_path / "p.sqlite"), allow_write=True, profile="full").as_tools()
     }
-    registered |= {codex_reviewer().name, claude_reviewer().name}
+    registered |= {codex_reviewer().name, claude_reviewer().name, codex_consultant().name, claude_consultant().name}
     mentioned = set(re.findall(r"`((?:projects|codex|claude)_[a-z_]+)`", texts))
     assert mentioned
     assert mentioned - {"projects_store_db"} <= registered
