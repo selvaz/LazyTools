@@ -9,7 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Bundle the interactive WizengAImot skill and install it alongside the LazyTools skill.
 - Bundle an installable LazyTools skill for Claude Code and Codex, covering MCP, the async code bridge and projects.
+
+### Fixed
+- Count council quorum only for votes aligned on the current motion; expose the winning motion in the result.
 
 ### Changed
 - Strict Anthropic/OpenAI tier pairing: the `thinking` ladder drops its Astra-only rung and the `critical` ladder pairs Opus with `gpt-6.1-sol` (Astra only ever pairs with Fable, which is explicit-only). An explicit model naming the other provider's tier is translated, not rejected: `--engine codex --model opus` runs `gpt-6.1-sol`, `--engine claude --model gpt-6.1-terra` runs `claude-sonnet-5-5` (`routing.policy.translate_model`, a local mirror of `lazybridge.model_tiers` with a parity test).
