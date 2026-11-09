@@ -80,6 +80,11 @@ class WizengAImot:
     ``max_rounds`` is retained for compatibility, but it does not schedule
     rounds. Unless ``max_depth`` is supplied, it only helps derive a generous
     AgentPool recursion limit. The conversation itself has no speaker order.
+
+    ``max_exchanges`` caps the total number of routed exchanges in the
+    debate (default ``max(8, 2 * max_rounds * members)``). Once it is used
+    up, further routes are refused and members are told to vote, so a
+    debate cannot fan out without bound.
     """
 
     def __init__(
@@ -89,6 +94,7 @@ class WizengAImot:
         quorum: float = 0.7,
         max_rounds: int = 3,
         max_depth: int | None = None,
+        max_exchanges: int | None = None,
         synthesiser: Agent | None = None,
         moderator: Agent | None = None,
         reasoning: bool = False,
@@ -112,11 +118,14 @@ class WizengAImot:
             raise ValueError("max_rounds must be at least 1.")
         if max_depth is not None and max_depth < 1:
             raise ValueError("max_depth must be at least 1.")
+        if max_exchanges is not None and max_exchanges < 1:
+            raise ValueError("max_exchanges must be at least 1.")
 
         self.question = question
         self.quorum = quorum
         self.max_rounds = max_rounds
         self.max_depth = max_depth
+        self.max_exchanges = max_exchanges
         self.reasoning = reasoning
         self.session = session
         self._members: list[Agent] = []
@@ -184,7 +193,7 @@ class WizengAImot:
             question=question or data.get("question", ""),
             **{
                 key: data[key]
-                for key in ("quorum", "max_rounds", "max_depth", "reasoning")
+                for key in ("quorum", "max_rounds", "max_depth", "max_exchanges", "reasoning")
                 if key in data
             },
         )
@@ -195,6 +204,7 @@ class WizengAImot:
             "quorum": self.quorum,
             "max_rounds": self.max_rounds,
             "max_depth": self.max_depth,
+            "max_exchanges": self.max_exchanges,
             "reasoning": self.reasoning,
         }
         Path(path).write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -459,8 +469,9 @@ class WizengAImot:
             f"Participants: {roster}; moderator. Use route(agent_name, task) to invite "
             "the person whose perspective is most relevant next. Challenge assumptions, "
             "respond to what others actually said, and revisit your view freely. Use "
-            "propose_motion(text) to put a specific recommendation to a vote. Use "
-            "cast_vote with the current motion_id whenever your position changes. aligned=true "
+            "Only the moderator puts motions to a vote (propose_motion); to suggest or amend "
+            "a recommendation, route it to the moderator. Use cast_vote with the current "
+            "motion_id whenever your position changes. aligned=true "
             "means you can endorse that motion without a material "
             "reservation. Route to the moderator when the council may be ready to close. "
             "Only the moderator can close the discussion. Do not follow a fixed order. "
@@ -473,6 +484,12 @@ class WizengAImot:
             Memory(strategy="summary", summarizer=memory_summarizer) for _ in members
         ]
         debaters: list[Agent] = []
+
+        # The depth limit only bounds how long one chain of routes can get;
+        # every agent may route several times per turn, so without a total
+        # budget a debate can fan out into thousands of calls.
+        exchange_limit = self.max_exchanges or max(8, 2 * self.max_rounds * len(members))
+        exchanges_used = 0
 
         def make_route_tool(caller_name: str) -> Tool:
             async def route(agent_name: str, task: str) -> str:
@@ -491,6 +508,14 @@ class WizengAImot:
                 # never swallow the signal, only observe it on the way past.
                 from lazybridge.signals import ConcludeSignal
 
+                nonlocal exchanges_used
+                if exchanges_used >= exchange_limit:
+                    return (
+                        f"Route refused: the discussion budget of {exchange_limit} exchanges "
+                        "is used up. Vote on the current motion now; the moderator should "
+                        "check quorum and close."
+                    )
+                exchanges_used += 1
                 try:
                     response = await pool.route(agent_name, task)
                 except ConcludeSignal as sig:
@@ -540,8 +565,7 @@ class WizengAImot:
             debaters.append(
                 self._derive(
                     member,
-                    tools=[make_route_tool(member.name), Tool.wrap(propose_motion, name="propose_motion"),
-                           make_vote_tool(member.name)],
+                    tools=[make_route_tool(member.name), make_vote_tool(member.name)],
                     memory=memory,
                     sources=[*member.sources, protocol, history],
                 )
@@ -572,6 +596,28 @@ class WizengAImot:
         discussion_outcome = self._result_text(opening_result, "discussion")
         history.add("(council opens the debate)", f"{debaters[0].name}: {discussion_outcome}")
         transcript_log.insert(0, {"member": debaters[0].name, "text": discussion_outcome})
+
+        # Closing vote. The free debate may spend its whole exchange budget
+        # without ever routing to the moderator, so no motion would reach a
+        # vote. Run one deterministic round: the moderator states (or keeps)
+        # the motion, then every member votes on it once, directly.
+        if not quorum_status()[0]:
+            # Plain calls: a reply that is only a tool call has no text, and
+            # a failed closing vote must not abort the whole council.
+            moderator(
+                f"QUESTION: {q}\n\nThe free debate has ended. If no motion is on the "
+                "table, or the current one no longer reflects the debate, call "
+                "propose_motion with the single recommendation that best captures "
+                "it. Do not route. Reply with the motion text."
+            )
+            if motions:
+                current = f"motion:{len(motions)}"
+                for debater in debaters:
+                    debater(
+                        f"CLOSING VOTE on {current}: {motions[-1]}\n\nCall cast_vote "
+                        f"exactly once with motion_id={current!r}. aligned=true only if "
+                        "you can endorse it without a material reservation. Do not route."
+                    )
 
         # transcript_log was appended to in real time as route() calls
         # resolved, so it's already in true chronological order — unlike

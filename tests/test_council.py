@@ -236,6 +236,111 @@ def test_news_preset_wires_reasoning_and_shared_tools(
     assert "web_search" in council._synthesiser._tool_map
 
 
+def test_route_budget_refuses_exchanges_beyond_max_exchanges(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Total routed exchanges are capped, whatever the depth limit."""
+    import asyncio
+
+    import lazytools.skills.council as module
+
+    class Result:
+        error = None
+
+        def __init__(self, text):
+            self.value = text
+
+        def text(self):
+            return self.value
+
+    replies: list[str] = []
+
+    class Fake:
+        def __init__(self, name, tools=()):
+            self.name = name
+            self.sources = []
+            self.tools = {tool.name: tool.func for tool in tools}
+
+        def __call__(self, prompt):
+            if self.name == "alice" and "route" in self.tools:
+                for _ in range(4):
+                    replies.append(asyncio.run(self.tools["route"]("bob", "your view?")))
+            return Result("done")
+
+    class Pool:
+        def __init__(self, **kwargs):
+            pass
+
+        def register(self, *members):
+            self.members = members
+
+        async def route(self, agent_name, task):
+            return f"{agent_name} answered"
+
+    monkeypatch.setattr(module, "AgentPool", Pool)
+    monkeypatch.setattr(module.Agent, "parallel", lambda *args, **kwargs: lambda prompt: Result("done"))
+    monkeypatch.setattr(
+        WizengAImot, "_derive",
+        lambda self, agent, *, tools=None, **kw: Fake(kw.get("name", agent.name), tools or ()),
+    )
+    council = WizengAImot("Expand?", max_exchanges=2, synthesiser=_agent("synth"), moderator=_agent("moderator"))
+    council.add(_agent("alice")).add(_agent("bob"))
+    council.run()
+    assert replies[:2] == ["bob answered", "bob answered"]
+    assert all("budget of 2 exchanges" in reply for reply in replies[2:])
+
+
+def test_closing_vote_runs_when_debate_ends_without_quorum(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The moderator states a motion and every member votes on it once."""
+    import lazytools.skills.council as module
+
+    class Result:
+        error = None
+
+        def __init__(self, text):
+            self.value = text
+
+        def text(self):
+            return self.value
+
+    class Fake:
+        def __init__(self, name, tools=()):
+            self.name = name
+            self.sources = []
+            self.tools = {tool.name: tool.func for tool in tools}
+
+        def __call__(self, prompt):
+            if self.name == "moderator" and "free debate has ended" in prompt:
+                self.tools["propose_motion"]("Start on SQLite")
+            if "CLOSING VOTE on motion:1" in prompt and "cast_vote" in self.tools:
+                self.tools["cast_vote"]("motion:1", True, 0.8, "Fine")
+            return Result("")
+
+    class Pool:
+        def __init__(self, **kwargs):
+            pass
+
+        def register(self, *members):
+            self.members = members
+
+    monkeypatch.setattr(module, "AgentPool", Pool)
+    monkeypatch.setattr(module.Agent, "parallel", lambda *args, **kwargs: lambda prompt: Result("done"))
+    monkeypatch.setattr(
+        WizengAImot, "_derive",
+        lambda self, agent, *, tools=None, **kw: Fake(kw.get("name", agent.name), tools or ()),
+    )
+    monkeypatch.setattr(WizengAImot, "_result_text", staticmethod(lambda result, stage: "done"))
+    council = WizengAImot("DB?", synthesiser=_agent("synth"), moderator=_agent("moderator"))
+    council.add(_agent("alice")).add(_agent("bob"))
+    result = council.run()
+    assert result.quorum_reached
+    assert result.motion == "Start on SQLite"
+    assert {vote["member"] for vote in result.votes} == {"alice", "bob"}
+
+
+def test_council_validates_max_exchanges() -> None:
+    with pytest.raises(ValueError, match="max_exchanges"):
+        WizengAImot("q", max_exchanges=0)
+
+
 def test_motion_tools_enforce_quorum_and_report_winner(monkeypatch: pytest.MonkeyPatch) -> None:
     """Exercise the actual participant and moderator tools without an engine."""
     import lazytools.skills.council as module
@@ -256,13 +361,14 @@ def test_motion_tools_enforce_quorum_and_report_winner(monkeypatch: pytest.Monke
             self.tools = {tool.name: tool.func for tool in tools}
 
         def __call__(self, prompt):
-            if self.name == "alice" and "propose_motion" in self.tools:
+            if self.name == "alice" and "cast_vote" in self.tools:
                 alice = self.tools
                 bob = pool.members[1].tools
                 mod = pool.members[2].tools
                 assert "quorum not reached" in mod["check_quorum"]()
                 assert "Cannot close" in mod["close_discussion"]("early")
-                assert "motion:1" in alice["propose_motion"]("Expand")
+                assert "propose_motion" not in alice
+                assert "motion:1" in mod["propose_motion"]("Expand")
                 alice["cast_vote"]("motion:1", True, 0.9, "Good")
                 assert "motion:2" in mod["propose_motion"]("Do not expand")
                 assert "motion:2" in bob["cast_vote"]("motion:1", True, 0.9, "stale")

@@ -44,15 +44,21 @@ print(result.text())
 print("Quorum:", result.quorum_reached, "Winning motion:", result.motion)
 ```
 
-During discussion, any member or the moderator can call the tool
-`propose_motion(text)`, which returns an ID such as `motion:1`. Members use
+During discussion, the moderator puts a recommendation to a vote with the tool
+`propose_motion(text)`, which returns an ID such as `motion:1`; members suggest
+or amend motions by routing to the moderator. Members use
 `cast_vote(motion_id, aligned, confidence, rationale)` to vote on that current
 motion. For example, a member might call `cast_vote("motion:1", True, 0.9,
 "The evidence supports a pilot")`. A new motion makes earlier votes irrelevant
 to quorum, and stale votes are rejected. The moderator can call `check_quorum()`
 and `close_discussion(summary)`; closing is refused until the fraction of all
 members aligned on the current motion reaches the threshold. No motion means no
-quorum. A depth limit can end discussion without quorum.
+quorum. Two limits keep a run bounded: `max_depth` caps how long one chain of
+routes can get, and `max_exchanges` caps the total number of routed exchanges
+(default `max(8, 2 * max_rounds * members)`). When the budget is used up,
+further routes are refused and members are told to vote. When the free debate
+ends without quorum, a closing vote runs: the moderator states the motion that
+best captures the debate and every member votes on it once.
 
 `CouncilResult` provides `question`, `quorum_reached`, `motion` (winning text
 or `None`), `votes`, `transcript`, and `synthesis`; `text()` returns the

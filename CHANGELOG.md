@@ -13,7 +13,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Bundle an installable LazyTools skill for Claude Code and Codex, covering MCP, the async code bridge and projects.
 
 ### Fixed
-- Count council quorum only for votes aligned on the current motion; expose the winning motion in the result.
+- Count council quorum only for votes aligned on the current motion; expose the winning motion in the result. Only the moderator puts motions to a vote: when members could propose them, a live council churned through 12 motions and never reached quorum although every member was aligned.
+- Cap the total routed exchanges in a council debate (`max_exchanges`, default `max(8, 2 * max_rounds * members)`): the depth limit alone let a debate fan out without bound, and a three-member DeepSeek council at default depth did not finish in 25 minutes.
+- Run a closing vote when the free council debate ends without quorum: the moderator states the motion and every member votes once. Live, members spent the whole exchange budget among themselves and no motion was ever voted.
 
 ### Changed
 - Strict Anthropic/OpenAI tier pairing: the `thinking` ladder drops its Astra-only rung and the `critical` ladder pairs Opus with `gpt-6.1-sol` (Astra only ever pairs with Fable, which is explicit-only). An explicit model naming the other provider's tier is translated, not rejected: `--engine codex --model opus` runs `gpt-6.1-sol`, `--engine claude --model gpt-6.1-terra` runs `claude-sonnet-5-5` (`routing.policy.translate_model`, a local mirror of `lazybridge.model_tiers` with a parity test).
