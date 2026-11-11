@@ -718,7 +718,7 @@ def _cmd_wait(args: argparse.Namespace) -> int:
     db_path = _db_path(args)
     first = _store.build_store(db_path)
     first_job = _jobs.find_job(first, _store.build_job_registry(first), args.job_id)
-    if _cloud.is_cloud(first_job):
+    if first_job is not None and _cloud.is_cloud(first_job):
         job = _cloud.wait_job(lambda: _store.build_store(db_path), str(first_job["job_id"]),
                               timeout=args.timeout, interval=args.interval)
         if job is not None and job.get("status") in _TERMINAL:

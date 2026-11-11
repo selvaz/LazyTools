@@ -464,7 +464,7 @@ CLOUD_PREAMBLE = (
 
 
 def is_cloud(job: dict[str, Any] | None) -> bool:
-    return bool(job) and job.get("where") == WHERE_CLOUD
+    return job is not None and job.get("where") == WHERE_CLOUD
 
 
 def _write(store: Any, registry: Any, job_id: str, meta: dict[str, Any], *, status: str,
