@@ -34,6 +34,10 @@ FAKE_CODEX = textwrap.dedent(
     if args[:1] != ["cloud"]:
         sys.exit(64)
     verb = args[1]
+    if verb == "apply" and os.environ.get("FAKE_CODEX_PARTIAL"):
+        Path("half_applied.txt").write_text("partial\\n", encoding="utf-8")
+        print("apply failed midway", file=sys.stderr)
+        sys.exit(1)
     if os.environ.get("FAKE_CODEX_FAIL") == verb:
         print("boom: " + verb, file=sys.stderr)
         sys.exit(1)
@@ -88,6 +92,7 @@ def cloud(tmp_path, monkeypatch):
     monkeypatch.setenv("FAKE_CODEX_URL", TASK_URL)
     monkeypatch.setenv("FAKE_CODEX_STATUS", str(status_file))
     monkeypatch.delenv("FAKE_CODEX_FAIL", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_PARTIAL", raising=False)
     for key, value in {
         "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
         "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid",
@@ -434,3 +439,66 @@ def test_apply_refuses_local_jobs(cloud, capsys):
     _store.write_meta(store, "localjob1", {"job_id": "localjob1", "engine": "codex", "cwd": str(cloud.repo)})
     assert cli.main(["apply", "localjob1", "--db", str(cloud.db)]) == 2
     assert "local job" in capsys.readouterr().err
+
+
+def test_stale_poll_does_not_overwrite_cancellation(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    real_status = _cloud.CodexCloud.status
+
+    def status_then_cancelled_meanwhile(self, handle):
+        answer = real_status(self, handle)  # the provider says "pending"...
+        assert cli.main(["cancel", job_id, "--db", str(cloud.db)]) == 0  # ...while another process cancels
+        return answer
+
+    monkeypatch.setattr(_cloud.CodexCloud, "status", status_then_cancelled_meanwhile)
+    assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+    job = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert job["status"] == "interrupted"
+    assert job["cloud_status"] == "pending"  # the poll's metadata is still kept
+    assert _cloud.active_jobs(_store.build_store(cloud.db)) == []  # no place resurrected
+
+
+def test_cancel_during_submit_keeps_interrupted_and_records_handle(cloud, monkeypatch, capsys):
+    real_submit = _cloud.CodexCloud.submit
+
+    def submit_then_cancelled_meanwhile(self, **kwargs):
+        sub = real_submit(self, **kwargs)
+        store = _store.build_store(cloud.db)
+        (record,) = _store.all_job_records(store)
+        _cloud.mark_interrupted(store, _store.build_job_registry(store), record["job_id"], "cancelled")
+        return sub
+
+    monkeypatch.setattr(_cloud.CodexCloud, "submit", submit_then_cancelled_meanwhile)
+    assert _run_cloud(cloud, "--json") == 0
+    job = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert job["status"] == "interrupted" and job["cloud_handle"] == TASK_URL
+
+
+def test_failed_apply_cleans_untouched_worktree_and_is_retryable(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("status: ready\nok\n")
+    monkeypatch.setenv("FAKE_CODEX_FAIL", "apply")
+    assert cli.main(["apply", job_id, "--db", str(cloud.db)]) == 1
+    assert "codex cloud apply exited 1" in capsys.readouterr().err
+    branch = f"cloud/{job_id[:8]}"
+    assert _git(cloud.repo, "branch", "--list", branch) == ""
+    assert not (_cloud.worktrees_dir(cloud.db) / job_id).exists()
+
+    monkeypatch.delenv("FAKE_CODEX_FAIL")
+    assert cli.main(["apply", job_id, "--db", str(cloud.db), "--json"]) == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert (Path(outcome["worktree"]) / "cloud_change.txt").is_file()
+
+
+def test_failed_apply_keeps_partial_changes(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("status: ready\nok\n")
+    monkeypatch.setenv("FAKE_CODEX_PARTIAL", "1")
+    assert cli.main(["apply", job_id, "--db", str(cloud.db)]) == 1
+    err = capsys.readouterr().err
+    worktree = _cloud.worktrees_dir(cloud.db) / job_id
+    assert "partial changes kept in" in err
+    assert (worktree / "half_applied.txt").is_file()  # never deleted blindly
+    store = _store.build_store(cloud.db)
+    job = _jobs.find_job(store, _store.build_job_registry(store), job_id)
+    assert job["apply_failed_worktree"] == str(worktree.resolve()) and "applied_worktree" not in job

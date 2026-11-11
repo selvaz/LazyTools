@@ -700,8 +700,10 @@ def _cancel_cloud(store: Any, registry: Any, job: dict[str, Any], reason: str) -
     if job.get("status") in _TERMINAL:
         print(f"job {job_id} already {job['status']}")
         return 0
-    meta = _store.read_meta(store, job_id) or {}
-    _cloud._write(store, registry, job_id, meta, status="interrupted", error=f"cancelled by operator: {reason}")
+    if not _cloud.mark_interrupted(store, registry, job_id, f"cancelled by operator: {reason}"):
+        latest = _jobs.find_job(store, registry, job_id) or job
+        print(f"job {job_id} already {latest.get('status')}")
+        return 0
     where = job.get("cloud_url") or job.get("cloud_handle") or "the provider's web UI"
     print(f"[interrupted] job {job_id}\nno longer tracked locally; the cloud task is NOT stopped -- cancel it at {where}")
     return 0

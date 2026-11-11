@@ -483,6 +483,35 @@ def _write(store: Any, registry: Any, job_id: str, meta: dict[str, Any], *, stat
     )
 
 
+def _write_unless_terminal(store: Any, registry: Any, job_id: str, updates: dict[str, Any], *, status: str,
+                           result: str | None = None, error: str | None = None) -> bool:
+    """Persist a status change only if the stored record is not already terminal.
+
+    Polls and submits talk to the provider OUTSIDE any lock, so by the time
+    their answer arrives another process may have cancelled the job (or a
+    concurrent poll may have finished it). Re-reading under the machine-wide
+    guard and refusing to overwrite a terminal record keeps a stale answer
+    from resurrecting a cancelled job (and its concurrency place). The
+    ``updates`` (handle, poll metadata) are merged into the latest meta, so
+    nothing another writer stored is lost. Returns whether the status was written.
+    """
+    with _concurrency._guard(_concurrency.load_config().slot_dir):
+        current = registry.find(job_id) or {}
+        meta = {**(_store.read_meta(store, job_id) or {}), **updates}
+        if current.get("status") in TERMINAL_STATUSES:
+            # Keep the terminal status/result/error; only the metadata moves.
+            _write(store, registry, job_id, meta, status=str(current["status"]),
+                   result=current.get("result"), error=current.get("error"))
+            return False
+        _write(store, registry, job_id, meta, status=status, result=result, error=error)
+        return True
+
+
+def mark_interrupted(store: Any, registry: Any, job_id: str, error: str) -> bool:
+    """Record a cloud job interrupted (operator cancel), unless it already ended."""
+    return _write_unless_terminal(store, registry, job_id, {}, status="interrupted", error=error)
+
+
 def active_jobs(store: Any) -> list[dict[str, Any]]:
     rows = []
     for job in _store.all_job_records(store):
@@ -502,27 +531,26 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     if job.get("status") in TERMINAL_STATUSES or not job.get("cloud_handle"):
         return job
     job_id = str(job["job_id"])
-    meta = _store.read_meta(store, job_id) or {}
     try:
         state = provider(str(job.get("engine"))).status(str(job["cloud_handle"]))
     except CloudError as exc:
-        meta["last_poll_error"] = str(exc)
-        meta["last_polled_at"] = time.time()
-        _write(store, registry, job_id, meta, status=str(job.get("status") or "running"))
-        return {**job, **meta}
-    meta.update(
-        cloud_status=state.raw_status,
-        cloud_message=state.message,
-        last_polled_at=time.time(),
-        last_poll_error=None,
-    )
+        updates = {"last_poll_error": str(exc), "last_polled_at": time.time()}
+        _write_unless_terminal(store, registry, job_id, updates, status=str(job.get("status") or "running"))
+        return _merged(store, registry, job_id)
+    updates = {
+        "cloud_status": state.raw_status,
+        "cloud_message": state.message,
+        "last_polled_at": time.time(),
+        "last_poll_error": None,
+    }
     if state.status == "done":
-        _write(store, registry, job_id, meta, status="done", result=state.message or state.raw.strip())
+        _write_unless_terminal(store, registry, job_id, updates, status="done",
+                               result=state.message or state.raw.strip())
     elif state.status in ("failed", "interrupted"):
-        _write(store, registry, job_id, meta, status=state.status,
-               error=f"cloud task {state.raw_status or state.status}: {state.message or state.raw.strip()}")
+        _write_unless_terminal(store, registry, job_id, updates, status=state.status,
+                               error=f"cloud task {state.raw_status or state.status}: {state.message or state.raw.strip()}")
     else:
-        _write(store, registry, job_id, meta, status="running")
+        _write_unless_terminal(store, registry, job_id, updates, status="running")
     return _merged(store, registry, job_id)
 
 
@@ -595,8 +623,12 @@ def submit_job(
     except BaseException as exc:
         _write(store, registry, job_id, meta, status="failed", error=f"cloud submit failed: {exc}")
         raise
-    meta.update(cloud_handle=sub.handle, cloud_url=sub.url, submitted_at=time.time())
-    _write(store, registry, job_id, meta, status="running")
+    # Cancelled while `codex cloud exec` ran: keep "interrupted", but still
+    # record the handle so the operator can find and stop the remote task.
+    _write_unless_terminal(
+        store, registry, job_id, {"cloud_handle": sub.handle, "cloud_url": sub.url, "submitted_at": time.time()},
+        status="running",
+    )
     return _merged(store, registry, job_id)
 
 
@@ -652,7 +684,11 @@ def apply_job(
         base = base_branch
     worktree.parent.mkdir(parents=True, exist_ok=True)
     _git(root, "worktree", "add", "-b", branch, str(worktree), base)
-    output = provider(str(job["engine"])).apply(str(job["cloud_handle"]), worktree=worktree)
+    try:
+        output = provider(str(job["engine"])).apply(str(job["cloud_handle"]), worktree=worktree)
+    except BaseException as exc:
+        _after_failed_apply(store, registry, root, job_id, worktree, branch, exc)
+        raise
     status_lines = _git(worktree, "status", "--porcelain", check=False)
     meta = _store.read_meta(store, job_id) or {}
     meta.update(applied_worktree=str(worktree), applied_branch=branch, applied_base=base, applied_at=time.time())
@@ -666,6 +702,30 @@ def apply_job(
         "output": output.strip(),
         "pushed": False,
     }
+
+
+def _after_failed_apply(store: Any, registry: Any, root: Path, job_id: str, worktree: Path, branch: str,
+                        exc: BaseException) -> None:
+    """Make a failed apply retryable without losing anything it changed.
+
+    Untouched worktree (no changes at all): remove it and its branch, so the
+    same ``apply <job>`` can simply be run again. Partial changes: keep both,
+    record where they are, and say so -- they are never deleted blindly.
+    """
+    dirty = _git(worktree, "status", "--porcelain", check=False) if worktree.exists() else ""
+    if not dirty:
+        _git(root, "worktree", "remove", "--force", str(worktree), check=False)
+        _git(root, "branch", "-D", branch, check=False)
+        return
+    meta = _store.read_meta(store, job_id) or {}
+    meta.update(apply_failed_worktree=str(worktree), apply_failed_branch=branch, apply_error=str(exc))
+    _store.write_meta(store, job_id, meta)
+    if isinstance(exc, CloudError):
+        exc.args = (
+            f"{exc} -- partial changes kept in {worktree} (branch {branch}); inspect them, then remove that "
+            f"worktree and branch (git worktree remove {worktree}; git branch -D {branch}) before retrying, "
+            "or retry with --worktree and --branch",
+        )
 
 
 def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval: float) -> dict[str, Any] | None:

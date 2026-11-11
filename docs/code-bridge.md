@@ -1027,6 +1027,9 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
   A failed poll is recorded as `last_poll_error` and does not fail the job.
 - `result` prints the final message and a diff summary (files, +/− lines).
   Its exit code follows the local rule: non-zero for `failed`/`interrupted`.
+- Every status write re-reads the record under the machine-wide guard and
+  never overwrites a terminal status: a poll or submit whose answer arrives
+  after a `cancel` cannot bring the job back (or take its place again).
 - `cancel` stops **tracking** a cloud job (marks it `interrupted` and frees
   its place) but does **not** stop the remote task; it prints the task URL so
   you can cancel it there.
@@ -1039,7 +1042,11 @@ remote-tracking ref exists, else the local branch — and then `codex cloud
 apply <task>` **inside that new worktree**. Your own checkout, its branch and
 its index are never touched. `<dir>` defaults to `cloud-worktrees/<job>`
 beside the Store; `--branch` and `--worktree` override both names. A job is
-applied once; a second `apply` is refused. The command stops before any
+applied once; a second `apply` is refused. If `codex cloud apply` fails and
+left the worktree untouched, the worktree and branch are removed so the same
+`apply <job>` can be retried; if it left partial changes, both are kept, their
+location is recorded (`apply_failed_worktree`) and printed, and nothing is
+deleted. The command stops before any
 commit or push and prints the push command: **pushing stays a separate,
 approved step**.
 
