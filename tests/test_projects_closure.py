@@ -92,6 +92,22 @@ def test_missing_review_refused_when_contract_requires_one():
     assert _verifications(store) == []
 
 
+@pytest.mark.parametrize("review", ["REVIEW NOT PERFORMED: reviewer unavailable", "[codex_code_review] failed: timeout"])
+def test_review_not_performed_is_refused_when_required(review):
+    store = Store()
+    _setup(store)
+    assert _close(store, PASSING, review=review).startswith("REJECTED: the review says it was not performed")
+    assert _verifications(store) == []
+
+
+def test_waived_review_records_not_performed_review_honestly():
+    store = Store()
+    _setup(store, requires_review=False)
+    assert _close(store, PASSING, review="REVIEW NOT PERFORMED: waived").startswith("task 0 marked done")
+    (raw,) = _verifications(store)
+    assert raw["review"]["performed"] is False
+
+
 def test_waived_review_closes_without_review():
     store = Store()
     _setup(store, requires_review=False)

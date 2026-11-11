@@ -75,6 +75,12 @@ def _verification_consumed(board: dict[str, Any], verification_id: str) -> bool:
     )
 
 
+def _review_performed(review: str) -> bool:
+    """False when the findings announce, in the house sentinel wording, that no review ran."""
+    findings = review.strip()
+    return not findings.startswith((_verification.REVIEW_NOT_PERFORMED, *_verification.LEGACY_REVIEW_FAILURE_PREFIXES))
+
+
 def _evidence_refusal(contract: _contracts.TaskContract, checks: Sequence[CheckEvidence], review: str) -> str | None:
     """What ``verification.accept`` would refuse on, judged from the evidence alone."""
     if not checks:
@@ -108,6 +114,11 @@ def _evidence_refusal(contract: _contracts.TaskContract, checks: Sequence[CheckE
         )
     if contract.requires_review and not review.strip():
         return "REJECTED: this contract requires an independent review -- pass its findings as review."
+    if contract.requires_review and not _review_performed(review):
+        return (
+            "REJECTED: the review says it was not performed -- this contract requires an independent "
+            "review that actually ran."
+        )
     if _contracts.contract_requires_full_suite(contract):
         narrowed = [c for c in commands if _contracts.check_uses_exclusion_flag(c) and c not in contract.allowed_check_exclusions]
         if narrowed:
@@ -228,7 +239,9 @@ def close_task_with_evidence(
             raise _Lost("start_running")
         if _verification.record_checks(store, job_id, checks=results, diff_summary=None) is None:
             raise _Lost("record_checks")
-        if review.strip() and _verification.record_review(store, job_id, reviewer=reviewer, findings=review) is None:
+        if review.strip() and _verification.record_review(
+            store, job_id, reviewer=reviewer, findings=review, performed=_review_performed(review)
+        ) is None:
             raise _Lost("record_review")
         try:
             accepted = _verification.accept(store, job_id, reviewer=reviewer, reason=reason)
