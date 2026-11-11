@@ -907,6 +907,8 @@ write to escalate, and so to reach a human.
 
 ## Engine concurrency limit (machine-wide)
 
+(Cloud jobs have a separate limit; see [Cloud jobs](#cloud-jobs-run-where-cloud).)
+
 Besides the per-repository lock, each engine has a machine-wide limit on live
 jobs. Defaults: **codex = 1**, claude = unlimited. Configure them in
 `~/.lazytools/code-bridge.toml` (or the file named by
@@ -956,6 +958,124 @@ claude = 2   # absent or 0 = unlimited
   already-`interrupted` job and retries the rejection. A refused launch
   leaves stale slot files untouched, and an incomplete bookkeeping attempt
   keeps the file for a later launch, so the record of a dead job is never lost.
+
+## Cloud jobs (`run --where cloud`)
+
+Every local job runs Codex or Claude Code on this machine, where it competes
+with production jobs during production windows. `--where cloud` hands the
+brief to the engine's **cloud agent** instead: the bridge submits it, records
+the returned task handle, and returns at once. No engine process runs locally
+and no local engine slot is taken.
+
+```
+lazytools-code-bridge run --where cloud --engine codex --cwd <repo> --task @brief.md [--branch B]
+lazytools-code-bridge status <job>      # polls `codex cloud status <task>`
+lazytools-code-bridge wait <job>        # polls until the task is terminal
+lazytools-code-bridge result <job>      # final message + `codex cloud diff <task>` summary
+lazytools-code-bridge apply <job>       # `codex cloud apply <task>` in a NEW worktree/branch; no push
+```
+
+Only `--engine codex` is implemented today (Codex Cloud, through the
+official `codex cloud` CLI; the binary is found the same way the local Codex
+engine finds it — `CODEX_BIN`, then `PATH`, then the Codex desktop app's
+install directory).
+
+### Data boundary: cloud jobs cannot read local data
+
+A cloud agent sees **only the repository as its Codex Cloud environment
+clones it from the git remote**, at the branch you name. It cannot read local
+files, uncommitted or unpushed changes, local databases, mapped drives, or
+anything else on this machine — including **production data**. A brief that
+needs local data (or a production connection) must stay a local job. Push the
+branch you want the agent to start from before submitting; `--branch`
+defaults to the current local branch name, and the agent uses the remote's
+copy of it. Every cloud brief is prefixed with a short preamble telling the
+agent the same thing.
+
+### Configuration
+
+Each repository must be mapped to a **single-repo Codex Cloud environment**
+(create one per repository at chatgpt.com → Codex → Settings →
+Environments). The key is the `owner/name` read from the repository's
+`origin` remote (https, ssh and scp-style URLs all work; matching ignores
+case). In `~/.lazytools/code-bridge.toml`, beside `[concurrency]`:
+
+```toml
+[cloud]
+concurrency = 4            # live cloud jobs at once (default 4; 0 = unlimited)
+
+[cloud.codex.envs]
+"selvaz/LazyTools" = "env_0123abcd"
+```
+
+A repository with no mapping is refused before anything is submitted or
+recorded, with a message telling the operator to create that environment and
+showing the exact lines to add.
+
+### Job record
+
+A cloud job is an ordinary job row with `where = "cloud"` plus
+`cloud_handle` (the task URL `codex cloud exec` printed, or the bare task id
+if it printed no URL), `cloud_url`, `repo`, `env_id` and `branch`. `jobs`
+shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
+`codex cloud exec` runs), `running`, then `done` / `failed` / `interrupted`.
+
+- `status`, `wait` and `result` poll the provider and persist what they see.
+  The status output is parsed tolerantly (JSON `status`, a `status: X` line,
+  or a known status word); text it does not understand keeps the job
+  `running` — a poll never declares a job finished on output it cannot read.
+  A failed poll is recorded as `last_poll_error` and does not fail the job.
+- `result` prints the final message and a diff summary (files, +/− lines).
+  Its exit code follows the local rule: non-zero for `failed`/`interrupted`.
+- `cancel` stops **tracking** a cloud job (marks it `interrupted` and frees
+  its place) but does **not** stop the remote task; it prints the task URL so
+  you can cancel it there.
+
+### `apply`: never in your checkout, never pushed
+
+`apply <job>` requires a `done` job. It runs `git worktree add -b
+cloud/<job8> <dir> <base>` — `<base>` is `origin/<branch>` when that
+remote-tracking ref exists, else the local branch — and then `codex cloud
+apply <task>` **inside that new worktree**. Your own checkout, its branch and
+its index are never touched. `<dir>` defaults to `cloud-worktrees/<job>`
+beside the Store; `--branch` and `--worktree` override both names. A job is
+applied once; a second `apply` is refused. The command stops before any
+commit or push and prints the push command: **pushing stays a separate,
+approved step**.
+
+### Concurrency
+
+Cloud jobs do **not** count against the local per-engine limit (they use no
+local CPU), and a busy local Codex never blocks a cloud submit. They have
+their own limit, `[cloud] concurrency` (default **4**, across providers),
+counted from the job Store: records with `where = "cloud"` still
+`submitting` or `running`. Before refusing, the bridge polls the active
+tasks once, so a task that finished since its last poll frees its place.
+Admission runs under the same machine-wide `guard.lock` as the engine slots,
+so two submits cannot both take the last place. The count is per Store: jobs
+recorded under a different `--db` are not seen.
+
+### Extension point: Claude cloud routines
+
+`lazytools.code_bridge._cloud` defines a `CloudProvider` protocol —
+`env_for(repo, config)`, `submit(repo_dir, env_id, branch, prompt)`,
+`status(handle)`, `diff(handle)`, `apply(handle, worktree)` — and a
+`PROVIDERS` registry. `ClaudeRoutines` is registered for `--engine claude`
+but **not implemented**: every method raises `CloudNotImplemented`, so
+`run --where cloud --engine claude` fails with a pointer here. An
+implementation against the claude.ai routines API would:
+
+1. map the repository to a claude.ai cloud environment (`[cloud.claude.envs]`,
+   same shape as Codex's);
+2. create a one-shot routine whose prompt is the brief, and store the
+   returned session id as the handle;
+3. poll that session for its terminal state in `status`;
+4. treat the branch the routine pushed as the "diff" (`diff` = `git diff
+   base...branch` after a fetch), and in `apply` fetch that branch into the
+   new worktree instead of patching.
+
+The same data boundary applies: a claude.ai routine sees only its cloud
+environment, never this machine.
 
 ## One job per repository at a time
 
