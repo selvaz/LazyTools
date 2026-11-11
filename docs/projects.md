@@ -208,6 +208,21 @@ The MCP tools expose no shortcut-close verb. For contracted tasks, call
 task_index, verification_id)` to record completion on the board. Both tools
 require the `full` profile and write access.
 
+For a task whose checks and review you already have in hand, one call does the
+whole sequence: `closure.close_task_with_evidence(store, project_id, task_index,
+checks=[(command, passed, detail), ...], review=..., reason=..., reviewer=...)`,
+the MCP tool `projects_close_task` (core profile, write access), or
+
+```
+lazytools-projects close-task <project_id> <task_index> \
+    --check "<required check>=pass:<output tail>" --review "<findings>" \
+    --reason "<why>" --reviewer <who> --db <store.sqlite>
+```
+
+It refuses before writing anything when a required check is missing (listing
+the exact command strings the contract expects), a check failed, or a required
+review is absent; an already-done task is a no-op.
+
 ## Contracts and verification
 
 Agree a contract **before** delegating: repo, observable result, criteria,

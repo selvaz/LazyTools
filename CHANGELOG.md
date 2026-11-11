@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `lazytools.projects.closure.close_task_with_evidence`: close a contract-backed Gantt task in one call (claim verification, record checks and review, accept, close the board slot). Every contract `required_check` must be covered, every check must pass and a required review must be present before anything is written; a failure after the claim moves the verification to `rework`/`blocked`, never leaving it `pending`/`running`; an already-done task is a no-op, and an accepted-but-unclosed verification is reused. Exposed as the `lazytools-projects close-task` CLI (`--check 'COMMAND=pass|fail[:DETAIL]'`, repeatable) and the write-gated `projects_close_task` MCP tool (core profile).
+
 ### Changed
 - Strict Anthropic/OpenAI tier pairing: the `thinking` ladder drops its Astra-only rung and the `critical` ladder pairs Opus with `gpt-6.1-sol` (Astra only ever pairs with Fable, which is explicit-only). An explicit model naming the other provider's tier is translated, not rejected: `--engine codex --model opus` runs `gpt-6.1-sol`, `--engine claude --model gpt-6.1-terra` runs `claude-sonnet-5-5` (`routing.policy.translate_model`, a local mirror of `lazybridge.model_tiers` with a parity test).
 
