@@ -10,7 +10,7 @@ Python: 3.11, 3.12, 3.13
 | lazytoolkit | GitHub | `v0.10.5` |
 | lazypulse | GitHub | `v0.5.7` |
 | lazycrawler | GitHub | `v0.19.7` |
-| market-data-hub | GitHub | `v0.3.27` |
+| market-data-hub | GitHub | `v0.3.28` |
 | lazystats | GitHub | `v0.3.10` |
 | lazyportfolio | GitHub | `v0.2.10` |
 | lazyray | GitHub | `v0.2.10` |
