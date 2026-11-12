@@ -235,7 +235,8 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
     if wt_text:
         wt, base = Path(str(wt_text)), str(job.get("applied_base") or "")
         head = _cloud._remote_base(root, base_branch)
-        if head and base and head != base and not rebase_ok:
+        # Once the commit is pushed, the branch has moved because of this job's own push: not a foreign move.
+        if head and base and head != base and not rebase_ok and not job.get("pushed_sha"):
             raise CloudError(_base_moved_message(job, head, base))
     else:
         applied = _cloud.apply_job(store, registry, job, db_path=db_path, branch=local_branch, worktree=worktree,
@@ -302,7 +303,7 @@ def _land_pushed_branch(store: Any, registry: Any, job: dict[str, Any], *, sourc
     base_branch = str(job.get("branch") or "")
     base_commit = str(job.get("base_commit") or "")
     head = _cloud._remote_base(root, base_branch)
-    if head and base_commit and head != base_commit and not rebase_ok:
+    if head and base_commit and head != base_commit and not rebase_ok and not job.get("pushed_sha"):
         raise CloudError(_base_moved_message(job, head, base_commit))
     pr_number = job.get("pr_number")
     landed_branch = str(result_branch)
@@ -337,8 +338,9 @@ def review_brief(*, branch: str, head: str, base: str, author: str, job_id: str,
     lines = [
         "Independent code review. This is a READ-ONLY task: do not change any existing file.",
         "",
-        f"Review the changes on branch `{branch}` (head {head[:12]}) of this repository, compared with `{base}`. "
-        f"Inspect them with `git diff origin/{base}...origin/{branch}` and read the surrounding code as needed. "
+        f"Review the changes on branch `{branch}` (head {head}) of this repository, compared with `{base}`. "
+        f"Inspect them with `git diff origin/{base}...{head}` (the exact commit under review) and read the surrounding "
+        "code as needed. "
         f"The change was written by {author}; you are the independent second pair of eyes.",
         "Look for correctness bugs, regressions, unsafe behaviour, missing or weak tests, and anything that should "
         "stop the change from being accepted. Be specific: cite file and line.",
@@ -356,7 +358,7 @@ def review_brief(*, branch: str, head: str, base: str, author: str, job_id: str,
 
 
 def prepare_review(store: Any, registry: Any, reviewed_ref: str, *, job_id: str, repo: str | None = None,
-                   engine: str | None = None, extra: str = "") -> dict[str, Any]:
+                   engine: str | None = None, extra: str = "", root: Path | None = None) -> dict[str, Any]:
     """Everything ``run --where cloud --review-of`` needs: reviewer engine, branch to run on, brief, review meta."""
     reviewed = _jobs.find_job(store, registry, reviewed_ref)
     if reviewed is None:
@@ -380,6 +382,13 @@ def prepare_review(store: Any, registry: Any, reviewed_ref: str, *, job_id: str,
     if not branch or not head:
         raise CloudError(f"job {str(reviewed['job_id'])[:8]} has no pushed branch to review yet: land it first "
                          "(`lazytools-code-bridge apply <job> --land`, or submit with --land and run `cloud-sync`)")
+    if root is not None:
+        tip = _cloud._remote_base(root, str(branch))
+        if tip and tip != head:
+            raise CloudError(f"{branch} has advanced to {tip[:12]} since job {str(reviewed['job_id'])[:8]} pushed "
+                             f"{str(head)[:12]}: a review would be recorded against a commit the reviewer did not "
+                             "inspect. Land or submit the new work as a job and review that, or re-run once the "
+                             "branch is back at the reviewed commit")
     base = str(reviewed.get("pr_base") or reviewed.get("branch") or "")
     task = review_brief(branch=str(branch), head=str(head), base=base, author=author, job_id=job_id,
                         reviewer=reviewer, extra=extra)

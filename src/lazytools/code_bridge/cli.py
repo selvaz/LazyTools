@@ -288,6 +288,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             prep = _cloud_land.prepare_review(
                 store, _store.build_job_registry(store), args.review_of, job_id=job_id,
                 repo=_cloud.repo_slug(_cloud.repo_root(cwd)), engine=args.engine, extra=task,
+                root=_cloud.repo_root(cwd),
             )
             if branch and branch != prep["branch"]:
                 raise ValueError(f"--branch {branch!r} conflicts with the reviewed branch {prep['branch']!r}")

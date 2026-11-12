@@ -695,6 +695,38 @@ def test_an_unreadable_review_is_retried_a_bounded_number_of_times(cloud, claude
     assert gh.calls("pr", "comment") == []
 
 
+def test_review_refuses_a_branch_that_advanced_past_the_landed_commit(cloud, claude, gh, capsys):
+    job_id, sha = _land_codex_job(cloud, capsys)
+    claude.push(f"cloud/{job_id[:8]}", {"later.txt": "x\n"}, base=f"origin/cloud/{job_id[:8]}")  # branch moves on
+    assert _review(cloud, reviewed=job_id) == 2
+    err = capsys.readouterr().err
+    assert "has advanced" in err and sha[:12] in err
+    assert claude.calls() == []
+
+
+def test_review_brief_pins_the_exact_commit(cloud, claude, gh, capsys):
+    job_id, sha = _land_codex_job(cloud, capsys)
+    assert _review(cloud, reviewed=job_id) == 0
+    assert f"...{sha}`" in claude.calls()[-1]["argv"][1]
+
+
+def test_landing_resumes_after_the_pr_branch_push_when_the_pr_step_failed(cloud, gh, capsys, monkeypatch):
+    _push_feature(cloud)
+    gh.seed_pr(7, head="feature")
+    job_id = _submit_json(cloud, capsys, "--pr", "7")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id) == 0  # keep the worktree so the retry reuses it
+    capsys.readouterr()
+    monkeypatch.setenv("FAKE_GH_FAIL", "pr view")
+    assert _main(cloud, "apply", job_id, "--land") == 1  # pushed, then gh failed
+    capsys.readouterr()
+    pushed = _tip(cloud, "feature")
+    assert pushed == _job(cloud, job_id)["pushed_sha"]
+    monkeypatch.delenv("FAKE_GH_FAIL")
+    assert _main(cloud, "apply", job_id, "--land") == 0  # no --rebase-ok needed: the move was our own push
+    assert _job(cloud, job_id)["landed_at"] and _tip(cloud, "feature") == pushed
+
+
 def test_review_comment_format_and_verdict_parsing():
     text = _cloud_land.build_review_comment(author="codex", reviewer="claude", verdict="blocking", head="a" * 40,
                                             body="- blocking: x.py:1 leaks a handle")
