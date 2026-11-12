@@ -60,16 +60,19 @@ FAKE_CODEX = textwrap.dedent(
     elif verb == "diff" and os.environ.get("FAKE_CODEX_DIFF"):
         print(Path(os.environ["FAKE_CODEX_DIFF"]).read_text(encoding="utf-8"), end="")
     elif verb == "diff":
-        print("diff --git a/src/app.py b/src/app.py")
-        print("--- a/src/app.py")
-        print("+++ b/src/app.py")
-        print("@@ -1 +1,2 @@")
-        print("-old")
-        print("+new")
-        print("+more")
+        print("diff --git a/cloud_change.txt b/cloud_change.txt")
+        print("new file mode 100644")
+        print("--- /dev/null")
+        print("+++ b/cloud_change.txt")
+        print("@@ -0,0 +1 @@")
+        print("+applied by cloud")
     elif verb == "apply":
         if not os.environ.get("FAKE_CODEX_NOCHANGE"):
             Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
+        if os.environ.get("FAKE_CODEX_ERROR_LOG"):
+            Path("error.log").write_text("account_id=acct-secret\\n", encoding="utf-8")
+        if os.environ.get("FAKE_CODEX_UNEXPECTED"):
+            Path("unexpected.tmp").write_text("tool scratch\\n", encoding="utf-8")
         print("Applied task " + args[2] + " to the working tree")
     else:
         sys.exit(65)
@@ -106,6 +109,8 @@ def cloud(tmp_path, monkeypatch):
     monkeypatch.delenv("FAKE_CODEX_PARTIAL", raising=False)
     monkeypatch.delenv("FAKE_CODEX_DIFF", raising=False)
     monkeypatch.delenv("FAKE_CODEX_NOCHANGE", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_ERROR_LOG", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_UNEXPECTED", raising=False)
     list_file = tmp_path / "list.json"
     list_file.write_text("[]", encoding="utf-8")
     monkeypatch.setenv("FAKE_CODEX_LIST", str(list_file))
@@ -358,7 +363,7 @@ def test_wait_and_result_show_message_and_diff(cloud, capsys):
     out = capsys.readouterr().out
     assert "[done] cloud job" in out
     assert "Added the feature and tests." in out
-    assert "diff: 1 file(s) changed, +2 -1" in out and "src/app.py" in out
+    assert "diff: 1 file(s) changed, +1 -0" in out and "cloud_change.txt" in out
     assert ["cloud", "diff", TASK_URL] in [c["argv"] for c in cloud.calls()]
 
 

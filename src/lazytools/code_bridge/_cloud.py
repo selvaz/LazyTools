@@ -1173,13 +1173,23 @@ def apply_job(
     worktree.parent.mkdir(parents=True, exist_ok=True)
     _git(root, "worktree", "add", "-b", branch, str(worktree), base)
     try:
-        output = provider(str(job["engine"])).apply(str(job["cloud_handle"]), worktree=worktree)
+        # The provider's diff is the authority for what landing may stage.  In
+        # particular, the Codex CLI may create its own untracked files while
+        # applying a task; those are not part of the task result.
+        diff_files = prov.diff(str(job["cloud_handle"]))
+        applied_files = summarize_diff(diff_files).files
+        output = prov.apply(str(job["cloud_handle"]), worktree=worktree)
+        # Current Codex CLI versions write this diagnostic beside the files
+        # they apply.  It can contain account identifiers and is tool output,
+        # never task output.
+        (worktree / "error.log").unlink(missing_ok=True)
     except BaseException as exc:
         _after_failed_apply(store, registry, root, job_id, worktree, branch, exc)
         raise
     status_lines = _git(worktree, "status", "--porcelain", check=False)
     meta = _store.read_meta(store, job_id) or {}
-    meta.update(applied_worktree=str(worktree), applied_branch=branch, applied_base=base, applied_at=time.time())
+    meta.update(applied_worktree=str(worktree), applied_branch=branch, applied_base=base,
+                applied_files=applied_files, applied_at=time.time())
     _write(store, registry, job_id, meta, status=str(job["status"]), result=job.get("result"), error=job.get("error"))
     return {
         "job_id": job_id,

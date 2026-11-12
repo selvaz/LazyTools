@@ -309,6 +309,27 @@ def test_apply_land_commits_pushes_and_opens_a_pr(cloud, gh, capsys):
     assert len(gh.calls("pr", "create")) == 1
 
 
+def test_land_discards_codex_error_log_and_stages_only_provider_diff(cloud, gh, capsys, monkeypatch):
+    monkeypatch.setenv("FAKE_CODEX_ERROR_LOG", "1")
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    names = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert names == ["cloud_change.txt"]
+    assert "error.log" not in _git(cloud.repo, "ls-tree", "-r", "--name-only", outcome["pushed_sha"]).splitlines()
+
+
+def test_land_refuses_an_unexpected_untracked_file(cloud, gh, capsys, monkeypatch):
+    monkeypatch.setenv("FAKE_CODEX_UNEXPECTED", "1")
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land") == 1
+    err = capsys.readouterr().err
+    assert "unexpected untracked" in err and "unexpected.tmp" in err
+    assert _tip(cloud, f"cloud/{job_id[:8]}") is None and gh.calls("pr", "create") == []
+
+
 def test_land_updates_the_recorded_pr_by_pushing_its_head_branch(cloud, gh, capsys):
     feature_sha = _push_feature(cloud)
     gh.seed_pr(7, head="feature")
@@ -322,6 +343,19 @@ def test_land_updates_the_recorded_pr_by_pushing_its_head_branch(cloud, gh, caps
     assert gh.calls("pr", "create") == []  # the recorded PR is updated, no new one opened
     assert _tip(cloud, f"cloud/{job_id[:8]}") is None
     assert outcome["pr_url"].endswith("/pull/7") and outcome["pr_number"] == 7
+
+
+def test_land_refuses_when_a_recorded_pr_changes_its_head_branch(cloud, gh, capsys):
+    _push_feature(cloud)
+    gh.seed_pr(7, head="feature")
+    job_id = _submit_json(cloud, capsys, "--pr", "7")["job_id"]
+    cloud.set_status(READY)
+    gh.seed_pr(7, head="replacement")
+    assert _main(cloud, "apply", job_id, "--land") == 1
+    err = capsys.readouterr().err
+    assert "head branch moved from 'feature' to 'replacement'" in err and "--rebase-ok" in err
+    assert _tip(cloud, "feature") == _job(cloud, job_id)["base_commit"]
+    assert _main(cloud, "apply", job_id, "--land", "--rebase-ok") == 0
 
 
 def test_land_refuses_a_moved_base_unless_rebase_ok(cloud, gh, capsys):
@@ -718,12 +752,12 @@ def test_landing_resumes_after_the_pr_branch_push_when_the_pr_step_failed(cloud,
     assert _main(cloud, "apply", job_id) == 0  # keep the worktree so the retry reuses it
     capsys.readouterr()
     monkeypatch.setenv("FAKE_GH_FAIL", "pr view")
-    assert _main(cloud, "apply", job_id, "--land") == 1  # pushed, then gh failed
+    assert _main(cloud, "apply", job_id, "--land") == 1  # validation failed before push
     capsys.readouterr()
-    pushed = _tip(cloud, "feature")
-    assert pushed == _job(cloud, job_id)["pushed_sha"]
+    assert _tip(cloud, "feature") == _job(cloud, job_id)["base_commit"]
     monkeypatch.delenv("FAKE_GH_FAIL")
-    assert _main(cloud, "apply", job_id, "--land") == 0  # no --rebase-ok needed: the move was our own push
+    assert _main(cloud, "apply", job_id, "--land") == 0
+    pushed = _tip(cloud, "feature")
     assert _job(cloud, job_id)["landed_at"] and _tip(cloud, "feature") == pushed
 
 
