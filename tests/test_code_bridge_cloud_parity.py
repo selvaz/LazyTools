@@ -475,7 +475,8 @@ def _claude_submit(cloud, capsys, *extra: str, task: str = "Add a feature") -> s
 
 def test_claude_land_verifies_the_pushed_branch_and_opens_a_pr_without_pushing(cloud, claude, gh, capsys):
     job_id = _claude_submit(cloud, capsys, "--open-pr")
-    sha = claude.push("claude/add-feature", {"feature.txt": "x\n"})
+    branch = _job(cloud, job_id)["claude_result_branch"]  # the branch bound to this job
+    sha = claude.push(branch, {"feature.txt": "x\n"})
     pushes: list = []
     real = _cloud._git
     _orig = _cloud._git
@@ -486,10 +487,10 @@ def test_claude_land_verifies_the_pushed_branch_and_opens_a_pr_without_pushing(c
         _cloud._git = _orig
     outcome = json.loads(capsys.readouterr().out)
     assert pushes == []  # the session pushed; the bridge only verified
-    assert outcome["branch"] == "claude/add-feature" and outcome["pushed_sha"] == sha
+    assert outcome["branch"] == branch and outcome["pushed_sha"] == sha
     (create,) = gh.calls("pr", "create")
     argv = create["argv"]
-    assert argv[argv.index("--head") + 1] == "claude/add-feature" and argv[argv.index("--base") + 1] == "main"
+    assert argv[argv.index("--head") + 1] == branch and argv[argv.index("--base") + 1] == "main"
     job = _job(cloud, job_id)
     assert job["pushed_sha"] == sha and job["pr_url"].endswith("/pull/100")
 
@@ -499,7 +500,7 @@ def test_claude_land_fast_forwards_the_recorded_pr_and_refuses_a_diverged_one(cl
     gh.seed_pr(7, head="feature")
     job_id = _claude_submit(cloud, capsys, "--pr", "7")
     assert _job(cloud, job_id)["branch"] == "feature"
-    sha = claude.push("claude/on-the-pr", {"claude.txt": "x\n"}, base="origin/feature")
+    sha = claude.push(_job(cloud, job_id)["claude_result_branch"], {"claude.txt": "x\n"}, base="origin/feature")
     assert _main(cloud, "apply", job_id, "--land", "--json") == 0
     outcome = json.loads(capsys.readouterr().out)
     assert _tip(cloud, "feature") == sha and outcome["branch"] == "feature" and outcome["pr_number"] == 7
@@ -509,7 +510,7 @@ def test_claude_land_fast_forwards_the_recorded_pr_and_refuses_a_diverged_one(cl
     gh.seed_pr(11, head="other")
     _push_feature(cloud, "other")
     job2 = _claude_submit(cloud, capsys, "--pr", "11", task="Second feature")
-    claude.push("claude/second", {"second.txt": "x\n"}, base="origin/main")
+    claude.push(_job(cloud, job2)["claude_result_branch"], {"second.txt": "x\n"}, base="origin/main")
     other_tip = _tip(cloud, "other")
     assert _main(cloud, "apply", job2, "--land") == 1
     assert "not a fast-forward" in capsys.readouterr().err
@@ -593,7 +594,7 @@ def test_cloud_sync_lands_a_claude_job_once_its_branch_appears(cloud, claude, gh
     job_id = _claude_submit(cloud, capsys, "--land")
     assert _main(cloud, "cloud-sync", "--json") == 0
     assert json.loads(capsys.readouterr().out)["jobs"][0]["action"] == "waiting"
-    sha = claude.push("claude/auto", {"auto.txt": "x\n"})
+    sha = claude.push(_job(cloud, job_id)["claude_result_branch"], {"auto.txt": "x\n"})
     assert _main(cloud, "cloud-sync", "--json") == 0
     (row,) = json.loads(capsys.readouterr().out)["jobs"]
     assert row["action"] == "landed" and _job(cloud, job_id)["pushed_sha"] == sha
@@ -665,13 +666,14 @@ def test_review_uses_the_opposite_engine_and_posts_one_comment(cloud, claude, gh
 
 def test_a_codex_review_of_claude_work_reads_review_md_from_the_diff(cloud, claude, gh, capsys, tmp_path, monkeypatch):
     job_id = _claude_submit(cloud, capsys, "--land")
-    sha = claude.push("claude/feature-1", {"f.txt": "x\n"})
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    sha = claude.push(branch, {"f.txt": "x\n"})
     assert _main(cloud, "cloud-sync") == 0
     capsys.readouterr()
     assert _review(cloud, "--json", reviewed=job_id) == 0
     review_id = json.loads(capsys.readouterr().out.strip().splitlines()[-1])["job_id"]
     exec_call = [c for c in cloud.calls() if c["argv"][1] == "exec"][-1]["argv"]
-    assert exec_call[exec_call.index("--branch") + 1] == "claude/feature-1"  # codex reviews claude's branch
+    assert exec_call[exec_call.index("--branch") + 1] == branch  # codex reviews claude's branch
     diff = tmp_path / "review.diff"
     diff.write_text(
         "diff --git a/REVIEW.md b/REVIEW.md\n--- /dev/null\n+++ b/REVIEW.md\n@@ -0,0 +1,3 @@\n"
@@ -687,7 +689,7 @@ def test_a_codex_review_of_claude_work_reads_review_md_from_the_diff(cloud, clau
 
 def test_a_review_of_a_job_without_a_pr_stays_in_the_result(cloud, claude, gh, capsys, tmp_path, monkeypatch):
     job_id = _claude_submit(cloud, capsys)  # no --land / PR flags
-    claude.push("claude/no-pr", {"f.txt": "x\n"})
+    claude.push(_job(cloud, job_id)["claude_result_branch"], {"f.txt": "x\n"})
     assert _main(cloud, "status", job_id) == 0
     capsys.readouterr()
     assert _review(cloud, "--json", reviewed=job_id) == 0
@@ -1024,7 +1026,7 @@ def test_cloud_envs_lists_codex_environments_with_their_repo_and_claude_ones(clo
         {"id": "t3", "environment_id": "env_named", "environment_label": "Prod sandbox"},
     ]), encoding="utf-8")
     monkeypatch.setenv("LZ_ROUTINE_TOKEN", "t")
-    _set_cloud_config('\n[cloud.claude.routines.nightly]\nid = "trig_1"\ntoken_env = "LZ_ROUTINE_TOKEN"\n')
+    _set_cloud_config('\n[cloud.claude.routines.nightly]\nid = "trig_1"\ntoken_env = "LZ_ROUTINE_TOKEN"\nrepo = "acme/widgets"\nbranch = "main"\n')
     assert cli.main(["cloud-envs", "--cwd", str(cloud.repo), "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
     rows = {r["env_id"]: r for r in report["environments"]}
