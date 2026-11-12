@@ -967,19 +967,27 @@ brief to the engine's **cloud agent** instead: the bridge submits it, records
 the returned task handle, and returns at once. No engine process runs locally
 and no local engine slot is taken.
 
+New to this? Start with **[Cloud setup for the code bridge](code-bridge-cloud-setup.md)**,
+a step-by-step guide for both engines, or install the bundled agent skill
+(`lazytools-code-bridge setup-skill --install`) so an assistant can walk you
+through it.
+
 ```
-lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd <repo> --task @brief.md \
-    [--branch B] [--approve-cloud push|pr-create|merge|delete|reset|commit|git-option ...]
+lazytools-code-bridge run --where cloud --allow-cloud --engine codex|claude --cwd <repo> --task @brief.md \
+    [--branch B] [--routine NAME] [--approve-cloud push|pr-create|merge|delete|reset|commit|git-option ...]
 lazytools-code-bridge status <job>      # polls `codex cloud status <task>`
 lazytools-code-bridge wait <job>        # polls until the task is terminal
 lazytools-code-bridge result <job>      # final message + `codex cloud diff <task>` summary
 lazytools-code-bridge apply <job> [--rebase]  # `codex cloud apply <task>` in a NEW worktree/branch; no push
 ```
 
-Only `--engine codex` is implemented today (Codex Cloud, through the
-official `codex cloud` CLI; the binary is found the same way the local Codex
-engine finds it — `CODEX_BIN`, then `PATH`, then the Codex desktop app's
-install directory).
+`--engine codex` uses Codex Cloud, through the official `codex cloud` CLI
+(the binary is found the same way the local Codex engine finds it:
+`CODEX_BIN`, then `PATH`, then the Codex desktop app's install directory).
+`--engine claude` uses Claude Code cloud sessions (`claude --cloud`, or a
+routine's API trigger); see [Claude cloud sessions](#claude-cloud-sessions-engine-claude)
+below for how it differs. Claude has no status API, so its results are read
+from git.
 
 ### Data boundary: cloud jobs cannot read local data
 
@@ -1143,27 +1151,89 @@ Admission runs under the same machine-wide `guard.lock` as the engine slots,
 so two submits cannot both take the last place. The count is per Store: jobs
 recorded under a different `--db` are not seen.
 
-### Extension point: Claude cloud routines
+### Claude cloud sessions (`--engine claude`)
 
-`lazytools.code_bridge._cloud` defines a `CloudProvider` protocol —
-`env_for(repo, config)`, `submit(repo_dir, env_id, branch, prompt)`,
-`status(handle)`, `diff(handle)`, `apply(handle, worktree)` — and a
-`PROVIDERS` registry. `ClaudeRoutines` is registered for `--engine claude`
-but **not implemented**: every method raises `CloudNotImplemented`, so
-`run --where cloud --engine claude` fails with a pointer here. An
-implementation against the claude.ai routines API would:
+Setup (GitHub App, `claude auth login`, default environment at claude.ai/code,
+optional routine) is in [Cloud setup → Part 2](code-bridge-cloud-setup.md#part-2-claude-code-cloud-sessions).
 
-1. map the repository to a claude.ai cloud environment (`[cloud.claude.envs]`,
-   same shape as Codex's);
-2. create a one-shot routine whose prompt is the brief, and store the
-   returned session id as the handle;
-3. poll that session for its terminal state in `status`;
-4. treat the branch the routine pushed as the "diff" (`diff` = `git diff
-   base...branch` after a fetch), and in `apply` fetch that branch into the
-   new worktree instead of patching.
+**Submit, CLI mode (default).** The bridge runs `claude --cloud "<brief>"
+--output-format json` with no shell in between (`CLAUDE_BIN`, then `PATH`; a
+Windows `.cmd` shim is never executed). It retries once without
+`--output-format` if the CLI rejects that option. The hosted VM clones from
+GitHub and `--cloud` has no `--branch` flag, so the bridge:
 
-The same data boundary applies: a claude.ai routine sees only its cloud
-environment, never this machine.
+1. fetches the branch (`--branch`, default the current one) and **refuses**
+   if it is not on `origin` or the local branch differs from `origin/<branch>`.
+   It prints the `git push` command and **never pushes for you**;
+2. runs `claude` in your checkout if it is already on that branch, otherwise
+   in a temporary worktree on it (`cloud-worktrees/<job>-submit`, removed
+   after the submit);
+3. records the session id, URL and the raw output line (redacted). The
+   documented JSON shape is `{ok, session_id, url}`; a session URL or a
+   `session_...` id in plain text is accepted too.
+
+Auth is the claude.ai OAuth login (`claude auth login`; renewed every 30 days).
+API keys are not accepted. A login or auth failure says so. The cloud
+environment is the one selected at claude.ai/code. There is no CLI flag for
+it, so the job records `env_id = "claude.ai-default"` and an
+`environment_note`, and a `[cloud.claude.envs]` table is refused.
+
+**Submit, routine mode (`--routine NAME`).** `POST
+https://api.anthropic.com/v1/claude_code/routines/{id}/fire` with
+`Authorization: Bearer <token>`, `anthropic-version: 2026-10-21` and body
+`{"text": "<brief>"}`. The response's `claude_code_session_id` and
+`claude_code_session_url` are recorded (`cloud_mode = "routine"`,
+`env_id = "routine:NAME"`). The routine is configured as:
+
+```toml
+[cloud.claude.routines.nightly]
+id = "trig_0123"
+token_env = "LAZYTOOLS_ROUTINE_NIGHTLY_TOKEN"   # env var NAME; a literal token key is refused
+```
+
+The token is read from that variable at submit, never stored, and masked in
+any error.
+
+**No status API (impossible by design).** Anthropic documents no endpoint
+to poll a cloud session's state or read its transcript, so the bridge cannot
+know when a session has finished. Instead:
+
+- At submit it snapshots the `claude/*` branches on `origin`
+  (`claude_refs_before`).
+- `status`, `wait` and `result` run `git ls-remote` and look for a `claude/...`
+  branch that is **new or moved** since that snapshot. If the brief names
+  exactly one `claude/...` branch, only that one counts
+  (`named_result_branch`). Branches already attributed to another cloud job
+  are skipped.
+- While none exists, `status` prints `submitted (no status API): open <url>`
+  and the job stays `running`. It holds its cloud concurrency place until a
+  branch appears or you `cancel` it.
+- When one appears the job becomes `done` with `result_branch` and
+  `result_commit`. Other candidates are listed in `result_branch_candidates`.
+  The session may still be pushing; the session URL is the authority on
+  whether it finished.
+- `result` prints `git diff <base_commit>...origin/<result_branch>` as a
+  summary.
+- `apply <job> [--source claude/<name>]` fetches the branch and runs
+  `git worktree add -b cloud/<job8> <dir> <tip>`: a **new worktree on a new
+  local branch**, never your checkout, never pushed. `--rebase` does not apply:
+  the agent's branch already contains its base.
+
+The same safety rules apply as for Codex: `--allow-cloud`, `--approve-cloud`
+for gated actions, redaction, the shared `[cloud] concurrency` limit, and no
+local engine slot.
+
+### Provider protocol
+
+`lazytools.code_bridge._cloud` defines a `CloudProvider` protocol
+(`env_for`, `submit`, `status`, `diff`, `apply`) and a `PROVIDERS` registry.
+A provider without a status API (Claude) additionally implements
+`job_status(job, claimed=...)`, `job_diff(job)` and `apply_job(...)`, which
+read the job's result from git. `refresh`, `result_text` and `apply_job` use
+those hooks when present.
+
+The same data boundary applies to both: a cloud session sees only its
+environment's clone of the repository, never this machine.
 
 ## One job per repository at a time
 

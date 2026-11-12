@@ -798,6 +798,24 @@ def _cloud_base_branch(outcome: dict[str, Any]) -> str:
     return str(outcome.get("base_branch") or "<branch>")
 
 
+def _cmd_setup_skill(args: argparse.Namespace) -> int:
+    """Print (or install) the bundled agent skill that walks a user through cloud setup."""
+    from lazytools.skills.agent_skills import agent_skill_path, install_agent_skill
+
+    name = "code-bridge-cloud-setup"
+    if args.install is None:
+        print(agent_skill_path(name))
+        return 0
+    try:
+        target = install_agent_skill(name, Path(args.install) if args.install else None, overwrite=args.force)
+    except FileExistsError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"installed {target}")
+    print('ask your assistant: "set up lazytools-code-bridge cloud jobs" (Claude Code picks the skill up by name)')
+    return 0
+
+
 def _cmd_apply(args: argparse.Namespace) -> int:
     """Apply a finished cloud task in a fresh worktree/branch; never pushes."""
     db_path = _db_path(args)
@@ -1214,6 +1232,21 @@ def build_parser() -> argparse.ArgumentParser:
     apply_p.add_argument("--json", action="store_true")
     _add_db_option(apply_p)
     apply_p.set_defaults(func=_cmd_apply)
+
+    skill_p = sub.add_parser(
+        "setup-skill",
+        help="Print the path of the agent skill (SKILL.md) that guides an LLM through cloud setup, or install it.",
+    )
+    skill_p.add_argument(
+        "--install",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="DIR",
+        help="Copy it to DIR/code-bridge-cloud-setup/SKILL.md (default DIR: ~/.claude/skills).",
+    )
+    skill_p.add_argument("--force", action="store_true", help="Replace an existing installed copy.")
+    skill_p.set_defaults(func=_cmd_setup_skill)
 
     pending_p = sub.add_parser("pending", help="List open approval tickets.")
     pending_p.add_argument("--json", action="store_true")
