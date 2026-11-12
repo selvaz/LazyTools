@@ -38,7 +38,14 @@ git -C <repo> status -sb              # "## main...origin/main" with nothing ahe
 codex --version                       # Codex part only
 claude --version                      # Claude part only
 gh auth status                        # optional: helps with the GitHub steps
+lazytools-code-bridge run --help      # must list --where
 ```
+
+If `run --help` does not list `--where`, the installed LazyTools predates
+cloud jobs. Update the editable LazyTools checkout or reinstall it before
+continuing. Cloud runs use the same lifecycle as local runs: they appear in
+`jobs`, `wait <job>` waits for them, and `result <job>` reads their result.
+Reviews still use the opposite engine, just as they do for local jobs.
 
 ## Part 1: Codex Cloud
 
@@ -50,15 +57,26 @@ gh auth status                        # optional: helps with the GitHub steps
 3. **Connect GitHub** when asked, and grant access to the repository (you can
    limit the ChatGPT GitHub connector to selected repositories).
 4. **Pick the repository.** Use one environment per repository: the bridge
-   maps `owner/name` to exactly one environment.
+   maps `owner/name` to exactly one environment. The `codex cloud` CLI sees
+   only single-repository environments. A multi-repository environment made
+   in the web UI is invisible to the CLI, and tasks submitted through it have
+   no retrievable diff. Create and map a separate environment for every
+   repository you use.
 5. **Setup script.** Commands run once when the container is built, for
    example for a Python project:
 
+    The script must be non-interactive. Disable Git prompts and bound installs
+    that might look for private sibling repositories, or each task can end in
+    `startup_script_timed_out` after roughly 20 minutes. A safe template is:
+
     ```bash
-    pip install -e '.[dev]'
+    set -e
+    export GIT_TERMINAL_PROMPT=0
+    timeout 600 python -m pip install -e '.[dev]' || timeout 600 python -m pip install -e . || echo 'full install needs private sibling repos; run the tests that do not import them'
     ```
 
-    (For LazyTools itself: `pip install -e '.[test]'`.)
+    Adapt the extras to the repository (for LazyTools, use `.[test]`). Keep
+    the prompt guard and timeouts.
 6. **Internet access.** Leave it **off** unless tasks need to download
    packages after setup. If you turn it on, prefer an allow-list of domains.
 7. **Secrets / environment variables.** Add only what the setup script needs.
@@ -70,12 +88,13 @@ gh auth status                        # optional: helps with the GitHub steps
 
 Any one of these works:
 
-- **CLI:** `codex cloud` opens an interactive browser of tasks and
-  environments; the environment id is shown when you pick an environment.
-  Recent CLI versions also accept `codex cloud exec --env <id> ...`, so the id
-  you copy is exactly what the bridge passes.
+- **CLI:** `codex cloud list --json` lists `environment_id` and
+  `environment_label`. Use the id belonging to the single-repository
+  environment. Recent CLI versions also accept
+  `codex cloud exec --env <id> ...`, so the id is exactly what the bridge
+  passes.
 - **URL:** open the environment in the web UI; the id is the last part of the
-  page URL (`.../environments/<env id>`).
+  page URL (`.../environments/env_...`).
 
 ### 3. Map it in `code-bridge.toml`
 
@@ -91,14 +110,22 @@ concurrency = 4               # live cloud jobs at once, both engines together
 
 ### 4. Log in and test
 
+First discover the repository's real default branch; do not assume it is
+`main`:
+
 ```bash
+gh repo view owner/repo --json defaultBranchRef --jq .defaultBranchRef.name
 codex login        # once; uses your ChatGPT account
 lazytools-code-bridge run --where cloud --allow-cloud --engine codex \
-    --cwd <repo> --task "Add a one-line docstring to the main module"
+    --cwd <repo> --branch <default-branch> --task @brief.md
 lazytools-code-bridge wait <job>
 lazytools-code-bridge result <job>
 lazytools-code-bridge apply <job>      # new worktree + branch; nothing pushed
 ```
+
+Use `Goal`, `Context`, `Constraints`, `Done when`, and `Report` headings in
+`brief.md`; otherwise `brief-check` warns. `--where cloud` requires
+`--allow-cloud`, accepts `--branch`, and does not accept `--session`.
 
 ### Common errors (Codex)
 
@@ -111,6 +138,26 @@ lazytools-code-bridge apply <job>      # new worktree + branch; nothing pushed
 | `origin/<branch> has moved ...` on `apply` | Someone pushed since submit; re-run with `--rebase` after reviewing |
 | `--where cloud requires --allow-cloud` | Add `--allow-cloud` (an explicit acknowledgement) |
 | `the brief asks for gated action(s) push` | Remove the request from the brief, or add `--approve-cloud push` |
+| Task errors with no diff after `--branch main` | Query the real default branch with `gh repo view owner/repo --json defaultBranchRef`; submit with that branch |
+| `startup_script_timed_out` | Make the setup script non-interactive with `GIT_TERMINAL_PROMPT=0`, and wrap possibly private installs in `timeout 600 ...` fallbacks |
+| Codex GitHub app says to create an environment for this repo | Create a single-repository environment for that repository and add its `[cloud.codex.envs]` mapping |
+
+A ready task with zero changed files is not necessarily a failure: the
+requested change may already exist on the base commit. Inspect the base and
+the task result before diagnosing “no diff.” A multi-repository environment,
+by contrast, is not usable through the CLI and can also explain an
+unretrievable diff.
+
+Codex Cloud cannot normally push or open a pull request: its task container
+has no Git remote. `apply <job>` brings the diff back and creates a worktree at
+the task's base commit. From that worktree, review the result, commit it, push
+the branch, and open the PR locally; landing automation is separate work.
+
+It may be possible for Codex to push itself if Git credentials are supplied
+through environment setup (secrets are visible only during setup) **and** the
+agent's internet policy permits `github.com`, but this is optional and
+untested. Never put a token in setup-script text; the supported workflow is
+still `apply`, local commit, push, and PR creation.
 
 ## Part 2: Claude Code cloud sessions
 
@@ -257,6 +304,13 @@ refused.
   are refused unless approved up front with `--approve-cloud <action>`.
 - Provider output and the stored brief are redacted (tokens, keys, JWTs).
 - Cloud jobs share one limit, `[cloud] concurrency` (default 4), and never take
-  a local engine slot.
+  a local engine slot. This one limit counts Codex and Claude jobs together.
+- `--where cloud` does not accept `--session`; select the pushed base with
+  `--branch` instead.
+- Give briefs `Goal`, `Context`, `Constraints`, `Done when`, and `Report`
+  headings so `brief-check` can validate them without warnings.
+- Treat cloud jobs like local jobs for `jobs`, `wait`, and `result`; request a
+  review with the opposite engine before committing. For Codex, `apply` is the
+  handoff point: inspect the worktree, commit, push, and open the PR yourself.
 - `apply` creates a new worktree and branch and never pushes. Pushing and
   merging stay human, approved steps.
