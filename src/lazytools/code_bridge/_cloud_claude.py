@@ -238,7 +238,7 @@ class ClaudeCloud:
 
     def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str, job_id: str = "",
                db_path: Path | None = None, routine: str | None = None, config: CloudConfig | None = None,
-               **_: Any) -> Submission:
+               model: str | None = None, **_: Any) -> Submission:
         refs_before = _remote_claude_refs(repo_dir)
         requested_branch = named_branch(prompt)
         result_branch = requested_branch or f"{RESULT_PREFIX}lazytools-{job_id}"
@@ -254,7 +254,7 @@ class ClaudeCloud:
             worktree = _cloud.worktrees_dir(db_path) / f"{job_id or 'submit'}-submit"
             checkout, created = _checkout_for(repo_dir, branch, worktree)
             try:
-                sid, url, raw = self._run_cli(checkout, prompt)
+                sid, url, raw = self._run_cli(checkout, prompt, model)
             finally:
                 if created:
                     _git(repo_dir, "worktree", "remove", str(checkout), check=False)
@@ -268,6 +268,7 @@ class ClaudeCloud:
                 "cloud_mode": mode,
                 "routine": routine,
                 "claude_session_id": sid,
+                "claude_model_requested": model if mode == "cli" else None,
                 "claude_submit_raw": redact(raw)[:4000],
                 "claude_refs_before": refs_before,
                 "claude_result_branch": result_branch,
@@ -275,13 +276,14 @@ class ClaudeCloud:
             },
         )
 
-    def _run_cli(self, cwd: Path, prompt: str) -> tuple[str | None, str | None, str]:
+    def _run_cli(self, cwd: Path, prompt: str, model: str | None = None) -> tuple[str | None, str | None, str]:
         argv = _claude_argv()
         last = ""
+        model_args = ["--model", model] if model else []
         for extra in (["--output-format", "json"], []):
             try:
                 proc = subprocess.run(
-                    [*argv, "--cloud", prompt, *extra], cwd=str(cwd), capture_output=True, text=True,
+                    [*argv, "--cloud", prompt, *model_args, *extra], cwd=str(cwd), capture_output=True, text=True,
                     encoding="utf-8", errors="replace", timeout=CLI_TIMEOUT, stdin=subprocess.DEVNULL,
                 )
             except subprocess.TimeoutExpired as exc:
@@ -402,6 +404,15 @@ class ClaudeCloud:
         if not base:
             raise CloudError(f"cannot find a base to diff {branch} against")
         return _git(root, "diff", f"{base}...{tip}")
+
+    def job_file(self, job: dict[str, Any], path: str) -> str:
+        """The text of ``path`` on the job's result branch (a review's REVIEW.md); raises if absent."""
+        branch = job.get("result_branch")
+        if not branch:
+            raise CloudError(f"job {job.get('job_id')}: no claude/ result branch on origin yet")
+        root = Path(str(job.get("repo_root") or job.get("cwd")))
+        tip = _fetch_branch(root, str(branch))
+        return _git(root, "show", f"{tip}:{path}")
 
     def apply_job(self, store: Any, registry: Any, job: dict[str, Any], *, worktree: Path, branch: str,
                   source: str | None = None) -> dict[str, Any]:

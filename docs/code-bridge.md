@@ -981,6 +981,12 @@ lazytools-code-bridge result <job>      # final message + `codex cloud diff <tas
 lazytools-code-bridge apply <job> [--rebase]  # `codex cloud apply <task>` in a NEW worktree/branch; no push
 ```
 
+Without the options below a cloud job is exactly what it was: a task you
+`wait` for and `apply` by hand. The options that make cloud agents a
+first-class part of a workflow (PR targets, `--land`, `cloud-sync`, cloud
+reviews, `--where auto`) are described in
+[Cloud agents as part of the workflow](#cloud-agents-as-part-of-the-workflow).
+
 `--engine codex` uses Codex Cloud, through the official `codex cloud` CLI
 (the binary is found the same way the local Codex engine finds it:
 `CODEX_BIN`, then `PATH`, then the Codex desktop app's install directory).
@@ -1012,14 +1018,28 @@ case). In `~/.lazytools/code-bridge.toml`, beside `[concurrency]`:
 ```toml
 [cloud]
 concurrency = 4            # live cloud jobs at once (default 4; 0 = unlimited)
+default_where = "local"    # what `run` does without --where: local | cloud | auto
+busy_windows = []          # local-time ranges in which `auto` prefers the cloud, e.g. ["21:00-01:30"]
+
+[cloud.codex]
+concurrency = 2            # optional: Codex cloud jobs at once, on top of the global limit
 
 [cloud.codex.envs]
 "selvaz/LazyTools" = "env_0123abcd"
+
+[cloud.claude]
+concurrency = 2            # optional: Claude cloud jobs at once
+
+[cloud.claude.models]      # tier -> model for Claude cloud sessions
+critical = "claude-opus-5-5"
+default = "claude-sonnet-5-5"   # used for any tier not listed (this is also the built-in default)
 ```
 
 A repository with no mapping is refused before anything is submitted or
-recorded, with a message telling the operator to create that environment and
-showing the exact lines to add.
+recorded (before any `gh` call too), with a message telling the operator to
+create that environment, showing the exact lines to add, and pointing at
+[the setup guide](code-bridge-cloud-setup.md). `lazytools-code-bridge cloud-envs`
+shows what is configured (see below).
 
 ### Job record
 
@@ -1145,7 +1165,10 @@ Cloud jobs do **not** count against the local per-engine limit (they use no
 local CPU), and a busy local Codex never blocks a cloud submit. They have
 their own limit, `[cloud] concurrency` (default **4**, across providers),
 counted from the job Store: records with `where = "cloud"` still
-`submitting` or `running`. Before refusing, the bridge polls the active
+`submitting` or `running`. `[cloud.codex] concurrency` and
+`[cloud.claude] concurrency` add an optional limit per provider (0 =
+unlimited); a submit must fit under both the global and its provider's limit,
+and the refusal names the one that was hit. Before refusing, the bridge polls the active
 tasks once, so a task that finished since its last poll frees its place.
 Admission runs under the same machine-wide `guard.lock` as the engine slots,
 so two submits cannot both take the last place. The count is per Store: jobs
@@ -1236,6 +1259,179 @@ those hooks when present.
 
 The same data boundary applies to both: a cloud session sees only its
 environment's clone of the repository, never this machine.
+
+## Cloud agents as part of the workflow
+
+A lead (a person or an LLM) should not have to babysit cloud tasks: submit
+through raw CLIs, copy diffs, push, open PRs, ask for reviews in PR comments.
+The bridge does those steps. The loop:
+
+```
+# 1. submit: work on an existing PR's branch (--pr) or on a new branch + PR (--open-pr); --land lands it for you
+lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd <repo> --task @brief.md --land
+lazytools-code-bridge run --where cloud --allow-cloud --engine claude --cwd <repo> --task @brief.md --pr 42 --land
+
+# 2. follow it: `wait` lands it when it finishes; `cloud-sync` does the same for ALL live cloud jobs (run it from a scheduler)
+lazytools-code-bridge wait <job>
+lazytools-code-bridge cloud-sync
+
+# 3. review it with the opposite engine; the verdict lands on the PR as one comment
+lazytools-code-bridge run --where cloud --allow-cloud --cwd <repo> --review-of <job>
+```
+
+A review job is posted, never landed. Everything in this section is
+`--where cloud` only and builds on the options above.
+
+### PR targets: `--pr N`, `--open-pr`
+
+* `--pr N` works on pull request N's **head branch**: the cloud agent starts
+  from it and the job records the PR (`pr_number`, `pr_url`, `pr_head`,
+  `pr_base`). A closed or merged PR, a PR from a fork, and a `--branch` that
+  disagrees with the PR's head are refused before anything is submitted.
+* `--open-pr` records that landing opens a **new branch and a PR** against the
+  base branch (`--branch`, default the current one).
+* Neither: behaviour is unchanged and `gh` is never called. `--pr` and
+  `--open-pr` are alternatives. All the options in this section are
+  `--where cloud` only. `gh` (logged in, or `GH_TOKEN`) is needed for PR work;
+  `GH_BIN` overrides its path.
+
+### Landing: `apply <job> --land`
+
+`apply --land` performs, for a finished job and without anyone typing git
+commands: apply the diff in a fresh worktree (as `apply` does), **commit**
+(subject = the first line of the brief, 72 characters; body = the job id and the
+provider's summary; no attribution lines or trailers), **push**, then **update
+the recorded PR** (it is the PR's head branch that is pushed to, in a
+fast-forward) **or open a new one** (`gh pr create`; the PR body quotes the
+brief and carries the job id, never a local path). With no recorded PR, a new
+one is opened. The pushed commit and PR URL are stored in the job
+(`pushed_sha`, `landed_branch`, `pr_url`) and shown by `result`; the landing
+worktree is removed afterwards.
+
+Guarantees:
+
+* **A moved base is refused, with the reason**, unless the job was submitted
+  with `--rebase-ok` (or `apply --land --rebase-ok` is passed): if the branch the
+  agent started from moved on `origin` since submit, nothing is applied,
+  committed or pushed. With `--rebase-ok` the diff is applied onto the new head
+  and may not apply cleanly.
+* **It never force-pushes.** The only push form is
+  `git push origin <commit>:refs/heads/<branch>`, which git rejects when it is
+  not a fast-forward. A PR head that moved meanwhile is a refusal, and the other
+  person's commits are untouched. A new branch never overwrites an existing
+  branch of the same name on `origin`.
+* **It is resumable and idempotent.** Each step is recorded (`land_commit`,
+  `pushed_sha`, `pr_url`); a landing that failed at `gh pr create` is finished by
+  running it again without pushing twice, and a landed job is never landed again.
+  A claim in the job record keeps two schedulers from landing the same job at
+  once.
+* A task that changed nothing pushes nothing and says so.
+
+**Claude cloud** pushes its own `claude/...` branch, so `--land` only verifies
+it on `origin` and records its commit (`pushed_sha`). With `--pr N` the PR's
+head is fast-forwarded to the session's commit when the session built on it
+(otherwise the landing is refused, the work stays on the `claude/` branch, and
+nothing is forced); without `--pr` a PR for the `claude/` branch is found or
+opened.
+
+### Automatic landing: `--land`, `wait`, `cloud-sync`
+
+`run --where cloud ... --land` marks the job to be landed when it finishes
+(`--land` without `--pr` implies `--open-pr`). Two things then land it, with the
+same code as `apply --land`:
+
+* `wait <job>`: when the job ends, `wait` lands it (the landing is printed on
+  stderr, and `result` shows the pushed branch and PR). A refused landing makes
+  `wait` exit 1.
+* `cloud-sync [--json]`: reconciles **every** live cloud job: polls the
+  provider, lands finished jobs that were submitted with `--land`, posts
+  finished reviews, and records a failed task as `failed` with the provider's
+  reason (reported once). It prints one line per job
+  (`waiting`, `landed`, `land-failed`, `review-posted`, `review-failed`,
+  `failed`) and exits 1 when a landing or review post failed, so it can run
+  unattended from a scheduler (cron, Task Scheduler, a Claude Code routine).
+  A refused landing is retried on the next run, so a later `--rebase-ok`
+  landing or a fixed `gh` login still completes it.
+
+### Cloud reviews: `run --where cloud --review-of <job>`
+
+`--review-of` picks the **opposite engine** of the reviewed job's author (Codex
+work is reviewed by Claude and vice versa, the same rule as the local router;
+`--engine` may only name that engine) and runs it as a cloud job on the
+reviewed job's **pushed branch**, so the job must be landed first (or, for
+Claude, have pushed its result branch). The reviewer is asked to write
+`REVIEW.md` (the only file it may create) ending with `verdict: blocking` or
+`verdict: no-blocking`; extra text from `--task` is appended to the brief. When the review
+finishes (`wait`, `cloud-sync`), the bridge reads `REVIEW.md` (from the pushed
+`claude/review-<job8>` branch, or from `codex cloud diff`) and, when the
+reviewed job has a PR, posts it as **one PR comment**:
+
+```
+<!-- independent-review v1 -->
+author: codex
+reviewer: claude
+verdict: no-blocking
+head: <sha of the reviewed commit>
+
+<the review's findings>
+```
+
+There is no footer. A review without a `verdict:` line is posted as `blocking`
+and says so; one whose `REVIEW.md` cannot be read is retried three times, then
+given up (visible in `result`). A repeated `cloud-sync` posts nothing twice (the
+comment is also looked for on the PR before posting). Without a PR the review
+stays in the job's `result`.
+
+### Placement: `--where auto`
+
+`--where` is `local`, `cloud` or `auto`; without it, `[cloud] default_where`
+decides (default `local`, so nothing changes until you opt in). `auto` runs in
+the cloud when
+
+* the current **local** time is inside a production window of
+  `[cloud] busy_windows` (`["21:00-01:30", "05:00-06:00"]`; a window may wrap
+  midnight; the start is inclusive and the end exclusive; **empty by default**),
+  or
+* **no local engine slot is free** (every candidate engine is at its
+  machine-wide limit, see [Engine concurrency limit](#engine-concurrency-limit-machine-wide)),
+
+and locally otherwise. `run --where auto` prints the decision and why on stderr
+(`placement: cloud (requested auto): local time 22:05 is inside the busy window
+21:00-01:30`) and `--json` adds a `placement` object. `route --tier T --where
+auto` shows the same decision without launching anything. A cloud decision still
+needs `--allow-cloud` and an explicit `--engine`, like any cloud job.
+
+### Models for cloud jobs
+
+* **Claude cloud** runs `claude --cloud ... --model M`. `M` is `--model`, else
+  the `[cloud.claude.models]` entry for `--tier` (`basic`, `writing`,
+  `thinking`, `critical`), else its `default` entry, else **`claude-sonnet-5-5`**.
+  A routine fixes its own model, so `--model` is refused with `--routine`.
+* **Codex Cloud** always uses the model its **environment** is set to (change it
+  in the environment's settings at chatgpt.com/codex). The Codex CLI ignores
+  `-c model` for cloud tasks, so the bridge neither passes nor lets you set one:
+  `--model` is refused, `--tier` is accepted and noted, and
+  `[cloud.codex.models]` is rejected in the config.
+
+### Environments: `cloud-envs`
+
+`lazytools-code-bridge cloud-envs [--json] [--cwd <repo>] [--no-probe]` lists the
+Codex Cloud environments with the repository each serves, and the Claude cloud
+environment(s). Codex environments come from `codex cloud list --json` (each
+task's `environment_id` / `environment_label`) joined with
+`[cloud.codex.envs]`: a mapped environment shows its repo; an environment seen
+in Codex but not mapped is marked `unmapped` (its label is shown as a hint). The
+Claude rows are the account's default environment (chosen at claude.ai/code; the
+CLI has no flag for it) and every `[cloud.claude.routines]` entry (the token's
+environment-variable **name** and whether it is set, never its value). With
+`--cwd` it also says which environment the current repo maps to.
+
+### For other agents: MCP
+
+`lazytools-mcp code_bridge --allow-unsafe` serves `code_bridge_submit`,
+`code_bridge_status` and `code_bridge_result`, which run the commands above and
+return their JSON, so another agent uses local and cloud jobs the same way (see
+[MCP server](mcp-server.md#code_bridge-local-and-cloud-coding-jobs-for-other-agents)).
 
 ## One job per repository at a time
 

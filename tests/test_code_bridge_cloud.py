@@ -47,12 +47,18 @@ FAKE_CODEX = textwrap.dedent(
         counter.write_text(str(n))
         url = os.environ["FAKE_CODEX_URL"] + ("" if n == 1 else str(n))
         print("Submitted task. View it at " + url)
+    elif verb == "list":
+        print(Path(os.environ["FAKE_CODEX_LIST"]).read_text(encoding="utf-8"), end="")
     elif verb == "status":
-        text = Path(os.environ["FAKE_CODEX_STATUS"]).read_text(encoding="utf-8")
+        # A per-task status file (<status file>.<last url segment>) wins over the shared one.
+        per_task = Path(os.environ["FAKE_CODEX_STATUS"] + "." + args[2].rsplit("/", 1)[-1])
+        text = (per_task if per_task.exists() else Path(os.environ["FAKE_CODEX_STATUS"])).read_text(encoding="utf-8")
         print(text, end="")
         # Like the real CLI: a task that ended in ERROR exits 1 (and still prints its status).
         if re.search(r"(?im)^\\s*(?:\\[error\\]|.*\\bstatus\\s*[:=]\\s*\\[?error\\b)", text):
             sys.exit(1)
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_DIFF"):
+        print(Path(os.environ["FAKE_CODEX_DIFF"]).read_text(encoding="utf-8"), end="")
     elif verb == "diff":
         print("diff --git a/src/app.py b/src/app.py")
         print("--- a/src/app.py")
@@ -62,7 +68,8 @@ FAKE_CODEX = textwrap.dedent(
         print("+new")
         print("+more")
     elif verb == "apply":
-        Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
+        if not os.environ.get("FAKE_CODEX_NOCHANGE"):
+            Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
         print("Applied task " + args[2] + " to the working tree")
     else:
         sys.exit(65)
@@ -97,6 +104,11 @@ def cloud(tmp_path, monkeypatch):
     monkeypatch.setenv("FAKE_CODEX_STATUS", str(status_file))
     monkeypatch.delenv("FAKE_CODEX_FAIL", raising=False)
     monkeypatch.delenv("FAKE_CODEX_PARTIAL", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_DIFF", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_NOCHANGE", raising=False)
+    list_file = tmp_path / "list.json"
+    list_file.write_text("[]", encoding="utf-8")
+    monkeypatch.setenv("FAKE_CODEX_LIST", str(list_file))
     for key, value in {
         "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
         "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid",
@@ -130,6 +142,7 @@ def cloud(tmp_path, monkeypatch):
     ctx.root = tmp_path / "work"
     ctx.calls = lambda: [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()] if log.exists() else []
     ctx.set_status = lambda text: status_file.write_text(text, encoding="utf-8")
+    ctx.list_file = list_file
     return ctx
 
 
