@@ -1025,6 +1025,21 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
   or a known status word); text it does not understand keeps the job
   `running` — a poll never declares a job finished on output it cannot read.
   A failed poll is recorded as `last_poll_error` and does not fail the job.
+  A **non-zero exit is not automatically a poll failure**: `codex cloud
+  status` exits non-zero for a task that ended in error, so its output is
+  parsed whatever the exit code and a recognised status wins (`error` → the
+  job is `failed`). Only a non-zero exit whose output names no status counts
+  as a poll failure. Without an explicit `status:` field, only the **leading
+  token** of the first line is read (`[READY] Fix error handling` is ready):
+  the rest is a task title.
+- `wait` never hangs on a provider that keeps failing: after
+  5 failed polls in a row it exits 1 with the last error (the job stays
+  `running`; `status` or `wait` again once the CLI works).
+- Provider diagnostics (errors, apply output) are passed through a
+  redaction filter (bearer/basic credentials, `token=`/`api_key=`-style
+  pairs, common key prefixes, JWTs) before they are stored or printed. The
+  brief itself is stored verbatim, as for local jobs: do not put secrets in a
+  brief.
 - `result` prints the final message and a diff summary (files, +/− lines).
   Its exit code follows the local rule: non-zero for `failed`/`interrupted`.
 - Every status write re-reads the record under the machine-wide guard and
@@ -1036,9 +1051,14 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
 
 ### `apply`: never in your checkout, never pushed
 
-`apply <job>` requires a `done` job. It runs `git worktree add -b
-cloud/<job8> <dir> <base>` — `<base>` is `origin/<branch>` when that
-remote-tracking ref exists, else the local branch — and then `codex cloud
+`apply <job>` requires a `done` job. At submit the bridge fetches the
+branch and records the remote tip as `base_commit` — the commit the cloud
+environment starts from. `apply` runs `git worktree add -b cloud/<job8> <dir>
+<base>` with `<base>` = that recorded commit (falling back to
+`origin/<branch>`, then the local branch, for a branch that was not on the
+remote), so the diff lands on what the agent saw even if the branch has
+moved; when it has, `apply` says so (`branch_moved_to`) and you rebase or
+merge before pushing. Then it runs `codex cloud
 apply <task>` **inside that new worktree**. Your own checkout, its branch and
 its index are never touched. `<dir>` defaults to `cloud-worktrees/<job>`
 beside the Store; `--branch` and `--worktree` override both names. A job is
@@ -1049,6 +1069,37 @@ location is recorded (`apply_failed_worktree`) and printed, and nothing is
 deleted. The command stops before any
 commit or push and prints the push command: **pushing stays a separate,
 approved step**.
+
+### Approvals: where the gate is for cloud jobs
+
+A local job's `BridgeGate` sits between the engine and every tool call on
+this machine, and files a ticket for gated ones (a push, a `gh` write). A
+cloud agent's tool calls happen on the provider's machine, where no local
+gate can see them, so `--where cloud` files **no approval tickets** — there
+is nothing local to intercept. The approval boundary moves instead:
+
+- The cloud task's only output the bridge accepts is its **diff**. Nothing
+  reaches any checkout until `apply`, which an operator runs, into a new
+  worktree, and which never pushes.
+- **Pushing stays a separate, human step** after reviewing the applied
+  worktree; the bridge never pushes a cloud job's work.
+- What the agent may do *inside* the cloud (network access, setup script,
+  secrets) is governed by the Codex Cloud environment's own settings. Keep
+  each mapped environment single-repo, without push credentials or
+  production secrets, and with internet access off unless a task needs it.
+
+A brief that asks for a gated action (a push, a release, a `gh` write) will
+not raise a ticket: run such work as a local job.
+
+### Input validation
+
+`--job-id` (internal; used by detached launches) must be 1–64 letters,
+digits, `-` or `_`, the same rule as local jobs, and must not already exist.
+`--branch` and `apply --branch` must pass `git check-ref-format --branch`.
+On Windows a `codex.cmd`/`.bat` npm shim is **never executed** (`cmd.exe`
+would re-parse the brief and branch as shell syntax): the bridge runs the
+package's `bin/codex.js` beside it with `node`, or refuses and asks for
+`CODEX_BIN` pointing at `codex.exe`.
 
 ### Concurrency
 

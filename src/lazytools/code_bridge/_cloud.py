@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import time
 import tomllib
@@ -63,6 +64,30 @@ CLI_TIMEOUT = 300.0
 #: place in the cloud limit while ``codex cloud exec`` is still running.
 ACTIVE_STATUSES = ("submitting", "running")
 TERMINAL_STATUSES = ("done", "partial", "failed", "interrupted")
+#: Same rule as local jobs (``_jobs.run_job``): a job id becomes a file and
+#: directory name, so only a plain token is accepted, never a path.
+JOB_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+#: ``wait`` gives up (exit 1) after this many polls in a row that failed, so a
+#: provider that keeps erroring cannot make it hang forever.
+MAX_CONSECUTIVE_POLL_ERRORS = 5
+_ENV_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
+
+_SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}"),
+    re.compile(r"\b(sk|rk|pk|ghp|gho|ghs|ghu|github_pat|xox[abpr])[-_][A-Za-z0-9_-]{10,}"),
+    re.compile(r"(?i)\b(token|api[_-]?key|secret|password|authorization)(\s*[:=]\s*)(\S+)"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}"),  # JWT
+)
+
+
+def redact(text: str) -> str:
+    """Mask credential-looking substrings before provider output is stored or printed."""
+    for pattern in _SECRET_PATTERNS:
+        if pattern.groups == 3:
+            text = pattern.sub(lambda m: f"{m.group(1)}{m.group(2)}[redacted]", text)
+        else:
+            text = pattern.sub("[redacted]", text)
+    return text
 
 CREATE_ENV_HINT = (
     "create a single-repo Codex Cloud environment for {repo} (https://chatgpt.com/codex/settings/environments), "
@@ -262,10 +287,14 @@ def parse_status(text: str) -> CloudStatus:
     # No explicit status field: only the FIRST line may carry the status word.
     # Scanning every line would let a message such as "fixed the error path"
     # mark a running task failed.
+    # And only its leading token -- "[READY] Fix error handling" is ready, not
+    # failed: the rest of the line is a task title, free text like any message.
     if lines:
-        mapped = _map_status(lines[0])
+        head = re.match(r"\s*\[([^\]]+)\]|\s*([A-Za-z_]+(?:\s+progress)?)", lines[0])
+        token = (head.group(1) or head.group(2)) if head else ""
+        mapped = _map_status(token) if token else None
         if mapped is not None:
-            return CloudStatus(mapped, lines[0].strip(), "\n".join(lines[1:]).strip(), text)
+            return CloudStatus(mapped, token.strip(), "\n".join(lines[1:]).strip(), text)
     return CloudStatus("running", "", stripped, text)
 
 
@@ -347,13 +376,32 @@ class CloudProvider(Protocol):
     def apply(self, handle: str, *, worktree: Path) -> str: ...
 
 
-def _codex_bin() -> str:
+def _codex_argv() -> list[str]:
+    """The command prefix that runs the Codex CLI with NO shell in between.
+
+    On Windows a ``.cmd``/``.bat`` shim (what ``npm install -g`` creates) is
+    run through ``cmd.exe``, which re-parses every argument -- a brief or a
+    branch name containing ``&`` or ``|`` would become shell syntax. So a shim
+    is never executed: the npm package's own ``bin/codex.js`` beside it is run
+    with ``node`` directly, and a shim without one is refused.
+    """
     from lazytools.connectors.code_support._codex import resolve_codex_bin
 
     found = resolve_codex_bin()
     if not found:
         raise CloudError("Codex CLI not found: install it, or set CODEX_BIN to its path")
-    return found
+    if Path(found).suffix.lower() not in (".cmd", ".bat"):
+        return [found]
+    shim_dir = Path(found).parent
+    script = shim_dir / "node_modules" / "@openai" / "codex" / "bin" / "codex.js"
+    node = shim_dir / "node.exe"
+    node_path = str(node) if node.is_file() else shutil.which("node")
+    if script.is_file() and node_path:
+        return [node_path, str(script)]
+    raise CloudError(
+        f"Codex CLI resolves to the batch shim {found}, which would pass the brief through cmd.exe; "
+        "set CODEX_BIN to codex.exe (or the package's bin/codex.js is missing next to the shim)"
+    )
 
 
 class CodexCloud:
@@ -368,8 +416,8 @@ class CodexCloud:
             raise CloudError(f"no Codex Cloud environment mapped for {repo}: " + CREATE_ENV_HINT.format(repo=repo, path=path))
         return env_id
 
-    def _run(self, *args: str, cwd: Path | None = None) -> str:
-        argv = [_codex_bin(), "cloud", *args]
+    def _run(self, *args: str, cwd: Path | None = None, allow_failure: bool = False) -> tuple[int, str, str]:
+        argv = [*_codex_argv(), "cloud", *args]
         try:
             proc = subprocess.run(
                 argv,
@@ -385,24 +433,40 @@ class CodexCloud:
             raise CloudError(f"codex cloud {args[0]} timed out after {CLI_TIMEOUT:g}s") from exc
         except OSError as exc:
             raise CloudError(f"could not start the Codex CLI: {exc}") from exc
-        if proc.returncode != 0:
-            detail = (proc.stderr or proc.stdout or "").strip()
+        if proc.returncode != 0 and not allow_failure:
+            detail = redact((proc.stderr or proc.stdout or "").strip())
             raise CloudError(f"codex cloud {args[0]} exited {proc.returncode}: {detail[:2000]}")
-        return proc.stdout
+        return proc.returncode, proc.stdout, proc.stderr
 
     def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str) -> Submission:
-        out = self._run("exec", "--env", env_id, "--branch", branch, prompt, cwd=repo_dir)
+        _, out, _ = self._run("exec", "--env", env_id, "--branch", branch, prompt, cwd=repo_dir)
         handle, url = parse_submit(out)
-        return Submission(handle=url or handle, url=url, env_id=env_id, raw=out)
+        return Submission(handle=url or handle, url=url, env_id=env_id, raw=redact(out))
 
     def status(self, handle: str) -> CloudStatus:
-        return parse_status(self._run("status", handle))
+        """Poll once. A non-zero exit is NOT automatically a poll error.
+
+        ``codex cloud status`` reports a task that ended in error with a
+        non-zero exit, and still prints its status. So the output is parsed
+        whatever the exit code: a recognised status wins. A non-zero exit
+        whose output names no status is a real poll failure (CLI, network,
+        auth) and raises :class:`CloudError`.
+        """
+        code, out, err = self._run("status", handle, allow_failure=True)
+        for text in (out, err):
+            parsed = parse_status(redact(text))
+            if parsed.raw_status:
+                return parsed
+        if code != 0:
+            detail = redact((err or out or "").strip())
+            raise CloudError(f"codex cloud status exited {code}: {detail[:2000]}")
+        return parse_status(redact(out))
 
     def diff(self, handle: str) -> str:
-        return self._run("diff", handle)
+        return self._run("diff", handle)[1]
 
     def apply(self, handle: str, *, worktree: Path) -> str:
-        return self._run("apply", handle, cwd=worktree)
+        return redact(self._run("apply", handle, cwd=worktree)[1])
 
 
 class ClaudeRoutines:
@@ -534,7 +598,11 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     try:
         state = provider(str(job.get("engine"))).status(str(job["cloud_handle"]))
     except CloudError as exc:
-        updates = {"last_poll_error": str(exc), "last_polled_at": time.time()}
+        updates = {
+            "last_poll_error": redact(str(exc)),
+            "last_polled_at": time.time(),
+            "poll_errors_in_a_row": int(job.get("poll_errors_in_a_row") or 0) + 1,
+        }
         _write_unless_terminal(store, registry, job_id, updates, status=str(job.get("status") or "running"))
         return _merged(store, registry, job_id)
     updates = {
@@ -542,6 +610,7 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
         "cloud_message": state.message,
         "last_polled_at": time.time(),
         "last_poll_error": None,
+        "poll_errors_in_a_row": 0,
     }
     if state.status == "done":
         _write_unless_terminal(store, registry, job_id, updates, status="done",
@@ -577,6 +646,18 @@ def _admit(store: Any, registry: Any, config: CloudConfig, job_id: str, meta: di
         _write(store, registry, job_id, meta, status="submitting")
 
 
+def _remote_base(root: Path, branch: str) -> str | None:
+    """The commit the cloud agent will start from: the remote's tip of ``branch``.
+
+    Fetched first (best effort) so the recorded commit is the one the cloud
+    environment clones, not a stale remote-tracking ref. ``None`` when the
+    branch is not on the remote (or the fetch and the ref both fail).
+    """
+    _git(root, "fetch", "--quiet", "origin", f"refs/heads/{branch}:refs/remotes/origin/{branch}", check=False)
+    sha = _git(root, "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{branch}^{{commit}}", check=False)
+    return sha or None
+
+
 def submit_job(
     *,
     engine: str,
@@ -595,15 +676,24 @@ def submit_job(
     """
     import uuid
 
+    if job_id is not None and not JOB_ID_RE.fullmatch(job_id):
+        raise CloudError(f"job id must be 1-64 letters, digits, '-' or '_', got {job_id!r}")
     config = config or load_config()
     prov = provider(engine)
     root = repo_root(cwd)
     repo = repo_slug(root)
     env_id = prov.env_for(repo, config)
+    if not _ENV_ID_RE.fullmatch(env_id):
+        raise CloudError(f"env id {env_id!r} for {repo} has unexpected characters")
     branch = branch or current_branch(root)
+    if branch.startswith("-") or _git(root, "check-ref-format", "--branch", branch, check=False) != branch:
+        raise CloudError(f"{branch!r} is not a valid branch name")
     job_id = job_id or uuid.uuid4().hex
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)
+    if _store.read_meta(store, job_id) is not None or registry.find(job_id) is not None:
+        raise CloudError(f"job id {job_id!r} already exists -- refusing to overwrite its record")
+    base_commit = _remote_base(root, branch)
     meta: dict[str, Any] = {
         "job_id": job_id,
         "engine": engine,
@@ -613,6 +703,7 @@ def submit_job(
         "repo": repo,
         "env_id": env_id,
         "branch": branch,
+        "base_commit": base_commit,
         "objective": task,
         "created_at": time.time(),
         "cloud_handle": None,
@@ -673,15 +764,31 @@ def apply_job(
     if job.get("applied_worktree"):
         raise CloudError(f"job {job['job_id']} was already applied in {job['applied_worktree']}")
     job_id = str(job["job_id"])
+    if not JOB_ID_RE.fullmatch(job_id):
+        raise CloudError(f"job id {job_id!r} is not a plain token; refusing to derive paths from it")
     root = Path(str(job.get("repo_root") or repo_root(Path(str(job["cwd"])))))
     branch = branch or f"cloud/{job_id[:8]}"
-    worktree = (worktree or worktrees_dir(db_path) / job_id).expanduser().resolve()
+    if branch.startswith("-") or _git(root, "check-ref-format", "--branch", branch, check=False) != branch:
+        raise CloudError(f"{branch!r} is not a valid branch name")
+    if worktree is None:
+        container = worktrees_dir(db_path).expanduser().resolve()
+        worktree = (container / job_id).resolve()
+        if worktree.parent != container:
+            raise CloudError(f"{worktree} is outside {container}")
+    else:
+        worktree = worktree.expanduser().resolve()
     if worktree.exists():
         raise CloudError(f"{worktree} already exists: remove it or pass --worktree")
     base_branch = str(job.get("branch") or "HEAD")
-    base = f"origin/{base_branch}"
-    if not _git(root, "rev-parse", "--verify", "--quiet", f"refs/remotes/{base}", check=False):
-        base = base_branch
+    base_commit = job.get("base_commit")
+    if base_commit and _git(root, "rev-parse", "--verify", "--quiet", f"{base_commit}^{{commit}}", check=False):
+        # The exact commit the cloud task started from: the diff applies onto
+        # what the agent saw, even if the branch has moved since.
+        base = str(base_commit)
+    else:
+        base = f"origin/{base_branch}"
+        if not _git(root, "rev-parse", "--verify", "--quiet", f"refs/remotes/{base}", check=False):
+            base = base_branch
     worktree.parent.mkdir(parents=True, exist_ok=True)
     _git(root, "worktree", "add", "-b", branch, str(worktree), base)
     try:
@@ -692,6 +799,10 @@ def apply_job(
     status_lines = _git(worktree, "status", "--porcelain", check=False)
     meta = _store.read_meta(store, job_id) or {}
     meta.update(applied_worktree=str(worktree), applied_branch=branch, applied_base=base, applied_at=time.time())
+    moved = None
+    if base_commit and base == base_commit:
+        tip = _git(root, "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{base_branch}", check=False)
+        moved = tip if tip and tip != base_commit else None
     _write(store, registry, job_id, meta, status=str(job["status"]), result=job.get("result"), error=job.get("error"))
     return {
         "job_id": job_id,
@@ -701,6 +812,8 @@ def apply_job(
         "changed": [line for line in status_lines.splitlines() if line.strip()],
         "output": output.strip(),
         "pushed": False,
+        "branch_moved_to": moved,
+        "base_branch": base_branch,
     }
 
 
@@ -740,6 +853,8 @@ def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval
         job = refresh(store, registry, _merged(store, registry, str(job["job_id"])))
         if job.get("status") in TERMINAL_STATUSES:
             return job
+        if int(job.get("poll_errors_in_a_row") or 0) >= MAX_CONSECUTIVE_POLL_ERRORS:
+            return job  # the caller reports it; never wait forever on a provider that keeps failing
         if deadline is not None and time.monotonic() >= deadline:
             return job
         time.sleep(interval)
@@ -747,6 +862,8 @@ def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval
 
 __all__ = [
     "ACTIVE_STATUSES",
+    "JOB_ID_RE",
+    "MAX_CONSECUTIVE_POLL_ERRORS",
     "CLOUD_PREAMBLE",
     "DEFAULT_CLOUD_CONCURRENCY",
     "PROVIDERS",
@@ -768,6 +885,7 @@ __all__ = [
     "parse_status",
     "parse_submit",
     "provider",
+    "redact",
     "refresh",
     "repo_slug",
     "result_text",

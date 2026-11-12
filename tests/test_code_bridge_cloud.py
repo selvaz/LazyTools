@@ -48,7 +48,11 @@ FAKE_CODEX = textwrap.dedent(
         url = os.environ["FAKE_CODEX_URL"] + ("" if n == 1 else str(n))
         print("Submitted task. View it at " + url)
     elif verb == "status":
-        print(Path(os.environ["FAKE_CODEX_STATUS"]).read_text(encoding="utf-8"), end="")
+        text = Path(os.environ["FAKE_CODEX_STATUS"]).read_text(encoding="utf-8")
+        print(text, end="")
+        # Like the real CLI: a task that ended in error exits non-zero.
+        if "status: error" in text.lower():
+            sys.exit(1)
     elif verb == "diff":
         print("diff --git a/src/app.py b/src/app.py")
         print("--- a/src/app.py")
@@ -266,8 +270,12 @@ def test_branch_flag_is_cloud_only(cloud, capsys):
         ("status: [READY]\nAdded the feature and tests.\n", "done", "READY"),
         ("Title: x\nStatus: Error\nenvironment setup failed\n", "failed", "Error"),
         ('{"status": "completed", "message": "all good"}', "done", "completed"),
-        ("[in progress] working on it\n", "running", "[in progress] working on it"),
-        ("cancelled by user\n", "interrupted", "cancelled by user"),
+        ("[in progress] working on it\n", "running", "in progress"),
+        ("cancelled by user\n", "interrupted", "cancelled"),
+        # The title after the leading token is free text, never a status.
+        ("[READY] Fix error handling\n", "done", "READY"),
+        ("[READY] Add cancellation support\n", "done", "READY"),
+        ("[PENDING] Fix failing tests\n", "running", "PENDING"),
         ("something we do not understand\n", "running", ""),
         ("Title: x\nfixed the error path\n", "running", ""),
     ],
@@ -502,3 +510,111 @@ def test_failed_apply_keeps_partial_changes(cloud, monkeypatch, capsys):
     store = _store.build_store(cloud.db)
     job = _jobs.find_job(store, _store.build_job_registry(store), job_id)
     assert job["apply_failed_worktree"] == str(worktree.resolve()) and "applied_worktree" not in job
+
+
+def test_status_nonzero_exit_with_error_status_marks_failed(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("status: error\nsetup script failed\n")  # the fake exits 1 for this, like the CLI
+    assert cli.main(["wait", job_id, "--db", str(cloud.db), "--interval", "0.05"]) == 1
+    out = capsys.readouterr().out
+    assert "[failed]" in out and "setup script failed" in out
+
+
+def test_wait_gives_up_after_repeated_poll_failures(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    monkeypatch.setenv("FAKE_CODEX_FAIL", "status")  # exit 1 with no status in the output
+    code = cli.main(["wait", job_id, "--db", str(cloud.db), "--interval", "0.01"])
+    assert code == 1
+    err = capsys.readouterr().err
+    assert f"{_cloud.MAX_CONSECUTIVE_POLL_ERRORS} status polls in a row failed" in err
+    store = _store.build_store(cloud.db)
+    job = _jobs.find_job(store, _store.build_job_registry(store), job_id)
+    assert job["status"] == "running"  # a failing CLI is not a failed task
+
+
+@pytest.mark.parametrize("bad", ["12345678/../../../../escape", "../x", "a b", "x" * 65])
+def test_job_id_must_be_a_plain_token(cloud, bad, capsys):
+    assert _run_cloud(cloud, "--job-id", bad) == 2
+    assert "job id must be" in capsys.readouterr().err
+    assert cloud.calls() == []
+    assert not any(_cloud.worktrees_dir(cloud.db).parent.rglob("escape"))
+
+
+def test_existing_job_id_is_not_overwritten(cloud, capsys):
+    assert _run_cloud(cloud, "--job-id", "fixedid1") == 0
+    capsys.readouterr()
+    assert _run_cloud(cloud, "--job-id", "fixedid1") == 2
+    assert "already exists" in capsys.readouterr().err
+    assert [c["argv"][1] for c in cloud.calls()].count("exec") == 1
+
+
+def test_bad_branch_name_is_refused(cloud, capsys):
+    assert _run_cloud(cloud, "--branch", "bad..name") == 2
+    assert "not a valid branch name" in capsys.readouterr().err
+    assert cloud.calls() == []
+
+
+def test_apply_uses_recorded_base_commit_when_branch_moved(cloud, tmp_path, capsys):
+    # A bare "origin" so the branch has a real remote tip to record and later move.
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", str(origin))
+    _git(cloud.repo, "remote", "add", "real", str(origin))
+    _git(cloud.repo, "push", "-q", "real", "main")
+    _git(cloud.repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+    _git(cloud.repo, "config", "remote.origin.url", str(origin))  # fetchable; slug comes from the map below
+    _set_cloud_config(f'"{_cloud.parse_remote(str(origin))}" = "env_widgets"\n')
+    base = _git(cloud.repo, "rev-parse", "HEAD")
+
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    assert _jobs.find_job(store, _store.build_job_registry(store), job_id)["base_commit"] == base
+
+    # The branch moves on the remote after the task started.
+    (cloud.repo / "later.txt").write_text("later\n", encoding="utf-8")
+    _git(cloud.repo, "add", "later.txt")
+    _git(cloud.repo, "commit", "-q", "-m", "later")
+    _git(cloud.repo, "push", "-q", "real", "main")
+    _git(cloud.repo, "fetch", "-q", "origin")
+
+    cloud.set_status("status: ready\nok\n")
+    assert cli.main(["apply", job_id, "--db", str(cloud.db), "--json"]) == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert outcome["base"] == base
+    assert _git(Path(outcome["worktree"]), "rev-parse", "HEAD") == base
+    assert outcome["branch_moved_to"] == _git(cloud.repo, "rev-parse", "HEAD")
+
+
+def test_provider_diagnostics_are_redacted(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("oops\n")
+    monkeypatch.setenv("FAKE_CODEX_FAIL", "status")
+    real_run = _cloud.CodexCloud._run
+
+    def leaky(self, *args, **kwargs):
+        if args and args[0] == "status":
+            return 1, "", "401: Authorization: Bearer abcdefghijklmnop0123 rejected (token=sk-live-0123456789abcdef)"
+        return real_run(self, *args, **kwargs)
+
+    monkeypatch.setattr(_cloud.CodexCloud, "_run", leaky)
+    assert cli.main(["status", job_id, "--db", str(cloud.db)]) == 0
+    err = capsys.readouterr().err
+    assert "abcdefghijklmnop0123" not in err and "sk-live-0123456789abcdef" not in err
+    assert "[redacted]" in err
+    store = _store.build_store(cloud.db)
+    stored = json.dumps(_jobs.find_job(store, _store.build_job_registry(store), job_id))
+    assert "abcdefghijklmnop0123" not in stored and "sk-live" not in stored
+
+
+def test_windows_batch_shim_is_never_executed(tmp_path, monkeypatch):
+    shim_dir = tmp_path / "npm"
+    shim_dir.mkdir()
+    shim = shim_dir / "codex.cmd"
+    shim.write_text("@echo off\n", encoding="utf-8")
+    monkeypatch.setenv("CODEX_BIN", str(shim))
+    with pytest.raises(_cloud.CloudError, match="batch shim"):
+        _cloud._codex_argv()
+    script = shim_dir / "node_modules" / "@openai" / "codex" / "bin" / "codex.js"
+    script.parent.mkdir(parents=True)
+    script.write_text("", encoding="utf-8")
+    (shim_dir / "node.exe").write_text("", encoding="utf-8")
+    assert _cloud._codex_argv() == [str(shim_dir / "node.exe"), str(script)]

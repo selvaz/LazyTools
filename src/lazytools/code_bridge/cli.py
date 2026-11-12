@@ -728,6 +728,11 @@ def _cmd_wait(args: argparse.Namespace) -> int:
         if job is None:
             print(f"job {args.job_id}: its record disappeared while waiting", file=sys.stderr)
             return 1
+        errors = int(job.get("poll_errors_in_a_row") or 0)
+        if errors >= _cloud.MAX_CONSECUTIVE_POLL_ERRORS:
+            print(f"job {args.job_id}: {errors} status polls in a row failed; last error: "
+                  f"{job.get('last_poll_error')}", file=sys.stderr)
+            return 1
         print(f"job {args.job_id} still {job.get('status')} after {args.timeout:.0f}s", file=sys.stderr)
         return 3
     deadline = None if args.timeout is None else time.monotonic() + args.timeout
@@ -758,6 +763,10 @@ def _cmd_wait(args: argparse.Namespace) -> int:
             print(f"job {args.job_id} still {status or 'starting'} after {args.timeout:.0f}s", file=sys.stderr)
             return 3
         time.sleep(args.interval)
+
+
+def _cloud_base_branch(outcome: dict[str, Any]) -> str:
+    return str(outcome.get("base_branch") or "<branch>")
 
 
 def _cmd_apply(args: argparse.Namespace) -> int:
@@ -793,6 +802,9 @@ def _cmd_apply(args: argparse.Namespace) -> int:
         print(f"  {line}")
     if outcome["output"]:
         print(outcome["output"])
+    if outcome.get("branch_moved_to"):
+        print(f"note: origin/{_cloud_base_branch(outcome)} has moved to {outcome['branch_moved_to'][:12]} since the task "
+              f"started; the diff was applied onto the task's base {outcome['base'][:12]}, so rebase or merge before pushing")
     print(f"not pushed. Review, commit, then push only after approval: git -C \"{outcome['worktree']}\" push -u origin {outcome['branch']}")
     return 0
 
