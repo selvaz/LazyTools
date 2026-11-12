@@ -268,16 +268,18 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
     sha = str(job.get("land_commit") or "")
     if not sha:
         changed_files = [str(name) for name in job.get("applied_files") or []]
-        status = _cloud._git(wt, "status", "--porcelain", "--untracked-files=all", check=False)
+        status = _cloud._git(wt, "status", "--porcelain", "-z", "--untracked-files=all", check=False)
         unexpected = []
-        for line in status.splitlines():
-            if line.startswith("?? ") and line[3:] not in changed_files:
-                unexpected.append(line[3:])
+        for entry in status.split("\0"):  # -z: unquoted names, so spaces and non-ASCII compare correctly
+            if entry.startswith("?? ") and entry[3:] not in changed_files:
+                unexpected.append(entry[3:])
         if unexpected:
             names = ", ".join(repr(name) for name in unexpected)
             raise CloudError(f"unexpected untracked file(s) remain after cloud apply: {names}; refusing to land")
         if changed_files and status:
             _cloud._git(wt, "add", "--", *changed_files)
+            # Tracked changes only (never untracked files): picks up the source side of a provider-reported rename.
+            _cloud._git(wt, "add", "-u")
         if _cloud._git(wt, "status", "--porcelain", check=False):
             subject, body = commit_message(job)
             message_args = ["-m", subject, *(["-m", body] if body else [])]
@@ -331,6 +333,10 @@ def _land_pushed_branch(store: Any, registry: Any, job: dict[str, Any], *, sourc
     result_branch = source or job.get("result_branch")
     if not result_branch:
         raise CloudError(f"job {job_id[:8]}: no claude/ result branch on origin yet; the session has not pushed one")
+    allowed = {str(x) for x in (job.get("claude_result_branch"), job.get("result_branch")) if x}
+    if str(result_branch) not in allowed:
+        expected = job.get("claude_result_branch") or job.get("result_branch")
+        raise CloudError(f"--source {result_branch!r} does not belong to this job (expected {expected!r})")
     tip = _fetch_branch(root, str(result_branch))  # verifies the branch exists on origin
     base_branch = str(job.get("branch") or "")
     base_commit = str(job.get("base_commit") or "")

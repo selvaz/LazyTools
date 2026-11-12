@@ -59,6 +59,10 @@ FAKE_CODEX = textwrap.dedent(
             sys.exit(1)
     elif verb == "diff" and os.environ.get("FAKE_CODEX_DIFF"):
         print(Path(os.environ["FAKE_CODEX_DIFF"]).read_text(encoding="utf-8"), end="")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "space":
+        print("diff --git a/with space.txt b/with space.txt")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "rename":
+        print("diff --git a/README.md b/RENAMED.md")
     elif verb == "diff":
         print("diff --git a/cloud_change.txt b/cloud_change.txt")
         print("new file mode 100644")
@@ -67,7 +71,12 @@ FAKE_CODEX = textwrap.dedent(
         print("@@ -0,0 +1 @@")
         print("+applied by cloud")
     elif verb == "apply":
-        if not os.environ.get("FAKE_CODEX_NOCHANGE"):
+        shape = os.environ.get("FAKE_CODEX_SHAPE")
+        if shape == "space":
+            Path("with space.txt").write_text("spaced\\n", encoding="utf-8")
+        elif shape == "rename":
+            Path("README.md").rename("RENAMED.md")
+        elif not os.environ.get("FAKE_CODEX_NOCHANGE"):
             Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
         if os.environ.get("FAKE_CODEX_ERROR_LOG"):
             Path("error.log").write_text("account_id=acct-secret\\n", encoding="utf-8")

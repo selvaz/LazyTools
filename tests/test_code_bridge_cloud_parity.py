@@ -320,6 +320,34 @@ def test_land_discards_codex_error_log_and_stages_only_provider_diff(cloud, gh, 
     assert "error.log" not in _git(cloud.repo, "ls-tree", "-r", "--name-only", outcome["pushed_sha"]).splitlines()
 
 
+def test_land_handles_file_names_with_spaces(cloud, gh, capsys, monkeypatch):
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "space")
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines() == ["with space.txt"]
+
+
+def test_land_stages_both_sides_of_a_rename(cloud, gh, capsys, monkeypatch):
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "rename")
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    tree = _git(cloud.repo, "ls-tree", "-r", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert "RENAMED.md" in tree and "README.md" not in tree
+
+
+def test_claude_land_refuses_a_source_that_is_not_the_jobs_branch(cloud, claude, gh, capsys):
+    job_id = _claude_submit(cloud, capsys, "--open-pr")
+    claude.push(_job(cloud, job_id)["claude_result_branch"], {"mine.txt": "x\n"})
+    claude.push("claude/unrelated", {"other.txt": "x\n"})
+    assert _main(cloud, "apply", job_id, "--land", "--source", "claude/unrelated") == 1
+    assert "does not belong to this job" in capsys.readouterr().err
+    assert gh.calls("pr", "create") == []
+
+
 def test_land_refuses_an_unexpected_untracked_file(cloud, gh, capsys, monkeypatch):
     monkeypatch.setenv("FAKE_CODEX_UNEXPECTED", "1")
     job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
