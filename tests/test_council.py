@@ -222,7 +222,8 @@ def test_news_preset_wires_reasoning_and_shared_tools(
     ]
     assert council._members[0].engine.thinking is False
     assert council._members[1].engine.thinking is False
-    assert council._members[2].engine.model == "haiku"
+    # ClaudeCodeEngine resolves the alias to the full id (e.g. claude-haiku-5-5).
+    assert "haiku" in council._members[2].engine.model
     assert council._members[2].engine.thinking == {"type": "disabled"}
     assert council._members[2].engine.web is True
     assert council._members[3].engine.thinking == "max"
@@ -234,3 +235,45 @@ def test_news_preset_wires_reasoning_and_shared_tools(
     assert all("web_search" in member._tool_map for member in council._members)
     assert "web_search" in council._moderator._tool_map
     assert "web_search" in council._synthesiser._tool_map
+
+
+class _StopRun(Exception):
+    pass
+
+
+def test_council_charter_reaches_opening_positions_and_debate_protocol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every member sees the independence charter: in the opening-position
+    prompt and in the protocol source attached to each debater."""
+    from lazytools.skills import council as council_module
+
+    prompts: list[str] = []
+
+    def fake_parallel(*agents, **kwargs):
+        return lambda prompt: prompts.append(prompt) or "stub"
+
+    monkeypatch.setattr(council_module.Agent, "parallel", staticmethod(fake_parallel))
+    monkeypatch.setattr(WizengAImot, "_result_text", staticmethod(lambda result, stage: "stub"))
+    original_derive = WizengAImot._derive
+    protocols: list[str] = []
+
+    def spy_derive(self, agent, *, tools=None, **overrides):
+        sources = overrides.get("sources")
+        if sources is not None:
+            protocols.extend(s for s in sources if isinstance(s, str))
+            raise _StopRun
+        return original_derive(self, agent, tools=tools, **overrides)
+
+    monkeypatch.setattr(WizengAImot, "_derive", spy_derive)
+    council = WizengAImot("Should we ship?")
+    council.add(_agent("optimist")).add(_agent("critic"))
+
+    with pytest.raises(_StopRun):
+        council.run()
+
+    charter = council_module.INDEPENDENCE_CHARTER
+    assert "full and equal member" in charter and "I concede X" in charter
+    opening = [p for p in prompts if "opening position" in p]
+    assert opening and charter in opening[0]
+    assert protocols and charter in protocols[0]
