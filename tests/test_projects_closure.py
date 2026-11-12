@@ -325,10 +325,28 @@ def test_accepted_but_unclosed_verification_is_reused():
         diff_summary=None,
     )
     verification.record_review(store, job, reviewer="r", findings="fine")
-    assert verification.accept(store, job, reviewer="r", reason="ok")
+    assert verification.accept(store, job, reviewer="a", reason="ok")
     result = _close(store, PASSING)
     assert result.startswith("task 0 marked done") and f"reused accepted verification {job!r}" in result
     assert len(_verifications(store)) == 1
+
+
+def test_self_approved_accepted_verification_is_not_reused():
+    store = Store()
+    contract = _setup(store)
+    job = "self-approved"
+    verification.claim_verification(store, contract_id=contract.contract_id, job_id=job)
+    verification.start_running(store, job)
+    verification.record_checks(
+        store, job, checks=[verification.CheckResult(command=c, exit_code=0, output_tail="ok") for c in (PYTEST, RUFF)],
+        diff_summary=None,
+    )
+    verification.record_review(store, job, reviewer="r", findings="fine")
+    assert verification.accept(store, job, reviewer=" R ", reason="ok")
+    before = store.read(BOARD_KEY)
+    result = _close(store, PASSING)
+    assert result.startswith("REJECTED:") and "reviewed and accepted by the same identity" in result
+    assert store.read(BOARD_KEY) == before
 
 
 def test_accept_refusal_after_claim_leaves_no_live_verification(monkeypatch):

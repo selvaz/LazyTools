@@ -350,6 +350,11 @@ def close_task_with_evidence(
                 f"REJECTED: accepted verification {latest.verification_id!r} was reviewed or accepted by the worker "
                 f"{worker_identity!r} -- block it and close with an independent review."
             )
+        if latest.review is not None and _same(latest.review.reviewer, latest.reviewer):
+            return (
+                f"REJECTED: accepted verification {latest.verification_id!r} was reviewed and accepted by the same "
+                f"identity {latest.reviewer!r} -- block it and close with an independent review."
+            )
         result = close_accepted_task(store, project_id, task_index, latest.verification_id)
         return result if result.startswith("REJECTED") else f"{result} (reused accepted verification {latest.verification_id!r})"
     if latest is not None and latest.status in ("pending", "running"):
