@@ -8,12 +8,12 @@ heavy runs locally, and no local process stays alive for the job.
 
 Providers
 ---------
-Each cloud engine is a :class:`CloudProvider`. Only Codex Cloud is implemented
-(:class:`CodexCloud`, driving the official ``codex cloud`` CLI). Claude cloud
-routines are an explicit extension point (:class:`ClaudeRoutines`): it is
-registered so ``--where cloud --engine claude`` fails with a pointer to the
-docs rather than an argparse error, but every method raises
-:class:`CloudNotImplemented`. See ``docs/code-bridge.md`` ("Cloud jobs").
+Each cloud engine is a :class:`CloudProvider`. Codex Cloud
+(:class:`CodexCloud`) drives the official ``codex cloud`` CLI. Claude Code
+cloud sessions (``_cloud_claude.ClaudeCloud``) use ``claude --cloud`` or a
+routine's fire endpoint; Claude has no status API, so its status and result
+come from the ``claude/...`` branch the session pushes. See
+``docs/code-bridge.md`` ("Cloud jobs") and ``docs/code-bridge-cloud-setup.md``.
 
 Configuration (``~/.lazytools/code-bridge.toml``, same file as ``[concurrency]``)::
 
@@ -22,6 +22,10 @@ Configuration (``~/.lazytools/code-bridge.toml``, same file as ``[concurrency]``
 
     [cloud.codex.envs]
     "selvaz/LazyTools" = "env_0123abcd"   # git remote 'owner/name' -> Codex Cloud env id
+
+    [cloud.claude.routines.nightly]       # optional: fire a claude.ai routine instead of `claude --cloud`
+    id = "trig_0123"
+    token_env = "LAZYTOOLS_ROUTINE_NIGHTLY_TOKEN"   # the env var NAME; tokens never go in this file
 
 Concurrency
 -----------
@@ -102,6 +106,11 @@ _PROSE_INTENTS: dict[str, re.Pattern[str]] = {
     ),
 }
 _ENV_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
+_ROUTINE_NAME_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+_ROUTINE_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
+_ENV_VAR_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
+#: Keys allowed under ``[cloud.<provider>]``.
+_PROVIDER_KEYS: dict[str, frozenset[str]] = {"codex": frozenset({"envs"}), "claude": frozenset({"routines"})}
 
 _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}"),
@@ -201,6 +210,8 @@ class CloudConfig:
     concurrency: int | None = DEFAULT_CLOUD_CONCURRENCY
     #: provider -> {"owner/name": env id}
     envs: dict[str, dict[str, str]] = field(default_factory=dict)
+    #: routine name -> {"id": routine id, "token_env": env var holding its bearer token}
+    routines: dict[str, dict[str, str]] = field(default_factory=dict)
     path: Path | None = None
 
 
@@ -219,6 +230,7 @@ def load_config(path: Path | None = None) -> CloudConfig:
         raise ValueError(f"{path}: [cloud] must be a table")
     concurrency: int | None = DEFAULT_CLOUD_CONCURRENCY
     envs: dict[str, dict[str, str]] = {}
+    routines: dict[str, dict[str, str]] = {}
     for key, value in table.items():
         if key == "concurrency":
             if type(value) is not int or value < 0:
@@ -227,9 +239,17 @@ def load_config(path: Path | None = None) -> CloudConfig:
         elif key in PROVIDERS:
             if not isinstance(value, dict):
                 raise ValueError(f"{path}: [cloud.{key}] must be a table")
-            unknown = value.keys() - {"envs"}
+            unknown = value.keys() - _PROVIDER_KEYS[key]
+            if key == "claude" and "envs" in unknown:
+                raise ValueError(
+                    f"{path}: [cloud.claude.envs] is not supported: `claude --cloud` has no environment flag; "
+                    "choose the default cloud environment at claude.ai/code (see docs/code-bridge-cloud-setup.md)"
+                )
             if unknown:
                 raise ValueError(f"{path}: [cloud.{key}] has unknown keys: {sorted(unknown)}")
+            if key == "claude":
+                routines = _load_routines(value.get("routines", {}), path)
+                continue
             mapping = value.get("envs", {})
             if not isinstance(mapping, dict):
                 raise ValueError(f"{path}: [cloud.{key}.envs] must be a table of \"owner/name\" = \"env id\"")
@@ -243,7 +263,35 @@ def load_config(path: Path | None = None) -> CloudConfig:
             raise ValueError(
                 f"{path}: [cloud] names unknown key {key!r} (one of concurrency, {', '.join(sorted(PROVIDERS))})"
             )
-    return CloudConfig(concurrency=concurrency, envs=envs, path=path)
+    return CloudConfig(concurrency=concurrency, envs=envs, routines=routines, path=path)
+
+
+def _load_routines(table: Any, path: Path) -> dict[str, dict[str, str]]:
+    """Validate ``[cloud.claude.routines]``: name -> {id, token_env}; a literal token is refused."""
+    if not isinstance(table, dict):
+        raise ValueError(f"{path}: [cloud.claude.routines] must be a table of name = {{ id, token_env }}")
+    routines: dict[str, dict[str, str]] = {}
+    for name, entry in table.items():
+        where = f"{path}: [cloud.claude.routines.{name}]"
+        if not _ROUTINE_NAME_RE.fullmatch(name):
+            raise ValueError(f"{where}: routine names may use letters, digits, '_', '.', '-' only")
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where} must be a table with id and token_env")
+        if "token" in entry or "bearer" in entry:
+            raise ValueError(
+                f"{where}: never store the token in the config; put it in an environment variable and set "
+                "token_env to that variable's NAME"
+            )
+        unknown = entry.keys() - {"id", "token_env"}
+        if unknown:
+            raise ValueError(f"{where} has unknown keys: {sorted(unknown)} (only id, token_env)")
+        routine_id, token_env = entry.get("id"), entry.get("token_env")
+        if not isinstance(routine_id, str) or not _ROUTINE_ID_RE.fullmatch(routine_id):
+            raise ValueError(f"{where}: id must be the routine id (letters, digits, '_', '-'), e.g. \"trig_...\"")
+        if not isinstance(token_env, str) or not _ENV_VAR_RE.fullmatch(token_env):
+            raise ValueError(f"{where}: token_env must be an environment variable NAME, e.g. LAZYTOOLS_ROUTINE_TOKEN")
+        routines[name] = {"id": routine_id, "token_env": token_env}
+    return routines
 
 
 # --------------------------------------------------------------------------- #
@@ -328,6 +376,8 @@ class CloudStatus:
     raw_status: str
     message: str
     raw: str
+    #: provider-specific fields merged into the job record (e.g. Claude's result branch)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 def parse_status(text: str) -> CloudStatus:
@@ -430,6 +480,8 @@ class Submission:
     url: str | None
     env_id: str
     raw: str
+    #: provider-specific fields stored on the job record at submit
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 class CloudProvider(Protocol):
@@ -441,9 +493,9 @@ class CloudProvider(Protocol):
 
     name: str
 
-    def env_for(self, repo: str, config: CloudConfig) -> str: ...
+    def env_for(self, repo: str, config: CloudConfig, routine: str | None = None) -> str: ...
 
-    def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str) -> Submission: ...
+    def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str, **context: Any) -> Submission: ...
 
     def status(self, handle: str) -> CloudStatus: ...
 
@@ -485,7 +537,9 @@ class CodexCloud:
 
     name = "codex"
 
-    def env_for(self, repo: str, config: CloudConfig) -> str:
+    def env_for(self, repo: str, config: CloudConfig, routine: str | None = None) -> str:
+        if routine is not None:
+            raise CloudError("--routine is only for --engine claude (claude.ai routines)")
         env_id = config.envs.get(self.name, {}).get(repo.lower())
         if not env_id:
             path = config.path or _concurrency.config_path()
@@ -514,7 +568,7 @@ class CodexCloud:
             raise CloudError(f"codex cloud {args[0]} exited {proc.returncode}: {detail[:2000]}")
         return proc.returncode, proc.stdout, proc.stderr
 
-    def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str) -> Submission:
+    def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str, **_: Any) -> Submission:
         _, out, _ = self._run("exec", "--env", env_id, "--branch", branch, prompt, cwd=repo_dir)
         handle, url = parse_submit(out)
         return Submission(handle=url or handle, url=url, env_id=env_id, raw=redact(out))
@@ -545,41 +599,13 @@ class CodexCloud:
         return redact(self._run("apply", handle, cwd=worktree)[1])
 
 
-class ClaudeRoutines:
-    """Extension point: Claude cloud routines (claude.ai routines API). Not implemented.
+def _claude_provider() -> CloudProvider:
+    from lazytools.code_bridge._cloud_claude import ClaudeCloud
 
-    An implementation would create a one-shot routine on a claude.ai cloud
-    environment for the repository, with the brief as its prompt, store the
-    returned session id as the handle, poll the session for its terminal
-    state, read the branch it pushed as the "diff", and fetch that branch into
-    the apply worktree. Register it in :data:`PROVIDERS` by replacing this class.
-    """
-
-    name = "claude"
-
-    def _refuse(self) -> CloudNotImplemented:
-        return CloudNotImplemented(
-            "cloud jobs for --engine claude (claude.ai routines) are not implemented yet; "
-            "use --where cloud --engine codex, or run Claude locally. See docs/code-bridge.md, 'Cloud jobs'."
-        )
-
-    def env_for(self, repo: str, config: CloudConfig) -> str:
-        raise self._refuse()
-
-    def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str) -> Submission:
-        raise self._refuse()
-
-    def status(self, handle: str) -> CloudStatus:
-        raise self._refuse()
-
-    def diff(self, handle: str) -> str:
-        raise self._refuse()
-
-    def apply(self, handle: str, *, worktree: Path) -> str:
-        raise self._refuse()
+    return ClaudeCloud()
 
 
-PROVIDERS: dict[str, type] = {"codex": CodexCloud, "claude": ClaudeRoutines}
+PROVIDERS: dict[str, Any] = {"codex": CodexCloud, "claude": _claude_provider}
 
 
 def provider(engine: str) -> CloudProvider:
@@ -677,12 +703,18 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     job_id = str(job["job_id"])
     poll_error: str | None = None
     try:
-        state = provider(str(job.get("engine"))).status(str(job["cloud_handle"]))
+        prov = provider(str(job.get("engine")))
+        job_status = getattr(prov, "job_status", None)
+        if job_status is not None:
+            # No status API (Claude): the provider reads the job's result from git.
+            state = job_status(job, claimed=_claimed_result_branches(store, job_id))
+        else:
+            state = prov.status(str(job["cloud_handle"]))
     except CloudError as exc:
         poll_error = redact(str(exc))
     else:
         if not state.raw_status:
-            poll_error = "codex cloud status printed no recognisable status: " + redact(state.raw.strip())[:500]
+            poll_error = "cloud status printed no recognisable status: " + redact(state.raw.strip())[:500]
     if poll_error is not None:
         errors = int(job.get("poll_errors_in_a_row") or 0) + 1
         updates = {"last_poll_error": poll_error, "last_polled_at": time.time(), "poll_errors_in_a_row": errors}
@@ -698,6 +730,7 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
         "last_polled_at": time.time(),
         "last_poll_error": None,
         "poll_errors_in_a_row": 0,
+        **state.extra,
     }
     if state.status == "done":
         _write_unless_terminal(store, registry, job_id, updates, status="done",
@@ -708,6 +741,19 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     else:
         _write_unless_terminal(store, registry, job_id, updates, status="running")
     return _merged(store, registry, job_id)
+
+
+def _claimed_result_branches(store: Any, job_id: str) -> set[str]:
+    """Result branches already attributed to OTHER cloud jobs (so two Claude jobs never share one)."""
+    claimed = set()
+    for job in _store.all_job_records(store):
+        other = str(job.get("job_id", ""))
+        if other == job_id or job.get("where") != WHERE_CLOUD:
+            continue
+        branch = (_store.read_meta(store, other) or {}).get("result_branch")
+        if branch:
+            claimed.add(str(branch))
+    return claimed
 
 
 def _merged(store: Any, registry: Any, job_id: str) -> dict[str, Any]:
@@ -764,6 +810,7 @@ def submit_job(
     job_id: str | None = None,
     config: CloudConfig | None = None,
     approvals: tuple[str, ...] | list[str] = (),
+    routine: str | None = None,
 ) -> dict[str, Any]:
     """Submit ``task`` to the cloud provider for ``engine``; return the job record.
 
@@ -792,7 +839,7 @@ def submit_job(
     prov = provider(engine)
     root = repo_root(cwd)
     repo = repo_slug(root)
-    env_id = prov.env_for(repo, config)
+    env_id = prov.env_for(repo, config, routine)
     if not _ENV_ID_RE.fullmatch(env_id):
         raise CloudError(f"env id {env_id!r} for {repo} has unexpected characters")
     branch = branch or current_branch(root)
@@ -821,16 +868,24 @@ def submit_job(
         "created_at": time.time(),
         "cloud_handle": None,
     }
+    if engine == "claude":
+        from lazytools.code_bridge._cloud_claude import ENV_NOTE, named_branch
+
+        meta["named_result_branch"] = named_branch(task)
+        if routine is None:
+            meta["environment_note"] = ENV_NOTE
     _admit(store, registry, config, job_id, meta)
     try:
-        sub = prov.submit(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task)
+        sub = prov.submit(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task,
+                          job_id=job_id, db_path=db_path, routine=routine, config=config)
     except BaseException as exc:
         _write(store, registry, job_id, meta, status="failed", error=redact(f"cloud submit failed: {exc}"))
         raise
     # Cancelled while `codex cloud exec` ran: keep "interrupted", but still
     # record the handle so the operator can find and stop the remote task.
     _write_unless_terminal(
-        store, registry, job_id, {"cloud_handle": sub.handle, "cloud_url": sub.url, "submitted_at": time.time()},
+        store, registry, job_id,
+        {**sub.extra, "cloud_handle": sub.handle, "cloud_url": sub.url, "submitted_at": time.time()},
         status="running",
     )
     return _merged(store, registry, job_id)
@@ -844,7 +899,12 @@ def result_text(job: dict[str, Any]) -> str:
         parts.append(str(message).strip())
     if job.get("cloud_handle"):
         try:
-            parts.append(summarize_diff(provider(str(job["engine"])).diff(str(job["cloud_handle"]))).text())
+            prov = provider(str(job["engine"]))
+            job_diff = getattr(prov, "job_diff", None)
+            diff = job_diff(job) if job_diff is not None else prov.diff(str(job["cloud_handle"]))
+            if job.get("result_branch"):
+                parts.append(f"result branch: {job['result_branch']} (fetched from origin)")
+            parts.append(summarize_diff(diff).text())
         except CloudError as exc:
             parts.append(f"diff: unavailable ({exc})")
     return redact("\n".join(parts))
@@ -863,6 +923,7 @@ def apply_job(
     branch: str | None = None,
     worktree: Path | None = None,
     rebase: bool = False,
+    source: str | None = None,
 ) -> dict[str, Any]:
     """Apply a finished cloud task in a NEW git worktree on a NEW branch.
 
@@ -895,6 +956,11 @@ def apply_job(
         worktree = worktree.expanduser().resolve()
     if worktree.exists():
         raise CloudError(f"{worktree} already exists: remove it or pass --worktree")
+    prov = provider(str(job["engine"]))
+    if hasattr(prov, "apply_job"):
+        return _apply_from_branch(store, registry, prov, job, worktree=worktree, branch=branch, source=source)
+    if source is not None:
+        raise CloudError("--source is only for Claude cloud jobs (their result is a claude/ branch)")
     base_branch = str(job.get("branch") or "HEAD")
     base_commit = str(job.get("base_commit") or "")
     if not base_commit:
@@ -945,6 +1011,29 @@ def apply_job(
         "pushed": False,
         "rebased_from": rebased_from,
         "base_branch": base_branch,
+    }
+
+
+def _apply_from_branch(store: Any, registry: Any, prov: Any, job: dict[str, Any], *, worktree: Path, branch: str,
+                       source: str | None) -> dict[str, Any]:
+    """Apply a job whose result is a pushed branch (Claude): check it out in a new worktree; never push."""
+    job_id = str(job["job_id"])
+    outcome = prov.apply_job(store, registry, job, worktree=worktree, branch=branch, source=source)
+    meta = _store.read_meta(store, job_id) or {}
+    meta.update(applied_worktree=str(worktree), applied_branch=branch, applied_base=outcome["base"],
+                applied_source_branch=outcome["source_branch"], applied_at=time.time())
+    _write(store, registry, job_id, meta, status=str(job["status"]), result=job.get("result"), error=job.get("error"))
+    return {
+        "job_id": job_id,
+        "worktree": str(worktree),
+        "branch": branch,
+        "base": outcome["base"],
+        "source_branch": outcome["source_branch"],
+        "changed": [],
+        "output": redact(outcome.get("output") or ""),
+        "pushed": False,
+        "rebased_from": None,
+        "base_branch": job.get("branch"),
     }
 
 
@@ -1002,7 +1091,6 @@ __all__ = [
     "PROVIDERS",
     "WHERE_CLOUD",
     "WHERE_LOCAL",
-    "ClaudeRoutines",
     "CloudBusy",
     "CloudConfig",
     "CloudError",
