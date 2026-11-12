@@ -253,6 +253,8 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             )
         if args.engine is None:
             raise ValueError("--where cloud requires an explicit --engine (quota routing is local-only)")
+        if args.routine and args.engine != "claude":
+            raise ValueError("--routine is only for --where cloud --engine claude")
         used = [flag for name, flag in _CLOUD_INCOMPATIBLE if getattr(args, name, None) not in (None, False)]
         if used:
             raise ValueError(f"--where cloud does not take {', '.join(used)}")
@@ -271,7 +273,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
     try:
         job = _cloud.submit_job(
             engine=args.engine, cwd=cwd, task=task, branch=args.branch, db_path=_db_path(args), job_id=args.job_id,
-            approvals=tuple(args.approve_cloud or ()),
+            approvals=tuple(args.approve_cloud or ()), routine=args.routine,
         )
     except (_cloud.CloudError, ValueError) as exc:
         _cloud_print(f"error: {exc}", err=True)
@@ -284,6 +286,11 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         _cloud_print(f"cloud: {job['engine']} task {job.get('cloud_url') or job.get('cloud_handle')} "
               f"(repo {job['repo']}, branch {job['branch']}, env {job['env_id']})")
         db_flag = f' --db "{args.db}"' if args.db else ""
+        if job.get("engine") == "claude":
+            if job.get("environment_note"):
+                _cloud_print(f"note: {job['environment_note']}")
+            _cloud_print("note: Claude cloud sessions have no status API; the bridge watches origin for the "
+                         "claude/ branch the session pushes")
         _cloud_print(f"wait for it with: lazytools-code-bridge wait {job['job_id']}{db_flag}")
     return 0
 
@@ -291,7 +298,8 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
 def _cmd_run(args: argparse.Namespace) -> int:
     if getattr(args, "where", "local") == _cloud.WHERE_CLOUD:
         return _cmd_run_cloud(args)
-    for name, flag in (("branch", "--branch"), ("allow_cloud", "--allow-cloud"), ("approve_cloud", "--approve-cloud")):
+    for name, flag in (("branch", "--branch"), ("allow_cloud", "--allow-cloud"), ("approve_cloud", "--approve-cloud"),
+                       ("routine", "--routine")):
         if getattr(args, name, None):
             print(f"error: {flag} is only for --where cloud", file=sys.stderr)
             return 2
@@ -790,6 +798,24 @@ def _cloud_base_branch(outcome: dict[str, Any]) -> str:
     return str(outcome.get("base_branch") or "<branch>")
 
 
+def _cmd_setup_skill(args: argparse.Namespace) -> int:
+    """Print (or install) the bundled agent skill that walks a user through cloud setup."""
+    from lazytools.skills.agent_skills import agent_skill_path, install_agent_skill
+
+    name = "code-bridge-cloud-setup"
+    if args.install is None:
+        print(agent_skill_path(name))
+        return 0
+    try:
+        target = install_agent_skill(name, Path(args.install) if args.install else None, overwrite=args.force)
+    except FileExistsError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"installed {target}")
+    print('ask your assistant: "set up lazytools-code-bridge cloud jobs" (Claude Code picks the skill up by name)')
+    return 0
+
+
 def _cmd_apply(args: argparse.Namespace) -> int:
     """Apply a finished cloud task in a fresh worktree/branch; never pushes."""
     db_path = _db_path(args)
@@ -812,6 +838,7 @@ def _cmd_apply(args: argparse.Namespace) -> int:
             branch=args.branch,
             worktree=Path(args.worktree) if args.worktree else None,
             rebase=args.rebase,
+            source=args.source,
         )
     except _cloud.CloudError as exc:
         _cloud_print(f"error: {exc}", err=True)
@@ -819,7 +846,8 @@ def _cmd_apply(args: argparse.Namespace) -> int:
     if args.json:
         _cloud_json(outcome)
         return 0
-    _cloud_print(f"applied cloud job {outcome['job_id']} in {outcome['worktree']} (branch {outcome['branch']}, from {outcome['base']})")
+    origin = f"{outcome['source_branch']} @ {outcome['base']}" if outcome.get("source_branch") else outcome["base"]
+    _cloud_print(f"applied cloud job {outcome['job_id']} in {outcome['worktree']} (branch {outcome['branch']}, from {origin})")
     for line in outcome["changed"]:
         _cloud_print(f"  {line}")
     if outcome["output"]:
@@ -1046,10 +1074,17 @@ def build_parser() -> argparse.ArgumentParser:
         choices=[_cloud.WHERE_LOCAL, _cloud.WHERE_CLOUD],
         default=_cloud.WHERE_LOCAL,
         help="local (default): run the engine on this machine. cloud: submit the brief to the engine's cloud "
-        "agent (Codex Cloud) and return at once; uses no local engine slot and cannot read local data.",
+        "agent (Codex Cloud, or a Claude Code cloud session) and return at once; uses no local engine slot and "
+        "cannot read local data. Setup: docs/code-bridge-cloud-setup.md.",
     )
     run_p.add_argument(
         "--branch", default=None, help="--where cloud only: remote branch the cloud agent starts from (default: current)."
+    )
+    run_p.add_argument(
+        "--routine",
+        default=None,
+        help="--where cloud --engine claude only: fire this [cloud.claude.routines] entry (its API trigger token is "
+        "read from the env var the config names) instead of running `claude --cloud`.",
     )
     run_p.add_argument(
         "--allow-cloud",
@@ -1189,9 +1224,29 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Apply onto the branch's current head even if it moved since the task was submitted (refused otherwise).",
     )
+    apply_p.add_argument(
+        "--source",
+        default=None,
+        help="Claude cloud jobs only: the claude/ branch to check out when several new ones were found.",
+    )
     apply_p.add_argument("--json", action="store_true")
     _add_db_option(apply_p)
     apply_p.set_defaults(func=_cmd_apply)
+
+    skill_p = sub.add_parser(
+        "setup-skill",
+        help="Print the path of the agent skill (SKILL.md) that guides an LLM through cloud setup, or install it.",
+    )
+    skill_p.add_argument(
+        "--install",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="DIR",
+        help="Copy it to DIR/code-bridge-cloud-setup/SKILL.md (default DIR: ~/.claude/skills).",
+    )
+    skill_p.add_argument("--force", action="store_true", help="Replace an existing installed copy.")
+    skill_p.set_defaults(func=_cmd_setup_skill)
 
     pending_p = sub.add_parser("pending", help="List open approval tickets.")
     pending_p.add_argument("--json", action="store_true")
