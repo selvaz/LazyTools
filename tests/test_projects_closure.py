@@ -33,6 +33,7 @@ def _close(store, checks, **kwargs):
     kwargs.setdefault("review", "Read the diff; no issues.")
     kwargs.setdefault("reason", "checks and review pass")
     kwargs.setdefault("reviewer", "operator")
+    kwargs.setdefault("review_by", "codex")
     return closure.close_task_with_evidence(store, "alpha", 0, checks=checks, **kwargs)
 
 
@@ -51,6 +52,8 @@ def test_happy_path_closes_the_task_through_accept():
     assert raw["job_id"].startswith("manual-alpha-0-")
     assert [c["command"] for c in raw["checks"]] == [PYTEST, RUFF]
     assert raw["review"]["findings"] == "Read the diff; no issues."
+    # The review is attributed to its author, the acceptance to the acceptor.
+    assert raw["review"]["reviewer"] == "codex" and raw["reviewer"] == "operator"
     events = store.read(BOARD_KEY)["plan_events"]
     assert events[-1]["event"] == "closed_accepted" and events[-1]["verification_id"] == raw["verification_id"]
     assert records.get_project(store, "alpha").last_progress_at is not None
@@ -106,6 +109,52 @@ def test_waived_review_records_not_performed_review_honestly():
     assert _close(store, PASSING, review="REVIEW NOT PERFORMED: waived").startswith("task 0 marked done")
     (raw,) = _verifications(store)
     assert raw["review"]["performed"] is False
+
+
+@pytest.mark.parametrize("review_by", [None, "  ", "operator", " Operator "])
+def test_required_review_needs_an_author_other_than_the_acceptor(review_by):
+    store = Store()
+    _setup(store)
+    result = _close(store, PASSING, review_by=review_by)
+    assert result.startswith("REJECTED:") and "review_by" in result, result
+    assert _verifications(store) == []
+
+
+def test_reuse_of_accepted_verification_still_validates_current_evidence():
+    store = Store()
+    contract = _setup(store)
+    job = "accepted-earlier"
+    verification.claim_verification(store, contract_id=contract.contract_id, job_id=job)
+    verification.start_running(store, job)
+    verification.record_checks(
+        store, job, checks=[verification.CheckResult(command=c, exit_code=0, output_tail="ok") for c in (PYTEST, RUFF)],
+        diff_summary=None,
+    )
+    verification.record_review(store, job, reviewer="r", findings="fine")
+    assert verification.accept(store, job, reviewer="a", reason="ok")
+    before = store.read(BOARD_KEY)
+    failing = [(PYTEST, False, "3 failed"), (RUFF, True, "ok")]
+    assert _close(store, failing).startswith("REJECTED: check(s) did not pass")
+    assert _close(store, PASSING, review="REVIEW NOT PERFORMED").startswith("REJECTED:")
+    assert store.read(BOARD_KEY) == before
+
+
+def test_cleanup_retries_a_lost_terminal_transition(monkeypatch):
+    store = Store()
+    _setup(store)
+    monkeypatch.setattr(verification, "record_checks", lambda *a, **k: None)
+    real_block = verification.block
+    calls = []
+
+    def flaky_block(*args, **kwargs):
+        calls.append(1)
+        return None if len(calls) == 1 else real_block(*args, **kwargs)
+
+    monkeypatch.setattr(verification, "block", flaky_block)
+    result = _close(store, PASSING)
+    assert result.startswith("REJECTED:") and "recorded as blocked" in result
+    (raw,) = _verifications(store)
+    assert raw["status"] == "blocked" and len(calls) == 2
 
 
 def test_waived_review_closes_without_review():
@@ -243,7 +292,7 @@ def test_cli_closes_task_end_to_end(tmp_path, capsys):
     db = str(tmp_path / "store.sqlite")
     _setup(Store(db=db))
     argv = ["close-task", "alpha", "0", "--check", f"{PYTEST}=pass:ok", "--check", f"{RUFF}=pass",
-            "--review", "fine", "--reason", "evidence", "--reviewer", "me", "--db", db]
+            "--review", "fine", "--review-by", "codex", "--reason", "evidence", "--reviewer", "me", "--db", db]
     assert main(argv) == 0
     assert "task 0 marked done" in capsys.readouterr().out
     assert main(argv) == 0
@@ -279,6 +328,7 @@ def test_mcp_close_task_is_write_gated_and_closes(tmp_path):
     assert "projects_close_task" in {t.name for t in pt.as_tools()}
     assert pt.projects_close_task("alpha", 0, [{"command": PYTEST}], "r", "me").startswith("REJECTED: checks[0]")
     result = pt.projects_close_task(
-        "alpha", 0, [{"command": PYTEST, "passed": True, "detail": "ok"}, f"{RUFF}=pass"], "evidence", "me", review="fine"
+        "alpha", 0, [{"command": PYTEST, "passed": True, "detail": "ok"}, f"{RUFF}=pass"], "evidence", "me", review="fine",
+        review_by="codex",
     )
     assert result.startswith("task 0 marked done"), result

@@ -5,8 +5,8 @@ Currently one subcommand::
     lazytools-projects close-task <project_id> <task_index> \\
         --check "python -m pytest tests -q=pass:412 passed" \\
         --check "ruff check src=pass" \\
-        --review "Read the diff; no issues." --reason "Checks and review pass" \\
-        --reviewer claude --db <store.sqlite>
+        --review "Read the diff; no issues." --review-by codex \\
+        --reason "Checks and review pass" --reviewer claude --db <store.sqlite>
 
 ``--check`` is ``COMMAND=pass|fail[:DETAIL]`` and repeatable; COMMAND must be a
 contract ``required_check`` string exactly. The Store is ``--db``, else
@@ -64,6 +64,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="One check's result; repeat for each contract required_check.",
     )
     close.add_argument("--review", default="", help="The independent review's findings.")
+    close.add_argument(
+        "--review-by", default=None, help="Who performed the review (required when the contract requires review; not --reviewer)."
+    )
     close.add_argument("--reason", required=True, help="Why this evidence is enough to close the task.")
     close.add_argument("--reviewer", required=True, help="Who is accepting.")
     close.add_argument("--db", default=None, help=f"Store path (default: ${_ENV_STORE_DB}, then ${CEO_STORE_DB_ENV}).")
@@ -95,6 +98,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         review=args.review,
         reason=args.reason,
         reviewer=args.reviewer,
+        review_by=args.review_by,
     )
     refused = result.startswith("REJECTED")
     print(result, file=sys.stderr if refused else sys.stdout)

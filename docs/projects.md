@@ -210,18 +210,21 @@ require the `full` profile and write access.
 
 For a task whose checks and review you already have in hand, one call does the
 whole sequence: `closure.close_task_with_evidence(store, project_id, task_index,
-checks=[(command, passed, detail), ...], review=..., reason=..., reviewer=...)`,
+checks=[(command, passed, detail), ...], review=..., review_by=..., reason=..., reviewer=...)`,
 the MCP tool `projects_close_task` (core profile, write access), or
 
 ```
 lazytools-projects close-task <project_id> <task_index> \
     --check "<required check>=pass:<output tail>" --review "<findings>" \
-    --reason "<why>" --reviewer <who> --db <store.sqlite>
+    --review-by <who reviewed> --reason "<why>" --reviewer <who accepts> --db <store.sqlite>
 ```
 
 It refuses before writing anything when a required check is missing (listing
 the exact command strings the contract expects), a check failed, or a required
-review is absent; an already-done task is a no-op.
+review is absent, or the review's author (`review_by`) is missing or is the
+acceptor (`reviewer`) itself; an already-done task is a no-op. The checks and
+review are caller-attested -- nothing is executed -- so write access to the
+store is the real gate on who may close a task this way.
 
 ## Contracts and verification
 

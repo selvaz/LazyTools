@@ -39,7 +39,7 @@ from lazytools.projects import contracts as _contracts
 from lazytools.projects import verification as _verification
 from lazytools.projects.keys import BOARD_KEY_PREFIX
 from lazytools.projects.records import get_project
-from lazytools.projects.task_claims import close_accepted_task
+from lazytools.projects.task_claims import CAS_ATTEMPTS, close_accepted_task
 
 if TYPE_CHECKING:
     from lazybridge import Store
@@ -131,18 +131,24 @@ def _evidence_refusal(contract: _contracts.TaskContract, checks: Sequence[CheckE
 
 
 def _abandon(store: Store, job_id: str, *, reviewer: str, reason: str, rework: bool) -> str:
-    """Move a verification this call claimed to a terminal state. Returns what happened."""
-    current = _verification.get_verification(store, job_id)
-    if current is None:
-        return "no verification record was left behind"
-    if current.status in ("accepted", "rework", "blocked"):
-        return f"verification {job_id!r} is {current.status!r}"
-    if current.status == "pending" and _verification.start_running(store, job_id) is None:
-        return f"verification {job_id!r} could not be moved out of 'pending' -- reconcile it by hand"
+    """Move a verification this call claimed to a terminal state. Returns what happened.
+
+    Each transition is a compare-and-swap, so a concurrent writer can make one
+    attempt lose; re-read and retry (bounded) rather than leave the record live.
+    """
     decide = _verification.request_rework if rework else _verification.block
-    if decide(store, job_id, reviewer=reviewer, reason=reason) is None:
-        return f"verification {job_id!r} could not be closed out -- reconcile it by hand"
-    return f"verification {job_id!r} recorded as {'rework' if rework else 'blocked'}"
+    for _ in range(CAS_ATTEMPTS):
+        current = _verification.get_verification(store, job_id)
+        if current is None:
+            return "no verification record was left behind"
+        if current.status in ("accepted", "rework", "blocked"):
+            return f"verification {job_id!r} is {current.status!r}"
+        if current.status == "pending":
+            _verification.start_running(store, job_id)
+            continue
+        if decide(store, job_id, reviewer=reviewer, reason=reason) is not None:
+            return f"verification {job_id!r} recorded as {'rework' if rework else 'blocked'}"
+    return f"verification {job_id!r} could not be closed out across {CAS_ATTEMPTS} attempts -- reconcile it by hand"
 
 
 def close_task_with_evidence(
@@ -154,13 +160,18 @@ def close_task_with_evidence(
     review: str,
     reason: str,
     reviewer: str,
+    review_by: str | None = None,
 ) -> str:
     """Close one contract-backed project task on the strength of ``checks`` and ``review``.
 
     ``checks`` is a list of ``(command, passed, detail)``: ``command`` must be a
     contract ``required_check`` string, ``detail`` is a short tail of its output.
-    ``review`` is the independent review's findings, ``reason`` the decision
-    rationale, ``reviewer`` who is accepting.
+    ``review`` is the independent review's findings and ``review_by`` who
+    produced them; ``reason`` is the decision rationale and ``reviewer`` who is
+    accepting. When the contract requires review, ``review_by`` is mandatory
+    and must differ from ``reviewer``: the acceptor cannot also be the
+    independent reviewer. The evidence itself is caller-attested -- this
+    function runs nothing -- so who may call it is the real gate (write access).
 
     Returns ``task_claims.close_accepted_task``'s ``"task N marked done: ..."``
     on success, ``"task N is already done ..."`` when there is nothing to do,
@@ -173,6 +184,7 @@ def close_task_with_evidence(
         return "REJECTED: reviewer must not be blank."
     if not reason.strip():
         return "REJECTED: reason must not be blank -- say why the evidence is enough to close the task."
+    review_author = (review_by or "").strip()
 
     board = _board(store, project_id)
     tasks = board.get("tasks") if board is not None else None
@@ -205,6 +217,18 @@ def close_task_with_evidence(
         found = "missing" if project is None else repr(project.status)
         return f"REJECTED: project {project_id!r} must be open to close a task (it is {found})."
 
+    refusal = _evidence_refusal(contract, checks, review)
+    if refusal is None and contract.requires_review:
+        if not review_author:
+            refusal = "REJECTED: this contract requires an independent review -- pass review_by, who performed it."
+        elif review_author.casefold() == reviewer.strip().casefold():
+            refusal = (
+                f"REJECTED: review_by and reviewer are both {reviewer.strip()!r} -- the acceptor cannot be "
+                "the independent reviewer of the same work."
+            )
+    if refusal is not None:
+        return refusal
+
     latest = _verification.get_verification_for_contract(store, contract.contract_id)
     if latest is not None and latest.status == "accepted" and not _verification_consumed(board, latest.verification_id):
         # A previous call (or a delegated job) got as far as accept but never
@@ -216,10 +240,6 @@ def close_task_with_evidence(
             f"REJECTED: verification {latest.verification_id!r} for this contract is still {latest.status!r} -- "
             "let it finish, or block it, before closing the task by hand."
         )
-
-    refusal = _evidence_refusal(contract, checks, review)
-    if refusal is not None:
-        return refusal
 
     job_id = f"{MANUAL_JOB_PREFIX}{project_id}-{task_index}-{uuid.uuid4().hex[:8]}"
     if _verification.claim_verification(store, contract_id=contract.contract_id, job_id=job_id) is None:
@@ -240,7 +260,7 @@ def close_task_with_evidence(
         if _verification.record_checks(store, job_id, checks=results, diff_summary=None) is None:
             raise _Lost("record_checks")
         if review.strip() and _verification.record_review(
-            store, job_id, reviewer=reviewer, findings=review, performed=_review_performed(review)
+            store, job_id, reviewer=review_author or reviewer, findings=review, performed=_review_performed(review)
         ) is None:
             raise _Lost("record_review")
         try:
