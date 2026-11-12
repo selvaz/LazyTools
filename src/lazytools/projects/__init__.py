@@ -41,6 +41,7 @@ from lazytools.projects.admission import (
     under_plan_warning,
 )
 from lazytools.projects.brake import get_project_brake_enabled, set_project_brake_enabled
+from lazytools.projects.closure import close_task_with_evidence
 from lazytools.projects.contracts import (
     TaskContract,
     check_satisfies_required,
@@ -204,6 +205,7 @@ __all__ = [
     "claim_verification",
     "close_accepted_task",
     "close_project",
+    "close_task_with_evidence",
     "contract_requires_full_suite",
     "cost_totals",
     "decide",

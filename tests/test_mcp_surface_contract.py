@@ -223,6 +223,7 @@ PROJECTS_WRITE = {
     "projects_set_owner",
     "projects_set_brake_enabled",
     "projects_set_deadline",
+    "projects_close_task",
     "projects_add_note",
     "projects_retire_task",
     "projects_reopen_task",

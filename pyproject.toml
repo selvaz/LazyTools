@@ -89,6 +89,8 @@ lazytools-mcp = "lazytools.mcp_server.__main__:main"
 # of blocking a synchronous MCP call. See docs/code-bridge.md.
 lazytools-code-bridge = "lazytools.code_bridge.cli:main"
 lazytools-ecosystem-sync = "lazytools.ecosystem_sync.cli:main"
+# Project-layer verbs; close-task closes a contract-backed task with evidence.
+lazytools-projects = "lazytools.projects.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/selvaz/LazyTools"

@@ -337,7 +337,8 @@ def test_mcp_surface_exposes_no_unguarded_task_close_tool(tmp_path) -> None:
     # Every task closer must be explicitly reviewed here, including new names
     # containing close/complete rather than only the old close_task spelling.
     closers = {n for n in names if any(word in n for word in ("mark_done", "complete", "close"))}
-    assert closers == {"projects_close", "projects_close_accepted_task"}
+    # projects_close_task is the evidence closer: it accepts through verification.accept.
+    assert closers == {"projects_close", "projects_close_accepted_task", "projects_close_task"}
     assert pt.projects_close_accepted_task("missing", 0, "missing").startswith("REJECTED:")
 
 
