@@ -198,6 +198,26 @@ def _base_moved_message(job: dict[str, Any], head: str, base: str) -> str:
             "--rebase-ok (the diff is then applied onto the new head and may not apply cleanly)")
 
 
+def _check_recorded_pr(job: dict[str, Any], root: Path, *, rebase_ok: bool) -> None:
+    """Refuse a recorded PR whose head identity or recorded starting commit moved."""
+    if not job.get("pr_number") or rebase_ok:
+        return
+    view = _gh.pr_view(str(job["repo"]), int(job["pr_number"]))
+    recorded_head = str(job.get("pr_head") or "")
+    live_head = str(view.get("headRefName") or "")
+    if live_head != recorded_head:
+        raise CloudError(
+            f"PR #{job['pr_number']} head branch moved from {recorded_head!r} to {live_head!r} since submission; "
+            "refusing to push. Re-submit the job, or allow it with --rebase-ok"
+        )
+    recorded_base = str(job.get("base_commit") or job.get("pr_head_sha_at_submit") or "")
+    live_base = _cloud._remote_base(root, recorded_head)
+    # A resumed landing may see the commit that this job already pushed.
+    expected = {recorded_base, str(job.get("pushed_sha") or "")}
+    if live_base and live_base not in expected:
+        raise CloudError(_base_moved_message(job, live_base, recorded_base))
+
+
 def _ensure_pr(store: Any, job: dict[str, Any], *, head: str, base: str, title: str) -> tuple[str, int | None]:
     """The job's PR url and number: the recorded PR (verified), an open PR for ``head``, or a new one."""
     repo = str(job["repo"])
@@ -247,7 +267,17 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
 
     sha = str(job.get("land_commit") or "")
     if not sha:
-        _cloud._git(wt, "add", "-A")
+        changed_files = [str(name) for name in job.get("applied_files") or []]
+        status = _cloud._git(wt, "status", "--porcelain", "--untracked-files=all", check=False)
+        unexpected = []
+        for line in status.splitlines():
+            if line.startswith("?? ") and line[3:] not in changed_files:
+                unexpected.append(line[3:])
+        if unexpected:
+            names = ", ".join(repr(name) for name in unexpected)
+            raise CloudError(f"unexpected untracked file(s) remain after cloud apply: {names}; refusing to land")
+        if changed_files and status:
+            _cloud._git(wt, "add", "--", *changed_files)
         if _cloud._git(wt, "status", "--porcelain", check=False):
             subject, body = commit_message(job)
             message_args = ["-m", subject, *(["-m", body] if body else [])]
@@ -261,6 +291,8 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
 
     tip = _remote_tip(root, remote_branch)
     if tip != sha:
+        # Re-read immediately before the only operation that can publish data.
+        _check_recorded_pr(job, root, rebase_ok=rebase_ok)
         # A new-branch landing never takes over a branch someone else owns.
         if tip and not pr_number and not _is_ancestor(root, tip, sha):
             raise CloudError(f"branch {remote_branch} already exists on origin at {tip[:12]} and is not an "
