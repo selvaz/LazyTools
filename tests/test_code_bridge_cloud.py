@@ -25,7 +25,7 @@ TASK_URL = "https://chatgpt.com/codex/tasks/task_e_abc123"
 
 FAKE_CODEX = textwrap.dedent(
     """
-    import json, os, sys
+    import json, os, re, sys
     from pathlib import Path
 
     args = sys.argv[1:]
@@ -50,8 +50,8 @@ FAKE_CODEX = textwrap.dedent(
     elif verb == "status":
         text = Path(os.environ["FAKE_CODEX_STATUS"]).read_text(encoding="utf-8")
         print(text, end="")
-        # Like the real CLI: a task that ended in error exits non-zero.
-        if "status: error" in text.lower():
+        # Like the real CLI: a task that ended in ERROR exits 1 (and still prints its status).
+        if re.search(r"(?im)^\\s*(?:\\[error\\]|.*\\bstatus\\s*[:=]\\s*\\[?error\\b)", text):
             sys.exit(1)
     elif verb == "diff":
         print("diff --git a/src/app.py b/src/app.py")
@@ -129,7 +129,7 @@ def cloud(tmp_path, monkeypatch):
 def _run_cloud(ctx, *extra: str) -> int:
     return cli.main(
         ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(ctx.repo), "--root", str(ctx.root),
-         "--task", "Add a feature", "--no-brief-check", "--db", str(ctx.db), *extra]
+         "--task", "Add a feature", "--no-brief-check", "--db", str(ctx.db), "--allow-cloud", *extra]
     )
 
 
@@ -238,7 +238,8 @@ def test_submit_failure_is_recorded_failed(cloud, monkeypatch, capsys):
 def test_cloud_rejects_local_only_flags(cloud, capsys):
     assert _run_cloud(cloud, "--session", "s1") == 2
     assert "--where cloud does not take --session" in capsys.readouterr().err
-    assert cli.main(["run", "--where", "cloud", "--tier", "basic", "--cwd", str(cloud.repo), "--task", "x"]) == 2
+    assert cli.main(["run", "--where", "cloud", "--allow-cloud", "--tier", "basic", "--cwd", str(cloud.repo),
+                     "--task", "x"]) == 2
     assert "requires an explicit --engine" in capsys.readouterr().err
     assert cloud.calls() == []
 
@@ -246,7 +247,7 @@ def test_cloud_rejects_local_only_flags(cloud, capsys):
 def test_claude_cloud_is_an_extension_point(cloud, capsys):
     code = cli.main(
         ["run", "--where", "cloud", "--engine", "claude", "--cwd", str(cloud.repo), "--root", str(cloud.root),
-         "--task", "x", "--no-brief-check", "--db", str(cloud.db)]
+         "--task", "x", "--no-brief-check", "--db", str(cloud.db), "--allow-cloud"]
     )
     assert code == 2
     assert "not implemented yet" in capsys.readouterr().err
@@ -520,30 +521,84 @@ def test_status_nonzero_exit_with_error_status_marks_failed(cloud, capsys):
     assert "[failed]" in out and "setup script failed" in out
 
 
-def test_wait_gives_up_after_repeated_poll_failures(cloud, monkeypatch, capsys):
+def test_wait_fails_job_after_repeated_poll_failures(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
     monkeypatch.setenv("FAKE_CODEX_FAIL", "status")  # exit 1 with no status in the output
     code = cli.main(["wait", job_id, "--db", str(cloud.db), "--interval", "0.01"])
     assert code == 1
-    err = capsys.readouterr().err
-    assert f"{_cloud.MAX_CONSECUTIVE_POLL_ERRORS} status polls in a row failed" in err
+    out = capsys.readouterr().out
+    assert "[failed]" in out
+    assert f"unreadable after {_cloud.MAX_CONSECUTIVE_POLL_ERRORS} polls" in out and "boom: status" in out
     store = _store.build_store(cloud.db)
     job = _jobs.find_job(store, _store.build_job_registry(store), job_id)
-    assert job["status"] == "running"  # a failing CLI is not a failed task
+    assert job["status"] == "failed" and _cloud.active_jobs(store) == []  # terminal: the place is freed
 
 
-@pytest.mark.parametrize("bad", ["12345678/../../../../escape", "../x", "a b", "x" * 65])
-def test_job_id_must_be_a_plain_token(cloud, bad, capsys):
+def test_unparseable_status_output_fails_after_bounded_retries(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("something we do not understand\n")  # exit 0, but names no status
+    for _ in range(_cloud.MAX_CONSECUTIVE_POLL_ERRORS - 1):
+        assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+        assert json.loads(capsys.readouterr().out)["status"] == "running"
+    assert cli.main(["result", job_id, "--db", str(cloud.db)]) == 1
+    out = capsys.readouterr().out
+    assert "[failed]" in out and "no recognisable status" in out
+
+
+def test_bracketed_error_status_exits_nonzero_and_fails_job(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("[ERROR] Fix flaky test\nsetup script failed\n")  # the fake exits 1, like upstream
+    assert cli.main(["wait", job_id, "--db", str(cloud.db), "--interval", "0.01"]) == 1
+    assert "[failed]" in capsys.readouterr().out
+
+
+def test_cloud_wait_has_a_default_timeout(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    monkeypatch.setattr(_cloud, "DEFAULT_CLOUD_WAIT_TIMEOUT", 0.1)
+    assert cli.main(["wait", job_id, "--db", str(cloud.db), "--interval", "0.02"]) == 3
+    assert "still running after 0s" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "bad", ["12345678/../../../../escape", "../x", "a b", "x" * 65, "fixedid1", "ABCDEF12", "1234567", "f" * 33]
+)
+def test_job_id_must_be_hex_or_uuid(cloud, bad, capsys):
     assert _run_cloud(cloud, "--job-id", bad) == 2
     assert "job id must be" in capsys.readouterr().err
     assert cloud.calls() == []
     assert not any(_cloud.worktrees_dir(cloud.db).parent.rglob("escape"))
 
 
+@pytest.mark.parametrize("good", ["deadbeef", "0123456789abcdef0123456789abcdef", "12345678-9abc-4def-8123-456789abcdef"])
+def test_job_id_accepts_hex_and_uuid(cloud, good, capsys):
+    assert _run_cloud(cloud, "--job-id", good, "--json") == 0
+    assert json.loads(capsys.readouterr().out.strip().splitlines()[-1])["job_id"] == good
+
+
+def test_apply_refuses_a_traversal_job_id_from_a_tampered_record(cloud, capsys):
+    bad = "12345678/../../../../escape"
+    store = _store.build_store(cloud.db)
+    job = {"job_id": bad, "where": "cloud", "status": "done", "engine": "codex", "cloud_handle": TASK_URL,
+           "cwd": str(cloud.repo), "repo_root": str(cloud.repo), "branch": "main"}
+    with pytest.raises(_cloud.CloudError, match="not hex or a UUID"):
+        _cloud.apply_job(store, _store.build_job_registry(store), job, db_path=cloud.db)
+    assert not any(cloud.root.parent.rglob("escape"))
+    assert [c for c in cloud.calls() if c["argv"][1] == "apply"] == []
+
+
+def test_worktree_containment_uses_resolved_paths(tmp_path):
+    container = tmp_path / "cloud-worktrees"
+    container.mkdir()
+    assert _cloud._inside(container / "deadbeef", container)
+    assert not _cloud._inside(container / ".." / "escape", container)
+    (container / "link").symlink_to(tmp_path)
+    assert not _cloud._inside(container / "link" / "escape", container)
+
+
 def test_existing_job_id_is_not_overwritten(cloud, capsys):
-    assert _run_cloud(cloud, "--job-id", "fixedid1") == 0
+    assert _run_cloud(cloud, "--job-id", "deadbeef") == 0
     capsys.readouterr()
-    assert _run_cloud(cloud, "--job-id", "fixedid1") == 2
+    assert _run_cloud(cloud, "--job-id", "deadbeef") == 2
     assert "already exists" in capsys.readouterr().err
     assert [c["argv"][1] for c in cloud.calls()].count("exec") == 1
 
@@ -554,7 +609,7 @@ def test_bad_branch_name_is_refused(cloud, capsys):
     assert cloud.calls() == []
 
 
-def test_apply_uses_recorded_base_commit_when_branch_moved(cloud, tmp_path, capsys):
+def test_apply_refuses_moved_branch_unless_rebase(cloud, tmp_path, capsys):
     # A bare "origin" so the branch has a real remote tip to record and later move.
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", str(origin))
@@ -577,11 +632,32 @@ def test_apply_uses_recorded_base_commit_when_branch_moved(cloud, tmp_path, caps
     _git(cloud.repo, "fetch", "-q", "origin")
 
     cloud.set_status("status: ready\nok\n")
+    head = _git(cloud.repo, "rev-parse", "HEAD")
+    assert cli.main(["apply", job_id, "--db", str(cloud.db)]) == 1
+    err = capsys.readouterr().err
+    assert f"has moved from {base[:12]}" in err and head[:12] in err and "--rebase" in err
+    assert [c for c in cloud.calls() if c["argv"][1] == "apply"] == []  # nothing applied
+    assert not (_cloud.worktrees_dir(cloud.db) / job_id).exists()
+
+    assert cli.main(["apply", job_id, "--db", str(cloud.db), "--rebase", "--json"]) == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert outcome["base"] == head and outcome["rebased_from"] == base
+    assert _git(Path(outcome["worktree"]), "rev-parse", "HEAD") == head
+
+
+def test_apply_uses_recorded_base_when_branch_has_not_moved(cloud, tmp_path, capsys):
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", str(origin))
+    _git(cloud.repo, "push", "-q", str(origin), "main")
+    _git(cloud.repo, "config", "remote.origin.url", str(origin))
+    _git(cloud.repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+    _set_cloud_config(f'"{_cloud.parse_remote(str(origin))}" = "env_widgets"\n')
+    base = _git(cloud.repo, "rev-parse", "HEAD")
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("status: ready\nok\n")
     assert cli.main(["apply", job_id, "--db", str(cloud.db), "--json"]) == 0
     outcome = json.loads(capsys.readouterr().out)
-    assert outcome["base"] == base
-    assert _git(Path(outcome["worktree"]), "rev-parse", "HEAD") == base
-    assert outcome["branch_moved_to"] == _git(cloud.repo, "rev-parse", "HEAD")
+    assert outcome["base"] == base and outcome["rebased_from"] is None
 
 
 def test_provider_diagnostics_are_redacted(cloud, monkeypatch, capsys):
@@ -618,3 +694,100 @@ def test_windows_batch_shim_is_never_executed(tmp_path, monkeypatch):
     script.write_text("", encoding="utf-8")
     (shim_dir / "node.exe").write_text("", encoding="utf-8")
     assert _cloud._codex_argv() == [str(shim_dir / "node.exe"), str(script)]
+
+
+def test_brief_secrets_are_redacted_in_the_stored_record(cloud, capsys):
+    token = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2"
+    bearer = "Bearer " + "zyxwvutsrqponmlk9876"
+    brief = f"Call the API with {bearer} and clone with {token}"
+    code = cli.main(
+        ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(cloud.repo), "--root", str(cloud.root),
+         "--task", brief, "--no-brief-check", "--db", str(cloud.db), "--allow-cloud", "--json"]
+    )
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "credential-looking text" in captured.err
+    job_id = json.loads(captured.out.strip().splitlines()[-1])["job_id"]
+    store = _store.build_store(cloud.db)
+    stored = json.dumps(_jobs.find_job(store, _store.build_job_registry(store), job_id))
+    assert token not in stored and "zyxwvutsrqponmlk9876" not in stored and "[redacted]" in stored
+    assert cli.main(["jobs", "--db", str(cloud.db)]) == 0
+    listed = capsys.readouterr().out
+    assert token not in listed and "zyxwvutsrqponmlk9876" not in listed
+
+
+@pytest.mark.parametrize(
+    "secret",
+    ["Bearer abcdefghij0123456789", "sk-ant-api03-abcdefghijklmnop", "ghp_abcdefghijklmnopqrstuvwx",
+     "github_pat_11ABCDEFG0123456789_abcdef", "AKIAABCDEFGHIJKLMNOP", "api_key=supersecretvalue"],
+)
+def test_redact_masks_common_credentials(secret):
+    assert _cloud.redact(f"before {secret} after").startswith("before ")
+    assert secret not in _cloud.redact(f"before {secret} after")
+
+
+# --------------------------------------------------------------------------- #
+# approval gate for cloud dispatch
+# --------------------------------------------------------------------------- #
+
+
+def test_cloud_requires_allow_cloud(cloud, capsys):
+    code = cli.main(
+        ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(cloud.repo), "--root", str(cloud.root),
+         "--task", "Add a feature", "--no-brief-check", "--db", str(cloud.db)]
+    )
+    assert code == 2
+    assert "requires --allow-cloud" in capsys.readouterr().err
+    assert cloud.calls() == []
+    assert _store.all_job_records(_store.build_store(cloud.db)) == []
+
+
+def test_allow_and_approve_cloud_are_cloud_only(cloud, capsys):
+    assert cli.main(["run", "--engine", "codex", "--cwd", str(cloud.repo), "--task", "x", "--allow-cloud"]) == 2
+    assert "--allow-cloud is only for --where cloud" in capsys.readouterr().err
+    assert cli.main(["run", "--engine", "codex", "--cwd", str(cloud.repo), "--task", "x",
+                     "--approve-cloud", "push"]) == 2
+    assert "--approve-cloud is only for --where cloud" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("brief", "actions"),
+    [
+        ("Fix the bug, then git push origin main", ["push"]),
+        ("Fix the bug and push the branch when done", ["push"]),
+        ("Open a PR and merge it into main", ["merge"]),
+        ("Run gh pr merge 12 --squash", ["merge"]),
+        ("Clean up: delete the stale release branches", ["delete"]),
+        ("Remove old data with rm -rf build/", ["delete"]),
+        ("Rebase, force-push, then delete the old branch", ["push", "delete"]),
+    ],
+)
+def test_brief_asking_for_gated_action_is_refused(cloud, brief, actions, capsys):
+    code = cli.main(
+        ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(cloud.repo), "--root", str(cloud.root),
+         "--task", brief, "--no-brief-check", "--db", str(cloud.db), "--allow-cloud"]
+    )
+    assert code == 2
+    err = capsys.readouterr().err
+    assert f"gated action(s) {', '.join(actions)}" in err
+    for action in actions:
+        assert f"--approve-cloud {action}" in err
+    assert cloud.calls() == []
+    assert _store.all_job_records(_store.build_store(cloud.db)) == []
+
+
+def test_gated_action_runs_with_matching_approval(cloud, capsys):
+    base = ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(cloud.repo), "--root", str(cloud.root),
+            "--task", "Fix the bug, push the branch, then delete the old branch", "--no-brief-check",
+            "--db", str(cloud.db), "--allow-cloud"]
+    assert cli.main([*base, "--approve-cloud", "push"]) == 2  # delete still unapproved
+    assert "gated action(s) delete" in capsys.readouterr().err
+    assert cli.main([*base, "--approve-cloud", "push", "--approve-cloud", "delete", "--json"]) == 0
+    job_id = json.loads(capsys.readouterr().out.strip().splitlines()[-1])["job_id"]
+    store = _store.build_store(cloud.db)
+    assert _jobs.find_job(store, _store.build_job_registry(store), job_id)["cloud_approvals"] == ["delete", "push"]
+
+
+@pytest.mark.parametrize("brief", ["Add a feature", "Fix error handling in the parser", "Write tests for the merge sort"])
+def test_plain_briefs_need_no_approval(brief):
+    assert _cloud.gated_actions(brief) == []

@@ -237,6 +237,11 @@ _CLOUD_INCOMPATIBLE = (
 def _cmd_run_cloud(args: argparse.Namespace) -> int:
     """Submit the brief to a cloud agent; return as soon as the task handle is recorded."""
     try:
+        if not args.allow_cloud:
+            raise ValueError(
+                "--where cloud requires --allow-cloud: a cloud agent's commands run on the provider's machine and "
+                "cannot pass through the local approval gate one by one (see docs/code-bridge.md, 'Approvals')"
+            )
         if args.engine is None:
             raise ValueError("--where cloud requires an explicit --engine (quota routing is local-only)")
         used = [flag for name, flag in _CLOUD_INCOMPATIBLE if getattr(args, name, None) not in (None, False)]
@@ -251,9 +256,13 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         refusal = _check_brief_before_launch(args, task)
         if refusal is not None:
             return refusal
+    if _cloud.redact(task) != task:
+        print("warning: the brief contains credential-looking text; it is masked in the job record, but the cloud "
+              "agent receives the brief as written -- rotate the secret if it is real", file=sys.stderr)
     try:
         job = _cloud.submit_job(
-            engine=args.engine, cwd=cwd, task=task, branch=args.branch, db_path=_db_path(args), job_id=args.job_id
+            engine=args.engine, cwd=cwd, task=task, branch=args.branch, db_path=_db_path(args), job_id=args.job_id,
+            approvals=tuple(args.approve_cloud or ()),
         )
     except (_cloud.CloudError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -273,9 +282,10 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
 def _cmd_run(args: argparse.Namespace) -> int:
     if getattr(args, "where", "local") == _cloud.WHERE_CLOUD:
         return _cmd_run_cloud(args)
-    if getattr(args, "branch", None):
-        print("error: --branch is only for --where cloud", file=sys.stderr)
-        return 2
+    for name, flag in (("branch", "--branch"), ("allow_cloud", "--allow-cloud"), ("approve_cloud", "--approve-cloud")):
+        if getattr(args, name, None):
+            print(f"error: {flag} is only for --where cloud", file=sys.stderr)
+            return 2
     try:
         if not math.isfinite(args.timeout) or args.timeout <= 0:
             raise ValueError("--timeout must be a finite number greater than 0")
@@ -721,8 +731,9 @@ def _cmd_wait(args: argparse.Namespace) -> int:
     first = _store.build_store(db_path)
     first_job = _jobs.find_job(first, _store.build_job_registry(first), args.job_id)
     if first_job is not None and _cloud.is_cloud(first_job):
+        timeout = _cloud.DEFAULT_CLOUD_WAIT_TIMEOUT if args.timeout is None else args.timeout
         job = _cloud.wait_job(lambda: _store.build_store(db_path), str(first_job["job_id"]),
-                              timeout=args.timeout, interval=args.interval)
+                              timeout=timeout, interval=args.interval)
         if job is not None and job.get("status") in _TERMINAL:
             return _cmd_result(args)
         if job is None:
@@ -733,7 +744,7 @@ def _cmd_wait(args: argparse.Namespace) -> int:
             print(f"job {args.job_id}: {errors} status polls in a row failed; last error: "
                   f"{job.get('last_poll_error')}", file=sys.stderr)
             return 1
-        print(f"job {args.job_id} still {job.get('status')} after {args.timeout:.0f}s", file=sys.stderr)
+        print(f"job {args.job_id} still {job.get('status')} after {timeout:.0f}s", file=sys.stderr)
         return 3
     deadline = None if args.timeout is None else time.monotonic() + args.timeout
     pid = _detached_pid(db_path, args.job_id)
@@ -790,6 +801,7 @@ def _cmd_apply(args: argparse.Namespace) -> int:
             db_path=db_path,
             branch=args.branch,
             worktree=Path(args.worktree) if args.worktree else None,
+            rebase=args.rebase,
         )
     except _cloud.CloudError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -802,9 +814,9 @@ def _cmd_apply(args: argparse.Namespace) -> int:
         print(f"  {line}")
     if outcome["output"]:
         print(outcome["output"])
-    if outcome.get("branch_moved_to"):
-        print(f"note: origin/{_cloud_base_branch(outcome)} has moved to {outcome['branch_moved_to'][:12]} since the task "
-              f"started; the diff was applied onto the task's base {outcome['base'][:12]}, so rebase or merge before pushing")
+    if outcome.get("rebased_from"):
+        print(f"note: --rebase: applied onto the current head of origin/{_cloud_base_branch(outcome)} "
+              f"({outcome['base'][:12]}), not the task's base {outcome['rebased_from'][:12]}; review the result carefully")
     print(f"not pushed. Review, commit, then push only after approval: git -C \"{outcome['worktree']}\" push -u origin {outcome['branch']}")
     return 0
 
@@ -1029,6 +1041,20 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument(
         "--branch", default=None, help="--where cloud only: remote branch the cloud agent starts from (default: current)."
     )
+    run_p.add_argument(
+        "--allow-cloud",
+        action="store_true",
+        help="--where cloud only, required: acknowledge that the cloud agent's commands run outside the local "
+        "approval gate (only its diff comes back, through `apply`).",
+    )
+    run_p.add_argument(
+        "--approve-cloud",
+        action="append",
+        choices=sorted(_cloud.GATED_ACTIONS),
+        default=None,
+        help="--where cloud only: approve up front a gated action the brief asks for (push, merge, delete); "
+        "repeatable. Without it such a brief is refused.",
+    )
     _add_routing_options(run_p)
     run_p.add_argument("--cwd", required=True, help="Repository (or subdirectory) to work in.")
     run_p.add_argument("--task", required=True, help="Task text, or @path/to/file.")
@@ -1106,7 +1132,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     wait_p = sub.add_parser("wait", help="Block until a job ends (or its process dies), then print its outcome.")
     wait_p.add_argument("job_id")
-    wait_p.add_argument("--timeout", type=float, default=None, help="Give up after this many seconds (exit 3).")
+    wait_p.add_argument("--timeout", type=float, default=None,
+                        help="Give up after this many seconds (exit 3). Cloud jobs default to 7200.")
     wait_p.add_argument("--interval", type=float, default=5.0, help=argparse.SUPPRESS)
     wait_p.add_argument("--json", action="store_true")
     _add_db_option(wait_p)
@@ -1147,6 +1174,11 @@ def build_parser() -> argparse.ArgumentParser:
     apply_p.add_argument("job_id")
     apply_p.add_argument("--branch", default=None, help="New branch name (default: cloud/<job id prefix>).")
     apply_p.add_argument("--worktree", default=None, help="New worktree path (default: beside the Store, cloud-worktrees/<job>).")
+    apply_p.add_argument(
+        "--rebase",
+        action="store_true",
+        help="Apply onto the branch's current head even if it moved since the task was submitted (refused otherwise).",
+    )
     apply_p.add_argument("--json", action="store_true")
     _add_db_option(apply_p)
     apply_p.set_defaults(func=_cmd_apply)

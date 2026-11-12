@@ -968,11 +968,12 @@ the returned task handle, and returns at once. No engine process runs locally
 and no local engine slot is taken.
 
 ```
-lazytools-code-bridge run --where cloud --engine codex --cwd <repo> --task @brief.md [--branch B]
+lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd <repo> --task @brief.md \
+    [--branch B] [--approve-cloud push|merge|delete ...]
 lazytools-code-bridge status <job>      # polls `codex cloud status <task>`
 lazytools-code-bridge wait <job>        # polls until the task is terminal
 lazytools-code-bridge result <job>      # final message + `codex cloud diff <task>` summary
-lazytools-code-bridge apply <job>       # `codex cloud apply <task>` in a NEW worktree/branch; no push
+lazytools-code-bridge apply <job> [--rebase]  # `codex cloud apply <task>` in a NEW worktree/branch; no push
 ```
 
 Only `--engine codex` is implemented today (Codex Cloud, through the
@@ -1022,9 +1023,11 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
 
 - `status`, `wait` and `result` poll the provider and persist what they see.
   The status output is parsed tolerantly (JSON `status`, a `status: X` line,
-  or a known status word); text it does not understand keeps the job
-  `running` — a poll never declares a job finished on output it cannot read.
-  A failed poll is recorded as `last_poll_error` and does not fail the job.
+  or a known status word); a poll never declares a job *done* on output it
+  cannot read. A failed poll (the CLI errs without naming a status, or its
+  output names no status at all) is recorded as `last_poll_error` and the
+  job stays `running`; after **5 failed polls in a row** the job is marked
+  `failed` with the redacted last reason, which frees its cloud place.
   A **non-zero exit is not automatically a poll failure**: `codex cloud
   status` exits non-zero for a task that ended in error, so its output is
   parsed whatever the exit code and a recognised status wins (`error` → the
@@ -1032,14 +1035,14 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
   as a poll failure. Without an explicit `status:` field, only the **leading
   token** of the first line is read (`[READY] Fix error handling` is ready):
   the rest is a task title.
-- `wait` never hangs on a provider that keeps failing: after
-  5 failed polls in a row it exits 1 with the last error (the job stays
-  `running`; `status` or `wait` again once the CLI works).
-- Provider diagnostics (errors, apply output) are passed through a
-  redaction filter (bearer/basic credentials, `token=`/`api_key=`-style
-  pairs, common key prefixes, JWTs) before they are stored or printed. The
-  brief itself is stored verbatim, as for local jobs: do not put secrets in a
-  brief.
+- `wait` never hangs: a job that keeps failing polls becomes `failed` (exit
+  1), and a cloud `wait` without `--timeout` gives up after 7200 s (exit 3).
+- Provider diagnostics (errors, apply output) **and the brief** are passed
+  through a redaction filter (bearer/basic credentials, `token=`/`api_key=`-
+  style pairs, `sk-`/`ghp_`/`github_pat_`/`xox*`/`AKIA`/`glpat`/`AIza`
+  prefixes, JWTs) before they are stored or printed. The provider still
+  receives the brief as written, and `run` warns when it masked something:
+  do not put secrets in a brief.
 - `result` prints the final message and a diff summary (files, +/− lines).
   Its exit code follows the local rule: non-zero for `failed`/`interrupted`.
 - Every status write re-reads the record under the machine-wide guard and
@@ -1053,12 +1056,12 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
 
 `apply <job>` requires a `done` job. At submit the bridge fetches the
 branch and records the remote tip as `base_commit` — the commit the cloud
-environment starts from. `apply` runs `git worktree add -b cloud/<job8> <dir>
-<base>` with `<base>` = that recorded commit (falling back to
-`origin/<branch>`, then the local branch, for a branch that was not on the
-remote), so the diff lands on what the agent saw even if the branch has
-moved; when it has, `apply` says so (`branch_moved_to`) and you rebase or
-merge before pushing. Then it runs `codex cloud
+environment starts from. `apply` fetches the branch again; if its head has
+**moved** since submit, `apply` is **refused** unless you pass `--rebase`, in
+which case the worktree starts at the new head (`rebased_from` records the
+old base; the diff may not apply cleanly). Otherwise it runs `git worktree add
+-b cloud/<job8> <dir> <base_commit>` (falling back to `origin/<branch>`, then
+the local branch, for a branch that was not on the remote). Then it runs `codex cloud
 apply <task>` **inside that new worktree**. Your own checkout, its branch and
 its index are never touched. `<dir>` defaults to `cloud-worktrees/<job>`
 beside the Store; `--branch` and `--worktree` override both names. A job is
@@ -1073,10 +1076,22 @@ approved step**.
 ### Approvals: where the gate is for cloud jobs
 
 A local job's `BridgeGate` sits between the engine and every tool call on
-this machine, and files a ticket for gated ones (a push, a `gh` write). A
-cloud agent's tool calls happen on the provider's machine, where no local
-gate can see them, so `--where cloud` files **no approval tickets** — there
-is nothing local to intercept. The approval boundary moves instead:
+this machine, and files a ticket for gated ones (a push, a merge, a delete,
+a `gh` write). A cloud agent's tool calls happen on the provider's machine,
+where no local gate can see them one by one. So the gate is applied **before
+submit** instead:
+
+- `--where cloud` requires an explicit operator flag, **`--allow-cloud`**;
+  without it nothing is submitted or recorded.
+- A brief that asks for a **push, merge or delete** (`git push`, "push the
+  branch", `gh pr merge`, "merge it into main", `git branch -D`, "delete the
+  old branches", `rm -rf`, …) is **refused** unless the operator approves each
+  such action up front with `--approve-cloud push|merge|delete` (repeatable)
+  — the same approvals the `BridgeGate` would ask for. The approvals given are
+  stored on the job as `cloud_approvals`. Detection is a conservative text
+  match: a false positive costs one flag, a miss is the risk to avoid.
+
+Beyond that, the approval boundary is the diff:
 
 - The cloud task's only output the bridge accepts is its **diff**. Nothing
   reaches any checkout until `apply`, which an operator runs, into a new
@@ -1088,13 +1103,20 @@ is nothing local to intercept. The approval boundary moves instead:
   each mapped environment single-repo, without push credentials or
   production secrets, and with internet access off unless a task needs it.
 
-A brief that asks for a gated action (a push, a release, a `gh` write) will
-not raise a ticket: run such work as a local job.
+- `apply` itself runs only **local, non-destructive** steps (a new worktree
+  and branch, then `codex cloud apply` inside it) and never pushes. Pushing or
+  merging the applied result goes through the **normal gate**: by the operator
+  by hand, or as a local bridge job whose `BridgeGate` files the usual ticket.
+
+Work that needs gated actions performed step by step under tickets should
+run as a local job.
 
 ### Input validation
 
-`--job-id` (internal; used by detached launches) must be 1–64 letters,
-digits, `-` or `_`, the same rule as local jobs, and must not already exist.
+`--job-id` (internal) must be 8–32 lowercase hex digits or a canonical UUID,
+and must not already exist. `apply` re-checks the stored id and resolves the
+default worktree path (`Path.resolve` + `is_relative_to`) to make sure it
+stays inside `cloud-worktrees/`.
 `--branch` and `apply --branch` must pass `git check-ref-format --branch`.
 On Windows a `codex.cmd`/`.bat` npm shim is **never executed** (`cmd.exe`
 would re-parse the brief and branch as shell syntax): the bridge runs the

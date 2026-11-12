@@ -64,12 +64,32 @@ CLI_TIMEOUT = 300.0
 #: place in the cloud limit while ``codex cloud exec`` is still running.
 ACTIVE_STATUSES = ("submitting", "running")
 TERMINAL_STATUSES = ("done", "partial", "failed", "interrupted")
-#: Same rule as local jobs (``_jobs.run_job``): a job id becomes a file and
-#: directory name, so only a plain token is accepted, never a path.
-JOB_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
-#: ``wait`` gives up (exit 1) after this many polls in a row that failed, so a
-#: provider that keeps erroring cannot make it hang forever.
+#: A cloud job id becomes a file and directory name (``cloud-worktrees/<id>``),
+#: so only lowercase hex (8-32 digits, what ``uuid4().hex`` produces) or a
+#: canonical UUID is accepted -- never anything that could be a path.
+JOB_ID_RE = re.compile(r"[0-9a-f]{8,32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+#: After this many polls in a row that failed or returned output naming no
+#: status, the job is marked ``failed`` (a terminal status, so ``wait`` stops
+#: and the cloud place is freed) with a redacted reason.
 MAX_CONSECUTIVE_POLL_ERRORS = 5
+#: ``wait`` on a cloud job never runs unbounded: without ``--timeout`` it
+#: gives up after this many seconds (exit 3).
+DEFAULT_CLOUD_WAIT_TIMEOUT = 2 * 3600.0
+#: Actions a local job's BridgeGate would hold for a human ticket. A cloud
+#: agent's commands cannot be gated one by one, so a brief that asks for one is
+#: refused unless the operator approves that action up front (``--approve-cloud``).
+GATED_ACTIONS: dict[str, re.Pattern[str]] = {
+    "push": re.compile(r"(?i)\bgit\s+push\b|\b(?:force[- ]?)?push(?:es|ed|ing)?\b"),
+    "merge": re.compile(
+        r"(?i)\bgit\s+merge\b|\bgh\s+pr\s+merge\b|\bmerge\s+(?:it|this|that)\b"
+        r"|\bmerg(?:e|es|ed|ing)\b[^.\n]{0,40}\b(?:pr|pull\s+request|branch|into|main|master|trunk)\b"
+    ),
+    "delete": re.compile(
+        r"(?i)\bgit\s+branch\s+-[dD]\b|\bgit\s+push\b[^\n]*\s--delete\b|\bgh\s+(?:repo|release|pr|issue)\s+delete\b"
+        r"|\brm\s+-[a-zA-Z]*[rf]|\bgit\s+(?:clean|reset\s+--hard)\b"
+        r"|\b(?:delet|remov)(?:e|es|ed|ing)\b[^.\n]{0,40}\b(?:branch(?:es)?|tags?|repo(?:sitory)?|releases?|remote)\b"
+    ),
+}
 _ENV_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 
 _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -77,6 +97,8 @@ _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(sk|rk|pk|ghp|gho|ghs|ghu|github_pat|xox[abpr])[-_][A-Za-z0-9_-]{10,}"),
     re.compile(r"(?i)\b(token|api[_-]?key|secret|password|authorization)(\s*[:=]\s*)(\S+)"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}"),  # JWT
+    re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),  # AWS access key id
+    re.compile(r"\b(?:glpat|npm|AIza)[-_A-Za-z0-9]{16,}"),  # GitLab / npm / Google API keys
 )
 
 
@@ -88,6 +110,16 @@ def redact(text: str) -> str:
         else:
             text = pattern.sub("[redacted]", text)
     return text
+
+
+def gated_actions(text: str) -> list[str]:
+    """The :data:`GATED_ACTIONS` a brief asks for, in a stable order."""
+    return [name for name, pattern in GATED_ACTIONS.items() if pattern.search(text)]
+
+
+def _inside(path: Path, container: Path) -> bool:
+    """``path`` resolves to ``container`` itself or somewhere below it."""
+    return path.resolve().is_relative_to(container.resolve())
 
 CREATE_ENV_HINT = (
     "create a single-repo Codex Cloud environment for {repo} (https://chatgpt.com/codex/settings/environments), "
@@ -589,21 +621,32 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     """Poll the provider once and persist the job's new status; return the merged record.
 
     A terminal record is returned unchanged. A record still "submitting"
-    (no handle yet) is returned unchanged too. A poll failure is NOT a job
-    failure: it is recorded as ``last_poll_error`` and the job stays running.
+    (no handle yet) is returned unchanged too. A failed poll -- the CLI
+    erred without naming a status, or its output names no status at all --
+    is recorded as ``last_poll_error`` and the job stays running, up to
+    :data:`MAX_CONSECUTIVE_POLL_ERRORS` in a row; the poll that reaches that
+    bound marks the job ``failed`` with the (redacted) last reason, so no
+    caller waits forever on output it cannot read.
     """
     if job.get("status") in TERMINAL_STATUSES or not job.get("cloud_handle"):
         return job
     job_id = str(job["job_id"])
+    poll_error: str | None = None
     try:
         state = provider(str(job.get("engine"))).status(str(job["cloud_handle"]))
     except CloudError as exc:
-        updates = {
-            "last_poll_error": redact(str(exc)),
-            "last_polled_at": time.time(),
-            "poll_errors_in_a_row": int(job.get("poll_errors_in_a_row") or 0) + 1,
-        }
-        _write_unless_terminal(store, registry, job_id, updates, status=str(job.get("status") or "running"))
+        poll_error = redact(str(exc))
+    else:
+        if not state.raw_status:
+            poll_error = "codex cloud status printed no recognisable status: " + redact(state.raw.strip())[:500]
+    if poll_error is not None:
+        errors = int(job.get("poll_errors_in_a_row") or 0) + 1
+        updates = {"last_poll_error": poll_error, "last_polled_at": time.time(), "poll_errors_in_a_row": errors}
+        if errors >= MAX_CONSECUTIVE_POLL_ERRORS:
+            _write_unless_terminal(store, registry, job_id, updates, status="failed",
+                                   error=f"cloud status unreadable after {errors} polls in a row; last: {poll_error}")
+        else:
+            _write_unless_terminal(store, registry, job_id, updates, status=str(job.get("status") or "running"))
         return _merged(store, registry, job_id)
     updates = {
         "cloud_status": state.raw_status,
@@ -667,17 +710,31 @@ def submit_job(
     db_path: Path | None = None,
     job_id: str | None = None,
     config: CloudConfig | None = None,
+    approvals: tuple[str, ...] | list[str] = (),
 ) -> dict[str, Any]:
     """Submit ``task`` to the cloud provider for ``engine``; return the job record.
 
     Raises :class:`CloudError` (no job recorded) for a missing env mapping,
-    a repository without a usable remote, or the cloud limit; a failure of
-    the submit call itself is recorded as a failed job and re-raised.
+    a repository without a usable remote, the cloud limit, or a brief that
+    asks for a gated action (:data:`GATED_ACTIONS`) not listed in
+    ``approvals``; a failure of the submit call itself is recorded as a
+    failed job and re-raised.
     """
     import uuid
 
     if job_id is not None and not JOB_ID_RE.fullmatch(job_id):
-        raise CloudError(f"job id must be 1-64 letters, digits, '-' or '_', got {job_id!r}")
+        raise CloudError(f"job id must be 8-32 lowercase hex digits or a UUID, got {redact(job_id)[:80]!r}")
+    unknown = sorted(set(approvals) - set(GATED_ACTIONS))
+    if unknown:
+        raise CloudError(f"unknown cloud approval(s) {unknown}: one of {', '.join(GATED_ACTIONS)}")
+    missing = [action for action in gated_actions(task) if action not in approvals]
+    if missing:
+        flags = " ".join(f"--approve-cloud {action}" for action in missing)
+        raise CloudError(
+            f"the brief asks for gated action(s) {', '.join(missing)}, which a local job's BridgeGate would hold for "
+            f"approval; a cloud agent's commands cannot be gated one by one. Run it as a local job, remove the "
+            f"request from the brief, or approve up front with {flags}"
+        )
     config = config or load_config()
     prov = provider(engine)
     root = repo_root(cwd)
@@ -704,7 +761,9 @@ def submit_job(
         "env_id": env_id,
         "branch": branch,
         "base_commit": base_commit,
-        "objective": task,
+        # Stored and printed redacted; the provider still receives the brief as written.
+        "objective": redact(task),
+        "cloud_approvals": sorted(set(approvals)),
         "created_at": time.time(),
         "cloud_handle": None,
     }
@@ -712,7 +771,7 @@ def submit_job(
     try:
         sub = prov.submit(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task)
     except BaseException as exc:
-        _write(store, registry, job_id, meta, status="failed", error=f"cloud submit failed: {exc}")
+        _write(store, registry, job_id, meta, status="failed", error=redact(f"cloud submit failed: {exc}"))
         raise
     # Cancelled while `codex cloud exec` ran: keep "interrupted", but still
     # record the handle so the operator can find and stop the remote task.
@@ -749,13 +808,16 @@ def apply_job(
     db_path: Path | None = None,
     branch: str | None = None,
     worktree: Path | None = None,
+    rebase: bool = False,
 ) -> dict[str, Any]:
     """Apply a finished cloud task in a NEW git worktree on a NEW branch.
 
     Never touches the operator's checkout: ``git worktree add -b`` creates
-    both, starting from the job's base branch (``origin/<branch>`` when the
-    remote-tracking ref exists, else the local branch). Nothing is pushed --
-    pushing stays a separate, approved step.
+    both, starting from the commit the task started from (``base_commit``,
+    recorded at submit). If the target branch's head has moved since, the
+    apply is refused unless ``rebase`` is set, in which case the worktree
+    starts at the new head instead. Nothing is pushed -- pushing stays a
+    separate, approved step.
     """
     if not job.get("cloud_handle"):
         raise CloudError(f"job {job.get('job_id')} has no cloud task to apply")
@@ -765,7 +827,7 @@ def apply_job(
         raise CloudError(f"job {job['job_id']} was already applied in {job['applied_worktree']}")
     job_id = str(job["job_id"])
     if not JOB_ID_RE.fullmatch(job_id):
-        raise CloudError(f"job id {job_id!r} is not a plain token; refusing to derive paths from it")
+        raise CloudError(f"job id {redact(job_id)[:80]!r} is not hex or a UUID; refusing to derive paths from it")
     root = Path(str(job.get("repo_root") or repo_root(Path(str(job["cwd"])))))
     branch = branch or f"cloud/{job_id[:8]}"
     if branch.startswith("-") or _git(root, "check-ref-format", "--branch", branch, check=False) != branch:
@@ -773,18 +835,26 @@ def apply_job(
     if worktree is None:
         container = worktrees_dir(db_path).expanduser().resolve()
         worktree = (container / job_id).resolve()
-        if worktree.parent != container:
+        if not _inside(worktree, container) or worktree == container:
             raise CloudError(f"{worktree} is outside {container}")
     else:
         worktree = worktree.expanduser().resolve()
     if worktree.exists():
         raise CloudError(f"{worktree} already exists: remove it or pass --worktree")
     base_branch = str(job.get("branch") or "HEAD")
-    base_commit = job.get("base_commit")
-    if base_commit and _git(root, "rev-parse", "--verify", "--quiet", f"{base_commit}^{{commit}}", check=False):
-        # The exact commit the cloud task started from: the diff applies onto
-        # what the agent saw, even if the branch has moved since.
-        base = str(base_commit)
+    base_commit = str(job.get("base_commit") or "") or None
+    head = _remote_base(root, base_branch) if base_commit else None
+    rebased_from = None
+    if base_commit and head and head != base_commit:
+        if not rebase:
+            raise CloudError(
+                f"origin/{base_branch} has moved from {base_commit[:12]} (the task's base) to {head[:12]} since the "
+                "task was submitted; refusing to apply onto a branch the agent never saw. Pass --rebase to apply "
+                "onto the new head (the diff may not apply cleanly)"
+            )
+        base, rebased_from = head, base_commit
+    elif base_commit and _git(root, "rev-parse", "--verify", "--quiet", f"{base_commit}^{{commit}}", check=False):
+        base = base_commit  # the exact commit the cloud task started from
     else:
         base = f"origin/{base_branch}"
         if not _git(root, "rev-parse", "--verify", "--quiet", f"refs/remotes/{base}", check=False):
@@ -799,10 +869,6 @@ def apply_job(
     status_lines = _git(worktree, "status", "--porcelain", check=False)
     meta = _store.read_meta(store, job_id) or {}
     meta.update(applied_worktree=str(worktree), applied_branch=branch, applied_base=base, applied_at=time.time())
-    moved = None
-    if base_commit and base == base_commit:
-        tip = _git(root, "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{base_branch}", check=False)
-        moved = tip if tip and tip != base_commit else None
     _write(store, registry, job_id, meta, status=str(job["status"]), result=job.get("result"), error=job.get("error"))
     return {
         "job_id": job_id,
@@ -812,7 +878,7 @@ def apply_job(
         "changed": [line for line in status_lines.splitlines() if line.strip()],
         "output": output.strip(),
         "pushed": False,
-        "branch_moved_to": moved,
+        "rebased_from": rebased_from,
         "base_branch": base_branch,
     }
 
@@ -831,7 +897,7 @@ def _after_failed_apply(store: Any, registry: Any, root: Path, job_id: str, work
         _git(root, "branch", "-D", branch, check=False)
         return
     meta = _store.read_meta(store, job_id) or {}
-    meta.update(apply_failed_worktree=str(worktree), apply_failed_branch=branch, apply_error=str(exc))
+    meta.update(apply_failed_worktree=str(worktree), apply_failed_branch=branch, apply_error=redact(str(exc)))
     _store.write_meta(store, job_id, meta)
     if isinstance(exc, CloudError):
         exc.args = (
@@ -862,6 +928,8 @@ def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval
 
 __all__ = [
     "ACTIVE_STATUSES",
+    "DEFAULT_CLOUD_WAIT_TIMEOUT",
+    "GATED_ACTIONS",
     "JOB_ID_RE",
     "MAX_CONSECUTIVE_POLL_ERRORS",
     "CLOUD_PREAMBLE",
@@ -888,6 +956,7 @@ __all__ = [
     "redact",
     "refresh",
     "repo_slug",
+    "gated_actions",
     "result_text",
     "submit_job",
     "summarize_diff",
