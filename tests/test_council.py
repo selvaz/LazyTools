@@ -244,8 +244,11 @@ class _StopRun(Exception):
 def test_council_charter_reaches_opening_positions_and_debate_protocol(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every member sees the independence charter: in the opening-position
-    prompt and in the protocol source attached to each debater."""
+    """Every participant sees the independence charter exactly once: at the
+    start of the opening-position prompt and, in each debater's and the
+    moderator's rendered context, immediately ahead of the council protocol."""
+    from lazybridge import Envelope
+
     from lazytools.skills import council as council_module
 
     prompts: list[str] = []
@@ -255,17 +258,14 @@ def test_council_charter_reaches_opening_positions_and_debate_protocol(
 
     monkeypatch.setattr(council_module.Agent, "parallel", staticmethod(fake_parallel))
     monkeypatch.setattr(WizengAImot, "_result_text", staticmethod(lambda result, stage: "stub"))
-    original_derive = WizengAImot._derive
-    protocols: list[str] = []
+    registered: list[Agent] = []
 
-    def spy_derive(self, agent, *, tools=None, **overrides):
-        sources = overrides.get("sources")
-        if sources is not None:
-            protocols.extend(s for s in sources if isinstance(s, str))
-            raise _StopRun
-        return original_derive(self, agent, tools=tools, **overrides)
+    def spy_register(self, *agents):
+        # Derivation has fully finished here; stop before any model call.
+        registered.extend(agents)
+        raise _StopRun
 
-    monkeypatch.setattr(WizengAImot, "_derive", spy_derive)
+    monkeypatch.setattr(council_module.AgentPool, "register", spy_register)
     council = WizengAImot("Should we ship?")
     council.add(_agent("optimist")).add(_agent("critic"))
 
@@ -274,6 +274,17 @@ def test_council_charter_reaches_opening_positions_and_debate_protocol(
 
     charter = council_module.INDEPENDENCE_CHARTER
     assert "full and equal member" in charter and "I concede X" in charter
+
     opening = [p for p in prompts if "opening position" in p]
-    assert opening and charter in opening[0]
-    assert protocols and charter in protocols[0]
+    assert len(opening) == 1
+    assert opening[0].startswith(charter)
+    assert opening[0].count(charter) == 1
+
+    assert [agent.name for agent in registered] == ["optimist", "critic", "moderator"]
+    for agent in registered:
+        context = agent._inject_sources(Envelope(task="probe")).context or ""
+        assert context.count(charter) == 1, agent.name
+        assert context.count("COUNCIL PROTOCOL") == 1, agent.name
+        charter_at = context.index(charter)
+        assert charter_at < context.index("COUNCIL PROTOCOL"), agent.name
+        assert context.index("COUNCIL PROTOCOL") == charter_at + len(charter) + 2, agent.name
