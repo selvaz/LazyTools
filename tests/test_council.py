@@ -222,7 +222,8 @@ def test_news_preset_wires_reasoning_and_shared_tools(
     ]
     assert council._members[0].engine.thinking is False
     assert council._members[1].engine.thinking is False
-    assert council._members[2].engine.model == "haiku"
+    # ClaudeCodeEngine resolves the alias to the full id (e.g. claude-haiku-5-5).
+    assert "haiku" in council._members[2].engine.model
     assert council._members[2].engine.thinking == {"type": "disabled"}
     assert council._members[2].engine.web is True
     assert council._members[3].engine.thinking == "max"
@@ -234,3 +235,56 @@ def test_news_preset_wires_reasoning_and_shared_tools(
     assert all("web_search" in member._tool_map for member in council._members)
     assert "web_search" in council._moderator._tool_map
     assert "web_search" in council._synthesiser._tool_map
+
+
+class _StopRun(Exception):
+    pass
+
+
+def test_council_charter_reaches_opening_positions_and_debate_protocol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every participant sees the independence charter exactly once: at the
+    start of the opening-position prompt and, in each debater's and the
+    moderator's rendered context, immediately ahead of the council protocol."""
+    from lazybridge import Envelope
+
+    from lazytools.skills import council as council_module
+
+    prompts: list[str] = []
+
+    def fake_parallel(*agents, **kwargs):
+        return lambda prompt: prompts.append(prompt) or "stub"
+
+    monkeypatch.setattr(council_module.Agent, "parallel", staticmethod(fake_parallel))
+    monkeypatch.setattr(WizengAImot, "_result_text", staticmethod(lambda result, stage: "stub"))
+    registered: list[Agent] = []
+
+    def spy_register(self, *agents):
+        # Derivation has fully finished here; stop before any model call.
+        registered.extend(agents)
+        raise _StopRun
+
+    monkeypatch.setattr(council_module.AgentPool, "register", spy_register)
+    council = WizengAImot("Should we ship?")
+    council.add(_agent("optimist")).add(_agent("critic"))
+
+    with pytest.raises(_StopRun):
+        council.run()
+
+    charter = council_module.INDEPENDENCE_CHARTER
+    assert "full and equal member" in charter and "I concede X" in charter
+
+    opening = [p for p in prompts if "opening position" in p]
+    assert len(opening) == 1
+    assert opening[0].startswith(charter)
+    assert opening[0].count(charter) == 1
+
+    assert [agent.name for agent in registered] == ["optimist", "critic", "moderator"]
+    for agent in registered:
+        context = agent._inject_sources(Envelope(task="probe")).context or ""
+        assert context.count(charter) == 1, agent.name
+        assert context.count("COUNCIL PROTOCOL") == 1, agent.name
+        charter_at = context.index(charter)
+        assert charter_at < context.index("COUNCIL PROTOCOL"), agent.name
+        assert context.index("COUNCIL PROTOCOL") == charter_at + len(charter) + 2, agent.name
