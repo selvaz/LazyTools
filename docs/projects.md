@@ -210,21 +210,35 @@ require the `full` profile and write access.
 
 For a task whose checks and review you already have in hand, one call does the
 whole sequence: `closure.close_task_with_evidence(store, project_id, task_index,
-checks=[(command, passed, detail), ...], review=..., review_by=..., reason=..., reviewer=...)`,
+checks=[(command, passed, detail), ...], review=..., review_by=..., reason=..., reviewer=..., worker=...)`,
 the MCP tool `projects_close_task` (core profile, write access), or
 
 ```
 lazytools-projects close-task <project_id> <task_index> \
     --check "<required check>=pass:<output tail>" --review "<findings>" \
-    --review-by <who reviewed> --reason "<why>" --reviewer <who accepts> --db <store.sqlite>
+    --review-by <who reviewed> --reason "<why>" --reviewer <who accepts> \
+    --worker <who did the work> --db <store.sqlite>
 ```
 
+The worker is the task's claim `owner` on the board (a different `worker` is
+refused) or, for an unclaimed task, the `worker` argument, which is then
+required. Worker, reviewer (`review_by`) and acceptor (`reviewer`) must be
+three different identities, and the worker is recorded on the verification.
+
 It refuses before writing anything when a required check is missing (listing
-the exact command strings the contract expects), a check failed, or a required
-review is absent, or the review's author (`review_by`) is missing or is the
-acceptor (`reviewer`) itself; an already-done task is a no-op. The checks and
-review are caller-attested -- nothing is executed -- so write access to the
-store is the real gate on who may close a task this way.
+the exact command strings the contract expects), a check failed, a required
+review is absent, a review has no author (`review_by`), or any two of worker,
+`review_by` and `reviewer` are the same identity; an already-done task is a
+no-op. A required review given as `REVIEW NOT PERFORMED (reason)` is recorded:
+the verification is `blocked`, the task stays open, and a project note flags it
+for the owner. Reusing an accepted-but-unclosed verification still requires
+this call's own evidence to pass (a not-performed review is refused there). If
+anything fails after the claim, cleanup retries its terminal transition on a
+fresh read and, when every attempt is contested, writes `blocked`
+unconditionally. The checks and review are caller-attested -- nothing is
+executed -- so write access to the store is the real gate on who may close a
+task this way. `projects_close_task` is also on `UNSAFE_TOOL_PATTERNS`, so a
+read-only server never exposes it.
 
 ## Contracts and verification
 

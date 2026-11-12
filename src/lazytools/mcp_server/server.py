@@ -97,6 +97,9 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "code_sessions_bind",
     "code_sessions_rename",
     "code_sessions_forget",
+    # Closes a project task (claims, accepts and closes a verification) --
+    # never on a read-only surface, whichever provider instance carries it.
+    "projects_close_task",
 )
 
 

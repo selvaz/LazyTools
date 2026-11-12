@@ -516,6 +516,7 @@ class ProjectsTools:
         reviewer: str,
         review: str = "",
         review_by: str | None = None,
+        worker: str | None = None,
     ) -> str:
         """Close a contract-backed task with evidence, in one call: claim a
         verification, record ``checks`` and ``review``, accept, close the board slot.
@@ -524,9 +525,12 @@ class ProjectsTools:
         (or the CLI form ``"COMMAND=pass|fail[:DETAIL]"``); every contract
         required_check must be covered by its EXACT command string. Refusals
         (missing/failed check, no review where one is required) happen before
-        anything is written. ``review_by`` (who performed the review) is
-        required when the contract requires review and must differ from
-        ``reviewer`` (who accepts). Already-done tasks are a no-op."""
+        anything is written. ``worker`` is who did the work (the task's claim
+        owner when it has one; required otherwise). ``review_by`` (who performed
+        the review) is required with any review; worker, ``review_by`` and
+        ``reviewer`` (who accepts) must all differ. A required review given as
+        ``"REVIEW NOT PERFORMED (reason)"`` is recorded, leaves the task open and
+        flags it for the owner. Already-done tasks are a no-op."""
         from lazytools.projects import closure as _closure
         from lazytools.projects.cli import parse_check
 
@@ -546,7 +550,7 @@ class ProjectsTools:
                 )
         return _closure.close_task_with_evidence(
             self._store, project_id, task_index, checks=evidence, review=review, reason=reason, reviewer=reviewer,
-            review_by=review_by,
+            review_by=review_by, worker=worker,
         )
 
     def projects_add_note(self, project_id: str, text: str, origin: str = "claude") -> str:

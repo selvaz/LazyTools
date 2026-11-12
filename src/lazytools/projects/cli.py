@@ -6,7 +6,8 @@ Currently one subcommand::
         --check "python -m pytest tests -q=pass:412 passed" \\
         --check "ruff check src=pass" \\
         --review "Read the diff; no issues." --review-by codex \\
-        --reason "Checks and review pass" --reviewer claude --db <store.sqlite>
+        --reason "Checks and review pass" --reviewer operator --worker claude \\
+        --db <store.sqlite>
 
 ``--check`` is ``COMMAND=pass|fail[:DETAIL]`` and repeatable; COMMAND must be a
 contract ``required_check`` string exactly. The Store is ``--db``, else
@@ -68,7 +69,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--review-by", default=None, help="Who performed the review (required when the contract requires review; not --reviewer)."
     )
     close.add_argument("--reason", required=True, help="Why this evidence is enough to close the task.")
-    close.add_argument("--reviewer", required=True, help="Who is accepting.")
+    close.add_argument("--reviewer", required=True, help="Who is accepting (never the worker).")
+    close.add_argument(
+        "--worker", default=None, help="Who did the work (default: the task's claim owner; required when unclaimed)."
+    )
     close.add_argument("--db", default=None, help=f"Store path (default: ${_ENV_STORE_DB}, then ${CEO_STORE_DB_ENV}).")
     return parser
 
@@ -99,6 +103,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         reason=args.reason,
         reviewer=args.reviewer,
         review_by=args.review_by,
+        worker=args.worker,
     )
     refused = result.startswith("REJECTED")
     print(result, file=sys.stderr if refused else sys.stdout)

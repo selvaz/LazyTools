@@ -6,7 +6,7 @@ import pytest
 from lazybridge import Store
 from lazybridge.ext.planners import DurableBlackboard
 
-from lazytools.projects import closure, contracts, records, task_claims, verification
+from lazytools.projects import closure, contracts, notes, records, task_claims, verification
 from lazytools.projects.cli import build_parser, main, parse_check
 from lazytools.projects.keys import BOARD_KEY_PREFIX, VERIFICATION_PREFIX
 
@@ -34,6 +34,7 @@ def _close(store, checks, **kwargs):
     kwargs.setdefault("reason", "checks and review pass")
     kwargs.setdefault("reviewer", "operator")
     kwargs.setdefault("review_by", "codex")
+    kwargs.setdefault("worker", "writer")
     return closure.close_task_with_evidence(store, "alpha", 0, checks=checks, **kwargs)
 
 
@@ -52,8 +53,11 @@ def test_happy_path_closes_the_task_through_accept():
     assert raw["job_id"].startswith("manual-alpha-0-")
     assert [c["command"] for c in raw["checks"]] == [PYTEST, RUFF]
     assert raw["review"]["findings"] == "Read the diff; no issues."
-    # The review is attributed to its author, the acceptance to the acceptor.
+    # The review is attributed to its author, the acceptance to the acceptor, and
+    # the work to the worker -- three distinct identities, all on the record.
     assert raw["review"]["reviewer"] == "codex" and raw["reviewer"] == "operator"
+    assert raw["worker"] == "writer"
+    assert len({raw["worker"], raw["review"]["reviewer"], raw["reviewer"]}) == 3
     events = store.read(BOARD_KEY)["plan_events"]
     assert events[-1]["event"] == "closed_accepted" and events[-1]["verification_id"] == raw["verification_id"]
     assert records.get_project(store, "alpha").last_progress_at is not None
@@ -95,11 +99,63 @@ def test_missing_review_refused_when_contract_requires_one():
     assert _verifications(store) == []
 
 
-@pytest.mark.parametrize("review", ["REVIEW NOT PERFORMED: reviewer unavailable", "[codex_code_review] failed: timeout"])
-def test_review_not_performed_is_refused_when_required(review):
+@pytest.mark.parametrize("review", ["REVIEW NOT PERFORMED (reviewer unavailable)", "[codex_code_review] failed: timeout"])
+def test_review_not_performed_is_recorded_blocked_and_flagged_not_closed(review):
     store = Store()
     _setup(store)
-    assert _close(store, PASSING, review=review).startswith("REJECTED: the review says it was not performed")
+    result = _close(store, PASSING, review=review, review_by=None)
+    assert result.startswith("REJECTED: review not performed") and "NOT closed" in result and "owner" in result, result
+    (raw,) = _verifications(store)
+    assert raw["status"] == "blocked" and raw["worker"] == "writer"
+    assert raw["review"]["performed"] is False and raw["review"]["findings"] == review
+    assert raw["decision_reason"].startswith("REVIEW NOT PERFORMED")
+    assert DurableBlackboard(store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "todo"
+    (note,) = notes.recent_project_notes(store, "alpha")
+    assert raw["job_id"] in note["note"] and "REVIEW NOT PERFORMED" in note["note"]
+
+
+def test_bare_review_not_performed_without_reason_is_refused():
+    store = Store()
+    _setup(store)
+    assert _close(store, PASSING, review="REVIEW NOT PERFORMED").startswith("REJECTED: say why")
+    assert _verifications(store) == []
+
+
+def test_reviewer_equal_to_worker_is_refused():
+    store = Store()
+    _setup(store)
+    result = _close(store, PASSING, reviewer="writer", worker="writer")
+    assert result.startswith("REJECTED: reviewer (the acceptor) and the worker are both 'writer'"), result
+    assert _verifications(store) == []
+
+
+def test_reviewer_equal_to_claim_owner_is_refused():
+    store = Store()
+    _setup(store)
+    board = DurableBlackboard(store, plan_id="project:alpha")
+    assert board.claim_task(0, "one", owner="writer") == (0, "one")
+    # The claim owner is the worker; the caller cannot rename it away.
+    assert _close(store, PASSING, reviewer="Writer", worker=None).startswith("REJECTED: reviewer (the acceptor)")
+    assert _close(store, PASSING, worker="someone-else").startswith("REJECTED: worker 'someone-else' does not match")
+    assert _verifications(store) == []
+    result = _close(store, PASSING, worker=None)
+    assert result.startswith("task 0 marked done"), result
+    (raw,) = _verifications(store)
+    assert raw["worker"] == "writer"
+
+
+def test_review_by_equal_to_worker_is_refused():
+    store = Store()
+    _setup(store)
+    result = _close(store, PASSING, review_by="writer")
+    assert result.startswith("REJECTED: review_by and the worker are both 'writer'"), result
+    assert _verifications(store) == []
+
+
+def test_unclaimed_task_without_worker_is_refused():
+    store = Store()
+    _setup(store)
+    assert _close(store, PASSING, worker=None).startswith("REJECTED: task 0 has no claim owner")
     assert _verifications(store) == []
 
 
@@ -133,10 +189,36 @@ def test_reuse_of_accepted_verification_still_validates_current_evidence():
     verification.record_review(store, job, reviewer="r", findings="fine")
     assert verification.accept(store, job, reviewer="a", reason="ok")
     before = store.read(BOARD_KEY)
+    (accepted,) = _verifications(store)
     failing = [(PYTEST, False, "3 failed"), (RUFF, True, "ok")]
     assert _close(store, failing).startswith("REJECTED: check(s) did not pass")
-    assert _close(store, PASSING, review="REVIEW NOT PERFORMED").startswith("REJECTED:")
+    # A not-performed review is recorded on a FRESH close; on the reuse path it
+    # must refuse outright, writing nothing.
+    assert _close(store, PASSING, review="REVIEW NOT PERFORMED (timeout)").startswith(
+        "REJECTED: the review says it was not performed"
+    )
     assert store.read(BOARD_KEY) == before
+    assert _verifications(store) == [accepted]
+    assert notes.recent_project_notes(store, "alpha") == []
+    # The retry with genuine passing evidence then reuses it.
+    assert f"reused accepted verification {job!r}" in _close(store, PASSING)
+
+
+def test_reuse_refuses_a_verification_accepted_by_the_worker():
+    store = Store()
+    contract = _setup(store)
+    job = "self-accepted"
+    verification.claim_verification(store, contract_id=contract.contract_id, job_id=job)
+    verification.start_running(store, job)
+    verification.record_checks(
+        store, job, checks=[verification.CheckResult(command=c, exit_code=0, output_tail="ok") for c in (PYTEST, RUFF)],
+        diff_summary=None,
+    )
+    verification.record_review(store, job, reviewer="codex", findings="fine")
+    assert verification.accept(store, job, reviewer="writer", reason="ok")
+    result = _close(store, PASSING)
+    assert result.startswith("REJECTED: accepted verification 'self-accepted'") and "'writer'" in result
+    assert DurableBlackboard(store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "todo"
 
 
 def test_cleanup_retries_a_lost_terminal_transition(monkeypatch):
@@ -155,6 +237,42 @@ def test_cleanup_retries_a_lost_terminal_transition(monkeypatch):
     assert result.startswith("REJECTED:") and "recorded as blocked" in result
     (raw,) = _verifications(store)
     assert raw["status"] == "blocked" and len(calls) == 2
+
+
+@pytest.mark.parametrize("failure", ["exception", "lost_race"])
+def test_contested_cleanup_still_leaves_no_running_verification(monkeypatch, failure):
+    """Every cleanup compare-and-swap loses; the record must still end up blocked."""
+    store = Store()
+    _setup(store)
+    real_cas = store.compare_and_swap
+    contested = []
+
+    def cas(key, expected, new):
+        if contested and key.startswith(VERIFICATION_PREFIX):
+            contested.append(key)
+            return False
+        return real_cas(key, expected, new)
+
+    monkeypatch.setattr(store, "compare_and_swap", cas)
+
+    def fail_checks(*_args, **_kwargs):
+        contested.append("on")
+        if failure == "exception":
+            raise RuntimeError("disk on fire")
+        return None
+
+    monkeypatch.setattr(verification, "record_checks", fail_checks)
+    if failure == "exception":
+        with pytest.raises(RuntimeError, match="disk on fire"):
+            _close(store, PASSING)
+    else:
+        result = _close(store, PASSING)
+        assert result.startswith("REJECTED:") and "forced after" in result, result
+    (raw,) = _verifications(store)
+    assert raw["status"] == "blocked", raw["status"]
+    assert "forced" in raw["decision_reason"]
+    # Every bounded attempt was tried before the forced write.
+    assert len(contested) - 1 >= task_claims.CAS_ATTEMPTS
 
 
 def test_waived_review_closes_without_review():
@@ -292,7 +410,8 @@ def test_cli_closes_task_end_to_end(tmp_path, capsys):
     db = str(tmp_path / "store.sqlite")
     _setup(Store(db=db))
     argv = ["close-task", "alpha", "0", "--check", f"{PYTEST}=pass:ok", "--check", f"{RUFF}=pass",
-            "--review", "fine", "--review-by", "codex", "--reason", "evidence", "--reviewer", "me", "--db", db]
+            "--review", "fine", "--review-by", "codex", "--reason", "evidence", "--reviewer", "me",
+            "--worker", "writer", "--db", db]
     assert main(argv) == 0
     assert "task 0 marked done" in capsys.readouterr().out
     assert main(argv) == 0
@@ -303,7 +422,7 @@ def test_cli_refusal_exits_one(tmp_path, capsys):
     db = str(tmp_path / "store.sqlite")
     _setup(Store(db=db))
     argv = ["close-task", "alpha", "0", "--check", f"{PYTEST}=pass", "--review", "fine",
-            "--reason", "evidence", "--reviewer", "me", "--db", db]
+            "--reason", "evidence", "--reviewer", "me", "--worker", "writer", "--db", db]
     assert main(argv) == 1
     assert "missing required check" in capsys.readouterr().err
 
@@ -329,6 +448,18 @@ def test_mcp_close_task_is_write_gated_and_closes(tmp_path):
     assert pt.projects_close_task("alpha", 0, [{"command": PYTEST}], "r", "me").startswith("REJECTED: checks[0]")
     result = pt.projects_close_task(
         "alpha", 0, [{"command": PYTEST, "passed": True, "detail": "ok"}, f"{RUFF}=pass"], "evidence", "me", review="fine",
-        review_by="codex",
+        review_by="codex", worker="writer",
     )
     assert result.startswith("task 0 marked done"), result
+
+
+def test_close_task_is_dropped_from_a_read_only_expansion(tmp_path):
+    from lazytools.connectors.projects import ProjectsTools
+    from lazytools.mcp_server.server import expand_tools
+
+    db = str(tmp_path / "store.sqlite")
+    _setup(Store(db=db))
+    provider = ProjectsTools(store_db=db, allow_write=True)
+    assert "projects_close_task" in {t.name for t in provider.as_tools()}
+    assert "projects_close_task" not in expand_tools([provider], read_only=True)
+    assert "projects_close_task" in expand_tools([provider], read_only=False)
