@@ -707,7 +707,7 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
         job_status = getattr(prov, "job_status", None)
         if job_status is not None:
             # No status API (Claude): the provider reads the job's result from git.
-            state = job_status(job, claimed=_claimed_result_branches(store, job_id))
+            state = job_status(job, claimed=_claimed_result_branches(store, job_id, job.get("repo")))
         else:
             state = prov.status(str(job["cloud_handle"]))
     except CloudError as exc:
@@ -743,14 +743,22 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     return _merged(store, registry, job_id)
 
 
-def _claimed_result_branches(store: Any, job_id: str) -> set[str]:
-    """Result branches already attributed to OTHER cloud jobs (so two Claude jobs never share one)."""
+def _claimed_result_branches(store: Any, job_id: str, repo: str | None) -> set[str]:
+    """Result branches already attributed to OTHER cloud jobs on the SAME repository.
+
+    Two Claude jobs never share one result branch; a branch name used in one
+    repository does not reserve that name in another.
+    """
     claimed = set()
+    repo_key = (repo or "").lower()
     for job in _store.all_job_records(store):
         other = str(job.get("job_id", ""))
         if other == job_id or job.get("where") != WHERE_CLOUD:
             continue
-        branch = (_store.read_meta(store, other) or {}).get("result_branch")
+        meta = _store.read_meta(store, other) or {}
+        if str(meta.get("repo") or "").lower() != repo_key:
+            continue
+        branch = meta.get("result_branch")
         if branch:
             claimed.add(str(branch))
     return claimed

@@ -350,7 +350,8 @@ class ClaudeCloud:
         refs = _remote_claude_refs(root)
         before = job.get("claude_refs_before")
         if named:
-            names = [named] if named in refs and (not isinstance(before, dict) or before.get(named) != refs[named]) else []
+            fresh = named in refs and (not isinstance(before, dict) or before.get(named) != refs[named])
+            names = [named] if fresh and named not in claimed else []
         else:
             names = [b for b, sha in refs.items()
                      if b not in claimed and (not isinstance(before, dict) or before.get(b) != sha)]

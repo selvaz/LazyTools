@@ -449,3 +449,28 @@ def test_setup_skill_is_bundled_and_installable(tmp_path, capsys):
     assert cli.main(["setup-skill", "--install", str(tmp_path), "--force"]) == 0
     with pytest.raises(KeyError):
         agent_skill_path("../etc")
+
+
+def test_named_branch_already_claimed_is_not_reused(cc, capsys):
+    brief = "Leave the result on branch claude/shared-x please."
+    first = _submit_json(cc, capsys, task=brief)["job_id"]
+    second = _submit_json(cc, capsys, task=brief)["job_id"]
+    _vm_push(cc, "claude/shared-x")
+    cli.main(["status", first, "--db", str(cc.db)])
+    cli.main(["status", second, "--db", str(cc.db)])
+    capsys.readouterr()
+    assert _job(cc, first)["result_branch"] == "claude/shared-x"
+    assert _job(cc, second)["status"] == "running" and not _job(cc, second).get("result_branch")
+
+
+def test_claims_are_scoped_to_the_repository(cc, capsys):
+    store = _store.build_store(cc.db)
+    registry = _store.build_job_registry(store)
+    other = "ab" * 16
+    meta = {"job_id": other, "engine": "claude", "where": "cloud", "repo": "acme/elsewhere",
+            "result_branch": "claude/fix-login", "objective": "x"}
+    _store.write_meta(store, other, meta)
+    registry.write(other, "x", tool_name="claude", status="done", engine="claude",
+                   extra={"where": "cloud", "cloud_handle": "h"})
+    assert _cloud._claimed_result_branches(store, "cd" * 16, "acme/widgets") == set()
+    assert _cloud._claimed_result_branches(store, "cd" * 16, "ACME/elsewhere") == {"claude/fix-login"}
