@@ -8,6 +8,7 @@ subcommand fails here instead of misleading an assistant.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import shlex
 from pathlib import Path
@@ -140,12 +141,26 @@ def test_projects_python_snippets_run_against_a_real_store(tmp_path, monkeypatch
 # Public and generic: nothing tied to one user, machine or domain
 # --------------------------------------------------------------------------- #
 
+def _repository_owner() -> str:
+    """The GitHub owner of this repository, read from pyproject (never hard-coded here)."""
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    match = re.search(r'^Repository\s*=\s*"https://github\.com/([^/"]+)/', text, re.M)
+    assert match, "pyproject.toml has no GitHub Repository URL"
+    return match[1]
+
+
+def _extra_denylist() -> list[tuple[str, str]]:
+    """Optional local terms (comma-separated), kept out of the repository."""
+    raw = os.environ.get("LAZYTOOLS_SKILL_DENYLIST", "")
+    return [(rf"(?i)\b{re.escape(term.strip())}\b", "denylisted term") for term in raw.split(",") if term.strip()]
+
+
 _FORBIDDEN = [
     (r"[A-Za-z]:\\\\?(?:Users|ProgramData)", "Windows user path"),
     (r"/home/|/Users/|/root/", "home directory path"),
     (r"[\w.+-]+@[\w-]+\.[\w.]+", "email address"),
-    (r"(?i)selvaz", "owner name"),
-    (r"(?i)\b(?:financ\w*|invest\w*|trading|portfolio|lazyceo)\b", "domain-specific term"),
+    (rf"(?i){re.escape(_repository_owner())}", "repository owner name"),
+    (r"(?i)\b(?:financ\w*|invest\w*|trading|portfolio)\b", "domain-specific term"),
     (r"(?i)\b(?:sk-[a-z0-9]{8,}|ghp_[a-z0-9]{8,}|github_pat_)", "credential-looking token"),
     (r"https?://(?!github\.com/owner/repo)", "external URL"),
 ]
@@ -154,7 +169,8 @@ _FORBIDDEN = [
 @pytest.mark.parametrize("path", SKILL_FILES, ids=lambda p: p.name)
 def test_skill_contains_no_private_or_domain_specific_data(path):
     text = path.read_text(encoding="utf-8")
-    found = [f"{label}: {m.group(0)!r}" for pattern, label in _FORBIDDEN for m in re.finditer(pattern, text)]
+    patterns = _FORBIDDEN + _extra_denylist()
+    found = [f"{label}: {m.group(0)!r}" for pattern, label in patterns for m in re.finditer(pattern, text)]
     # ~/ paths are allowed only for the tools' own documented config locations.
     found += [f"home path: {m!r}" for m in re.findall(r"~/[\w./-]+", text)
               if not m.startswith(("~/.lazytools/", "~/.claude", "~/.codex"))]
