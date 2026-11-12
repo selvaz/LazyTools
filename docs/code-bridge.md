@@ -907,6 +907,8 @@ write to escalate, and so to reach a human.
 
 ## Engine concurrency limit (machine-wide)
 
+(Cloud jobs have a separate limit; see [Cloud jobs](#cloud-jobs-run-where-cloud).)
+
 Besides the per-repository lock, each engine has a machine-wide limit on live
 jobs. Defaults: **codex = 1**, claude = unlimited. Configure them in
 `~/.lazytools/code-bridge.toml` (or the file named by
@@ -956,6 +958,212 @@ claude = 2   # absent or 0 = unlimited
   already-`interrupted` job and retries the rejection. A refused launch
   leaves stale slot files untouched, and an incomplete bookkeeping attempt
   keeps the file for a later launch, so the record of a dead job is never lost.
+
+## Cloud jobs (`run --where cloud`)
+
+Every local job runs Codex or Claude Code on this machine, where it competes
+with production jobs during production windows. `--where cloud` hands the
+brief to the engine's **cloud agent** instead: the bridge submits it, records
+the returned task handle, and returns at once. No engine process runs locally
+and no local engine slot is taken.
+
+```
+lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd <repo> --task @brief.md \
+    [--branch B] [--approve-cloud push|pr-create|merge|delete|reset|commit|git-option ...]
+lazytools-code-bridge status <job>      # polls `codex cloud status <task>`
+lazytools-code-bridge wait <job>        # polls until the task is terminal
+lazytools-code-bridge result <job>      # final message + `codex cloud diff <task>` summary
+lazytools-code-bridge apply <job> [--rebase]  # `codex cloud apply <task>` in a NEW worktree/branch; no push
+```
+
+Only `--engine codex` is implemented today (Codex Cloud, through the
+official `codex cloud` CLI; the binary is found the same way the local Codex
+engine finds it — `CODEX_BIN`, then `PATH`, then the Codex desktop app's
+install directory).
+
+### Data boundary: cloud jobs cannot read local data
+
+A cloud agent sees **only the repository as its Codex Cloud environment
+clones it from the git remote**, at the branch you name. It cannot read local
+files, uncommitted or unpushed changes, local databases, mapped drives, or
+anything else on this machine — including **production data**. A brief that
+needs local data (or a production connection) must stay a local job. Push the
+branch you want the agent to start from before submitting; `--branch`
+defaults to the current local branch name, and the agent uses the remote's
+copy of it. Every cloud brief is prefixed with a short preamble telling the
+agent the same thing.
+
+### Configuration
+
+Each repository must be mapped to a **single-repo Codex Cloud environment**
+(create one per repository at chatgpt.com → Codex → Settings →
+Environments). The key is the `owner/name` read from the repository's
+`origin` remote (https, ssh and scp-style URLs all work; matching ignores
+case). In `~/.lazytools/code-bridge.toml`, beside `[concurrency]`:
+
+```toml
+[cloud]
+concurrency = 4            # live cloud jobs at once (default 4; 0 = unlimited)
+
+[cloud.codex.envs]
+"selvaz/LazyTools" = "env_0123abcd"
+```
+
+A repository with no mapping is refused before anything is submitted or
+recorded, with a message telling the operator to create that environment and
+showing the exact lines to add.
+
+### Job record
+
+A cloud job is an ordinary job row with `where = "cloud"` plus
+`cloud_handle` (the task URL `codex cloud exec` printed, or the bare task id
+if it printed no URL), `cloud_url`, `repo`, `env_id` and `branch`. `jobs`
+shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
+`codex cloud exec` runs), `running`, then `done` / `failed` / `interrupted`.
+
+- `status`, `wait` and `result` poll the provider and persist what they see.
+  The status output is parsed tolerantly (JSON `status`, a `status: X` line,
+  or a known status word); a poll never declares a job *done* on output it
+  cannot read. A failed poll (the CLI errs without naming a status, or its
+  output names no status at all) is recorded as `last_poll_error` and the
+  job stays `running`; after **5 failed polls in a row** the job is marked
+  `failed` with the redacted last reason, which frees its cloud place.
+  A **non-zero exit is not automatically a poll failure**: `codex cloud
+  status` exits non-zero for a task that ended in error, so its output is
+  parsed whatever the exit code and a recognised status wins (`error` → the
+  job is `failed`). Only a non-zero exit whose output names no status counts
+  as a poll failure. Without an explicit `status:` field, only the **leading
+  token** of the first line is read (`[READY] Fix error handling` is ready):
+  the rest is a task title.
+- `wait` never hangs: a job that keeps failing polls becomes `failed` (exit
+  1), and a cloud `wait` without `--timeout` gives up after 7200 s (exit 3).
+- Provider diagnostics (errors, apply output) **and the brief** are passed
+  through a redaction filter (bearer/basic credentials, `token=`/`api_key=`-
+  style pairs, `sk-`/`ghp_`/`github_pat_`/`xox*`/`AKIA`/`glpat`/`AIza`
+  prefixes, JWTs) before they are stored or printed. The provider still
+  receives the brief as written, and `run` warns when it masked something:
+  do not put secrets in a brief.
+- `result` prints the final message and a diff summary (files, +/− lines).
+  Its exit code follows the local rule: non-zero for `failed`/`interrupted`.
+- Every status write re-reads the record under the machine-wide guard and
+  never overwrites a terminal status: a poll or submit whose answer arrives
+  after a `cancel` cannot bring the job back (or take its place again).
+- `cancel` stops **tracking** a cloud job (marks it `interrupted` and frees
+  its place) but does **not** stop the remote task; it prints the task URL so
+  you can cancel it there.
+
+### `apply`: never in your checkout, never pushed
+
+`apply <job>` requires a `done` job. At submit the bridge fetches the
+branch and records the remote tip as `base_commit` — the commit the cloud
+environment starts from. `apply` fetches the branch again; if its head has
+**moved** since submit, `apply` is **refused** unless you pass `--rebase`, in
+which case the worktree starts at the new head (`rebased_from` records the
+old base; the diff may not apply cleanly). Otherwise it runs `git worktree add
+-b cloud/<job8> <dir> <base_commit>`. There is no unchecked fallback: a job
+with no recorded `base_commit` (the fetch at submit failed, or the branch was
+not on the remote), or whose `base_commit` is not in the local repository, is
+**refused** -- re-submit it from a pushed branch. Then it runs `codex cloud
+apply <task>` **inside that new worktree**. Your own checkout, its branch and
+its index are never touched. `<dir>` defaults to `cloud-worktrees/<job>`
+beside the Store; `--branch` and `--worktree` override both names. A job is
+applied once; a second `apply` is refused. If `codex cloud apply` fails and
+left the worktree untouched, the worktree and branch are removed so the same
+`apply <job>` can be retried; if it left partial changes, both are kept, their
+location is recorded (`apply_failed_worktree`) and printed, and nothing is
+deleted. The command stops before any
+commit or push and prints the push command: **pushing stays a separate,
+approved step**.
+
+### Approvals: where the gate is for cloud jobs
+
+A local job's `BridgeGate` sits between the engine and every tool call on
+this machine, and files a ticket for gated ones (a push, a merge, a delete,
+a `gh` write). A cloud agent's tool calls happen on the provider's machine,
+where no local gate can see them one by one. So the gate is applied **before
+submit** instead:
+
+- `--where cloud` requires an explicit operator flag, **`--allow-cloud`**;
+  without it nothing is submitted or recorded.
+- A brief that requests anything the local gate would ask for is **refused**
+  unless the operator approves each such action up front with
+  `--approve-cloud <action>` (repeatable). Commands in the brief are
+  classified by the **same rule table** the local `BridgeGate` uses
+  (`_policy.CODING_RULES`): every ask or session rule maps to one action --
+  `push` (`git push origin main`, any push form), `pr-create` (`gh pr
+  create`), `merge` (`gh pr merge`), `delete` (`rm …`, `… delete …`), `reset`
+  (`git reset --hard`), `commit` (`git add`, `git commit`), `git-option`
+  (`git -C …`). Requests written in words ("push the branch", "open a PR",
+  "merge it into main", "delete the old branches", `git branch -D`) map to the
+  same actions. The approvals given are stored on the job as
+  `cloud_approvals`. Detection is deliberately conservative: a false positive
+  costs one flag, a miss is the risk to avoid.
+
+Beyond that, the approval boundary is the diff:
+
+- The cloud task's only output the bridge accepts is its **diff**. Nothing
+  reaches any checkout until `apply`, which an operator runs, into a new
+  worktree, and which never pushes.
+- **Pushing stays a separate, human step** after reviewing the applied
+  worktree; the bridge never pushes a cloud job's work.
+- What the agent may do *inside* the cloud (network access, setup script,
+  secrets) is governed by the Codex Cloud environment's own settings. Keep
+  each mapped environment single-repo, without push credentials or
+  production secrets, and with internet access off unless a task needs it.
+
+- `apply` itself runs only **local, non-destructive** steps (a new worktree
+  and branch, then `codex cloud apply` inside it) and never pushes. Pushing or
+  merging the applied result goes through the **normal gate**: by the operator
+  by hand, or as a local bridge job whose `BridgeGate` files the usual ticket.
+
+Work that needs gated actions performed step by step under tickets should
+run as a local job.
+
+### Input validation
+
+`--job-id` (internal) must be 8–32 lowercase hex digits or a canonical UUID,
+and must not already exist. `apply` re-checks the stored id and resolves the
+default worktree path (`Path.resolve` + `is_relative_to`) to make sure it
+stays inside `cloud-worktrees/`.
+`--branch` and `apply --branch` must pass `git check-ref-format --branch`.
+On Windows a `codex.cmd`/`.bat` npm shim is **never executed** (`cmd.exe`
+would re-parse the brief and branch as shell syntax): the bridge runs the
+package's `bin/codex.js` beside it with `node`, or refuses and asks for
+`CODEX_BIN` pointing at `codex.exe`.
+
+### Concurrency
+
+Cloud jobs do **not** count against the local per-engine limit (they use no
+local CPU), and a busy local Codex never blocks a cloud submit. They have
+their own limit, `[cloud] concurrency` (default **4**, across providers),
+counted from the job Store: records with `where = "cloud"` still
+`submitting` or `running`. Before refusing, the bridge polls the active
+tasks once, so a task that finished since its last poll frees its place.
+Admission runs under the same machine-wide `guard.lock` as the engine slots,
+so two submits cannot both take the last place. The count is per Store: jobs
+recorded under a different `--db` are not seen.
+
+### Extension point: Claude cloud routines
+
+`lazytools.code_bridge._cloud` defines a `CloudProvider` protocol —
+`env_for(repo, config)`, `submit(repo_dir, env_id, branch, prompt)`,
+`status(handle)`, `diff(handle)`, `apply(handle, worktree)` — and a
+`PROVIDERS` registry. `ClaudeRoutines` is registered for `--engine claude`
+but **not implemented**: every method raises `CloudNotImplemented`, so
+`run --where cloud --engine claude` fails with a pointer here. An
+implementation against the claude.ai routines API would:
+
+1. map the repository to a claude.ai cloud environment (`[cloud.claude.envs]`,
+   same shape as Codex's);
+2. create a one-shot routine whose prompt is the brief, and store the
+   returned session id as the handle;
+3. poll that session for its terminal state in `status`;
+4. treat the branch the routine pushed as the "diff" (`diff` = `git diff
+   base...branch` after a fetch), and in `apply` fetch that branch into the
+   new worktree instead of patching.
+
+The same data boundary applies: a claude.ai routine sees only its cloud
+environment, never this machine.
 
 ## One job per repository at a time
 

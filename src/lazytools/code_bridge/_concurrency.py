@@ -86,7 +86,7 @@ class ConcurrencyConfig:
 
 
 def validate_top_level(data: dict[str, Any], path: Path) -> None:
-    unknown = data.keys() - {"concurrency", "routine_auto"}
+    unknown = data.keys() - {"concurrency", "routine_auto", "cloud"}
     if unknown:
         raise ValueError(f"{path}: unknown top-level config keys: {sorted(unknown)}")
 
