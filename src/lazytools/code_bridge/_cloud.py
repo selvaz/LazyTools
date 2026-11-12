@@ -26,6 +26,8 @@ Configuration (``~/.lazytools/code-bridge.toml``, same file as ``[concurrency]``
     [cloud.claude.routines.nightly]       # optional: fire a claude.ai routine instead of `claude --cloud`
     id = "trig_0123"
     token_env = "LAZYTOOLS_ROUTINE_NIGHTLY_TOKEN"   # the env var NAME; tokens never go in this file
+    repo = "selvaz/LazyTools"             # must match the routine's settings
+    branch = "main"
 
 Concurrency
 -----------
@@ -210,7 +212,7 @@ class CloudConfig:
     concurrency: int | None = DEFAULT_CLOUD_CONCURRENCY
     #: provider -> {"owner/name": env id}
     envs: dict[str, dict[str, str]] = field(default_factory=dict)
-    #: routine name -> {"id": routine id, "token_env": env var holding its bearer token}
+    #: routine name -> {id, token_env, repo, branch}; repo/branch mirror the routine settings
     routines: dict[str, dict[str, str]] = field(default_factory=dict)
     path: Path | None = None
 
@@ -267,9 +269,11 @@ def load_config(path: Path | None = None) -> CloudConfig:
 
 
 def _load_routines(table: Any, path: Path) -> dict[str, dict[str, str]]:
-    """Validate ``[cloud.claude.routines]``: name -> {id, token_env}; a literal token is refused."""
+    """Validate Claude routines, including the repository and branch they run against."""
     if not isinstance(table, dict):
-        raise ValueError(f"{path}: [cloud.claude.routines] must be a table of name = {{ id, token_env }}")
+        raise ValueError(
+            f"{path}: [cloud.claude.routines] must be a table of name = {{ id, token_env, repo, branch }}"
+        )
     routines: dict[str, dict[str, str]] = {}
     for name, entry in table.items():
         where = f"{path}: [cloud.claude.routines.{name}]"
@@ -282,15 +286,22 @@ def _load_routines(table: Any, path: Path) -> dict[str, dict[str, str]]:
                 f"{where}: never store the token in the config; put it in an environment variable and set "
                 "token_env to that variable's NAME"
             )
-        unknown = entry.keys() - {"id", "token_env"}
+        unknown = entry.keys() - {"id", "token_env", "repo", "branch"}
         if unknown:
-            raise ValueError(f"{where} has unknown keys: {sorted(unknown)} (only id, token_env)")
-        routine_id, token_env = entry.get("id"), entry.get("token_env")
+            raise ValueError(f"{where} has unknown keys: {sorted(unknown)} (only id, token_env, repo, branch)")
+        routine_id, token_env, repo, branch = (
+            entry.get("id"), entry.get("token_env"), entry.get("repo"), entry.get("branch")
+        )
         if not isinstance(routine_id, str) or not _ROUTINE_ID_RE.fullmatch(routine_id):
             raise ValueError(f"{where}: id must be the routine id (letters, digits, '_', '-'), e.g. \"trig_...\"")
         if not isinstance(token_env, str) or not _ENV_VAR_RE.fullmatch(token_env):
             raise ValueError(f"{where}: token_env must be an environment variable NAME, e.g. LAZYTOOLS_ROUTINE_TOKEN")
-        routines[name] = {"id": routine_id, "token_env": token_env}
+        if not isinstance(repo, str) or not re.fullmatch(r"[^/\s]+/[^/\s]+", repo):
+            raise ValueError(f"{where}: repo must match the routine's GitHub repository as 'owner/name'")
+        if (not isinstance(branch, str) or branch.startswith("-")
+                or subprocess.run(["git", "check-ref-format", "--branch", branch], capture_output=True).returncode):
+            raise ValueError(f"{where}: branch must match the routine's valid git branch name")
+        routines[name] = {"id": routine_id, "token_env": token_env, "repo": repo.lower(), "branch": branch}
     return routines
 
 
@@ -861,7 +872,7 @@ def submit_job(
         raise CloudError(f"job id {job_id!r} already exists -- refusing to overwrite its record")
     precheck = getattr(prov, "precheck", None)
     if precheck is not None:
-        precheck(repo_dir=root, branch=branch, routine=routine)
+        precheck(repo_dir=root, branch=branch, routine=routine, config=config)
     base_commit = _remote_base(root, branch)
     meta: dict[str, Any] = {
         "job_id": job_id,
@@ -883,6 +894,10 @@ def submit_job(
         from lazytools.code_bridge._cloud_claude import ENV_NOTE, named_branch
 
         meta["named_result_branch"] = named_branch(task)
+        # An unnamed Claude session gets an unambiguous branch before it is
+        # submitted.  This is the only branch later status/apply operations
+        # will accept for this job.
+        meta["claude_result_branch"] = meta["named_result_branch"] or f"claude/lazytools-{job_id}"
         if routine is None:
             meta["environment_note"] = ENV_NOTE
     _admit(store, registry, config, job_id, meta)

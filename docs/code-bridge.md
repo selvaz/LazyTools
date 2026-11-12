@@ -1189,22 +1189,24 @@ https://api.anthropic.com/v1/claude_code/routines/{id}/fire` with
 [cloud.claude.routines.nightly]
 id = "trig_0123"
 token_env = "LAZYTOOLS_ROUTINE_NIGHTLY_TOKEN"   # env var NAME; a literal token key is refused
+repo = "owner/repository"                        # the repository selected in the routine
+branch = "main"                                  # the branch selected in the routine
 ```
 
 The token is read from that variable at submit, never stored, and masked in
-any error.
+any error. The bridge verifies that `--cwd` and `--branch` match `repo` and
+`branch`, so it never monitors or diffs a checkout unrelated to the routine.
 
 **No status API (impossible by design).** Anthropic documents no endpoint
 to poll a cloud session's state or read its transcript, so the bridge cannot
 know when a session has finished. Instead:
 
-- At submit it snapshots the `claude/*` branches on `origin`
-  (`claude_refs_before`).
-- `status`, `wait` and `result` run `git ls-remote` and look for a `claude/...`
-  branch that is **new or moved** since that snapshot. If the brief names
-  exactly one `claude/...` branch, only that one counts
-  (`named_result_branch`). Branches already attributed to another cloud job
-  are skipped.
+- At submit it assigns an unnamed job the unique branch
+  `claude/lazytools-<job-id>` and includes that exact branch in the brief. If
+  the brief already names exactly one `claude/...` branch, that branch is used.
+- `status`, `wait` and `result` run `git ls-remote` and look only for that
+  job's recorded branch becoming new or moved since submission. They never
+  infer ownership from another new `claude/...` branch.
 - While none exists, `status` prints `submitted (no status API): open <url>`
   and the job stays `running`. It holds its cloud concurrency place until a
   branch appears or you `cancel` it.

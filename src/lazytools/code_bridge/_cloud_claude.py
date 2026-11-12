@@ -210,21 +210,43 @@ class ClaudeCloud:
             known = ", ".join(sorted(config.routines)) or "none configured"
             raise CloudError(
                 f"no routine {routine!r} in [cloud.claude.routines] of {config.path} (known: {known}). Add:\n\n"
-                f'    [cloud.claude.routines.{routine}]\n    id = "trig_..."\n    token_env = "LAZYTOOLS_ROUTINE_TOKEN"'
+                f'    [cloud.claude.routines.{routine}]\n    id = "trig_..."\n'
+                f'    token_env = "LAZYTOOLS_ROUTINE_TOKEN"\n    repo = "owner/name"\n    branch = "main"'
+            )
+        configured = config.routines[routine]["repo"]
+        if configured.lower() != repo.lower():
+            raise CloudError(
+                f"routine {routine!r} is configured for repository {configured}, not {repo}; "
+                "use a checkout of that repository or correct the routine configuration"
             )
         return f"routine:{routine}"
 
     # -- submit ------------------------------------------------------------ #
 
-    def precheck(self, *, repo_dir: Path, branch: str, routine: str | None) -> None:
+    def precheck(self, *, repo_dir: Path, branch: str, routine: str | None,
+                 config: CloudConfig | None = None) -> None:
         """Refusals that must record no job: CLI mode needs the branch pushed as-is."""
         if routine is None:
             verify_pushed(repo_dir, branch)
+        else:
+            expected = (config or _cloud.load_config()).routines[routine]["branch"]
+            if branch != expected:
+                raise CloudError(
+                    f"routine {routine!r} is configured for branch {expected!r}, not {branch!r}; "
+                    "pass that branch or correct the routine configuration"
+                )
 
     def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str, job_id: str = "",
                db_path: Path | None = None, routine: str | None = None, config: CloudConfig | None = None,
                **_: Any) -> Submission:
         refs_before = _remote_claude_refs(repo_dir)
+        requested_branch = named_branch(prompt)
+        result_branch = requested_branch or f"{RESULT_PREFIX}lazytools-{job_id}"
+        if requested_branch is None:
+            prompt += (
+                f"\n\nPush the completed result to the exact branch `{result_branch}`. "
+                "Do not use any other result branch."
+            )
         if routine is not None:
             sid, url, raw = self._fire_routine(routine, prompt, config or _cloud.load_config())
             mode = "routine"
@@ -248,6 +270,7 @@ class ClaudeCloud:
                 "claude_session_id": sid,
                 "claude_submit_raw": redact(raw)[:4000],
                 "claude_refs_before": refs_before,
+                "claude_result_branch": result_branch,
                 "environment_note": ENV_NOTE if mode == "cli" else "the routine's own environment applies",
             },
         )
@@ -346,7 +369,7 @@ class ClaudeCloud:
     def result_candidates(self, job: dict[str, Any], root: Path, *,
                           claimed: set[str] | frozenset[str] = frozenset()) -> list[tuple[str, str]]:
         """New ``claude/`` branches for this job, newest commit first, as ``(branch, sha)``."""
-        named = job.get("named_result_branch")
+        named = job.get("claude_result_branch") or job.get("named_result_branch")
         refs = _remote_claude_refs(root)
         before = job.get("claude_refs_before")
         if named:
@@ -389,8 +412,10 @@ class ClaudeCloud:
                 f"job {job.get('job_id')}: no claude/ result branch on origin yet; open "
                 f"{job.get('cloud_url') or job.get('cloud_handle')} and retry once the session pushed its branch"
             )
-        if not str(source).startswith(RESULT_PREFIX) and source != job.get("named_result_branch"):
-            raise CloudError(f"--source must be a claude/ branch, got {source!r}")
+        allowed = {str(x) for x in (job.get("claude_result_branch"), job.get("result_branch")) if x}
+        if str(source) not in allowed:
+            expected = job.get("claude_result_branch") or job.get("result_branch")
+            raise CloudError(f"--source {source!r} does not belong to this job (expected {expected!r})")
         root = Path(str(job.get("repo_root") or job.get("cwd")))
         tip = _fetch_branch(root, str(source))
         worktree.parent.mkdir(parents=True, exist_ok=True)

@@ -133,6 +133,8 @@ suggest the name `LAZYTOOLS_ROUTINE_<NAME>_TOKEN`. Write:
 [cloud.claude.routines.<name>]
 id = "trig_..."
 token_env = "LAZYTOOLS_ROUTINE_<NAME>_TOKEN"
+repo = "owner/repository"
+branch = "main"
 ```
 
 ## Step 3: Shared settings and validation

@@ -267,6 +267,8 @@ CLI and no local checkout of the branch.
     [cloud.claude.routines.nightly]
     id = "trig_0123"
     token_env = "LAZYTOOLS_ROUTINE_NIGHTLY_TOKEN"   # the variable's NAME
+    repo = "owner/repository"                        # exactly as configured in the routine
+    branch = "main"
     ```
 
 4. Fire it with the brief as its text:

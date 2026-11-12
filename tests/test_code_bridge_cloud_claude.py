@@ -120,6 +120,10 @@ def _job(ctx, job_id: str) -> dict:
     return _jobs.find_job(store, _store.build_job_registry(store), job_id)
 
 
+def job_branch(payload: dict) -> str:
+    return f"claude/lazytools-{payload['job_id']}"
+
+
 def _config(text: str) -> None:
     path = Path(os.environ[_concurrency.CONFIG_ENV])
     path.write_text(path.read_text(encoding="utf-8") + text, encoding="utf-8")
@@ -137,7 +141,8 @@ def test_submit_runs_claude_cloud_from_the_pushed_checkout(cc, capsys):
     assert payload["env_id"] == _cloud_claude.ENV_LABEL
     (call,) = cc.calls()
     assert call["argv"][0] == "--cloud"
-    assert call["argv"][1].startswith(_cloud.CLOUD_PREAMBLE) and call["argv"][1].endswith("Add a feature")
+    assert call["argv"][1].startswith(_cloud.CLOUD_PREAMBLE)
+    assert "Add a feature" in call["argv"][1] and job_branch(payload) in call["argv"][1]
     assert call["argv"][2:] == ["--output-format", "json"]
     assert Path(call["cwd"]).resolve() == cc.repo.resolve() and call["branch"] == "main"
     job = _job(cc, payload["job_id"])
@@ -240,12 +245,13 @@ def test_preexisting_claude_branches_are_not_the_result(cc, capsys):
 
 def test_result_and_apply_use_the_pushed_claude_branch(cc, capsys):
     job_id = _submit_json(cc, capsys)["job_id"]
-    sha = _vm_push(cc, "claude/add-feature-x1")
+    result_branch = _job(cc, job_id)["claude_result_branch"]
+    sha = _vm_push(cc, result_branch)
     assert cli.main(["result", job_id, "--db", str(cc.db)]) == 0
     out = capsys.readouterr().out
-    assert "claude/add-feature-x1" in out and "1 file(s) changed" in out and "cloud_change.txt" in out
+    assert result_branch in out and "1 file(s) changed" in out and "cloud_change.txt" in out
     job = _job(cc, job_id)
-    assert job["status"] == "done" and job["result_branch"] == "claude/add-feature-x1"
+    assert job["status"] == "done" and job["result_branch"] == result_branch
     assert job["result_commit"] == sha
 
     assert cli.main(["apply", job_id, "--db", str(cc.db), "--json"]) == 0
@@ -253,7 +259,7 @@ def test_result_and_apply_use_the_pushed_claude_branch(cc, capsys):
     worktree = Path(outcome["worktree"])
     assert (worktree / "cloud_change.txt").is_file()
     assert outcome["branch"] == f"cloud/{job_id[:8]}" and outcome["pushed"] is False
-    assert outcome["source_branch"] == "claude/add-feature-x1" and outcome["base"] == sha
+    assert outcome["source_branch"] == result_branch and outcome["base"] == sha
     assert _git(cc.repo, "rev-parse", "--abbrev-ref", "HEAD") == "main"
     assert not (cc.repo / "cloud_change.txt").exists()
     assert "cloud/" not in _git(cc.origin, "branch", "--list")  # nothing pushed
@@ -280,26 +286,30 @@ def test_branch_named_in_the_brief_wins(cc, capsys):
 def test_two_jobs_never_claim_the_same_branch(cc, capsys):
     first = _submit_json(cc, capsys)["job_id"]
     second = _submit_json(cc, capsys)["job_id"]
-    _vm_push(cc, "claude/one", name="one.txt")
+    first_branch = _job(cc, first)["claude_result_branch"]
+    second_branch = _job(cc, second)["claude_result_branch"]
+    assert first_branch != second_branch
+    # Finish the second session first: polling the first must not claim it.
+    _vm_push(cc, second_branch, name="two.txt")
     cli.main(["status", first, "--db", str(cc.db)])
-    _vm_push(cc, "claude/two", name="two.txt")
+    assert _job(cc, first)["status"] == "running"
     cli.main(["status", second, "--db", str(cc.db)])
+    _vm_push(cc, first_branch, name="one.txt")
+    cli.main(["status", first, "--db", str(cc.db)])
     capsys.readouterr()
-    assert _job(cc, first)["result_branch"] == "claude/one"
-    assert _job(cc, second)["result_branch"] == "claude/two"
+    assert _job(cc, first)["result_branch"] == first_branch
+    assert _job(cc, second)["result_branch"] == second_branch
 
 
-def test_apply_source_picks_another_candidate(cc, capsys):
+def test_apply_source_refuses_another_jobs_branch(cc, capsys):
     job_id = _submit_json(cc, capsys)["job_id"]
-    _vm_push(cc, "claude/a", name="a.txt")
-    _vm_push(cc, "claude/b", name="b.txt")
+    own = _job(cc, job_id)["claude_result_branch"]
+    _vm_push(cc, own, name="a.txt")
+    _vm_push(cc, "claude/another-job", name="b.txt")
     cli.main(["status", job_id, "--db", str(cc.db)])
     capsys.readouterr()
-    job = _job(cc, job_id)
-    other = (job["result_branch_candidates"] or [None])[0]
-    assert other in ("claude/a", "claude/b") and other != job["result_branch"]
-    assert cli.main(["apply", job_id, "--db", str(cc.db), "--source", other, "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["source_branch"] == other
+    assert cli.main(["apply", job_id, "--db", str(cc.db), "--source", "claude/another-job", "--json"]) == 1
+    assert "does not belong to this job" in capsys.readouterr().err
 
 
 def test_no_status_jobs_share_the_cloud_limit_and_cancel_frees_it(cc, capsys):
@@ -325,7 +335,8 @@ def test_cloud_jobs_take_no_local_engine_slot(cc, capsys, monkeypatch):
 # --------------------------------------------------------------------------- #
 
 
-ROUTINE_CONFIG = '\n[cloud.claude.routines.nightly]\nid = "trig_01ABC"\ntoken_env = "TEST_ROUTINE_TOKEN"\n'
+ROUTINE_CONFIG = ('\n[cloud.claude.routines.nightly]\nid = "trig_01ABC"\n'
+                  'token_env = "TEST_ROUTINE_TOKEN"\nrepo = "acme/widgets"\nbranch = "main"\n')
 
 
 def test_routine_fire_posts_text_with_bearer_and_version(cc, capsys, monkeypatch):
@@ -358,6 +369,18 @@ def test_routine_without_token_env_is_refused(cc, capsys, monkeypatch):
     assert "TEST_ROUTINE_TOKEN is not set" in capsys.readouterr().err
 
 
+def test_routine_repo_and_branch_must_match_its_settings(cc, capsys):
+    _config(ROUTINE_CONFIG.replace('repo = "acme/widgets"', 'repo = "acme/other"'))
+    assert _run(cc, "--routine", "nightly") == 2
+    assert "configured for repository acme/other, not acme/widgets" in capsys.readouterr().err
+
+    Path(os.environ[_concurrency.CONFIG_ENV]).write_text(
+        ROUTINE_CONFIG.replace('branch = "main"', 'branch = "release"'), encoding="utf-8"
+    )
+    assert _run(cc, "--routine", "nightly") == 2
+    assert "configured for branch 'release', not 'main'" in capsys.readouterr().err
+
+
 def test_routine_http_error_is_redacted(cc, capsys, monkeypatch):
     _config(ROUTINE_CONFIG)
     token = "sk-ant-oat01-secretsecretsecret"
@@ -382,7 +405,9 @@ def test_unknown_routine_shows_config_snippet(cc, capsys):
 def test_config_routines_and_refusals(tmp_path):
     path = tmp_path / "c.toml"
     path.write_text(ROUTINE_CONFIG, encoding="utf-8")
-    assert _cloud.load_config(path).routines == {"nightly": {"id": "trig_01ABC", "token_env": "TEST_ROUTINE_TOKEN"}}
+    assert _cloud.load_config(path).routines == {
+        "nightly": {"id": "trig_01ABC", "token_env": "TEST_ROUTINE_TOKEN", "repo": "acme/widgets", "branch": "main"}
+    }
     path.write_text('[cloud.claude.routines.n]\nid = "trig_1"\ntoken = "sk-ant-xyz"\n', encoding="utf-8")
     with pytest.raises(ValueError, match="never store the token"):
         _cloud.load_config(path)
