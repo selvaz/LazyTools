@@ -22,6 +22,9 @@ Public API
     skill_tools(*, skill_dir, ...)             → list[Tool]  one-step tool for an agent
     skill_builder_tools(*, ...)                → list[Tool]  tool that builds skill bundles
     skill_pipeline(*, skill_dir, ...)          → Tool        router + executor chain pipeline
+    packaged_skills()                          → list[str]   skills shipped inside lazytools
+    packaged_skill_dir(name)                   → Path        source folder of a shipped skill
+    build_packaged_skill(name, ...)            → dict        index a shipped skill into a bundle
 
 Quick start
 -----------
@@ -52,7 +55,11 @@ from typing import Annotated, Any, Literal
 from lazybridge import Agent, Session, Tool
 
 __all__ = [
+    "PACKAGED_SKILLS",
+    "build_packaged_skill",
     "build_skill",
+    "packaged_skill_dir",
+    "packaged_skills",
     "query_skill",
     "skill_builder_tools",
     "skill_pipeline",
@@ -819,4 +826,77 @@ def skill_pipeline(
             "Use for questions grounded in the indexed documentation. "
             "The pipeline sharpens the query then retrieves and synthesises the answer."
         ),
+    )
+
+
+# ── Packaged skills ────────────────────────────────────────────────────────────
+
+#: Skills shipped inside the ``lazytools`` package: skill name -> folder under
+#: ``lazytools/skills/``. Each folder holds a portable ``SKILL.md`` (frontmatter
+#: ``name`` + ``description``) and ``references/*.md``.
+PACKAGED_SKILLS: dict[str, str] = {
+    "agent-operations": "agent_operations",
+}
+
+
+def packaged_skills() -> list[str]:
+    """Names of the documentation skills shipped with LazyTools."""
+    return sorted(PACKAGED_SKILLS)
+
+
+def packaged_skill_dir(name: str) -> Path:
+    """Return the source folder of a packaged skill (it contains ``SKILL.md``)."""
+    try:
+        folder = PACKAGED_SKILLS[name]
+    except KeyError:
+        raise KeyError(f"Unknown packaged skill {name!r}; available: {', '.join(packaged_skills())}") from None
+    return Path(__file__).resolve().parent / folder
+
+
+def _frontmatter_description(skill_md: str) -> str:
+    """Read ``description`` from a SKILL.md YAML frontmatter (plain or ``|`` block)."""
+    lines = skill_md.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return ""
+    collected: list[str] = []
+    in_block = False
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if in_block:
+            if line[:1] in (" ", "\t") or not line.strip():
+                collected.append(line.strip())
+                continue
+            break
+        key, _, value = line.partition(":")
+        if key.strip() == "description":
+            value = value.strip()
+            if value in ("|", ">", "|-", ">-"):
+                in_block = True
+            else:
+                return value.strip("\"'")
+    return " ".join(part for part in collected if part)
+
+
+def build_packaged_skill(
+    name: Annotated[str, "Packaged skill name, e.g. 'agent-operations'."],
+    output_root: Annotated[str, "Parent directory for the generated bundle."] = "./generated_skills",
+    *,
+    overwrite: Annotated[bool, "Replace an existing bundle with the same name."] = True,
+) -> dict[str, Any]:
+    """Index a skill shipped with LazyTools into a queryable BM25 bundle.
+
+    The bundle is named after the skill and described by its SKILL.md
+    frontmatter, so ``skill_tools(skill_dir=meta["skill_dir"])`` exposes it as
+    a tool called ``name``.
+    """
+    source = packaged_skill_dir(name)
+    description = _frontmatter_description((source / "SKILL.md").read_text(encoding="utf-8"))
+    return build_skill(
+        [str(source)],
+        name,
+        output_root=output_root,
+        description=description,
+        include_extensions=[".md"],
+        overwrite=overwrite,
     )

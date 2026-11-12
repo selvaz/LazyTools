@@ -115,7 +115,7 @@ from lazytools.workspace import WorkspaceTools
 | `report/` | `models`, `render`, `artifacts`, `resolvers`, `charts`, `tools`, `files` | deterministic memo/report rendering (Markdown/HTML) with embedded figures (charts/images) — "LazyReport" |
 | `mcp_server/` | `server`, `providers` | expose LazyTools' read-only providers over MCP (the `lazytools-mcp` command) — mirror of the `connectors/mcp` client |
 | `code_bridge/` | `cli`, `_jobs`, `_policy`, `_lockfile`, `_cloud` | async alternative to `codex_write`/`claude_code_write` (the `lazytools-code-bridge` command): runs a coding-engine job in a background OS process instead of a blocking MCP call, with approvals filed to a durable ticket queue, or dispatches it to Codex Cloud with `--where cloud` — see [Async Code Bridge](docs/code-bridge.md) |
-| `skills/` | `doc_skills` | build/query portable local-documentation skills |
+| `skills/` | `doc_skills`, `agent_operations` | build/query portable local-documentation skills; the bundled `agent-operations` assistant skill |
 | `safety/` | `allowlist`, `gates`, `urls` | reusable allow-list, one-shot confirmation gate, and SSRF URL guard |
 | `registry/` | `db`, `router`, `artifacts`, `tools` | cross-repo DB env-var resolution + a shared artifact catalog (SQLite, no shared DB) — see [DB registry & artifacts](docs/registry.md) |
 | `workspace.py` | `WorkspaceTools` | confined `Read`/`Write`/`Edit` + opt-in, unconfined `Bash` for any engine — see [Workspace](docs/workspace.md) |
@@ -334,6 +334,17 @@ lazytools-code-bridge result <job_id>
 ```
 
 See [Async Code Bridge](docs/code-bridge.md) for the full workflow.
+
+### Agent-operations skill
+
+[`agent-operations`](src/lazytools/skills/agent_operations/SKILL.md) is a
+portable assistant skill (Claude Code, Codex) for the lead that runs software
+work through coding agents: briefs, quota-aware routing, detached jobs and
+approvals, Codex Cloud, opposite-engine review, the projects layer
+(contracts, Gantt, `close-task` with evidence) and twenty operating lessons.
+It ships in the wheel; install it with
+`python -m lazytools.skills.agent_operations install`, or index it as a
+documentation skill with `build_packaged_skill("agent-operations")`.
 
 ## Safety model
 
