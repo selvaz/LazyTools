@@ -251,13 +251,15 @@ def test_cloud_rejects_local_only_flags(cloud, capsys):
     assert cloud.calls() == []
 
 
-def test_claude_cloud_is_an_extension_point(cloud, capsys):
+def test_claude_cloud_uses_the_claude_provider(cloud, capsys, monkeypatch):
+    monkeypatch.setenv("CLAUDE_BIN", str(cloud.root / "no-such-claude"))
     code = cli.main(
         ["run", "--where", "cloud", "--engine", "claude", "--cwd", str(cloud.repo), "--root", str(cloud.root),
          "--task", "x", "--no-brief-check", "--db", str(cloud.db), "--allow-cloud"]
     )
     assert code == 2
-    assert "not implemented yet" in capsys.readouterr().err
+    assert "could not start the Claude Code CLI" in capsys.readouterr().err
+    assert cloud.calls() == []  # never routed to codex
 
 
 def test_branch_flag_is_cloud_only(cloud, capsys):

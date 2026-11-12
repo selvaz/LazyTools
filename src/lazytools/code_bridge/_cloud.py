@@ -568,7 +568,7 @@ class CodexCloud:
             raise CloudError(f"codex cloud {args[0]} exited {proc.returncode}: {detail[:2000]}")
         return proc.returncode, proc.stdout, proc.stderr
 
-    def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str, **_: Any) -> Submission:
+    def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str, **_context: Any) -> Submission:
         _, out, _ = self._run("exec", "--env", env_id, "--branch", branch, prompt, cwd=repo_dir)
         handle, url = parse_submit(out)
         return Submission(handle=url or handle, url=url, env_id=env_id, raw=redact(out))
@@ -851,6 +851,9 @@ def submit_job(
     if _store.read_meta(store, job_id) is not None or registry.find(job_id) is not None:
         # Fast path only (skips the fetch below); _admit re-checks atomically.
         raise CloudError(f"job id {job_id!r} already exists -- refusing to overwrite its record")
+    precheck = getattr(prov, "precheck", None)
+    if precheck is not None:
+        precheck(repo_dir=root, branch=branch, routine=routine)
     base_commit = _remote_base(root, branch)
     meta: dict[str, Any] = {
         "job_id": job_id,

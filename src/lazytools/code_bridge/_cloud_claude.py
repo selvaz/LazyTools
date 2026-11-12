@@ -146,13 +146,8 @@ def named_branch(brief: str) -> str | None:
     return names[0] if len(names) == 1 else None
 
 
-def _checkout_for(root: Path, branch: str, worktree: Path) -> tuple[Path, bool]:
-    """A directory whose current branch is ``branch`` at the commit ``origin`` has.
-
-    Returns ``(dir, created)``; ``created`` worktrees are removed after submit.
-    Refuses (never pushes) when the branch is missing on ``origin`` or the
-    local branch is ahead of / behind it.
-    """
+def verify_pushed(root: Path, branch: str) -> str:
+    """``origin``'s tip of ``branch``; refuses (never pushes) when it is missing or the local branch differs."""
     remote = _remote_base(root, branch)
     push_hint = f"push it first (git -C \"{root}\" push -u origin {branch}); the bridge never pushes for you"
     if remote is None:
@@ -165,14 +160,26 @@ def _checkout_for(root: Path, branch: str, worktree: Path) -> tuple[Path, bool]:
                 f"local {branch} ({head[:12]}) differs from origin/{branch} ({remote[:12]}): the cloud session would "
                 f"not see the same commit; {push_hint} (or pull)"
             )
+        return remote
+    local = _git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}", check=False)
+    if local and local != remote:
+        raise CloudError(
+            f"local {branch} ({local[:12]}) differs from origin/{branch} ({remote[:12]}): {push_hint} (or pull)"
+        )
+    return remote
+
+
+def _checkout_for(root: Path, branch: str, worktree: Path) -> tuple[Path, bool]:
+    """A directory whose current branch is ``branch`` at the commit ``origin`` has.
+
+    Returns ``(dir, created)``; ``created`` worktrees are removed after submit.
+    """
+    verify_pushed(root, branch)
+    if _git(root, "rev-parse", "--abbrev-ref", "HEAD", check=False) == branch:
         return root, False
     local = _git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}", check=False)
     worktree.parent.mkdir(parents=True, exist_ok=True)
     if local:
-        if local != remote:
-            raise CloudError(
-                f"local {branch} ({local[:12]}) differs from origin/{branch} ({remote[:12]}): {push_hint} (or pull)"
-            )
         _git(root, "worktree", "add", str(worktree), branch)
     else:
         _git(root, "worktree", "add", "--track", "-b", branch, str(worktree), f"origin/{branch}")
@@ -183,7 +190,7 @@ def _http_post(url: str, headers: dict[str, str], body: bytes, timeout: float) -
     """POST and return ``(status, body)``; HTTP errors are returned, not raised. Patched in tests."""
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed https URL
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status, response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read().decode("utf-8", errors="replace")
@@ -208,6 +215,11 @@ class ClaudeCloud:
         return f"routine:{routine}"
 
     # -- submit ------------------------------------------------------------ #
+
+    def precheck(self, *, repo_dir: Path, branch: str, routine: str | None) -> None:
+        """Refusals that must record no job: CLI mode needs the branch pushed as-is."""
+        if routine is None:
+            verify_pushed(repo_dir, branch)
 
     def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str, job_id: str = "",
                db_path: Path | None = None, routine: str | None = None, config: CloudConfig | None = None,
@@ -302,6 +314,17 @@ class ClaudeCloud:
         return (str(sid) if sid else None), (str(url) if url else None), body.strip()
 
     # -- status / result from git ----------------------------------------- #
+
+    # The handle-only protocol methods cannot work without a status API; the
+    # bridge calls the job-aware hooks below (job_status, job_diff, apply_job).
+    def status(self, handle: str) -> CloudStatus:
+        raise CloudError("Claude cloud sessions have no status API; use job_status(job)")
+
+    def diff(self, handle: str) -> str:
+        raise CloudError("Claude cloud sessions have no diff API; use job_diff(job)")
+
+    def apply(self, handle: str, *, worktree: Path) -> str:
+        raise CloudError("Claude cloud results are applied from their claude/ branch; use apply_job(...)")
 
     def job_status(self, job: dict[str, Any], *, claimed: set[str] | frozenset[str] = frozenset()) -> CloudStatus:
         """No status API: look for the job's result branch on ``origin``."""
