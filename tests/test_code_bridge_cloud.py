@@ -109,7 +109,14 @@ def cloud(tmp_path, monkeypatch):
     (repo / "README.md").write_text("hi\n", encoding="utf-8")
     _git(repo, "add", "README.md")
     _git(repo, "commit", "-q", "-m", "init")
-    _git(repo, "remote", "add", "origin", "git@github.com:acme/widgets.git")
+    # A real, fetchable origin (a bare repo at .../acme/widgets.git, so the
+    # slug still reads "acme/widgets"): submit records its tip as base_commit,
+    # which apply requires.
+    origin = tmp_path / "remotes" / "acme" / "widgets.git"
+    origin.parent.mkdir(parents=True)
+    _git(tmp_path, "init", "-q", "--bare", str(origin))
+    _git(repo, "remote", "add", "origin", origin.as_posix())
+    _git(repo, "push", "-q", "origin", "main")
 
     with open(os.environ[_concurrency.CONFIG_ENV], "a", encoding="utf-8") as fh:
         fh.write('\n[cloud.codex.envs]\n"acme/widgets" = "env_widgets"\n')
@@ -755,7 +762,7 @@ def test_allow_and_approve_cloud_are_cloud_only(cloud, capsys):
     [
         ("Fix the bug, then git push origin main", ["push"]),
         ("Fix the bug and push the branch when done", ["push"]),
-        ("Open a PR and merge it into main", ["merge"]),
+        ("Open a PR and merge it into main", ["pr-create", "merge"]),
         ("Run gh pr merge 12 --squash", ["merge"]),
         ("Clean up: delete the stale release branches", ["delete"]),
         ("Remove old data with rm -rf build/", ["delete"]),
@@ -791,3 +798,187 @@ def test_gated_action_runs_with_matching_approval(cloud, capsys):
 @pytest.mark.parametrize("brief", ["Add a feature", "Fix error handling in the parser", "Write tests for the merge sort"])
 def test_plain_briefs_need_no_approval(brief):
     assert _cloud.gated_actions(brief) == []
+
+
+# --------------------------------------------------------------------------- #
+# the cloud gate reuses the local rule table (_policy.CODING_RULES)
+# --------------------------------------------------------------------------- #
+
+
+def test_every_gating_rule_of_the_local_table_has_a_cloud_action():
+    from lazytools.code_bridge._approvals import ClassifiedRule
+    from lazytools.code_bridge._policy import CLOUD_RULE_ACTIONS, CODING_RULES
+
+    gating = [
+        rule.arg_pattern for rule in CODING_RULES
+        if rule.name_pattern == "Bash" and not isinstance(rule, ClassifiedRule)
+        and rule.tier in ("ask", "session") and rule.arg_pattern is not None
+    ]
+    assert gating and set(gating) == set(CLOUD_RULE_ACTIONS)
+    assert set(CLOUD_RULE_ACTIONS.values()) <= set(_cloud.GATED_ACTIONS)
+
+
+@pytest.mark.parametrize(
+    ("brief", "action"),
+    [
+        ("Fix the flaky test, then run `gh pr create --fill --base main`", "pr-create"),
+        ("When CI is green run gh pr create --title fix --body done", "pr-create"),
+        ("Finish with: gh pr merge 42 --squash --delete-branch", "merge"),
+        ("Fix the bug, then git push origin main", "push"),
+        ("git push origin feat/x", "push"),
+        ("Tidy up with git reset --hard origin/main", "reset"),
+        ("git commit -am 'wip'", "commit"),
+        ("git -C ../other status", "git-option"),
+    ],
+)
+def test_brief_command_gated_by_local_rule_table_needs_matching_approval(cloud, brief, action, capsys):
+    base = ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(cloud.repo), "--root", str(cloud.root),
+            "--task", brief, "--no-brief-check", "--db", str(cloud.db), "--allow-cloud"]
+    assert action in _cloud.gated_actions(brief)
+    assert cli.main(base) == 2
+    err = capsys.readouterr().err
+    assert f"--approve-cloud {action}" in err
+    assert cloud.calls() == []
+    assert _store.all_job_records(_store.build_store(cloud.db)) == []
+    approvals = [flag for name in _cloud.gated_actions(brief) for flag in ("--approve-cloud", name)]
+    assert cli.main([*base, *approvals, "--json"]) == 0
+    capsys.readouterr()
+    assert [c["argv"][1] for c in cloud.calls()] == ["exec"]
+
+
+def test_gh_pr_create_is_not_covered_by_other_approvals(cloud, capsys):
+    assert cli.main(
+        ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(cloud.repo), "--root", str(cloud.root),
+         "--task", "gh pr create --fill", "--no-brief-check", "--db", str(cloud.db), "--allow-cloud",
+         "--approve-cloud", "push", "--approve-cloud", "merge"]
+    ) == 2
+    assert "gated action(s) pr-create" in capsys.readouterr().err
+    assert cloud.calls() == []
+
+
+def test_rule_table_word_anchoring_avoids_prose_false_positives():
+    from lazytools.code_bridge._policy import cloud_rule_actions
+
+    assert cloud_rule_actions("Confirm the parser handles it and inform the user") == set()
+    assert cloud_rule_actions("clean with rm -rf build/") == {"delete"}
+    assert cloud_rule_actions("GIT PUSH origin MAIN") == {"push"}
+
+
+# --------------------------------------------------------------------------- #
+# job id uniqueness is atomic with admission
+# --------------------------------------------------------------------------- #
+
+
+def test_concurrent_submits_with_the_same_job_id_admit_exactly_one(cloud, monkeypatch):
+    import threading
+
+    workers = 4
+    barrier = threading.Barrier(workers, timeout=30)
+    real_remote_base = _cloud._remote_base
+
+    def remote_base_after_everyone_passed_the_fast_check(root, branch):
+        barrier.wait()  # every thread is past the early existence check before any admits
+        return real_remote_base(root, branch)
+
+    monkeypatch.setattr(_cloud, "_remote_base", remote_base_after_everyone_passed_the_fast_check)
+    outcomes: list[object] = []
+    lock = threading.Lock()
+
+    def submit() -> None:
+        try:
+            job = _cloud.submit_job(engine="codex", cwd=cloud.repo, task="Add a feature", db_path=cloud.db,
+                                    job_id="cafebabe")
+        except _cloud.CloudError as exc:
+            result: object = exc
+        else:
+            result = job
+        with lock:
+            outcomes.append(result)
+
+    threads = [threading.Thread(target=submit) for _ in range(workers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(60)
+    assert len(outcomes) == workers
+    wins = [o for o in outcomes if isinstance(o, dict)]
+    losses = [o for o in outcomes if isinstance(o, _cloud.CloudError)]
+    assert len(wins) == 1 and wins[0]["job_id"] == "cafebabe" and wins[0]["status"] == "running"
+    assert len(losses) == workers - 1 and all("already exists" in str(e) for e in losses)
+    assert [c["argv"][1] for c in cloud.calls()].count("exec") == 1
+
+
+# --------------------------------------------------------------------------- #
+# apply refuses a job with no recorded base commit
+# --------------------------------------------------------------------------- #
+
+
+def test_apply_refuses_when_the_initial_fetch_failed(cloud, tmp_path, capsys):
+    origin = tmp_path / "remotes" / "acme" / "widgets.git"
+    hidden = tmp_path / "remotes" / "hidden.git"
+    origin.rename(hidden)  # the fetch at submit fails
+    _git(cloud.repo, "update-ref", "-d", "refs/remotes/origin/main")
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    assert _jobs.find_job(store, _store.build_job_registry(store), job_id)["base_commit"] is None
+    hidden.rename(origin)  # reachable again by apply time: still no unchecked fallback
+
+    cloud.set_status("status: ready\nok\n")
+    assert cli.main(["apply", job_id, "--db", str(cloud.db)]) == 1
+    assert "no recorded base commit" in capsys.readouterr().err
+    assert cli.main(["apply", job_id, "--db", str(cloud.db), "--rebase"]) == 1
+    assert "no recorded base commit" in capsys.readouterr().err
+    assert [c for c in cloud.calls() if c["argv"][1] == "apply"] == []
+    assert not (_cloud.worktrees_dir(cloud.db) / job_id).exists()
+    assert "cloud/" not in _git(cloud.repo, "branch", "--list")
+
+
+# --------------------------------------------------------------------------- #
+# every CloudError and every cloud CLI print is redacted
+# --------------------------------------------------------------------------- #
+
+_BEARER = "Bearer abcdefghij0123456789KLMN"
+
+
+def test_exit_zero_submit_without_handle_is_redacted(cloud, monkeypatch, capsys):
+    def leaky(self, *args, **kwargs):
+        assert args[0] == "exec"
+        return 0, f"Authorization: {_BEARER}\nqueued, but no task link printed\n", ""
+
+    monkeypatch.setattr(_cloud.CodexCloud, "_run", leaky)
+    assert _run_cloud(cloud, "--json") == 2
+    captured = capsys.readouterr()
+    assert "abcdefghij0123456789KLMN" not in captured.err + captured.out
+    assert "[redacted]" in captured.err and "did not print a task URL" in captured.err
+    records = _store.all_job_records(_store.build_store(cloud.db))
+    assert len(records) == 1 and records[0]["status"] == "failed"
+    assert "abcdefghij0123456789KLMN" not in json.dumps(records)
+
+
+def test_cloud_error_messages_are_always_redacted():
+    exc = _cloud.CloudError(f"provider said {_BEARER} token=sk-live-0123456789abcdef")
+    assert "abcdefghij0123456789KLMN" not in str(exc) and "sk-live-0123456789abcdef" not in str(exc)
+    assert str(exc).count("[redacted]") == 2
+
+
+def test_status_result_and_apply_output_is_redacted(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("status: ready\nall done\n")
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    _cloud.refresh(store, registry, _jobs.find_job(store, registry, job_id))
+    meta = _store.read_meta(store, job_id)
+    meta["cloud_status"] = f"ready ({_BEARER})"  # e.g. a record written by an older version
+    _store.write_meta(store, job_id, meta)
+    record = registry.find(job_id)
+    registry.write(job_id, record.get("objective", ""), tool_name="codex", status="done",
+                   result=f"done; used {_BEARER}", engine="codex",
+                   extra={"where": "cloud", "cloud_handle": record.get("cloud_handle")})
+    for argv in (["status", job_id], ["status", job_id, "--json"], ["result", job_id], ["result", job_id, "--json"],
+                 ["apply", job_id, "--branch", "token=sk-live-0123456789abcdef..bad"]):
+        cli.main([*argv, "--db", str(cloud.db)])
+        captured = capsys.readouterr()
+        assert "abcdefghij0123456789KLMN" not in captured.out + captured.err, argv
+        assert "sk-live-0123456789abcdef" not in captured.out + captured.err, argv
+    assert cli.main(["status", job_id, "--json", "--db", str(cloud.db)]) == 0
+    json.loads(capsys.readouterr().out)  # still valid JSON after redaction

@@ -54,6 +54,15 @@ def _print_json(payload: Any) -> None:
     print(json.dumps(payload, default=str))
 
 
+def _cloud_print(text: str, *, err: bool = False) -> None:
+    """Print one line of cloud-job output through the same redaction as the job record."""
+    print(_cloud.redact(text), file=sys.stderr if err else sys.stdout)
+
+
+def _cloud_json(payload: Any) -> None:
+    _print_json(_cloud.redact_obj(payload))
+
+
 # --------------------------------------------------------------------------- #
 # run
 # --------------------------------------------------------------------------- #
@@ -250,7 +259,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         task = _read_task(args.task)
         cwd = _engines.resolve_cwd(args.cwd, args.root)
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        _cloud_print(f"error: {exc}", err=True)
         return 2
     if not args.brief_checked:
         refusal = _check_brief_before_launch(args, task)
@@ -265,17 +274,17 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             approvals=tuple(args.approve_cloud or ()),
         )
     except (_cloud.CloudError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        _cloud_print(f"error: {exc}", err=True)
         return 2
     if args.json:
-        _print_json({k: job.get(k) for k in ("job_id", "status", "where", "engine", "repo", "env_id", "branch",
+        _cloud_json({k: job.get(k) for k in ("job_id", "status", "where", "engine", "repo", "env_id", "branch",
                                               "cloud_handle", "cloud_url")})
     else:
-        print(job["job_id"])
-        print(f"cloud: {job['engine']} task {job.get('cloud_url') or job.get('cloud_handle')} "
+        _cloud_print(str(job["job_id"]))
+        _cloud_print(f"cloud: {job['engine']} task {job.get('cloud_url') or job.get('cloud_handle')} "
               f"(repo {job['repo']}, branch {job['branch']}, env {job['env_id']})")
         db_flag = f' --db "{args.db}"' if args.db else ""
-        print(f"wait for it with: lazytools-code-bridge wait {job['job_id']}{db_flag}")
+        _cloud_print(f"wait for it with: lazytools-code-bridge wait {job['job_id']}{db_flag}")
     return 0
 
 
@@ -415,6 +424,7 @@ def _job_line(job: dict[str, Any]) -> str:
     details = f"tier={routing.get('tier') or '-'} model={job.get('model') or 'default'} effort={job.get('effort') or 'default'}"
     if _cloud.is_cloud(job):
         details = f"where=cloud task={job.get('cloud_url') or job.get('cloud_handle') or '-'} branch={job.get('branch') or '-'}"
+        return _cloud.redact(f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}")
     return f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}"
 
 
@@ -509,14 +519,14 @@ def _cmd_status(args: argparse.Namespace) -> int:
     if _cloud.is_cloud(job):
         job = _cloud.refresh(store, registry, job)
     if args.json:
-        _print_json(job)
+        (_cloud_json if _cloud.is_cloud(job) else _print_json)(job)
     else:
         print(_job_line(job))
         if _cloud.is_cloud(job):
             if job.get("cloud_status"):
-                print(f"cloud status: {job['cloud_status']}")
+                _cloud_print(f"cloud status: {job['cloud_status']}")
             if job.get("last_poll_error"):
-                print(f"last poll failed: {job['last_poll_error']}", file=sys.stderr)
+                _cloud_print(f"last poll failed: {job['last_poll_error']}", err=True)
         if "routine_auto" in job:
             print(f"routine-auto: {'enabled' if job['routine_auto'] else 'disabled'}; {job.get('routine_rule_count', 0)} active rules")
         if job.get("turns"):
@@ -539,10 +549,10 @@ def _cmd_result(args: argparse.Namespace) -> int:
     # --json. Found by Codex review (it previously always returned 0 here).
     exit_code = 1 if status in ("partial", "failed", "interrupted") else 0
     if args.json:
-        _print_json(job)
+        (_cloud_json if _cloud.is_cloud(job) else _print_json)(job)
         return exit_code
     if _cloud.is_cloud(job):
-        print(_cloud.result_text(job))
+        _cloud_print(_cloud.result_text(job))
         return exit_code
     print(f"[{status}] job {job.get('job_id')}")
     if job.get("turns"):
@@ -708,14 +718,14 @@ def _cancel_cloud(store: Any, registry: Any, job: dict[str, Any], reason: str) -
     """Stop tracking a cloud job locally (frees its cloud place). The task itself keeps running remotely."""
     job_id = str(job["job_id"])
     if job.get("status") in _TERMINAL:
-        print(f"job {job_id} already {job['status']}")
+        _cloud_print(f"job {job_id} already {job['status']}")
         return 0
     if not _cloud.mark_interrupted(store, registry, job_id, f"cancelled by operator: {reason}"):
         latest = _jobs.find_job(store, registry, job_id) or job
-        print(f"job {job_id} already {latest.get('status')}")
+        _cloud_print(f"job {job_id} already {latest.get('status')}")
         return 0
     where = job.get("cloud_url") or job.get("cloud_handle") or "the provider's web UI"
-    print(f"[interrupted] job {job_id}\nno longer tracked locally; the cloud task is NOT stopped -- cancel it at {where}")
+    _cloud_print(f"[interrupted] job {job_id}\nno longer tracked locally; the cloud task is NOT stopped -- cancel it at {where}")
     return 0
 
 
@@ -741,8 +751,8 @@ def _cmd_wait(args: argparse.Namespace) -> int:
             return 1
         errors = int(job.get("poll_errors_in_a_row") or 0)
         if errors >= _cloud.MAX_CONSECUTIVE_POLL_ERRORS:
-            print(f"job {args.job_id}: {errors} status polls in a row failed; last error: "
-                  f"{job.get('last_poll_error')}", file=sys.stderr)
+            _cloud_print(f"job {args.job_id}: {errors} status polls in a row failed; last error: "
+                         f"{job.get('last_poll_error')}", err=True)
             return 1
         print(f"job {args.job_id} still {job.get('status')} after {timeout:.0f}s", file=sys.stderr)
         return 3
@@ -804,20 +814,20 @@ def _cmd_apply(args: argparse.Namespace) -> int:
             rebase=args.rebase,
         )
     except _cloud.CloudError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        _cloud_print(f"error: {exc}", err=True)
         return 1
     if args.json:
-        _print_json(outcome)
+        _cloud_json(outcome)
         return 0
-    print(f"applied cloud job {outcome['job_id']} in {outcome['worktree']} (branch {outcome['branch']}, from {outcome['base']})")
+    _cloud_print(f"applied cloud job {outcome['job_id']} in {outcome['worktree']} (branch {outcome['branch']}, from {outcome['base']})")
     for line in outcome["changed"]:
-        print(f"  {line}")
+        _cloud_print(f"  {line}")
     if outcome["output"]:
-        print(outcome["output"])
+        _cloud_print(outcome["output"])
     if outcome.get("rebased_from"):
-        print(f"note: --rebase: applied onto the current head of origin/{_cloud_base_branch(outcome)} "
+        _cloud_print(f"note: --rebase: applied onto the current head of origin/{_cloud_base_branch(outcome)} "
               f"({outcome['base'][:12]}), not the task's base {outcome['rebased_from'][:12]}; review the result carefully")
-    print(f"not pushed. Review, commit, then push only after approval: git -C \"{outcome['worktree']}\" push -u origin {outcome['branch']}")
+    _cloud_print(f"not pushed. Review, commit, then push only after approval: git -C \"{outcome['worktree']}\" push -u origin {outcome['branch']}")
     return 0
 
 
@@ -1052,8 +1062,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         choices=sorted(_cloud.GATED_ACTIONS),
         default=None,
-        help="--where cloud only: approve up front a gated action the brief asks for (push, merge, delete); "
-        "repeatable. Without it such a brief is refused.",
+        help="--where cloud only: approve up front an action the brief asks for that the local approval gate "
+        "would hold (classified by the same rule table); repeatable. Without it such a brief is refused.",
     )
     _add_routing_options(run_p)
     run_p.add_argument("--cwd", required=True, help="Repository (or subdirectory) to work in.")

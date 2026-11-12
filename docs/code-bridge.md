@@ -969,7 +969,7 @@ and no local engine slot is taken.
 
 ```
 lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd <repo> --task @brief.md \
-    [--branch B] [--approve-cloud push|merge|delete ...]
+    [--branch B] [--approve-cloud push|pr-create|merge|delete|reset|commit|git-option ...]
 lazytools-code-bridge status <job>      # polls `codex cloud status <task>`
 lazytools-code-bridge wait <job>        # polls until the task is terminal
 lazytools-code-bridge result <job>      # final message + `codex cloud diff <task>` summary
@@ -1060,8 +1060,10 @@ environment starts from. `apply` fetches the branch again; if its head has
 **moved** since submit, `apply` is **refused** unless you pass `--rebase`, in
 which case the worktree starts at the new head (`rebased_from` records the
 old base; the diff may not apply cleanly). Otherwise it runs `git worktree add
--b cloud/<job8> <dir> <base_commit>` (falling back to `origin/<branch>`, then
-the local branch, for a branch that was not on the remote). Then it runs `codex cloud
+-b cloud/<job8> <dir> <base_commit>`. There is no unchecked fallback: a job
+with no recorded `base_commit` (the fetch at submit failed, or the branch was
+not on the remote), or whose `base_commit` is not in the local repository, is
+**refused** -- re-submit it from a pushed branch. Then it runs `codex cloud
 apply <task>` **inside that new worktree**. Your own checkout, its branch and
 its index are never touched. `<dir>` defaults to `cloud-worktrees/<job>`
 beside the Store; `--branch` and `--worktree` override both names. A job is
@@ -1083,13 +1085,19 @@ submit** instead:
 
 - `--where cloud` requires an explicit operator flag, **`--allow-cloud`**;
   without it nothing is submitted or recorded.
-- A brief that asks for a **push, merge or delete** (`git push`, "push the
-  branch", `gh pr merge`, "merge it into main", `git branch -D`, "delete the
-  old branches", `rm -rf`, …) is **refused** unless the operator approves each
-  such action up front with `--approve-cloud push|merge|delete` (repeatable)
-  — the same approvals the `BridgeGate` would ask for. The approvals given are
-  stored on the job as `cloud_approvals`. Detection is a conservative text
-  match: a false positive costs one flag, a miss is the risk to avoid.
+- A brief that requests anything the local gate would ask for is **refused**
+  unless the operator approves each such action up front with
+  `--approve-cloud <action>` (repeatable). Commands in the brief are
+  classified by the **same rule table** the local `BridgeGate` uses
+  (`_policy.CODING_RULES`): every ask or session rule maps to one action --
+  `push` (`git push origin main`, any push form), `pr-create` (`gh pr
+  create`), `merge` (`gh pr merge`), `delete` (`rm …`, `… delete …`), `reset`
+  (`git reset --hard`), `commit` (`git add`, `git commit`), `git-option`
+  (`git -C …`). Requests written in words ("push the branch", "open a PR",
+  "merge it into main", "delete the old branches", `git branch -D`) map to the
+  same actions. The approvals given are stored on the job as
+  `cloud_approvals`. Detection is deliberately conservative: a false positive
+  costs one flag, a miss is the risk to avoid.
 
 Beyond that, the approval boundary is the diff:
 

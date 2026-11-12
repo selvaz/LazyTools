@@ -75,18 +75,29 @@ MAX_CONSECUTIVE_POLL_ERRORS = 5
 #: ``wait`` on a cloud job never runs unbounded: without ``--timeout`` it
 #: gives up after this many seconds (exit 3).
 DEFAULT_CLOUD_WAIT_TIMEOUT = 2 * 3600.0
-#: Actions a local job's BridgeGate would hold for a human ticket. A cloud
-#: agent's commands cannot be gated one by one, so a brief that asks for one is
-#: refused unless the operator approves that action up front (``--approve-cloud``).
-GATED_ACTIONS: dict[str, re.Pattern[str]] = {
-    "push": re.compile(r"(?i)\bgit\s+push\b|\b(?:force[- ]?)?push(?:es|ed|ing)?\b"),
+#: Actions a local job's BridgeGate would hold for a human ticket, as
+#: ``--approve-cloud`` names. A cloud agent's commands cannot be gated one by
+#: one, so a brief that asks for one is refused unless the operator approves
+#: that action up front. Commands in the brief are classified by the SAME rule
+#: table the local gate uses (``_policy.CODING_RULES``, via
+#: ``_policy.cloud_rule_actions``); :data:`_PROSE_INTENTS` only adds requests
+#: written in words ("push the branch", "open a PR") that no command pattern can see.
+GATED_ACTIONS: tuple[str, ...] = ("push", "pr-create", "merge", "delete", "reset", "commit", "git-option")
+#: Natural-language requests for a gated action, plus commands the local gate
+#: asks for only through its catch-all (``git merge``, ``git branch -D``,
+#: ``git clean``), which have no named rule of their own.
+_PROSE_INTENTS: dict[str, re.Pattern[str]] = {
+    "push": re.compile(r"(?i)\b(?:force[- ]?)?push(?:es|ed|ing)?\b"),
+    "pr-create": re.compile(
+        r"(?i)\b(?:open|create|file|raise|submit|send)(?:s|ed|ing)?\s+(?:a\s+|an\s+|the\s+|new\s+)*"
+        r"(?:draft\s+)?(?:pr|pull[- ]request)s?\b"
+    ),
     "merge": re.compile(
-        r"(?i)\bgit\s+merge\b|\bgh\s+pr\s+merge\b|\bmerge\s+(?:it|this|that)\b"
+        r"(?i)\bgit\s+merge\b|\bmerge\s+(?:it|this|that)\b"
         r"|\bmerg(?:e|es|ed|ing)\b[^.\n]{0,40}\b(?:pr|pull\s+request|branch|into|main|master|trunk)\b"
     ),
     "delete": re.compile(
-        r"(?i)\bgit\s+branch\s+-[dD]\b|\bgit\s+push\b[^\n]*\s--delete\b|\bgh\s+(?:repo|release|pr|issue)\s+delete\b"
-        r"|\brm\s+-[a-zA-Z]*[rf]|\bgit\s+(?:clean|reset\s+--hard)\b"
+        r"(?i)\bgit\s+branch\s+-[dD]\b|\bgit\s+clean\b"
         r"|\b(?:delet|remov)(?:e|es|ed|ing)\b[^.\n]{0,40}\b(?:branch(?:es)?|tags?|repo(?:sitory)?|releases?|remote)\b"
     ),
 }
@@ -112,9 +123,33 @@ def redact(text: str) -> str:
     return text
 
 
+def redact_obj(value: Any) -> Any:
+    """:func:`redact` every string inside ``value`` (dicts, lists, tuples), keys included.
+
+    For JSON output: redacting the serialised text instead could cut through
+    a closing quote and leave invalid JSON.
+    """
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, dict):
+        return {redact_obj(key): redact_obj(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [redact_obj(item) for item in value]
+    return value
+
+
 def gated_actions(text: str) -> list[str]:
-    """The :data:`GATED_ACTIONS` a brief asks for, in a stable order."""
-    return [name for name, pattern in GATED_ACTIONS.items() if pattern.search(text)]
+    """The :data:`GATED_ACTIONS` a brief asks for, in a stable order.
+
+    Every command the local gate's rule table would ask for (or session-ask
+    for on first use) counts, plus the natural-language requests in
+    :data:`_PROSE_INTENTS`.
+    """
+    from lazytools.code_bridge._policy import cloud_rule_actions
+
+    found = cloud_rule_actions(text)
+    found.update(name for name, pattern in _PROSE_INTENTS.items() if pattern.search(text))
+    return [name for name in GATED_ACTIONS if name in found]
 
 
 def _inside(path: Path, container: Path) -> bool:
@@ -128,7 +163,16 @@ CREATE_ENV_HINT = (
 
 
 class CloudError(RuntimeError):
-    """A cloud operation failed; the message is meant for the operator as-is."""
+    """A cloud operation failed; the message is meant for the operator as-is.
+
+    Every message is passed through :func:`redact` when the error is built,
+    so provider output quoted in one (a submit that printed no task id, a
+    failed ``codex cloud`` call) never carries a credential to a terminal,
+    a log or the job record.
+    """
+
+    def __init__(self, *args: object) -> None:
+        super().__init__(*(redact(arg) if isinstance(arg, str) else arg for arg in args))
 
 
 class CloudNotImplemented(CloudError):
@@ -672,7 +716,11 @@ def _merged(store: Any, registry: Any, job_id: str) -> dict[str, Any]:
 
 
 def _admit(store: Any, registry: Any, config: CloudConfig, job_id: str, meta: dict[str, Any]) -> None:
-    """Take a cloud place for ``job_id`` (record it "submitting"), or raise :class:`CloudBusy`."""
+    """Take a cloud place for ``job_id`` (record it "submitting"), or raise :class:`CloudBusy`.
+
+    Raises :class:`CloudError` if ``job_id`` already has a record; that check
+    is atomic with the insert (both under the guard lock).
+    """
     limit = config.concurrency
     if limit:
         # Refresh outside the guard (network calls), so tasks that finished
@@ -683,6 +731,11 @@ def _admit(store: Any, registry: Any, config: CloudConfig, job_id: str, meta: di
                 refresh(store, registry, job)
     slot_dir = _concurrency.load_config().slot_dir
     with _concurrency._guard(slot_dir):
+        # The uniqueness check and the insert happen under ONE hold of the
+        # machine-wide guard, so two submits of the same --job-id (threads or
+        # processes) cannot both see "absent" and both write: exactly one wins.
+        if _store.read_meta(store, job_id) is not None or registry.find(job_id) is not None:
+            raise CloudError(f"job id {job_id!r} already exists -- refusing to overwrite its record")
         active = active_jobs(store)
         if limit and len(active) >= limit:
             raise CloudBusy(limit, active)
@@ -749,6 +802,7 @@ def submit_job(
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)
     if _store.read_meta(store, job_id) is not None or registry.find(job_id) is not None:
+        # Fast path only (skips the fetch below); _admit re-checks atomically.
         raise CloudError(f"job id {job_id!r} already exists -- refusing to overwrite its record")
     base_commit = _remote_base(root, branch)
     meta: dict[str, Any] = {
@@ -793,7 +847,7 @@ def result_text(job: dict[str, Any]) -> str:
             parts.append(summarize_diff(provider(str(job["engine"])).diff(str(job["cloud_handle"]))).text())
         except CloudError as exc:
             parts.append(f"diff: unavailable ({exc})")
-    return "\n".join(parts)
+    return redact("\n".join(parts))
 
 
 def worktrees_dir(db_path: Path | None = None) -> Path:
@@ -842,10 +896,20 @@ def apply_job(
     if worktree.exists():
         raise CloudError(f"{worktree} already exists: remove it or pass --worktree")
     base_branch = str(job.get("branch") or "HEAD")
-    base_commit = str(job.get("base_commit") or "") or None
-    head = _remote_base(root, base_branch) if base_commit else None
+    base_commit = str(job.get("base_commit") or "")
+    if not base_commit:
+        # No unchecked fallback onto whatever origin/<branch> or the local
+        # branch is now: without the recorded base there is no way to tell
+        # whether the agent ever saw that tree.
+        raise CloudError(
+            f"job {job_id} has no recorded base commit (fetching origin/{base_branch} failed when it was "
+            "submitted, or the branch was not on the remote), so there is no way to check that the diff applies "
+            "to the tree the agent saw; refusing to apply. Re-submit it from a pushed branch, or inspect it with "
+            "`lazytools-code-bridge result`"
+        )
+    head = _remote_base(root, base_branch)
     rebased_from = None
-    if base_commit and head and head != base_commit:
+    if head and head != base_commit:
         if not rebase:
             raise CloudError(
                 f"origin/{base_branch} has moved from {base_commit[:12]} (the task's base) to {head[:12]} since the "
@@ -853,12 +917,13 @@ def apply_job(
                 "onto the new head (the diff may not apply cleanly)"
             )
         base, rebased_from = head, base_commit
-    elif base_commit and _git(root, "rev-parse", "--verify", "--quiet", f"{base_commit}^{{commit}}", check=False):
+    elif _git(root, "rev-parse", "--verify", "--quiet", f"{base_commit}^{{commit}}", check=False):
         base = base_commit  # the exact commit the cloud task started from
     else:
-        base = f"origin/{base_branch}"
-        if not _git(root, "rev-parse", "--verify", "--quiet", f"refs/remotes/{base}", check=False):
-            base = base_branch
+        raise CloudError(
+            f"the task's base commit {base_commit[:12]} is not in {root} and origin/{base_branch} could not be "
+            "fetched; refusing to apply onto an unchecked base. Fetch the branch and retry"
+        )
     worktree.parent.mkdir(parents=True, exist_ok=True)
     _git(root, "worktree", "add", "-b", branch, str(worktree), base)
     try:
@@ -900,10 +965,10 @@ def _after_failed_apply(store: Any, registry: Any, root: Path, job_id: str, work
     meta.update(apply_failed_worktree=str(worktree), apply_failed_branch=branch, apply_error=redact(str(exc)))
     _store.write_meta(store, job_id, meta)
     if isinstance(exc, CloudError):
-        exc.args = (
+        exc.args = (redact(
             f"{exc} -- partial changes kept in {worktree} (branch {branch}); inspect them, then remove that "
             f"worktree and branch (git worktree remove {worktree}; git branch -D {branch}) before retrying, "
-            "or retry with --worktree and --branch",
+            "or retry with --worktree and --branch"),
         )
 
 
@@ -954,6 +1019,7 @@ __all__ = [
     "parse_submit",
     "provider",
     "redact",
+    "redact_obj",
     "refresh",
     "repo_slug",
     "gated_actions",
