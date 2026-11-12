@@ -19,9 +19,20 @@ Configuration (``~/.lazytools/code-bridge.toml``, same file as ``[concurrency]``
 
     [cloud]
     concurrency = 4          # live cloud jobs at once, all providers; 0 = unlimited
+    default_where = "local"  # what `run` does without --where: local | cloud | auto
+    busy_windows = []        # e.g. ["21:00-01:30"]: local time ranges where `auto` sends jobs to the cloud
+
+    [cloud.codex]
+    concurrency = 2          # optional per-provider limit, in addition to the global one
 
     [cloud.codex.envs]
     "selvaz/LazyTools" = "env_0123abcd"   # git remote 'owner/name' -> Codex Cloud env id
+
+    [cloud.claude]
+    concurrency = 2
+
+    [cloud.claude.models]    # tier -> model for Claude cloud sessions (default: claude-sonnet-5-5)
+    critical = "claude-opus-5-5"
 
     [cloud.claude.routines.nightly]       # optional: fire a claude.ai routine instead of `claude --cloud`
     id = "trig_0123"
@@ -56,11 +67,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from lazytools.code_bridge import _concurrency, _store
+from lazytools.code_bridge import _cloud_place, _concurrency, _store
 
 WHERE_LOCAL = "local"
 WHERE_CLOUD = "cloud"
 DEFAULT_CLOUD_CONCURRENCY = 4
+#: Model a Claude cloud session runs when neither ``--model``, a mapped tier nor
+#: ``[cloud.claude.models] default`` names one. Codex Cloud has no such setting:
+#: the CLI ignores ``-c model`` for cloud tasks, so the environment's default applies.
+DEFAULT_CLAUDE_CLOUD_MODEL = "claude-sonnet-5-5"
+CLOUD_TIERS = ("basic", "writing", "thinking", "critical")
+SETUP_DOC = "docs/code-bridge-cloud-setup.md"
+_MODEL_RE = re.compile(r"[A-Za-z0-9_.:/\[\]-]{1,100}")
 #: Seconds any single ``codex cloud`` call may take. Submitting and polling
 #: are short network round-trips; ``apply`` downloads and applies one diff.
 CLI_TIMEOUT = 300.0
@@ -110,7 +128,10 @@ _ROUTINE_NAME_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 _ROUTINE_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
 _ENV_VAR_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 #: Keys allowed under ``[cloud.<provider>]``.
-_PROVIDER_KEYS: dict[str, frozenset[str]] = {"codex": frozenset({"envs"}), "claude": frozenset({"routines"})}
+_PROVIDER_KEYS: dict[str, frozenset[str]] = {
+    "codex": frozenset({"envs", "concurrency"}),
+    "claude": frozenset({"routines", "concurrency", "models"}),
+}
 
 _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}"),
@@ -167,7 +188,8 @@ def _inside(path: Path, container: Path) -> bool:
 
 CREATE_ENV_HINT = (
     "create a single-repo Codex Cloud environment for {repo} (https://chatgpt.com/codex/settings/environments), "
-    'then map it in {path}:\n\n    [cloud.codex.envs]\n    "{repo}" = "<env id>"'
+    'then map it in {path}:\n\n    [cloud.codex.envs]\n    "{repo}" = "<env id>"\n\nSee docs/code-bridge-cloud-setup.md '
+    "for the full walk-through (`lazytools-code-bridge cloud-envs` lists what is configured)."
 )
 
 
@@ -189,13 +211,16 @@ class CloudNotImplemented(CloudError):
 
 
 class CloudBusy(CloudError):
-    def __init__(self, limit: int, holders: list[dict[str, Any]]) -> None:
+    def __init__(self, limit: int, holders: list[dict[str, Any]], provider: str | None = None) -> None:
         self.limit = limit
         self.holders = holders
+        self.provider = provider
         jobs = ", ".join(str(h.get("job_id", "?"))[:8] for h in holders) or "unknown"
+        scope = f"{provider} cloud jobs" if provider else "cloud jobs"
+        knob = f"[cloud.{provider}] concurrency" if provider else "[cloud] concurrency"
         super().__init__(
-            f"cloud jobs are at their concurrency limit ({limit}): {jobs} still active. "
-            f"Wait for one (`lazytools-code-bridge wait <job>`), or change [cloud] concurrency in "
+            f"{scope} are at their concurrency limit ({limit}): {jobs} still active. "
+            f"Wait for one (`lazytools-code-bridge wait <job>`), or change {knob} in "
             f"{_concurrency.config_path()}."
         )
 
@@ -213,6 +238,14 @@ class CloudConfig:
     #: routine name -> {"id": routine id, "token_env": env var holding its bearer token}
     routines: dict[str, dict[str, str]] = field(default_factory=dict)
     path: Path | None = None
+    #: what ``run`` does without ``--where``: "local", "cloud" or "auto"
+    default_where: str = "local"
+    #: local-time ranges ("21:00-01:30") in which ``auto`` prefers the cloud
+    busy_windows: tuple[str, ...] = ()
+    #: provider -> its own live-job limit (None = unlimited), on top of ``concurrency``
+    provider_concurrency: dict[str, int | None] = field(default_factory=dict)
+    #: provider -> {tier or "default": model}
+    models: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 def load_config(path: Path | None = None) -> CloudConfig:
@@ -231,15 +264,39 @@ def load_config(path: Path | None = None) -> CloudConfig:
     concurrency: int | None = DEFAULT_CLOUD_CONCURRENCY
     envs: dict[str, dict[str, str]] = {}
     routines: dict[str, dict[str, str]] = {}
+    default_where = "local"
+    windows: tuple[str, ...] = ()
+    provider_limits: dict[str, int | None] = {}
+    models: dict[str, dict[str, str]] = {}
     for key, value in table.items():
         if key == "concurrency":
             if type(value) is not int or value < 0:
                 raise ValueError(f"{path}: [cloud] concurrency must be an integer >= 0 (0 = unlimited), got {value!r}")
             concurrency = value or None
+        elif key == "default_where":
+            if value not in _cloud_place.WHERE_CHOICES:
+                raise ValueError(f"{path}: [cloud] default_where must be one of "
+                                 f"{', '.join(_cloud_place.WHERE_CHOICES)}, got {value!r}")
+            default_where = value
+        elif key == "busy_windows":
+            if not isinstance(value, list) or not all(isinstance(w, str) for w in value):
+                raise ValueError(f'{path}: [cloud] busy_windows must be a list of "HH:MM-HH:MM" strings')
+            try:
+                for window in value:
+                    _cloud_place.parse_window(window)
+            except ValueError as exc:
+                raise ValueError(f"{path}: [cloud] {exc}") from exc
+            windows = tuple(value)
         elif key in PROVIDERS:
             if not isinstance(value, dict):
                 raise ValueError(f"{path}: [cloud.{key}] must be a table")
             unknown = value.keys() - _PROVIDER_KEYS[key]
+            if key == "codex" and "models" in unknown:
+                raise ValueError(
+                    f"{path}: [cloud.codex.models] is not supported: the Codex CLI ignores `-c model` for cloud "
+                    "tasks, so a Codex Cloud task always runs the model its environment is set to (change it in "
+                    "the environment's settings at chatgpt.com/codex)"
+                )
             if key == "claude" and "envs" in unknown:
                 raise ValueError(
                     f"{path}: [cloud.claude.envs] is not supported: `claude --cloud` has no environment flag; "
@@ -247,8 +304,15 @@ def load_config(path: Path | None = None) -> CloudConfig:
                 )
             if unknown:
                 raise ValueError(f"{path}: [cloud.{key}] has unknown keys: {sorted(unknown)}")
+            if "concurrency" in value:
+                limit = value["concurrency"]
+                if type(limit) is not int or limit < 0:
+                    raise ValueError(f"{path}: [cloud.{key}] concurrency must be an integer >= 0 (0 = unlimited), "
+                                     f"got {limit!r}")
+                provider_limits[key] = limit or None
             if key == "claude":
                 routines = _load_routines(value.get("routines", {}), path)
+                models["claude"] = _load_models(value.get("models", {}), path)
                 continue
             mapping = value.get("envs", {})
             if not isinstance(mapping, dict):
@@ -261,9 +325,47 @@ def load_config(path: Path | None = None) -> CloudConfig:
             envs[key] = {repo.lower(): env_id.strip() for repo, env_id in mapping.items()}
         else:
             raise ValueError(
-                f"{path}: [cloud] names unknown key {key!r} (one of concurrency, {', '.join(sorted(PROVIDERS))})"
+                f"{path}: [cloud] names unknown key {key!r} (one of concurrency, default_where, busy_windows, "
+                f"{', '.join(sorted(PROVIDERS))})"
             )
-    return CloudConfig(concurrency=concurrency, envs=envs, routines=routines, path=path)
+    return CloudConfig(concurrency=concurrency, envs=envs, routines=routines, path=path, default_where=default_where,
+                       busy_windows=windows, provider_concurrency=provider_limits, models=models)
+
+
+def _load_models(table: Any, path: Path) -> dict[str, str]:
+    """Validate ``[cloud.claude.models]``: tier (or ``default``) -> model id."""
+    if not isinstance(table, dict):
+        raise ValueError(f"{path}: [cloud.claude.models] must be a table of tier = \"model id\"")
+    for tier, model in table.items():
+        if tier != "default" and tier not in CLOUD_TIERS:
+            raise ValueError(f"{path}: [cloud.claude.models] key {tier!r} is not a tier "
+                             f"({', '.join(CLOUD_TIERS)}) or 'default'")
+        if not isinstance(model, str) or not _MODEL_RE.fullmatch(model.strip()):
+            raise ValueError(f"{path}: [cloud.claude.models] {tier!r} must map to a model id string")
+    return {tier: model.strip() for tier, model in table.items()}
+
+
+def model_for(engine: str, config: CloudConfig, *, tier: str | None = None, explicit: str | None = None,
+              routine: str | None = None) -> tuple[str | None, str | None]:
+    """``(model to request, note)`` for a cloud job.
+
+    Claude cloud: ``--model``, else the tier's ``[cloud.claude.models]`` entry,
+    else its ``default`` entry, else :data:`DEFAULT_CLAUDE_CLOUD_MODEL`. A
+    routine fixes its own model. Codex Cloud always uses its environment's
+    default (the CLI ignores ``-c model`` for cloud), so an explicit model is
+    refused rather than silently dropped.
+    """
+    if engine == "codex":
+        if explicit:
+            raise CloudError("Codex Cloud ignores model overrides (the CLI ignores `-c model` for cloud tasks); the "
+                             "environment's own default model applies. Drop --model, or use --engine claude")
+        return None, "Codex Cloud uses the environment's default model" if tier else None
+    if routine is not None:
+        if explicit:
+            raise CloudError("--model cannot override a routine's model: change it in the routine's settings")
+        return None, "the routine's own model applies"
+    table = config.models.get("claude", {})
+    return (explicit or (tier and table.get(tier)) or table.get("default") or DEFAULT_CLAUDE_CLOUD_MODEL), None
 
 
 def _load_routines(table: Any, path: Path) -> dict[str, dict[str, str]]:
@@ -299,9 +401,10 @@ def _load_routines(table: Any, path: Path) -> dict[str, dict[str, str]]:
 # --------------------------------------------------------------------------- #
 
 
-def _git(cwd: Path, *args: str, check: bool = True) -> str:
+def _git(cwd: Path, *args: str, check: bool = True, timeout: float = 60) -> str:
     proc = subprocess.run(
-        ["git", "-C", str(cwd), *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60
+        ["git", "-C", str(cwd), *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=timeout,
     )
     if check and proc.returncode != 0:
         raise CloudError(f"git {' '.join(args)} failed in {cwd}: {(proc.stderr or proc.stdout).strip()}")
@@ -678,12 +781,15 @@ def mark_interrupted(store: Any, registry: Any, job_id: str, error: str) -> bool
     return _write_unless_terminal(store, registry, job_id, {}, status="interrupted", error=error)
 
 
-def active_jobs(store: Any) -> list[dict[str, Any]]:
+def active_jobs(store: Any, engine: str | None = None) -> list[dict[str, Any]]:
+    """Live cloud jobs (``engine``: only that provider's)."""
     rows = []
     for job in _store.all_job_records(store):
         if job.get("where") == WHERE_CLOUD and job.get("status") in ACTIVE_STATUSES:
             meta = _store.read_meta(store, str(job.get("job_id", ""))) or {}
-            rows.append({**meta, **job})
+            merged = {**meta, **job}
+            if engine is None or merged.get("engine") == engine:
+                rows.append(merged)
     return rows
 
 
@@ -776,11 +882,15 @@ def _admit(store: Any, registry: Any, config: CloudConfig, job_id: str, meta: di
     is atomic with the insert (both under the guard lock).
     """
     limit = config.concurrency
-    if limit:
+    engine = str(meta.get("engine"))
+    provider_limit = config.provider_concurrency.get(engine)
+    if limit or provider_limit:
         # Refresh outside the guard (network calls), so tasks that finished
         # since their last poll free their place before we count.
         active = active_jobs(store)
-        if len(active) >= limit:
+        if (limit and len(active) >= limit) or (
+            provider_limit and len([j for j in active if j.get("engine") == engine]) >= provider_limit
+        ):
             for job in active:
                 refresh(store, registry, job)
     slot_dir = _concurrency.load_config().slot_dir
@@ -793,6 +903,9 @@ def _admit(store: Any, registry: Any, config: CloudConfig, job_id: str, meta: di
         active = active_jobs(store)
         if limit and len(active) >= limit:
             raise CloudBusy(limit, active)
+        same = [j for j in active if j.get("engine") == engine]
+        if provider_limit and len(same) >= provider_limit:
+            raise CloudBusy(provider_limit, same, provider=engine)
         _write(store, registry, job_id, meta, status="submitting")
 
 
@@ -819,8 +932,22 @@ def submit_job(
     config: CloudConfig | None = None,
     approvals: tuple[str, ...] | list[str] = (),
     routine: str | None = None,
+    pr: int | None = None,
+    open_pr: bool = False,
+    land: bool = False,
+    rebase_ok: bool = False,
+    model: str | None = None,
+    tier: str | None = None,
+    extra_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Submit ``task`` to the cloud provider for ``engine``; return the job record.
+
+    ``pr`` works on that pull request's head branch (the job records the PR);
+    ``open_pr`` records that landing should open a new branch and PR against
+    ``branch``; ``land`` makes ``wait`` / ``cloud-sync`` land the result by
+    themselves, refusing a moved base unless ``rebase_ok``. ``tier`` and
+    ``model`` pick a Claude cloud model (:func:`model_for`). ``extra_meta`` is
+    merged into the record (used by cloud reviews).
 
     Raises :class:`CloudError` (no job recorded) for a missing env mapping,
     a repository without a usable remote, the cloud limit, or a brief that
@@ -844,12 +971,33 @@ def submit_job(
             f"request from the brief, or approve up front with {flags}"
         )
     config = config or load_config()
+    if pr is not None and open_pr:
+        raise CloudError("--pr and --open-pr are alternatives: work on an existing PR's branch, or open a new PR")
+    if land and not (pr is not None or open_pr):
+        open_pr = True  # landing needs somewhere to go: a new PR is the default
     prov = provider(engine)
     root = repo_root(cwd)
     repo = repo_slug(root)
-    env_id = prov.env_for(repo, config, routine)
+    env_id = prov.env_for(repo, config, routine)  # first: a repo with no environment fails before anything else
     if not _ENV_ID_RE.fullmatch(env_id):
         raise CloudError(f"env id {env_id!r} for {repo} has unexpected characters")
+    chosen_model, model_note = model_for(engine, config, tier=tier, explicit=model, routine=routine)
+    pr_info: dict[str, Any] = {}
+    if pr is not None:
+        from lazytools.code_bridge import _gh
+
+        view = _gh.pr_view(repo, pr)
+        if str(view.get("state", "")).upper() != "OPEN":
+            raise CloudError(f"PR #{pr} of {repo} is {str(view.get('state', '?')).lower()}, not open")
+        if view.get("isCrossRepository"):
+            raise CloudError(f"PR #{pr} comes from a fork: a cloud agent cannot work on, or push to, a fork's branch")
+        head_ref = str(view.get("headRefName") or "")
+        if branch and branch != head_ref:
+            raise CloudError(f"--branch {branch!r} conflicts with PR #{pr}, whose head branch is {head_ref!r}: "
+                             "drop --branch, the PR's head is the branch the cloud agent works on")
+        branch = head_ref
+        pr_info = {"pr_number": int(view.get("number") or pr), "pr_url": view.get("url"), "pr_head": head_ref,
+                   "pr_base": view.get("baseRefName"), "pr_head_sha_at_submit": view.get("headRefOid")}
     branch = branch or current_branch(root)
     if branch.startswith("-") or _git(root, "check-ref-format", "--branch", branch, check=False) != branch:
         raise CloudError(f"{branch!r} is not a valid branch name")
@@ -878,6 +1026,14 @@ def submit_job(
         "cloud_approvals": sorted(set(approvals)),
         "created_at": time.time(),
         "cloud_handle": None,
+        "open_pr": bool(open_pr),
+        "land": bool(land),
+        "rebase_ok": bool(rebase_ok),
+        "tier": tier,
+        "model": chosen_model,
+        "model_note": model_note,
+        **pr_info,
+        **(extra_meta or {}),
     }
     if engine == "claude":
         from lazytools.code_bridge._cloud_claude import ENV_NOTE, named_branch
@@ -888,7 +1044,7 @@ def submit_job(
     _admit(store, registry, config, job_id, meta)
     try:
         sub = prov.submit(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task,
-                          job_id=job_id, db_path=db_path, routine=routine, config=config)
+                          job_id=job_id, db_path=db_path, routine=routine, config=config, model=chosen_model)
     except BaseException as exc:
         _write(store, registry, job_id, meta, status="failed", error=redact(f"cloud submit failed: {exc}"))
         raise
@@ -918,6 +1074,18 @@ def result_text(job: dict[str, Any]) -> str:
             parts.append(summarize_diff(diff).text())
         except CloudError as exc:
             parts.append(f"diff: unavailable ({exc})")
+    if job.get("pushed_sha"):
+        parts.append(f"pushed: {job.get('landed_branch')} @ {str(job['pushed_sha'])[:12]}")
+    if job.get("pr_url"):
+        parts.append(f"pr: {job['pr_url']}")
+    if job.get("land_error") and not job.get("landed_at"):
+        parts.append(f"landing: not done ({job['land_error']})")
+    if job.get("review_comment_url"):
+        parts.append(f"review comment: {job['review_comment_url']} (verdict {job.get('review_verdict')})")
+    elif job.get("review_note"):
+        parts.append(f"review comment: not posted ({job['review_note']})")
+    elif job.get("review_posted_at"):
+        parts.append(f"review comment: posted (verdict {job.get('review_verdict')})")
     return redact("\n".join(parts))
 
 
@@ -935,6 +1103,7 @@ def apply_job(
     worktree: Path | None = None,
     rebase: bool = False,
     source: str | None = None,
+    rebase_flag: str = "--rebase",
 ) -> dict[str, Any]:
     """Apply a finished cloud task in a NEW git worktree on a NEW branch.
 
@@ -990,7 +1159,7 @@ def apply_job(
         if not rebase:
             raise CloudError(
                 f"origin/{base_branch} has moved from {base_commit[:12]} (the task's base) to {head[:12]} since the "
-                "task was submitted; refusing to apply onto a branch the agent never saw. Pass --rebase to apply "
+                f"task was submitted; refusing to apply onto a branch the agent never saw. Pass {rebase_flag} to apply "
                 "onto the new head (the diff may not apply cleanly)"
             )
         base, rebased_from = head, base_commit

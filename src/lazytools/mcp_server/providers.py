@@ -896,6 +896,30 @@ def _code_sessions(allow_write: bool = False, *, data_source: dict[str, Any] | N
     )
 
 
+@_register("code_bridge")
+def _code_bridge(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Local and cloud coding jobs through lazytools-code-bridge (``code_bridge_submit|status|result``).
+
+    Lets one agent hand work to another the way a person uses the bridge CLI:
+    ``code_bridge_submit`` starts a local (detached) or cloud job and returns its
+    id; ``code_bridge_status`` / ``code_bridge_result`` follow it, including the
+    pushed branch, PR and independent-review comment of a cloud job that was
+    submitted with ``land``. Each tool runs the CLI command, so placement
+    (``where="auto"``), approvals, redaction and landing behave identically.
+
+    Gated like ``code_write``: absent unless ``allow_write=True``
+    (``--allow-unsafe``), because it starts coding agents that write code. Cloud
+    jobs additionally need ``allow_cloud=true`` on every submit. ``cwd`` is
+    confined to ``code_root`` / ``LAZYTOOLS_CODE_ROOT`` (else the process' cwd).
+    """
+    if not allow_write:
+        raise RuntimeError("code_bridge is opt-in only: pass allow_write=True (--allow-unsafe).")
+
+    from lazytools.code_bridge._mcp import CodeBridgeTools
+
+    return CodeBridgeTools(root=(data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"))
+
+
 @_register("telegram")
 def _telegram(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Telegram send (message + document), bounded to an allow-listed chat.

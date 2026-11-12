@@ -92,6 +92,9 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "codex_",
     "claude_code_review",
     "claude_ask",
+    # Starts local or cloud coding agents that write code, and polls/lands cloud
+    # jobs: status and result included, since a cloud poll can land a finished job.
+    "code_bridge_",
     # Session-name curation: changes what a name resumes (and so which
     # conversation a later call continues). ``code_sessions_list`` is a reader.
     "code_sessions_bind",

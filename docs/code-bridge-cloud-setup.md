@@ -250,6 +250,75 @@ refused.
 | `routine ... fire returned HTTP 401` | The routine token is wrong or was regenerated |
 | `status` stays `submitted (no status API)` | Open the session URL. If the session did not push a `claude/` branch, ask it to there, or `cancel` the job |
 
+## Part 3: the end-to-end loop (no hand-offs)
+
+With one engine set up (or both), a lead never has to copy a diff, push or open
+a PR by hand. You also need the GitHub CLI logged in for the PR steps
+(`gh auth login`, or `GH_TOKEN` in the environment that runs the bridge).
+
+```bash
+# 1. Submit. --land: land the result on its own when the task finishes
+#    (--open-pr: a new branch + PR; --pr 42: work on, and push to, PR 42's branch).
+lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd <repo> --task @brief.md --land
+
+# 2. Follow it. `wait` lands this one job; `cloud-sync` reconciles ALL live cloud jobs.
+lazytools-code-bridge wait <job>
+lazytools-code-bridge cloud-sync          # safe to run from cron / Task Scheduler / a routine
+
+# 3. Independent review by the OPPOSITE engine, posted to the PR as one comment.
+lazytools-code-bridge run --where cloud --allow-cloud --cwd <repo> --review-of <job>
+lazytools-code-bridge cloud-sync          # posts the review comment when the reviewer finishes
+```
+
+What happens at each step is in [Cloud agents as part of the
+workflow](code-bridge.md#cloud-agents-as-part-of-the-workflow). In short:
+
+* Codex Cloud's container has no git remote, so it **cannot push**. The bridge
+  applies its diff in a worktree, commits, pushes the branch (or the PR's head
+  branch, fast-forward only) and opens or updates the PR with `gh`. That is the
+  manual step `--land` replaces.
+* Claude Code cloud pushes its own `claude/...` branch; `--land` verifies it,
+  records the commit and opens or updates the PR.
+* Landing is refused, with the reason, when the base branch moved since submit
+  (add `--rebase-ok` to the submit to allow it) and never force-pushes.
+* A failed cloud task is marked `failed` with the provider's reason by `wait` or
+  `cloud-sync`.
+
+To run `cloud-sync` on a schedule, any scheduler that can run a command works,
+for example `*/10 * * * * lazytools-code-bridge cloud-sync` in cron. It exits 1
+when a landing or review post failed, so the scheduler can alert on it.
+
+Check which environments the bridge knows with `lazytools-code-bridge cloud-envs`
+(Codex environments and the repo each serves, the Claude cloud environment and
+any routines). To let jobs choose where to run by themselves, set
+`default_where = "auto"` and your production windows in `code-bridge.toml`:
+
+```toml
+[cloud]
+default_where = "auto"                 # run goes to the cloud when busy, else local
+busy_windows = ["21:00-01:30"]         # local time; empty (the default) means never "busy by the clock"
+
+[cloud.claude.models]                  # Claude cloud model per tier (default: claude-sonnet-5-5)
+critical = "claude-opus-5-5"
+```
+
+`lazytools-code-bridge route --tier writing --where auto` shows the decision and
+why. Codex Cloud runs the model its environment is set to; the CLI ignores
+`-c model` for cloud tasks, so there is nothing to configure here (change it in
+the environment's settings).
+
+### Optional and untested: letting Codex Cloud push by itself
+
+By default a Codex Cloud task cannot push because its container has no git
+credentials. In principle it could, if you provide credentials to the
+environment through its **setup script** (for example a fine-grained,
+single-repository token with write access to branches, written into a
+credential helper by the script) and tell the agent which branch to push. This
+is **untested** here and not needed: landing from the diff is the supported
+path, and it keeps the token out of the container. If you try it, treat that
+token as exposed to everything the agent runs (the same data-boundary rules
+apply), scope it to one repository, and prefer short-lived tokens.
+
 ## Safety rules (both engines)
 
 - `--allow-cloud` is required for every cloud submit.
@@ -258,5 +327,8 @@ refused.
 - Provider output and the stored brief are redacted (tokens, keys, JWTs).
 - Cloud jobs share one limit, `[cloud] concurrency` (default 4), and never take
   a local engine slot.
-- `apply` creates a new worktree and branch and never pushes. Pushing and
-  merging stay human, approved steps.
+- `apply` creates a new worktree and branch and never pushes. Pushing happens
+  only when you ask for it: `apply --land`, or a job submitted with `--land`
+  landed by `wait` / `cloud-sync`. Landing refuses a moved base unless
+  `--rebase-ok`, never force-pushes, and never merges: merging stays a human,
+  approved step.
