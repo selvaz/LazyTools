@@ -61,6 +61,13 @@ def cc(tmp_path, monkeypatch):
     monkeypatch.setenv("FAKE_CLAUDE_LOG", str(log))
     monkeypatch.setenv("FAKE_CLAUDE_URL", SESSION_URL)
     monkeypatch.delenv("FAKE_CLAUDE_MODE", raising=False)
+    monkeypatch.setenv("TEST_DEFAULT_ROUTINE_TOKEN", "test-token-value")
+    monkeypatch.setattr(
+        _cloud_claude,
+        "_http_post",
+        lambda *a, **k: (200, json.dumps({"claude_code_session_id": "session_abc123def",
+                                          "claude_code_session_url": SESSION_URL})),
+    )
     for key, value in {
         "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
         "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid",
@@ -111,6 +118,14 @@ def _run(ctx, *extra: str, task: str = "Add a feature") -> int:
 
 
 def _submit_json(ctx, capsys, *extra: str, task: str = "Add a feature") -> dict:
+    if "--routine" not in extra:
+        path = Path(os.environ[_concurrency.CONFIG_ENV])
+        text = path.read_text(encoding="utf-8")
+        if "[cloud.claude.routines.test_default]" not in text:
+            path.write_text(text + ('\n[cloud.claude.routines.test_default]\nid = "trig_test"\n'
+                                   'token_env = "TEST_DEFAULT_ROUTINE_TOKEN"\nrepo = "acme/widgets"\n'
+                                   'branch = "main"\n'), encoding="utf-8")
+        extra = (*extra, "--routine", "test_default")
     assert _run(ctx, *extra, "--json", task=task) == 0, capsys.readouterr().err
     return json.loads(capsys.readouterr().out.strip().splitlines()[-1])
 
@@ -130,78 +145,16 @@ def _config(text: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# submit (CLI mode)
+# unattended submission
 # --------------------------------------------------------------------------- #
 
 
-def test_submit_runs_claude_cloud_from_the_pushed_checkout(cc, capsys):
-    payload = _submit_json(cc, capsys)
-    assert payload["engine"] == "claude" and payload["where"] == "cloud" and payload["status"] == "running"
-    assert payload["cloud_handle"] == SESSION_URL and payload["cloud_url"] == SESSION_URL
-    assert payload["env_id"] == _cloud_claude.ENV_LABEL
-    (call,) = cc.calls()
-    assert call["argv"][0] == "--cloud"
-    assert call["argv"][1].startswith(_cloud.CLOUD_PREAMBLE)
-    assert "Add a feature" in call["argv"][1] and job_branch(payload) in call["argv"][1]
-    assert call["argv"][2:] == ["--model", _cloud.DEFAULT_CLAUDE_CLOUD_MODEL, "--output-format", "json"]
-    assert Path(call["cwd"]).resolve() == cc.repo.resolve() and call["branch"] == "main"
-    job = _job(cc, payload["job_id"])
-    assert job["cloud_mode"] == "cli" and job["claude_session_id"] == "session_abc123def"
-    assert "claude.ai/code" in job["environment_note"] and "no flag" in job["environment_note"]
-    assert job["claude_refs_before"] == {}
-    assert '"ok": true' in job["claude_submit_raw"]
-
-
-def test_submit_text_output_mentions_no_status_api(cc, capsys):
-    assert _run(cc) == 0
-    out = capsys.readouterr().out
-    assert "no status API" in out and "claude.ai/code" in out
-
-
-def test_submit_checks_out_requested_branch_in_a_temporary_worktree(cc, capsys):
-    _vm_push(cc, "feature-x")  # exists on origin, not locally
-    payload = _submit_json(cc, capsys, "--branch", "feature-x")
-    (call,) = cc.calls()
-    assert call["branch"] == "feature-x"
-    assert Path(call["cwd"]).resolve() != cc.repo.resolve()
-    assert not Path(call["cwd"]).exists()  # removed after submit
-    assert _git(cc.repo, "rev-parse", "--abbrev-ref", "HEAD") == "main"  # operator checkout untouched
-    assert _job(cc, payload["job_id"])["branch"] == "feature-x"
-
-
-def test_unpushed_commits_are_refused_and_never_pushed(cc, capsys):
-    (cc.repo / "local.txt").write_text("x\n", encoding="utf-8")
-    _git(cc.repo, "add", "local.txt")
-    _git(cc.repo, "commit", "-q", "-m", "local only")
+def test_submit_without_routine_fails_before_invoking_claude(cc, capsys):
     assert _run(cc) == 2
     err = capsys.readouterr().err
-    assert "differs from origin/main" in err and "never pushes" in err
+    assert "require a routine API trigger" in err and "default_routine" in err
     assert cc.calls() == []
     assert _store.all_job_records(_store.build_store(cc.db)) == []
-    assert _git(cc.origin, "rev-parse", "main") != _git(cc.repo, "rev-parse", "HEAD")
-
-
-def test_branch_missing_on_origin_is_refused(cc, capsys):
-    _git(cc.repo, "checkout", "-q", "-b", "only-local")
-    assert _run(cc) == 2
-    assert "is not on origin" in capsys.readouterr().err
-    assert cc.calls() == []
-
-
-def test_retries_without_output_format_and_parses_text(cc, monkeypatch, capsys):
-    monkeypatch.setenv("FAKE_CLAUDE_MODE", "reject_format")
-    payload = _submit_json(cc, capsys)
-    first, second = cc.calls()
-    assert "--output-format" in first["argv"] and "--output-format" not in second["argv"]
-    assert payload["cloud_url"] == SESSION_URL
-
-
-def test_auth_failure_is_recorded_with_login_hint(cc, monkeypatch, capsys):
-    monkeypatch.setenv("FAKE_CLAUDE_MODE", "auth")
-    assert _run(cc) == 2
-    assert "claude auth login" in capsys.readouterr().err
-    (record,) = _store.all_job_records(_store.build_store(cc.db))
-    assert record["status"] == "failed"
 
 
 def test_claude_cloud_needs_allow_cloud_and_gated_approval(cc, capsys):
@@ -315,11 +268,11 @@ def test_apply_source_refuses_another_jobs_branch(cc, capsys):
 def test_no_status_jobs_share_the_cloud_limit_and_cancel_frees_it(cc, capsys):
     _config("\n[cloud]\nconcurrency = 1\n")
     job_id = _submit_json(cc, capsys)["job_id"]
-    assert _run(cc) == 2
+    assert _run(cc, "--routine", "test_default") == 2
     assert "concurrency limit (1)" in capsys.readouterr().err
     assert cli.main(["cancel", job_id, "--reason", "done by hand", "--db", str(cc.db)]) == 0
     assert "NOT stopped" in capsys.readouterr().out
-    assert _run(cc) == 0
+    _submit_json(cc, capsys)
 
 
 def test_cloud_jobs_take_no_local_engine_slot(cc, capsys, monkeypatch):
@@ -327,7 +280,7 @@ def test_cloud_jobs_take_no_local_engine_slot(cc, capsys, monkeypatch):
         raise AssertionError("a cloud submit must not take a local engine slot")
 
     monkeypatch.setattr(_concurrency.EngineSlot, "__init__", boom)
-    assert _run(cc) == 0
+    _submit_json(cc, capsys)
 
 
 # --------------------------------------------------------------------------- #
@@ -462,7 +415,7 @@ def test_setup_skill_is_bundled_and_installable(tmp_path, capsys):
     meta = skill_metadata("code-bridge-cloud-setup")
     assert meta["name"] == "code-bridge-cloud-setup" and "code-bridge.toml" in meta["description"]
     text = agent_skill_path("code-bridge-cloud-setup").read_text(encoding="utf-8")
-    for needle in ("claude --version", "claude auth status", "codex --version", "gh auth status",
+    for needle in ("interactive terminal", "default_routine", "codex --version", "gh auth status",
                    "git -C <repo> remote get-url origin", "[cloud.codex.envs]", "token_env"):
         assert needle in text
     assert cli.main(["setup-skill"]) == 0

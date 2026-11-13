@@ -104,32 +104,25 @@ Write:
 
 ## Step 2: Claude cloud (if chosen)
 
-Check:
+Unattended bridge jobs cannot use `claude --cloud`, because that flag requires
+an interactive terminal. Do not fake a TTY. Check the GitHub App, then require
+a routine API trigger:
 
 ```bash
-claude --version                # missing -> install Claude Code, or set CLAUDE_BIN
-claude auth status              # if the subcommand exists; else check ~/.claude/.credentials.json exists (do NOT print it)
-echo "${ANTHROPIC_API_KEY:+set}" # if "set": API keys are not accepted for cloud sessions; tell the user to unset it for these runs
-gh api repos/<owner>/<name>/installation --jq .app_slug 2>/dev/null   # may need admin rights; if it fails, ask
+gh api repos/<owner>/<name>/installation --jq .app_slug 2>/dev/null
 ```
 
-- Not logged in → the user runs `claude auth login` (claude.ai account,
-  Pro/Max/Team/Enterprise). Tell them the login must be renewed **every 30
-  days**.
 - GitHub App: if not confirmed, send them to <https://github.com/apps/claude>
   → Configure → select `<owner/name>`.
-- Environment: there is **no CLI flag**. Ask the user to open
-  <https://claude.ai/code>, edit or add an environment (setup script as in
-  Step 1, limited network access, no secrets), and make it the **default**.
-  Ask them to confirm it is done. Do **not** add `[cloud.claude.envs]`: the
-  bridge refuses it.
-
-Optional routine (only if the user wants HTTP-triggered runs): they create a
-routine with an API trigger at claude.ai/code and tell you the routine id
+- At <https://claude.ai/code>, the user creates a routine for this repository,
+branch and environment, adds an API trigger, and tells you the routine id
 (`trig_...`). They put the token in an environment variable themselves; you
 suggest the name `LAZYTOOLS_ROUTINE_<NAME>_TOKEN`. Write:
 
 ```toml
+[cloud.claude]
+default_routine = "<name>" # or require --routine <name> on every run
+
 [cloud.claude.routines.<name>]
 id = "trig_..."
 token_env = "LAZYTOOLS_ROUTINE_<NAME>_TOKEN"
