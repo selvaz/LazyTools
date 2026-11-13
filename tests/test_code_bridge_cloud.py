@@ -615,6 +615,26 @@ def test_poll_clock_spaces_first_poll_from_separate_waiters(cloud, monkeypatch):
     assert sleeps == [5.0]
 
 
+def test_short_waiters_do_not_advance_poll_clock(cloud, monkeypatch):
+    store = _store.build_store(cloud.db)
+    key = f"{_cloud.POLL_CLOCK_PREFIX}codex"
+    now = [100.0]
+    store.write(key, now[0])
+    monkeypatch.setattr(_cloud.time, "time", lambda: now[0])
+    monkeypatch.setattr(_cloud.time, "monotonic", lambda: now[0])
+
+    def sleep(delay):
+        now[0] += delay
+
+    monkeypatch.setattr(_cloud.time, "sleep", sleep)
+    for _ in range(3):
+        deadline = _cloud.time.monotonic() + 1.0
+        assert not _cloud._wait_for_poll_turn(store, "codex", 5.0, 0.0, deadline)
+
+    assert now[0] == 103.0
+    assert store.read(key) == 100.0
+
+
 def test_wait_deadline_does_not_poll_before_reserved_turn(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
     store = _store.build_store(cloud.db)

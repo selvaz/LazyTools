@@ -1387,14 +1387,15 @@ def _wait_for_poll_turn(
         raw = store.read(key)
         previous = float(raw) if isinstance(raw, (int, float)) else 0.0
         poll_at = max(now + delay, previous + minimum_interval)
-        store.write(key, poll_at)
+        wait = max(0.0, poll_at - now)
+        remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
+        if remaining is None or wait <= remaining:
+            store.write(key, poll_at)
+    if remaining is not None and wait > remaining:
+        if remaining:
+            time.sleep(remaining)
+        return False
     wait = max(0.0, poll_at - time.time())
-    if deadline is not None:
-        remaining = max(0.0, deadline - time.monotonic())
-        if wait > remaining:
-            if remaining:
-                time.sleep(remaining)
-            return False
     if wait:
         time.sleep(wait)
     return True
