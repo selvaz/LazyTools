@@ -337,7 +337,11 @@ class ClaudeCloud:
         raise CloudError("Claude cloud results are applied from their claude/ branch; use apply_job(...)")
 
     def job_status(self, job: dict[str, Any], *, claimed: set[str] | frozenset[str] = frozenset()) -> CloudStatus:
-        """No status API: look for the job's result branch on ``origin``."""
+        """No status API: look for the job's result branch on ``origin``.
+
+        Git transport errors propagate to the shared cloud poller, which
+        records and retries them without changing the job's task status.
+        """
         url = str(job.get("cloud_url") or job.get("cloud_handle") or "the claude.ai session list")
         root = Path(str(job.get("repo_root") or job.get("cwd")))
         candidates = self.result_candidates(job, root, claimed=claimed)

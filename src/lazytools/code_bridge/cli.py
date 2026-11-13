@@ -916,12 +916,13 @@ def _cmd_wait(args: argparse.Namespace) -> int:
             print(f"job {args.job_id}: its record disappeared while waiting", file=sys.stderr)
             return 1
         errors = int(job.get("poll_errors_in_a_row") or 0)
-        if errors >= _cloud.MAX_CONSECUTIVE_POLL_ERRORS:
-            _cloud_print(f"job {args.job_id}: {errors} status polls in a row failed; last error: "
+        if errors:
+            _cloud_print(f"job {args.job_id} still unknown after {errors} failed status poll(s); last error: "
                          f"{job.get('last_poll_error')}", err=True)
-            return 1
+            return 4
         print(f"job {args.job_id} still {job.get('status')} after {timeout:.0f}s", file=sys.stderr)
         return 3
+
     deadline = None if args.timeout is None else time.monotonic() + args.timeout
     pid = _detached_pid(db_path, args.job_id)
     while True:
@@ -950,6 +951,30 @@ def _cmd_wait(args: argparse.Namespace) -> int:
             print(f"job {args.job_id} still {status or 'starting'} after {args.timeout:.0f}s", file=sys.stderr)
             return 3
         time.sleep(args.interval)
+
+
+def _cmd_resync(args: argparse.Namespace) -> int:
+    store = _store.build_store(_db_path(args))
+    registry = _store.build_job_registry(store)
+    job = _jobs.find_job(store, registry, args.job_id)
+    if job is None:
+        print(f"no job found matching {args.job_id!r}", file=sys.stderr)
+        return 1
+    if not _cloud.is_cloud(job):
+        print(f"job {args.job_id} is a local job", file=sys.stderr)
+        return 2
+    try:
+        job = _cloud.resync(store, registry, job)
+    except _cloud.CloudError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    if args.json:
+        _cloud_json(job)
+    else:
+        print(_job_line(job))
+        if job.get("cloud_status"):
+            _cloud_print(f"cloud status: {job['cloud_status']}")
+    return 0 if job.get("status") == "done" else (1 if job.get("status") in _TERMINAL else 4)
 
 
 def _cloud_base_branch(outcome: dict[str, Any]) -> str:
@@ -1424,6 +1449,12 @@ def build_parser() -> argparse.ArgumentParser:
     wait_p.add_argument("--json", action="store_true")
     _add_db_option(wait_p)
     wait_p.set_defaults(func=_cmd_wait)
+
+    resync_p = sub.add_parser("resync", help="Re-check a cloud job that an older bridge failed after a poll error.")
+    resync_p.add_argument("job_id")
+    resync_p.add_argument("--json", action="store_true")
+    _add_db_option(resync_p)
+    resync_p.set_defaults(func=_cmd_resync)
 
     jobs_p = sub.add_parser("jobs", help="List jobs.")
     jobs_p.add_argument("--all", action="store_true", help="Include finished jobs, not just active ones.")

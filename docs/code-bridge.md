@@ -977,6 +977,7 @@ lazytools-code-bridge run --where cloud --allow-cloud --engine codex|claude --cw
     [--branch B] [--routine NAME] [--approve-cloud push|pr-create|merge|delete|reset|commit|git-option ...]
 lazytools-code-bridge status <job>      # polls `codex cloud status <task>`
 lazytools-code-bridge wait <job>        # polls until the task is terminal
+lazytools-code-bridge resync <job>      # recover a legacy job failed by a poll error
 lazytools-code-bridge result <job>      # final message + `codex cloud diff <task>` summary
 lazytools-code-bridge apply <job> [--rebase]  # `codex cloud apply <task>` in a NEW worktree/branch; no push
 ```
@@ -1054,8 +1055,12 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
   or a known status word); a poll never declares a job *done* on output it
   cannot read. A failed poll (the CLI errs without naming a status, or its
   output names no status at all) is recorded as `last_poll_error` and the
-  job stays `running`; after **5 failed polls in a row** the job is marked
-  `failed` with the redacted last reason, which frees its cloud place.
+  job stays `running`, regardless of how many polls fail. HTTP 429 and 5xx
+  responses, connection failures and timeouts are retried with exponential
+  backoff and jitter; `Retry-After` is honoured. Poll times are reserved in
+  the shared Store per provider account, so concurrent waiter processes keep
+  a minimum interval instead of polling in lockstep. These rules also cover
+  the git transport used to observe Claude cloud result branches.
   A **non-zero exit is not automatically a poll failure**: `codex cloud
   status` exits non-zero for a task that ended in error, so its output is
   parsed whatever the exit code and a recognised status wins (`error` → the
@@ -1063,8 +1068,16 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
   as a poll failure. Without an explicit `status:` field, only the **leading
   token** of the first line is read (`[READY] Fix error handling` is ready):
   the rest is a task title.
-- `wait` never hangs: a job that keeps failing polls becomes `failed` (exit
-  1), and a cloud `wait` without `--timeout` gives up after 7200 s (exit 3).
+- Only an explicit provider terminal state (`completed`, `failed`, or
+  `cancelled`, including their provider aliases) changes the job's status.
+  A cloud `wait` without `--timeout` gives up after 7200 s. It exits 3 when
+  the task is still known to be running, or 4 when failed polls leave its
+  state unknown; neither timeout changes the stored running status.
+- Older bridge versions could incorrectly store a transport failure as a
+  failed job. `resync <job>` re-polls such a job; a completed task becomes
+  `done` (so `apply --land` works), and the recovery transition is appended
+  to the job's `job_log`. A still-unreadable/non-terminal task remains
+  unchanged and exits 4.
 - Provider diagnostics (errors, apply output) **and the brief** are passed
   through a redaction filter (bearer/basic credentials, `token=`/`api_key=`-
   style pairs, `sk-`/`ghp_`/`github_pat_`/`xox*`/`AKIA`/`glpat`/`AIza`
