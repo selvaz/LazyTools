@@ -64,6 +64,8 @@ FAKE_CODEX = textwrap.dedent(
         print("diff --git a/with space.txt b/with space.txt")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "rename":
         print("diff --git a/README.md b/RENAMED.md")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "ignored":
+        print("diff --git a/data/endpoints.yaml b/data/endpoints.yaml")
     elif verb == "diff":
         print("diff --git a/cloud_change.txt b/cloud_change.txt")
         print("new file mode 100644")
@@ -77,6 +79,9 @@ FAKE_CODEX = textwrap.dedent(
             Path("with space.txt").write_text("spaced\\n", encoding="utf-8")
         elif shape == "rename":
             Path("README.md").rename("RENAMED.md")
+        elif shape == "ignored":
+            Path("data").mkdir(exist_ok=True)
+            Path("data/endpoints.yaml").write_text("endpoint: public\\n", encoding="utf-8")
         elif not os.environ.get("FAKE_CODEX_NOCHANGE"):
             Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
         if os.environ.get("FAKE_CODEX_ERROR_LOG"):
@@ -969,6 +974,30 @@ def test_gated_action_runs_with_matching_approval(cloud, capsys):
 @pytest.mark.parametrize("brief", ["Add a feature", "Fix error handling in the parser", "Write tests for the merge sort"])
 def test_plain_briefs_need_no_approval(brief):
     assert _cloud.gated_actions(brief) == []
+
+
+@pytest.mark.parametrize(
+    "brief",
+    [
+        "Document merge precedence in the routing policy.",
+        "Add a pre-merge review check.",
+        "Treat `git reset --hard` as a rule string.",
+        "Drop the fallback; do not delete any branch.",
+        'The error says "merge the PR" but that is only quoted output.',
+        "# Appendix\nReview notes: delete the branch",
+        "```text\ngit push --force\n```\nThis block documents a forbidden rule.",
+    ],
+)
+def test_gated_action_real_false_positive_corpus(brief):
+    assert _cloud.gated_actions(brief) == []
+
+
+@pytest.mark.parametrize(
+    ("brief", "action"),
+    [("Merge the PR", "merge"), ("git push --force", "push"), ("Delete the branch", "delete")],
+)
+def test_gated_action_real_request_corpus(brief, action):
+    assert action in _cloud.gated_actions(brief)
 
 
 # --------------------------------------------------------------------------- #

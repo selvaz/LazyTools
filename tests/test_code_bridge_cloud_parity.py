@@ -307,6 +307,21 @@ def test_a_repo_without_an_environment_fails_early_with_the_setup_pointer(cloud,
 # --------------------------------------------------------------------------- #
 
 
+@pytest.mark.parametrize(
+    ("job", "expected"),
+    [
+        ({"objective": "# Goal\n\nFix useful PR titles\n\n# Context\nMore"}, "Fix useful PR titles"),
+        ({"objective": "# Context\nNotes\n# Goal\nDo the actual work"}, "Do the actual work"),
+        ({"objective": "Repair title selection. Then refactor it."}, "Repair title selection."),
+        ({"objective": "# Goal\nGoal", "title": "Explicit title"}, "Explicit title"),
+        ({"objective": "# Goal\nA title containing enough words that it must be shortened cleanly without splitting the final word apart"},
+         "A title containing enough words that it must be shortened cleanly"),
+    ],
+)
+def test_landing_title_derivation(job, expected):
+    assert _cloud_land.job_title(job) == expected
+
+
 def test_apply_land_commits_pushes_and_opens_a_pr(cloud, gh, capsys):
     payload = _submit_json(cloud, capsys, "--open-pr", task="Add retry logic to the fetcher\n\nDetails follow.")
     job_id = payload["job_id"]
@@ -360,6 +375,22 @@ def test_land_handles_file_names_with_spaces(cloud, gh, capsys, monkeypatch):
     assert _main(cloud, "apply", job_id, "--land", "--json") == 0
     outcome = json.loads(capsys.readouterr().out)
     assert _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines() == ["with space.txt"]
+
+
+def test_land_force_adds_only_ignored_paths_from_cloud_diff_and_reports_them(cloud, gh, capsys, monkeypatch):
+    (cloud.repo / ".gitignore").write_text("data/\n", encoding="utf-8")
+    _git(cloud.repo, "add", ".gitignore")
+    _git(cloud.repo, "commit", "-q", "-m", "ignore generated data")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "ignored")
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land") == 0
+    output = capsys.readouterr().out
+    job = _job(cloud, job_id)
+    assert job["force_added_ignored"] == ["data/endpoints.yaml"]
+    assert "force-added ignored cloud diff paths: data/endpoints.yaml" in output
+    assert _git(cloud.repo, "show", "--format=", "--name-only", job["pushed_sha"]).splitlines() == ["data/endpoints.yaml"]
 
 
 def test_land_stages_both_sides_of_a_rename(cloud, gh, capsys, monkeypatch):

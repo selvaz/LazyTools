@@ -115,18 +115,18 @@ GATED_ACTIONS: tuple[str, ...] = ("push", "pr-create", "merge", "delete", "reset
 #: asks for only through its catch-all (``git merge``, ``git branch -D``,
 #: ``git clean``), which have no named rule of their own.
 _PROSE_INTENTS: dict[str, re.Pattern[str]] = {
-    "push": re.compile(r"(?i)\b(?:force[- ]?)?push(?:es|ed|ing)?\b"),
+    "push": re.compile(r"(?i)(?:^|[,;.!?]\s+|\b(?:then|and|please)\s+)(?:git\s+)?(?:force[- ]?)?push\b"),
     "pr-create": re.compile(
         r"(?i)\b(?:open|create|file|raise|submit|send)(?:s|ed|ing)?\s+(?:a\s+|an\s+|the\s+|new\s+)*"
         r"(?:draft\s+)?(?:pr|pull[- ]request)s?\b"
     ),
     "merge": re.compile(
-        r"(?i)\bgit\s+merge\b|\bmerge\s+(?:it|this|that)\b"
-        r"|\bmerg(?:e|es|ed|ing)\b[^.\n]{0,40}\b(?:pr|pull\s+request|branch|into|main|master|trunk)\b"
+        r"(?i)(?:^|[.!?]\s+|\b(?:then|and|please)\s+)(?:git\s+)?merge\s+(?:the\s+)?"
+        r"(?:pr|pull\s+request|branch|it|this|that)\b"
     ),
     "delete": re.compile(
-        r"(?i)\bgit\s+branch\s+-[dD]\b|\bgit\s+clean\b"
-        r"|\b(?:delet|remov)(?:e|es|ed|ing)\b[^.\n]{0,40}\b(?:branch(?:es)?|tags?|repo(?:sitory)?|releases?|remote)\b"
+        r"(?i)(?:^|[.!?]\s+|\b(?:then|and|please)\s+)(?:delet|remov)e?\s+[^.\n]{0,40}\b"
+        r"(?:branch(?:es)?|tags?|repo(?:sitory)?|releases?|remote)\b"
     ),
 }
 _ENV_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
@@ -183,9 +183,25 @@ def gated_actions(text: str) -> list[str]:
     """
     from lazytools.code_bridge._policy import cloud_rule_actions
 
-    found = cloud_rule_actions(text)
-    found.update(name for name, pattern in _PROSE_INTENTS.items() if pattern.search(text))
+    request = _action_request_text(text)
+    found = cloud_rule_actions(request)
+    found.update(name for name, pattern in _PROSE_INTENTS.items() if pattern.search(request))
     return [name for name in GATED_ACTIONS if name in found]
+
+
+def _action_request_text(text: str) -> str:
+    """Keep actionable instructions while removing examples, quotations and review appendices."""
+    text = re.sub(r"(?ms)^```.*?^```\s*", "", text)
+    text = re.split(r"(?im)^#{1,6}\s+(?:appendix|review(?: notes?)?)\s*$", text, maxsplit=1)[0]
+    text = re.sub(r'(?s)(["“]).*?(["”])', "", text)
+    text = re.sub(r"(?i)\b(?:do not|don\'t|never)\s+[^.;!?]+", "", text)
+    lines: list[str] = []
+    imperative = re.compile(r"(?i)\b(?:run|execute|use|finish with|then|please|must|do)\b")
+    for line in text.splitlines():
+        if "`" in line and not imperative.search(line):
+            line = re.sub(r"`[^`]+`", "", line)
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def _inside(path: Path, container: Path) -> bool:
@@ -1005,6 +1021,7 @@ def submit_job(
     rebase_ok: bool = False,
     model: str | None = None,
     tier: str | None = None,
+    title: str | None = None,
     extra_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Submit ``task`` to the cloud provider for ``engine``; return the job record.
@@ -1098,6 +1115,7 @@ def submit_job(
         "base_commit": base_commit,
         # Stored and printed redacted; the provider still receives the brief as written.
         "objective": redact(task),
+        "title": redact(title.strip()) if title and title.strip() else None,
         "cloud_approvals": sorted(set(approvals)),
         "created_at": time.time(),
         "cloud_handle": None,

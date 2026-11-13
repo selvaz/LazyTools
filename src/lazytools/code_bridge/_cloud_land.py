@@ -56,12 +56,35 @@ def opposite_engine(engine: str) -> str:
 
 
 def job_title(job: dict[str, Any]) -> str:
-    """A one-line title from the brief: its first non-empty line, markdown marks stripped, 72 chars."""
-    for line in str(job.get("objective") or "").splitlines():
-        line = line.strip().lstrip("#*-> ").strip()
-        if line:
-            return redact(line[:72].rstrip())
+    """Derive the landing/PR/squash subject from an explicit title or the brief."""
+    explicit = str(job.get("title") or "").strip()
+    if explicit:
+        return _short_title(explicit)
+    brief = str(job.get("objective") or "")
+    lines = brief.splitlines()
+    for index, line in enumerate(lines):
+        if re.fullmatch(r"\s*#{1,6}\s+Goal\s*", line, re.IGNORECASE):
+            for candidate in lines[index + 1:]:
+                candidate = candidate.strip()
+                if candidate.startswith("#"):
+                    break
+                if candidate:
+                    return _short_title(candidate)
+    prose_lines = [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
+    prose = prose_lines[0] if prose_lines else ""
+    sentence = re.split(r"(?<=[.!?])\s+", prose, maxsplit=1)[0] if prose else ""
+    if sentence:
+        return _short_title(sentence)
     return f"Cloud job {str(job.get('job_id', ''))[:8]}"
+
+
+def _short_title(value: str) -> str:
+    """A redacted, single-line title of at most 72 chars, cut at a word boundary."""
+    value = re.sub(r"\s+", " ", value).strip().lstrip("#*-> ").strip()
+    if len(value) <= 72:
+        return redact(value)
+    shortened = value[:73].rsplit(" ", 1)[0]
+    return redact(shortened or value[:72])
 
 
 def _summary(job: dict[str, Any]) -> str:
@@ -151,6 +174,7 @@ def _outcome(job: dict[str, Any], *, already: bool = False, note: str | None = N
         "pr_number": job.get("pr_number"),
         "worktree": job.get("applied_worktree"),
         "base_branch": job.get("pr_base") or job.get("branch"),
+        "force_added_ignored": job.get("force_added_ignored") or [],
         "note": note or job.get("land_note"),
     }
 
@@ -276,8 +300,17 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
         if unexpected:
             names = ", ".join(repr(name) for name in unexpected)
             raise CloudError(f"unexpected untracked file(s) remain after cloud apply: {names}; refusing to land")
-        if changed_files and status:
-            _cloud._git(wt, "add", "--", *changed_files)
+        if changed_files:
+            stage_paths = [name for name in changed_files if (wt / name).exists()
+                           or _cloud._git(wt, "ls-files", "--", name, check=False)]
+            ignored = [name for name in stage_paths
+                       if _cloud._git(wt, "check-ignore", "--", name, check=False)]
+            # Force only the provider diff's explicit path list. This admits a
+            # legitimate ignored result without ever broadening to `-A`/`.`.
+            if stage_paths:
+                _cloud._git(wt, "add", "-f", "--", *stage_paths)
+            if ignored:
+                job = {**job, **_update_meta(store, job_id, {"force_added_ignored": ignored})}
         if _cloud._git(wt, "status", "--porcelain", check=False):
             subject, body = commit_message(job)
             message_args = ["-m", subject, *(["-m", body] if body else [])]

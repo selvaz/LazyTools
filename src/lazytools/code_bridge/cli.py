@@ -310,7 +310,8 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         job = _cloud.submit_job(
             engine=args.engine, cwd=cwd, task=task, branch=branch, db_path=_db_path(args), job_id=job_id,
             approvals=tuple(args.approve_cloud or ()), routine=args.routine, pr=args.pr, open_pr=args.open_pr,
-            land=args.land, rebase_ok=args.rebase_ok, model=args.model, tier=args.tier, extra_meta=extra_meta,
+            land=args.land, rebase_ok=args.rebase_ok, model=args.model, tier=args.tier, title=args.title,
+            extra_meta=extra_meta,
         )
     except (_cloud.CloudError, ValueError) as exc:
         _cloud_print(f"error: {exc}", err=True)
@@ -377,6 +378,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return _cmd_run_cloud(args)
     for name, flag in (("branch", "--branch"), ("allow_cloud", "--allow-cloud"), ("approve_cloud", "--approve-cloud"),
                        ("routine", "--routine"), ("pr", "--pr"), ("open_pr", "--open-pr"), ("land", "--land"),
+                       ("title", "--title"),
                        ("rebase_ok", "--rebase-ok")):
         if getattr(args, name, None) not in (None, False, []):
             print(f"error: {flag} is only for --where cloud", file=sys.stderr)
@@ -1067,6 +1069,8 @@ def _cmd_land(args: argparse.Namespace, store: Any, registry: Any, job: dict[str
         _cloud_print(f"landed cloud job {outcome['job_id']}: pushed {outcome['branch']} @ {str(outcome['pushed_sha'])[:12]}")
     if outcome.get("pr_url"):
         _cloud_print(f"PR: {outcome['pr_url']}")
+    if outcome.get("force_added_ignored"):
+        _cloud_print("force-added ignored cloud diff paths: " + ", ".join(outcome["force_added_ignored"]))
     return 0
 
 
@@ -1329,6 +1333,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="--where cloud only: work on pull request N's head branch; the job records the PR.")
     run_p.add_argument("--open-pr", action="store_true",
                        help="--where cloud only: when landed, push a new branch and open a PR against --branch.")
+    run_p.add_argument("--title", default=None,
+                       help="--where cloud only: explicit PR, landing commit, and squash subject (default: # Goal text).")
     run_p.add_argument(
         "--land",
         action="store_true",

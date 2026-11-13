@@ -1318,11 +1318,19 @@ A review job is posted, never landed. Everything in this section is
   `--where cloud` only. `gh` (logged in, or `GH_TOKEN`) is needed for PR work;
   `GH_BIN` overrides its path.
 
+Before dispatch, gated-action detection examines requests rather than isolated
+keywords. Imperative instructions and command lines (for example, “merge the
+PR” or `git push --force`) remain fail-closed, while quoted output, rule
+examples, fenced reference blocks, review appendices, and noun phrases such as
+“merge precedence” do not require an approval.
+
 ### Landing: `apply <job> --land`
 
 `apply --land` performs, for a finished job and without anyone typing git
 commands: apply the diff in a fresh worktree (as `apply` does), **commit**
-(subject = the first line of the brief, 72 characters; body = the job id and the
+(subject = explicit `--title`, otherwise the first non-empty line under
+`# Goal`, shortened to 72 characters at a word boundary; an unstructured brief
+falls back to its first sentence; body = the job id and the
 provider's summary; no attribution lines or trailers), **push**, then **update
 the recorded PR** (it is the PR's head branch that is pushed to, in a
 fast-forward) **or open a new one** (`gh pr create`; the PR body quotes the
@@ -1330,6 +1338,8 @@ brief and carries the job id, never a local path). With no recorded PR, a new
 one is opened. The pushed commit and PR URL are stored in the job
 (`pushed_sha`, `landed_branch`, `pr_url`) and shown by `result`; the landing
 worktree is removed afterwards.
+The same subject is used for the PR title and thus GitHub's default squash
+subject. Section headings such as `Goal` are never used as a title.
 
 Guarantees:
 
@@ -1348,6 +1358,11 @@ Guarantees:
   running it again without pushing twice, and a landed job is never landed again.
   A claim in the job record keeps two schedulers from landing the same job at
   once.
+* **Provider diff paths are authoritative.** Landing stages exactly those paths
+  with `git add -f -- PATH...`, so a new file covered by `.gitignore` is not
+  lost. The landing report explicitly lists ignored paths that needed force;
+  it never force-adds a directory, `.`, or an unrelated worktree file. A retry
+  reuses the recorded `cloud/<id>` worktree/branch left by a failed landing.
 * A task that changed nothing pushes nothing and says so.
 
 **Claude cloud** pushes its own `claude/...` branch, so `--land` only verifies
