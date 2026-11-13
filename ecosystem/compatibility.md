@@ -6,13 +6,13 @@ Python: 3.11, 3.12, 3.13
 
 | Component | Channel | Verified ref |
 |---|---|---|
-| lazybridge | PyPI | `1.8.4` |
-| lazytoolkit | GitHub | `v0.10.5` |
+| lazybridge | PyPI | `1.8.7` |
+| lazytoolkit | GitHub | `v0.10.6` |
 | lazypulse | GitHub | `v0.5.7` |
 | lazycrawler | GitHub | `v0.19.7` |
-| market-data-hub | GitHub | `v0.3.22` |
-| lazystats | GitHub | `v0.3.10` |
-| lazyportfolio | GitHub | `v0.2.10` |
-| lazyray | GitHub | `v0.2.10` |
+| market-data-hub | GitHub | `v0.3.28` |
+| lazystats | GitHub | `v0.3.11` |
+| lazyportfolio | GitHub | `v0.2.11` |
+| lazyray | GitHub | `v0.2.11` |
 | lazydataspace | GitHub | `v0.1.0` |
-| lazyfin | GitHub | `a558a6a4dffcf3fa2a37c082e971669e53392be7` |
+| lazyfin | GitHub | `2a3ae37e3cc530f234e6a754b4a1c7f5a7da7ee9` |

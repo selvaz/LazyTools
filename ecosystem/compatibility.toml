@@ -22,13 +22,13 @@ schema_version = 1
 # environment uses exactly these refs. LazyFin is deliberately outside the train.
 [verified]
 python = ["3.11", "3.12", "3.13"]
-lazybridge = "1.8.4"
+lazybridge = "1.8.7"
 
 # Immutable GitHub refs of the verified, co-installable combination.
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.10.5"
+ref = "v0.10.6"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
@@ -40,21 +40,21 @@ ref = "v0.19.7"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "v0.3.22"
+ref = "v0.3.28"  # production since 2026-11-12
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
-ref = "v0.3.10"
+ref = "v0.3.11"  # contract extra pins market-data-hub v0.3.28
 extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "v0.2.10"  # its datacore extra pins market-data-hub v0.3.22 too (must move together)
+ref = "v0.2.11"  # datacore extra pins market-data-hub v0.3.28
 extras = ["datacore"]
 
 [verified.github.lazyray]
 repo = "https://github.com/selvaz/LazyRay"
-ref = "v0.2.10"  # pins market-data-hub v0.3.22 and lazytoolkit v0.10.5 itself
+ref = "v0.2.11"  # pins market-data-hub v0.3.28, lazytoolkit v0.10.6 and lazybridge 1.8.7
 
 [verified.github.lazydataspace]
 repo = "https://github.com/selvaz/DataSpace"
@@ -62,7 +62,7 @@ ref = "v0.1.0"  # pinned by market-data-hub, LazyStats, LazyCrawler and LazyPort
 
 [verified.github.lazyfin]
 repo = "https://github.com/selvaz/LazyFin"
-ref = "a558a6a4dffcf3fa2a37c082e971669e53392be7"  # LazyFin#52 merged: extras on the 2026.11.2 set (mdh v0.3.22, lazystats v0.3.10)
+ref = "2a3ae37e3cc530f234e6a754b4a1c7f5a7da7ee9"  # LazyFin main after #53 (13/11): datacore extra pins mdh v0.3.28, lazytoolkit v0.10.6
 # bridge+datacore is what LazyFin's own portfolio/BL surface actually needs;
 # LazyTools' pin already covers the rest. "tools"/"crawler"/"regime"/"all"
 # now point at current lazytoolkit/lazycrawler/lazystats too (the staleness
