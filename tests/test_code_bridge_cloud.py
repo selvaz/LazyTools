@@ -29,8 +29,9 @@ FAKE_CODEX = textwrap.dedent(
     from pathlib import Path
 
     args = sys.argv[1:]
+    stdin = sys.stdin.read() if args[:2] == ["cloud", "exec"] else ""
     with open(os.environ["FAKE_CODEX_LOG"], "a", encoding="utf-8") as fh:
-        fh.write(json.dumps({"argv": args, "cwd": os.getcwd()}) + "\\n")
+        fh.write(json.dumps({"argv": args, "cwd": os.getcwd(), "stdin": stdin}) + "\\n")
     if args[:1] != ["cloud"]:
         sys.exit(64)
     verb = args[1]
@@ -243,13 +244,24 @@ def test_submit_stores_handle_and_where_cloud(cloud, capsys):
 
     (call,) = cloud.calls()
     argv = call["argv"]
-    assert argv[:6] == ["cloud", "exec", "--env", "env_widgets", "--branch", "feature-x"]
-    assert argv[6].startswith(_cloud.CLOUD_PREAMBLE) and argv[6].endswith("Add a feature")
+    # The brief travels on stdin, never as a command-line argument.
+    assert argv == ["cloud", "exec", "--env", "env_widgets", "--branch", "feature-x"]
+    assert call["stdin"].startswith(_cloud.CLOUD_PREAMBLE) and call["stdin"].endswith("Add a feature")
 
     store = _store.build_store(cloud.db)
     job = _jobs.find_job(store, _store.build_job_registry(store), payload["job_id"])
     assert job["where"] == "cloud" and job["cloud_handle"] == TASK_URL
     assert job["status"] == "running" and job["engine"] == "codex"
+
+
+def test_submit_passes_a_long_brief_on_stdin(cloud, capsys):
+    # Windows caps a command line at ~32K characters; a 40K brief must still submit.
+    brief = cloud.root / "brief.md"
+    brief.write_text("# Goal\n\n" + "x" * 40_000 + "\nEND-OF-BRIEF\n", encoding="utf-8")
+    assert _run_cloud(cloud, "--task", "@" + str(brief)) == 0
+    (call,) = cloud.calls()
+    assert len(call["argv"]) == 6
+    assert "END-OF-BRIEF" in call["stdin"] and len(call["stdin"]) > 40_000
 
 
 def test_submit_defaults_branch_to_current(cloud, capsys):

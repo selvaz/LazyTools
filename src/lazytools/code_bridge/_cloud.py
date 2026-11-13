@@ -681,7 +681,8 @@ class CodexCloud:
             raise CloudError(f"no Codex Cloud environment mapped for {repo}: " + CREATE_ENV_HINT.format(repo=repo, path=path))
         return env_id
 
-    def _run(self, *args: str, cwd: Path | None = None, allow_failure: bool = False) -> tuple[int, str, str]:
+    def _run(self, *args: str, cwd: Path | None = None, allow_failure: bool = False,
+             input: str | None = None) -> tuple[int, str, str]:
         argv = [*_codex_argv(), "cloud", *args]
         try:
             proc = subprocess.run(
@@ -692,7 +693,8 @@ class CodexCloud:
                 encoding="utf-8",
                 errors="replace",
                 timeout=CLI_TIMEOUT,
-                stdin=subprocess.DEVNULL,
+                input=input,
+                stdin=None if input is not None else subprocess.DEVNULL,
             )
         except subprocess.TimeoutExpired as exc:
             raise CloudError(f"codex cloud {args[0]} timed out after {CLI_TIMEOUT:g}s") from exc
@@ -704,7 +706,10 @@ class CodexCloud:
         return proc.returncode, proc.stdout, proc.stderr
 
     def submit(self, *, repo_dir: Path, env_id: str, branch: str, prompt: str, **_context: Any) -> Submission:
-        _, out, _ = self._run("exec", "--env", env_id, "--branch", branch, prompt, cwd=repo_dir)
+        # The brief goes on stdin, never on the command line: Windows caps a
+        # command line at ~32K characters and long briefs are normal.
+        # `codex cloud exec` without a QUERY argument reads it from stdin.
+        _, out, _ = self._run("exec", "--env", env_id, "--branch", branch, cwd=repo_dir, input=prompt)
         handle, url = parse_submit(out)
         return Submission(handle=url or handle, url=url, env_id=env_id, raw=redact(out))
 
