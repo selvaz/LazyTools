@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import json
+import sys
+import textwrap
 import urllib.error
 
 from lazytools.code_bridge import _cloud_stop
@@ -24,14 +26,34 @@ class Response:
 
 def _credentials(monkeypatch, tmp_path, token="super-secret-token-value"):
     codex = tmp_path / "codex"
-    claude = tmp_path / "claude"
     codex.mkdir()
-    claude.mkdir()
     (codex / "auth.json").write_text(json.dumps({"tokens": {"access_token": token}}))
-    (claude / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": token}}))
     monkeypatch.setenv("CODEX_HOME", str(codex))
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude))
     return token
+
+
+def _fake_claude(monkeypatch, tmp_path):
+    exe = tmp_path / "claude"
+    exe.write_text(
+        f"#!{sys.executable}\n"
+        + textwrap.dedent(
+            """
+            import json, os, sys
+            with open(os.environ["CLAUDE_LOG"], "w", encoding="utf-8") as fh:
+                json.dump({"argv": sys.argv[1:], "stdin": sys.stdin.read()}, fh)
+            if os.environ.get("CLAUDE_LOGIN_NEEDED"):
+                print("Authentication expired; run claude login. token=do-not-print-this", file=sys.stderr)
+                raise SystemExit(1)
+            print(json.dumps({"ok": True}))
+            """
+        ),
+        encoding="utf-8",
+    )
+    exe.chmod(0o755)
+    log = tmp_path / "claude.json"
+    monkeypatch.setenv("CLAUDE_BIN", str(exe))
+    monkeypatch.setenv("CLAUDE_LOG", str(log))
+    return log
 
 
 def test_codex_cancel_url_method_and_poll(monkeypatch, tmp_path):
@@ -60,15 +82,52 @@ def test_already_finished_does_not_cancel(monkeypatch, tmp_path):
     assert calls == ["GET"]
 
 
-def test_claude_archive_is_reported_honestly(monkeypatch, tmp_path):
+def test_claude_stop_uses_cli_with_closed_stdin(monkeypatch, tmp_path):
+    log = _fake_claude(monkeypatch, tmp_path)
+    result = _cloud_stop.stop("claude", "cse_abcdef")
+    assert result["status"] == "stop requested"
+    assert json.loads(log.read_text(encoding="utf-8")) == {
+        "argv": [
+            "-p",
+            "Stop all work now. Do not make further changes, do not push, do not open PRs.",
+            "--cloud",
+            "cse_abcdef",
+            "--output-format",
+            "json",
+        ],
+        "stdin": "",
+    }
+
+
+def test_claude_stop_reports_login_needed_without_error_detail(monkeypatch, tmp_path):
+    _fake_claude(monkeypatch, tmp_path)
+    monkeypatch.setenv("CLAUDE_LOGIN_NEEDED", "1")
+    try:
+        _cloud_stop.stop("claude", "cse_abcdef")
+    except Exception as exc:
+        assert str(exc) == "claude: login needed"
+        assert "do-not-print-this" not in str(exc)
+
+
+def test_codex_cancel_timeout_is_unconfirmed_not_failed(monkeypatch, tmp_path):
     _credentials(monkeypatch, tmp_path)
-    calls = []
-    def opener(request, timeout):
-        calls.append((request.method, request.full_url))
-        return Response({})
-    result = _cloud_stop.stop("claude", "cse_abcdef", opener=opener)
-    assert result["status"] == "archive requested"
-    assert calls == [("POST", "https://api.anthropic.com/v1/code/sessions/cse_abcdef/archive")]
+    replies = iter([
+        {"current_assistant_turn": {"turn_status": "running"}},
+        {},
+        {"current_assistant_turn": {"turn_status": "running"}},
+    ])
+    clock = iter([0, 61])
+    monkeypatch.setattr(_cloud_stop.time, "monotonic", lambda: next(clock))
+
+    result = _cloud_stop.stop(
+        "codex", "task_abc", opener=lambda request, timeout: Response(next(replies)), sleep=lambda _: None
+    )
+    assert result["status"] == "stop requested, not confirmed"
+
+
+def test_credential_paths_only_names_codex(monkeypatch, tmp_path):
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+    assert _cloud_stop.credential_paths() == {"codex": tmp_path / "auth.json"}
 
 
 def test_missing_or_expired_token_says_login_needed_without_leaking(monkeypatch, tmp_path):

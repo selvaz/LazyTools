@@ -1446,7 +1446,7 @@ def build_parser() -> argparse.ArgumentParser:
     cancel_p.set_defaults(func=_cmd_cancel)
 
     stop_p = sub.add_parser(
-        "cloud-stop", help="Really stop a Codex Cloud task or request archival of a Claude Code cloud session."
+        "cloud-stop", help="Stop a Codex Cloud task or request that a Claude Code cloud session stop."
     )
     stop_target = stop_p.add_mutually_exclusive_group(required=True)
     stop_target.add_argument("target", nargs="?", help="Task URL, task/session id, or bridge job id.")

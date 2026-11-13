@@ -1,8 +1,8 @@
-"""Authenticated emergency-stop operations for provider cloud agents.
+"""Emergency-stop operations for provider cloud agents.
 
-Credentials are loaded only for the duration of a request and are never put in
-exceptions or result objects.  This module deliberately uses the providers'
-HTTP endpoints rather than merely changing the bridge's local bookkeeping.
+Codex credentials are loaded only for the duration of a request and are never
+put in exceptions or result objects. Claude requests go through its CLI so it
+can manage its own authentication.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 import urllib.error
@@ -21,7 +22,6 @@ from typing import Any
 from lazytools.code_bridge._cloud import redact
 
 CODEX_API = "https://chatgpt.com/backend-api/wham/tasks/{task_id}"
-CLAUDE_API = "https://api.anthropic.com/v1/code/sessions/{session_id}/archive"
 _CODEX_ID = re.compile(r"\b(task_[A-Za-z0-9_-]+)\b")
 _CLAUDE_ID = re.compile(r"\b((?:session|cse)_[A-Za-z0-9_-]+)\b")
 
@@ -36,7 +36,6 @@ def credential_paths() -> dict[str, Path]:
     home = Path.home()
     return {
         "codex": Path(os.environ.get("CODEX_HOME", home / ".codex")) / "auth.json",
-        "claude": Path(os.environ.get("CLAUDE_CONFIG_DIR", home / ".claude")) / ".credentials.json",
     }
 
 
@@ -57,14 +56,37 @@ def _token(provider: str) -> str:
     path = credential_paths()[provider]
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        names = (("access_token", "accessToken", "id_token") if provider == "codex" else
-                 ("accessToken", "access_token", "oauth_token"))
-        token = _nested_string(payload, names)
+        token = _nested_string(payload, ("access_token", "accessToken", "id_token"))
     except (OSError, ValueError):
         token = None
     if not token:
         raise StopError(f"{provider}: login needed")
     return token
+
+
+def _claude_stop(handle: str) -> dict[str, Any]:
+    binary = os.environ.get("CLAUDE_BIN") or shutil.which("claude")
+    if not binary:
+        raise StopError("claude: login needed (Claude Code CLI not found)")
+    prompt = "Stop all work now. Do not make further changes, do not push, do not open PRs."
+    try:
+        proc = subprocess.run(
+            [binary, "-p", prompt, "--cloud", handle, "--output-format", "json"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        raise StopError("claude stop request timed out after 60 seconds") from None
+    except OSError as exc:
+        raise StopError(f"claude stop request failed: {exc}") from None
+    if proc.returncode:
+        detail = (proc.stderr or proc.stdout or "Claude Code CLI failed").strip()
+        if re.search(r"(?i)\b(log ?in|auth|credential|unauthori[sz]ed|expired)\b", detail):
+            raise StopError("claude: login needed")
+        raise StopError(f"claude stop request failed: {detail}")
+    return {"provider": "claude", "handle": handle, "status": "stop requested"}
 
 
 def _request(method: str, url: str, token: str, *, opener: Callable[..., Any] = urllib.request.urlopen) -> Any:
@@ -96,10 +118,9 @@ def resolve_handle(value: str) -> tuple[str, str]:
 
 def stop(provider: str, handle: str, *, opener: Callable[..., Any] = urllib.request.urlopen,
          sleep: Callable[[float], None] = time.sleep, timeout: float = 60) -> dict[str, Any]:
-    token = _token(provider)
     if provider == "claude":
-        _request("POST", CLAUDE_API.format(session_id=handle), token, opener=opener)
-        return {"provider": provider, "handle": handle, "status": "archive requested"}
+        return _claude_stop(handle)
+    token = _token(provider)
     url = CODEX_API.format(task_id=handle)
     before = _request("GET", url, token, opener=opener)
     old = _codex_status(before)
@@ -113,7 +134,12 @@ def stop(provider: str, handle: str, *, opener: Callable[..., Any] = urllib.requ
             status = "stopped" if state in ("failed", "cancelled", "canceled") else "already finished"
             return {"provider": provider, "handle": handle, "status": status, "reason": state}
         if time.monotonic() >= deadline:
-            return {"provider": provider, "handle": handle, "status": "failed", "reason": "stop not confirmed within 60 seconds"}
+            return {
+                "provider": provider,
+                "handle": handle,
+                "status": "stop requested, not confirmed",
+                "reason": "task still running after stop timeout",
+            }
         sleep(1)
 
 
