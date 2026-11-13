@@ -8,6 +8,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.8] — 2026-11-13
+
+### Added
+- Code bridge `cloud-stop`: really stops Codex Cloud tasks (cancel + status confirmation, paginated `codex cloud list`) and asks Claude cloud sessions to stop through the Claude Code CLI; jobs stay tracked until a stop is confirmed (#251).
+- MCP connector and LazyTools MCP server support the official MCP Python SDK 2.x as well as 1.x; the `mcp` extra now allows `mcp>=1.0,<3` (#250).
+
 ## [0.10.7] — 2026-11-13
 
 ### Added
