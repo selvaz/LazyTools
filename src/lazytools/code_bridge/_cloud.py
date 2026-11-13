@@ -194,7 +194,7 @@ def _action_request_text(text: str) -> str:
     text = re.sub(r"(?ms)^```.*?^```\s*", "", text)
     text = re.split(r"(?im)^#{1,6}\s+(?:appendix|review(?: notes?)?)\s*$", text, maxsplit=1)[0]
     text = re.sub(r'(?s)(["“]).*?(["”])', "", text)
-    text = re.sub(r"(?i)\b(?:do not|don\'t|never)\s+[^.;!?]+", "", text)
+    text = re.sub(r"(?i)\b(?:do not|don\'t|never)\s+[^.;!?\r\n]+", "", text)
     lines: list[str] = []
     imperative = re.compile(r"(?i)\b(?:run|execute|use|finish with|then|please|must|do)\b")
     for line in text.splitlines():

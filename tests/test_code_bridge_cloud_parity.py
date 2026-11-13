@@ -377,6 +377,28 @@ def test_land_handles_file_names_with_spaces(cloud, gh, capsys, monkeypatch):
     assert _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines() == ["with space.txt"]
 
 
+@pytest.mark.parametrize(
+    ("shape", "expected"),
+    [("symlink", ["dangling-link"]), ("mixed-symlink", ["dangling-link", "regular.txt"])],
+)
+def test_land_stages_dangling_symlink_changes(cloud, gh, capsys, monkeypatch, tmp_path, shape, expected):
+    probe = tmp_path / "symlink-probe"
+    try:
+        probe.symlink_to("missing-target")
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+    probe.unlink()
+
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", shape)
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines() == expected
+    entry = _git(cloud.repo, "ls-tree", outcome["pushed_sha"], "dangling-link")
+    assert entry.startswith("120000 blob ")
+
+
 def test_land_force_adds_only_ignored_paths_from_cloud_diff_and_reports_them(cloud, gh, capsys, monkeypatch):
     (cloud.repo / ".gitignore").write_text("data/\n", encoding="utf-8")
     _git(cloud.repo, "add", ".gitignore")

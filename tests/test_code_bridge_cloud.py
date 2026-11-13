@@ -66,6 +66,10 @@ FAKE_CODEX = textwrap.dedent(
         print("diff --git a/README.md b/RENAMED.md")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "ignored":
         print("diff --git a/data/endpoints.yaml b/data/endpoints.yaml")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") in ("symlink", "mixed-symlink"):
+        print("diff --git a/dangling-link b/dangling-link")
+        if os.environ.get("FAKE_CODEX_SHAPE") == "mixed-symlink":
+            print("diff --git a/regular.txt b/regular.txt")
     elif verb == "diff":
         print("diff --git a/cloud_change.txt b/cloud_change.txt")
         print("new file mode 100644")
@@ -82,6 +86,10 @@ FAKE_CODEX = textwrap.dedent(
         elif shape == "ignored":
             Path("data").mkdir(exist_ok=True)
             Path("data/endpoints.yaml").write_text("endpoint: public\\n", encoding="utf-8")
+        elif shape in ("symlink", "mixed-symlink"):
+            Path("dangling-link").symlink_to("missing-target")
+            if shape == "mixed-symlink":
+                Path("regular.txt").write_text("regular\\n", encoding="utf-8")
         elif not os.environ.get("FAKE_CODEX_NOCHANGE"):
             Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
         if os.environ.get("FAKE_CODEX_ERROR_LOG"):
@@ -998,6 +1006,18 @@ def test_gated_action_real_false_positive_corpus(brief):
 )
 def test_gated_action_real_request_corpus(brief, action):
     assert action in _cloud.gated_actions(brief)
+
+
+@pytest.mark.parametrize(
+    "brief",
+    [
+        "Do not modify the tests\n\nThen git push origin main.",
+        "Do not modify the tests; then git push origin main.",
+        "- Do not modify the tests\n- Then git push origin main.",
+    ],
+)
+def test_negated_instruction_does_not_hide_later_push(brief):
+    assert _cloud.gated_actions(brief) == ["push"]
 
 
 # --------------------------------------------------------------------------- #
