@@ -15,20 +15,22 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge._cloud import redact
+from lazytools.code_bridge import _cloud
 
 CODEX_API = "https://chatgpt.com/backend-api/wham/tasks/{task_id}"
 _CODEX_ID = re.compile(r"\b(task_[A-Za-z0-9_-]+)\b")
 _CLAUDE_ID = re.compile(r"\b((?:session|cse)_[A-Za-z0-9_-]+)\b")
+_CODEX_LIST_PAGE_CAP = 100
 
 
 class StopError(RuntimeError):
     def __init__(self, message: str) -> None:
-        super().__init__(redact(message))
+        super().__init__(_cloud.redact(message))
 
 
 def credential_paths() -> dict[str, Path]:
@@ -153,16 +155,41 @@ def _codex_status(payload: Any) -> str | None:
 
 def codex_running() -> list[str]:
     """Ask the installed Codex CLI for account-wide tasks, including non-bridge tasks."""
-    binary = os.environ.get("CODEX_BIN", "codex")
-    proc = subprocess.run([binary, "cloud", "list", "--json"], capture_output=True, text=True, timeout=30)
-    if proc.returncode:
-        raise StopError(proc.stderr or "codex cloud list failed")
-    try:
-        rows = json.loads(proc.stdout)
-    except ValueError as exc:
-        raise StopError(f"codex cloud list returned invalid JSON: {exc}") from None
+    rows: list[Any] = []
+    cursor: str | None = None
+    for _page in range(_CODEX_LIST_PAGE_CAP):
+        argv = [*_cloud._codex_argv(), "cloud", "list", "--json"]
+        if cursor:
+            argv.extend(("--cursor", cursor))
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+        if proc.returncode:
+            raise StopError(proc.stderr or "codex cloud list failed")
+        try:
+            payload = json.loads(proc.stdout)
+        except ValueError as exc:
+            raise StopError(f"codex cloud list returned invalid JSON: {exc}") from None
+        if isinstance(payload, list):
+            rows.extend(payload)
+            cursor = None
+        elif isinstance(payload, dict):
+            page_rows = payload.get("tasks", [])
+            if isinstance(page_rows, list):
+                rows.extend(page_rows)
+            next_cursor = payload.get("next_cursor") or payload.get("cursor")
+            cursor = str(next_cursor) if next_cursor else None
+        else:
+            cursor = None
+        if cursor is None:
+            break
+    else:
+        warnings.warn(
+            f"codex cloud list reached its {_CODEX_LIST_PAGE_CAP}-page cap; results may be incomplete",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     found: list[str] = []
-    for row in rows if isinstance(rows, list) else rows.get("tasks", []):
+    seen: set[str] = set()
+    for row in rows:
         if not isinstance(row, dict):
             continue
         state = str(row.get("status") or row.get("turn_status") or "").lower()
@@ -170,8 +197,9 @@ def codex_running() -> list[str]:
         if state in ("pending", "running", "in_progress", "queued") and handle:
             try:
                 provider, task_id = resolve_handle(str(handle))
-                if provider == "codex":
+                if provider == "codex" and task_id not in seen:
                     found.append(task_id)
+                    seen.add(task_id)
             except StopError:
                 pass
     return found

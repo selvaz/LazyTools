@@ -854,7 +854,7 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
         else:
             try:
                 result = _cloud_stop.stop(provider, handle)
-                if owner_job is not None:
+                if owner_job is not None and result.get("status") in ("stopped", "already finished"):
                     _cloud.mark_interrupted(store, registry, str(owner_job["job_id"]), "cloud stop requested by operator")
                     result["job_id"] = owner_job["job_id"]
             except Exception as exc:

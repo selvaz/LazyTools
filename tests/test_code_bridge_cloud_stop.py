@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 import textwrap
 import urllib.error
 
-from lazytools.code_bridge import _cloud_stop
+from lazytools.code_bridge import _cloud, _cloud_stop, _store
 from lazytools.code_bridge.cli import main
 
 
@@ -164,3 +165,73 @@ def test_all_running_dry_run_uses_codex_account_listing(monkeypatch, tmp_path, c
     assert json.loads(capsys.readouterr().out) == [
         {"handle": "task_external", "provider": "codex", "status": "would stop"}
     ]
+
+
+def test_codex_running_uses_shared_binary_resolver(monkeypatch):
+    calls = []
+    monkeypatch.setattr(_cloud, "_codex_argv", lambda: ["node", "resolved-codex.js"])
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return subprocess.CompletedProcess(argv, 0, '[{"id": "task_abc", "status": "running"}]', "")
+
+    monkeypatch.setattr(_cloud_stop.subprocess, "run", run)
+
+    assert _cloud_stop.codex_running() == ["task_abc"]
+    assert calls[0][0] == ["node", "resolved-codex.js", "cloud", "list", "--json"]
+
+
+def test_codex_running_follows_cursor_to_second_page(monkeypatch):
+    calls = []
+    pages = iter(
+        [
+            {"tasks": [{"id": "task_first", "status": "running"}], "cursor": "page-two"},
+            {
+                "tasks": [
+                    {"id": "task_first", "status": "running"},
+                    {"id": "task_second", "status": "running"},
+                ]
+            },
+        ]
+    )
+    monkeypatch.setattr(_cloud, "_codex_argv", lambda: ["codex-resolved"])
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, json.dumps(next(pages)), "")
+
+    monkeypatch.setattr(_cloud_stop.subprocess, "run", run)
+
+    assert _cloud_stop.codex_running() == ["task_first", "task_second"]
+    assert calls == [
+        ["codex-resolved", "cloud", "list", "--json"],
+        ["codex-resolved", "cloud", "list", "--json", "--cursor", "page-two"],
+    ]
+
+
+def test_unconfirmed_stop_keeps_bridge_job_active(monkeypatch, tmp_path, capsys):
+    db = tmp_path / "store.sqlite"
+    store = _store.build_store(db)
+    registry = _store.build_job_registry(store)
+    _cloud._write(
+        store,
+        registry,
+        "job-active",
+        {"engine": "codex", "cloud_handle": "task_abc", "objective": "test"},
+        status="running",
+    )
+    monkeypatch.setattr(
+        _cloud_stop,
+        "stop",
+        lambda *args: {
+            "provider": "codex",
+            "handle": "task_abc",
+            "status": "stop requested, not confirmed",
+        },
+    )
+
+    code = main(["cloud-stop", "job-active", "--json", "--db", str(db)])
+
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)[0]["status"] == "stop requested, not confirmed"
+    assert [job["job_id"] for job in _cloud.active_jobs(store)] == ["job-active"]
