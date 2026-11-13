@@ -557,7 +557,13 @@ def summarize_diff(diff: str) -> DiffSummary:
     for line in diff.splitlines():
         if line.startswith("diff --git "):
             match = re.match(r"diff --git a/(.+?) b/(.+)$", line)
-            files.append(match.group(2) if match else line[len("diff --git ") :])
+            if match:
+                source, destination = match.groups()
+                files.append(source)
+                if destination != source:
+                    files.append(destination)
+            else:
+                files.append(line[len("diff --git ") :])
         elif line.startswith("+++ ") or line.startswith("--- "):
             continue
         elif line.startswith("+"):

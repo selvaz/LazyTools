@@ -329,10 +329,13 @@ def test_parse_status_keeps_message():
 
 
 def test_summarize_diff():
-    diff = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n-x\n+y\n+z\ndiff --git a/b.py b/b.py\n+q\n"
+    diff = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n-x\n+y\n+z\n"
+        "diff --git a/old.py b/new.py\n+q\n"
+    )
     summary = _cloud.summarize_diff(diff)
-    assert summary.files == ["a.py", "b.py"] and summary.added == 3 and summary.removed == 1
-    assert "2 file(s) changed, +3 -1" in summary.text()
+    assert summary.files == ["a.py", "old.py", "new.py"] and summary.added == 3 and summary.removed == 1
+    assert "3 file(s) changed, +3 -1" in summary.text()
 
 
 def _submit(cloud, capsys) -> str:

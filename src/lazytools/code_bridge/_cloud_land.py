@@ -278,8 +278,6 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
             raise CloudError(f"unexpected untracked file(s) remain after cloud apply: {names}; refusing to land")
         if changed_files and status:
             _cloud._git(wt, "add", "--", *changed_files)
-            # Tracked changes only (never untracked files): picks up the source side of a provider-reported rename.
-            _cloud._git(wt, "add", "-u")
         if _cloud._git(wt, "status", "--porcelain", check=False):
             subject, body = commit_message(job)
             message_args = ["-m", subject, *(["-m", body] if body else [])]
