@@ -30,6 +30,7 @@ before pointing this at a live deployment's file.
 
 from __future__ import annotations
 
+import argparse
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -104,7 +105,7 @@ def _project_dict(record: _records.ProjectRecord, store: Store) -> dict[str, Any
 
 
 #: The tools a session gets by default. Every MCP tool costs context in every
-#: turn of every session that loads it, and most of the 37 are needed only
+#: turn of every session that loads it, and most of them are needed only
 #: while driving contracts and verifications by hand: the default is what
 #: planning and following projects needs, ``full`` adds the rest.
 CORE_TOOLS = frozenset(
@@ -127,6 +128,7 @@ CORE_TOOLS = frozenset(
         "projects_promote",
         "projects_set_owner",
         "projects_set_deadline",
+        "projects_close_task",
         "projects_add_note",
         "projects_revise_plan",
         "projects_schedule_task",
@@ -505,6 +507,52 @@ class ProjectsTools:
             else f"REJECTED: no open/paused/done project named {project_id!r}"
         )
 
+    def projects_close_task(
+        self,
+        project_id: str,
+        task_index: int,
+        checks: list[dict[str, Any] | str],
+        reason: str,
+        reviewer: str,
+        review: str = "",
+        review_by: str | None = None,
+        worker: str | None = None,
+    ) -> str:
+        """Close a contract-backed task with evidence, in one call: claim a
+        verification, record ``checks`` and ``review``, accept, close the board slot.
+
+        ``checks`` is ``[{"command": ..., "passed": true, "detail": "..."}, ...]``
+        (or the CLI form ``"COMMAND=pass|fail[:DETAIL]"``); every contract
+        required_check must be covered by its EXACT command string. Refusals
+        (missing/failed check, no review where one is required) happen before
+        anything is written. ``worker`` is who did the work (the task's claim
+        owner when it has one; required otherwise). ``review_by`` (who performed
+        the review) is required with any review; worker, ``review_by`` and
+        ``reviewer`` (who accepts) must all differ. A required review given as
+        ``"REVIEW NOT PERFORMED (reason)"`` is recorded, leaves the task open and
+        flags it for the owner. Already-done tasks are a no-op."""
+        from lazytools.projects import closure as _closure
+        from lazytools.projects.cli import parse_check
+
+        evidence: list[tuple[str, bool, str]] = []
+        for position, item in enumerate(checks):
+            if isinstance(item, str):
+                try:
+                    evidence.append(parse_check(item))
+                except argparse.ArgumentTypeError as exc:
+                    return f"REJECTED: checks[{position}]: {exc}"
+            elif isinstance(item, dict) and isinstance(item.get("command"), str) and isinstance(item.get("passed"), bool):
+                evidence.append((item["command"], item["passed"], str(item.get("detail", ""))))
+            else:
+                return (
+                    f"REJECTED: checks[{position}] must be {{'command': str, 'passed': bool, 'detail': str}} "
+                    "or 'COMMAND=pass|fail[:DETAIL]'"
+                )
+        return _closure.close_task_with_evidence(
+            self._store, project_id, task_index, checks=evidence, review=review, reason=reason, reviewer=reviewer,
+            review_by=review_by, worker=worker,
+        )
+
     def projects_add_note(self, project_id: str, text: str, origin: str = "claude") -> str:
         """Record a freeform note against a project."""
         note_id = _notes.add_project_note(self._store, project_id, text, origin=origin)
@@ -714,6 +762,7 @@ class ProjectsTools:
             self.projects_set_owner,
             self.projects_set_brake_enabled,
             self.projects_set_deadline,
+            self.projects_close_task,
             self.projects_add_note,
             self.projects_retire_task,
             self.projects_reopen_task,

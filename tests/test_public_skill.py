@@ -90,7 +90,10 @@ def test_wheel_contains_all_skill_documents(tmp_path):
     assert {f"lazytools/skill/{name}" for name in EXPECTED} <= names
 
 
-def test_documented_commands_and_tools_exist(tmp_path):
+def test_documented_commands_and_tools_exist(tmp_path, monkeypatch):
+    # Tool construction only checks that the executable resolves; this test
+    # inspects registration metadata and never starts an engine.
+    monkeypatch.setenv("CODEX_BIN", "codex-not-really-here")
     texts = "\n".join(path.read_text(encoding="utf-8-sig") for path in skill_path().rglob("*.md"))
     snippets = re.findall(r"`([^`]+)`", texts) + re.findall(r"(?m)^(lazytools-[^\n]+)", texts)
     parser = build_parser()

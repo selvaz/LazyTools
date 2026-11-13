@@ -56,6 +56,22 @@ from lazybridge import (
     conclude,
 )
 
+# The same charter the Claude Code Wizengaimot skill opens every participant
+# call with. Without it, members drift toward agreeing with whoever spoke
+# last; the council is only useful when dissent is kept and every concession
+# is stated.
+INDEPENDENCE_CHARTER = (
+    "You are a full and equal member of this deliberation committee — not an "
+    "assistant reviewing someone's work. Maintain an independent view. Agree "
+    "only when genuinely convinced: conceding to be agreeable corrupts the "
+    "process and is worse than useless. When you disagree, say so explicitly "
+    "and argue it — sustained, reasoned dissent is a contribution, not a "
+    "failure. When you change position, label it explicitly ('I concede X "
+    "because Y'); when you keep it, label that too ('I hold on X because Y'). "
+    "Absorbing the other's point silently into an 'extension' without "
+    "acknowledging the change is not allowed."
+)
+
 
 @dataclass
 class CouncilResult:
@@ -378,7 +394,7 @@ class WizengAImot:
         opinions_result = Agent.parallel(
             *members, name="opinions", session=self.session
         )(
-            f"QUESTION: {q}\n\nState your opening position for the council. "
+            f"{INDEPENDENCE_CHARTER}\n\nQUESTION: {q}\n\nState your opening position for the council. "
             f"Be candid about uncertainty and what could change your mind.\n\n"
             f"RESEARCH:\n{research}{knowledge}"
         )
@@ -442,6 +458,7 @@ class WizengAImot:
         pool = AgentPool(max_depth=depth_limit)
         roster = ", ".join(member_names)
         protocol = (
+            f"{INDEPENDENCE_CHARTER}\n\n"
             "COUNCIL PROTOCOL — This is an unscripted discussion, not ordered rounds. "
             f"Participants: {roster}; moderator. Use route(agent_name, task) to invite "
             "the person whose perspective is most relevant next. Challenge assumptions, "

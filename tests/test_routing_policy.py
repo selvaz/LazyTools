@@ -80,6 +80,7 @@ def test_packaged_catalogue_matches_contract_table():
             [("claude_code", "claude-opus-5-5", "high")],
         ],
         "critical": [
+            [("claude_code", "claude-fable-5-2", "high"), ("codex", "gpt-6-astra", "high")],
             [("claude_code", "claude-opus-5-5", "high"), ("codex", "gpt-6.1-sol", "high")],
             [("claude_code", "claude-opus-5-5", "max"), ("codex", "gpt-6.1-sol", "xhigh")],
         ],

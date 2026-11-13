@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _brief, _concurrency, _engines, _jobs, _progress, _routine, _routing, _store
+from lazytools.code_bridge import _brief, _cloud, _concurrency, _engines, _jobs, _progress, _routine, _routing, _store
 from lazytools.code_bridge._concurrency import EngineBusy
 from lazytools.code_bridge._lockfile import LockHeld
 from lazytools.routing.policy import DEFAULT_POLICY, translate_model
@@ -52,6 +52,15 @@ def _print_json(payload: Any) -> None:
     # line-by-line (the `run` command's output in particular is job-id
     # line + one JSON line, and a multi-line payload would break that).
     print(json.dumps(payload, default=str))
+
+
+def _cloud_print(text: str, *, err: bool = False) -> None:
+    """Print one line of cloud-job output through the same redaction as the job record."""
+    print(_cloud.redact(text), file=sys.stderr if err else sys.stdout)
+
+
+def _cloud_json(payload: Any) -> None:
+    _print_json(_cloud.redact_obj(payload))
 
 
 # --------------------------------------------------------------------------- #
@@ -219,7 +228,81 @@ def _check_brief_before_launch(args: argparse.Namespace, task: str) -> int | Non
     return None
 
 
+_CLOUD_INCOMPATIBLE = (
+    ("tier", "--tier"),
+    ("needs", "--needs"),
+    ("review_of", "--review-of"),
+    ("session", "--session"),
+    ("model", "--model"),
+    ("effort", "--effort"),
+    ("max_wall", "--max-wall"),
+    ("routine_auto", "--routine-auto"),
+    ("scratch_root", "--scratch-root"),
+    ("detach", "--detach"),
+    ("wait_for_slot", "--wait-for-slot"),
+)
+
+
+def _cmd_run_cloud(args: argparse.Namespace) -> int:
+    """Submit the brief to a cloud agent; return as soon as the task handle is recorded."""
+    try:
+        if not args.allow_cloud:
+            raise ValueError(
+                "--where cloud requires --allow-cloud: a cloud agent's commands run on the provider's machine and "
+                "cannot pass through the local approval gate one by one (see docs/code-bridge.md, 'Approvals')"
+            )
+        if args.engine is None:
+            raise ValueError("--where cloud requires an explicit --engine (quota routing is local-only)")
+        if args.routine and args.engine != "claude":
+            raise ValueError("--routine is only for --where cloud --engine claude")
+        used = [flag for name, flag in _CLOUD_INCOMPATIBLE if getattr(args, name, None) not in (None, False)]
+        if used:
+            raise ValueError(f"--where cloud does not take {', '.join(used)}")
+        task = _read_task(args.task)
+        cwd = _engines.resolve_cwd(args.cwd, args.root)
+    except (OSError, ValueError) as exc:
+        _cloud_print(f"error: {exc}", err=True)
+        return 2
+    if not args.brief_checked:
+        refusal = _check_brief_before_launch(args, task)
+        if refusal is not None:
+            return refusal
+    if _cloud.redact(task) != task:
+        print("warning: the brief contains credential-looking text; it is masked in the job record, but the cloud "
+              "agent receives the brief as written -- rotate the secret if it is real", file=sys.stderr)
+    try:
+        job = _cloud.submit_job(
+            engine=args.engine, cwd=cwd, task=task, branch=args.branch, db_path=_db_path(args), job_id=args.job_id,
+            approvals=tuple(args.approve_cloud or ()), routine=args.routine,
+        )
+    except (_cloud.CloudError, ValueError) as exc:
+        _cloud_print(f"error: {exc}", err=True)
+        return 2
+    if args.json:
+        _cloud_json({k: job.get(k) for k in ("job_id", "status", "where", "engine", "repo", "env_id", "branch",
+                                              "cloud_handle", "cloud_url")})
+    else:
+        _cloud_print(str(job["job_id"]))
+        _cloud_print(f"cloud: {job['engine']} task {job.get('cloud_url') or job.get('cloud_handle')} "
+              f"(repo {job['repo']}, branch {job['branch']}, env {job['env_id']})")
+        db_flag = f' --db "{args.db}"' if args.db else ""
+        if job.get("engine") == "claude":
+            if job.get("environment_note"):
+                _cloud_print(f"note: {job['environment_note']}")
+            _cloud_print("note: Claude cloud sessions have no status API; the bridge watches origin for the "
+                         "claude/ branch the session pushes")
+        _cloud_print(f"wait for it with: lazytools-code-bridge wait {job['job_id']}{db_flag}")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
+    if getattr(args, "where", "local") == _cloud.WHERE_CLOUD:
+        return _cmd_run_cloud(args)
+    for name, flag in (("branch", "--branch"), ("allow_cloud", "--allow-cloud"), ("approve_cloud", "--approve-cloud"),
+                       ("routine", "--routine")):
+        if getattr(args, name, None):
+            print(f"error: {flag} is only for --where cloud", file=sys.stderr)
+            return 2
     try:
         if not math.isfinite(args.timeout) or args.timeout <= 0:
             raise ValueError("--timeout must be a finite number greater than 0")
@@ -347,6 +430,9 @@ def _job_line(job: dict[str, Any]) -> str:
     objective = str(job.get("objective") or "")[:80]
     routing = job.get("routing") or {}
     details = f"tier={routing.get('tier') or '-'} model={job.get('model') or 'default'} effort={job.get('effort') or 'default'}"
+    if _cloud.is_cloud(job):
+        details = f"where=cloud task={job.get('cloud_url') or job.get('cloud_handle') or '-'} branch={job.get('branch') or '-'}"
+        return _cloud.redact(f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}")
     return f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}"
 
 
@@ -438,10 +524,17 @@ def _cmd_status(args: argparse.Namespace) -> int:
     if job is None:
         print(f"no job found matching {args.job_id!r}", file=sys.stderr)
         return 1
+    if _cloud.is_cloud(job):
+        job = _cloud.refresh(store, registry, job)
     if args.json:
-        _print_json(job)
+        (_cloud_json if _cloud.is_cloud(job) else _print_json)(job)
     else:
         print(_job_line(job))
+        if _cloud.is_cloud(job):
+            if job.get("cloud_status"):
+                _cloud_print(f"cloud status: {job['cloud_status']}")
+            if job.get("last_poll_error"):
+                _cloud_print(f"last poll failed: {job['last_poll_error']}", err=True)
         if "routine_auto" in job:
             print(f"routine-auto: {'enabled' if job['routine_auto'] else 'disabled'}; {job.get('routine_rule_count', 0)} active rules")
         if job.get("turns"):
@@ -456,13 +549,18 @@ def _cmd_result(args: argparse.Namespace) -> int:
     if job is None:
         print(f"no job found matching {args.job_id!r}", file=sys.stderr)
         return 1
+    if _cloud.is_cloud(job):
+        job = _cloud.refresh(store, registry, job)
     status = job.get("status", "?")
     # Same exit code either way -- a caller scripting on exit status must
     # not see a failed job reported as success merely because it asked for
     # --json. Found by Codex review (it previously always returned 0 here).
     exit_code = 1 if status in ("partial", "failed", "interrupted") else 0
     if args.json:
-        _print_json(job)
+        (_cloud_json if _cloud.is_cloud(job) else _print_json)(job)
+        return exit_code
+    if _cloud.is_cloud(job):
+        _cloud_print(_cloud.result_text(job))
         return exit_code
     print(f"[{status}] job {job.get('job_id')}")
     if job.get("turns"):
@@ -576,6 +674,8 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
     else:
         job_id = str(job["job_id"])
         pid = _detached_pid(db_path, job_id) or job.get("pid")
+    if _cloud.is_cloud(job):
+        return _cancel_cloud(store, registry, job, args.reason)
     if job.get("status") in _TERMINAL:
         print(f"job {job['job_id']} already {job['status']}")
         return 0
@@ -622,6 +722,21 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cancel_cloud(store: Any, registry: Any, job: dict[str, Any], reason: str) -> int:
+    """Stop tracking a cloud job locally (frees its cloud place). The task itself keeps running remotely."""
+    job_id = str(job["job_id"])
+    if job.get("status") in _TERMINAL:
+        _cloud_print(f"job {job_id} already {job['status']}")
+        return 0
+    if not _cloud.mark_interrupted(store, registry, job_id, f"cancelled by operator: {reason}"):
+        latest = _jobs.find_job(store, registry, job_id) or job
+        _cloud_print(f"job {job_id} already {latest.get('status')}")
+        return 0
+    where = job.get("cloud_url") or job.get("cloud_handle") or "the provider's web UI"
+    _cloud_print(f"[interrupted] job {job_id}\nno longer tracked locally; the cloud task is NOT stopped -- cancel it at {where}")
+    return 0
+
+
 def _cmd_wait(args: argparse.Namespace) -> int:
     """Poll until the job reaches a terminal status, or its detached process is gone.
 
@@ -631,6 +746,24 @@ def _cmd_wait(args: argparse.Namespace) -> int:
     from lazytools.code_bridge._lockfile import _pid_alive
 
     db_path = _db_path(args)
+    first = _store.build_store(db_path)
+    first_job = _jobs.find_job(first, _store.build_job_registry(first), args.job_id)
+    if first_job is not None and _cloud.is_cloud(first_job):
+        timeout = _cloud.DEFAULT_CLOUD_WAIT_TIMEOUT if args.timeout is None else args.timeout
+        job = _cloud.wait_job(lambda: _store.build_store(db_path), str(first_job["job_id"]),
+                              timeout=timeout, interval=args.interval)
+        if job is not None and job.get("status") in _TERMINAL:
+            return _cmd_result(args)
+        if job is None:
+            print(f"job {args.job_id}: its record disappeared while waiting", file=sys.stderr)
+            return 1
+        errors = int(job.get("poll_errors_in_a_row") or 0)
+        if errors >= _cloud.MAX_CONSECUTIVE_POLL_ERRORS:
+            _cloud_print(f"job {args.job_id}: {errors} status polls in a row failed; last error: "
+                         f"{job.get('last_poll_error')}", err=True)
+            return 1
+        print(f"job {args.job_id} still {job.get('status')} after {timeout:.0f}s", file=sys.stderr)
+        return 3
     deadline = None if args.timeout is None else time.monotonic() + args.timeout
     pid = _detached_pid(db_path, args.job_id)
     while True:
@@ -659,6 +792,71 @@ def _cmd_wait(args: argparse.Namespace) -> int:
             print(f"job {args.job_id} still {status or 'starting'} after {args.timeout:.0f}s", file=sys.stderr)
             return 3
         time.sleep(args.interval)
+
+
+def _cloud_base_branch(outcome: dict[str, Any]) -> str:
+    return str(outcome.get("base_branch") or "<branch>")
+
+
+def _cmd_setup_skill(args: argparse.Namespace) -> int:
+    """Print (or install) the bundled agent skill that walks a user through cloud setup."""
+    from lazytools.skills.agent_skills import agent_skill_path, install_agent_skill
+
+    name = "code-bridge-cloud-setup"
+    if args.install is None:
+        print(agent_skill_path(name))
+        return 0
+    try:
+        target = install_agent_skill(name, Path(args.install) if args.install else None, overwrite=args.force)
+    except FileExistsError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"installed {target}")
+    print('ask your assistant: "set up lazytools-code-bridge cloud jobs" (Claude Code picks the skill up by name)')
+    return 0
+
+
+def _cmd_apply(args: argparse.Namespace) -> int:
+    """Apply a finished cloud task in a fresh worktree/branch; never pushes."""
+    db_path = _db_path(args)
+    store = _store.build_store(db_path)
+    registry = _store.build_job_registry(store)
+    job = _jobs.find_job(store, registry, args.job_id)
+    if job is None:
+        print(f"no job found matching {args.job_id!r}", file=sys.stderr)
+        return 1
+    if not _cloud.is_cloud(job):
+        print(f"job {job['job_id']} is a local job: its changes are already in {job.get('cwd')}", file=sys.stderr)
+        return 2
+    try:
+        job = _cloud.refresh(store, registry, job)
+        outcome = _cloud.apply_job(
+            store,
+            registry,
+            job,
+            db_path=db_path,
+            branch=args.branch,
+            worktree=Path(args.worktree) if args.worktree else None,
+            rebase=args.rebase,
+            source=args.source,
+        )
+    except _cloud.CloudError as exc:
+        _cloud_print(f"error: {exc}", err=True)
+        return 1
+    if args.json:
+        _cloud_json(outcome)
+        return 0
+    origin = f"{outcome['source_branch']} @ {outcome['base']}" if outcome.get("source_branch") else outcome["base"]
+    _cloud_print(f"applied cloud job {outcome['job_id']} in {outcome['worktree']} (branch {outcome['branch']}, from {origin})")
+    for line in outcome["changed"]:
+        _cloud_print(f"  {line}")
+    if outcome["output"]:
+        _cloud_print(outcome["output"])
+    if outcome.get("rebased_from"):
+        _cloud_print(f"note: --rebase: applied onto the current head of origin/{_cloud_base_branch(outcome)} "
+              f"({outcome['base'][:12]}), not the task's base {outcome['rebased_from'][:12]}; review the result carefully")
+    _cloud_print(f"not pushed. Review, commit, then push only after approval: git -C \"{outcome['worktree']}\" push -u origin {outcome['branch']}")
+    return 0
 
 
 # --------------------------------------------------------------------------- #
@@ -871,6 +1069,37 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_p = sub.add_parser("run", help="Run one coding-engine job to completion in this process.")
     run_p.add_argument("--engine", choices=list(_jobs.ENGINES))
+    run_p.add_argument(
+        "--where",
+        choices=[_cloud.WHERE_LOCAL, _cloud.WHERE_CLOUD],
+        default=_cloud.WHERE_LOCAL,
+        help="local (default): run the engine on this machine. cloud: submit the brief to the engine's cloud "
+        "agent (Codex Cloud, or a Claude Code cloud session) and return at once; uses no local engine slot and "
+        "cannot read local data. Setup: docs/code-bridge-cloud-setup.md.",
+    )
+    run_p.add_argument(
+        "--branch", default=None, help="--where cloud only: remote branch the cloud agent starts from (default: current)."
+    )
+    run_p.add_argument(
+        "--routine",
+        default=None,
+        help="--where cloud --engine claude only: fire this [cloud.claude.routines] entry (its API trigger token is "
+        "read from the env var the config names) instead of running `claude --cloud`.",
+    )
+    run_p.add_argument(
+        "--allow-cloud",
+        action="store_true",
+        help="--where cloud only, required: acknowledge that the cloud agent's commands run outside the local "
+        "approval gate (only its diff comes back, through `apply`).",
+    )
+    run_p.add_argument(
+        "--approve-cloud",
+        action="append",
+        choices=sorted(_cloud.GATED_ACTIONS),
+        default=None,
+        help="--where cloud only: approve up front an action the brief asks for that the local approval gate "
+        "would hold (classified by the same rule table); repeatable. Without it such a brief is refused.",
+    )
     _add_routing_options(run_p)
     run_p.add_argument("--cwd", required=True, help="Repository (or subdirectory) to work in.")
     run_p.add_argument("--task", required=True, help="Task text, or @path/to/file.")
@@ -948,7 +1177,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     wait_p = sub.add_parser("wait", help="Block until a job ends (or its process dies), then print its outcome.")
     wait_p.add_argument("job_id")
-    wait_p.add_argument("--timeout", type=float, default=None, help="Give up after this many seconds (exit 3).")
+    wait_p.add_argument("--timeout", type=float, default=None,
+                        help="Give up after this many seconds (exit 3). Cloud jobs default to 7200.")
     wait_p.add_argument("--interval", type=float, default=5.0, help=argparse.SUPPRESS)
     wait_p.add_argument("--json", action="store_true")
     _add_db_option(wait_p)
@@ -981,6 +1211,42 @@ def build_parser() -> argparse.ArgumentParser:
     result_p.add_argument("--json", action="store_true")
     _add_db_option(result_p)
     result_p.set_defaults(func=_cmd_result)
+
+    apply_p = sub.add_parser(
+        "apply",
+        help="Apply a finished cloud job's diff in a NEW git worktree on a NEW branch (never your checkout); does not push.",
+    )
+    apply_p.add_argument("job_id")
+    apply_p.add_argument("--branch", default=None, help="New branch name (default: cloud/<job id prefix>).")
+    apply_p.add_argument("--worktree", default=None, help="New worktree path (default: beside the Store, cloud-worktrees/<job>).")
+    apply_p.add_argument(
+        "--rebase",
+        action="store_true",
+        help="Apply onto the branch's current head even if it moved since the task was submitted (refused otherwise).",
+    )
+    apply_p.add_argument(
+        "--source",
+        default=None,
+        help="Claude cloud jobs only: the claude/ branch to check out when several new ones were found.",
+    )
+    apply_p.add_argument("--json", action="store_true")
+    _add_db_option(apply_p)
+    apply_p.set_defaults(func=_cmd_apply)
+
+    skill_p = sub.add_parser(
+        "setup-skill",
+        help="Print the path of the agent skill (SKILL.md) that guides an LLM through cloud setup, or install it.",
+    )
+    skill_p.add_argument(
+        "--install",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="DIR",
+        help="Copy it to DIR/code-bridge-cloud-setup/SKILL.md (default DIR: ~/.claude/skills).",
+    )
+    skill_p.add_argument("--force", action="store_true", help="Replace an existing installed copy.")
+    skill_p.set_defaults(func=_cmd_setup_skill)
 
     pending_p = sub.add_parser("pending", help="List open approval tickets.")
     pending_p.add_argument("--json", action="store_true")
