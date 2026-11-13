@@ -633,6 +633,29 @@ def test_wait_deadline_does_not_poll_before_reserved_turn(cloud, monkeypatch, ca
     assert len(sleeps) == 1 and 0.0 < sleeps[0] <= 1.0
 
 
+def test_resumed_waiter_subtracts_elapsed_time_from_retry_after(cloud, monkeypatch, capsys):
+    # A Retry-After stored 200 s ago has already expired: a short resumed wait
+    # must poll again instead of rescheduling the full 120 s from now.
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    meta = _store.read_meta(store, job_id) or {}
+    meta.update(poll_errors_in_a_row=1, last_poll_error="HTTP 429 Too Many Requests; Retry-After: 120",
+                last_polled_at=_cloud.time.time() - 200.0)
+    _store.write_meta(store, job_id, meta)
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud.time, "sleep", lambda _s: None)
+    polled = []
+    real_refresh = _cloud.refresh
+
+    def counting_refresh(*args, **kwargs):
+        polled.append(True)
+        return real_refresh(*args, **kwargs)
+
+    monkeypatch.setattr(_cloud, "refresh", counting_refresh)
+    _cloud.wait_job(lambda: _store.build_store(cloud.db), job_id, timeout=1.0, interval=0.01)
+    assert polled, "the resumed waiter never polled although Retry-After had expired"
+
+
 def test_unparseable_status_output_never_fails_job(cloud, capsys):
     job_id = _submit(cloud, capsys)
     cloud.set_status("something we do not understand\n")  # exit 0, but names no status

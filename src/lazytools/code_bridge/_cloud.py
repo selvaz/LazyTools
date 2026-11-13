@@ -1352,6 +1352,12 @@ def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval
         exponent = min(63, max(0, errors - 1))
         backoff = min(MAX_POLL_BACKOFF, interval * (2 ** exponent)) if errors else interval
         delay = 0.0 if first and not errors and retry_after is None else max(backoff, retry_after or 0.0)
+        if errors and merged.get("last_polled_at"):
+            # The backoff and Retry-After count from the failed poll, not from
+            # this waiter's start: a resumed waiter subtracts the time already
+            # elapsed, so short waits invoked repeatedly still poll again.
+            elapsed = max(0.0, time.time() - float(merged["last_polled_at"]))
+            delay = max(0.0, delay - elapsed)
         # Randomisation prevents independent waiters from repeatedly waking in
         # lockstep. The durable reservation also serialises processes sharing
         # an account even when their random choices happen to coincide.
