@@ -12,6 +12,24 @@ is the reverse direction: it imports another server's tools into an agent.
 python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.5"
 ```
 
+## Install the assistant skills
+
+After installing LazyTools with the `mcp` extra and LazyBridge 1.8.7 or newer,
+run these three commands to install both skills and register the read-only
+server in Claude Code:
+
+```sh
+python -m lazybridge.skill install
+python -m lazytools.skill install
+claude mcp add --transport stdio lazytools -- lazytools-mcp
+```
+
+The installers also target Codex when its home exists; see the
+[MCP setup](#collaboration-setup) for persistent project state and write access. Rerun the installers after upgrades.
+
+For Codex, add `[mcp_servers.lazytools]` with `command = "lazytools-mcp"`
+to `~/.codex/config.toml`. Restart the host after changing its configuration.
+
 ## Collaboration setup
 
 From your workspace root, save `lazytools.json` with local paths:
