@@ -643,3 +643,54 @@ def test_extract_text_non_serialisable_structured_falls_back_to_repr() -> None:
     assert "ok" in out
     # repr fallback keeps the call from raising on non-JSON data
     assert "obj" in out
+
+
+def test_sdk2_http_with_headers_follows_redirects(monkeypatch):
+    """SDK 2 path: the custom client keeps the SDK default of following redirects."""
+    import asyncio
+    import sys
+    import types
+
+    from lazytools.connectors.mcp import _sdk
+
+    seen: dict = {}
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    class FakeClient:
+        def __init__(self, transport):
+            self.transport = transport
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    httpx2 = types.ModuleType("httpx2")
+    httpx2.AsyncClient = FakeAsyncClient
+    httpx2.Timeout = lambda *a, **k: ("timeout", a, k)
+    mcp_mod = types.ModuleType("mcp")
+    mcp_mod.Client = FakeClient
+    client_pkg = types.ModuleType("mcp.client")
+    streamable = types.ModuleType("mcp.client.streamable_http")
+    streamable.streamable_http_client = lambda url, http_client=None: ("transport", url, http_client)
+    for name, module in {"httpx2": httpx2, "mcp": mcp_mod, "mcp.client": client_pkg,
+                         "mcp.client.streamable_http": streamable}.items():
+        monkeypatch.setitem(sys.modules, name, module)
+
+    async def run():
+        async with _sdk._open_http_v2("https://example.test/mcp", {"Authorization": "Bearer x"}):
+            pass
+
+    asyncio.run(run())
+    assert seen["follow_redirects"] is True
+    assert seen["headers"] == {"Authorization": "Bearer x"}

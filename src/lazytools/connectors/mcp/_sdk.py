@@ -214,7 +214,9 @@ def _open_http_v2(url: str, headers: dict[str, str]) -> Any:
     @asynccontextmanager
     async def _open_with_headers() -> AsyncIterator[Any]:
         async with (
-            httpx2.AsyncClient(headers=dict(headers), timeout=timeout) as http_client,
+            # follow_redirects matches the SDK default client factory: a 307
+            # trailing-slash redirect must not break a connection with headers.
+            httpx2.AsyncClient(headers=dict(headers), timeout=timeout, follow_redirects=True) as http_client,
             Client(streamable_http_client(url, http_client=http_client)) as client,
         ):
             yield client
