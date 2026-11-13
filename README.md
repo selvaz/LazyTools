@@ -114,7 +114,7 @@ from lazytools.workspace import WorkspaceTools
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render`, `artifacts`, `resolvers`, `charts`, `tools`, `files` | deterministic memo/report rendering (Markdown/HTML) with embedded figures (charts/images) — "LazyReport" |
 | `mcp_server/` | `server`, `providers` | expose LazyTools' read-only providers over MCP (the `lazytools-mcp` command) — mirror of the `connectors/mcp` client |
-| `code_bridge/` | `cli`, `_jobs`, `_policy`, `_lockfile` | async alternative to `codex_write`/`claude_code_write` (the `lazytools-code-bridge` command): runs a coding-engine job in a background OS process instead of a blocking MCP call, with approvals filed to a durable ticket queue — see [Async Code Bridge](docs/code-bridge.md) |
+| `code_bridge/` | `cli`, `_jobs`, `_policy`, `_lockfile`, `_cloud` | async alternative to `codex_write`/`claude_code_write` (the `lazytools-code-bridge` command): runs a coding-engine job in a background OS process instead of a blocking MCP call, with approvals filed to a durable ticket queue, or dispatches it to Codex Cloud or a Claude Code cloud session with `--where cloud` — see [Async Code Bridge](docs/code-bridge.md) |
 | `skills/` | `doc_skills` | build/query portable local-documentation skills |
 | `safety/` | `allowlist`, `gates`, `urls` | reusable allow-list, one-shot confirmation gate, and SSRF URL guard |
 | `registry/` | `db`, `router`, `artifacts`, `tools` | cross-repo DB env-var resolution + a shared artifact catalog (SQLite, no shared DB) — see [DB registry & artifacts](docs/registry.md) |
@@ -334,6 +334,12 @@ lazytools-code-bridge result <job_id>
 ```
 
 See [Async Code Bridge](docs/code-bridge.md) for the full workflow.
+
+To run jobs in the cloud instead (`--where cloud`, Codex Cloud or Claude Code
+cloud sessions), follow [Cloud setup for the code bridge](docs/code-bridge-cloud-setup.md),
+or let an assistant walk you through it with the bundled agent skill
+(`lazytools-code-bridge setup-skill --install`, then ask it to "set up
+lazytools-code-bridge cloud jobs").
 
 ## Safety model
 

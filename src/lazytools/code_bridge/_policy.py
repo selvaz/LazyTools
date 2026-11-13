@@ -23,6 +23,9 @@ segment, so those requests simply ask.
 
 from __future__ import annotations
 
+import re
+from fnmatch import fnmatchcase
+
 from lazybridge.ext.approval import Rule
 
 from lazytools.code_bridge._approvals import ClassifiedRule
@@ -118,4 +121,70 @@ CODING_RULES: tuple[Rule, ...] = (
     Rule("ask", "*", kind_pattern="command"),
 )
 
-__all__ = ["CODING_RULES"]
+#: The ``--approve-cloud`` action each named Bash rule of :data:`CODING_RULES`
+#: stands for. A cloud agent's commands cannot be held one by one, so a cloud
+#: brief that requests a command the local gate would ask for (or session-ask
+#: for on first use) needs the matching action approved up front. Keyed by the
+#: rule's own ``arg_pattern``: ``test_code_bridge_cloud`` asserts every
+#: ask/session Bash rule above has an entry, so the table and the approval
+#: names cannot drift apart. The pattern-less catch-all ``Rule("ask", "Bash")``
+#: (unknown commands) has no action: it is the fallback for "not a named
+#: dangerous command", and the cloud sandbox is what contains those.
+CLOUD_RULE_ACTIONS: dict[str, str] = {
+    "git add*": "commit",
+    "git commit*": "commit",
+    "git -*": "git-option",
+    "git push -*": "push",
+    "git push * -*": "push",
+    "git push*'-*": "push",
+    'git push*"-*': "push",
+    "git push*\\-*": "push",
+    "git push *:*": "push",
+    "git push *+*": "push",
+    "git push *main*": "push",
+    "git push *master*": "push",
+    "git push *HEAD*": "push",
+    "git push * *": "push",
+    "git push*": "push",
+    "gh pr create*": "pr-create",
+    "gh pr merge*": "merge",
+    "git reset --hard*": "reset",
+    "*rm *": "delete",
+    "*delete*": "delete",
+}
+
+#: Where a command may start inside free text: the start of a word.
+_WORD_START = re.compile(r"(?<![\w-])[A-Za-z]")
+
+
+def cloud_rule_actions(text: str) -> set[str]:
+    """The :data:`CLOUD_RULE_ACTIONS` that :data:`CODING_RULES` would gate in ``text``.
+
+    ``text`` is a brief, not one command, so every word start on every line
+    (backticks count as line breaks) is tried as the start of a command and
+    run through the Bash rules in table order, first match wins -- the same
+    order ``TieredGate`` uses. A pattern's leading ``*`` ("anywhere in the
+    command") is anchored to that word start instead, so ``*rm *`` matches
+    ``rm -rf build`` but not the prose "confirm that". Matching is
+    case-insensitive: a brief says "Delete", a shell says "delete".
+    """
+    rules = [
+        (rule.arg_pattern.lstrip("*").lower() if rule.arg_pattern else None, rule)
+        for rule in CODING_RULES
+        if rule.name_pattern == "Bash" and not isinstance(rule, ClassifiedRule)
+    ]
+    found: set[str] = set()
+    for line in text.replace("`", "\n").splitlines():
+        for start in _WORD_START.finditer(line):
+            candidate = line[start.start():].strip().lower()
+            for pattern, rule in rules:
+                if pattern is None:
+                    break  # the catch-all: nothing named matched this candidate
+                if fnmatchcase(candidate, pattern):
+                    if rule.tier != "allow":
+                        found.add(CLOUD_RULE_ACTIONS[str(rule.arg_pattern)])
+                    break
+    return found
+
+
+__all__ = ["CLOUD_RULE_ACTIONS", "CODING_RULES", "cloud_rule_actions"]

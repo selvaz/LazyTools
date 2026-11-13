@@ -73,6 +73,7 @@ plugins:
           - code-support/codex.md
           - code-support/collaboration.md
           - code-bridge.md
+          - code-bridge-cloud-setup.md
           - projects.md
           - gateway.md
           - datahub.md
@@ -92,6 +93,7 @@ plugins:
           - skills-analyst.md
           - skills-stats.md
           - skills-council.md
+          - skills-code-bridge-cloud-setup.md
           - report.md
           - workspace.md
         Core tools:
@@ -154,6 +156,7 @@ nav:
           - Codex: code-support/codex.md
           - Collaboration: code-support/collaboration.md
       - Async Code Bridge (CLI): code-bridge.md
+      - Code bridge cloud setup: code-bridge-cloud-setup.md
       - Projects: projects.md
       - External tool gateway: gateway.md
       - Financial data (market-data-hub): datahub.md
@@ -173,6 +176,7 @@ nav:
       - Analyst skills: skills-analyst.md
       - Statistical agents: skills-stats.md
       - Spontaneous AI councils: skills-council.md
+      - Code bridge cloud setup skill: skills-code-bridge-cloud-setup.md
       - Report (LazyReport): report.md
       - Workspace: workspace.md
   - Core tools:
