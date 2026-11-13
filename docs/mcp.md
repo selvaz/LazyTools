@@ -57,6 +57,13 @@ SDK is an optional dependency — `import lazytools.connectors.mcp` is cheap;
 constructing an `MCP.stdio(...)` or `MCP.http(...)` is what triggers
 the SDK import (and a clean `ImportError` if missing).
 
+The `[mcp]` extra accepts the official SDK **1.x and 2.x** (`mcp>=1.0,<3`).
+Stdio and Streamable HTTP go through a small compatibility layer: SDK 2 uses
+`mcp.Client` (and `streamable_http_client`, with request headers on an
+`httpx2` client); SDK 1 keeps `ClientSession` plus `stdio_client` /
+`streamablehttp_client`. `MCP.stdio(...)`, `MCP.http(...)`, and
+`as_tools()` behave the same on both.
+
 > **Status: alpha.** Install: `pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"`. The package is
 > `lazytoolkit` (installed from GitHub — see Install); the import root is `lazytools`.
 

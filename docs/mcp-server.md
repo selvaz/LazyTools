@@ -6,7 +6,7 @@ durable approval tickets belong to [the async code bridge](code-bridge.md).
 Other connectors support data, reports and communication. The [MCP connector](mcp.md)
 is the reverse direction: it imports another server's tools into an agent.
 
-**LazyTools 0.10.5 is Alpha.** Install the coding runtime dependencies too:
+**LazyTools 0.10.5 is Alpha.** The `[mcp]` extra accepts the official MCP Python SDK 1.x and 2.x (`mcp>=1.0,<3`). Install the coding runtime dependencies too:
 
 ```sh
 python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.6"

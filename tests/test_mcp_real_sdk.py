@@ -26,9 +26,12 @@ pytest.importorskip("mcp")
 from lazytools.connectors.mcp import MCP
 
 _TOY_SERVER = '''\
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server import MCPServer as _Server
+except ImportError:
+    from mcp.server.fastmcp import FastMCP as _Server
 
-app = FastMCP("toy")
+app = _Server("toy")
 
 
 @app.tool()
@@ -37,8 +40,30 @@ def add(a: int, b: int) -> int:
     return a + b
 
 
-app.run()
+app.run(transport="stdio")
 '''
+
+
+def test_installed_sdk_openers_construct_without_connecting() -> None:
+    """Importing the SDK 1 or SDK 2 client symbols must succeed before connect.
+
+    This is the failure mode of a pin that still names ``streamablehttp_client``
+    on SDK 2, or ``mcp.Client`` on SDK 1: ``MCP.stdio`` / ``MCP.http`` would
+    raise ``ImportError`` at construction of the session, not at the first
+    byte on the wire.
+    """
+    from importlib.metadata import version
+
+    from lazytools.connectors.mcp._sdk import mcp_major, open_http, open_stdio
+
+    major = int(version("mcp").split(".", 1)[0])
+    assert mcp_major() == major
+    assert major in (1, 2)
+
+    stdio_cm = open_stdio(sys.executable, ["-c", "pass"], None)
+    http_cm = open_http("http://127.0.0.1:9/mcp", {"Authorization": "Bearer test"})
+    assert hasattr(stdio_cm, "__aenter__")
+    assert hasattr(http_cm, "__aenter__")
 
 
 @pytest.fixture

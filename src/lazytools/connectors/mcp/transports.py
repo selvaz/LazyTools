@@ -9,15 +9,18 @@ cheap and never fails.
 Loop / task affinity
 --------------------
 The official SDK's sessions are **loop- and task-affine**: the anyio task
-groups inside ``stdio_client`` / ``streamablehttp_client`` must be entered and
-exited in the *same task*, and the resulting streams only work on the loop
-they were created on. Two mechanisms uphold that contract:
+groups inside the stdio and Streamable HTTP transports (SDK 1's
+``stdio_client`` / ``streamablehttp_client``, SDK 2's :class:`mcp.Client`)
+must be entered and exited in the *same task*, and the resulting streams
+only work on the loop they were created on. Two mechanisms uphold that
+contract:
 
 * Each SDK-backed transport runs its session inside a single long-lived
   **lifecycle task** (:meth:`_SdkTransport._run_session`): the task enters the
   SDK context, parks on an event, and unwinds the context itself when
   :meth:`close` sets the event. Enter and exit therefore always happen in the
-  same task.
+  same task. SDK 2's ``Client`` uses an ``AsyncExitStack`` internally; that
+  is safe here because the stack is entered and exited by this one task.
 * :class:`~lazytools.connectors.mcp.server.MCPServer` dispatches every
   transport operation onto a dedicated background loop (:class:`_LoopRunner`),
   so the session is created, used, and closed on one loop regardless of which
@@ -137,11 +140,14 @@ class _SdkTransport(_Transport):
     # -- subclass hooks -------------------------------------------------
 
     def _make_client_cm(self) -> Any:
-        """Return the SDK's async context manager yielding the stream pair.
+        """Return an async context manager yielding a connected session.
 
-        Imports the SDK; raises a friendly ``ImportError`` when the ``mcp``
-        extra is missing. Building the context manager object itself does not
-        bind to a task — only ``__aenter__`` does, inside the lifecycle task.
+        The session exposes ``list_tools()`` and ``call_tool(name, arguments=)``.
+        On SDK 2 that object is :class:`mcp.Client`; on SDK 1 it is a
+        ``ClientSession`` after ``initialize()``. Imports the SDK and raises a
+        friendly ``ImportError`` when the ``mcp`` extra is missing. Building
+        the context manager does not bind to a task — only ``__aenter__``
+        does, inside the lifecycle task.
         """
         raise NotImplementedError
 
@@ -174,16 +180,14 @@ class _SdkTransport(_Transport):
         close_evt: asyncio.Event,
     ) -> None:
         try:
-            from mcp import ClientSession  # importable — _make_client_cm succeeded
-
-            async with cm as streams:
-                read, write = streams[0], streams[1]  # http yields a 3rd element
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    self._session = session
-                    if not started.done():
-                        started.set_result(None)
-                    await close_evt.wait()
+            # ``cm`` already speaks whichever SDK is installed: SDK 2 yields
+            # ``mcp.Client`` (handshake done), SDK 1 yields an initialised
+            # ``ClientSession``. Both are entered and exited in this task.
+            async with cm as session:
+                self._session = session
+                if not started.done():
+                    started.set_result(None)
+                await close_evt.wait()
         except BaseException as exc:
             if not started.done():
                 started.set_exception(exc if isinstance(exc, Exception) else RuntimeError(repr(exc)))
@@ -195,12 +199,16 @@ class _SdkTransport(_Transport):
     async def list_tools(self) -> list[dict[str, Any]]:
         if self._session is None:
             raise RuntimeError("list_tools called before connect()")
+        from lazytools.connectors.mcp._sdk import input_schema_of
+
         result = await self._session.list_tools()
         return [
             {
                 "name": t.name,
                 "description": t.description or "",
-                "inputSchema": t.inputSchema or {"type": "object", "properties": {}},
+                # Normalise SDK 2 ``input_schema`` and SDK 1 ``inputSchema``
+                # to the dict key the rest of the connector already uses.
+                "inputSchema": input_schema_of(t),
             }
             for t in result.tools
         ]
@@ -247,16 +255,9 @@ class StdioTransport(_SdkTransport):
         self._env = env
 
     def _make_client_cm(self) -> Any:
-        try:
-            from mcp import StdioServerParameters
-            from mcp.client.stdio import stdio_client
-        except ImportError as e:  # pragma: no cover — exercised only without [mcp]
-            raise ImportError(
-                'lazytools.connectors.mcp.MCP.stdio requires the official MCP SDK. '
-                'Install with: pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"'
-            ) from e
-        params = StdioServerParameters(command=self._command, args=self._args, env=self._env)
-        return stdio_client(params)
+        from lazytools.connectors.mcp._sdk import open_stdio
+
+        return open_stdio(self._command, self._args, self._env)
 
 
 # ---------------------------------------------------------------------------
@@ -273,14 +274,9 @@ class HttpTransport(_SdkTransport):
         self._headers = headers or {}
 
     def _make_client_cm(self) -> Any:
-        try:
-            from mcp.client.streamable_http import streamablehttp_client
-        except ImportError as e:  # pragma: no cover
-            raise ImportError(
-                'lazytools.connectors.mcp.MCP.http requires the official MCP SDK. '
-                'Install with: pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"'
-            ) from e
-        return streamablehttp_client(self._url, headers=self._headers)
+        from lazytools.connectors.mcp._sdk import open_http
+
+        return open_http(self._url, self._headers)
 
 
 # ---------------------------------------------------------------------------
@@ -311,7 +307,9 @@ def _extract_text(result: Any) -> str:
                 parts.append(repr(block))
     text_out = "\n".join(parts)
 
-    structured = getattr(result, "structuredContent", None)
+    from lazytools.connectors.mcp._sdk import structured_content_of
+
+    structured = structured_content_of(result)
     if structured:
         try:
             structured_json = json.dumps(structured, ensure_ascii=False, sort_keys=True)

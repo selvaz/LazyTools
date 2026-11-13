@@ -518,6 +518,80 @@ def test_extract_text_plain_text_only() -> None:
     assert _extract_text(r) == "hello\nworld"
 
 
+def test_extract_text_reads_sdk2_structured_content_attribute() -> None:
+    """SDK 2 renamed the field to structured_content; both spellings count."""
+    from lazytools.connectors.mcp.transports import _extract_text
+
+    class _V2Result:
+        def __init__(self) -> None:
+            self.content = [_FakeBlock("Hello from Codex")]
+            self.structured_content = {"threadId": "abc-123"}
+
+    out = _extract_text(_V2Result())
+    assert "Hello from Codex" in out
+    assert "abc-123" in out
+
+
+def test_list_tools_reads_sdk1_input_schema_attribute() -> None:
+    """SDK 1 tools expose inputSchema. The connector stores the same dict."""
+    from lazytools.connectors.mcp.transports import StdioTransport
+
+    class _Tool:
+        def __init__(self) -> None:
+            self.name = "add"
+            self.description = ""
+            self.inputSchema = {"type": "object", "properties": {}}
+
+    class _Listing:
+        tools = [_Tool()]
+
+    class _Session:
+        async def list_tools(self) -> _Listing:
+            return _Listing()
+
+    transport = StdioTransport(command="python")
+    transport._session = _Session()  # type: ignore[assignment]
+    listed = asyncio.run(transport.list_tools())
+    assert listed[0]["inputSchema"] == {"type": "object", "properties": {}}
+
+
+def test_list_tools_reads_sdk2_input_schema_attribute() -> None:
+    """SDK 2 tools expose input_schema. The connector still stores inputSchema."""
+    from lazytools.connectors.mcp.transports import StdioTransport
+
+    class _Tool:
+        def __init__(self) -> None:
+            self.name = "add"
+            self.description = "Add two numbers."
+            self.input_schema = {
+                "type": "object",
+                "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+                "required": ["a", "b"],
+            }
+
+    class _Listing:
+        tools = [_Tool()]
+
+    class _Session:
+        async def list_tools(self) -> _Listing:
+            return _Listing()
+
+    transport = StdioTransport(command="python")
+    transport._session = _Session()  # type: ignore[assignment]
+    listed = asyncio.run(transport.list_tools())
+    assert listed == [
+        {
+            "name": "add",
+            "description": "Add two numbers.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+                "required": ["a", "b"],
+            },
+        }
+    ]
+
+
 def test_extract_text_appends_structured_content() -> None:
     """Codex puts the threadId only in structuredContent — it must survive."""
     from lazytools.connectors.mcp.transports import _extract_text

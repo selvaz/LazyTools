@@ -35,7 +35,10 @@ telegram   = ["httpx>=0.27,<1.0"]
 # lazytools.projects.quota_telemetry / lazytools.routing both import the Claude Agent SDK.
 # Without it a clean install fails at the first quota read ("Claude Agent SDK is not installed").
 engines    = ["lazybridge[claude-code]>=1.8.1,<2.0"]
-mcp        = ["mcp>=1.0,<2.0"]
+# Official MCP Python SDK. 1.x and 2.x are both supported: the connector
+# and the LazyTools MCP server branch on the installed major (see
+# lazytools.connectors.mcp._sdk and lazytools.mcp_server.server).
+mcp        = ["mcp>=1.0,<3"]
 docs       = ["pypdf>=3.0,<7.0", "python-docx>=1.0,<2.0", "trafilatura>=1.6,<3.0"]
 edgar      = ["httpx>=0.27,<1.0"]
 marketdata = ["httpx>=0.27,<1.0"]
@@ -74,7 +77,7 @@ charts     = ["matplotlib>=3.8,<4.0"]
 web        = ["lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@v0.19.7"]
 # ``mcp`` is included so the real-SDK integration tests (loop-affinity
 # regression coverage) run in CI instead of silently skipping.
-test       = ["pytest>=7.0", "pytest-asyncio>=0.23", "pytest-cov>=4.0", "httpx>=0.27,<1.0", "mcp>=1.0,<2.0", "ruff>=0.6", "mypy>=1.10", "hatchling>=1.0"]
+test       = ["pytest>=7.0", "pytest-asyncio>=0.23", "pytest-cov>=4.0", "httpx>=0.27,<1.0", "mcp>=1.0,<3", "ruff>=0.6", "mypy>=1.10", "hatchling>=1.0"]
 # Documentation-site build (mkdocs). Named ``site`` to avoid clashing with the
 # document-reading ``docs`` extra above.
 site       = ["mkdocs-material>=9.5,<10.0", "mkdocstrings[python]>=0.24,<1.0", "mkdocs-llmstxt>=0.3,<1.0", "pymdown-extensions>=10.0,<11.0"]
