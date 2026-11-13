@@ -834,11 +834,11 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
                 except Exception as exc:
                     errors.append({"handle": _cloud.redact(str(handle)), "status": "failed", "reason": _cloud.redact(str(exc))})
     else:
-        job = _jobs.find_job(store, registry, args.target)
-        value = str(job.get("cloud_handle")) if job and job.get("cloud_handle") else args.target
+        found = _jobs.find_job(store, registry, args.target)
+        value = str(found.get("cloud_handle")) if found and found.get("cloud_handle") else args.target
         try:
             provider, ident = _cloud_stop.resolve_handle(value)
-            targets.append((provider, ident, job))
+            targets.append((provider, ident, found))
         except Exception as exc:
             errors.append({"handle": _cloud.redact(value), "status": "failed", "reason": _cloud.redact(str(exc))})
 
@@ -848,15 +848,15 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
         previous = unique.get(key)
         unique[key] = target if target[2] is not None or previous is None else previous
     results: list[dict[str, Any]] = []
-    for provider, handle, job in unique.values():
+    for provider, handle, owner_job in unique.values():
         if args.dry_run:
             result: dict[str, Any] = {"provider": provider, "handle": handle, "status": "would stop"}
         else:
             try:
                 result = _cloud_stop.stop(provider, handle)
-                if job is not None:
-                    _cloud.mark_interrupted(store, registry, str(job["job_id"]), "cloud stop requested by operator")
-                    result["job_id"] = job["job_id"]
+                if owner_job is not None:
+                    _cloud.mark_interrupted(store, registry, str(owner_job["job_id"]), "cloud stop requested by operator")
+                    result["job_id"] = owner_job["job_id"]
             except Exception as exc:
                 result = {"provider": provider, "handle": handle, "status": "failed", "reason": _cloud.redact(str(exc))}
         results.append(result)
