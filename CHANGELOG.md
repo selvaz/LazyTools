@@ -8,6 +8,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.7] — 2026-11-13
+
 ### Added
 - Bundle an installable LazyTools skill for Claude Code and Codex, covering MCP, the async code bridge and projects.
 - `lazytools.projects.closure.close_task_with_evidence`: close a contract-backed Gantt task in one call (claim verification, record checks and review, accept, close the board slot). Every contract `required_check` must be covered, every check must pass, and a required review must be present and attributed (`review_by`); the worker (the task's claim owner, or `worker` for an unclaimed task), `review_by` and the acceptor (`reviewer`) must be three different identities, and the worker is recorded on the verification. All of this is checked before anything is written. A required review reported as `REVIEW NOT PERFORMED (reason)` is recorded, blocks the verification and leaves the task open, flagged to the owner with a project note. A failure after the claim moves the verification to `rework`/`blocked` (retried on a fresh read; forced to `blocked` if every attempt is contested), never leaving it `pending`/`running`. An already-done task is a no-op, and an accepted-but-unclosed verification is reused only when the current call's evidence passes. `projects_close_task` is on `UNSAFE_TOOL_PATTERNS`, so `expand_tools(..., read_only=True)` drops it. Exposed as the `lazytools-projects close-task` CLI (`--check 'COMMAND=pass|fail[:DETAIL]'`, repeatable) and the write-gated `projects_close_task` MCP tool (core profile).
