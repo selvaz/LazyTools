@@ -1242,6 +1242,36 @@ environment's clone of the repository, never this machine.
 
 ## Cloud agents as part of the workflow
 
+### Stopping cloud agents
+
+`lazytools-code-bridge cloud-stop <task-url|task-id|job-id>` is the emergency
+stop path. For a bridge job id it resolves the recorded cloud handle, asks the
+provider to stop it, and only then marks the bridge job interrupted. Codex is
+cancelled and polled for up to 60 seconds; the result distinguishes `stopped`,
+`already finished`, and a failure reason. Claude's API operation is currently
+reported precisely as `archive requested`, not as proof that its running turn
+stopped.
+
+Use `cloud-stop --all-running` to combine running tasks reported by
+`codex cloud list --json` (including tasks created outside this bridge) with
+running bridge cloud jobs. Add `--dry-run` to list the deduplicated targets
+without sending requests, and `--json` for Agent Radar or other automation.
+Routines are not disabled; this command affects current sessions only.
+
+Tokens are read in memory at call time and are never printed or persisted by
+the bridge. The exact credential files are:
+
+| Platform | Codex ChatGPT token | Claude Code OAuth token |
+|---|---|---|
+| Linux | `$HOME/.codex/auth.json` | `$HOME/.claude/.credentials.json` |
+| macOS | `$HOME/.codex/auth.json` | `$HOME/.claude/.credentials.json` |
+| Windows | `%USERPROFILE%\\.codex\\auth.json` | `%USERPROFILE%\\.claude\\.credentials.json` |
+
+`CODEX_HOME` replaces the `.codex` directory and `CLAUDE_CONFIG_DIR` replaces
+the `.claude` directory when those standard CLI overrides are set. A missing or
+rejected credential is reported as `login needed` for that provider; an
+`--all-running` operation continues with other providers/targets.
+
 A lead (a person or an LLM) should not have to babysit cloud tasks: submit
 through raw CLIs, copy diffs, push, open PRs, ask for reviews in PR comments.
 The bridge does those steps. The loop:
