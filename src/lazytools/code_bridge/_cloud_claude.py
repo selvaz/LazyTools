@@ -2,17 +2,6 @@
 
 Two submit modes, one result path:
 
-* **CLI mode** (default): ``claude --cloud "<prompt>"`` run from a local
-  checkout whose current branch is the requested branch and is already on the
-  GitHub ``origin`` at the same commit. The hosted VM clones from GitHub and
-  there is no ``--branch`` flag for ``--cloud``, so the bridge checks out the
-  branch in a short-lived worktree when the operator's checkout is on another
-  branch, verifies it is pushed (the bridge never pushes), runs ``claude``
-  there, then removes that worktree. Auth is the claude.ai OAuth login
-  (``claude auth login``); API keys are not accepted for cloud sessions.
-  The cloud environment is the one selected for the account at claude.ai/code:
-  there is no CLI flag to choose it, so the job records that fact instead of
-  an environment id.
 * **Routine mode** (``--routine NAME``): ``POST /v1/claude_code/routines/{id}/fire``
   with that routine's own bearer token, read from the environment variable
   named in ``[cloud.claude.routines]`` -- the config never holds a token. The
@@ -170,19 +159,15 @@ def verify_pushed(root: Path, branch: str) -> str:
 
 
 def _checkout_for(root: Path, branch: str, worktree: Path) -> tuple[Path, bool]:
-    """A directory whose current branch is ``branch`` at the commit ``origin`` has.
+    """A detached directory at the commit ``origin/branch`` has.
 
     Returns ``(dir, created)``; ``created`` worktrees are removed after submit.
     """
-    verify_pushed(root, branch)
-    if _git(root, "rev-parse", "--abbrev-ref", "HEAD", check=False) == branch:
-        return root, False
-    local = _git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}", check=False)
+    tip = verify_pushed(root, branch)
     worktree.parent.mkdir(parents=True, exist_ok=True)
-    if local:
-        _git(root, "worktree", "add", str(worktree), branch)
-    else:
-        _git(root, "worktree", "add", "--track", "-b", branch, str(worktree), f"origin/{branch}")
+    # Never attach the PR branch: Git refuses to attach a branch which is
+    # already checked out in any other worktree.
+    _git(root, "worktree", "add", "--detach", str(worktree), tip)
     return worktree, True
 
 
@@ -199,7 +184,7 @@ def _http_post(url: str, headers: dict[str, str], body: bytes, timeout: float) -
 
 
 class ClaudeCloud:
-    """Claude Code cloud sessions: ``claude --cloud`` or a routine's fire endpoint."""
+    """Claude Code cloud sessions submitted through a routine's fire endpoint."""
 
     name = "claude"
 

@@ -10,8 +10,8 @@ Providers
 ---------
 Each cloud engine is a :class:`CloudProvider`. Codex Cloud
 (:class:`CodexCloud`) drives the official ``codex cloud`` CLI. Claude Code
-cloud sessions (``_cloud_claude.ClaudeCloud``) use ``claude --cloud`` or a
-routine's fire endpoint; Claude has no status API, so its status and result
+cloud sessions (``_cloud_claude.ClaudeCloud``) use a routine's fire endpoint;
+Claude has no status API, so its status and result
 come from the ``claude/...`` branch the session pushes. See
 ``docs/code-bridge.md`` ("Cloud jobs") and ``docs/code-bridge-cloud-setup.md``.
 
@@ -30,6 +30,7 @@ Configuration (``~/.lazytools/code-bridge.toml``, same file as ``[concurrency]``
 
     [cloud.claude]
     concurrency = 2
+    default_routine = "nightly" # unattended Claude jobs must use a routine
 
     [cloud.claude.models]    # tier -> model for Claude cloud sessions (default: claude-sonnet-5-5)
     critical = "claude-opus-5-5"
@@ -132,7 +133,7 @@ _ENV_VAR_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 #: Keys allowed under ``[cloud.<provider>]``.
 _PROVIDER_KEYS: dict[str, frozenset[str]] = {
     "codex": frozenset({"envs", "concurrency"}),
-    "claude": frozenset({"routines", "concurrency", "models"}),
+    "claude": frozenset({"routines", "concurrency", "models", "default_routine"}),
 }
 
 _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -239,6 +240,8 @@ class CloudConfig:
     envs: dict[str, dict[str, str]] = field(default_factory=dict)
     #: routine name -> {id, token_env, repo, branch}; repo/branch mirror the routine settings
     routines: dict[str, dict[str, str]] = field(default_factory=dict)
+    #: routine used by unattended Claude submissions when --routine is omitted
+    default_routine: str | None = None
     path: Path | None = None
     #: what ``run`` does without ``--where``: "local", "cloud" or "auto"
     default_where: str = "local"
@@ -266,6 +269,7 @@ def load_config(path: Path | None = None) -> CloudConfig:
     concurrency: int | None = DEFAULT_CLOUD_CONCURRENCY
     envs: dict[str, dict[str, str]] = {}
     routines: dict[str, dict[str, str]] = {}
+    default_routine: str | None = None
     default_where = "local"
     windows: tuple[str, ...] = ()
     provider_limits: dict[str, int | None] = {}
@@ -314,6 +318,16 @@ def load_config(path: Path | None = None) -> CloudConfig:
                 provider_limits[key] = limit or None
             if key == "claude":
                 routines = _load_routines(value.get("routines", {}), path)
+                configured_default = value.get("default_routine")
+                if configured_default is not None:
+                    if not isinstance(configured_default, str) or not _ROUTINE_NAME_RE.fullmatch(configured_default):
+                        raise ValueError(f"{path}: [cloud.claude] default_routine must be a valid routine name")
+                    if configured_default not in routines:
+                        raise ValueError(
+                            f"{path}: [cloud.claude] default_routine {configured_default!r} is not configured "
+                            "under [cloud.claude.routines]"
+                        )
+                    default_routine = configured_default
                 models["claude"] = _load_models(value.get("models", {}), path)
                 continue
             mapping = value.get("envs", {})
@@ -330,7 +344,8 @@ def load_config(path: Path | None = None) -> CloudConfig:
                 f"{path}: [cloud] names unknown key {key!r} (one of concurrency, default_where, busy_windows, "
                 f"{', '.join(sorted(PROVIDERS))})"
             )
-    return CloudConfig(concurrency=concurrency, envs=envs, routines=routines, path=path, default_where=default_where,
+    return CloudConfig(concurrency=concurrency, envs=envs, routines=routines, default_routine=default_routine,
+                       path=path, default_where=default_where,
                        busy_windows=windows, provider_concurrency=provider_limits, models=models)
 
 
@@ -988,6 +1003,14 @@ def submit_job(
             f"request from the brief, or approve up front with {flags}"
         )
     config = config or load_config()
+    if engine == "claude" and routine is None:
+        routine = config.default_routine
+        if routine is None:
+            raise CloudError(
+                "unattended Claude cloud jobs require a routine API trigger; create one at claude.ai/code, "
+                f"configure [cloud.claude.routines.<name>] in {config.path}, then pass --routine <name> or set "
+                "[cloud.claude] default_routine. See docs/code-bridge-cloud-setup.md"
+            )
     if pr is not None and open_pr:
         raise CloudError("--pr and --open-pr are alternatives: work on an existing PR's branch, or open a new PR")
     if land and not (pr is not None or open_pr):
@@ -1192,7 +1215,13 @@ def apply_job(
             "fetched; refusing to apply onto an unchecked base. Fetch the branch and retry"
         )
     worktree.parent.mkdir(parents=True, exist_ok=True)
-    _git(root, "worktree", "add", "-b", branch, str(worktree), base)
+    # A PR head branch may already be checked out in another worktree.  PR
+    # application does not need to own that branch: landing publishes the
+    # resulting detached HEAD explicitly to the recorded PR branch.
+    if job.get("pr_number"):
+        _git(root, "worktree", "add", "--detach", str(worktree), base)
+    else:
+        _git(root, "worktree", "add", "-b", branch, str(worktree), base)
     try:
         # The provider's diff is the authority for what landing may stage.  In
         # particular, the Codex CLI may create its own untracked files while

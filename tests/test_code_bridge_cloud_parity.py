@@ -18,7 +18,18 @@ from pathlib import Path
 
 import pytest
 
-from lazytools.code_bridge import _cloud, _cloud_envs, _cloud_land, _cloud_place, _concurrency, _gh, _jobs, _store, cli
+from lazytools.code_bridge import (
+    _cloud,
+    _cloud_claude,
+    _cloud_envs,
+    _cloud_land,
+    _cloud_place,
+    _concurrency,
+    _gh,
+    _jobs,
+    _store,
+    cli,
+)
 from lazytools.code_bridge._concurrency import EngineSlot
 from test_code_bridge_cloud import TASK_URL, _git, _run_cloud, _set_cloud_config  # noqa: F401
 from test_code_bridge_cloud import cloud as cloud
@@ -127,6 +138,13 @@ def claude(tmp_path, monkeypatch, cloud):
     monkeypatch.setenv("FAKE_CLAUDE_LOG", str(log))
     monkeypatch.setenv("FAKE_CLAUDE_URL", SESSION_URL)
     monkeypatch.delenv("FAKE_CLAUDE_MODE", raising=False)
+    monkeypatch.setenv("TEST_DEFAULT_ROUTINE_TOKEN", "test-token-value")
+    monkeypatch.setattr(
+        _cloud_claude,
+        "_http_post",
+        lambda *a, **k: (200, json.dumps({"claude_code_session_id": "session_abc123def",
+                                          "claude_code_session_url": SESSION_URL})),
+    )
     vm = tmp_path / "cloud-vm"
     _git(tmp_path, "clone", "-q", (tmp_path / "remotes" / "acme" / "widgets.git").as_posix(), str(vm))
 
@@ -222,6 +240,21 @@ def test_pr_target_works_on_the_pr_head_branch_and_records_the_pr(cloud, gh, cap
     job = _job(cloud, payload["job_id"])
     assert job["pr_head"] == "feature" and job["pr_base"] == "main" and job["base_commit"] == feature_sha
     assert job["open_pr"] is False and job["land"] is False
+
+
+def test_pr_apply_uses_detached_worktree_when_head_is_checked_out_elsewhere(cloud, gh, capsys, tmp_path):
+    feature_sha = _push_feature(cloud)
+    gh.seed_pr(17, head="feature", base="main")
+    other = tmp_path / "feature-worktree"
+    _git(cloud.repo, "worktree", "add", str(other), "feature")
+    payload = _submit_json(cloud, capsys, "--pr", "17")
+    cloud.set_status(READY)
+
+    assert _main(cloud, "apply", payload["job_id"], "--json") == 0
+    outcome = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    applied = Path(outcome["worktree"])
+    assert _git(applied, "rev-parse", "--abbrev-ref", "HEAD") == "HEAD"
+    assert _git(applied, "rev-parse", "HEAD") == feature_sha
 
 
 def test_pr_target_refusals(cloud, gh, capsys):
@@ -493,9 +526,20 @@ def test_an_existing_branch_on_origin_is_never_taken_over(cloud, gh, capsys):
 
 
 def _claude_submit(cloud, capsys, *extra: str, task: str = "Add a feature") -> str:
+    branch = "main"
+    if "--pr" in extra:
+        view = _gh.pr_view("acme/widgets", int(extra[extra.index("--pr") + 1]))
+        branch = str(view["headRefName"])
+    name = "test_" + branch.replace("/", "_")
+    path = Path(os.environ[_concurrency.CONFIG_ENV])
+    text = path.read_text(encoding="utf-8")
+    if f"[cloud.claude.routines.{name}]" not in text:
+        path.write_text(text + (f'\n[cloud.claude.routines.{name}]\nid = "trig_test"\n'
+                               'token_env = "TEST_DEFAULT_ROUTINE_TOKEN"\nrepo = "acme/widgets"\n'
+                               f'branch = "{branch}"\n'), encoding="utf-8")
     code = cli.main(["run", "--where", "cloud", "--engine", "claude", "--cwd", str(cloud.repo), "--root",
                      str(cloud.root), "--task", task, "--no-brief-check", "--db", str(cloud.db), "--allow-cloud",
-                     "--json", *extra])
+                     "--json", "--routine", name, *extra])
     captured = capsys.readouterr()
     assert code == 0, captured.err
     return json.loads(captured.out.strip().splitlines()[-1])["job_id"]
@@ -660,6 +704,17 @@ def _review(cloud, *extra: str, engine: str | None = None, reviewed: str) -> int
             "--allow-cloud", "--no-brief-check", "--db", str(cloud.db), *extra]
     if engine:
         argv += ["--engine", engine]
+    store = _store.build_store(cloud.db)
+    job = _jobs.find_job(store, _store.build_job_registry(store), reviewed)
+    if job is not None and job.get("engine") == "codex" and engine != "codex":
+        branch = str(job.get("landed_branch") or job.get("result_branch") or job.get("branch"))
+        name = "review_" + str(job["job_id"])[:8]
+        path = Path(os.environ[_concurrency.CONFIG_ENV])
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(f'\n[cloud.claude.routines.{name}]\nid = "trig_review"\n'
+                         'token_env = "TEST_DEFAULT_ROUTINE_TOKEN"\nrepo = "acme/widgets"\n'
+                         f'branch = "{branch}"\n')
+        argv += ["--routine", name]
     return cli.main(argv)
 
 
@@ -667,11 +722,10 @@ def test_review_uses_the_opposite_engine_and_posts_one_comment(cloud, claude, gh
     job_id, sha = _land_codex_job(cloud, capsys)
     assert _review(cloud, "--json", reviewed=job_id[:8]) == 0
     review_id = json.loads(capsys.readouterr().out.strip().splitlines()[-1])["job_id"]
-    (call,) = claude.calls()  # codex wrote it, so claude reviews it
-    brief = call["argv"][1]
-    assert call["argv"][0] == "--cloud" and call["branch"] == f"cloud/{job_id[:8]}"
-    assert f"claude/review-{review_id[:8]}" in brief and "REVIEW.md" in brief and sha[:12] in brief
-    assert "verdict: no-blocking" in brief
+    submitted = _job(cloud, review_id)
+    assert submitted["cloud_mode"] == "routine" and submitted["branch"] == f"cloud/{job_id[:8]}"
+    assert submitted["claude_result_branch"] == f"claude/review-{review_id[:8]}"
+    assert "REVIEW.md" in submitted["objective"] and sha[:12] in submitted["objective"]
     review = _job(cloud, review_id)["review"]
     assert review["author"] == "codex" and review["reviewer"] == "claude" and review["pr_number"] == 100
 
@@ -770,8 +824,10 @@ def test_review_refuses_a_branch_that_advanced_past_the_landed_commit(cloud, cla
 
 def test_review_brief_pins_the_exact_commit(cloud, claude, gh, capsys):
     job_id, sha = _land_codex_job(cloud, capsys)
-    assert _review(cloud, reviewed=job_id) == 0
-    assert f"...{sha}`" in claude.calls()[-1]["argv"][1]
+    assert _review(cloud, "--json", reviewed=job_id) == 0
+    review_id = json.loads(capsys.readouterr().out.strip().splitlines()[-1])["job_id"]
+    review = _job(cloud, review_id)
+    assert f"...{sha}`" in review["objective"]
 
 
 def test_landing_resumes_after_the_pr_branch_push_when_the_pr_step_failed(cloud, gh, capsys, monkeypatch):
@@ -982,26 +1038,17 @@ def test_route_where_auto_shows_the_decision_and_why(routed, capsys, monkeypatch
 # --------------------------------------------------------------------------- #
 
 
-def test_claude_cloud_models_follow_the_tier_map(cloud, claude, capsys):
-    _set_cloud_config('\n[cloud.claude.models]\ncritical = "claude-opus-5-5"\ndefault = "claude-haiku-5-5"\n')
-
-    def model_of_last_call() -> str:
-        argv = claude.calls()[-1]["argv"]
-        return argv[argv.index("--model") + 1]
-
-    _claude_submit(cloud, capsys, "--tier", "critical")
-    assert model_of_last_call() == "claude-opus-5-5"
-    _claude_submit(cloud, capsys, "--tier", "basic", task="second")
-    assert model_of_last_call() == "claude-haiku-5-5"  # unmapped tier: the configured default
-    job = _claude_submit(cloud, capsys, "--tier", "critical", "--model", "claude-sonnet-5-5", task="third")
-    assert model_of_last_call() == "claude-sonnet-5-5"  # explicit --model wins
-    assert _job(cloud, job)["model"] == "claude-sonnet-5-5" and _job(cloud, job)["tier"] == "critical"
+def test_claude_routine_owns_its_model_despite_tier_map(cloud, claude, capsys):
+    _set_cloud_config('\n[cloud.claude.models]\ncritical = "claude-opus-5-5"\n')
+    job_id = _claude_submit(cloud, capsys, "--tier", "critical")
+    job = _job(cloud, job_id)
+    assert job["model"] is None and job["model_note"] == "the routine's own model applies"
+    assert claude.calls() == []
 
 
-def test_claude_cloud_default_model_is_sonnet_5_5(cloud, claude, capsys):
+def test_claude_routine_never_invokes_cli(cloud, claude, capsys):
     _claude_submit(cloud, capsys)
-    argv = claude.calls()[-1]["argv"]
-    assert argv[argv.index("--model") + 1] == "claude-sonnet-5-5" == _cloud.DEFAULT_CLAUDE_CLOUD_MODEL
+    assert claude.calls() == []
 
 
 def test_codex_cloud_uses_the_environment_model_and_refuses_overrides(cloud, capsys):
@@ -1097,7 +1144,8 @@ def test_per_provider_limits_are_in_addition_to_the_global_one(cloud, claude, ca
     _claude_submit(cloud, capsys)  # claude has its own room
     _claude_submit(cloud, capsys, task="second claude")
     assert cli.main(["run", "--where", "cloud", "--engine", "claude", "--cwd", str(cloud.repo), "--root", str(cloud.root),
-                     "--task", "third", "--no-brief-check", "--db", str(cloud.db), "--allow-cloud"]) == 2
+                     "--task", "third", "--no-brief-check", "--db", str(cloud.db), "--allow-cloud",
+                         "--routine", "test_main"]) == 2
     assert "claude cloud jobs are at their concurrency limit (2)" in capsys.readouterr().err
     assert len(_cloud.active_jobs(_store.build_store(cloud.db), "codex")) == 1
     assert len(_cloud.active_jobs(_store.build_store(cloud.db), "claude")) == 2

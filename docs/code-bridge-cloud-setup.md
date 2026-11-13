@@ -161,69 +161,49 @@ still `apply`, local commit, push, and PR creation.
 
 ## Part 2: Claude Code cloud sessions
 
-`--engine claude` runs `claude --cloud "<brief>"`: Claude Code starts a hosted
-session on claude.ai, which clones the repository from GitHub, does the work,
-and pushes a `claude/...` branch.
+Unattended bridge processes cannot invoke `claude --cloud`: Claude Code
+requires an interactive terminal for that flag. Configure a routine API
+trigger instead. Without `--routine NAME` or a configured default, the bridge
+fails early and points to this setup step.
 
 ### 1. Install the Claude GitHub App
 
-Install the app on the repository: <https://github.com/apps/claude>
-(**Configure → Only select repositories → your repo**). The hosted session
-uses it to clone and to push its `claude/...` branch. If you cannot install
-apps on the organization, ask an owner.
+Install the app on the repository: <https://github.com/apps/claude>. The
+hosted routine needs it to clone the repository and push its result branch.
 
-### 2. Log in with your claude.ai account
+### 2. Create an API-triggered routine
+
+At <https://claude.ai/code>, create a routine for the repository and branch,
+select its environment, and add an **API trigger**. Copy the routine id and
+store the token shown once in an environment variable (never in config):
 
 ```bash
-claude --version
-claude auth login      # opens the browser; sign in with your claude.ai account
-claude auth status     # if your CLI has it: shows the logged-in account
+export LAZYTOOLS_ROUTINE_NIGHTLY_TOKEN='<token>'
 ```
 
-- Cloud sessions need the **claude.ai login** (a Pro, Max, Team or Enterprise
-  plan). **API keys are not accepted** for `claude --cloud`; unset
-  `ANTHROPIC_API_KEY` in that shell if it is set.
-- The token is stored in `~/.claude/.credentials.json`. It expires: **log in
-  again every 30 days**. A submit that fails with a login/auth error tells you
-  to run `claude auth login`.
+### 3. Configure the routine
 
-### 3. Choose the default cloud environment
+```toml
+[cloud.claude]
+default_routine = "nightly" # optional; otherwise every run passes --routine nightly
 
-There is **no command-line flag to choose the environment** for
-`claude --cloud`. It uses the default environment selected for your account
-(or organization) at <https://claude.ai/code>:
-
-1. Open <https://claude.ai/code>, then the environment selector (**Environment
-   → Add / Edit**).
-2. **Setup script:** for example `pip install -e '.[dev]'`.
-3. **Network access:** keep the default limited access unless tasks need
-   more; avoid full access.
-4. **Environment variables:** only what the setup needs; never push tokens or
-   production secrets.
-5. Make it the **default** environment.
-
-The bridge records this on every job (`env_id = "claude.ai-default"` and an
-`environment_note`), so it is clear later which settings applied. No
-`[cloud.claude.envs]` table exists, and the config loader refuses one.
+[cloud.claude.routines.nightly]
+id = "trig_0123"
+token_env = "LAZYTOOLS_ROUTINE_NIGHTLY_TOKEN"
+repo = "owner/repository"
+branch = "main"
+```
 
 ### 4. Test
 
-From a checkout whose branch is pushed:
-
 ```bash
 lazytools-code-bridge run --where cloud --allow-cloud --engine claude \
-    --cwd <repo> --task "Add a one-line docstring to the main module"
+    --routine nightly --cwd <repo> --task "Add a one-line docstring"
 ```
 
-The bridge:
-
-1. checks that the branch (current, or `--branch B`) is on `origin` **at the
-   same commit** as your local branch. If you have unpushed commits it refuses
-   and shows the `git push` command. It never pushes for you;
-2. if your checkout is on a different branch, runs `claude` from a temporary
-   worktree on `B` and removes it afterwards (`claude --cloud` has no
-   `--branch` flag: it uses the current branch);
-3. records the session id and URL that `claude` prints.
+The routine's repository and branch must match the checkout and `--branch`.
+The bridge sends the brief through the routine fire API and records the
+returned session id and URL; it never tries to fake a TTY.
 
 ### 5. How results arrive
 
@@ -246,7 +226,7 @@ a session finished, and cannot read its transcript.
   concurrency place until you `cancel` it. `cancel` stops tracking only: stop
   the session itself at its URL.
 
-### 6. Optional: a routine with an API trigger
+### 6. Routine API details
 
 A **routine** is a saved Claude Code cloud task with its own repository,
 branch, environment and prompt. Firing one over HTTP needs no local `claude`

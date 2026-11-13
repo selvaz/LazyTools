@@ -21,7 +21,7 @@ The assistant:
    the claude.ai login, not an API key), and where `code-bridge.toml` is;
 2. **asks only for what exists only in a web UI**: which engines you want, the
    Codex Cloud environment id, confirmation that the Claude default
-   environment and the GitHub App are set up, and optional routine ids;
+   environment and the GitHub App are set up, and a routine API trigger is configured for every unattended Claude job (`claude --cloud` requires a TTY);
 3. **fills `code-bridge.toml`** minimally (`[cloud]`, `[cloud.codex.envs]`,
    `[cloud.claude.routines]`), keeping every existing table, and validates it
    with the bridge's own loader;

@@ -278,14 +278,15 @@ def test_cloud_rejects_local_only_flags(cloud, capsys):
     assert cloud.calls() == []
 
 
-def test_claude_cloud_uses_the_claude_provider(cloud, capsys, monkeypatch):
+def test_claude_cloud_requires_a_routine_before_starting_provider_cli(cloud, capsys, monkeypatch):
     monkeypatch.setenv("CLAUDE_BIN", str(cloud.root / "no-such-claude"))
     code = cli.main(
         ["run", "--where", "cloud", "--engine", "claude", "--cwd", str(cloud.repo), "--root", str(cloud.root),
          "--task", "x", "--no-brief-check", "--db", str(cloud.db), "--allow-cloud"]
     )
     assert code == 2
-    assert "could not start the Claude Code CLI" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "require a routine API trigger" in err and "default_routine" in err
     assert cloud.calls() == []  # never routed to codex
 
 

@@ -1176,49 +1176,29 @@ recorded under a different `--db` are not seen.
 
 ### Claude cloud sessions (`--engine claude`)
 
-Setup (GitHub App, `claude auth login`, default environment at claude.ai/code,
-optional routine) is in [Cloud setup → Part 2](code-bridge-cloud-setup.md#part-2-claude-code-cloud-sessions).
+Setup (GitHub App, routine API trigger, and token environment variable) is in
+[Cloud setup → Part 2](code-bridge-cloud-setup.md#part-2-claude-code-cloud-sessions).
 
-**Submit, CLI mode (default).** The bridge runs `claude --cloud "<brief>"
---output-format json` with no shell in between (`CLAUDE_BIN`, then `PATH`; a
-Windows `.cmd` shim is never executed). It retries once without
-`--output-format` if the CLI rejects that option. The hosted VM clones from
-GitHub and `--cloud` has no `--branch` flag, so the bridge:
-
-1. fetches the branch (`--branch`, default the current one) and **refuses**
-   if it is not on `origin` or the local branch differs from `origin/<branch>`.
-   It prints the `git push` command and **never pushes for you**;
-2. runs `claude` in your checkout if it is already on that branch, otherwise
-   in a temporary worktree on it (`cloud-worktrees/<job>-submit`, removed
-   after the submit);
-3. records the session id, URL and the raw output line (redacted). The
-   documented JSON shape is `{ok, session_id, url}`; a session URL or a
-   `session_...` id in plain text is accepted too.
-
-Auth is the claude.ai OAuth login (`claude auth login`; renewed every 30 days).
-API keys are not accepted. A login or auth failure says so. The cloud
-environment is the one selected at claude.ai/code. There is no CLI flag for
-it, so the job records `env_id = "claude.ai-default"` and an
-`environment_note`, and a `[cloud.claude.envs]` table is refused.
-
-**Submit, routine mode (`--routine NAME`).** `POST
-https://api.anthropic.com/v1/claude_code/routines/{id}/fire` with
-`Authorization: Bearer <token>`, `anthropic-version: 2026-10-21` and body
-`{"text": "<brief>"}`. The response's `claude_code_session_id` and
-`claude_code_session_url` are recorded (`cloud_mode = "routine"`,
-`env_id = "routine:NAME"`). The routine is configured as:
+**Submit, routine mode (`--routine NAME` or configured default).** The bridge is
+non-interactive, while `claude --cloud` requires an interactive terminal.
+Therefore unattended Claude jobs must use a routine API trigger; the bridge
+fails before invoking Claude when none is configured. Set an optional default:
 
 ```toml
+[cloud.claude]
+default_routine = "nightly"
+
 [cloud.claude.routines.nightly]
 id = "trig_0123"
 token_env = "LAZYTOOLS_ROUTINE_NIGHTLY_TOKEN"   # env var NAME; a literal token key is refused
-repo = "owner/repository"                        # the repository selected in the routine
-branch = "main"                                  # the branch selected in the routine
+repo = "owner/repository"                        # repository selected in the routine
+branch = "main"                                  # branch selected in the routine
 ```
 
-The token is read from that variable at submit, never stored, and masked in
-any error. The bridge verifies that `--cwd` and `--branch` match `repo` and
-`branch`, so it never monitors or diffs a checkout unrelated to the routine.
+Alternatively pass `--routine nightly`. The bridge posts the brief to the
+routine fire endpoint and records its session id and URL. The token is read
+from the named environment variable, never stored, and masked in errors. The
+bridge verifies that `--cwd` and `--branch` match the routine settings.
 
 **No status API (impossible by design).** Anthropic documents no endpoint
 to poll a cloud session's state or read its transcript, so the bridge cannot
