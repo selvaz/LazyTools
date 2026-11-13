@@ -1349,13 +1349,15 @@ def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval
         merged = _merged(store, registry, str(job["job_id"]))
         errors = int(merged.get("poll_errors_in_a_row") or 0)
         retry_after = _retry_after_seconds(str(merged.get("last_poll_error") or ""))
-        backoff = min(MAX_POLL_BACKOFF, interval * (2 ** max(0, errors - 1))) if errors else interval
-        delay = 0.0 if first else max(backoff, retry_after or 0.0)
+        exponent = min(63, max(0, errors - 1))
+        backoff = min(MAX_POLL_BACKOFF, interval * (2 ** exponent)) if errors else interval
+        delay = 0.0 if first and not errors and retry_after is None else max(backoff, retry_after or 0.0)
         # Randomisation prevents independent waiters from repeatedly waking in
         # lockstep. The durable reservation also serialises processes sharing
         # an account even when their random choices happen to coincide.
         delay += random.uniform(0.0, max(0.001, interval * 0.25))
-        _wait_for_poll_turn(store, str(merged.get("engine") or "cloud"), delay, deadline)
+        if not _wait_for_poll_turn(store, str(merged.get("engine") or "cloud"), interval, delay, deadline):
+            return merged
         first = False
         job = refresh(store, registry, merged)
         if job.get("status") in TERMINAL_STATUSES:
@@ -1369,20 +1371,27 @@ def _retry_after_seconds(error: str) -> float | None:
     return float(match.group(1)) if match else None
 
 
-def _wait_for_poll_turn(store: Any, account: str, minimum: float, deadline: float | None) -> None:
+def _wait_for_poll_turn(
+    store: Any, account: str, minimum_interval: float, delay: float, deadline: float | None,
+) -> bool:
     """Reserve and honour a store-backed per-account poll time."""
     key = f"{POLL_CLOCK_PREFIX}{account}"
     with _concurrency._guard(_concurrency.load_config().slot_dir):
         now = time.time()
         raw = store.read(key)
         previous = float(raw) if isinstance(raw, (int, float)) else 0.0
-        poll_at = max(now, previous) + minimum
+        poll_at = max(now + delay, previous + minimum_interval)
         store.write(key, poll_at)
     wait = max(0.0, poll_at - time.time())
     if deadline is not None:
-        wait = min(wait, max(0.0, deadline - time.monotonic()))
+        remaining = max(0.0, deadline - time.monotonic())
+        if wait > remaining:
+            if remaining:
+                time.sleep(remaining)
+            return False
     if wait:
         time.sleep(wait)
+    return True
 
 
 __all__ = [

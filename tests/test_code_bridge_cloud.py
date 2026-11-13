@@ -584,6 +584,55 @@ def test_wait_keeps_job_running_after_persistent_poll_failures(cloud, monkeypatc
     assert job["status"] == "running" and _cloud.active_jobs(store)
 
 
+def test_wait_caps_backoff_exponent_after_many_poll_failures(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    meta = _store.read_meta(store, job_id) or {}
+    meta["poll_errors_in_a_row"] = 1025
+    _store.write_meta(store, job_id, meta)
+    cloud.set_status("status: ready\nRecovered result.\n")
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud.time, "sleep", lambda _delay: None)
+
+    assert cli.main(["wait", job_id, "--db", str(cloud.db), "--interval", "0.01"]) == 0
+    assert "Recovered result." in capsys.readouterr().out
+
+
+def test_poll_clock_spaces_first_poll_from_separate_waiters(cloud, monkeypatch):
+    stores = [_store.build_store(cloud.db), _store.build_store(cloud.db)]
+    now = [100.0]
+    sleeps = []
+    monkeypatch.setattr(_cloud.time, "time", lambda: now[0])
+
+    def sleep(delay):
+        sleeps.append(delay)
+        now[0] += delay
+
+    monkeypatch.setattr(_cloud.time, "sleep", sleep)
+    for store in stores:
+        assert _cloud._wait_for_poll_turn(store, "codex", 5.0, 0.0, None)
+
+    assert sleeps == [5.0]
+
+
+def test_wait_deadline_does_not_poll_before_reserved_turn(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    store.write(f"{_cloud.POLL_CLOCK_PREFIX}codex", _cloud.time.time() + 120.0)
+    sleeps = []
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud.time, "sleep", sleeps.append)
+
+    def unexpected_refresh(*_args, **_kwargs):
+        pytest.fail("refresh issued a provider poll before the reserved turn")
+
+    monkeypatch.setattr(_cloud, "refresh", unexpected_refresh)
+    result = _cloud.wait_job(lambda: _store.build_store(cloud.db), job_id, timeout=1.0, interval=5.0)
+
+    assert result is not None and result["status"] == "running"
+    assert len(sleeps) == 1 and 0.0 < sleeps[0] <= 1.0
+
+
 def test_unparseable_status_output_never_fails_job(cloud, capsys):
     job_id = _submit(cloud, capsys)
     cloud.set_status("something we do not understand\n")  # exit 0, but names no status
