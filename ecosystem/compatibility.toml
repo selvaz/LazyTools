@@ -22,13 +22,13 @@ schema_version = 1
 # environment uses exactly these refs. LazyFin is deliberately outside the train.
 [verified]
 python = ["3.11", "3.12", "3.13"]
-lazybridge = "1.8.4"
+lazybridge = "1.8.7"
 
 # Immutable GitHub refs of the verified, co-installable combination.
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.10.5"
+ref = "v0.10.6"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
@@ -44,17 +44,17 @@ ref = "v0.3.28"  # production since 2026-11-12
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
-ref = "v0.3.10"  # its contract extra still pins market-data-hub v0.3.22 (needs a release pinning v0.3.28)
+ref = "v0.3.11"  # contract extra pins market-data-hub v0.3.28
 extras = ["regimes"]
 
 [verified.github.lazyportfolio]
 repo = "https://github.com/selvaz/LazyPortfolio"
-ref = "v0.2.10"  # its datacore extra still pins market-data-hub v0.3.22: needs a release pinning v0.3.28 (must move together)
+ref = "v0.2.11"  # datacore extra pins market-data-hub v0.3.28
 extras = ["datacore"]
 
 [verified.github.lazyray]
 repo = "https://github.com/selvaz/LazyRay"
-ref = "v0.2.10"  # still pins market-data-hub v0.3.22 (needs a release pinning v0.3.28) and lazytoolkit v0.10.5 itself
+ref = "v0.2.11"  # pins market-data-hub v0.3.28, lazytoolkit v0.10.6 and lazybridge 1.8.7
 
 [verified.github.lazydataspace]
 repo = "https://github.com/selvaz/DataSpace"

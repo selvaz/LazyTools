@@ -9,7 +9,7 @@ is the reverse direction: it imports another server's tools into an agent.
 **LazyTools 0.10.5 is Alpha.** Install the coding runtime dependencies too:
 
 ```sh
-python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.5"
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.6"
 ```
 
 ## Collaboration setup
