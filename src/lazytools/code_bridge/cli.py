@@ -812,6 +812,65 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_cloud_stop(args: argparse.Namespace) -> int:
+    """Stop provider work, rather than only dropping local tracking."""
+    from lazytools.code_bridge import _cloud_stop
+
+    store = _store.build_store(_db_path(args))
+    registry = _store.build_job_registry(store)
+    targets: list[tuple[str, str, dict[str, Any] | None]] = []
+    errors: list[dict[str, str]] = []
+    if args.all_running:
+        try:
+            targets.extend(("codex", handle, None) for handle in _cloud_stop.codex_running())
+        except Exception as exc:
+            errors.append({"provider": "codex", "status": "failed", "reason": _cloud.redact(str(exc))})
+        for job in _cloud.active_jobs(store):
+            handle = job.get("cloud_handle")
+            if handle:
+                try:
+                    provider, ident = _cloud_stop.resolve_handle(str(handle))
+                    targets.append((provider, ident, job))
+                except Exception as exc:
+                    errors.append({"handle": _cloud.redact(str(handle)), "status": "failed", "reason": _cloud.redact(str(exc))})
+    else:
+        found = _jobs.find_job(store, registry, args.target)
+        value = str(found.get("cloud_handle")) if found and found.get("cloud_handle") else args.target
+        try:
+            provider, ident = _cloud_stop.resolve_handle(value)
+            targets.append((provider, ident, found))
+        except Exception as exc:
+            errors.append({"handle": _cloud.redact(value), "status": "failed", "reason": _cloud.redact(str(exc))})
+
+    unique: dict[tuple[str, str], tuple[str, str, dict[str, Any] | None]] = {}
+    for target in targets:
+        key = target[:2]
+        previous = unique.get(key)
+        unique[key] = target if target[2] is not None or previous is None else previous
+    results: list[dict[str, Any]] = []
+    for provider, handle, owner_job in unique.values():
+        if args.dry_run:
+            result: dict[str, Any] = {"provider": provider, "handle": handle, "status": "would stop"}
+        else:
+            try:
+                result = _cloud_stop.stop(provider, handle)
+                if owner_job is not None and result.get("status") in ("stopped", "already finished"):
+                    _cloud.mark_interrupted(store, registry, str(owner_job["job_id"]), "cloud stop requested by operator")
+                    result["job_id"] = owner_job["job_id"]
+            except Exception as exc:
+                result = {"provider": provider, "handle": handle, "status": "failed", "reason": _cloud.redact(str(exc))}
+        results.append(result)
+    results.extend(errors)
+    safe = _cloud.redact_obj(results)
+    if args.json:
+        _print_json(safe)
+    else:
+        for item in safe:
+            suffix = f": {item['reason']}" if item.get("reason") else ""
+            print(f"{item.get('provider', 'cloud')} {item.get('handle', '')}: {item['status']}{suffix}")
+    return 1 if any(item.get("status") == "failed" for item in safe) else 0
+
+
 def _cancel_cloud(store: Any, registry: Any, job: dict[str, Any], reason: str) -> int:
     """Stop tracking a cloud job locally (frees its cloud place). The task itself keeps running remotely."""
     job_id = str(job["job_id"])
@@ -1385,6 +1444,17 @@ def build_parser() -> argparse.ArgumentParser:
     cancel_p.add_argument("--reason", default="requested cancellation", help="Reason recorded with the interruption.")
     _add_db_option(cancel_p)
     cancel_p.set_defaults(func=_cmd_cancel)
+
+    stop_p = sub.add_parser(
+        "cloud-stop", help="Stop a Codex Cloud task or request that a Claude Code cloud session stop."
+    )
+    stop_target = stop_p.add_mutually_exclusive_group(required=True)
+    stop_target.add_argument("target", nargs="?", help="Task URL, task/session id, or bridge job id.")
+    stop_target.add_argument("--all-running", action="store_true", help="Stop account-wide Codex tasks and running bridge cloud jobs.")
+    stop_p.add_argument("--dry-run", action="store_true", help="List targets without making provider requests.")
+    stop_p.add_argument("--json", action="store_true", help="Emit machine-readable results for Agent Radar.")
+    _add_db_option(stop_p)
+    stop_p.set_defaults(func=_cmd_cloud_stop)
 
     result_p = sub.add_parser(
         "result", help="Show one job's result or error, including workspace evidence for unfinished jobs."
