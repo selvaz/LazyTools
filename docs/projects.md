@@ -402,8 +402,8 @@ Writes require `allow_write=True` programmatically or the server's
 
 | Profile | Read-only menu | Write-enabled menu | Included work |
 | --- | --- | --- | --- |
-| `core` | 10 tools | 18 tools | Registry, schedule/timeline/Gantt, board summary, quota/brake status, cost/jobs; create, review/promote, owner/deadline/notes/plan/scheduling writes |
-| `full` | 16 tools | 39 tools | Core plus contracts, verification history/decisions, accepted-task closure, brake writes and additional lifecycle operations |
+| `core` | 10 tools | 20 tools | Registry, schedule/timeline/Gantt, board summary, quota/brake status, cost/jobs; create, review/promote, owner/deadline/notes/plan/scheduling writes; open a task contract and close a contract-backed task |
+| `full` | 16 tools | 40 tools | Core plus contracts, verification history/decisions, accepted-task closure, brake writes and additional lifecycle operations |
 
 These counts come from the current `as_tools()` output, including the added
 Gantt tool; the old “all 37” count was stale. Exposing `full` does not delegate

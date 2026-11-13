@@ -128,6 +128,10 @@ CORE_TOOLS = frozenset(
         "projects_promote",
         "projects_set_owner",
         "projects_set_deadline",
+        # A contract-backed task can only be closed through its contract, so a
+        # profile that closes contracts must also be able to open them;
+        # otherwise sessions bypass the tool with direct library calls.
+        "projects_open_contract",
         "projects_close_task",
         "projects_add_note",
         "projects_revise_plan",
