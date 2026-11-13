@@ -22,7 +22,29 @@ from lazytools.mcp_server import (
 from lazytools.mcp_server.server import UNSAFE_TOOL_PATTERNS
 
 mcp = pytest.importorskip("mcp")
-from mcp.shared.memory import create_connected_server_and_client_session
+
+
+def _connected_client(server):
+    """In-process MCP client for whichever SDK is installed.
+
+    SDK 1 ships ``create_connected_server_and_client_session``. SDK 2
+    removed it; ``Client(server)`` is the replacement and speaks the
+    server's protocol itself.
+    """
+    try:
+        from mcp import Client
+    except ImportError:
+        from mcp.shared.memory import create_connected_server_and_client_session
+
+        return create_connected_server_and_client_session(server)
+    return Client(server)
+
+
+def _field(obj, snake: str, camel: str):
+    """Read a protocol attribute under the SDK 2 or SDK 1 spelling."""
+    if hasattr(obj, snake):
+        return getattr(obj, snake)
+    return getattr(obj, camel)
 
 # --------------------------------------------------------------------------- #
 # expand_tools: isolation, read-only guard, collisions
@@ -199,16 +221,18 @@ async def test_end_to_end_list_and_call():
 
     server = build_server([DataHubTools(backend=backend)], name="lazytools-test")
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with _connected_client(server) as client:
         listed = await client.list_tools()
         names = {t.name for t in listed.tools}
         assert "datahub_list_datasets" in names
-        # inputSchema is passed through verbatim as a JSON-Schema object
-        schema = next(t.inputSchema for t in listed.tools if t.name == "datahub_list_datasets")
+        # inputSchema is passed through verbatim as a JSON-Schema object.
+        # SDK 2 exposes it as input_schema; SDK 1 as inputSchema.
+        tool = next(t for t in listed.tools if t.name == "datahub_list_datasets")
+        schema = _field(tool, "input_schema", "inputSchema")
         assert schema["type"] == "object"
 
         result = await client.call_tool("datahub_list_datasets", {})
-        assert not result.isError
+        assert not _field(result, "is_error", "isError")
         payload = json.loads(result.content[0].text)
         assert payload == [{"id": "prices", "name": "Prices"}]
 
@@ -221,9 +245,9 @@ async def test_call_tool_error_is_reported_not_raised():
     prov = _Provider(Tool.wrap(explode, name="datahub_boom", description="x"))
     server = build_server([prov], name="lazytools-test")
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with _connected_client(server) as client:
         result = await client.call_tool("datahub_boom", {})
-        assert result.isError
+        assert _field(result, "is_error", "isError")
         assert "kaboom" in result.content[0].text
 
 

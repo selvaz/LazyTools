@@ -296,31 +296,127 @@ def build_server(
     tool_map = expand_tools(providers, read_only=read_only, unsafe_patterns=unsafe_patterns)
     logger.info("LazyTools MCP server exposing %d tool(s): %s", len(tool_map), ", ".join(sorted(tool_map)))
 
-    server: Server = Server(name, version=version, instructions=instructions)
+    listed = _mcp_tool_models(types, tool_map)
+    # SDK 2 dropped the decorator registration API. ``getattr`` keeps the
+    # SDK 1 branch from being type-checked against a SDK 2 ``Server``.
+    if _mcp_is_v2():
+        return _build_server_v2(
+            Server,
+            types,
+            name=name,
+            version=version,
+            instructions=instructions,
+            listed=listed,
+            tool_map=tool_map,
+        )
 
-    @server.list_tools()
-    async def _list_tools() -> list[types.Tool]:
-        listed: list[types.Tool] = []
-        for tool in tool_map.values():
-            definition = tool.definition()
-            listed.append(
-                types.Tool(
-                    name=definition.name,
-                    description=definition.description or "",
-                    inputSchema=definition.parameters,
-                )
-            )
+    # SDK 1 treats a missing version as "use the mcp package version".
+    # ``""`` is falsy there, and it is the type SDK 2's constructor requires,
+    # so the same call type-checks against either installed SDK.
+    server: Server = Server(name, version=version or "", instructions=instructions)
+
+    async def _list_tools() -> list[Any]:
         return listed
 
-    @server.call_tool()
-    async def _call_tool(tool_name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
-        tool = tool_map.get(tool_name)
-        if tool is None:
-            return [types.TextContent(type="text", text=f"Unknown tool: {tool_name!r}")]
-        result = await tool.run(**(arguments or {}))
-        return [types.TextContent(type="text", text=result_to_text(result))]
+    async def _call_tool(tool_name: str, arguments: dict[str, Any]) -> list[Any]:
+        # SDK 1's decorator turns a raised exception into an ``isError``
+        # result. Let it propagate so that behaviour is unchanged.
+        return await _call_tool_content(types, tool_map, tool_name, arguments)
 
+    # Names are strings so this stays valid when type-checking against SDK 2,
+    # whose ``Server`` no longer has these decorator methods.
+    _decorate(server, "list_tools", _list_tools)
+    _decorate(server, "call_tool", _call_tool)
     return server
+
+
+def _decorate(server: Any, method: str, handler: Any) -> None:
+    """Register an SDK 1 decorator handler (``list_tools`` / ``call_tool``)."""
+    getattr(server, method)()(handler)
+
+
+def _mcp_is_v2() -> bool:
+    """True when the installed official SDK is 2.x or newer."""
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as dist_version
+
+    try:
+        return int(dist_version("mcp").split(".", 1)[0]) >= 2
+    except (PackageNotFoundError, ValueError):  # pragma: no cover - injected stubs
+        return False
+
+
+def _mcp_tool_models(types: Any, tool_map: dict[str, Tool]) -> list[Any]:
+    """One MCP ``Tool`` per LazyBridge tool.
+
+    ``inputSchema=`` is the wire name. SDK 2 accepts it as an alias for
+    ``input_schema``; SDK 1 uses it as the field name. The schema itself is
+    passed through unchanged.
+    """
+    listed: list[Any] = []
+    for tool in tool_map.values():
+        definition = tool.definition()
+        listed.append(
+            types.Tool(
+                name=definition.name,
+                description=definition.description or "",
+                inputSchema=definition.parameters,
+            )
+        )
+    return listed
+
+
+async def _call_tool_content(
+    types: Any,
+    tool_map: dict[str, Tool],
+    tool_name: str,
+    arguments: dict[str, Any] | None,
+) -> list[Any]:
+    tool = tool_map.get(tool_name)
+    if tool is None:
+        return [types.TextContent(type="text", text=f"Unknown tool: {tool_name!r}")]
+    result = await tool.run(**(arguments or {}))
+    return [types.TextContent(type="text", text=result_to_text(result))]
+
+
+def _build_server_v2(
+    server_cls: Any,
+    types: Any,
+    *,
+    name: str,
+    version: str | None,
+    instructions: str | None,
+    listed: list[Any],
+    tool_map: dict[str, Tool],
+) -> Any:
+    """SDK 2 low-level server: handlers are constructor arguments.
+
+    The decorator no longer catches tool exceptions and turns them into
+    ``isError`` results, so this handler does that itself. A protocol-level
+    failure would otherwise hide the message from the calling model.
+    """
+
+    async def _on_list_tools(_ctx: Any, _params: Any) -> Any:
+        return types.ListToolsResult(tools=listed)
+
+    async def _on_call_tool(_ctx: Any, params: Any) -> Any:
+        try:
+            content = await _call_tool_content(types, tool_map, params.name, params.arguments)
+        except Exception as exc:
+            return types.CallToolResult(
+                content=[types.TextContent(type="text", text=str(exc))],
+                is_error=True,
+            )
+        return types.CallToolResult(content=content)
+
+    # ``version`` is a plain str on SDK 2 (empty when the caller omitted it).
+    return server_cls(
+        name,
+        version=version or "",
+        instructions=instructions,
+        on_list_tools=_on_list_tools,
+        on_call_tool=_on_call_tool,
+    )
 
 
 async def serve_stdio(server: Server) -> None:
