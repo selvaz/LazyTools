@@ -25,7 +25,8 @@ class Response:
 def _credentials(monkeypatch, tmp_path, token="super-secret-token-value"):
     codex = tmp_path / "codex"
     claude = tmp_path / "claude"
-    codex.mkdir(); claude.mkdir()
+    codex.mkdir()
+    claude.mkdir()
     (codex / "auth.json").write_text(json.dumps({"tokens": {"access_token": token}}))
     (claude / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": token}}))
     monkeypatch.setenv("CODEX_HOME", str(codex))

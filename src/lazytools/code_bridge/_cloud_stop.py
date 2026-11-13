@@ -14,8 +14,9 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from lazytools.code_bridge._cloud import redact
 
@@ -143,7 +144,8 @@ def codex_running() -> list[str]:
         if state in ("pending", "running", "in_progress", "queued") and handle:
             try:
                 provider, task_id = resolve_handle(str(handle))
-                if provider == "codex": found.append(task_id)
+                if provider == "codex":
+                    found.append(task_id)
             except StopError:
                 pass
     return found
