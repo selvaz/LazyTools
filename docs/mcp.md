@@ -62,7 +62,8 @@ Stdio and Streamable HTTP go through a small compatibility layer: SDK 2 uses
 `mcp.Client(stdio_client(...))` for stdio (2.0.0 does not accept a bare
 `StdioServerParameters`; that shorthand arrived in 2.1) and
 `streamable_http_client` for HTTP, with request headers on an `httpx2`
-client; SDK 1 keeps `ClientSession` plus `stdio_client` /
+client that follows redirects (SDK 2.0's default; a trailing-slash 307 must
+not fail just because a header was set); SDK 1 keeps `ClientSession` plus `stdio_client` /
 `streamablehttp_client`. `MCP.stdio(...)`, `MCP.http(...)`, and
 `as_tools()` behave the same on both.
 
