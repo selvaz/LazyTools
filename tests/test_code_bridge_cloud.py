@@ -233,7 +233,16 @@ def test_parse_remote(url):
 # --------------------------------------------------------------------------- #
 
 
+def test_submit_refuses_a_branch_missing_on_origin(cloud, capsys):
+    code = _run_cloud(cloud, "--branch", "task/n11", "--json")
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "task/n11" in err and "does not exist on the 'origin' remote" in err and "base branch" in err
+    assert cloud.calls() == []  # nothing reached the cloud CLI
+
+
 def test_submit_stores_handle_and_where_cloud(cloud, capsys):
+    _git(cloud.repo, "push", "-q", "origin", "main:refs/heads/feature-x")
     code = _run_cloud(cloud, "--branch", "feature-x", "--json")
     assert code == 0
     payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])

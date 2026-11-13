@@ -1342,7 +1342,8 @@ def build_parser() -> argparse.ArgumentParser:
         "Never force-pushes.",
     )
     run_p.add_argument(
-        "--branch", default=None, help="--where cloud only: remote branch the cloud agent starts from (default: current)."
+        "--branch", default=None, help="--where cloud only: the base branch the cloud agent starts from; it must exist on origin "
+        "(default: current)."
     )
     run_p.add_argument(
         "--routine",
