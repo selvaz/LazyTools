@@ -302,8 +302,16 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
             names = ", ".join(repr(name) for name in unexpected)
             raise CloudError(f"unexpected untracked file(s) remain after cloud apply: {names}; refusing to land")
         if changed_files:
-            stage_paths = [name for name in changed_files if os.path.lexists(wt / name)
-                           or _cloud._git(wt, "ls-files", "--", name, check=False)]
+            stage_paths = []
+            for name in changed_files:
+                path = wt / name
+                if os.path.lexists(path):
+                    # `git add -f` recurses when given a directory, which could
+                    # admit ignored files that were not part of the provider diff.
+                    if path.is_file() or path.is_symlink():
+                        stage_paths.append(name)
+                elif _cloud._git(wt, "ls-files", "--", name, check=False):
+                    stage_paths.append(name)  # A tracked path deleted by the diff.
             ignored = [name for name in stage_paths
                        if _cloud._git(wt, "check-ignore", "--", name, check=False)]
             # Force only the provider diff's explicit path list. This admits a

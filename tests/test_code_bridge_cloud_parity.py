@@ -415,6 +415,26 @@ def test_land_force_adds_only_ignored_paths_from_cloud_diff_and_reports_them(clo
     assert _git(cloud.repo, "show", "--format=", "--name-only", job["pushed_sha"]).splitlines() == ["data/endpoints.yaml"]
 
 
+def test_land_does_not_force_add_ignored_files_beneath_replaced_file(cloud, gh, capsys, monkeypatch):
+    (cloud.repo / "config").write_text("legacy=true\n", encoding="utf-8")
+    (cloud.repo / ".gitignore").write_text("config/token.secret\n", encoding="utf-8")
+    _git(cloud.repo, "add", "config", ".gitignore")
+    _git(cloud.repo, "commit", "-q", "-m", "add legacy config")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "file-to-directory")
+
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+
+    staged = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
+    tree = _git(cloud.repo, "ls-tree", "-r", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert staged == ["config", "config/settings"]
+    assert "config/settings" in tree
+    assert "config/token.secret" not in tree
+
+
 def test_land_stages_both_sides_of_a_rename(cloud, gh, capsys, monkeypatch):
     monkeypatch.setenv("FAKE_CODEX_SHAPE", "rename")
     job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]

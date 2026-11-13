@@ -66,6 +66,8 @@ FAKE_CODEX = textwrap.dedent(
         print("diff --git a/README.md b/RENAMED.md")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "ignored":
         print("diff --git a/data/endpoints.yaml b/data/endpoints.yaml")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "file-to-directory":
+        print("diff --git a/config b/config/settings")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") in ("symlink", "mixed-symlink"):
         print("diff --git a/dangling-link b/dangling-link")
         if os.environ.get("FAKE_CODEX_SHAPE") == "mixed-symlink":
@@ -86,6 +88,11 @@ FAKE_CODEX = textwrap.dedent(
         elif shape == "ignored":
             Path("data").mkdir(exist_ok=True)
             Path("data/endpoints.yaml").write_text("endpoint: public\\n", encoding="utf-8")
+        elif shape == "file-to-directory":
+            Path("config").unlink()
+            Path("config").mkdir()
+            Path("config/settings").write_text("theme=dark\\n", encoding="utf-8")
+            Path("config/token.secret").write_text("not-provider-output\\n", encoding="utf-8")
         elif shape in ("symlink", "mixed-symlink"):
             Path("dangling-link").symlink_to("missing-target")
             if shape == "mixed-symlink":
