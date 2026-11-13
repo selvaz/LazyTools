@@ -143,7 +143,7 @@ def test_submit_runs_claude_cloud_from_the_pushed_checkout(cc, capsys):
     assert call["argv"][0] == "--cloud"
     assert call["argv"][1].startswith(_cloud.CLOUD_PREAMBLE)
     assert "Add a feature" in call["argv"][1] and job_branch(payload) in call["argv"][1]
-    assert call["argv"][2:] == ["--output-format", "json"]
+    assert call["argv"][2:] == ["--model", _cloud.DEFAULT_CLAUDE_CLOUD_MODEL, "--output-format", "json"]
     assert Path(call["cwd"]).resolve() == cc.repo.resolve() and call["branch"] == "main"
     job = _job(cc, payload["job_id"])
     assert job["cloud_mode"] == "cli" and job["claude_session_id"] == "session_abc123def"

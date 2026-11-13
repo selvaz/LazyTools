@@ -47,22 +47,41 @@ FAKE_CODEX = textwrap.dedent(
         counter.write_text(str(n))
         url = os.environ["FAKE_CODEX_URL"] + ("" if n == 1 else str(n))
         print("Submitted task. View it at " + url)
+    elif verb == "list":
+        print(Path(os.environ["FAKE_CODEX_LIST"]).read_text(encoding="utf-8"), end="")
     elif verb == "status":
-        text = Path(os.environ["FAKE_CODEX_STATUS"]).read_text(encoding="utf-8")
+        # A per-task status file (<status file>.<last url segment>) wins over the shared one.
+        per_task = Path(os.environ["FAKE_CODEX_STATUS"] + "." + args[2].rsplit("/", 1)[-1])
+        text = (per_task if per_task.exists() else Path(os.environ["FAKE_CODEX_STATUS"])).read_text(encoding="utf-8")
         print(text, end="")
         # Like the real CLI: a task that ended in ERROR exits 1 (and still prints its status).
         if re.search(r"(?im)^\\s*(?:\\[error\\]|.*\\bstatus\\s*[:=]\\s*\\[?error\\b)", text):
             sys.exit(1)
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_DIFF"):
+        print(Path(os.environ["FAKE_CODEX_DIFF"]).read_text(encoding="utf-8"), end="")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "space":
+        print("diff --git a/with space.txt b/with space.txt")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "rename":
+        print("diff --git a/README.md b/RENAMED.md")
     elif verb == "diff":
-        print("diff --git a/src/app.py b/src/app.py")
-        print("--- a/src/app.py")
-        print("+++ b/src/app.py")
-        print("@@ -1 +1,2 @@")
-        print("-old")
-        print("+new")
-        print("+more")
+        print("diff --git a/cloud_change.txt b/cloud_change.txt")
+        print("new file mode 100644")
+        print("--- /dev/null")
+        print("+++ b/cloud_change.txt")
+        print("@@ -0,0 +1 @@")
+        print("+applied by cloud")
     elif verb == "apply":
-        Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
+        shape = os.environ.get("FAKE_CODEX_SHAPE")
+        if shape == "space":
+            Path("with space.txt").write_text("spaced\\n", encoding="utf-8")
+        elif shape == "rename":
+            Path("README.md").rename("RENAMED.md")
+        elif not os.environ.get("FAKE_CODEX_NOCHANGE"):
+            Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
+        if os.environ.get("FAKE_CODEX_ERROR_LOG"):
+            Path("error.log").write_text("account_id=acct-secret\\n", encoding="utf-8")
+        if os.environ.get("FAKE_CODEX_UNEXPECTED"):
+            Path("unexpected.tmp").write_text("tool scratch\\n", encoding="utf-8")
         print("Applied task " + args[2] + " to the working tree")
     else:
         sys.exit(65)
@@ -97,6 +116,13 @@ def cloud(tmp_path, monkeypatch):
     monkeypatch.setenv("FAKE_CODEX_STATUS", str(status_file))
     monkeypatch.delenv("FAKE_CODEX_FAIL", raising=False)
     monkeypatch.delenv("FAKE_CODEX_PARTIAL", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_DIFF", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_NOCHANGE", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_ERROR_LOG", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_UNEXPECTED", raising=False)
+    list_file = tmp_path / "list.json"
+    list_file.write_text("[]", encoding="utf-8")
+    monkeypatch.setenv("FAKE_CODEX_LIST", str(list_file))
     for key, value in {
         "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
         "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid",
@@ -130,6 +156,7 @@ def cloud(tmp_path, monkeypatch):
     ctx.root = tmp_path / "work"
     ctx.calls = lambda: [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()] if log.exists() else []
     ctx.set_status = lambda text: status_file.write_text(text, encoding="utf-8")
+    ctx.list_file = list_file
     return ctx
 
 
@@ -302,10 +329,13 @@ def test_parse_status_keeps_message():
 
 
 def test_summarize_diff():
-    diff = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n-x\n+y\n+z\ndiff --git a/b.py b/b.py\n+q\n"
+    diff = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n-x\n+y\n+z\n"
+        "diff --git a/old.py b/new.py\n+q\n"
+    )
     summary = _cloud.summarize_diff(diff)
-    assert summary.files == ["a.py", "b.py"] and summary.added == 3 and summary.removed == 1
-    assert "2 file(s) changed, +3 -1" in summary.text()
+    assert summary.files == ["a.py", "old.py", "new.py"] and summary.added == 3 and summary.removed == 1
+    assert "3 file(s) changed, +3 -1" in summary.text()
 
 
 def _submit(cloud, capsys) -> str:
@@ -345,7 +375,7 @@ def test_wait_and_result_show_message_and_diff(cloud, capsys):
     out = capsys.readouterr().out
     assert "[done] cloud job" in out
     assert "Added the feature and tests." in out
-    assert "diff: 1 file(s) changed, +2 -1" in out and "src/app.py" in out
+    assert "diff: 1 file(s) changed, +1 -0" in out and "cloud_change.txt" in out
     assert ["cloud", "diff", TASK_URL] in [c["argv"] for c in cloud.calls()]
 
 

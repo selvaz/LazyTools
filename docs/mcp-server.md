@@ -130,6 +130,7 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `projects` | `ProjectsTools()` | records, owner, plans, schedule/Gantt, quota, notes, cost; full profile adds contracts/verification | configured Store for persistence; writes need `--allow-unsafe` |
 | `code_write` | `CodeWriteTools(...)` | `codex_write`, `claude_code_write` | `--allow-unsafe`, local runtimes; Claude needs `[engines]` |
 | `code_sessions` | `CodeSessionTools(...)` | list/bind/rename/forget native aliases | explicit opt-in with `--allow-unsafe` |
+| `code_bridge` | `CodeBridgeTools(...)` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` — local and cloud coding jobs through `lazytools-code-bridge` | `--allow-unsafe`; cloud jobs also need `allow_cloud=true` per call |
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
 | `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — Tools that delegate through `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
 
@@ -357,7 +358,29 @@ already have (`bind`), rename, or drop a name (`forget` never deletes the
 underlying conversation); they are only served with `--allow-unsafe`, and
 `repo_path` is confined to the code root like every other path.
 
+### `code_bridge` — local and cloud coding jobs for other agents
+
+```text
+code_bridge_submit(task, cwd=None, engine=None, where=None, tier=None, model=None, branch=None,
+                   pr=None, open_pr=False, land=False, rebase_ok=False, review_of=None, allow_cloud=False) -> dict
+code_bridge_status(job_id) -> dict
+code_bridge_result(job_id) -> dict
+```
+
+The agent-facing twin of `lazytools-code-bridge run | status | result` (see
+[Code bridge](code-bridge.md)): each tool runs that command and returns its JSON,
+so one agent can hand work to Codex or Claude Code, local or in the cloud, and
+read the outcome the way a person would. `where="auto"` (or `[cloud]
+default_where`) places the job; `land=true` lands a finished cloud job (commit,
+push, PR) without anyone running `apply`; `review_of=<job>` runs the opposite
+engine and posts an independent-review comment on that job's PR. `cwd` is
+confined to the code root, a task may not start with `@`, and a cloud job needs
+`allow_cloud=true` on each call. Approving a gated action up front
+(`--approve-cloud`) is not exposed: a brief that asks for a push or merge is
+refused, and a person decides. Only served with `--allow-unsafe`.
+
 ## Safety model
+
 
 Structured tool results use strict JSON: non-finite floats (`NaN`, positive or
 negative infinity, including NumPy floats) and pandas NA become `null` recursively.
