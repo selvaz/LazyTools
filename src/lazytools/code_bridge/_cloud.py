@@ -61,6 +61,7 @@ must stay local jobs.
 from __future__ import annotations
 
 import json
+import random
 import re
 import shutil
 import subprocess
@@ -93,13 +94,15 @@ TERMINAL_STATUSES = ("done", "partial", "failed", "interrupted")
 #: so only lowercase hex (8-32 digits, what ``uuid4().hex`` produces) or a
 #: canonical UUID is accepted -- never anything that could be a path.
 JOB_ID_RE = re.compile(r"[0-9a-f]{8,32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-#: After this many polls in a row that failed or returned output naming no
-#: status, the job is marked ``failed`` (a terminal status, so ``wait`` stops
-#: and the cloud place is freed) with a redacted reason.
+#: Retained for API compatibility. Poll failures are never terminal: only a
+#: provider-reported terminal task state may change a job to a terminal state.
 MAX_CONSECUTIVE_POLL_ERRORS = 5
 #: ``wait`` on a cloud job never runs unbounded: without ``--timeout`` it
 #: gives up after this many seconds (exit 3).
 DEFAULT_CLOUD_WAIT_TIMEOUT = 2 * 3600.0
+MAX_POLL_BACKOFF = 60.0
+POLL_CLOCK_PREFIX = "code-bridge:cloud-poll-clock:"
+_RETRY_AFTER_RE = re.compile(r"(?i)retry-after(?:\s+header)?\s*[:=]?\s*(\d+(?:\.\d+)?)")
 #: Actions a local job's BridgeGate would hold for a human ticket, as
 #: ``--approve-cloud`` names. A cloud agent's commands cannot be gated one by
 #: one, so a brief that asks for one is refused unless the operator approves
@@ -836,10 +839,9 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     A terminal record is returned unchanged. A record still "submitting"
     (no handle yet) is returned unchanged too. A failed poll -- the CLI
     erred without naming a status, or its output names no status at all --
-    is recorded as ``last_poll_error`` and the job stays running, up to
-    :data:`MAX_CONSECUTIVE_POLL_ERRORS` in a row; the poll that reaches that
-    bound marks the job ``failed`` with the (redacted) last reason, so no
-    caller waits forever on output it cannot read.
+    is recorded as ``last_poll_error`` and the job stays running. Transport
+    failures are observations about the poll, not task states, and therefore
+    can never make a cloud job terminal.
     """
     if job.get("status") in TERMINAL_STATUSES or not job.get("cloud_handle"):
         return job
@@ -853,7 +855,7 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
             state = job_status(job, claimed=_claimed_result_branches(store, job_id, job.get("repo")))
         else:
             state = prov.status(str(job["cloud_handle"]))
-    except CloudError as exc:
+    except (CloudError, OSError, subprocess.TimeoutExpired) as exc:
         poll_error = redact(str(exc))
     else:
         if not state.raw_status:
@@ -861,11 +863,7 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     if poll_error is not None:
         errors = int(job.get("poll_errors_in_a_row") or 0) + 1
         updates = {"last_poll_error": poll_error, "last_polled_at": time.time(), "poll_errors_in_a_row": errors}
-        if errors >= MAX_CONSECUTIVE_POLL_ERRORS:
-            _write_unless_terminal(store, registry, job_id, updates, status="failed",
-                                   error=f"cloud status unreadable after {errors} polls in a row; last: {poll_error}")
-        else:
-            _write_unless_terminal(store, registry, job_id, updates, status=str(job.get("status") or "running"))
+        _write_unless_terminal(store, registry, job_id, updates, status=str(job.get("status") or "running"))
         return _merged(store, registry, job_id)
     updates = {
         "cloud_status": state.raw_status,
@@ -883,6 +881,38 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
                                error=f"cloud task {state.raw_status or state.status}: {state.message or state.raw.strip()}")
     else:
         _write_unless_terminal(store, registry, job_id, updates, status="running")
+    return _merged(store, registry, job_id)
+
+
+def resync(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
+    """Re-check a legacy poll-failed job and recover it from provider truth."""
+    if job.get("status") != "failed" or not job.get("last_poll_error") or not job.get("cloud_handle"):
+        raise CloudError("resync requires a cloud job failed by an earlier poll error")
+    job_id = str(job["job_id"])
+    try:
+        prov = provider(str(job.get("engine")))
+        job_status = getattr(prov, "job_status", None)
+        state = (job_status(job, claimed=_claimed_result_branches(store, job_id, job.get("repo")))
+                 if job_status is not None else prov.status(str(job["cloud_handle"])))
+    except (CloudError, OSError, subprocess.TimeoutExpired) as exc:
+        meta = {**(_store.read_meta(store, job_id) or {}), "last_poll_error": redact(str(exc)),
+                "last_polled_at": time.time()}
+        _write(store, registry, job_id, meta, status="failed", error=job.get("error"))
+        return _merged(store, registry, job_id)
+    if state.status not in ("done", "failed", "interrupted"):
+        return job
+    new_status = state.status
+    meta = _store.read_meta(store, job_id) or {}
+    log = list(meta.get("job_log") or [])
+    log.append({"at": time.time(), "event": "resync", "from": "failed", "to": new_status,
+                "cloud_status": state.raw_status})
+    meta.update(cloud_status=state.raw_status, cloud_message=state.message, last_polled_at=time.time(),
+                last_poll_error=None, poll_errors_in_a_row=0, job_log=log, **state.extra)
+    if new_status == "done":
+        _write(store, registry, job_id, meta, status="done", result=state.message or state.raw.strip())
+    else:
+        _write(store, registry, job_id, meta, status=new_status,
+               error=f"cloud task {state.raw_status or state.status}: {state.message or state.raw.strip()}")
     return _merged(store, registry, job_id)
 
 
@@ -1309,20 +1339,50 @@ def _after_failed_apply(store: Any, registry: Any, root: Path, job_id: str, work
 def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval: float) -> dict[str, Any] | None:
     """Poll a cloud job until terminal or ``timeout``; return the last merged record (None if gone)."""
     deadline = None if timeout is None else time.monotonic() + timeout
+    first = True
     while True:
         store = store_factory()
         registry = _store.build_job_registry(store)
         job = registry.find(job_id)
         if job is None:
             return None
-        job = refresh(store, registry, _merged(store, registry, str(job["job_id"])))
+        merged = _merged(store, registry, str(job["job_id"]))
+        errors = int(merged.get("poll_errors_in_a_row") or 0)
+        retry_after = _retry_after_seconds(str(merged.get("last_poll_error") or ""))
+        backoff = min(MAX_POLL_BACKOFF, interval * (2 ** max(0, errors - 1))) if errors else interval
+        delay = 0.0 if first else max(backoff, retry_after or 0.0)
+        # Randomisation prevents independent waiters from repeatedly waking in
+        # lockstep. The durable reservation also serialises processes sharing
+        # an account even when their random choices happen to coincide.
+        delay += random.uniform(0.0, max(0.001, interval * 0.25))
+        _wait_for_poll_turn(store, str(merged.get("engine") or "cloud"), delay, deadline)
+        first = False
+        job = refresh(store, registry, merged)
         if job.get("status") in TERMINAL_STATUSES:
             return job
-        if int(job.get("poll_errors_in_a_row") or 0) >= MAX_CONSECUTIVE_POLL_ERRORS:
-            return job  # the caller reports it; never wait forever on a provider that keeps failing
         if deadline is not None and time.monotonic() >= deadline:
             return job
-        time.sleep(interval)
+
+
+def _retry_after_seconds(error: str) -> float | None:
+    match = _RETRY_AFTER_RE.search(error)
+    return float(match.group(1)) if match else None
+
+
+def _wait_for_poll_turn(store: Any, account: str, minimum: float, deadline: float | None) -> None:
+    """Reserve and honour a store-backed per-account poll time."""
+    key = f"{POLL_CLOCK_PREFIX}{account}"
+    with _concurrency._guard(_concurrency.load_config().slot_dir):
+        now = time.time()
+        raw = store.read(key)
+        previous = float(raw) if isinstance(raw, (int, float)) else 0.0
+        poll_at = max(now, previous) + minimum
+        store.write(key, poll_at)
+    wait = max(0.0, poll_at - time.time())
+    if deadline is not None:
+        wait = min(wait, max(0.0, deadline - time.monotonic()))
+    if wait:
+        time.sleep(wait)
 
 
 __all__ = [
@@ -1351,6 +1411,7 @@ __all__ = [
     "parse_status",
     "parse_submit",
     "provider",
+    "resync",
     "redact",
     "redact_obj",
     "refresh",

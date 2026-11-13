@@ -573,28 +573,62 @@ def test_status_nonzero_exit_with_error_status_marks_failed(cloud, capsys):
     assert "[failed]" in out and "setup script failed" in out
 
 
-def test_wait_fails_job_after_repeated_poll_failures(cloud, monkeypatch, capsys):
+def test_wait_keeps_job_running_after_persistent_poll_failures(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
     monkeypatch.setenv("FAKE_CODEX_FAIL", "status")  # exit 1 with no status in the output
-    code = cli.main(["wait", job_id, "--db", str(cloud.db), "--interval", "0.01"])
-    assert code == 1
-    out = capsys.readouterr().out
-    assert "[failed]" in out
-    assert f"unreadable after {_cloud.MAX_CONSECUTIVE_POLL_ERRORS} polls" in out and "boom: status" in out
+    code = cli.main(["wait", job_id, "--db", str(cloud.db), "--timeout", "0.05", "--interval", "0.005"])
+    assert code == 4
+    assert "still unknown" in capsys.readouterr().err
     store = _store.build_store(cloud.db)
     job = _jobs.find_job(store, _store.build_job_registry(store), job_id)
-    assert job["status"] == "failed" and _cloud.active_jobs(store) == []  # terminal: the place is freed
+    assert job["status"] == "running" and _cloud.active_jobs(store)
 
 
-def test_unparseable_status_output_fails_after_bounded_retries(cloud, capsys):
+def test_unparseable_status_output_never_fails_job(cloud, capsys):
     job_id = _submit(cloud, capsys)
     cloud.set_status("something we do not understand\n")  # exit 0, but names no status
     for _ in range(_cloud.MAX_CONSECUTIVE_POLL_ERRORS - 1):
         assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
         assert json.loads(capsys.readouterr().out)["status"] == "running"
-    assert cli.main(["result", job_id, "--db", str(cloud.db)]) == 1
+    assert cli.main(["result", job_id, "--db", str(cloud.db)]) == 0
     out = capsys.readouterr().out
-    assert "[failed]" in out and "no recognisable status" in out
+    assert "[running]" in out and "no recognisable status" not in out
+
+
+def test_429_then_completed_retries_and_honours_retry_after(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    answers = iter([_cloud.CloudError("HTTP 429 Too Many Requests; Retry-After: 2"),
+                    _cloud.CloudStatus("done", "completed", "finished", "status: completed")])
+
+    def status(_self, _handle):
+        answer = next(answers)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    sleeps = []
+    monkeypatch.setattr(_cloud.CodexCloud, "status", status)
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud.time, "sleep", sleeps.append)
+    assert cli.main(["wait", job_id, "--db", str(cloud.db), "--timeout", "5", "--interval", "0.01"]) == 0
+    assert any(delay >= 1.9 for delay in sleeps)
+    job = _jobs.find_job(_store.build_store(cloud.db), _store.build_job_registry(_store.build_store(cloud.db)), job_id)
+    assert job["status"] == "done"
+
+
+def test_resync_recovers_legacy_poll_failed_job(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    meta = _store.read_meta(store, job_id) or {}
+    meta["last_poll_error"] = "HTTP 429 Too Many Requests"
+    _cloud._write(store, registry, job_id, meta, status="failed", error="cloud status: Error")
+    cloud.set_status("status: ready\nRecovered result.\n")
+
+    assert cli.main(["resync", job_id, "--db", str(cloud.db), "--json"]) == 0
+    recovered = json.loads(capsys.readouterr().out)
+    assert recovered["status"] == "done"
+    assert recovered["job_log"][-1]["event"] == "resync"
 
 
 def test_bracketed_error_status_exits_nonzero_and_fails_job(cloud, capsys):
