@@ -95,8 +95,9 @@ def open_stdio(
             # raises here, in ``connect``, before a lifecycle task is spawned.
             from mcp import Client as _Client
             from mcp import StdioServerParameters as _StdioServerParameters
+            from mcp.client.stdio import stdio_client as _stdio_client
 
-            del _Client, _StdioServerParameters
+            del _Client, _StdioServerParameters, _stdio_client
             return _open_stdio_v2(command, args, env)
         from mcp import ClientSession as _ClientSession
         from mcp import StdioServerParameters as _StdioServerParameters
@@ -163,11 +164,16 @@ async def _open_stdio_v2(
     env: dict[str, str] | None,
 ) -> AsyncIterator[Any]:
     from mcp import Client, StdioServerParameters
+    from mcp.client.stdio import stdio_client
 
     params = StdioServerParameters(command=command, args=args, env=env)
-    # ``mode="auto"`` probes a 2.x server and falls back to the initialize
-    # handshake for a 1.x server, so one client speaks both.
-    async with Client(params) as client:
+    # Hand ``Client`` the transport, not the parameters object. Accepting a
+    # bare ``StdioServerParameters`` arrived in SDK 2.1; 2.0.0 treats every
+    # other target as a transport context manager and would try to enter the
+    # model. ``stdio_client(...)`` is that transport on every 2.x release.
+    # The default ``mode="auto"`` probes a 2.x server and falls back to the
+    # initialize handshake for a 1.x server.
+    async with Client(stdio_client(params)) as client:
         yield client
 
 

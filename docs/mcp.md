@@ -59,8 +59,10 @@ the SDK import (and a clean `ImportError` if missing).
 
 The `[mcp]` extra accepts the official SDK **1.x and 2.x** (`mcp>=1.0,<3`).
 Stdio and Streamable HTTP go through a small compatibility layer: SDK 2 uses
-`mcp.Client` (and `streamable_http_client`, with request headers on an
-`httpx2` client); SDK 1 keeps `ClientSession` plus `stdio_client` /
+`mcp.Client(stdio_client(...))` for stdio (2.0.0 does not accept a bare
+`StdioServerParameters`; that shorthand arrived in 2.1) and
+`streamable_http_client` for HTTP, with request headers on an `httpx2`
+client; SDK 1 keeps `ClientSession` plus `stdio_client` /
 `streamablehttp_client`. `MCP.stdio(...)`, `MCP.http(...)`, and
 `as_tools()` behave the same on both.
 
