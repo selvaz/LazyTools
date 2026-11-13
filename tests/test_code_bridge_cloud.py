@@ -584,6 +584,98 @@ def test_wait_keeps_job_running_after_persistent_poll_failures(cloud, monkeypatc
     assert job["status"] == "running" and _cloud.active_jobs(store)
 
 
+def test_wait_caps_backoff_exponent_after_many_poll_failures(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    meta = _store.read_meta(store, job_id) or {}
+    meta["poll_errors_in_a_row"] = 1025
+    _store.write_meta(store, job_id, meta)
+    cloud.set_status("status: ready\nRecovered result.\n")
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud.time, "sleep", lambda _delay: None)
+
+    assert cli.main(["wait", job_id, "--db", str(cloud.db), "--interval", "0.01"]) == 0
+    assert "Recovered result." in capsys.readouterr().out
+
+
+def test_poll_clock_spaces_first_poll_from_separate_waiters(cloud, monkeypatch):
+    stores = [_store.build_store(cloud.db), _store.build_store(cloud.db)]
+    now = [100.0]
+    sleeps = []
+    monkeypatch.setattr(_cloud.time, "time", lambda: now[0])
+
+    def sleep(delay):
+        sleeps.append(delay)
+        now[0] += delay
+
+    monkeypatch.setattr(_cloud.time, "sleep", sleep)
+    for store in stores:
+        assert _cloud._wait_for_poll_turn(store, "codex", 5.0, 0.0, None)
+
+    assert sleeps == [5.0]
+
+
+def test_short_waiters_do_not_advance_poll_clock(cloud, monkeypatch):
+    store = _store.build_store(cloud.db)
+    key = f"{_cloud.POLL_CLOCK_PREFIX}codex"
+    now = [100.0]
+    store.write(key, now[0])
+    monkeypatch.setattr(_cloud.time, "time", lambda: now[0])
+    monkeypatch.setattr(_cloud.time, "monotonic", lambda: now[0])
+
+    def sleep(delay):
+        now[0] += delay
+
+    monkeypatch.setattr(_cloud.time, "sleep", sleep)
+    for _ in range(3):
+        deadline = _cloud.time.monotonic() + 1.0
+        assert not _cloud._wait_for_poll_turn(store, "codex", 5.0, 0.0, deadline)
+
+    assert now[0] == 103.0
+    assert store.read(key) == 100.0
+
+
+def test_wait_deadline_does_not_poll_before_reserved_turn(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    store.write(f"{_cloud.POLL_CLOCK_PREFIX}codex", _cloud.time.time() + 120.0)
+    sleeps = []
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud.time, "sleep", sleeps.append)
+
+    def unexpected_refresh(*_args, **_kwargs):
+        pytest.fail("refresh issued a provider poll before the reserved turn")
+
+    monkeypatch.setattr(_cloud, "refresh", unexpected_refresh)
+    result = _cloud.wait_job(lambda: _store.build_store(cloud.db), job_id, timeout=1.0, interval=5.0)
+
+    assert result is not None and result["status"] == "running"
+    assert len(sleeps) == 1 and 0.0 < sleeps[0] <= 1.0
+
+
+def test_resumed_waiter_subtracts_elapsed_time_from_retry_after(cloud, monkeypatch, capsys):
+    # A Retry-After stored 200 s ago has already expired: a short resumed wait
+    # must poll again instead of rescheduling the full 120 s from now.
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    meta = _store.read_meta(store, job_id) or {}
+    meta.update(poll_errors_in_a_row=1, last_poll_error="HTTP 429 Too Many Requests; Retry-After: 120",
+                last_polled_at=_cloud.time.time() - 200.0)
+    _store.write_meta(store, job_id, meta)
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud.time, "sleep", lambda _s: None)
+    polled = []
+    real_refresh = _cloud.refresh
+
+    def counting_refresh(*args, **kwargs):
+        polled.append(True)
+        return real_refresh(*args, **kwargs)
+
+    monkeypatch.setattr(_cloud, "refresh", counting_refresh)
+    _cloud.wait_job(lambda: _store.build_store(cloud.db), job_id, timeout=1.0, interval=0.01)
+    assert polled, "the resumed waiter never polled although Retry-After had expired"
+
+
 def test_unparseable_status_output_never_fails_job(cloud, capsys):
     job_id = _submit(cloud, capsys)
     cloud.set_status("something we do not understand\n")  # exit 0, but names no status
