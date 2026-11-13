@@ -1231,10 +1231,10 @@ def apply_job(
             raise CloudError(f"{worktree} is outside {container}")
     else:
         worktree = worktree.expanduser().resolve()
-    if worktree.exists():
-        raise CloudError(f"{worktree} already exists: remove it or pass --worktree")
     prov = provider(str(job["engine"]))
     if hasattr(prov, "apply_job"):
+        if worktree.exists():
+            raise CloudError(f"{worktree} already exists: remove it or pass --worktree")
         return _apply_from_branch(store, registry, prov, job, worktree=worktree, branch=branch, source=source)
     if source is not None:
         raise CloudError("--source is only for Claude cloud jobs (their result is a claude/ branch)")
@@ -1267,6 +1267,14 @@ def apply_job(
             f"the task's base commit {base_commit[:12]} is not in {root} and origin/{base_branch} could not be "
             "fetched; refusing to apply onto an unchecked base. Fetch the branch and retry"
         )
+    # Fetch the authoritative path list before creating anything.  Besides
+    # avoiding a half-created checkout when this fails, it lets a retry
+    # distinguish remnants of this job from unrelated operator work.
+    diff_files = prov.diff(str(job["cloud_handle"]))
+    applied_files = summarize_diff(diff_files).files
+    _reconcile_apply_remnants(
+        root, worktree, branch, base, set(applied_files), branch_checkout=not bool(job.get("pr_number"))
+    )
     worktree.parent.mkdir(parents=True, exist_ok=True)
     # A PR head branch may already be checked out in another worktree.  PR
     # application does not need to own that branch: landing publishes the
@@ -1279,8 +1287,6 @@ def apply_job(
         # The provider's diff is the authority for what landing may stage.  In
         # particular, the Codex CLI may create its own untracked files while
         # applying a task; those are not part of the task result.
-        diff_files = prov.diff(str(job["cloud_handle"]))
-        applied_files = summarize_diff(diff_files).files
         output = prov.apply(str(job["cloud_handle"]), worktree=worktree)
         # Current Codex CLI versions write this diagnostic beside the files
         # they apply.  It can contain account identifiers and is tool output,
@@ -1305,6 +1311,59 @@ def apply_job(
         "rebased_from": rebased_from,
         "base_branch": base_branch,
     }
+
+
+def _reconcile_apply_remnants(root: Path, worktree: Path, branch: str, base: str, expected: set[str], *,
+                              branch_checkout: bool) -> None:
+    """Remove safe remnants of an interrupted apply, or refuse to lose work.
+
+    A previous process can die after ``git worktree add`` but before the job
+    metadata is written.  The next attempt may clean that checkout only when
+    it is still at the requested base and every changed (including ignored)
+    path belongs to the provider diff.  Anything else is operator work and is
+    named in the error rather than silently discarded.
+    """
+    branch_ref = f"refs/heads/{branch}"
+    branch_tip = _git(root, "rev-parse", "--verify", "--quiet", branch_ref, check=False)
+    problems: list[str] = []
+    if branch_tip and branch_tip != base:
+        problems.append(f"branch {branch} contains commits beyond base {base[:12]}")
+
+    if worktree.exists():
+        top = _git(worktree, "rev-parse", "--show-toplevel", check=False)
+        head = _git(worktree, "rev-parse", "HEAD", check=False)
+        checked_out = _git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD", check=False)
+        if not top or Path(top).resolve() != worktree:
+            problems.append(f"{worktree} is not the expected git worktree")
+        if head != base:
+            problems.append(f"worktree {worktree} is at {head[:12] or 'an unknown commit'}, not base {base[:12]}")
+        expected_head = branch if branch_checkout else ""
+        if checked_out != expected_head:
+            label = checked_out or "detached HEAD"
+            problems.append(f"worktree {worktree} is on {label}, not {expected_head or 'detached HEAD'}")
+        tracked = _git(worktree, "diff", "--name-only", "-z", "HEAD", check=False)
+        untracked = _git(worktree, "ls-files", "--others", "--exclude-standard", "-z", check=False)
+        ignored = _git(
+            worktree, "ls-files", "--others", "--ignored", "--exclude-standard", "-z", check=False
+        )
+        changed = {name for name in (tracked + untracked + ignored).split("\0") if name}
+        unrelated = sorted(changed - expected - {"error.log"})
+        if unrelated:
+            problems.append(f"worktree {worktree} has unrelated changes: {', '.join(repr(p) for p in unrelated)}")
+    elif branch_tip:
+        # A safe orphan branch is handled below.  A missing path alone needs
+        # no action (the normal first-attempt case).
+        pass
+
+    if problems:
+        raise CloudError(
+            f"leftover landing branch {branch} and worktree {worktree} contain unexpected work; refusing to "
+            f"discard it: {'; '.join(problems)}"
+        )
+    if worktree.exists():
+        _git(root, "worktree", "remove", "--force", str(worktree))
+    if branch_tip:
+        _git(root, "branch", "-D", branch)
 
 
 def _apply_from_branch(store: Any, registry: Any, prov: Any, job: dict[str, Any], *, worktree: Path, branch: str,

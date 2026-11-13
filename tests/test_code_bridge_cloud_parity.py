@@ -422,6 +422,44 @@ def test_land_refuses_an_unexpected_untracked_file(cloud, gh, capsys, monkeypatc
     assert _tip(cloud, f"cloud/{job_id[:8]}") is None and gh.calls("pr", "create") == []
 
 
+def test_land_retry_cleans_safe_unrecorded_branch_and_worktree(cloud, gh, capsys):
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    job = _job(cloud, job_id)
+    branch = f"cloud/{job_id[:8]}"
+    worktree = cloud.db.parent / "cloud-worktrees" / job_id
+    worktree.parent.mkdir(parents=True)
+    _git(cloud.repo, "worktree", "add", "-b", branch, str(worktree), job["base_commit"])
+    # This is the provider-owned path from an interrupted first attempt, not
+    # unrelated local work.  The retry may reset it and apply the result again.
+    (worktree / "cloud_change.txt").write_text("partial first attempt\n", encoding="utf-8")
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert outcome["landed"] and outcome["worktree_removed"] is True
+    assert not worktree.exists()
+    assert _git(cloud.repo, "show", f"{outcome['pushed_sha']}:cloud_change.txt") != "partial first attempt"
+
+
+def test_land_retry_refuses_unexpected_work_in_unrecorded_worktree(cloud, gh, capsys):
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    job = _job(cloud, job_id)
+    branch = f"cloud/{job_id[:8]}"
+    worktree = cloud.db.parent / "cloud-worktrees" / job_id
+    worktree.parent.mkdir(parents=True)
+    _git(cloud.repo, "worktree", "add", "-b", branch, str(worktree), job["base_commit"])
+    (worktree / "operator-notes.txt").write_text("keep me\n", encoding="utf-8")
+
+    assert _main(cloud, "apply", job_id, "--land") == 1
+    err = capsys.readouterr().err
+    assert branch in err and str(worktree) in err
+    assert "unexpected work" in err and "operator-notes.txt" in err and "refusing to discard" in err
+    assert (worktree / "operator-notes.txt").read_text(encoding="utf-8") == "keep me\n"
+    assert _git(worktree, "symbolic-ref", "--short", "HEAD") == branch
+    assert gh.calls("pr", "create") == []
+
+
 def test_land_updates_the_recorded_pr_by_pushing_its_head_branch(cloud, gh, capsys):
     feature_sha = _push_feature(cloud)
     gh.seed_pr(7, head="feature")
