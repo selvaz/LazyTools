@@ -48,7 +48,7 @@
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
-        "ref": "v0.3.28",
+        "ref": "v0.3.29",
         "repo": "https://github.com/selvaz/market-data-hub"
       }
     },

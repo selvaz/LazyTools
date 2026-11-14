@@ -40,7 +40,7 @@ ref = "v0.19.7"
 
 [verified.github.market-data-hub]
 repo = "https://github.com/selvaz/market-data-hub"
-ref = "v0.3.28"  # production since 2026-11-12
+ref = "v0.3.29"  # released 2026-11-14
 
 [verified.github.lazystats]
 repo = "https://github.com/selvaz/LazyStats"
