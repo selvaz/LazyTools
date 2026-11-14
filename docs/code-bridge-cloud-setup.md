@@ -293,7 +293,7 @@ lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd <repo
 
 # 2. Follow it. `wait` lands this one job; `cloud-sync` reconciles ALL live cloud jobs.
 lazytools-code-bridge wait <job>
-lazytools-code-bridge cloud-sync          # safe to run from cron / Task Scheduler / a routine
+lazytools-code-bridge cloud-sync --scheduled  # safe to run from cron / Task Scheduler / a routine
 
 # 3. Independent review by the OPPOSITE engine, posted to the PR as one comment.
 lazytools-code-bridge run --where cloud --allow-cloud --cwd <repo> --review-of <job>
@@ -315,7 +315,7 @@ workflow](code-bridge.md#cloud-agents-as-part-of-the-workflow). In short:
   `cloud-sync`.
 
 To run `cloud-sync` on a schedule, any scheduler that can run a command works,
-for example `*/10 * * * * lazytools-code-bridge cloud-sync` in cron. It exits 1
+for example `*/10 * * * * lazytools-code-bridge cloud-sync --scheduled` in cron. It exits 1
 when a landing or review post failed, so the scheduler can alert on it.
 
 Check which environments the bridge knows with `lazytools-code-bridge cloud-envs`

@@ -243,6 +243,9 @@ def interrupt_job(store: Any, registry: Any, job: dict[str, Any], error: str, *,
     """Persist an interruption and close this job's still-open approval tickets."""
     job_id = str(job["job_id"])
     error = _with_workspace(store, job_id, error)
+    meta = _store.read_meta(store, job_id) or {}
+    _store.mark_completion(meta, "interrupted")
+    _store.write_meta(store, job_id, meta)
     try:
         _write_result(db_path, job_id, f"[interrupted] {error}")
     except OSError:
@@ -397,6 +400,7 @@ def run_job(
         def _set_status(status: str, *, result: str | None = None, error: str | None = None) -> None:
             meta = _store.read_meta(store, job_id) or {}
             meta["updated_at"] = time.time()
+            _store.mark_completion(meta, status)
             _store.write_meta(store, job_id, meta)
             registry.write(job_id, task, tool_name=engine_name, status=status, result=result, error=error)
 
@@ -479,11 +483,16 @@ def run_job(
                 "owns_process_group": _owns_process_group(),
                 "created_at": now,
                 "updated_at": now,
+                "brief_hash": _store.brief_hash(task),
                 **({"routing": routing} if routing is not None else {}),
                 "temp_dir": str(temp_dir) if temp_dir is not None else None,
                 **({"temp_dir_refused": temp_refused} if temp_refused is not None else {}),
             },
         )
+        try:
+            _store.record_relaunch(store, job_id, task, str(resolved_cwd), now=now)
+        except Exception as exc:
+            print(f"warning: job started but its relaunch intervention could not be recorded: {exc}", file=sys.stderr)
         temp_arg = str(temp_dir) if temp_dir is not None else None
         print(f"routine-auto: {'enabled' if routine_policy.enabled else 'disabled'}; "
               f"{len(routine_policy.rules) if routine_policy.enabled else 0} active rules", file=sys.stderr)

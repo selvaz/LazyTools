@@ -6,13 +6,22 @@ import json
 from argparse import Namespace
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _store
+from lazytools.code_bridge import _store, cli
 from lazytools.code_bridge.cli import main
 
 
 def _env(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(tmp_path / "sessions.json"))
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_POLL_SECONDS", "0.05")
+
+
+def test_json_lines_are_flushed(monkeypatch):
+    calls = []
+    monkeypatch.setattr("builtins.print", lambda *args, **kwargs: calls.append((args, kwargs)))
+
+    cli._print_json({"event": "ready"})
+
+    assert calls == [((json.dumps({"event": "ready"}),), {"flush": True})]
 
 
 def test_run_prints_job_id_first_line_and_exits_zero(tmp_path, monkeypatch, capsys):

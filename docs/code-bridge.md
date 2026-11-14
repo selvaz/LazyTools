@@ -42,6 +42,7 @@ detached launch JSON gives the id, pid and log path at once.
 | `wait` | Terminal result; exit 3 on waiter timeout, 1 when process disappears before final record |
 | `jobs --all` | History, including finished jobs, for recovering a lost id |
 | `cancel` | Stop process tree, reject open tickets, retain interruption and workspace evidence |
+| `autonomy` | Report the percentage of finished jobs with no manual intervention and group intervention causes |
 
 Read each ticket's command and reason before deciding. An unanswered ticket
 expires as rejection after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.
@@ -104,10 +105,68 @@ retain the path printed at completion as an independent copy if the Store is
 unavailable. The log contains worker output, while `result --json` contains
 the complete job record. Recover a lost id with `jobs --all`.
 
+## Watching pull requests
+
+Lead sessions and LazyCEO can follow pull requests without maintaining their
+own polling loop:
+
+```console
+$ lazytools-code-bridge watch owner/repository#123 owner/other#456 --until 18:30 --interval 60
+```
+
+The watcher uses `gh api` REST calls (not GraphQL) and prints one line for each
+new comment, inline review comment, independent-review verdict, completed
+success/failure check, head change, merge, or close. Head-bound review events
+on an obsolete PR head are ignored; verdict markers for an older head are
+reported with `stale=true`. Add `--json` for one JSON object per line. `--until HH:MM`
+uses the local clock and exits **0** at that time; it exits **2** when every
+watched PR merges or closes first, and **1** on an error.
+The date for `--until` is always today in the local timezone; if that clock
+time has already passed, the watcher exits immediately rather than waiting
+until tomorrow.
+
+Progress is stored per PR in the same bridge Store selected by `--db` or
+`LAZYTOOLS_CODE_BRIDGE_DB`, so restarting the command does not repeat events.
+On the first poll with a fresh Store, comments and other matching events that
+already exist on the current head are emitted before progress is recorded.
+The default polling interval and minimum are 60 seconds. Smaller `--interval`
+values are clamped to the minimum. Administrators can override that minimum
+with `LAZYTOOLS_CODE_BRIDGE_WATCH_MIN_INTERVAL`; its value is a positive
+number of seconds.
+
 The first stdout line from a non-JSON `run` is always the 32-hex job id. This
 is a stable scripting contract: pre-launch brief-check diagnostics, including
 warnings, are written only to stderr, so commands such as `run ... | head -1`
 can safely capture the id.
+
+## Autonomy report
+
+Navigator measures a job as autonomous when it reaches a terminal state
+(`done`, `partial`, `failed`, or `interrupted`) without an operator command
+touching it. After an action succeeds, the bridge appends an intervention entry
+for `resync`, manual `cloud-sync`, `apply`, `apply --land`, manual
+`approve`/`reject`, `cancel`, a session rename, or a relaunch matching a failed
+or interrupted job's repository and brief in the previous 24 hours. Scheduled
+syncs use `cloud-sync --scheduled` (also the default) and do not count; use
+`--manual` for an operator-triggered sync. Each operator command accepts an optional
+`--reason` (a rejection continues to require one), so the durable record keeps
+both the command kind and the operator's explanation. Existing Store rows need
+no migration and count as having no interventions.
+
+Report an ISO week or a half-open UTC date range. Dates and default bounds use
+UTC, and `--until` is the first date excluded:
+
+```console
+lazytools-code-bridge autonomy --week 2026-W46
+lazytools-code-bridge autonomy --since 2026-11-10 --until 2026-11-11 --json
+```
+
+The denominator is every job that finished in the range. The report prints the
+autonomous count and percentage against the 90 percent target, followed by the
+number of intervention events grouped by command kind. JSON output contains
+`finished_jobs`, `autonomous_jobs`, `autonomy_percent`, `target_percent`,
+`target_met`, and `intervention_causes`. With no finished jobs, the percentage
+and target result are `null` rather than claiming success.
 
 ## Claude writes, Codex reviews
 

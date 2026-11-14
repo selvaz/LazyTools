@@ -65,6 +65,7 @@ import random
 import re
 import shutil
 import subprocess
+import sys
 import time
 import tomllib
 from dataclasses import dataclass, field
@@ -779,6 +780,7 @@ def is_cloud(job: dict[str, Any] | None) -> bool:
 def _write(store: Any, registry: Any, job_id: str, meta: dict[str, Any], *, status: str,
            result: str | None = None, error: str | None = None) -> None:
     meta = {**meta, "updated_at": time.time()}
+    _store.mark_completion(meta, status)
     _store.write_meta(store, job_id, meta)
     registry.write(
         job_id,
@@ -1118,6 +1120,7 @@ def submit_job(
         "base_commit": base_commit,
         # Stored and printed redacted; the provider still receives the brief as written.
         "objective": redact(task),
+        "brief_hash": _store.brief_hash(task),
         "title": redact(title.strip()) if title and title.strip() else None,
         "cloud_approvals": sorted(set(approvals)),
         "created_at": time.time(),
@@ -1142,6 +1145,10 @@ def submit_job(
         if routine is None:
             meta["environment_note"] = ENV_NOTE
     _admit(store, registry, config, job_id, meta)
+    try:
+        _store.record_relaunch(store, job_id, task, repo, now=float(meta["created_at"]))
+    except Exception as exc:
+        print(f"warning: cloud job submitted locally but its relaunch intervention could not be recorded: {exc}", file=sys.stderr)
     try:
         sub = prov.submit(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task,
                           job_id=job_id, db_path=db_path, routine=routine, config=config, model=chosen_model)
