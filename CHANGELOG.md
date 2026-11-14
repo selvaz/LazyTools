@@ -10,6 +10,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Code bridge `run --where cloud` refuses a `--branch` that does not exist on `origin` before submitting, with a message saying it is the base branch the cloud agent starts from (#258).
+- Code bridge landing: tests cover pure deletes and renames with edits, so a path the provider diff removed or renamed never reaches `git add` (#261).
 
 ## [0.10.9] — 2026-11-13
 

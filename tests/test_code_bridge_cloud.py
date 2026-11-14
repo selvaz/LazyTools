@@ -64,6 +64,12 @@ FAKE_CODEX = textwrap.dedent(
         print("diff --git a/with space.txt b/with space.txt")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "rename":
         print("diff --git a/README.md b/RENAMED.md")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "delete":
+        print("diff --git a/README.md b/README.md")
+        print("deleted file mode 100644")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "rename-modify":
+        print("diff --git a/README.md b/docs/GUIDE.md")
+        print("similarity index 60%")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "ignored":
         print("diff --git a/data/endpoints.yaml b/data/endpoints.yaml")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "literal-pathspec":
@@ -95,6 +101,12 @@ FAKE_CODEX = textwrap.dedent(
             Path("with space.txt").write_text("spaced\\n", encoding="utf-8")
         elif shape == "rename":
             Path("README.md").rename("RENAMED.md")
+        elif shape == "delete":
+            Path("README.md").unlink()
+        elif shape == "rename-modify":
+            Path("docs").mkdir(exist_ok=True)
+            Path("docs/GUIDE.md").write_text(Path("README.md").read_text(encoding="utf-8") + "more\\n", encoding="utf-8")
+            Path("README.md").unlink()
         elif shape == "ignored":
             Path("data").mkdir(exist_ok=True)
             Path("data/endpoints.yaml").write_text("endpoint: public\\n", encoding="utf-8")
