@@ -64,6 +64,16 @@ FAKE_CODEX = textwrap.dedent(
         print("diff --git a/with space.txt b/with space.txt")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "rename":
         print("diff --git a/README.md b/RENAMED.md")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "ignored":
+        print("diff --git a/data/endpoints.yaml b/data/endpoints.yaml")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "literal-pathspec":
+        print("diff --git a/:(glob)*.secret b/:(glob)*.secret")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "file-to-directory":
+        print("diff --git a/config b/config/settings")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") in ("symlink", "mixed-symlink"):
+        print("diff --git a/dangling-link b/dangling-link")
+        if os.environ.get("FAKE_CODEX_SHAPE") == "mixed-symlink":
+            print("diff --git a/regular.txt b/regular.txt")
     elif verb == "diff":
         print("diff --git a/cloud_change.txt b/cloud_change.txt")
         print("new file mode 100644")
@@ -77,6 +87,21 @@ FAKE_CODEX = textwrap.dedent(
             Path("with space.txt").write_text("spaced\\n", encoding="utf-8")
         elif shape == "rename":
             Path("README.md").rename("RENAMED.md")
+        elif shape == "ignored":
+            Path("data").mkdir(exist_ok=True)
+            Path("data/endpoints.yaml").write_text("endpoint: public\\n", encoding="utf-8")
+        elif shape == "literal-pathspec":
+            Path(":(glob)*.secret").write_text("provider output\\n", encoding="utf-8")
+            Path("x.secret").write_text("unrelated ignored file\\n", encoding="utf-8")
+        elif shape == "file-to-directory":
+            Path("config").unlink()
+            Path("config").mkdir()
+            Path("config/settings").write_text("theme=dark\\n", encoding="utf-8")
+            Path("config/token.secret").write_text("not-provider-output\\n", encoding="utf-8")
+        elif shape in ("symlink", "mixed-symlink"):
+            Path("dangling-link").symlink_to("missing-target")
+            if shape == "mixed-symlink":
+                Path("regular.txt").write_text("regular\\n", encoding="utf-8")
         elif not os.environ.get("FAKE_CODEX_NOCHANGE"):
             Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
         if os.environ.get("FAKE_CODEX_ERROR_LOG"):
@@ -969,6 +994,45 @@ def test_gated_action_runs_with_matching_approval(cloud, capsys):
 @pytest.mark.parametrize("brief", ["Add a feature", "Fix error handling in the parser", "Write tests for the merge sort"])
 def test_plain_briefs_need_no_approval(brief):
     assert _cloud.gated_actions(brief) == []
+
+
+@pytest.mark.parametrize(
+    ("brief", "action"),
+    [("Merge the PR", "merge"), ("git push --force", "push"), ("Delete the branch", "delete")],
+)
+def test_gated_action_real_request_corpus(brief, action):
+    assert action in _cloud.gated_actions(brief)
+
+
+@pytest.mark.parametrize(
+    "brief",
+    [
+        "Do not modify the tests\n\nThen git push origin main.",
+        "Do not modify the tests; then git push origin main.",
+        "- Do not modify the tests\n- Then git push origin main.",
+    ],
+)
+def test_negated_instruction_does_not_hide_later_push(brief):
+    assert _cloud.gated_actions(brief) == ["push"]
+
+
+@pytest.mark.parametrize(
+    ("brief", "action"),
+    [
+        ("# Work\nMerge the PR", "merge"),
+        ("Tasks:\n- push the branch", "push"),
+        ("```sh\ngit push origin main\n```", "push"),
+        ("You must push to main", "push"),
+        ("Do not edit tests, push the branch", "push"),
+        ("> Merge the PR", "merge"),
+        ("Per favore, fai push del branch", "push"),
+        ("git branch -D obsolete", "delete"),
+        ("git clean -fdx", "delete"),
+        ('The output says "push\nthe branch".', "push"),
+    ],
+)
+def test_fail_closed_gate_catches_review_regressions(brief, action):
+    assert action in _cloud.gated_actions(brief)
 
 
 # --------------------------------------------------------------------------- #
