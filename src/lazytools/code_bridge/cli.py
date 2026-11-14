@@ -907,13 +907,7 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
         if args.dry_run:
             result: dict[str, Any] = {"provider": provider, "handle": handle, "status": "would stop"}
         else:
-            try:
-                result = _cloud_stop.stop(provider, handle)
-                if owner_job is not None and result.get("status") in ("stopped", "already finished"):
-                    _cloud.mark_interrupted(store, registry, str(owner_job["job_id"]), "cloud stop requested by operator")
-                    result["job_id"] = owner_job["job_id"]
-            except Exception as exc:
-                result = {"provider": provider, "handle": handle, "status": "failed", "reason": _cloud.redact(str(exc))}
+            result = _stop_cloud_target(store, registry, provider, handle, owner_job)
         results.append(result)
     results.extend(errors)
     safe = _cloud.redact_obj(results)
@@ -926,18 +920,47 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
     return 1 if any(item.get("status") == "failed" for item in safe) else 0
 
 
+def _stop_cloud_target(store: Any, registry: Any, provider: str, handle: str,
+                       owner_job: dict[str, Any] | None) -> dict[str, Any]:
+    """Use the common provider-stop path and update local tracking when confirmed."""
+    from lazytools.code_bridge import _cloud_stop
+
+    try:
+        result = _cloud_stop.stop(provider, handle)
+        if owner_job is not None and result.get("status") in ("stopped", "already finished"):
+            _cloud.mark_interrupted(store, registry, str(owner_job["job_id"]), "cloud stop requested by operator")
+            result["job_id"] = owner_job["job_id"]
+        return result
+    except Exception as exc:
+        return {"provider": provider, "handle": handle, "status": "failed",
+                "reason": _cloud.redact(str(exc))}
+
+
 def _cancel_cloud(store: Any, registry: Any, job: dict[str, Any], reason: str) -> int:
-    """Stop tracking a cloud job locally (frees its cloud place). The task itself keeps running remotely."""
+    """Stop a cloud job at its provider, then report the local tracking result."""
+    from lazytools.code_bridge import _cloud_stop
+
     job_id = str(job["job_id"])
-    if job.get("status") in _TERMINAL:
-        _cloud_print(f"job {job_id} already {job['status']}")
-        return 0
-    if not _cloud.mark_interrupted(store, registry, job_id, f"cancelled by operator: {reason}"):
-        latest = _jobs.find_job(store, registry, job_id) or job
-        _cloud_print(f"job {job_id} already {latest.get('status')}")
-        return 0
-    where = job.get("cloud_url") or job.get("cloud_handle") or "the provider's web UI"
-    _cloud_print(f"[interrupted] job {job_id}\nno longer tracked locally; the cloud task is NOT stopped -- cancel it at {where}")
+    handle = job.get("cloud_handle")
+    try:
+        provider, ident = _cloud_stop.resolve_handle(str(handle))
+    except Exception as exc:
+        _cloud_print(f"cloud {handle or ''}: failed: {_cloud.redact(str(exc))}")
+        _cloud_print(f"job {job_id} remains {job.get('status')} locally", err=True)
+        return 1
+
+    result = _cloud.redact_obj(_stop_cloud_target(store, registry, provider, ident, job))
+    suffix = f": {result['reason']}" if result.get("reason") else ""
+    _cloud_print(f"{provider} {ident}: {result['status']}{suffix}")
+    if result.get("status") == "failed":
+        _cloud_print(f"job {job_id} remains {job.get('status')} locally", err=True)
+        return 1
+
+    latest = _jobs.find_job(store, registry, job_id) or job
+    if latest.get("status") == "interrupted":
+        _cloud_print(f"[interrupted] job {job_id}\nprovider stop succeeded and local tracking is interrupted")
+    else:
+        _cloud_print(f"job {job_id} remains {latest.get('status')} locally; provider stop is not confirmed")
     return 0
 
 

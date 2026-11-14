@@ -1205,9 +1205,11 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
 - Every status write re-reads the record under the machine-wide guard and
   never overwrites a terminal status: a poll or submit whose answer arrives
   after a `cancel` cannot bring the job back (or take its place again).
-- `cancel` stops **tracking** a cloud job (marks it `interrupted` and frees
-  its place) but does **not** stop the remote task; it prints the task URL so
-  you can cancel it there.
+- `cancel` on a cloud job uses the same provider-stop path as `cloud-stop`.
+  It reports both the provider result and the local tracking result, and only
+  marks the job `interrupted` after the provider confirms it stopped or had
+  already finished. A provider-stop failure leaves the job tracked and exits
+  non-zero; an unconfirmed stop request also leaves it tracked.
 
 ### `apply`: never in your checkout, never pushed
 
@@ -1380,6 +1382,10 @@ cancelled and polled for up to 60 seconds; if it remains active, the result is
 `stop requested, not confirmed` rather than a false failure. Claude queues the
 stop instruction through `claude --cloud`, allowing the CLI to manage its own
 authentication, and reports `stop requested`, never `stopped`.
+
+The ordinary `cancel <job-id>` command uses this same stop path for cloud jobs
+and prints both the provider and local tracking outcomes. Use `cloud-stop`
+directly for provider tasks that have no bridge job or for bulk stopping.
 
 Use `cloud-stop --all-running` to combine running tasks reported by
 `codex cloud list --json` (including tasks created outside this bridge) with

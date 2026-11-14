@@ -265,14 +265,15 @@ def test_apply_source_refuses_another_jobs_branch(cc, capsys):
     assert "does not belong to this job" in capsys.readouterr().err
 
 
-def test_no_status_jobs_share_the_cloud_limit_and_cancel_frees_it(cc, capsys):
+def test_no_status_jobs_share_the_cloud_limit_and_unconfirmed_cancel_keeps_it(cc, capsys):
     _config("\n[cloud]\nconcurrency = 1\n")
     job_id = _submit_json(cc, capsys)["job_id"]
     assert _run(cc, "--routine", "test_default") == 2
     assert "concurrency limit (1)" in capsys.readouterr().err
     assert cli.main(["cancel", job_id, "--reason", "done by hand", "--db", str(cc.db)]) == 0
-    assert "NOT stopped" in capsys.readouterr().out
-    _submit_json(cc, capsys)
+    assert "provider stop is not confirmed" in capsys.readouterr().out
+    assert _run(cc, "--routine", "test_default") == 2
+    assert "concurrency limit (1)" in capsys.readouterr().err
 
 
 def test_cloud_jobs_take_no_local_engine_slot(cc, capsys, monkeypatch):
