@@ -12,12 +12,12 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import textwrap
 from pathlib import Path
 
 import pytest
 
+from code_bridge_test_helpers import write_python_executable
 from lazytools.code_bridge import _cloud, _concurrency, _jobs, _store, cli
 from lazytools.code_bridge._concurrency import EngineSlot
 
@@ -154,15 +154,7 @@ def cloud(tmp_path, monkeypatch):
     """A git repo with an origin remote, a fake codex CLI, and an env mapping for the repo."""
     tools = tmp_path / "tools"
     tools.mkdir()
-    script = tools / "fake_codex.py"
-    script.write_text(FAKE_CODEX, encoding="utf-8")
-    if sys.platform == "win32":
-        exe = tools / "codex.cmd"
-        exe.write_text(f'@"{sys.executable}" "{script}" %*\n', encoding="utf-8")
-    else:
-        exe = tools / "codex"
-        exe.write_text(f"#!{sys.executable}\n" + FAKE_CODEX, encoding="utf-8")
-        exe.chmod(0o755)
+    exe = write_python_executable(tools, "codex", FAKE_CODEX)
     log = tmp_path / "codex-calls.jsonl"
     status_file = tmp_path / "status.txt"
     status_file.write_text("Task status: pending\n", encoding="utf-8")

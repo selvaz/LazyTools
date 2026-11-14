@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from code_bridge_test_helpers import write_python_executable
 from lazytools.code_bridge import (
     _cloud,
     _cloud_claude,
@@ -116,10 +117,7 @@ class Gh:
 
 @pytest.fixture
 def gh(tmp_path, monkeypatch) -> Gh:
-    exe = tmp_path / "tools" / "gh"
-    exe.parent.mkdir(exist_ok=True)
-    exe.write_text(f"#!{sys.executable}\n" + FAKE_GH, encoding="utf-8")
-    exe.chmod(0o755)
+    exe = write_python_executable(tmp_path / "tools", "gh", FAKE_GH)
     state = tmp_path / "gh-state.json"
     monkeypatch.setenv("GH_BIN", str(exe))
     monkeypatch.setenv("FAKE_GH_STATE", str(state))
@@ -130,9 +128,7 @@ def gh(tmp_path, monkeypatch) -> Gh:
 @pytest.fixture
 def claude(tmp_path, monkeypatch, cloud):
     """A fake claude CLI plus a 'cloud VM' clone of the same origin, for the codex fixture's repo."""
-    exe = tmp_path / "tools" / "claude"
-    exe.write_text(f"#!{sys.executable}\n" + FAKE_CLAUDE, encoding="utf-8")
-    exe.chmod(0o755)
+    exe = write_python_executable(tmp_path / "tools", "claude", FAKE_CLAUDE)
     log = tmp_path / "claude-calls.jsonl"
     monkeypatch.setenv("CLAUDE_BIN", str(exe))
     monkeypatch.setenv("FAKE_CLAUDE_LOG", str(log))
