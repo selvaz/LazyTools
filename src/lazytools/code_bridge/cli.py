@@ -1459,6 +1459,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Asynchronous delegation of coding work to Codex / Claude Code, with human approvals over a durable ticket queue.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    from lazytools.code_bridge._navigator import add_navigate_parser
+    add_navigate_parser(sub)
 
     watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
     watch_p.add_argument("pulls", nargs="+", metavar="owner/repo#pr")
