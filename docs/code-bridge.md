@@ -57,6 +57,28 @@ retain the path printed at completion as an independent copy if the Store is
 unavailable. The log contains worker output, while `result --json` contains
 the complete job record. Recover a lost id with `jobs --all`.
 
+## Watching pull requests
+
+Lead sessions and LazyCEO can follow pull requests without maintaining their
+own polling loop:
+
+```console
+$ lazytools-code-bridge watch owner/repository#123 owner/other#456 --until 18:30 --interval 60
+```
+
+The watcher uses `gh api` REST calls (not GraphQL) and prints one line for each
+new comment, inline review comment, independent-review verdict, completed
+success/failure check, head change, merge, or close. Events on an obsolete PR
+head are ignored. Add `--json` for one JSON object per line. `--until HH:MM`
+uses the local clock and exits **0** at that time; it exits **2** when every
+watched PR merges or closes first, and **1** on an error.
+
+Progress is stored per PR in the same bridge Store selected by `--db` or
+`LAZYTOOLS_CODE_BRIDGE_DB`, so restarting the command does not repeat events.
+The default polling interval and minimum are 60 seconds. Smaller `--interval`
+values are clamped to the minimum; administrators can configure that floor
+with `LAZYTOOLS_CODE_BRIDGE_WATCH_MIN_INTERVAL` (a positive number of seconds).
+
 The first stdout line from a non-JSON `run` is always the 32-hex job id. This
 is a stable scripting contract: pre-launch brief-check diagnostics, including
 warnings, are written only to stderr, so commands such as `run ... | head -1`
