@@ -67,6 +67,31 @@ def test_filters_by_status_and_owner() -> None:
     assert "No projects to display" in gantt.render_gantt_html(store, now=NOW, statuses=("done",))
 
 
+def test_filters_and_orders_projects_by_id() -> None:
+    store = Store()
+    _project(store, "alpha", ["a"])
+    _project(store, "beta", ["b"])
+    _project(store, "gamma", ["c"])
+
+    page = gantt.render_gantt_html(store, now=NOW, project_ids=["gamma", "alpha"])
+    text = gantt.render_gantt_text(store, now=NOW, project_ids=["gamma", "alpha"])
+
+    assert page.index("Title gamma") < page.index("Title alpha")
+    assert "Title beta" not in page
+    assert text.index("gamma  (") < text.index("alpha  (")
+    assert "beta  (" not in text
+
+
+def test_unknown_project_id_is_an_error() -> None:
+    store = Store()
+    _project(store, "alpha", ["a"])
+
+    with pytest.raises(ValueError, match="unknown project_id: missing"):
+        gantt.render_gantt_html(store, now=NOW, project_ids=["alpha", "missing"])
+    with pytest.raises(ValueError, match="unknown project_id: missing"):
+        gantt.render_gantt_text(store, now=NOW, project_ids=["missing"])
+
+
 def test_cli_writes_the_page(tmp_path) -> None:
     db = tmp_path / "store.sqlite"
     store = Store(db=str(db))
@@ -74,6 +99,18 @@ def test_cli_writes_the_page(tmp_path) -> None:
     out = tmp_path / "out" / "g.html"
     assert gantt.main(["--store", str(db), "--out", str(out)]) == 0
     assert "Title alpha" in out.read_text(encoding="utf-8")
+
+
+def test_cli_filters_and_orders_projects(tmp_path) -> None:
+    db = tmp_path / "store.sqlite"
+    store = Store(db=str(db))
+    _project(store, "alpha", ["a"])
+    _project(store, "beta", ["b"])
+    out = tmp_path / "g.html"
+
+    assert gantt.main(["--store", str(db), "--out", str(out), "--project", "beta"]) == 0
+    page = out.read_text(encoding="utf-8")
+    assert "Title beta" in page and "Title alpha" not in page
 
 
 def test_mcp_tool_writes_the_page_and_returns_its_path(tmp_path) -> None:
@@ -84,11 +121,13 @@ def test_mcp_tool_writes_the_page_and_returns_its_path(tmp_path) -> None:
     _project(store, "alpha", ["a"])
     tools = ProjectsTools(store_db=str(db), allow_write=True)  # a caller-chosen out_path needs write access
     assert "projects_gantt" in {t.name for t in tools.as_tools()}  # in the default core profile
-    result = tools.projects_gantt(out_path=str(tmp_path / "g.html"))
+    _project(store, "beta", ["b"])
+    result = tools.projects_gantt(out_path=str(tmp_path / "g.html"), project_ids=["beta"])
     from pathlib import Path
 
-    assert "Title alpha" in Path(result["html_path"]).read_text(encoding="utf-8")
-    assert "alpha" in result["text"]
+    assert "Title beta" in Path(result["html_path"]).read_text(encoding="utf-8")
+    assert "Title alpha" not in Path(result["html_path"]).read_text(encoding="utf-8")
+    assert "beta" in result["text"] and "alpha" not in result["text"]
 
 
 def test_text_gantt_draws_one_character_per_day_around_today() -> None:
