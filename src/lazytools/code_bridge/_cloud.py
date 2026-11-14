@@ -1326,11 +1326,12 @@ def _reconcile_apply_remnants(root: Path, worktree: Path, branch: str, base: str
             label = checked_out or "detached HEAD"
             problems.append(f"worktree {worktree} is on {label}, not {expected_head or 'detached HEAD'}")
         tracked = _git(worktree, "diff", "--name-only", "-z", "HEAD", check=False)
+        staged = _git(worktree, "diff", "--cached", "--name-only", "-z", "HEAD", check=False)
         untracked = _git(worktree, "ls-files", "--others", "--exclude-standard", "-z", check=False)
         ignored = _git(
             worktree, "ls-files", "--others", "--ignored", "--exclude-standard", "-z", check=False
         )
-        changed = {name for name in (tracked + untracked + ignored).split("\0") if name}
+        changed = {name for name in (tracked + staged + untracked + ignored).split("\0") if name}
         unrelated = sorted(changed - expected - {"error.log"})
         if unrelated:
             problems.append(f"worktree {worktree} has unrelated changes: {', '.join(repr(p) for p in unrelated)}")

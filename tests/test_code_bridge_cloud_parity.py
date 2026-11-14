@@ -523,6 +523,27 @@ def test_land_retry_refuses_unexpected_work_in_unrecorded_worktree(cloud, gh, ca
     assert gh.calls("pr", "create") == []
 
 
+def test_land_retry_refuses_staged_work_deleted_from_unrecorded_worktree(cloud, gh, capsys):
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    job = _job(cloud, job_id)
+    branch = f"cloud/{job_id[:8]}"
+    worktree = cloud.db.parent / "cloud-worktrees" / job_id
+    worktree.parent.mkdir(parents=True)
+    _git(cloud.repo, "worktree", "add", "-b", branch, str(worktree), job["base_commit"])
+    operator_file = worktree / "operator.txt"
+    operator_file.write_text("keep staged copy\n", encoding="utf-8")
+    _git(worktree, "add", "operator.txt")
+    operator_file.unlink()
+
+    assert _main(cloud, "apply", job_id, "--land") == 1
+    err = capsys.readouterr().err
+    assert "unexpected work" in err and "operator.txt" in err
+    assert worktree.exists()
+    assert _git(worktree, "show", ":operator.txt") == "keep staged copy"
+    assert gh.calls("pr", "create") == []
+
+
 def test_land_updates_the_recorded_pr_by_pushing_its_head_branch(cloud, gh, capsys):
     feature_sha = _push_feature(cloud)
     gh.seed_pr(7, head="feature")
