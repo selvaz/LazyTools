@@ -57,6 +57,11 @@ retain the path printed at completion as an independent copy if the Store is
 unavailable. The log contains worker output, while `result --json` contains
 the complete job record. Recover a lost id with `jobs --all`.
 
+The first stdout line from a non-JSON `run` is always the 32-hex job id. This
+is a stable scripting contract: pre-launch brief-check diagnostics, including
+warnings, are written only to stderr, so commands such as `run ... | head -1`
+can safely capture the id.
+
 ## Claude writes, Codex reviews
 
 This toy flow starts with a deliberately incomplete deployment guard and an
@@ -1566,7 +1571,7 @@ check reads no other file and does not check that a path exists.
 | Code | Severity | Raised when |
 | --- | --- | --- |
 | `missing-goal` | error | no `Goal` heading (Italian: `Obiettivo`) |
-| `missing-done-when` | error | no `Done when` heading (`Fatto quando`) |
+| `missing-done-when` | warn | no `Done when` heading (`Fatto quando`) |
 | `missing-context` | warn | no `Context` heading (`Contesto`) |
 | `missing-constraints` | warn | no `Constraints` heading (`Vincoli`) |
 | `missing-report` | warn | no `Report` heading (`Rapporto`) |

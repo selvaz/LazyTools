@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -61,7 +62,7 @@ def test_complete_brief_has_no_findings():
     "heading,code,severity",
     [
         ("Goal", "missing-goal", "error"),
-        ("Done when", "missing-done-when", "error"),
+        ("Done when", "missing-done-when", "warn"),
         ("Context", "missing-context", "warn"),
         ("Constraints", "missing-constraints", "warn"),
         ("Report", "missing-report", "warn"),
@@ -455,6 +456,34 @@ def test_json_stdout_is_unchanged_by_findings(tmp_path, repo, monkeypatch, capsy
     assert json.loads(out[-1])["status"] == "done"
 
 
+def test_run_with_every_heading_missing_keeps_job_id_first_and_diagnostics_on_stderr(
+    tmp_path, repo, monkeypatch, capsys
+):
+    fakes.install(monkeypatch)
+    brief = "Implement the requested change. " * 10
+
+    assert cli.main(run_args(tmp_path, repo, brief)) == 0
+
+    captured = capsys.readouterr()
+    assert re.fullmatch(r"[0-9a-f]{32}", captured.out.splitlines()[0])
+    assert "brief-check:" not in captured.out
+    diagnostics = brief_lines(captured.err)
+    assert diagnostics
+    joined = "\n".join(diagnostics)
+    assert all(
+        code in joined
+        for code in (
+            "missing-goal",
+            "missing-context",
+            "missing-constraints",
+            "missing-done-when",
+            "missing-report",
+        )
+    )
+    assert any("warn missing-done-when" in line for line in diagnostics)
+    assert not any("error missing-done-when" in line for line in diagnostics)
+
+
 def test_complete_brief_prints_no_findings(tmp_path, repo, monkeypatch, capsys):
     fakes.install(monkeypatch)
     assert cli.main(run_args(tmp_path, repo, GOOD, "--strict", engine="claude")) == 0
@@ -494,11 +523,12 @@ def test_task_from_file_is_checked(tmp_path, repo, monkeypatch, capsys):
     script = fakes.install(monkeypatch)
     brief = tmp_path / "brief.md"
     brief.write_text(without(GOOD, "Done when"), encoding="utf-8")
-    assert cli.main(run_args(tmp_path, repo, f"@{brief}", "--strict")) == 2
-    assert "missing-done-when" in capsys.readouterr().err
-    assert script.engines == []
+    assert cli.main(run_args(tmp_path, repo, f"@{brief}", "--strict")) == 0
+    assert "warn missing-done-when" in capsys.readouterr().err
+    assert script.prompts == [without(GOOD, "Done when")]
     brief.write_text(GOOD, encoding="utf-8")
     assert cli.main(run_args(tmp_path, repo, f"@{brief}", "--strict")) == 0
+    assert script.prompts == [without(GOOD, "Done when"), GOOD]
 
 
 def test_no_brief_check_skips_the_check_and_says_so(tmp_path, repo, monkeypatch, capsys):
