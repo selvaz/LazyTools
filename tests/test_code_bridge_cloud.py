@@ -69,6 +69,14 @@ FAKE_CODEX = textwrap.dedent(
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "literal-pathspec":
         print("diff --git a/:(glob)*.secret b/:(glob)*.secret")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "file-to-directory":
+        print("diff --git a/pkg/authority.py b/pkg/authority.py")
+        print("diff --git a/pkg/authority/__init__.py b/pkg/authority/__init__.py")
+        print("diff --git a/pkg/authority/rules.py b/pkg/authority/rules.py")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "directory-to-file":
+        print("diff --git a/pkg/authority/__init__.py b/pkg/authority/__init__.py")
+        print("diff --git a/pkg/authority/rules.py b/pkg/authority/rules.py")
+        print("diff --git a/pkg/authority.py b/pkg/authority.py")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "file-to-directory-ignored":
         print("diff --git a/config b/config/settings")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") in ("symlink", "mixed-symlink"):
         print("diff --git a/dangling-link b/dangling-link")
@@ -94,6 +102,16 @@ FAKE_CODEX = textwrap.dedent(
             Path(":(glob)*.secret").write_text("provider output\\n", encoding="utf-8")
             Path("x.secret").write_text("unrelated ignored file\\n", encoding="utf-8")
         elif shape == "file-to-directory":
+            Path("pkg/authority.py").unlink()
+            Path("pkg/authority").mkdir()
+            Path("pkg/authority/__init__.py").write_text("from .rules import allow\\n", encoding="utf-8")
+            Path("pkg/authority/rules.py").write_text("allow = True\\n", encoding="utf-8")
+        elif shape == "directory-to-file":
+            Path("pkg/authority/__init__.py").unlink()
+            Path("pkg/authority/rules.py").unlink()
+            Path("pkg/authority").rmdir()
+            Path("pkg/authority.py").write_text("allow = False\\n", encoding="utf-8")
+        elif shape == "file-to-directory-ignored":
             Path("config").unlink()
             Path("config").mkdir()
             Path("config/settings").write_text("theme=dark\\n", encoding="utf-8")
