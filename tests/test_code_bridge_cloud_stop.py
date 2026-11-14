@@ -3,10 +3,10 @@ from __future__ import annotations
 import io
 import json
 import subprocess
-import sys
 import textwrap
 import urllib.error
 
+from code_bridge_test_helpers import write_python_executable
 from lazytools.code_bridge import _cloud, _cloud_stop, _store
 from lazytools.code_bridge.cli import main
 
@@ -34,10 +34,10 @@ def _credentials(monkeypatch, tmp_path, token="super-secret-token-value"):
 
 
 def _fake_claude(monkeypatch, tmp_path):
-    exe = tmp_path / "claude"
-    exe.write_text(
-        f"#!{sys.executable}\n"
-        + textwrap.dedent(
+    exe = write_python_executable(
+        tmp_path,
+        "claude",
+        textwrap.dedent(
             """
             import json, os, sys
             with open(os.environ["CLAUDE_LOG"], "w", encoding="utf-8") as fh:
@@ -48,9 +48,7 @@ def _fake_claude(monkeypatch, tmp_path):
             print(json.dumps({"ok": True}))
             """
         ),
-        encoding="utf-8",
     )
-    exe.chmod(0o755)
     log = tmp_path / "claude.json"
     monkeypatch.setenv("CLAUDE_BIN", str(exe))
     monkeypatch.setenv("CLAUDE_LOG", str(log))
