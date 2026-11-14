@@ -66,6 +66,8 @@ FAKE_CODEX = textwrap.dedent(
         print("diff --git a/README.md b/RENAMED.md")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "ignored":
         print("diff --git a/data/endpoints.yaml b/data/endpoints.yaml")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "literal-pathspec":
+        print("diff --git a/:(glob)*.secret b/:(glob)*.secret")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "file-to-directory":
         print("diff --git a/config b/config/settings")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") in ("symlink", "mixed-symlink"):
@@ -88,6 +90,9 @@ FAKE_CODEX = textwrap.dedent(
         elif shape == "ignored":
             Path("data").mkdir(exist_ok=True)
             Path("data/endpoints.yaml").write_text("endpoint: public\\n", encoding="utf-8")
+        elif shape == "literal-pathspec":
+            Path(":(glob)*.secret").write_text("provider output\\n", encoding="utf-8")
+            Path("x.secret").write_text("unrelated ignored file\\n", encoding="utf-8")
         elif shape == "file-to-directory":
             Path("config").unlink()
             Path("config").mkdir()
@@ -992,22 +997,6 @@ def test_plain_briefs_need_no_approval(brief):
 
 
 @pytest.mark.parametrize(
-    "brief",
-    [
-        "Document merge precedence in the routing policy.",
-        "Add a pre-merge review check.",
-        "Treat `git reset --hard` as a rule string.",
-        "Drop the fallback; do not delete any branch.",
-        'The error says "merge the PR" but that is only quoted output.',
-        "# Appendix\nReview notes: delete the branch",
-        "```text\ngit push --force\n```\nThis block documents a forbidden rule.",
-    ],
-)
-def test_gated_action_real_false_positive_corpus(brief):
-    assert _cloud.gated_actions(brief) == []
-
-
-@pytest.mark.parametrize(
     ("brief", "action"),
     [("Merge the PR", "merge"), ("git push --force", "push"), ("Delete the branch", "delete")],
 )
@@ -1025,6 +1014,25 @@ def test_gated_action_real_request_corpus(brief, action):
 )
 def test_negated_instruction_does_not_hide_later_push(brief):
     assert _cloud.gated_actions(brief) == ["push"]
+
+
+@pytest.mark.parametrize(
+    ("brief", "action"),
+    [
+        ("# Work\nMerge the PR", "merge"),
+        ("Tasks:\n- push the branch", "push"),
+        ("```sh\ngit push origin main\n```", "push"),
+        ("You must push to main", "push"),
+        ("Do not edit tests, push the branch", "push"),
+        ("> Merge the PR", "merge"),
+        ("Per favore, fai push del branch", "push"),
+        ("git branch -D obsolete", "delete"),
+        ("git clean -fdx", "delete"),
+        ('The output says "push\nthe branch".', "push"),
+    ],
+)
+def test_fail_closed_gate_catches_review_regressions(brief, action):
+    assert action in _cloud.gated_actions(brief)
 
 
 # --------------------------------------------------------------------------- #

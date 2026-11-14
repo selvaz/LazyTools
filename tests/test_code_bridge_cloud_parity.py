@@ -316,6 +316,12 @@ def test_a_repo_without_an_environment_fails_early_with_the_setup_pointer(cloud,
         ({"objective": "# Goal\nGoal", "title": "Explicit title"}, "Explicit title"),
         ({"objective": "# Goal\nA title containing enough words that it must be shortened cleanly without splitting the final word apart"},
          "A title containing enough words that it must be shortened cleanly"),
+        ({"objective": "```text\n```\nGoal:\nFix colon headings"}, "Fix colon headings"),
+        ({"objective": "**Goal**\nFix bold headings"}, "Fix bold headings"),
+        ({"objective": "Goal\nFix plain headings"}, "Fix plain headings"),
+        ({"objective": "Goal. This objective has useful detail.", "title": "Goal"},
+         "This objective has useful detail."),
+        ({"objective": "# Goal\nContext\nThe useful sentence follows."}, "The useful sentence follows."),
     ],
 )
 def test_landing_title_derivation(job, expected):
@@ -413,6 +419,21 @@ def test_land_force_adds_only_ignored_paths_from_cloud_diff_and_reports_them(clo
     assert job["force_added_ignored"] == ["data/endpoints.yaml"]
     assert "force-added ignored cloud diff paths: data/endpoints.yaml" in output
     assert _git(cloud.repo, "show", "--format=", "--name-only", job["pushed_sha"]).splitlines() == ["data/endpoints.yaml"]
+
+
+def test_land_treats_provider_file_as_literal_pathspec(cloud, gh, capsys, monkeypatch):
+    (cloud.repo / ".gitignore").write_text("*.secret\n", encoding="utf-8")
+    _git(cloud.repo, "add", ".gitignore")
+    _git(cloud.repo, "commit", "-q", "-m", "ignore secret files")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "literal-pathspec")
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    names = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert names == [":(glob)*.secret"]
+    assert "x.secret" not in _git(cloud.repo, "ls-tree", "-r", "--name-only", outcome["pushed_sha"]).splitlines()
 
 
 def test_land_does_not_force_add_ignored_files_beneath_replaced_file(cloud, gh, capsys, monkeypatch):

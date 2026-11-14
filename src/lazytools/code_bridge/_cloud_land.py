@@ -59,24 +59,45 @@ def opposite_engine(engine: str) -> str:
 def job_title(job: dict[str, Any]) -> str:
     """Derive the landing/PR/squash subject from an explicit title or the brief."""
     explicit = str(job.get("title") or "").strip()
-    if explicit:
+    if explicit and not _is_heading(explicit):
         return _short_title(explicit)
     brief = str(job.get("objective") or "")
     lines = brief.splitlines()
     for index, line in enumerate(lines):
-        if re.fullmatch(r"\s*#{1,6}\s+Goal\s*", line, re.IGNORECASE):
+        if _heading_word(line) == "goal":
             for candidate in lines[index + 1:]:
                 candidate = candidate.strip()
-                if candidate.startswith("#"):
+                if _heading_word(candidate):
                     break
-                if candidate:
+                if candidate and not _fence(candidate):
                     return _short_title(candidate)
-    prose_lines = [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
+    prose_lines = [line.strip() for line in lines
+                   if line.strip() and not _fence(line) and not _is_heading(line)]
     prose = prose_lines[0] if prose_lines else ""
-    sentence = re.split(r"(?<=[.!?])\s+", prose, maxsplit=1)[0] if prose else ""
-    if sentence:
-        return _short_title(sentence)
+    for sentence in re.split(r"(?<=[.!?])\s+", prose) if prose else ():
+        if sentence and not _is_heading(sentence.rstrip(".!?")):
+            return _short_title(sentence)
     return f"Cloud job {str(job.get('job_id', ''))[:8]}"
+
+
+_HEADINGS = {"goal", "context", "constraints", "done when", "report"}
+
+
+def _fence(value: str) -> bool:
+    return bool(re.fullmatch(r"\s*(?:`{3,}|~{3,}).*", value))
+
+
+def _heading_word(value: str) -> str | None:
+    """Return a known section name for Markdown and plain heading forms."""
+    value = value.strip()
+    value = re.sub(r"^#{1,6}\s*", "", value)
+    value = re.sub(r"^\*\*(.*?)\*\*$", r"\1", value)
+    value = value.rstrip(":").strip().casefold()
+    return value if value in _HEADINGS else None
+
+
+def _is_heading(value: str) -> bool:
+    return _heading_word(value) is not None
 
 
 def _short_title(value: str) -> str:
@@ -310,14 +331,19 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
                     # admit ignored files that were not part of the provider diff.
                     if path.is_file() or path.is_symlink():
                         stage_paths.append(name)
-                elif _cloud._git(wt, "ls-files", "--", name, check=False):
+                elif _cloud._git(wt, "--literal-pathspecs", "ls-files", "--", name, check=False):
                     stage_paths.append(name)  # A tracked path deleted by the diff.
-            ignored = [name for name in stage_paths
-                       if _cloud._git(wt, "check-ignore", "--", name, check=False)]
+            # stdin entries are always literal to check-ignore (and avoid its
+            # lack of support for the `literal` pathspec magic signature).
+            ignored_output = _cloud._git(
+                wt, "check-ignore", "--stdin", "-z", check=False,
+                input_text="".join(f"{name}\0" for name in stage_paths),
+            )
+            ignored = [name for name in ignored_output.split("\0") if name]
             # Force only the provider diff's explicit path list. This admits a
             # legitimate ignored result without ever broadening to `-A`/`.`.
             if stage_paths:
-                _cloud._git(wt, "add", "-f", "--", *stage_paths)
+                _cloud._git(wt, "--literal-pathspecs", "add", "-f", "--", *stage_paths)
             if ignored:
                 job = {**job, **_update_meta(store, job_id, {"force_added_ignored": ignored})}
         if _cloud._git(wt, "status", "--porcelain", check=False):

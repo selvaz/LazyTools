@@ -1318,11 +1318,10 @@ A review job is posted, never landed. Everything in this section is
   `--where cloud` only. `gh` (logged in, or `GH_TOKEN`) is needed for PR work;
   `GH_BIN` overrides its path.
 
-Before dispatch, gated-action detection examines requests rather than isolated
-keywords. Imperative instructions and command lines (for example, “merge the
-PR” or `git push --force`) remain fail-closed, while quoted output, rule
-examples, fenced reference blocks, review appendices, and noun phrases such as
-“merge precedence” do not require an approval.
+Before dispatch, gated-action detection is keyword-based and fail-closed: a
+gated action mentioned anywhere in the brief requires approval, including in
+quoted output, examples, and fenced blocks. Use the matching explicit
+`--approve-cloud <action>` flag when a keyword is a harmless false positive.
 
 ### Landing: `apply <job> --land`
 
@@ -1359,7 +1358,7 @@ Guarantees:
   A claim in the job record keeps two schedulers from landing the same job at
   once.
 * **Provider diff paths are authoritative.** Landing stages exactly those paths
-  with `git add -f -- PATH...`, so a new file covered by `.gitignore` is not
+  with `git --literal-pathspecs add -f -- PATH...`, so a new file covered by `.gitignore` is not
   lost. The landing report explicitly lists ignored paths that needed force;
   it never force-adds a directory, `.`, or an unrelated worktree file. A retry
   reuses the recorded `cloud/<id>` worktree/branch left by a failed landing.
