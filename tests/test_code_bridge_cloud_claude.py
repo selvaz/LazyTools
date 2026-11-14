@@ -452,3 +452,97 @@ def test_claims_are_scoped_to_the_repository(cc, capsys):
                    extra={"where": "cloud", "cloud_handle": "h"})
     assert _cloud._claimed_result_branches(store, "cd" * 16, "acme/widgets") == set()
     assert _cloud._claimed_result_branches(store, "cd" * 16, "ACME/elsewhere") == {"claude/fix-login"}
+
+
+# --------------------------------------------------------------------------- #
+# one routine per model, and the local setup check
+# --------------------------------------------------------------------------- #
+
+MODEL_ROUTINES = (
+    '\n[cloud.claude.routines.fast]\nid = "trig_fast"\ntoken_env = "TEST_FAST_TOKEN"\n'
+    'repo = "acme/widgets"\nbranch = "main"\nmodel = "claude-haiku-5-5"\n'
+    '\n[cloud.claude.routines.deep]\nid = "trig_deep"\ntoken_env = "TEST_DEEP_TOKEN"\n'
+    'repo = "acme/widgets"\nbranch = "main"\nmodel = "claude-opus-5-5"\n'
+)
+
+
+def test_config_routine_model_is_validated(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text(MODEL_ROUTINES, encoding="utf-8")
+    config = _cloud.load_config(path)
+    assert config.routines["fast"]["model"] == "claude-haiku-5-5"
+    assert _cloud.routines_by_model(config, "claude-opus-5-5") == ["deep"]
+    path.write_text(MODEL_ROUTINES.replace('model = "claude-haiku-5-5"', 'model = 5'), encoding="utf-8")
+    with pytest.raises(ValueError, match="model must be the model id"):
+        _cloud.load_config(path)
+    path.write_text(ROUTINE_CONFIG, encoding="utf-8")
+    assert "model" not in _cloud.load_config(path).routines["nightly"]  # optional
+
+
+def test_model_picks_the_routine_that_declares_it(cc, capsys, monkeypatch):
+    _config(MODEL_ROUTINES)
+    monkeypatch.setenv("TEST_FAST_TOKEN", "fast-token-value")
+    monkeypatch.setenv("TEST_DEEP_TOKEN", "deep-token-value")
+    seen = []
+
+    def fake_post(url, headers, body, timeout):
+        seen.append((url, headers["Authorization"]))
+        return 200, json.dumps({"claude_code_session_id": "session_m1xyz9",
+                                "claude_code_session_url": "https://claude.ai/code/session_m1xyz9"})
+
+    monkeypatch.setattr(_cloud_claude, "_http_post", fake_post)
+    assert _run(cc, "--model", "claude-opus-5-5", "--json") == 0
+    payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert seen == [("https://api.anthropic.com/v1/claude_code/routines/trig_deep/fire", "Bearer deep-token-value")]
+    job = _job(cc, payload["job_id"])
+    assert job["routine"] == "deep" and job["model"] == "claude-opus-5-5"
+
+
+def test_model_without_a_matching_routine_lists_the_configured_ones(cc, capsys):
+    _config(MODEL_ROUTINES)
+    assert _run(cc, "--model", "claude-sonnet-5-5") == 2
+    err = capsys.readouterr().err
+    assert "no routine declares" in err and "fast (claude-haiku-5-5)" in err and "deep (claude-opus-5-5)" in err
+    assert _store.all_job_records(_store.build_store(cc.db)) == []
+
+
+def test_model_declared_by_several_routines_is_refused(cc, capsys):
+    _config(MODEL_ROUTINES + MODEL_ROUTINES.replace("fast", "fast2").replace("trig_fast", "trig_f2")
+            .replace("claude-opus-5-5", "claude-sonnet-5-5").replace("deep", "deep2").replace("trig_deep", "trig_d2"))
+    assert _run(cc, "--model", "claude-haiku-5-5") == 2
+    err = capsys.readouterr().err
+    assert "several routines declare (fast, fast2)" in err and "--routine" in err
+
+
+def test_explicit_routine_must_agree_with_model(cc, capsys, monkeypatch):
+    _config(MODEL_ROUTINES + ROUTINE_CONFIG)
+    monkeypatch.setenv("TEST_FAST_TOKEN", "fast-token-value")
+    monkeypatch.setenv("TEST_ROUTINE_TOKEN", "t-token-value")
+    assert _run(cc, "--routine", "fast", "--model", "claude-opus-5-5") == 2
+    assert "declares model 'claude-haiku-5-5'" in capsys.readouterr().err
+    assert _run(cc, "--routine", "nightly", "--model", "claude-opus-5-5") == 2
+    assert "cannot override a routine's model" in capsys.readouterr().err
+    assert _run(cc, "--routine", "fast", "--model", "claude-haiku-5-5") == 0
+
+
+def test_cloud_setup_check_reports_what_is_missing_and_never_prints_tokens(cc, capsys, monkeypatch):
+    monkeypatch.delenv("TEST_FAST_TOKEN", raising=False)
+    monkeypatch.setenv("TEST_DEEP_TOKEN", "super-secret-token-value")
+    assert cli.main(["cloud-setup", "claude", "--check"]) == 1
+    assert "no routine configured" in capsys.readouterr().out
+
+    _config(MODEL_ROUTINES + ROUTINE_CONFIG)
+    assert cli.main(["cloud-setup", "claude", "--check"]) == 1
+    out = capsys.readouterr().out
+    assert "TEST_FAST_TOKEN is not set" in out
+    assert "routine 'nightly': no model declared" in out
+    assert "TEST_DEEP_TOKEN is not set" not in out
+    assert "super-secret-token-value" not in out
+
+    monkeypatch.setenv("TEST_FAST_TOKEN", "x-fast")
+    monkeypatch.setenv("TEST_ROUTINE_TOKEN", "x-night")
+    Path(os.environ[_concurrency.CONFIG_ENV]).write_text(MODEL_ROUTINES, encoding="utf-8")
+    assert cli.main(["cloud-setup", "claude", "--check", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["ok"] and [r["routine"] for r in report["routines"]] == ["deep", "fast"]
+    assert "x-fast" not in json.dumps(report)
