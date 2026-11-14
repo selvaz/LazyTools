@@ -76,6 +76,38 @@ def _cloud_json(payload: Any) -> None:
     _print_json(_cloud.redact_obj(payload))
 
 
+def _configure_run_root(args: argparse.Namespace) -> int | None:
+    """Resolve the bridge root once and remember its user-visible provenance."""
+    try:
+        if args.root is not None:
+            root = Path(args.root).expanduser().resolve()
+            source = "--root flag"
+        else:
+            config = _concurrency.load_config()
+            if config.root is not None:
+                root = config.root
+                source = f"config {_concurrency.config_path()}"
+            else:
+                root = Path.cwd().resolve()
+                source = "current working directory"
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    args.root = str(root)
+    args.root_source = source
+    return None
+
+
+def _root_error(args: argparse.Namespace, exc: Exception) -> str:
+    """Add actionable root provenance only to confinement failures."""
+    if "outside the allowed root" not in str(exc):
+        return str(exc)
+    return (
+        f"{exc} (root from {args.root_source}); pass --root PATH or set root in "
+        f"{_concurrency.config_path()} to a directory containing the repository"
+    )
+
+
 # --------------------------------------------------------------------------- #
 # run
 # --------------------------------------------------------------------------- #
@@ -163,7 +195,7 @@ def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
         root = _build_root(args.root)
         resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     # A busy engine is refused HERE too, naming the running job, rather than
     # in a child whose refusal only reaches its log. The child re-checks
@@ -227,7 +259,7 @@ def _check_brief_before_launch(args: argparse.Namespace, task: str) -> int | Non
     try:
         cwd = _engines.resolve_cwd(args.cwd, args.root)
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     findings = _brief.check_brief(task, engine=args.engine, cwd=cwd, root=args.root)
     for finding in findings:
@@ -297,7 +329,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         if args.routine and args.engine != "claude":
             raise ValueError("--routine is only for --where cloud --engine claude")
     except (OSError, ValueError, _cloud.CloudError) as exc:
-        _cloud_print(f"error: {exc}", err=True)
+        _cloud_print(f"error: {_root_error(args, exc)}", err=True)
         return 2
     if not args.brief_checked and not review_meta:
         refusal = _check_brief_before_launch(args, task)
@@ -371,6 +403,9 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    refusal = _configure_run_root(args)
+    if refusal is not None:
+        return refusal
     refusal = _resolve_placement(args)
     if refusal is not None:
         return refusal
@@ -439,7 +474,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 raise ValueError(rejection)
             args.effort = args.effort.strip()
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     if not args.brief_checked:
         refusal = _check_brief_before_launch(args, task)
@@ -1391,7 +1426,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--scratch-root", default=None,
                        help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).")
     run_p.add_argument(
-        "--root", default=None, help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT or cwd)."
+        "--root", default=None, help="Confinement root for --cwd (default: root in code-bridge.toml, then cwd)."
     )
     run_p.add_argument("--json", action="store_true")
     run_p.add_argument(

@@ -522,8 +522,11 @@ Both engines can use the web: Claude Code gets `WebSearch`/`WebFetch`
 (allowed by the rule table, so they never ask), and Codex runs with live web
 search set explicitly per job rather than inherited from `~/.codex/config.toml`.
 
-The `--cwd` argument must resolve inside `$LAZYTOOLS_CODE_ROOT` / `--root`
-(default: the launching directory). Codex uses workspace-write; Claude file
+The `--cwd` argument must resolve inside `--root`, or the top-level `root` in
+`~/.lazytools/code-bridge.toml` (default: the launching directory when neither
+is set). A relative configured root is resolved beside the configuration file.
+`--root` always wins. A confinement error reports the selected root and whether
+it came from the flag, configuration, or current working directory. Codex uses workspace-write; Claude file
 hooks confine file tools to `cwd` and the job's own temp directory, while
 Bash is not path-confined. Requests
 are gated by one `BridgeGate` (a `lazybridge.ext.approval.TieredGate`
@@ -662,7 +665,8 @@ directory's `lazytools-bridge` folder.
 Startup logs whether routine-auto is enabled and the active rule count to
 stderr (the detached worker log). Plain `status` prints both, and JSON includes
 `routine_auto` and `routine_rule_count`. Unknown top-level configuration keys
-are errors; only `[concurrency]` and `[routine_auto]` are supported.
+are errors. The supported top-level key and tables are `root`, `[concurrency]`,
+`[routine_auto]`, and `[cloud]`.
 
 The packaged `lazytools/code_bridge/routine_allowlist.toml` contains:
 
