@@ -24,6 +24,7 @@ same job at once.
 
 from __future__ import annotations
 
+import os
 import re
 import time
 from pathlib import Path
@@ -56,12 +57,56 @@ def opposite_engine(engine: str) -> str:
 
 
 def job_title(job: dict[str, Any]) -> str:
-    """A one-line title from the brief: its first non-empty line, markdown marks stripped, 72 chars."""
-    for line in str(job.get("objective") or "").splitlines():
-        line = line.strip().lstrip("#*-> ").strip()
-        if line:
-            return redact(line[:72].rstrip())
+    """Derive the landing/PR/squash subject from an explicit title or the brief."""
+    explicit = str(job.get("title") or "").strip()
+    if explicit and not _is_heading(explicit):
+        return _short_title(explicit)
+    brief = str(job.get("objective") or "")
+    lines = brief.splitlines()
+    for index, line in enumerate(lines):
+        if _heading_word(line) == "goal":
+            for candidate in lines[index + 1:]:
+                candidate = candidate.strip()
+                if _heading_word(candidate):
+                    break
+                if candidate and not _fence(candidate):
+                    return _short_title(candidate)
+    prose_lines = [line.strip() for line in lines
+                   if line.strip() and not _fence(line) and not _is_heading(line)]
+    prose = prose_lines[0] if prose_lines else ""
+    for sentence in re.split(r"(?<=[.!?])\s+", prose) if prose else ():
+        if sentence and not _is_heading(sentence.rstrip(".!?")):
+            return _short_title(sentence)
     return f"Cloud job {str(job.get('job_id', ''))[:8]}"
+
+
+_HEADINGS = {"goal", "context", "constraints", "done when", "report"}
+
+
+def _fence(value: str) -> bool:
+    return bool(re.fullmatch(r"\s*(?:`{3,}|~{3,}).*", value))
+
+
+def _heading_word(value: str) -> str | None:
+    """Return a known section name for Markdown and plain heading forms."""
+    value = value.strip()
+    value = re.sub(r"^#{1,6}\s*", "", value)
+    value = re.sub(r"^\*\*(.*?)\*\*$", r"\1", value)
+    value = value.rstrip(":").strip().casefold()
+    return value if value in _HEADINGS else None
+
+
+def _is_heading(value: str) -> bool:
+    return _heading_word(value) is not None
+
+
+def _short_title(value: str) -> str:
+    """A redacted, single-line title of at most 72 chars, cut at a word boundary."""
+    value = re.sub(r"\s+", " ", value).strip().lstrip("#*-> ").strip()
+    if len(value) <= 72:
+        return redact(value)
+    shortened = value[:73].rsplit(" ", 1)[0]
+    return redact(shortened or value[:72])
 
 
 def _summary(job: dict[str, Any]) -> str:
@@ -151,6 +196,7 @@ def _outcome(job: dict[str, Any], *, already: bool = False, note: str | None = N
         "pr_number": job.get("pr_number"),
         "worktree": job.get("applied_worktree"),
         "base_branch": job.get("pr_base") or job.get("branch"),
+        "force_added_ignored": job.get("force_added_ignored") or [],
         "note": note or job.get("land_note"),
     }
 
@@ -276,8 +322,30 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
         if unexpected:
             names = ", ".join(repr(name) for name in unexpected)
             raise CloudError(f"unexpected untracked file(s) remain after cloud apply: {names}; refusing to land")
-        if changed_files and status:
-            _cloud._git(wt, "add", "--", *changed_files)
+        if changed_files:
+            stage_paths = []
+            for name in changed_files:
+                path = wt / name
+                if os.path.lexists(path):
+                    # `git add -f` recurses when given a directory, which could
+                    # admit ignored files that were not part of the provider diff.
+                    if path.is_file() or path.is_symlink():
+                        stage_paths.append(name)
+                elif _cloud._git(wt, "--literal-pathspecs", "ls-files", "--", name, check=False):
+                    stage_paths.append(name)  # A tracked path deleted by the diff.
+            # stdin entries are always literal to check-ignore (and avoid its
+            # lack of support for the `literal` pathspec magic signature).
+            ignored_output = _cloud._git(
+                wt, "check-ignore", "--stdin", "-z", check=False,
+                input_text="".join(f"{name}\0" for name in stage_paths),
+            )
+            ignored = [name for name in ignored_output.split("\0") if name]
+            # Force only the provider diff's explicit path list. This admits a
+            # legitimate ignored result without ever broadening to `-A`/`.`.
+            if stage_paths:
+                _cloud._git(wt, "--literal-pathspecs", "add", "-f", "--", *stage_paths)
+            if ignored:
+                job = {**job, **_update_meta(store, job_id, {"force_added_ignored": ignored})}
         if _cloud._git(wt, "status", "--porcelain", check=False):
             subject, body = commit_message(job)
             message_args = ["-m", subject, *(["-m", body] if body else [])]

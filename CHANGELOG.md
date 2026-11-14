@@ -11,6 +11,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Code bridge `run --where cloud` refuses a `--branch` that does not exist on `origin` before submitting, with a message saying it is the base branch the cloud agent starts from (#258).
 
+## [0.10.9] — 2026-11-13
+
+### Changed
+- Projects MCP: `projects_open_contract` is in the core profile, so sessions can open the contracts that `projects_close_task` requires (#253).
+- Code bridge: transient poll errors (429, 5xx, timeouts) never fail a cloud job; exponential backoff honouring Retry-After, jitter and a shared per-account poll clock; `resync` recovers jobs failed by an earlier poll error (#254, #255).
+
 ## [0.10.8] — 2026-11-13
 
 ### Added

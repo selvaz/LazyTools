@@ -307,6 +307,27 @@ def test_a_repo_without_an_environment_fails_early_with_the_setup_pointer(cloud,
 # --------------------------------------------------------------------------- #
 
 
+@pytest.mark.parametrize(
+    ("job", "expected"),
+    [
+        ({"objective": "# Goal\n\nFix useful PR titles\n\n# Context\nMore"}, "Fix useful PR titles"),
+        ({"objective": "# Context\nNotes\n# Goal\nDo the actual work"}, "Do the actual work"),
+        ({"objective": "Repair title selection. Then refactor it."}, "Repair title selection."),
+        ({"objective": "# Goal\nGoal", "title": "Explicit title"}, "Explicit title"),
+        ({"objective": "# Goal\nA title containing enough words that it must be shortened cleanly without splitting the final word apart"},
+         "A title containing enough words that it must be shortened cleanly"),
+        ({"objective": "```text\n```\nGoal:\nFix colon headings"}, "Fix colon headings"),
+        ({"objective": "**Goal**\nFix bold headings"}, "Fix bold headings"),
+        ({"objective": "Goal\nFix plain headings"}, "Fix plain headings"),
+        ({"objective": "Goal. This objective has useful detail.", "title": "Goal"},
+         "This objective has useful detail."),
+        ({"objective": "# Goal\nContext\nThe useful sentence follows."}, "The useful sentence follows."),
+    ],
+)
+def test_landing_title_derivation(job, expected):
+    assert _cloud_land.job_title(job) == expected
+
+
 def test_apply_land_commits_pushes_and_opens_a_pr(cloud, gh, capsys):
     payload = _submit_json(cloud, capsys, "--open-pr", task="Add retry logic to the fetcher\n\nDetails follow.")
     job_id = payload["job_id"]
@@ -362,6 +383,79 @@ def test_land_handles_file_names_with_spaces(cloud, gh, capsys, monkeypatch):
     assert _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines() == ["with space.txt"]
 
 
+@pytest.mark.parametrize(
+    ("shape", "expected"),
+    [("symlink", ["dangling-link"]), ("mixed-symlink", ["dangling-link", "regular.txt"])],
+)
+def test_land_stages_dangling_symlink_changes(cloud, gh, capsys, monkeypatch, tmp_path, shape, expected):
+    probe = tmp_path / "symlink-probe"
+    try:
+        probe.symlink_to("missing-target")
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+    probe.unlink()
+
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", shape)
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines() == expected
+    entry = _git(cloud.repo, "ls-tree", outcome["pushed_sha"], "dangling-link")
+    assert entry.startswith("120000 blob ")
+
+
+def test_land_force_adds_only_ignored_paths_from_cloud_diff_and_reports_them(cloud, gh, capsys, monkeypatch):
+    (cloud.repo / ".gitignore").write_text("data/\n", encoding="utf-8")
+    _git(cloud.repo, "add", ".gitignore")
+    _git(cloud.repo, "commit", "-q", "-m", "ignore generated data")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "ignored")
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land") == 0
+    output = capsys.readouterr().out
+    job = _job(cloud, job_id)
+    assert job["force_added_ignored"] == ["data/endpoints.yaml"]
+    assert "force-added ignored cloud diff paths: data/endpoints.yaml" in output
+    assert _git(cloud.repo, "show", "--format=", "--name-only", job["pushed_sha"]).splitlines() == ["data/endpoints.yaml"]
+
+
+def test_land_treats_provider_file_as_literal_pathspec(cloud, gh, capsys, monkeypatch):
+    (cloud.repo / ".gitignore").write_text("*.secret\n", encoding="utf-8")
+    _git(cloud.repo, "add", ".gitignore")
+    _git(cloud.repo, "commit", "-q", "-m", "ignore secret files")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "literal-pathspec")
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    names = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert names == [":(glob)*.secret"]
+    assert "x.secret" not in _git(cloud.repo, "ls-tree", "-r", "--name-only", outcome["pushed_sha"]).splitlines()
+
+
+def test_land_does_not_force_add_ignored_files_beneath_replaced_file(cloud, gh, capsys, monkeypatch):
+    (cloud.repo / "config").write_text("legacy=true\n", encoding="utf-8")
+    (cloud.repo / ".gitignore").write_text("config/token.secret\n", encoding="utf-8")
+    _git(cloud.repo, "add", "config", ".gitignore")
+    _git(cloud.repo, "commit", "-q", "-m", "add legacy config")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "file-to-directory")
+
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+
+    staged = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
+    tree = _git(cloud.repo, "ls-tree", "-r", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert staged == ["config", "config/settings"]
+    assert "config/settings" in tree
+    assert "config/token.secret" not in tree
+
+
 def test_land_stages_both_sides_of_a_rename(cloud, gh, capsys, monkeypatch):
     monkeypatch.setenv("FAKE_CODEX_SHAPE", "rename")
     job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
@@ -389,6 +483,65 @@ def test_land_refuses_an_unexpected_untracked_file(cloud, gh, capsys, monkeypatc
     err = capsys.readouterr().err
     assert "unexpected untracked" in err and "unexpected.tmp" in err
     assert _tip(cloud, f"cloud/{job_id[:8]}") is None and gh.calls("pr", "create") == []
+
+
+def test_land_retry_cleans_safe_unrecorded_branch_and_worktree(cloud, gh, capsys):
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    job = _job(cloud, job_id)
+    branch = f"cloud/{job_id[:8]}"
+    worktree = cloud.db.parent / "cloud-worktrees" / job_id
+    worktree.parent.mkdir(parents=True)
+    _git(cloud.repo, "worktree", "add", "-b", branch, str(worktree), job["base_commit"])
+    # This is the provider-owned path from an interrupted first attempt, not
+    # unrelated local work.  The retry may reset it and apply the result again.
+    (worktree / "cloud_change.txt").write_text("partial first attempt\n", encoding="utf-8")
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert outcome["landed"] and outcome["worktree_removed"] is True
+    assert not worktree.exists()
+    assert _git(cloud.repo, "show", f"{outcome['pushed_sha']}:cloud_change.txt") != "partial first attempt"
+
+
+def test_land_retry_refuses_unexpected_work_in_unrecorded_worktree(cloud, gh, capsys):
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    job = _job(cloud, job_id)
+    branch = f"cloud/{job_id[:8]}"
+    worktree = cloud.db.parent / "cloud-worktrees" / job_id
+    worktree.parent.mkdir(parents=True)
+    _git(cloud.repo, "worktree", "add", "-b", branch, str(worktree), job["base_commit"])
+    (worktree / "operator-notes.txt").write_text("keep me\n", encoding="utf-8")
+
+    assert _main(cloud, "apply", job_id, "--land") == 1
+    err = capsys.readouterr().err
+    assert branch in err and str(worktree) in err
+    assert "unexpected work" in err and "operator-notes.txt" in err and "refusing to discard" in err
+    assert (worktree / "operator-notes.txt").read_text(encoding="utf-8") == "keep me\n"
+    assert _git(worktree, "symbolic-ref", "--short", "HEAD") == branch
+    assert gh.calls("pr", "create") == []
+
+
+def test_land_retry_refuses_staged_work_deleted_from_unrecorded_worktree(cloud, gh, capsys):
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    job = _job(cloud, job_id)
+    branch = f"cloud/{job_id[:8]}"
+    worktree = cloud.db.parent / "cloud-worktrees" / job_id
+    worktree.parent.mkdir(parents=True)
+    _git(cloud.repo, "worktree", "add", "-b", branch, str(worktree), job["base_commit"])
+    operator_file = worktree / "operator.txt"
+    operator_file.write_text("keep staged copy\n", encoding="utf-8")
+    _git(worktree, "add", "operator.txt")
+    operator_file.unlink()
+
+    assert _main(cloud, "apply", job_id, "--land") == 1
+    err = capsys.readouterr().err
+    assert "unexpected work" in err and "operator.txt" in err
+    assert worktree.exists()
+    assert _git(worktree, "show", ":operator.txt") == "keep staged copy"
+    assert gh.calls("pr", "create") == []
 
 
 def test_land_updates_the_recorded_pr_by_pushing_its_head_branch(cloud, gh, capsys):
