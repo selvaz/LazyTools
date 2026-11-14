@@ -323,16 +323,18 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
             names = ", ".join(repr(name) for name in unexpected)
             raise CloudError(f"unexpected untracked file(s) remain after cloud apply: {names}; refusing to land")
         if changed_files:
-            stage_paths = []
+            add_paths = []
+            deletion_paths = []
             for name in changed_files:
                 path = wt / name
                 if os.path.lexists(path):
                     # `git add -f` recurses when given a directory, which could
                     # admit ignored files that were not part of the provider diff.
                     if path.is_file() or path.is_symlink():
-                        stage_paths.append(name)
+                        add_paths.append(name)
                 elif _cloud._git(wt, "--literal-pathspecs", "ls-files", "--", name, check=False):
-                    stage_paths.append(name)  # A tracked path deleted by the diff.
+                    deletion_paths.append(name)
+            stage_paths = [*add_paths, *deletion_paths]
             # stdin entries are always literal to check-ignore (and avoid its
             # lack of support for the `literal` pathspec magic signature).
             ignored_output = _cloud._git(
@@ -342,8 +344,10 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
             ignored = [name for name in ignored_output.split("\0") if name]
             # Force only the provider diff's explicit path list. This admits a
             # legitimate ignored result without ever broadening to `-A`/`.`.
-            if stage_paths:
-                _cloud._git(wt, "--literal-pathspecs", "add", "-f", "--", *stage_paths)
+            if add_paths:
+                _cloud._git(wt, "--literal-pathspecs", "add", "-f", "--", *add_paths)
+            if deletion_paths:
+                _cloud._git(wt, "--literal-pathspecs", "rm", "--cached", "-q", "--", *deletion_paths)
             if ignored:
                 job = {**job, **_update_meta(store, job_id, {"force_added_ignored": ignored})}
         if _cloud._git(wt, "status", "--porcelain", check=False):

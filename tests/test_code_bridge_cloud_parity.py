@@ -436,13 +436,43 @@ def test_land_treats_provider_file_as_literal_pathspec(cloud, gh, capsys, monkey
     assert "x.secret" not in _git(cloud.repo, "ls-tree", "-r", "--name-only", outcome["pushed_sha"]).splitlines()
 
 
+@pytest.mark.parametrize(
+    ("shape", "before", "expected"),
+    [
+        ("file-to-directory", {"pkg/authority.py": "allow = None\n"},
+         ["pkg/authority/__init__.py", "pkg/authority/rules.py"]),
+        ("directory-to-file", {"pkg/authority/__init__.py": "", "pkg/authority/rules.py": "allow = True\n"},
+         ["pkg/authority.py"]),
+    ],
+)
+def test_land_stages_file_directory_replacements(cloud, gh, capsys, monkeypatch, shape, before, expected):
+    for name, contents in before.items():
+        path = cloud.repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(contents, encoding="utf-8")
+    _git(cloud.repo, "add", "pkg")
+    _git(cloud.repo, "commit", "-q", "-m", "add legacy authority")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", shape)
+
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+
+    staged = _git(cloud.repo, "diff-tree", "--no-commit-id", "--name-status", "-r", outcome["pushed_sha"]).splitlines()
+    tree = _git(cloud.repo, "ls-tree", "-r", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert set(staged) == {*(f"D\t{name}" for name in before), *(f"A\t{name}" for name in expected)}
+    assert [name for name in tree if name.startswith("pkg/authority")] == expected
+
+
 def test_land_does_not_force_add_ignored_files_beneath_replaced_file(cloud, gh, capsys, monkeypatch):
     (cloud.repo / "config").write_text("legacy=true\n", encoding="utf-8")
     (cloud.repo / ".gitignore").write_text("config/token.secret\n", encoding="utf-8")
     _git(cloud.repo, "add", "config", ".gitignore")
     _git(cloud.repo, "commit", "-q", "-m", "add legacy config")
     _git(cloud.repo, "push", "-q", "origin", "main")
-    monkeypatch.setenv("FAKE_CODEX_SHAPE", "file-to-directory")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "file-to-directory-ignored")
 
     job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
     cloud.set_status(READY)
