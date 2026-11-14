@@ -1019,22 +1019,26 @@ def _remote_base(root: Path, branch: str) -> str | None:
 
 
 def _wait_for_submit_turn(store: Any, engine: str, minimum_interval: float) -> None:
-    """Reserve and honour a store-backed per-provider submit time.
+    """Wait until this process may submit, then record the actual submit time.
 
     Submits from any process on this machine are spaced at least
     ``minimum_interval`` seconds apart, so a burst is not rejected by the provider.
+    The store holds the time of the last *actual* submit. A waiter re-checks it
+    after every sleep, so a process that wakes late, or several that wake
+    together, cannot undercut the spacing.
     """
     if minimum_interval <= 0:
         return
     key = f"{SUBMIT_CLOCK_PREFIX}{engine}"
-    with _concurrency._guard(_concurrency.load_config().slot_dir):
-        now = time.time()
-        raw = store.read(key)
-        previous = float(raw) if isinstance(raw, (int, float)) else 0.0
-        submit_at = max(now, previous + minimum_interval)
-        store.write(key, submit_at)
-    wait = submit_at - time.time()
-    if wait > 0:
+    while True:
+        with _concurrency._guard(_concurrency.load_config().slot_dir):
+            now = time.time()
+            raw = store.read(key)
+            previous = float(raw) if isinstance(raw, (int, float)) else 0.0
+            wait = previous + minimum_interval - now
+            if wait <= 0:
+                store.write(key, now)
+                return
         time.sleep(wait)
 
 

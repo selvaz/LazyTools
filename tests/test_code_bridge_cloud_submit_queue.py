@@ -70,6 +70,25 @@ def test_submits_are_spaced_by_the_minimum_interval(tmp_path, clock):
     assert clock["sleeps"] == [3.0, 3.0]  # providers are spaced independently
 
 
+def test_a_late_waker_rechecks_the_clock_after_sleeping(tmp_path, clock, monkeypatch):
+    store = _store.build_store(tmp_path / "s.sqlite")
+    _wait_for_submit_turn(store, "codex", 2.0)  # actual submit at 1000
+    key = f"{_cloud.SUBMIT_CLOCK_PREFIX}codex"
+    real_sleep = _cloud.time.sleep
+    woke = []
+
+    def overshooting_sleep(seconds: float) -> None:
+        real_sleep(seconds)
+        if not woke:  # another process submits right as this one wakes
+            woke.append(True)
+            store.write(key, clock["now"])
+
+    monkeypatch.setattr(_cloud.time, "sleep", overshooting_sleep)
+    _wait_for_submit_turn(store, "codex", 2.0)
+    assert clock["sleeps"] == [2.0, 2.0]  # waited again instead of submitting at gap 0
+    assert store.read(key) == 1004.0
+
+
 def test_zero_interval_disables_spacing(tmp_path, clock):
     store = _store.build_store(tmp_path / "s.sqlite")
     for _ in range(3):
