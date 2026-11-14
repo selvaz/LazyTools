@@ -821,6 +821,8 @@ def test_cloud_sync_reconciles_all_live_jobs(cloud, gh, capsys):
     assert rows[c]["action"] == "failed" and "setup script exploded" in rows[c]["detail"]
     assert _job(cloud, c)["status"] == "failed" and "setup script exploded" in _job(cloud, c)["error"]
     assert _tip(cloud, f"cloud/{a[:8]}") and _tip(cloud, f"cloud/{b[:8]}") is None
+    for job_id in (a, b, c):
+        assert not _store.read_meta(_store.build_store(cloud.db), job_id).get("manual_interventions")
 
     # The next run only has job B left to look at: A is landed, C's failure was reported once.
     Path(str(status) + ".task_e_abc1232").write_text("status: ready\nB is done.\n", encoding="utf-8")
@@ -830,6 +832,19 @@ def test_cloud_sync_reconciles_all_live_jobs(cloud, gh, capsys):
     assert _main(cloud, "cloud-sync") == 0
     assert "no live cloud jobs" in capsys.readouterr().out
     assert len(gh.calls("pr", "create")) == 2
+
+
+def test_manual_cloud_sync_records_only_processed_jobs(cloud, gh, capsys):
+    job_id = _submit_json(cloud, capsys, "--land")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "cloud-sync", "--manual", "--json") == 0
+    assert json.loads(capsys.readouterr().out)["jobs"][0]["action"] == "landed"
+    interventions = _store.read_meta(_store.build_store(cloud.db), job_id)["manual_interventions"]
+    assert [item["kind"] for item in interventions] == ["cloud-sync"]
+
+    assert _main(cloud, "cloud-sync", "--manual") == 0
+    assert "no live cloud jobs" in capsys.readouterr().out
+    assert len(_store.read_meta(_store.build_store(cloud.db), job_id)["manual_interventions"]) == 1
 
 
 def test_cloud_sync_refuses_a_moved_base_unless_submitted_with_rebase_ok(cloud, gh, capsys):

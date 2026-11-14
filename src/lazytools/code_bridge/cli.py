@@ -18,7 +18,7 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -121,6 +121,14 @@ def _root_error(args: argparse.Namespace, exc: Exception) -> str:
 #: Statuses a job record can end in. A record still "running" or
 #: "awaiting_approval" whose process is gone is reported as died by `wait`.
 _TERMINAL = ("done", "partial", "failed", "interrupted")
+
+
+def _record_intervention(store: Any, job_id: str, kind: str, reason: str | None = None) -> None:
+    """Best-effort audit write; an audit failure must not undo an operator action."""
+    try:
+        _store.record_intervention(store, job_id, kind, reason)
+    except Exception as exc:
+        print(f"warning: action succeeded but its {kind} intervention could not be recorded: {exc}", file=sys.stderr)
 
 # Windows process-creation flags for a child that must outlive its launcher:
 # no console tie to the parent, its own process group (so a Ctrl+C or a
@@ -807,15 +815,16 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         job_id = str(job["job_id"])
         pid = _detached_pid(db_path, job_id) or job.get("pid")
     if _cloud.is_cloud(job):
-        _store.record_intervention(store, job_id, "cancel", args.reason)
-        return _cancel_cloud(store, registry, job, args.reason)
+        result = _cancel_cloud(store, registry, job, args.reason)
+        if result == 0:
+            _record_intervention(store, job_id, "cancel", args.reason)
+        return result
     if job.get("status") in _TERMINAL:
         print(f"job {job['job_id']} already {job['status']}")
         return 0
     if not isinstance(pid, int) or pid <= 0:
         print(f"job {job_id}: no process id recorded; cannot cancel", file=sys.stderr)
         return 1
-    _store.record_intervention(store, job_id, "cancel", args.reason)
     if _pid_alive(pid):
         if _process_matches_bridge(pid) is False:
             print(f"job {job_id}: pid {pid} is not a Python code-bridge process; refusing to kill", file=sys.stderr)
@@ -852,6 +861,7 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         _store.write_meta(store, job_id, meta)
     message = "cancelled by operator during startup" if startup else "cancelled by operator"
     error = _jobs.interrupt_job(store, registry, job, f"{message}: {args.reason}", db_path=db_path)
+    _record_intervention(store, job_id, "cancel", args.reason)
     print(f"[interrupted] job {job_id}\n{error}")
     return 0
 
@@ -1007,12 +1017,12 @@ def _cmd_resync(args: argparse.Namespace) -> int:
     if not _cloud.is_cloud(job):
         print(f"job {args.job_id} is a local job", file=sys.stderr)
         return 2
-    _store.record_intervention(store, str(job["job_id"]), "resync", args.reason)
     try:
         job = _cloud.resync(store, registry, job)
     except _cloud.CloudError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    _record_intervention(store, str(job["job_id"]), "resync", args.reason)
     if args.json:
         _cloud_json(job)
     else:
@@ -1057,9 +1067,10 @@ def _cmd_apply(args: argparse.Namespace) -> int:
         print(f"job {job['job_id']} is a local job: its changes are already in {job.get('cwd')}", file=sys.stderr)
         return 2
     if args.land:
-        _store.record_intervention(store, str(job["job_id"]), "land", args.reason)
-        return _cmd_land(args, store, registry, job, db_path)
-    _store.record_intervention(store, str(job["job_id"]), "apply", args.reason)
+        result = _cmd_land(args, store, registry, job, db_path)
+        if result == 0 and not getattr(args, "_land_noop", False):
+            _record_intervention(store, str(job["job_id"]), "land", args.reason)
+        return result
     try:
         job = _cloud.refresh(store, registry, job)
         outcome = _cloud.apply_job(
@@ -1075,6 +1086,8 @@ def _cmd_apply(args: argparse.Namespace) -> int:
     except _cloud.CloudError as exc:
         _cloud_print(f"error: {exc}", err=True)
         return 1
+    if outcome.get("changed"):
+        _record_intervention(store, str(job["job_id"]), "apply", args.reason)
     if args.json:
         _cloud_json(outcome)
         return 0
@@ -1103,6 +1116,8 @@ def _cmd_land(args: argparse.Namespace, store: Any, registry: Any, job: dict[str
     except _cloud.CloudError as exc:
         _cloud_print(f"error: not landed: {exc}", err=True)
         return 1
+    if outcome.get("already"):
+        args._land_noop = True
     if args.json:
         _cloud_json(outcome)
         return 0
@@ -1122,14 +1137,15 @@ def _cmd_land(args: argparse.Namespace, store: Any, registry: Any, job: dict[str
 def _cmd_cloud_sync(args: argparse.Namespace) -> int:
     """Reconcile every live cloud job: poll, land the finished ones that asked for it, record failures."""
     store = _store.build_store(_db_path(args))
-    targets = _cloud.active_jobs(store)
-    for job in targets:
-        _store.record_intervention(store, str(job["job_id"]), "cloud-sync", args.reason)
     try:
         rows = _cloud_land.sync(_db_path(args))
     except (_cloud.CloudError, ValueError) as exc:
         _cloud_print(f"error: {exc}", err=True)
         return 1
+    if args.manual:
+        for row in rows:
+            if row.get("action") != "none":
+                _record_intervention(store, str(row["job_id"]), "cloud-sync", args.reason)
     failed = any(row["action"].endswith("-failed") for row in rows)
     if args.json:
         _cloud_json({"jobs": rows, "ok": not failed})
@@ -1281,8 +1297,8 @@ def _cmd_approve(args: argparse.Namespace) -> int:
     if not ok:
         print(f"could not approve {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
         return 1
-    if ticket is not None:
-        _store.record_intervention(store, str(ticket.task_id), "approve", args.reason)
+    if ticket is not None and _store.read_meta(store, str(ticket.task_id)) is not None:
+        _record_intervention(store, str(ticket.task_id), "approve", args.reason)
     print(f"approved {args.ticket_id}")
     return 0
 
@@ -1295,8 +1311,8 @@ def _cmd_reject(args: argparse.Namespace) -> int:
     if not ok:
         print(f"could not reject {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
         return 1
-    if ticket is not None:
-        _store.record_intervention(store, str(ticket.task_id), "reject", args.reason)
+    if ticket is not None and _store.read_meta(store, str(ticket.task_id)) is not None:
+        _record_intervention(store, str(ticket.task_id), "reject", args.reason)
     print(f"rejected {args.ticket_id}")
     return 0
 
@@ -1308,8 +1324,9 @@ def _cmd_autonomy(args: argparse.Namespace) -> int:
                 raise ValueError("--until cannot be combined with --week")
             since, until = _autonomy.week_bounds(args.week)
         else:
-            since = date.fromisoformat(args.since) if args.since else date.today() - timedelta(days=7)
-            until = date.fromisoformat(args.until) if args.until else date.today() + timedelta(days=1)
+            today_utc = datetime.now(UTC).date()
+            since = date.fromisoformat(args.since) if args.since else today_utc - timedelta(days=7)
+            until = date.fromisoformat(args.until) if args.until else today_utc + timedelta(days=1)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -1625,6 +1642,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sync_p.add_argument("--json", action="store_true")
     sync_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
+    sync_mode = sync_p.add_mutually_exclusive_group()
+    sync_mode.add_argument(
+        "--manual", action="store_true",
+        help="Record successful reconciliation work as an operator intervention.",
+    )
+    sync_mode.add_argument(
+        "--scheduled", action="store_true",
+        help="Scheduler mode (the default): do not record an operator intervention.",
+    )
     _add_db_option(sync_p)
     sync_p.set_defaults(func=_cmd_cloud_sync)
 
@@ -1674,7 +1700,10 @@ def build_parser() -> argparse.ArgumentParser:
     range_group = autonomy_p.add_mutually_exclusive_group()
     range_group.add_argument("--week", help="ISO week (YYYY-Www).")
     range_group.add_argument("--since", help="First UTC date to include (YYYY-MM-DD).")
-    autonomy_p.add_argument("--until", help="First UTC date to exclude (YYYY-MM-DD); requires or defaults with --since.")
+    autonomy_p.add_argument(
+        "--until",
+        help="Exclusive UTC end date (YYYY-MM-DD): that date is not included; defaults to tomorrow in UTC.",
+    )
     autonomy_p.add_argument("--json", action="store_true")
     _add_db_option(autonomy_p)
     autonomy_p.set_defaults(func=_cmd_autonomy)

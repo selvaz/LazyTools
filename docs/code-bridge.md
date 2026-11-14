@@ -67,14 +67,18 @@ can safely capture the id.
 
 Navigator measures a job as autonomous when it reaches a terminal state
 (`done`, `partial`, `failed`, or `interrupted`) without an operator command
-touching it. The bridge appends an intervention entry to the existing job
-metadata for `resync`, `cloud-sync`, `apply`, `apply --land`, manual
-`approve`/`reject`, and `cancel`. Each of these commands accepts an optional
+touching it. After an action succeeds, the bridge appends an intervention entry
+for `resync`, manual `cloud-sync`, `apply`, `apply --land`, manual
+`approve`/`reject`, `cancel`, a session rename, or a relaunch matching a failed
+or interrupted job's repository and brief in the previous 24 hours. Scheduled
+syncs use `cloud-sync --scheduled` (also the default) and do not count; use
+`--manual` for an operator-triggered sync. Each operator command accepts an optional
 `--reason` (a rejection continues to require one), so the durable record keeps
 both the command kind and the operator's explanation. Existing Store rows need
 no migration and count as having no interventions.
 
-Report an ISO week or a half-open UTC date range:
+Report an ISO week or a half-open UTC date range. Dates and default bounds use
+UTC, and `--until` is the first date excluded:
 
 ```console
 lazytools-code-bridge autonomy --week 2026-W46

@@ -26,7 +26,7 @@ def report(store: Any, *, since: date, until: date) -> dict[str, Any]:
     end = datetime.combine(until, datetime.min.time(), tzinfo=UTC).timestamp()
     finished = []
     for job in _jobs.list_jobs(store, all_jobs=True):
-        finished_at = job.get("finished_at") or job.get("updated_at") or job.get("created_at")
+        finished_at = job.get("completed_at") or job.get("finished_at") or job.get("updated_at") or job.get("created_at")
         if job.get("status") in TERMINAL and isinstance(finished_at, (int, float)) and start <= finished_at < end:
             finished.append(job)
     causes = Counter(
