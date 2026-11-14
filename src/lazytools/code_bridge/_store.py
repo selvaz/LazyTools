@@ -9,6 +9,7 @@ overridable with ``LAZYTOOLS_CODE_BRIDGE_DB`` or the CLI's ``--db``.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +72,24 @@ def read_meta(store: Any, job_id: str) -> dict[str, Any] | None:
     return raw if isinstance(raw, dict) else None
 
 
+def record_intervention(store: Any, job_id: str, kind: str, reason: str | None = None) -> None:
+    """Append one operator intervention without losing concurrent metadata writes."""
+    key = f"{META_PREFIX}{job_id}"
+    for _ in range(20):
+        raw = store.read(key)
+        current = raw if isinstance(raw, dict) else {"job_id": job_id}
+        updated = dict(current)
+        interventions = list(updated.get("manual_interventions") or [])
+        intervention = {"kind": kind, "at": time.time()}
+        if reason:
+            intervention["reason"] = reason
+        interventions.append(intervention)
+        updated["manual_interventions"] = interventions
+        if store.compare_and_swap(key, raw, updated):
+            return
+    raise RuntimeError(f"could not record intervention for job {job_id}: concurrent updates did not settle")
+
+
 def all_job_records(store: Any) -> list[dict[str, Any]]:
     return [raw for _key, raw in store.items(prefix=JOB_PREFIX) if isinstance(raw, dict)]
 
@@ -88,6 +107,7 @@ __all__ = [
     "default_db_path",
     "locks_dir",
     "read_meta",
+    "record_intervention",
     "results_dir",
     "write_meta",
 ]

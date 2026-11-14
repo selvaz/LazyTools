@@ -42,6 +42,7 @@ detached launch JSON gives the id, pid and log path at once.
 | `wait` | Terminal result; exit 3 on waiter timeout, 1 when process disappears before final record |
 | `jobs --all` | History, including finished jobs, for recovering a lost id |
 | `cancel` | Stop process tree, reject open tickets, retain interruption and workspace evidence |
+| `autonomy` | Report the percentage of finished jobs with no manual intervention and group intervention causes |
 
 Read each ticket's command and reason before deciding. An unanswered ticket
 expires as rejection after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.
@@ -61,6 +62,31 @@ The first stdout line from a non-JSON `run` is always the 32-hex job id. This
 is a stable scripting contract: pre-launch brief-check diagnostics, including
 warnings, are written only to stderr, so commands such as `run ... | head -1`
 can safely capture the id.
+
+## Autonomy report
+
+Navigator measures a job as autonomous when it reaches a terminal state
+(`done`, `partial`, `failed`, or `interrupted`) without an operator command
+touching it. The bridge appends an intervention entry to the existing job
+metadata for `resync`, `cloud-sync`, `apply`, `apply --land`, manual
+`approve`/`reject`, and `cancel`. Each of these commands accepts an optional
+`--reason` (a rejection continues to require one), so the durable record keeps
+both the command kind and the operator's explanation. Existing Store rows need
+no migration and count as having no interventions.
+
+Report an ISO week or a half-open UTC date range:
+
+```console
+lazytools-code-bridge autonomy --week 2026-W46
+lazytools-code-bridge autonomy --since 2026-11-10 --until 2026-11-11 --json
+```
+
+The denominator is every job that finished in the range. The report prints the
+autonomous count and percentage against the 90 percent target, followed by the
+number of intervention events grouped by command kind. JSON output contains
+`finished_jobs`, `autonomous_jobs`, `autonomy_percent`, `target_percent`,
+`target_met`, and `intervention_causes`. With no finished jobs, the percentage
+and target result are `null` rather than claiming success.
 
 ## Claude writes, Codex reviews
 
