@@ -19,6 +19,7 @@ pytest.importorskip("lazybridge")
 
 from lazybridge.engines.sessions import SessionRegistry, normalize_scope
 
+from lazytools.code_bridge import _store
 from lazytools.connectors.code_support import (
     CodeSessionTools,
     ReviewNotPerformed,
@@ -253,6 +254,23 @@ def _tools(provider: CodeSessionTools) -> dict:
 
 
 class TestCodeSessionTools:
+    def test_rename_records_intervention_for_matching_bridge_session(self, root, registry, monkeypatch, tmp_path):
+        repo = root / "repo-a"
+        repo.mkdir(exist_ok=True)
+        db = tmp_path / "bridge.sqlite"
+        monkeypatch.setenv(_store.DB_ENV_VAR, str(db))
+        store = _store.build_store(db)
+        _store.build_job_registry(store).write("job-1", "task", tool_name="claude", status="done")
+        _store.write_meta(store, "job-1", {
+            "job_id": "job-1", "engine": "claude", "cwd": str(repo), "session_name": "notes",
+        })
+        registry.bind("claude", repo, "notes", "sess-1")
+
+        provider = CodeSessionTools(root=str(root), allow_mutate=True, session_registry=registry)
+        provider.code_sessions_rename("claude", "notes", "plan", repo_path="repo-a")
+
+        assert _store.read_meta(store, "job-1")["manual_interventions"][0]["kind"] == "session-rename"
+
     def test_read_only_provider_exposes_only_the_list(self, root, registry):
         assert set(_tools(CodeSessionTools(root=str(root), session_registry=registry))) == {"code_sessions_list"}
 
