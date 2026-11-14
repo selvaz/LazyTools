@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Code bridge: the top-level `root` setting is read by a new `load_workspace()` / `WorkspaceConfig` instead of living on `ConcurrencyConfig`; root precedence and behaviour are unchanged (#270).
+
 ### Added
 - Code bridge Claude cloud: a routine entry may declare `model`, and `run --where cloud --engine claude --model M` fires the single routine that declares `M` (zero or several matches are refused with the configured routines and their models; `--routine` still wins). New `lazytools-code-bridge cloud-setup claude --check` verifies the routine setup locally (config, token variables, a model per routine) without a network call or printing token values (#260).
 

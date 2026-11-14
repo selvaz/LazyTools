@@ -89,9 +89,9 @@ def _configure_run_root(args: argparse.Namespace) -> int | None:
             root = Path(env_root).expanduser().resolve()
             source = "env (LAZYTOOLS_CODE_ROOT)"
         else:
-            config = _concurrency.load_config()
-            if config.root is not None:
-                root = config.root
+            workspace = _concurrency.load_workspace()
+            if workspace.root is not None:
+                root = workspace.root
                 source = f"config ({_concurrency.config_path()})"
             else:
                 root = Path.cwd().resolve()
