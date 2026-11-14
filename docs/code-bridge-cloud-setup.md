@@ -134,6 +134,7 @@ Use `Goal`, `Context`, `Constraints`, `Done when`, and `Report` headings in
 | `no Codex Cloud environment mapped for owner/name` | Add the `[cloud.codex.envs]` line; check the key matches `git remote get-url origin` |
 | `Codex CLI not found` | Install the Codex CLI, or set `CODEX_BIN` to its path |
 | `codex cloud exec exited ...: not logged in` | Run `codex login` |
+| `branch '<name>' does not exist on the 'origin' remote` | `--branch` is the base branch the agent starts from, not a name for the result: push it (`git push -u origin <name>`) or pass an existing branch |
 | `... is on a detached HEAD` | Check out a branch, or pass `--branch` |
 | `origin/<branch> has moved ...` on `apply` | Someone pushed since submit; re-run with `--rebase` after reviewing |
 | `--where cloud requires --allow-cloud` | Add `--allow-cloud` (an explicit acknowledgement) |

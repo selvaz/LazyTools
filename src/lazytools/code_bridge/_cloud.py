@@ -988,6 +988,24 @@ def _remote_base(root: Path, branch: str) -> str | None:
     return sha or None
 
 
+def _require_remote_branch(root: Path, branch: str) -> None:
+    """Fail fast when ``branch`` is not on ``origin``.
+
+    ``git ls-remote --exit-code`` exits 2 only when the remote answered and has
+    no such branch. Any other failure (offline, auth) is not proof of absence,
+    so it is left to the later steps instead of blocking the submit.
+    """
+    proc = subprocess.run(
+        ["git", "-C", str(root), "ls-remote", "--exit-code", "--heads", "origin", f"refs/heads/{branch}"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+    )
+    if proc.returncode == 2:
+        raise CloudError(
+            f"branch {branch!r} does not exist on the 'origin' remote. --branch is the base branch the cloud agent "
+            "starts from: push it first (git push -u origin <branch>) or pass an existing branch"
+        )
+
+
 def submit_job(
     *,
     engine: str,
@@ -1077,6 +1095,7 @@ def submit_job(
     branch = branch or current_branch(root)
     if branch.startswith("-") or _git(root, "check-ref-format", "--branch", branch, check=False) != branch:
         raise CloudError(f"{branch!r} is not a valid branch name")
+    _require_remote_branch(root, branch)
     job_id = job_id or uuid.uuid4().hex
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)

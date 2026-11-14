@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Code bridge `run --where cloud` refuses a `--branch` that does not exist on `origin` before submitting, with a message saying it is the base branch the cloud agent starts from (#258).
+
 ## [0.10.9] — 2026-11-13
 
 ### Changed
