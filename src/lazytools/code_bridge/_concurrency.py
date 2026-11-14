@@ -83,10 +83,11 @@ def default_slot_dir() -> Path:
 class ConcurrencyConfig:
     limits: dict[str, int | None]
     slot_dir: Path
+    root: Path | None = None
 
 
 def validate_top_level(data: dict[str, Any], path: Path) -> None:
-    unknown = data.keys() - {"concurrency", "routine_auto", "cloud"}
+    unknown = data.keys() - {"root", "concurrency", "routine_auto", "cloud"}
     if unknown:
         raise ValueError(f"{path}: unknown top-level config keys: {sorted(unknown)}")
 
@@ -103,6 +104,15 @@ def load_config(path: Path | None = None) -> ConcurrencyConfig:
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise ValueError(f"{path}: not valid TOML: {exc}") from exc
     validate_top_level(data, path)
+    configured_root = data.get("root")
+    if configured_root is not None and (not isinstance(configured_root, str) or not configured_root.strip()):
+        raise ValueError(f"{path}: root must be a non-empty path string")
+    root = None
+    if configured_root is not None:
+        root = Path(configured_root).expanduser()
+        if not root.is_absolute():
+            root = path.parent / root
+        root = root.resolve()
     table = data.get("concurrency", {})
     if not isinstance(table, dict):
         raise ValueError(f"{path}: [concurrency] must be a table")
@@ -119,7 +129,7 @@ def load_config(path: Path | None = None) -> ConcurrencyConfig:
         if type(value) is not int or value < 0:
             raise ValueError(f"{path}: [concurrency] {key} must be an integer >= 0 (0 = unlimited), got {value!r}")
         limits[key] = value or None
-    return ConcurrencyConfig(limits, slot_dir)
+    return ConcurrencyConfig(limits, slot_dir, root)
 
 
 def load_limits(path: Path | None = None) -> dict[str, int | None]:
