@@ -50,6 +50,37 @@ Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;
 for every lifecycle command. Logs are under the Store's results directory
 (default `~/.lazytools/results/`).
 
+## Navigator R1: the merge-ready loop
+
+`lazytools.code_bridge._navigator.Navigator` is the provider-neutral state
+machine for taking a delegated cloud job to **merge-ready**. A backend first
+resyncs a legacy poll-failed job from provider truth and lands it on its pull
+request. The navigator then requests an independent review of the exact pushed
+head. Every new head is reviewed once, and the reported reviewer model must be
+different from the author model. A backend may use `run_reviewer_command` for a
+configured reviewer executable; the command receives `LAZYTOOLS_REVIEW_HEAD`,
+`LAZYTOOLS_REVIEW_PR`, and `LAZYTOOLS_AUTHOR_MODEL` and returns JSON such as:
+
+```json
+{"reviewer_model":"claude","findings":[{"severity":"P2","message":"add a boundary test"}]}
+```
+
+Non-critical findings produce a focused fix brief and a relaunch on the same
+PR, followed by a review of the new head. The default cap is three review
+rounds. Reaching it creates an explicit `round-cap` escalation record and exits
+nonzero. A P0 or P1 finding immediately creates an `escalated` owner record and
+exits nonzero; it is never silently sent through another autonomous fix round.
+Changing PRs, reusing a reviewed head, or using the author's model for review
+also fails closed.
+
+A clean review is not enough to close the task. The backend runs all contract
+checks, recording every result. Navigator R1's standard checks are
+`pytest tests -k code_bridge`, `ruff check`, and
+`mypy src/lazytools/code_bridge`. The first failure stops the run with
+`checks-failed`; only a clean review on the current head plus all-green checks
+produces `merge-ready` and exit status zero. The loop never merges and never
+pushes to `main`: the existing `safe_merge` gate remains the only landing path.
+
 `--task @brief.md` reads a UTF-8 task file rather than treating it as literal
 text; detached launch resolves its path before passing it to the worker.
 The final text is also saved to a result file under the results directory;
