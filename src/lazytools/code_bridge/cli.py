@@ -81,15 +81,18 @@ def _configure_run_root(args: argparse.Namespace) -> int | None:
     try:
         if args.root is not None:
             root = Path(args.root).expanduser().resolve()
-            source = "--root flag"
+            source = "flag (--root)"
+        elif env_root := os.environ.get("LAZYTOOLS_CODE_ROOT"):
+            root = Path(env_root).expanduser().resolve()
+            source = "env (LAZYTOOLS_CODE_ROOT)"
         else:
             config = _concurrency.load_config()
             if config.root is not None:
                 root = config.root
-                source = f"config {_concurrency.config_path()}"
+                source = f"config ({_concurrency.config_path()})"
             else:
                 root = Path.cwd().resolve()
-                source = "current working directory"
+                source = "cwd"
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -104,7 +107,7 @@ def _root_error(args: argparse.Namespace, exc: Exception) -> str:
         return str(exc)
     return (
         f"{exc} (root from {args.root_source}); pass --root PATH or set root in "
-        f"{_concurrency.config_path()} to a directory containing the repository"
+        f"LAZYTOOLS_CODE_ROOT or {_concurrency.config_path()} to a directory containing the repository"
     )
 
 
@@ -1426,7 +1429,8 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--scratch-root", default=None,
                        help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).")
     run_p.add_argument(
-        "--root", default=None, help="Confinement root for --cwd (default: root in code-bridge.toml, then cwd)."
+        "--root", default=None,
+        help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT, root in code-bridge.toml, then cwd).",
     )
     run_p.add_argument("--json", action="store_true")
     run_p.add_argument(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from argparse import Namespace
 
 import _code_bridge_fakes as fakes
 from lazytools.code_bridge import _store
@@ -350,6 +351,7 @@ def test_config_root_is_used_from_an_unrelated_cwd(tmp_path, monkeypatch, capsys
     config = tmp_path / "code-bridge.toml"
     config.write_text(f'root = "{workspace.as_posix()}"\n[concurrency]\nslot_dir = "{tmp_path.as_posix()}/slots"\n')
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.delenv("LAZYTOOLS_CODE_ROOT", raising=False)
     monkeypatch.chdir(unrelated)
     seen: dict = {}
     monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
@@ -370,12 +372,51 @@ def test_root_flag_beats_config_root(tmp_path, monkeypatch, capsys):
     config = tmp_path / "code-bridge.toml"
     config.write_text(f'root = "{configured.as_posix()}"\n')
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(configured))
     seen: dict = {}
     monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
 
     assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--root", str(override),
                  "--task", "x"]) == 0
     assert seen["argv"][seen["argv"].index("--root") + 1] == str(override)
+    capsys.readouterr()
+
+
+def test_environment_root_is_used_without_a_flag_or_config_root(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    workspace = tmp_path / "workspace"
+    repo = workspace / "repo"
+    repo.mkdir(parents=True)
+    config = tmp_path / "code-bridge.toml"
+    config.write_text("")
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(workspace))
+    seen: dict = {}
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
+
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--task", "x"]) == 0
+    assert seen["argv"][seen["argv"].index("--root") + 1] == str(workspace)
+    capsys.readouterr()
+
+
+def test_environment_root_beats_config_root(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    configured = tmp_path / "configured"
+    environment = tmp_path / "environment"
+    repo = environment / "repo"
+    configured.mkdir()
+    repo.mkdir(parents=True)
+    config = tmp_path / "code-bridge.toml"
+    config.write_text(f'root = "{configured.as_posix()}"\n')
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(environment))
+    seen: dict = {}
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
+
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--task", "x"]) == 0
+    assert seen["argv"][seen["argv"].index("--root") + 1] == str(environment)
     capsys.readouterr()
 
 
@@ -387,6 +428,7 @@ def test_root_falls_back_to_launch_cwd(tmp_path, monkeypatch, capsys):
     config = tmp_path / "code-bridge.toml"
     config.write_text("")
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.delenv("LAZYTOOLS_CODE_ROOT", raising=False)
     monkeypatch.chdir(tmp_path)
     seen: dict = {}
     monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
@@ -406,9 +448,36 @@ def test_root_error_is_one_plain_actionable_line(tmp_path, monkeypatch, capsys):
     err = capsys.readouterr().err
     assert err.count("\n") == 1
     assert err.startswith(f"error: repo_path {str(outside)!r} is outside the allowed root {str(root)!r}")
-    assert "from --root flag" in err
+    assert "from flag (--root)" in err
     assert "pass --root PATH or set root in" in err
     assert "usage:" not in err
+
+
+def test_root_error_reports_environment_config_and_cwd_sources(tmp_path, monkeypatch):
+    import lazytools.code_bridge.cli as cli
+
+    config = tmp_path / "code-bridge.toml"
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.chdir(tmp_path)
+    error = ValueError("repo_path 'outside' is outside the allowed root 'root'")
+
+    environment = tmp_path / "environment"
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(environment))
+    args = Namespace(root=None)
+    assert cli._configure_run_root(args) is None
+    assert "root from env (LAZYTOOLS_CODE_ROOT)" in cli._root_error(args, error)
+
+    configured = tmp_path / "configured"
+    config.write_text(f'root = "{configured.as_posix()}"\n')
+    monkeypatch.delenv("LAZYTOOLS_CODE_ROOT")
+    args = Namespace(root=None)
+    assert cli._configure_run_root(args) is None
+    assert f"root from config ({config})" in cli._root_error(args, error)
+
+    config.write_text("")
+    args = Namespace(root=None)
+    assert cli._configure_run_root(args) is None
+    assert "root from cwd" in cli._root_error(args, error)
 
 
 def test_detach_hands_the_child_absolute_root_cwd_and_task_paths(tmp_path, monkeypatch, capsys):

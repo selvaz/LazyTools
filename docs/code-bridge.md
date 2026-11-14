@@ -522,11 +522,12 @@ Both engines can use the web: Claude Code gets `WebSearch`/`WebFetch`
 (allowed by the rule table, so they never ask), and Codex runs with live web
 search set explicitly per job rather than inherited from `~/.codex/config.toml`.
 
-The `--cwd` argument must resolve inside `--root`, or the top-level `root` in
-`~/.lazytools/code-bridge.toml` (default: the launching directory when neither
-is set). A relative configured root is resolved beside the configuration file.
-`--root` always wins. A confinement error reports the selected root and whether
-it came from the flag, configuration, or current working directory. Codex uses workspace-write; Claude file
+The `--cwd` argument must resolve inside the selected confinement root. Root
+precedence is `--root`, `LAZYTOOLS_CODE_ROOT`, the top-level `root` in
+`~/.lazytools/code-bridge.toml`, then the launching directory. A relative
+configured root is resolved beside the configuration file. A confinement error
+reports the selected root and whether it came from the flag, environment,
+configuration, or current working directory. Codex uses workspace-write; Claude file
 hooks confine file tools to `cwd` and the job's own temp directory, while
 Bash is not path-confined. Requests
 are gated by one `BridgeGate` (a `lazybridge.ext.approval.TieredGate`
