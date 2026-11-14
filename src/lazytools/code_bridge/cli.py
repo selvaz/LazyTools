@@ -66,7 +66,7 @@ def _print_json(payload: Any) -> None:
     # One compact line, not pretty-printed: easier for a caller to parse
     # line-by-line (the `run` command's output in particular is job-id
     # line + one JSON line, and a multi-line payload would break that).
-    print(json.dumps(payload, default=str))
+    print(json.dumps(payload, default=str), flush=True)
 
 
 def _cloud_print(text: str, *, err: bool = False) -> None:

@@ -15,6 +15,7 @@ from lazytools.code_bridge import _gh
 
 WATCH_PREFIX = "code-bridge:watch:"
 DEFAULT_MIN_INTERVAL = 60.0
+DEFAULT_MAX_FAILURES = 3
 _PR_RE = re.compile(r"^(?P<repo>[^/\s]+/[^/#\s]+)#(?P<number>[1-9]\d*)$")
 _VERDICT_RE = re.compile(r"(?im)^\s*verdict:\s*(.+?)\s*$")
 _HEAD_RE = re.compile(r"(?im)^\s*head:\s*([0-9a-f]+)\s*$")
@@ -108,12 +109,15 @@ def _event_time(item: dict[str, Any], *names: str) -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def _comment_event(pull: PullRequest, kind: str, item: dict[str, Any]) -> WatchEvent:
+def _comment_event(pull: PullRequest, kind: str, item: dict[str, Any], *, current_head: str) -> WatchEvent:
     body = str(item.get("body") or "")
     if "<!-- independent-review v1 -->" in body:
         verdict = _VERDICT_RE.search(body)
         head = _HEAD_RE.search(body)
-        detail = f"verdict={verdict.group(1).strip() if verdict else 'unknown'} head={head.group(1) if head else 'unknown'}"
+        marker_head = head.group(1) if head else "unknown"
+        detail = f"verdict={verdict.group(1).strip() if verdict else 'unknown'} head={marker_head}"
+        if marker_head == "unknown" or not current_head.casefold().startswith(marker_head.casefold()):
+            detail += " stale=true"
         kind = "verdict"
     else:
         detail = _comment_detail(item)
@@ -124,8 +128,7 @@ def _state_key(pull: PullRequest) -> str:
     return f"{WATCH_PREFIX}{pull.label}"
 
 
-def poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool]:
-    """Poll one PR, returning newly observed events and whether it is terminal."""
+def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, dict[str, Any]]:
     old = store.read(_state_key(pull), {})
     old = old if isinstance(old, dict) else {}
     seen = set(str(value) for value in old.get("seen", []))
@@ -151,7 +154,7 @@ def poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool]:
             identity = f"{kind}:{item.get('id')}"
             commit = item.get("commit_id")
             if identity not in seen and (not commit or str(commit) == head):
-                events.append(_comment_event(pull, kind, item))
+                events.append(_comment_event(pull, kind, item, current_head=head))
             fresh_seen.add(identity)
 
     checks = _paged_items(f"{base}/commits/{head}/check-runs", "check_runs")
@@ -179,31 +182,60 @@ def poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool]:
     if terminal and not old.get("terminal"):
         events.append(WatchEvent(_event_time(pr, "merged_at", "closed_at", "updated_at"), pull.label,
                                  terminal_kind, str(pr.get("title") or terminal_kind)))
-    store.write(_state_key(pull), {"head": head, "seen": sorted(fresh_seen), "terminal": terminal_kind if terminal else None})
-    return sorted(events, key=lambda event: event.time), terminal
+    state = {"head": head, "seen": sorted(fresh_seen), "terminal": terminal_kind if terminal else None}
+    return sorted(events, key=lambda event: event.time), terminal, state
+
+
+def poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool]:
+    """Poll one PR, persist its observations, and return new events and terminal state."""
+    events, terminal, state = _poll_pull(pull, store)
+    store.write(_state_key(pull), state)
+    return events, terminal
 
 
 def run_watch(
     pulls: list[PullRequest], store: Any, *, interval: float, until: datetime | None,
     emit: Callable[[WatchEvent], None], sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], datetime] = lambda: datetime.now().astimezone(),
+    max_failures: int = DEFAULT_MAX_FAILURES,
 ) -> int:
     delay = max(interval, minimum_interval())
+    terminal = {
+        pull.label
+        for pull in pulls
+        if isinstance((state := store.read(_state_key(pull), {})), dict) and state.get("terminal")
+    }
+    failures = {pull.label: 0 for pull in pulls}
     while True:
         if until is not None and now() >= until:
             return 0
-        terminal = 0
+        if len(terminal) == len(pulls):
+            return 2
+        failed_attempts = 0
         for pull in pulls:
-            events, done = poll_pull(pull, store)
-            terminal += int(done)
+            if pull.label in terminal:
+                continue
+            try:
+                events, done, state = _poll_pull(pull, store)
+            except (OSError, ValueError, RuntimeError):
+                failures[pull.label] += 1
+                failed_attempts = failures[pull.label]
+                if failed_attempts >= max_failures:
+                    raise
+                break
+            failures[pull.label] = 0
             for event in events:
                 emit(event)
-        if terminal == len(pulls):
+            store.write(_state_key(pull), state)
+            if done:
+                terminal.add(pull.label)
+        if len(terminal) == len(pulls):
             return 2
-        remaining = (until - now()).total_seconds() if until is not None else delay
+        backoff = delay * (2 ** (failed_attempts - 1)) if failed_attempts else delay
+        remaining = (until - now()).total_seconds() if until is not None else backoff
         if remaining <= 0:
             return 0
-        sleep(min(delay, remaining))
+        sleep(min(backoff, remaining))
 
 
 __all__ = ["PullRequest", "WatchEvent", "minimum_interval", "parse_pull", "poll_pull", "run_watch"]
