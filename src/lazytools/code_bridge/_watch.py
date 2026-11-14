@@ -8,7 +8,7 @@ import re
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from lazytools.code_bridge import _gh
@@ -102,11 +102,26 @@ def _comment_detail(item: dict[str, Any]) -> str:
     return f"{author}{f' {badge.group(1).upper()}' if badge else ''}"
 
 
+def _now_utc() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
 def _event_time(item: dict[str, Any], *names: str) -> str:
     for name in names:
         if item.get(name):
             return str(item[name])
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+    return _now_utc()
+
+
+def _time_key(value: str) -> datetime:
+    """Parse an event time for ordering; GitHub uses ``Z``, local stamps use offsets."""
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return datetime.max.replace(tzinfo=UTC)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
 
 
 def _comment_event(pull: PullRequest, kind: str, item: dict[str, Any], *, current_head: str) -> WatchEvent:
@@ -141,7 +156,7 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
     head = str(pr["head"].get("sha") or "")
     previous_head = str(old.get("head") or "")
     if previous_head and previous_head != head:
-        events.append(WatchEvent(datetime.now().astimezone().isoformat(timespec="seconds"), pull.label, "head",
+        events.append(WatchEvent(_now_utc(), pull.label, "head",
                                  f"{previous_head[:7]} -> {head[:7]}"))
 
     sources: Iterable[tuple[str, list[dict[str, Any]]]] = (
@@ -183,7 +198,7 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
         events.append(WatchEvent(_event_time(pr, "merged_at", "closed_at", "updated_at"), pull.label,
                                  terminal_kind, str(pr.get("title") or terminal_kind)))
     state = {"head": head, "seen": sorted(fresh_seen), "terminal": terminal_kind if terminal else None}
-    return sorted(events, key=lambda event: event.time), terminal, state
+    return sorted(events, key=lambda event: _time_key(event.time)), terminal, state
 
 
 def poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool]:

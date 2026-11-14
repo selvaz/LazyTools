@@ -208,3 +208,11 @@ def test_watch_raises_after_three_consecutive_poll_failures(monkeypatch: Any) ->
         assert str(exc) == "gh down"
     else:
         raise AssertionError("three consecutive failures did not stop the watch")
+
+
+def test_event_order_uses_real_time_not_text_across_offsets() -> None:
+    # 09:59 at UTC-8 is 17:59 UTC, after 10:10 UTC; text order would put it first.
+    later_local = "2026-11-14T09:59:00-08:00"
+    earlier_utc = "2026-11-14T10:10:00Z"
+    ordered = sorted([later_local, earlier_utc], key=_watch._time_key)
+    assert ordered == [earlier_utc, later_local]
