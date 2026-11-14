@@ -1176,6 +1176,20 @@ def _cmd_cloud_envs(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_cloud_setup(args: argparse.Namespace) -> int:
+    try:
+        config = _cloud.load_config()
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    report = _cloud_envs.check_claude_setup(config)
+    if args.json:
+        _cloud_json(report)
+    else:
+        _cloud_print(_cloud_envs.format_claude_setup(report))
+    return 0 if report["ok"] else 1
+
+
 # --------------------------------------------------------------------------- #
 # pending / approve / reject
 # --------------------------------------------------------------------------- #
@@ -1493,7 +1507,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--routine",
         default=None,
         help="--where cloud --engine claude only: fire this [cloud.claude.routines] entry (its API trigger token is "
-        "read from the env var the config names) instead of running `claude --cloud`.",
+        "read from the env var the config names) instead of running `claude --cloud`. Without it, --model picks "
+        "the routine that declares that model, else [cloud.claude] default_routine.",
     )
     run_p.add_argument(
         "--allow-cloud",
@@ -1698,6 +1713,16 @@ def build_parser() -> argparse.ArgumentParser:
     envs_p.add_argument("--no-probe", action="store_true", help="Do not call `codex cloud list`; show the config only.")
     envs_p.add_argument("--json", action="store_true")
     envs_p.set_defaults(func=_cmd_cloud_envs)
+
+    setup_p = sub.add_parser(
+        "cloud-setup",
+        help="Check the Claude cloud routine setup locally (config, token variables, a model per routine); "
+        "no network call, token values are never printed. Exit 1 when something is missing.",
+    )
+    setup_p.add_argument("provider", choices=["claude"])
+    setup_p.add_argument("--check", action="store_true", help="Run the check (the default and only action).")
+    setup_p.add_argument("--json", action="store_true")
+    setup_p.set_defaults(func=_cmd_cloud_setup)
 
     skill_p = sub.add_parser(
         "setup-skill",

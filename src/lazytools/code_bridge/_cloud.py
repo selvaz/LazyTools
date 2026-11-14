@@ -382,8 +382,15 @@ def model_for(engine: str, config: CloudConfig, *, tier: str | None = None, expl
                              "environment's own default model applies. Drop --model, or use --engine claude")
         return None, "Codex Cloud uses the environment's default model" if tier else None
     if routine is not None:
-        if explicit:
-            raise CloudError("--model cannot override a routine's model: change it in the routine's settings")
+        declared = config.routines.get(routine, {}).get("model")
+        if explicit and explicit != declared:
+            if declared:
+                raise CloudError(f"--model {explicit!r} does not match routine {routine!r}, which declares model "
+                                 f"{declared!r}: drop --model, or omit --routine to pick the routine by model")
+            raise CloudError("--model cannot override a routine's model: declare `model = ...` on the routine "
+                             "entry and omit --routine, or change the model in the routine's settings")
+        if declared:
+            return declared, f"the routine's declared model ({declared})"
         return None, "the routine's own model applies"
     table = config.models.get("claude", {})
     return (explicit or (tier and table.get(tier)) or table.get("default") or DEFAULT_CLAUDE_CLOUD_MODEL), None
@@ -407,9 +414,11 @@ def _load_routines(table: Any, path: Path) -> dict[str, dict[str, str]]:
                 f"{where}: never store the token in the config; put it in an environment variable and set "
                 "token_env to that variable's NAME"
             )
-        unknown = entry.keys() - {"id", "token_env", "repo", "branch"}
+        unknown = entry.keys() - {"id", "token_env", "repo", "branch", "model"}
         if unknown:
-            raise ValueError(f"{where} has unknown keys: {sorted(unknown)} (only id, token_env, repo, branch)")
+            raise ValueError(
+                f"{where} has unknown keys: {sorted(unknown)} (only id, token_env, repo, branch, model)"
+            )
         routine_id, token_env, repo, branch = (
             entry.get("id"), entry.get("token_env"), entry.get("repo"), entry.get("branch")
         )
@@ -423,7 +432,39 @@ def _load_routines(table: Any, path: Path) -> dict[str, dict[str, str]]:
                 or subprocess.run(["git", "check-ref-format", "--branch", branch], capture_output=True).returncode):
             raise ValueError(f"{where}: branch must match the routine's valid git branch name")
         routines[name] = {"id": routine_id, "token_env": token_env, "repo": repo.lower(), "branch": branch}
+        if "model" in entry:
+            model = entry["model"]
+            if not isinstance(model, str) or not _MODEL_RE.fullmatch(model.strip()):
+                raise ValueError(f"{where}: model must be the model id the routine runs, e.g. \"claude-haiku-5-5\"")
+            routines[name]["model"] = model.strip()
     return routines
+
+
+def routines_by_model(config: CloudConfig, model: str) -> list[str]:
+    """Names of the configured routines whose declared ``model`` is ``model``."""
+    return sorted(name for name, entry in config.routines.items() if entry.get("model") == model)
+
+
+def select_routine(config: CloudConfig, *, routine: str | None, model: str | None) -> str | None:
+    """The routine a Claude cloud job fires.
+
+    ``--routine`` wins. Otherwise ``--model M`` picks the single routine that
+    declares ``model = "M"``; zero or several matches are refused with the
+    configured routines and their models. With neither, ``default_routine``.
+    """
+    if routine is not None or not model:
+        return routine or config.default_routine
+    matches = routines_by_model(config, model)
+    if len(matches) == 1:
+        return matches[0]
+    known = ", ".join(f"{name} ({entry.get('model', 'no model declared')})"
+                      for name, entry in sorted(config.routines.items())) or "none configured"
+    problem = "no routine declares" if not matches else f"several routines declare ({', '.join(matches)})"
+    raise CloudError(
+        f"--model {model!r}: {problem} that model in [cloud.claude.routines.<name>] of {config.path}. "
+        f"Configured routines: {known}. Add one routine per model with `model = \"{model}\"`, "
+        "or pass --routine <name> to choose among several. See docs/code-bridge-cloud-setup.md"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -1060,7 +1101,7 @@ def submit_job(
         )
     config = config or load_config()
     if engine == "claude" and routine is None:
-        routine = config.default_routine
+        routine = select_routine(config, routine=None, model=model)
         if routine is None:
             raise CloudError(
                 "unattended Claude cloud jobs require a routine API trigger; create one at claude.ai/code, "

@@ -101,3 +101,60 @@ def format_envs(report: dict[str, Any]) -> str:
 
 
 __all__ = ["format_envs", "list_envs", "parse_codex_list"]
+
+
+def check_claude_setup(config: CloudConfig) -> dict[str, Any]:
+    """Local-only check of the Claude cloud routine setup; never calls the API.
+
+    Reports whether the config exists, whether any routine is configured, and
+    for each routine whether its ``token_env`` variable is set (the value is
+    never read into the report) and whether it declares ``model``. The
+    repository and branch are required by the config loader, so a routine
+    that loaded has both. ``problems`` is empty when ``run --where cloud
+    --engine claude`` can pick a routine by ``--model``.
+    """
+    problems: list[str] = []
+    if config.path is None or not config.path.is_file():
+        problems.append(
+            f"no bridge config file found: create code-bridge.toml with [cloud.claude.routines.<name>] "
+            f"(see {_cloud.SETUP_DOC})"
+        )
+    if not config.routines:
+        problems.append(
+            "no routine configured: add [cloud.claude.routines.<name>] with id, token_env, repo, branch and "
+            f"model, one routine per model (see {_cloud.SETUP_DOC})"
+        )
+    rows: list[dict[str, Any]] = []
+    seen: dict[str, list[str]] = {}
+    for name, entry in sorted(config.routines.items()):
+        token_set = bool(os.environ.get(entry["token_env"], "").strip())
+        model = entry.get("model")
+        rows.append({
+            "routine": name, "repo": entry["repo"], "branch": entry["branch"], "model": model,
+            "token_env": entry["token_env"], "token_set": token_set, "default": name == config.default_routine,
+        })
+        if not token_set:
+            problems.append(f"routine {name!r}: environment variable {entry['token_env']} is not set")
+        if not model:
+            problems.append(f"routine {name!r}: no model declared (add `model = \"...\"` so --model can select it)")
+        else:
+            seen.setdefault(model, []).append(name)
+    for model, names in sorted(seen.items()):
+        if len(names) > 1:
+            problems.append(f"model {model!r} is declared by several routines ({', '.join(names)}): "
+                            "--model would refuse; pass --routine to choose")
+    return {"config": str(config.path) if config.path else None, "routines": rows, "problems": problems,
+            "ok": not problems}
+
+
+def format_claude_setup(report: dict[str, Any]) -> str:
+    lines = [f"config: {report['config'] or '(none)'}"]
+    for row in report["routines"]:
+        lines.append(
+            f"routine {row['routine']:<16} repo={row['repo']}  branch={row['branch']}  "
+            f"model={row['model'] or '-'}  token {row['token_env']}: {'set' if row['token_set'] else 'MISSING'}"
+            + ("  (default)" if row["default"] else "")
+        )
+    lines += [f"problem: {p}" for p in report["problems"]]
+    lines.append("ok" if report["ok"] else f"{len(report['problems'])} problem(s)")
+    return "\n".join(lines)
