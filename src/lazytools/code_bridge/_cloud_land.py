@@ -108,8 +108,16 @@ def _short_title(value: str) -> str:
     # the label/text that a person would see in rendered Markdown.
     value = re.sub(r"!\[([^]]*)\]\([^)]+\)", r"\1", value)
     value = re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", value)
-    value = re.sub(r"(?<!\\)(?:\*\*|__|~~|`)(.+?)(?<!\\)(?:\*\*|__|~~|`)", r"\1", value)
-    value = re.sub(r"(?<!\\)(?:\*|_)(.+?)(?<!\\)(?:\*|_)", r"\1", value)
+    code_spans: list[str] = []
+
+    def preserve_code_span(match: re.Match[str]) -> str:
+        code_spans.append(match.group(2))
+        return f"\x00{len(code_spans) - 1}\x00"
+
+    value = re.sub(r"(?<!\\)(`+)(.+?)(?<!\\)\1", preserve_code_span, value)
+    value = re.sub(r"(?<![\w\\])(\*\*|__|~~)(?=\S)(.+?)(?<=\S)\1(?!\w)", r"\2", value)
+    value = re.sub(r"(?<![\w\\])([*_])(?=\S)(.+?)(?<=\S)\1(?!\w)", r"\2", value)
+    value = re.sub(r"\x00(\d+)\x00", lambda match: code_spans[int(match.group(1))], value)
     value = value.lstrip("#*-> ").strip()
     if len(value) <= 72:
         return redact(value)

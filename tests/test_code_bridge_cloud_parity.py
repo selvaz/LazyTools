@@ -324,6 +324,12 @@ def test_a_repo_without_an_environment_fails_early_with_the_setup_pointer(cloud,
         ({"objective": "# Goal\nContext\nThe useful sentence follows."}, "The useful sentence follows."),
         ({"objective": "# Goal\n\n**Fix [useful PR titles](https://example.test/issue)**\n\n# Context\nMore"},
          "Fix useful PR titles"),
+        ({"objective": "# Goal\nFix cloud_job_id parsing"}, "Fix cloud_job_id parsing"),
+        ({"objective": "# Goal\nFix `cloud_job_id` parsing"}, "Fix cloud_job_id parsing"),
+        ({"objective": "# Goal\nFix *cloud* **job** and _title_ parsing"},
+         "Fix cloud job and title parsing"),
+        ({"objective": "ignored", "title": "Explicit cloud_job_id title"},
+         "Explicit cloud_job_id title"),
     ],
 )
 def test_landing_title_derivation(job, expected):
