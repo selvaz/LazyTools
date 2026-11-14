@@ -1355,6 +1355,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Asynchronous delegation of coding work to Codex / Claude Code, with human approvals over a durable ticket queue.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    from lazytools.code_bridge._navigator import add_navigate_parser
+    add_navigate_parser(sub)
 
     run_p = sub.add_parser("run", help="Run one coding-engine job to completion in this process.")
     run_p.add_argument("--engine", choices=list(_jobs.ENGINES))

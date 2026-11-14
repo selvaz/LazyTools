@@ -11,6 +11,8 @@ import json
 import os
 import shlex
 import subprocess
+import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,6 +20,8 @@ from typing import Any, Protocol
 
 DEFAULT_MAX_ROUNDS = 3
 BLOCKING_SEVERITIES = frozenset({"P0", "P1"})
+KNOWN_SEVERITIES = frozenset({"P0", "P1", "P2", "P3"})
+REVIEW_MARKER = "<!-- independent-review v1 -->"
 DEFAULT_CHECKS = (
     "pytest tests -k code_bridge",
     "ruff check",
@@ -111,13 +115,19 @@ class Navigator:
             record.rounds += 1
             record.reviewed_heads.append(head.sha)
             record.updated_at = time.time()
-            if review.reviewer_model == head.author_model:
+            author = head.author_model.strip().casefold()
+            reviewer = review.reviewer_model.strip().casefold()
+            if not author:
+                return self._fail(record, "author model is unknown; independence cannot be verified")
+            if reviewer == author:
                 return self._fail(record, "independent review used the author model")
-            severe = [finding for finding in review.findings if finding.severity.upper() in BLOCKING_SEVERITIES]
+            severe = [finding for finding in review.findings
+                      if finding.severity.upper() in BLOCKING_SEVERITIES
+                      or finding.severity.upper() not in KNOWN_SEVERITIES]
             if severe:
                 record.status = "escalated"
                 record.escalation = {
-                    "reason": "P0/P1 review finding",
+                    "reason": "blocking or unrecognised review severity",
                     "head": head.sha,
                     "pr_number": head.pr_number,
                     "findings": [f"{f.severity.upper()}: {f.message}" for f in severe],
@@ -178,7 +188,7 @@ class Navigator:
 
 def exit_status(record: NavigatorRecord) -> int:
     """Stable process status: zero only when the PR is merge-ready."""
-    return 0 if record.status == "merge-ready" else 1
+    return 0 if record.status == "merge-ready" else (3 if record.status in {"escalated", "round-cap"} else 1)
 
 
 def run_reviewer_command(command: str, head: Head, *, cwd: Path) -> Review:
@@ -207,9 +217,14 @@ def run_reviewer_command(command: str, head: Head, *, cwd: Path) -> Review:
     try:
         payload = json.loads(completed.stdout)
         model = str(payload["reviewer_model"]).strip()
-        raw_findings = payload.get("findings", [])
-        findings = tuple(Finding(str(item["severity"]).upper(), str(item["message"])) for item in raw_findings)
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise ValueError("reviewer command did not emit the required JSON object") from exc
+    if "findings" not in payload or not isinstance(payload["findings"], list):
+        raise ValueError("reviewer output must contain a findings list")
+    try:
+        findings = tuple(Finding(str(item["severity"]).upper(), str(item["message"]))
+                         for item in payload["findings"])
+    except (KeyError, TypeError) as exc:
         raise ValueError("reviewer command did not emit the required JSON object") from exc
     if not model:
         raise ValueError("reviewer_model cannot be empty")
@@ -235,7 +250,10 @@ def resync_and_land_cloud_job(
     if job.get("status") == "failed" and job.get("last_poll_error") and job.get("cloud_handle"):
         job = _cloud.resync(store, registry, job)
     elif job.get("status") in _cloud.ACTIVE_STATUSES:
-        job = _cloud.refresh(store, registry, job)
+        waited = _cloud.wait_job(lambda: store, str(job["job_id"]), timeout=_cloud.DEFAULT_CLOUD_WAIT_TIMEOUT,
+                                 interval=5.0)
+        if waited is not None:
+            job = waited
     if job.get("status") != "done":
         raise _cloud.CloudError(f"job {job_id!r} is {job.get('status')}, not ready to land")
     _cloud_land.land_job(store, registry, job, db_path=db_path)
@@ -248,7 +266,103 @@ def resync_and_land_cloud_job(
     return Head(sha=sha, author_model=author_model, pr_number=pr_number)
 
 
+class ProductionBackend:
+    """GitHub/cloud-backed navigator boundary, isolated in temporary clones/worktrees."""
+
+    def __init__(self, *, repo: str, pr_number: int, reviewer_cmd: str, fix_engine: str,
+                 db_path: Path | None = None):
+        from lazytools.code_bridge import _gh
+        self.repo, self.pr_number, self.reviewer_cmd = repo, pr_number, reviewer_cmd
+        self.fix_engine, self.db_path = fix_engine, db_path
+        self._tmp = tempfile.TemporaryDirectory(prefix="lazytools-navigate-")
+        self.root = Path(self._tmp.name) / "repo"
+        _gh.run_gh("repo", "clone", repo, str(self.root), "--", "--no-checkout")
+        self._head: Head | None = None
+        self._check_dir: Path | None = None
+
+    def resync_and_land(self, job_id: str) -> Head:
+        from lazytools.code_bridge import _gh, _store
+        if job_id:
+            store = _store.build_store(self.db_path)
+            head = resync_and_land_cloud_job(store, _store.build_job_registry(store), job_id, db_path=self.db_path)
+        else:
+            view = _gh.pr_view(self.repo, self.pr_number)
+            sha = str(view.get("headRefOid") or "")
+            if not sha:
+                raise RuntimeError(f"PR #{self.pr_number} has no head SHA")
+            head = Head(sha, self.fix_engine, self.pr_number)
+        self._head, self._check_dir = head, None
+        return head
+
+    def review(self, head: Head) -> Review:
+        from lazytools.code_bridge import _gh
+        review = run_reviewer_command(self.reviewer_cmd, head, cwd=self.root)
+        comments = _gh._json("api", f"repos/{self.repo}/issues/{self.pr_number}/comments")
+        if not any(REVIEW_MARKER in str(c.get("body") or "") for c in comments if isinstance(c, dict)):
+            raise RuntimeError(f"reviewer did not post {REVIEW_MARKER}")
+        inline = _gh._json("api", f"repos/{self.repo}/pulls/{self.pr_number}/comments")
+        findings = list(review.findings)
+        for item in inline if isinstance(inline, list) else []:
+            if not isinstance(item, dict) or str(item.get("commit_id") or "") != head.sha:
+                continue
+            login = str((item.get("user") or {}).get("login") or "").casefold()
+            if "codex" not in login:
+                continue
+            body = str(item.get("body") or "").strip()
+            severity = body.split(":", 1)[0].strip().upper()
+            findings.append(Finding(severity, body.split(":", 1)[-1].strip()))
+        return Review(review.reviewer_model, tuple(findings))
+
+    def relaunch_fix(self, head: Head, brief: str) -> str:
+        from lazytools.code_bridge import _cloud
+        job = _cloud.submit_job(engine=self.fix_engine, cwd=self.root, task=brief, pr=head.pr_number,
+                                land=True, db_path=self.db_path, approvals=("push",))
+        return str(job["job_id"])
+
+    def run_check(self, command: str) -> CheckResult:
+        if self._head is None:
+            raise RuntimeError("cannot check before resolving a PR head")
+        if self._check_dir is None:
+            self._check_dir = Path(self._tmp.name) / "check"
+            subprocess.run(["git", "-C", str(self.root), "fetch", "origin", self._head.sha], check=True,
+                           capture_output=True, text=True)
+            subprocess.run(["git", "-C", str(self.root), "worktree", "add", "--detach",
+                            str(self._check_dir), self._head.sha], check=True, capture_output=True, text=True)
+        proc = subprocess.run(command, cwd=self._check_dir, shell=True, text=True, capture_output=True)
+        return CheckResult(command, proc.returncode, proc.stdout + proc.stderr)
+
+    def save(self, record: NavigatorRecord) -> None:
+        (Path(self._tmp.name) / "navigator.json").write_text(
+            json.dumps(record, default=lambda value: value.__dict__, indent=2), encoding="utf-8")
+
+
+def add_navigate_parser(subparsers: Any) -> None:
+    """Register the navigator as a self-contained CLI command."""
+    parser = subparsers.add_parser("navigate", help="Review/fix a PR until merge-ready or escalated.")
+    parser.add_argument("--repo", required=True, metavar="OWNER/REPO")
+    parser.add_argument("--pr", required=True, type=int, metavar="N")
+    parser.add_argument("--reviewer-cmd", required=True)
+    parser.add_argument("--checks", action="append", required=True, metavar="CMD")
+    parser.add_argument("--max-rounds", type=int, default=DEFAULT_MAX_ROUNDS)
+    parser.add_argument("--fix-engine", choices=("codex", "claude"), default="codex")
+    parser.add_argument("--db", default=None)
+    parser.set_defaults(func=_cmd_navigate)
+
+
+def _cmd_navigate(args: Any) -> int:
+    try:
+        backend = ProductionBackend(repo=args.repo, pr_number=args.pr, reviewer_cmd=args.reviewer_cmd,
+                                    fix_engine=args.fix_engine,
+                                    db_path=Path(args.db).expanduser() if args.db else None)
+        record = Navigator(backend, checks=tuple(args.checks), max_rounds=args.max_rounds).run("")
+        print(json.dumps(record, default=lambda value: value.__dict__))
+        return exit_status(record)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
 __all__ = [
     "BLOCKING_SEVERITIES", "DEFAULT_CHECKS", "DEFAULT_MAX_ROUNDS", "Backend", "CheckResult", "Finding", "Head",
-    "Navigator", "NavigatorRecord", "Review", "exit_status", "resync_and_land_cloud_job", "run_reviewer_command",
+    "Navigator", "NavigatorRecord", "ProductionBackend", "Review", "add_navigate_parser", "exit_status", "resync_and_land_cloud_job", "run_reviewer_command",
 ]

@@ -60,7 +60,7 @@ def test_review_fix_review_stops_at_round_cap_and_records_escalation():
     )
     result = Navigator(backend, checks=("check",)).run("job")
 
-    assert result.status == "round-cap" and exit_status(result) == 1
+    assert result.status == "round-cap" and exit_status(result) == 3
     assert result.rounds == 3 and len(backend.fixed) == 2
     assert result.escalation and result.escalation["reason"] == "review round cap reached (3)"
     assert all("same PR" in brief for _, brief in backend.fixed)
@@ -151,3 +151,82 @@ def test_cloud_transition_resyncs_legacy_poll_failure_then_lands(monkeypatch):
     head = resync_and_land_cloud_job(object(), object(), "deadbeef")
     assert calls == ["resync", "land"]
     assert head == Head("abc123", "codex", 8)
+
+
+def test_model_comparison_is_normalised_and_unknown_author_fails_closed():
+    same = FakeBackend([Head("abc", " Codex ", 1)], [Review("CODEX")])
+    assert Navigator(same, checks=("check",)).run("job").status == "failed"
+    unknown = FakeBackend([Head("abc", "", 1)], [Review("claude")])
+    result = Navigator(unknown, checks=("check",)).run("job")
+    assert result.status == "failed" and "unknown" in result.error
+
+
+def test_unrecognised_severity_escalates():
+    backend = FakeBackend([Head("abc", "codex", 1)], [Review("claude", (Finding("urgent", "oops"),))])
+    result = Navigator(backend, checks=("check",)).run("job")
+    assert result.status == "escalated" and exit_status(result) == 3
+
+
+def test_reviewer_requires_explicit_findings_list(tmp_path):
+    script = tmp_path / "reviewer.py"
+    script.write_text("import json; print(json.dumps({'reviewer_model': 'claude'}))", encoding="utf-8")
+    import pytest
+    with pytest.raises(ValueError, match="findings list"):
+        run_reviewer_command(f'"{sys.executable}" "{script}"', Head("abc", "codex", 1), cwd=tmp_path)
+
+
+def test_active_cloud_job_is_waited_for_before_landing(monkeypatch):
+    job = {"job_id": "deadbeef", "where": "cloud", "status": "running", "engine": "codex"}
+    calls = []
+    monkeypatch.setattr("lazytools.code_bridge._jobs.find_job", lambda *args: job)
+    monkeypatch.setattr("lazytools.code_bridge._cloud.wait_job", lambda *args, **kwargs: calls.append("wait") or {**job, "status": "done"})
+    monkeypatch.setattr("lazytools.code_bridge._cloud_land.land_job", lambda *args, **kwargs: calls.append("land"))
+    monkeypatch.setattr("lazytools.code_bridge._cloud._merged", lambda *args: {**job, "pushed_sha": "abc", "pr_number": 1})
+    assert resync_and_land_cloud_job(object(), object(), "deadbeef").sha == "abc"
+    assert calls == ["wait", "land"]
+
+
+def test_navigate_cli_integration_with_fake_gh_and_reviewer(tmp_path, monkeypatch, capsys):
+    import os
+    import subprocess
+
+    from lazytools.code_bridge.cli import main
+
+    source = tmp_path / "source"
+    source.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=source, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=source, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=source, check=True)
+    (source / "ok.txt").write_text("ok\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=source, check=True)
+    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source, text=True).strip()
+
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    gh = bindir / "gh"
+    gh.write_text(
+        "#!/usr/bin/env python3\nimport json, os, subprocess, sys\n"
+        "a=sys.argv[1:]\n"
+        "if a[:2] == ['repo','clone']:\n"
+        " subprocess.run(['git','clone','-q',os.environ['FAKE_SOURCE'],a[3]],check=True); print(''); raise SystemExit\n"
+        "if a[:2] == ['pr','view']:\n"
+        " print(json.dumps({'number':7,'state':'OPEN','headRefOid':os.environ['FAKE_SHA'],"
+        "'headRefName':'main','baseRefName':'main','isCrossRepository':False})); raise SystemExit\n"
+        "if 'issues/7/comments' in ' '.join(a):\n"
+        " print(json.dumps([{'body':'<!-- independent-review v1 -->'}])); raise SystemExit\n"
+        "if 'pulls/7/comments' in ' '.join(a): print('[]'); raise SystemExit\n"
+        "raise SystemExit('unexpected gh '+repr(a))\n", encoding="utf-8")
+    reviewer = bindir / "reviewer"
+    reviewer.write_text("#!/usr/bin/env python3\nprint('{\"reviewer_model\":\"claude\",\"findings\":[]}')\n", encoding="utf-8")
+    gh.chmod(0o755)
+    reviewer.chmod(0o755)
+    monkeypatch.setenv("GH_BIN", str(gh))
+    monkeypatch.setenv("FAKE_SOURCE", str(source))
+    monkeypatch.setenv("FAKE_SHA", sha)
+    monkeypatch.setenv("PATH", str(bindir) + os.pathsep + os.environ["PATH"])
+
+    code = main(["navigate", "--repo", "owner/repo", "--pr", "7", "--reviewer-cmd", "reviewer",
+                 "--checks", "test -f ok.txt", "--fix-engine", "codex"])
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "merge-ready"

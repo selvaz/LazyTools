@@ -52,6 +52,22 @@ for every lifecycle command. Logs are under the Store's results directory
 
 ## Navigator R1: the merge-ready loop
 
+Run the production loop with one check flag per required command:
+
+```console
+lazytools-code-bridge navigate --repo OWNER/REPO --pr 277 \
+  --reviewer-cmd "review-wrapper" --checks "pytest" --checks "ruff check" \
+  --max-rounds 3 --fix-engine codex
+```
+
+The reviewer must post `<!-- independent-review v1 -->` and print a JSON object
+with an explicit `findings` list. The bridge reads the marker and Codex bot
+inline findings for the exact head through `gh api`. Checks run only in a
+temporary detached worktree. Exit 0 means merge-ready, 3 means owner escalation
+(P0/P1, an unknown severity, or the round cap), and 1 means an operational,
+review-contract, independence, or check failure. The command never merges and
+never pushes the default branch.
+
 `lazytools.code_bridge._navigator.Navigator` is the provider-neutral state
 machine for taking a delegated cloud job to **merge-ready**. A backend first
 resyncs a legacy poll-failed job from provider truth and lands it on its pull
@@ -68,9 +84,9 @@ configured reviewer executable; the command receives `LAZYTOOLS_REVIEW_HEAD`,
 Non-critical findings produce a focused fix brief and a relaunch on the same
 PR, followed by a review of the new head. The default cap is three review
 rounds. Reaching it creates an explicit `round-cap` escalation record and exits
-nonzero. A P0 or P1 finding immediately creates an `escalated` owner record and
+nonzero. A P0, P1, or unrecognised-severity finding immediately creates an `escalated` owner record and
 exits nonzero; it is never silently sent through another autonomous fix round.
-Changing PRs, reusing a reviewed head, or using the author's model for review
+Changing PRs, reusing a reviewed head, an unknown author model, or using the author's model for review
 also fails closed.
 
 A clean review is not enough to close the task. The backend runs all contract
