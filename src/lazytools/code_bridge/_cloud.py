@@ -21,6 +21,8 @@ Configuration (``~/.lazytools/code-bridge.toml``, same file as ``[concurrency]``
     concurrency = 4          # live cloud jobs at once, all providers; 0 = unlimited
     default_where = "local"  # what `run` does without --where: local | cloud | auto
     busy_windows = []        # e.g. ["21:00-01:30"]: local time ranges where `auto` sends jobs to the cloud
+    min_submit_interval = 2  # seconds between two submits to the same provider; 0 = no spacing
+    submit_retries = 2       # extra attempts after a submit that errors at once (backoff); 0 = none
 
     [cloud.codex]
     concurrency = 2          # optional per-provider limit, in addition to the global one
@@ -76,6 +78,17 @@ from lazytools.code_bridge import _cloud_place, _concurrency, _store
 WHERE_LOCAL = "local"
 WHERE_CLOUD = "cloud"
 DEFAULT_CLOUD_CONCURRENCY = 4
+#: Minimum seconds between two cloud submits to the same provider (all
+#: processes on this machine). Submits fired within a second of each other were
+#: rejected by the provider; spacing them lets each one through.
+DEFAULT_MIN_SUBMIT_INTERVAL = 2.0
+#: Extra attempts after a submit that fails straight away.
+DEFAULT_SUBMIT_RETRIES = 2
+#: A failed submit is retried only if it failed this fast (seconds): a provider
+#: rejecting a burst answers at once, while a slow failure may have created a task.
+SUBMIT_RETRY_WINDOW = 15.0
+SUBMIT_RETRY_BASE_DELAY = 2.0
+SUBMIT_CLOCK_PREFIX = "code-bridge:cloud-submit-clock:"
 #: Model a Claude cloud session runs when neither ``--model``, a mapped tier nor
 #: ``[cloud.claude.models] default`` names one. Codex Cloud has no such setting:
 #: the CLI ignores ``-c model`` for cloud tasks, so the environment's default applies.
@@ -254,6 +267,10 @@ class CloudConfig:
     provider_concurrency: dict[str, int | None] = field(default_factory=dict)
     #: provider -> {tier or "default": model}
     models: dict[str, dict[str, str]] = field(default_factory=dict)
+    #: seconds between two submits to one provider (0 = no spacing)
+    min_submit_interval: float = DEFAULT_MIN_SUBMIT_INTERVAL
+    #: extra attempts after a submit that errors immediately (0 = none)
+    submit_retries: int = DEFAULT_SUBMIT_RETRIES
 
 
 def load_config(path: Path | None = None) -> CloudConfig:
@@ -277,8 +294,19 @@ def load_config(path: Path | None = None) -> CloudConfig:
     windows: tuple[str, ...] = ()
     provider_limits: dict[str, int | None] = {}
     models: dict[str, dict[str, str]] = {}
+    min_interval = DEFAULT_MIN_SUBMIT_INTERVAL
+    retries = DEFAULT_SUBMIT_RETRIES
     for key, value in table.items():
-        if key == "concurrency":
+        if key == "min_submit_interval":
+            if type(value) not in (int, float) or value < 0:
+                raise ValueError(f"{path}: [cloud] min_submit_interval must be a number of seconds >= 0 "
+                                 f"(0 = no spacing), got {value!r}")
+            min_interval = float(value)
+        elif key == "submit_retries":
+            if type(value) is not int or value < 0:
+                raise ValueError(f"{path}: [cloud] submit_retries must be an integer >= 0, got {value!r}")
+            retries = value
+        elif key == "concurrency":
             if type(value) is not int or value < 0:
                 raise ValueError(f"{path}: [cloud] concurrency must be an integer >= 0 (0 = unlimited), got {value!r}")
             concurrency = value or None
@@ -345,11 +373,13 @@ def load_config(path: Path | None = None) -> CloudConfig:
         else:
             raise ValueError(
                 f"{path}: [cloud] names unknown key {key!r} (one of concurrency, default_where, busy_windows, "
+                f"min_submit_interval, submit_retries, "
                 f"{', '.join(sorted(PROVIDERS))})"
             )
     return CloudConfig(concurrency=concurrency, envs=envs, routines=routines, default_routine=default_routine,
                        path=path, default_where=default_where,
-                       busy_windows=windows, provider_concurrency=provider_limits, models=models)
+                       busy_windows=windows, provider_concurrency=provider_limits, models=models,
+                       min_submit_interval=min_interval, submit_retries=retries)
 
 
 def _load_models(table: Any, path: Path) -> dict[str, str]:
@@ -988,6 +1018,50 @@ def _remote_base(root: Path, branch: str) -> str | None:
     return sha or None
 
 
+def _wait_for_submit_turn(store: Any, engine: str, minimum_interval: float) -> None:
+    """Reserve and honour a store-backed per-provider submit time.
+
+    Submits from any process on this machine are spaced at least
+    ``minimum_interval`` seconds apart, so a burst is not rejected by the provider.
+    """
+    if minimum_interval <= 0:
+        return
+    key = f"{SUBMIT_CLOCK_PREFIX}{engine}"
+    with _concurrency._guard(_concurrency.load_config().slot_dir):
+        now = time.time()
+        raw = store.read(key)
+        previous = float(raw) if isinstance(raw, (int, float)) else 0.0
+        submit_at = max(now, previous + minimum_interval)
+        store.write(key, submit_at)
+    wait = submit_at - time.time()
+    if wait > 0:
+        time.sleep(wait)
+
+
+def _submit_with_retry(prov: Any, store: Any, config: CloudConfig, engine: str, kwargs: dict[str, Any]) -> Submission:
+    """``prov.submit`` after the spacing delay; an immediate error is retried with backoff.
+
+    Only a :class:`CloudError` that came back within :data:`SUBMIT_RETRY_WINDOW`
+    seconds and is not a timeout is retried (a slow or timed-out submit may have
+    created a task, and a retry would duplicate it). The final error names the
+    attempt count and keeps the provider's own message.
+    """
+    attempts = 1 + max(0, config.submit_retries)
+    for attempt in range(1, attempts + 1):
+        _wait_for_submit_turn(store, engine, config.min_submit_interval)
+        started = time.monotonic()
+        try:
+            return prov.submit(**kwargs)
+        except CloudError as exc:
+            quick = time.monotonic() - started <= SUBMIT_RETRY_WINDOW and "timed out" not in str(exc)
+            if attempt >= attempts or not quick:
+                if attempt > 1:
+                    raise CloudError(f"{exc} (after {attempt} attempts)") from exc
+                raise
+            time.sleep(SUBMIT_RETRY_BASE_DELAY * 2 ** (attempt - 1) * random.uniform(0.75, 1.25))
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 def submit_job(
     *,
     engine: str,
@@ -1122,8 +1196,11 @@ def submit_job(
             meta["environment_note"] = ENV_NOTE
     _admit(store, registry, config, job_id, meta)
     try:
-        sub = prov.submit(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task,
-                          job_id=job_id, db_path=db_path, routine=routine, config=config, model=chosen_model)
+        sub = _submit_with_retry(
+            prov, store, config, engine,
+            dict(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task,
+                 job_id=job_id, db_path=db_path, routine=routine, config=config, model=chosen_model),
+        )
     except BaseException as exc:
         _write(store, registry, job_id, meta, status="failed", error=redact(f"cloud submit failed: {exc}"))
         raise

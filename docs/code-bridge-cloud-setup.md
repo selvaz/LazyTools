@@ -103,6 +103,8 @@ The key is the `owner/name` of the repository's `origin` remote:
 ```toml
 [cloud]
 concurrency = 4               # live cloud jobs at once, both engines together
+min_submit_interval = 2       # seconds between two submits to one provider (0 = no spacing)
+submit_retries = 2            # extra attempts after a submit that errors at once (0 = none)
 
 [cloud.codex.envs]
 "owner/name" = "<env id>"
@@ -356,6 +358,14 @@ apply), scope it to one repository, and prefer short-lived tokens.
 - Provider output and the stored brief are redacted (tokens, keys, JWTs).
 - Cloud jobs share one limit, `[cloud] concurrency` (default 4), and never take
   a local engine slot. This one limit counts Codex and Claude jobs together.
+- Submits to one provider are spaced at least `[cloud] min_submit_interval`
+  seconds apart (default 2, shared by all processes on the machine), so a burst
+  of `run --where cloud` calls is queued instead of rejected by the provider.
+  A submit that errors immediately is retried up to `[cloud] submit_retries`
+  times (default 2) with exponential backoff; a timeout or a slow failure is
+  never retried, since it may have created a task. When the retries run out the
+  job is recorded as failed with the provider's own error text and the attempt
+  count. Set `min_submit_interval = 0` and `submit_retries = 0` to turn both off.
 - `--where cloud` does not accept `--session`; select the pushed base with
   `--branch` instead.
 - Give briefs `Goal`, `Context`, `Constraints`, `Done when`, and `Report`

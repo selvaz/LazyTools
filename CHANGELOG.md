@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Code bridge cloud: submits to one provider are spaced by `[cloud] min_submit_interval` (default 2 s) and an immediately failing submit is retried with backoff (`[cloud] submit_retries`, default 2), so a burst of cloud jobs is no longer rejected; the final error keeps the provider text and the attempt count (#259).
+
 ## [0.10.9] — 2026-11-13
 
 ### Changed

@@ -22,3 +22,13 @@ def _isolated_code_bridge_config(tmp_path_factory, monkeypatch):
     path = base / "code-bridge.toml"
     path.write_text(f"[concurrency]\nslot_dir = '{slots}'\n", encoding="utf-8")
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(path))
+
+
+@pytest.fixture(autouse=True)
+def _fast_cloud_submit(monkeypatch):
+    """Cloud submits are spaced and retried with real sleeps; tests skip both.
+    ``test_code_bridge_cloud_submit_queue`` exercises the real functions."""
+    from lazytools.code_bridge import _cloud
+
+    monkeypatch.setattr(_cloud, "_wait_for_submit_turn", lambda *args, **kwargs: None)
+    monkeypatch.setattr(_cloud, "SUBMIT_RETRY_BASE_DELAY", 0.0)
