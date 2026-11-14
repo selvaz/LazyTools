@@ -194,6 +194,7 @@ svg{display:block;font:12px system-ui,-apple-system,"Segoe UI",sans-serif}
 def render_gantt_html(
     store: Any,
     *,
+    project_ids: Sequence[str] | None = None,
     statuses: Sequence[str] | None = DEFAULT_STATUSES,
     owners: Iterable[str] | None = None,
     now: datetime | None = None,
@@ -202,14 +203,17 @@ def render_gantt_html(
 ) -> str:
     """The whole registry's Gantt as one self-contained HTML page.
 
-    ``statuses`` limits which projects are drawn (``None`` = every status);
+    ``project_ids`` limits projects and preserves the given order (``None`` =
+    registry order); ``statuses`` limits which projects are drawn (``None`` = every status);
     ``owners`` limits by owner (``None`` = every owner). Tasks closed without
     ever having planned dates are counted, not drawn, unless ``unplanned_done``."""
     moment = now or datetime.now(UTC)
     today = moment.astimezone(UTC).date()
     sections = [
         _project_section(view, project_owner, today, unplanned_done=unplanned_done)
-        for view, project_owner in _selected_views(store, statuses=statuses, owners=owners, moment=moment)
+        for view, project_owner in _selected_views(
+            store, project_ids=project_ids, statuses=statuses, owners=owners, moment=moment
+        )
     ]
     body = "".join(sections) or '<p class="muted">No projects to display.</p>'
     legend = (
@@ -238,11 +242,23 @@ TEXT_LABEL = 24
 
 
 def _selected_views(
-    store: Any, *, statuses: Sequence[str] | None, owners: Iterable[str] | None, moment: datetime
+    store: Any,
+    *,
+    project_ids: Sequence[str] | None,
+    statuses: Sequence[str] | None,
+    owners: Iterable[str] | None,
+    moment: datetime,
 ) -> list[tuple[Any, str]]:
     wanted_owners = set(owners) if owners is not None else None
     views: list[tuple[Any, str]] = []
-    for record in _records.list_projects(store):
+    records = _records.list_projects(store)
+    if project_ids is not None:
+        by_id = {record.project_id: record for record in records}
+        unknown = [project_id for project_id in project_ids if project_id not in by_id]
+        if unknown:
+            raise ValueError(f"unknown project_id: {unknown[0]}")
+        records = [by_id[project_id] for project_id in project_ids]
+    for record in records:
         if statuses is not None and str(record.status) not in statuses:
             continue
         project_owner = _owner.get_project_owner(store, record.project_id)
@@ -255,6 +271,7 @@ def _selected_views(
 def render_gantt_text(
     store: Any,
     *,
+    project_ids: Sequence[str] | None = None,
     statuses: Sequence[str] | None = DEFAULT_STATUSES,
     owners: Iterable[str] | None = None,
     now: datetime | None = None,
@@ -278,7 +295,9 @@ def render_gantt_text(
             for i, ch in enumerate(f"{day:%d/%m}"):
                 axis[offset + i] = ch
     lines = [pad + "".join(axis).rstrip()]
-    for view, project_owner in _selected_views(store, statuses=statuses, owners=owners, moment=moment):
+    for view, project_owner in _selected_views(
+        store, project_ids=project_ids, statuses=statuses, owners=owners, moment=moment
+    ):
         status = view.schedule_status
         state = _STATE_TEXT.get(str(status.state), str(status.state))
         target = _day(status.target_completion_at)
@@ -313,10 +332,31 @@ def render_gantt_text(
     return "\n".join(lines)
 
 
-def write_gantt_html(store: Any, out_path: str | Path, **kwargs: Any) -> Path:
+def write_gantt_html(
+    store: Any,
+    out_path: str | Path,
+    *,
+    project_ids: Sequence[str] | None = None,
+    statuses: Sequence[str] | None = DEFAULT_STATUSES,
+    owners: Iterable[str] | None = None,
+    now: datetime | None = None,
+    title: str = "Project Gantt",
+    unplanned_done: bool = False,
+) -> Path:
     path = Path(out_path).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_gantt_html(store, **kwargs), encoding="utf-8")
+    path.write_text(
+        render_gantt_html(
+            store,
+            project_ids=project_ids,
+            statuses=statuses,
+            owners=owners,
+            now=now,
+            title=title,
+            unplanned_done=unplanned_done,
+        ),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -326,6 +366,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", default="gantt.html")
     parser.add_argument("--all-statuses", action="store_true", help="Also draw draft and done projects.")
     parser.add_argument("--owner", action="append", choices=("ceo", "claude", "shared"), help="Repeatable; default every owner.")
+    parser.add_argument("--project", action="append", help="Project ID to draw; repeat to choose and order projects.")
     parser.add_argument("--unplanned-done", action="store_true", help="Also draw tasks closed without planned dates.")
     parser.add_argument("--text", action="store_true", help="Also print the plain-text Gantt.")
     args = parser.parse_args(argv)
@@ -336,13 +377,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     path = write_gantt_html(
         store,
         args.out,
+        project_ids=args.project,
         statuses=None if args.all_statuses else DEFAULT_STATUSES,
         owners=args.owner,
         unplanned_done=args.unplanned_done,
     )
     if args.text:
         statuses = None if args.all_statuses else DEFAULT_STATUSES
-        print(render_gantt_text(store, statuses=statuses, owners=args.owner, unplanned_done=args.unplanned_done))
+        print(
+            render_gantt_text(
+                store,
+                project_ids=args.project,
+                statuses=statuses,
+                owners=args.owner,
+                unplanned_done=args.unplanned_done,
+            )
+        )
     print(path)
     return 0
 
