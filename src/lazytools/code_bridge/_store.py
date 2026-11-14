@@ -16,6 +16,7 @@ from typing import Any
 
 JOB_PREFIX = "code-bridge:job:"
 META_PREFIX = "code-bridge:meta:"
+WATCH_PREFIX = "code-bridge:watch:"
 APPROVAL_PREFIX = "code-bridge:approval:"
 
 DB_ENV_VAR = "LAZYTOOLS_CODE_BRIDGE_DB"
@@ -151,6 +152,7 @@ __all__ = [
     "DEFAULT_DB_PATH",
     "JOB_PREFIX",
     "META_PREFIX",
+    "WATCH_PREFIX",
     "all_job_records",
     "build_approval_queue",
     "build_job_registry",

@@ -1,0 +1,20 @@
+{
+  "pr": {"state": "open", "title": "Ship watcher", "head": {"sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}},
+  "issue_comments": [
+    {"id": 10, "created_at": "2026-11-14T10:00:00Z", "user": {"login": "codex-review-bot"}, "body": "P1: fix this"},
+    {"id": 11, "created_at": "2026-11-14T10:01:00Z", "user": {"login": "reviewer"}, "body": "<!-- independent-review v1 -->\nverdict: pass\nhead: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+  ],
+  "reviews": [
+    {"id": 12, "submitted_at": "2026-11-14T10:02:00Z", "commit_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "user": {"login": "alice"}, "body": "Looks good"},
+    {"id": 13, "submitted_at": "2026-11-14T10:02:30Z", "commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "user": {"login": "old"}, "body": "Stale"}
+  ],
+  "inline_comments": [
+    {"id": 14, "created_at": "2026-11-14T10:03:00Z", "commit_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "user": {"login": "bob"}, "body": "Nit"}
+  ],
+  "check_runs": {"check_runs": [
+    {"id": 15, "name": "tests", "status": "completed", "conclusion": "success", "completed_at": "2026-11-14T10:04:00Z"}
+  ]},
+  "statuses": {"statuses": [
+    {"id": 16, "context": "lint", "state": "failure", "updated_at": "2026-11-14T10:05:00Z"}
+  ]}
+}

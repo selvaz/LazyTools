@@ -36,6 +36,7 @@ from lazytools.code_bridge import (
     _routine,
     _routing,
     _store,
+    _watch,
 )
 from lazytools.code_bridge._concurrency import EngineBusy
 from lazytools.code_bridge._lockfile import LockHeld
@@ -66,7 +67,7 @@ def _print_json(payload: Any) -> None:
     # One compact line, not pretty-printed: easier for a caller to parse
     # line-by-line (the `run` command's output in particular is job-id
     # line + one JSON line, and a multi-line payload would break that).
-    print(json.dumps(payload, default=str))
+    print(json.dumps(payload, default=str), flush=True)
 
 
 def _cloud_print(text: str, *, err: bool = False) -> None:
@@ -1401,6 +1402,32 @@ def _cmd_prune_sessions(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 
 
+def _cmd_watch(args: argparse.Namespace) -> int:
+    try:
+        pulls = [_watch.parse_pull(value) for value in args.pulls]
+        if not math.isfinite(args.interval) or args.interval <= 0:
+            raise ValueError("--interval must be a positive finite number")
+        until = None
+        if args.until:
+            try:
+                clock = datetime.strptime(args.until, "%H:%M").time()
+            except ValueError as exc:
+                raise ValueError("--until must use 24-hour HH:MM format") from exc
+            until = datetime.combine(datetime.now().astimezone().date(), clock).astimezone()
+        store = _store.build_store(_db_path(args))
+
+        def emit(event: _watch.WatchEvent) -> None:
+            if args.json:
+                _print_json(event.as_dict())
+            else:
+                print(event.time, event.pull, event.kind, event.detail, flush=True)
+
+        return _watch.run_watch(pulls, store, interval=args.interval, until=until, emit=emit)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
 def _add_routing_options(parser: argparse.ArgumentParser, *, required: bool = False) -> None:
     parser.add_argument("--tier", choices=["basic", "writing", "thinking", "critical"], required=required)
     parser.add_argument(
@@ -1418,6 +1445,16 @@ def build_parser() -> argparse.ArgumentParser:
         description="Asynchronous delegation of coding work to Codex / Claude Code, with human approvals over a durable ticket queue.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
+    watch_p.add_argument("pulls", nargs="+", metavar="owner/repo#pr")
+    watch_p.add_argument("--until", default=None, metavar="HH:MM",
+                         help="Stop successfully at this local 24-hour clock time.")
+    watch_p.add_argument("--interval", type=float, default=60.0,
+                         help="Polling interval in seconds (default 60; clamped to the configured minimum).")
+    watch_p.add_argument("--json", action="store_true", help="Print one JSON object per event.")
+    _add_db_option(watch_p)
+    watch_p.set_defaults(func=_cmd_watch)
 
     run_p = sub.add_parser("run", help="Run one coding-engine job to completion in this process.")
     run_p.add_argument("--engine", choices=list(_jobs.ENGINES))
