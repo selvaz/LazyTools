@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from lazytools.code_bridge import _cloud, _concurrency, _jobs, _store, cli
+from lazytools.code_bridge import _cloud, _cloud_stop, _concurrency, _jobs, _store, cli
 from lazytools.code_bridge._concurrency import EngineSlot
 
 TASK_URL = "https://chatgpt.com/codex/tasks/task_e_abc123"
@@ -464,12 +464,34 @@ def test_result_exit_code_for_failed_cloud_task(cloud, capsys):
     assert "[failed]" in out and "setup script failed" in out
 
 
-def test_cancel_cloud_job_frees_place_and_says_task_still_runs(cloud, capsys):
+def test_cancel_cloud_job_stops_provider_and_frees_place(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
+    calls = []
+    monkeypatch.setattr(
+        _cloud_stop,
+        "stop",
+        lambda provider, handle: calls.append((provider, handle)) or {
+            "provider": provider, "handle": handle, "status": "stopped"
+        },
+    )
     assert cli.main(["cancel", job_id, "--db", str(cloud.db)]) == 0
     out = capsys.readouterr().out
-    assert "[interrupted]" in out and "NOT stopped" in out and TASK_URL in out
+    assert calls == [("codex", "task_e_abc123")]
+    assert "codex task_e_abc123: stopped" in out
+    assert "[interrupted]" in out and "local tracking is interrupted" in out
     assert _cloud.active_jobs(_store.build_store(cloud.db)) == []
+
+
+def test_cancel_cloud_job_failure_is_nonzero_and_keeps_tracking(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    monkeypatch.setattr(_cloud_stop, "stop", lambda *args: (_ for _ in ()).throw(RuntimeError("provider refused")))
+
+    assert cli.main(["cancel", job_id, "--db", str(cloud.db)]) == 1
+
+    output = capsys.readouterr()
+    assert "codex task_e_abc123: failed: provider refused" in output.out
+    assert f"job {job_id} remains running locally" in output.err
+    assert [job["job_id"] for job in _cloud.active_jobs(_store.build_store(cloud.db))] == [job_id]
 
 
 # --------------------------------------------------------------------------- #
@@ -569,6 +591,11 @@ def test_apply_refuses_local_jobs(cloud, capsys):
 def test_stale_poll_does_not_overwrite_cancellation(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
     real_status = _cloud.CodexCloud.status
+    monkeypatch.setattr(
+        _cloud_stop,
+        "stop",
+        lambda provider, handle: {"provider": provider, "handle": handle, "status": "stopped"},
+    )
 
     def status_then_cancelled_meanwhile(self, handle):
         answer = real_status(self, handle)  # the provider says "pending"...
