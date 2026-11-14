@@ -61,7 +61,7 @@ _SECTIONS: tuple[tuple[str, str, Severity, str], ...] = (
     ("missing-goal", "Goal", "error", r"goal|obiettivo"),
     ("missing-context", "Context", "warn", r"context|contesto"),
     ("missing-constraints", "Constraints", "warn", r"constraints|vincoli"),
-    ("missing-done-when", "Done when", "error", r"done\s+when|fatto\s+quando"),
+    ("missing-done-when", "Done when", "warn", r"done\s+when|fatto\s+quando"),
     ("missing-report", "Report", "warn", r"report|rapporto"),
 )
 
