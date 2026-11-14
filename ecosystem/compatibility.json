@@ -18,14 +18,14 @@
           "bridge",
           "datacore"
         ],
-        "ref": "2a3ae37e3cc530f234e6a754b4a1c7f5a7da7ee9",
+        "ref": "a0f513c1699b5b91e7b03b366a2a0e9b21f45044",
         "repo": "https://github.com/selvaz/LazyFin"
       },
       "lazyportfolio": {
         "extras": [
           "datacore"
         ],
-        "ref": "v0.2.11",
+        "ref": "v0.2.12",
         "repo": "https://github.com/selvaz/LazyPortfolio"
       },
       "lazypulse": {
@@ -33,14 +33,14 @@
         "repo": "https://github.com/selvaz/LazyPulse"
       },
       "lazyray": {
-        "ref": "v0.2.11",
+        "ref": "v0.2.12",
         "repo": "https://github.com/selvaz/LazyRay"
       },
       "lazystats": {
         "extras": [
           "regimes"
         ],
-        "ref": "v0.3.11",
+        "ref": "v0.3.12",
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
