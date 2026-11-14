@@ -496,6 +496,23 @@ def test_land_stages_both_sides_of_a_rename(cloud, gh, capsys, monkeypatch):
     assert "RENAMED.md" in tree and "README.md" not in tree
 
 
+@pytest.mark.parametrize(
+    ("shape", "expected"),
+    [
+        ("delete", {"D\tREADME.md"}),
+        ("rename-modify", {"D\tREADME.md", "A\tdocs/GUIDE.md"}),
+    ],
+)
+def test_land_stages_deletes_and_modified_renames(cloud, gh, capsys, monkeypatch, shape, expected):
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", shape)
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    staged = _git(cloud.repo, "diff-tree", "--no-commit-id", "--name-status", "-r", outcome["pushed_sha"]).splitlines()
+    assert set(staged) == expected
+
+
 def test_claude_land_refuses_a_source_that_is_not_the_jobs_branch(cloud, claude, gh, capsys):
     job_id = _claude_submit(cloud, capsys, "--open-pr")
     claude.push(_job(cloud, job_id)["claude_result_branch"], {"mine.txt": "x\n"})

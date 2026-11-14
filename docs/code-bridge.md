@@ -1370,7 +1370,7 @@ Guarantees:
 * **Provider diff paths are authoritative.** Landing stages exactly those paths
   with literal pathspecs: present files use `git add -f`, while tracked paths absent from the
   worktree use `git rm --cached`. This also handles a file replaced by a same-stem package
-  directory (and the reverse), and a new file covered by `.gitignore` is not lost.
+  directory (and the reverse), deleted files, renames (with or without edits), and a new file covered by `.gitignore` is not lost.
   The landing report explicitly lists ignored paths that needed force;
   it never force-adds a directory, `.`, or an unrelated worktree file. A retry
   reuses the recorded `cloud/<id>` worktree/branch left by a failed landing.
