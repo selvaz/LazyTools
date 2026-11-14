@@ -18,10 +18,12 @@ import signal
 import subprocess
 import sys
 import time
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from lazytools.code_bridge import (
+    _autonomy,
     _brief,
     _cloud,
     _cloud_envs,
@@ -34,6 +36,7 @@ from lazytools.code_bridge import (
     _routine,
     _routing,
     _store,
+    _watch,
 )
 from lazytools.code_bridge._concurrency import EngineBusy
 from lazytools.code_bridge._lockfile import LockHeld
@@ -64,7 +67,7 @@ def _print_json(payload: Any) -> None:
     # One compact line, not pretty-printed: easier for a caller to parse
     # line-by-line (the `run` command's output in particular is job-id
     # line + one JSON line, and a multi-line payload would break that).
-    print(json.dumps(payload, default=str))
+    print(json.dumps(payload, default=str), flush=True)
 
 
 def _cloud_print(text: str, *, err: bool = False) -> None:
@@ -76,6 +79,41 @@ def _cloud_json(payload: Any) -> None:
     _print_json(_cloud.redact_obj(payload))
 
 
+def _configure_run_root(args: argparse.Namespace) -> int | None:
+    """Resolve the bridge root once and remember its user-visible provenance."""
+    try:
+        if args.root is not None:
+            root = Path(args.root).expanduser().resolve()
+            source = "flag (--root)"
+        elif env_root := os.environ.get("LAZYTOOLS_CODE_ROOT"):
+            root = Path(env_root).expanduser().resolve()
+            source = "env (LAZYTOOLS_CODE_ROOT)"
+        else:
+            config = _concurrency.load_config()
+            if config.root is not None:
+                root = config.root
+                source = f"config ({_concurrency.config_path()})"
+            else:
+                root = Path.cwd().resolve()
+                source = "cwd"
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    args.root = str(root)
+    args.root_source = source
+    return None
+
+
+def _root_error(args: argparse.Namespace, exc: Exception) -> str:
+    """Add actionable root provenance only to confinement failures."""
+    if "outside the allowed root" not in str(exc):
+        return str(exc)
+    return (
+        f"{exc} (root from {args.root_source}); pass --root PATH or set root in "
+        f"LAZYTOOLS_CODE_ROOT or {_concurrency.config_path()} to a directory containing the repository"
+    )
+
+
 # --------------------------------------------------------------------------- #
 # run
 # --------------------------------------------------------------------------- #
@@ -84,6 +122,14 @@ def _cloud_json(payload: Any) -> None:
 #: Statuses a job record can end in. A record still "running" or
 #: "awaiting_approval" whose process is gone is reported as died by `wait`.
 _TERMINAL = ("done", "partial", "failed", "interrupted")
+
+
+def _record_intervention(store: Any, job_id: str, kind: str, reason: str | None = None) -> None:
+    """Best-effort audit write; an audit failure must not undo an operator action."""
+    try:
+        _store.record_intervention(store, job_id, kind, reason)
+    except Exception as exc:
+        print(f"warning: action succeeded but its {kind} intervention could not be recorded: {exc}", file=sys.stderr)
 
 # Windows process-creation flags for a child that must outlive its launcher:
 # no console tie to the parent, its own process group (so a Ctrl+C or a
@@ -163,7 +209,7 @@ def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
         root = _build_root(args.root)
         resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     # A busy engine is refused HERE too, naming the running job, rather than
     # in a child whose refusal only reaches its log. The child re-checks
@@ -227,7 +273,7 @@ def _check_brief_before_launch(args: argparse.Namespace, task: str) -> int | Non
     try:
         cwd = _engines.resolve_cwd(args.cwd, args.root)
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     findings = _brief.check_brief(task, engine=args.engine, cwd=cwd, root=args.root)
     for finding in findings:
@@ -297,7 +343,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         if args.routine and args.engine != "claude":
             raise ValueError("--routine is only for --where cloud --engine claude")
     except (OSError, ValueError, _cloud.CloudError) as exc:
-        _cloud_print(f"error: {exc}", err=True)
+        _cloud_print(f"error: {_root_error(args, exc)}", err=True)
         return 2
     if not args.brief_checked and not review_meta:
         refusal = _check_brief_before_launch(args, task)
@@ -310,7 +356,8 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         job = _cloud.submit_job(
             engine=args.engine, cwd=cwd, task=task, branch=branch, db_path=_db_path(args), job_id=job_id,
             approvals=tuple(args.approve_cloud or ()), routine=args.routine, pr=args.pr, open_pr=args.open_pr,
-            land=args.land, rebase_ok=args.rebase_ok, model=args.model, tier=args.tier, extra_meta=extra_meta,
+            land=args.land, rebase_ok=args.rebase_ok, model=args.model, tier=args.tier, title=args.title,
+            extra_meta=extra_meta,
         )
     except (_cloud.CloudError, ValueError) as exc:
         _cloud_print(f"error: {exc}", err=True)
@@ -370,6 +417,9 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    refusal = _configure_run_root(args)
+    if refusal is not None:
+        return refusal
     refusal = _resolve_placement(args)
     if refusal is not None:
         return refusal
@@ -377,6 +427,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return _cmd_run_cloud(args)
     for name, flag in (("branch", "--branch"), ("allow_cloud", "--allow-cloud"), ("approve_cloud", "--approve-cloud"),
                        ("routine", "--routine"), ("pr", "--pr"), ("open_pr", "--open-pr"), ("land", "--land"),
+                       ("title", "--title"),
                        ("rebase_ok", "--rebase-ok")):
         if getattr(args, name, None) not in (None, False, []):
             print(f"error: {flag} is only for --where cloud", file=sys.stderr)
@@ -437,7 +488,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 raise ValueError(rejection)
             args.effort = args.effort.strip()
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     if not args.brief_checked:
         refusal = _check_brief_before_launch(args, task)
@@ -765,7 +816,10 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         job_id = str(job["job_id"])
         pid = _detached_pid(db_path, job_id) or job.get("pid")
     if _cloud.is_cloud(job):
-        return _cancel_cloud(store, registry, job, args.reason)
+        result = _cancel_cloud(store, registry, job, args.reason)
+        if result == 0:
+            _record_intervention(store, job_id, "cancel", args.reason)
+        return result
     if job.get("status") in _TERMINAL:
         print(f"job {job['job_id']} already {job['status']}")
         return 0
@@ -808,6 +862,7 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         _store.write_meta(store, job_id, meta)
     message = "cancelled by operator during startup" if startup else "cancelled by operator"
     error = _jobs.interrupt_job(store, registry, job, f"{message}: {args.reason}", db_path=db_path)
+    _record_intervention(store, job_id, "cancel", args.reason)
     print(f"[interrupted] job {job_id}\n{error}")
     return 0
 
@@ -852,13 +907,7 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
         if args.dry_run:
             result: dict[str, Any] = {"provider": provider, "handle": handle, "status": "would stop"}
         else:
-            try:
-                result = _cloud_stop.stop(provider, handle)
-                if owner_job is not None and result.get("status") in ("stopped", "already finished"):
-                    _cloud.mark_interrupted(store, registry, str(owner_job["job_id"]), "cloud stop requested by operator")
-                    result["job_id"] = owner_job["job_id"]
-            except Exception as exc:
-                result = {"provider": provider, "handle": handle, "status": "failed", "reason": _cloud.redact(str(exc))}
+            result = _stop_cloud_target(store, registry, provider, handle, owner_job)
         results.append(result)
     results.extend(errors)
     safe = _cloud.redact_obj(results)
@@ -871,18 +920,47 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
     return 1 if any(item.get("status") == "failed" for item in safe) else 0
 
 
+def _stop_cloud_target(store: Any, registry: Any, provider: str, handle: str,
+                       owner_job: dict[str, Any] | None) -> dict[str, Any]:
+    """Use the common provider-stop path and update local tracking when confirmed."""
+    from lazytools.code_bridge import _cloud_stop
+
+    try:
+        result = _cloud_stop.stop(provider, handle)
+        if owner_job is not None and result.get("status") in ("stopped", "already finished"):
+            _cloud.mark_interrupted(store, registry, str(owner_job["job_id"]), "cloud stop requested by operator")
+            result["job_id"] = owner_job["job_id"]
+        return result
+    except Exception as exc:
+        return {"provider": provider, "handle": handle, "status": "failed",
+                "reason": _cloud.redact(str(exc))}
+
+
 def _cancel_cloud(store: Any, registry: Any, job: dict[str, Any], reason: str) -> int:
-    """Stop tracking a cloud job locally (frees its cloud place). The task itself keeps running remotely."""
+    """Stop a cloud job at its provider, then report the local tracking result."""
+    from lazytools.code_bridge import _cloud_stop
+
     job_id = str(job["job_id"])
-    if job.get("status") in _TERMINAL:
-        _cloud_print(f"job {job_id} already {job['status']}")
-        return 0
-    if not _cloud.mark_interrupted(store, registry, job_id, f"cancelled by operator: {reason}"):
-        latest = _jobs.find_job(store, registry, job_id) or job
-        _cloud_print(f"job {job_id} already {latest.get('status')}")
-        return 0
-    where = job.get("cloud_url") or job.get("cloud_handle") or "the provider's web UI"
-    _cloud_print(f"[interrupted] job {job_id}\nno longer tracked locally; the cloud task is NOT stopped -- cancel it at {where}")
+    handle = job.get("cloud_handle")
+    try:
+        provider, ident = _cloud_stop.resolve_handle(str(handle))
+    except Exception as exc:
+        _cloud_print(f"cloud {handle or ''}: failed: {_cloud.redact(str(exc))}")
+        _cloud_print(f"job {job_id} remains {job.get('status')} locally", err=True)
+        return 1
+
+    result = _cloud.redact_obj(_stop_cloud_target(store, registry, provider, ident, job))
+    suffix = f": {result['reason']}" if result.get("reason") else ""
+    _cloud_print(f"{provider} {ident}: {result['status']}{suffix}")
+    if result.get("status") == "failed":
+        _cloud_print(f"job {job_id} remains {job.get('status')} locally", err=True)
+        return 1
+
+    latest = _jobs.find_job(store, registry, job_id) or job
+    if latest.get("status") == "interrupted":
+        _cloud_print(f"[interrupted] job {job_id}\nprovider stop succeeded and local tracking is interrupted")
+    else:
+        _cloud_print(f"job {job_id} remains {latest.get('status')} locally; provider stop is not confirmed")
     return 0
 
 
@@ -968,6 +1046,7 @@ def _cmd_resync(args: argparse.Namespace) -> int:
     except _cloud.CloudError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    _record_intervention(store, str(job["job_id"]), "resync", args.reason)
     if args.json:
         _cloud_json(job)
     else:
@@ -1012,7 +1091,10 @@ def _cmd_apply(args: argparse.Namespace) -> int:
         print(f"job {job['job_id']} is a local job: its changes are already in {job.get('cwd')}", file=sys.stderr)
         return 2
     if args.land:
-        return _cmd_land(args, store, registry, job, db_path)
+        result = _cmd_land(args, store, registry, job, db_path)
+        if result == 0 and not getattr(args, "_land_noop", False):
+            _record_intervention(store, str(job["job_id"]), "land", args.reason)
+        return result
     try:
         job = _cloud.refresh(store, registry, job)
         outcome = _cloud.apply_job(
@@ -1028,6 +1110,8 @@ def _cmd_apply(args: argparse.Namespace) -> int:
     except _cloud.CloudError as exc:
         _cloud_print(f"error: {exc}", err=True)
         return 1
+    if outcome.get("changed"):
+        _record_intervention(store, str(job["job_id"]), "apply", args.reason)
     if args.json:
         _cloud_json(outcome)
         return 0
@@ -1056,6 +1140,8 @@ def _cmd_land(args: argparse.Namespace, store: Any, registry: Any, job: dict[str
     except _cloud.CloudError as exc:
         _cloud_print(f"error: not landed: {exc}", err=True)
         return 1
+    if outcome.get("already"):
+        args._land_noop = True
     if args.json:
         _cloud_json(outcome)
         return 0
@@ -1067,16 +1153,23 @@ def _cmd_land(args: argparse.Namespace, store: Any, registry: Any, job: dict[str
         _cloud_print(f"landed cloud job {outcome['job_id']}: pushed {outcome['branch']} @ {str(outcome['pushed_sha'])[:12]}")
     if outcome.get("pr_url"):
         _cloud_print(f"PR: {outcome['pr_url']}")
+    if outcome.get("force_added_ignored"):
+        _cloud_print("force-added ignored cloud diff paths: " + ", ".join(outcome["force_added_ignored"]))
     return 0
 
 
 def _cmd_cloud_sync(args: argparse.Namespace) -> int:
     """Reconcile every live cloud job: poll, land the finished ones that asked for it, record failures."""
+    store = _store.build_store(_db_path(args))
     try:
         rows = _cloud_land.sync(_db_path(args))
     except (_cloud.CloudError, ValueError) as exc:
         _cloud_print(f"error: {exc}", err=True)
         return 1
+    if args.manual:
+        for row in rows:
+            if row.get("action") != "none":
+                _record_intervention(store, str(row["job_id"]), "cloud-sync", args.reason)
     failed = any(row["action"].endswith("-failed") for row in rows)
     if args.json:
         _cloud_json({"jobs": rows, "ok": not failed})
@@ -1104,6 +1197,20 @@ def _cmd_cloud_envs(args: argparse.Namespace) -> int:
     else:
         _cloud_print(_cloud_envs.format_envs(report))
     return 0
+
+
+def _cmd_cloud_setup(args: argparse.Namespace) -> int:
+    try:
+        config = _cloud.load_config()
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    report = _cloud_envs.check_claude_setup(config)
+    if args.json:
+        _cloud_json(report)
+    else:
+        _cloud_print(_cloud_envs.format_claude_setup(report))
+    return 0 if report["ok"] else 1
 
 
 # --------------------------------------------------------------------------- #
@@ -1223,10 +1330,13 @@ def _cmd_pending(args: argparse.Namespace) -> int:
 def _cmd_approve(args: argparse.Namespace) -> int:
     store = _store.build_store(_db_path(args))
     queue = _store.build_approval_queue(store)
+    ticket = queue.get_ticket(args.ticket_id)
     ok = queue.approve_ticket(args.ticket_id, actor=args.actor, channel="cli")
     if not ok:
         print(f"could not approve {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
         return 1
+    if ticket is not None and _store.read_meta(store, str(ticket.task_id)) is not None:
+        _record_intervention(store, str(ticket.task_id), "approve", args.reason)
     print(f"approved {args.ticket_id}")
     return 0
 
@@ -1234,11 +1344,44 @@ def _cmd_approve(args: argparse.Namespace) -> int:
 def _cmd_reject(args: argparse.Namespace) -> int:
     store = _store.build_store(_db_path(args))
     queue = _store.build_approval_queue(store)
+    ticket = queue.get_ticket(args.ticket_id)
     ok = queue.reject_ticket(args.ticket_id, actor=args.actor, channel="cli", reason=args.reason)
     if not ok:
         print(f"could not reject {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
         return 1
+    if ticket is not None and _store.read_meta(store, str(ticket.task_id)) is not None:
+        _record_intervention(store, str(ticket.task_id), "reject", args.reason)
     print(f"rejected {args.ticket_id}")
+    return 0
+
+
+def _cmd_autonomy(args: argparse.Namespace) -> int:
+    try:
+        if args.week:
+            if args.until:
+                raise ValueError("--until cannot be combined with --week")
+            since, until = _autonomy.week_bounds(args.week)
+        else:
+            today_utc = datetime.now(UTC).date()
+            since = date.fromisoformat(args.since) if args.since else today_utc - timedelta(days=7)
+            until = date.fromisoformat(args.until) if args.until else today_utc + timedelta(days=1)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if since >= until:
+        print("error: --since must be before --until", file=sys.stderr)
+        return 2
+    payload = _autonomy.report(_store.build_store(_db_path(args)), since=since, until=until)
+    if args.json:
+        _print_json(payload)
+    else:
+        percent = "n/a" if payload["autonomy_percent"] is None else f'{payload["autonomy_percent"]:.1f}%'
+        print(f"Autonomy: {payload['autonomous_jobs']}/{payload['finished_jobs']} finished jobs ({percent}); target 90.0%")
+        print("Intervention causes:")
+        if not payload["intervention_causes"]:
+            print("  none")
+        for kind, count in payload["intervention_causes"].items():
+            print(f"  {kind}: {count}")
     return 0
 
 
@@ -1296,6 +1439,32 @@ def _cmd_prune_sessions(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 
 
+def _cmd_watch(args: argparse.Namespace) -> int:
+    try:
+        pulls = [_watch.parse_pull(value) for value in args.pulls]
+        if not math.isfinite(args.interval) or args.interval <= 0:
+            raise ValueError("--interval must be a positive finite number")
+        until = None
+        if args.until:
+            try:
+                clock = datetime.strptime(args.until, "%H:%M").time()
+            except ValueError as exc:
+                raise ValueError("--until must use 24-hour HH:MM format") from exc
+            until = datetime.combine(datetime.now().astimezone().date(), clock).astimezone()
+        store = _store.build_store(_db_path(args))
+
+        def emit(event: _watch.WatchEvent) -> None:
+            if args.json:
+                _print_json(event.as_dict())
+            else:
+                print(event.time, event.pull, event.kind, event.detail, flush=True)
+
+        return _watch.run_watch(pulls, store, interval=args.interval, until=until, emit=emit)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
 def _add_routing_options(parser: argparse.ArgumentParser, *, required: bool = False) -> None:
     parser.add_argument("--tier", choices=["basic", "writing", "thinking", "critical"], required=required)
     parser.add_argument(
@@ -1313,6 +1482,18 @@ def build_parser() -> argparse.ArgumentParser:
         description="Asynchronous delegation of coding work to Codex / Claude Code, with human approvals over a durable ticket queue.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    from lazytools.code_bridge._navigator import add_navigate_parser
+    add_navigate_parser(sub)
+
+    watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
+    watch_p.add_argument("pulls", nargs="+", metavar="owner/repo#pr")
+    watch_p.add_argument("--until", default=None, metavar="HH:MM",
+                         help="Stop successfully at this local 24-hour clock time.")
+    watch_p.add_argument("--interval", type=float, default=60.0,
+                         help="Polling interval in seconds (default 60; clamped to the configured minimum).")
+    watch_p.add_argument("--json", action="store_true", help="Print one JSON object per event.")
+    _add_db_option(watch_p)
+    watch_p.set_defaults(func=_cmd_watch)
 
     run_p = sub.add_parser("run", help="Run one coding-engine job to completion in this process.")
     run_p.add_argument("--engine", choices=list(_jobs.ENGINES))
@@ -1329,6 +1510,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="--where cloud only: work on pull request N's head branch; the job records the PR.")
     run_p.add_argument("--open-pr", action="store_true",
                        help="--where cloud only: when landed, push a new branch and open a PR against --branch.")
+    run_p.add_argument("--title", default=None,
+                       help="--where cloud only: explicit PR, landing commit, and squash subject (default: # Goal text).")
     run_p.add_argument(
         "--land",
         action="store_true",
@@ -1342,13 +1525,15 @@ def build_parser() -> argparse.ArgumentParser:
         "Never force-pushes.",
     )
     run_p.add_argument(
-        "--branch", default=None, help="--where cloud only: remote branch the cloud agent starts from (default: current)."
+        "--branch", default=None, help="--where cloud only: the base branch the cloud agent starts from; it must exist on origin "
+        "(default: current)."
     )
     run_p.add_argument(
         "--routine",
         default=None,
         help="--where cloud --engine claude only: fire this [cloud.claude.routines] entry (its API trigger token is "
-        "read from the env var the config names) instead of running `claude --cloud`.",
+        "read from the env var the config names) instead of running `claude --cloud`. Without it, --model picks "
+        "the routine that declares that model, else [cloud.claude] default_routine.",
     )
     run_p.add_argument(
         "--allow-cloud",
@@ -1385,7 +1570,8 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--scratch-root", default=None,
                        help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).")
     run_p.add_argument(
-        "--root", default=None, help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT or cwd)."
+        "--root", default=None,
+        help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT, root in code-bridge.toml, then cwd).",
     )
     run_p.add_argument("--json", action="store_true")
     run_p.add_argument(
@@ -1452,6 +1638,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     resync_p = sub.add_parser("resync", help="Re-check a cloud job that an older bridge failed after a poll error.")
     resync_p.add_argument("job_id")
+    resync_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
     resync_p.add_argument("--json", action="store_true")
     _add_db_option(resync_p)
     resync_p.set_defaults(func=_cmd_resync)
@@ -1521,6 +1708,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     apply_p.add_argument("--rebase-ok", action="store_true", help="With --land: allow a moved base branch.")
     apply_p.add_argument("--json", action="store_true")
+    apply_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
     _add_db_option(apply_p)
     apply_p.set_defaults(func=_cmd_apply)
 
@@ -1530,6 +1718,16 @@ def build_parser() -> argparse.ArgumentParser:
         "finished reviews, record failures with the provider's reason. Safe to run from a scheduler.",
     )
     sync_p.add_argument("--json", action="store_true")
+    sync_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
+    sync_mode = sync_p.add_mutually_exclusive_group()
+    sync_mode.add_argument(
+        "--manual", action="store_true",
+        help="Record successful reconciliation work as an operator intervention.",
+    )
+    sync_mode.add_argument(
+        "--scheduled", action="store_true",
+        help="Scheduler mode (the default): do not record an operator intervention.",
+    )
     _add_db_option(sync_p)
     sync_p.set_defaults(func=_cmd_cloud_sync)
 
@@ -1540,6 +1738,16 @@ def build_parser() -> argparse.ArgumentParser:
     envs_p.add_argument("--no-probe", action="store_true", help="Do not call `codex cloud list`; show the config only.")
     envs_p.add_argument("--json", action="store_true")
     envs_p.set_defaults(func=_cmd_cloud_envs)
+
+    setup_p = sub.add_parser(
+        "cloud-setup",
+        help="Check the Claude cloud routine setup locally (config, token variables, a model per routine); "
+        "no network call, token values are never printed. Exit 1 when something is missing.",
+    )
+    setup_p.add_argument("provider", choices=["claude"])
+    setup_p.add_argument("--check", action="store_true", help="Run the check (the default and only action).")
+    setup_p.add_argument("--json", action="store_true")
+    setup_p.set_defaults(func=_cmd_cloud_setup)
 
     skill_p = sub.add_parser(
         "setup-skill",
@@ -1564,6 +1772,7 @@ def build_parser() -> argparse.ArgumentParser:
     approve_p = sub.add_parser("approve", help="Approve a pending ticket.")
     approve_p.add_argument("ticket_id")
     approve_p.add_argument("--actor", default="operator")
+    approve_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
     _add_db_option(approve_p)
     approve_p.set_defaults(func=_cmd_approve)
 
@@ -1573,6 +1782,18 @@ def build_parser() -> argparse.ArgumentParser:
     reject_p.add_argument("--actor", default="operator")
     _add_db_option(reject_p)
     reject_p.set_defaults(func=_cmd_reject)
+
+    autonomy_p = sub.add_parser("autonomy", help="Report the share of finished jobs needing no manual intervention.")
+    range_group = autonomy_p.add_mutually_exclusive_group()
+    range_group.add_argument("--week", help="ISO week (YYYY-Www).")
+    range_group.add_argument("--since", help="First UTC date to include (YYYY-MM-DD).")
+    autonomy_p.add_argument(
+        "--until",
+        help="Exclusive UTC end date (YYYY-MM-DD): that date is not included; defaults to tomorrow in UTC.",
+    )
+    autonomy_p.add_argument("--json", action="store_true")
+    _add_db_option(autonomy_p)
+    autonomy_p.set_defaults(func=_cmd_autonomy)
 
     prune_p = sub.add_parser(
         "prune-sessions",

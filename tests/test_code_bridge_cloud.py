@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from lazytools.code_bridge import _cloud, _concurrency, _jobs, _store, cli
+from lazytools.code_bridge import _cloud, _cloud_stop, _concurrency, _jobs, _store, cli
 from lazytools.code_bridge._concurrency import EngineSlot
 
 TASK_URL = "https://chatgpt.com/codex/tasks/task_e_abc123"
@@ -64,6 +64,30 @@ FAKE_CODEX = textwrap.dedent(
         print("diff --git a/with space.txt b/with space.txt")
     elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "rename":
         print("diff --git a/README.md b/RENAMED.md")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "delete":
+        print("diff --git a/README.md b/README.md")
+        print("deleted file mode 100644")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "rename-modify":
+        print("diff --git a/README.md b/docs/GUIDE.md")
+        print("similarity index 60%")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "ignored":
+        print("diff --git a/data/endpoints.yaml b/data/endpoints.yaml")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "literal-pathspec":
+        print("diff --git a/:(glob)*.secret b/:(glob)*.secret")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "file-to-directory":
+        print("diff --git a/pkg/authority.py b/pkg/authority.py")
+        print("diff --git a/pkg/authority/__init__.py b/pkg/authority/__init__.py")
+        print("diff --git a/pkg/authority/rules.py b/pkg/authority/rules.py")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "directory-to-file":
+        print("diff --git a/pkg/authority/__init__.py b/pkg/authority/__init__.py")
+        print("diff --git a/pkg/authority/rules.py b/pkg/authority/rules.py")
+        print("diff --git a/pkg/authority.py b/pkg/authority.py")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") == "file-to-directory-ignored":
+        print("diff --git a/config b/config/settings")
+    elif verb == "diff" and os.environ.get("FAKE_CODEX_SHAPE") in ("symlink", "mixed-symlink"):
+        print("diff --git a/dangling-link b/dangling-link")
+        if os.environ.get("FAKE_CODEX_SHAPE") == "mixed-symlink":
+            print("diff --git a/regular.txt b/regular.txt")
     elif verb == "diff":
         print("diff --git a/cloud_change.txt b/cloud_change.txt")
         print("new file mode 100644")
@@ -77,6 +101,37 @@ FAKE_CODEX = textwrap.dedent(
             Path("with space.txt").write_text("spaced\\n", encoding="utf-8")
         elif shape == "rename":
             Path("README.md").rename("RENAMED.md")
+        elif shape == "delete":
+            Path("README.md").unlink()
+        elif shape == "rename-modify":
+            Path("docs").mkdir(exist_ok=True)
+            Path("docs/GUIDE.md").write_text(Path("README.md").read_text(encoding="utf-8") + "more\\n", encoding="utf-8")
+            Path("README.md").unlink()
+        elif shape == "ignored":
+            Path("data").mkdir(exist_ok=True)
+            Path("data/endpoints.yaml").write_text("endpoint: public\\n", encoding="utf-8")
+        elif shape == "literal-pathspec":
+            Path(":(glob)*.secret").write_text("provider output\\n", encoding="utf-8")
+            Path("x.secret").write_text("unrelated ignored file\\n", encoding="utf-8")
+        elif shape == "file-to-directory":
+            Path("pkg/authority.py").unlink()
+            Path("pkg/authority").mkdir()
+            Path("pkg/authority/__init__.py").write_text("from .rules import allow\\n", encoding="utf-8")
+            Path("pkg/authority/rules.py").write_text("allow = True\\n", encoding="utf-8")
+        elif shape == "directory-to-file":
+            Path("pkg/authority/__init__.py").unlink()
+            Path("pkg/authority/rules.py").unlink()
+            Path("pkg/authority").rmdir()
+            Path("pkg/authority.py").write_text("allow = False\\n", encoding="utf-8")
+        elif shape == "file-to-directory-ignored":
+            Path("config").unlink()
+            Path("config").mkdir()
+            Path("config/settings").write_text("theme=dark\\n", encoding="utf-8")
+            Path("config/token.secret").write_text("not-provider-output\\n", encoding="utf-8")
+        elif shape in ("symlink", "mixed-symlink"):
+            Path("dangling-link").symlink_to("missing-target")
+            if shape == "mixed-symlink":
+                Path("regular.txt").write_text("regular\\n", encoding="utf-8")
         elif not os.environ.get("FAKE_CODEX_NOCHANGE"):
             Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
         if os.environ.get("FAKE_CODEX_ERROR_LOG"):
@@ -233,7 +288,16 @@ def test_parse_remote(url):
 # --------------------------------------------------------------------------- #
 
 
+def test_submit_refuses_a_branch_missing_on_origin(cloud, capsys):
+    code = _run_cloud(cloud, "--branch", "task/n11", "--json")
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "task/n11" in err and "does not exist on the 'origin' remote" in err and "base branch" in err
+    assert cloud.calls() == []  # nothing reached the cloud CLI
+
+
 def test_submit_stores_handle_and_where_cloud(cloud, capsys):
+    _git(cloud.repo, "push", "-q", "origin", "main:refs/heads/feature-x")
     code = _run_cloud(cloud, "--branch", "feature-x", "--json")
     assert code == 0
     payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
@@ -400,12 +464,34 @@ def test_result_exit_code_for_failed_cloud_task(cloud, capsys):
     assert "[failed]" in out and "setup script failed" in out
 
 
-def test_cancel_cloud_job_frees_place_and_says_task_still_runs(cloud, capsys):
+def test_cancel_cloud_job_stops_provider_and_frees_place(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
+    calls = []
+    monkeypatch.setattr(
+        _cloud_stop,
+        "stop",
+        lambda provider, handle: calls.append((provider, handle)) or {
+            "provider": provider, "handle": handle, "status": "stopped"
+        },
+    )
     assert cli.main(["cancel", job_id, "--db", str(cloud.db)]) == 0
     out = capsys.readouterr().out
-    assert "[interrupted]" in out and "NOT stopped" in out and TASK_URL in out
+    assert calls == [("codex", "task_e_abc123")]
+    assert "codex task_e_abc123: stopped" in out
+    assert "[interrupted]" in out and "local tracking is interrupted" in out
     assert _cloud.active_jobs(_store.build_store(cloud.db)) == []
+
+
+def test_cancel_cloud_job_failure_is_nonzero_and_keeps_tracking(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    monkeypatch.setattr(_cloud_stop, "stop", lambda *args: (_ for _ in ()).throw(RuntimeError("provider refused")))
+
+    assert cli.main(["cancel", job_id, "--db", str(cloud.db)]) == 1
+
+    output = capsys.readouterr()
+    assert "codex task_e_abc123: failed: provider refused" in output.out
+    assert f"job {job_id} remains running locally" in output.err
+    assert [job["job_id"] for job in _cloud.active_jobs(_store.build_store(cloud.db))] == [job_id]
 
 
 # --------------------------------------------------------------------------- #
@@ -505,6 +591,11 @@ def test_apply_refuses_local_jobs(cloud, capsys):
 def test_stale_poll_does_not_overwrite_cancellation(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
     real_status = _cloud.CodexCloud.status
+    monkeypatch.setattr(
+        _cloud_stop,
+        "stop",
+        lambda provider, handle: {"provider": provider, "handle": handle, "status": "stopped"},
+    )
 
     def status_then_cancelled_meanwhile(self, handle):
         answer = real_status(self, handle)  # the provider says "pending"...
@@ -969,6 +1060,45 @@ def test_gated_action_runs_with_matching_approval(cloud, capsys):
 @pytest.mark.parametrize("brief", ["Add a feature", "Fix error handling in the parser", "Write tests for the merge sort"])
 def test_plain_briefs_need_no_approval(brief):
     assert _cloud.gated_actions(brief) == []
+
+
+@pytest.mark.parametrize(
+    ("brief", "action"),
+    [("Merge the PR", "merge"), ("git push --force", "push"), ("Delete the branch", "delete")],
+)
+def test_gated_action_real_request_corpus(brief, action):
+    assert action in _cloud.gated_actions(brief)
+
+
+@pytest.mark.parametrize(
+    "brief",
+    [
+        "Do not modify the tests\n\nThen git push origin main.",
+        "Do not modify the tests; then git push origin main.",
+        "- Do not modify the tests\n- Then git push origin main.",
+    ],
+)
+def test_negated_instruction_does_not_hide_later_push(brief):
+    assert _cloud.gated_actions(brief) == ["push"]
+
+
+@pytest.mark.parametrize(
+    ("brief", "action"),
+    [
+        ("# Work\nMerge the PR", "merge"),
+        ("Tasks:\n- push the branch", "push"),
+        ("```sh\ngit push origin main\n```", "push"),
+        ("You must push to main", "push"),
+        ("Do not edit tests, push the branch", "push"),
+        ("> Merge the PR", "merge"),
+        ("Per favore, fai push del branch", "push"),
+        ("git branch -D obsolete", "delete"),
+        ("git clean -fdx", "delete"),
+        ('The output says "push\nthe branch".', "push"),
+    ],
+)
+def test_fail_closed_gate_catches_review_regressions(brief, action):
+    assert action in _cloud.gated_actions(brief)
 
 
 # --------------------------------------------------------------------------- #

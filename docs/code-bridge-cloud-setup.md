@@ -136,6 +136,7 @@ Use `Goal`, `Context`, `Constraints`, `Done when`, and `Report` headings in
 | `no Codex Cloud environment mapped for owner/name` | Add the `[cloud.codex.envs]` line; check the key matches `git remote get-url origin` |
 | `Codex CLI not found` | Install the Codex CLI, or set `CODEX_BIN` to its path |
 | `codex cloud exec exited ...: not logged in` | Run `codex login` |
+| `branch '<name>' does not exist on the 'origin' remote` | `--branch` is the base branch the agent starts from, not a name for the result: push it (`git push -u origin <name>`) or pass an existing branch |
 | `... is on a detached HEAD` | Check out a branch, or pass `--branch` |
 | `origin/<branch> has moved ...` on `apply` | Someone pushed since submit; re-run with `--rebase` after reviewing |
 | `--where cloud requires --allow-cloud` | Add `--allow-cloud` (an explicit acknowledgement) |
@@ -195,6 +196,55 @@ token_env = "LAZYTOOLS_ROUTINE_NIGHTLY_TOKEN"
 repo = "owner/repository"
 branch = "main"
 ```
+
+### 3b. One routine per model
+
+A routine runs the model it was created with, and the fire API takes no model
+field. To choose the model per job, create one routine for each model you
+want and declare that model on its entry:
+
+```toml
+[cloud.claude.routines.fast]
+id = "trig_fast"
+token_env = "LAZYTOOLS_ROUTINE_FAST_TOKEN"
+repo = "owner/repository"
+branch = "main"
+model = "claude-haiku-5-5"      # the model this routine is set to run
+
+[cloud.claude.routines.deep]
+id = "trig_deep"
+token_env = "LAZYTOOLS_ROUTINE_DEEP_TOKEN"
+repo = "owner/repository"
+branch = "main"
+model = "claude-opus-5-5"
+```
+
+Then `--model` selects the routine:
+
+```bash
+lazytools-code-bridge run --where cloud --allow-cloud --engine claude \
+    --model claude-haiku-5-5 --cwd <repo> --task @brief.md      # fires "fast"
+```
+
+- `--routine NAME` always wins. If the routine declares a model and you also
+  pass `--model`, they must agree; a routine without `model` refuses `--model`.
+- With `--model M` and no `--routine`, exactly one routine must declare `M`.
+  Zero or several matches are refused with the list of configured routines
+  and their models.
+- Without `--model` and `--routine`, `default_routine` applies.
+- The declared model is recorded on the job. The bridge cannot verify that the
+  routine's real settings match: keep `model` in step with the routine.
+
+Check the setup before the first run (local only, no network call, token
+values are never printed; exit code 1 when something is missing):
+
+```bash
+lazytools-code-bridge cloud-setup claude --check
+```
+
+It reports the config file, each routine's repository, branch and model,
+whether the variable named by `token_env` is set, and models declared by
+several routines.
 
 ### 4. Test
 
@@ -278,6 +328,7 @@ refused.
 | `... is already checked out at ...` | The branch is open in another worktree: run from there, or use another branch |
 | `[cloud.claude.envs] is not supported` | Remove it; choose the environment at claude.ai/code |
 | `environment variable ... is not set` (routine) | Export the token variable named by `token_env` |
+| `--model '...': no routine declares that model` | Add a routine with `model = "..."`, or pass `--routine`; run `cloud-setup claude --check` |
 | `routine ... fire returned HTTP 401` | The routine token is wrong or was regenerated |
 | `status` stays `submitted (no status API)` | Open the session URL. If the session did not push a `claude/` branch, ask it to there, or `cancel` the job |
 
@@ -294,7 +345,7 @@ lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd <repo
 
 # 2. Follow it. `wait` lands this one job; `cloud-sync` reconciles ALL live cloud jobs.
 lazytools-code-bridge wait <job>
-lazytools-code-bridge cloud-sync          # safe to run from cron / Task Scheduler / a routine
+lazytools-code-bridge cloud-sync --scheduled  # safe to run from cron / Task Scheduler / a routine
 
 # 3. Independent review by the OPPOSITE engine, posted to the PR as one comment.
 lazytools-code-bridge run --where cloud --allow-cloud --cwd <repo> --review-of <job>
@@ -316,7 +367,7 @@ workflow](code-bridge.md#cloud-agents-as-part-of-the-workflow). In short:
   `cloud-sync`.
 
 To run `cloud-sync` on a schedule, any scheduler that can run a command works,
-for example `*/10 * * * * lazytools-code-bridge cloud-sync` in cron. It exits 1
+for example `*/10 * * * * lazytools-code-bridge cloud-sync --scheduled` in cron. It exits 1
 when a landing or review post failed, so the scheduler can alert on it.
 
 Check which environments the bridge knows with `lazytools-code-bridge cloud-envs`

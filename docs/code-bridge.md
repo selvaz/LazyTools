@@ -42,6 +42,7 @@ detached launch JSON gives the id, pid and log path at once.
 | `wait` | Terminal result; exit 3 on waiter timeout, 1 when process disappears before final record |
 | `jobs --all` | History, including finished jobs, for recovering a lost id |
 | `cancel` | Stop process tree, reject open tickets, retain interruption and workspace evidence |
+| `autonomy` | Report the percentage of finished jobs with no manual intervention and group intervention causes |
 
 Read each ticket's command and reason before deciding. An unanswered ticket
 expires as rejection after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.
@@ -50,12 +51,122 @@ Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;
 for every lifecycle command. Logs are under the Store's results directory
 (default `~/.lazytools/results/`).
 
+## Navigator R1: the merge-ready loop
+
+Run the production loop with one check flag per required command:
+
+```console
+lazytools-code-bridge navigate --repo OWNER/REPO --pr 277 \
+  --reviewer-cmd "review-wrapper" --checks "pytest" --checks "ruff check" \
+  --max-rounds 3 --fix-engine codex
+```
+
+The reviewer must post `<!-- independent-review v1 -->` and print a JSON object
+with an explicit `findings` list. The bridge reads the marker and Codex bot
+inline findings for the exact head through `gh api`. Checks run only in a
+temporary detached worktree. Exit 0 means merge-ready, 3 means owner escalation
+(P0/P1, an unknown severity, or the round cap), and 1 means an operational,
+review-contract, independence, or check failure. The command never merges and
+never pushes the default branch.
+
+`lazytools.code_bridge._navigator.Navigator` is the provider-neutral state
+machine for taking a delegated cloud job to **merge-ready**. A backend first
+resyncs a legacy poll-failed job from provider truth and lands it on its pull
+request. The navigator then requests an independent review of the exact pushed
+head. Every new head is reviewed once, and the reported reviewer model must be
+different from the author model. A backend may use `run_reviewer_command` for a
+configured reviewer executable; the command receives `LAZYTOOLS_REVIEW_HEAD`,
+`LAZYTOOLS_REVIEW_PR`, and `LAZYTOOLS_AUTHOR_MODEL` and returns JSON such as:
+
+```json
+{"reviewer_model":"claude","findings":[{"severity":"P2","message":"add a boundary test"}]}
+```
+
+Non-critical findings produce a focused fix brief and a relaunch on the same
+PR, followed by a review of the new head. The default cap is three review
+rounds. Reaching it creates an explicit `round-cap` escalation record and exits
+nonzero. A P0, P1, or unrecognised-severity finding immediately creates an `escalated` owner record and
+exits nonzero; it is never silently sent through another autonomous fix round.
+Changing PRs, reusing a reviewed head, an unknown author model, or using the author's model for review
+also fails closed.
+
+A clean review is not enough to close the task. The backend runs all contract
+checks, recording every result. Navigator R1's standard checks are
+`pytest tests -k code_bridge`, `ruff check`, and
+`mypy src/lazytools/code_bridge`. The first failure stops the run with
+`checks-failed`; only a clean review on the current head plus all-green checks
+produces `merge-ready` and exit status zero. The loop never merges and never
+pushes to `main`: the existing `safe_merge` gate remains the only landing path.
+
 `--task @brief.md` reads a UTF-8 task file rather than treating it as literal
 text; detached launch resolves its path before passing it to the worker.
 The final text is also saved to a result file under the results directory;
 retain the path printed at completion as an independent copy if the Store is
 unavailable. The log contains worker output, while `result --json` contains
 the complete job record. Recover a lost id with `jobs --all`.
+
+## Watching pull requests
+
+Lead sessions and LazyCEO can follow pull requests without maintaining their
+own polling loop:
+
+```console
+$ lazytools-code-bridge watch owner/repository#123 owner/other#456 --until 18:30 --interval 60
+```
+
+The watcher uses `gh api` REST calls (not GraphQL) and prints one line for each
+new comment, inline review comment, independent-review verdict, completed
+success/failure check, head change, merge, or close. Head-bound review events
+on an obsolete PR head are ignored; verdict markers for an older head are
+reported with `stale=true`. Add `--json` for one JSON object per line. `--until HH:MM`
+uses the local clock and exits **0** at that time; it exits **2** when every
+watched PR merges or closes first, and **1** on an error.
+The date for `--until` is always today in the local timezone; if that clock
+time has already passed, the watcher exits immediately rather than waiting
+until tomorrow.
+
+Progress is stored per PR in the same bridge Store selected by `--db` or
+`LAZYTOOLS_CODE_BRIDGE_DB`, so restarting the command does not repeat events.
+On the first poll with a fresh Store, comments and other matching events that
+already exist on the current head are emitted before progress is recorded.
+The default polling interval and minimum are 60 seconds. Smaller `--interval`
+values are clamped to the minimum. Administrators can override that minimum
+with `LAZYTOOLS_CODE_BRIDGE_WATCH_MIN_INTERVAL`; its value is a positive
+number of seconds.
+
+The first stdout line from a non-JSON `run` is always the 32-hex job id. This
+is a stable scripting contract: pre-launch brief-check diagnostics, including
+warnings, are written only to stderr, so commands such as `run ... | head -1`
+can safely capture the id.
+
+## Autonomy report
+
+Navigator measures a job as autonomous when it reaches a terminal state
+(`done`, `partial`, `failed`, or `interrupted`) without an operator command
+touching it. After an action succeeds, the bridge appends an intervention entry
+for `resync`, manual `cloud-sync`, `apply`, `apply --land`, manual
+`approve`/`reject`, `cancel`, a session rename, or a relaunch matching a failed
+or interrupted job's repository and brief in the previous 24 hours. Scheduled
+syncs use `cloud-sync --scheduled` (also the default) and do not count; use
+`--manual` for an operator-triggered sync. Each operator command accepts an optional
+`--reason` (a rejection continues to require one), so the durable record keeps
+both the command kind and the operator's explanation. Existing Store rows need
+no migration and count as having no interventions.
+
+Report an ISO week or a half-open UTC date range. Dates and default bounds use
+UTC, and `--until` is the first date excluded:
+
+```console
+lazytools-code-bridge autonomy --week 2026-W46
+lazytools-code-bridge autonomy --since 2026-11-10 --until 2026-11-11 --json
+```
+
+The denominator is every job that finished in the range. The report prints the
+autonomous count and percentage against the 90 percent target, followed by the
+number of intervention events grouped by command kind. JSON output contains
+`finished_jobs`, `autonomous_jobs`, `autonomy_percent`, `target_percent`,
+`target_met`, and `intervention_causes`. With no finished jobs, the percentage
+and target result are `null` rather than claiming success.
 
 ## Claude writes, Codex reviews
 
@@ -522,8 +633,12 @@ Both engines can use the web: Claude Code gets `WebSearch`/`WebFetch`
 (allowed by the rule table, so they never ask), and Codex runs with live web
 search set explicitly per job rather than inherited from `~/.codex/config.toml`.
 
-The `--cwd` argument must resolve inside `$LAZYTOOLS_CODE_ROOT` / `--root`
-(default: the launching directory). Codex uses workspace-write; Claude file
+The `--cwd` argument must resolve inside the selected confinement root. Root
+precedence is `--root`, `LAZYTOOLS_CODE_ROOT`, the top-level `root` in
+`~/.lazytools/code-bridge.toml`, then the launching directory. A relative
+configured root is resolved beside the configuration file. A confinement error
+reports the selected root and whether it came from the flag, environment,
+configuration, or current working directory. Codex uses workspace-write; Claude file
 hooks confine file tools to `cwd` and the job's own temp directory, while
 Bash is not path-confined. Requests
 are gated by one `BridgeGate` (a `lazybridge.ext.approval.TieredGate`
@@ -662,7 +777,8 @@ directory's `lazytools-bridge` folder.
 Startup logs whether routine-auto is enabled and the active rule count to
 stderr (the detached worker log). Plain `status` prints both, and JSON includes
 `routine_auto` and `routine_rule_count`. Unknown top-level configuration keys
-are errors; only `[concurrency]` and `[routine_auto]` are supported.
+are errors. The supported top-level key and tables are `root`, `[concurrency]`,
+`[routine_auto]`, and `[cloud]`.
 
 The packaged `lazytools/code_bridge/routine_allowlist.toml` contains:
 
@@ -1089,9 +1205,11 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
 - Every status write re-reads the record under the machine-wide guard and
   never overwrites a terminal status: a poll or submit whose answer arrives
   after a `cancel` cannot bring the job back (or take its place again).
-- `cancel` stops **tracking** a cloud job (marks it `interrupted` and frees
-  its place) but does **not** stop the remote task; it prints the task URL so
-  you can cancel it there.
+- `cancel` on a cloud job uses the same provider-stop path as `cloud-stop`.
+  It reports both the provider result and the local tracking result, and only
+  marks the job `interrupted` after the provider confirms it stopped or had
+  already finished. A provider-stop failure leaves the job tracked and exits
+  non-zero; an unconfirmed stop request also leaves it tracked.
 
 ### `apply`: never in your checkout, never pushed
 
@@ -1265,6 +1383,10 @@ cancelled and polled for up to 60 seconds; if it remains active, the result is
 stop instruction through `claude --cloud`, allowing the CLI to manage its own
 authentication, and reports `stop requested`, never `stopped`.
 
+The ordinary `cancel <job-id>` command uses this same stop path for cloud jobs
+and prints both the provider and local tracking outcomes. Use `cloud-stop`
+directly for provider tasks that have no bridge job or for bulk stopping.
+
 Use `cloud-stop --all-running` to combine running tasks reported by
 `codex cloud list --json` (including tasks created outside this bridge) with
 running bridge cloud jobs. Add `--dry-run` to list the deduplicated targets
@@ -1318,11 +1440,18 @@ A review job is posted, never landed. Everything in this section is
   `--where cloud` only. `gh` (logged in, or `GH_TOKEN`) is needed for PR work;
   `GH_BIN` overrides its path.
 
+Before dispatch, gated-action detection is keyword-based and fail-closed: a
+gated action mentioned anywhere in the brief requires approval, including in
+quoted output, examples, and fenced blocks. Use the matching explicit
+`--approve-cloud <action>` flag when a keyword is a harmless false positive.
+
 ### Landing: `apply <job> --land`
 
 `apply --land` performs, for a finished job and without anyone typing git
 commands: apply the diff in a fresh worktree (as `apply` does), **commit**
-(subject = the first line of the brief, 72 characters; body = the job id and the
+(subject = explicit `--title`, otherwise the first non-empty line under
+`# Goal`, shortened to 72 characters at a word boundary; an unstructured brief
+falls back to its first sentence; body = the job id and the
 provider's summary; no attribution lines or trailers), **push**, then **update
 the recorded PR** (it is the PR's head branch that is pushed to, in a
 fast-forward) **or open a new one** (`gh pr create`; the PR body quotes the
@@ -1330,6 +1459,8 @@ brief and carries the job id, never a local path). With no recorded PR, a new
 one is opened. The pushed commit and PR URL are stored in the job
 (`pushed_sha`, `landed_branch`, `pr_url`) and shown by `result`; the landing
 worktree is removed afterwards.
+The same subject is used for the PR title and thus GitHub's default squash
+subject. Section headings such as `Goal` are never used as a title.
 
 Guarantees:
 
@@ -1348,6 +1479,13 @@ Guarantees:
   running it again without pushing twice, and a landed job is never landed again.
   A claim in the job record keeps two schedulers from landing the same job at
   once.
+* **Provider diff paths are authoritative.** Landing stages exactly those paths
+  with literal pathspecs: present files use `git add -f`, while tracked paths absent from the
+  worktree use `git rm --cached`. This also handles a file replaced by a same-stem package
+  directory (and the reverse), deleted files, renames (with or without edits), and a new file covered by `.gitignore` is not lost.
+  The landing report explicitly lists ignored paths that needed force;
+  it never force-adds a directory, `.`, or an unrelated worktree file. A retry
+  reuses the recorded `cloud/<id>` worktree/branch left by a failed landing.
 * A task that changed nothing pushes nothing and says so.
 
 **Claude cloud** pushes its own `claude/...` branch, so `--land` only verifies
@@ -1552,7 +1690,7 @@ check reads no other file and does not check that a path exists.
 | Code | Severity | Raised when |
 | --- | --- | --- |
 | `missing-goal` | error | no `Goal` heading (Italian: `Obiettivo`) |
-| `missing-done-when` | error | no `Done when` heading (`Fatto quando`) |
+| `missing-done-when` | warn | no `Done when` heading (`Fatto quando`) |
 | `missing-context` | warn | no `Context` heading (`Contesto`) |
 | `missing-constraints` | warn | no `Constraints` heading (`Vincoli`) |
 | `missing-report` | warn | no `Report` heading (`Rapporto`) |

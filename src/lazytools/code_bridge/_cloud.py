@@ -67,6 +67,7 @@ import random
 import re
 import shutil
 import subprocess
+import sys
 import time
 import tomllib
 from dataclasses import dataclass, field
@@ -411,8 +412,15 @@ def model_for(engine: str, config: CloudConfig, *, tier: str | None = None, expl
                              "environment's own default model applies. Drop --model, or use --engine claude")
         return None, "Codex Cloud uses the environment's default model" if tier else None
     if routine is not None:
-        if explicit:
-            raise CloudError("--model cannot override a routine's model: change it in the routine's settings")
+        declared = config.routines.get(routine, {}).get("model")
+        if explicit and explicit != declared:
+            if declared:
+                raise CloudError(f"--model {explicit!r} does not match routine {routine!r}, which declares model "
+                                 f"{declared!r}: drop --model, or omit --routine to pick the routine by model")
+            raise CloudError("--model cannot override a routine's model: declare `model = ...` on the routine "
+                             "entry and omit --routine, or change the model in the routine's settings")
+        if declared:
+            return declared, f"the routine's declared model ({declared})"
         return None, "the routine's own model applies"
     table = config.models.get("claude", {})
     return (explicit or (tier and table.get(tier)) or table.get("default") or DEFAULT_CLAUDE_CLOUD_MODEL), None
@@ -436,9 +444,11 @@ def _load_routines(table: Any, path: Path) -> dict[str, dict[str, str]]:
                 f"{where}: never store the token in the config; put it in an environment variable and set "
                 "token_env to that variable's NAME"
             )
-        unknown = entry.keys() - {"id", "token_env", "repo", "branch"}
+        unknown = entry.keys() - {"id", "token_env", "repo", "branch", "model"}
         if unknown:
-            raise ValueError(f"{where} has unknown keys: {sorted(unknown)} (only id, token_env, repo, branch)")
+            raise ValueError(
+                f"{where} has unknown keys: {sorted(unknown)} (only id, token_env, repo, branch, model)"
+            )
         routine_id, token_env, repo, branch = (
             entry.get("id"), entry.get("token_env"), entry.get("repo"), entry.get("branch")
         )
@@ -452,7 +462,39 @@ def _load_routines(table: Any, path: Path) -> dict[str, dict[str, str]]:
                 or subprocess.run(["git", "check-ref-format", "--branch", branch], capture_output=True).returncode):
             raise ValueError(f"{where}: branch must match the routine's valid git branch name")
         routines[name] = {"id": routine_id, "token_env": token_env, "repo": repo.lower(), "branch": branch}
+        if "model" in entry:
+            model = entry["model"]
+            if not isinstance(model, str) or not _MODEL_RE.fullmatch(model.strip()):
+                raise ValueError(f"{where}: model must be the model id the routine runs, e.g. \"claude-haiku-5-5\"")
+            routines[name]["model"] = model.strip()
     return routines
+
+
+def routines_by_model(config: CloudConfig, model: str) -> list[str]:
+    """Names of the configured routines whose declared ``model`` is ``model``."""
+    return sorted(name for name, entry in config.routines.items() if entry.get("model") == model)
+
+
+def select_routine(config: CloudConfig, *, routine: str | None, model: str | None) -> str | None:
+    """The routine a Claude cloud job fires.
+
+    ``--routine`` wins. Otherwise ``--model M`` picks the single routine that
+    declares ``model = "M"``; zero or several matches are refused with the
+    configured routines and their models. With neither, ``default_routine``.
+    """
+    if routine is not None or not model:
+        return routine or config.default_routine
+    matches = routines_by_model(config, model)
+    if len(matches) == 1:
+        return matches[0]
+    known = ", ".join(f"{name} ({entry.get('model', 'no model declared')})"
+                      for name, entry in sorted(config.routines.items())) or "none configured"
+    problem = "no routine declares" if not matches else f"several routines declare ({', '.join(matches)})"
+    raise CloudError(
+        f"--model {model!r}: {problem} that model in [cloud.claude.routines.<name>] of {config.path}. "
+        f"Configured routines: {known}. Add one routine per model with `model = \"{model}\"`, "
+        "or pass --routine <name> to choose among several. See docs/code-bridge-cloud-setup.md"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -460,10 +502,10 @@ def _load_routines(table: Any, path: Path) -> dict[str, dict[str, str]]:
 # --------------------------------------------------------------------------- #
 
 
-def _git(cwd: Path, *args: str, check: bool = True, timeout: float = 60) -> str:
+def _git(cwd: Path, *args: str, check: bool = True, timeout: float = 60, input_text: str | None = None) -> str:
     proc = subprocess.run(
         ["git", "-C", str(cwd), *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=timeout,
+        timeout=timeout, input=input_text,
     )
     if check and proc.returncode != 0:
         raise CloudError(f"git {' '.join(args)} failed in {cwd}: {(proc.stderr or proc.stdout).strip()}")
@@ -809,6 +851,7 @@ def is_cloud(job: dict[str, Any] | None) -> bool:
 def _write(store: Any, registry: Any, job_id: str, meta: dict[str, Any], *, status: str,
            result: str | None = None, error: str | None = None) -> None:
     meta = {**meta, "updated_at": time.time()}
+    _store.mark_completion(meta, status)
     _store.write_meta(store, job_id, meta)
     registry.write(
         job_id,
@@ -1066,6 +1109,24 @@ def _submit_with_retry(prov: Any, store: Any, config: CloudConfig, engine: str, 
     raise AssertionError("unreachable")  # pragma: no cover
 
 
+def _require_remote_branch(root: Path, branch: str) -> None:
+    """Fail fast when ``branch`` is not on ``origin``.
+
+    ``git ls-remote --exit-code`` exits 2 only when the remote answered and has
+    no such branch. Any other failure (offline, auth) is not proof of absence,
+    so it is left to the later steps instead of blocking the submit.
+    """
+    proc = subprocess.run(
+        ["git", "-C", str(root), "ls-remote", "--exit-code", "--heads", "origin", f"refs/heads/{branch}"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+    )
+    if proc.returncode == 2:
+        raise CloudError(
+            f"branch {branch!r} does not exist on the 'origin' remote. --branch is the base branch the cloud agent "
+            "starts from: push it first (git push -u origin <branch>) or pass an existing branch"
+        )
+
+
 def submit_job(
     *,
     engine: str,
@@ -1083,6 +1144,7 @@ def submit_job(
     rebase_ok: bool = False,
     model: str | None = None,
     tier: str | None = None,
+    title: str | None = None,
     extra_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Submit ``task`` to the cloud provider for ``engine``; return the job record.
@@ -1117,7 +1179,7 @@ def submit_job(
         )
     config = config or load_config()
     if engine == "claude" and routine is None:
-        routine = config.default_routine
+        routine = select_routine(config, routine=None, model=model)
         if routine is None:
             raise CloudError(
                 "unattended Claude cloud jobs require a routine API trigger; create one at claude.ai/code, "
@@ -1154,6 +1216,7 @@ def submit_job(
     branch = branch or current_branch(root)
     if branch.startswith("-") or _git(root, "check-ref-format", "--branch", branch, check=False) != branch:
         raise CloudError(f"{branch!r} is not a valid branch name")
+    _require_remote_branch(root, branch)
     job_id = job_id or uuid.uuid4().hex
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)
@@ -1176,6 +1239,8 @@ def submit_job(
         "base_commit": base_commit,
         # Stored and printed redacted; the provider still receives the brief as written.
         "objective": redact(task),
+        "brief_hash": _store.brief_hash(task),
+        "title": redact(title.strip()) if title and title.strip() else None,
         "cloud_approvals": sorted(set(approvals)),
         "created_at": time.time(),
         "cloud_handle": None,
@@ -1199,6 +1264,10 @@ def submit_job(
         if routine is None:
             meta["environment_note"] = ENV_NOTE
     _admit(store, registry, config, job_id, meta)
+    try:
+        _store.record_relaunch(store, job_id, task, repo, now=float(meta["created_at"]))
+    except Exception as exc:
+        print(f"warning: cloud job submitted locally but its relaunch intervention could not be recorded: {exc}", file=sys.stderr)
     try:
         sub = _submit_with_retry(
             prov, store, config, engine,
@@ -1294,10 +1363,10 @@ def apply_job(
             raise CloudError(f"{worktree} is outside {container}")
     else:
         worktree = worktree.expanduser().resolve()
-    if worktree.exists():
-        raise CloudError(f"{worktree} already exists: remove it or pass --worktree")
     prov = provider(str(job["engine"]))
     if hasattr(prov, "apply_job"):
+        if worktree.exists():
+            raise CloudError(f"{worktree} already exists: remove it or pass --worktree")
         return _apply_from_branch(store, registry, prov, job, worktree=worktree, branch=branch, source=source)
     if source is not None:
         raise CloudError("--source is only for Claude cloud jobs (their result is a claude/ branch)")
@@ -1330,6 +1399,14 @@ def apply_job(
             f"the task's base commit {base_commit[:12]} is not in {root} and origin/{base_branch} could not be "
             "fetched; refusing to apply onto an unchecked base. Fetch the branch and retry"
         )
+    # Fetch the authoritative path list before creating anything.  Besides
+    # avoiding a half-created checkout when this fails, it lets a retry
+    # distinguish remnants of this job from unrelated operator work.
+    diff_files = prov.diff(str(job["cloud_handle"]))
+    applied_files = summarize_diff(diff_files).files
+    _reconcile_apply_remnants(
+        root, worktree, branch, base, set(applied_files), branch_checkout=not bool(job.get("pr_number"))
+    )
     worktree.parent.mkdir(parents=True, exist_ok=True)
     # A PR head branch may already be checked out in another worktree.  PR
     # application does not need to own that branch: landing publishes the
@@ -1342,8 +1419,6 @@ def apply_job(
         # The provider's diff is the authority for what landing may stage.  In
         # particular, the Codex CLI may create its own untracked files while
         # applying a task; those are not part of the task result.
-        diff_files = prov.diff(str(job["cloud_handle"]))
-        applied_files = summarize_diff(diff_files).files
         output = prov.apply(str(job["cloud_handle"]), worktree=worktree)
         # Current Codex CLI versions write this diagnostic beside the files
         # they apply.  It can contain account identifiers and is tool output,
@@ -1368,6 +1443,60 @@ def apply_job(
         "rebased_from": rebased_from,
         "base_branch": base_branch,
     }
+
+
+def _reconcile_apply_remnants(root: Path, worktree: Path, branch: str, base: str, expected: set[str], *,
+                              branch_checkout: bool) -> None:
+    """Remove safe remnants of an interrupted apply, or refuse to lose work.
+
+    A previous process can die after ``git worktree add`` but before the job
+    metadata is written.  The next attempt may clean that checkout only when
+    it is still at the requested base and every changed (including ignored)
+    path belongs to the provider diff.  Anything else is operator work and is
+    named in the error rather than silently discarded.
+    """
+    branch_ref = f"refs/heads/{branch}"
+    branch_tip = _git(root, "rev-parse", "--verify", "--quiet", branch_ref, check=False)
+    problems: list[str] = []
+    if branch_tip and branch_tip != base:
+        problems.append(f"branch {branch} contains commits beyond base {base[:12]}")
+
+    if worktree.exists():
+        top = _git(worktree, "rev-parse", "--show-toplevel", check=False)
+        head = _git(worktree, "rev-parse", "HEAD", check=False)
+        checked_out = _git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD", check=False)
+        if not top or Path(top).resolve() != worktree:
+            problems.append(f"{worktree} is not the expected git worktree")
+        if head != base:
+            problems.append(f"worktree {worktree} is at {head[:12] or 'an unknown commit'}, not base {base[:12]}")
+        expected_head = branch if branch_checkout else ""
+        if checked_out != expected_head:
+            label = checked_out or "detached HEAD"
+            problems.append(f"worktree {worktree} is on {label}, not {expected_head or 'detached HEAD'}")
+        tracked = _git(worktree, "diff", "--name-only", "-z", "HEAD", check=False)
+        staged = _git(worktree, "diff", "--cached", "--name-only", "-z", "HEAD", check=False)
+        untracked = _git(worktree, "ls-files", "--others", "--exclude-standard", "-z", check=False)
+        ignored = _git(
+            worktree, "ls-files", "--others", "--ignored", "--exclude-standard", "-z", check=False
+        )
+        changed = {name for name in (tracked + staged + untracked + ignored).split("\0") if name}
+        unrelated = sorted(changed - expected - {"error.log"})
+        if unrelated:
+            problems.append(f"worktree {worktree} has unrelated changes: {', '.join(repr(p) for p in unrelated)}")
+    elif branch_tip:
+        # A safe orphan branch is handled below.  A missing path alone needs
+        # no action (the normal first-attempt case).
+        pass
+
+    if problems:
+        raise CloudError(
+            f"leftover landing branch {branch} and worktree {worktree} contain unexpected work; refusing to "
+            f"discard it: {'; '.join(problems)}"
+        )
+    if worktree.exists():
+        _git(root, "worktree", "remove", "--force", str(worktree))
+    if branch_tip:
+        _git(root, "branch", "-D", branch)
 
 
 def _apply_from_branch(store: Any, registry: Any, prov: Any, job: dict[str, Any], *, worktree: Path, branch: str,

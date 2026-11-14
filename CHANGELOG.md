@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 - Code bridge cloud: submits to one provider are spaced by `[cloud] min_submit_interval` (default 2 s) and an immediately failing submit is retried with backoff (`[cloud] submit_retries`, default 2), so a burst of cloud jobs is no longer rejected; the final error keeps the provider text and the attempt count (#259).
 
+### Added
+- Code bridge Claude cloud: a routine entry may declare `model`, and `run --where cloud --engine claude --model M` fires the single routine that declares `M` (zero or several matches are refused with the configured routines and their models; `--routine` still wins). New `lazytools-code-bridge cloud-setup claude --check` verifies the routine setup locally (config, token variables, a model per routine) without a network call or printing token values (#260).
+
+### Fixed
+- Code bridge `run --where cloud` refuses a `--branch` that does not exist on `origin` before submitting, with a message saying it is the base branch the cloud agent starts from (#258).
+- Code bridge landing: tests cover pure deletes and renames with edits, so a path the provider diff removed or renamed never reaches `git add` (#261).
+
 ## [0.10.9] — 2026-11-13
 
 ### Changed
