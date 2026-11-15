@@ -425,7 +425,11 @@ def _land_pushed_branch(store: Any, registry: Any, job: dict[str, Any], *, sourc
         expected = job.get("claude_result_branch") or job.get("result_branch")
         raise CloudError(f"--source {result_branch!r} does not belong to this job (expected {expected!r})")
     tip = _fetch_branch(root, str(result_branch))  # verifies the branch exists on origin
-    job, _diff = _cloud.capture_report(store, registry, job)
+    # Read the report from the verified branch selected for this landing.  A
+    # caller may use ``--source`` when both recorded Claude branch identities
+    # exist, so capture_report's default branch is not necessarily this tip.
+    prov = _cloud.provider(str(job["engine"]))
+    job, _diff = _cloud.capture_report(store, registry, job, prov.job_diff(job, str(result_branch)))
     # Claude commits the transport report to its result branch. Publish a
     # descendant commit that removes it before that branch can become a PR
     # head (or be fast-forwarded into an existing PR).

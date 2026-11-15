@@ -422,7 +422,10 @@ class ClaudeCloud:
             raise CloudError(f"--source {source!r} does not belong to this job (expected {expected!r})")
         root = Path(str(job.get("repo_root") or job.get("cwd")))
         tip = _fetch_branch(root, str(source))
-        job, _diff = _cloud.capture_report(store, registry, job)
+        # ``--source`` may select the other branch identity recorded for this
+        # job.  Extract the report from the branch we actually apply rather
+        # than refetching whichever branch happens to be in ``result_branch``.
+        job, _diff = _cloud.capture_report(store, registry, job, self.job_diff(job, str(source)))
         worktree.parent.mkdir(parents=True, exist_ok=True)
         _git(root, "worktree", "add", "-b", branch, str(worktree), tip)
         report = worktree / _cloud.CLOUD_REPORT_PATH

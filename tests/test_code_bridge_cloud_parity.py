@@ -820,6 +820,19 @@ def _claude_submit(cloud, capsys, *extra: str, task: str = "Add a feature") -> s
     return json.loads(captured.out.strip().splitlines()[-1])["job_id"]
 
 
+def test_claude_local_apply_strips_report_from_worktree(cloud, claude, capsys):
+    job_id = _claude_submit(cloud, capsys)
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    claude.push(branch, {"feature.txt": "x\n", ".bridge/report.md": "Cloud work complete.\n"})
+
+    assert _main(cloud, "apply", job_id, "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    applied = Path(outcome["worktree"])
+    assert not (applied / ".bridge/report.md").exists()
+    assert not _git(applied, "ls-tree", "--name-only", "HEAD", "--", ".bridge/report.md")
+    assert _job(cloud, job_id)["report"] == "Cloud work complete."
+
+
 def test_claude_land_strips_report_before_opening_a_pr(cloud, claude, gh, capsys):
     job_id = _claude_submit(cloud, capsys, "--open-pr")
     branch = _job(cloud, job_id)["claude_result_branch"]  # the branch bound to this job
@@ -879,6 +892,26 @@ def test_claude_land_fast_forwards_the_recorded_pr_and_refuses_a_diverged_one(cl
     assert _main(cloud, "apply", job2, "--land") == 1
     assert "not a fast-forward" in capsys.readouterr().err
     assert _tip(cloud, "other") == other_tip
+
+
+def test_claude_pr_land_pushes_tip_without_report(cloud, claude, gh, capsys):
+    feature_sha = _push_feature(cloud)
+    gh.seed_pr(7, head="feature")
+    job_id = _claude_submit(cloud, capsys, "--pr", "7")
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    claude.push(
+        branch,
+        {"claude.txt": "x\n", ".bridge/report.md": "Updated the existing PR.\n"},
+        base="origin/feature",
+    )
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert outcome["branch"] == "feature" and outcome["pr_number"] == 7
+    assert _tip(cloud, "feature") == outcome["pushed_sha"]
+    assert _git(cloud.repo, "rev-parse", f"{outcome['pushed_sha']}^^") == feature_sha
+    assert not _git(cloud.repo, "ls-tree", "--name-only", outcome["pushed_sha"], "--", ".bridge/report.md")
+    assert _job(cloud, job_id)["report"] == "Updated the existing PR."
 
 
 # --------------------------------------------------------------------------- #
