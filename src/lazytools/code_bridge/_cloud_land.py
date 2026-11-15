@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -424,6 +425,26 @@ def _land_pushed_branch(store: Any, registry: Any, job: dict[str, Any], *, sourc
         expected = job.get("claude_result_branch") or job.get("result_branch")
         raise CloudError(f"--source {result_branch!r} does not belong to this job (expected {expected!r})")
     tip = _fetch_branch(root, str(result_branch))  # verifies the branch exists on origin
+    # Read the report from the verified branch selected for this landing.  A
+    # caller may use ``--source`` when both recorded Claude branch identities
+    # exist, so capture_report's default branch is not necessarily this tip.
+    prov = _cloud.provider(str(job["engine"]))
+    job, _diff = _cloud.capture_report(store, registry, job, prov.job_diff(job, str(result_branch)))
+    # Claude commits the transport report to its result branch. Publish a
+    # descendant commit that removes it before that branch can become a PR
+    # head (or be fast-forwarded into an existing PR).
+    if _cloud._git(root, "ls-tree", "--name-only", tip, "--", _cloud.CLOUD_REPORT_PATH, check=False):
+        with tempfile.TemporaryDirectory(prefix="lazytools-claude-report-") as tmp:
+            wt = Path(tmp)
+            _cloud._git(root, "worktree", "add", "--detach", str(wt), tip)
+            try:
+                (wt / _cloud.CLOUD_REPORT_PATH).unlink()
+                _cloud._git(wt, "add", "-u", "--", _cloud.CLOUD_REPORT_PATH)
+                _cloud._git(wt, "commit", "-q", "-m", "Remove cloud report transport file")
+                tip = _cloud._git(wt, "rev-parse", "HEAD")
+            finally:
+                _cloud._git(root, "worktree", "remove", "--force", str(wt), check=False)
+        _push(root, tip, str(result_branch))
     base_branch = str(job.get("branch") or "")
     base_commit = str(job.get("base_commit") or "")
     head = _cloud._remote_base(root, base_branch)
@@ -431,6 +452,12 @@ def _land_pushed_branch(store: Any, registry: Any, job: dict[str, Any], *, sourc
         raise CloudError(_base_moved_message(job, head, base_commit))
     pr_number = job.get("pr_number")
     landed_branch = str(result_branch)
+    if base_commit and not _cloud._git(root, "diff", "--name-only", base_commit, tip, check=False):
+        note = "the cloud task produced no changes: nothing to commit, push or open a PR for"
+        meta = _update_meta(store, job_id, {"pushed_sha": tip, "landed_branch": landed_branch,
+                                            "result_commit": tip, "landed_at": time.time(),
+                                            "land_note": note, "land_error": None})
+        return _outcome({**job, **meta}, note=note)
     if pr_number:
         pr_head = str(job["pr_head"])
         pr_tip = _cloud._remote_base(root, pr_head)

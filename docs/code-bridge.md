@@ -1112,6 +1112,21 @@ routine's API trigger); see [Claude cloud sessions](#claude-cloud-sessions-engin
 below for how it differs. Claude has no status API, so its results are read
 from git.
 
+### Final-report contract
+
+The bridge appends one fixed instruction to every Codex and Claude cloud
+brief: before finishing, the agent must always write its Markdown final report
+to `.bridge/report.md`, including when it changed no other file. On `wait` or
+landing, the bridge extracts that file from the task result into the job's
+`report` field. Both `wait` and `result <job>` print it; an older agent that
+returns no report is shown as `report: (none provided)`.
+
+`.bridge/report.md` is transport, not a repository change. The bridge removes
+it before staging, pushing, or opening a pull request. A result containing
+only the report, and a READY result with an entirely empty diff, are successful
+no-code-change jobs: they finish as `done`, exit zero, and create no branch or
+pull request.
+
 ### Data boundary: cloud jobs cannot read local data
 
 A cloud agent sees **only the repository as its Codex Cloud environment

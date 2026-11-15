@@ -155,6 +155,7 @@ def claude(tmp_path, monkeypatch, cloud):
         _git(vm, "fetch", "-q", "origin")
         _git(vm, "checkout", "-q", "-B", branch, base)
         for name, text in files.items():
+            (vm / name).parent.mkdir(parents=True, exist_ok=True)
             (vm / name).write_text(text, encoding="utf-8")
             _git(vm, "add", name)
         _git(vm, "commit", "-q", "-m", f"cloud work on {branch}")
@@ -721,6 +722,63 @@ def test_land_with_no_changes_pushes_nothing(cloud, gh, capsys, monkeypatch):
     assert _job(cloud, job_id)["landed_at"]
 
 
+def _set_diff(cloud, monkeypatch, text: str) -> None:
+    path = cloud.root / "task.diff"
+    path.write_text(text, encoding="utf-8")
+    monkeypatch.setenv("FAKE_CODEX_DIFF", str(path))
+
+
+def test_report_only_wait_is_done_without_a_pr(cloud, gh, capsys, monkeypatch):
+    _set_diff(
+        cloud,
+        monkeypatch,
+        "diff --git a/.bridge/report.md b/.bridge/report.md\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/report.md\n@@ -0,0 +1 @@\n+No code changes were needed.\n",
+    )
+    monkeypatch.setenv("FAKE_CODEX_NOCHANGE", "1")
+    job_id = _submit_json(cloud, capsys, "--land")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "wait", job_id, "--interval", "0.01") == 0
+    output = capsys.readouterr().out
+    assert "report:\nNo code changes were needed." in output
+    assert "diff: no changes" in output
+    assert _job(cloud, job_id)["report"] == "No code changes were needed."
+    assert _tip(cloud, f"cloud/{job_id[:8]}") is None and gh.calls() == []
+
+
+def test_empty_diff_wait_is_done_without_a_pr(cloud, gh, capsys, monkeypatch):
+    monkeypatch.setenv("FAKE_CODEX_NO_DIFF_ERROR", "1")
+    monkeypatch.setenv("FAKE_CODEX_NOCHANGE", "1")
+    job_id = _submit_json(cloud, capsys, "--land")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "wait", job_id, "--interval", "0.01") == 0
+    output = capsys.readouterr().out
+    assert "report:\n(none provided)" in output and "diff: no changes" in output
+    assert "report" in _job(cloud, job_id) and _job(cloud, job_id)["report"] is None
+    assert _tip(cloud, f"cloud/{job_id[:8]}") is None and gh.calls() == []
+
+
+def test_normal_diff_lands_without_report_transport_file(cloud, gh, capsys, monkeypatch):
+    _set_diff(
+        cloud,
+        monkeypatch,
+        "diff --git a/.bridge/report.md b/.bridge/report.md\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/report.md\n@@ -0,0 +1 @@\n+Added the cloud change.\n"
+        "diff --git a/cloud_change.txt b/cloud_change.txt\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/cloud_change.txt\n@@ -0,0 +1 @@\n+applied by cloud\n",
+    )
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    names = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert names == ["cloud_change.txt"]
+    assert _job(cloud, job_id)["report"] == "Added the cloud change."
+
+
 def test_land_refuses_a_job_that_is_not_done(cloud, gh, capsys):
     job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
     assert _main(cloud, "apply", job_id, "--land") == 1
@@ -762,10 +820,23 @@ def _claude_submit(cloud, capsys, *extra: str, task: str = "Add a feature") -> s
     return json.loads(captured.out.strip().splitlines()[-1])["job_id"]
 
 
-def test_claude_land_verifies_the_pushed_branch_and_opens_a_pr_without_pushing(cloud, claude, gh, capsys):
+def test_claude_local_apply_strips_report_from_worktree(cloud, claude, capsys):
+    job_id = _claude_submit(cloud, capsys)
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    claude.push(branch, {"feature.txt": "x\n", ".bridge/report.md": "Cloud work complete.\n"})
+
+    assert _main(cloud, "apply", job_id, "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    applied = Path(outcome["worktree"])
+    assert not (applied / ".bridge/report.md").exists()
+    assert not _git(applied, "ls-tree", "--name-only", "HEAD", "--", ".bridge/report.md")
+    assert _job(cloud, job_id)["report"] == "Cloud work complete."
+
+
+def test_claude_land_strips_report_before_opening_a_pr(cloud, claude, gh, capsys):
     job_id = _claude_submit(cloud, capsys, "--open-pr")
     branch = _job(cloud, job_id)["claude_result_branch"]  # the branch bound to this job
-    sha = claude.push(branch, {"feature.txt": "x\n"})
+    sha = claude.push(branch, {"feature.txt": "x\n", ".bridge/report.md": "Cloud work complete.\n"})
     pushes: list = []
     real = _cloud._git
     _orig = _cloud._git
@@ -775,13 +846,30 @@ def test_claude_land_verifies_the_pushed_branch_and_opens_a_pr_without_pushing(c
     finally:
         _cloud._git = _orig
     outcome = json.loads(capsys.readouterr().out)
-    assert pushes == []  # the session pushed; the bridge only verified
-    assert outcome["branch"] == branch and outcome["pushed_sha"] == sha
+    assert len(pushes) == 1  # the bridge publishes the descendant that removes the transport file
+    assert outcome["branch"] == branch and outcome["pushed_sha"] != sha
+    pushed_names = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert pushed_names == [".bridge/report.md"]
+    assert not _git(cloud.repo, "ls-tree", "--name-only", outcome["pushed_sha"], "--", ".bridge/report.md")
     (create,) = gh.calls("pr", "create")
     argv = create["argv"]
     assert argv[argv.index("--head") + 1] == branch and argv[argv.index("--base") + 1] == "main"
     job = _job(cloud, job_id)
-    assert job["pushed_sha"] == sha and job["pr_url"].endswith("/pull/100")
+    assert job["pushed_sha"] == outcome["pushed_sha"] and job["report"] == "Cloud work complete."
+    assert job["pr_url"].endswith("/pull/100")
+
+
+def test_claude_report_only_result_is_done_without_a_pr(cloud, claude, gh, capsys):
+    job_id = _claude_submit(cloud, capsys, "--open-pr")
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    claude.push(branch, {".bridge/report.md": "No code changes were needed.\n"})
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert "nothing to commit" in outcome["note"]
+    assert gh.calls("pr", "create") == []
+    assert not _git(cloud.repo, "ls-tree", "--name-only", outcome["pushed_sha"], "--", ".bridge/report.md")
+    assert _job(cloud, job_id)["report"] == "No code changes were needed."
 
 
 def test_claude_land_fast_forwards_the_recorded_pr_and_refuses_a_diverged_one(cloud, claude, gh, capsys):
@@ -804,6 +892,26 @@ def test_claude_land_fast_forwards_the_recorded_pr_and_refuses_a_diverged_one(cl
     assert _main(cloud, "apply", job2, "--land") == 1
     assert "not a fast-forward" in capsys.readouterr().err
     assert _tip(cloud, "other") == other_tip
+
+
+def test_claude_pr_land_pushes_tip_without_report(cloud, claude, gh, capsys):
+    feature_sha = _push_feature(cloud)
+    gh.seed_pr(7, head="feature")
+    job_id = _claude_submit(cloud, capsys, "--pr", "7")
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    claude.push(
+        branch,
+        {"claude.txt": "x\n", ".bridge/report.md": "Updated the existing PR.\n"},
+        base="origin/feature",
+    )
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert outcome["branch"] == "feature" and outcome["pr_number"] == 7
+    assert _tip(cloud, "feature") == outcome["pushed_sha"]
+    assert _git(cloud.repo, "rev-parse", f"{outcome['pushed_sha']}^^") == feature_sha
+    assert not _git(cloud.repo, "ls-tree", "--name-only", outcome["pushed_sha"], "--", ".bridge/report.md")
+    assert _job(cloud, job_id)["report"] == "Updated the existing PR."
 
 
 # --------------------------------------------------------------------------- #

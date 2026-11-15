@@ -94,6 +94,11 @@ SUBMIT_CLOCK_PREFIX = "code-bridge:cloud-submit-clock:"
 #: ``[cloud.claude.models] default`` names one. Codex Cloud has no such setting:
 #: the CLI ignores ``-c model`` for cloud tasks, so the environment's default applies.
 DEFAULT_CLAUDE_CLOUD_MODEL = "claude-sonnet-5-5"
+CLOUD_REPORT_PATH = ".bridge/report.md"
+CLOUD_REPORT_SUFFIX = (
+    "\n\nBefore finishing, write your final report to `.bridge/report.md` in the repository root (Markdown). "
+    "Always write it, even if you change nothing else."
+)
 CLOUD_TIERS = ("basic", "writing", "thinking", "critical")
 SETUP_DOC = "docs/code-bridge-cloud-setup.md"
 _MODEL_RE = re.compile(r"[A-Za-z0-9_.:/\[\]-]{1,100}")
@@ -1271,7 +1276,7 @@ def submit_job(
     try:
         sub = _submit_with_retry(
             prov, store, config, engine,
-            dict(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task,
+            dict(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task + CLOUD_REPORT_SUFFIX,
                  job_id=job_id, db_path=db_path, routine=routine, config=config, model=chosen_model),
         )
     except BaseException as exc:
@@ -1287,20 +1292,71 @@ def submit_job(
     return _merged(store, registry, job_id)
 
 
-def result_text(job: dict[str, Any]) -> str:
+def report_from_diff(diff: str) -> tuple[str | None, list[str]]:
+    """Return the final report and provider paths excluding its transport file."""
+    report_lines: list[str] = []
+    files = summarize_diff(diff).files
+    current: str | None = None
+    for line in diff.splitlines():
+        if line.startswith("diff --git "):
+            match = re.match(r"diff --git a/(.+?) b/(.+)$", line)
+            current = match.group(2) if match else None
+        elif current == CLOUD_REPORT_PATH and line.startswith("+") and not line.startswith("+++"):
+            report_lines.append(line[1:])
+    report = "\n".join(report_lines).strip() or None
+    return report, [name for name in files if name != CLOUD_REPORT_PATH]
+
+
+def strip_report_diff(diff: str) -> str:
+    """Remove the report file's complete unified-diff section."""
+    sections = re.split(r"(?=^diff --git )", diff, flags=re.MULTILINE)
+    return "".join(section for section in sections if not section.startswith(
+        f"diff --git a/{CLOUD_REPORT_PATH} b/{CLOUD_REPORT_PATH}"
+    ))
+
+
+def _completed_task_diff(prov: Any, job: dict[str, Any]) -> str:
+    """Fetch a completed task diff, normalizing only Codex's no-diff diagnostic."""
+    try:
+        return prov.diff(str(job["cloud_handle"]))
+    except CloudError as exc:
+        detail = str(exc).partition(": ")[2]
+        if str(job.get("status")) != "done" or not detail.startswith("No diff available for task "):
+            raise
+        return ""
+
+
+def capture_report(store: Any, registry: Any, job: dict[str, Any], diff: str | None = None) -> tuple[dict[str, Any], str]:
+    """Persist the report carried by a Codex task diff, without another fetch when supplied."""
+    if diff is None:
+        prov = provider(str(job["engine"]))
+        job_diff = getattr(prov, "job_diff", None)
+        diff = job_diff(job) if job_diff is not None else _completed_task_diff(prov, job)
+    report, _files = report_from_diff(diff)
+    meta = _store.read_meta(store, str(job["job_id"])) or {}
+    meta["report"] = report
+    _write(store, registry, str(job["job_id"]), meta, status=str(job["status"]),
+           result=job.get("result"), error=job.get("error"))
+    return _merged(store, registry, str(job["job_id"])), diff
+
+
+def result_text(job: dict[str, Any], *, diff: str | None = None) -> str:
     """Final message plus a summary of the task's diff (fetched live)."""
     parts = [f"[{job.get('status')}] cloud job {job.get('job_id')} ({job.get('engine')}, {job.get('cloud_url') or job.get('cloud_handle')})"]
     message = job.get("result") or job.get("cloud_message") or job.get("error") or ""
     if message:
         parts.append(str(message).strip())
+    if job.get("status") == "done":
+        parts.append("report:\n" + (str(job.get("report")).strip() if job.get("report") else "(none provided)"))
     if job.get("cloud_handle"):
         try:
-            prov = provider(str(job["engine"]))
-            job_diff = getattr(prov, "job_diff", None)
-            diff = job_diff(job) if job_diff is not None else prov.diff(str(job["cloud_handle"]))
+            if diff is None:
+                prov = provider(str(job["engine"]))
+                job_diff = getattr(prov, "job_diff", None)
+                diff = job_diff(job) if job_diff is not None else prov.diff(str(job["cloud_handle"]))
             if job.get("result_branch"):
                 parts.append(f"result branch: {job['result_branch']} (fetched from origin)")
-            parts.append(summarize_diff(diff).text())
+            parts.append(summarize_diff(strip_report_diff(diff)).text())
         except CloudError as exc:
             parts.append(f"diff: unavailable ({exc})")
     if job.get("pushed_sha"):
@@ -1402,8 +1458,9 @@ def apply_job(
     # Fetch the authoritative path list before creating anything.  Besides
     # avoiding a half-created checkout when this fails, it lets a retry
     # distinguish remnants of this job from unrelated operator work.
-    diff_files = prov.diff(str(job["cloud_handle"]))
-    applied_files = summarize_diff(diff_files).files
+    diff_files = _completed_task_diff(prov, job)
+    job, diff_files = capture_report(store, registry, job, diff_files)
+    _report, applied_files = report_from_diff(diff_files)
     _reconcile_apply_remnants(
         root, worktree, branch, base, set(applied_files), branch_checkout=not bool(job.get("pr_number"))
     )
@@ -1419,11 +1476,15 @@ def apply_job(
         # The provider's diff is the authority for what landing may stage.  In
         # particular, the Codex CLI may create its own untracked files while
         # applying a task; those are not part of the task result.
-        output = prov.apply(str(job["cloud_handle"]), worktree=worktree)
+        output = prov.apply(str(job["cloud_handle"]), worktree=worktree) if applied_files else ""
         # Current Codex CLI versions write this diagnostic beside the files
         # they apply.  It can contain account identifiers and is tool output,
         # never task output.
         (worktree / "error.log").unlink(missing_ok=True)
+        (worktree / CLOUD_REPORT_PATH).unlink(missing_ok=True)
+        report_dir = worktree / ".bridge"
+        if report_dir.is_dir() and not any(report_dir.iterdir()):
+            report_dir.rmdir()
     except BaseException as exc:
         _after_failed_apply(store, registry, root, job_id, worktree, branch, exc)
         raise
