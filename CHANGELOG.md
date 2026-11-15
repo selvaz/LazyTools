@@ -8,16 +8,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Changed
-- Code bridge cloud: submits to one provider are spaced by `[cloud] min_submit_interval` (default 2 s) and an immediately failing submit is retried with backoff (`[cloud] submit_retries`, default 2), so a burst of cloud jobs is no longer rejected; the final error keeps the provider text and the attempt count (#259).
-- market-data-hub pinned to v0.3.29 (Japan tier-1 macro coverage).
+## [0.10.10] — 2026-11-15
 
 ### Added
-- Code bridge Claude cloud: a routine entry may declare `model`, and `run --where cloud --engine claude --model M` fires the single routine that declares `M` (zero or several matches are refused with the configured routines and their models; `--routine` still wins). New `lazytools-code-bridge cloud-setup claude --check` verifies the routine setup locally (config, token variables, a model per routine) without a network call or printing token values (#260).
+- Code bridge Navigator adds a merge-readiness navigation loop, an autonomy metric, and a `watch` command for streaming job and PR transitions (#275, #276, #277).
+- Bundle the WizengAImot multi-provider council as an installable Claude Code agent skill, with setup documentation and packaging coverage (#293).
+- Projects Gantt queries can filter tasks by project ID (#288).
+
+### Changed
+- Code bridge cloud submissions are serialized with a configurable minimum interval and retry immediately failed submissions with backoff (#264).
+- Code bridge Claude routines can be selected by model, and `cloud-setup claude --check` validates local routine configuration without a network call (#272).
+- Code bridge uses the configured default root, reports a plain error outside it, emits brief diagnostics on stderr before the job ID, and derives cleaner PR titles while preserving `snake_case` (#267, #268, #287).
+- Cancelling a cloud job now stops its provider task, and every cloud job returns a transport-only report that is stripped before a branch or PR is published (#284, #292).
+- Update the release train to market-data-hub v0.3.29, LazyStats v0.3.12, LazyPortfolio v0.2.12, and LazyRay v0.2.12 (#285).
+- `check_pins` now detects stale pins in installer manifests, nested projects, and every supported Git URL form while treating templated CI refs as warnings (#294).
 
 ### Fixed
-- Code bridge `run --where cloud` refuses a `--branch` that does not exist on `origin` before submitting, with a message saying it is the base branch the cloud agent starts from (#258).
-- Code bridge landing: tests cover pure deletes and renames with edits, so a path the provider diff removed or renamed never reaches `git add` (#261).
+- Code bridge produces real PR titles, restricts the brief gate to imperative instructions, lands ignored paths robustly, and refuses a cloud base branch missing from `origin` (#256, #262).
+- Code bridge landing supports file-to-directory replacements and is covered for deletes and edited renames (#269, #274).
+- Code bridge watch events sort by parsed UTC instants instead of timestamp text (#278).
+- Code bridge tests no longer require `pytest-asyncio`; the suite is hermetic on Windows, quoted reviewer executable paths work, and its fake Codex binary is copied only once per session (#273, #281).
+- Blank MCP server environment values now fall back to safe defaults instead of crashing or broadening the HTTP bind address (#291).
 
 ## [0.10.9] — 2026-11-13
 
