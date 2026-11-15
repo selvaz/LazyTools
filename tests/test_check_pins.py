@@ -46,6 +46,17 @@ def test_stale_sibling_ref_fails_and_unknown_repo_warns(tmp_path):
     assert warnings == ["pyproject.toml:5: LazyThing is unmanaged (not in the ecosystem manifest)"]
 
 
+def test_ref_matching_does_not_accept_a_valid_prefix(tmp_path):
+    repo = _repo(
+        tmp_path,
+        '  "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.2+stale",',
+    )
+
+    assert check_pins.check(repo, MANIFEST) == [
+        "pyproject.toml:4: LazyTools pinned to 'v0.10.2+stale', manifest says 'v0.10.2'"
+    ]
+
+
 def test_unmanaged_installer_repo_warns_and_exits_zero(tmp_path, capsys):
     manifest_dir = tmp_path / "manifest"
     manifest_dir.mkdir()
@@ -161,6 +172,19 @@ def test_requirements_files_and_comments(tmp_path):
     assert errors == ["requirements.txt:2: LazyTools pinned to 'v0.9.0', manifest says 'v0.10.2'"]
 
 
+def test_all_txt_files_below_requirements_directories_are_scanned(tmp_path):
+    requirements = tmp_path / "deploy" / "requirements"
+    requirements.mkdir(parents=True)
+    (requirements / "verified.txt").write_text(
+        "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.9.0\n",
+        encoding="utf-8",
+    )
+
+    assert check_pins.check(tmp_path, MANIFEST) == [
+        "deploy/requirements/verified.txt:1: LazyTools pinned to 'v0.9.0', manifest says 'v0.10.2'"
+    ]
+
+
 def test_workflow_installs_from_a_moving_branch_fail(tmp_path):
     workflows = tmp_path / ".github" / "workflows"
     workflows.mkdir(parents=True)
@@ -266,6 +290,21 @@ def test_templated_ci_ref_warns_instead_of_failing(tmp_path):
 
     assert check_pins.check(tmp_path, MANIFEST, warnings) == []
     assert warnings == [".github/workflows/release.yml:1: LazyTools uses a templated ref; not checked"]
+
+
+def test_shell_ref_literal_default_is_checked(tmp_path):
+    workflow = tmp_path / ".github" / "workflows"
+    workflow.mkdir(parents=True)
+    (workflow / "release.yml").write_text(
+        'run: pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@${REF:-v0.9.0}"\n',
+        encoding="utf-8",
+    )
+    warnings = []
+
+    assert check_pins.check(tmp_path, MANIFEST, warnings) == [
+        ".github/workflows/release.yml:1: LazyTools pinned to 'v0.9.0', manifest says 'v0.10.2'"
+    ]
+    assert warnings == []
 
 
 def test_unparseable_selvaz_url_warns_without_leaking_userinfo(tmp_path):

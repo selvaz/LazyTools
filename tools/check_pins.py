@@ -5,10 +5,11 @@ Run from any ecosystem repo's CI (the manifest is fetched from LazyTools main by
     python check_pins.py --repo .                       # manifest from GitHub
     python check_pins.py --repo . --manifest path.toml  # manifest from a file
 
-Scanned: every ``pyproject.toml`` and ``requirements*.txt`` below the repository root,
-``manifest/*.toml``, and ``.github/workflows/*.yml`` (the files that decide what gets installed,
-in production and in CI). Virtual environments, dependency/build output, and files marked
-``pin-check: ignore-file`` are skipped. Rules:
+Scanned: every ``pyproject.toml`` and ``requirements*.txt`` below the repository root, every
+``*.txt`` below a ``requirements/`` directory, ``manifest/*.toml``, and
+``.github/workflows/*.yml`` (the files that decide what gets installed, in production and in
+CI). Virtual environments, dependency/build output, and files marked ``pin-check: ignore-file``
+are skipped. Rules:
 
 * every managed ``git+https://github.com/selvaz/<Repo>.git@<ref>`` reference must use exactly
   the manifest ref; unmanaged repositories produce a warning but do not fail the check;
@@ -45,7 +46,8 @@ MANIFEST_URL = "https://raw.githubusercontent.com/selvaz/LazyTools/main/ecosyste
 CANDIDATE_URL = "https://raw.githubusercontent.com/selvaz/LazyTools/train/next/ecosystem/compatibility.toml"
 GIT_URL_RE = re.compile(
     r"(?:git\+[a-z][a-z0-9+.-]*://(?:[^/\s\"']+@)?github\.com[/:]|(?:[^\s/@\"']+@)?github\.com:)"
-    r"selvaz/(?P<repo>[A-Za-z0-9_.-]+)(?:@(?P<ref>[A-Za-z0-9._/-]+))?",
+    r"selvaz/(?P<repo>[A-Za-z0-9_.-]+)"
+    r"(?:@(?P<ref>(?!\$)[^\s\"'#;&]+)(?=$|[\s\"'#;&])|(?=@\$\{)|(?=$|[\s\"'#;&]))",
     re.IGNORECASE,
 )
 ARCHIVE_URL_RE = re.compile(
@@ -67,6 +69,7 @@ ALWAYS_SKIP_DIRS = {
     ".tox",
 }
 REQ_STRING_RE = re.compile(r"""["']([^"'\n]*lazy[-_.]?bridge[^"'\n]*)["']""", re.IGNORECASE)
+SHELL_REF_DEFAULT_RE = re.compile(r"^@\$\{[A-Za-z_][A-Za-z0-9_]*(?::[-=]|-)(?P<fallback>[^}]+)\}")
 
 
 def load_manifest(source: str | None, url: str = MANIFEST_URL) -> dict:
@@ -104,12 +107,18 @@ def scanned_files(repo: Path) -> list[Path]:
         return False
 
     # Python projects and deploy bundles can be nested (for example LazyStudio/backend).
-    files = sorted(
+    files = {
         path
         for pattern in ("pyproject.toml", "requirements*.txt")
         for path in repo.rglob(pattern)
         if not skipped(path)
+    }
+    files.update(
+        path
+        for path in repo.rglob("*.txt")
+        if "requirements" in path.relative_to(repo).parts[:-1] and not skipped(path)
     )
+    files = sorted(files)
     # Installer manifests are another production install surface.
     files += sorted(repo.glob("manifest/*.toml"))
     # CI installs count too: a workflow that installs a sibling "@main" tests another version.
@@ -139,7 +148,11 @@ def check(repo: Path, manifest: dict, warnings: list[str] | None = None) -> list
                 name = _repository(match.group("repo"))
                 ref = match.group("ref")
                 want = refs.get(name.lower())
-                if ref is None and line[match.end():].startswith("@${"):
+                tail = line[match.end() :]
+                default = SHELL_REF_DEFAULT_RE.match(tail) if ref is None else None
+                if default is not None:
+                    ref = default.group("fallback")
+                if ref is None and tail.startswith("@${{"):
                     # A CI template such as @${{ github.ref_name }} is resolved at run time.
                     warnings.append(f"{rel}:{lineno}: {name} uses a templated ref; not checked")
                     continue
