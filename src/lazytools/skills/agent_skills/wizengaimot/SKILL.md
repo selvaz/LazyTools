@@ -1,16 +1,6 @@
 ---
 name: wizengaimot
-description: |
-  Run a Wizengaimot: a structured, round-based discussion between this
-  Claude Code session (the orchestrator) and two senior external agents —
-  Codex (codex_ask) and another Claude (claude_ask) — to pressure-test a
-  piece of work before finalizing it. Use when the user invokes
-  /wizengaimot, or asks to "discuss with the other agents", "convene the
-  council", "ask the other two what they think", or wants a
-  deliverable (code, implementation plan, design, analysis, answer)
-  debated by multiple high-level models before it ships. Same spirit as the
-  multi-provider Python council in lazytools.skills.council, orchestrated
-  live from Claude Code over the LazyTools MCP consultants.
+description: "Run a Wizengaimot: a structured, round-based discussion between this Claude Code session (the orchestrator) and two senior external agents — Codex (codex_ask) and another Claude (claude_ask) — to pressure-test a piece of work before finalizing it. Use when the user invokes /wizengaimot, or asks to \"discuss with the other agents\", \"convene the council\", \"ask the other two what they think\", or wants a deliverable (code, implementation plan, design, analysis, answer) debated by multiple high-level models before it ships. Same spirit as the multi-provider Python council in lazytools.skills.council, orchestrated live from Claude Code over the LazyTools MCP consultants."
 ---
 
 # Wizengaimot — structured three-agent deliberation
@@ -31,12 +21,15 @@ the server defaults and tell the user why the override was skipped.
 
 ## Prerequisites
 
-- The LazyTools MCP server (`lazytools-mcp`) registered in Claude Code, with the
-  `codex_ask` and `claude_ask` tools available (a logged-in Codex CLI and
-  Claude Code CLI on this machine).
+- The LazyTools MCP server registered in Claude Code **with `--allow-unsafe`**
+  and the `code_review` and `claude_review` providers, for example
+  `lazytools-mcp --allow-unsafe code_review claude_review`. Without that flag
+  `codex_ask` and `claude_ask` are not exposed. These tools start Codex and
+  Claude Code with read access to the repository you point them at.
+- A logged-in Codex CLI and Claude Code CLI on this machine.
 - Install this skill with
   `python -c "from lazytools.skills.agent_skills import install_agent_skill; install_agent_skill('wizengaimot')"`
-  (writes `~/.claude/skills/wizengaimot/SKILL.md`), then invoke `/wizengaimot`.
+  (pass `overwrite=True` to update an existing copy; writes `~/.claude/skills/wizengaimot/SKILL.md`), then invoke `/wizengaimot`.
 - Without Claude Code, the same idea runs as plain Python:
   `from lazytools.skills.council import standard_council` (a multi-provider
   council on LazyBridge agents; see docs/skills-council.md).

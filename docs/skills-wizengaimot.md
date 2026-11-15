@@ -21,12 +21,15 @@ Install:
 python -c "from lazytools.skills.agent_skills import install_agent_skill; install_agent_skill('wizengaimot')"
 ```
 
-Then run `/wizengaimot` in Claude Code. It needs `lazytools-mcp` registered in
-Claude Code with `codex_ask` and `claude_ask` available.
+Add `overwrite=True` to update an existing copy. Then run `/wizengaimot` in
+Claude Code. It needs `lazytools-mcp --allow-unsafe code_review claude_review`
+registered in Claude Code: without `--allow-unsafe` the `codex_ask` and
+`claude_ask` tools are not exposed. They start Codex and Claude Code with read
+access to the repository you point them at.
 
 ## As a Python process
 
 `lazytools.skills.council.standard_council()` builds a four-member,
-multi-provider council on LazyBridge agents (Anthropic, OpenAI and DeepSeek
+multi-provider council on LazyBridge agents (Anthropic, OpenAI, Google and DeepSeek
 members by default; any LazyBridge provider works). See
 [skills-council.md](skills-council.md).

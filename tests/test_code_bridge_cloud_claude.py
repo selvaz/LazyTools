@@ -552,6 +552,6 @@ def test_wizengaimot_agent_skill_is_bundled():
 
     assert "wizengaimot" in list_agent_skills()
     meta = skill_metadata("wizengaimot")
-    assert meta["name"] == "wizengaimot"
+    assert meta["name"] == "wizengaimot" and "council" in meta["description"]
     text = agent_skill_path("wizengaimot").read_text(encoding="utf-8")
     assert "codex_ask" in text and "claude_ask" in text and "install_agent_skill('wizengaimot')" in text
