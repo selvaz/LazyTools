@@ -34,15 +34,104 @@ def test_aligned_repo_passes(tmp_path):
     assert check_pins.check(repo, MANIFEST) == []
 
 
-def test_stale_sibling_ref_and_unknown_repo_fail(tmp_path):
+def test_stale_sibling_ref_fails_and_unknown_repo_warns(tmp_path):
     repo = _repo(
         tmp_path,
         '  "market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@636b38a7f9039113b935315fbf5f205ff9180160",\n'
         '  "lazything @ git+https://github.com/selvaz/LazyThing.git@v1.0.0",',
     )
-    errors = check_pins.check(repo, MANIFEST)
+    warnings = []
+    errors = check_pins.check(repo, MANIFEST, warnings)
     assert any("market-data-hub pinned to '636b38a" in e and "v0.2.0" in e for e in errors)
-    assert any("LazyThing is not in the ecosystem manifest" in e for e in errors)
+    assert warnings == ["pyproject.toml:5: LazyThing is unmanaged (not in the ecosystem manifest)"]
+
+
+def test_unmanaged_installer_repo_warns_and_exits_zero(tmp_path, capsys):
+    manifest_dir = tmp_path / "manifest"
+    manifest_dir.mkdir()
+    (manifest_dir / "install.toml").write_text(
+        'source = "git+https://github.com/selvaz/LazyStudio.git@0a49728"\n', encoding="utf-8"
+    )
+    manifest = tmp_path / "compatibility.toml"
+    manifest.write_text(
+        '[verified]\nlazybridge = "1.8.1"\n[verified.github.lazytoolkit]\n'
+        'repo = "https://github.com/selvaz/LazyTools"\nref = "v0.10.2"\n',
+        encoding="utf-8",
+    )
+
+    assert check_pins.main(["--repo", str(tmp_path), "--manifest", str(manifest)]) == 0
+    captured = capsys.readouterr()
+    assert "warning: manifest/install.toml:1: LazyStudio is unmanaged" in captured.err
+    assert "ecosystem pins match the manifest" in captured.out
+
+
+def test_nested_pyproject_drift_fails(tmp_path):
+    backend = tmp_path / "backend"
+    backend.mkdir()
+    _repo(backend, '  "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.4",')
+
+    assert check_pins.check(tmp_path, MANIFEST) == [
+        "backend/pyproject.toml:4: LazyTools pinned to 'v0.10.4', manifest says 'v0.10.2'"
+    ]
+
+
+def test_lazy_installer_and_lazystudio_baseline_drifts_are_all_caught(tmp_path):
+    """Model lazy-installer 6cd5cd5 and LazyStudio baseline-phase1 0a49728."""
+    manifest_dir = tmp_path / "manifest"
+    manifest_dir.mkdir()
+    (manifest_dir / "default.toml").write_text(
+        'tools = "git+https://github.com/selvaz/LazyTools.git@v0.10.4"\n'
+        'ceo = "git+https://github.com/selvaz/LazyCEO.git@v0.2.7"\n'
+        'data = "git+https://github.com/selvaz/market-data-hub.git@v0.3.9"\n'
+        'bridge = "lazybridge==1.8.3"\n'
+        'studio = "git+https://github.com/selvaz/LazyStudio.git@0a49728"\n',
+        encoding="utf-8",
+    )
+    backend = tmp_path / "LazyStudio" / "backend"
+    backend.mkdir(parents=True)
+    _repo(
+        backend,
+        '  "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.4",\n'
+        '  "lazyceo @ git+https://github.com/selvaz/LazyCEO.git@v0.2.7",',
+    )
+    release = {
+        "verified": {
+            "lazybridge": "1.8.7",
+            "github": {
+                "lazytoolkit": {"repo": "https://github.com/selvaz/LazyTools", "ref": "v0.10.6"},
+                "lazyceo": {"repo": "https://github.com/selvaz/LazyCEO", "ref": "v0.2.10"},
+                "market-data-hub": {
+                    "repo": "https://github.com/selvaz/market-data-hub",
+                    "ref": "v0.3.29",
+                },
+            },
+        }
+    }
+    warnings = []
+
+    errors = check_pins.check(tmp_path, release, warnings)
+
+    assert len(errors) == 6
+    assert {"v0.10.4", "v0.2.7", "v0.3.9", "==1.8.3"} <= {
+        token for error in errors for token in error.replace("'", " ").split()
+    }
+    assert warnings == ["manifest/default.toml:5: LazyStudio is unmanaged (not in the ecosystem manifest)"]
+
+
+def test_nested_aligned_projects_and_manifest_pass(tmp_path):
+    (tmp_path / "backend").mkdir()
+    _repo(
+        tmp_path / "backend",
+        '  "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.2",\n'
+        '  "lazybridge==1.8.1",',
+    )
+    manifest_dir = tmp_path / "manifest"
+    manifest_dir.mkdir()
+    (manifest_dir / "default.toml").write_text(
+        'tools = "git+https://github.com/selvaz/LazyTools.git@v0.10.2"\nbridge = "lazybridge==1.8.1"\n',
+        encoding="utf-8",
+    )
+    assert check_pins.check(tmp_path, MANIFEST) == []
 
 
 def test_lazybridge_exact_pin_and_range_must_admit_the_verified_version(tmp_path):

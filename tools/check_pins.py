@@ -5,18 +5,21 @@ Run from any ecosystem repo's CI (the manifest is fetched from LazyTools main by
     python check_pins.py --repo .                       # manifest from GitHub
     python check_pins.py --repo . --manifest path.toml  # manifest from a file
 
-Scanned: ``pyproject.toml``, ``requirements*.txt`` and ``.github/workflows/*.yml`` (the files
-that decide what gets installed, in production and in CI). Rules:
+Scanned: every ``pyproject.toml`` and ``requirements*.txt`` below the repository root,
+``manifest/*.toml``, and ``.github/workflows/*.yml`` (the files that decide what gets installed,
+in production and in CI). Virtual environments, dependency/build output, and files marked
+``pin-check: ignore-file`` are skipped. Rules:
 
-* every ``git+https://github.com/selvaz/<Repo>.git@<ref>`` reference must name a repo in the
-  manifest and use exactly its ref;
+* every managed ``git+https://github.com/selvaz/<Repo>.git@<ref>`` reference must use exactly
+  the manifest ref; unmanaged repositories produce a warning but do not fail the check;
 * an exact ``lazybridge==X`` pin must equal the verified LazyBridge version, and any other
   ``lazybridge`` range must admit it.
 
 During a release train the next set is staged as a *candidate* manifest on the LazyTools branch
 ``train/next``: a repository passes when its pins match main's manifest, or (all of them) the
 candidate. The train ends by merging ``train/next`` into main through the ecosystem-released
-gate, after which the candidate branch is deleted.
+gate, after which the candidate branch is deleted. Every release must also regenerate the
+lazy-installer manifest and bump LazyStudio's backend pins to the promoted refs.
 
 A line that deliberately installs a moving ref opts out with a trailing ``# pin-check: ignore``;
 a whole file (e.g. a source-head job that tests every ``main``) with ``pin-check: ignore-file``.
@@ -43,7 +46,19 @@ CANDIDATE_URL = "https://raw.githubusercontent.com/selvaz/LazyTools/train/next/e
 GIT_REF_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?@([A-Za-z0-9._-]+)")
 # A selvaz Git URL with no ``@ref`` installs whatever the default branch is that day.
 UNPINNED_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?(?![A-Za-z0-9_.@-])")
-SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "site-packages", ".tox", "build", "dist"}
+SKIP_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    ".virtualenv",
+    "virtualenv",
+    ".direnv",
+    "node_modules",
+    "site-packages",
+    ".tox",
+    "build",
+    "dist",
+}
 REQ_STRING_RE = re.compile(r"""["']([^"'\n]*lazy[-_.]?bridge[^"'\n]*)["']""", re.IGNORECASE)
 
 
@@ -67,23 +82,25 @@ def load_candidate(source: str | None) -> dict | None:
 
 
 def scanned_files(repo: Path) -> list[Path]:
-    files = [repo / "pyproject.toml"] if (repo / "pyproject.toml").exists() else []
-    # Requirement files anywhere (deploy bundles, docker images...), outside virtualenvs/builds.
-    files += sorted(
+    # Python projects and deploy bundles can be nested (for example LazyStudio/backend).
+    files = sorted(
         path
-        for path in repo.rglob("requirements*.txt")
+        for pattern in ("pyproject.toml", "requirements*.txt")
+        for path in repo.rglob(pattern)
         if not SKIP_DIRS.intersection(path.relative_to(repo).parts[:-1])
     )
-    files += sorted(path for path in repo.glob("requirements/*.txt") if not path.name.startswith("requirements"))
+    # Installer manifests are another production install surface.
+    files += sorted(repo.glob("manifest/*.toml"))
     # CI installs count too: a workflow that installs a sibling "@main" tests another version.
     files += sorted(repo.glob(".github/workflows/*.yml")) + sorted(repo.glob(".github/workflows/*.yaml"))
     return files
 
 
-def check(repo: Path, manifest: dict) -> list[str]:
+def check(repo: Path, manifest: dict, warnings: list[str] | None = None) -> list[str]:
     refs = {entry["repo"].rsplit("/", 1)[-1].lower(): entry["ref"] for entry in manifest["verified"]["github"].values()}
     bridge = Version(manifest["verified"]["lazybridge"])
     errors: list[str] = []
+    warnings = warnings if warnings is not None else []
     for path in scanned_files(repo):
         rel = path.relative_to(repo).as_posix()
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -95,13 +112,20 @@ def check(repo: Path, manifest: dict) -> list[str]:
             for name, ref in GIT_REF_RE.findall(line):
                 want = refs.get(name.lower())
                 if want is None:
-                    errors.append(f"{rel}:{lineno}: {name} is not in the ecosystem manifest")
+                    warnings.append(f"{rel}:{lineno}: {name} is unmanaged (not in the ecosystem manifest)")
                 elif ref != want:
                     errors.append(f"{rel}:{lineno}: {name} pinned to {ref!r}, manifest says {want!r}")
             for name in UNPINNED_RE.findall(line):
                 want = refs.get(name.lower())
-                hint = f"use @{want}" if want else "not in the manifest (LazyBridge: lazybridge==X from PyPI)"
-                errors.append(f"{rel}:{lineno}: {name} has no ref, so it installs a moving branch; {hint}")
+                if name.lower() == "lazybridge":
+                    errors.append(
+                        f"{rel}:{lineno}: {name} has no ref, so it installs a moving branch; "
+                        "use lazybridge==X from PyPI"
+                    )
+                elif want is None:
+                    warnings.append(f"{rel}:{lineno}: {name} is unmanaged and has no ref")
+                else:
+                    errors.append(f"{rel}:{lineno}: {name} has no ref, so it installs a moving branch; use @{want}")
             # pip requirement files allow inline comments after whitespace.
             plain = re.split(r"\s#", line, maxsplit=1)[0].strip()
             for raw in REQ_STRING_RE.findall(line) or ([plain] if path.suffix == ".txt" and plain else []):
@@ -128,7 +152,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     repo = Path(args.repo).resolve()
-    errors = check(repo, load_manifest(args.manifest))
+    warnings: list[str] = []
+    errors = check(repo, load_manifest(args.manifest), warnings)
+    for warning in warnings:
+        print(f"warning: {warning}", file=sys.stderr)
     if errors:
         candidate = load_candidate(args.candidate)
         if candidate is not None and not check(repo, candidate):
