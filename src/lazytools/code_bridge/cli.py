@@ -31,6 +31,7 @@ from lazytools.code_bridge import (
     _cloud_place,
     _concurrency,
     _engines,
+    _freshness,
     _jobs,
     _progress,
     _routine,
@@ -289,6 +290,24 @@ def _check_brief_before_launch(args: argparse.Namespace, task: str) -> int | Non
     return None
 
 
+def _check_freshness_before_launch(args: argparse.Namespace) -> int | None:
+    """Warn on stderr when the branch is behind its upstream; refuse only with ``--require-fresh``."""
+    if args.no_freshness_check:
+        return None
+    try:
+        cwd = _engines.resolve_cwd(args.cwd, args.root)
+    except (OSError, ValueError):
+        return None  # the launch reports a bad --cwd itself
+    result = _freshness.check_freshness(cwd)
+    if not result.stale():
+        return None
+    print(f"freshness: warn {result.message()}", file=sys.stderr)
+    if args.require_fresh:
+        print("error: launch refused by --require-fresh; update the branch, or drop --require-fresh", file=sys.stderr)
+        return 2
+    return None
+
+
 _CLOUD_INCOMPATIBLE = (
     ("needs", "--needs"),
     ("session", "--session"),
@@ -492,6 +511,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return 2
     if not args.brief_checked:
         refusal = _check_brief_before_launch(args, task)
+        if refusal is not None:
+            return refusal
+        refusal = _check_freshness_before_launch(args)
         if refusal is not None:
             return refusal
     if args.detach:
@@ -1594,6 +1616,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_p.add_argument(
         "--no-brief-check", action="store_true", help="Skip the pre-launch brief check (a note is printed)."
+    )
+    run_p.add_argument(
+        "--require-fresh",
+        action="store_true",
+        help="Refuse to launch (exit 2, no job record) when the current branch is behind its upstream. "
+        "Without it, a stderr warning with the commit count is printed and the job still launches.",
+    )
+    run_p.add_argument(
+        "--no-freshness-check", action="store_true",
+        help="Skip the pre-launch fetch and the behind-upstream check.",
     )
     run_p.add_argument("--brief-checked", action="store_true", help=argparse.SUPPRESS)
     run_p.add_argument("--job-id", default=None, help=argparse.SUPPRESS)

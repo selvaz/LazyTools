@@ -1660,6 +1660,25 @@ bridge never merges on its own.
 7. **Merge.** A human merges (or explicitly approves `gh pr merge`, which
    always asks). Never push to `main`.
 
+## Freshness check
+
+Before a local `run` launches, the bridge fetches the current branch's upstream
+and counts the commits `HEAD` is behind it. A stale branch builds the fix on old
+code, so the count is printed on **stderr** (stdout keeps the job id first):
+
+```text
+freshness: warn branch is 6 commits behind origin/main; pull or rebase first, or the job builds on stale code
+```
+
+- **Default:** warn and launch.
+- **`--require-fresh`:** exit 2 before a job record, session or lock exists.
+- **`--no-freshness-check`:** skip the fetch and the check.
+
+It is advisory: a detached HEAD, a branch without an upstream, a non-git
+directory or a failed fetch (offline) is silent, or notes that the count may be
+out of date. Like the brief check, it runs once in the launcher (also for
+`--detach`); the detached child does not repeat it.
+
 ## Brief check
 
 `run` checks the task text before it launches anything, because a few shapes of

@@ -13,6 +13,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - market-data-hub pinned to v0.3.29 (Japan tier-1 macro coverage).
 
 ### Added
+- Code bridge `run` (local) fetches the branch's upstream before launching and warns on stderr with the number of commits behind; `--require-fresh` refuses the launch, `--no-freshness-check` skips it (#271).
 - Code bridge Claude cloud: a routine entry may declare `model`, and `run --where cloud --engine claude --model M` fires the single routine that declares `M` (zero or several matches are refused with the configured routines and their models; `--routine` still wins). New `lazytools-code-bridge cloud-setup claude --check` verifies the routine setup locally (config, token variables, a model per routine) without a network call or printing token values (#260).
 
 ### Fixed
