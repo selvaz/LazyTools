@@ -302,7 +302,8 @@ def test_submit_stores_handle_and_where_cloud(cloud, capsys):
     argv = call["argv"]
     # The brief travels on stdin, never as a command-line argument.
     assert argv == ["cloud", "exec", "--env", "env_widgets", "--branch", "feature-x"]
-    assert call["stdin"].startswith(_cloud.CLOUD_PREAMBLE) and call["stdin"].endswith("Add a feature")
+    assert call["stdin"].startswith(_cloud.CLOUD_PREAMBLE)
+    assert call["stdin"].endswith("Add a feature" + _cloud.CLOUD_REPORT_SUFFIX)
 
     store = _store.build_store(cloud.db)
     job = _jobs.find_job(store, _store.build_job_registry(store), payload["job_id"])
@@ -1275,3 +1276,23 @@ def test_status_result_and_apply_output_is_redacted(cloud, capsys):
         assert "sk-live-0123456789abcdef" not in captured.out + captured.err, argv
     assert cli.main(["status", job_id, "--json", "--db", str(cloud.db)]) == 0
     json.loads(capsys.readouterr().out)  # still valid JSON after redaction
+
+# --------------------------------------------------------------------------- #
+# durable cloud final reports
+# --------------------------------------------------------------------------- #
+
+
+def test_cloud_report_is_extracted_from_unified_diff():
+    diff = (
+        "diff --git a/.bridge/report.md b/.bridge/report.md\n"
+        "new file mode 100644\n--- /dev/null\n+++ b/.bridge/report.md\n"
+        "@@ -0,0 +1,2 @@\n+# Final report\n+Everything passed.\n"
+        "diff --git a/src/app.py b/src/app.py\n--- a/src/app.py\n+++ b/src/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+    )
+    report, files = _cloud.report_from_diff(diff)
+    assert report == "# Final report\nEverything passed."
+    assert files == ["src/app.py"]
+
+
+def test_empty_diff_has_no_report_or_code_files():
+    assert _cloud.report_from_diff("") == (None, [])

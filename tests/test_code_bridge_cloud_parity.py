@@ -721,6 +721,63 @@ def test_land_with_no_changes_pushes_nothing(cloud, gh, capsys, monkeypatch):
     assert _job(cloud, job_id)["landed_at"]
 
 
+def _set_diff(cloud, monkeypatch, text: str) -> None:
+    path = cloud.root / "task.diff"
+    path.write_text(text, encoding="utf-8")
+    monkeypatch.setenv("FAKE_CODEX_DIFF", str(path))
+
+
+def test_report_only_wait_is_done_without_a_pr(cloud, gh, capsys, monkeypatch):
+    _set_diff(
+        cloud,
+        monkeypatch,
+        "diff --git a/.bridge/report.md b/.bridge/report.md\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/report.md\n@@ -0,0 +1 @@\n+No code changes were needed.\n",
+    )
+    monkeypatch.setenv("FAKE_CODEX_NOCHANGE", "1")
+    job_id = _submit_json(cloud, capsys, "--land")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "wait", job_id, "--interval", "0.01") == 0
+    output = capsys.readouterr().out
+    assert "report:\nNo code changes were needed." in output
+    assert "diff: no changes" in output
+    assert _job(cloud, job_id)["report"] == "No code changes were needed."
+    assert _tip(cloud, f"cloud/{job_id[:8]}") is None and gh.calls() == []
+
+
+def test_empty_diff_wait_is_done_without_a_pr(cloud, gh, capsys, monkeypatch):
+    _set_diff(cloud, monkeypatch, "")
+    monkeypatch.setenv("FAKE_CODEX_NOCHANGE", "1")
+    job_id = _submit_json(cloud, capsys, "--land")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "wait", job_id, "--interval", "0.01") == 0
+    output = capsys.readouterr().out
+    assert "report:\n(none provided)" in output and "diff: no changes" in output
+    assert "report" in _job(cloud, job_id) and _job(cloud, job_id)["report"] is None
+    assert _tip(cloud, f"cloud/{job_id[:8]}") is None and gh.calls() == []
+
+
+def test_normal_diff_lands_without_report_transport_file(cloud, gh, capsys, monkeypatch):
+    _set_diff(
+        cloud,
+        monkeypatch,
+        "diff --git a/.bridge/report.md b/.bridge/report.md\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/report.md\n@@ -0,0 +1 @@\n+Added the cloud change.\n"
+        "diff --git a/cloud_change.txt b/cloud_change.txt\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/cloud_change.txt\n@@ -0,0 +1 @@\n+applied by cloud\n",
+    )
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    names = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert names == ["cloud_change.txt"]
+    assert _job(cloud, job_id)["report"] == "Added the cloud change."
+
+
 def test_land_refuses_a_job_that_is_not_done(cloud, gh, capsys):
     job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
     assert _main(cloud, "apply", job_id, "--land") == 1

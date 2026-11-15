@@ -307,6 +307,8 @@ def test_routine_fire_posts_text_with_bearer_and_version(cc, capsys, monkeypatch
     assert seen["headers"]["Authorization"] == "Bearer sk-ant-oat01-abcdefghijklmnop"
     assert seen["headers"]["anthropic-version"] == "2026-10-21"
     assert seen["body"]["text"].startswith(_cloud.CLOUD_PREAMBLE)
+    assert "Add a feature" in seen["body"]["text"]
+    assert seen["body"]["text"].endswith(_cloud.CLOUD_REPORT_SUFFIX)
     assert payload["cloud_url"] == "https://claude.ai/code/session_r1xyz9" and payload["env_id"] == "routine:nightly"
     job = _job(cc, payload["job_id"])
     assert job["cloud_mode"] == "routine" and job["routine"] == "nightly"

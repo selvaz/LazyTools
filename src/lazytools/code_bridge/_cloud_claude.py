@@ -228,10 +228,14 @@ class ClaudeCloud:
         requested_branch = named_branch(prompt)
         result_branch = requested_branch or f"{RESULT_PREFIX}lazytools-{job_id}"
         if requested_branch is None:
-            prompt += (
+            branch_instruction = (
                 f"\n\nPush the completed result to the exact branch `{result_branch}`. "
                 "Do not use any other result branch."
             )
+            if prompt.endswith(_cloud.CLOUD_REPORT_SUFFIX):
+                prompt = prompt[:-len(_cloud.CLOUD_REPORT_SUFFIX)] + branch_instruction + _cloud.CLOUD_REPORT_SUFFIX
+            else:
+                prompt += branch_instruction
         if routine is not None:
             sid, url, raw = self._fire_routine(routine, prompt, config or _cloud.load_config())
             mode = "routine"

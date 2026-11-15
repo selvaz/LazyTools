@@ -697,11 +697,17 @@ def _cmd_result(args: argparse.Namespace) -> int:
     # not see a failed job reported as success merely because it asked for
     # --json. Found by Codex review (it previously always returned 0 here).
     exit_code = 1 if status in ("partial", "failed", "interrupted") else 0
+    diff = None
+    if _cloud.is_cloud(job) and job.get("status") == "done" and job.get("cloud_handle"):
+        try:
+            job, diff = _cloud.capture_report(store, registry, job)
+        except _cloud.CloudError:
+            pass
     if args.json:
         (_cloud_json if _cloud.is_cloud(job) else _print_json)(job)
         return exit_code
     if _cloud.is_cloud(job):
-        _cloud_print(_cloud.result_text(job))
+        _cloud_print(_cloud.result_text(job, diff=diff))
         return exit_code
     print(f"[{status}] job {job.get('job_id')}")
     if job.get("turns"):
