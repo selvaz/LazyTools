@@ -820,16 +820,29 @@ def _claude_submit(cloud, capsys, *extra: str, task: str = "Add a feature") -> s
     return json.loads(captured.out.strip().splitlines()[-1])["job_id"]
 
 
+def _assert_report_cleanup_commit(repo: Path, clean_sha: str, report_sha: str) -> None:
+    """Prove ``clean_sha`` is exactly one deletion-only commit after ``report_sha``."""
+    assert _git(repo, "rev-parse", f"{clean_sha}^") == report_sha
+    assert _git(repo, "show", f"{report_sha}:.bridge/report.md")
+    assert _git(repo, "diff", "--name-status", report_sha, clean_sha) == "D\t.bridge/report.md"
+    assert not _git(repo, "ls-tree", "--name-only", clean_sha, "--", ".bridge/report.md")
+
+
 def test_claude_local_apply_strips_report_from_worktree(cloud, claude, capsys):
     job_id = _claude_submit(cloud, capsys)
     branch = _job(cloud, job_id)["claude_result_branch"]
-    claude.push(branch, {"feature.txt": "x\n", ".bridge/report.md": "Cloud work complete.\n"})
+    report_sha = claude.push(branch, {"feature.txt": "x\n", ".bridge/report.md": "Cloud work complete.\n"})
+    assert _git(claude.vm, "show", f"{report_sha}:.bridge/report.md") == "Cloud work complete."
 
     assert _main(cloud, "apply", job_id, "--json") == 0
     outcome = json.loads(capsys.readouterr().out)
     applied = Path(outcome["worktree"])
+    clean_sha = _git(applied, "rev-parse", "HEAD")
+    assert outcome["base"] == clean_sha
+    _assert_report_cleanup_commit(applied, clean_sha, report_sha)
     assert not (applied / ".bridge/report.md").exists()
-    assert not _git(applied, "ls-tree", "--name-only", "HEAD", "--", ".bridge/report.md")
+    # A local apply must not rewrite the hosted session's result branch.
+    assert _tip(cloud, branch) == report_sha
     assert _job(cloud, job_id)["report"] == "Cloud work complete."
 
 
@@ -847,10 +860,10 @@ def test_claude_land_strips_report_before_opening_a_pr(cloud, claude, gh, capsys
         _cloud._git = _orig
     outcome = json.loads(capsys.readouterr().out)
     assert len(pushes) == 1  # the bridge publishes the descendant that removes the transport file
+    assert pushes[0][2] == f"{outcome['pushed_sha']}:refs/heads/{branch}"
     assert outcome["branch"] == branch and outcome["pushed_sha"] != sha
-    pushed_names = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
-    assert pushed_names == [".bridge/report.md"]
-    assert not _git(cloud.repo, "ls-tree", "--name-only", outcome["pushed_sha"], "--", ".bridge/report.md")
+    assert _tip(cloud, branch) == outcome["pushed_sha"]
+    _assert_report_cleanup_commit(cloud.repo, outcome["pushed_sha"], sha)
     (create,) = gh.calls("pr", "create")
     argv = create["argv"]
     assert argv[argv.index("--head") + 1] == branch and argv[argv.index("--base") + 1] == "main"
@@ -899,18 +912,20 @@ def test_claude_pr_land_pushes_tip_without_report(cloud, claude, gh, capsys):
     gh.seed_pr(7, head="feature")
     job_id = _claude_submit(cloud, capsys, "--pr", "7")
     branch = _job(cloud, job_id)["claude_result_branch"]
-    claude.push(
+    report_sha = claude.push(
         branch,
         {"claude.txt": "x\n", ".bridge/report.md": "Updated the existing PR.\n"},
         base="origin/feature",
     )
+    assert _git(claude.vm, "show", f"{report_sha}:.bridge/report.md") == "Updated the existing PR."
 
     assert _main(cloud, "apply", job_id, "--land", "--json") == 0
     outcome = json.loads(capsys.readouterr().out)
     assert outcome["branch"] == "feature" and outcome["pr_number"] == 7
     assert _tip(cloud, "feature") == outcome["pushed_sha"]
-    assert _git(cloud.repo, "rev-parse", f"{outcome['pushed_sha']}^^") == feature_sha
-    assert not _git(cloud.repo, "ls-tree", "--name-only", outcome["pushed_sha"], "--", ".bridge/report.md")
+    assert _tip(cloud, branch) == outcome["pushed_sha"]
+    _assert_report_cleanup_commit(cloud.repo, outcome["pushed_sha"], report_sha)
+    assert _git(cloud.repo, "rev-parse", f"{report_sha}^") == feature_sha
     assert _job(cloud, job_id)["report"] == "Updated the existing PR."
 
 
