@@ -133,6 +133,7 @@ CORE_TOOLS = frozenset(
         # otherwise sessions bypass the tool with direct library calls.
         "projects_open_contract",
         "projects_close_task",
+        "projects_complete_todo",
         "projects_add_note",
         "projects_revise_plan",
         "projects_schedule_task",
@@ -566,6 +567,10 @@ class ProjectsTools:
             review_by=review_by, worker=worker,
         )
 
+    def projects_complete_todo(self, project_id: str, task_index: int, summary: str) -> str:
+        """Close a todo task that has NO acceptance contract, after verifying in person that the work is done. Tasks with a contract must use projects_close_task."""
+        return _task_claims.complete_todo_without_verification(self._store, project_id, task_index, summary)
+
     def projects_add_note(self, project_id: str, text: str, origin: str = "claude") -> str:
         """Record a freeform note against a project."""
         note_id = _notes.add_project_note(self._store, project_id, text, origin=origin)
@@ -776,6 +781,7 @@ class ProjectsTools:
             self.projects_set_brake_enabled,
             self.projects_set_deadline,
             self.projects_close_task,
+            self.projects_complete_todo,
             self.projects_add_note,
             self.projects_retire_task,
             self.projects_reopen_task,
