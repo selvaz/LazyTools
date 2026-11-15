@@ -1315,12 +1315,23 @@ def strip_report_diff(diff: str) -> str:
     ))
 
 
+def _completed_task_diff(prov: Any, job: dict[str, Any]) -> str:
+    """Fetch a completed task diff, normalizing only Codex's no-diff diagnostic."""
+    try:
+        return prov.diff(str(job["cloud_handle"]))
+    except CloudError as exc:
+        detail = str(exc).partition(": ")[2]
+        if str(job.get("status")) != "done" or not detail.startswith("No diff available for task "):
+            raise
+        return ""
+
+
 def capture_report(store: Any, registry: Any, job: dict[str, Any], diff: str | None = None) -> tuple[dict[str, Any], str]:
     """Persist the report carried by a Codex task diff, without another fetch when supplied."""
     if diff is None:
         prov = provider(str(job["engine"]))
         job_diff = getattr(prov, "job_diff", None)
-        diff = job_diff(job) if job_diff is not None else prov.diff(str(job["cloud_handle"]))
+        diff = job_diff(job) if job_diff is not None else _completed_task_diff(prov, job)
     report, _files = report_from_diff(diff)
     meta = _store.read_meta(store, str(job["job_id"])) or {}
     meta["report"] = report
@@ -1447,7 +1458,7 @@ def apply_job(
     # Fetch the authoritative path list before creating anything.  Besides
     # avoiding a half-created checkout when this fails, it lets a retry
     # distinguish remnants of this job from unrelated operator work.
-    diff_files = prov.diff(str(job["cloud_handle"]))
+    diff_files = _completed_task_diff(prov, job)
     job, diff_files = capture_report(store, registry, job, diff_files)
     _report, applied_files = report_from_diff(diff_files)
     _reconcile_apply_remnants(

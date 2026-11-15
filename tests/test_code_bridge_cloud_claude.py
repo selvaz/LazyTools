@@ -97,12 +97,16 @@ def cc(tmp_path, monkeypatch):
     return ctx
 
 
-def _vm_push(ctx, branch: str, name: str = "cloud_change.txt", base: str = "origin/main") -> str:
+def _vm_push(ctx, branch: str, name: str = "cloud_change.txt", base: str = "origin/main", *, report: bool = False) -> str:
     """What the hosted session does: commit on a claude/ branch and push it to origin."""
     _git(ctx.vm, "fetch", "-q", "origin")
     _git(ctx.vm, "checkout", "-q", "-B", branch, base)
     (ctx.vm / name).write_text("made in the cloud\n", encoding="utf-8")
     _git(ctx.vm, "add", name)
+    if report:
+        (ctx.vm / ".bridge").mkdir(exist_ok=True)
+        (ctx.vm / ".bridge" / "report.md").write_text("Cloud work complete.\n", encoding="utf-8")
+        _git(ctx.vm, "add", ".bridge/report.md")
     _git(ctx.vm, "commit", "-q", "-m", f"cloud work on {branch}")
     _git(ctx.vm, "push", "-q", "origin", branch)
     return _git(ctx.vm, "rev-parse", "HEAD")
@@ -197,7 +201,7 @@ def test_preexisting_claude_branches_are_not_the_result(cc, capsys):
 def test_result_and_apply_use_the_pushed_claude_branch(cc, capsys):
     job_id = _submit_json(cc, capsys)["job_id"]
     result_branch = _job(cc, job_id)["claude_result_branch"]
-    sha = _vm_push(cc, result_branch)
+    sha = _vm_push(cc, result_branch, report=True)
     assert cli.main(["result", job_id, "--db", str(cc.db)]) == 0
     out = capsys.readouterr().out
     assert result_branch in out and "1 file(s) changed" in out and "cloud_change.txt" in out
@@ -209,8 +213,9 @@ def test_result_and_apply_use_the_pushed_claude_branch(cc, capsys):
     outcome = json.loads(capsys.readouterr().out)
     worktree = Path(outcome["worktree"])
     assert (worktree / "cloud_change.txt").is_file()
+    assert not (worktree / ".bridge" / "report.md").exists()
     assert outcome["branch"] == f"cloud/{job_id[:8]}" and outcome["pushed"] is False
-    assert outcome["source_branch"] == result_branch and outcome["base"] == sha
+    assert outcome["source_branch"] == result_branch and outcome["base"] != sha
     assert _git(cc.repo, "rev-parse", "--abbrev-ref", "HEAD") == "main"
     assert not (cc.repo / "cloud_change.txt").exists()
     assert "cloud/" not in _git(cc.origin, "branch", "--list")  # nothing pushed

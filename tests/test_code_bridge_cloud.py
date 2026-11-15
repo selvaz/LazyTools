@@ -42,6 +42,9 @@ FAKE_CODEX = textwrap.dedent(
     if os.environ.get("FAKE_CODEX_FAIL") == verb:
         print("boom: " + verb, file=sys.stderr)
         sys.exit(1)
+    if verb == "diff" and os.environ.get("FAKE_CODEX_NO_DIFF_ERROR"):
+        print(f"No diff available for task {args[2]}", file=sys.stderr)
+        sys.exit(1)
     if verb == "exec":
         counter = Path(os.environ["FAKE_CODEX_LOG"] + ".n")
         n = int(counter.read_text()) + 1 if counter.exists() else 1
@@ -165,6 +168,7 @@ def cloud(tmp_path, monkeypatch):
     monkeypatch.delenv("FAKE_CODEX_FAIL", raising=False)
     monkeypatch.delenv("FAKE_CODEX_PARTIAL", raising=False)
     monkeypatch.delenv("FAKE_CODEX_DIFF", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_NO_DIFF_ERROR", raising=False)
     monkeypatch.delenv("FAKE_CODEX_NOCHANGE", raising=False)
     monkeypatch.delenv("FAKE_CODEX_ERROR_LOG", raising=False)
     monkeypatch.delenv("FAKE_CODEX_UNEXPECTED", raising=False)
