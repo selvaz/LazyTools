@@ -255,6 +255,19 @@ def test_nested_workflow_is_scanned(tmp_path):
     ]
 
 
+def test_templated_ci_ref_warns_instead_of_failing(tmp_path):
+    workflow = tmp_path / ".github" / "workflows"
+    workflow.mkdir(parents=True)
+    (workflow / "release.yml").write_text(
+        'run: pip install "lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@${{ github.ref_name }}"\n',
+        encoding="utf-8",
+    )
+    warnings = []
+
+    assert check_pins.check(tmp_path, MANIFEST, warnings) == []
+    assert warnings == [".github/workflows/release.yml:1: LazyTools uses a templated ref; not checked"]
+
+
 def test_unparseable_selvaz_url_warns_without_leaking_userinfo(tmp_path):
     repo = _repo(tmp_path, '  "x @ git+https://secret-token@github.com/selvaz?repo=LazyTools&ref=old",')
     warnings = []

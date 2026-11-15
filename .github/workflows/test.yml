@@ -44,7 +44,7 @@ jobs:
           ECOSYSTEM_PAT: ${{ secrets.ECOSYSTEM_PAT }}
         run: |
           if [ -n "$ECOSYSTEM_PAT" ]; then
-            pip install "lazyfin[optimizer] @ git+https://x-access-token:${ECOSYSTEM_PAT}@github.com/selvaz/LazyFin.git@main"
+            pip install "lazyfin[optimizer] @ git+https://x-access-token:${ECOSYSTEM_PAT}@github.com/selvaz/LazyFin.git@main"  # pin-check: ignore (source-head job installs LazyFin main on purpose)
           else
             echo "::notice::ECOSYSTEM_PAT not set: portfolio-optimizer connector tests will skip"
           fi

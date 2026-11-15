@@ -139,6 +139,10 @@ def check(repo: Path, manifest: dict, warnings: list[str] | None = None) -> list
                 name = _repository(match.group("repo"))
                 ref = match.group("ref")
                 want = refs.get(name.lower())
+                if ref is None and line[match.end():].startswith("@${"):
+                    # A CI template such as @${{ github.ref_name }} is resolved at run time.
+                    warnings.append(f"{rel}:{lineno}: {name} uses a templated ref; not checked")
+                    continue
                 if ref is None and name.lower() == "lazybridge":
                     errors.append(
                         f"{rel}:{lineno}: {name} has no ref, so it installs a moving branch; "
