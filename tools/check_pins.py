@@ -43,10 +43,19 @@ from packaging.version import Version
 
 MANIFEST_URL = "https://raw.githubusercontent.com/selvaz/LazyTools/main/ecosystem/compatibility.toml"
 CANDIDATE_URL = "https://raw.githubusercontent.com/selvaz/LazyTools/train/next/ecosystem/compatibility.toml"
-GIT_REF_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?@([A-Za-z0-9._-]+)")
-# A selvaz Git URL with no ``@ref`` installs whatever the default branch is that day.
-UNPINNED_RE = re.compile(r"git\+https://github\.com/selvaz/([A-Za-z0-9_.-]+?)(?:\.git)?(?![A-Za-z0-9_.@-])")
-SKIP_DIRS = {
+GIT_URL_RE = re.compile(
+    r"(?:git\+[a-z][a-z0-9+.-]*://(?:[^/\s\"']+@)?github\.com[/:]|(?:[^\s/@\"']+@)?github\.com:)"
+    r"selvaz/(?P<repo>[A-Za-z0-9_.-]+)(?:@(?P<ref>[A-Za-z0-9._/-]+))?",
+    re.IGNORECASE,
+)
+ARCHIVE_URL_RE = re.compile(
+    r"(?:[a-z][a-z0-9+.-]*://)(?:[^/\s\"']+@)?github\.com/selvaz/(?P<repo>[A-Za-z0-9_.-]+)/"
+    r"(?:archive/(?:refs/(?:tags|heads)/)?|tarball/|zipball/)(?P<ref>[A-Za-z0-9._/-]+?)(?:\.tar\.gz|\.zip)?"
+    r"(?=$|[\s\"'?#,;])",
+    re.IGNORECASE,
+)
+SElvAZ_GITHUB_RE = re.compile(r"github\.com[^\s\"']*?[/:]selvaz(?:[/?:]|$)", re.IGNORECASE)
+ALWAYS_SKIP_DIRS = {
     ".git",
     ".venv",
     "venv",
@@ -56,8 +65,6 @@ SKIP_DIRS = {
     "node_modules",
     "site-packages",
     ".tox",
-    "build",
-    "dist",
 }
 REQ_STRING_RE = re.compile(r"""["']([^"'\n]*lazy[-_.]?bridge[^"'\n]*)["']""", re.IGNORECASE)
 
@@ -82,18 +89,36 @@ def load_candidate(source: str | None) -> dict | None:
 
 
 def scanned_files(repo: Path) -> list[Path]:
+    def skipped(path: Path) -> bool:
+        relative = path.relative_to(repo)
+        parents = relative.parts[:-1]
+        if ALWAYS_SKIP_DIRS.intersection(parents):
+            return True
+        for index, part in enumerate(parents):
+            if part not in {"build", "dist"}:
+                continue
+            output = repo.joinpath(*parents[:index], "pyproject.toml").is_file()
+            build_lib = part == "build" and index + 1 < len(parents) and parents[index + 1] == "lib"
+            if output or build_lib:
+                return True
+        return False
+
     # Python projects and deploy bundles can be nested (for example LazyStudio/backend).
     files = sorted(
         path
         for pattern in ("pyproject.toml", "requirements*.txt")
         for path in repo.rglob(pattern)
-        if not SKIP_DIRS.intersection(path.relative_to(repo).parts[:-1])
+        if not skipped(path)
     )
     # Installer manifests are another production install surface.
     files += sorted(repo.glob("manifest/*.toml"))
     # CI installs count too: a workflow that installs a sibling "@main" tests another version.
-    files += sorted(repo.glob(".github/workflows/*.yml")) + sorted(repo.glob(".github/workflows/*.yaml"))
+    files += sorted(repo.rglob(".github/workflows/*.yml")) + sorted(repo.rglob(".github/workflows/*.yaml"))
     return files
+
+
+def _repository(name: str) -> str:
+    return name[:-4] if name.lower().endswith(".git") else name
 
 
 def check(repo: Path, manifest: dict, warnings: list[str] | None = None) -> list[str]:
@@ -109,23 +134,28 @@ def check(repo: Path, manifest: dict, warnings: list[str] | None = None) -> list
         for lineno, line in enumerate(text.splitlines(), 1):
             if line.lstrip().startswith("#") or "pin-check: ignore" in line:
                 continue
-            for name, ref in GIT_REF_RE.findall(line):
+            matches = [*ARCHIVE_URL_RE.finditer(line), *GIT_URL_RE.finditer(line)]
+            for match in matches:
+                name = _repository(match.group("repo"))
+                ref = match.group("ref")
                 want = refs.get(name.lower())
-                if want is None:
-                    warnings.append(f"{rel}:{lineno}: {name} is unmanaged (not in the ecosystem manifest)")
-                elif ref != want:
-                    errors.append(f"{rel}:{lineno}: {name} pinned to {ref!r}, manifest says {want!r}")
-            for name in UNPINNED_RE.findall(line):
-                want = refs.get(name.lower())
-                if name.lower() == "lazybridge":
+                if ref is None and name.lower() == "lazybridge":
                     errors.append(
                         f"{rel}:{lineno}: {name} has no ref, so it installs a moving branch; "
                         "use lazybridge==X from PyPI"
                     )
                 elif want is None:
-                    warnings.append(f"{rel}:{lineno}: {name} is unmanaged and has no ref")
-                else:
+                    warnings.append(f"{rel}:{lineno}: {name} is unmanaged (not in the ecosystem manifest)")
+                elif ref is None:
                     errors.append(f"{rel}:{lineno}: {name} has no ref, so it installs a moving branch; use @{want}")
+                elif ref != want:
+                    errors.append(f"{rel}:{lineno}: {name} pinned to {ref!r}, manifest says {want!r}")
+            recognized = line
+            for match in sorted(matches, key=lambda item: item.start(), reverse=True):
+                recognized = recognized[: match.start()] + recognized[match.end() :]
+            if SElvAZ_GITHUB_RE.search(recognized):
+                # Deliberately omit the URL: it may contain credentials in userinfo.
+                warnings.append(f"{rel}:{lineno}: unrecognised selvaz GitHub URL; pin could not be checked")
             # pip requirement files allow inline comments after whitespace.
             plain = re.split(r"\s#", line, maxsplit=1)[0].strip()
             for raw in REQ_STRING_RE.findall(line) or ([plain] if path.suffix == ".txt" and plain else []):

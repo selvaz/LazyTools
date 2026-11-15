@@ -201,6 +201,69 @@ def test_a_file_can_opt_out_entirely(tmp_path):
     assert check_pins.check(tmp_path, MANIFEST) == []
 
 
+def test_git_url_variants_are_case_insensitive_and_checked(tmp_path):
+    repo = _repo(
+        tmp_path,
+        '  "x @ GIT+SSH://git@github.com/Selvaz/LazyTools.git@old",\n'
+        '  "x @ git@github.com:selvaz/LazyTools.git@old",\n'
+        '  "x @ git+git://secret-token@GITHUB.COM/SElVaZ/LazyTools.git@old",',
+    )
+
+    errors = check_pins.check(repo, MANIFEST)
+
+    assert len(errors) == 3
+    assert all("LazyTools pinned to 'old'" in error for error in errors)
+    assert all("secret-token" not in error for error in errors)
+
+
+def test_archive_ref_is_checked(tmp_path):
+    repo = _repo(tmp_path, '  "https://github.com/selvaz/LazyTools/archive/refs/tags/v0.9.0.tar.gz",')
+
+    assert check_pins.check(repo, MANIFEST) == [
+        "pyproject.toml:4: LazyTools pinned to 'v0.9.0', manifest says 'v0.10.2'"
+    ]
+
+
+def test_build_named_source_project_is_scanned_but_build_outputs_are_not(tmp_path):
+    backend_build = tmp_path / "backend" / "build"
+    backend_build.mkdir(parents=True)
+    (backend_build / "requirements.txt").write_text(
+        "x @ git+https://github.com/selvaz/LazyTools@old\n", encoding="utf-8"
+    )
+    (tmp_path / "package").mkdir()
+    _repo(tmp_path / "package", "")
+    generated = tmp_path / "package" / "build" / "lib"
+    generated.mkdir(parents=True)
+    (generated / "requirements.txt").write_text(
+        "x @ git+https://github.com/selvaz/LazyTools@also-old\n", encoding="utf-8"
+    )
+
+    assert check_pins.check(tmp_path, MANIFEST) == [
+        "backend/build/requirements.txt:1: LazyTools pinned to 'old', manifest says 'v0.10.2'"
+    ]
+
+
+def test_nested_workflow_is_scanned(tmp_path):
+    workflow = tmp_path / "project" / ".github" / "workflows"
+    workflow.mkdir(parents=True)
+    (workflow / "ci.yaml").write_text(
+        "run: pip install git+https://github.com/selvaz/LazyTools@old\n", encoding="utf-8"
+    )
+
+    assert check_pins.check(tmp_path, MANIFEST) == [
+        "project/.github/workflows/ci.yaml:1: LazyTools pinned to 'old', manifest says 'v0.10.2'"
+    ]
+
+
+def test_unparseable_selvaz_url_warns_without_leaking_userinfo(tmp_path):
+    repo = _repo(tmp_path, '  "x @ git+https://secret-token@github.com/selvaz?repo=LazyTools&ref=old",')
+    warnings = []
+
+    assert check_pins.check(repo, MANIFEST, warnings) == []
+    assert warnings == ["pyproject.toml:4: unrecognised selvaz GitHub URL; pin could not be checked"]
+    assert "secret-token" not in warnings[0]
+
+
 def test_candidate_release_set_is_accepted_whole(tmp_path):
     main_toml = tmp_path / "main.toml"
     cand_toml = tmp_path / "cand.toml"
