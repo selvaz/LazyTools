@@ -545,3 +545,13 @@ def test_cloud_setup_check_reports_what_is_missing_and_never_prints_tokens(cc, c
     report = json.loads(capsys.readouterr().out)
     assert report["ok"] and [r["routine"] for r in report["routines"]] == ["deep", "fast"]
     assert "x-fast" not in json.dumps(report)
+
+
+def test_wizengaimot_agent_skill_is_bundled():
+    from lazytools.skills.agent_skills import agent_skill_path, list_agent_skills, skill_metadata
+
+    assert "wizengaimot" in list_agent_skills()
+    meta = skill_metadata("wizengaimot")
+    assert meta["name"] == "wizengaimot" and "council" in meta["description"]
+    text = agent_skill_path("wizengaimot").read_text(encoding="utf-8")
+    assert "codex_ask" in text and "claude_ask" in text and "install_agent_skill('wizengaimot')" in text
