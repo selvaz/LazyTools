@@ -16,8 +16,19 @@ def _no_ambient_web_cache_switch(monkeypatch):
     monkeypatch.delenv("LAZYTOOLS_WEB_CACHE_DB", raising=False)
 
 
+@pytest.fixture(scope="session")
+def _codex_test_fake(tmp_path_factory):
+    """One copied Python executable for the whole session (copying it per test
+    wrote tens of GB on CI runners, where the interpreter is ~31 MB)."""
+    tools = tmp_path_factory.mktemp("code-bridge-tools")
+    suffix = ".exe" if sys.platform == "win32" else ""
+    fake = tools / f"codex-test-fake{suffix}"
+    shutil.copy2(sys.executable, fake)
+    return fake
+
+
 @pytest.fixture(autouse=True)
-def _isolated_codex_binary(tmp_path_factory, monkeypatch):
+def _isolated_codex_binary(_codex_test_fake, monkeypatch):
     """Never let code-bridge tests discover an operator's Codex installation.
 
     A copied Python executable is a portable, executable stand-in.  Cloud test
@@ -25,11 +36,7 @@ def _isolated_codex_binary(tmp_path_factory, monkeypatch):
     part of the test; all other tests remain isolated from ``PATH`` (including
     npm's Windows ``codex.cmd`` shim).
     """
-    tools = tmp_path_factory.mktemp("code-bridge-tools")
-    suffix = ".exe" if sys.platform == "win32" else ""
-    fake = tools / f"codex-test-fake{suffix}"
-    shutil.copy2(sys.executable, fake)
-    monkeypatch.setenv("CODEX_BIN", str(fake))
+    monkeypatch.setenv("CODEX_BIN", str(_codex_test_fake))
 
 
 @pytest.fixture(autouse=True)
