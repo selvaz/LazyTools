@@ -191,6 +191,20 @@ def exit_status(record: NavigatorRecord) -> int:
     return 0 if record.status == "merge-ready" else (3 if record.status in {"escalated", "round-cap"} else 1)
 
 
+def _split_command(command: str) -> list[str]:
+    r"""Split a reviewer command line without a shell.
+
+    On Windows ``shlex`` must run in non-POSIX mode (backslashes in paths are
+    not escapes), but that mode keeps the quotes around a quoted token, and
+    ``"C:\path\python.exe"`` with its quotes is not an executable name.
+    Strip one pair of surrounding double quotes from each token there.
+    """
+    if os.name != "nt":
+        return shlex.split(command)
+    tokens = shlex.split(command, posix=False)
+    return [t[1:-1] if len(t) >= 2 and t[0] == t[-1] == '"' else t for t in tokens]
+
+
 def run_reviewer_command(command: str, head: Head, *, cwd: Path) -> Review:
     """Run a configured reviewer without a shell and parse its JSON contract.
 
@@ -199,7 +213,7 @@ def run_reviewer_command(command: str, head: Head, *, cwd: Path) -> Review:
     a ``findings`` list.  This boundary is also convenient for local wrappers
     around hosted review services.
     """
-    argv = shlex.split(command, posix=os.name != "nt")
+    argv = _split_command(command)
     if not argv:
         raise ValueError("reviewer command cannot be empty")
     env = {

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -51,3 +53,57 @@ def _fast_cloud_submit(monkeypatch):
 
     monkeypatch.setattr(_cloud, "_wait_for_submit_turn", lambda *args, **kwargs: None)
     monkeypatch.setattr(_cloud, "SUBMIT_RETRY_BASE_DELAY", 0.0)
+
+
+def _helper_python_target(found: str | None) -> Path | None:
+    """The ``.py`` behind a ``.cmd`` written by ``write_python_executable``, else None.
+
+    Only the tests' own launcher qualifies: same stem, a sibling ``.py``, and a
+    body that runs exactly that file. A real npm shim never matches.
+    """
+    if not found:
+        return None
+    launcher = Path(found)
+    if launcher.suffix.lower() != ".cmd" or not launcher.is_file():
+        return None
+    script = launcher.with_suffix(".py")
+    if not script.is_file():
+        return None
+    body = launcher.read_text(encoding="utf-8", errors="replace")
+    return script if f"%~dp0{script.name}" in body else None
+
+
+@pytest.fixture(autouse=True)
+def _run_test_fakes_without_cmd_shims(monkeypatch):
+    """On Windows the scripted CLI fakes are ``.cmd`` launchers, which the bridge
+    rightly refuses to execute (cmd.exe would re-parse the brief). Run the fake's
+    Python file directly instead; the product guard is untouched for real shims."""
+    if os.name != "nt":
+        return
+    from lazytools.code_bridge import _cloud, _cloud_claude
+    from lazytools.connectors.code_support._codex import resolve_codex_bin
+
+    original_codex = _cloud._codex_argv
+    original_claude = _cloud_claude._claude_argv
+
+    def codex_argv() -> list[str]:
+        script = _helper_python_target(resolve_codex_bin())
+        return [sys.executable, str(script)] if script else original_codex()
+
+    def claude_argv() -> list[str]:
+        script = _helper_python_target(os.environ.get("CLAUDE_BIN") or shutil.which("claude"))
+        return [sys.executable, str(script)] if script else original_claude()
+
+    monkeypatch.setattr(_cloud, "_codex_argv", codex_argv)
+    monkeypatch.setattr(_cloud_claude, "_claude_argv", claude_argv)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_default_slot_dir(tmp_path_factory, monkeypatch):
+    """Tests that point LAZYTOOLS_CODE_BRIDGE_CONFIG at their own file (with no
+    ``slot_dir``) must still never see the operator's real engine slots, where a
+    running job would make the concurrency check refuse the test's run."""
+    from lazytools.code_bridge import _concurrency
+
+    slots = tmp_path_factory.mktemp("default-engine-slots")
+    monkeypatch.setattr(_concurrency, "default_slot_dir", lambda: slots)

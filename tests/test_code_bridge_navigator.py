@@ -4,6 +4,8 @@ import json
 import sys
 from dataclasses import replace
 
+import pytest
+
 from lazytools.code_bridge._navigator import (
     CheckResult,
     Finding,
@@ -186,6 +188,7 @@ def test_active_cloud_job_is_waited_for_before_landing(monkeypatch):
     assert calls == ["wait", "land"]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX shebang fakes for gh and the reviewer")
 def test_navigate_cli_integration_with_fake_gh_and_reviewer(tmp_path, monkeypatch, capsys):
     import os
     import subprocess
@@ -230,3 +233,11 @@ def test_navigate_cli_integration_with_fake_gh_and_reviewer(tmp_path, monkeypatc
                  "--checks", "test -f ok.txt", "--fix-engine", "codex"])
     assert code == 0
     assert json.loads(capsys.readouterr().out)["status"] == "merge-ready"
+
+
+def test_split_command_strips_windows_quotes(monkeypatch):
+    from lazytools.code_bridge import _navigator
+
+    monkeypatch.setattr(_navigator.os, "name", "nt")
+    command = r'"C:\Program Files\py.exe" "C:\x y\r.py" --flag'
+    assert _navigator._split_command(command) == [r"C:\Program Files\py.exe", r"C:\x y\r.py", "--flag"]

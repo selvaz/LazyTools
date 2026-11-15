@@ -877,8 +877,8 @@ def test_apply_refuses_moved_branch_unless_rebase(cloud, tmp_path, capsys):
     _git(cloud.repo, "remote", "add", "real", str(origin))
     _git(cloud.repo, "push", "-q", "real", "main")
     _git(cloud.repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
-    _git(cloud.repo, "config", "remote.origin.url", str(origin))  # fetchable; slug comes from the map below
-    _set_cloud_config(f'"{_cloud.parse_remote(str(origin))}" = "env_widgets"\n')
+    _git(cloud.repo, "config", "remote.origin.url", origin.as_posix())  # fetchable; slug comes from the map below
+    _set_cloud_config(f'"{_cloud.parse_remote(origin.as_posix())}" = "env_widgets"\n')
     base = _git(cloud.repo, "rev-parse", "HEAD")
 
     job_id = _submit(cloud, capsys)
@@ -910,9 +910,9 @@ def test_apply_uses_recorded_base_when_branch_has_not_moved(cloud, tmp_path, cap
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", str(origin))
     _git(cloud.repo, "push", "-q", str(origin), "main")
-    _git(cloud.repo, "config", "remote.origin.url", str(origin))
+    _git(cloud.repo, "config", "remote.origin.url", origin.as_posix())
     _git(cloud.repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
-    _set_cloud_config(f'"{_cloud.parse_remote(str(origin))}" = "env_widgets"\n')
+    _set_cloud_config(f'"{_cloud.parse_remote(origin.as_posix())}" = "env_widgets"\n')
     base = _git(cloud.repo, "rev-parse", "HEAD")
     job_id = _submit(cloud, capsys)
     cloud.set_status("status: ready\nok\n")
