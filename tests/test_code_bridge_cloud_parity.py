@@ -318,6 +318,14 @@ def test_a_repo_without_an_environment_fails_early_with_the_setup_pointer(cloud,
         ({"objective": "Goal. This objective has useful detail.", "title": "Goal"},
          "This objective has useful detail."),
         ({"objective": "# Goal\nContext\nThe useful sentence follows."}, "The useful sentence follows."),
+        ({"objective": "# Goal\n\n**Fix [useful PR titles](https://example.test/issue)**\n\n# Context\nMore"},
+         "Fix useful PR titles"),
+        ({"objective": "# Goal\nFix cloud_job_id parsing"}, "Fix cloud_job_id parsing"),
+        ({"objective": "# Goal\nFix `cloud_job_id` parsing"}, "Fix cloud_job_id parsing"),
+        ({"objective": "# Goal\nFix *cloud* **job** and _title_ parsing"},
+         "Fix cloud job and title parsing"),
+        ({"objective": "ignored", "title": "Explicit cloud_job_id title"},
+         "Explicit cloud_job_id title"),
     ],
 )
 def test_landing_title_derivation(job, expected):
@@ -357,6 +365,18 @@ def test_apply_land_commits_pushes_and_opens_a_pr(cloud, gh, capsys):
     assert _main(cloud, "apply", job_id, "--land") == 0
     assert "already landed" in capsys.readouterr().out
     assert len(gh.calls("pr", "create")) == 1
+
+
+def test_open_pr_uses_goal_text_after_heading_for_title(cloud, gh, capsys):
+    brief = "# Goal\n\nFix useful PR titles\n\n# Context\nThe heading must not become the title."
+    job_id = _submit_json(cloud, capsys, "--open-pr", task=brief)["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "apply", job_id, "--land") == 0
+
+    (create,) = gh.calls("pr", "create")
+    argv = create["argv"]
+    assert argv[argv.index("--title") + 1] == "Fix useful PR titles"
 
 
 def test_land_discards_codex_error_log_and_stages_only_provider_diff(cloud, gh, capsys, monkeypatch):

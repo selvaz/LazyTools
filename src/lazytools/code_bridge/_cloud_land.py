@@ -102,7 +102,23 @@ def _is_heading(value: str) -> bool:
 
 def _short_title(value: str) -> str:
     """A redacted, single-line title of at most 72 chars, cut at a word boundary."""
-    value = re.sub(r"\s+", " ", value).strip().lstrip("#*-> ").strip()
+    value = re.sub(r"\s+", " ", value).strip()
+    # A goal is often formatted rather than written as plain text.  Keep the
+    # formatting syntax out of commit subjects and PR titles while preserving
+    # the label/text that a person would see in rendered Markdown.
+    value = re.sub(r"!\[([^]]*)\]\([^)]+\)", r"\1", value)
+    value = re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", value)
+    code_spans: list[str] = []
+
+    def preserve_code_span(match: re.Match[str]) -> str:
+        code_spans.append(match.group(2))
+        return f"\x00{len(code_spans) - 1}\x00"
+
+    value = re.sub(r"(?<!\\)(`+)(.+?)(?<!\\)\1", preserve_code_span, value)
+    value = re.sub(r"(?<![\w\\])(\*\*|__|~~)(?=\S)(.+?)(?<=\S)\1(?!\w)", r"\2", value)
+    value = re.sub(r"(?<![\w\\])([*_])(?=\S)(.+?)(?<=\S)\1(?!\w)", r"\2", value)
+    value = re.sub(r"\x00(\d+)\x00", lambda match: code_spans[int(match.group(1))], value)
+    value = value.lstrip("#*-> ").strip()
     if len(value) <= 72:
         return redact(value)
     shortened = value[:73].rsplit(" ", 1)[0]

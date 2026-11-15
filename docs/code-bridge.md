@@ -51,6 +51,53 @@ Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;
 for every lifecycle command. Logs are under the Store's results directory
 (default `~/.lazytools/results/`).
 
+## Navigator R1: the merge-ready loop
+
+Run the production loop with one check flag per required command:
+
+```console
+lazytools-code-bridge navigate --repo OWNER/REPO --pr 277 \
+  --reviewer-cmd "review-wrapper" --checks "pytest" --checks "ruff check" \
+  --max-rounds 3 --fix-engine codex
+```
+
+The reviewer must post `<!-- independent-review v1 -->` and print a JSON object
+with an explicit `findings` list. The bridge reads the marker and Codex bot
+inline findings for the exact head through `gh api`. Checks run only in a
+temporary detached worktree. Exit 0 means merge-ready, 3 means owner escalation
+(P0/P1, an unknown severity, or the round cap), and 1 means an operational,
+review-contract, independence, or check failure. The command never merges and
+never pushes the default branch.
+
+`lazytools.code_bridge._navigator.Navigator` is the provider-neutral state
+machine for taking a delegated cloud job to **merge-ready**. A backend first
+resyncs a legacy poll-failed job from provider truth and lands it on its pull
+request. The navigator then requests an independent review of the exact pushed
+head. Every new head is reviewed once, and the reported reviewer model must be
+different from the author model. A backend may use `run_reviewer_command` for a
+configured reviewer executable; the command receives `LAZYTOOLS_REVIEW_HEAD`,
+`LAZYTOOLS_REVIEW_PR`, and `LAZYTOOLS_AUTHOR_MODEL` and returns JSON such as:
+
+```json
+{"reviewer_model":"claude","findings":[{"severity":"P2","message":"add a boundary test"}]}
+```
+
+Non-critical findings produce a focused fix brief and a relaunch on the same
+PR, followed by a review of the new head. The default cap is three review
+rounds. Reaching it creates an explicit `round-cap` escalation record and exits
+nonzero. A P0, P1, or unrecognised-severity finding immediately creates an `escalated` owner record and
+exits nonzero; it is never silently sent through another autonomous fix round.
+Changing PRs, reusing a reviewed head, an unknown author model, or using the author's model for review
+also fails closed.
+
+A clean review is not enough to close the task. The backend runs all contract
+checks, recording every result. Navigator R1's standard checks are
+`pytest tests -k code_bridge`, `ruff check`, and
+`mypy src/lazytools/code_bridge`. The first failure stops the run with
+`checks-failed`; only a clean review on the current head plus all-green checks
+produces `merge-ready` and exit status zero. The loop never merges and never
+pushes to `main`: the existing `safe_merge` gate remains the only landing path.
+
 `--task @brief.md` reads a UTF-8 task file rather than treating it as literal
 text; detached launch resolves its path before passing it to the worker.
 The final text is also saved to a result file under the results directory;
@@ -1158,9 +1205,11 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
 - Every status write re-reads the record under the machine-wide guard and
   never overwrites a terminal status: a poll or submit whose answer arrives
   after a `cancel` cannot bring the job back (or take its place again).
-- `cancel` stops **tracking** a cloud job (marks it `interrupted` and frees
-  its place) but does **not** stop the remote task; it prints the task URL so
-  you can cancel it there.
+- `cancel` on a cloud job uses the same provider-stop path as `cloud-stop`.
+  It reports both the provider result and the local tracking result, and only
+  marks the job `interrupted` after the provider confirms it stopped or had
+  already finished. A provider-stop failure leaves the job tracked and exits
+  non-zero; an unconfirmed stop request also leaves it tracked.
 
 ### `apply`: never in your checkout, never pushed
 
@@ -1333,6 +1382,10 @@ cancelled and polled for up to 60 seconds; if it remains active, the result is
 `stop requested, not confirmed` rather than a false failure. Claude queues the
 stop instruction through `claude --cloud`, allowing the CLI to manage its own
 authentication, and reports `stop requested`, never `stopped`.
+
+The ordinary `cancel <job-id>` command uses this same stop path for cloud jobs
+and prints both the provider and local tracking outcomes. Use `cloud-stop`
+directly for provider tasks that have no bridge job or for bulk stopping.
 
 Use `cloud-stop --all-running` to combine running tasks reported by
 `codex cloud list --json` (including tasks created outside this bridge) with
