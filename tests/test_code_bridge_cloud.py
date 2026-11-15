@@ -12,12 +12,12 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import textwrap
 from pathlib import Path
 
 import pytest
 
+from code_bridge_test_helpers import write_python_executable
 from lazytools.code_bridge import _cloud, _cloud_stop, _concurrency, _jobs, _store, cli
 from lazytools.code_bridge._concurrency import EngineSlot
 
@@ -154,15 +154,7 @@ def cloud(tmp_path, monkeypatch):
     """A git repo with an origin remote, a fake codex CLI, and an env mapping for the repo."""
     tools = tmp_path / "tools"
     tools.mkdir()
-    script = tools / "fake_codex.py"
-    script.write_text(FAKE_CODEX, encoding="utf-8")
-    if sys.platform == "win32":
-        exe = tools / "codex.cmd"
-        exe.write_text(f'@"{sys.executable}" "{script}" %*\n', encoding="utf-8")
-    else:
-        exe = tools / "codex"
-        exe.write_text(f"#!{sys.executable}\n" + FAKE_CODEX, encoding="utf-8")
-        exe.chmod(0o755)
+    exe = write_python_executable(tools, "codex", FAKE_CODEX)
     log = tmp_path / "codex-calls.jsonl"
     status_file = tmp_path / "status.txt"
     status_file.write_text("Task status: pending\n", encoding="utf-8")
@@ -885,8 +877,8 @@ def test_apply_refuses_moved_branch_unless_rebase(cloud, tmp_path, capsys):
     _git(cloud.repo, "remote", "add", "real", str(origin))
     _git(cloud.repo, "push", "-q", "real", "main")
     _git(cloud.repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
-    _git(cloud.repo, "config", "remote.origin.url", str(origin))  # fetchable; slug comes from the map below
-    _set_cloud_config(f'"{_cloud.parse_remote(str(origin))}" = "env_widgets"\n')
+    _git(cloud.repo, "config", "remote.origin.url", origin.as_posix())  # fetchable; slug comes from the map below
+    _set_cloud_config(f'"{_cloud.parse_remote(origin.as_posix())}" = "env_widgets"\n')
     base = _git(cloud.repo, "rev-parse", "HEAD")
 
     job_id = _submit(cloud, capsys)
@@ -918,9 +910,9 @@ def test_apply_uses_recorded_base_when_branch_has_not_moved(cloud, tmp_path, cap
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", str(origin))
     _git(cloud.repo, "push", "-q", str(origin), "main")
-    _git(cloud.repo, "config", "remote.origin.url", str(origin))
+    _git(cloud.repo, "config", "remote.origin.url", origin.as_posix())
     _git(cloud.repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
-    _set_cloud_config(f'"{_cloud.parse_remote(str(origin))}" = "env_widgets"\n')
+    _set_cloud_config(f'"{_cloud.parse_remote(origin.as_posix())}" = "env_widgets"\n')
     base = _git(cloud.repo, "rev-parse", "HEAD")
     job_id = _submit(cloud, capsys)
     cloud.set_status("status: ready\nok\n")

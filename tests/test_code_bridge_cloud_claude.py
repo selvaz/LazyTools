@@ -12,12 +12,12 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import textwrap
 from pathlib import Path
 
 import pytest
 
+from code_bridge_test_helpers import write_python_executable
 from lazytools.code_bridge import _cloud, _cloud_claude, _concurrency, _jobs, _store, cli
 
 SESSION_URL = "https://claude.ai/code/session_abc123def"
@@ -53,9 +53,7 @@ def _git(cwd: Path, *args: str) -> str:
 def cc(tmp_path, monkeypatch):
     tools = tmp_path / "tools"
     tools.mkdir()
-    exe = tools / "claude"
-    exe.write_text(f"#!{sys.executable}\n" + FAKE_CLAUDE, encoding="utf-8")
-    exe.chmod(0o755)
+    exe = write_python_executable(tools, "claude", FAKE_CLAUDE)
     log = tmp_path / "claude-calls.jsonl"
     monkeypatch.setenv("CLAUDE_BIN", str(exe))
     monkeypatch.setenv("FAKE_CLAUDE_LOG", str(log))
