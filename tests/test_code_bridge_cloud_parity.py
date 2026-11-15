@@ -437,6 +437,7 @@ def test_land_force_adds_only_ignored_paths_from_cloud_diff_and_reports_them(clo
     assert _git(cloud.repo, "show", "--format=", "--name-only", job["pushed_sha"]).splitlines() == ["data/endpoints.yaml"]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="the provider file name ':(glob)*.secret' cannot exist on Windows")
 def test_land_treats_provider_file_as_literal_pathspec(cloud, gh, capsys, monkeypatch):
     (cloud.repo / ".gitignore").write_text("*.secret\n", encoding="utf-8")
     _git(cloud.repo, "add", ".gitignore")

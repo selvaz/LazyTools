@@ -105,5 +105,5 @@ def _isolated_default_slot_dir(tmp_path_factory, monkeypatch):
     running job would make the concurrency check refuse the test's run."""
     from lazytools.code_bridge import _concurrency
 
-    slots = tmp_path_factory.mktemp("default-engine-slots")
+    slots = tmp_path_factory.mktemp("default-slots") / "engine-slots"
     monkeypatch.setattr(_concurrency, "default_slot_dir", lambda: slots)
