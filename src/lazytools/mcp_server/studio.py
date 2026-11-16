@@ -3,14 +3,21 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
 from lazybridge import Tool
+
+logger = logging.getLogger(__name__)
+_PUBLISHED_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+_RESERVED_NAMES = {"studio_run_status", "studio_status"}
 
 
 class StudioTools:
@@ -20,9 +27,8 @@ class StudioTools:
 
     def __init__(self, *, allow_run: bool = False) -> None:
         self.base_url = os.environ.get("LAZYSTUDIO_URL", "http://127.0.0.1:8000").rstrip("/")
-        token_file = Path(
-            os.path.expanduser(os.environ.get("LAZYSTUDIO_TOKEN_FILE", "~/.lazystudio/operator-token"))
-        )
+        self.wait_seconds = self._wait_seconds()
+        token_file = Path(os.path.expanduser(os.environ.get("LAZYSTUDIO_TOKEN_FILE", "~/.lazystudio/operator-token")))
         self.token = ""
         self.problem = ""
         try:
@@ -31,9 +37,13 @@ class StudioTools:
             self.problem = f"operator token not found at {token_file}"
         if not self.token and not self.problem:
             self.problem = f"operator token is empty at {token_file}"
+        if self.token and not self._token_destination_allowed():
+            self.problem = (
+                "refusing to send the operator token to a non-loopback URL; set LAZYSTUDIO_ALLOW_REMOTE=1 to allow it"
+            )
 
         self.published: list[dict[str, Any]] = []
-        if self.token:
+        if self.token and not self.problem:
             try:
                 payload = self._request("GET", "/api/mcp-tools")
                 if not isinstance(payload, list):
@@ -42,6 +52,29 @@ class StudioTools:
             except (OSError, ValueError) as exc:
                 self.problem = f"could not connect to LazyStudio at {self.base_url}: {exc}"
         self.allow_run = allow_run
+
+    @staticmethod
+    def _wait_seconds() -> int:
+        raw = os.environ.get("LAZYSTUDIO_WAIT_SECONDS", "60")
+        try:
+            value = int(raw)
+        except ValueError:
+            logger.warning("Invalid LAZYSTUDIO_WAIT_SECONDS=%r; using 60", raw)
+            return 60
+        return min(600, max(0, value))
+
+    def _token_destination_allowed(self) -> bool:
+        parsed = urlsplit(self.base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return False
+        if os.environ.get("LAZYSTUDIO_ALLOW_REMOTE") == "1":
+            return True
+        if parsed.hostname.lower() == "localhost":
+            return True
+        try:
+            return ip_address(parsed.hostname).is_loopback
+        except ValueError:
+            return False
 
     def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
         data = json.dumps(body).encode() if body is not None else None
@@ -56,13 +89,28 @@ class StudioTools:
             },
         )
         try:
-            with urlopen(request, timeout=15) as response:
+            with urlopen(request, timeout=self.wait_seconds + 15) as response:
                 return json.load(response)
         except HTTPError as exc:
             # Never include request headers (and therefore never the token) in errors.
-            raise OSError(f"LazyStudio returned HTTP {exc.code}") from None
+            message = ""
+            try:
+                error_payload = json.load(exc)
+                if isinstance(error_payload, dict):
+                    message = str(error_payload.get("message") or error_payload.get("detail") or "")
+                    run_id = error_payload.get("run_id")
+                    if isinstance(run_id, str) and run_id not in message:
+                        message = f"{message} (run_id={run_id})" if message else f"run_id={run_id}"
+            except (OSError, ValueError, TypeError):
+                pass
+            suffix = f": {message}" if message else ""
+            raise OSError(f"LazyStudio returned HTTP {exc.code}{suffix}") from None
         except URLError as exc:
+            if isinstance(exc.reason, TimeoutError):
+                raise OSError(f"LazyStudio timed out after {self.wait_seconds + 15} seconds") from None
             raise OSError(str(exc.reason)) from None
+        except TimeoutError:
+            raise OSError(f"LazyStudio timed out after {self.wait_seconds + 15} seconds") from None
 
     @staticmethod
     def _result(payload: Any) -> str:
@@ -72,13 +120,21 @@ class StudioTools:
         run_id = payload.get("run_id")
         if status == "running" and isinstance(run_id, str):
             return f"still running, run_id={run_id}"
-        if status in {"succeeded", "failed"} and isinstance(payload.get("output"), str):
+        if status == "succeeded" and isinstance(payload.get("output"), str):
             return payload["output"]
-        raise ValueError("LazyStudio returned an invalid result")
+        if status == "failed":
+            detail = payload.get("output") or payload.get("error") or "unknown error"
+            if isinstance(detail, str):
+                run = f" (run_id={run_id})" if isinstance(run_id, str) else ""
+                return f"failed: {detail}{run}"
+        run = f" (run_id={run_id})" if isinstance(run_id, str) else ""
+        raise ValueError(f"LazyStudio returned an invalid result{run}")
 
     def _call(self, name: str, task: str) -> str:
         payload = self._request(
-            "POST", f"/api/mcp-tools/{quote(name, safe='')}/call", {"task": task}
+            "POST",
+            f"/api/mcp-tools/{quote(name, safe='')}/call",
+            {"task": task, "wait_seconds": self.wait_seconds},
         )
         return self._result(payload)
 
@@ -126,10 +182,13 @@ class StudioTools:
         if not self.allow_run:
             return tools
 
+        seen = set(_RESERVED_NAMES)
         for item in self.published:
             name = item.get("name")
-            if not isinstance(name, str):
+            if not isinstance(name, str) or not _PUBLISHED_NAME_RE.fullmatch(name) or name in seen:
+                logger.warning("Skipping invalid, reserved, or duplicate Studio tool name: %r", name)
                 continue
+            seen.add(name)
             description = item.get("description")
             tools.append(
                 self._published_tool(
