@@ -429,7 +429,11 @@ def _land_pushed_branch(store: Any, registry: Any, job: dict[str, Any], *, sourc
     # caller may use ``--source`` when both recorded Claude branch identities
     # exist, so capture_report's default branch is not necessarily this tip.
     prov = _cloud.provider(str(job["engine"]))
-    job, _diff = _cloud.capture_report(store, registry, job, prov.job_diff(job, str(result_branch)))
+    # job_diff is a Claude-provider hook, not part of the CloudProvider protocol.
+    job_diff = getattr(prov, "job_diff", None)
+    if job_diff is None:
+        raise CloudError(f"engine {job['engine']!r} has no result-branch diff to land")
+    job, _diff = _cloud.capture_report(store, registry, job, job_diff(job, str(result_branch)))
     # Claude commits the transport report to its result branch. Publish a
     # descendant commit that removes it before that branch can become a PR
     # head (or be fast-forwarded into an existing PR).
