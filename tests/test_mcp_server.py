@@ -238,6 +238,30 @@ async def test_end_to_end_list_and_call():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("read_only", [False, True])
+async def test_projects_complete_todo_server_listing(tmp_path, read_only):
+    from lazytools.connectors.projects import ProjectsTools
+
+    provider = ProjectsTools(store_db=str(tmp_path / "store.sqlite"), allow_write=True)
+    server = build_server([provider], read_only=read_only)
+    async with _connected_client(server) as client:
+        listed = await client.list_tools()
+        names = {t.name for t in listed.tools}
+        assert ("projects_complete_todo" in names) is (not read_only)
+        if not read_only:
+            tool = next(t for t in listed.tools if t.name == "projects_complete_todo")
+            assert tool.description == (
+                "Close a todo task that has NO acceptance contract, after verifying in person that the work is done. "
+                "Tasks with a contract must use projects_close_task."
+            )
+            schema = _field(tool, "input_schema", "inputSchema")
+            assert set(schema["required"]) == {"project_id", "task_index", "summary"}
+            assert schema["properties"]["project_id"]["type"] == "string"
+            assert schema["properties"]["task_index"]["type"] == "integer"
+            assert schema["properties"]["summary"]["type"] == "string"
+
+
+@pytest.mark.anyio
 async def test_call_tool_error_is_reported_not_raised():
     def explode() -> str:
         raise RuntimeError("kaboom")

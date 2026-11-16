@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Projects MCP: `projects_complete_todo` closes todo tasks without an acceptance contract after in-person verification, with a required summary (core and full profiles, write access).
+
 ## [0.10.10] — 2026-11-15
 
 ### Added
