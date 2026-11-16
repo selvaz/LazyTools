@@ -133,6 +133,45 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `code_bridge` | `CodeBridgeTools(...)` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` — local and cloud coding jobs through `lazytools-code-bridge` | `--allow-unsafe`; cloud jobs also need `allow_cloud=true` per call |
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
 | `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — Tools that delegate through `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
+| `studio` | Published agents and pipelines discovered from LazyStudio | each published `studio_<slug>` tool, `studio_run_status`; `studio_status` when disconnected | LazyStudio operator token; published calls need `--allow-unsafe` |
+
+## Use Studio agents from Claude Code / Codex
+
+LazyStudio agents and pipelines marked as MCP-exposed can be discovered when
+the server starts and called through the `studio` provider. Set the Studio URL
+and operator-token path if you do not use their defaults:
+
+```bash
+export LAZYSTUDIO_URL=http://127.0.0.1:8000
+export LAZYSTUDIO_TOKEN_FILE=~/.lazystudio/operator-token
+lazytools-mcp studio --allow-unsafe
+```
+
+The defaults are the values above. `--allow-unsafe` is intentional: invoking a
+published tool runs an agent and may have side effects, so the provider follows
+the same provider-level opt-in used by other write-capable tools. Without the
+flag, only `studio_run_status` is exposed. If Studio is down or its token is
+missing, the MCP server still starts and exposes `studio_run_status` plus
+`studio_status`, which explains how to repair the connection. Restart the MCP
+server after publishing or unpublishing a tool so it refreshes the tool list.
+
+To let Claude Code spawn the stdio server:
+
+```bash
+claude mcp add studio -- lazytools-mcp studio --allow-unsafe
+```
+
+For Codex, add an equivalent stdio MCP server entry to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.studio]
+command = "lazytools-mcp"
+args = ["studio", "--allow-unsafe"]
+```
+
+Each published tool accepts one `task` string. A run that finishes during the
+Studio wait window returns its output directly. A longer run returns
+`still running, run_id=...`; pass that id to `studio_run_status(run_id)`.
 
 ### `web` — keep interactive research out of the production news DB
 

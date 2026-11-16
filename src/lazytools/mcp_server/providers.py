@@ -54,6 +54,14 @@ def _register(provider_id: str) -> Callable[[Callable[..., Any]], Callable[..., 
     return deco
 
 
+@_register("studio")
+def _studio(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Published LazyStudio agents (execution requires ``--allow-unsafe``)."""
+    from lazytools.mcp_server.studio import StudioTools
+
+    return StudioTools(allow_run=allow_write)
+
+
 @_register("datahub")
 def _datahub(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """market-data-hub discovery / resolution / financial facts.
