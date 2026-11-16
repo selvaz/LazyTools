@@ -8,8 +8,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.11] — 2026-11-15
+
 ### Added
-- Projects MCP: `projects_complete_todo` closes todo tasks without an acceptance contract after in-person verification, with a required summary (core and full profiles, write access).
+- Projects MCP: `projects_complete_todo` closes todo tasks without an acceptance contract after in-person verification, with a required summary (core and full profiles, write access) (#297).
+
+### Fixed
+- Code bridge landing calls the Claude-only `job_diff` hook through `getattr` and refuses engines without it; restores the mypy gate on main (#298).
 
 ## [0.10.10] — 2026-11-15
 
