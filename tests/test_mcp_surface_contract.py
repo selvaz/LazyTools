@@ -33,6 +33,7 @@ from lazytools.mcp_server.server import UNSAFE_TOOL_PATTERNS, expand_tools
 
 EXPECTED_PROVIDER_IDS = {
     "datahub",
+    "studio",
     "statistical",
     "econ_calendar",
     "earnings_calendar",
