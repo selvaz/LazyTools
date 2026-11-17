@@ -26,7 +26,7 @@ from typing import Any
 from lazytools.code_bridge import _concurrency, _engines, _progress, _routine, _store, _tempdir
 from lazytools.code_bridge._approvals import BridgeGate, short_branch
 from lazytools.code_bridge._lockfile import JobLock
-from lazytools.code_bridge._policy import CODING_RULES
+from lazytools.code_bridge._policy import CODING_RULES, REVIEW_RULES
 from lazytools.code_bridge._turn_cleanup import TurnCleanup
 
 ENGINES: tuple[str, ...] = ("codex", "claude")
@@ -506,8 +506,6 @@ def run_job(
             on_waiting=lambda: _set_status("awaiting_approval"),
             on_resumed=lambda: _set_status("running"),
         )
-        from lazytools.code_bridge._policy import REVIEW_RULES
-
         gate = BridgeGate(channel=channel, rules=REVIEW_RULES if profile == "review" else CODING_RULES,
                           cwd=str(resolved_cwd), temp_dir=temp_arg, profile=profile,
                           routine=_routine.RoutineAuto(routine_policy, store, queue, job_id))

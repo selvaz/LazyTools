@@ -624,7 +624,17 @@ class BridgeGate(TieredGate):
         if self.profile == "review" and isinstance(command, str) and (request.kind == "command" or request.name == "Bash"):
             from lazytools.code_bridge._review_policy import review_denial
 
-            reason = review_denial(command, request.cwd or self.cwd or "")
+            # ``self.cwd`` is pinned by the job runner.  An engine-reported cwd
+            # is only the execution directory; it must never widen the fixed
+            # workspace boundary.
+            reason = review_denial(command, self.cwd or "", request.cwd)
+            if request.kind == "command":
+                raw_text = repr(dict(request.raw)).lower()
+                if any(marker in raw_text for marker in (
+                    "require_escalated", "danger-full-access", "network_access': true",
+                    'network_access": true', "writable_roots", "additional_permissions",
+                )):
+                    reason = reason or "Codex sandbox escalation"
             if reason:
                 return Rule("ask", request.name, arg_pattern=f"profile:review:{reason}")
             return _ProfileMatch(cast(Any, "profile:review"), request.name, profile="review")

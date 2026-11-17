@@ -1,7 +1,8 @@
-"""Fail-closed exceptions for the local ``review`` approval profile."""
+"""Capability holds for the local ``review`` approval profile."""
 
 from __future__ import annotations
 
+import ntpath
 import re
 import shlex
 from pathlib import Path
@@ -9,137 +10,336 @@ from pathlib import Path
 from lazytools.code_bridge._readonly import sensitive_name
 
 _GIT_DENY = {
-    "push", "commit", "merge", "rebase", "cherry-pick", "revert", "pull",
-    "checkout", "switch", "worktree", "replace", "filter-branch", "update-ref",
+    "am",
+    "checkout",
+    "cherry-pick",
+    "commit",
+    "commit-tree",
+    "filter-branch",
+    "merge",
+    "pull",
+    "push",
+    "rebase",
+    "replace",
+    "revert",
+    "rm",
+    "switch",
+    "symbolic-ref",
+    "update-ref",
+    "worktree",
 }
-_PUBLISH = {("npm", "publish"), ("pnpm", "publish"), ("yarn", "publish"),
-            ("cargo", "publish"), ("dotnet", "nuget"), ("twine", "upload"),
-            ("gem", "push"), ("docker", "push"), ("podman", "push")}
-_SCHEDULE = {"crontab", "at", "schtasks", "launchctl"}
-_SERVICE = {"systemctl", "service", "sc", "net"}
-_WRITE_COMMANDS = {"touch", "mkdir", "install", "cp", "mv", "tee", "truncate"}
-_SHELLS = {"sh", "bash", "zsh", "dash", "cmd", "cmd.exe"}
+_GIT_SPECIAL = {"branch", "clean", "config", "fetch", "gc", "reflog", "remote", "reset", "restore", "stash", "tag"}
+_SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "cmd"}
+_REMOVERS = {"rm", "rmdir", "rd", "del", "erase", "remove-item", "ri", "unlink", "shred"}
+_WRITERS = {
+    "touch",
+    "mkdir",
+    "install",
+    "cp",
+    "mv",
+    "tee",
+    "truncate",
+    "ln",
+    "dd",
+    "rsync",
+    "set-content",
+    "add-content",
+    "out-file",
+    "copy-item",
+    "move-item",
+    "new-item",
+    "chmod",
+}
+_SCHEDULE = {
+    "crontab",
+    "at",
+    "schtasks",
+    "launchctl",
+    "register-scheduledtask",
+    "start-scheduledtask",
+    "unregister-scheduledtask",
+}
+_SERVICE = {
+    "systemctl",
+    "service",
+    "sc",
+    "net",
+    "start-service",
+    "stop-service",
+    "restart-service",
+    "new-service",
+    "set-service",
+}
+_PUBLISHERS = {
+    "npm",
+    "pnpm",
+    "yarn",
+    "cargo",
+    "poetry",
+    "uv",
+    "hatch",
+    "flit",
+    "pdm",
+    "maturin",
+    "nuget",
+    "helm",
+    "vsce",
+    "ovsx",
+    "twine",
+    "gem",
+}
+_GH_READ = {
+    "pr": {"view", "list", "diff", "checks", "status"},
+    "issue": {"view", "list", "status"},
+    "repo": {"view", "list"},
+    "run": {"view", "list", "watch"},
+    "workflow": {"view", "list"},
+    "release": {"view", "list", "download"},
+    "gist": {"view", "list"},
+}
+_OPERATORS = {";", "&&", "||", "|", "&", "(", ")", "{", "}"}
 
 
-def _words(text: str) -> list[str] | None:
+def _exe(value: str) -> str:
+    name = ntpath.basename(value.replace("\\", "/")).lower()
+    for suffix in (".exe", ".cmd", ".bat", ".com"):
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
+def _tokens(text: str) -> list[str] | None:
     try:
-        return shlex.split(text, posix=True)
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=";&|(){}<>")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        return list(lexer)
     except ValueError:
         return None
 
 
-def _path_denied(value: str, cwd: Path, *, removal: bool = False) -> bool:
-    if value.startswith("-") or value in {".", "./"}:
+def _uncertain(value: str) -> bool:
+    return bool(re.search(r"(?:\$|%[^%]+%|`|\*|\?|\[|\]|\{|\})", value))
+
+
+def _path_denied(value: str, workspace: Path, base: Path, *, removal: bool = False) -> bool:
+    if not value or value.startswith("-"):
         return False
+    if _uncertain(value) or re.match(r"^[A-Za-z]:[\\/]", value):
+        return True
     raw = Path(value).expanduser()
     try:
-        target = (cwd / raw).resolve() if not raw.is_absolute() else raw.resolve()
-        target.relative_to(cwd.resolve())
+        target = (base / raw).resolve() if not raw.is_absolute() else raw.resolve()
+        target.relative_to(workspace.resolve())
     except (OSError, RuntimeError, ValueError):
         return True
-    return any(sensitive_name(part) for part in target.parts) or (removal and target == cwd.resolve())
+    return any(sensitive_name(part) for part in target.parts) or (removal and target == workspace.resolve())
 
 
-def _git_subcommand(words: list[str], start: int) -> tuple[str | None, list[str]]:
-    """Skip git config overrides/global options without letting them hide a verb."""
+def _git_subcommand(words: list[str], start: int) -> tuple[str | None, list[str], str | None]:
     i = start + 1
-    value_options = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env"}
     while i < len(words):
         item = words[i]
-        flag = item.split("=", 1)[0]
-        if flag in value_options:
-            i += 1 if "=" in item else 2
+        low = item.lower()
+        if item == "-C":
+            return None, [], "git working-directory override"
+        if low == "-c":
+            value = words[i + 1] if i + 1 < len(words) else ""
+            if value.lower().startswith("alias."):
+                return None, [], "git alias/config override"
+            i += 2
+        elif low.startswith("-c") and not low.startswith("--"):
+            if item[2:].lower().startswith("alias."):
+                return None, [], "git alias/config override"
+            i += 1
+        elif low in {"-C".lower(), "--git-dir", "--work-tree", "--namespace", "--config-env"}:
+            value = words[i + 1] if i + 1 < len(words) else ""
+            if low == "--config-env" and value.lower().startswith("alias."):
+                return None, [], "git alias/config override"
+            i += 2
+        elif low.startswith("--config-env=alias."):
+            return None, [], "git alias/config override"
         elif item.startswith("-"):
             i += 1
         else:
-            return item.lower(), words[i + 1:]
-    return None, []
+            return low, words[i + 1 :], None
+    return None, [], None
 
 
-def _exact_review_comment(words: list[str]) -> bool:
+def _safe_comment(words: list[str], workspace: Path, base: Path) -> bool:
+    low = [w.lower() for w in words]
     return (
-        len(words) == 8 and [word.lower() for word in words[:3]] == ["gh", "pr", "comment"]
-        and words[3].isdigit() and words[4] == "--repo"
+        len(words) == 8
+        and low[:3] == ["gh", "pr", "comment"]
+        and words[3].isdigit()
+        and low[4] == "--repo"
         and bool(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", words[5]))
-        and words[6] == "--body-file" and bool(words[7])
+        and low[6] == "--body-file"
+        and not _path_denied(words[7], workspace, base)
     )
 
 
-def review_denial(command: str, cwd: str) -> str | None:
-    """Return the held capability, or ``None`` when review may auto-approve."""
-    words = _words(command)
-    if not words:
-        return "unparseable command"
-    root = Path(cwd)
-    lower = [word.lower() for word in words]
+def _gh_denial(words: list[str], workspace: Path, base: Path) -> str | None:
+    if _safe_comment(words, workspace, base):
+        return None
+    args: list[str] = []
+    i = 1
+    while i < len(words):
+        low = words[i].lower()
+        if low in {"-r", "--repo", "--hostname"}:
+            i += 2
+        elif low.startswith(("--repo=", "-r=")):
+            i += 1
+        else:
+            args.append(words[i])
+            i += 1
+    low_args = [a.lower() for a in args]
+    if not low_args:
+        return None
+    if low_args[0] == "api":
+        for j, arg in enumerate(low_args[1:]):
+            original = args[j + 1]
+            if (
+                re.match(r"^-(?:f|F|if).+", original)
+                or arg in {"-f", "--field", "--raw-field", "--input"}
+                or arg.startswith(("--field=", "--raw-field=", "--input="))
+            ):
+                return "gh api write input"
+            method_match = re.match(r"^-x=?(.+)$", arg)
+            if method_match and method_match.group(1) != "get":
+                return "gh api non-GET method"
+            if arg in {"-x", "--method"} and (j + 2 >= len(low_args) or low_args[j + 2] != "get"):
+                return "gh api non-GET method"
+            if arg.startswith("--method=") and not arg.endswith("=get"):
+                return "gh api non-GET method"
+        return None
+    if low_args[0] == "pr" and len(low_args) > 1 and low_args[1] == "comment":
+        return (
+            None
+            if _safe_comment(["gh", *args], workspace, base)
+            else "GitHub PR comment outside the one-comment exception"
+        )
+    if low_args[0] in _GH_READ and len(low_args) > 1 and low_args[1] in _GH_READ[low_args[0]]:
+        return None
+    return "GitHub remote mutation"
 
-    # Leading operators and nested command interpreters must not hide a denied verb.
-    if re.match(r"\s*(?:[;&|]|&&|\|\|)", command):
-        return "leading shell separator"
-    for i, word in enumerate(lower):
-        if word in _SHELLS and i + 2 < len(words) and lower[i + 1] in {"-c", "/c"}:
-            nested = review_denial(words[i + 2], cwd)
-            if nested:
-                return nested
-        if word in {"powershell", "powershell.exe", "pwsh", "pwsh.exe"}:
-            try:
-                index = next(j for j in range(i + 1, len(words)) if lower[j] in {"-command", "-c"})
-            except StopIteration:
-                continue
-            nested = review_denial(" ".join(words[index + 1:]), cwd)
-            if nested:
-                return nested
 
-    for i, word in enumerate(lower):
-        if word == "git":
-            verb, args = _git_subcommand(words, i)
-            if verb in _GIT_DENY:
-                return f"git {verb}"
-            if verb == "reset" and "--hard" in args:
-                return "git reset --hard"
-            if verb == "branch" and any(a in {"-d", "-D", "--delete"} for a in args):
-                return "git branch deletion"
-        if word == "gh" and i + 1 < len(words):
-            tail, low_tail = words[i:], lower[i:]
-            if low_tail[:3] == ["gh", "pr", "comment"] and _exact_review_comment(tail):
-                continue
-            if low_tail[:3] == ["gh", "pr", "comment"]:
-                return "GitHub PR comment outside the one-comment exception"
-            if len(low_tail) > 2 and low_tail[1] == "pr" and low_tail[2] in {
-                "merge", "close", "edit", "review", "ready", "reopen"
-            }:
-                return "GitHub PR state change"
-            if len(low_tail) > 1 and low_tail[1] == "api":
-                api_args = low_tail[2:]
-                for j, arg in enumerate(api_args):
-                    if arg in {"-f", "--field", "--raw-field", "--input"} or arg.startswith(("--field=", "--raw-field=", "--input=")):
-                        return "gh api write input"
-                    if arg in {"-x", "--method"} and (j + 1 == len(api_args) or api_args[j + 1] != "get"):
-                        return "gh api non-GET method"
-                    if arg.startswith("--method=") and arg.split("=", 1)[1] != "get":
-                        return "gh api non-GET method"
-            if len(low_tail) > 2 and low_tail[1] == "release" and low_tail[2] != "view":
-                return "publishing to a remote"
-        if tuple(lower[i:i + 2]) in _PUBLISH:
-            return "package publishing"
-        if word in _SCHEDULE:
-            return "scheduled task control"
-        if word in _SERVICE and not (word == "net" and lower[i:i + 2] not in (["net", "start"], ["net", "stop"])):
-            return "service control"
-        if word in {"sudo", "doas"}:
-            return "sandbox escalation"
-        if word in {"rm", "rmdir", "del", "erase", "remove-item"}:
-            for operand in words[i + 1:]:
-                if _path_denied(operand, root, removal=True):
-                    return "removal outside workspace or credential path"
-        if word in _WRITE_COMMANDS:
-            for operand in words[i + 1:]:
-                if _path_denied(operand, root):
+def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> str | None:
+    """Return a held capability; ``cwd`` is always the fixed workspace boundary."""
+    words = _tokens(command)
+    if not words or not cwd:
+        return "unparseable command or unknown workspace"
+    workspace = Path(cwd).resolve()
+    base = Path(execution_cwd or cwd).resolve()
+    # POSIX shlex consumes Windows path separators.  Inspect the original text
+    # before tokenisation can turn ``..\\x`` into the harmless-looking ``..x``.
+    if "\\" in command and any(
+        re.search(rf"(?i)(?:^|\s){re.escape(name)}(?:\s|$)", command) for name in _REMOVERS | _WRITERS
+    ):
+        return "Windows-path mutation requires review"
+    if any(mark in command for mark in ("$(`", "$(", "${", "$env:", "%TEMP%", "%HOME%", "`")):
+        return "dynamic shell expansion"
+    for i, token in enumerate(words):
+        exe = _exe(token)
+        if exe in _SHELLS:
+            for j in range(i + 1, len(words)):
+                flag = words[j].lower()
+                if flag == "/c" or flag == "-c" or (flag.startswith("-") and "c" in flag[1:]):
+                    if j + 1 < len(words):
+                        denial = review_denial(" ".join(words[j + 1 :]), cwd, str(base))
+                        if denial:
+                            return denial
+                    break
+        if exe in {"powershell", "pwsh"}:
+            for j in range(i + 1, len(words)):
+                low = words[j].lower()
+                if low in {"-command", "-c"} or low.startswith("-command:"):
+                    nested = words[j].split(":", 1)[1] if ":" in words[j] else " ".join(words[j + 1 :])
+                    denial = review_denial(nested, cwd, str(base))
+                    if denial:
+                        return denial
+                    break
+        if exe in {"eval", "iex", "invoke-expression"}:
+            return "dynamic command evaluation"
+    if "|" in words and any(_exe(w) in _SHELLS for w in words[words.index("|") + 1 :]):
+        return "pipe into command interpreter"
+    segments: list[list[str]] = [[]]
+    for word in words:
+        if word in _OPERATORS:
+            if segments[-1]:
+                segments.append([])
+        elif word not in {">", ">>", ">|", "<", "<<"}:
+            segments[-1].append(word)
+    for segment in segments:
+        for i, token in enumerate(segment):
+            exe = _exe(token)
+            tail = segment[i:]
+            segment_low = [w.lower() for w in tail]
+            if exe == "cd" and i + 1 < len(segment):
+                if _path_denied(segment[i + 1], workspace, base):
+                    return "directory change outside workspace"
+                base = (base / segment[i + 1]).resolve()
+            if exe == "git":
+                verb, args, error = _git_subcommand(segment, i)
+                if error:
+                    return error
+                if verb in _GIT_DENY:
+                    return f"git {verb}"
+                if (
+                    verb == "branch"
+                    and all(a in {"--list", "-l", "-a", "-r", "-v", "-vv"} or not a.startswith("-") for a in args)
+                ) or (verb == "remote" and args in (["-v"], ["--verbose"])):
+                    pass
+                elif verb in _GIT_SPECIAL:
+                    return f"git {verb} mutation"
+            if exe == "gh":
+                denial = _gh_denial(tail, workspace, base)
+                if denial:
+                    return denial
+            if exe in _SCHEDULE:
+                return "scheduled task control"
+            if exe in _SERVICE and not (
+                exe == "net" and len(segment_low) > 1 and segment_low[1] not in {"start", "stop"}
+            ):
+                return "service control"
+            if exe in {"sudo", "doas"}:
+                return "sandbox escalation"
+            if exe in _REMOVERS and any(_path_denied(v, workspace, base, removal=True) for v in tail[1:]):
+                return "removal outside workspace or credential path"
+            if exe == "find" and any(v in {"-delete", "-exec"} for v in segment_low):
+                return "find removal"
+            if exe == "xargs" and any(_exe(v) in _REMOVERS for v in tail[1:]):
+                return "xargs removal"
+            if exe in _WRITERS:
+                operands = [
+                    v.split("=", 1)[-1] if v.startswith(("--target-directory=", "of=")) else v for v in tail[1:]
+                ]
+                if any(_path_denied(v, workspace, base) for v in operands):
                     return "write outside workspace or credential path"
-
-    # Shell output redirects are writes too.
-    for target in re.findall(r"(?<![0-9])>{1,2}\s*([^\s;&|]+)", command):
-        if target != "/dev/null" and _path_denied(target.strip("'\""), root):
+            if (
+                exe in {"sed", "perl"}
+                and any("i" in v.lstrip("-") for v in tail[1:] if v.startswith("-"))
+                and any(_path_denied(v, workspace, base) for v in tail[1:] if not v.startswith("-"))
+            ):
+                return "in-place write outside workspace"
+            if exe in {"curl", "wget"} and any(
+                v in {"-o", "--output", "-O"} or v.startswith("--output=") for v in tail[1:]
+            ):
+                return "download write"
+            if exe in _PUBLISHERS and any(
+                v in {"publish", "push", "upload", "unpublish", "deprecate", "dist-tag", "owner", "login"}
+                for v in segment_low[1:]
+            ):
+                return "package publishing"
+            if (exe in {"docker", "podman"} and any(v in {"push", "run"} for v in segment_low[1:])) or (
+                exe == "docker" and "--push" in segment_low
+            ):
+                return "remote/container mutation"
+            if exe in {"kubectl", "terraform"} and "apply" in segment_low[1:]:
+                return "infrastructure mutation"
+    for match in re.finditer(r"(?:^|\s)(?:\d*)?(?:>>?|>\|)\s*([^\s;&|]+)", command):
+        target = match.group(1).strip("'\"")
+        if target not in {"/dev/null", "nul"} and _path_denied(target, workspace, base):
             return "redirect outside workspace or credential path"
     return None
 

@@ -127,8 +127,8 @@ CODING_RULES: tuple[Rule, ...] = (
 REVIEW_RULES: tuple[Rule, ...] = (
     Rule("allow", "Read"), Rule("allow", "Glob"), Rule("allow", "Grep"),
     Rule("allow", "Write"), Rule("allow", "Edit"), Rule("allow", "WebSearch"),
-    Rule("allow", "WebFetch"), Rule("allow", "Bash"),
-    Rule("allow", "*", kind_pattern="command"),
+    Rule("allow", "WebFetch"), Rule("ask", "Bash"),
+    Rule("ask", "*", kind_pattern="command"),
 )
 
 #: The ``--approve-cloud`` action each named Bash rule of :data:`CODING_RULES`
