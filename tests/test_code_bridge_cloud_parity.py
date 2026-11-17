@@ -1290,11 +1290,15 @@ def test_cloud_config_validates_placement_keys(tmp_path):
     path.write_text('[cloud]\nbusy_windows = "21:00-01:30"\n', encoding="utf-8")
     with pytest.raises(ValueError, match="list"):
         _cloud.load_config(path)
+    path.write_text('[cloud]\nunmapped = "sometimes"\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="unmapped"):
+        _cloud.load_config(path)
     path.write_text('[cloud]\ndefault_where = "auto"\nbusy_windows = ["21:00-01:30", "05:00-06:00"]\n', encoding="utf-8")
     config = _cloud.load_config(path)
     assert config.default_where == "auto" and config.busy_windows == ("21:00-01:30", "05:00-06:00")
     assert _cloud.load_config(tmp_path / "none.toml").default_where == "local"
     assert _cloud.load_config(tmp_path / "none.toml").busy_windows == ()
+    assert _cloud.load_config(tmp_path / "none.toml").unmapped == "local"
 
 
 def test_run_where_auto_goes_cloud_inside_a_busy_window(cloud, gh, capsys, monkeypatch):
@@ -1307,6 +1311,22 @@ def test_run_where_auto_goes_cloud_inside_a_busy_window(cloud, gh, capsys, monke
     payload = json.loads(captured.out.strip().splitlines()[-1])
     assert payload["where"] == "cloud" and payload["placement"]["window"] == "21:00-01:30"
     assert "placement: cloud (requested auto): local time 22:05 is inside the busy window 21:00-01:30" in captured.err
+
+
+def test_run_where_auto_unmapped_codex_repo_falls_back_local(cloud, capsys, monkeypatch):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
+    code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db)])
+    captured = capsys.readouterr()
+    assert code == 0 and "[done] job" in captured.out
+    assert "placement: local (requested auto): no Codex Cloud environment is mapped for acme/other" in captured.err
+    assert '[cloud.codex.envs] "acme/other" = "<env id>"' in captured.err
+    assert cloud.calls() == []
 
 
 def test_run_where_auto_stays_local_outside_the_window_and_default_where_applies(cloud, capsys, monkeypatch):

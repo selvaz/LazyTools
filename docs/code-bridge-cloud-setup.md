@@ -110,6 +110,19 @@ submit_retries = 2            # extra attempts after a submit that errors at onc
 "owner/name" = "<env id>"
 ```
 
+### New repositories
+
+An unmapped repository does not block `--where auto`: it runs locally and
+prints the exact `[cloud.codex.envs]` mapping needed to enable cloud later.
+Explicit `--where cloud` still errors because Codex needs an environment id;
+use `--where auto` or `--where local` until the mapping exists. The default can
+be made strict for automatic placement too:
+
+```toml
+[cloud]
+unmapped = "error"  # default: "local"
+```
+
 ### 4. Log in and test
 
 First discover the repository's real default branch; do not assume it is

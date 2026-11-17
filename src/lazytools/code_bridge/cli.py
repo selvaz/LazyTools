@@ -406,6 +406,15 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
         config = _cloud.load_config()
         requested = args.where or config.default_where
         placement = _cloud_place.decide(requested, windows=config.busy_windows, engine=args.engine)
+        if (requested == _cloud_place.WHERE_AUTO and args.engine == "codex" and config.unmapped == "local"):
+            repo = _cloud.repo_slug(_cloud.repo_root(Path(args.cwd).expanduser().resolve()))
+            if repo.lower() not in config.envs.get("codex", {}):
+                path = config.path or _concurrency.config_path()
+                placement = _cloud_place.Placement(
+                    "local", requested,
+                    f'no Codex Cloud environment is mapped for {repo}; running locally. To enable cloud, add '
+                    f'[cloud.codex.envs] "{repo}" = "<env id>" in {path}',
+                )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
