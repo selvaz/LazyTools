@@ -359,6 +359,12 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             land=args.land, rebase_ok=args.rebase_ok, model=args.model, tier=args.tier, title=args.title,
             extra_meta=extra_meta,
         )
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _cloud_json(exc.payload())
+        else:
+            _cloud_print(f"error: {exc}", err=True)
+        return 2
     except (_cloud.CloudError, ValueError) as exc:
         _cloud_print(f"error: {exc}", err=True)
         return 2
@@ -416,7 +422,7 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
     except (ValueError, _cloud.CloudError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    if placement.requested == _cloud_place.WHERE_AUTO:
+    if placement.requested == _cloud_place.WHERE_AUTO or placement.requested != placement.where:
         print(placement.line(), file=sys.stderr)  # stderr: stdout's first line is the job id
     args.where = placement.where
     args.placement = placement
@@ -618,7 +624,7 @@ def _cmd_route(args: argparse.Namespace) -> int:
         selection = _select(args, cwd=str(cwd), respect_slots=not (placement and placement.where == "cloud"))
     except _cloud.CloudEnvUnmapped as exc:
         if args.json:
-            _print_json(exc.payload())
+            _print_json({**exc.payload(), "placement": "would fail: unmapped"})
         else:
             print(f"would fail: unmapped: {exc}", file=sys.stderr)
         return 2

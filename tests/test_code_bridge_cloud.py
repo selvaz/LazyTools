@@ -234,10 +234,9 @@ def test_missing_mapping_fails_with_create_environment_hint(cloud, capsys):
     code = _run_cloud(cloud)
     err = capsys.readouterr().err
     assert code == 2
-    assert "no Codex Cloud environment mapped for acme/other" in err
-    assert "create a single-repo Codex Cloud environment for acme/other" in err
+    assert "no Codex Cloud environment is mapped for acme/other" in err
     assert "[cloud.codex.envs]" in err
-    assert "--where auto or --where local will work" in err
+    assert "--where local" in err and '[cloud] unmapped = "local"' in err
     assert '"acme/other" = "<env id>"' in err
     assert cloud.calls() == []  # nothing submitted
     store = _store.build_store(cloud.db)
