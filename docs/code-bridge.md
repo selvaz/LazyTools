@@ -1574,8 +1574,11 @@ the cloud when
 and locally otherwise. `run --where auto` prints the decision and why on stderr
 (`placement: cloud (requested auto): local time 22:05 is inside the busy window
 21:00-01:30`) and `--json` adds a `placement` object. `route --tier T --where
-auto` shows the same decision without launching anything. A cloud decision still
-needs `--allow-cloud` and an explicit `--engine`, like any cloud job.
+auto` shows the same decision without launching anything, and MCP submissions use
+the same repository-aware decision. For explicit Codex auto placement, an unmapped
+repository (or unavailable repository metadata) falls back to local by default;
+`[cloud] unmapped = "error"` retains the normal placement decision for unmapped repositories.
+A cloud decision still needs `--allow-cloud` and an explicit `--engine`, like any cloud job.
 
 ### Models for cloud jobs
 

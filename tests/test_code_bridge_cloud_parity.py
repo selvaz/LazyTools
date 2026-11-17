@@ -1679,6 +1679,7 @@ def test_mcp_submit_status_result_for_a_cloud_job_with_landing(cloud, gh, capsys
 def test_mcp_submit_validation_and_local_placement(cloud, capsys, monkeypatch):
     from lazytools.code_bridge._mcp import CodeBridgeTools
 
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
     tools = CodeBridgeTools(root=str(cloud.root))
     runner = _InProcess(tools)
     with pytest.raises(ValueError, match="'@'"):
