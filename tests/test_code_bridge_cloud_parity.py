@@ -1371,6 +1371,30 @@ def test_run_where_auto_resolves_relative_cwd_from_root(cloud, gh, capsys, monke
     assert "placement: cloud (requested auto)" in captured.err
 
 
+def test_run_and_route_place_relative_cwd_from_configured_root(cloud, capsys, monkeypatch, tmp_path):
+    launcher = tmp_path / "launcher"
+    launcher_repo = launcher / "widgets"
+    launcher_repo.mkdir(parents=True)
+    _git(launcher_repo, "init", "-q")
+    _git(launcher_repo, "remote", "add", "origin", "https://github.com/acme/widgets.git")
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/unmapped.git")
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    monkeypatch.setattr(_cloud_place, "local_now", lambda: _at(12))
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(cloud.root))
+    monkeypatch.chdir(launcher)
+
+    base = ["--where", "auto", "--engine", "codex", "--cwd", "widgets", "--json"]
+    assert cli.main(["run", *base, "--allow-cloud"]) == 2
+    run = json.loads(capsys.readouterr().out)
+    assert cli.main(["route", *base, "--tier", "writing"]) == 2
+    route = json.loads(capsys.readouterr().out)
+    for result in (run, route):
+        assert result["ok"] is False
+        assert result["error_code"] == "cloud_env_unmapped"
+        assert result["repo"] == "acme/unmapped"
+    assert cloud.calls() == []
+
+
 def test_run_where_auto_unmapped_tolerates_allow_cloud_when_falling_back(cloud, capsys, monkeypatch):
     import _code_bridge_fakes as fakes
 
@@ -1398,7 +1422,7 @@ def test_unmapped_auto_with_all_local_slots_busy_fails(cloud, capsys, monkeypatc
     assert cli.main(["run", *args, "--root", str(cloud.root), "--task", "x", "--json"]) == 2
     payload = json.loads(capsys.readouterr().out)
     assert payload["error_code"] == "cloud_env_unmapped" and payload["repo"] == "acme/other"
-    assert cli.main(["route", "--tier", "writing", *args]) == 2
+    assert cli.main(["route", "--tier", "writing", *args, "--root", str(cloud.root)]) == 2
     assert "would fail: unmapped" in capsys.readouterr().err
     assert cloud.calls() == []
 
@@ -1782,7 +1806,8 @@ def test_unmapped_auto_run_route_and_detached_mcp_match(cloud, routed, capsys, m
         assert run["ok"] is False and run["error_code"] == "cloud_env_unmapped" and run["repo"] == "acme/unmapped"
         assert '[cloud.codex.envs] "acme/unmapped"' in run["error"]
         assert "--where local" in run["error"] and '[cloud] unmapped = "local"' in run["error"]
-        assert cli.main(["route", "--tier", "writing", *base, "--db", str(cloud.db), "--json"]) == 2
+        assert cli.main(["route", "--tier", "writing", *base, "--root", str(cloud.root),
+                         "--db", str(cloud.db), "--json"]) == 2
         route_output = capsys.readouterr()
         route = json.loads(route_output.out)
         tools = CodeBridgeTools(root=str(cloud.root))

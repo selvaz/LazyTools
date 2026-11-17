@@ -618,8 +618,15 @@ def _cmd_route(args: argparse.Namespace) -> int:
         if not cwd.is_dir():
             raise ValueError(f"--cwd must name an existing directory: {cwd}")
         if args.where:
+            refusal = _configure_run_root(args)
+            if refusal is not None:
+                return refusal
             config = _cloud.load_config()
-            placement = _cloud_place.decide_for_repo(args.where, config=config, engine=args.engine, cwd=cwd)
+            placement_cwd = (
+                _engines.resolve_cwd(args.cwd, args.root)
+                if args.where in ("auto", "cloud") and args.engine == "codex" else cwd
+            )
+            placement = _cloud_place.decide_for_repo(args.where, config=config, engine=args.engine, cwd=placement_cwd)
         # A cloud placement does not use local slots, so the pick ignores them.
         selection = _select(args, cwd=str(cwd), respect_slots=not (placement and placement.where == "cloud"))
     except _cloud.CloudEnvUnmapped as exc:
@@ -1637,6 +1644,7 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Also show where the job would run: auto explains its local-vs-cloud decision.")
     _add_routing_options(route_p, required=True)
     route_p.add_argument("--cwd", default=".", help="Repository used to resolve session history (default: cwd).")
+    route_p.add_argument("--root", default=None, help="Confinement root for placement (same rules as run).")
     route_p.add_argument("--session", default=None)
     # Same overrides as `run`, so the exact pick (bucket, provider, effort check) can be dry-run.
     route_p.add_argument("--model", default=None)
