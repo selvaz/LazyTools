@@ -1648,32 +1648,30 @@ class _InProcess:
         return code, out.getvalue(), err.getvalue()
 
 
-def test_mcp_submit_status_result_for_a_cloud_job_with_landing(cloud, gh, capsys):
+def test_mcp_submit_status_result_for_a_cloud_job_with_landing(cloud, gh, capsys, monkeypatch):
     from lazytools.code_bridge._mcp import CodeBridgeTools
 
     tools = CodeBridgeTools(root=str(cloud.root))
     runner = _InProcess(tools)
-    os.environ["LAZYTOOLS_CODE_BRIDGE_DB"] = str(cloud.db)
-    try:
-        refused = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud")
-        assert refused["ok"] is False and "--allow-cloud" in refused["error"]  # the caller must acknowledge cloud runs
-        submitted = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud",
-                                             allow_cloud=True, land=True)
-        assert submitted["ok"] and submitted["where"] == "cloud" and submitted["land"] is True
-        assert submitted["placement"]["where"] == "cloud"
-        job_id = submitted["job_id"]
-        argv = runner.argvs[-1]
-        assert argv[:3] == ["run", "--where", "cloud"] and "--land" in argv and "--detach" not in argv
-        assert "--root" in argv and argv[argv.index("--root") + 1] == str(cloud.root.resolve())
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
+    refused = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud")
+    assert refused["ok"] is False and "--allow-cloud" in refused["error"]  # the caller must acknowledge cloud runs
+    submitted = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud",
+                                         allow_cloud=True, land=True)
+    assert submitted["ok"] and submitted["where"] == "cloud" and submitted["land"] is True
+    assert submitted["placement"]["where"] == "cloud"
+    job_id = submitted["job_id"]
+    argv = runner.argvs[-1]
+    assert argv[:3] == ["run", "--where", "cloud"] and "--land" in argv and "--detach" not in argv
+    assert "--root" in argv and argv[argv.index("--root") + 1] == str(cloud.root.resolve())
 
-        assert tools.code_bridge_status(job_id)["status"] == "running"
-        cloud.set_status(READY)
-        assert cli.main(["cloud-sync", "--db", str(cloud.db)]) == 0
-        result = tools.code_bridge_result(job_id)
-        assert result["ok"] and result["status"] == "done"
-        assert result["pr_url"].endswith("/pull/100") and result["pushed_sha"] and result["landed_branch"]
-    finally:
-        os.environ.pop("LAZYTOOLS_CODE_BRIDGE_DB", None)
+    assert tools.code_bridge_status(job_id)["status"] == "running"
+    cloud.set_status(READY)
+    assert cli.main(["cloud-sync", "--db", str(cloud.db)]) == 0
+    result = tools.code_bridge_result(job_id)
+    assert result["ok"] and result["status"] == "done"
+    assert result["pr_url"].endswith("/pull/100") and result["pushed_sha"] and result["landed_branch"]
+
 
 
 def test_mcp_submit_validation_and_local_placement(cloud, capsys, monkeypatch):
@@ -1696,15 +1694,13 @@ def test_mcp_submit_validation_and_local_placement(cloud, capsys, monkeypatch):
     assert "--detach" in runner.argvs[-1] and seen["argv"][seen["argv"].index("--where") + 1] == "local"
 
 
-def test_mcp_tools_really_run_the_cli_in_a_child_process(cloud):
+def test_mcp_tools_really_run_the_cli_in_a_child_process(cloud, monkeypatch):
     from lazytools.code_bridge._mcp import CodeBridgeTools
 
     tools = CodeBridgeTools(root=str(cloud.root))
-    os.environ["LAZYTOOLS_CODE_BRIDGE_DB"] = str(cloud.db)
-    try:
-        out = tools.code_bridge_status("deadbeef")
-    finally:
-        os.environ.pop("LAZYTOOLS_CODE_BRIDGE_DB", None)
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
+    out = tools.code_bridge_status("deadbeef")
+
     assert out["ok"] is False and "no job found matching 'deadbeef'" in out["error"]
 
 
