@@ -50,10 +50,12 @@ def test_run_prints_job_id_first_line_and_exits_zero(tmp_path, monkeypatch, caps
     )
     out = capsys.readouterr().out.strip().splitlines()
     assert code == 0
-    job_id_line = out[0]
-    payload = json.loads(out[-1])
-    assert payload["job_id"] == job_id_line
-    assert payload["status"] == "done"
+    assert len(out) == 1
+    payload = json.loads(out[0])
+    assert payload["short_id"] == payload["job_id"][:8]
+    assert payload["where"] == "local"
+    assert payload["engine"] == "codex"
+    assert payload["cwd"] == str(repo)
 
 
 def test_run_task_from_file(tmp_path, monkeypatch, capsys):
@@ -84,7 +86,7 @@ def test_jobs_status_and_result_roundtrip(tmp_path, monkeypatch, capsys):
     job_id = capsys.readouterr().out.splitlines()[0]
 
     code = main(["jobs", "--all", "--json", "--db", str(db_path)])
-    rows = json.loads(capsys.readouterr().out)
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert code == 0
     assert any(r["job_id"] == job_id for r in rows)
 

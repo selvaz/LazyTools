@@ -44,6 +44,33 @@ detached launch JSON gives the id, pid and log path at once.
 | `cancel` | Stop process tree, reject open tickets, retain interruption and workspace evidence |
 | `autonomy` | Report the percentage of finished jobs with no manual intervention and group intervention causes |
 
+### Machine-readable ids and multi-job waiting
+
+Pass `--json` to `run` for a single JSON object on the **first stdout line**.
+It contains the full `job_id`, eight-character `short_id`, `where`, `engine`,
+and `cwd`; detached launches also include `pid`, while cloud submissions
+include `task_url`. Without `--json`, the existing human output is unchanged.
+`jobs --json` emits one job per JSON line, which is both stream-friendly and
+safe from host-console encoding limitations. Human `jobs` output replaces
+unencodable characters rather than crashing on legacy Windows consoles.
+
+An orchestrator can wait on several jobs without polling each one:
+
+```console
+lazytools-code-bridge wait-any JOB_ID JOB_ID --timeout 600 --json
+lazytools-code-bridge wait-any --all-active --events done,failed,approval,landed,interrupted --json
+lazytools-code-bridge wait-any JOB_ID JOB_ID --loop --json
+```
+
+`wait-any` snapshots the named jobs (or all jobs active at startup) and emits
+`{"event", "job_id", "state", "approval", "pr_url"}`. It exits 0 after the
+first selected event, 3 on timeout, and 2 for invalid arguments or unknown
+jobs. Approval details contain `approval_id`, `command`, `summary`, and
+`reason`, and a pending ticket is emitted only once per invocation. `--loop`
+prints JSON lines until every watched job is terminal. For cloud jobs the
+waiter refreshes provider state, reports failures, and performs an owed
+`--land` operation just like `wait`, producing `landed` with its PR URL.
+
 Read each ticket's command and reason before deciding. An unanswered ticket
 expires as rejection after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.
 Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;
