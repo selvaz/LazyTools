@@ -169,8 +169,10 @@ def test_claude_cloud_needs_allow_cloud_and_gated_approval(cc, capsys):
 
 
 def test_routine_flag_is_claude_cloud_only(cc, capsys):
+    _config('\n[cloud.codex.envs]\n"acme/widgets" = "env_widgets"\n')
     assert cli.main(["run", "--where", "cloud", "--engine", "codex", "--allow-cloud", "--routine", "r",
-                     "--cwd", str(cc.repo), "--task", "x", "--no-brief-check", "--db", str(cc.db)]) == 2
+                     "--cwd", str(cc.repo), "--root", str(cc.root), "--task", "x", "--no-brief-check",
+                     "--db", str(cc.db)]) == 2
     assert "--routine is only for" in capsys.readouterr().err
     assert cli.main(["run", "--engine", "claude", "--routine", "r", "--cwd", str(cc.repo), "--task", "x"]) == 2
     assert "--routine is only for --where cloud" in capsys.readouterr().err
