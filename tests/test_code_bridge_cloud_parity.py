@@ -1730,3 +1730,49 @@ def test_missing_gh_is_a_clear_error(monkeypatch, tmp_path):
 def test_subprocess_default_python_is_importable_for_mcp_child():
     proc = subprocess.run([sys.executable, "-c", "import lazytools.code_bridge._mcp"], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
+
+
+def test_unmapped_auto_run_route_and_detached_mcp_match(cloud, routed, capsys, monkeypatch, caplog):
+    import _code_bridge_fakes as fakes
+    from lazytools.code_bridge._mcp import CodeBridgeTools
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    monkeypatch.setattr(_cloud_place, "local_now", lambda: _at(12))
+    secret = "sensitive-token-123"
+    _git(cloud.repo, "remote", "set-url", "origin", f"https://user:{secret}@github.com/acme/unmapped.git")
+    base = ["--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo)]
+    assert cli.main(["run", *base, "--root", str(cloud.root), "--task", "x", "--no-brief-check",
+                     "--db", str(cloud.db), "--allow-cloud"]) == 0
+    run_output = capsys.readouterr()
+    assert "[done] job" in run_output.out and "placement: local" in run_output.err
+    assert cli.main(["route", "--tier", "writing", *base, "--db", str(cloud.db), "--json"]) == 0
+    route_output = capsys.readouterr()
+    route = json.loads(route_output.out)["placement"]
+    tools = CodeBridgeTools(root=str(cloud.root))
+    runner = _InProcess(tools)
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: 4242)
+    result = tools.code_bridge_submit("x", cwd=str(cloud.repo), engine="codex", where="auto", allow_cloud=True)
+    assert result["ok"] and result["pid"] == 4242
+    assert result["placement"] == route
+    assert "--detach" in runner.argvs[-1] and runner.argvs[-1][2] == "local"
+    assert "acme/unmapped" in route["reason"]
+    assert secret not in str((run_output, route_output, result, caplog.text))
+    assert cloud.calls() == []
+
+
+def test_unusable_remote_never_exposes_credentials(cloud, capsys, monkeypatch, caplog):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    secret = "sensitive-token-456"
+    _git(cloud.repo, "remote", "set-url", "origin", f"https://user:{secret}@github.com/only-one")
+    assert cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db)]) == 0
+    captured = capsys.readouterr()
+    assert "cloud repository metadata is unavailable" in captured.err
+    assert secret not in str((captured, caplog.text))

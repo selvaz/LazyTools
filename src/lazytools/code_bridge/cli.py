@@ -405,25 +405,8 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
     try:
         config = _cloud.load_config()
         requested = args.where or config.default_where
-        placement = _cloud_place.decide(requested, windows=config.busy_windows, engine=args.engine)
-        if requested == _cloud_place.WHERE_AUTO and args.engine == "codex":
-            resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
-            repo: str | None = None
-            try:
-                repo = _cloud.repo_slug(_cloud.repo_root(resolved_cwd))
-            except (_cloud.CloudError, OSError) as exc:
-                placement = _cloud_place.Placement(
-                    "local", requested,
-                    f"cloud repository metadata is unavailable ({exc}); running locally",
-                )
-            if (repo is not None and config.unmapped == "local"
-                    and repo.lower() not in config.envs.get("codex", {})):
-                path = config.path or _concurrency.config_path()
-                placement = _cloud_place.Placement(
-                    "local", requested,
-                    f'no Codex Cloud environment is mapped for {repo}; running locally. To enable cloud, add '
-                    f'[cloud.codex.envs] "{repo}" = "<env id>" in {path}',
-                )
+        cwd = _engines.resolve_cwd(args.cwd, args.root) if requested == "auto" and args.engine == "codex" else None
+        placement = _cloud_place.decide_for_repo(requested, config=config, engine=args.engine, cwd=cwd)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -624,7 +607,7 @@ def _cmd_route(args: argparse.Namespace) -> int:
             raise ValueError(f"--cwd must name an existing directory: {cwd}")
         if args.where:
             config = _cloud.load_config()
-            placement = _cloud_place.decide(args.where, windows=config.busy_windows, engine=args.engine)
+            placement = _cloud_place.decide_for_repo(args.where, config=config, engine=args.engine, cwd=cwd)
         # A cloud placement does not use local slots, so the pick ignores them.
         selection = _select(args, cwd=str(cwd), respect_slots=not (placement and placement.where == "cloud"))
     except (OSError, ValueError) as exc:

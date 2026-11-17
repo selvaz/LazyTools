@@ -531,7 +531,19 @@ def repo_root(cwd: Path) -> Path:
 
 def parse_remote(url: str) -> str | None:
     """``owner/name`` from an https, ssh or scp-style git remote URL."""
+    from urllib.parse import urlsplit
+
     url = url.strip()
+    if "://" in url:
+        try:
+            parsed = urlsplit(url)
+            if not parsed.hostname:
+                return None
+            url = parsed.path
+        except ValueError:
+            return None
+    else:
+        url = url.rsplit("@", 1)[-1]
     match = re.search(r"[:/]([^/:\s]+)/([^/\s]+?)(?:\.git)?/?$", url)
     if not match:
         return None
@@ -544,7 +556,7 @@ def repo_slug(cwd: Path, remote: str = "origin") -> str:
         raise CloudError(f"{cwd} has no '{remote}' git remote: a cloud agent can only work on a pushed repository")
     slug = parse_remote(url)
     if slug is None:
-        raise CloudError(f"cannot read 'owner/name' from the '{remote}' remote URL {url!r}")
+        raise CloudError(f"cannot read 'owner/name' from the '{remote}' remote URL")
     return slug
 
 

@@ -92,14 +92,16 @@ class CodeBridgeTools:
         allow_cloud: bool = False,
     ) -> dict[str, Any]:
         """Submit a coding job; returns at once with its ``job_id``."""
-        from lazytools.code_bridge import _cloud, _cloud_place
+        from lazytools.code_bridge import _cloud, _cloud_place, _engines
 
         if not isinstance(task, str) or (not task.strip() and not review_of):
             raise ValueError("task is required (except for a cloud review_of)")
         if task.lstrip().startswith("@"):
             raise ValueError("a task may not start with '@' here (the CLI would read it as a file path)")
         config = _cloud.load_config()
-        placement = _cloud_place.decide(where or config.default_where, windows=config.busy_windows, engine=engine)
+        requested = where or config.default_where
+        resolved = _engines.resolve_cwd(cwd or ".", self._root) if requested == "auto" and engine == "codex" else None
+        placement = _cloud_place.decide_for_repo(requested, config=config, engine=engine, cwd=resolved)
         argv = ["run", "--where", placement.where, "--cwd", cwd or ".", "--root", self._root, "--json"]
         if task.strip():
             argv += ["--task", task]
