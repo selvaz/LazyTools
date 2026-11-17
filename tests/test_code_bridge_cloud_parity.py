@@ -1373,10 +1373,7 @@ def test_run_where_auto_resolves_relative_cwd_from_root(cloud, gh, capsys, monke
 
 def test_run_and_route_place_relative_cwd_from_configured_root(cloud, capsys, monkeypatch, tmp_path):
     launcher = tmp_path / "launcher"
-    launcher_repo = launcher / "widgets"
-    launcher_repo.mkdir(parents=True)
-    _git(launcher_repo, "init", "-q")
-    _git(launcher_repo, "remote", "add", "origin", "https://github.com/acme/widgets.git")
+    launcher.mkdir(parents=True)  # deliberately has no "widgets" child
     _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/unmapped.git")
     _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
     monkeypatch.setattr(_cloud_place, "local_now", lambda: _at(12))
