@@ -1365,7 +1365,9 @@ def strip_report_diff(diff: str) -> str:
 
 def clean_bridge_artifacts(worktree: Path, base: str) -> list[str]:
     """Restore every ``.bridge/`` path to ``base`` and return the skipped paths."""
-    changed = _git(worktree, "diff", "--name-only", "-z", base, "HEAD", "--", ".bridge", check=False)
+    # A single revision compares the base tree with both HEAD and the worktree.
+    # That covers committed Claude results as well as Codex's uncommitted apply.
+    changed = _git(worktree, "diff", "--no-renames", "--name-only", "-z", base, "--", ".bridge", check=False)
     paths = [path for path in changed.split("\0") if path and is_bridge_artifact(path)]
     for path in paths:
         if _git(worktree, "ls-tree", "--name-only", base, "--", path, check=False):
@@ -1547,7 +1549,7 @@ def apply_job(
         # they apply.  It can contain account identifiers and is tool output,
         # never task output.
         (worktree / "error.log").unlink(missing_ok=True)
-        (worktree / CLOUD_REPORT_PATH).unlink(missing_ok=True)
+        clean_bridge_artifacts(worktree, base)
         report_dir = worktree / ".bridge"
         if report_dir.is_dir() and not any(report_dir.iterdir()):
             report_dir.rmdir()

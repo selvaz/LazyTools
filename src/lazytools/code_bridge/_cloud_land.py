@@ -137,6 +137,11 @@ REPORT_LIMIT = 6000
 REPORT_MARKER = "<!-- lazytools-code-bridge cloud report -->"
 
 
+def _report_comment_marker(job: dict[str, Any]) -> str:
+    """Return the retry-stable marker unique to one cloud job's comment."""
+    return f"<!-- lazytools-code-bridge cloud report job:{job.get('job_id', '')} -->"
+
+
 def _report_text(job: dict[str, Any]) -> str:
     """A bounded, credential-safe report suitable for GitHub text fields."""
     return redact(str(job.get("report") or "").strip())[:REPORT_LIMIT]
@@ -319,8 +324,9 @@ def _post_report_comment(job: dict[str, Any], number: int) -> None:
     report = _report_text(job)
     if not report:
         return
-    body = f"{REPORT_MARKER}\n\nCloud task report:\n\n{report}\n"
-    if not any(REPORT_MARKER in comment for comment in _gh.pr_comments(str(job["repo"]), number)):
+    marker = _report_comment_marker(job)
+    body = f"{marker}\n\nCloud task report:\n\n{report}\n"
+    if not any(marker in comment for comment in _gh.pr_comments(str(job["repo"]), number)):
         _gh.pr_comment(str(job["repo"]), number, body)
 
 
@@ -464,7 +470,8 @@ def _land_pushed_branch(store: Any, registry: Any, job: dict[str, Any], *, sourc
     # Publish a descendant that restores all bridge-owned paths to the task's
     # base before the result branch can become a PR head.
     artifact_paths = [name for name in _cloud._git(
-        root, "diff", "--name-only", "-z", str(job.get("base_commit") or ""), tip, "--", ".bridge", check=False
+        root, "diff", "--no-renames", "--name-only", "-z", str(job.get("base_commit") or ""), tip,
+        "--", ".bridge", check=False
     ).split("\0") if name]
     if artifact_paths:
         with tempfile.TemporaryDirectory(prefix="lazytools-claude-report-") as tmp:
