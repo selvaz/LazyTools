@@ -111,18 +111,18 @@ def decide_for_repo(requested: str, *, config: Any, engine: str | None, cwd: Any
     from lazytools.code_bridge import _cloud, _concurrency
 
     placement = decide(requested, windows=config.busy_windows, engine=engine)
-    if requested == WHERE_AUTO and engine == "codex":
+    if placement.where == "cloud" and engine == "codex":
         try:
             repo = _cloud.repo_slug(_cloud.repo_root(cwd))
         except (_cloud.CloudError, OSError):
-            return Placement("local", requested, "cloud repository metadata is unavailable; running locally")
-        if config.unmapped == "local" and repo.lower() not in config.envs.get("codex", {}):
-            path = config.path or _concurrency.config_path()
-            return Placement(
-                "local", requested,
-                f'no Codex Cloud environment is mapped for {repo}; running locally. To enable cloud, add '
-                f'[cloud.codex.envs] "{repo}" = "<env id>" in {path}',
-            )
+            if requested == WHERE_AUTO:
+                return Placement("local", requested, "cloud repository metadata is unavailable; running locally")
+            raise
+        if repo.lower() not in config.envs.get("codex", {}):
+            error = _cloud.CloudEnvUnmapped(repo, config.path or _concurrency.config_path())
+            if config.unmapped == "local":
+                return Placement("local", requested, f"{error} Running locally by configuration.")
+            raise error
     return placement
 
 

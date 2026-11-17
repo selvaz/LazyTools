@@ -100,8 +100,11 @@ class CodeBridgeTools:
             raise ValueError("a task may not start with '@' here (the CLI would read it as a file path)")
         config = _cloud.load_config()
         requested = where or config.default_where
-        resolved = _engines.resolve_cwd(cwd or ".", self._root) if requested == "auto" and engine == "codex" else None
-        placement = _cloud_place.decide_for_repo(requested, config=config, engine=engine, cwd=resolved)
+        resolved = _engines.resolve_cwd(cwd or ".", self._root) if requested in ("auto", "cloud") and engine == "codex" else None
+        try:
+            placement = _cloud_place.decide_for_repo(requested, config=config, engine=engine, cwd=resolved)
+        except _cloud.CloudEnvUnmapped as exc:
+            return {**exc.payload(), "exit_code": 2}
         argv = ["run", "--where", placement.where, "--cwd", cwd or ".", "--root", self._root, "--json"]
         if task.strip():
             argv += ["--task", task]

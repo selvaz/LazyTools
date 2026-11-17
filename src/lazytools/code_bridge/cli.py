@@ -405,16 +405,22 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
     try:
         config = _cloud.load_config()
         requested = args.where or config.default_where
-        cwd = _engines.resolve_cwd(args.cwd, args.root) if requested == "auto" and args.engine == "codex" else None
+        cwd = _engines.resolve_cwd(args.cwd, args.root) if requested in ("auto", "cloud") and args.engine == "codex" else None
         placement = _cloud_place.decide_for_repo(requested, config=config, engine=args.engine, cwd=cwd)
-    except ValueError as exc:
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _print_json(exc.payload())
+        else:
+            print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except (ValueError, _cloud.CloudError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     if placement.requested == _cloud_place.WHERE_AUTO:
         print(placement.line(), file=sys.stderr)  # stderr: stdout's first line is the job id
     args.where = placement.where
     args.placement = placement
-    if placement.requested == _cloud_place.WHERE_AUTO and placement.where == _cloud.WHERE_LOCAL:
+    if placement.where == _cloud.WHERE_LOCAL and placement.requested != _cloud.WHERE_LOCAL:
         # The caller acknowledged that auto placement may use cloud.  If it
         # instead selected local, that acknowledgement is harmless rather than
         # a local-only option error.
@@ -610,7 +616,13 @@ def _cmd_route(args: argparse.Namespace) -> int:
             placement = _cloud_place.decide_for_repo(args.where, config=config, engine=args.engine, cwd=cwd)
         # A cloud placement does not use local slots, so the pick ignores them.
         selection = _select(args, cwd=str(cwd), respect_slots=not (placement and placement.where == "cloud"))
-    except (OSError, ValueError) as exc:
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _print_json(exc.payload())
+        else:
+            print(f"would fail: unmapped: {exc}", file=sys.stderr)
+        return 2
+    except (OSError, ValueError, _cloud.CloudError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     if args.json:

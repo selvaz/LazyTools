@@ -112,16 +112,18 @@ submit_retries = 2            # extra attempts after a submit that errors at onc
 
 ### New repositories
 
-An unmapped repository does not block `--where auto`: it runs locally and
-prints the exact `[cloud.codex.envs]` mapping needed to enable cloud later.
-Explicit `--where cloud` still errors because Codex needs an environment id;
-use `--where auto` or `--where local` until the mapping exists. The default can
-be made strict for automatic placement too:
+When auto placement would choose Codex Cloud, an unmapped repository fails with
+an actionable error. Explicit `--where cloud` follows the same rule. Add the
+repository's `[cloud.codex.envs]` mapping, or use `--where local`. To opt in to
+local fallback for unmapped repositories, configure:
 
 ```toml
 [cloud]
-unmapped = "error"  # default: "local"
+unmapped = "local"  # default: "error"
 ```
+
+Auto placement still runs locally when a local slot is free outside busy windows.
+JSON and MCP errors include `error_code: "cloud_env_unmapped"` and the repository slug.
 
 ### 4. Log in and test
 

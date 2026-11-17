@@ -20,7 +20,7 @@ Configuration (``~/.lazytools/code-bridge.toml``, same file as ``[concurrency]``
     [cloud]
     concurrency = 4          # live cloud jobs at once, all providers; 0 = unlimited
     default_where = "local"  # what `run` does without --where: local | cloud | auto
-    unmapped = "local"        # auto fallback for a repo absent from [cloud.codex.envs]: local | error
+    unmapped = "error"        # optional fallback for a repo absent from [cloud.codex.envs]: local | error
     busy_windows = []        # e.g. ["21:00-01:30"]: local time ranges where `auto` sends jobs to the cloud
     min_submit_interval = 2  # seconds between two submits to the same provider; 0 = no spacing
     submit_retries = 2       # extra attempts after a submit that errors at once (backoff); 0 = none
@@ -232,6 +232,21 @@ class CloudError(RuntimeError):
         super().__init__(*(redact(arg) if isinstance(arg, str) else arg for arg in args))
 
 
+class CloudEnvUnmapped(CloudError):
+    """A Codex Cloud repository has no configured environment."""
+
+    def __init__(self, repo: str, path: Any) -> None:
+        self.repo = repo
+        super().__init__(
+            f'no Codex Cloud environment is mapped for {repo}; add '
+            f'[cloud.codex.envs] "{repo}" = "<env id>" in {path}. '
+            'Alternatively, use --where local or set [cloud] unmapped = "local".'
+        )
+
+    def payload(self) -> dict[str, Any]:
+        return {"ok": False, "error_code": "cloud_env_unmapped", "repo": self.repo, "error": str(self)}
+
+
 class CloudNotImplemented(CloudError):
     """The provider is a documented extension point, not an implementation."""
 
@@ -269,7 +284,7 @@ class CloudConfig:
     #: what ``run`` does without ``--where``: "local", "cloud" or "auto"
     default_where: str = "local"
     #: what ``auto`` does when Codex has no environment mapping for this repository
-    unmapped: str = "local"
+    unmapped: str = "error"
     #: local-time ranges ("21:00-01:30") in which ``auto`` prefers the cloud
     busy_windows: tuple[str, ...] = ()
     #: provider -> its own live-job limit (None = unlimited), on top of ``concurrency``
@@ -300,7 +315,7 @@ def load_config(path: Path | None = None) -> CloudConfig:
     routines: dict[str, dict[str, str]] = {}
     default_routine: str | None = None
     default_where = "local"
-    unmapped = "local"
+    unmapped = "error"
     windows: tuple[str, ...] = ()
     provider_limits: dict[str, int | None] = {}
     models: dict[str, dict[str, str]] = {}
@@ -778,10 +793,7 @@ class CodexCloud:
         env_id = config.envs.get(self.name, {}).get(repo.lower())
         if not env_id:
             path = config.path or _concurrency.config_path()
-            raise CloudError(
-                f"no Codex Cloud environment mapped for {repo}; --where auto or --where local will work: "
-                + CREATE_ENV_HINT.format(repo=repo, path=path)
-            )
+            raise CloudEnvUnmapped(repo, path)
         return env_id
 
     def _run(self, *args: str, cwd: Path | None = None, allow_failure: bool = False,

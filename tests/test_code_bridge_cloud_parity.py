@@ -1298,7 +1298,7 @@ def test_cloud_config_validates_placement_keys(tmp_path):
     assert config.default_where == "auto" and config.busy_windows == ("21:00-01:30", "05:00-06:00")
     assert _cloud.load_config(tmp_path / "none.toml").default_where == "local"
     assert _cloud.load_config(tmp_path / "none.toml").busy_windows == ()
-    assert _cloud.load_config(tmp_path / "none.toml").unmapped == "local"
+    assert _cloud.load_config(tmp_path / "none.toml").unmapped == "error"
 
 
 def test_run_where_auto_goes_cloud_inside_a_busy_window(cloud, gh, capsys, monkeypatch):
@@ -1318,7 +1318,7 @@ def test_run_where_auto_unmapped_codex_repo_falls_back_local(cloud, capsys, monk
 
     fakes.install(monkeypatch)
     monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
-    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    _set_cloud_config('\n[cloud]\nunmapped = "local"\nbusy_windows = ["00:00-23:59"]\n')
     _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
     code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
                      "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db)])
@@ -1373,7 +1373,7 @@ def test_run_where_auto_unmapped_tolerates_allow_cloud_when_falling_back(cloud, 
 
     fakes.install(monkeypatch)
     monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
-    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    _set_cloud_config('\n[cloud]\nunmapped = "local"\nbusy_windows = ["00:00-23:59"]\n')
     _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/unmapped.git")
 
     code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
@@ -1741,22 +1741,23 @@ def test_unmapped_auto_run_route_and_detached_mcp_match(cloud, routed, capsys, m
     secret = "sensitive-token-123"
     _git(cloud.repo, "remote", "set-url", "origin", f"https://user:{secret}@github.com/acme/unmapped.git")
     base = ["--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo)]
-    assert cli.main(["run", *base, "--root", str(cloud.root), "--task", "x", "--no-brief-check",
-                     "--db", str(cloud.db), "--allow-cloud"]) == 0
-    run_output = capsys.readouterr()
-    assert "[done] job" in run_output.out and "placement: local" in run_output.err
-    assert cli.main(["route", "--tier", "writing", *base, "--db", str(cloud.db), "--json"]) == 0
-    route_output = capsys.readouterr()
-    route = json.loads(route_output.out)["placement"]
-    tools = CodeBridgeTools(root=str(cloud.root))
-    runner = _InProcess(tools)
-    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: 4242)
-    result = tools.code_bridge_submit("x", cwd=str(cloud.repo), engine="codex", where="auto", allow_cloud=True)
-    assert result["ok"] and result["pid"] == 4242
-    assert result["placement"] == route
-    assert "--detach" in runner.argvs[-1] and runner.argvs[-1][2] == "local"
-    assert "acme/unmapped" in route["reason"]
-    assert secret not in str((run_output, route_output, result, caplog.text))
+    for where in ("auto", "cloud"):
+        base = ["--where", where, "--engine", "codex", "--cwd", str(cloud.repo)]
+        assert cli.main(["run", *base, "--root", str(cloud.root), "--task", "x", "--no-brief-check",
+                         "--db", str(cloud.db), "--allow-cloud", "--json"]) == 2
+        run_output = capsys.readouterr()
+        run = json.loads(run_output.out)
+        assert run["ok"] is False and run["error_code"] == "cloud_env_unmapped" and run["repo"] == "acme/unmapped"
+        assert '[cloud.codex.envs] "acme/unmapped"' in run["error"]
+        assert "--where local" in run["error"] and '[cloud] unmapped = "local"' in run["error"]
+        assert cli.main(["route", "--tier", "writing", *base, "--db", str(cloud.db), "--json"]) == 2
+        route_output = capsys.readouterr()
+        route = json.loads(route_output.out)
+        tools = CodeBridgeTools(root=str(cloud.root))
+        result = tools.code_bridge_submit("x", cwd=str(cloud.repo), engine="codex", where=where, allow_cloud=True)
+        assert route == run
+        assert result["error_code"] == run["error_code"] and result["repo"] == run["repo"] and not result["ok"]
+        assert secret not in str((run_output, route_output, result, caplog.text))
     assert cloud.calls() == []
 
 
