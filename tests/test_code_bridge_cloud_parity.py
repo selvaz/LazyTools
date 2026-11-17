@@ -1712,6 +1712,8 @@ def test_mcp_submit_status_result_for_a_cloud_job_with_landing(cloud, gh, capsys
     submitted = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud",
                                          allow_cloud=True, land=True)
     assert submitted["ok"] and submitted["where"] == "cloud" and submitted["land"] is True
+    assert submitted["short_id"] == submitted["job_id"][:8]
+    assert submitted["task_url"] == submitted["cloud_url"]
     assert submitted["placement"]["where"] == "cloud"
     job_id = submitted["job_id"]
     argv = runner.argvs[-1]

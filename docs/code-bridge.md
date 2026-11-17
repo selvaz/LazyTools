@@ -50,6 +50,7 @@ Pass `--json` to `run` for a single JSON object on the **first stdout line**.
 It contains the full `job_id`, eight-character `short_id`, `where`, `engine`,
 and `cwd`; detached launches also include `pid`, while cloud submissions
 include `task_url`. Without `--json`, the existing human output is unchanged.
+For cloud submissions, `task_url` is the machine-readable alias of `cloud_url`.
 `jobs --json` emits one job per JSON line, which is both stream-friendly and
 safe from host-console encoding limitations. Human `jobs` output replaces
 unencodable characters rather than crashing on legacy Windows consoles.
@@ -70,6 +71,8 @@ jobs. Approval details contain `approval_id`, `command`, `summary`, and
 prints JSON lines until every watched job is terminal. For cloud jobs the
 waiter refreshes provider state, reports failures, and performs an owed
 `--land` operation just like `wait`, producing `landed` with its PR URL.
+Its output is always JSON lines; `--json` is accepted for consistency and does
+not change that default format.
 
 Read each ticket's command and reason before deciding. An unanswered ticket
 expires as rejection after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.

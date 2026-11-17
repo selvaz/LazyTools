@@ -529,8 +529,18 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     def _announce(job_id: str) -> None:
         job_id_holder["job_id"] = job_id
-        if not args.json:
+        if args.json:
+            _print_json(
+                {
+                    **_job_identity(job_id, where="local", engine=args.engine, cwd=args.cwd),
+                    **({"routing": args.routing} if args.routing else {}),
+                }
+            )
+        else:
             print(job_id, flush=True)  # first line: the caller can capture this immediately
+
+    def _slot_wait(busy: EngineBusy) -> None:
+        _announce_slot_wait(busy, err=args.json)
 
     try:
         result = _jobs.run_job(
@@ -551,7 +561,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             routine_auto=args.routine_auto,
             scratch_root=args.scratch_root,
             wait_for_slot=args.wait_for_slot,
-            on_slot_wait=_announce_slot_wait,
+            on_slot_wait=_slot_wait,
         )
     except (LockHeld, EngineBusy) as exc:
         print(str(exc), file=sys.stderr)
@@ -563,7 +573,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if args.json:
         _print_json(
             {
-                **_job_identity(result.job_id, where="local", engine=args.engine, cwd=args.cwd),
+                "event": "result",
+                "job_id": result.job_id,
                 "status": result.status,
                 "result_path": str(result.result_path) if result.result_path else None,
                 "error": result.error,
@@ -598,9 +609,13 @@ def _job_line(job: dict[str, Any]) -> str:
     return f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}"
 
 
-def _announce_slot_wait(busy: EngineBusy) -> None:
+def _announce_slot_wait(busy: EngineBusy, *, err: bool = False) -> None:
     jobs = ", ".join(str(h.get("job_id", "?")) for h in busy.holders)
-    print(f"waiting for a {busy.engine} slot (limit {busy.limit}; running: {jobs})", flush=True)
+    print(
+        f"waiting for a {busy.engine} slot (limit {busy.limit}; running: {jobs})",
+        file=sys.stderr if err else sys.stdout,
+        flush=True,
+    )
 
 
 def _slot_excluded(selection: _routing.Selection) -> bool:
@@ -1164,14 +1179,22 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
             if current is None or job_id in terminal_seen:
                 continue
             job = current
-            landed = False
+            finishing_action = None
             if _cloud.is_cloud(job) and (job.get("status") not in _TERMINAL or _cloud_land.needs_finishing(job)):
                 row = _cloud_land.process_job(store, registry, job, db_path=db_path)
                 job = _jobs.find_job(store, registry, job_id) or job
-                landed = row["action"] == "landed"
+                finishing_action = row["action"]
             status = str(job.get("status") or "")
-            event = "landed" if landed else ({"done": "done", "failed": "failed", "partial": "failed",
-                                               "interrupted": "interrupted"}.get(status))
+            landing_failed = finishing_action in {"land-failed", "review-failed"}
+            landed = finishing_action == "landed" or bool(
+                _cloud.is_cloud(job)
+                and job.get("land")
+                and (job.get("landed_at") or job.get("pr_url"))
+            )
+            event = "failed" if landing_failed else (
+                "landed" if landed else ({"done": "done", "failed": "failed", "partial": "failed",
+                                           "interrupted": "interrupted"}.get(status))
+            )
             if event:
                 meta = _store.read_meta(store, job_id) or {}
                 candidates.append((float(meta.get("completed_at") or meta.get("updated_at") or 0), job, event))
