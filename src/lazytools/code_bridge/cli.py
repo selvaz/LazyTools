@@ -359,6 +359,12 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             land=args.land, rebase_ok=args.rebase_ok, model=args.model, tier=args.tier, title=args.title,
             extra_meta=extra_meta,
         )
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _cloud_json(exc.payload())
+        else:
+            _cloud_print(f"error: {exc}", err=True)
+        return 2
     except (_cloud.CloudError, ValueError) as exc:
         _cloud_print(f"error: {exc}", err=True)
         return 2
@@ -405,14 +411,26 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
     try:
         config = _cloud.load_config()
         requested = args.where or config.default_where
-        placement = _cloud_place.decide(requested, windows=config.busy_windows, engine=args.engine)
-    except ValueError as exc:
+        cwd = _engines.resolve_cwd(args.cwd, args.root) if requested in ("auto", "cloud") and args.engine == "codex" else None
+        placement = _cloud_place.decide_for_repo(requested, config=config, engine=args.engine, cwd=cwd)
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _print_json(exc.payload())
+        else:
+            print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except (ValueError, _cloud.CloudError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    if placement.requested == _cloud_place.WHERE_AUTO:
+    if placement.requested == _cloud_place.WHERE_AUTO or placement.requested != placement.where:
         print(placement.line(), file=sys.stderr)  # stderr: stdout's first line is the job id
     args.where = placement.where
     args.placement = placement
+    if placement.where == _cloud.WHERE_LOCAL and placement.requested != _cloud.WHERE_LOCAL:
+        # The caller acknowledged that auto placement may use cloud.  If it
+        # instead selected local, that acknowledgement is harmless rather than
+        # a local-only option error.
+        args.allow_cloud = False
     return None
 
 
@@ -596,15 +614,29 @@ def _select(args: argparse.Namespace, *, cwd: str, respect_slots: bool = True) -
 def _cmd_route(args: argparse.Namespace) -> int:
     placement = None
     try:
-        cwd = Path(args.cwd).expanduser().resolve()
+        if args.where:
+            refusal = _configure_run_root(args)
+            if refusal is not None:
+                return refusal
+        if args.where in ("auto", "cloud") and args.engine == "codex":
+            # Resolve against the configured root, exactly as ``run`` does.
+            cwd = Path(_engines.resolve_cwd(args.cwd, args.root)).resolve()
+        else:
+            cwd = Path(args.cwd).expanduser().resolve()
         if not cwd.is_dir():
             raise ValueError(f"--cwd must name an existing directory: {cwd}")
         if args.where:
             config = _cloud.load_config()
-            placement = _cloud_place.decide(args.where, windows=config.busy_windows, engine=args.engine)
+            placement = _cloud_place.decide_for_repo(args.where, config=config, engine=args.engine, cwd=cwd)
         # A cloud placement does not use local slots, so the pick ignores them.
         selection = _select(args, cwd=str(cwd), respect_slots=not (placement and placement.where == "cloud"))
-    except (OSError, ValueError) as exc:
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _print_json({**exc.payload(), "placement": "would fail: unmapped"})
+        else:
+            print(f"would fail: unmapped: {exc}", file=sys.stderr)
+        return 2
+    except (OSError, ValueError, _cloud.CloudError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     if args.json:
@@ -1613,6 +1645,7 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Also show where the job would run: auto explains its local-vs-cloud decision.")
     _add_routing_options(route_p, required=True)
     route_p.add_argument("--cwd", default=".", help="Repository used to resolve session history (default: cwd).")
+    route_p.add_argument("--root", default=None, help="Confinement root for placement (same rules as run).")
     route_p.add_argument("--session", default=None)
     # Same overrides as `run`, so the exact pick (bucket, provider, effort check) can be dry-run.
     route_p.add_argument("--model", default=None)

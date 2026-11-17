@@ -294,8 +294,8 @@ def test_a_repo_without_an_environment_fails_early_with_the_setup_pointer(cloud,
     _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
     assert _run_cloud(cloud, "--pr", "5") == 2
     err = capsys.readouterr().err
-    assert "no Codex Cloud environment mapped for acme/other" in err
-    assert "docs/code-bridge-cloud-setup.md" in err
+    assert "no Codex Cloud environment is mapped for acme/other" in err
+    assert '[cloud.codex.envs] "acme/other"' in err
     assert gh.calls() == [] and cloud.calls() == []  # failed before any gh or codex call
 
 
@@ -1290,11 +1290,15 @@ def test_cloud_config_validates_placement_keys(tmp_path):
     path.write_text('[cloud]\nbusy_windows = "21:00-01:30"\n', encoding="utf-8")
     with pytest.raises(ValueError, match="list"):
         _cloud.load_config(path)
+    path.write_text('[cloud]\nunmapped = "sometimes"\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="unmapped"):
+        _cloud.load_config(path)
     path.write_text('[cloud]\ndefault_where = "auto"\nbusy_windows = ["21:00-01:30", "05:00-06:00"]\n', encoding="utf-8")
     config = _cloud.load_config(path)
     assert config.default_where == "auto" and config.busy_windows == ("21:00-01:30", "05:00-06:00")
     assert _cloud.load_config(tmp_path / "none.toml").default_where == "local"
     assert _cloud.load_config(tmp_path / "none.toml").busy_windows == ()
+    assert _cloud.load_config(tmp_path / "none.toml").unmapped == "error"
 
 
 def test_run_where_auto_goes_cloud_inside_a_busy_window(cloud, gh, capsys, monkeypatch):
@@ -1307,6 +1311,133 @@ def test_run_where_auto_goes_cloud_inside_a_busy_window(cloud, gh, capsys, monke
     payload = json.loads(captured.out.strip().splitlines()[-1])
     assert payload["where"] == "cloud" and payload["placement"]["window"] == "21:00-01:30"
     assert "placement: cloud (requested auto): local time 22:05 is inside the busy window 21:00-01:30" in captured.err
+
+
+@pytest.mark.parametrize("where", ["auto", "cloud"])
+def test_run_where_auto_unmapped_codex_repo_falls_back_local(cloud, capsys, monkeypatch, where):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nunmapped = "local"\nbusy_windows = ["00:00-23:59"]\n')
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
+    code = cli.main(["run", "--where", where, "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db),
+                     "--allow-cloud"])
+    captured = capsys.readouterr()
+    assert code == 0 and "[done] job" in captured.out
+    if where == "auto":
+        assert "placement: local (requested auto): no Codex Cloud environment is mapped for acme/other" in captured.err
+    assert '[cloud.codex.envs] "acme/other" = "<env id>"' in captured.err
+    assert cloud.calls() == []
+
+
+@pytest.mark.parametrize("repository_kind", ["no-origin", "not-git"])
+def test_run_where_auto_without_cloud_repository_metadata_falls_back_local(
+    cloud, capsys, monkeypatch, repository_kind,
+):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    repository = cloud.root / repository_kind
+    repository.mkdir()
+    if repository_kind == "no-origin":
+        _git(repository, "init", "-q")
+
+    code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(repository),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db)])
+
+    captured = capsys.readouterr()
+    assert code == 0 and "[done] job" in captured.out
+    assert "placement: local (requested auto): cloud repository metadata is unavailable" in captured.err
+    assert "running locally" in captured.err
+    assert len([line for line in captured.err.splitlines() if line.startswith("placement:")]) == 1
+    assert cloud.calls() == []
+
+
+def test_run_where_auto_resolves_relative_cwd_from_root(cloud, gh, capsys, monkeypatch, tmp_path):
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    monkeypatch.chdir(tmp_path)
+
+    code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", "widgets",
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db),
+                     "--allow-cloud", "--json"])
+
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert json.loads(captured.out.strip().splitlines()[-1])["where"] == "cloud"
+    assert "placement: cloud (requested auto)" in captured.err
+
+
+def test_run_and_route_place_relative_cwd_from_configured_root(cloud, capsys, monkeypatch, tmp_path):
+    launcher = tmp_path / "launcher"
+    launcher.mkdir(parents=True)  # deliberately has no "widgets" child
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/unmapped.git")
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    monkeypatch.setattr(_cloud_place, "local_now", lambda: _at(12))
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(cloud.root))
+    monkeypatch.chdir(launcher)
+
+    base = ["--where", "auto", "--engine", "codex", "--cwd", "widgets", "--json"]
+    assert cli.main(["run", *base, "--allow-cloud"]) == 2
+    run = json.loads(capsys.readouterr().out)
+    assert cli.main(["route", *base, "--tier", "writing"]) == 2
+    route = json.loads(capsys.readouterr().out)
+    for result in (run, route):
+        assert result["ok"] is False
+        assert result["error_code"] == "cloud_env_unmapped"
+        assert result["repo"] == "acme/unmapped"
+    assert cloud.calls() == []
+
+
+def test_run_where_auto_unmapped_tolerates_allow_cloud_when_falling_back(cloud, capsys, monkeypatch):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nunmapped = "local"\nbusy_windows = ["00:00-23:59"]\n')
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/unmapped.git")
+
+    code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db),
+                     "--allow-cloud"])
+
+    captured = capsys.readouterr()
+    assert code == 0 and "[done] job" in captured.out
+    assert "no Codex Cloud environment is mapped for acme/unmapped" in captured.err
+    assert "--allow-cloud is only for --where cloud" not in captured.err
+    assert cloud.calls() == []
+
+
+def test_unmapped_auto_with_all_local_slots_busy_fails(cloud, capsys, monkeypatch):
+    _set_cloud_config('\n[cloud]\nbusy_windows = []\n')
+    monkeypatch.setattr(_concurrency, "engine_at_limit", lambda *args: [{"job_id": "12345678"}])
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
+    args = ["--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo)]
+    assert cli.main(["run", *args, "--root", str(cloud.root), "--task", "x", "--json"]) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error_code"] == "cloud_env_unmapped" and payload["repo"] == "acme/other"
+    assert cli.main(["route", "--tier", "writing", *args, "--root", str(cloud.root)]) == 2
+    assert "would fail: unmapped" in capsys.readouterr().err
+    assert cloud.calls() == []
+
+
+def test_unmapped_auto_with_free_slot_stays_local(cloud, capsys, monkeypatch):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["21:00-01:30"]\n')
+    monkeypatch.setattr(_cloud_place, "local_now", lambda: _at(14))
+    monkeypatch.setattr(_concurrency, "engine_at_limit", lambda *args: [])
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
+    assert cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db)]) == 0
+    captured = capsys.readouterr()
+    assert "placement: local" in captured.err and "[done] job" in captured.out
+    assert cloud.calls() == []
 
 
 def test_run_where_auto_stays_local_outside_the_window_and_default_where_applies(cloud, capsys, monkeypatch):
@@ -1570,37 +1701,36 @@ class _InProcess:
         return code, out.getvalue(), err.getvalue()
 
 
-def test_mcp_submit_status_result_for_a_cloud_job_with_landing(cloud, gh, capsys):
+def test_mcp_submit_status_result_for_a_cloud_job_with_landing(cloud, gh, capsys, monkeypatch):
     from lazytools.code_bridge._mcp import CodeBridgeTools
 
     tools = CodeBridgeTools(root=str(cloud.root))
     runner = _InProcess(tools)
-    os.environ["LAZYTOOLS_CODE_BRIDGE_DB"] = str(cloud.db)
-    try:
-        refused = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud")
-        assert refused["ok"] is False and "--allow-cloud" in refused["error"]  # the caller must acknowledge cloud runs
-        submitted = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud",
-                                             allow_cloud=True, land=True)
-        assert submitted["ok"] and submitted["where"] == "cloud" and submitted["land"] is True
-        assert submitted["placement"]["where"] == "cloud"
-        job_id = submitted["job_id"]
-        argv = runner.argvs[-1]
-        assert argv[:3] == ["run", "--where", "cloud"] and "--land" in argv and "--detach" not in argv
-        assert "--root" in argv and argv[argv.index("--root") + 1] == str(cloud.root.resolve())
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
+    refused = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud")
+    assert refused["ok"] is False and "--allow-cloud" in refused["error"]  # the caller must acknowledge cloud runs
+    submitted = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud",
+                                         allow_cloud=True, land=True)
+    assert submitted["ok"] and submitted["where"] == "cloud" and submitted["land"] is True
+    assert submitted["placement"]["where"] == "cloud"
+    job_id = submitted["job_id"]
+    argv = runner.argvs[-1]
+    assert argv[:3] == ["run", "--where", "cloud"] and "--land" in argv and "--detach" not in argv
+    assert "--root" in argv and argv[argv.index("--root") + 1] == str(cloud.root.resolve())
 
-        assert tools.code_bridge_status(job_id)["status"] == "running"
-        cloud.set_status(READY)
-        assert cli.main(["cloud-sync", "--db", str(cloud.db)]) == 0
-        result = tools.code_bridge_result(job_id)
-        assert result["ok"] and result["status"] == "done"
-        assert result["pr_url"].endswith("/pull/100") and result["pushed_sha"] and result["landed_branch"]
-    finally:
-        os.environ.pop("LAZYTOOLS_CODE_BRIDGE_DB", None)
+    assert tools.code_bridge_status(job_id)["status"] == "running"
+    cloud.set_status(READY)
+    assert cli.main(["cloud-sync", "--db", str(cloud.db)]) == 0
+    result = tools.code_bridge_result(job_id)
+    assert result["ok"] and result["status"] == "done"
+    assert result["pr_url"].endswith("/pull/100") and result["pushed_sha"] and result["landed_branch"]
+
 
 
 def test_mcp_submit_validation_and_local_placement(cloud, capsys, monkeypatch):
     from lazytools.code_bridge._mcp import CodeBridgeTools
 
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
     tools = CodeBridgeTools(root=str(cloud.root))
     runner = _InProcess(tools)
     with pytest.raises(ValueError, match="'@'"):
@@ -1617,15 +1747,13 @@ def test_mcp_submit_validation_and_local_placement(cloud, capsys, monkeypatch):
     assert "--detach" in runner.argvs[-1] and seen["argv"][seen["argv"].index("--where") + 1] == "local"
 
 
-def test_mcp_tools_really_run_the_cli_in_a_child_process(cloud):
+def test_mcp_tools_really_run_the_cli_in_a_child_process(cloud, monkeypatch):
     from lazytools.code_bridge._mcp import CodeBridgeTools
 
     tools = CodeBridgeTools(root=str(cloud.root))
-    os.environ["LAZYTOOLS_CODE_BRIDGE_DB"] = str(cloud.db)
-    try:
-        out = tools.code_bridge_status("deadbeef")
-    finally:
-        os.environ.pop("LAZYTOOLS_CODE_BRIDGE_DB", None)
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
+    out = tools.code_bridge_status("deadbeef")
+
     assert out["ok"] is False and "no job found matching 'deadbeef'" in out["error"]
 
 
@@ -1652,3 +1780,52 @@ def test_missing_gh_is_a_clear_error(monkeypatch, tmp_path):
 def test_subprocess_default_python_is_importable_for_mcp_child():
     proc = subprocess.run([sys.executable, "-c", "import lazytools.code_bridge._mcp"], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
+
+
+def test_unmapped_auto_run_route_and_detached_mcp_match(cloud, routed, capsys, monkeypatch, caplog):
+    import _code_bridge_fakes as fakes
+    from lazytools.code_bridge._mcp import CodeBridgeTools
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    monkeypatch.setattr(_cloud_place, "local_now", lambda: _at(12))
+    secret = "sensitive-token-123"
+    _git(cloud.repo, "remote", "set-url", "origin", f"https://user:{secret}@github.com/acme/unmapped.git")
+    base = ["--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo)]
+    for where in ("auto", "cloud"):
+        base = ["--where", where, "--engine", "codex", "--cwd", str(cloud.repo)]
+        assert cli.main(["run", *base, "--root", str(cloud.root), "--task", "x", "--no-brief-check",
+                         "--db", str(cloud.db), "--allow-cloud", "--json"]) == 2
+        run_output = capsys.readouterr()
+        run = json.loads(run_output.out)
+        assert run["ok"] is False and run["error_code"] == "cloud_env_unmapped" and run["repo"] == "acme/unmapped"
+        assert '[cloud.codex.envs] "acme/unmapped"' in run["error"]
+        assert "--where local" in run["error"] and '[cloud] unmapped = "local"' in run["error"]
+        assert cli.main(["route", "--tier", "writing", *base, "--root", str(cloud.root),
+                         "--db", str(cloud.db), "--json"]) == 2
+        route_output = capsys.readouterr()
+        route = json.loads(route_output.out)
+        tools = CodeBridgeTools(root=str(cloud.root))
+        result = tools.code_bridge_submit("x", cwd=str(cloud.repo), engine="codex", where=where, allow_cloud=True)
+        assert route["placement"] == "would fail: unmapped"
+        assert {k: route[k] for k in run} == run
+        assert result["error_code"] == run["error_code"] and result["repo"] == run["repo"] and not result["ok"]
+        assert secret not in str((run_output, route_output, result, caplog.text))
+    assert cloud.calls() == []
+
+
+def test_unusable_remote_never_exposes_credentials(cloud, capsys, monkeypatch, caplog):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    secret = "sensitive-token-456"
+    _git(cloud.repo, "remote", "set-url", "origin", f"https://user:{secret}@github.com/only-one")
+    assert cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db)]) == 0
+    captured = capsys.readouterr()
+    assert "cloud repository metadata is unavailable" in captured.err
+    assert secret not in str((captured, caplog.text))

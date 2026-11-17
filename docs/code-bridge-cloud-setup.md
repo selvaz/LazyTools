@@ -110,6 +110,21 @@ submit_retries = 2            # extra attempts after a submit that errors at onc
 "owner/name" = "<env id>"
 ```
 
+### New repositories
+
+When auto placement would choose Codex Cloud, an unmapped repository fails with
+an actionable error. Explicit `--where cloud` follows the same rule. Add the
+repository's `[cloud.codex.envs]` mapping, or use `--where local`. To opt in to
+local fallback for unmapped repositories, configure:
+
+```toml
+[cloud]
+unmapped = "local"  # default: "error"
+```
+
+Auto placement still runs locally when a local slot is free outside busy windows.
+JSON and MCP errors include `error_code: "cloud_env_unmapped"` and the repository slug.
+
 ### 4. Log in and test
 
 First discover the repository's real default branch; do not assume it is
@@ -133,7 +148,7 @@ Use `Goal`, `Context`, `Constraints`, `Done when`, and `Report` headings in
 
 | Message | Fix |
 | --- | --- |
-| `no Codex Cloud environment mapped for owner/name` | Add the `[cloud.codex.envs]` line; check the key matches `git remote get-url origin` |
+| `no Codex Cloud environment is mapped for owner/name` | Add the `[cloud.codex.envs]` line; check the key matches `git remote get-url origin` |
 | `Codex CLI not found` | Install the Codex CLI, or set `CODEX_BIN` to its path |
 | `codex cloud exec exited ...: not logged in` | Run `codex login` |
 | `branch '<name>' does not exist on the 'origin' remote` | `--branch` is the base branch the agent starts from, not a name for the result: push it (`git push -u origin <name>`) or pass an existing branch |
