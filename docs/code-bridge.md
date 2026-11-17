@@ -673,6 +673,31 @@ exiting, which is the whole point: a human answers it from an entirely
 different process (this bridge's `approve`/`reject`, or any other surface
 that reads the same queue).
 
+### Approval profiles
+
+Local jobs use the existing, conservative approval policy by default. Pass
+`lazytools-code-bridge run --profile review ...` for reviewer jobs. The MCP
+`code_bridge_submit` tool accepts the same `profile="review"` argument. The
+profile name is stored on the job and on every auto-approval audit record;
+changing the profile never changes default jobs.
+
+The `review` profile auto-approves reads, tests and linters, dependency installs
+and builds, Git/GitHub reads, compound commands made solely from allowed parts,
+and PowerShell `-Command` wrappers. It continues to hold commands which publish
+remotely; commit, integrate, rewrite, switch, or remove history; alter pull
+request state; call `gh api` with a non-GET method or field/input flags; write
+or remove outside the workspace or touch credential paths; publish packages;
+control scheduled tasks or services; or request sandbox escalation. Removing a
+workspace-local `node_modules` directory is allowed. The sole GitHub write
+exception is exactly:
+
+```console
+gh pr comment <N> --repo <owner/repo> --body-file <file>
+```
+
+Every automatic decision is logged as `profile:review`. Cloud jobs do not run
+through the local gate and therefore reject `--profile review`.
+
 ### Routine auto-approval (R13)
 
 `BridgeGate` adds a **routine-auto** tier before the existing rule table,

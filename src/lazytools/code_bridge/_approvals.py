@@ -601,10 +601,13 @@ class BridgeGate(TieredGate):
     #: unattended (set by the job runner). Unknown roots make every absolute path ask.
     cwd: str | None = None
     temp_dir: str | None = None
+    profile: str = "default"
 
     async def _decide(self, request: ApprovalRequest, rule: Rule | None) -> Any:
         if isinstance(rule, _RoutineMatch):
             return self.routine.approve(request, rule.rule_id), "routine-auto"
+        if isinstance(rule, _ProfileMatch):
+            return self.routine.approve_profile(request, rule.profile), f"profile:{rule.profile}"
         if request.kind == "tool" and request.name == "Bash" and rule is not None:
             label = (
                 f"matched {rule.tier} rule: {rule.arg_pattern}"
@@ -618,6 +621,13 @@ class BridgeGate(TieredGate):
         if not self.accepting:
             return Rule("deny", "*")
         command = request.arguments.get("command")
+        if self.profile == "review" and isinstance(command, str) and (request.kind == "command" or request.name == "Bash"):
+            from lazytools.code_bridge._review_policy import review_denial
+
+            reason = review_denial(command, request.cwd or self.cwd or "")
+            if reason:
+                return Rule("ask", request.name, arg_pattern=f"profile:review:{reason}")
+            return _ProfileMatch(cast(Any, "profile:review"), request.name, profile="review")
         if self.routine is not None and isinstance(command, str) and (request.kind == "command" or request.name == "Bash"):
             rule_id = self.routine.match(request)
             if rule_id:
@@ -687,6 +697,11 @@ class BridgeGate(TieredGate):
 @dataclass(frozen=True)
 class _RoutineMatch(Rule):
     rule_id: str = ""
+
+
+@dataclass(frozen=True)
+class _ProfileMatch(Rule):
+    profile: str = ""
 
 
 __all__ = [

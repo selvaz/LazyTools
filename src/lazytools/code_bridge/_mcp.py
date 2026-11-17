@@ -90,6 +90,7 @@ class CodeBridgeTools:
         rebase_ok: bool = False,
         review_of: str | None = None,
         allow_cloud: bool = False,
+        profile: str = "default",
     ) -> dict[str, Any]:
         """Submit a coding job; returns at once with its ``job_id``."""
         from lazytools.code_bridge import _cloud, _cloud_place, _engines
@@ -106,6 +107,9 @@ class CodeBridgeTools:
         except _cloud.CloudEnvUnmapped as exc:
             return {**exc.payload(), "exit_code": 2}
         argv = ["run", "--where", placement.where, "--cwd", cwd or ".", "--root", self._root, "--json"]
+        if profile not in {"default", "review"}:
+            raise ValueError("profile must be 'default' or 'review'")
+        argv += ["--profile", profile]
         if task.strip():
             argv += ["--task", task]
         for flag, value in (("--engine", engine), ("--tier", tier), ("--model", model), ("--branch", branch),

@@ -121,6 +121,16 @@ CODING_RULES: tuple[Rule, ...] = (
     Rule("ask", "*", kind_pattern="command"),
 )
 
+# The review profile is deliberately a TieredGate table too.  Its structural
+# deny classifier lives in ``_review_policy`` because fnmatch cannot safely
+# inspect compound commands, wrappers, paths, or git global options.
+REVIEW_RULES: tuple[Rule, ...] = (
+    Rule("allow", "Read"), Rule("allow", "Glob"), Rule("allow", "Grep"),
+    Rule("allow", "Write"), Rule("allow", "Edit"), Rule("allow", "WebSearch"),
+    Rule("allow", "WebFetch"), Rule("allow", "Bash"),
+    Rule("allow", "*", kind_pattern="command"),
+)
+
 #: The ``--approve-cloud`` action each named Bash rule of :data:`CODING_RULES`
 #: stands for. A cloud agent's commands cannot be held one by one, so a cloud
 #: brief that requests a command the local gate would ask for (or session-ask
@@ -187,4 +197,4 @@ def cloud_rule_actions(text: str) -> set[str]:
     return found
 
 
-__all__ = ["CLOUD_RULE_ACTIONS", "CODING_RULES", "cloud_rule_actions"]
+__all__ = ["CLOUD_RULE_ACTIONS", "CODING_RULES", "REVIEW_RULES", "cloud_rule_actions"]

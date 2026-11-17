@@ -315,6 +315,7 @@ def run_job(
     scratch_root: str | None = None,
     wait_for_slot: bool = False,
     on_slot_wait: Callable[[_concurrency.EngineBusy], None] | None = None,
+    profile: str = "default",
 ) -> RunResult:
     """Run one job to completion. Raises before any job is recorded for a
     bad engine name or a ``cwd`` outside the confinement root; raises
@@ -330,6 +331,8 @@ def run_job(
     """
     if engine_name not in ENGINES:
         raise ValueError(f"engine must be one of {ENGINES}, got {engine_name!r}")
+    if profile not in {"default", "review"}:
+        raise ValueError(f"unknown approval profile {profile!r}")
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("--timeout must be a finite number greater than 0")
     timeout = float(timeout)
@@ -473,6 +476,7 @@ def run_job(
                 "max_continuations": max_continuations,
                 "max_wall": max_wall,
                 "routine_auto": routine_policy.enabled,
+                "approval_profile": profile,
                 "routine_rule_count": len(routine_policy.rules) if routine_policy.enabled else 0,
                 "scratch_root": routine_policy.scratch_root,
                 "continuations": 0,
@@ -502,7 +506,10 @@ def run_job(
             on_waiting=lambda: _set_status("awaiting_approval"),
             on_resumed=lambda: _set_status("running"),
         )
-        gate = BridgeGate(channel=channel, rules=CODING_RULES, cwd=str(resolved_cwd), temp_dir=temp_arg,
+        from lazytools.code_bridge._policy import REVIEW_RULES
+
+        gate = BridgeGate(channel=channel, rules=REVIEW_RULES if profile == "review" else CODING_RULES,
+                          cwd=str(resolved_cwd), temp_dir=temp_arg, profile=profile,
                           routine=_routine.RoutineAuto(routine_policy, store, queue, job_id))
 
         from lazybridge.engines.sessions import default_session_registry

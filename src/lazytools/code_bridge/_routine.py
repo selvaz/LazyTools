@@ -243,3 +243,22 @@ class RoutineAuto:
         self.store.write(key, {**raw, "approved_by": "routine-auto", "matched_rule_id": rule_id,
                                "command": request.arguments["command"], "cwd": request.cwd})
         return ApprovalDecision.allow()
+
+    def approve_profile(self, request: ApprovalRequest, profile: str) -> ApprovalDecision:
+        """Persist an auto-approval with the selecting profile in its audit record."""
+        command = request.arguments["command"]
+        ticket = self.queue.create_ticket(
+            task_id=self.job_id,
+            prompt=f"[profile:{profile}] {command}",
+            ttl=timedelta(minutes=5),
+        )
+        actor = f"profile:{profile}"
+        if not self.queue.approve_ticket(ticket.approval_id, actor=actor, channel=actor):
+            return ApprovalDecision.deny(f"{profile} profile audit ticket could not be approved")
+        if not self.queue.mark_approval_consumed(ticket.approval_id):
+            return ApprovalDecision.deny(f"{profile} profile audit ticket could not be consumed")
+        key = f"{_store.APPROVAL_PREFIX}{ticket.approval_id}"
+        raw = self.store.read(key)
+        self.store.write(key, {**raw, "approved_by": actor, "approval_profile": profile,
+                               "command": command, "cwd": request.cwd})
+        return ApprovalDecision.allow()
