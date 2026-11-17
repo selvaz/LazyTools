@@ -1390,6 +1390,19 @@ def test_run_where_auto_unmapped_tolerates_allow_cloud_when_falling_back(cloud, 
     assert cloud.calls() == []
 
 
+def test_unmapped_auto_with_all_local_slots_busy_fails(cloud, capsys, monkeypatch):
+    _set_cloud_config('\n[cloud]\nbusy_windows = []\n')
+    monkeypatch.setattr(_concurrency, "engine_at_limit", lambda *args: [{"job_id": "12345678"}])
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
+    args = ["--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo)]
+    assert cli.main(["run", *args, "--root", str(cloud.root), "--task", "x", "--json"]) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error_code"] == "cloud_env_unmapped" and payload["repo"] == "acme/other"
+    assert cli.main(["route", "--tier", "writing", *args]) == 2
+    assert "would fail: unmapped" in capsys.readouterr().err
+    assert cloud.calls() == []
+
+
 def test_unmapped_auto_with_free_slot_stays_local(cloud, capsys, monkeypatch):
     import _code_bridge_fakes as fakes
 
