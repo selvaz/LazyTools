@@ -406,9 +406,18 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
         config = _cloud.load_config()
         requested = args.where or config.default_where
         placement = _cloud_place.decide(requested, windows=config.busy_windows, engine=args.engine)
-        if (requested == _cloud_place.WHERE_AUTO and args.engine == "codex" and config.unmapped == "local"):
-            repo = _cloud.repo_slug(_cloud.repo_root(Path(args.cwd).expanduser().resolve()))
-            if repo.lower() not in config.envs.get("codex", {}):
+        if requested == _cloud_place.WHERE_AUTO and args.engine == "codex":
+            resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
+            repo: str | None = None
+            try:
+                repo = _cloud.repo_slug(_cloud.repo_root(resolved_cwd))
+            except (_cloud.CloudError, OSError) as exc:
+                placement = _cloud_place.Placement(
+                    "local", requested,
+                    f"cloud repository metadata is unavailable ({exc}); running locally",
+                )
+            if (repo is not None and config.unmapped == "local"
+                    and repo.lower() not in config.envs.get("codex", {})):
                 path = config.path or _concurrency.config_path()
                 placement = _cloud_place.Placement(
                     "local", requested,
@@ -422,6 +431,11 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
         print(placement.line(), file=sys.stderr)  # stderr: stdout's first line is the job id
     args.where = placement.where
     args.placement = placement
+    if placement.requested == _cloud_place.WHERE_AUTO and placement.where == _cloud.WHERE_LOCAL:
+        # The caller acknowledged that auto placement may use cloud.  If it
+        # instead selected local, that acknowledgement is harmless rather than
+        # a local-only option error.
+        args.allow_cloud = False
     return None
 
 

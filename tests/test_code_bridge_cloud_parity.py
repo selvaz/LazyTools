@@ -1329,6 +1329,64 @@ def test_run_where_auto_unmapped_codex_repo_falls_back_local(cloud, capsys, monk
     assert cloud.calls() == []
 
 
+@pytest.mark.parametrize("repository_kind", ["no-origin", "not-git"])
+def test_run_where_auto_without_cloud_repository_metadata_falls_back_local(
+    cloud, capsys, monkeypatch, repository_kind,
+):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    repository = cloud.root / repository_kind
+    repository.mkdir()
+    if repository_kind == "no-origin":
+        _git(repository, "init", "-q")
+
+    code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(repository),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db)])
+
+    captured = capsys.readouterr()
+    assert code == 0 and "[done] job" in captured.out
+    assert "placement: local (requested auto): cloud repository metadata is unavailable" in captured.err
+    assert "running locally" in captured.err
+    assert len([line for line in captured.err.splitlines() if line.startswith("placement:")]) == 1
+    assert cloud.calls() == []
+
+
+def test_run_where_auto_resolves_relative_cwd_from_root(cloud, gh, capsys, monkeypatch, tmp_path):
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    monkeypatch.chdir(tmp_path)
+
+    code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", "widgets",
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db),
+                     "--allow-cloud", "--json"])
+
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert json.loads(captured.out.strip().splitlines()[-1])["where"] == "cloud"
+    assert "placement: cloud (requested auto)" in captured.err
+
+
+def test_run_where_auto_unmapped_tolerates_allow_cloud_when_falling_back(cloud, capsys, monkeypatch):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/unmapped.git")
+
+    code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db),
+                     "--allow-cloud"])
+
+    captured = capsys.readouterr()
+    assert code == 0 and "[done] job" in captured.out
+    assert "no Codex Cloud environment is mapped for acme/unmapped" in captured.err
+    assert "--allow-cloud is only for --where cloud" not in captured.err
+    assert cloud.calls() == []
+
+
 def test_run_where_auto_stays_local_outside_the_window_and_default_where_applies(cloud, capsys, monkeypatch):
     import _code_bridge_fakes as fakes
 
