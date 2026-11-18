@@ -35,8 +35,8 @@ def test_the_real_catalogue_loads_and_covers_every_tier() -> None:
 
 
 def test_the_real_catalogue_runs_the_codex_workhorse_steps_on_gpt_6_1_sol() -> None:
-    """01/10: every Sol step moved from gpt-6-sol to gpt-6.1-sol with the effort untouched (xhigh -- never
-    raised to max/ultra by this change); gpt-6-astra (thinking fallback) is unchanged."""
+    """01/10: every Sol step moved from gpt-6-sol to gpt-6.2-sol with the effort untouched (xhigh -- never
+    raised to max/ultra by this change); gpt-6.2-astra (thinking fallback) is unchanged."""
     catalogue = load_tiers(REPO_ROOT / "tests" / "fixtures" / "ceo_model_tiers.toml")
 
     codex_models = {
@@ -46,11 +46,11 @@ def test_the_real_catalogue_runs_the_codex_workhorse_steps_on_gpt_6_1_sol() -> N
         for candidate in step.providers
         if candidate.provider == "codex"
     }
-    assert ("basic", "gpt-6.1-sol", "xhigh") in codex_models
-    assert ("writing", "gpt-6.1-sol", "xhigh") in codex_models
-    assert ("thinking", "gpt-6.1-sol", "xhigh") in codex_models
+    assert ("basic", "gpt-6.2-sol", "xhigh") in codex_models
+    assert ("writing", "gpt-6.2-sol", "xhigh") in codex_models
+    assert ("thinking", "gpt-6.2-sol", "xhigh") in codex_models
     assert not any(model == "gpt-6-sol" for _, model, _ in codex_models)
-    assert any(model == "gpt-6-astra" for _, model, _ in codex_models)
+    assert any(model == "gpt-6.2-astra" for _, model, _ in codex_models)
     assert not any(effort in ("max", "ultra") for _, _, effort in codex_models)
 
 
@@ -59,13 +59,13 @@ def test_gpt_6_1_sol_loads_from_a_catalogue(tmp_path: Path) -> None:
 [basic]
 [[basic.steps]]
 [basic.steps.providers.codex]
-model = "gpt-6.1-sol"
+model = "gpt-6.2-sol"
 effort = "xhigh"
 
 [writing]
 [[writing.steps]]
 [writing.steps.providers.codex]
-model = "gpt-6.1-sol"
+model = "gpt-6.2-sol"
 effort = "xhigh"
 
 [thinking]
@@ -81,7 +81,7 @@ model = "claude-opus-5-5"
     catalogue = load_tiers(_write(tmp_path, toml))
 
     (candidate,) = catalogue["writing"].steps[0].providers
-    assert (candidate.provider, candidate.model, candidate.effort) == ("codex", "gpt-6.1-sol", "xhigh")
+    assert (candidate.provider, candidate.model, candidate.effort) == ("codex", "gpt-6.2-sol", "xhigh")
 
 
 def test_an_unknown_codex_model_is_rejected(tmp_path: Path) -> None:

@@ -596,7 +596,7 @@ def codex_consultant(
                 in its reply. A thread belongs to the repository it was opened
                 on — don't reuse one against a different repo. When given
                 together with `session_name`, it wins and rebinds the name.
-            model: Codex model override for this call (e.g. "gpt-6.1-sol").
+            model: Codex model override for this call (e.g. "gpt-6.2-sol").
                 Defaults to the server's configured model.
             effort: Reasoning effort override for this call: one of "none",
                 "minimal", "low", "medium", "high", "xhigh", "max", "ultra" (which of

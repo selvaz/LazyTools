@@ -25,7 +25,7 @@ root = str(Path.cwd())
 async def inspect():
     review = codex_native_reviewer(root=root)
     print(await review.run(scope="uncommitted", session_name="deployment-review",
-                           model="gpt-6.1-sol", effort="high"))
+                           model="gpt-6.2-sol", effort="high"))
     ask = codex_consultant(root=root)
     print(await ask.run(question="Which boundary test would detect these findings?",
                         session_name="deployment-review"))
@@ -161,7 +161,7 @@ async def implement():
     writer.confirm_write()
     print(await write.run(
         task="Add a focused timeout boundary test; do not commit.", cwd=root,
-        session_name="codex-implementation", model="gpt-6.1-sol", effort="high",
+        session_name="codex-implementation", model="gpt-6.2-sol", effort="high",
     ))
 
 asyncio.run(implement())
