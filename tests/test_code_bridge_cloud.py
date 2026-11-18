@@ -13,6 +13,8 @@ import json
 import os
 import subprocess
 import textwrap
+import time
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -914,8 +916,10 @@ def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsy
         _cloud.CloudStatus("done", "completed", "finished", "status: completed"),
     ])
     observed_before_poll = []
+    poll_times = []
 
     def status(_self, _handle):
+        poll_times.append(time.monotonic())
         current_store = _store.build_store(cloud.db)
         current = _jobs.find_job(current_store, _store.build_job_registry(current_store), job_id)
         observed_before_poll.append(current["status"])
@@ -944,11 +948,13 @@ def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsy
     # Each failure independently imposes its own minimum: Retry-After for the
     # first, then exponential backoff for the second and third attempts.
     assert len(sleeps) >= 3, "the wait loop did not sleep through each transient failure"
-    assert sleeps[0] >= 0.045, f"Retry-After delay was not honoured: {sleeps}"
-    # A few milliseconds can elapse between reserving and entering sleep on
-    # slower interpreters; retain enough tolerance to test the 40 ms backoff.
-    assert sleeps[1] >= 0.03, f"second-attempt backoff was not honoured: {sleeps}"
-    assert sleeps[2] >= 0.07, f"third-attempt backoff was not honoured: {sleeps}"
+    # Measure provider attempts rather than positionally indexing sleep calls:
+    # implementation overhead is correctly part of the reserved delay and can
+    # make the eventual time.sleep argument a few milliseconds shorter.
+    gaps = [later - earlier for earlier, later in pairwise(poll_times)]
+    assert gaps[0] >= 0.045, f"Retry-After delay was not honoured: {gaps}"
+    assert gaps[1] >= 0.03, f"second-attempt backoff was not honoured: {gaps}"
+    assert gaps[2] >= 0.07, f"third-attempt backoff was not honoured: {gaps}"
 
 
 @pytest.mark.parametrize("http_status", ["429 Too Many Requests", "503 Service Unavailable"])
@@ -971,14 +977,44 @@ def test_resync_recovers_legacy_poll_failed_job(cloud, capsys):
     registry = _store.build_job_registry(store)
     meta = _store.read_meta(store, job_id) or {}
     meta.pop("last_poll_error", None)
+    # This is the exact doubled-prefix shape produced by the old refresh path:
+    # parse_status treated the first Error as a status and then refresh wrapped
+    # the raw output because the parsed message was empty.
     _cloud._write(store, registry, job_id, meta, status="failed",
-                  error="cloud task Error: get_task_details failed: HTTP 429 Too Many Requests")
+                  error="cloud task Error: Error: get_task_details failed: HTTP 429 Too Many Requests")
     cloud.set_status("status: ready\nRecovered result.\n")
 
     assert cli.main(["resync", job_id, "--db", str(cloud.db), "--json"]) == 0
     recovered = json.loads(capsys.readouterr().out)
     assert recovered["status"] == "done"
     assert recovered["job_log"][-1]["event"] == "resync"
+
+
+@pytest.mark.parametrize("status", ["429 Too Many Requests", "503 Service Unavailable"])
+def test_status_text_transport_error_accepts_status_without_http(cloud, monkeypatch, capsys, status):
+    job_id = _submit(cloud, capsys)
+    message = f"Error: get_task_details failed: unexpected status {status}"
+    monkeypatch.setattr(_cloud.CodexCloud, "_run",
+                        lambda _self, *_args, **_kwargs: (1, message, ""))
+
+    assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+    job = json.loads(capsys.readouterr().out)
+    assert job["status"] == "running"
+    assert message in job["last_poll_error"]
+
+
+def test_transport_failure_marker_does_not_cross_lines():
+    assert not _cloud._is_transient_transport_error(
+        "Error: get_task_details failed:\nThe task later timed out"
+    )
+
+
+def test_ready_status_wins_over_transport_shaped_message(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("[READY] Completed\nget_task_details failed: HTTP 503 in an example\n")
+
+    assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "done"
 
 
 def test_resync_restores_running_job_after_legacy_poll_failure(cloud, capsys):

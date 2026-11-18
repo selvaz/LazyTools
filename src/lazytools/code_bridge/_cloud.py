@@ -123,8 +123,8 @@ MAX_POLL_BACKOFF = 60.0
 POLL_CLOCK_PREFIX = "code-bridge:cloud-poll-clock:"
 _RETRY_AFTER_RE = re.compile(r"(?i)retry-after(?:\s+header)?\s*[:=]?\s*(\d+(?:\.\d+)?)")
 _TRANSIENT_TRANSPORT_RE = re.compile(
-    r"(?im)^\s*(?:(?:cloud task\s+)?error:\s*)?get_task_details failed:\s*.*"
-    r"(?:\bHTTP(?:/\d(?:\.\d)?)?\s+(?:429|5\d\d)\b|\b(?:timed?\s*out|timeout)\b)"
+    r"(?im)^\s*(?:(?:cloud task[ \t]+)?error:[ \t]*)*get_task_details failed:[ \t]*[^\r\n]*"
+    r"(?:\b(?:HTTP(?:/\d(?:\.\d)?)?[ \t]+)?(?:429|5\d\d)\b|\b(?:timed?[ \t]+out|timeout)\b)"
 )
 #: Actions a local job's BridgeGate would hold for a human ticket, as
 #: ``--approve-cloud`` names. A cloud agent's commands cannot be gated one by
@@ -855,16 +855,22 @@ class CodexCloud:
             # happens to mention an HTTP code or timeout.  A bare leading
             # ``Error:`` in the CLI's get_task_details failure line is the
             # exception: it is an error label, not a task status token.
-            transport_line = _is_transient_transport_error(safe_text)
+            # Only a leading Error label is ambiguous.  Once the provider has
+            # supplied another recognised status (for example READY), text in
+            # its title or message cannot turn that status into a poll error.
+            transport_line = (
+                parsed.raw_status.casefold() == "error" and _is_transient_transport_error(safe_text)
+            )
             if (parsed.raw_status and parsed.status in ("done", "failed", "interrupted")
                     and not transport_line):
                 return parsed
-        for safe_text in safe_outputs:
+        for safe_text, parsed in zip(safe_outputs, parsed_outputs, strict=True):
             # The CLI can print transport failures as a status-looking line,
             # e.g. ``Error: get_task_details failed: HTTP 429 ...``.  Since
             # ``Error`` is otherwise a legitimate terminal task status, only
             # the CLI error-line shape is treated as transport failure.
-            if _is_transient_transport_error(safe_text):
+            ambiguous_error = not parsed.raw_status or parsed.raw_status.casefold() == "error"
+            if ambiguous_error and _is_transient_transport_error(safe_text):
                 raise CloudError(safe_text.strip()[:2000])
         for parsed in parsed_outputs:
             if parsed.raw_status:
