@@ -706,7 +706,9 @@ def needs_finishing(job: dict[str, Any]) -> bool:
     return bool(job.get("land")) and not job.get("landed_at")
 
 
-def process_job(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path | None = None) -> dict[str, Any]:
+def process_job(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path | None = None,
+                poll_interval: float | None = None, deadline: float | None = None,
+                nonblocking_poll: bool = False) -> dict[str, Any]:
     """Refresh one cloud job, then land it / post its review / record its failure. Returns a report row.
 
     Never raises for a provider or git problem: the row's ``action`` says what
@@ -714,7 +716,12 @@ def process_job(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path
     ``failed``, ``waiting``, ``none``) and ``detail`` why.
     """
     job_id = str(job["job_id"])
-    job = _cloud.refresh(store, registry, _cloud._merged(store, registry, job_id))
+    merged = _cloud._merged(store, registry, job_id)
+    if poll_interval is None:
+        job = _cloud.refresh(store, registry, merged)
+    else:
+        job, _ = _cloud.poll_job_once(store, registry, merged, interval=poll_interval, deadline=deadline,
+                                      immediate=True, nonblocking=nonblocking_poll)
     row: dict[str, Any] = {"job_id": job_id, "engine": job.get("engine"), "status": job.get("status"),
                            "action": "none", "detail": ""}
     status = job.get("status")

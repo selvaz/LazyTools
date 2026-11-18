@@ -1117,6 +1117,7 @@ def _wait_event(job: dict[str, Any], event: str, approval: dict[str, Any] | None
 
 def _cmd_wait_any(args: argparse.Namespace) -> int:
     """Wait for the next actionable state across a snapshot of jobs."""
+    started_at = time.time()
     db_path = _db_path(args)
     try:
         events = {value.strip() for value in args.events.split(",") if value.strip()}
@@ -1186,15 +1187,18 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
             job = current
             finishing_action = None
             if _cloud.is_cloud(job) and (job.get("status") not in _TERMINAL or _cloud_land.needs_finishing(job)):
-                row = _cloud_land.process_job(store, registry, job, db_path=db_path)
+                row = _cloud_land.process_job(store, registry, job, db_path=db_path, poll_interval=args.interval,
+                                              deadline=deadline, nonblocking_poll=True)
                 job = _jobs.find_job(store, registry, job_id) or job
                 finishing_action = row["action"]
             status = str(job.get("status") or "")
             landing_failed = finishing_action in {"land-failed", "review-failed"}
+            landed_at = job.get("landed_at")
             landed = finishing_action == "landed" or bool(
                 _cloud.is_cloud(job)
                 and job.get("land")
-                and (job.get("landed_at") or job.get("pr_url"))
+                and landed_at
+                and (float(landed_at) >= started_at or not job.get("landed_event_reported_at"))
             )
             event = "failed" if landing_failed else (
                 "landed" if landed else ({"done": "done", "failed": "failed", "partial": "failed",
@@ -1207,6 +1211,10 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
             terminal_seen.add(str(job["job_id"]))
             if event in events:
                 _print_json(_wait_event(job, event))
+                if event == "landed":
+                    meta = _store.read_meta(store, str(job["job_id"])) or {}
+                    meta["landed_event_reported_at"] = time.time()
+                    _store.write_meta(store, str(job["job_id"]), meta)
                 if not args.loop:
                     return 0
         if args.loop and len(terminal_seen) == len(watched):
