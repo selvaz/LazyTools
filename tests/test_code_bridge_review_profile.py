@@ -54,7 +54,7 @@ ALLOWED = [
 
 @pytest.mark.parametrize("command", ALLOWED)
 def test_review_profile_auto_approves_harmless_commands(command: str):
-    assert _tier(command) == "profile:review"
+    assert _tier(command) == "allow"
 
 
 def _denied_commands() -> list[str]:
@@ -186,7 +186,7 @@ def test_review_auto_approval_records_profile(tmp_path):
     assert records[0]["approval_profile"] == "review"
     assert records[0]["approved_by"] == "profile:review"
     assert records[0]["consumed_at"]
-    assert gate.log[-1].tier == "profile:review"
+    assert gate.log[-1].tier == "allow"
 
 
 def _obfuscated_denied_commands() -> list[str]:
@@ -558,7 +558,7 @@ def test_review_holds_recursive_grep(flag: str):
     ],
 )
 def test_review_accepts_windows_executable_suffixes(command: str):
-    assert _tier(command) == "profile:review"
+    assert _tier(command) == "allow"
 
 
 @pytest.mark.parametrize(

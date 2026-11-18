@@ -643,7 +643,7 @@ class BridgeGate(TieredGate):
                     reason = reason or "Codex sandbox escalation"
             if reason:
                 return Rule("ask", request.name, arg_pattern=f"profile:review:{reason}")
-            return _ProfileMatch("profile:review", request.name, profile="review")
+            return _ProfileMatch("allow", request.name, profile="review")
         if self.routine is not None and isinstance(command, str) and (request.kind == "command" or request.name == "Bash"):
             rule_id = self.routine.match(request)
             if rule_id:

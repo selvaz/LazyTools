@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import shlex
+from collections.abc import Mapping
 
 from lazytools.code_bridge._readonly import sensitive_name
 
@@ -16,6 +17,10 @@ def _tokens(command: str) -> list[str] | None:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|(){}<>")
         lexer.whitespace_split = True
         lexer.commenters = ""
+        # A review command can target Windows even when the bridge runs on a
+        # POSIX host.  Preserve backslashes so _operand can normalize and
+        # inspect Windows paths instead of silently dropping their separators.
+        lexer.escape = ""
         result = list(lexer)
     except ValueError:
         return None
@@ -230,7 +235,7 @@ def review_denial(
     return None
 
 
-def review_tool_denial(name: str, arguments: dict[str, object]) -> str | None:
+def review_tool_denial(name: str, arguments: Mapping[str, object]) -> str | None:
     """Hold native read tools when an explicit operand names secret material."""
     if name not in {"Read", "Glob", "Grep"}:
         return None
