@@ -945,7 +945,9 @@ def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsy
     # first, then exponential backoff for the second and third attempts.
     assert len(sleeps) >= 3, "the wait loop did not sleep through each transient failure"
     assert sleeps[0] >= 0.045, f"Retry-After delay was not honoured: {sleeps}"
-    assert sleeps[1] >= 0.035, f"second-attempt backoff was not honoured: {sleeps}"
+    # A few milliseconds can elapse between reserving and entering sleep on
+    # slower interpreters; retain enough tolerance to test the 40 ms backoff.
+    assert sleeps[1] >= 0.03, f"second-attempt backoff was not honoured: {sleeps}"
     assert sleeps[2] >= 0.07, f"third-attempt backoff was not honoured: {sleeps}"
 
 
@@ -998,9 +1000,32 @@ def test_resync_restores_running_job_after_legacy_poll_failure(cloud, capsys):
 
 def test_bracketed_error_status_exits_nonzero_and_fails_job(cloud, capsys):
     job_id = _submit(cloud, capsys)
-    cloud.set_status("[ERROR] Fix flaky test\nsetup script failed\n")  # the fake exits 1, like upstream
+    cloud.set_status("[ERROR] Fix request timeout handling\nsetup script failed\n")  # exits 1 like upstream
     assert cli.main(["wait", job_id, "--db", str(cloud.db), "--interval", "0.01"]) == 1
     assert "[failed]" in capsys.readouterr().out
+
+
+def test_bracketed_ready_title_with_http_error_wording_completes_wait_any(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("[READY] Fix HTTP 503 retries\nCompleted successfully\n")
+
+    assert cli.main(["wait-any", job_id, "--db", str(cloud.db), "--timeout", "0"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["event"] == "done"
+
+
+def test_identical_transport_errors_stop_after_retry_cap(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    message = "Error: get_task_details failed: HTTP 503 Service Unavailable"
+    monkeypatch.setattr(_cloud.CodexCloud, "_run",
+                        lambda _self, *_args, **_kwargs: (1, message, ""))
+
+    for attempt in range(1, _cloud.MAX_CONSECUTIVE_POLL_ERRORS + 1):
+        assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+        job = json.loads(capsys.readouterr().out)
+        assert job["status"] == ("failed" if attempt == _cloud.MAX_CONSECUTIVE_POLL_ERRORS else "running")
+    assert job["status"] == "failed"
+    assert job["poll_errors_in_a_row"] == _cloud.MAX_CONSECUTIVE_POLL_ERRORS
 
 
 def test_cloud_wait_has_a_default_timeout(cloud, monkeypatch, capsys):

@@ -114,8 +114,7 @@ TERMINAL_STATUSES = ("done", "partial", "failed", "interrupted")
 #: so only lowercase hex (8-32 digits, what ``uuid4().hex`` produces) or a
 #: canonical UUID is accepted -- never anything that could be a path.
 JOB_ID_RE = re.compile(r"[0-9a-f]{8,32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-#: Retained for API compatibility. Poll failures are never terminal: only a
-#: provider-reported terminal task state may change a job to a terminal state.
+#: Stop retrying an identical/unrecoverable polling failure indefinitely.
 MAX_CONSECUTIVE_POLL_ERRORS = 5
 #: ``wait`` on a cloud job never runs unbounded: without ``--timeout`` it
 #: gives up after this many seconds (exit 3).
@@ -124,7 +123,8 @@ MAX_POLL_BACKOFF = 60.0
 POLL_CLOCK_PREFIX = "code-bridge:cloud-poll-clock:"
 _RETRY_AFTER_RE = re.compile(r"(?i)retry-after(?:\s+header)?\s*[:=]?\s*(\d+(?:\.\d+)?)")
 _TRANSIENT_TRANSPORT_RE = re.compile(
-    r"(?i)(?:\bHTTP(?:/\d(?:\.\d)?)?\s+(?:429|5\d\d)\b|\b(?:timed?\s*out|timeout)\b)"
+    r"(?im)^\s*(?:(?:cloud task\s+)?error:\s*)?get_task_details failed:\s*.*"
+    r"(?:\bHTTP(?:/\d(?:\.\d)?)?\s+(?:429|5\d\d)\b|\b(?:timed?\s*out|timeout)\b)"
 )
 #: Actions a local job's BridgeGate would hold for a human ticket, as
 #: ``--approve-cloud`` names. A cloud agent's commands cannot be gated one by
@@ -183,7 +183,7 @@ def redact(text: str) -> str:
 
 
 def _is_transient_transport_error(text: str) -> bool:
-    """Return whether provider text describes a retryable polling failure."""
+    """Match the CLI's polling-error line, not status titles or messages."""
     return _TRANSIENT_TRANSPORT_RE.search(text) is not None
 
 
@@ -846,15 +846,27 @@ class CodexCloud:
         auth) and raises :class:`CloudError`.
         """
         code, out, err = self._run("status", handle, allow_failure=True)
-        for text in (out, err):
-            safe_text = redact(text)
+        parsed_outputs: list[CloudStatus] = []
+        safe_outputs = [redact(out), redact(err)]
+        for safe_text in safe_outputs:
+            parsed = parse_status(safe_text)
+            parsed_outputs.append(parsed)
+            # Provider truth takes precedence even when its title/message
+            # happens to mention an HTTP code or timeout.  A bare leading
+            # ``Error:`` in the CLI's get_task_details failure line is the
+            # exception: it is an error label, not a task status token.
+            transport_line = _is_transient_transport_error(safe_text)
+            if (parsed.raw_status and parsed.status in ("done", "failed", "interrupted")
+                    and not transport_line):
+                return parsed
+        for safe_text in safe_outputs:
             # The CLI can print transport failures as a status-looking line,
             # e.g. ``Error: get_task_details failed: HTTP 429 ...``.  Since
-            # ``Error`` is otherwise a legitimate terminal task status, this
-            # check must precede parsing it as provider truth.
+            # ``Error`` is otherwise a legitimate terminal task status, only
+            # the CLI error-line shape is treated as transport failure.
             if _is_transient_transport_error(safe_text):
                 raise CloudError(safe_text.strip()[:2000])
-            parsed = parse_status(safe_text)
+        for parsed in parsed_outputs:
             if parsed.raw_status:
                 return parsed
         if code != 0:
@@ -991,6 +1003,10 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     if poll_error is not None:
         errors = int(job.get("poll_errors_in_a_row") or 0) + 1
         updates = {"last_poll_error": poll_error, "last_polled_at": time.time(), "poll_errors_in_a_row": errors}
+        if errors >= MAX_CONSECUTIVE_POLL_ERRORS and _is_transient_transport_error(poll_error):
+            _write_unless_terminal(store, registry, job_id, updates, status="failed",
+                                   error=f"cloud status failed after {errors} attempts: {poll_error}")
+            return _merged(store, registry, job_id)
         _write_unless_terminal(store, registry, job_id, updates, status=str(job.get("status") or "running"))
         return _merged(store, registry, job_id)
     updates = {
