@@ -798,6 +798,36 @@ def test_wait_any_uses_shared_retry_after_gate(cloud, monkeypatch, capsys):
     assert after == before
 
 
+def test_wait_any_zero_timeout_still_polls_cloud_once(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("status: ready\nCompleted during the check.\n")
+    before = len([call for call in cloud.calls() if call["argv"][1] == "status"])
+
+    assert cli.main(["wait-any", job_id, "--db", str(cloud.db), "--timeout", "0"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    after = len([call for call in cloud.calls() if call["argv"][1] == "status"])
+    assert payload["event"] == "done"
+    assert after == before + 1
+
+
+def test_wait_any_backoff_job_does_not_block_ready_job(cloud, capsys):
+    backed_off = _submit(cloud, capsys)
+    ready = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    meta = _store.read_meta(store, backed_off) or {}
+    meta.update(poll_errors_in_a_row=1, last_poll_error="HTTP 429; Retry-After: 60",
+                last_polled_at=_cloud.time.time())
+    _store.write_meta(store, backed_off, meta)
+    cloud.set_status("status: ready\nThe other job is complete.\n")
+
+    assert cli.main(["wait-any", backed_off, ready, "--db", str(cloud.db), "--timeout", "0"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["job_id"] == ready
+    assert payload["event"] == "done"
+
+
 def test_waiter_consumes_poll_completed_during_its_reserved_wait(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
     store = _store.build_store(cloud.db)
@@ -878,30 +908,41 @@ def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsy
     """Rate limits, server errors, and transport timeouts are observations, not task failures."""
     job_id = _submit(cloud, capsys)
     answers = iter([
-        _cloud.CloudError("HTTP 429 Rate limit exceeded; Retry-After: 0.01"),
+        _cloud.CloudError("HTTP 429 Rate limit exceeded; Retry-After: 0.05"),
         _cloud.CloudError("HTTP 503 Service Unavailable"),
         subprocess.TimeoutExpired("codex cloud status", 1),
         _cloud.CloudStatus("done", "completed", "finished", "status: completed"),
     ])
+    observed_before_poll = []
 
     def status(_self, _handle):
+        current_store = _store.build_store(cloud.db)
+        current = _jobs.find_job(current_store, _store.build_job_registry(current_store), job_id)
+        observed_before_poll.append(current["status"])
         answer = next(answers)
         if isinstance(answer, Exception):
             raise answer
         return answer
 
     monkeypatch.setattr(_cloud.CodexCloud, "status", status)
+    sleeps = []
+    real_sleep = _cloud.time.sleep
+
+    def recording_sleep(delay):
+        sleeps.append(delay)
+        real_sleep(delay)
+
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud.time, "sleep", recording_sleep)
+    assert cli.main(["wait", job_id, "--db", str(cloud.db), "--timeout", "1", "--interval", "0.02"]) == 0
     store = _store.build_store(cloud.db)
-    registry = _store.build_job_registry(store)
-    for expected_count, expected_error in [(1, "429"), (2, "503"), (3, "timed out")]:
-        job = _cloud.refresh(store, registry, _cloud._merged(store, registry, job_id))
-        assert job["status"] == "running"
-        assert job["poll_errors_in_a_row"] == expected_count
-        assert expected_error in job["last_poll_error"]
-    job = _cloud.refresh(store, registry, _cloud._merged(store, registry, job_id))
+    job = _jobs.find_job(store, _store.build_job_registry(store), job_id)
     assert job["status"] == "done"
     assert job["poll_errors_in_a_row"] == 0
     assert job["last_poll_error"] is None
+    assert observed_before_poll == ["running"] * 4
+    assert any(delay >= 0.04 for delay in sleeps), f"Retry-After delay was not honoured: {sleeps}"
+    assert len(sleeps) >= 3, "the wait loop did not sleep through each transient failure"
 
 
 def test_resync_recovers_legacy_poll_failed_job(cloud, capsys):

@@ -1668,7 +1668,7 @@ def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval
 
 def poll_job_once(
     store: Any, registry: Any, job: dict[str, Any], *, interval: float, deadline: float | None,
-    immediate: bool = False,
+    immediate: bool = False, nonblocking: bool = False,
 ) -> tuple[dict[str, Any], bool]:
     """Take a shared poll turn, or consume a poll completed by another waiter.
 
@@ -1685,9 +1685,17 @@ def poll_job_once(
     if errors and merged.get("last_polled_at"):
         elapsed = max(0.0, time.time() - float(merged["last_polled_at"]))
         delay = max(0.0, delay - elapsed)
-    delay += random.uniform(0.0, max(0.001, interval * 0.25))
+    # A check-once call (notably ``wait-any --timeout 0``) must still get one
+    # provider observation.  Jitter is useful when a poll is actually delayed,
+    # but turning an otherwise immediate first poll into a future poll makes a
+    # zero/very-short deadline skip the provider altogether.
+    if delay:
+        delay += random.uniform(0.0, max(0.001, interval * 0.25))
     polled_at = merged.get("last_polled_at")
-    if not _wait_for_poll_turn(store, str(merged["job_id"]), interval, delay, deadline):
+    got_turn = (_wait_for_poll_turn(store, str(merged["job_id"]), interval, delay, deadline,
+                                    nonblocking=True) if nonblocking else
+                _wait_for_poll_turn(store, str(merged["job_id"]), interval, delay, deadline))
+    if not got_turn:
         return merged, False
     latest = _merged(store, registry, str(merged["job_id"]))
     if latest.get("last_polled_at") != polled_at:
@@ -1701,7 +1709,8 @@ def _retry_after_seconds(error: str) -> float | None:
 
 
 def _wait_for_poll_turn(
-    store: Any, task_id: str, minimum_interval: float, delay: float, deadline: float | None,
+    store: Any, task_id: str, minimum_interval: float, delay: float, deadline: float | None, *,
+    nonblocking: bool = False,
 ) -> bool:
     """Reserve and honour a store-backed per-task poll time."""
     key = f"{POLL_CLOCK_PREFIX}{task_id}"
@@ -1712,8 +1721,11 @@ def _wait_for_poll_turn(
         poll_at = max(now + delay, previous + minimum_interval)
         wait = max(0.0, poll_at - now)
         remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
-        if remaining is None or wait <= remaining:
+        if ((not nonblocking and (remaining is None or wait <= remaining))
+                or (nonblocking and wait == 0)):
             store.write(key, poll_at)
+    if nonblocking and wait > 0:
+        return False
     if remaining is not None and wait > remaining:
         if remaining:
             time.sleep(remaining)
