@@ -124,7 +124,7 @@ MAX_POLL_BACKOFF = 60.0
 POLL_CLOCK_PREFIX = "code-bridge:cloud-poll-clock:"
 _RETRY_AFTER_RE = re.compile(r"(?i)retry-after(?:\s+header)?\s*[:=]?\s*(\d+(?:\.\d+)?)")
 _TRANSIENT_TRANSPORT_RE = re.compile(
-    r"(?im)^\s*(?:(?:cloud task[ \t]+)?error:[ \t]*)*get_task_details failed:[ \t]*[^\r\n]*"
+    r"(?im)^\s*(?:(?:cloud task[ \t]+)?(?:http[ \t]+)?error:[ \t]*)*get_task_details failed:[ \t]*[^\r\n]*"
     r"(?:\b(?:HTTP(?:/\d(?:\.\d)?)?[ \t]+)?(?:429|5\d\d)\b|\b(?:timed?[ \t]+out|timeout)\b)"
 )
 #: Actions a local job's BridgeGate would hold for a human ticket, as
