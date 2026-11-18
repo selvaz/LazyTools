@@ -89,7 +89,7 @@ class PortfolioTreeTools:
     * ``allow_persist`` — ``_save`` (writes to the shared store).
     * ``allow_delete`` — ``_delete``. Never granted to the Node Advisor's
       own read-only tool profile (``NodeAdvisorReadTools``) — this class
-      still supports it for callers (e.g. the general-purpose ``fin``
+      still supports it for callers (e.g. the general-purpose ``portfolio``
       provider) that need full read-write access.
     """
 

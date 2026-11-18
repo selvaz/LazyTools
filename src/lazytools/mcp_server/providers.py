@@ -395,7 +395,7 @@ def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     # A dedicated ``news_db_path`` key -- NOT the shared ``path`` key every
     # other provider here uses for the market-data-hub db, which this is
     # unrelated to. Reusing "path" would mean a single --config JSON setting
-    # it for the datahub/statistical/regimes/fin providers silently redirects
+    # it for the datahub/statistical/regimes/portfolio providers silently redirects
     # the crawler's cache at the wrong file too.
     # Explicit data_source override, else LazyCrawler's own canonical resolver
     # (LAZYCRAWLER_NEWS_DB env, the same one its setup_first_run.ps1 persists)
@@ -410,8 +410,8 @@ def _web(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     return WebTools(provider=provider)
 
 
-@_register("fin")
-def _fin(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+@_register("portfolio")
+def _portfolio(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """LazyPortfolio hierarchical (V2) optimizer + walk-forward backtest.
 
     Two providers share one data backend:
@@ -455,9 +455,17 @@ def _fin(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     ]
 
 
+# Backwards compatibility for configurations and command lines that selected
+# the old, misleading provider id.  Keep this as the very same factory (rather
+# than a forwarding wrapper) so both ids have exactly the same construction
+# and tool surface.  ``default_providers(None)`` excludes aliases to avoid
+# mounting every portfolio tool twice.
+PROVIDER_FACTORIES["fin"] = _portfolio
+
+
 @_register("optimizer_agent")
 def _optimizer_agent(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
-    """LLM specialist agent over the ``fin`` tool surface, exposed as ONE MCP tool.
+    """LLM specialist agent over the ``portfolio`` tool surface, exposed as ONE MCP tool.
 
     Unlike every other provider here, this constructs a ``lazybridge.Agent`` —
     ``expand_tools`` wraps any ``_is_lazy_agent`` object into a single tool
@@ -466,7 +474,7 @@ def _optimizer_agent(allow_write: bool = False, *, data_source: dict[str, Any] |
     final text. That is a real LLM call (cost, non-determinism, its own
     multi-step tool sequencing a per-name safety net can't inspect from
     outside) — qualitatively different from this server's other, deterministic
-    tools. So unlike ``fin`` itself, this provider is **opt-in only**: it
+    tools. So unlike ``portfolio`` itself, this provider is **opt-in only**: it
     raises (skipped by :func:`default_providers`'s existing broad except,
     same as a missing optional dependency) unless ``allow_write=True``, and
     again if the configured model's API key isn't set.
@@ -623,7 +631,7 @@ def _calendar_agent(allow_write: bool = False, *, data_source: dict[str, Any] | 
 #: start, and the consultants are built at startup), the agent providers and
 #: messaging/report (each call is a side effect), and the two code_review
 #: providers themselves (recursion).
-_CONSULTANT_PROVIDER_IDS = ("web", "datahub", "statistical", "fin", "econ_calendar")
+_CONSULTANT_PROVIDER_IDS = ("web", "datahub", "statistical", "portfolio", "econ_calendar")
 
 #: Compute tools are on ``UNSAFE_TOOL_PATTERNS`` because they spend real
 #: resources on the *default deterministic* MCP surface — but a consultant is
@@ -659,7 +667,7 @@ def _consultant_toolset(data_source: dict[str, Any] | None = None) -> list[Any]:
     """
     from lazytools.mcp_server.server import UNSAFE_TOOL_PATTERNS, expand_tools
 
-    # Only ``fin`` is built write-enabled — that is the one shape carrying
+    # Only ``portfolio`` is built write-enabled — that is the one shape carrying
     # the tree compute tools. Everything else is built read-only: a
     # write-enabled ``DataHubTools`` decorates its READ tools' descriptions
     # with a recovery path through ``datahub_register_listing`` /
@@ -667,9 +675,9 @@ def _consultant_toolset(data_source: dict[str, Any] | None = None) -> list[Any]:
     # consultant advertised tools it cannot call. Found by Codex reviewing
     # PR #122.
     providers = default_providers(
-        [i for i in _CONSULTANT_PROVIDER_IDS if i != "fin"], allow_write=False, data_source=data_source
+        [i for i in _CONSULTANT_PROVIDER_IDS if i != "portfolio"], allow_write=False, data_source=data_source
     )
-    providers += default_providers(["fin"], allow_write=True, data_source=data_source)
+    providers += default_providers(["portfolio"], allow_write=True, data_source=data_source)
     patterns = tuple(p for p in UNSAFE_TOOL_PATTERNS if p not in _CONSULTANT_COMPUTE_ALLOWED)
     return list(expand_tools(providers, read_only=True, unsafe_patterns=patterns).values())
 
@@ -1109,7 +1117,9 @@ def default_providers(
     the same shape ``lazytools.skills`` uses to wire the same two providers
     for an agent) — either shape is flattened into the returned list.
     """
-    selected = list(PROVIDER_FACTORIES) if ids is None else ids
+    # ``fin`` is a deprecated alias for ``portfolio``.  It remains selectable,
+    # but must not cause the default all-provider menu to mount duplicate tools.
+    selected = [i for i in PROVIDER_FACTORIES if i != "fin"] if ids is None else ids
     unknown = [i for i in selected if i not in PROVIDER_FACTORIES]
     if unknown:
         raise ValueError(

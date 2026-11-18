@@ -249,10 +249,14 @@ print([tool.name for tool in tools.as_tools()])
 
 `allow_compute` adds estimate/backtest, `allow_persist` adds save, and
 `allow_delete` adds delete. There is no constructor `allow_write` parameter.
-Compute can be granted without persistence or deletion. The MCP `fin` provider
+Compute can be granted without persistence or deletion. The MCP `portfolio` provider
 maps its write-enabled selection (`--allow-unsafe`) to all three privileges;
 read-only tree tools are emitted otherwise. Flat estimation/backtests are already
 in the provider menu: this flag is not a universal compute-cost gate.
+
+The former MCP provider id `fin` remains accepted as a deprecated alias for
+`portfolio`; both selections expose the same tools. New configurations should
+use `portfolio`, which accurately identifies the LazyPortfolio V2 backend.
 
 `store_path` overrides `LAZYPORTFOLIO_TREE_DB`. Inline `config` wins over `name`.
 Save validates before writing, and frequency/window/cost overrides affect only
