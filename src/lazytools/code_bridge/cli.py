@@ -1182,7 +1182,8 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
             job = current
             finishing_action = None
             if _cloud.is_cloud(job) and (job.get("status") not in _TERMINAL or _cloud_land.needs_finishing(job)):
-                row = _cloud_land.process_job(store, registry, job, db_path=db_path)
+                row = _cloud_land.process_job(store, registry, job, db_path=db_path, poll_interval=args.interval,
+                                              deadline=deadline)
                 job = _jobs.find_job(store, registry, job_id) or job
                 finishing_action = row["action"]
             status = str(job.get("status") or "")

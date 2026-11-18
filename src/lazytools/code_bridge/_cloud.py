@@ -1012,9 +1012,9 @@ def resync(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
                 "last_polled_at": time.time()}
         _write(store, registry, job_id, meta, status="failed", error=job.get("error"))
         return _merged(store, registry, job_id)
-    if state.status not in ("done", "failed", "interrupted"):
-        return job
     new_status = state.status
+    if new_status not in ("done", "failed", "interrupted"):
+        new_status = "running"
     meta = _store.read_meta(store, job_id) or {}
     log = list(meta.get("job_log") or [])
     log.append({"at": time.time(), "event": "resync", "from": "failed", "to": new_status,
@@ -1023,6 +1023,8 @@ def resync(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
                 last_poll_error=None, poll_errors_in_a_row=0, job_log=log, **state.extra)
     if new_status == "done":
         _write(store, registry, job_id, meta, status="done", result=state.message or state.raw.strip())
+    elif new_status == "running":
+        _write(store, registry, job_id, meta, status="running", error=None)
     else:
         _write(store, registry, job_id, meta, status=new_status,
                error=f"cloud task {state.raw_status or state.status}: {state.message or state.raw.strip()}")
@@ -1653,38 +1655,44 @@ def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval
         if job is None:
             return None
         merged = _merged(store, registry, str(job["job_id"]))
-        errors = int(merged.get("poll_errors_in_a_row") or 0)
-        retry_after = _retry_after_seconds(str(merged.get("last_poll_error") or ""))
-        exponent = min(63, max(0, errors - 1))
-        backoff = min(MAX_POLL_BACKOFF, interval * (2 ** exponent)) if errors else interval
-        delay = 0.0 if first and not errors and retry_after is None else max(backoff, retry_after or 0.0)
-        if errors and merged.get("last_polled_at"):
-            # The backoff and Retry-After count from the failed poll, not from
-            # this waiter's start: a resumed waiter subtracts the time already
-            # elapsed, so short waits invoked repeatedly still poll again.
-            elapsed = max(0.0, time.time() - float(merged["last_polled_at"]))
-            delay = max(0.0, delay - elapsed)
-        # Randomisation prevents independent waiters from repeatedly waking in
-        # lockstep. The durable reservation also serialises processes watching
-        # the same task even when their random choices happen to coincide.
-        delay += random.uniform(0.0, max(0.001, interval * 0.25))
-        polled_at = merged.get("last_polled_at")
-        if not _wait_for_poll_turn(store, str(merged["job_id"]), interval, delay, deadline):
-            return merged
+        job, got_turn = poll_job_once(store, registry, merged, interval=interval, deadline=deadline,
+                                      immediate=first)
         first = False
-        # Another waiter may have performed this task's reserved poll while
-        # this process slept.  Consume its persisted result instead of issuing
-        # the same provider request again.
-        latest = _merged(store, registry, str(merged["job_id"]))
-        if latest.get("last_polled_at") != polled_at:
-            if latest.get("status") in TERMINAL_STATUSES:
-                return latest
-            continue
-        job = refresh(store, registry, merged)
+        if not got_turn:
+            return job
         if job.get("status") in TERMINAL_STATUSES:
             return job
         if deadline is not None and time.monotonic() >= deadline:
             return job
+
+
+def poll_job_once(
+    store: Any, registry: Any, job: dict[str, Any], *, interval: float, deadline: float | None,
+    immediate: bool = False,
+) -> tuple[dict[str, Any], bool]:
+    """Take a shared poll turn, or consume a poll completed by another waiter.
+
+    The durable per-task reservation is shared by ``wait``, ``wait-any`` and
+    reconciliation callers.  ``bool`` is false only when the caller's deadline
+    expires before its reserved turn.
+    """
+    merged = _merged(store, registry, str(job["job_id"]))
+    errors = int(merged.get("poll_errors_in_a_row") or 0)
+    retry_after = _retry_after_seconds(str(merged.get("last_poll_error") or ""))
+    exponent = min(63, max(0, errors - 1))
+    backoff = min(MAX_POLL_BACKOFF, interval * (2 ** exponent)) if errors else interval
+    delay = 0.0 if immediate and not errors and retry_after is None else max(backoff, retry_after or 0.0)
+    if errors and merged.get("last_polled_at"):
+        elapsed = max(0.0, time.time() - float(merged["last_polled_at"]))
+        delay = max(0.0, delay - elapsed)
+    delay += random.uniform(0.0, max(0.001, interval * 0.25))
+    polled_at = merged.get("last_polled_at")
+    if not _wait_for_poll_turn(store, str(merged["job_id"]), interval, delay, deadline):
+        return merged, False
+    latest = _merged(store, registry, str(merged["job_id"]))
+    if latest.get("last_polled_at") != polled_at:
+        return latest, True
+    return refresh(store, registry, merged), True
 
 
 def _retry_after_seconds(error: str) -> float | None:

@@ -125,6 +125,31 @@ def test_wait_any_recognizes_persisted_cloud_landing(tmp_path, capsys):
     assert capsys.readouterr().out == ""
 
 
+def test_wait_any_ignores_old_landing_that_was_already_reported(tmp_path, capsys):
+    db = tmp_path / "jobs.sqlite"
+    store = _job(db, "old-landing", "done")
+    _store.write_meta(store, "old-landing", {
+        "job_id": "old-landing", "where": "cloud", "land": True,
+        "landed_at": 100, "landed_event_reported_at": 101, "pr_url": "https://example.test/pull/1",
+    })
+
+    assert main(["wait-any", "old-landing", "--events", "landed", "--timeout", "0", "--db", str(db)]) == 3
+    assert capsys.readouterr().out == ""
+
+
+def test_wait_any_reports_landing_created_after_wait_started(tmp_path, capsys, monkeypatch):
+    db = tmp_path / "jobs.sqlite"
+    store = _job(db, "new-landing", "done")
+    _store.write_meta(store, "new-landing", {
+        "job_id": "new-landing", "where": "cloud", "land": True,
+        "landed_at": 200, "landed_event_reported_at": 150, "pr_url": "https://example.test/pull/2",
+    })
+    monkeypatch.setattr(cli.time, "time", lambda: 175)
+
+    assert main(["wait-any", "new-landing", "--events", "landed", "--db", str(db)]) == 0
+    assert json.loads(capsys.readouterr().out)["event"] == "landed"
+
+
 def test_wait_any_does_not_treat_running_job_pr_as_new_landing(tmp_path, capsys):
     db = tmp_path / "jobs.sqlite"
     store = _job(db, "running-with-pr", "running")

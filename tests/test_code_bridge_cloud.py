@@ -724,7 +724,7 @@ def test_poll_clock_is_scoped_to_task(cloud, monkeypatch):
 
 def test_short_waiters_do_not_advance_poll_clock(cloud, monkeypatch):
     store = _store.build_store(cloud.db)
-    key = f"{_cloud.POLL_CLOCK_PREFIX}codex"
+    key = f"{_cloud.POLL_CLOCK_PREFIX}task-id"
     now = [100.0]
     store.write(key, now[0])
     monkeypatch.setattr(_cloud.time, "time", lambda: now[0])
@@ -736,7 +736,7 @@ def test_short_waiters_do_not_advance_poll_clock(cloud, monkeypatch):
     monkeypatch.setattr(_cloud.time, "sleep", sleep)
     for _ in range(3):
         deadline = _cloud.time.monotonic() + 1.0
-        assert not _cloud._wait_for_poll_turn(store, "codex", 5.0, 0.0, deadline)
+        assert not _cloud._wait_for_poll_turn(store, "task-id", 5.0, 0.0, deadline)
 
     assert now[0] == 103.0
     assert store.read(key) == 100.0
@@ -781,6 +781,65 @@ def test_resumed_waiter_subtracts_elapsed_time_from_retry_after(cloud, monkeypat
     monkeypatch.setattr(_cloud, "refresh", counting_refresh)
     _cloud.wait_job(lambda: _store.build_store(cloud.db), job_id, timeout=1.0, interval=0.01)
     assert polled, "the resumed waiter never polled although Retry-After had expired"
+
+
+def test_wait_any_uses_shared_retry_after_gate(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    meta = _store.read_meta(store, job_id) or {}
+    meta.update(poll_errors_in_a_row=1, last_poll_error="HTTP 429 Too Many Requests; Retry-After: 120",
+                last_polled_at=_cloud.time.time())
+    _store.write_meta(store, job_id, meta)
+    before = len([call for call in cloud.calls() if call["argv"][1] == "status"])
+
+    assert cli.main(["wait-any", job_id, "--db", str(cloud.db), "--timeout", "0.01",
+                     "--interval", "0.001"]) == 3
+    after = len([call for call in cloud.calls() if call["argv"][1] == "status"])
+    assert after == before
+
+
+def test_waiter_consumes_poll_completed_during_its_reserved_wait(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    job = _cloud._merged(store, registry, job_id)
+    provider_calls = 0
+    real_refresh = _cloud.refresh
+
+    def counting_refresh(*args, **kwargs):
+        nonlocal provider_calls
+        provider_calls += 1
+        return real_refresh(*args, **kwargs)
+
+    def another_waiter_polls(*_args, **_kwargs):
+        counting_refresh(store, registry, job)
+        return True
+
+    monkeypatch.setattr(_cloud, "refresh", counting_refresh)
+    monkeypatch.setattr(_cloud, "_wait_for_poll_turn", another_waiter_polls)
+    latest, got_turn = _cloud.poll_job_once(store, registry, job, interval=1.0, deadline=None)
+
+    assert got_turn and latest["status"] == "running"
+    assert provider_calls == 1
+
+
+def test_consecutive_poll_errors_grow_exponential_backoff(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    delays = []
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud, "_wait_for_poll_turn",
+                        lambda _store, _task, _interval, delay, _deadline: delays.append(delay) or False)
+    for errors in (1, 2, 3):
+        meta = _store.read_meta(store, job_id) or {}
+        meta.update(poll_errors_in_a_row=errors, last_poll_error="HTTP 503 Service Unavailable",
+                    last_polled_at=_cloud.time.time())
+        _store.write_meta(store, job_id, meta)
+        _cloud.poll_job_once(store, registry, _cloud._merged(store, registry, job_id), interval=2.0,
+                             deadline=None)
+
+    assert delays == pytest.approx([2.0, 4.0, 8.0], abs=0.01)
 
 
 def test_unparseable_status_output_never_fails_job(cloud, capsys):
@@ -832,10 +891,14 @@ def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsy
         return answer
 
     monkeypatch.setattr(_cloud.CodexCloud, "status", status)
-    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
-    monkeypatch.setattr(_cloud.time, "sleep", lambda _delay: None)
-    assert cli.main(["wait", job_id, "--db", str(cloud.db), "--timeout", "1", "--interval", "0.001"]) == 0
-    job = _jobs.find_job(_store.build_store(cloud.db), _store.build_job_registry(_store.build_store(cloud.db)), job_id)
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    for expected_count, expected_error in [(1, "429"), (2, "503"), (3, "timed out")]:
+        job = _cloud.refresh(store, registry, _cloud._merged(store, registry, job_id))
+        assert job["status"] == "running"
+        assert job["poll_errors_in_a_row"] == expected_count
+        assert expected_error in job["last_poll_error"]
+    job = _cloud.refresh(store, registry, _cloud._merged(store, registry, job_id))
     assert job["status"] == "done"
     assert job["poll_errors_in_a_row"] == 0
     assert job["last_poll_error"] is None
@@ -854,6 +917,23 @@ def test_resync_recovers_legacy_poll_failed_job(cloud, capsys):
     recovered = json.loads(capsys.readouterr().out)
     assert recovered["status"] == "done"
     assert recovered["job_log"][-1]["event"] == "resync"
+
+
+def test_resync_restores_running_job_after_legacy_poll_failure(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    meta = _store.read_meta(store, job_id) or {}
+    meta["last_poll_error"] = "temporary provider failure"
+    _cloud._write(store, registry, job_id, meta, status="failed", error="cloud status: Error")
+    cloud.set_status("Task status: pending\nStill working.\n")
+
+    assert cli.main(["resync", job_id, "--db", str(cloud.db), "--json"]) == 4
+    recovered = json.loads(capsys.readouterr().out)
+    assert recovered["status"] == "running"
+    assert recovered.get("error") is None
+    assert recovered["last_poll_error"] is None
+    assert recovered["job_log"][-1]["to"] == "running"
 
 
 def test_bracketed_error_status_exits_nonzero_and_fails_job(cloud, capsys):
