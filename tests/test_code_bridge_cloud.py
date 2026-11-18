@@ -1554,3 +1554,32 @@ def test_cloud_report_is_extracted_from_unified_diff():
 
 def test_empty_diff_has_no_report_or_code_files():
     assert _cloud.report_from_diff("") == (None, [])
+
+
+# Exact text the Codex CLI printed in production on 2026-11-18 (jobs c2a1560c, 250cee24).
+_REAL_429 = ('Error: http error: get_task_details failed: GET https://chatgpt.com/backend-api/wham/tasks/'
+             'task_e_6afdff034b208330849aabffd97c17c4 failed: 429 Too Many Requests; '
+             'content-type=application/json; body={"detail":"Rate limit exceeded"}')
+
+
+def test_real_cli_429_status_text_keeps_job_running(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    monkeypatch.setattr(_cloud.CodexCloud, "_run", lambda _self, *_args, **_kwargs: (1, _REAL_429, ""))
+
+    assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+    job = json.loads(capsys.readouterr().out)
+    assert job["status"] == "running"
+    assert "429 Too Many Requests" in job["last_poll_error"]
+
+
+def test_resync_recovers_job_failed_with_real_cli_429_text(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    meta = _store.read_meta(store, job_id) or {}
+    meta.pop("last_poll_error", None)
+    _cloud._write(store, registry, job_id, meta, status="failed", error=f"cloud task Error: {_REAL_429}")
+    cloud.set_status("status: ready\nRecovered result.\n")
+
+    assert cli.main(["resync", job_id, "--db", str(cloud.db), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "done"
