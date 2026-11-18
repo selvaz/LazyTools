@@ -704,6 +704,24 @@ def test_poll_clock_spaces_first_poll_from_separate_waiters(cloud, monkeypatch):
     assert sleeps == [5.0]
 
 
+def test_poll_clock_is_scoped_to_task(cloud, monkeypatch):
+    store = _store.build_store(cloud.db)
+    now = [100.0]
+    sleeps = []
+    monkeypatch.setattr(_cloud.time, "time", lambda: now[0])
+
+    def sleep(delay):
+        sleeps.append(delay)
+        now[0] += delay
+
+    monkeypatch.setattr(_cloud.time, "sleep", sleep)
+
+    assert _cloud._wait_for_poll_turn(store, "task-a", 5.0, 0.0, None)
+    assert _cloud._wait_for_poll_turn(store, "task-b", 5.0, 0.0, None)
+
+    assert sleeps == []
+
+
 def test_short_waiters_do_not_advance_poll_clock(cloud, monkeypatch):
     store = _store.build_store(cloud.db)
     key = f"{_cloud.POLL_CLOCK_PREFIX}codex"
@@ -727,7 +745,7 @@ def test_short_waiters_do_not_advance_poll_clock(cloud, monkeypatch):
 def test_wait_deadline_does_not_poll_before_reserved_turn(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
     store = _store.build_store(cloud.db)
-    store.write(f"{_cloud.POLL_CLOCK_PREFIX}codex", _cloud.time.time() + 120.0)
+    store.write(f"{_cloud.POLL_CLOCK_PREFIX}{job_id}", _cloud.time.time() + 120.0)
     sleeps = []
     monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
     monkeypatch.setattr(_cloud.time, "sleep", sleeps.append)
@@ -795,6 +813,32 @@ def test_429_then_completed_retries_and_honours_retry_after(cloud, monkeypatch, 
     assert any(delay >= 1.9 for delay in sleeps)
     job = _jobs.find_job(_store.build_store(cloud.db), _store.build_job_registry(_store.build_store(cloud.db)), job_id)
     assert job["status"] == "done"
+
+
+def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsys):
+    """Rate limits, server errors, and transport timeouts are observations, not task failures."""
+    job_id = _submit(cloud, capsys)
+    answers = iter([
+        _cloud.CloudError("HTTP 429 Rate limit exceeded; Retry-After: 0.01"),
+        _cloud.CloudError("HTTP 503 Service Unavailable"),
+        subprocess.TimeoutExpired("codex cloud status", 1),
+        _cloud.CloudStatus("done", "completed", "finished", "status: completed"),
+    ])
+
+    def status(_self, _handle):
+        answer = next(answers)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(_cloud.CodexCloud, "status", status)
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud.time, "sleep", lambda _delay: None)
+    assert cli.main(["wait", job_id, "--db", str(cloud.db), "--timeout", "1", "--interval", "0.001"]) == 0
+    job = _jobs.find_job(_store.build_store(cloud.db), _store.build_job_registry(_store.build_store(cloud.db)), job_id)
+    assert job["status"] == "done"
+    assert job["poll_errors_in_a_row"] == 0
+    assert job["last_poll_error"] is None
 
 
 def test_resync_recovers_legacy_poll_failed_job(cloud, capsys):

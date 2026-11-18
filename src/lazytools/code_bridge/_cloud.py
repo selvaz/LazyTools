@@ -1665,12 +1665,21 @@ def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval
             elapsed = max(0.0, time.time() - float(merged["last_polled_at"]))
             delay = max(0.0, delay - elapsed)
         # Randomisation prevents independent waiters from repeatedly waking in
-        # lockstep. The durable reservation also serialises processes sharing
-        # an account even when their random choices happen to coincide.
+        # lockstep. The durable reservation also serialises processes watching
+        # the same task even when their random choices happen to coincide.
         delay += random.uniform(0.0, max(0.001, interval * 0.25))
-        if not _wait_for_poll_turn(store, str(merged.get("engine") or "cloud"), interval, delay, deadline):
+        polled_at = merged.get("last_polled_at")
+        if not _wait_for_poll_turn(store, str(merged["job_id"]), interval, delay, deadline):
             return merged
         first = False
+        # Another waiter may have performed this task's reserved poll while
+        # this process slept.  Consume its persisted result instead of issuing
+        # the same provider request again.
+        latest = _merged(store, registry, str(merged["job_id"]))
+        if latest.get("last_polled_at") != polled_at:
+            if latest.get("status") in TERMINAL_STATUSES:
+                return latest
+            continue
         job = refresh(store, registry, merged)
         if job.get("status") in TERMINAL_STATUSES:
             return job
@@ -1684,10 +1693,10 @@ def _retry_after_seconds(error: str) -> float | None:
 
 
 def _wait_for_poll_turn(
-    store: Any, account: str, minimum_interval: float, delay: float, deadline: float | None,
+    store: Any, task_id: str, minimum_interval: float, delay: float, deadline: float | None,
 ) -> bool:
-    """Reserve and honour a store-backed per-account poll time."""
-    key = f"{POLL_CLOCK_PREFIX}{account}"
+    """Reserve and honour a store-backed per-task poll time."""
+    key = f"{POLL_CLOCK_PREFIX}{task_id}"
     with _concurrency._guard(_concurrency.load_config().slot_dir):
         now = time.time()
         raw = store.read(key)

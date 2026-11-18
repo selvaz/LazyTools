@@ -119,6 +119,26 @@ def test_wait_any_recognizes_persisted_cloud_landing(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["event"] == "landed" and payload["pr_url"].endswith("/1")
 
+    # A persisted landing is delivered once, rather than being rediscovered
+    # by every future wait-any invocation.
+    assert main(["wait-any", "cloud-landed", "--events", "landed", "--timeout", "0", "--db", str(db)]) == 3
+    assert capsys.readouterr().out == ""
+
+
+def test_wait_any_does_not_treat_running_job_pr_as_new_landing(tmp_path, capsys):
+    db = tmp_path / "jobs.sqlite"
+    store = _job(db, "running-with-pr", "running")
+    _store.write_meta(store, "running-with-pr", {
+        "job_id": "running-with-pr",
+        "engine": "codex",
+        "where": "cloud",
+        "land": True,
+        "pr_url": "https://example.test/pull/old",
+    })
+
+    assert main(["wait-any", "running-with-pr", "--events", "landed", "--timeout", "0", "--db", str(db)]) == 3
+    assert capsys.readouterr().out == ""
+
 
 def test_jobs_json_and_encoding_safe_human_output(tmp_path, capsys, monkeypatch):
     db = tmp_path / "jobs.sqlite"
