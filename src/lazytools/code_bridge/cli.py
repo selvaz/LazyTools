@@ -147,7 +147,12 @@ def _record_intervention(store: Any, job_id: str, kind: str, reason: str | None 
 # launcher's job object when that object allows it -- a job object is what
 # lets a supervising process (e.g. a Claude Code background shell being
 # reaped) take its whole tree down with it.
-_DETACHED_PROCESS = 0x00000008
+# CREATE_NO_WINDOW gives the child a NEW, hidden console instead of none
+# (DETACHED_PROCESS). Console programs the job starts (git, npm, pytest,
+# powershell, the engines) inherit that hidden console; with no console at
+# all, Windows allocates a visible one for each of them, which on a machine
+# whose default terminal is Windows Terminal opens one tab per command.
+_CREATE_NO_WINDOW = 0x08000000
 _CREATE_NEW_PROCESS_GROUP = 0x00000200
 _CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 
@@ -192,7 +197,7 @@ def _spawn_detached(argv: list[str], log_path: Path) -> int:
             "close_fds": True,
         }
         if os.name == "nt":
-            flags = _DETACHED_PROCESS | _CREATE_NEW_PROCESS_GROUP
+            flags = _CREATE_NO_WINDOW | _CREATE_NEW_PROCESS_GROUP
             try:
                 proc = subprocess.Popen(argv, creationflags=flags | _CREATE_BREAKAWAY_FROM_JOB, **common)
             except OSError:
