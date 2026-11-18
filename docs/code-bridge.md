@@ -711,35 +711,17 @@ Local jobs use the existing, conservative approval policy by default. Pass
 profile name is stored on the job and on every auto-approval audit record;
 changing the profile never changes default jobs.
 
-The `review` profile auto-approves reads, tests and linters, dependency installs
-and builds, Git/GitHub reads, compound commands made solely from allowed parts,
-and PowerShell `-Command` wrappers. It continues to hold commands which publish
-remotely; commit, integrate, rewrite, switch, or remove history; alter pull
-request state; call `gh api` with a non-GET method or field/input flags; write
-or remove outside the workspace or touch credential paths; publish packages;
-control scheduled tasks or services; or request sandbox escalation. Removing a
-workspace-local `node_modules` directory is allowed. The sole GitHub write
-exception is exactly:
+The `review` profile is fail closed. It tokenizes each command and auto-approves
+only an explicit routine allow-list: `gh pr view|diff|checks`, selected
+read-only `git status|log|diff|show|rev-parse` forms, helper-free `git fetch`,
+pytest, `npm test`, `npm run build|lint`, and common file readers (`ls`, `cat`,
+`grep`, `head`, and `tail`). Every segment of a compound command must match.
 
-```console
-gh pr comment <N> --repo <owner/repo> --body-file <file>
-```
-
-`<file>` must already exist inside that job's private scratch directory, must
-not be a credential path, and cannot be `-`/stdin. Immediately before approval,
-the bridge reads it as UTF-8 and holds the comment if the standard credential
-redactor matches any content. Commands containing credential-like path operands
-are held independently of the reader or writer verb.
-
-The matcher analyzes shell command text rather than executing a shell parser.
-Literal credential paths in interpreter one-liners are detected, but paths an
-opaque program computes at runtime and obscure shell features the matcher does
-not model remain defence-in-depth limits; reviewer jobs still rely on their
-surrounding sandbox. Encoded PowerShell commands, PowerShell script-file
-launches, and opaque command wrappers are held.
-Read-only Git forms such as `branch --show-current`, `tag -l`, `stash list`,
-`remote get-url`, `worktree list`, `config --list`, and non-refspec `fetch` are
-also auto-approved; an in-workspace `git -C` is accepted.
+Unknown commands or flags, abbreviations, environment/config overrides,
+wrappers, expansions, redirections, writes, deletes, credential reads, GitHub
+mutations (including `gh pr comment`), and unparseable or ambiguous syntax are
+always held for a human. Codex sandbox/network escalations are held even when
+their command would otherwise be on the allow-list.
 
 Every automatic decision is logged as `profile:review`. Cloud jobs do not run
 through the local gate and therefore reject `--profile review`.

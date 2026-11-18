@@ -126,8 +126,8 @@ CODING_RULES: tuple[Rule, ...] = (
 # inspect compound commands, wrappers, paths, or git global options.
 REVIEW_RULES: tuple[Rule, ...] = (
     Rule("allow", "Read"), Rule("allow", "Glob"), Rule("allow", "Grep"),
-    Rule("allow", "Write"), Rule("allow", "Edit"), Rule("allow", "WebSearch"),
-    Rule("allow", "WebFetch"), Rule("ask", "Bash"),
+    Rule("ask", "Write"), Rule("ask", "Edit"), Rule("ask", "WebSearch"),
+    Rule("ask", "WebFetch"), Rule("ask", "Bash"),
     Rule("ask", "*", kind_pattern="command"),
 )
 

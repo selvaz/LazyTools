@@ -31,52 +31,22 @@ ALLOWED = [
     "git diff --check",
     "git log --oneline -5",
     "git show HEAD:README.md",
-    "git check-ignore -v f",
-    "git branch --list",
     "git rev-parse HEAD",
-    "git remote -v",
+    "git fetch origin",
     "python -m pytest",
     "pytest -q",
-    "ruff check .",
-    "mypy src",
-    "npm ci",
+    "npm test",
     "npm run build",
-    "cd x && PYTHONPATH=. python -m pytest -q | tail -3",
-    "timeout 110 python -m pytest",
-    "for i in 1 2; do echo $i; done",
-    "rg -n profile src",
-    "find . -name '*.py'",
+    "npm run lint",
+    "ls -la",
     "cat README.md",
+    "grep -n profile README.md",
+    "head -n 3 README.md",
+    "tail -n 3 README.md",
     "gh pr view 12",
     "gh pr checks 12",
     "gh pr diff 12",
-    "gh run list",
-    "gh api repos/o/r/pulls/1/comments --paginate",
-    "gh api --method GET repos/o/r/pulls/1",
-    "rm -rf node_modules",
-    "rm build/output.txt",
-    "mkdir -p build",
-    "touch report.txt",
-    "cp a.txt build/a.txt",
-    "echo ok > report.txt",
-    "python -m compileall src",
-    "coverage run -m pytest",
-    'powershell -Command "python -m pytest -q"',
-    "pwsh -NoProfile -Command 'ruff check .'",
-    "sh -c 'git status --short'",
-    "bash -c 'npm run build'",
-    "git grep TODO",
-    "git branch --show-current",
-    "git branch --contains HEAD",
-    "git tag -l",
-    "git stash list",
-    "git remote get-url origin",
-    "git worktree list",
-    "git reflog",
-    "git config --list",
-    "git fetch origin",
-    "git -C src status --short",
-    "gh auth status",
+    "git status --short && npm run lint | tail -n 3",
 ]
 
 
@@ -147,6 +117,26 @@ def _denied_commands() -> list[str]:
 @pytest.mark.parametrize("command", _denied_commands())
 def test_review_profile_holds_every_denied_form(command: str):
     assert _tier(command) == "ask"
+
+
+@pytest.mark.parametrize("command", [
+    "rm README.md", "echo overwritten > README.md", "echo x>../outside",
+    "powershell -Com 'git status'", "powershell -ec Z2l0IHN0YXR1cw==",
+    "$'gh' pr comment 305 --body nope", "env -S 'gh pr comment 305 --body nope'",
+    "powershell -Command 'sal g gh; g pr comment 305 --body nope'",
+    "gh api -if body=x repos/o/r/issues/305/comments", "gh api -iX DELETE repos/o/r/issues/305/comments",
+    "git --config-env=core.fsmonitor=HELPER status", "GIT_SSH_COMMAND=helper git fetch",
+    "curl --request POST https://example.test", "curl -dhello https://example.test",
+])
+def test_review_fail_closed_bypasses_always_ask(command: str):
+    assert _tier(command) == "ask"
+
+
+@pytest.mark.parametrize("name", ["Write", "Edit"])
+def test_review_write_tools_always_ask(name: str):
+    gate = BridgeGate(channel=_NoChannel(), rules=REVIEW_RULES, cwd="/work/repo", profile="review")
+    request = ApprovalRequest(provider="claude-code", kind="tool", name=name, arguments={"file_path": "README.md"}, cwd="/work/repo")
+    assert gate._match(request).tier == "ask"
 
 
 def test_default_profile_is_unchanged():
@@ -267,6 +257,14 @@ def test_review_holds_codex_sandbox_escalation(tmp_path):
         cwd=str(tmp_path),
         raw={"sandbox_permissions": "require_escalated"},
     )
+    assert gate._match(request).tier == "ask"
+
+
+def test_review_holds_codex_network_request_even_for_allowed_query(tmp_path):
+    gate = BridgeGate(channel=_NoChannel(), rules=REVIEW_RULES, cwd=str(tmp_path), profile="review")
+    request = ApprovalRequest(provider="codex", kind="command", name="codex-shell",
+        arguments={"command": "gh pr view 305"}, cwd=str(tmp_path),
+        raw={"command": "gh pr view 305", "network_access": True})
     assert gate._match(request).tier == "ask"
 
 
@@ -394,7 +392,7 @@ def test_review_held_command_records_profile(tmp_path):
     )
     rule = gate._match(request)
     assert rule.tier == "ask"
-    assert rule.arg_pattern == "profile:review:git push"
+    assert rule.arg_pattern == "profile:review:command is not in the review read-only allow-list"
 
 REVIEW_REGRESSIONS = [
     "Set-Location .. ; Remove-Item x -Recurse",
