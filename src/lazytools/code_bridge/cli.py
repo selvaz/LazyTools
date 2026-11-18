@@ -70,6 +70,16 @@ def _print_json(payload: Any) -> None:
     print(json.dumps(payload, default=str), flush=True)
 
 
+def _safe_print(text: str) -> None:
+    """Print text even when a legacy Windows console cannot encode it."""
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    print(text.encode(encoding, errors="backslashreplace").decode(encoding), flush=True)
+
+
+def _job_identity(job_id: str, *, where: str, engine: Any, cwd: Any, **extra: Any) -> dict[str, Any]:
+    return {"job_id": job_id, "short_id": job_id[:8], "where": where, "engine": engine, "cwd": str(cwd), **extra}
+
+
 def _cloud_print(text: str, *, err: bool = False) -> None:
     """Print one line of cloud-job output through the same redaction as the job record."""
     print(_cloud.redact(text), file=sys.stderr if err else sys.stdout)
@@ -247,7 +257,7 @@ def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
     if args.json:
         _print_json(
             {
-                "job_id": job_id,
+                **_job_identity(job_id, where="local", engine=args.engine, cwd=args.cwd),
                 "pid": pid,
                 "log": str(log_path),
                 **({"routing": args.routing} if getattr(args, "routing", None) else {}),
@@ -372,6 +382,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
     if args.json:
         payload = {k: job.get(k) for k in ("job_id", "status", "where", "engine", "repo", "env_id", "branch",
                                            "cloud_handle", "cloud_url", "model", "pr_number", "pr_url", "land", "open_pr")}
+        payload.update(short_id=str(job["job_id"])[:8], cwd=str(cwd), task_url=job.get("cloud_url"))
         if review_meta:
             payload["review_of"] = review_meta["of"]
         if placement is not None and placement.requested == _cloud_place.WHERE_AUTO:
@@ -518,7 +529,18 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     def _announce(job_id: str) -> None:
         job_id_holder["job_id"] = job_id
-        print(job_id, flush=True)  # first line: the caller can capture this immediately
+        if args.json:
+            _print_json(
+                {
+                    **_job_identity(job_id, where="local", engine=args.engine, cwd=args.cwd),
+                    **({"routing": args.routing} if args.routing else {}),
+                }
+            )
+        else:
+            print(job_id, flush=True)  # first line: the caller can capture this immediately
+
+    def _slot_wait(busy: EngineBusy) -> None:
+        _announce_slot_wait(busy, err=args.json)
 
     try:
         result = _jobs.run_job(
@@ -539,7 +561,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             routine_auto=args.routine_auto,
             scratch_root=args.scratch_root,
             wait_for_slot=args.wait_for_slot,
-            on_slot_wait=_announce_slot_wait,
+            on_slot_wait=_slot_wait,
         )
     except (LockHeld, EngineBusy) as exc:
         print(str(exc), file=sys.stderr)
@@ -551,6 +573,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if args.json:
         _print_json(
             {
+                "event": "result",
                 "job_id": result.job_id,
                 "status": result.status,
                 "result_path": str(result.result_path) if result.result_path else None,
@@ -586,9 +609,13 @@ def _job_line(job: dict[str, Any]) -> str:
     return f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}"
 
 
-def _announce_slot_wait(busy: EngineBusy) -> None:
+def _announce_slot_wait(busy: EngineBusy, *, err: bool = False) -> None:
     jobs = ", ".join(str(h.get("job_id", "?")) for h in busy.holders)
-    print(f"waiting for a {busy.engine} slot (limit {busy.limit}; running: {jobs})", flush=True)
+    print(
+        f"waiting for a {busy.engine} slot (limit {busy.limit}; running: {jobs})",
+        file=sys.stderr if err else sys.stdout,
+        flush=True,
+    )
 
 
 def _slot_excluded(selection: _routing.Selection) -> bool:
@@ -680,13 +707,14 @@ def _cmd_jobs(args: argparse.Namespace) -> int:
     store = _store.build_store(_db_path(args))
     rows = _jobs.list_jobs(store, all_jobs=args.all)
     if args.json:
-        _print_json(rows)
+        for row in rows:
+            _print_json(row)
         return 0
     if not rows:
         print("no jobs yet" if args.all else "no active jobs (pass --all for history)")
         return 0
     for row in rows:
-        print(_job_line(row))
+        _safe_print(_job_line(row))
     return 0
 
 
@@ -1065,6 +1093,120 @@ def _cmd_wait(args: argparse.Namespace) -> int:
             return 1
         if deadline is not None and time.monotonic() >= deadline:
             print(f"job {args.job_id} still {status or 'starting'} after {args.timeout:.0f}s", file=sys.stderr)
+            return 3
+        time.sleep(args.interval)
+
+
+_WAIT_EVENTS = {"done", "failed", "approval", "landed", "interrupted"}
+
+
+def _wait_event(job: dict[str, Any], event: str, approval: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "event": event,
+        "job_id": str(job["job_id"]),
+        "state": job.get("status"),
+        "approval": approval,
+        "pr_url": job.get("pr_url"),
+    }
+
+
+def _cmd_wait_any(args: argparse.Namespace) -> int:
+    """Wait for the next actionable state across a snapshot of jobs."""
+    db_path = _db_path(args)
+    try:
+        events = {value.strip() for value in args.events.split(",") if value.strip()}
+        unknown_events = events - _WAIT_EVENTS
+        if unknown_events:
+            raise ValueError(f"unknown --events value(s): {', '.join(sorted(unknown_events))}")
+        if not events:
+            raise ValueError("--events must contain at least one event")
+        if args.all_active == bool(args.job_ids):
+            raise ValueError("provide JOB_ID(s) or --all-active, but not both")
+        if args.timeout is not None and (not math.isfinite(args.timeout) or args.timeout < 0):
+            raise ValueError("--timeout must be a finite non-negative number")
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    store = _store.build_store(db_path)
+    registry = _store.build_job_registry(store)
+    if args.all_active:
+        watched = [str(job["job_id"]) for job in _jobs.list_jobs(store, all_jobs=False)]
+        if not watched:
+            print("error: no active jobs", file=sys.stderr)
+            return 2
+    else:
+        watched = []
+        for ref in args.job_ids:
+            job = _jobs.find_job(store, registry, ref)
+            if job is None:
+                print(f"error: no job found matching {ref!r}", file=sys.stderr)
+                return 2
+            job_id = str(job["job_id"])
+            if job_id not in watched:
+                watched.append(job_id)
+
+    deadline = None if args.timeout is None else time.monotonic() + args.timeout
+    emitted_approvals: set[str] = set()
+    terminal_seen: set[str] = set()
+    while True:
+        store = _store.build_store(db_path)
+        registry = _store.build_job_registry(store)
+        jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
+
+        # A ticket is emitted once per invocation, even if it remains pending.
+        queue = _store.build_approval_queue(store)
+        tickets = sorted(queue.list_pending_tickets(), key=lambda ticket: ticket.created_at)
+        for ticket in tickets:
+            job = jobs.get(str(ticket.task_id))
+            if job is None or ticket.approval_id in emitted_approvals:
+                continue
+            emitted_approvals.add(ticket.approval_id)
+            detail = _request_detail(ticket.prompt)
+            approval = {
+                "approval_id": ticket.approval_id,
+                "command": detail.get("command"),
+                "summary": detail.get("summary") or ticket.prompt.splitlines()[0],
+                "reason": detail.get("reason"),
+            }
+            if "approval" in events:
+                _print_json(_wait_event(job, "approval", approval))
+                if not args.loop:
+                    return 0
+
+        candidates: list[tuple[float, dict[str, Any], str]] = []
+        for job_id, current in jobs.items():
+            if current is None or job_id in terminal_seen:
+                continue
+            job = current
+            finishing_action = None
+            if _cloud.is_cloud(job) and (job.get("status") not in _TERMINAL or _cloud_land.needs_finishing(job)):
+                row = _cloud_land.process_job(store, registry, job, db_path=db_path)
+                job = _jobs.find_job(store, registry, job_id) or job
+                finishing_action = row["action"]
+            status = str(job.get("status") or "")
+            landing_failed = finishing_action in {"land-failed", "review-failed"}
+            landed = finishing_action == "landed" or bool(
+                _cloud.is_cloud(job)
+                and job.get("land")
+                and (job.get("landed_at") or job.get("pr_url"))
+            )
+            event = "failed" if landing_failed else (
+                "landed" if landed else ({"done": "done", "failed": "failed", "partial": "failed",
+                                           "interrupted": "interrupted"}.get(status))
+            )
+            if event:
+                meta = _store.read_meta(store, job_id) or {}
+                candidates.append((float(meta.get("completed_at") or meta.get("updated_at") or 0), job, event))
+        for _at, job, event in sorted(candidates, key=lambda item: item[0]):
+            terminal_seen.add(str(job["job_id"]))
+            if event in events:
+                _print_json(_wait_event(job, event))
+                if not args.loop:
+                    return 0
+        if args.loop and len(terminal_seen) == len(watched):
+            return 0
+        if deadline is not None and time.monotonic() >= deadline:
             return 3
         time.sleep(args.interval)
 
@@ -1674,6 +1816,18 @@ def build_parser() -> argparse.ArgumentParser:
     wait_p.add_argument("--json", action="store_true")
     _add_db_option(wait_p)
     wait_p.set_defaults(func=_cmd_wait)
+
+    wait_any_p = sub.add_parser("wait-any", help="Block until an event occurs on any watched job.")
+    wait_any_p.add_argument("job_ids", nargs="*", metavar="JOB_ID")
+    wait_any_p.add_argument("--all-active", action="store_true", help="Watch a snapshot of all currently active jobs.")
+    wait_any_p.add_argument("--timeout", type=float, default=None, help="Give up after this many seconds (exit 3).")
+    wait_any_p.add_argument("--events", default="done,failed,approval,landed,interrupted",
+                            help="Comma-separated events to return.")
+    wait_any_p.add_argument("--loop", action="store_true", help="Print events until every watched job is terminal.")
+    wait_any_p.add_argument("--json", action="store_true", help="Emit the event as one JSON object (the default format).")
+    wait_any_p.add_argument("--interval", type=float, default=0.25, help=argparse.SUPPRESS)
+    _add_db_option(wait_any_p)
+    wait_any_p.set_defaults(func=_cmd_wait_any)
 
     resync_p = sub.add_parser("resync", help="Re-check a cloud job that an older bridge failed after a poll error.")
     resync_p.add_argument("job_id")

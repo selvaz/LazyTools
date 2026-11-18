@@ -50,10 +50,49 @@ def test_run_prints_job_id_first_line_and_exits_zero(tmp_path, monkeypatch, caps
     )
     out = capsys.readouterr().out.strip().splitlines()
     assert code == 0
-    job_id_line = out[0]
-    payload = json.loads(out[-1])
-    assert payload["job_id"] == job_id_line
-    assert payload["status"] == "done"
+    assert len(out) == 2
+    payload = json.loads(out[0])
+    assert payload["short_id"] == payload["job_id"][:8]
+    assert payload["where"] == "local"
+    assert payload["engine"] == "codex"
+    assert payload["cwd"] == str(repo)
+    result = json.loads(out[1])
+    assert result == {
+        "event": "result",
+        "job_id": payload["job_id"],
+        "status": "done",
+        "result_path": result["result_path"],
+        "error": None,
+    }
+
+
+def test_json_run_announces_before_engine_finishes(tmp_path, monkeypatch, capsys):
+    """The identity callback is observable while the production runner is still active."""
+    import lazybridge
+
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    original_run = lazybridge.Agent.run
+
+    async def finish_after_observing_identity(self, prompt):
+        first = capsys.readouterr().out.splitlines()
+        assert len(first) == 1
+        assert json.loads(first[0])["job_id"]
+        return await original_run(self, prompt)
+
+    monkeypatch.setattr(lazybridge.Agent, "run", finish_after_observing_identity)
+    assert main(["run", "--engine", "codex", "--cwd", str(repo), "--task", "x", "--root", str(tmp_path),
+                 "--db", str(tmp_path / "jobs.sqlite"), "--json"]) == 0
+
+
+def test_json_slot_wait_diagnostic_uses_stderr(capsys):
+    busy = cli.EngineBusy("codex", 1, [{"job_id": "running-job"}])
+    cli._announce_slot_wait(busy, err=True)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "waiting for a codex slot" in captured.err
 
 
 def test_run_task_from_file(tmp_path, monkeypatch, capsys):
@@ -84,7 +123,7 @@ def test_jobs_status_and_result_roundtrip(tmp_path, monkeypatch, capsys):
     job_id = capsys.readouterr().out.splitlines()[0]
 
     code = main(["jobs", "--all", "--json", "--db", str(db_path)])
-    rows = json.loads(capsys.readouterr().out)
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert code == 0
     assert any(r["job_id"] == job_id for r in rows)
 
@@ -218,6 +257,7 @@ def test_detach_spawns_a_child_with_the_same_job_and_reports_it(tmp_path, monkey
     assert argv[argv.index("--session") + 1] == "s1"
     assert "--detach" not in argv  # the child runs in the foreground of its own process
     assert payload["pid"] == 4242
+    assert payload["short_id"] == payload["job_id"][:8]
     pid_file = _store.results_dir(db_path) / f"{payload['job_id']}.pid"
     assert pid_file.read_text(encoding="utf-8") == "4242"
 
