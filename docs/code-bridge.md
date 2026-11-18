@@ -697,6 +697,11 @@ gh pr comment <N> --repo <owner/repo> --body-file <file>
 
 `<file>` must resolve inside the review workspace (using Windows path semantics
 for Windows workspaces), must not be a credential path, and cannot be `-`/stdin.
+The matcher analyzes shell command text rather than executing a shell parser.
+Opaque programs—including interpreter one-liners such as `python -c` and
+scripts launched by filename—are outside its inspection scope and must be
+controlled by the surrounding sandbox. Encoded PowerShell commands and
+PowerShell script-file launches are held because their effects are opaque.
 Read-only Git forms such as `branch --show-current`, `tag -l`, `stash list`,
 `remote get-url`, `worktree list`, `config --list`, and non-refspec `fetch` are
 also auto-approved; an in-workspace `git -C` is accepted.

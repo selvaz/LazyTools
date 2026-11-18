@@ -345,3 +345,29 @@ def test_review_held_command_records_profile(tmp_path):
     rule = gate._match(request)
     assert rule.tier == "ask"
     assert rule.arg_pattern == "profile:review:git push"
+
+REVIEW_REGRESSIONS = [
+    "Set-Location .. ; Remove-Item x -Recurse",
+    r'powershell -Command "Set-Location C:\; Remove-Item Windows -Recurse"',
+    "powershell -Command \"Push-Location ..; Remove-Item x -Recurse\"",
+    "chdir .. && rm -rf x",
+    r"Remove-Item -Path:C:\x",
+    r"Remove-Item HKCU:\x",
+    r"md C:\x", r"md ..\x", r"ni C:\x",
+    r"echo a | Tee-Object -FilePath C:\x",
+    r"Get-ChildItem | Export-Csv C:\x", r"Get-ChildItem | Export-Clixml C:\x",
+    "zip /tmp/x.zip f", "zip ../x.zip f", "tar cf /tmp/x.tar .", "tar -czf ../x.tgz .",
+    "7z a ../x.7z .", "sort -o ../x a", "git log --output=../x", "git show --output=/tmp/x",
+    "git format-patch -o /tmp HEAD~1", "git archive -o../x HEAD", "awk -i inplace 1 ../x",
+    "patch /tmp/x p", "setx A b", r"Set-ItemProperty HKCU:\x", r"New-ItemProperty HKCU:\x",
+    "git branch -fD x", "git branch -df x", "git branch -vd x", "git branch -dr origin/x",
+    "git branch -f main HEAD", "git branch --force main origin/main",
+    "git reflog expire --expire=now --all", "git reflog delete HEAD@{1}",
+    "git subtree push --prefix=x o b", "git svn dcommit", "git lfs push origin main",
+    "git send-email x", "git p4 submit", "npm version patch",
+]
+
+@pytest.mark.parametrize("command", REVIEW_REGRESSIONS)
+def test_review_profile_holds_latest_independent_review_regressions(command: str):
+    assert review_denial(command, r"D:\work\_wt\lt-pr305") is not None
+    assert _tier(command, cwd=r"D:\work\_wt\lt-pr305") == "ask"
