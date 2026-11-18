@@ -1845,6 +1845,13 @@ What to hand back: the diff summary, the command output, anything undecided.
 
 ## Known limits
 
+- Under the `review` approval profile, every `gh pr comment` command is held
+  for operator approval, including comments that read a body from the job
+  scratch directory and comments embedded in compound shell commands. The
+  bridge deliberately does not inspect a body file and auto-approve the post:
+  command-time file changes would make that check vulnerable to a
+  time-of-check/time-of-use race.
+
 - A session grant for an escalated `git commit` runs the repository's commit
   hooks outside the sandbox. Codex's sandbox keeps `.git` read-only, but a
   repository configured with `core.hooksPath` pointing at a tracked
@@ -1870,6 +1877,12 @@ What to hand back: the diff summary, the command output, anything undecided.
   the same blind spot: if a detached job dies and its pid is reused before
   the next poll, `wait` keeps waiting (use `--timeout`, and `status`/`jobs`
   to check by hand).
+- Shell parsing is intentionally conservative rather than complete. Obscure
+  constructs such as process substitution, shell functions, custom command
+  aliases, nonstandard interpreters, encoded programs, and platform-specific
+  quoting can be held even when harmless, and newly installed command wrappers
+  are not classified until added to the policy. The gate is an approval aid,
+  not a shell sandbox.
 - Claude Bash uses BridgeGate's whole-command parser before any session or
   read-only grant; substitution and ambiguous syntax ask. These checks are
   capability checks, not an operating-system sandbox. Installed executables,

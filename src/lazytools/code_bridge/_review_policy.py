@@ -7,7 +7,6 @@ import re
 import shlex
 from pathlib import Path
 
-from lazytools.code_bridge._cloud import redact
 from lazytools.code_bridge._readonly import sensitive_name
 
 _GIT_DENY = {
@@ -241,6 +240,13 @@ def _sensitive_operand(value: str) -> bool:
     if any(sensitive_name(part) for part in parts):
         return True
     path_text = normal.lower()
+    basename = path_text.rsplit("/", 1)[-1]
+    if path_text == "/etc/shadow" or basename == ".bash_history" or basename.endswith(".env"):
+        return True
+    # Credential dotfiles expressed through shell globs/braces are uncertain
+    # by design; holding them is safer than trying to expand against the host.
+    if basename.startswith(".") and any(char in basename for char in "*?[]{}"):
+        return True
     return (
         ".config/gh/" in path_text
         or path_text.rstrip("/\"')").endswith(".config/gh")
@@ -248,34 +254,7 @@ def _sensitive_operand(value: str) -> bool:
     )
 
 
-def _safe_comment(words: list[str], workspace: Path, base: Path, scratch: Path | None) -> bool:
-    low = [w.lower() for w in words]
-    shape_ok = (
-        len(words) == 8
-        and low[:3] == ["gh", "pr", "comment"]
-        and words[3].isdigit()
-        and low[4] == "--repo"
-        and bool(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", words[5]))
-        and low[6] == "--body-file"
-        and words[7] != "-"
-        and not _path_denied(words[7], workspace, base)
-    )
-    if not shape_ok or scratch is None:
-        return False
-    try:
-        body = (base / words[7]).resolve() if not Path(words[7]).is_absolute() else Path(words[7]).resolve()
-        body.relative_to(scratch.resolve())
-        text = body.read_text(encoding="utf-8")
-    except (OSError, RuntimeError, UnicodeError, ValueError):
-        return False
-    # The bridge's existing redactor is the definition of credential-looking
-    # comment content.  A match is held rather than silently posting a rewrite.
-    return body.is_file() and redact(text) == text
-
-
 def _gh_denial(words: list[str], workspace: Path, base: Path, scratch: Path | None) -> str | None:
-    if _safe_comment(words, workspace, base, scratch):
-        return None
     args: list[str] = []
     i = 1
     while i < len(words):
@@ -310,11 +289,7 @@ def _gh_denial(words: list[str], workspace: Path, base: Path, scratch: Path | No
                 return "gh api non-GET method"
         return None
     if low_args[0] == "pr" and len(low_args) > 1 and low_args[1] == "comment":
-        return (
-            None
-            if _safe_comment(["gh", *args], workspace, base, scratch)
-            else "GitHub PR comment outside the one-comment exception"
-        )
+        return "GitHub PR comment requires operator approval"
     if low_args[:2] == ["auth", "status"] and not any(arg in {"--show-token", "-t"} for arg in low_args[2:]):
         return None
     if low_args[0] == "search":
@@ -338,7 +313,9 @@ def review_denial(
     scratch = Path(scratch_dir) if scratch_dir else None
     if any(mark in command for mark in ("$(`", "$(", "${", "$env:", "%TEMP%", "%HOME%", "`")):
         return "dynamic shell expansion"
-    if any(_sensitive_operand(word) for word in words if word not in _OPERATORS):
+    if any(_sensitive_operand(word) for word in words if word not in _OPERATORS) or re.search(
+        r"(?:^|[\s/:])\.[^\s/]*[{}][^\s/]*", command
+    ):
         return "credential file read"
     if "<<<" in command and any(re.search(rf"(?i)(?:^|\s){name}(?:\s|$)", command) for name in _SHELLS):
         return "here-string into command interpreter"
@@ -376,10 +353,30 @@ def review_denial(
             return "dynamic command evaluation"
         if exe in {"su", "script", "runas"}:
             return "opaque command wrapper"
-        if exe in {"invoke-webrequest", "invoke-restmethod"}:
+        if exe in {"invoke-webrequest", "invoke-restmethod", "iwr", "irm"}:
             return "remote publishing or download"
+        if exe == "codex" and any(
+            flag in {"--dangerously-bypass-approvals-and-sandbox", "--sandbox", "-C", "--cd", "--add-dir"}
+            or flag.startswith(("--sandbox=", "--cd=", "--add-dir="))
+            for flag in words[i + 1 :]
+        ):
+            return "Codex sandbox or workspace override"
+        if exe == "ssh":
+            return "remote shell"
+        if exe in {"scp", "rsync"} and any(
+            re.match(r"^(?:[^/@:]+@)?[^/:]+:", value) for value in words[i + 1 :] if not value.startswith("-")
+        ):
+            return "remote file transfer"
     if "|" in words and any(_exe(w) in _SHELLS for w in words[words.index("|") + 1 :]):
         return "pipe into command interpreter"
+    if any(_exe(word) in {"env", "printenv", "set"} for word in words) and any(
+        operator in words for operator in {"|", ">", ">>", ">|"}
+    ):
+        return "environment enumeration with shell output"
+    if re.search(r"(?i)\b(?:get-childitem|gci|dir|ls)\s+env:", command) and any(
+        operator in words for operator in {"|", ">", ">>", ">|"}
+    ):
+        return "environment enumeration with shell output"
     segments: list[list[str]] = [[]]
     for word in words:
         if word in _OPERATORS:
@@ -423,7 +420,7 @@ def review_denial(
                         verb == "branch"
                         and not branch_mutating
                     )
-                    or (verb == "tag" and not any(a in {"-d", "--delete", "-f", "--force", "-a", "-s"} for a in args))
+                    or (verb == "tag" and (not args or all(a in {"-l", "--list"} or a.startswith("--list=") for a in args)))
                     or (verb == "stash" and bool(args) and args[0] in {"list", "show"})
                     or (verb == "remote" and (args[:1] in [["-v"], ["--verbose"], ["get-url"], ["show"]]))
                     or (verb == "reflog" and (not args or args[0] in {"show", "list", "exists"}))
