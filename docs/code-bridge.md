@@ -44,6 +44,36 @@ detached launch JSON gives the id, pid and log path at once.
 | `cancel` | Stop process tree, reject open tickets, retain interruption and workspace evidence |
 | `autonomy` | Report the percentage of finished jobs with no manual intervention and group intervention causes |
 
+### Machine-readable ids and multi-job waiting
+
+Pass `--json` to `run` for a single JSON object on the **first stdout line**.
+It contains the full `job_id`, eight-character `short_id`, `where`, `engine`,
+and `cwd`; detached launches also include `pid`, while cloud submissions
+include `task_url`. Without `--json`, the existing human output is unchanged.
+For cloud submissions, `task_url` is the machine-readable alias of `cloud_url`.
+`jobs --json` emits one job per JSON line, which is both stream-friendly and
+safe from host-console encoding limitations. Human `jobs` output replaces
+unencodable characters rather than crashing on legacy Windows consoles.
+
+An orchestrator can wait on several jobs without polling each one:
+
+```console
+lazytools-code-bridge wait-any JOB_ID JOB_ID --timeout 600 --json
+lazytools-code-bridge wait-any --all-active --events done,failed,approval,landed,interrupted --json
+lazytools-code-bridge wait-any JOB_ID JOB_ID --loop --json
+```
+
+`wait-any` snapshots the named jobs (or all jobs active at startup) and emits
+`{"event", "job_id", "state", "approval", "pr_url"}`. It exits 0 after the
+first selected event, 3 on timeout, and 2 for invalid arguments or unknown
+jobs. Approval details contain `approval_id`, `command`, `summary`, and
+`reason`, and a pending ticket is emitted only once per invocation. `--loop`
+prints JSON lines until every watched job is terminal. For cloud jobs the
+waiter refreshes provider state, reports failures, and performs an owed
+`--land` operation just like `wait`, producing `landed` with its PR URL.
+Its output is always JSON lines; `--json` is accepted for consistency and does
+not change that default format.
+
 Read each ticket's command and reason before deciding. An unanswered ticket
 expires as rejection after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.
 Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;
@@ -695,13 +725,18 @@ exception is exactly:
 gh pr comment <N> --repo <owner/repo> --body-file <file>
 ```
 
-`<file>` must resolve inside the review workspace (using Windows path semantics
-for Windows workspaces), must not be a credential path, and cannot be `-`/stdin.
+`<file>` must already exist inside that job's private scratch directory, must
+not be a credential path, and cannot be `-`/stdin. Immediately before approval,
+the bridge reads it as UTF-8 and holds the comment if the standard credential
+redactor matches any content. Commands containing credential-like path operands
+are held independently of the reader or writer verb.
+
 The matcher analyzes shell command text rather than executing a shell parser.
-Opaque programs—including interpreter one-liners such as `python -c` and
-scripts launched by filename—are outside its inspection scope and must be
-controlled by the surrounding sandbox. Encoded PowerShell commands and
-PowerShell script-file launches are held because their effects are opaque.
+Literal credential paths in interpreter one-liners are detected, but paths an
+opaque program computes at runtime and obscure shell features the matcher does
+not model remain defence-in-depth limits; reviewer jobs still rely on their
+surrounding sandbox. Encoded PowerShell commands, PowerShell script-file
+launches, and opaque command wrappers are held.
 Read-only Git forms such as `branch --show-current`, `tag -l`, `stash list`,
 `remote get-url`, `worktree list`, `config --list`, and non-refspec `fetch` are
 also auto-approved; an in-workspace `git -C` is accepted.

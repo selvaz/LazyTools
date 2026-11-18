@@ -7,6 +7,7 @@ import re
 import shlex
 from pathlib import Path
 
+from lazytools.code_bridge._cloud import redact
 from lazytools.code_bridge._readonly import sensitive_name
 
 _GIT_DENY = {
@@ -123,14 +124,17 @@ _GH_READ = {
     "repo": {"view", "list"},
     "run": {"view", "list", "watch"},
     "workflow": {"view", "list"},
-    "release": {"view", "list", "download"},
+    "release": {"view", "list"},
     "gist": {"view", "list"},
 }
 _OPERATORS = {";", "&&", "||", "|", "&", "(", ")", "{", "}"}
 
 
 def _exe(value: str) -> str:
-    name = ntpath.basename(value.replace("\\", "/")).lower()
+    # Outside a Windows path, backslashes in the command word are POSIX shell
+    # escapes (``g\\h`` is ``gh``), not separators.
+    path = value.replace("\\", "/") if re.match(r"^(?:[A-Za-z]:[\\/]|[\\/]{2})", value) else value.replace("\\", "")
+    name = ntpath.basename(path).lower()
     for suffix in (".exe", ".cmd", ".bat", ".com"):
         if name.endswith(suffix):
             return name[: -len(suffix)]
@@ -160,7 +164,7 @@ def _path_denied(value: str, workspace: Path, base: Path, *, removal: bool = Fal
         value = attached.group(1)
     if not value or value == "-" or value.startswith("-"):
         return value == "-"
-    if re.match(r"(?i)^(?:HKCU|HKLM|HKCR|HKU|HKCC):", value):
+    if re.match(r"(?i)^[A-Za-z]{2,}:", value):
         return True
     if "\\" in value or re.match(r"^[A-Za-z]:", value):
         workspace_s = str(workspace)
@@ -207,7 +211,7 @@ def _git_subcommand(words: list[str], start: int) -> tuple[str | None, list[str]
             value = words[i + 1] if i + 1 < len(words) else ""
             if value.lower().startswith("alias."):
                 return None, [], "git alias/config override"
-            if re.match(r"(?i)^(?:core\.(?:hooksPath|sshCommand|pager|editor|fsmonitor|askpass)|credential\.helper|diff\.external|filter\.[^.]+\.(?:clean|smudge|process)|gpg\.program|http\.proxy|protocol\.ext\.allow|uploadpack\.packObjectsHook)=", value):
+            if re.match(r"(?i)^(?:core\.(?:hooksPath|sshCommand|gitProxy|alternateRefsCommand|pager|editor|fsmonitor|askpass)|credential(?:\.[^.]+)*\.helper|diff(?:\.[^.]+)?\.(?:external|textconv)|filter\.[^.]+\.(?:clean|smudge|process)|gpg\.program|http\.proxy|protocol\.ext\.allow|uploadpack\.packObjectsHook|remote\.[^.]+\.(?:uploadpack|receivepack|proxy|vcs)|sequence\.editor|pager\.[^.]+|include\.path)=", value):
                 return None, [], "git executable/path config override"
             i += 2
         elif low.startswith("-c") and not low.startswith("--"):
@@ -228,9 +232,25 @@ def _git_subcommand(words: list[str], start: int) -> tuple[str | None, list[str]
     return None, [], None
 
 
-def _safe_comment(words: list[str], workspace: Path, base: Path) -> bool:
-    low = [w.lower() for w in words]
+def _sensitive_operand(value: str) -> bool:
+    """Whether a command word names credential material, regardless of its reader."""
+    # Options may attach a value (``--file=.env``), while git object syntax can
+    # put the path after a colon (``HEAD:.env``).  Treat both as path separators.
+    normal = value.strip("'\"").replace("\\", "/")
+    parts = [part for part in re.split(r"[^A-Za-z0-9_.~-]+", normal) if part]
+    if any(sensitive_name(part) for part in parts):
+        return True
+    path_text = normal.lower()
     return (
+        ".config/gh/" in path_text
+        or path_text.rstrip("/\"')").endswith(".config/gh")
+        or (".lazytools/" in path_text and ".toml" in path_text)
+    )
+
+
+def _safe_comment(words: list[str], workspace: Path, base: Path, scratch: Path | None) -> bool:
+    low = [w.lower() for w in words]
+    shape_ok = (
         len(words) == 8
         and low[:3] == ["gh", "pr", "comment"]
         and words[3].isdigit()
@@ -240,10 +260,21 @@ def _safe_comment(words: list[str], workspace: Path, base: Path) -> bool:
         and words[7] != "-"
         and not _path_denied(words[7], workspace, base)
     )
+    if not shape_ok or scratch is None:
+        return False
+    try:
+        body = (base / words[7]).resolve() if not Path(words[7]).is_absolute() else Path(words[7]).resolve()
+        body.relative_to(scratch.resolve())
+        text = body.read_text(encoding="utf-8")
+    except (OSError, RuntimeError, UnicodeError, ValueError):
+        return False
+    # The bridge's existing redactor is the definition of credential-looking
+    # comment content.  A match is held rather than silently posting a rewrite.
+    return body.is_file() and redact(text) == text
 
 
-def _gh_denial(words: list[str], workspace: Path, base: Path) -> str | None:
-    if _safe_comment(words, workspace, base):
+def _gh_denial(words: list[str], workspace: Path, base: Path, scratch: Path | None) -> str | None:
+    if _safe_comment(words, workspace, base, scratch):
         return None
     args: list[str] = []
     i = 1
@@ -260,7 +291,7 @@ def _gh_denial(words: list[str], workspace: Path, base: Path) -> str | None:
     if not low_args:
         return None
     if low_args[0] == "api":
-        if any("x-http-method-override:" in arg for arg in low_args):
+        if any(re.search(r"x-http-method-override\s*:", arg) for arg in low_args):
             return "gh api method override"
         for j, arg in enumerate(low_args[1:]):
             original = args[j + 1]
@@ -281,17 +312,21 @@ def _gh_denial(words: list[str], workspace: Path, base: Path) -> str | None:
     if low_args[0] == "pr" and len(low_args) > 1 and low_args[1] == "comment":
         return (
             None
-            if _safe_comment(["gh", *args], workspace, base)
+            if _safe_comment(["gh", *args], workspace, base, scratch)
             else "GitHub PR comment outside the one-comment exception"
         )
-    if low_args[:2] == ["auth", "status"] or low_args[0] == "search":
+    if low_args[:2] == ["auth", "status"] and not any(arg in {"--show-token", "-t"} for arg in low_args[2:]):
+        return None
+    if low_args[0] == "search":
         return None
     if low_args[0] in _GH_READ and len(low_args) > 1 and low_args[1] in _GH_READ[low_args[0]]:
         return None
     return "GitHub remote mutation"
 
 
-def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> str | None:
+def review_denial(
+    command: str, cwd: str, execution_cwd: str | None = None, scratch_dir: str | None = None
+) -> str | None:
     """Return a held capability; ``cwd`` is always the fixed workspace boundary."""
     words = _tokens(command)
     if not words or not cwd:
@@ -300,9 +335,10 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
     workspace = Path(cwd) if windows_workspace else Path(cwd).resolve()
     base_value = execution_cwd or cwd
     base = Path(base_value) if windows_workspace else Path(base_value).resolve()
+    scratch = Path(scratch_dir) if scratch_dir else None
     if any(mark in command for mark in ("$(`", "$(", "${", "$env:", "%TEMP%", "%HOME%", "`")):
         return "dynamic shell expansion"
-    if re.search(r"(?i)(?:^|\s)(?:cat|type|get-content)\s+[^;&|]*(?:\.ssh|\.aws[\\/]credentials|hosts\.yml)", command):
+    if any(_sensitive_operand(word) for word in words if word not in _OPERATORS):
         return "credential file read"
     if "<<<" in command and any(re.search(rf"(?i)(?:^|\s){name}(?:\s|$)", command) for name in _SHELLS):
         return "here-string into command interpreter"
@@ -321,7 +357,7 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                 flag = words[j].lower()
                 if flag == "/c" or flag == "-c" or (flag.startswith("-") and "c" in flag[1:]):
                     if j + 1 < len(words):
-                        denial = review_denial(" ".join(words[j + 1 :]), cwd, str(base))
+                        denial = review_denial(" ".join(words[j + 1 :]), cwd, str(base), scratch_dir)
                         if denial:
                             return denial
                     break
@@ -332,12 +368,14 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                     return "opaque PowerShell program"
                 if low in {"-command", "-c"} or low.startswith("-command:"):
                     nested = words[j].split(":", 1)[1] if ":" in words[j] else " ".join(words[j + 1 :])
-                    denial = review_denial(nested, cwd, str(base))
+                    denial = review_denial(nested, cwd, str(base), scratch_dir)
                     if denial:
                         return denial
                     break
         if exe in {"eval", "iex", "invoke-expression"}:
             return "dynamic command evaluation"
+        if exe in {"su", "script", "runas"}:
+            return "opaque command wrapper"
         if exe in {"invoke-webrequest", "invoke-restmethod"}:
             return "remote publishing or download"
     if "|" in words and any(_exe(w) in _SHELLS for w in words[words.index("|") + 1 :]):
@@ -378,6 +416,8 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                     or any(a in {"-f", "--force"} or (a.startswith("-") and not a.startswith("--") and any(c in a[1:] for c in "dDmMcCf")) for a in args)
                     or any(not a.startswith("-") and a != "HEAD" for a in args)
                 )
+                if verb == "grep" and any(a == "-O" or a.startswith(("-O", "--open-files-in-pager")) for a in args):
+                    return "git grep pager execution"
                 read_special = (
                     (
                         verb == "branch"
@@ -388,7 +428,11 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                     or (verb == "remote" and (args[:1] in [["-v"], ["--verbose"], ["get-url"], ["show"]]))
                     or (verb == "reflog" and (not args or args[0] in {"show", "list", "exists"}))
                     or (verb == "worktree" and args[:1] == ["list"])
-                    or (verb == "config" and any(a in {"--get", "--get-all", "--list", "-l"} for a in args))
+                    or (
+                        verb == "config"
+                        and any(a in {"--get", "--get-all", "--list", "-l"} for a in args)
+                        and not any(a in {"--add", "--replace-all", "--unset", "--unset-all", "--rename-section", "--remove-section"} for a in args)
+                    )
                     or (verb == "fetch" and not any(":" in a for a in args if not a.startswith("-")))
                 )
                 if read_special:
@@ -398,7 +442,7 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                 elif verb is not None and verb not in _GIT_READ:
                     return f"git {verb} is not an allow-listed read"
             if exe == "gh":
-                denial = _gh_denial(tail, workspace, base)
+                denial = _gh_denial(tail, workspace, base, scratch)
                 if denial:
                     return denial
             if exe in _SCHEDULE:
@@ -487,8 +531,8 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                 return "remote publishing or download"
             if exe == "npm" and "install" in segment_low and any(v in {"-g", "--global"} for v in segment_low):
                 return "global package install"
-            if exe == "npm" and "version" in segment_low[1:]:
-                return "npm version records a commit and tag"
+            if exe in {"npm", "pnpm", "yarn"} and "version" in segment_low[1:]:
+                return f"{exe} version records a commit and tag"
             if exe in _PUBLISHERS and any(
                 v in {"publish", "push", "upload", "unpublish", "deprecate", "dist-tag", "owner", "login", "yank"}
                 for v in segment_low[1:]

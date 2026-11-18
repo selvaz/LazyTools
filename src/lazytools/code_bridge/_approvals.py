@@ -627,7 +627,7 @@ class BridgeGate(TieredGate):
             # ``self.cwd`` is pinned by the job runner.  An engine-reported cwd
             # is only the execution directory; it must never widen the fixed
             # workspace boundary.
-            reason = review_denial(command, self.cwd or "", request.cwd)
+            reason = review_denial(command, self.cwd or "", request.cwd, self.temp_dir)
             if request.kind == "command":
                 raw_text = repr(dict(request.raw)).lower()
                 if any(marker in raw_text for marker in (

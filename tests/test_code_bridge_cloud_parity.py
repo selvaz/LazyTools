@@ -777,6 +777,78 @@ def test_normal_diff_lands_without_report_transport_file(cloud, gh, capsys, monk
     names = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
     assert names == ["cloud_change.txt"]
     assert _job(cloud, job_id)["report"] == "Added the cloud change."
+    assert "Cloud task report:\n\nAdded the cloud change." in gh.state["prs"]["100"]["body"]
+    assert ".bridge/report.md" not in names
+
+
+def test_codex_land_skips_every_bridge_artifact_and_warns(cloud, gh, capsys, monkeypatch):
+    bridge = cloud.repo / ".bridge"
+    bridge.mkdir()
+    (bridge / "modified.txt").write_text("base modified content\n", encoding="utf-8")
+    (bridge / "deleted.txt").write_text("base deleted content\n", encoding="utf-8")
+    _git(cloud.repo, "add", ".bridge")
+    _git(cloud.repo, "commit", "-q", "-m", "add tracked bridge fixtures")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "bridge-artifacts")
+    _set_diff(
+        cloud,
+        monkeypatch,
+        "diff --git a/.bridge/job.json b/.bridge/job.json\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/job.json\n@@ -0,0 +1 @@\n+{\"credential\": \"never commit\"}\n"
+        "diff --git a/cloud_change.txt b/cloud_change.txt\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/cloud_change.txt\n@@ -0,0 +1 @@\n+applied by cloud\n",
+    )
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "apply", job_id, "--land") == 0
+    output = capsys.readouterr().out
+    landed = _job(cloud, job_id)
+    assert "warning: skipped bridge-owned cloud diff paths:" in output
+    assert landed["skipped_bridge_artifacts"] == [
+        ".bridge/job.json", ".bridge/deleted.txt", ".bridge/modified.txt", ".bridge/report.md"
+    ]
+    assert _git(cloud.repo, "show", "--format=", "--name-only", landed["pushed_sha"]) == "cloud_change.txt"
+    assert _git(cloud.repo, "diff", "--name-only", "main", landed["pushed_sha"], "--", ".bridge") == ""
+
+
+def test_existing_pr_gets_redacted_bounded_report_comment(cloud, gh, capsys, monkeypatch):
+    _push_feature(cloud)
+    gh.seed_pr(7, head="feature")
+    secret = "ghp_" + "x" * 30
+    report = "done " + secret + " " + "z" * (_cloud_land.REPORT_LIMIT + 100)
+    _set_diff(
+        cloud,
+        monkeypatch,
+        "diff --git a/.bridge/report.md b/.bridge/report.md\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/report.md\n@@ -0,0 +1 @@\n+" + report + "\n"
+        "diff --git a/cloud_change.txt b/cloud_change.txt\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/cloud_change.txt\n@@ -0,0 +1 @@\n+applied by cloud\n",
+    )
+    job_id = _submit_json(cloud, capsys, "--pr", "7")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    (comment,) = gh.comments(7)
+    assert _cloud_land._report_comment_marker(_job(cloud, job_id)) in comment and "[redacted]" in comment
+    assert secret not in comment and len(comment) < _cloud_land.REPORT_LIMIT + 200
+
+
+def test_each_cloud_job_posts_its_own_report_on_an_existing_pr(cloud, gh):
+    gh.seed_pr(7, head="feature")
+    jobs = [
+        {"job_id": "job-one", "repo": "acme/widgets", "report": "Report from job 1."},
+        {"job_id": "job-two", "repo": "acme/widgets", "report": "Report from job 2."},
+    ]
+    for job in jobs:
+        _cloud_land._post_report_comment(job, 7)
+        _cloud_land._post_report_comment(job, 7)  # A retry remains idempotent for this job.
+
+    comments = gh.comments(7)
+    assert len(comments) == 2
+    for index, (job, comment) in enumerate(zip(jobs, comments, strict=True), start=1):
+        assert _cloud_land._report_comment_marker(job) in comment
+        assert f"Report from job {index}." in comment
 
 
 def test_land_refuses_a_job_that_is_not_done(cloud, gh, capsys):
@@ -870,6 +942,46 @@ def test_claude_land_strips_report_before_opening_a_pr(cloud, claude, gh, capsys
     job = _job(cloud, job_id)
     assert job["pushed_sha"] == outcome["pushed_sha"] and job["report"] == "Cloud work complete."
     assert job["pr_url"].endswith("/pull/100")
+
+
+def test_claude_land_skips_every_bridge_artifact_and_warns(cloud, claude, gh, capsys):
+    job_id = _claude_submit(cloud, capsys, "--open-pr")
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    claude.push(branch, {
+        "feature.txt": "x\n",
+        ".bridge/report.md": "Cloud work complete.\n",
+        ".bridge/forced-job.json": '{"credential": "never commit"}\n',
+    })
+
+    assert _main(cloud, "apply", job_id, "--land") == 0
+    output = capsys.readouterr().out
+    landed = _job(cloud, job_id)
+    assert "warning: skipped bridge-owned cloud diff paths:" in output
+    assert landed["skipped_bridge_artifacts"] == [".bridge/forced-job.json", ".bridge/report.md"]
+    assert not _git(cloud.repo, "ls-tree", "-r", "--name-only", landed["pushed_sha"], "--", ".bridge")
+
+
+def test_claude_land_restores_both_sides_of_a_bridge_artifact_rename(cloud, claude, gh, capsys):
+    old = cloud.repo / ".bridge" / "old.json"
+    old.parent.mkdir()
+    old.write_text('{"owned": true}\n', encoding="utf-8")
+    _git(cloud.repo, "add", ".bridge/old.json")
+    _git(cloud.repo, "commit", "-q", "-m", "Add tracked bridge state")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    job_id = _claude_submit(cloud, capsys, "--open-pr")
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    claude.push(branch, {"feature.txt": "x\n"})
+    _git(claude.vm, "mv", ".bridge/old.json", ".bridge/new.json")
+    _git(claude.vm, "commit", "-q", "--amend", "--no-edit")
+    _git(claude.vm, "push", "-q", "--force", "origin", branch)
+
+    assert _main(cloud, "apply", job_id, "--land") == 0
+    output = capsys.readouterr().out
+    landed = _job(cloud, job_id)
+    tree = _git(cloud.repo, "ls-tree", "-r", "--name-only", landed["pushed_sha"], "--", ".bridge")
+    assert tree == ".bridge/old.json"
+    assert landed["skipped_bridge_artifacts"] == [".bridge/new.json", ".bridge/old.json"]
+    assert ".bridge/new.json" in output and ".bridge/old.json" in output
 
 
 def test_claude_report_only_result_is_done_without_a_pr(cloud, claude, gh, capsys):
@@ -1712,6 +1824,8 @@ def test_mcp_submit_status_result_for_a_cloud_job_with_landing(cloud, gh, capsys
     submitted = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud",
                                          allow_cloud=True, land=True)
     assert submitted["ok"] and submitted["where"] == "cloud" and submitted["land"] is True
+    assert submitted["short_id"] == submitted["job_id"][:8]
+    assert submitted["task_url"] == submitted["cloud_url"]
     assert submitted["placement"]["where"] == "cloud"
     job_id = submitted["job_id"]
     argv = runner.argvs[-1]
