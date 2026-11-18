@@ -782,6 +782,14 @@ def test_normal_diff_lands_without_report_transport_file(cloud, gh, capsys, monk
 
 
 def test_codex_land_skips_every_bridge_artifact_and_warns(cloud, gh, capsys, monkeypatch):
+    bridge = cloud.repo / ".bridge"
+    bridge.mkdir()
+    (bridge / "modified.txt").write_text("base modified content\n", encoding="utf-8")
+    (bridge / "deleted.txt").write_text("base deleted content\n", encoding="utf-8")
+    _git(cloud.repo, "add", ".bridge")
+    _git(cloud.repo, "commit", "-q", "-m", "add tracked bridge fixtures")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "bridge-artifacts")
     _set_diff(
         cloud,
         monkeypatch,
@@ -796,10 +804,12 @@ def test_codex_land_skips_every_bridge_artifact_and_warns(cloud, gh, capsys, mon
     assert _main(cloud, "apply", job_id, "--land") == 0
     output = capsys.readouterr().out
     landed = _job(cloud, job_id)
-    assert "warning: skipped bridge-owned cloud diff paths: .bridge/job.json" in output
-    assert landed["skipped_bridge_artifacts"] == [".bridge/job.json"]
+    assert "warning: skipped bridge-owned cloud diff paths:" in output
+    assert landed["skipped_bridge_artifacts"] == [
+        ".bridge/job.json", ".bridge/deleted.txt", ".bridge/modified.txt", ".bridge/report.md"
+    ]
     assert _git(cloud.repo, "show", "--format=", "--name-only", landed["pushed_sha"]) == "cloud_change.txt"
-    assert not _git(cloud.repo, "ls-tree", "-r", "--name-only", landed["pushed_sha"], "--", ".bridge")
+    assert _git(cloud.repo, "diff", "--name-only", "main", landed["pushed_sha"], "--", ".bridge") == ""
 
 
 def test_existing_pr_gets_redacted_bounded_report_comment(cloud, gh, capsys, monkeypatch):

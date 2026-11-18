@@ -1368,7 +1368,14 @@ def clean_bridge_artifacts(worktree: Path, base: str) -> list[str]:
     # A single revision compares the base tree with both HEAD and the worktree.
     # That covers committed Claude results as well as Codex's uncommitted apply.
     changed = _git(worktree, "diff", "--no-renames", "--name-only", "-z", base, "--", ".bridge", check=False)
-    paths = [path for path in changed.split("\0") if path and is_bridge_artifact(path)]
+    # `git diff` cannot see new, untracked files.  Codex apply commonly creates
+    # the report transport file that way, so enumerate untracked paths too.
+    untracked = _git(
+        worktree, "ls-files", "--others", "--exclude-standard", "-z", "--", ".bridge", check=False
+    )
+    paths = list(dict.fromkeys(
+        path for path in (changed + untracked).split("\0") if path and is_bridge_artifact(path)
+    ))
     for path in paths:
         if _git(worktree, "ls-tree", "--name-only", base, "--", path, check=False):
             _git(worktree, "checkout", base, "--", path)
@@ -1549,7 +1556,8 @@ def apply_job(
         # they apply.  It can contain account identifiers and is tool output,
         # never task output.
         (worktree / "error.log").unlink(missing_ok=True)
-        clean_bridge_artifacts(worktree, base)
+        cleaned_artifacts = clean_bridge_artifacts(worktree, base)
+        skipped_artifacts = list(dict.fromkeys([*skipped_artifacts, *cleaned_artifacts]))
         report_dir = worktree / ".bridge"
         if report_dir.is_dir() and not any(report_dir.iterdir()):
             report_dir.rmdir()
