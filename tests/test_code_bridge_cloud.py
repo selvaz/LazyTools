@@ -941,8 +941,26 @@ def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsy
     assert job["poll_errors_in_a_row"] == 0
     assert job["last_poll_error"] is None
     assert observed_before_poll == ["running"] * 4
-    assert any(delay >= 0.04 for delay in sleeps), f"Retry-After delay was not honoured: {sleeps}"
+    # Each failure independently imposes its own minimum: Retry-After for the
+    # first, then exponential backoff for the second and third attempts.
     assert len(sleeps) >= 3, "the wait loop did not sleep through each transient failure"
+    assert sleeps[0] >= 0.045, f"Retry-After delay was not honoured: {sleeps}"
+    assert sleeps[1] >= 0.035, f"second-attempt backoff was not honoured: {sleeps}"
+    assert sleeps[2] >= 0.07, f"third-attempt backoff was not honoured: {sleeps}"
+
+
+@pytest.mark.parametrize("http_status", ["429 Too Many Requests", "503 Service Unavailable"])
+def test_status_text_transport_error_keeps_job_running(cloud, monkeypatch, capsys, http_status):
+    job_id = _submit(cloud, capsys)
+    message = f"Error: get_task_details failed: HTTP {http_status}"
+    monkeypatch.setattr(_cloud.CodexCloud, "_run",
+                        lambda _self, *_args, **_kwargs: (1, message, ""))
+
+    assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+    job = json.loads(capsys.readouterr().out)
+    assert job["status"] == "running"
+    assert message in job["last_poll_error"]
+    assert job["poll_errors_in_a_row"] == 1
 
 
 def test_resync_recovers_legacy_poll_failed_job(cloud, capsys):
@@ -950,8 +968,9 @@ def test_resync_recovers_legacy_poll_failed_job(cloud, capsys):
     store = _store.build_store(cloud.db)
     registry = _store.build_job_registry(store)
     meta = _store.read_meta(store, job_id) or {}
-    meta["last_poll_error"] = "HTTP 429 Too Many Requests"
-    _cloud._write(store, registry, job_id, meta, status="failed", error="cloud status: Error")
+    meta.pop("last_poll_error", None)
+    _cloud._write(store, registry, job_id, meta, status="failed",
+                  error="cloud task Error: get_task_details failed: HTTP 429 Too Many Requests")
     cloud.set_status("status: ready\nRecovered result.\n")
 
     assert cli.main(["resync", job_id, "--db", str(cloud.db), "--json"]) == 0

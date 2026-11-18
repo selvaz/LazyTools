@@ -123,6 +123,9 @@ DEFAULT_CLOUD_WAIT_TIMEOUT = 2 * 3600.0
 MAX_POLL_BACKOFF = 60.0
 POLL_CLOCK_PREFIX = "code-bridge:cloud-poll-clock:"
 _RETRY_AFTER_RE = re.compile(r"(?i)retry-after(?:\s+header)?\s*[:=]?\s*(\d+(?:\.\d+)?)")
+_TRANSIENT_TRANSPORT_RE = re.compile(
+    r"(?i)(?:\bHTTP(?:/\d(?:\.\d)?)?\s+(?:429|5\d\d)\b|\b(?:timed?\s*out|timeout)\b)"
+)
 #: Actions a local job's BridgeGate would hold for a human ticket, as
 #: ``--approve-cloud`` names. A cloud agent's commands cannot be gated one by
 #: one, so a brief that asks for one is refused unless the operator approves
@@ -177,6 +180,11 @@ def redact(text: str) -> str:
         else:
             text = pattern.sub("[redacted]", text)
     return text
+
+
+def _is_transient_transport_error(text: str) -> bool:
+    """Return whether provider text describes a retryable polling failure."""
+    return _TRANSIENT_TRANSPORT_RE.search(text) is not None
 
 
 def redact_obj(value: Any) -> Any:
@@ -839,7 +847,14 @@ class CodexCloud:
         """
         code, out, err = self._run("status", handle, allow_failure=True)
         for text in (out, err):
-            parsed = parse_status(redact(text))
+            safe_text = redact(text)
+            # The CLI can print transport failures as a status-looking line,
+            # e.g. ``Error: get_task_details failed: HTTP 429 ...``.  Since
+            # ``Error`` is otherwise a legitimate terminal task status, this
+            # check must precede parsing it as provider truth.
+            if _is_transient_transport_error(safe_text):
+                raise CloudError(safe_text.strip()[:2000])
+            parsed = parse_status(safe_text)
             if parsed.raw_status:
                 return parsed
         if code != 0:
@@ -999,7 +1014,10 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
 
 def resync(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     """Re-check a legacy poll-failed job and recover it from provider truth."""
-    if job.get("status") != "failed" or not job.get("last_poll_error") or not job.get("cloud_handle"):
+    legacy_poll_error = _is_transient_transport_error(str(job.get("error") or ""))
+    if (job.get("status") != "failed" or
+            (not job.get("last_poll_error") and not legacy_poll_error) or
+            not job.get("cloud_handle")):
         raise CloudError("resync requires a cloud job failed by an earlier poll error")
     job_id = str(job["job_id"])
     try:
