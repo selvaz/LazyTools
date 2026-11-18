@@ -115,8 +115,7 @@ TERMINAL_STATUSES = ("done", "partial", "failed", "interrupted")
 #: so only lowercase hex (8-32 digits, what ``uuid4().hex`` produces) or a
 #: canonical UUID is accepted -- never anything that could be a path.
 JOB_ID_RE = re.compile(r"[0-9a-f]{8,32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-#: Retained for API compatibility. Poll failures are never terminal: only a
-#: provider-reported terminal task state may change a job to a terminal state.
+#: Stop retrying an identical/unrecoverable polling failure indefinitely.
 MAX_CONSECUTIVE_POLL_ERRORS = 5
 #: ``wait`` on a cloud job never runs unbounded: without ``--timeout`` it
 #: gives up after this many seconds (exit 3).
@@ -124,6 +123,10 @@ DEFAULT_CLOUD_WAIT_TIMEOUT = 2 * 3600.0
 MAX_POLL_BACKOFF = 60.0
 POLL_CLOCK_PREFIX = "code-bridge:cloud-poll-clock:"
 _RETRY_AFTER_RE = re.compile(r"(?i)retry-after(?:\s+header)?\s*[:=]?\s*(\d+(?:\.\d+)?)")
+_TRANSIENT_TRANSPORT_RE = re.compile(
+    r"(?im)^\s*(?:(?:cloud task[ \t]+)?(?:http[ \t]+)?error:[ \t]*)*get_task_details failed:[ \t]*[^\r\n]*"
+    r"(?:\b(?:HTTP(?:/\d(?:\.\d)?)?[ \t]+)?(?:429|5\d\d)\b|\b(?:timed?[ \t]+out|timeout)\b)"
+)
 #: Actions a local job's BridgeGate would hold for a human ticket, as
 #: ``--approve-cloud`` names. A cloud agent's commands cannot be gated one by
 #: one, so a brief that asks for one is refused unless the operator approves
@@ -178,6 +181,11 @@ def redact(text: str) -> str:
         else:
             text = pattern.sub("[redacted]", text)
     return text
+
+
+def _is_transient_transport_error(text: str) -> bool:
+    """Match the CLI's polling-error line, not status titles or messages."""
+    return _TRANSIENT_TRANSPORT_RE.search(text) is not None
 
 
 def redact_obj(value: Any) -> Any:
@@ -839,8 +847,33 @@ class CodexCloud:
         auth) and raises :class:`CloudError`.
         """
         code, out, err = self._run("status", handle, allow_failure=True)
-        for text in (out, err):
-            parsed = parse_status(redact(text))
+        parsed_outputs: list[CloudStatus] = []
+        safe_outputs = [redact(out), redact(err)]
+        for safe_text in safe_outputs:
+            parsed = parse_status(safe_text)
+            parsed_outputs.append(parsed)
+            # Provider truth takes precedence even when its title/message
+            # happens to mention an HTTP code or timeout.  A bare leading
+            # ``Error:`` in the CLI's get_task_details failure line is the
+            # exception: it is an error label, not a task status token.
+            # Only a leading Error label is ambiguous.  Once the provider has
+            # supplied another recognised status (for example READY), text in
+            # its title or message cannot turn that status into a poll error.
+            transport_line = (
+                parsed.raw_status.casefold() == "error" and _is_transient_transport_error(safe_text)
+            )
+            if (parsed.raw_status and parsed.status in ("done", "failed", "interrupted")
+                    and not transport_line):
+                return parsed
+        for safe_text, parsed in zip(safe_outputs, parsed_outputs, strict=True):
+            # The CLI can print transport failures as a status-looking line,
+            # e.g. ``Error: get_task_details failed: HTTP 429 ...``.  Since
+            # ``Error`` is otherwise a legitimate terminal task status, only
+            # the CLI error-line shape is treated as transport failure.
+            ambiguous_error = not parsed.raw_status or parsed.raw_status.casefold() == "error"
+            if ambiguous_error and _is_transient_transport_error(safe_text):
+                raise CloudError(safe_text.strip()[:2000])
+        for parsed in parsed_outputs:
             if parsed.raw_status:
                 return parsed
         if code != 0:
@@ -977,6 +1010,10 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     if poll_error is not None:
         errors = int(job.get("poll_errors_in_a_row") or 0) + 1
         updates = {"last_poll_error": poll_error, "last_polled_at": time.time(), "poll_errors_in_a_row": errors}
+        if errors >= MAX_CONSECUTIVE_POLL_ERRORS and _is_transient_transport_error(poll_error):
+            _write_unless_terminal(store, registry, job_id, updates, status="failed",
+                                   error=f"cloud status failed after {errors} attempts: {poll_error}")
+            return _merged(store, registry, job_id)
         _write_unless_terminal(store, registry, job_id, updates, status=str(job.get("status") or "running"))
         return _merged(store, registry, job_id)
     updates = {
@@ -1000,7 +1037,10 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
 
 def resync(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     """Re-check a legacy poll-failed job and recover it from provider truth."""
-    if job.get("status") != "failed" or not job.get("last_poll_error") or not job.get("cloud_handle"):
+    legacy_poll_error = _is_transient_transport_error(str(job.get("error") or ""))
+    if (job.get("status") != "failed" or
+            (not job.get("last_poll_error") and not legacy_poll_error) or
+            not job.get("cloud_handle")):
         raise CloudError("resync requires a cloud job failed by an earlier poll error")
     job_id = str(job["job_id"])
     try:
@@ -1013,9 +1053,9 @@ def resync(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
                 "last_polled_at": time.time()}
         _write(store, registry, job_id, meta, status="failed", error=job.get("error"))
         return _merged(store, registry, job_id)
-    if state.status not in ("done", "failed", "interrupted"):
-        return job
     new_status = state.status
+    if new_status not in ("done", "failed", "interrupted"):
+        new_status = "running"
     meta = _store.read_meta(store, job_id) or {}
     log = list(meta.get("job_log") or [])
     log.append({"at": time.time(), "event": "resync", "from": "failed", "to": new_status,
@@ -1024,6 +1064,8 @@ def resync(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
                 last_poll_error=None, poll_errors_in_a_row=0, job_log=log, **state.extra)
     if new_status == "done":
         _write(store, registry, job_id, meta, status="done", result=state.message or state.raw.strip())
+    elif new_status == "running":
+        _write(store, registry, job_id, meta, status="running", error=None)
     else:
         _write(store, registry, job_id, meta, status=new_status,
                error=f"cloud task {state.raw_status or state.status}: {state.message or state.raw.strip()}")
@@ -1694,29 +1736,52 @@ def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval
         if job is None:
             return None
         merged = _merged(store, registry, str(job["job_id"]))
-        errors = int(merged.get("poll_errors_in_a_row") or 0)
-        retry_after = _retry_after_seconds(str(merged.get("last_poll_error") or ""))
-        exponent = min(63, max(0, errors - 1))
-        backoff = min(MAX_POLL_BACKOFF, interval * (2 ** exponent)) if errors else interval
-        delay = 0.0 if first and not errors and retry_after is None else max(backoff, retry_after or 0.0)
-        if errors and merged.get("last_polled_at"):
-            # The backoff and Retry-After count from the failed poll, not from
-            # this waiter's start: a resumed waiter subtracts the time already
-            # elapsed, so short waits invoked repeatedly still poll again.
-            elapsed = max(0.0, time.time() - float(merged["last_polled_at"]))
-            delay = max(0.0, delay - elapsed)
-        # Randomisation prevents independent waiters from repeatedly waking in
-        # lockstep. The durable reservation also serialises processes sharing
-        # an account even when their random choices happen to coincide.
-        delay += random.uniform(0.0, max(0.001, interval * 0.25))
-        if not _wait_for_poll_turn(store, str(merged.get("engine") or "cloud"), interval, delay, deadline):
-            return merged
+        job, got_turn = poll_job_once(store, registry, merged, interval=interval, deadline=deadline,
+                                      immediate=first)
         first = False
-        job = refresh(store, registry, merged)
+        if not got_turn:
+            return job
         if job.get("status") in TERMINAL_STATUSES:
             return job
         if deadline is not None and time.monotonic() >= deadline:
             return job
+
+
+def poll_job_once(
+    store: Any, registry: Any, job: dict[str, Any], *, interval: float, deadline: float | None,
+    immediate: bool = False, nonblocking: bool = False,
+) -> tuple[dict[str, Any], bool]:
+    """Take a shared poll turn, or consume a poll completed by another waiter.
+
+    The durable per-task reservation is shared by ``wait``, ``wait-any`` and
+    reconciliation callers.  ``bool`` is false only when the caller's deadline
+    expires before its reserved turn.
+    """
+    merged = _merged(store, registry, str(job["job_id"]))
+    errors = int(merged.get("poll_errors_in_a_row") or 0)
+    retry_after = _retry_after_seconds(str(merged.get("last_poll_error") or ""))
+    exponent = min(63, max(0, errors - 1))
+    backoff = min(MAX_POLL_BACKOFF, interval * (2 ** exponent)) if errors else interval
+    delay = 0.0 if immediate and not errors and retry_after is None else max(backoff, retry_after or 0.0)
+    if errors and merged.get("last_polled_at"):
+        elapsed = max(0.0, time.time() - float(merged["last_polled_at"]))
+        delay = max(0.0, delay - elapsed)
+    # A check-once call (notably ``wait-any --timeout 0``) must still get one
+    # provider observation.  Jitter is useful when a poll is actually delayed,
+    # but turning an otherwise immediate first poll into a future poll makes a
+    # zero/very-short deadline skip the provider altogether.
+    if delay:
+        delay += random.uniform(0.0, max(0.001, interval * 0.25))
+    polled_at = merged.get("last_polled_at")
+    got_turn = (_wait_for_poll_turn(store, str(merged["job_id"]), interval, delay, deadline,
+                                    nonblocking=True) if nonblocking else
+                _wait_for_poll_turn(store, str(merged["job_id"]), interval, delay, deadline))
+    if not got_turn:
+        return merged, False
+    latest = _merged(store, registry, str(merged["job_id"]))
+    if latest.get("last_polled_at") != polled_at:
+        return latest, True
+    return refresh(store, registry, merged), True
 
 
 def _retry_after_seconds(error: str) -> float | None:
@@ -1725,10 +1790,11 @@ def _retry_after_seconds(error: str) -> float | None:
 
 
 def _wait_for_poll_turn(
-    store: Any, account: str, minimum_interval: float, delay: float, deadline: float | None,
+    store: Any, task_id: str, minimum_interval: float, delay: float, deadline: float | None, *,
+    nonblocking: bool = False,
 ) -> bool:
-    """Reserve and honour a store-backed per-account poll time."""
-    key = f"{POLL_CLOCK_PREFIX}{account}"
+    """Reserve and honour a store-backed per-task poll time."""
+    key = f"{POLL_CLOCK_PREFIX}{task_id}"
     with _concurrency._guard(_concurrency.load_config().slot_dir):
         now = time.time()
         raw = store.read(key)
@@ -1736,8 +1802,11 @@ def _wait_for_poll_turn(
         poll_at = max(now + delay, previous + minimum_interval)
         wait = max(0.0, poll_at - now)
         remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
-        if remaining is None or wait <= remaining:
+        if ((not nonblocking and (remaining is None or wait <= remaining))
+                or (nonblocking and wait == 0)):
             store.write(key, poll_at)
+    if nonblocking and wait > 0:
+        return False
     if remaining is not None and wait > remaining:
         if remaining:
             time.sleep(remaining)

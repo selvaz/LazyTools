@@ -1,6 +1,7 @@
 """Whole-command Bash capability decisions and the closed fallback."""
 
 import asyncio
+import string
 from pathlib import Path
 
 import pytest
@@ -80,6 +81,20 @@ BYPASSES = [
 @pytest.mark.parametrize("command", BYPASSES)
 def test_bypasses_and_unknowns_ask(command):
     assert tier(command) == "ask"
+
+
+@pytest.mark.parametrize("token", [char for char in string.punctuation if char not in ";|"])
+def test_every_non_separator_punctuation_only_token_is_held(token):
+    assert tier(token) == "ask"
+
+
+@pytest.mark.parametrize("pattern", _readonly.SENSITIVE_NAMES)
+@pytest.mark.parametrize("prefix", ["cat", "grep -r needle"])
+def test_every_sensitive_name_is_held_including_recursive_grep(pattern, prefix):
+    # Replace glob syntax with a representative matching name.
+    name = pattern.replace("*", "credential").replace("?", "x")
+    assert _readonly.sensitive_name(name)
+    assert tier(f"{prefix} {name}") == "ask"
 
 
 @pytest.mark.parametrize("command", ["git add -A", "git commit -m message", "git push origin topic", "gh pr create --fill"])
