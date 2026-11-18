@@ -621,6 +621,12 @@ class BridgeGate(TieredGate):
         if not self.accepting:
             return Rule("deny", "*")
         command = request.arguments.get("command")
+        if self.profile == "review" and request.kind == "tool" and request.name in {"Read", "Glob", "Grep"}:
+            from lazytools.code_bridge._review_policy import review_tool_denial
+
+            reason = review_tool_denial(request.name, request.arguments)
+            if reason:
+                return Rule("ask", request.name, arg_pattern=f"profile:review:{reason}")
         if self.profile == "review" and isinstance(command, str) and (request.kind == "command" or request.name == "Bash"):
             from lazytools.code_bridge._review_policy import review_denial
 
@@ -637,7 +643,7 @@ class BridgeGate(TieredGate):
                     reason = reason or "Codex sandbox escalation"
             if reason:
                 return Rule("ask", request.name, arg_pattern=f"profile:review:{reason}")
-            return _ProfileMatch(cast(Any, "profile:review"), request.name, profile="review")
+            return _ProfileMatch("profile:review", request.name, profile="review")
         if self.routine is not None and isinstance(command, str) and (request.kind == "command" or request.name == "Bash"):
             rule_id = self.routine.match(request)
             if rule_id:

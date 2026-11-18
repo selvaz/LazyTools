@@ -715,7 +715,9 @@ The `review` profile is fail closed. It tokenizes each command and auto-approves
 only an explicit routine allow-list: `gh pr view|diff|checks`, selected
 read-only `git status|log|diff|show|rev-parse` forms, helper-free `git fetch`,
 pytest, `npm test`, `npm run build|lint`, and common file readers (`ls`, `cat`,
-`grep`, `head`, and `tail`). Every segment of a compound command must match.
+`grep`, `head`, and `tail`). Every segment of a compound command must match. Native `Read`, `Glob`, and
+`Grep` requests are also held when an explicit path or pattern is sensitive or
+unbounded; shell `grep -r`, `-R`, and `--recursive` are never auto-approved.
 
 Unknown commands or flags, abbreviations, environment/config overrides,
 wrappers, expansions, redirections, writes, deletes, credential reads, GitHub
@@ -725,6 +727,12 @@ their command would otherwise be on the allow-list.
 
 Every automatic decision is logged as `profile:review`. Cloud jobs do not run
 through the local gate and therefore reject `--profile review`.
+
+The profile intentionally remains narrower than the general read-only command
+catalog. In particular, `ruff`, `mypy`, `npm ci`, `git branch --show-current`,
+`git ls-files`, and combined pytest short flags such as `-qx` or `-vv` are known
+limits and are held for human approval. This preserves fail-closed behavior at
+the cost of occasional prompts for otherwise harmless reviewer commands.
 
 ### Routine auto-approval (R13)
 

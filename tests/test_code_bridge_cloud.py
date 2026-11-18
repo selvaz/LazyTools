@@ -810,7 +810,10 @@ def test_resync_recovers_legacy_poll_failed_job(cloud, capsys):
     store = _store.build_store(cloud.db)
     registry = _store.build_job_registry(store)
     meta = _store.read_meta(store, job_id) or {}
-    meta["last_poll_error"] = "HTTP 429 Too Many Requests"
+    meta["last_poll_error"] = (
+        "cloud status printed no recognisable status: "
+        "cloud status printed no recognisable status: Error"
+    )
     _cloud._write(store, registry, job_id, meta, status="failed", error="cloud status: Error")
     cloud.set_status("status: ready\nRecovered result.\n")
 
