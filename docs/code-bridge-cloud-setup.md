@@ -378,6 +378,11 @@ workflow](code-bridge.md#cloud-agents-as-part-of-the-workflow). In short:
   records the commit and opens or updates the PR.
 * Landing is refused, with the reason, when the base branch moved since submit
   (add `--rebase-ok` to the submit to allow it) and never force-pushes.
+* Bridge-owned job artifacts under `.bridge/` are transport only and are never
+  committed by landing, even if an agent force-added, modified, or deleted
+  them. Landing warns when it skips those paths. The credential-redacted,
+  size-limited `.bridge/report.md` text goes into a new PR's description, or a
+  comment when the job updates an existing PR.
 * A failed cloud task is marked `failed` with the provider's reason by `wait` or
   `cloud-sync`.
 

@@ -96,6 +96,7 @@ SUBMIT_CLOCK_PREFIX = "code-bridge:cloud-submit-clock:"
 #: the CLI ignores ``-c model`` for cloud tasks, so the environment's default applies.
 DEFAULT_CLAUDE_CLOUD_MODEL = "claude-sonnet-5-5"
 CLOUD_REPORT_PATH = ".bridge/report.md"
+BRIDGE_ARTIFACT_PREFIX = ".bridge/"
 CLOUD_REPORT_SUFFIX = (
     "\n\nBefore finishing, write your final report to `.bridge/report.md` in the repository root (Markdown). "
     "Always write it, even if you change nothing else."
@@ -1327,8 +1328,16 @@ def submit_job(
     return _merged(store, registry, job_id)
 
 
+def is_bridge_artifact(path: str) -> bool:
+    """Whether ``path`` is bridge-owned job transport rather than task output."""
+    normalized = path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized == ".bridge" or normalized.startswith(BRIDGE_ARTIFACT_PREFIX)
+
+
 def report_from_diff(diff: str) -> tuple[str | None, list[str]]:
-    """Return the final report and provider paths excluding its transport file."""
+    """Return the final report and provider paths excluding all bridge artifacts."""
     report_lines: list[str] = []
     files = summarize_diff(diff).files
     current: str | None = None
@@ -1339,15 +1348,45 @@ def report_from_diff(diff: str) -> tuple[str | None, list[str]]:
         elif current == CLOUD_REPORT_PATH and line.startswith("+") and not line.startswith("+++"):
             report_lines.append(line[1:])
     report = "\n".join(report_lines).strip() or None
-    return report, [name for name in files if name != CLOUD_REPORT_PATH]
+    return report, [name for name in files if not is_bridge_artifact(name)]
 
 
 def strip_report_diff(diff: str) -> str:
-    """Remove the report file's complete unified-diff section."""
+    """Remove every bridge-owned artifact's complete unified-diff section."""
     sections = re.split(r"(?=^diff --git )", diff, flags=re.MULTILINE)
-    return "".join(section for section in sections if not section.startswith(
-        f"diff --git a/{CLOUD_REPORT_PATH} b/{CLOUD_REPORT_PATH}"
+    kept: list[str] = []
+    for section in sections:
+        header = section.splitlines()[0] if section else ""
+        match = re.match(r"diff --git a/(.+?) b/(.+)$", header)
+        if not match or not (is_bridge_artifact(match.group(1)) or is_bridge_artifact(match.group(2))):
+            kept.append(section)
+    return "".join(kept)
+
+
+def clean_bridge_artifacts(worktree: Path, base: str) -> list[str]:
+    """Restore every ``.bridge/`` path to ``base`` and return the skipped paths."""
+    # A single revision compares the base tree with both HEAD and the worktree.
+    # That covers committed Claude results as well as Codex's uncommitted apply.
+    changed = _git(worktree, "diff", "--no-renames", "--name-only", "-z", base, "--", ".bridge", check=False)
+    # `git diff` cannot see new, untracked files.  Codex apply commonly creates
+    # the report transport file that way, so enumerate untracked paths too.
+    untracked = _git(
+        worktree, "ls-files", "--others", "--exclude-standard", "-z", "--", ".bridge", check=False
+    )
+    paths = list(dict.fromkeys(
+        path for path in (changed + untracked).split("\0") if path and is_bridge_artifact(path)
     ))
+    for path in paths:
+        if _git(worktree, "ls-tree", "--name-only", base, "--", path, check=False):
+            _git(worktree, "checkout", base, "--", path)
+        else:
+            target = worktree / path
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            else:
+                target.unlink(missing_ok=True)
+            _git(worktree, "rm", "--cached", "-q", "--ignore-unmatch", "--", path, check=False)
+    return paths
 
 
 def _completed_task_diff(prov: Any, job: dict[str, Any]) -> str:
@@ -1496,6 +1535,7 @@ def apply_job(
     diff_files = _completed_task_diff(prov, job)
     job, diff_files = capture_report(store, registry, job, diff_files)
     _report, applied_files = report_from_diff(diff_files)
+    skipped_artifacts = [name for name in summarize_diff(diff_files).files if is_bridge_artifact(name)]
     _reconcile_apply_remnants(
         root, worktree, branch, base, set(applied_files), branch_checkout=not bool(job.get("pr_number"))
     )
@@ -1516,7 +1556,8 @@ def apply_job(
         # they apply.  It can contain account identifiers and is tool output,
         # never task output.
         (worktree / "error.log").unlink(missing_ok=True)
-        (worktree / CLOUD_REPORT_PATH).unlink(missing_ok=True)
+        cleaned_artifacts = clean_bridge_artifacts(worktree, base)
+        skipped_artifacts = list(dict.fromkeys([*skipped_artifacts, *cleaned_artifacts]))
         report_dir = worktree / ".bridge"
         if report_dir.is_dir() and not any(report_dir.iterdir()):
             report_dir.rmdir()
@@ -1526,7 +1567,7 @@ def apply_job(
     status_lines = _git(worktree, "status", "--porcelain", check=False)
     meta = _store.read_meta(store, job_id) or {}
     meta.update(applied_worktree=str(worktree), applied_branch=branch, applied_base=base,
-                applied_files=applied_files, applied_at=time.time())
+                applied_files=applied_files, skipped_bridge_artifacts=skipped_artifacts, applied_at=time.time())
     _write(store, registry, job_id, meta, status=str(job["status"]), result=job.get("result"), error=job.get("error"))
     return {
         "job_id": job_id,

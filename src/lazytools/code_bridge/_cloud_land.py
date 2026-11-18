@@ -133,6 +133,20 @@ def _summary(job: dict[str, Any]) -> str:
     return redact(str(job.get("result") or "").strip())[:600]
 
 
+REPORT_LIMIT = 6000
+REPORT_MARKER = "<!-- lazytools-code-bridge cloud report -->"
+
+
+def _report_comment_marker(job: dict[str, Any]) -> str:
+    """Return the retry-stable marker unique to one cloud job's comment."""
+    return f"<!-- lazytools-code-bridge cloud report job:{job.get('job_id', '')} -->"
+
+
+def _report_text(job: dict[str, Any]) -> str:
+    """A bounded, credential-safe report suitable for GitHub text fields."""
+    return redact(str(job.get("report") or "").strip())[:REPORT_LIMIT]
+
+
 def commit_message(job: dict[str, Any]) -> tuple[str, str]:
     """``(subject, body)`` for the landing commit: no attribution, no trailers."""
     body = f"Cloud job {str(job.get('job_id', ''))[:8]} ({job.get('engine')})."
@@ -150,6 +164,9 @@ def pr_body(job: dict[str, Any]) -> str:
     summary = _summary(job)
     if summary:
         lines += ["Agent summary:", "", summary, ""]
+    report = _report_text(job)
+    if report:
+        lines += [REPORT_MARKER, "", "Cloud task report:", "", report, ""]
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -214,6 +231,7 @@ def _outcome(job: dict[str, Any], *, already: bool = False, note: str | None = N
         "worktree": job.get("applied_worktree"),
         "base_branch": job.get("pr_base") or job.get("branch"),
         "force_added_ignored": job.get("force_added_ignored") or [],
+        "skipped_bridge_artifacts": job.get("skipped_bridge_artifacts") or [],
         "note": note or job.get("land_note"),
     }
 
@@ -289,12 +307,27 @@ def _ensure_pr(store: Any, job: dict[str, Any], *, head: str, base: str, title: 
         if str(view.get("state", "")).upper() != "OPEN":
             raise CloudError(f"PR #{job['pr_number']} is {str(view.get('state', '?')).lower()}: the commit was pushed to "
                              f"{head}, but there is no open PR to update")
-        return str(view["url"]), int(view["number"])
+        number = int(view["number"])
+        _post_report_comment(job, number)
+        return str(view["url"]), number
     existing = _gh.pr_for_branch(repo, head)
     if existing:
-        return str(existing["url"]), int(existing["number"])
+        number = int(existing["number"])
+        _post_report_comment(job, number)
+        return str(existing["url"]), number
     url = _gh.pr_create(repo, base=base, head=head, title=title, body=pr_body(job))
     return url, _gh.pr_number_from_url(url)
+
+
+def _post_report_comment(job: dict[str, Any], number: int) -> None:
+    """Put a cloud report on an existing PR, once, rather than in git."""
+    report = _report_text(job)
+    if not report:
+        return
+    marker = _report_comment_marker(job)
+    body = f"{marker}\n\nCloud task report:\n\n{report}\n"
+    if not any(marker in comment for comment in _gh.pr_comments(str(job["repo"]), number)):
+        _gh.pr_comment(str(job["repo"]), number, body)
 
 
 def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path | None, rebase_ok: bool,
@@ -434,21 +467,25 @@ def _land_pushed_branch(store: Any, registry: Any, job: dict[str, Any], *, sourc
     if job_diff is None:
         raise CloudError(f"engine {job['engine']!r} has no result-branch diff to land")
     job, _diff = _cloud.capture_report(store, registry, job, job_diff(job, str(result_branch)))
-    # Claude commits the transport report to its result branch. Publish a
-    # descendant commit that removes it before that branch can become a PR
-    # head (or be fast-forwarded into an existing PR).
-    if _cloud._git(root, "ls-tree", "--name-only", tip, "--", _cloud.CLOUD_REPORT_PATH, check=False):
+    # Publish a descendant that restores all bridge-owned paths to the task's
+    # base before the result branch can become a PR head.
+    artifact_paths = [name for name in _cloud._git(
+        root, "diff", "--no-renames", "--name-only", "-z", str(job.get("base_commit") or ""), tip,
+        "--", ".bridge", check=False
+    ).split("\0") if name]
+    if artifact_paths:
         with tempfile.TemporaryDirectory(prefix="lazytools-claude-report-") as tmp:
             wt = Path(tmp)
             _cloud._git(root, "worktree", "add", "--detach", str(wt), tip)
             try:
-                (wt / _cloud.CLOUD_REPORT_PATH).unlink()
-                _cloud._git(wt, "add", "-u", "--", _cloud.CLOUD_REPORT_PATH)
-                _cloud._git(wt, "commit", "-q", "-m", "Remove cloud report transport file")
+                skipped = _cloud.clean_bridge_artifacts(wt, str(job.get("base_commit") or ""))
+                _cloud._git(wt, "add", "-A", "--", ".bridge")
+                _cloud._git(wt, "commit", "-q", "-m", "Remove cloud bridge artifacts")
                 tip = _cloud._git(wt, "rev-parse", "HEAD")
             finally:
                 _cloud._git(root, "worktree", "remove", "--force", str(wt), check=False)
         _push(root, tip, str(result_branch))
+        job = {**job, **_update_meta(store, job_id, {"skipped_bridge_artifacts": skipped})}
     base_branch = str(job.get("branch") or "")
     base_commit = str(job.get("base_commit") or "")
     head = _cloud._remote_base(root, base_branch)

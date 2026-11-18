@@ -135,6 +135,14 @@ FAKE_CODEX = textwrap.dedent(
             Path("dangling-link").symlink_to("missing-target")
             if shape == "mixed-symlink":
                 Path("regular.txt").write_text("regular\\n", encoding="utf-8")
+        elif shape == "bridge-artifacts":
+            bridge = Path(".bridge")
+            bridge.mkdir(exist_ok=True)
+            (bridge / "job.json").write_text('{"credential": "never commit"}\\n', encoding="utf-8")
+            (bridge / "report.md").write_text("provider report\\n", encoding="utf-8")
+            (bridge / "modified.txt").write_text("provider changed this\\n", encoding="utf-8")
+            (bridge / "deleted.txt").unlink()
+            Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
         elif not os.environ.get("FAKE_CODEX_NOCHANGE"):
             Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
         if os.environ.get("FAKE_CODEX_ERROR_LOG"):

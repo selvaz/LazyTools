@@ -428,14 +428,14 @@ class ClaudeCloud:
         job, _diff = _cloud.capture_report(store, registry, job, self.job_diff(job, str(source)))
         worktree.parent.mkdir(parents=True, exist_ok=True)
         _git(root, "worktree", "add", "-b", branch, str(worktree), tip)
-        report = worktree / _cloud.CLOUD_REPORT_PATH
-        if report.is_file():
-            report.unlink()
-            _git(worktree, "add", "-u", "--", _cloud.CLOUD_REPORT_PATH)
-            _git(worktree, "commit", "-q", "-m", "Remove cloud report transport file")
-            report_dir = report.parent
-            if report_dir.is_dir() and not any(report_dir.iterdir()):
-                report_dir.rmdir()
+        skipped = _cloud.clean_bridge_artifacts(worktree, str(job.get("base_commit") or ""))
+        if skipped:
+            _git(worktree, "add", "-A", "--", ".bridge")
+            _git(worktree, "commit", "-q", "-m", "Remove cloud bridge artifacts")
+            meta = _cloud._store.read_meta(store, str(job["job_id"])) or {}
+            meta["skipped_bridge_artifacts"] = skipped
+            _cloud._write(store, registry, str(job["job_id"]), meta, status=str(job["status"]),
+                          result=job.get("result"), error=job.get("error"))
         clean_tip = _git(worktree, "rev-parse", "HEAD")
         diff = summarize(root, str(job.get("base_commit") or ""), clean_tip)
         return {"source_branch": source, "base": clean_tip, "output": diff}

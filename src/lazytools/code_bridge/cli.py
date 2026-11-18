@@ -1335,6 +1335,9 @@ def _cmd_land(args: argparse.Namespace, store: Any, registry: Any, job: dict[str
         _cloud_print(f"PR: {outcome['pr_url']}")
     if outcome.get("force_added_ignored"):
         _cloud_print("force-added ignored cloud diff paths: " + ", ".join(outcome["force_added_ignored"]))
+    if outcome.get("skipped_bridge_artifacts"):
+        _cloud_print("warning: skipped bridge-owned cloud diff paths: " +
+                     ", ".join(outcome["skipped_bridge_artifacts"]))
     return 0
 
 
