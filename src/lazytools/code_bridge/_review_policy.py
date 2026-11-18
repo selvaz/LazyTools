@@ -49,6 +49,20 @@ _WRITERS = {
     "move-item",
     "new-item",
     "chmod",
+    "copy",
+    "move",
+    "xcopy",
+    "robocopy",
+    "ren",
+    "rename",
+    "mklink",
+    "setx",
+    "icacls",
+    "takeown",
+    "rename-item",
+    "clear-content",
+    "expand-archive",
+    "compress-archive",
 }
 _SCHEDULE = {
     "crontab",
@@ -113,6 +127,9 @@ def _tokens(text: str) -> list[str] | None:
         lexer = shlex.shlex(text, posix=True, punctuation_chars=";&|(){}<>")
         lexer.whitespace_split = True
         lexer.commenters = ""
+        # Backslash is a path separator on the primary target platform.  Letting
+        # POSIX shlex consume it can turn an escaping path into an innocuous one.
+        lexer.escape = ""
         return list(lexer)
     except ValueError:
         return None
@@ -123,7 +140,29 @@ def _uncertain(value: str) -> bool:
 
 
 def _path_denied(value: str, workspace: Path, base: Path, *, removal: bool = False) -> bool:
-    if not value or value.startswith("-"):
+    if not value or value == "-" or value.startswith("-"):
+        return value == "-"
+    if "\\" in value or re.match(r"^[A-Za-z]:", value):
+        workspace_s = str(workspace)
+        base_s = str(base)
+        # Compare Windows paths with Windows semantics even when tests run on
+        # POSIX.  Relative paths are anchored at the actual execution cwd.
+        if not re.match(r"^[A-Za-z]:[\\/]", workspace_s):
+            return True
+        windows_target = ntpath.normcase(ntpath.abspath(ntpath.join(base_s, value)))
+        root = ntpath.normcase(ntpath.abspath(workspace_s))
+        try:
+            inside = ntpath.commonpath((root, windows_target)) == root
+        except ValueError:
+            return True
+        return (
+            not inside
+            or any(sensitive_name(part) for part in re.split(r"[\\/]", windows_target))
+            or (removal and windows_target == root)
+        )
+    if value == "~" or value.startswith("~/"):
+        return True
+    if not value:
         return False
     if _uncertain(value) or re.match(r"^[A-Za-z]:[\\/]", value):
         return True
@@ -142,11 +181,14 @@ def _git_subcommand(words: list[str], start: int) -> tuple[str | None, list[str]
         item = words[i]
         low = item.lower()
         if item == "-C":
-            return None, [], "git working-directory override"
+            i += 2
+            continue
         if low == "-c":
             value = words[i + 1] if i + 1 < len(words) else ""
             if value.lower().startswith("alias."):
                 return None, [], "git alias/config override"
+            if re.match(r"(?i)^core\.(?:hooksPath|sshCommand|pager|editor|fsmonitor)=", value):
+                return None, [], "git executable/path config override"
             i += 2
         elif low.startswith("-c") and not low.startswith("--"):
             if item[2:].lower().startswith("alias."):
@@ -175,6 +217,7 @@ def _safe_comment(words: list[str], workspace: Path, base: Path) -> bool:
         and low[4] == "--repo"
         and bool(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", words[5]))
         and low[6] == "--body-file"
+        and words[7] != "-"
         and not _path_denied(words[7], workspace, base)
     )
 
@@ -219,6 +262,8 @@ def _gh_denial(words: list[str], workspace: Path, base: Path) -> str | None:
             if _safe_comment(["gh", *args], workspace, base)
             else "GitHub PR comment outside the one-comment exception"
         )
+    if low_args[:2] == ["auth", "status"] or low_args[0] == "search":
+        return None
     if low_args[0] in _GH_READ and len(low_args) > 1 and low_args[1] in _GH_READ[low_args[0]]:
         return None
     return "GitHub remote mutation"
@@ -229,16 +274,24 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
     words = _tokens(command)
     if not words or not cwd:
         return "unparseable command or unknown workspace"
-    workspace = Path(cwd).resolve()
-    base = Path(execution_cwd or cwd).resolve()
-    # POSIX shlex consumes Windows path separators.  Inspect the original text
-    # before tokenisation can turn ``..\\x`` into the harmless-looking ``..x``.
-    if "\\" in command and any(
-        re.search(rf"(?i)(?:^|\s){re.escape(name)}(?:\s|$)", command) for name in _REMOVERS | _WRITERS
-    ):
-        return "Windows-path mutation requires review"
+    windows_workspace = bool(re.match(r"^[A-Za-z]:[\\/]", cwd))
+    workspace = Path(cwd) if windows_workspace else Path(cwd).resolve()
+    base_value = execution_cwd or cwd
+    base = Path(base_value) if windows_workspace else Path(base_value).resolve()
     if any(mark in command for mark in ("$(`", "$(", "${", "$env:", "%TEMP%", "%HOME%", "`")):
         return "dynamic shell expansion"
+    if re.search(r"(?i)(?:^|\s)(?:cat|type|get-content)\s+[^;&|]*(?:\.ssh|\.aws[\\/]credentials|hosts\.yml)", command):
+        return "credential file read"
+    if "<<<" in command and any(re.search(rf"(?i)(?:^|\s){name}(?:\s|$)", command) for name in _SHELLS):
+        return "here-string into command interpreter"
+    if re.search(r"(?i)(?:^|[;&|]\s*|\b(?:do|then)\s+)\$[A-Za-z_][A-Za-z0-9_]*\b", command):
+        return "dynamic command word"
+    if re.search(r"(?i)\bgit\s+\$", command):
+        return "dynamic git subcommand"
+    if re.search(r"(?i)\balias\s+[^;&|]+", command):
+        return "shell alias definition"
+    if re.search(r"(?i)\[(?:system\.)?io\.file\]::(?:write|delete)", command):
+        return ".NET file mutation"
     for i, token in enumerate(words):
         exe = _exe(token)
         if exe in _SHELLS:
@@ -261,6 +314,8 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                     break
         if exe in {"eval", "iex", "invoke-expression"}:
             return "dynamic command evaluation"
+        if exe in {"invoke-webrequest", "invoke-restmethod"}:
+            return "remote publishing or download"
     if "|" in words and any(_exe(w) in _SHELLS for w in words[words.index("|") + 1 :]):
         return "pipe into command interpreter"
     segments: list[list[str]] = [[]]
@@ -275,20 +330,39 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
             exe = _exe(token)
             tail = segment[i:]
             segment_low = [w.lower() for w in tail]
-            if exe == "cd" and i + 1 < len(segment):
-                if _path_denied(segment[i + 1], workspace, base):
+            if exe in {"cd", "pushd", "popd"}:
+                args = tail[1:]
+                target = next((v for v in args if not v.startswith("-") or v == "-"), None)
+                if exe == "popd" or target is None or target == "-" or _path_denied(target, workspace, base):
                     return "directory change outside workspace"
-                base = (base / segment[i + 1]).resolve()
+                base = (base / target).resolve()
             if exe == "git":
+                # Validate -C before parsing the verb, then use it as the base
+                # for any later path checks.
+                for j, value in enumerate(tail[:-1]):
+                    if value == "-C" and _path_denied(tail[j + 1], workspace, base):
+                        return "git working-directory override"
                 verb, args, error = _git_subcommand(segment, i)
                 if error:
                     return error
-                if verb in _GIT_DENY:
+                if verb in _GIT_DENY and not (verb == "worktree" and args[:1] == ["list"]):
                     return f"git {verb}"
-                if (
-                    verb == "branch"
-                    and all(a in {"--list", "-l", "-a", "-r", "-v", "-vv"} or not a.startswith("-") for a in args)
-                ) or (verb == "remote" and args in (["-v"], ["--verbose"])):
+                read_special = (
+                    (
+                        verb == "branch"
+                        and not any(
+                            a in {"-d", "-D", "-m", "-M", "-c", "-C", "--delete", "--move", "--copy"} for a in args
+                        )
+                    )
+                    or (verb == "tag" and not any(a in {"-d", "--delete", "-f", "--force", "-a", "-s"} for a in args))
+                    or (verb == "stash" and bool(args) and args[0] in {"list", "show"})
+                    or (verb == "remote" and (args[:1] in [["-v"], ["--verbose"], ["get-url"], ["show"]]))
+                    or verb in {"reflog"}
+                    or (verb == "worktree" and args[:1] == ["list"])
+                    or (verb == "config" and any(a in {"--get", "--get-all", "--list", "-l"} for a in args))
+                    or (verb == "fetch" and not any(":" in a for a in args if not a.startswith("-")))
+                )
+                if read_special:
                     pass
                 elif verb in _GIT_SPECIAL:
                     return f"git {verb} mutation"
@@ -304,7 +378,9 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                 return "service control"
             if exe in {"sudo", "doas"}:
                 return "sandbox escalation"
-            if exe in _REMOVERS and any(_path_denied(v, workspace, base, removal=True) for v in tail[1:]):
+            if exe in _REMOVERS and any(
+                _path_denied(v, workspace, base, removal=True) for v in tail[1:] if v.lower() not in {"/s", "/q", "/f"}
+            ):
                 return "removal outside workspace or credential path"
             if exe == "find" and any(v in {"-delete", "-exec"} for v in segment_low):
                 return "find removal"
@@ -316,6 +392,32 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                 ]
                 if any(_path_denied(v, workspace, base) for v in operands):
                     return "write outside workspace or credential path"
+            if exe == "reg" and any(v in {"add", "delete", "copy", "import", "restore"} for v in segment_low[1:]):
+                return "registry mutation"
+            if exe in {"tar", "unzip", "zip"} and any(
+                _path_denied(tail[j + 1], workspace, base)
+                for j, v in enumerate(segment_low[:-1])
+                if v in {"-c", "-C", "-d", "-o"}
+            ):
+                return "archive write outside workspace"
+            if exe == "wget" and any(
+                v in {"-p", "-P", "--directory-prefix"} or v.startswith("--directory-prefix=") for v in tail[1:]
+            ):
+                return "download write"
+            if exe == "find" and any(v in {"-fprint", "-fprint0", "-fls"} for v in segment_low):
+                return "find output write"
+            if exe == "sed" and re.search(r"(?:^|[; ])w\s+[/~.]", " ".join(tail[1:])):
+                return "sed output write"
+            if (
+                exe == "git"
+                and verb in {"clone", "init", "archive", "bundle", "diff"}
+                and any(
+                    _path_denied(v.split("=", 1)[-1], workspace, base)
+                    for v in args
+                    if v.startswith(("--output=", "-o", "/", ".."))
+                )
+            ):
+                return "git write outside workspace"
             if (
                 exe in {"sed", "perl"}
                 and any("i" in v.lstrip("-") for v in tail[1:] if v.startswith("-"))
@@ -326,8 +428,26 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                 v in {"-o", "--output", "-O"} or v.startswith("--output=") for v in tail[1:]
             ):
                 return "download write"
+            if exe == "curl" and any(
+                v in {"-X", "-d", "--data", "-T", "-F", "--upload-file"}
+                or v.startswith(("-X", "--data=", "--upload-file="))
+                for v in tail[1:]
+            ):
+                return "remote publishing"
+            if exe == "wget" and any(v.startswith("--post-") for v in tail[1:]):
+                return "remote publishing"
+            if exe in {"mvn", "gradle", "gradlew", "setup.py"} and any(
+                v in {"deploy", "publish", "upload"} for v in segment_low[1:]
+            ):
+                return "package publishing"
+            if exe in {"powershell", "pwsh"} and any(
+                v in {"invoke-restmethod", "invoke-webrequest"} for v in segment_low
+            ):
+                return "remote publishing or download"
+            if exe == "npm" and "install" in segment_low and any(v in {"-g", "--global"} for v in segment_low):
+                return "global package install"
             if exe in _PUBLISHERS and any(
-                v in {"publish", "push", "upload", "unpublish", "deprecate", "dist-tag", "owner", "login"}
+                v in {"publish", "push", "upload", "unpublish", "deprecate", "dist-tag", "owner", "login", "yank"}
                 for v in segment_low[1:]
             ):
                 return "package publishing"
@@ -337,7 +457,11 @@ def review_denial(command: str, cwd: str, execution_cwd: str | None = None) -> s
                 return "remote/container mutation"
             if exe in {"kubectl", "terraform"} and "apply" in segment_low[1:]:
                 return "infrastructure mutation"
-    for match in re.finditer(r"(?:^|\s)(?:\d*)?(?:>>?|>\|)\s*([^\s;&|]+)", command):
+    for match in re.finditer(r"(?:^|\s|&)(?:\d*)?(?:>>?|>\|)\s*([^\s;&|]+)", command):
+        target = match.group(1).strip("'\"")
+        if target not in {"/dev/null", "nul"} and _path_denied(target, workspace, base):
+            return "redirect outside workspace or credential path"
+    for match in re.finditer(r"(?:^|\s)&?>&?\s*([^\s;&|]+)", command):
         target = match.group(1).strip("'\"")
         if target not in {"/dev/null", "nul"} and _path_denied(target, workspace, base):
             return "redirect outside workspace or credential path"
