@@ -22,6 +22,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Projects MCP: `projects_complete_todo` closes todo tasks without an acceptance contract after in-person verification, with a required summary (core and full profiles, write access) (#297).
 
 ### Fixed
+- Count council quorum only for votes aligned on the current motion and expose the winning motion in the result.
+- Bound council debates with a total routed-exchange budget and run a closing vote when free debate ends without quorum.
 - Code bridge landing calls the Claude-only `job_diff` hook through `getattr` and refuses engines without it; restores the mypy gate on main (#298).
 
 ## [0.10.10] — 2026-11-15

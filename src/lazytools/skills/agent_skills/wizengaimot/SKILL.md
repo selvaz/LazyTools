@@ -32,7 +32,10 @@ the server defaults and tell the user why the override was skipped.
   (pass `overwrite=True` to update an existing copy; writes `~/.claude/skills/wizengaimot/SKILL.md`), then invoke `/wizengaimot`.
 - Without Claude Code, the same idea runs as plain Python:
   `from lazytools.skills.council import standard_council` (a multi-provider
-  council on LazyBridge agents; see docs/skills-council.md).
+  council on LazyBridge agents; see docs/skills-council.md). That separate,
+  free-form API uses `max_exchanges` as a total routing budget, gives only the
+  moderator `propose_motion`, requires members to pass its motion ID to
+  `cast_vote`, and returns the selected text as `CouncilResult.motion`.
 
 ## The protocol
 
