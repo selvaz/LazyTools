@@ -118,9 +118,12 @@ def test_every_cli_command_in_the_skill_parses_against_the_real_cli():
 def test_documented_tier_and_cloud_choices_match_the_cli():
     run = _subparsers(bridge_cli.build_parser())["run"]
     actions = {a.dest: a for a in run._actions}
-    assert set(actions["tier"].choices) == {"basic", "writing", "thinking", "critical"}
-    assert set(actions["where"].choices) == {"local", "cloud"}
     text = (SKILL_DIR / "references" / "code-bridge.md").read_text(encoding="utf-8")
+    assert set(actions["tier"].choices) == {"basic", "writing", "thinking", "critical"}
+    assert set(actions["where"].choices) == {"local", "cloud", "auto"}
+    assert "--where auto" in text and "--where cloud" in text
+    assert set(actions["engine"].choices) == {"codex", "claude"}
+    assert "--engine claude" in text and "--routine" in text  # Claude cloud sessions are documented
     documented = re.search(r"--approve-cloud\s+([a-z|-]+)", text)[1].split("|")
     assert set(documented) == set(actions["approve_cloud"].choices)
 

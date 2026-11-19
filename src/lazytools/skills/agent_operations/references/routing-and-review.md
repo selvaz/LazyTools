@@ -59,6 +59,9 @@ lazytools-code-bridge run --detach --tier writing --review-of WRITER_JOB_ID --cw
 - If the opposite engine is ineligible (quota, ceiling, session pin), the
   command fails with `human_review_required`. Do not substitute a
   self-review: wait for quota, or get a human review.
+- Launch local reviewer jobs with `--profile review`, which auto-approves
+  only read-only commands. For cloud work, `run --where cloud --allow-cloud
+  --cwd REPO --review-of JOB_ID` posts the opposite engine's verdict on the PR.
 - The bridge review job is still write-capable; "do not edit" is only an
   instruction. When the review must be strictly read-only — or when the
   runner would time out because a review makes no commits — use a

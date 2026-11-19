@@ -12,6 +12,7 @@ reference: LazyTools `docs/code-bridge.md`.
 | Command | Use it to |
 | --- | --- |
 | `run` | Start a job. Foreground: the job id is the first stdout line, the result follows. `--detach`: start an independent worker and return at once (`--json` prints one launch object with id, pid and log path). |
+| `wait-any JOB_ID JOB_ID` / `wait-any --all-active` | Block until the first selected event (`--events done,failed,approval,landed,interrupted`) on several jobs; JSON lines; `--loop` until all are terminal. |
 | `wait JOB_ID` | Block until the job ends. Exit 0 `done`; 1 `partial`/`failed`/`interrupted` or the process died; 3 waiter timeout (`--timeout` stops only the waiter, never the job). |
 | `pending --json` | List open approval tickets (`approval_id`, `job_id`, gist, command, reason, expiry). |
 | `approve APPROVAL_ID` / `reject APPROVAL_ID --reason TEXT` | Decide a ticket. `--actor NAME` records who decided. |
@@ -45,6 +46,12 @@ lazytools-code-bridge run --detach --engine codex --cwd REPO --task @brief.md --
   the launching directory).
 - `--strict` refuses to launch when the brief check finds an error;
   `--no-brief-check` skips it. See `briefs.md`.
+- `--profile review` (local reviewer jobs) auto-approves only a narrow,
+  read-only command list (`gh pr view|diff|checks`, read-only git, test
+  runners, file readers) and holds everything else for a human.
+- `--json` prints one JSON object on the first stdout line with `job_id`,
+  `short_id`, `where`, `engine` (plus `pid` when detached, `task_url` for
+  cloud) — parse that instead of scraping text.
 
 **Why detach:** a foreground `run` is a child of the launching shell; if the
 host reaps that shell or the session ends, the job dies with it. A detached
@@ -52,7 +59,8 @@ worker outlives the session. Its launch returning is *not* completion.
 
 ## Waiting without polling
 
-Launch `lazytools-code-bridge wait JOB_ID` in the host's background facility
+Launch `lazytools-code-bridge wait JOB_ID` (or `wait-any` for several jobs)
+in the host's background facility
 (in Claude Code, the Bash tool's background option) and let the host's
 process-exit notification wake you. Meanwhile check `pending --json` when
 there is reason to expect a ticket, not in a tight loop. A killed waiter can
@@ -107,53 +115,96 @@ path-confined. It is a capability check, not an operating-system sandbox.
   sends the job to the other engine when eligible.
 - Keep heavy local test suites serial; parallelism belongs in the cloud.
 
-## Cloud jobs: `--where cloud`
+## Cloud jobs: `--where cloud` and `--where auto`
+
+A cloud job hands the brief to the engine's cloud agent and returns at once:
+no local engine process, no local engine slot.
+
+| Engine | Cloud agent | How results come back |
+| --- | --- | --- |
+| `--engine codex` | Codex Cloud (official `codex cloud` CLI) | provider status + diff; `apply` patches it into a new worktree |
+| `--engine claude` | Claude Code cloud session, fired through a routine API trigger (`--routine NAME` or `[cloud.claude] default_routine`) | no status API: the job watches for its own `claude/...` branch with `git ls-remote`; the session URL is the authority on whether it finished |
 
 ```text
 git push -u origin feat-x            # the agent starts from the REMOTE branch
 lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd REPO --task @brief.md --branch feat-x
+lazytools-code-bridge run --where cloud --allow-cloud --engine claude --cwd REPO --task @brief.md --routine nightly
 lazytools-code-bridge wait JOB_ID    # cloud waits give up after 7200 s without --timeout
 lazytools-code-bridge result JOB_ID  # final message + diff summary
 lazytools-code-bridge apply JOB_ID   # new worktree + branch cloud/<job8>; never your checkout, never pushed
 ```
 
-- Only `--engine codex` (Codex Cloud through the official `codex cloud` CLI)
-  is implemented. `--engine claude` is a registered extension point that
-  currently refuses with a pointer to the docs; check
-  `lazytools-code-bridge run --help` on the installed version before relying
-  on it.
-- Each repository must be mapped to a single-repo Codex Cloud environment in
-  `~/.lazytools/code-bridge.toml`:
+**Setup.** Map each repository to a single-repo cloud environment in
+`~/.lazytools/code-bridge.toml`; `lazytools-code-bridge cloud-envs --cwd REPO`
+shows what is mapped, and `lazytools-code-bridge setup-skill --install` installs
+a step-by-step setup skill for an assistant.
 
-  ```toml
-  [cloud]
-  concurrency = 4
+```toml
+[cloud]
+concurrency = 4
 
-  [cloud.codex.envs]
-  "owner/repo" = "env_XXXXXXXX"
-  ```
+[cloud.codex.envs]
+"owner/repo" = "env_XXXXXXXX"
 
-- `--where cloud` needs an explicit `--engine` and refuses `--tier`,
-  `--review-of`, `--session`, `--model`, `--effort`, `--detach`,
-  `--wait-for-slot`, `--max-wall` (it already returns at once).
+[cloud.claude.routines.nightly]
+id = "trig_XXXXXXXX"
+token_env = "ROUTINE_TOKEN_VAR"   # the NAME of an environment variable, never the token
+repo = "owner/repo"
+branch = "main"
+```
+
+**Rules that always hold.**
+
 - `--allow-cloud` is mandatory: the agent's commands run on the provider's
-  machine, outside the local gate. A brief that asks for a gated action is
+  machine, outside the local gate. A brief that mentions a gated action is
   refused unless approved up front with `--approve-cloud
   push|pr-create|merge|delete|reset|commit|git-option` (repeatable).
-- **Data boundary.** The cloud agent sees only the repository as cloned from
-  the remote at that branch: no local files, unpushed commits, local
-  databases or production connections. Some hosts may be unreachable from
-  the sandbox. Tell the agent, supply fixtures or recorded data, and run live
-  smoke tests locally after it pushes.
-- `apply` refuses if the branch moved since submit unless `--rebase`; it
-  stops before any commit or push. Pushing the applied work is a separate,
-  human-approved step. `cancel` stops *tracking* a cloud job; cancel the
-  remote task at its URL.
-- Cloud jobs do not take local engine slots; they have their own
-  `[cloud] concurrency` limit (default 4). Many cloud agents in parallel are
-  fine; keep each on its own branch.
-- Never put secrets in a brief: the record is redacted but the provider
+  Detection is keyword-based and fail-closed, so a harmless mention also
+  needs the flag.
+- `--where cloud` needs an explicit `--engine` and refuses `--session`,
+  `--effort`, `--needs`, `--detach`, `--wait-for-slot`, `--max-wall` and the
+  routine-auto options. Codex Cloud uses the model set on its environment
+  (`--model` is refused); Claude cloud takes `--model` or a tier mapping, but
+  not with `--routine`.
+- **Data boundary.** The agent sees only the repository as cloned from the
+  remote at that branch: no local files, unpushed commits, local databases or
+  production connections, and some hosts may be unreachable. Tell the agent,
+  supply fixtures or recorded data, and run live smoke tests locally after it
+  pushes.
+- Never put secrets in a brief: records are redacted, but the provider
   receives the brief as written.
+- Cloud jobs have their own `[cloud] concurrency` limit (default 4) and take
+  no local engine slot. Many cloud agents in parallel are fine; keep each on
+  its own branch.
+
+**Turning results into PRs.**
+
+- `--pr N` works on pull request N's head branch; `--open-pr` lands on a new
+  branch with a new PR; `--title` sets the commit/PR subject.
+- `--land` lands automatically when the job finishes (`wait`, `wait-any` or
+  `cloud-sync`): commit, fast-forward push, update or open the PR. It never
+  force-pushes; a base that moved since submit is refused unless the job was
+  submitted with `--rebase-ok`. `apply JOB_ID --land` does the same by hand.
+- `lazytools-code-bridge cloud-sync` reconciles every live cloud job (lands,
+  posts reviews, records failures) and is safe to run from a scheduler.
+- `run --where cloud --allow-cloud --cwd REPO --review-of JOB_ID` runs the
+  opposite engine as a cloud reviewer on the landed branch; its verdict
+  (`blocking` / `no-blocking`) is posted as one PR comment bound to the
+  reviewed head SHA.
+- Check what landed before merging: `result JOB_ID` shows the pushed SHA and
+  PR URL. Read the diff yourself; landing is not acceptance.
+
+**Placement: `--where auto`.** Runs in the cloud when the local time is inside
+a configured `[cloud] busy_windows` range or no local engine slot is free,
+locally otherwise; the decision and reason are printed on stderr.
+`route --tier writing --where auto --cwd REPO` previews it. Without `--where`,
+`[cloud] default_where` decides (default `local`). A cloud decision still
+needs `--allow-cloud` and an explicit `--engine`.
+
+**Stopping.** `cancel JOB_ID` asks the provider to stop the task and then stops
+tracking it; `cloud-stop TARGET` (task URL, task id or job id) and
+`cloud-stop --all-running --dry-run` cover tasks with no bridge job. A
+reported `stop requested` is not proof the task stopped: check its URL.
 
 ## Synchronous tools (MCP)
 

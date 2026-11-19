@@ -4,8 +4,9 @@ description: |
   Use when an LLM assistant (Claude Code, Codex or similar) leads software
   work that other coding agents carry out through LazyBridge and LazyTools:
   delegating writes with the async code bridge (`lazytools-code-bridge run`,
-  `--detach`, `wait`, `pending` / `approve` / `reject`, `--where cloud` for
-  Codex Cloud and `apply`), quota-aware routing (`route`, `--tier
+  `--detach`, `wait` / `wait-any`, `pending` / `approve` / `reject`,
+  `--where cloud|auto` for Codex Cloud and Claude Code cloud sessions,
+  `--land` and `apply`), quota-aware routing (`route`, `--tier
   basic|writing|thinking|critical`, opposite-engine review with
   `--review-of`), the projects layer (plans, contracts, Gantt, verification,
   `lazytools-projects close-task` with evidence), writing briefs, reviewing
@@ -93,7 +94,8 @@ its one-line why, is in `references/working-lessons.md`.
 5. **Async for writing, synchronous for read-only review** — continuation-based
    runners need commits to progress, and a review makes none.
 6. **Cloud sandboxes see only the remote repository** — give fixtures,
-   run live smoke tests locally after the push.
+   run live smoke tests locally after the push; a landed cloud PR still gets
+   your own verification and an opposite-engine review.
 7. **Never merge red; never truncate gate output.** A piped `| tail` can
    hide a failed step.
 8. **Production needs explicit approval**, a check that nothing is running,
@@ -109,7 +111,7 @@ its one-line why, is in `references/working-lessons.md`.
 
 | Read this file | When the task involves |
 |---|---|
-| `references/code-bridge.md` | Launching, waiting, cancelling and reading jobs; approval tickets; detached jobs; timeouts and continuations; the per-repo lock and engine slots; Codex Cloud (`--where cloud`, `apply`) and the status of Claude cloud. |
+| `references/code-bridge.md` | Launching, waiting, cancelling and reading jobs; approval tickets and `--profile review`; detached jobs and `wait-any`; timeouts and continuations; the per-repo lock and engine slots; cloud jobs on Codex Cloud and Claude Code cloud sessions (`--where cloud|auto`, `--pr` / `--open-pr` / `--land`, `cloud-sync`, cloud `--review-of`, `apply`, `cloud-stop`). |
 | `references/routing-and-review.md` | `route`, `--tier`, `--engine`/`--model`/`--effort` overrides, `--needs images`, `--review-of`, `human_review_required`, `models`; synchronous review tools; capping review rounds. |
 | `references/projects.md` | Plans on the board, contracts, schedule and Gantt, claims, verification, `close-task` with evidence, the brake and quota admission. |
 | `references/briefs.md` | Writing a brief that passes the bridge's brief check, the verdict line, scope and commit cadence, review briefs, cloud briefs. |
@@ -129,6 +131,8 @@ lazytools-code-bridge run --detach --tier writing --review-of JOB_ID --cwd REPO 
 lazytools-code-bridge jobs --all                                            # recover a lost job id
 lazytools-code-bridge cancel JOB_ID --reason "stop this attempt"
 lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd REPO --task @brief.md --branch feat-x
+lazytools-code-bridge run --where cloud --allow-cloud --engine claude --cwd REPO --task @brief.md --pr 42 --land
+lazytools-code-bridge wait-any --all-active --json                          # first event across all active jobs
 lazytools-code-bridge apply JOB_ID                                          # cloud diff -> new worktree + branch, no push
 lazytools-projects close-task PROJECT_ID 0 --check "pytest -q=pass:120 passed" \
     --review "No defects" --review-by codex --reason "checks and review pass" \
