@@ -15,6 +15,31 @@ the standard library**.
     `generated_skills/` to your `.gitignore` — `build_skill()` writes there by
     default.
 
+## Packaged skill: agent-operations
+
+LazyTools ships one ready-made skill,
+[`agent-operations`](https://github.com/selvaz/LazyTools/blob/main/src/lazytools/skills/agent_operations/SKILL.md)
+(`src/lazytools/skills/agent_operations/SKILL.md` plus `references/*.md`). It
+teaches an LLM assistant that leads coding agents how to brief them, route
+work by quota (`route`, `--tier`), launch and wait on
+[code bridge](code-bridge.md) jobs (detached, approvals, `--where cloud`),
+get an opposite-engine review (`--review-of`), merge safely and close
+[project](projects.md) tasks with evidence, plus twenty general operating
+lessons. Load it either way:
+
+```bash
+python -m lazytools.skills.agent_operations install            # ~/.claude/skills and/or ~/.codex/skills
+python -m lazytools.skills.agent_operations install --dest DIR # any folder
+```
+
+```python
+from lazytools.skills import build_packaged_skill, packaged_skills, skill_tools
+
+print(packaged_skills())                       # ['agent-operations']
+meta = build_packaged_skill("agent-operations")  # BM25 bundle in ./generated_skills/agent-operations
+tools = skill_tools(skill_dir=meta["skill_dir"])  # one tool named "agent-operations"
+```
+
 ## Synopsis
 
 A *skill* is a folder on disk that captures everything an agent needs to answer

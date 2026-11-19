@@ -460,6 +460,26 @@ def test_limits_default_and_config(tmp_path):
     assert config.slot_dir == tmp_path / "s"
 
 
+def test_workspace_root_is_read_apart_from_the_concurrency_limits(tmp_path):
+    assert _concurrency.load_workspace(tmp_path / "none.toml").root is None
+    path = tmp_path / "c.toml"
+    path.write_text("root = 'work'\n[concurrency]\nclaude = 2\n", encoding="utf-8")
+    assert _concurrency.load_workspace(path).root == (tmp_path / "work").resolve()
+    config = _concurrency.load_config(path)
+    assert config.limits == {"codex": 1, "claude": 2}
+    assert not hasattr(config, "root")
+    path.write_text("[concurrency]\nclaude = 2\n", encoding="utf-8")
+    assert _concurrency.load_workspace(path).root is None
+
+
+@pytest.mark.parametrize("body", ["root = ''\n", "root = 3\n", "unknown = 1\n", "not toml ["])
+def test_bad_workspace_root_is_rejected(tmp_path, body):
+    path = tmp_path / "c.toml"
+    path.write_text(body, encoding="utf-8")
+    with pytest.raises(ValueError):
+        _concurrency.load_workspace(path)
+
+
 @pytest.mark.parametrize(
     "body",
     [

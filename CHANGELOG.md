@@ -8,6 +8,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Bundled `agent-operations` skill (`src/lazytools/skills/agent_operations/`: `SKILL.md` + `references/*.md`): a general, portable guide for an assistant that leads coding agents through the code bridge (detached jobs, approvals, `--where cloud`), quota-aware routing and `--review-of`, the projects layer (contracts, Gantt, `close-task`) and twenty operating lessons. `python -m lazytools.skills.agent_operations install` copies it into Claude Code / Codex skill folders; `lazytools.skills.packaged_skills()` / `build_packaged_skill("agent-operations")` register it as a documentation skill. A test parses every CLI command in the skill against the real argparse definitions and checks it for private or domain-specific data. (#241)
+
+### Changed
+- Code bridge: the top-level `root` setting is read by a new `load_workspace()` / `WorkspaceConfig` instead of living on `ConcurrencyConfig`; root precedence and behaviour are unchanged (#270).
+
 ## [0.10.11] — 2026-11-15
 
 ### Added
