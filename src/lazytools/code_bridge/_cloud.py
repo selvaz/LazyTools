@@ -20,6 +20,7 @@ Configuration (``~/.lazytools/code-bridge.toml``, same file as ``[concurrency]``
     [cloud]
     concurrency = 4          # live cloud jobs at once, all providers; 0 = unlimited
     default_where = "local"  # what `run` does without --where: local | cloud | auto
+    unmapped = "error"        # optional fallback for a repo absent from [cloud.codex.envs]: local | error
     busy_windows = []        # e.g. ["21:00-01:30"]: local time ranges where `auto` sends jobs to the cloud
     min_submit_interval = 2  # seconds between two submits to the same provider; 0 = no spacing
     submit_retries = 2       # extra attempts after a submit that errors at once (backoff); 0 = none
@@ -94,6 +95,12 @@ SUBMIT_CLOCK_PREFIX = "code-bridge:cloud-submit-clock:"
 #: ``[cloud.claude.models] default`` names one. Codex Cloud has no such setting:
 #: the CLI ignores ``-c model`` for cloud tasks, so the environment's default applies.
 DEFAULT_CLAUDE_CLOUD_MODEL = "claude-sonnet-5-5"
+CLOUD_REPORT_PATH = ".bridge/report.md"
+BRIDGE_ARTIFACT_PREFIX = ".bridge/"
+CLOUD_REPORT_SUFFIX = (
+    "\n\nBefore finishing, write your final report to `.bridge/report.md` in the repository root (Markdown). "
+    "Always write it, even if you change nothing else."
+)
 CLOUD_TIERS = ("basic", "writing", "thinking", "critical")
 SETUP_DOC = "docs/code-bridge-cloud-setup.md"
 _MODEL_RE = re.compile(r"[A-Za-z0-9_.:/\[\]-]{1,100}")
@@ -108,8 +115,7 @@ TERMINAL_STATUSES = ("done", "partial", "failed", "interrupted")
 #: so only lowercase hex (8-32 digits, what ``uuid4().hex`` produces) or a
 #: canonical UUID is accepted -- never anything that could be a path.
 JOB_ID_RE = re.compile(r"[0-9a-f]{8,32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-#: Retained for API compatibility. Poll failures are never terminal: only a
-#: provider-reported terminal task state may change a job to a terminal state.
+#: Stop retrying an identical/unrecoverable polling failure indefinitely.
 MAX_CONSECUTIVE_POLL_ERRORS = 5
 #: ``wait`` on a cloud job never runs unbounded: without ``--timeout`` it
 #: gives up after this many seconds (exit 3).
@@ -117,6 +123,10 @@ DEFAULT_CLOUD_WAIT_TIMEOUT = 2 * 3600.0
 MAX_POLL_BACKOFF = 60.0
 POLL_CLOCK_PREFIX = "code-bridge:cloud-poll-clock:"
 _RETRY_AFTER_RE = re.compile(r"(?i)retry-after(?:\s+header)?\s*[:=]?\s*(\d+(?:\.\d+)?)")
+_TRANSIENT_TRANSPORT_RE = re.compile(
+    r"(?im)^\s*(?:(?:cloud task[ \t]+)?(?:http[ \t]+)?error:[ \t]*)*get_task_details failed:[ \t]*[^\r\n]*"
+    r"(?:\b(?:HTTP(?:/\d(?:\.\d)?)?[ \t]+)?(?:429|5\d\d)\b|\b(?:timed?[ \t]+out|timeout)\b)"
+)
 #: Actions a local job's BridgeGate would hold for a human ticket, as
 #: ``--approve-cloud`` names. A cloud agent's commands cannot be gated one by
 #: one, so a brief that asks for one is refused unless the operator approves
@@ -173,6 +183,11 @@ def redact(text: str) -> str:
     return text
 
 
+def _is_transient_transport_error(text: str) -> bool:
+    """Match the CLI's polling-error line, not status titles or messages."""
+    return _TRANSIENT_TRANSPORT_RE.search(text) is not None
+
+
 def redact_obj(value: Any) -> Any:
     """:func:`redact` every string inside ``value`` (dicts, lists, tuples), keys included.
 
@@ -226,6 +241,21 @@ class CloudError(RuntimeError):
         super().__init__(*(redact(arg) if isinstance(arg, str) else arg for arg in args))
 
 
+class CloudEnvUnmapped(CloudError):
+    """A Codex Cloud repository has no configured environment."""
+
+    def __init__(self, repo: str, path: Any) -> None:
+        self.repo = repo
+        super().__init__(
+            f'no Codex Cloud environment is mapped for {repo}; add '
+            f'[cloud.codex.envs] "{repo}" = "<env id>" in {path}. '
+            'Alternatively, use --where local or set [cloud] unmapped = "local".'
+        )
+
+    def payload(self) -> dict[str, Any]:
+        return {"ok": False, "error_code": "cloud_env_unmapped", "repo": self.repo, "error": str(self)}
+
+
 class CloudNotImplemented(CloudError):
     """The provider is a documented extension point, not an implementation."""
 
@@ -262,6 +292,8 @@ class CloudConfig:
     path: Path | None = None
     #: what ``run`` does without ``--where``: "local", "cloud" or "auto"
     default_where: str = "local"
+    #: what ``auto`` does when Codex has no environment mapping for this repository
+    unmapped: str = "error"
     #: local-time ranges ("21:00-01:30") in which ``auto`` prefers the cloud
     busy_windows: tuple[str, ...] = ()
     #: provider -> its own live-job limit (None = unlimited), on top of ``concurrency``
@@ -292,6 +324,7 @@ def load_config(path: Path | None = None) -> CloudConfig:
     routines: dict[str, dict[str, str]] = {}
     default_routine: str | None = None
     default_where = "local"
+    unmapped = "error"
     windows: tuple[str, ...] = ()
     provider_limits: dict[str, int | None] = {}
     models: dict[str, dict[str, str]] = {}
@@ -316,6 +349,10 @@ def load_config(path: Path | None = None) -> CloudConfig:
                 raise ValueError(f"{path}: [cloud] default_where must be one of "
                                  f"{', '.join(_cloud_place.WHERE_CHOICES)}, got {value!r}")
             default_where = value
+        elif key == "unmapped":
+            if value not in ("local", "error"):
+                raise ValueError(f'{path}: [cloud] unmapped must be "local" or "error", got {value!r}')
+            unmapped = value
         elif key == "busy_windows":
             if not isinstance(value, list) or not all(isinstance(w, str) for w in value):
                 raise ValueError(f'{path}: [cloud] busy_windows must be a list of "HH:MM-HH:MM" strings')
@@ -373,12 +410,12 @@ def load_config(path: Path | None = None) -> CloudConfig:
             envs[key] = {repo.lower(): env_id.strip() for repo, env_id in mapping.items()}
         else:
             raise ValueError(
-                f"{path}: [cloud] names unknown key {key!r} (one of concurrency, default_where, busy_windows, "
+                f"{path}: [cloud] names unknown key {key!r} (one of concurrency, default_where, unmapped, busy_windows, "
                 f"min_submit_interval, submit_retries, "
                 f"{', '.join(sorted(PROVIDERS))})"
             )
     return CloudConfig(concurrency=concurrency, envs=envs, routines=routines, default_routine=default_routine,
-                       path=path, default_where=default_where,
+                       path=path, default_where=default_where, unmapped=unmapped,
                        busy_windows=windows, provider_concurrency=provider_limits, models=models,
                        min_submit_interval=min_interval, submit_retries=retries)
 
@@ -518,7 +555,19 @@ def repo_root(cwd: Path) -> Path:
 
 def parse_remote(url: str) -> str | None:
     """``owner/name`` from an https, ssh or scp-style git remote URL."""
+    from urllib.parse import urlsplit
+
     url = url.strip()
+    if "://" in url:
+        try:
+            parsed = urlsplit(url)
+            if not parsed.hostname:
+                return None
+            url = parsed.path
+        except ValueError:
+            return None
+    else:
+        url = url.rsplit("@", 1)[-1]
     match = re.search(r"[:/]([^/:\s]+)/([^/\s]+?)(?:\.git)?/?$", url)
     if not match:
         return None
@@ -531,7 +580,7 @@ def repo_slug(cwd: Path, remote: str = "origin") -> str:
         raise CloudError(f"{cwd} has no '{remote}' git remote: a cloud agent can only work on a pushed repository")
     slug = parse_remote(url)
     if slug is None:
-        raise CloudError(f"cannot read 'owner/name' from the '{remote}' remote URL {url!r}")
+        raise CloudError(f"cannot read 'owner/name' from the '{remote}' remote URL")
     return slug
 
 
@@ -753,7 +802,7 @@ class CodexCloud:
         env_id = config.envs.get(self.name, {}).get(repo.lower())
         if not env_id:
             path = config.path or _concurrency.config_path()
-            raise CloudError(f"no Codex Cloud environment mapped for {repo}: " + CREATE_ENV_HINT.format(repo=repo, path=path))
+            raise CloudEnvUnmapped(repo, path)
         return env_id
 
     def _run(self, *args: str, cwd: Path | None = None, allow_failure: bool = False,
@@ -798,8 +847,33 @@ class CodexCloud:
         auth) and raises :class:`CloudError`.
         """
         code, out, err = self._run("status", handle, allow_failure=True)
-        for text in (out, err):
-            parsed = parse_status(redact(text))
+        parsed_outputs: list[CloudStatus] = []
+        safe_outputs = [redact(out), redact(err)]
+        for safe_text in safe_outputs:
+            parsed = parse_status(safe_text)
+            parsed_outputs.append(parsed)
+            # Provider truth takes precedence even when its title/message
+            # happens to mention an HTTP code or timeout.  A bare leading
+            # ``Error:`` in the CLI's get_task_details failure line is the
+            # exception: it is an error label, not a task status token.
+            # Only a leading Error label is ambiguous.  Once the provider has
+            # supplied another recognised status (for example READY), text in
+            # its title or message cannot turn that status into a poll error.
+            transport_line = (
+                parsed.raw_status.casefold() == "error" and _is_transient_transport_error(safe_text)
+            )
+            if (parsed.raw_status and parsed.status in ("done", "failed", "interrupted")
+                    and not transport_line):
+                return parsed
+        for safe_text, parsed in zip(safe_outputs, parsed_outputs, strict=True):
+            # The CLI can print transport failures as a status-looking line,
+            # e.g. ``Error: get_task_details failed: HTTP 429 ...``.  Since
+            # ``Error`` is otherwise a legitimate terminal task status, only
+            # the CLI error-line shape is treated as transport failure.
+            ambiguous_error = not parsed.raw_status or parsed.raw_status.casefold() == "error"
+            if ambiguous_error and _is_transient_transport_error(safe_text):
+                raise CloudError(safe_text.strip()[:2000])
+        for parsed in parsed_outputs:
             if parsed.raw_status:
                 return parsed
         if code != 0:
@@ -936,6 +1010,10 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     if poll_error is not None:
         errors = int(job.get("poll_errors_in_a_row") or 0) + 1
         updates = {"last_poll_error": poll_error, "last_polled_at": time.time(), "poll_errors_in_a_row": errors}
+        if errors >= MAX_CONSECUTIVE_POLL_ERRORS and _is_transient_transport_error(poll_error):
+            _write_unless_terminal(store, registry, job_id, updates, status="failed",
+                                   error=f"cloud status failed after {errors} attempts: {poll_error}")
+            return _merged(store, registry, job_id)
         _write_unless_terminal(store, registry, job_id, updates, status=str(job.get("status") or "running"))
         return _merged(store, registry, job_id)
     updates = {
@@ -959,7 +1037,10 @@ def refresh(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
 
 def resync(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
     """Re-check a legacy poll-failed job and recover it from provider truth."""
-    if job.get("status") != "failed" or not job.get("last_poll_error") or not job.get("cloud_handle"):
+    legacy_poll_error = _is_transient_transport_error(str(job.get("error") or ""))
+    if (job.get("status") != "failed" or
+            (not job.get("last_poll_error") and not legacy_poll_error) or
+            not job.get("cloud_handle")):
         raise CloudError("resync requires a cloud job failed by an earlier poll error")
     job_id = str(job["job_id"])
     try:
@@ -972,9 +1053,9 @@ def resync(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
                 "last_polled_at": time.time()}
         _write(store, registry, job_id, meta, status="failed", error=job.get("error"))
         return _merged(store, registry, job_id)
-    if state.status not in ("done", "failed", "interrupted"):
-        return job
     new_status = state.status
+    if new_status not in ("done", "failed", "interrupted"):
+        new_status = "running"
     meta = _store.read_meta(store, job_id) or {}
     log = list(meta.get("job_log") or [])
     log.append({"at": time.time(), "event": "resync", "from": "failed", "to": new_status,
@@ -983,6 +1064,8 @@ def resync(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any]:
                 last_poll_error=None, poll_errors_in_a_row=0, job_log=log, **state.extra)
     if new_status == "done":
         _write(store, registry, job_id, meta, status="done", result=state.message or state.raw.strip())
+    elif new_status == "running":
+        _write(store, registry, job_id, meta, status="running", error=None)
     else:
         _write(store, registry, job_id, meta, status=new_status,
                error=f"cloud task {state.raw_status or state.status}: {state.message or state.raw.strip()}")
@@ -1271,7 +1354,7 @@ def submit_job(
     try:
         sub = _submit_with_retry(
             prov, store, config, engine,
-            dict(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task,
+            dict(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task + CLOUD_REPORT_SUFFIX,
                  job_id=job_id, db_path=db_path, routine=routine, config=config, model=chosen_model),
         )
     except BaseException as exc:
@@ -1287,20 +1370,109 @@ def submit_job(
     return _merged(store, registry, job_id)
 
 
-def result_text(job: dict[str, Any]) -> str:
+def is_bridge_artifact(path: str) -> bool:
+    """Whether ``path`` is bridge-owned job transport rather than task output."""
+    normalized = path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized == ".bridge" or normalized.startswith(BRIDGE_ARTIFACT_PREFIX)
+
+
+def report_from_diff(diff: str) -> tuple[str | None, list[str]]:
+    """Return the final report and provider paths excluding all bridge artifacts."""
+    report_lines: list[str] = []
+    files = summarize_diff(diff).files
+    current: str | None = None
+    for line in diff.splitlines():
+        if line.startswith("diff --git "):
+            match = re.match(r"diff --git a/(.+?) b/(.+)$", line)
+            current = match.group(2) if match else None
+        elif current == CLOUD_REPORT_PATH and line.startswith("+") and not line.startswith("+++"):
+            report_lines.append(line[1:])
+    report = "\n".join(report_lines).strip() or None
+    return report, [name for name in files if not is_bridge_artifact(name)]
+
+
+def strip_report_diff(diff: str) -> str:
+    """Remove every bridge-owned artifact's complete unified-diff section."""
+    sections = re.split(r"(?=^diff --git )", diff, flags=re.MULTILINE)
+    kept: list[str] = []
+    for section in sections:
+        header = section.splitlines()[0] if section else ""
+        match = re.match(r"diff --git a/(.+?) b/(.+)$", header)
+        if not match or not (is_bridge_artifact(match.group(1)) or is_bridge_artifact(match.group(2))):
+            kept.append(section)
+    return "".join(kept)
+
+
+def clean_bridge_artifacts(worktree: Path, base: str) -> list[str]:
+    """Restore every ``.bridge/`` path to ``base`` and return the skipped paths."""
+    # A single revision compares the base tree with both HEAD and the worktree.
+    # That covers committed Claude results as well as Codex's uncommitted apply.
+    changed = _git(worktree, "diff", "--no-renames", "--name-only", "-z", base, "--", ".bridge", check=False)
+    # `git diff` cannot see new, untracked files.  Codex apply commonly creates
+    # the report transport file that way, so enumerate untracked paths too.
+    untracked = _git(
+        worktree, "ls-files", "--others", "--exclude-standard", "-z", "--", ".bridge", check=False
+    )
+    paths = list(dict.fromkeys(
+        path for path in (changed + untracked).split("\0") if path and is_bridge_artifact(path)
+    ))
+    for path in paths:
+        if _git(worktree, "ls-tree", "--name-only", base, "--", path, check=False):
+            _git(worktree, "checkout", base, "--", path)
+        else:
+            target = worktree / path
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            else:
+                target.unlink(missing_ok=True)
+            _git(worktree, "rm", "--cached", "-q", "--ignore-unmatch", "--", path, check=False)
+    return paths
+
+
+def _completed_task_diff(prov: Any, job: dict[str, Any]) -> str:
+    """Fetch a completed task diff, normalizing only Codex's no-diff diagnostic."""
+    try:
+        return prov.diff(str(job["cloud_handle"]))
+    except CloudError as exc:
+        detail = str(exc).partition(": ")[2]
+        if str(job.get("status")) != "done" or not detail.startswith("No diff available for task "):
+            raise
+        return ""
+
+
+def capture_report(store: Any, registry: Any, job: dict[str, Any], diff: str | None = None) -> tuple[dict[str, Any], str]:
+    """Persist the report carried by a Codex task diff, without another fetch when supplied."""
+    if diff is None:
+        prov = provider(str(job["engine"]))
+        job_diff = getattr(prov, "job_diff", None)
+        diff = job_diff(job) if job_diff is not None else _completed_task_diff(prov, job)
+    report, _files = report_from_diff(diff)
+    meta = _store.read_meta(store, str(job["job_id"])) or {}
+    meta["report"] = report
+    _write(store, registry, str(job["job_id"]), meta, status=str(job["status"]),
+           result=job.get("result"), error=job.get("error"))
+    return _merged(store, registry, str(job["job_id"])), diff
+
+
+def result_text(job: dict[str, Any], *, diff: str | None = None) -> str:
     """Final message plus a summary of the task's diff (fetched live)."""
     parts = [f"[{job.get('status')}] cloud job {job.get('job_id')} ({job.get('engine')}, {job.get('cloud_url') or job.get('cloud_handle')})"]
     message = job.get("result") or job.get("cloud_message") or job.get("error") or ""
     if message:
         parts.append(str(message).strip())
+    if job.get("status") == "done":
+        parts.append("report:\n" + (str(job.get("report")).strip() if job.get("report") else "(none provided)"))
     if job.get("cloud_handle"):
         try:
-            prov = provider(str(job["engine"]))
-            job_diff = getattr(prov, "job_diff", None)
-            diff = job_diff(job) if job_diff is not None else prov.diff(str(job["cloud_handle"]))
+            if diff is None:
+                prov = provider(str(job["engine"]))
+                job_diff = getattr(prov, "job_diff", None)
+                diff = job_diff(job) if job_diff is not None else prov.diff(str(job["cloud_handle"]))
             if job.get("result_branch"):
                 parts.append(f"result branch: {job['result_branch']} (fetched from origin)")
-            parts.append(summarize_diff(diff).text())
+            parts.append(summarize_diff(strip_report_diff(diff)).text())
         except CloudError as exc:
             parts.append(f"diff: unavailable ({exc})")
     if job.get("pushed_sha"):
@@ -1402,8 +1574,10 @@ def apply_job(
     # Fetch the authoritative path list before creating anything.  Besides
     # avoiding a half-created checkout when this fails, it lets a retry
     # distinguish remnants of this job from unrelated operator work.
-    diff_files = prov.diff(str(job["cloud_handle"]))
-    applied_files = summarize_diff(diff_files).files
+    diff_files = _completed_task_diff(prov, job)
+    job, diff_files = capture_report(store, registry, job, diff_files)
+    _report, applied_files = report_from_diff(diff_files)
+    skipped_artifacts = [name for name in summarize_diff(diff_files).files if is_bridge_artifact(name)]
     _reconcile_apply_remnants(
         root, worktree, branch, base, set(applied_files), branch_checkout=not bool(job.get("pr_number"))
     )
@@ -1419,18 +1593,23 @@ def apply_job(
         # The provider's diff is the authority for what landing may stage.  In
         # particular, the Codex CLI may create its own untracked files while
         # applying a task; those are not part of the task result.
-        output = prov.apply(str(job["cloud_handle"]), worktree=worktree)
+        output = prov.apply(str(job["cloud_handle"]), worktree=worktree) if applied_files else ""
         # Current Codex CLI versions write this diagnostic beside the files
         # they apply.  It can contain account identifiers and is tool output,
         # never task output.
         (worktree / "error.log").unlink(missing_ok=True)
+        cleaned_artifacts = clean_bridge_artifacts(worktree, base)
+        skipped_artifacts = list(dict.fromkeys([*skipped_artifacts, *cleaned_artifacts]))
+        report_dir = worktree / ".bridge"
+        if report_dir.is_dir() and not any(report_dir.iterdir()):
+            report_dir.rmdir()
     except BaseException as exc:
         _after_failed_apply(store, registry, root, job_id, worktree, branch, exc)
         raise
     status_lines = _git(worktree, "status", "--porcelain", check=False)
     meta = _store.read_meta(store, job_id) or {}
     meta.update(applied_worktree=str(worktree), applied_branch=branch, applied_base=base,
-                applied_files=applied_files, applied_at=time.time())
+                applied_files=applied_files, skipped_bridge_artifacts=skipped_artifacts, applied_at=time.time())
     _write(store, registry, job_id, meta, status=str(job["status"]), result=job.get("result"), error=job.get("error"))
     return {
         "job_id": job_id,
@@ -1557,29 +1736,52 @@ def wait_job(store_factory: Any, job_id: str, *, timeout: float | None, interval
         if job is None:
             return None
         merged = _merged(store, registry, str(job["job_id"]))
-        errors = int(merged.get("poll_errors_in_a_row") or 0)
-        retry_after = _retry_after_seconds(str(merged.get("last_poll_error") or ""))
-        exponent = min(63, max(0, errors - 1))
-        backoff = min(MAX_POLL_BACKOFF, interval * (2 ** exponent)) if errors else interval
-        delay = 0.0 if first and not errors and retry_after is None else max(backoff, retry_after or 0.0)
-        if errors and merged.get("last_polled_at"):
-            # The backoff and Retry-After count from the failed poll, not from
-            # this waiter's start: a resumed waiter subtracts the time already
-            # elapsed, so short waits invoked repeatedly still poll again.
-            elapsed = max(0.0, time.time() - float(merged["last_polled_at"]))
-            delay = max(0.0, delay - elapsed)
-        # Randomisation prevents independent waiters from repeatedly waking in
-        # lockstep. The durable reservation also serialises processes sharing
-        # an account even when their random choices happen to coincide.
-        delay += random.uniform(0.0, max(0.001, interval * 0.25))
-        if not _wait_for_poll_turn(store, str(merged.get("engine") or "cloud"), interval, delay, deadline):
-            return merged
+        job, got_turn = poll_job_once(store, registry, merged, interval=interval, deadline=deadline,
+                                      immediate=first)
         first = False
-        job = refresh(store, registry, merged)
+        if not got_turn:
+            return job
         if job.get("status") in TERMINAL_STATUSES:
             return job
         if deadline is not None and time.monotonic() >= deadline:
             return job
+
+
+def poll_job_once(
+    store: Any, registry: Any, job: dict[str, Any], *, interval: float, deadline: float | None,
+    immediate: bool = False, nonblocking: bool = False,
+) -> tuple[dict[str, Any], bool]:
+    """Take a shared poll turn, or consume a poll completed by another waiter.
+
+    The durable per-task reservation is shared by ``wait``, ``wait-any`` and
+    reconciliation callers.  ``bool`` is false only when the caller's deadline
+    expires before its reserved turn.
+    """
+    merged = _merged(store, registry, str(job["job_id"]))
+    errors = int(merged.get("poll_errors_in_a_row") or 0)
+    retry_after = _retry_after_seconds(str(merged.get("last_poll_error") or ""))
+    exponent = min(63, max(0, errors - 1))
+    backoff = min(MAX_POLL_BACKOFF, interval * (2 ** exponent)) if errors else interval
+    delay = 0.0 if immediate and not errors and retry_after is None else max(backoff, retry_after or 0.0)
+    if errors and merged.get("last_polled_at"):
+        elapsed = max(0.0, time.time() - float(merged["last_polled_at"]))
+        delay = max(0.0, delay - elapsed)
+    # A check-once call (notably ``wait-any --timeout 0``) must still get one
+    # provider observation.  Jitter is useful when a poll is actually delayed,
+    # but turning an otherwise immediate first poll into a future poll makes a
+    # zero/very-short deadline skip the provider altogether.
+    if delay:
+        delay += random.uniform(0.0, max(0.001, interval * 0.25))
+    polled_at = merged.get("last_polled_at")
+    got_turn = (_wait_for_poll_turn(store, str(merged["job_id"]), interval, delay, deadline,
+                                    nonblocking=True) if nonblocking else
+                _wait_for_poll_turn(store, str(merged["job_id"]), interval, delay, deadline))
+    if not got_turn:
+        return merged, False
+    latest = _merged(store, registry, str(merged["job_id"]))
+    if latest.get("last_polled_at") != polled_at:
+        return latest, True
+    return refresh(store, registry, merged), True
 
 
 def _retry_after_seconds(error: str) -> float | None:
@@ -1588,10 +1790,11 @@ def _retry_after_seconds(error: str) -> float | None:
 
 
 def _wait_for_poll_turn(
-    store: Any, account: str, minimum_interval: float, delay: float, deadline: float | None,
+    store: Any, task_id: str, minimum_interval: float, delay: float, deadline: float | None, *,
+    nonblocking: bool = False,
 ) -> bool:
-    """Reserve and honour a store-backed per-account poll time."""
-    key = f"{POLL_CLOCK_PREFIX}{account}"
+    """Reserve and honour a store-backed per-task poll time."""
+    key = f"{POLL_CLOCK_PREFIX}{task_id}"
     with _concurrency._guard(_concurrency.load_config().slot_dir):
         now = time.time()
         raw = store.read(key)
@@ -1599,8 +1802,11 @@ def _wait_for_poll_turn(
         poll_at = max(now + delay, previous + minimum_interval)
         wait = max(0.0, poll_at - now)
         remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
-        if remaining is None or wait <= remaining:
+        if ((not nonblocking and (remaining is None or wait <= remaining))
+                or (nonblocking and wait == 0)):
             store.write(key, poll_at)
+    if nonblocking and wait > 0:
+        return False
     if remaining is not None and wait > remaining:
         if remaining:
             time.sleep(remaining)

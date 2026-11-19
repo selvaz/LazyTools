@@ -155,6 +155,7 @@ def claude(tmp_path, monkeypatch, cloud):
         _git(vm, "fetch", "-q", "origin")
         _git(vm, "checkout", "-q", "-B", branch, base)
         for name, text in files.items():
+            (vm / name).parent.mkdir(parents=True, exist_ok=True)
             (vm / name).write_text(text, encoding="utf-8")
             _git(vm, "add", name)
         _git(vm, "commit", "-q", "-m", f"cloud work on {branch}")
@@ -293,8 +294,8 @@ def test_a_repo_without_an_environment_fails_early_with_the_setup_pointer(cloud,
     _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
     assert _run_cloud(cloud, "--pr", "5") == 2
     err = capsys.readouterr().err
-    assert "no Codex Cloud environment mapped for acme/other" in err
-    assert "docs/code-bridge-cloud-setup.md" in err
+    assert "no Codex Cloud environment is mapped for acme/other" in err
+    assert '[cloud.codex.envs] "acme/other"' in err
     assert gh.calls() == [] and cloud.calls() == []  # failed before any gh or codex call
 
 
@@ -721,6 +722,135 @@ def test_land_with_no_changes_pushes_nothing(cloud, gh, capsys, monkeypatch):
     assert _job(cloud, job_id)["landed_at"]
 
 
+def _set_diff(cloud, monkeypatch, text: str) -> None:
+    path = cloud.root / "task.diff"
+    path.write_text(text, encoding="utf-8")
+    monkeypatch.setenv("FAKE_CODEX_DIFF", str(path))
+
+
+def test_report_only_wait_is_done_without_a_pr(cloud, gh, capsys, monkeypatch):
+    _set_diff(
+        cloud,
+        monkeypatch,
+        "diff --git a/.bridge/report.md b/.bridge/report.md\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/report.md\n@@ -0,0 +1 @@\n+No code changes were needed.\n",
+    )
+    monkeypatch.setenv("FAKE_CODEX_NOCHANGE", "1")
+    job_id = _submit_json(cloud, capsys, "--land")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "wait", job_id, "--interval", "0.01") == 0
+    output = capsys.readouterr().out
+    assert "report:\nNo code changes were needed." in output
+    assert "diff: no changes" in output
+    assert _job(cloud, job_id)["report"] == "No code changes were needed."
+    assert _tip(cloud, f"cloud/{job_id[:8]}") is None and gh.calls() == []
+
+
+def test_empty_diff_wait_is_done_without_a_pr(cloud, gh, capsys, monkeypatch):
+    monkeypatch.setenv("FAKE_CODEX_NO_DIFF_ERROR", "1")
+    monkeypatch.setenv("FAKE_CODEX_NOCHANGE", "1")
+    job_id = _submit_json(cloud, capsys, "--land")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "wait", job_id, "--interval", "0.01") == 0
+    output = capsys.readouterr().out
+    assert "report:\n(none provided)" in output and "diff: no changes" in output
+    assert "report" in _job(cloud, job_id) and _job(cloud, job_id)["report"] is None
+    assert _tip(cloud, f"cloud/{job_id[:8]}") is None and gh.calls() == []
+
+
+def test_normal_diff_lands_without_report_transport_file(cloud, gh, capsys, monkeypatch):
+    _set_diff(
+        cloud,
+        monkeypatch,
+        "diff --git a/.bridge/report.md b/.bridge/report.md\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/report.md\n@@ -0,0 +1 @@\n+Added the cloud change.\n"
+        "diff --git a/cloud_change.txt b/cloud_change.txt\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/cloud_change.txt\n@@ -0,0 +1 @@\n+applied by cloud\n",
+    )
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    names = _git(cloud.repo, "show", "--format=", "--name-only", outcome["pushed_sha"]).splitlines()
+    assert names == ["cloud_change.txt"]
+    assert _job(cloud, job_id)["report"] == "Added the cloud change."
+    assert "Cloud task report:\n\nAdded the cloud change." in gh.state["prs"]["100"]["body"]
+    assert ".bridge/report.md" not in names
+
+
+def test_codex_land_skips_every_bridge_artifact_and_warns(cloud, gh, capsys, monkeypatch):
+    bridge = cloud.repo / ".bridge"
+    bridge.mkdir()
+    (bridge / "modified.txt").write_text("base modified content\n", encoding="utf-8")
+    (bridge / "deleted.txt").write_text("base deleted content\n", encoding="utf-8")
+    _git(cloud.repo, "add", ".bridge")
+    _git(cloud.repo, "commit", "-q", "-m", "add tracked bridge fixtures")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    monkeypatch.setenv("FAKE_CODEX_SHAPE", "bridge-artifacts")
+    _set_diff(
+        cloud,
+        monkeypatch,
+        "diff --git a/.bridge/job.json b/.bridge/job.json\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/job.json\n@@ -0,0 +1 @@\n+{\"credential\": \"never commit\"}\n"
+        "diff --git a/cloud_change.txt b/cloud_change.txt\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/cloud_change.txt\n@@ -0,0 +1 @@\n+applied by cloud\n",
+    )
+    job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "apply", job_id, "--land") == 0
+    output = capsys.readouterr().out
+    landed = _job(cloud, job_id)
+    assert "warning: skipped bridge-owned cloud diff paths:" in output
+    assert landed["skipped_bridge_artifacts"] == [
+        ".bridge/job.json", ".bridge/deleted.txt", ".bridge/modified.txt", ".bridge/report.md"
+    ]
+    assert _git(cloud.repo, "show", "--format=", "--name-only", landed["pushed_sha"]) == "cloud_change.txt"
+    assert _git(cloud.repo, "diff", "--name-only", "main", landed["pushed_sha"], "--", ".bridge") == ""
+
+
+def test_existing_pr_gets_redacted_bounded_report_comment(cloud, gh, capsys, monkeypatch):
+    _push_feature(cloud)
+    gh.seed_pr(7, head="feature")
+    secret = "ghp_" + "x" * 30
+    report = "done " + secret + " " + "z" * (_cloud_land.REPORT_LIMIT + 100)
+    _set_diff(
+        cloud,
+        monkeypatch,
+        "diff --git a/.bridge/report.md b/.bridge/report.md\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/report.md\n@@ -0,0 +1 @@\n+" + report + "\n"
+        "diff --git a/cloud_change.txt b/cloud_change.txt\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/cloud_change.txt\n@@ -0,0 +1 @@\n+applied by cloud\n",
+    )
+    job_id = _submit_json(cloud, capsys, "--pr", "7")["job_id"]
+    cloud.set_status(READY)
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    (comment,) = gh.comments(7)
+    assert _cloud_land._report_comment_marker(_job(cloud, job_id)) in comment and "[redacted]" in comment
+    assert secret not in comment and len(comment) < _cloud_land.REPORT_LIMIT + 200
+
+
+def test_each_cloud_job_posts_its_own_report_on_an_existing_pr(cloud, gh):
+    gh.seed_pr(7, head="feature")
+    jobs = [
+        {"job_id": "job-one", "repo": "acme/widgets", "report": "Report from job 1."},
+        {"job_id": "job-two", "repo": "acme/widgets", "report": "Report from job 2."},
+    ]
+    for job in jobs:
+        _cloud_land._post_report_comment(job, 7)
+        _cloud_land._post_report_comment(job, 7)  # A retry remains idempotent for this job.
+
+    comments = gh.comments(7)
+    assert len(comments) == 2
+    for index, (job, comment) in enumerate(zip(jobs, comments, strict=True), start=1):
+        assert _cloud_land._report_comment_marker(job) in comment
+        assert f"Report from job {index}." in comment
+
+
 def test_land_refuses_a_job_that_is_not_done(cloud, gh, capsys):
     job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
     assert _main(cloud, "apply", job_id, "--land") == 1
@@ -762,10 +892,36 @@ def _claude_submit(cloud, capsys, *extra: str, task: str = "Add a feature") -> s
     return json.loads(captured.out.strip().splitlines()[-1])["job_id"]
 
 
-def test_claude_land_verifies_the_pushed_branch_and_opens_a_pr_without_pushing(cloud, claude, gh, capsys):
+def _assert_report_cleanup_commit(repo: Path, clean_sha: str, report_sha: str) -> None:
+    """Prove ``clean_sha`` is exactly one deletion-only commit after ``report_sha``."""
+    assert _git(repo, "rev-parse", f"{clean_sha}^") == report_sha
+    assert _git(repo, "show", f"{report_sha}:.bridge/report.md")
+    assert _git(repo, "diff", "--name-status", report_sha, clean_sha) == "D\t.bridge/report.md"
+    assert not _git(repo, "ls-tree", "--name-only", clean_sha, "--", ".bridge/report.md")
+
+
+def test_claude_local_apply_strips_report_from_worktree(cloud, claude, capsys):
+    job_id = _claude_submit(cloud, capsys)
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    report_sha = claude.push(branch, {"feature.txt": "x\n", ".bridge/report.md": "Cloud work complete.\n"})
+    assert _git(claude.vm, "show", f"{report_sha}:.bridge/report.md") == "Cloud work complete."
+
+    assert _main(cloud, "apply", job_id, "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    applied = Path(outcome["worktree"])
+    clean_sha = _git(applied, "rev-parse", "HEAD")
+    assert outcome["base"] == clean_sha
+    _assert_report_cleanup_commit(applied, clean_sha, report_sha)
+    assert not (applied / ".bridge/report.md").exists()
+    # A local apply must not rewrite the hosted session's result branch.
+    assert _tip(cloud, branch) == report_sha
+    assert _job(cloud, job_id)["report"] == "Cloud work complete."
+
+
+def test_claude_land_strips_report_before_opening_a_pr(cloud, claude, gh, capsys):
     job_id = _claude_submit(cloud, capsys, "--open-pr")
     branch = _job(cloud, job_id)["claude_result_branch"]  # the branch bound to this job
-    sha = claude.push(branch, {"feature.txt": "x\n"})
+    sha = claude.push(branch, {"feature.txt": "x\n", ".bridge/report.md": "Cloud work complete.\n"})
     pushes: list = []
     real = _cloud._git
     _orig = _cloud._git
@@ -775,13 +931,70 @@ def test_claude_land_verifies_the_pushed_branch_and_opens_a_pr_without_pushing(c
     finally:
         _cloud._git = _orig
     outcome = json.loads(capsys.readouterr().out)
-    assert pushes == []  # the session pushed; the bridge only verified
-    assert outcome["branch"] == branch and outcome["pushed_sha"] == sha
+    assert len(pushes) == 1  # the bridge publishes the descendant that removes the transport file
+    assert pushes[0][2] == f"{outcome['pushed_sha']}:refs/heads/{branch}"
+    assert outcome["branch"] == branch and outcome["pushed_sha"] != sha
+    assert _tip(cloud, branch) == outcome["pushed_sha"]
+    _assert_report_cleanup_commit(cloud.repo, outcome["pushed_sha"], sha)
     (create,) = gh.calls("pr", "create")
     argv = create["argv"]
     assert argv[argv.index("--head") + 1] == branch and argv[argv.index("--base") + 1] == "main"
     job = _job(cloud, job_id)
-    assert job["pushed_sha"] == sha and job["pr_url"].endswith("/pull/100")
+    assert job["pushed_sha"] == outcome["pushed_sha"] and job["report"] == "Cloud work complete."
+    assert job["pr_url"].endswith("/pull/100")
+
+
+def test_claude_land_skips_every_bridge_artifact_and_warns(cloud, claude, gh, capsys):
+    job_id = _claude_submit(cloud, capsys, "--open-pr")
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    claude.push(branch, {
+        "feature.txt": "x\n",
+        ".bridge/report.md": "Cloud work complete.\n",
+        ".bridge/forced-job.json": '{"credential": "never commit"}\n',
+    })
+
+    assert _main(cloud, "apply", job_id, "--land") == 0
+    output = capsys.readouterr().out
+    landed = _job(cloud, job_id)
+    assert "warning: skipped bridge-owned cloud diff paths:" in output
+    assert landed["skipped_bridge_artifacts"] == [".bridge/forced-job.json", ".bridge/report.md"]
+    assert not _git(cloud.repo, "ls-tree", "-r", "--name-only", landed["pushed_sha"], "--", ".bridge")
+
+
+def test_claude_land_restores_both_sides_of_a_bridge_artifact_rename(cloud, claude, gh, capsys):
+    old = cloud.repo / ".bridge" / "old.json"
+    old.parent.mkdir()
+    old.write_text('{"owned": true}\n', encoding="utf-8")
+    _git(cloud.repo, "add", ".bridge/old.json")
+    _git(cloud.repo, "commit", "-q", "-m", "Add tracked bridge state")
+    _git(cloud.repo, "push", "-q", "origin", "main")
+    job_id = _claude_submit(cloud, capsys, "--open-pr")
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    claude.push(branch, {"feature.txt": "x\n"})
+    _git(claude.vm, "mv", ".bridge/old.json", ".bridge/new.json")
+    _git(claude.vm, "commit", "-q", "--amend", "--no-edit")
+    _git(claude.vm, "push", "-q", "--force", "origin", branch)
+
+    assert _main(cloud, "apply", job_id, "--land") == 0
+    output = capsys.readouterr().out
+    landed = _job(cloud, job_id)
+    tree = _git(cloud.repo, "ls-tree", "-r", "--name-only", landed["pushed_sha"], "--", ".bridge")
+    assert tree == ".bridge/old.json"
+    assert landed["skipped_bridge_artifacts"] == [".bridge/new.json", ".bridge/old.json"]
+    assert ".bridge/new.json" in output and ".bridge/old.json" in output
+
+
+def test_claude_report_only_result_is_done_without_a_pr(cloud, claude, gh, capsys):
+    job_id = _claude_submit(cloud, capsys, "--open-pr")
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    claude.push(branch, {".bridge/report.md": "No code changes were needed.\n"})
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert "nothing to commit" in outcome["note"]
+    assert gh.calls("pr", "create") == []
+    assert not _git(cloud.repo, "ls-tree", "--name-only", outcome["pushed_sha"], "--", ".bridge/report.md")
+    assert _job(cloud, job_id)["report"] == "No code changes were needed."
 
 
 def test_claude_land_fast_forwards_the_recorded_pr_and_refuses_a_diverged_one(cloud, claude, gh, capsys):
@@ -804,6 +1017,28 @@ def test_claude_land_fast_forwards_the_recorded_pr_and_refuses_a_diverged_one(cl
     assert _main(cloud, "apply", job2, "--land") == 1
     assert "not a fast-forward" in capsys.readouterr().err
     assert _tip(cloud, "other") == other_tip
+
+
+def test_claude_pr_land_pushes_tip_without_report(cloud, claude, gh, capsys):
+    feature_sha = _push_feature(cloud)
+    gh.seed_pr(7, head="feature")
+    job_id = _claude_submit(cloud, capsys, "--pr", "7")
+    branch = _job(cloud, job_id)["claude_result_branch"]
+    report_sha = claude.push(
+        branch,
+        {"claude.txt": "x\n", ".bridge/report.md": "Updated the existing PR.\n"},
+        base="origin/feature",
+    )
+    assert _git(claude.vm, "show", f"{report_sha}:.bridge/report.md") == "Updated the existing PR."
+
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    outcome = json.loads(capsys.readouterr().out)
+    assert outcome["branch"] == "feature" and outcome["pr_number"] == 7
+    assert _tip(cloud, "feature") == outcome["pushed_sha"]
+    assert _tip(cloud, branch) == outcome["pushed_sha"]
+    _assert_report_cleanup_commit(cloud.repo, outcome["pushed_sha"], report_sha)
+    assert _git(cloud.repo, "rev-parse", f"{report_sha}^") == feature_sha
+    assert _job(cloud, job_id)["report"] == "Updated the existing PR."
 
 
 # --------------------------------------------------------------------------- #
@@ -1167,11 +1402,15 @@ def test_cloud_config_validates_placement_keys(tmp_path):
     path.write_text('[cloud]\nbusy_windows = "21:00-01:30"\n', encoding="utf-8")
     with pytest.raises(ValueError, match="list"):
         _cloud.load_config(path)
+    path.write_text('[cloud]\nunmapped = "sometimes"\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="unmapped"):
+        _cloud.load_config(path)
     path.write_text('[cloud]\ndefault_where = "auto"\nbusy_windows = ["21:00-01:30", "05:00-06:00"]\n', encoding="utf-8")
     config = _cloud.load_config(path)
     assert config.default_where == "auto" and config.busy_windows == ("21:00-01:30", "05:00-06:00")
     assert _cloud.load_config(tmp_path / "none.toml").default_where == "local"
     assert _cloud.load_config(tmp_path / "none.toml").busy_windows == ()
+    assert _cloud.load_config(tmp_path / "none.toml").unmapped == "error"
 
 
 def test_run_where_auto_goes_cloud_inside_a_busy_window(cloud, gh, capsys, monkeypatch):
@@ -1184,6 +1423,133 @@ def test_run_where_auto_goes_cloud_inside_a_busy_window(cloud, gh, capsys, monke
     payload = json.loads(captured.out.strip().splitlines()[-1])
     assert payload["where"] == "cloud" and payload["placement"]["window"] == "21:00-01:30"
     assert "placement: cloud (requested auto): local time 22:05 is inside the busy window 21:00-01:30" in captured.err
+
+
+@pytest.mark.parametrize("where", ["auto", "cloud"])
+def test_run_where_auto_unmapped_codex_repo_falls_back_local(cloud, capsys, monkeypatch, where):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nunmapped = "local"\nbusy_windows = ["00:00-23:59"]\n')
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
+    code = cli.main(["run", "--where", where, "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db),
+                     "--allow-cloud"])
+    captured = capsys.readouterr()
+    assert code == 0 and "[done] job" in captured.out
+    if where == "auto":
+        assert "placement: local (requested auto): no Codex Cloud environment is mapped for acme/other" in captured.err
+    assert '[cloud.codex.envs] "acme/other" = "<env id>"' in captured.err
+    assert cloud.calls() == []
+
+
+@pytest.mark.parametrize("repository_kind", ["no-origin", "not-git"])
+def test_run_where_auto_without_cloud_repository_metadata_falls_back_local(
+    cloud, capsys, monkeypatch, repository_kind,
+):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    repository = cloud.root / repository_kind
+    repository.mkdir()
+    if repository_kind == "no-origin":
+        _git(repository, "init", "-q")
+
+    code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(repository),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db)])
+
+    captured = capsys.readouterr()
+    assert code == 0 and "[done] job" in captured.out
+    assert "placement: local (requested auto): cloud repository metadata is unavailable" in captured.err
+    assert "running locally" in captured.err
+    assert len([line for line in captured.err.splitlines() if line.startswith("placement:")]) == 1
+    assert cloud.calls() == []
+
+
+def test_run_where_auto_resolves_relative_cwd_from_root(cloud, gh, capsys, monkeypatch, tmp_path):
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    monkeypatch.chdir(tmp_path)
+
+    code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", "widgets",
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db),
+                     "--allow-cloud", "--json"])
+
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert json.loads(captured.out.strip().splitlines()[-1])["where"] == "cloud"
+    assert "placement: cloud (requested auto)" in captured.err
+
+
+def test_run_and_route_place_relative_cwd_from_configured_root(cloud, capsys, monkeypatch, tmp_path):
+    launcher = tmp_path / "launcher"
+    launcher.mkdir(parents=True)  # deliberately has no "widgets" child
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/unmapped.git")
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    monkeypatch.setattr(_cloud_place, "local_now", lambda: _at(12))
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(cloud.root))
+    monkeypatch.chdir(launcher)
+
+    base = ["--where", "auto", "--engine", "codex", "--cwd", "widgets", "--json"]
+    assert cli.main(["run", *base, "--allow-cloud"]) == 2
+    run = json.loads(capsys.readouterr().out)
+    assert cli.main(["route", *base, "--tier", "writing"]) == 2
+    route = json.loads(capsys.readouterr().out)
+    for result in (run, route):
+        assert result["ok"] is False
+        assert result["error_code"] == "cloud_env_unmapped"
+        assert result["repo"] == "acme/unmapped"
+    assert cloud.calls() == []
+
+
+def test_run_where_auto_unmapped_tolerates_allow_cloud_when_falling_back(cloud, capsys, monkeypatch):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nunmapped = "local"\nbusy_windows = ["00:00-23:59"]\n')
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/unmapped.git")
+
+    code = cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db),
+                     "--allow-cloud"])
+
+    captured = capsys.readouterr()
+    assert code == 0 and "[done] job" in captured.out
+    assert "no Codex Cloud environment is mapped for acme/unmapped" in captured.err
+    assert "--allow-cloud is only for --where cloud" not in captured.err
+    assert cloud.calls() == []
+
+
+def test_unmapped_auto_with_all_local_slots_busy_fails(cloud, capsys, monkeypatch):
+    _set_cloud_config('\n[cloud]\nbusy_windows = []\n')
+    monkeypatch.setattr(_concurrency, "engine_at_limit", lambda *args: [{"job_id": "12345678"}])
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
+    args = ["--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo)]
+    assert cli.main(["run", *args, "--root", str(cloud.root), "--task", "x", "--json"]) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error_code"] == "cloud_env_unmapped" and payload["repo"] == "acme/other"
+    assert cli.main(["route", "--tier", "writing", *args, "--root", str(cloud.root)]) == 2
+    assert "would fail: unmapped" in capsys.readouterr().err
+    assert cloud.calls() == []
+
+
+def test_unmapped_auto_with_free_slot_stays_local(cloud, capsys, monkeypatch):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["21:00-01:30"]\n')
+    monkeypatch.setattr(_cloud_place, "local_now", lambda: _at(14))
+    monkeypatch.setattr(_concurrency, "engine_at_limit", lambda *args: [])
+    _git(cloud.repo, "remote", "set-url", "origin", "https://github.com/acme/other.git")
+    assert cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db)]) == 0
+    captured = capsys.readouterr()
+    assert "placement: local" in captured.err and "[done] job" in captured.out
+    assert cloud.calls() == []
 
 
 def test_run_where_auto_stays_local_outside_the_window_and_default_where_applies(cloud, capsys, monkeypatch):
@@ -1447,37 +1813,38 @@ class _InProcess:
         return code, out.getvalue(), err.getvalue()
 
 
-def test_mcp_submit_status_result_for_a_cloud_job_with_landing(cloud, gh, capsys):
+def test_mcp_submit_status_result_for_a_cloud_job_with_landing(cloud, gh, capsys, monkeypatch):
     from lazytools.code_bridge._mcp import CodeBridgeTools
 
     tools = CodeBridgeTools(root=str(cloud.root))
     runner = _InProcess(tools)
-    os.environ["LAZYTOOLS_CODE_BRIDGE_DB"] = str(cloud.db)
-    try:
-        refused = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud")
-        assert refused["ok"] is False and "--allow-cloud" in refused["error"]  # the caller must acknowledge cloud runs
-        submitted = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud",
-                                             allow_cloud=True, land=True)
-        assert submitted["ok"] and submitted["where"] == "cloud" and submitted["land"] is True
-        assert submitted["placement"]["where"] == "cloud"
-        job_id = submitted["job_id"]
-        argv = runner.argvs[-1]
-        assert argv[:3] == ["run", "--where", "cloud"] and "--land" in argv and "--detach" not in argv
-        assert "--root" in argv and argv[argv.index("--root") + 1] == str(cloud.root.resolve())
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
+    refused = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud")
+    assert refused["ok"] is False and "--allow-cloud" in refused["error"]  # the caller must acknowledge cloud runs
+    submitted = tools.code_bridge_submit("Add a thing", cwd=str(cloud.repo), engine="codex", where="cloud",
+                                         allow_cloud=True, land=True)
+    assert submitted["ok"] and submitted["where"] == "cloud" and submitted["land"] is True
+    assert submitted["short_id"] == submitted["job_id"][:8]
+    assert submitted["task_url"] == submitted["cloud_url"]
+    assert submitted["placement"]["where"] == "cloud"
+    job_id = submitted["job_id"]
+    argv = runner.argvs[-1]
+    assert argv[:3] == ["run", "--where", "cloud"] and "--land" in argv and "--detach" not in argv
+    assert "--root" in argv and argv[argv.index("--root") + 1] == str(cloud.root.resolve())
 
-        assert tools.code_bridge_status(job_id)["status"] == "running"
-        cloud.set_status(READY)
-        assert cli.main(["cloud-sync", "--db", str(cloud.db)]) == 0
-        result = tools.code_bridge_result(job_id)
-        assert result["ok"] and result["status"] == "done"
-        assert result["pr_url"].endswith("/pull/100") and result["pushed_sha"] and result["landed_branch"]
-    finally:
-        os.environ.pop("LAZYTOOLS_CODE_BRIDGE_DB", None)
+    assert tools.code_bridge_status(job_id)["status"] == "running"
+    cloud.set_status(READY)
+    assert cli.main(["cloud-sync", "--db", str(cloud.db)]) == 0
+    result = tools.code_bridge_result(job_id)
+    assert result["ok"] and result["status"] == "done"
+    assert result["pr_url"].endswith("/pull/100") and result["pushed_sha"] and result["landed_branch"]
+
 
 
 def test_mcp_submit_validation_and_local_placement(cloud, capsys, monkeypatch):
     from lazytools.code_bridge._mcp import CodeBridgeTools
 
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
     tools = CodeBridgeTools(root=str(cloud.root))
     runner = _InProcess(tools)
     with pytest.raises(ValueError, match="'@'"):
@@ -1494,15 +1861,13 @@ def test_mcp_submit_validation_and_local_placement(cloud, capsys, monkeypatch):
     assert "--detach" in runner.argvs[-1] and seen["argv"][seen["argv"].index("--where") + 1] == "local"
 
 
-def test_mcp_tools_really_run_the_cli_in_a_child_process(cloud):
+def test_mcp_tools_really_run_the_cli_in_a_child_process(cloud, monkeypatch):
     from lazytools.code_bridge._mcp import CodeBridgeTools
 
     tools = CodeBridgeTools(root=str(cloud.root))
-    os.environ["LAZYTOOLS_CODE_BRIDGE_DB"] = str(cloud.db)
-    try:
-        out = tools.code_bridge_status("deadbeef")
-    finally:
-        os.environ.pop("LAZYTOOLS_CODE_BRIDGE_DB", None)
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
+    out = tools.code_bridge_status("deadbeef")
+
     assert out["ok"] is False and "no job found matching 'deadbeef'" in out["error"]
 
 
@@ -1529,3 +1894,52 @@ def test_missing_gh_is_a_clear_error(monkeypatch, tmp_path):
 def test_subprocess_default_python_is_importable_for_mcp_child():
     proc = subprocess.run([sys.executable, "-c", "import lazytools.code_bridge._mcp"], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
+
+
+def test_unmapped_auto_run_route_and_detached_mcp_match(cloud, routed, capsys, monkeypatch, caplog):
+    import _code_bridge_fakes as fakes
+    from lazytools.code_bridge._mcp import CodeBridgeTools
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(cloud.db))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    monkeypatch.setattr(_cloud_place, "local_now", lambda: _at(12))
+    secret = "sensitive-token-123"
+    _git(cloud.repo, "remote", "set-url", "origin", f"https://user:{secret}@github.com/acme/unmapped.git")
+    base = ["--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo)]
+    for where in ("auto", "cloud"):
+        base = ["--where", where, "--engine", "codex", "--cwd", str(cloud.repo)]
+        assert cli.main(["run", *base, "--root", str(cloud.root), "--task", "x", "--no-brief-check",
+                         "--db", str(cloud.db), "--allow-cloud", "--json"]) == 2
+        run_output = capsys.readouterr()
+        run = json.loads(run_output.out)
+        assert run["ok"] is False and run["error_code"] == "cloud_env_unmapped" and run["repo"] == "acme/unmapped"
+        assert '[cloud.codex.envs] "acme/unmapped"' in run["error"]
+        assert "--where local" in run["error"] and '[cloud] unmapped = "local"' in run["error"]
+        assert cli.main(["route", "--tier", "writing", *base, "--root", str(cloud.root),
+                         "--db", str(cloud.db), "--json"]) == 2
+        route_output = capsys.readouterr()
+        route = json.loads(route_output.out)
+        tools = CodeBridgeTools(root=str(cloud.root))
+        result = tools.code_bridge_submit("x", cwd=str(cloud.repo), engine="codex", where=where, allow_cloud=True)
+        assert route["placement"] == "would fail: unmapped"
+        assert {k: route[k] for k in run} == run
+        assert result["error_code"] == run["error_code"] and result["repo"] == run["repo"] and not result["ok"]
+        assert secret not in str((run_output, route_output, result, caplog.text))
+    assert cloud.calls() == []
+
+
+def test_unusable_remote_never_exposes_credentials(cloud, capsys, monkeypatch, caplog):
+    import _code_bridge_fakes as fakes
+
+    fakes.install(monkeypatch)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(cloud.root / "sessions.json"))
+    _set_cloud_config('\n[cloud]\nbusy_windows = ["00:00-23:59"]\n')
+    secret = "sensitive-token-456"
+    _git(cloud.repo, "remote", "set-url", "origin", f"https://user:{secret}@github.com/only-one")
+    assert cli.main(["run", "--where", "auto", "--engine", "codex", "--cwd", str(cloud.repo),
+                     "--root", str(cloud.root), "--task", "x", "--no-brief-check", "--db", str(cloud.db)]) == 0
+    captured = capsys.readouterr()
+    assert "cloud repository metadata is unavailable" in captured.err
+    assert secret not in str((captured, caplog.text))

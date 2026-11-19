@@ -103,6 +103,7 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     # Closes a project task (claims, accepts and closes a verification) --
     # never on a read-only surface, whichever provider instance carries it.
     "projects_close_task",
+    "projects_complete_todo",
 )
 
 

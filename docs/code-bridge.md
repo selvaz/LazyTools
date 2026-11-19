@@ -44,6 +44,36 @@ detached launch JSON gives the id, pid and log path at once.
 | `cancel` | Stop process tree, reject open tickets, retain interruption and workspace evidence |
 | `autonomy` | Report the percentage of finished jobs with no manual intervention and group intervention causes |
 
+### Machine-readable ids and multi-job waiting
+
+Pass `--json` to `run` for a single JSON object on the **first stdout line**.
+It contains the full `job_id`, eight-character `short_id`, `where`, `engine`,
+and `cwd`; detached launches also include `pid`, while cloud submissions
+include `task_url`. Without `--json`, the existing human output is unchanged.
+For cloud submissions, `task_url` is the machine-readable alias of `cloud_url`.
+`jobs --json` emits one job per JSON line, which is both stream-friendly and
+safe from host-console encoding limitations. Human `jobs` output replaces
+unencodable characters rather than crashing on legacy Windows consoles.
+
+An orchestrator can wait on several jobs without polling each one:
+
+```console
+lazytools-code-bridge wait-any JOB_ID JOB_ID --timeout 600 --json
+lazytools-code-bridge wait-any --all-active --events done,failed,approval,landed,interrupted --json
+lazytools-code-bridge wait-any JOB_ID JOB_ID --loop --json
+```
+
+`wait-any` snapshots the named jobs (or all jobs active at startup) and emits
+`{"event", "job_id", "state", "approval", "pr_url"}`. It exits 0 after the
+first selected event, 3 on timeout, and 2 for invalid arguments or unknown
+jobs. Approval details contain `approval_id`, `command`, `summary`, and
+`reason`, and a pending ticket is emitted only once per invocation. `--loop`
+prints JSON lines until every watched job is terminal. For cloud jobs the
+waiter refreshes provider state, reports failures, and performs an owed
+`--land` operation just like `wait`, producing `landed` with its PR URL.
+Its output is always JSON lines; `--json` is accepted for consistency and does
+not change that default format.
+
 Read each ticket's command and reason before deciding. An unanswered ticket
 expires as rejection after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.
 Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;
@@ -673,6 +703,37 @@ exiting, which is the whole point: a human answers it from an entirely
 different process (this bridge's `approve`/`reject`, or any other surface
 that reads the same queue).
 
+### Approval profiles
+
+Local jobs use the existing, conservative approval policy by default. Pass
+`lazytools-code-bridge run --profile review ...` for reviewer jobs. The MCP
+`code_bridge_submit` tool accepts the same `profile="review"` argument. The
+profile name is stored on the job and on every auto-approval audit record;
+changing the profile never changes default jobs.
+
+The `review` profile is fail closed. It tokenizes each command and auto-approves
+only an explicit routine allow-list: `gh pr view|diff|checks`, selected
+read-only `git status|log|diff|show|rev-parse` forms, helper-free `git fetch`,
+pytest, `npm test`, `npm run build|lint`, and common file readers (`ls`, `cat`,
+`grep`, `head`, and `tail`). Every segment of a compound command must match. Native `Read`, `Glob`, and
+`Grep` requests are also held when an explicit path or pattern is sensitive or
+unbounded; shell `grep -r`, `-R`, and `--recursive` are never auto-approved.
+
+Unknown commands or flags, abbreviations, environment/config overrides,
+wrappers, expansions, redirections, writes, deletes, credential reads, GitHub
+mutations (including `gh pr comment`), and unparseable or ambiguous syntax are
+always held for a human. Codex sandbox/network escalations are held even when
+their command would otherwise be on the allow-list.
+
+Every automatic decision is logged as `profile:review`. Cloud jobs do not run
+through the local gate and therefore reject `--profile review`.
+
+The profile intentionally remains narrower than the general read-only command
+catalog. In particular, `ruff`, `mypy`, `npm ci`, `git branch --show-current`,
+`git ls-files`, and combined pytest short flags such as `-qx` or `-vv` are known
+limits and are held for human approval. This preserves fail-closed behavior at
+the cost of occasional prompts for otherwise harmless reviewer commands.
+
 ### Routine auto-approval (R13)
 
 `BridgeGate` adds a **routine-auto** tier before the existing rule table,
@@ -1111,6 +1172,21 @@ reviews, `--where auto`) are described in
 routine's API trigger); see [Claude cloud sessions](#claude-cloud-sessions-engine-claude)
 below for how it differs. Claude has no status API, so its results are read
 from git.
+
+### Final-report contract
+
+The bridge appends one fixed instruction to every Codex and Claude cloud
+brief: before finishing, the agent must always write its Markdown final report
+to `.bridge/report.md`, including when it changed no other file. On `wait` or
+landing, the bridge extracts that file from the task result into the job's
+`report` field. Both `wait` and `result <job>` print it; an older agent that
+returns no report is shown as `report: (none provided)`.
+
+`.bridge/report.md` is transport, not a repository change. The bridge removes
+it before staging, pushing, or opening a pull request. A result containing
+only the report, and a READY result with an entirely empty diff, are successful
+no-code-change jobs: they finish as `done`, exit zero, and create no branch or
+pull request.
 
 ### Data boundary: cloud jobs cannot read local data
 
@@ -1559,8 +1635,14 @@ the cloud when
 and locally otherwise. `run --where auto` prints the decision and why on stderr
 (`placement: cloud (requested auto): local time 22:05 is inside the busy window
 21:00-01:30`) and `--json` adds a `placement` object. `route --tier T --where
-auto` shows the same decision without launching anything. A cloud decision still
-needs `--allow-cloud` and an explicit `--engine`, like any cloud job.
+auto` shows the same decision without launching anything, and MCP submissions use
+the same repository-aware decision. When Codex auto placement chooses cloud, an
+unmapped repository fails with `cloud_env_unmapped` and its repository slug in
+JSON and MCP results. Explicit `--where cloud` follows the same policy. Add the
+`[cloud.codex.envs]` mapping or use `--where local`; set `[cloud] unmapped = "local"`
+to opt in to fallback. Auto still chooses local normally when a slot is free
+outside busy windows. Unavailable repository metadata falls back locally for auto.
+A cloud decision still needs `--allow-cloud` and an explicit `--engine`, like any cloud job.
 
 ### Models for cloud jobs
 
@@ -1772,6 +1854,13 @@ What to hand back: the diff summary, the command output, anything undecided.
 
 ## Known limits
 
+- Under the `review` approval profile, every `gh pr comment` command is held
+  for operator approval, including comments that read a body from the job
+  scratch directory and comments embedded in compound shell commands. The
+  bridge deliberately does not inspect a body file and auto-approve the post:
+  command-time file changes would make that check vulnerable to a
+  time-of-check/time-of-use race.
+
 - A session grant for an escalated `git commit` runs the repository's commit
   hooks outside the sandbox. Codex's sandbox keeps `.git` read-only, but a
   repository configured with `core.hooksPath` pointing at a tracked
@@ -1797,6 +1886,12 @@ What to hand back: the diff summary, the command output, anything undecided.
   the same blind spot: if a detached job dies and its pid is reused before
   the next poll, `wait` keeps waiting (use `--timeout`, and `status`/`jobs`
   to check by hand).
+- Shell parsing is intentionally conservative rather than complete. Obscure
+  constructs such as process substitution, shell functions, custom command
+  aliases, nonstandard interpreters, encoded programs, and platform-specific
+  quoting can be held even when harmless, and newly installed command wrappers
+  are not classified until added to the policy. The gate is an approval aid,
+  not a shell sandbox.
 - Claude Bash uses BridgeGate's whole-command parser before any session or
   read-only grant; substitution and ambiguous syntax ask. These checks are
   capability checks, not an operating-system sandbox. Installed executables,

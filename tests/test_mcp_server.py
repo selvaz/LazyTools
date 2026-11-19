@@ -238,6 +238,30 @@ async def test_end_to_end_list_and_call():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("read_only", [False, True])
+async def test_projects_complete_todo_server_listing(tmp_path, read_only):
+    from lazytools.connectors.projects import ProjectsTools
+
+    provider = ProjectsTools(store_db=str(tmp_path / "store.sqlite"), allow_write=True)
+    server = build_server([provider], read_only=read_only)
+    async with _connected_client(server) as client:
+        listed = await client.list_tools()
+        names = {t.name for t in listed.tools}
+        assert ("projects_complete_todo" in names) is (not read_only)
+        if not read_only:
+            tool = next(t for t in listed.tools if t.name == "projects_complete_todo")
+            assert tool.description == (
+                "Close a todo task that has NO acceptance contract, after verifying in person that the work is done. "
+                "Tasks with a contract must use projects_close_task."
+            )
+            schema = _field(tool, "input_schema", "inputSchema")
+            assert set(schema["required"]) == {"project_id", "task_index", "summary"}
+            assert schema["properties"]["project_id"]["type"] == "string"
+            assert schema["properties"]["task_index"]["type"] == "integer"
+            assert schema["properties"]["summary"]["type"] == "string"
+
+
+@pytest.mark.anyio
 async def test_call_tool_error_is_reported_not_raised():
     def explode() -> str:
         raise RuntimeError("kaboom")
@@ -475,3 +499,26 @@ def test_result_to_text_keeps_numpy_integers_exact():
     big = np.uint64(2**63 + 1)
     parsed = json.loads(result_to_text({"count": np.int64(7), "id": big, "ratio": np.float64("nan")}))
     assert parsed == {"count": 7, "id": 2**63 + 1, "ratio": None}
+
+
+def test_blank_env_values_fall_back_to_safe_defaults(monkeypatch):
+    """Installers blank variables they do not set; blank must mean unset."""
+    from lazytools.mcp_server.__main__ import _parse_args
+
+    for name in ("LAZYTOOLS_MCP_HOST", "LAZYTOOLS_MCP_PORT", "LAZYTOOLS_MCP_LOG_LEVEL", "LAZYTOOLS_MCP_CONFIG"):
+        monkeypatch.setenv(name, "")
+    args = _parse_args([])
+    assert args.host == "127.0.0.1"
+    assert args.port == 8787
+    assert args.log_level == "INFO"
+    assert args.config is None
+
+
+def test_env_values_still_override_defaults(monkeypatch):
+    from lazytools.mcp_server.__main__ import _parse_args
+
+    monkeypatch.setenv("LAZYTOOLS_MCP_HOST", "0.0.0.0")
+    monkeypatch.setenv("LAZYTOOLS_MCP_PORT", "9999")
+    args = _parse_args([])
+    assert args.host == "0.0.0.0"
+    assert args.port == 9999

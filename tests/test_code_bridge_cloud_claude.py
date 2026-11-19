@@ -97,12 +97,16 @@ def cc(tmp_path, monkeypatch):
     return ctx
 
 
-def _vm_push(ctx, branch: str, name: str = "cloud_change.txt", base: str = "origin/main") -> str:
+def _vm_push(ctx, branch: str, name: str = "cloud_change.txt", base: str = "origin/main", *, report: bool = False) -> str:
     """What the hosted session does: commit on a claude/ branch and push it to origin."""
     _git(ctx.vm, "fetch", "-q", "origin")
     _git(ctx.vm, "checkout", "-q", "-B", branch, base)
     (ctx.vm / name).write_text("made in the cloud\n", encoding="utf-8")
     _git(ctx.vm, "add", name)
+    if report:
+        (ctx.vm / ".bridge").mkdir(exist_ok=True)
+        (ctx.vm / ".bridge" / "report.md").write_text("Cloud work complete.\n", encoding="utf-8")
+        _git(ctx.vm, "add", ".bridge/report.md")
     _git(ctx.vm, "commit", "-q", "-m", f"cloud work on {branch}")
     _git(ctx.vm, "push", "-q", "origin", branch)
     return _git(ctx.vm, "rev-parse", "HEAD")
@@ -165,8 +169,10 @@ def test_claude_cloud_needs_allow_cloud_and_gated_approval(cc, capsys):
 
 
 def test_routine_flag_is_claude_cloud_only(cc, capsys):
+    _config('\n[cloud.codex.envs]\n"acme/widgets" = "env_widgets"\n')
     assert cli.main(["run", "--where", "cloud", "--engine", "codex", "--allow-cloud", "--routine", "r",
-                     "--cwd", str(cc.repo), "--task", "x", "--no-brief-check", "--db", str(cc.db)]) == 2
+                     "--cwd", str(cc.repo), "--root", str(cc.root), "--task", "x", "--no-brief-check",
+                     "--db", str(cc.db)]) == 2
     assert "--routine is only for" in capsys.readouterr().err
     assert cli.main(["run", "--engine", "claude", "--routine", "r", "--cwd", str(cc.repo), "--task", "x"]) == 2
     assert "--routine is only for --where cloud" in capsys.readouterr().err
@@ -197,7 +203,7 @@ def test_preexisting_claude_branches_are_not_the_result(cc, capsys):
 def test_result_and_apply_use_the_pushed_claude_branch(cc, capsys):
     job_id = _submit_json(cc, capsys)["job_id"]
     result_branch = _job(cc, job_id)["claude_result_branch"]
-    sha = _vm_push(cc, result_branch)
+    sha = _vm_push(cc, result_branch, report=True)
     assert cli.main(["result", job_id, "--db", str(cc.db)]) == 0
     out = capsys.readouterr().out
     assert result_branch in out and "1 file(s) changed" in out and "cloud_change.txt" in out
@@ -209,8 +215,9 @@ def test_result_and_apply_use_the_pushed_claude_branch(cc, capsys):
     outcome = json.loads(capsys.readouterr().out)
     worktree = Path(outcome["worktree"])
     assert (worktree / "cloud_change.txt").is_file()
+    assert not (worktree / ".bridge" / "report.md").exists()
     assert outcome["branch"] == f"cloud/{job_id[:8]}" and outcome["pushed"] is False
-    assert outcome["source_branch"] == result_branch and outcome["base"] == sha
+    assert outcome["source_branch"] == result_branch and outcome["base"] != sha
     assert _git(cc.repo, "rev-parse", "--abbrev-ref", "HEAD") == "main"
     assert not (cc.repo / "cloud_change.txt").exists()
     assert "cloud/" not in _git(cc.origin, "branch", "--list")  # nothing pushed
@@ -307,6 +314,8 @@ def test_routine_fire_posts_text_with_bearer_and_version(cc, capsys, monkeypatch
     assert seen["headers"]["Authorization"] == "Bearer sk-ant-oat01-abcdefghijklmnop"
     assert seen["headers"]["anthropic-version"] == "2026-10-21"
     assert seen["body"]["text"].startswith(_cloud.CLOUD_PREAMBLE)
+    assert "Add a feature" in seen["body"]["text"]
+    assert seen["body"]["text"].endswith(_cloud.CLOUD_REPORT_SUFFIX)
     assert payload["cloud_url"] == "https://claude.ai/code/session_r1xyz9" and payload["env_id"] == "routine:nightly"
     job = _job(cc, payload["job_id"])
     assert job["cloud_mode"] == "routine" and job["routine"] == "nightly"
@@ -545,3 +554,13 @@ def test_cloud_setup_check_reports_what_is_missing_and_never_prints_tokens(cc, c
     report = json.loads(capsys.readouterr().out)
     assert report["ok"] and [r["routine"] for r in report["routines"]] == ["deep", "fast"]
     assert "x-fast" not in json.dumps(report)
+
+
+def test_wizengaimot_agent_skill_is_bundled():
+    from lazytools.skills.agent_skills import agent_skill_path, list_agent_skills, skill_metadata
+
+    assert "wizengaimot" in list_agent_skills()
+    meta = skill_metadata("wizengaimot")
+    assert meta["name"] == "wizengaimot" and "council" in meta["description"]
+    text = agent_skill_path("wizengaimot").read_text(encoding="utf-8")
+    assert "codex_ask" in text and "claude_ask" in text and "install_agent_skill('wizengaimot')" in text

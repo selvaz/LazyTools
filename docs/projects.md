@@ -203,7 +203,8 @@ backfill, run by the store's owner (dry run by default, `--apply` to write):
 python -m lazytools.projects.contract_markers --store-db <ceo-store.sqlite> [--apply]
 ```
 
-The MCP tools expose no shortcut-close verb. For contracted tasks, call
+For tasks without a contract, use `projects_complete_todo(project_id, task_index, summary)` (core profile, write access) after verifying in person that the work is done; tasks with a contract must use `projects_close_task`.
+For contracted tasks, call
 `projects_accept_verification`, then `projects_close_accepted_task(project_id,
 task_index, verification_id)` to record completion on the board. Both tools
 require the `full` profile and write access.

@@ -228,10 +228,14 @@ class ClaudeCloud:
         requested_branch = named_branch(prompt)
         result_branch = requested_branch or f"{RESULT_PREFIX}lazytools-{job_id}"
         if requested_branch is None:
-            prompt += (
+            branch_instruction = (
                 f"\n\nPush the completed result to the exact branch `{result_branch}`. "
                 "Do not use any other result branch."
             )
+            if prompt.endswith(_cloud.CLOUD_REPORT_SUFFIX):
+                prompt = prompt[:-len(_cloud.CLOUD_REPORT_SUFFIX)] + branch_instruction + _cloud.CLOUD_REPORT_SUFFIX
+            else:
+                prompt += branch_instruction
         if routine is not None:
             sid, url, raw = self._fire_routine(routine, prompt, config or _cloud.load_config())
             mode = "routine"
@@ -418,10 +422,23 @@ class ClaudeCloud:
             raise CloudError(f"--source {source!r} does not belong to this job (expected {expected!r})")
         root = Path(str(job.get("repo_root") or job.get("cwd")))
         tip = _fetch_branch(root, str(source))
+        # ``--source`` may select the other branch identity recorded for this
+        # job.  Extract the report from the branch we actually apply rather
+        # than refetching whichever branch happens to be in ``result_branch``.
+        job, _diff = _cloud.capture_report(store, registry, job, self.job_diff(job, str(source)))
         worktree.parent.mkdir(parents=True, exist_ok=True)
         _git(root, "worktree", "add", "-b", branch, str(worktree), tip)
-        diff = summarize(root, str(job.get("base_commit") or ""), tip)
-        return {"source_branch": source, "base": tip, "output": diff}
+        skipped = _cloud.clean_bridge_artifacts(worktree, str(job.get("base_commit") or ""))
+        if skipped:
+            _git(worktree, "add", "-A", "--", ".bridge")
+            _git(worktree, "commit", "-q", "-m", "Remove cloud bridge artifacts")
+            meta = _cloud._store.read_meta(store, str(job["job_id"])) or {}
+            meta["skipped_bridge_artifacts"] = skipped
+            _cloud._write(store, registry, str(job["job_id"]), meta, status=str(job["status"]),
+                          result=job.get("result"), error=job.get("error"))
+        clean_tip = _git(worktree, "rev-parse", "HEAD")
+        diff = summarize(root, str(job.get("base_commit") or ""), clean_tip)
+        return {"source_branch": source, "base": clean_tip, "output": diff}
 
 
 def summarize(root: Path, base: str, tip: str) -> str:
