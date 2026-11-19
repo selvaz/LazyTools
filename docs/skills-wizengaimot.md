@@ -33,3 +33,9 @@ access to the repository you point them at.
 multi-provider council on LazyBridge agents (Anthropic, OpenAI, Google and DeepSeek
 members by default; any LazyBridge provider works). See
 [skills-council.md](skills-council.md).
+
+The Python council is free-form rather than round-based. Its `max_exchanges`
+argument bounds all routed exchanges. Only its moderator can call
+`propose_motion`; members call `cast_vote` with that motion's identifier, and
+`CouncilResult.motion` exposes the current or winning motion. These Python API
+controls are distinct from the Claude Code skill's `max_rounds` protocol.

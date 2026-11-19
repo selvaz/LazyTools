@@ -29,7 +29,7 @@ def test_original_efforts_and_whitespace(engine):
 @pytest.mark.parametrize(
     "model",
     [
-        "gpt-6-astra",
+        "gpt-6.2-astra",
         " GPT-6.1-SOL ",
         "o1",
         "o3",
@@ -73,16 +73,16 @@ def test_packaged_catalogue_matches_contract_table():
         "basic": [[("codex", "gpt-6-luna", "medium"), ("claude_code", "claude-haiku-5-5", "medium")]],
         "writing": [
             [("codex", "gpt-6.1-terra", "high"), ("claude_code", "claude-sonnet-5-5", "high")],
-            [("codex", "gpt-6.1-sol", "xhigh"), ("claude_code", "claude-opus-5-5", "high")],
+            [("codex", "gpt-6.2-sol", "xhigh"), ("claude_code", "claude-opus-5-5", "high")],
         ],
         "thinking": [
-            [("codex", "gpt-6.1-sol", "xhigh"), ("claude_code", "claude-opus-5-5", "medium")],
+            [("codex", "gpt-6.2-sol", "xhigh"), ("claude_code", "claude-opus-5-5", "medium")],
             [("claude_code", "claude-opus-5-5", "high")],
         ],
         "critical": [
-            [("claude_code", "claude-fable-5-2", "high"), ("codex", "gpt-6-astra", "high")],
-            [("claude_code", "claude-opus-5-5", "high"), ("codex", "gpt-6.1-sol", "high")],
-            [("claude_code", "claude-opus-5-5", "max"), ("codex", "gpt-6.1-sol", "xhigh")],
+            [("claude_code", "claude-fable-5-2", "high"), ("codex", "gpt-6.2-astra", "high")],
+            [("claude_code", "claude-opus-5-5", "high"), ("codex", "gpt-6.2-sol", "high")],
+            [("claude_code", "claude-opus-5-5", "max"), ("codex", "gpt-6.2-sol", "xhigh")],
         ],
     }
     assert {
@@ -112,7 +112,7 @@ def test_custom_policy_is_used_by_loader(tmp_path):
     path = tmp_path / "tiers.toml"
     text = files("lazytools.routing").joinpath("default_tiers.toml").read_text()
     path.write_text(
-        text.replace("gpt-6.1-sol", "custom-codex").replace("gpt-6-luna", "custom-codex").replace('effort = "medium"', 'effort = "custom-effort"')
+        text.replace("gpt-6.2-sol", "custom-codex").replace("gpt-6-luna", "custom-codex").replace('effort = "medium"', 'effort = "custom-effort"')
     )
     policy = replace(
         DEFAULT_POLICY,
@@ -129,14 +129,14 @@ def test_custom_policy_is_used_by_loader(tmp_path):
     [
         (lambda text: text + "\n[unknown]\n", "unknown tier"),
         (lambda text: text.replace('effort = "medium"', "effort = 12"), "effort must be a string"),
-        (lambda text: text.replace('model = "gpt-6.1-sol"', 'model = " "'), "non-empty string"),
+        (lambda text: text.replace('model = "gpt-6.2-sol"', 'model = " "'), "non-empty string"),
         (lambda text: text.replace("providers.codex", "providers.typo"), "unknown provider"),
         (lambda text: text.replace("[basic]", "[basic]\nnote = 12"), "note must be a string"),
         (
             lambda text: text.replace("[[basic.steps]]", "[[basic.steps]]\ndescription = 12"),
             "description must be a string",
         ),
-        (lambda text: text.replace('model = "gpt-6.1-sol"', 'other = "gpt-6.1-sol"'), "needs a 'model'"),
+        (lambda text: text.replace('model = "gpt-6.2-sol"', 'other = "gpt-6.2-sol"'), "needs a 'model'"),
         (lambda text: text.replace("[[basic.steps]]", "steps = [1]"), "must be a table|valid TOML"),
     ],
 )
@@ -188,7 +188,7 @@ def test_custom_model_efforts_and_engine_fallback():
 def test_catalogue_uses_model_specific_efforts(tmp_path, model):
     path = tmp_path / "tiers.toml"
     text = files("lazytools.routing").joinpath("default_tiers.toml").read_text()
-    text = text.replace("gpt-6.1-sol", model).replace("gpt-6-luna", model).replace('effort = "medium"', 'effort = "ultra"')
+    text = text.replace("gpt-6.2-sol", model).replace("gpt-6-luna", model).replace('effort = "medium"', 'effort = "ultra"')
     path.write_text(text)
     with pytest.raises(ModelTiersError, match=model):
         load_tiers(path)
@@ -199,13 +199,13 @@ def test_catalogue_uses_model_specific_efforts(tmp_path, model):
 def test_translate_model_maps_tiers_across_engines():
     from lazytools.routing.policy import translate_model
 
-    assert translate_model("opus", "codex") == "gpt-6.1-sol"
+    assert translate_model("opus", "codex") == "gpt-6.2-sol"
     assert translate_model("sonnet", "codex") == "gpt-6.1-terra"
     assert translate_model("haiku", "codex") == "gpt-6-luna"
-    assert translate_model("fable", "codex") == "gpt-6-astra"
-    assert translate_model("claude-opus-5-5", "codex") == "gpt-6.1-sol"
+    assert translate_model("fable", "codex") == "gpt-6.2-astra"
+    assert translate_model("claude-opus-5-5", "codex") == "gpt-6.2-sol"
     assert translate_model("gpt-6.1-terra", "claude_code") == "claude-sonnet-5-5"
-    assert translate_model("gpt-6-astra", "claude_code") == "claude-fable-5-1"
+    assert translate_model("gpt-6.2-astra", "claude_code") == "claude-fable-5-2"
     # same namespace, explicit pins, blanks and None are untouched
     assert translate_model("opus", "claude_code") == "opus"
     assert translate_model("gpt-5.6-sol", "codex") == "gpt-5.6-sol"

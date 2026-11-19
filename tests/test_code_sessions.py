@@ -71,7 +71,7 @@ class TestModelAndEffort:
 
     async def test_codex_accepts_ultra_effort(self, root, script, registry):
         tool = codex_reviewer(root=str(root), session_registry=registry)
-        await tool.run(task="look", model="gpt-6.1-sol", effort="ultra")
+        await tool.run(task="look", model="gpt-6.2-sol", effort="ultra")
         assert script.kwargs["reasoning_effort"] == "ultra"
 
     async def test_codex_call_overrides_the_factory_default(self, root, script, registry):

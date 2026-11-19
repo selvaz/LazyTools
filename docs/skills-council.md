@@ -46,6 +46,21 @@ Research and opening positions use `Agent.parallel`. The discussion itself is
 an `AgentPool`: participants call `route(agent_name, task)` based on the
 conversation rather than a predetermined order.
 
+### Exchange budget and voting
+
+`max_exchanges` caps the total number of `route()` calls across the free-form
+discussion. Its default is `max(8, 2 * max_rounds * member_count)`. Once the
+budget is exhausted, further routes are refused and the council proceeds to a
+closing vote. This is separate from `max_depth`, which limits the recursion
+depth of one routing chain.
+
+Only the moderator can call `propose_motion(text)`. Members vote with
+`cast_vote(motion_id, aligned, confidence, rationale)`; a vote for an older
+motion is rejected. If free discussion ends without quorum, the moderator is
+asked to state or refresh one motion and every member gets one direct closing
+vote. This replaces the former `cast_vote(recommendation, ...)` shape: callers
+must use the identifier returned by `propose_motion`.
+
 ## Shared debate history
 
 Every debater and the moderator has a *private* `Memory` for their own
@@ -202,12 +217,15 @@ retriever to every participant.
 - `synthesis`: final decision-ready report;
 - `quorum_reached`: whether the latest votes meet the configured threshold;
 - `votes`: latest structured vote from each member that voted;
+- `motion`: text of the current (and, when quorum is reached, winning) motion,
+  or `None` when no motion was proposed;
 - `transcript`: assistant contributions captured from council memories;
 - `question`: the original question.
 
 The recursion `max_depth` is a safety brake, not a debate schedule. The legacy
 `max_rounds` option is retained only to derive a default depth when
-`max_depth` is omitted.
+`max_depth` is omitted and to calculate the default `max_exchanges` budget.
+Set `max_exchanges` explicitly to control the total routed-call budget.
 
 ## API reference
 

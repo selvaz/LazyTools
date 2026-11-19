@@ -485,7 +485,7 @@ class WizengAImot:
             "COUNCIL PROTOCOL — This is an unscripted discussion, not ordered rounds. "
             f"Participants: {roster}; moderator. Use route(agent_name, task) to invite "
             "the person whose perspective is most relevant next. Challenge assumptions, "
-            "respond to what others actually said, and revisit your view freely. Use "
+            "respond to what others actually said, and revisit your view freely. "
             "Only the moderator puts motions to a vote (propose_motion); to suggest or amend "
             "a recommendation, route it to the moderator. Use cast_vote with the current "
             "motion_id whenever your position changes. aligned=true "
