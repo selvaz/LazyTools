@@ -107,13 +107,13 @@ def test_run_launches_selected_model_and_records_decision(bridge, capsys):
 @pytest.mark.parametrize(
     "extra,model,effort,override",
     [
-        (["--model", "gpt-6-astra"], "gpt-6-astra", "high", {"model": "gpt-6-astra"}),
+        (["--model", "gpt-6.2-astra"], "gpt-6.2-astra", "high", {"model": "gpt-6.2-astra"}),
         (["--effort", "ultra"], "gpt-6.1-terra", "ultra", {"effort": "ultra"}),
         (
-            ["--model", " gpt-6-astra ", "--effort", " xhigh "],
-            "gpt-6-astra",
+            ["--model", " gpt-6.2-astra ", "--effort", " xhigh "],
+            "gpt-6.2-astra",
             "xhigh",
-            {"model": "gpt-6-astra", "effort": "xhigh"},
+            {"model": "gpt-6.2-astra", "effort": "xhigh"},
         ),
         (
             ["--engine", "claude", "--model", "fable", "--effort", "max"],
@@ -609,7 +609,7 @@ def test_fable_override_requires_its_own_weekly_telemetry(bridge, capsys):
 
 
 @pytest.mark.parametrize("command", ["route", "run"])
-@pytest.mark.parametrize("extra_bucket", ["gpt-6-astra", "codex-gpt-6-astra", "codex/gpt-6-astra"])
+@pytest.mark.parametrize("extra_bucket", ["gpt-6.2-astra", "codex-gpt-6.2-astra", "codex/gpt-6.2-astra"])
 @pytest.mark.parametrize("order", ["before", "after"])
 def test_codex_other_model_limit_buckets_do_not_block_the_pick(bridge, capsys, command, extra_bucket, order):
     reading = bridge[1]["codex"]
@@ -768,7 +768,7 @@ def test_manual_and_tier_session_conflicts_use_same_message_before_launch(bridge
 
 
 @pytest.mark.parametrize("model,chosen", [("claude-sonnet-5-5", "claude_code"), ("claude-opus-5-5", "claude_code"),
-                                          ("sonnet", "claude_code"), ("gpt-6-astra", "codex"), ("gpt-6-luna", "codex")])
+                                          ("sonnet", "claude_code"), ("gpt-6.2-astra", "codex"), ("gpt-6-luna", "codex")])
 def test_model_without_engine_restricts_routing_before_pick(bridge, capsys, model, chosen):
     _short_windows(bridge, codex_weekly=60 if chosen == "codex" else 10, claude_weekly=60 if chosen == "claude_code" else 10,
                    codex_short=0, claude_short=0)
@@ -782,7 +782,7 @@ def test_model_without_engine_restricts_routing_before_pick(bridge, capsys, mode
 def test_inferred_model_engine_cannot_escape_session_pin(bridge, monkeypatch, capsys):
     seed(bridge, "old", engine="claude", session="work")
     monkeypatch.setattr(_routing, "read_readings", lambda: pytest.fail("quota despite session conflict"))
-    assert cli.main(args(bridge, "run", "--model", "gpt-6-astra", "--session", "work")) == 2
+    assert cli.main(args(bridge, "run", "--model", "gpt-6.2-astra", "--session", "work")) == 2
     assert "session_conflict" in capsys.readouterr().err and bridge[0].engines == []
 
 
@@ -871,7 +871,7 @@ def test_tier_run_with_wait_for_slot_keeps_the_busy_engine_and_queues(bridge, mo
 
 @pytest.mark.parametrize(
     "extra,expected",
-    [(["--engine", "codex", "--model", "opus"], "gpt-6.1-sol"), (["--engine", "claude", "--model", "gpt-6.1-terra"], "claude-sonnet-5-5")],
+    [(["--engine", "codex", "--model", "opus"], "gpt-6.2-sol"), (["--engine", "claude", "--model", "gpt-6.1-terra"], "claude-sonnet-5-5")],
 )
 def test_other_providers_tier_name_is_translated_not_rejected(bridge, capsys, extra, expected):
     assert cli.main(args(bridge, "run", *extra)) == 0

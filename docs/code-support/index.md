@@ -62,7 +62,7 @@ async def collaborate():
     print(draft)
     review = await reviewer.run(
         task="Review the uncommitted deployment change and boundary tests; report defects.",
-        repo_path=root, model="gpt-6.1-sol", effort="high", session_name="deployment-review",
+        repo_path=root, model="gpt-6.2-sol", effort="high", session_name="deployment-review",
     )
     print(review)
 

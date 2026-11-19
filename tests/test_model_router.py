@@ -55,7 +55,7 @@ def _five_hour(used: float, *, window_id: str) -> WindowReading:
 
 
 def _writing_catalogue(
-    codex_model: str = "gpt-6.1-sol", claude_model: str = "claude-sonnet-5"
+    codex_model: str = "gpt-6.2-sol", claude_model: str = "claude-sonnet-5"
 ) -> dict[str, TierCatalogue]:
     step = TierStep(
         providers=(
@@ -82,10 +82,10 @@ def _route(catalogue, readings, budgets, in_flight=None, **kwargs):
 
 
 def test_the_weekly_window_mapping_is_explicit_per_engine_and_model() -> None:
-    assert _weekly_window_id("codex", "gpt-6.1-sol") == "codex"
+    assert _weekly_window_id("codex", "gpt-6.2-sol") == "codex"
     assert _weekly_window_id("codex", "gpt-6-luna") == "codex"  # Codex has no per-model bucket at all
     assert _weekly_window_id("claude_code", "claude-sonnet-5") == "all models"
-    assert _weekly_window_id("claude_code", "claude-fable-5-1") == "fable"
+    assert _weekly_window_id("claude_code", "claude-fable-5-2") == "fable"
 
 
 def test_a_fable_window_constrains_a_fable_call_but_not_a_sonnet_one_reading_the_same_telemetry() -> None:
@@ -102,7 +102,7 @@ def test_a_fable_window_constrains_a_fable_call_but_not_a_sonnet_one_reading_the
         engine="claude_code", model="claude-sonnet-5", reading=reading, budget=budget, in_flight=0, moment=NOW
     )
     fable = _score_provider(
-        engine="claude_code", model="claude-fable-5-1", reading=reading, budget=budget, in_flight=0, moment=NOW
+        engine="claude_code", model="claude-fable-5-2", reading=reading, budget=budget, in_flight=0, moment=NOW
     )
 
     assert isinstance(sonnet, ProviderScore) and sonnet.weekly_position_margin > 0  # untouched by Fable's 99%
@@ -404,7 +404,7 @@ def test_provider_order_tiebreak_is_the_final_resort_when_price_cannot_separate_
     status) rather than an arbitrary "whichever sorted first"."""
     step = TierStep(
         providers=(
-            StepModel(provider="codex", model="gpt-6.1-sol", effort="xhigh"),
+            StepModel(provider="codex", model="gpt-6.2-sol", effort="xhigh"),
             StepModel(provider="claude_code", model="claude-sonnet-5", effort="high"),
         )
     )
@@ -417,7 +417,7 @@ def test_provider_order_tiebreak_is_the_final_resort_when_price_cannot_separate_
 
     decision = _route(catalogue, readings, budgets)
 
-    # gpt-6.1-sol and claude-sonnet-5 are both ranked 2.0 in _API_PRICE_RANK -- price cannot
+    # gpt-6.2-sol and claude-sonnet-5 are both ranked 2.0 in _API_PRICE_RANK -- price cannot
     # separate them, so this must fall to the fixed provider order.
     assert decision.reason == "provider_order_tiebreak"
     assert decision.provider == "codex"
@@ -428,7 +428,7 @@ def test_gpt_6_1_sol_has_the_same_price_rank_as_the_previous_gpt_6_sol() -> None
     would make it never cheaper than a ranked model) nor ranked differently from its predecessor."""
     from lazytools.routing.router import _API_PRICE_RANK
 
-    assert _API_PRICE_RANK[("codex", "gpt-6.1-sol")] == _API_PRICE_RANK[("codex", "gpt-6-sol")] == 2.0
+    assert _API_PRICE_RANK[("codex", "gpt-6.2-sol")] == _API_PRICE_RANK[("codex", "gpt-6-sol")] == 2.0
 
 
 def test_price_and_order_tiebreak_helper_is_symmetric_and_always_picks_a_winner() -> None:
@@ -463,7 +463,7 @@ def _two_rung_catalogue() -> dict[str, TierCatalogue]:
     )
     rung1 = TierStep(
         providers=(
-            StepModel(provider="codex", model="gpt-6.1-sol", effort="xhigh"),
+            StepModel(provider="codex", model="gpt-6.2-sol", effort="xhigh"),
             StepModel(provider="claude_code", model="claude-opus-5-5", effort="high"),
         )
     )
@@ -508,7 +508,7 @@ def test_a_rung_with_nobody_eligible_falls_through_and_the_next_rung_actually_de
     rung0 = TierStep(providers=(StepModel(provider="claude_code", model="claude-sonnet-5", effort="high"),))
     rung1 = TierStep(
         providers=(
-            StepModel(provider="codex", model="gpt-6.1-sol", effort="xhigh"),
+            StepModel(provider="codex", model="gpt-6.2-sol", effort="xhigh"),
             StepModel(provider="claude_code", model="claude-opus-5-5", effort="high"),
         )
     )
@@ -529,7 +529,7 @@ def test_a_rung_with_nobody_eligible_falls_through_and_the_next_rung_actually_de
     )
 
     assert decision.provider == "codex"
-    assert decision.model == "gpt-6.1-sol"
+    assert decision.model == "gpt-6.2-sol"
     assert decision.reason == "only_eligible_provider_step1"
     assert "telemetry_unreadable" in decision.ineligible["claude_code"]  # rung 0's own record
     assert "telemetry_unreadable" in decision.ineligible["step1:claude_code"]  # rung 1 too
@@ -565,10 +565,10 @@ def test_the_second_rung_scores_its_own_two_providers_by_their_own_margin() -> N
     IS present and healthy), so both are genuinely eligible there and weekly margin decides
     -- proving rung 1 scores its own candidates independently rather than inheriting rung
     0's verdict."""
-    rung0 = TierStep(providers=(StepModel(provider="claude_code", model="claude-fable-5-1", effort="high"),))
+    rung0 = TierStep(providers=(StepModel(provider="claude_code", model="claude-fable-5-2", effort="high"),))
     rung1 = TierStep(
         providers=(
-            StepModel(provider="codex", model="gpt-6.1-sol", effort="xhigh"),  # tight margin
+            StepModel(provider="codex", model="gpt-6.2-sol", effort="xhigh"),  # tight margin
             StepModel(provider="claude_code", model="claude-opus-5-5", effort="high"),  # ample margin
         )
     )
@@ -602,7 +602,7 @@ def test_review_mode_also_falls_through_an_empty_rung_before_giving_up() -> None
     rung0 = TierStep(providers=(StepModel(provider="codex", model="gpt-6-luna", effort="xhigh"),))
     rung1 = TierStep(
         providers=(
-            StepModel(provider="codex", model="gpt-6.1-sol", effort="xhigh"),
+            StepModel(provider="codex", model="gpt-6.2-sol", effort="xhigh"),
             StepModel(provider="claude_code", model="claude-opus-5-5", effort="high"),
         )
     )

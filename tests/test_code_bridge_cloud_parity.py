@@ -1655,7 +1655,7 @@ def test_codex_cloud_uses_the_environment_model_and_refuses_overrides(cloud, cap
     assert "environment's default model" in out
     exec_argv = next(c["argv"] for c in cloud.calls() if c["argv"][1] == "exec")
     assert "--model" not in exec_argv and "-c" not in exec_argv and not any("model" in a for a in exec_argv[:-1])
-    assert _run_cloud(cloud, "--model", "gpt-6.1-sol") == 2
+    assert _run_cloud(cloud, "--model", "gpt-6.2-sol") == 2
     assert "ignores model overrides" in capsys.readouterr().err
     assert len([c for c in cloud.calls() if c["argv"][1] == "exec"]) == 1
 

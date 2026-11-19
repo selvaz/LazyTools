@@ -242,7 +242,7 @@ def choose(
     continuity = session_hint(rows, cwd, session)
     requested = provider(engine) if engine else model_provider(model) if model is not None else None
     if requested is not None and model is not None:
-        model = translate_model(model, requested)  # "opus" on codex -> gpt-6.1-sol (tier ladder)
+        model = translate_model(model, requested)  # "opus" on codex -> gpt-6.2-sol (tier ladder)
     if requested is not None and model is not None:
         rejection = DEFAULT_POLICY.reject_model(requested, model)
         if rejection is not None:
