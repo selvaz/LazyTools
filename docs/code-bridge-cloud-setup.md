@@ -103,10 +103,27 @@ The key is the `owner/name` of the repository's `origin` remote:
 ```toml
 [cloud]
 concurrency = 4               # live cloud jobs at once, both engines together
+min_submit_interval = 2       # seconds between two submits to one provider (0 = no spacing)
+submit_retries = 2            # extra attempts after a submit that errors at once (0 = none)
 
 [cloud.codex.envs]
 "owner/name" = "<env id>"
 ```
+
+### New repositories
+
+When auto placement would choose Codex Cloud, an unmapped repository fails with
+an actionable error. Explicit `--where cloud` follows the same rule. Add the
+repository's `[cloud.codex.envs]` mapping, or use `--where local`. To opt in to
+local fallback for unmapped repositories, configure:
+
+```toml
+[cloud]
+unmapped = "local"  # default: "error"
+```
+
+Auto placement still runs locally when a local slot is free outside busy windows.
+JSON and MCP errors include `error_code: "cloud_env_unmapped"` and the repository slug.
 
 ### 4. Log in and test
 
@@ -131,7 +148,7 @@ Use `Goal`, `Context`, `Constraints`, `Done when`, and `Report` headings in
 
 | Message | Fix |
 | --- | --- |
-| `no Codex Cloud environment mapped for owner/name` | Add the `[cloud.codex.envs]` line; check the key matches `git remote get-url origin` |
+| `no Codex Cloud environment is mapped for owner/name` | Add the `[cloud.codex.envs]` line; check the key matches `git remote get-url origin` |
 | `Codex CLI not found` | Install the Codex CLI, or set `CODEX_BIN` to its path |
 | `codex cloud exec exited ...: not logged in` | Run `codex login` |
 | `branch '<name>' does not exist on the 'origin' remote` | `--branch` is the base branch the agent starts from, not a name for the result: push it (`git push -u origin <name>`) or pass an existing branch |
@@ -361,6 +378,11 @@ workflow](code-bridge.md#cloud-agents-as-part-of-the-workflow). In short:
   records the commit and opens or updates the PR.
 * Landing is refused, with the reason, when the base branch moved since submit
   (add `--rebase-ok` to the submit to allow it) and never force-pushes.
+* Bridge-owned job artifacts under `.bridge/` are transport only and are never
+  committed by landing, even if an agent force-added, modified, or deleted
+  them. Landing warns when it skips those paths. The credential-redacted,
+  size-limited `.bridge/report.md` text goes into a new PR's description, or a
+  comment when the job updates an existing PR.
 * A failed cloud task is marked `failed` with the provider's reason by `wait` or
   `cloud-sync`.
 
@@ -407,6 +429,14 @@ apply), scope it to one repository, and prefer short-lived tokens.
 - Provider output and the stored brief are redacted (tokens, keys, JWTs).
 - Cloud jobs share one limit, `[cloud] concurrency` (default 4), and never take
   a local engine slot. This one limit counts Codex and Claude jobs together.
+- Submits to one provider are spaced at least `[cloud] min_submit_interval`
+  seconds apart (default 2, shared by all processes on the machine), so a burst
+  of `run --where cloud` calls is queued instead of rejected by the provider.
+  A submit that errors immediately is retried up to `[cloud] submit_retries`
+  times (default 2) with exponential backoff; a timeout or a slow failure is
+  never retried, since it may have created a task. When the retries run out the
+  job is recorded as failed with the provider's own error text and the attempt
+  count. Set `min_submit_interval = 0` and `submit_retries = 0` to turn both off.
 - `--where cloud` does not accept `--session`; select the pushed base with
   `--branch` instead.
 - Give briefs `Goal`, `Context`, `Constraints`, `Done when`, and `Report`

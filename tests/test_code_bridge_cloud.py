@@ -12,13 +12,15 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import textwrap
+import time
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
 
-from lazytools.code_bridge import _cloud, _concurrency, _jobs, _store, cli
+from code_bridge_test_helpers import write_python_executable
+from lazytools.code_bridge import _cloud, _cloud_stop, _concurrency, _jobs, _store, cli
 from lazytools.code_bridge._concurrency import EngineSlot
 
 TASK_URL = "https://chatgpt.com/codex/tasks/task_e_abc123"
@@ -41,6 +43,9 @@ FAKE_CODEX = textwrap.dedent(
         sys.exit(1)
     if os.environ.get("FAKE_CODEX_FAIL") == verb:
         print("boom: " + verb, file=sys.stderr)
+        sys.exit(1)
+    if verb == "diff" and os.environ.get("FAKE_CODEX_NO_DIFF_ERROR"):
+        print(f"No diff available for task {args[2]}", file=sys.stderr)
         sys.exit(1)
     if verb == "exec":
         counter = Path(os.environ["FAKE_CODEX_LOG"] + ".n")
@@ -132,6 +137,14 @@ FAKE_CODEX = textwrap.dedent(
             Path("dangling-link").symlink_to("missing-target")
             if shape == "mixed-symlink":
                 Path("regular.txt").write_text("regular\\n", encoding="utf-8")
+        elif shape == "bridge-artifacts":
+            bridge = Path(".bridge")
+            bridge.mkdir(exist_ok=True)
+            (bridge / "job.json").write_text('{"credential": "never commit"}\\n', encoding="utf-8")
+            (bridge / "report.md").write_text("provider report\\n", encoding="utf-8")
+            (bridge / "modified.txt").write_text("provider changed this\\n", encoding="utf-8")
+            (bridge / "deleted.txt").unlink()
+            Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
         elif not os.environ.get("FAKE_CODEX_NOCHANGE"):
             Path("cloud_change.txt").write_text("applied by cloud\\n", encoding="utf-8")
         if os.environ.get("FAKE_CODEX_ERROR_LOG"):
@@ -154,15 +167,7 @@ def cloud(tmp_path, monkeypatch):
     """A git repo with an origin remote, a fake codex CLI, and an env mapping for the repo."""
     tools = tmp_path / "tools"
     tools.mkdir()
-    script = tools / "fake_codex.py"
-    script.write_text(FAKE_CODEX, encoding="utf-8")
-    if sys.platform == "win32":
-        exe = tools / "codex.cmd"
-        exe.write_text(f'@"{sys.executable}" "{script}" %*\n', encoding="utf-8")
-    else:
-        exe = tools / "codex"
-        exe.write_text(f"#!{sys.executable}\n" + FAKE_CODEX, encoding="utf-8")
-        exe.chmod(0o755)
+    exe = write_python_executable(tools, "codex", FAKE_CODEX)
     log = tmp_path / "codex-calls.jsonl"
     status_file = tmp_path / "status.txt"
     status_file.write_text("Task status: pending\n", encoding="utf-8")
@@ -173,6 +178,7 @@ def cloud(tmp_path, monkeypatch):
     monkeypatch.delenv("FAKE_CODEX_FAIL", raising=False)
     monkeypatch.delenv("FAKE_CODEX_PARTIAL", raising=False)
     monkeypatch.delenv("FAKE_CODEX_DIFF", raising=False)
+    monkeypatch.delenv("FAKE_CODEX_NO_DIFF_ERROR", raising=False)
     monkeypatch.delenv("FAKE_CODEX_NOCHANGE", raising=False)
     monkeypatch.delenv("FAKE_CODEX_ERROR_LOG", raising=False)
     monkeypatch.delenv("FAKE_CODEX_UNEXPECTED", raising=False)
@@ -238,9 +244,10 @@ def test_missing_mapping_fails_with_create_environment_hint(cloud, capsys):
     code = _run_cloud(cloud)
     err = capsys.readouterr().err
     assert code == 2
-    assert "no Codex Cloud environment mapped for acme/other" in err
-    assert "create a single-repo Codex Cloud environment for acme/other" in err
+    assert "no Codex Cloud environment is mapped for acme/other" in err
     assert "[cloud.codex.envs]" in err
+    assert "--where local" in err and '[cloud] unmapped = "local"' in err
+    assert '"acme/other" = "<env id>"' in err
     assert cloud.calls() == []  # nothing submitted
     store = _store.build_store(cloud.db)
     assert _store.all_job_records(store) == []  # nothing recorded
@@ -310,7 +317,8 @@ def test_submit_stores_handle_and_where_cloud(cloud, capsys):
     argv = call["argv"]
     # The brief travels on stdin, never as a command-line argument.
     assert argv == ["cloud", "exec", "--env", "env_widgets", "--branch", "feature-x"]
-    assert call["stdin"].startswith(_cloud.CLOUD_PREAMBLE) and call["stdin"].endswith("Add a feature")
+    assert call["stdin"].startswith(_cloud.CLOUD_PREAMBLE)
+    assert call["stdin"].endswith("Add a feature" + _cloud.CLOUD_REPORT_SUFFIX)
 
     store = _store.build_store(cloud.db)
     job = _jobs.find_job(store, _store.build_job_registry(store), payload["job_id"])
@@ -464,12 +472,34 @@ def test_result_exit_code_for_failed_cloud_task(cloud, capsys):
     assert "[failed]" in out and "setup script failed" in out
 
 
-def test_cancel_cloud_job_frees_place_and_says_task_still_runs(cloud, capsys):
+def test_cancel_cloud_job_stops_provider_and_frees_place(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
+    calls = []
+    monkeypatch.setattr(
+        _cloud_stop,
+        "stop",
+        lambda provider, handle: calls.append((provider, handle)) or {
+            "provider": provider, "handle": handle, "status": "stopped"
+        },
+    )
     assert cli.main(["cancel", job_id, "--db", str(cloud.db)]) == 0
     out = capsys.readouterr().out
-    assert "[interrupted]" in out and "NOT stopped" in out and TASK_URL in out
+    assert calls == [("codex", "task_e_abc123")]
+    assert "codex task_e_abc123: stopped" in out
+    assert "[interrupted]" in out and "local tracking is interrupted" in out
     assert _cloud.active_jobs(_store.build_store(cloud.db)) == []
+
+
+def test_cancel_cloud_job_failure_is_nonzero_and_keeps_tracking(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    monkeypatch.setattr(_cloud_stop, "stop", lambda *args: (_ for _ in ()).throw(RuntimeError("provider refused")))
+
+    assert cli.main(["cancel", job_id, "--db", str(cloud.db)]) == 1
+
+    output = capsys.readouterr()
+    assert "codex task_e_abc123: failed: provider refused" in output.out
+    assert f"job {job_id} remains running locally" in output.err
+    assert [job["job_id"] for job in _cloud.active_jobs(_store.build_store(cloud.db))] == [job_id]
 
 
 # --------------------------------------------------------------------------- #
@@ -569,6 +599,11 @@ def test_apply_refuses_local_jobs(cloud, capsys):
 def test_stale_poll_does_not_overwrite_cancellation(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
     real_status = _cloud.CodexCloud.status
+    monkeypatch.setattr(
+        _cloud_stop,
+        "stop",
+        lambda provider, handle: {"provider": provider, "handle": handle, "status": "stopped"},
+    )
 
     def status_then_cancelled_meanwhile(self, handle):
         answer = real_status(self, handle)  # the provider says "pending"...
@@ -679,9 +714,27 @@ def test_poll_clock_spaces_first_poll_from_separate_waiters(cloud, monkeypatch):
     assert sleeps == [5.0]
 
 
+def test_poll_clock_is_scoped_to_task(cloud, monkeypatch):
+    store = _store.build_store(cloud.db)
+    now = [100.0]
+    sleeps = []
+    monkeypatch.setattr(_cloud.time, "time", lambda: now[0])
+
+    def sleep(delay):
+        sleeps.append(delay)
+        now[0] += delay
+
+    monkeypatch.setattr(_cloud.time, "sleep", sleep)
+
+    assert _cloud._wait_for_poll_turn(store, "task-a", 5.0, 0.0, None)
+    assert _cloud._wait_for_poll_turn(store, "task-b", 5.0, 0.0, None)
+
+    assert sleeps == []
+
+
 def test_short_waiters_do_not_advance_poll_clock(cloud, monkeypatch):
     store = _store.build_store(cloud.db)
-    key = f"{_cloud.POLL_CLOCK_PREFIX}codex"
+    key = f"{_cloud.POLL_CLOCK_PREFIX}task-id"
     now = [100.0]
     store.write(key, now[0])
     monkeypatch.setattr(_cloud.time, "time", lambda: now[0])
@@ -693,7 +746,7 @@ def test_short_waiters_do_not_advance_poll_clock(cloud, monkeypatch):
     monkeypatch.setattr(_cloud.time, "sleep", sleep)
     for _ in range(3):
         deadline = _cloud.time.monotonic() + 1.0
-        assert not _cloud._wait_for_poll_turn(store, "codex", 5.0, 0.0, deadline)
+        assert not _cloud._wait_for_poll_turn(store, "task-id", 5.0, 0.0, deadline)
 
     assert now[0] == 103.0
     assert store.read(key) == 100.0
@@ -702,7 +755,7 @@ def test_short_waiters_do_not_advance_poll_clock(cloud, monkeypatch):
 def test_wait_deadline_does_not_poll_before_reserved_turn(cloud, monkeypatch, capsys):
     job_id = _submit(cloud, capsys)
     store = _store.build_store(cloud.db)
-    store.write(f"{_cloud.POLL_CLOCK_PREFIX}codex", _cloud.time.time() + 120.0)
+    store.write(f"{_cloud.POLL_CLOCK_PREFIX}{job_id}", _cloud.time.time() + 120.0)
     sleeps = []
     monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
     monkeypatch.setattr(_cloud.time, "sleep", sleeps.append)
@@ -740,6 +793,95 @@ def test_resumed_waiter_subtracts_elapsed_time_from_retry_after(cloud, monkeypat
     assert polled, "the resumed waiter never polled although Retry-After had expired"
 
 
+def test_wait_any_uses_shared_retry_after_gate(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    meta = _store.read_meta(store, job_id) or {}
+    meta.update(poll_errors_in_a_row=1, last_poll_error="HTTP 429 Too Many Requests; Retry-After: 120",
+                last_polled_at=_cloud.time.time())
+    _store.write_meta(store, job_id, meta)
+    before = len([call for call in cloud.calls() if call["argv"][1] == "status"])
+
+    assert cli.main(["wait-any", job_id, "--db", str(cloud.db), "--timeout", "0.01",
+                     "--interval", "0.001"]) == 3
+    after = len([call for call in cloud.calls() if call["argv"][1] == "status"])
+    assert after == before
+
+
+def test_wait_any_zero_timeout_still_polls_cloud_once(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("status: ready\nCompleted during the check.\n")
+    before = len([call for call in cloud.calls() if call["argv"][1] == "status"])
+
+    assert cli.main(["wait-any", job_id, "--db", str(cloud.db), "--timeout", "0"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    after = len([call for call in cloud.calls() if call["argv"][1] == "status"])
+    assert payload["event"] == "done"
+    assert after == before + 1
+
+
+def test_wait_any_backoff_job_does_not_block_ready_job(cloud, capsys):
+    backed_off = _submit(cloud, capsys)
+    ready = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    meta = _store.read_meta(store, backed_off) or {}
+    meta.update(poll_errors_in_a_row=1, last_poll_error="HTTP 429; Retry-After: 60",
+                last_polled_at=_cloud.time.time())
+    _store.write_meta(store, backed_off, meta)
+    cloud.set_status("status: ready\nThe other job is complete.\n")
+
+    assert cli.main(["wait-any", backed_off, ready, "--db", str(cloud.db), "--timeout", "0"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["job_id"] == ready
+    assert payload["event"] == "done"
+
+
+def test_waiter_consumes_poll_completed_during_its_reserved_wait(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    job = _cloud._merged(store, registry, job_id)
+    provider_calls = 0
+    real_refresh = _cloud.refresh
+
+    def counting_refresh(*args, **kwargs):
+        nonlocal provider_calls
+        provider_calls += 1
+        return real_refresh(*args, **kwargs)
+
+    def another_waiter_polls(*_args, **_kwargs):
+        counting_refresh(store, registry, job)
+        return True
+
+    monkeypatch.setattr(_cloud, "refresh", counting_refresh)
+    monkeypatch.setattr(_cloud, "_wait_for_poll_turn", another_waiter_polls)
+    latest, got_turn = _cloud.poll_job_once(store, registry, job, interval=1.0, deadline=None)
+
+    assert got_turn and latest["status"] == "running"
+    assert provider_calls == 1
+
+
+def test_consecutive_poll_errors_grow_exponential_backoff(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    delays = []
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud, "_wait_for_poll_turn",
+                        lambda _store, _task, _interval, delay, _deadline: delays.append(delay) or False)
+    for errors in (1, 2, 3):
+        meta = _store.read_meta(store, job_id) or {}
+        meta.update(poll_errors_in_a_row=errors, last_poll_error="HTTP 503 Service Unavailable",
+                    last_polled_at=_cloud.time.time())
+        _store.write_meta(store, job_id, meta)
+        _cloud.poll_job_once(store, registry, _cloud._merged(store, registry, job_id), interval=2.0,
+                             deadline=None)
+
+    assert delays == pytest.approx([2.0, 4.0, 8.0], abs=0.01)
+
+
 def test_unparseable_status_output_never_fails_job(cloud, capsys):
     job_id = _submit(cloud, capsys)
     cloud.set_status("something we do not understand\n")  # exit 0, but names no status
@@ -772,13 +914,82 @@ def test_429_then_completed_retries_and_honours_retry_after(cloud, monkeypatch, 
     assert job["status"] == "done"
 
 
+def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsys):
+    """Rate limits, server errors, and transport timeouts are observations, not task failures."""
+    job_id = _submit(cloud, capsys)
+    answers = iter([
+        _cloud.CloudError("HTTP 429 Rate limit exceeded; Retry-After: 0.05"),
+        _cloud.CloudError("HTTP 503 Service Unavailable"),
+        subprocess.TimeoutExpired("codex cloud status", 1),
+        _cloud.CloudStatus("done", "completed", "finished", "status: completed"),
+    ])
+    observed_before_poll = []
+    poll_times = []
+
+    def status(_self, _handle):
+        poll_times.append(time.monotonic())
+        current_store = _store.build_store(cloud.db)
+        current = _jobs.find_job(current_store, _store.build_job_registry(current_store), job_id)
+        observed_before_poll.append(current["status"])
+        answer = next(answers)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(_cloud.CodexCloud, "status", status)
+    sleeps = []
+    real_sleep = _cloud.time.sleep
+
+    def recording_sleep(delay):
+        sleeps.append(delay)
+        real_sleep(delay)
+
+    monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(_cloud.time, "sleep", recording_sleep)
+    assert cli.main(["wait", job_id, "--db", str(cloud.db), "--timeout", "1", "--interval", "0.02"]) == 0
+    store = _store.build_store(cloud.db)
+    job = _jobs.find_job(store, _store.build_job_registry(store), job_id)
+    assert job["status"] == "done"
+    assert job["poll_errors_in_a_row"] == 0
+    assert job["last_poll_error"] is None
+    assert observed_before_poll == ["running"] * 4
+    # Each failure independently imposes its own minimum: Retry-After for the
+    # first, then exponential backoff for the second and third attempts.
+    assert len(sleeps) >= 3, "the wait loop did not sleep through each transient failure"
+    # Measure provider attempts rather than positionally indexing sleep calls:
+    # implementation overhead is correctly part of the reserved delay and can
+    # make the eventual time.sleep argument a few milliseconds shorter.
+    gaps = [later - earlier for earlier, later in pairwise(poll_times)]
+    assert gaps[0] >= 0.045, f"Retry-After delay was not honoured: {gaps}"
+    assert gaps[1] >= 0.03, f"second-attempt backoff was not honoured: {gaps}"
+    assert gaps[2] >= 0.07, f"third-attempt backoff was not honoured: {gaps}"
+
+
+@pytest.mark.parametrize("http_status", ["429 Too Many Requests", "503 Service Unavailable"])
+def test_status_text_transport_error_keeps_job_running(cloud, monkeypatch, capsys, http_status):
+    job_id = _submit(cloud, capsys)
+    message = f"Error: get_task_details failed: HTTP {http_status}"
+    monkeypatch.setattr(_cloud.CodexCloud, "_run",
+                        lambda _self, *_args, **_kwargs: (1, message, ""))
+
+    assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+    job = json.loads(capsys.readouterr().out)
+    assert job["status"] == "running"
+    assert message in job["last_poll_error"]
+    assert job["poll_errors_in_a_row"] == 1
+
+
 def test_resync_recovers_legacy_poll_failed_job(cloud, capsys):
     job_id = _submit(cloud, capsys)
     store = _store.build_store(cloud.db)
     registry = _store.build_job_registry(store)
     meta = _store.read_meta(store, job_id) or {}
-    meta["last_poll_error"] = "HTTP 429 Too Many Requests"
-    _cloud._write(store, registry, job_id, meta, status="failed", error="cloud status: Error")
+    meta.pop("last_poll_error", None)
+    # This is the exact doubled-prefix shape produced by the old refresh path:
+    # parse_status treated the first Error as a status and then refresh wrapped
+    # the raw output because the parsed message was empty.
+    _cloud._write(store, registry, job_id, meta, status="failed",
+                  error="cloud task Error: Error: get_task_details failed: HTTP 429 Too Many Requests")
     cloud.set_status("status: ready\nRecovered result.\n")
 
     assert cli.main(["resync", job_id, "--db", str(cloud.db), "--json"]) == 0
@@ -787,11 +998,78 @@ def test_resync_recovers_legacy_poll_failed_job(cloud, capsys):
     assert recovered["job_log"][-1]["event"] == "resync"
 
 
+@pytest.mark.parametrize("status", ["429 Too Many Requests", "503 Service Unavailable"])
+def test_status_text_transport_error_accepts_status_without_http(cloud, monkeypatch, capsys, status):
+    job_id = _submit(cloud, capsys)
+    message = f"Error: get_task_details failed: unexpected status {status}"
+    monkeypatch.setattr(_cloud.CodexCloud, "_run",
+                        lambda _self, *_args, **_kwargs: (1, message, ""))
+
+    assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+    job = json.loads(capsys.readouterr().out)
+    assert job["status"] == "running"
+    assert message in job["last_poll_error"]
+
+
+def test_transport_failure_marker_does_not_cross_lines():
+    assert not _cloud._is_transient_transport_error(
+        "Error: get_task_details failed:\nThe task later timed out"
+    )
+
+
+def test_ready_status_wins_over_transport_shaped_message(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("[READY] Completed\nget_task_details failed: HTTP 503 in an example\n")
+
+    assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "done"
+
+
+def test_resync_restores_running_job_after_legacy_poll_failure(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    meta = _store.read_meta(store, job_id) or {}
+    meta["last_poll_error"] = "temporary provider failure"
+    _cloud._write(store, registry, job_id, meta, status="failed", error="cloud status: Error")
+    cloud.set_status("Task status: pending\nStill working.\n")
+
+    assert cli.main(["resync", job_id, "--db", str(cloud.db), "--json"]) == 4
+    recovered = json.loads(capsys.readouterr().out)
+    assert recovered["status"] == "running"
+    assert recovered.get("error") is None
+    assert recovered["last_poll_error"] is None
+    assert recovered["job_log"][-1]["to"] == "running"
+
+
 def test_bracketed_error_status_exits_nonzero_and_fails_job(cloud, capsys):
     job_id = _submit(cloud, capsys)
-    cloud.set_status("[ERROR] Fix flaky test\nsetup script failed\n")  # the fake exits 1, like upstream
+    cloud.set_status("[ERROR] Fix request timeout handling\nsetup script failed\n")  # exits 1 like upstream
     assert cli.main(["wait", job_id, "--db", str(cloud.db), "--interval", "0.01"]) == 1
     assert "[failed]" in capsys.readouterr().out
+
+
+def test_bracketed_ready_title_with_http_error_wording_completes_wait_any(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    cloud.set_status("[READY] Fix HTTP 503 retries\nCompleted successfully\n")
+
+    assert cli.main(["wait-any", job_id, "--db", str(cloud.db), "--timeout", "0"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["event"] == "done"
+
+
+def test_identical_transport_errors_stop_after_retry_cap(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    message = "Error: get_task_details failed: HTTP 503 Service Unavailable"
+    monkeypatch.setattr(_cloud.CodexCloud, "_run",
+                        lambda _self, *_args, **_kwargs: (1, message, ""))
+
+    for attempt in range(1, _cloud.MAX_CONSECUTIVE_POLL_ERRORS + 1):
+        assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+        job = json.loads(capsys.readouterr().out)
+        assert job["status"] == ("failed" if attempt == _cloud.MAX_CONSECUTIVE_POLL_ERRORS else "running")
+    assert job["status"] == "failed"
+    assert job["poll_errors_in_a_row"] == _cloud.MAX_CONSECUTIVE_POLL_ERRORS
 
 
 def test_cloud_wait_has_a_default_timeout(cloud, monkeypatch, capsys):
@@ -858,8 +1136,8 @@ def test_apply_refuses_moved_branch_unless_rebase(cloud, tmp_path, capsys):
     _git(cloud.repo, "remote", "add", "real", str(origin))
     _git(cloud.repo, "push", "-q", "real", "main")
     _git(cloud.repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
-    _git(cloud.repo, "config", "remote.origin.url", str(origin))  # fetchable; slug comes from the map below
-    _set_cloud_config(f'"{_cloud.parse_remote(str(origin))}" = "env_widgets"\n')
+    _git(cloud.repo, "config", "remote.origin.url", origin.as_posix())  # fetchable; slug comes from the map below
+    _set_cloud_config(f'"{_cloud.parse_remote(origin.as_posix())}" = "env_widgets"\n')
     base = _git(cloud.repo, "rev-parse", "HEAD")
 
     job_id = _submit(cloud, capsys)
@@ -891,9 +1169,9 @@ def test_apply_uses_recorded_base_when_branch_has_not_moved(cloud, tmp_path, cap
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", str(origin))
     _git(cloud.repo, "push", "-q", str(origin), "main")
-    _git(cloud.repo, "config", "remote.origin.url", str(origin))
+    _git(cloud.repo, "config", "remote.origin.url", origin.as_posix())
     _git(cloud.repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
-    _set_cloud_config(f'"{_cloud.parse_remote(str(origin))}" = "env_widgets"\n')
+    _set_cloud_config(f'"{_cloud.parse_remote(origin.as_posix())}" = "env_widgets"\n')
     base = _git(cloud.repo, "rev-parse", "HEAD")
     job_id = _submit(cloud, capsys)
     cloud.set_status("status: ready\nok\n")
@@ -1256,3 +1534,52 @@ def test_status_result_and_apply_output_is_redacted(cloud, capsys):
         assert "sk-live-0123456789abcdef" not in captured.out + captured.err, argv
     assert cli.main(["status", job_id, "--json", "--db", str(cloud.db)]) == 0
     json.loads(capsys.readouterr().out)  # still valid JSON after redaction
+
+# --------------------------------------------------------------------------- #
+# durable cloud final reports
+# --------------------------------------------------------------------------- #
+
+
+def test_cloud_report_is_extracted_from_unified_diff():
+    diff = (
+        "diff --git a/.bridge/report.md b/.bridge/report.md\n"
+        "new file mode 100644\n--- /dev/null\n+++ b/.bridge/report.md\n"
+        "@@ -0,0 +1,2 @@\n+# Final report\n+Everything passed.\n"
+        "diff --git a/src/app.py b/src/app.py\n--- a/src/app.py\n+++ b/src/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+    )
+    report, files = _cloud.report_from_diff(diff)
+    assert report == "# Final report\nEverything passed."
+    assert files == ["src/app.py"]
+
+
+def test_empty_diff_has_no_report_or_code_files():
+    assert _cloud.report_from_diff("") == (None, [])
+
+
+# Exact text the Codex CLI printed in production on 2026-11-18 (jobs c2a1560c, 250cee24).
+_REAL_429 = ('Error: http error: get_task_details failed: GET https://chatgpt.com/backend-api/wham/tasks/'
+             'task_e_6afdff034b208330849aabffd97c17c4 failed: 429 Too Many Requests; '
+             'content-type=application/json; body={"detail":"Rate limit exceeded"}')
+
+
+def test_real_cli_429_status_text_keeps_job_running(cloud, monkeypatch, capsys):
+    job_id = _submit(cloud, capsys)
+    monkeypatch.setattr(_cloud.CodexCloud, "_run", lambda _self, *_args, **_kwargs: (1, _REAL_429, ""))
+
+    assert cli.main(["status", job_id, "--db", str(cloud.db), "--json"]) == 0
+    job = json.loads(capsys.readouterr().out)
+    assert job["status"] == "running"
+    assert "429 Too Many Requests" in job["last_poll_error"]
+
+
+def test_resync_recovers_job_failed_with_real_cli_429_text(cloud, capsys):
+    job_id = _submit(cloud, capsys)
+    store = _store.build_store(cloud.db)
+    registry = _store.build_job_registry(store)
+    meta = _store.read_meta(store, job_id) or {}
+    meta.pop("last_poll_error", None)
+    _cloud._write(store, registry, job_id, meta, status="failed", error=f"cloud task Error: {_REAL_429}")
+    cloud.set_status("status: ready\nRecovered result.\n")
+
+    assert cli.main(["resync", job_id, "--db", str(cloud.db), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "done"

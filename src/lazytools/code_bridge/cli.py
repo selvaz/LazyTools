@@ -70,6 +70,16 @@ def _print_json(payload: Any) -> None:
     print(json.dumps(payload, default=str), flush=True)
 
 
+def _safe_print(text: str) -> None:
+    """Print text even when a legacy Windows console cannot encode it."""
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    print(text.encode(encoding, errors="backslashreplace").decode(encoding), flush=True)
+
+
+def _job_identity(job_id: str, *, where: str, engine: Any, cwd: Any, **extra: Any) -> dict[str, Any]:
+    return {"job_id": job_id, "short_id": job_id[:8], "where": where, "engine": engine, "cwd": str(cwd), **extra}
+
+
 def _cloud_print(text: str, *, err: bool = False) -> None:
     """Print one line of cloud-job output through the same redaction as the job record."""
     print(_cloud.redact(text), file=sys.stderr if err else sys.stdout)
@@ -137,7 +147,12 @@ def _record_intervention(store: Any, job_id: str, kind: str, reason: str | None 
 # launcher's job object when that object allows it -- a job object is what
 # lets a supervising process (e.g. a Claude Code background shell being
 # reaped) take its whole tree down with it.
-_DETACHED_PROCESS = 0x00000008
+# CREATE_NO_WINDOW gives the child a NEW, hidden console instead of none
+# (DETACHED_PROCESS). Console programs the job starts (git, npm, pytest,
+# powershell, the engines) inherit that hidden console; with no console at
+# all, Windows allocates a visible one for each of them, which on a machine
+# whose default terminal is Windows Terminal opens one tab per command.
+_CREATE_NO_WINDOW = 0x08000000
 _CREATE_NEW_PROCESS_GROUP = 0x00000200
 _CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 
@@ -166,6 +181,8 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
         argv += ["--routing-record", json.dumps(args.routing)]
     if getattr(args, "wait_for_slot", False):
         argv += ["--wait-for-slot"]
+    if args.profile != "default":
+        argv += ["--profile", args.profile]
     # The launcher already checked the brief and printed its findings.
     argv += ["--brief-checked"]
     return argv
@@ -182,7 +199,7 @@ def _spawn_detached(argv: list[str], log_path: Path) -> int:
             "close_fds": True,
         }
         if os.name == "nt":
-            flags = _DETACHED_PROCESS | _CREATE_NEW_PROCESS_GROUP
+            flags = _CREATE_NO_WINDOW | _CREATE_NEW_PROCESS_GROUP
             try:
                 proc = subprocess.Popen(argv, creationflags=flags | _CREATE_BREAKAWAY_FROM_JOB, **common)
             except OSError:
@@ -247,7 +264,7 @@ def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
     if args.json:
         _print_json(
             {
-                "job_id": job_id,
+                **_job_identity(job_id, where="local", engine=args.engine, cwd=args.cwd),
                 "pid": pid,
                 "log": str(log_path),
                 **({"routing": args.routing} if getattr(args, "routing", None) else {}),
@@ -318,6 +335,8 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
                              "--review-of picks the opposite engine by itself)")
         if args.routine and args.engine and args.engine != "claude":
             raise ValueError("--routine is only for --where cloud --engine claude")
+        if args.profile != "default":
+            raise ValueError("--profile is only available for local jobs")
         used = [flag for name, flag in _CLOUD_INCOMPATIBLE if getattr(args, name, None) not in (None, False)]
         if used:
             raise ValueError(f"--where cloud does not take {', '.join(used)}")
@@ -359,6 +378,12 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             land=args.land, rebase_ok=args.rebase_ok, model=args.model, tier=args.tier, title=args.title,
             extra_meta=extra_meta,
         )
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _cloud_json(exc.payload())
+        else:
+            _cloud_print(f"error: {exc}", err=True)
+        return 2
     except (_cloud.CloudError, ValueError) as exc:
         _cloud_print(f"error: {exc}", err=True)
         return 2
@@ -366,6 +391,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
     if args.json:
         payload = {k: job.get(k) for k in ("job_id", "status", "where", "engine", "repo", "env_id", "branch",
                                            "cloud_handle", "cloud_url", "model", "pr_number", "pr_url", "land", "open_pr")}
+        payload.update(short_id=str(job["job_id"])[:8], cwd=str(cwd), task_url=job.get("cloud_url"))
         if review_meta:
             payload["review_of"] = review_meta["of"]
         if placement is not None and placement.requested == _cloud_place.WHERE_AUTO:
@@ -405,14 +431,26 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
     try:
         config = _cloud.load_config()
         requested = args.where or config.default_where
-        placement = _cloud_place.decide(requested, windows=config.busy_windows, engine=args.engine)
-    except ValueError as exc:
+        cwd = _engines.resolve_cwd(args.cwd, args.root) if requested in ("auto", "cloud") and args.engine == "codex" else None
+        placement = _cloud_place.decide_for_repo(requested, config=config, engine=args.engine, cwd=cwd)
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _print_json(exc.payload())
+        else:
+            print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except (ValueError, _cloud.CloudError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    if placement.requested == _cloud_place.WHERE_AUTO:
+    if placement.requested == _cloud_place.WHERE_AUTO or placement.requested != placement.where:
         print(placement.line(), file=sys.stderr)  # stderr: stdout's first line is the job id
     args.where = placement.where
     args.placement = placement
+    if placement.where == _cloud.WHERE_LOCAL and placement.requested != _cloud.WHERE_LOCAL:
+        # The caller acknowledged that auto placement may use cloud.  If it
+        # instead selected local, that acknowledgement is harmless rather than
+        # a local-only option error.
+        args.allow_cloud = False
     return None
 
 
@@ -500,7 +538,18 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     def _announce(job_id: str) -> None:
         job_id_holder["job_id"] = job_id
-        print(job_id, flush=True)  # first line: the caller can capture this immediately
+        if args.json:
+            _print_json(
+                {
+                    **_job_identity(job_id, where="local", engine=args.engine, cwd=args.cwd),
+                    **({"routing": args.routing} if args.routing else {}),
+                }
+            )
+        else:
+            print(job_id, flush=True)  # first line: the caller can capture this immediately
+
+    def _slot_wait(busy: EngineBusy) -> None:
+        _announce_slot_wait(busy, err=args.json)
 
     try:
         result = _jobs.run_job(
@@ -521,7 +570,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             routine_auto=args.routine_auto,
             scratch_root=args.scratch_root,
             wait_for_slot=args.wait_for_slot,
-            on_slot_wait=_announce_slot_wait,
+            on_slot_wait=_slot_wait,
+            profile=args.profile,
         )
     except (LockHeld, EngineBusy) as exc:
         print(str(exc), file=sys.stderr)
@@ -533,6 +583,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if args.json:
         _print_json(
             {
+                "event": "result",
                 "job_id": result.job_id,
                 "status": result.status,
                 "result_path": str(result.result_path) if result.result_path else None,
@@ -568,9 +619,13 @@ def _job_line(job: dict[str, Any]) -> str:
     return f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}"
 
 
-def _announce_slot_wait(busy: EngineBusy) -> None:
+def _announce_slot_wait(busy: EngineBusy, *, err: bool = False) -> None:
     jobs = ", ".join(str(h.get("job_id", "?")) for h in busy.holders)
-    print(f"waiting for a {busy.engine} slot (limit {busy.limit}; running: {jobs})", flush=True)
+    print(
+        f"waiting for a {busy.engine} slot (limit {busy.limit}; running: {jobs})",
+        file=sys.stderr if err else sys.stdout,
+        flush=True,
+    )
 
 
 def _slot_excluded(selection: _routing.Selection) -> bool:
@@ -596,15 +651,29 @@ def _select(args: argparse.Namespace, *, cwd: str, respect_slots: bool = True) -
 def _cmd_route(args: argparse.Namespace) -> int:
     placement = None
     try:
-        cwd = Path(args.cwd).expanduser().resolve()
+        if args.where:
+            refusal = _configure_run_root(args)
+            if refusal is not None:
+                return refusal
+        if args.where in ("auto", "cloud") and args.engine == "codex":
+            # Resolve against the configured root, exactly as ``run`` does.
+            cwd = Path(_engines.resolve_cwd(args.cwd, args.root)).resolve()
+        else:
+            cwd = Path(args.cwd).expanduser().resolve()
         if not cwd.is_dir():
             raise ValueError(f"--cwd must name an existing directory: {cwd}")
         if args.where:
             config = _cloud.load_config()
-            placement = _cloud_place.decide(args.where, windows=config.busy_windows, engine=args.engine)
+            placement = _cloud_place.decide_for_repo(args.where, config=config, engine=args.engine, cwd=cwd)
         # A cloud placement does not use local slots, so the pick ignores them.
         selection = _select(args, cwd=str(cwd), respect_slots=not (placement and placement.where == "cloud"))
-    except (OSError, ValueError) as exc:
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _print_json({**exc.payload(), "placement": "would fail: unmapped"})
+        else:
+            print(f"would fail: unmapped: {exc}", file=sys.stderr)
+        return 2
+    except (OSError, ValueError, _cloud.CloudError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     if args.json:
@@ -648,13 +717,14 @@ def _cmd_jobs(args: argparse.Namespace) -> int:
     store = _store.build_store(_db_path(args))
     rows = _jobs.list_jobs(store, all_jobs=args.all)
     if args.json:
-        _print_json(rows)
+        for row in rows:
+            _print_json(row)
         return 0
     if not rows:
         print("no jobs yet" if args.all else "no active jobs (pass --all for history)")
         return 0
     for row in rows:
-        print(_job_line(row))
+        _safe_print(_job_line(row))
     return 0
 
 
@@ -697,11 +767,17 @@ def _cmd_result(args: argparse.Namespace) -> int:
     # not see a failed job reported as success merely because it asked for
     # --json. Found by Codex review (it previously always returned 0 here).
     exit_code = 1 if status in ("partial", "failed", "interrupted") else 0
+    diff = None
+    if _cloud.is_cloud(job) and job.get("status") == "done" and job.get("cloud_handle"):
+        try:
+            job, diff = _cloud.capture_report(store, registry, job)
+        except _cloud.CloudError:
+            pass
     if args.json:
         (_cloud_json if _cloud.is_cloud(job) else _print_json)(job)
         return exit_code
     if _cloud.is_cloud(job):
-        _cloud_print(_cloud.result_text(job))
+        _cloud_print(_cloud.result_text(job, diff=diff))
         return exit_code
     print(f"[{status}] job {job.get('job_id')}")
     if job.get("turns"):
@@ -907,13 +983,7 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
         if args.dry_run:
             result: dict[str, Any] = {"provider": provider, "handle": handle, "status": "would stop"}
         else:
-            try:
-                result = _cloud_stop.stop(provider, handle)
-                if owner_job is not None and result.get("status") in ("stopped", "already finished"):
-                    _cloud.mark_interrupted(store, registry, str(owner_job["job_id"]), "cloud stop requested by operator")
-                    result["job_id"] = owner_job["job_id"]
-            except Exception as exc:
-                result = {"provider": provider, "handle": handle, "status": "failed", "reason": _cloud.redact(str(exc))}
+            result = _stop_cloud_target(store, registry, provider, handle, owner_job)
         results.append(result)
     results.extend(errors)
     safe = _cloud.redact_obj(results)
@@ -926,18 +996,47 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
     return 1 if any(item.get("status") == "failed" for item in safe) else 0
 
 
+def _stop_cloud_target(store: Any, registry: Any, provider: str, handle: str,
+                       owner_job: dict[str, Any] | None) -> dict[str, Any]:
+    """Use the common provider-stop path and update local tracking when confirmed."""
+    from lazytools.code_bridge import _cloud_stop
+
+    try:
+        result = _cloud_stop.stop(provider, handle)
+        if owner_job is not None and result.get("status") in ("stopped", "already finished"):
+            _cloud.mark_interrupted(store, registry, str(owner_job["job_id"]), "cloud stop requested by operator")
+            result["job_id"] = owner_job["job_id"]
+        return result
+    except Exception as exc:
+        return {"provider": provider, "handle": handle, "status": "failed",
+                "reason": _cloud.redact(str(exc))}
+
+
 def _cancel_cloud(store: Any, registry: Any, job: dict[str, Any], reason: str) -> int:
-    """Stop tracking a cloud job locally (frees its cloud place). The task itself keeps running remotely."""
+    """Stop a cloud job at its provider, then report the local tracking result."""
+    from lazytools.code_bridge import _cloud_stop
+
     job_id = str(job["job_id"])
-    if job.get("status") in _TERMINAL:
-        _cloud_print(f"job {job_id} already {job['status']}")
-        return 0
-    if not _cloud.mark_interrupted(store, registry, job_id, f"cancelled by operator: {reason}"):
-        latest = _jobs.find_job(store, registry, job_id) or job
-        _cloud_print(f"job {job_id} already {latest.get('status')}")
-        return 0
-    where = job.get("cloud_url") or job.get("cloud_handle") or "the provider's web UI"
-    _cloud_print(f"[interrupted] job {job_id}\nno longer tracked locally; the cloud task is NOT stopped -- cancel it at {where}")
+    handle = job.get("cloud_handle")
+    try:
+        provider, ident = _cloud_stop.resolve_handle(str(handle))
+    except Exception as exc:
+        _cloud_print(f"cloud {handle or ''}: failed: {_cloud.redact(str(exc))}")
+        _cloud_print(f"job {job_id} remains {job.get('status')} locally", err=True)
+        return 1
+
+    result = _cloud.redact_obj(_stop_cloud_target(store, registry, provider, ident, job))
+    suffix = f": {result['reason']}" if result.get("reason") else ""
+    _cloud_print(f"{provider} {ident}: {result['status']}{suffix}")
+    if result.get("status") == "failed":
+        _cloud_print(f"job {job_id} remains {job.get('status')} locally", err=True)
+        return 1
+
+    latest = _jobs.find_job(store, registry, job_id) or job
+    if latest.get("status") == "interrupted":
+        _cloud_print(f"[interrupted] job {job_id}\nprovider stop succeeded and local tracking is interrupted")
+    else:
+        _cloud_print(f"job {job_id} remains {latest.get('status')} locally; provider stop is not confirmed")
     return 0
 
 
@@ -1004,6 +1103,128 @@ def _cmd_wait(args: argparse.Namespace) -> int:
             return 1
         if deadline is not None and time.monotonic() >= deadline:
             print(f"job {args.job_id} still {status or 'starting'} after {args.timeout:.0f}s", file=sys.stderr)
+            return 3
+        time.sleep(args.interval)
+
+
+_WAIT_EVENTS = {"done", "failed", "approval", "landed", "interrupted"}
+
+
+def _wait_event(job: dict[str, Any], event: str, approval: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "event": event,
+        "job_id": str(job["job_id"]),
+        "state": job.get("status"),
+        "approval": approval,
+        "pr_url": job.get("pr_url"),
+    }
+
+
+def _cmd_wait_any(args: argparse.Namespace) -> int:
+    """Wait for the next actionable state across a snapshot of jobs."""
+    started_at = time.time()
+    db_path = _db_path(args)
+    try:
+        events = {value.strip() for value in args.events.split(",") if value.strip()}
+        unknown_events = events - _WAIT_EVENTS
+        if unknown_events:
+            raise ValueError(f"unknown --events value(s): {', '.join(sorted(unknown_events))}")
+        if not events:
+            raise ValueError("--events must contain at least one event")
+        if args.all_active == bool(args.job_ids):
+            raise ValueError("provide JOB_ID(s) or --all-active, but not both")
+        if args.timeout is not None and (not math.isfinite(args.timeout) or args.timeout < 0):
+            raise ValueError("--timeout must be a finite non-negative number")
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    store = _store.build_store(db_path)
+    registry = _store.build_job_registry(store)
+    if args.all_active:
+        watched = [str(job["job_id"]) for job in _jobs.list_jobs(store, all_jobs=False)]
+        if not watched:
+            print("error: no active jobs", file=sys.stderr)
+            return 2
+    else:
+        watched = []
+        for ref in args.job_ids:
+            job = _jobs.find_job(store, registry, ref)
+            if job is None:
+                print(f"error: no job found matching {ref!r}", file=sys.stderr)
+                return 2
+            job_id = str(job["job_id"])
+            if job_id not in watched:
+                watched.append(job_id)
+
+    deadline = None if args.timeout is None else time.monotonic() + args.timeout
+    emitted_approvals: set[str] = set()
+    terminal_seen: set[str] = set()
+    while True:
+        store = _store.build_store(db_path)
+        registry = _store.build_job_registry(store)
+        jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
+
+        # A ticket is emitted once per invocation, even if it remains pending.
+        queue = _store.build_approval_queue(store)
+        tickets = sorted(queue.list_pending_tickets(), key=lambda ticket: ticket.created_at)
+        for ticket in tickets:
+            job = jobs.get(str(ticket.task_id))
+            if job is None or ticket.approval_id in emitted_approvals:
+                continue
+            emitted_approvals.add(ticket.approval_id)
+            detail = _request_detail(ticket.prompt)
+            approval = {
+                "approval_id": ticket.approval_id,
+                "command": detail.get("command"),
+                "summary": detail.get("summary") or ticket.prompt.splitlines()[0],
+                "reason": detail.get("reason"),
+            }
+            if "approval" in events:
+                _print_json(_wait_event(job, "approval", approval))
+                if not args.loop:
+                    return 0
+
+        candidates: list[tuple[float, dict[str, Any], str]] = []
+        for job_id, current in jobs.items():
+            if current is None or job_id in terminal_seen:
+                continue
+            job = current
+            finishing_action = None
+            if _cloud.is_cloud(job) and (job.get("status") not in _TERMINAL or _cloud_land.needs_finishing(job)):
+                row = _cloud_land.process_job(store, registry, job, db_path=db_path, poll_interval=args.interval,
+                                              deadline=deadline, nonblocking_poll=True)
+                job = _jobs.find_job(store, registry, job_id) or job
+                finishing_action = row["action"]
+            status = str(job.get("status") or "")
+            landing_failed = finishing_action in {"land-failed", "review-failed"}
+            landed_at = job.get("landed_at")
+            landed = finishing_action == "landed" or bool(
+                _cloud.is_cloud(job)
+                and job.get("land")
+                and landed_at
+                and (float(landed_at) >= started_at or not job.get("landed_event_reported_at"))
+            )
+            event = "failed" if landing_failed else (
+                "landed" if landed else ({"done": "done", "failed": "failed", "partial": "failed",
+                                           "interrupted": "interrupted"}.get(status))
+            )
+            if event:
+                meta = _store.read_meta(store, job_id) or {}
+                candidates.append((float(meta.get("completed_at") or meta.get("updated_at") or 0), job, event))
+        for _at, job, event in sorted(candidates, key=lambda item: item[0]):
+            terminal_seen.add(str(job["job_id"]))
+            if event in events:
+                _print_json(_wait_event(job, event))
+                if event == "landed":
+                    meta = _store.read_meta(store, str(job["job_id"])) or {}
+                    meta["landed_event_reported_at"] = time.time()
+                    _store.write_meta(store, str(job["job_id"]), meta)
+                if not args.loop:
+                    return 0
+        if args.loop and len(terminal_seen) == len(watched):
+            return 0
+        if deadline is not None and time.monotonic() >= deadline:
             return 3
         time.sleep(args.interval)
 
@@ -1132,6 +1353,9 @@ def _cmd_land(args: argparse.Namespace, store: Any, registry: Any, job: dict[str
         _cloud_print(f"PR: {outcome['pr_url']}")
     if outcome.get("force_added_ignored"):
         _cloud_print("force-added ignored cloud diff paths: " + ", ".join(outcome["force_added_ignored"]))
+    if outcome.get("skipped_bridge_artifacts"):
+        _cloud_print("warning: skipped bridge-owned cloud diff paths: " +
+                     ", ".join(outcome["skipped_bridge_artifacts"]))
     return 0
 
 
@@ -1459,6 +1683,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Asynchronous delegation of coding work to Codex / Claude Code, with human approvals over a durable ticket queue.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    from lazytools.code_bridge._navigator import add_navigate_parser
+    add_navigate_parser(sub)
 
     watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
     watch_p.add_argument("pulls", nargs="+", metavar="owner/repo#pr")
@@ -1542,6 +1768,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Total job wall-clock cap in seconds, including approvals (default: unlimited).")
     run_p.add_argument("--routine-auto", action=argparse.BooleanOptionalAction, default=None,
                        help="Enable the audited routine-auto approval tier (default: on, or [routine_auto] enabled).")
+    run_p.add_argument("--profile", choices=("default", "review"), default="default",
+                       help="Approval profile for local jobs (review auto-approves everything except review hazards).")
     run_p.add_argument("--scratch-root", default=None,
                        help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).")
     run_p.add_argument(
@@ -1582,6 +1810,7 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Also show where the job would run: auto explains its local-vs-cloud decision.")
     _add_routing_options(route_p, required=True)
     route_p.add_argument("--cwd", default=".", help="Repository used to resolve session history (default: cwd).")
+    route_p.add_argument("--root", default=None, help="Confinement root for placement (same rules as run).")
     route_p.add_argument("--session", default=None)
     # Same overrides as `run`, so the exact pick (bucket, provider, effort check) can be dry-run.
     route_p.add_argument("--model", default=None)
@@ -1610,6 +1839,18 @@ def build_parser() -> argparse.ArgumentParser:
     wait_p.add_argument("--json", action="store_true")
     _add_db_option(wait_p)
     wait_p.set_defaults(func=_cmd_wait)
+
+    wait_any_p = sub.add_parser("wait-any", help="Block until an event occurs on any watched job.")
+    wait_any_p.add_argument("job_ids", nargs="*", metavar="JOB_ID")
+    wait_any_p.add_argument("--all-active", action="store_true", help="Watch a snapshot of all currently active jobs.")
+    wait_any_p.add_argument("--timeout", type=float, default=None, help="Give up after this many seconds (exit 3).")
+    wait_any_p.add_argument("--events", default="done,failed,approval,landed,interrupted",
+                            help="Comma-separated events to return.")
+    wait_any_p.add_argument("--loop", action="store_true", help="Print events until every watched job is terminal.")
+    wait_any_p.add_argument("--json", action="store_true", help="Emit the event as one JSON object (the default format).")
+    wait_any_p.add_argument("--interval", type=float, default=0.25, help=argparse.SUPPRESS)
+    _add_db_option(wait_any_p)
+    wait_any_p.set_defaults(func=_cmd_wait_any)
 
     resync_p = sub.add_parser("resync", help="Re-check a cloud job that an older bridge failed after a poll error.")
     resync_p.add_argument("job_id")

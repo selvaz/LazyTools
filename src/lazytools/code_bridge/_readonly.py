@@ -61,7 +61,7 @@ def pipeline(command: str) -> list[str] | None:
 #: ``.git/config`` can hold credentialed remote URLs.
 SENSITIVE_NAMES = (
     ".env*", "auth.json", ".ssh", ".codex", ".claude", ".aws", ".azure", ".gnupg", ".npmrc", ".pypirc",
-    ".netrc", ".git-credentials", "credentials*", "*.pem", "*.key", "id_rsa*", "*secret*", "*token*", ".git",
+    ".netrc", ".git-credentials", "hosts.yml", "credentials*", "*.pem", "*.key", "id_rsa*", "*secret*", "*token*", ".git",
     "id_ed25519*", "id_ecdsa*", "id_dsa*", ".pgpass", "*.tfstate*", "*.tfvars*", "*.pfx", "*.p12", "kubeconfig",
     ".kube", ".docker",
 )

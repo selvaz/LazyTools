@@ -137,7 +137,7 @@ def check_lazybridge_range(m: dict) -> list[str]:
 GITHUB_ONLY_NAMES = frozenset(
     canonicalize_name(n)
     for n in (
-        "lazytoolkit", "lazypulse", "lazycrawler", "lazystats", "lazyray",
+        "lazytoolkit", "lazyceo", "lazypulse", "lazycrawler", "lazystats", "lazyray",
         "market-data-hub", "lazyportfolio", "lazyfin", "lazydataspace",
     )
 )

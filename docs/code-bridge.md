@@ -44,12 +44,89 @@ detached launch JSON gives the id, pid and log path at once.
 | `cancel` | Stop process tree, reject open tickets, retain interruption and workspace evidence |
 | `autonomy` | Report the percentage of finished jobs with no manual intervention and group intervention causes |
 
+### Machine-readable ids and multi-job waiting
+
+Pass `--json` to `run` for a single JSON object on the **first stdout line**.
+It contains the full `job_id`, eight-character `short_id`, `where`, `engine`,
+and `cwd`; detached launches also include `pid`, while cloud submissions
+include `task_url`. Without `--json`, the existing human output is unchanged.
+For cloud submissions, `task_url` is the machine-readable alias of `cloud_url`.
+`jobs --json` emits one job per JSON line, which is both stream-friendly and
+safe from host-console encoding limitations. Human `jobs` output replaces
+unencodable characters rather than crashing on legacy Windows consoles.
+
+An orchestrator can wait on several jobs without polling each one:
+
+```console
+lazytools-code-bridge wait-any JOB_ID JOB_ID --timeout 600 --json
+lazytools-code-bridge wait-any --all-active --events done,failed,approval,landed,interrupted --json
+lazytools-code-bridge wait-any JOB_ID JOB_ID --loop --json
+```
+
+`wait-any` snapshots the named jobs (or all jobs active at startup) and emits
+`{"event", "job_id", "state", "approval", "pr_url"}`. It exits 0 after the
+first selected event, 3 on timeout, and 2 for invalid arguments or unknown
+jobs. Approval details contain `approval_id`, `command`, `summary`, and
+`reason`, and a pending ticket is emitted only once per invocation. `--loop`
+prints JSON lines until every watched job is terminal. For cloud jobs the
+waiter refreshes provider state, reports failures, and performs an owed
+`--land` operation just like `wait`, producing `landed` with its PR URL.
+Its output is always JSON lines; `--json` is accepted for consistency and does
+not change that default format.
+
 Read each ticket's command and reason before deciding. An unanswered ticket
 expires as rejection after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.
 Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;
 `LAZYTOOLS_CODE_BRIDGE_DB` or `--db` selects another Store. Use the same Store
 for every lifecycle command. Logs are under the Store's results directory
 (default `~/.lazytools/results/`).
+
+## Navigator R1: the merge-ready loop
+
+Run the production loop with one check flag per required command:
+
+```console
+lazytools-code-bridge navigate --repo OWNER/REPO --pr 277 \
+  --reviewer-cmd "review-wrapper" --checks "pytest" --checks "ruff check" \
+  --max-rounds 3 --fix-engine codex
+```
+
+The reviewer must post `<!-- independent-review v1 -->` and print a JSON object
+with an explicit `findings` list. The bridge reads the marker and Codex bot
+inline findings for the exact head through `gh api`. Checks run only in a
+temporary detached worktree. Exit 0 means merge-ready, 3 means owner escalation
+(P0/P1, an unknown severity, or the round cap), and 1 means an operational,
+review-contract, independence, or check failure. The command never merges and
+never pushes the default branch.
+
+`lazytools.code_bridge._navigator.Navigator` is the provider-neutral state
+machine for taking a delegated cloud job to **merge-ready**. A backend first
+resyncs a legacy poll-failed job from provider truth and lands it on its pull
+request. The navigator then requests an independent review of the exact pushed
+head. Every new head is reviewed once, and the reported reviewer model must be
+different from the author model. A backend may use `run_reviewer_command` for a
+configured reviewer executable; the command receives `LAZYTOOLS_REVIEW_HEAD`,
+`LAZYTOOLS_REVIEW_PR`, and `LAZYTOOLS_AUTHOR_MODEL` and returns JSON such as:
+
+```json
+{"reviewer_model":"claude","findings":[{"severity":"P2","message":"add a boundary test"}]}
+```
+
+Non-critical findings produce a focused fix brief and a relaunch on the same
+PR, followed by a review of the new head. The default cap is three review
+rounds. Reaching it creates an explicit `round-cap` escalation record and exits
+nonzero. A P0, P1, or unrecognised-severity finding immediately creates an `escalated` owner record and
+exits nonzero; it is never silently sent through another autonomous fix round.
+Changing PRs, reusing a reviewed head, an unknown author model, or using the author's model for review
+also fails closed.
+
+A clean review is not enough to close the task. The backend runs all contract
+checks, recording every result. Navigator R1's standard checks are
+`pytest tests -k code_bridge`, `ruff check`, and
+`mypy src/lazytools/code_bridge`. The first failure stops the run with
+`checks-failed`; only a clean review on the current head plus all-green checks
+produces `merge-ready` and exit status zero. The loop never merges and never
+pushes to `main`: the existing `safe_merge` gate remains the only landing path.
 
 `--task @brief.md` reads a UTF-8 task file rather than treating it as literal
 text; detached launch resolves its path before passing it to the worker.
@@ -628,6 +705,37 @@ exiting, which is the whole point: a human answers it from an entirely
 different process (this bridge's `approve`/`reject`, or any other surface
 that reads the same queue).
 
+### Approval profiles
+
+Local jobs use the existing, conservative approval policy by default. Pass
+`lazytools-code-bridge run --profile review ...` for reviewer jobs. The MCP
+`code_bridge_submit` tool accepts the same `profile="review"` argument. The
+profile name is stored on the job and on every auto-approval audit record;
+changing the profile never changes default jobs.
+
+The `review` profile is fail closed. It tokenizes each command and auto-approves
+only an explicit routine allow-list: `gh pr view|diff|checks`, selected
+read-only `git status|log|diff|show|rev-parse` forms, helper-free `git fetch`,
+pytest, `npm test`, `npm run build|lint`, and common file readers (`ls`, `cat`,
+`grep`, `head`, and `tail`). Every segment of a compound command must match. Native `Read`, `Glob`, and
+`Grep` requests are also held when an explicit path or pattern is sensitive or
+unbounded; shell `grep -r`, `-R`, and `--recursive` are never auto-approved.
+
+Unknown commands or flags, abbreviations, environment/config overrides,
+wrappers, expansions, redirections, writes, deletes, credential reads, GitHub
+mutations (including `gh pr comment`), and unparseable or ambiguous syntax are
+always held for a human. Codex sandbox/network escalations are held even when
+their command would otherwise be on the allow-list.
+
+Every automatic decision is logged as `profile:review`. Cloud jobs do not run
+through the local gate and therefore reject `--profile review`.
+
+The profile intentionally remains narrower than the general read-only command
+catalog. In particular, `ruff`, `mypy`, `npm ci`, `git branch --show-current`,
+`git ls-files`, and combined pytest short flags such as `-qx` or `-vv` are known
+limits and are held for human approval. This preserves fail-closed behavior at
+the cost of occasional prompts for otherwise harmless reviewer commands.
+
 ### Routine auto-approval (R13)
 
 `BridgeGate` adds a **routine-auto** tier before the existing rule table,
@@ -1067,6 +1175,21 @@ routine's API trigger); see [Claude cloud sessions](#claude-cloud-sessions-engin
 below for how it differs. Claude has no status API, so its results are read
 from git.
 
+### Final-report contract
+
+The bridge appends one fixed instruction to every Codex and Claude cloud
+brief: before finishing, the agent must always write its Markdown final report
+to `.bridge/report.md`, including when it changed no other file. On `wait` or
+landing, the bridge extracts that file from the task result into the job's
+`report` field. Both `wait` and `result <job>` print it; an older agent that
+returns no report is shown as `report: (none provided)`.
+
+`.bridge/report.md` is transport, not a repository change. The bridge removes
+it before staging, pushing, or opening a pull request. A result containing
+only the report, and a READY result with an entirely empty diff, are successful
+no-code-change jobs: they finish as `done`, exit zero, and create no branch or
+pull request.
+
 ### Data boundary: cloud jobs cannot read local data
 
 A cloud agent sees **only the repository as its Codex Cloud environment
@@ -1160,9 +1283,11 @@ shows `where=cloud task=<url>`. Statuses: `submitting` (holding a place while
 - Every status write re-reads the record under the machine-wide guard and
   never overwrites a terminal status: a poll or submit whose answer arrives
   after a `cancel` cannot bring the job back (or take its place again).
-- `cancel` stops **tracking** a cloud job (marks it `interrupted` and frees
-  its place) but does **not** stop the remote task; it prints the task URL so
-  you can cancel it there.
+- `cancel` on a cloud job uses the same provider-stop path as `cloud-stop`.
+  It reports both the provider result and the local tracking result, and only
+  marks the job `interrupted` after the provider confirms it stopped or had
+  already finished. A provider-stop failure leaves the job tracked and exits
+  non-zero; an unconfirmed stop request also leaves it tracked.
 
 ### `apply`: never in your checkout, never pushed
 
@@ -1336,6 +1461,10 @@ cancelled and polled for up to 60 seconds; if it remains active, the result is
 stop instruction through `claude --cloud`, allowing the CLI to manage its own
 authentication, and reports `stop requested`, never `stopped`.
 
+The ordinary `cancel <job-id>` command uses this same stop path for cloud jobs
+and prints both the provider and local tracking outcomes. Use `cloud-stop`
+directly for provider tasks that have no bridge job or for bulk stopping.
+
 Use `cloud-stop --all-running` to combine running tasks reported by
 `codex cloud list --json` (including tasks created outside this bridge) with
 running bridge cloud jobs. Add `--dry-run` to list the deduplicated targets
@@ -1508,8 +1637,14 @@ the cloud when
 and locally otherwise. `run --where auto` prints the decision and why on stderr
 (`placement: cloud (requested auto): local time 22:05 is inside the busy window
 21:00-01:30`) and `--json` adds a `placement` object. `route --tier T --where
-auto` shows the same decision without launching anything. A cloud decision still
-needs `--allow-cloud` and an explicit `--engine`, like any cloud job.
+auto` shows the same decision without launching anything, and MCP submissions use
+the same repository-aware decision. When Codex auto placement chooses cloud, an
+unmapped repository fails with `cloud_env_unmapped` and its repository slug in
+JSON and MCP results. Explicit `--where cloud` follows the same policy. Add the
+`[cloud.codex.envs]` mapping or use `--where local`; set `[cloud] unmapped = "local"`
+to opt in to fallback. Auto still chooses local normally when a slot is free
+outside busy windows. Unavailable repository metadata falls back locally for auto.
+A cloud decision still needs `--allow-cloud` and an explicit `--engine`, like any cloud job.
 
 ### Models for cloud jobs
 
@@ -1702,6 +1837,13 @@ What to hand back: the diff summary, the command output, anything undecided.
 
 ## Known limits
 
+- Under the `review` approval profile, every `gh pr comment` command is held
+  for operator approval, including comments that read a body from the job
+  scratch directory and comments embedded in compound shell commands. The
+  bridge deliberately does not inspect a body file and auto-approve the post:
+  command-time file changes would make that check vulnerable to a
+  time-of-check/time-of-use race.
+
 - A session grant for an escalated `git commit` runs the repository's commit
   hooks outside the sandbox. Codex's sandbox keeps `.git` read-only, but a
   repository configured with `core.hooksPath` pointing at a tracked
@@ -1727,6 +1869,12 @@ What to hand back: the diff summary, the command output, anything undecided.
   the same blind spot: if a detached job dies and its pid is reused before
   the next poll, `wait` keeps waiting (use `--timeout`, and `status`/`jobs`
   to check by hand).
+- Shell parsing is intentionally conservative rather than complete. Obscure
+  constructs such as process substitution, shell functions, custom command
+  aliases, nonstandard interpreters, encoded programs, and platform-specific
+  quoting can be held even when harmless, and newly installed command wrappers
+  are not classified until added to the policy. The gate is an approval aid,
+  not a shell sandbox.
 - Claude Bash uses BridgeGate's whole-command parser before any session or
   read-only grant; substitution and ambiguous syntax ask. These checks are
   capability checks, not an operating-system sandbox. Installed executables,

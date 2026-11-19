@@ -93,6 +93,7 @@ plugins:
           - skills-analyst.md
           - skills-stats.md
           - skills-council.md
+          - skills-wizengaimot.md
           - skills-code-bridge-cloud-setup.md
           - report.md
           - workspace.md
@@ -176,6 +177,7 @@ nav:
       - Analyst skills: skills-analyst.md
       - Statistical agents: skills-stats.md
       - Spontaneous AI councils: skills-council.md
+      - WizengAImot council skill: skills-wizengaimot.md
       - Code bridge cloud setup skill: skills-code-bridge-cloud-setup.md
       - Report (LazyReport): report.md
       - Workspace: workspace.md

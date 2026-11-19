@@ -108,6 +108,17 @@ The ten-line summary is sent as a message up to 4,000 characters, otherwise
 as a document. Delivery failure preserves the local plan and records exit 1;
 credential values are never included in the failure finding.
 
+## Release-train consumer pins
+
+`ecosystem/compatibility.toml` is the single authority for the promoted set.
+Every release must run `tools/render_compatibility.py`, regenerate the
+lazy-installer manifest from that set, and bump the Git references and
+`lazybridge` requirement in LazyStudio's `backend/pyproject.toml`. Consumer CI
+should run `tools/check_pins.py --repo .`: the check covers nested Python
+projects and installer manifests, fails stale managed pins, and reports
+application commit pins for repositories outside the authority as unmanaged
+warnings.
+
 Offline tests use temporary real Git repositories and local bare origins:
 
 ```powershell

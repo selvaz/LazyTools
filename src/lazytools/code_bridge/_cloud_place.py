@@ -106,4 +106,24 @@ def decide(requested: str, *, windows: tuple[str, ...], engine: str | None = Non
                      f"({', '.join(free)}){where_window}", busy=busy)
 
 
+def decide_for_repo(requested: str, *, config: Any, engine: str | None, cwd: Any) -> Placement:
+    """Apply the repository mapping policy to the common placement decision."""
+    from lazytools.code_bridge import _cloud, _concurrency
+
+    placement = decide(requested, windows=config.busy_windows, engine=engine)
+    if placement.where == "cloud" and engine == "codex":
+        try:
+            repo = _cloud.repo_slug(_cloud.repo_root(cwd))
+        except (_cloud.CloudError, OSError):
+            if requested == WHERE_AUTO:
+                return Placement("local", requested, "cloud repository metadata is unavailable; running locally")
+            raise
+        if repo.lower() not in config.envs.get("codex", {}):
+            error = _cloud.CloudEnvUnmapped(repo, config.path or _concurrency.config_path())
+            if config.unmapped == "local":
+                return Placement("local", requested, f"{error} Running locally by configuration.")
+            raise error
+    return placement
+
+
 __all__ = ["WHERE_AUTO", "WHERE_CHOICES", "Placement", "decide", "inside_window", "parse_window", "window_label"]

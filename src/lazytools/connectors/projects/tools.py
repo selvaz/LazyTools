@@ -133,6 +133,7 @@ CORE_TOOLS = frozenset(
         # otherwise sessions bypass the tool with direct library calls.
         "projects_open_contract",
         "projects_close_task",
+        "projects_complete_todo",
         "projects_add_note",
         "projects_revise_plan",
         "projects_schedule_task",
@@ -204,14 +205,19 @@ class ProjectsTools:
         return _timeline.render_project_timeline(self._store, blocked_reasons=blocked_reasons, owner=owners[0])
 
     def projects_gantt(
-        self, owner: str = "all", include_closed: bool = False, out_path: str | None = None
+        self,
+        owner: str = "all",
+        include_closed: bool = False,
+        out_path: str | None = None,
+        project_ids: list[str] | None = None,
     ) -> dict[str, str]:
         """The Gantt of every open and paused project, rendered by plain code
         (no model call), in two forms: ``text`` -- one character per day, to
         paste as-is in a monospace block in chat -- and ``html_path`` -- a
         colored, self-contained HTML page (inline SVG) written to disk, to
         attach. ``owner``: "all" (default), "default", or one of
-        ceo/claude/shared. ``include_closed`` also draws draft/done projects."""
+        ceo/claude/shared. ``include_closed`` also draws draft/done projects.
+        ``project_ids`` selects projects and orders their sections."""
         from lazytools.projects import gantt as _gantt
 
         owners = _owners_filter(owner)
@@ -225,8 +231,12 @@ class ProjectsTools:
                 "html_path": "",
             }
         target = Path(out_path).expanduser() if out_path else Path.home() / ".lazytools" / "gantt" / "gantt.html"
-        written = _gantt.write_gantt_html(self._store, target, statuses=statuses, owners=owners)
-        text = _gantt.render_gantt_text(self._store, statuses=statuses, owners=owners)
+        written = _gantt.write_gantt_html(
+            self._store, target, project_ids=project_ids, statuses=statuses, owners=owners
+        )
+        text = _gantt.render_gantt_text(
+            self._store, project_ids=project_ids, statuses=statuses, owners=owners
+        )
         return {"text": text, "html_path": str(written)}
 
     def projects_notes(self, project_id: str, limit: int = 5) -> list[dict[str, Any]]:
@@ -557,6 +567,10 @@ class ProjectsTools:
             review_by=review_by, worker=worker,
         )
 
+    def projects_complete_todo(self, project_id: str, task_index: int, summary: str) -> str:
+        """Close a todo task that has NO acceptance contract, after verifying in person that the work is done. Tasks with a contract must use projects_close_task."""
+        return _task_claims.complete_todo_without_verification(self._store, project_id, task_index, summary)
+
     def projects_add_note(self, project_id: str, text: str, origin: str = "claude") -> str:
         """Record a freeform note against a project."""
         note_id = _notes.add_project_note(self._store, project_id, text, origin=origin)
@@ -767,6 +781,7 @@ class ProjectsTools:
             self.projects_set_brake_enabled,
             self.projects_set_deadline,
             self.projects_close_task,
+            self.projects_complete_todo,
             self.projects_add_note,
             self.projects_retire_task,
             self.projects_reopen_task,
