@@ -90,6 +90,7 @@ class CodeBridgeTools:
         rebase_ok: bool = False,
         review_of: str | None = None,
         allow_cloud: bool = False,
+        profile: str = "default",
     ) -> dict[str, Any]:
         """Submit a coding job; returns at once with its ``job_id``."""
         from lazytools.code_bridge import _cloud, _cloud_place, _engines
@@ -98,6 +99,8 @@ class CodeBridgeTools:
             raise ValueError("task is required (except for a cloud review_of)")
         if task.lstrip().startswith("@"):
             raise ValueError("a task may not start with '@' here (the CLI would read it as a file path)")
+        if profile not in {"default", "review"}:
+            return {"ok": False, "error": "profile must be 'default' or 'review'", "exit_code": 2}
         config = _cloud.load_config()
         requested = where or config.default_where
         resolved = _engines.resolve_cwd(cwd or ".", self._root) if requested in ("auto", "cloud") and engine == "codex" else None
@@ -106,6 +109,7 @@ class CodeBridgeTools:
         except _cloud.CloudEnvUnmapped as exc:
             return {**exc.payload(), "exit_code": 2}
         argv = ["run", "--where", placement.where, "--cwd", cwd or ".", "--root", self._root, "--json"]
+        argv += ["--profile", profile]
         if task.strip():
             argv += ["--task", task]
         for flag, value in (("--engine", engine), ("--tier", tier), ("--model", model), ("--branch", branch),

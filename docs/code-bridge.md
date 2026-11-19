@@ -703,6 +703,37 @@ exiting, which is the whole point: a human answers it from an entirely
 different process (this bridge's `approve`/`reject`, or any other surface
 that reads the same queue).
 
+### Approval profiles
+
+Local jobs use the existing, conservative approval policy by default. Pass
+`lazytools-code-bridge run --profile review ...` for reviewer jobs. The MCP
+`code_bridge_submit` tool accepts the same `profile="review"` argument. The
+profile name is stored on the job and on every auto-approval audit record;
+changing the profile never changes default jobs.
+
+The `review` profile is fail closed. It tokenizes each command and auto-approves
+only an explicit routine allow-list: `gh pr view|diff|checks`, selected
+read-only `git status|log|diff|show|rev-parse` forms, helper-free `git fetch`,
+pytest, `npm test`, `npm run build|lint`, and common file readers (`ls`, `cat`,
+`grep`, `head`, and `tail`). Every segment of a compound command must match. Native `Read`, `Glob`, and
+`Grep` requests are also held when an explicit path or pattern is sensitive or
+unbounded; shell `grep -r`, `-R`, and `--recursive` are never auto-approved.
+
+Unknown commands or flags, abbreviations, environment/config overrides,
+wrappers, expansions, redirections, writes, deletes, credential reads, GitHub
+mutations (including `gh pr comment`), and unparseable or ambiguous syntax are
+always held for a human. Codex sandbox/network escalations are held even when
+their command would otherwise be on the allow-list.
+
+Every automatic decision is logged as `profile:review`. Cloud jobs do not run
+through the local gate and therefore reject `--profile review`.
+
+The profile intentionally remains narrower than the general read-only command
+catalog. In particular, `ruff`, `mypy`, `npm ci`, `git branch --show-current`,
+`git ls-files`, and combined pytest short flags such as `-qx` or `-vv` are known
+limits and are held for human approval. This preserves fail-closed behavior at
+the cost of occasional prompts for otherwise harmless reviewer commands.
+
 ### Routine auto-approval (R13)
 
 `BridgeGate` adds a **routine-auto** tier before the existing rule table,
@@ -1804,6 +1835,13 @@ What to hand back: the diff summary, the command output, anything undecided.
 
 ## Known limits
 
+- Under the `review` approval profile, every `gh pr comment` command is held
+  for operator approval, including comments that read a body from the job
+  scratch directory and comments embedded in compound shell commands. The
+  bridge deliberately does not inspect a body file and auto-approve the post:
+  command-time file changes would make that check vulnerable to a
+  time-of-check/time-of-use race.
+
 - A session grant for an escalated `git commit` runs the repository's commit
   hooks outside the sandbox. Codex's sandbox keeps `.git` read-only, but a
   repository configured with `core.hooksPath` pointing at a tracked
@@ -1829,6 +1867,12 @@ What to hand back: the diff summary, the command output, anything undecided.
   the same blind spot: if a detached job dies and its pid is reused before
   the next poll, `wait` keeps waiting (use `--timeout`, and `status`/`jobs`
   to check by hand).
+- Shell parsing is intentionally conservative rather than complete. Obscure
+  constructs such as process substitution, shell functions, custom command
+  aliases, nonstandard interpreters, encoded programs, and platform-specific
+  quoting can be held even when harmless, and newly installed command wrappers
+  are not classified until added to the policy. The gate is an approval aid,
+  not a shell sandbox.
 - Claude Bash uses BridgeGate's whole-command parser before any session or
   read-only grant; substitution and ambiguous syntax ask. These checks are
   capability checks, not an operating-system sandbox. Installed executables,

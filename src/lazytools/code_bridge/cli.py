@@ -181,6 +181,8 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
         argv += ["--routing-record", json.dumps(args.routing)]
     if getattr(args, "wait_for_slot", False):
         argv += ["--wait-for-slot"]
+    if args.profile != "default":
+        argv += ["--profile", args.profile]
     # The launcher already checked the brief and printed its findings.
     argv += ["--brief-checked"]
     return argv
@@ -333,6 +335,8 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
                              "--review-of picks the opposite engine by itself)")
         if args.routine and args.engine and args.engine != "claude":
             raise ValueError("--routine is only for --where cloud --engine claude")
+        if args.profile != "default":
+            raise ValueError("--profile is only available for local jobs")
         used = [flag for name, flag in _CLOUD_INCOMPATIBLE if getattr(args, name, None) not in (None, False)]
         if used:
             raise ValueError(f"--where cloud does not take {', '.join(used)}")
@@ -567,6 +571,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             scratch_root=args.scratch_root,
             wait_for_slot=args.wait_for_slot,
             on_slot_wait=_slot_wait,
+            profile=args.profile,
         )
     except (LockHeld, EngineBusy) as exc:
         print(str(exc), file=sys.stderr)
@@ -1763,6 +1768,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Total job wall-clock cap in seconds, including approvals (default: unlimited).")
     run_p.add_argument("--routine-auto", action=argparse.BooleanOptionalAction, default=None,
                        help="Enable the audited routine-auto approval tier (default: on, or [routine_auto] enabled).")
+    run_p.add_argument("--profile", choices=("default", "review"), default="default",
+                       help="Approval profile for local jobs (review auto-approves everything except review hazards).")
     run_p.add_argument("--scratch-root", default=None,
                        help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).")
     run_p.add_argument(
