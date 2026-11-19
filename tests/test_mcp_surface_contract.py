@@ -48,6 +48,7 @@ EXPECTED_PROVIDER_IDS = {
     "regimes",
     "report",
     "web",
+    "portfolio",
     "fin",
     "optimizer_agent",
     "report_agent",
@@ -118,8 +119,8 @@ STATISTICAL_TOOLS = {
 
 # PortfolioOptimizationTools emits all three regardless of mode; the
 # read/write split is applied by the server name guard (see section 3), not
-# the connector. PortfolioTreeTools, its "fin" sibling, gates its own write
-# tools at construction (see test_fin_provider_contract below).
+# the connector. PortfolioTreeTools, its portfolio sibling, gates its own write
+# tools at construction (see test_portfolio_provider_contract below).
 FIN_READ = {"portfolio_optimizer_list_objectives"}
 FIN_WRITE = {"portfolio_optimizer_run", "portfolio_optimizer_backtest"}
 PORTFOLIO_TREE_READ = {"portfolio_tree_validate", "portfolio_tree_list", "portfolio_tree_load"}
@@ -352,8 +353,8 @@ def test_manifold_contract() -> None:
     assert _names(provider) == MANIFOLD_TOOLS
 
 
-def test_fin_provider_contract(monkeypatch) -> None:
-    # "fin"'s factory returns a *list* ([PortfolioOptimizationTools,
+def test_portfolio_provider_contract(monkeypatch) -> None:
+    # "portfolio"'s factory returns a *list* ([PortfolioOptimizationTools,
     # PortfolioTreeTools]) — go through default_providers so the
     # list-flattening it relies on is exercised too, not just the individual
     # provider classes. PortfolioOptimizationTools doesn't gate at
@@ -366,13 +367,36 @@ def test_fin_provider_contract(monkeypatch) -> None:
     pytest.importorskip("lazyportfolio")
     monkeypatch.delenv("LAZYPORTFOLIO_TREE_MODELS_DIR", raising=False)
 
-    ro_providers = default_providers(["fin"], allow_write=False)
-    wr_providers = default_providers(["fin"], allow_write=True)
+    ro_providers = default_providers(["portfolio"], allow_write=False)
+    wr_providers = default_providers(["portfolio"], allow_write=True)
     assert set(expand_tools(ro_providers, read_only=True)) == FIN_READ | PORTFOLIO_TREE_READ
     assert (
         set(expand_tools(wr_providers, read_only=False))
         == FIN_READ | FIN_WRITE | PORTFOLIO_TREE_READ | PORTFOLIO_TREE_WRITE
     )
+
+
+def test_fin_provider_is_deprecated_portfolio_alias(monkeypatch) -> None:
+    pytest.importorskip("lazyfin")
+    pytest.importorskip("lazyportfolio")
+    monkeypatch.delenv("LAZYPORTFOLIO_TREE_MODELS_DIR", raising=False)
+
+    assert PROVIDER_FACTORIES["fin"] is PROVIDER_FACTORIES["portfolio"]
+    for allow_write in (False, True):
+        read_only = not allow_write
+        portfolio_tools = set(
+            expand_tools(
+                default_providers(["portfolio"], allow_write=allow_write),
+                read_only=read_only,
+            )
+        )
+        fin_tools = set(
+            expand_tools(
+                default_providers(["fin"], allow_write=allow_write),
+                read_only=read_only,
+            )
+        )
+        assert fin_tools == portfolio_tools
 
 
 def test_report_contract(tmp_path, monkeypatch) -> None:

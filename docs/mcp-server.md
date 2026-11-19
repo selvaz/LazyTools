@@ -124,7 +124,8 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `statistical` | `StatisticalAnalysisTools()` | volatility, correlation, outliers, regression | `market-data-hub` installed |
 | `regimes` | `RegimeTools()` | `regime_*` read-only inspection | `lazystats[regimes]` |
 | `web` | `WebTools()` | search / crawl / get-page | `[web]` extra |
-| `fin` | `PortfolioOptimizationTools()` + `PortfolioTreeTools()` | `portfolio_optimizer_*` (flat node) + `portfolio_tree_*` (multi-node, interoperable with LazyPortfolio's Tree Studio) | `lazyfin`, `lazyportfolio` |
+| `portfolio` | `PortfolioOptimizationTools()` + `PortfolioTreeTools()` | `portfolio_optimizer_*` (flat node) + `portfolio_tree_*` (multi-node, interoperable with LazyPortfolio's Tree Studio) | `lazyfin`, `lazyportfolio` |
+| `fin` | Deprecated alias for `portfolio` (same tools and behavior) | `portfolio_optimizer_*` + `portfolio_tree_*` | `lazyfin`, `lazyportfolio` |
 | `optimizer_agent` | `optimizer_specialist(...)` — a `lazybridge.Agent` | one tool, `portfolio-optimizer-specialist(task: str)` | `--allow-unsafe` + `DEEPSEEK_API_KEY` (opt-in only, see below) |
 | `report_agent` | `report_specialist(...)` — a `lazybridge.Agent` | one tool, `report-specialist(task: str)` | `--allow-unsafe` + `DEEPSEEK_API_KEY` (opt-in only, see below) |
 | `projects` | `ProjectsTools()` | records, owner, plans, schedule/Gantt, quota, notes, cost; full profile adds contracts/verification | configured Store for persistence; writes need `--allow-unsafe` |
@@ -270,7 +271,7 @@ stronger model" is a legitimate consulting move; the env-var settings below
 remain the defaults). `effort` is checked: one of `none`, `minimal`, `low`,
 `medium`, `high`, `xhigh`, `max`, `ultra`, else a `ValueError` lists them. The consultant
 differs from the reviewers in one more way: it carries the server's own **read-only LazyTools toolset** as Codex
-dynamic tools — the `web`, `datahub`, `statistical`, `fin` and
+dynamic tools — the `web`, `datahub`, `statistical`, `portfolio` and
 `econ_calendar` providers, built from the same factories and configuration
 the MCP server serves, so a consultant that searches the web or runs the
 optimizer hits the same databases and caches as the equivalent MCP tools.
