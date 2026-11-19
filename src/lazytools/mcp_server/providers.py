@@ -54,6 +54,14 @@ def _register(provider_id: str) -> Callable[[Callable[..., Any]], Callable[..., 
     return deco
 
 
+@_register("studio")
+def _studio(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Published LazyStudio agents (execution requires ``--allow-unsafe``)."""
+    from lazytools.mcp_server.studio import StudioTools
+
+    return StudioTools(allow_run=allow_write)
+
+
 @_register("datahub")
 def _datahub(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """market-data-hub discovery / resolution / financial facts.
@@ -894,6 +902,30 @@ def _code_sessions(allow_write: bool = False, *, data_source: dict[str, Any] | N
         root=(data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
         allow_mutate=allow_write,
     )
+
+
+@_register("code_bridge")
+def _code_bridge(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Local and cloud coding jobs through lazytools-code-bridge (``code_bridge_submit|status|result``).
+
+    Lets one agent hand work to another the way a person uses the bridge CLI:
+    ``code_bridge_submit`` starts a local (detached) or cloud job and returns its
+    id; ``code_bridge_status`` / ``code_bridge_result`` follow it, including the
+    pushed branch, PR and independent-review comment of a cloud job that was
+    submitted with ``land``. Each tool runs the CLI command, so placement
+    (``where="auto"``), approvals, redaction and landing behave identically.
+
+    Gated like ``code_write``: absent unless ``allow_write=True``
+    (``--allow-unsafe``), because it starts coding agents that write code. Cloud
+    jobs additionally need ``allow_cloud=true`` on every submit. ``cwd`` is
+    confined to ``code_root`` / ``LAZYTOOLS_CODE_ROOT`` (else the process' cwd).
+    """
+    if not allow_write:
+        raise RuntimeError("code_bridge is opt-in only: pass allow_write=True (--allow-unsafe).")
+
+    from lazytools.code_bridge._mcp import CodeBridgeTools
+
+    return CodeBridgeTools(root=(data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"))
 
 
 @_register("telegram")

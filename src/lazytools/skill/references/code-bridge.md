@@ -1,6 +1,6 @@
 # Async code bridge
 
-Install the `engines` extra for Claude jobs and quota-aware tiers. Run from a workspace containing `<repo>`; the default code root is the launch directory. Authenticate the local coding runtimes first.
+Install the `engines` extra for Claude jobs and quota-aware tiers. Set the top-level `root` workspace path in `~/.lazytools/code-bridge.toml`; `--root` overrides it, and the launch directory is used only when neither is set. Authenticate the local coding runtimes first.
 
 ```sh
 lazytools-code-bridge route --tier writing --cwd <repo>

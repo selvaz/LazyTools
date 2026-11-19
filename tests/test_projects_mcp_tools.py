@@ -293,8 +293,6 @@ def test_mcp_contract_opened_through_tool_blocks_shortcut_close(tmp_path) -> Non
     # gate on the same store: the closer does the lookup itself.
     from lazybridge.ext.planners import DurableBlackboard
 
-    from lazytools.projects import task_claims
-
     pt = _promoted(tmp_path)
     opened = pt.projects_open_contract(
         "alpha", 0, "repo", "obs", ["c0 passes"], ["pytest"], risk="low", allowed_effects="files"
@@ -302,8 +300,12 @@ def test_mcp_contract_opened_through_tool_blocks_shortcut_close(tmp_path) -> Non
     assert isinstance(opened, dict), opened
     assert pt.projects_find_contract("alpha", 0) is not None
 
-    msg = task_claims.complete_todo_without_verification(pt._store, "alpha", 0, "looks done to me")
+    msg = pt.projects_complete_todo("alpha", 0, "looks done to me")
     assert msg.startswith("REJECTED") and "accept()" in msg
+    # The existing gate message is returned unchanged; MCP callers get the
+    # contract-backed tool name in the advertised description.
+    tool = next(t for t in pt.as_tools() if t.name == "projects_complete_todo")
+    assert "Tasks with a contract must use projects_close_task." in tool.definition().description
     assert DurableBlackboard(pt._store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "todo"
     # ...and the MCP-level project close refuses too, because the task is still open.
     assert pt.projects_close("alpha").startswith("REJECTED")
@@ -312,12 +314,35 @@ def test_mcp_contract_opened_through_tool_blocks_shortcut_close(tmp_path) -> Non
 def test_mcp_task_without_contract_still_closes_by_shortcut(tmp_path) -> None:
     from lazybridge.ext.planners import DurableBlackboard
 
-    from lazytools.projects import task_claims
-
     pt = _promoted(tmp_path)
     assert pt.projects_find_contract("alpha", 0) is None
-    assert "marked done" in task_claims.complete_todo_without_verification(pt._store, "alpha", 0, "verified by hand")
-    assert DurableBlackboard(pt._store, plan_id="project:alpha").snapshot().tasks[0]["status"] == "done"
+    assert pt.projects_complete_todo("alpha", 0, "verified by hand") == (
+        "task 0 marked done (SENZA VERIFICA, no claim): verified by hand"
+    )
+    task = DurableBlackboard(pt._store, plan_id="project:alpha").snapshot().tasks[0]
+    assert task["status"] == "done"
+    assert task["result"] == "verified by hand"
+
+
+@pytest.mark.parametrize("summary", ["", "   \n\t"])
+def test_mcp_complete_todo_refuses_empty_summary_without_mutating_state(tmp_path, summary) -> None:
+    pt = _promoted(tmp_path)
+    before = pt._store.read("blackboard:project:alpha")
+    assert pt.projects_complete_todo("alpha", 0, summary) == "REJECTED: a 1-3 sentence summary is required."
+    assert pt._store.read("blackboard:project:alpha") == before
+
+
+@pytest.mark.parametrize("profile", ["core", "full"])
+def test_mcp_complete_todo_is_write_gated(tmp_path, profile) -> None:
+    from lazytools.mcp_server.server import expand_tools
+
+    db = str(tmp_path / "store.sqlite")
+    ro = ProjectsTools(store_db=db, profile=profile)
+    rw = ProjectsTools(store_db=db, profile=profile, allow_write=True)
+    assert "projects_complete_todo" not in {t.name for t in ro.as_tools()}
+    assert "projects_complete_todo" in {t.name for t in rw.as_tools()}
+    assert "projects_complete_todo" not in expand_tools([rw], read_only=True)
+    assert "projects_complete_todo" in expand_tools([rw], read_only=False)
 
 
 def test_mcp_accepted_closer_requires_full_write_profile(tmp_path) -> None:
@@ -337,7 +362,9 @@ def test_mcp_surface_exposes_no_unguarded_task_close_tool(tmp_path) -> None:
     # Every task closer must be explicitly reviewed here, including new names
     # containing close/complete rather than only the old close_task spelling.
     closers = {n for n in names if any(word in n for word in ("mark_done", "complete", "close"))}
-    assert closers == {"projects_close", "projects_close_accepted_task"}
+    # projects_close_task is the evidence closer: it accepts through verification.accept.
+    # projects_complete_todo delegates to the gate that refuses contracted tasks.
+    assert closers == {"projects_close", "projects_close_accepted_task", "projects_close_task", "projects_complete_todo"}
     assert pt.projects_close_accepted_task("missing", 0, "missing").startswith("REJECTED:")
 
 

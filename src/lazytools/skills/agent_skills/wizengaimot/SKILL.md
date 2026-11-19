@@ -1,42 +1,38 @@
 ---
 name: wizengaimot
-description: Convene an interactive council in Claude Code to debate a difficult decision, design, plan, or draft with Codex and Claude before finalizing it. Use when the user invokes /wizengaimot or asks for a multi-agent council.
+description: "Run a Wizengaimot: a structured, round-based discussion between this Claude Code session (the orchestrator) and two senior external agents — Codex (codex_ask) and another Claude (claude_ask) — to pressure-test a piece of work before finalizing it. Use when the user invokes /wizengaimot, or asks to \"discuss with the other agents\", \"convene the council\", \"ask the other two what they think\", or wants a deliverable (code, implementation plan, design, analysis, answer) debated by multiple high-level models before it ships. Same spirit as the multi-provider Python council in lazytools.skills.council, orchestrated live from Claude Code over the LazyTools MCP consultants."
 ---
 
-# WizengAImot — structured three-agent deliberation
+# Wizengaimot — structured three-agent deliberation
 
 You are the **orchestrator**. The two **participants** are reached through the
 LazyTools MCP server:
 
 | Seat | Tool | Default configuration |
 |---|---|---|
-| A | `codex_ask` | Codex at medium effort |
-| B | `claude_ask` | Claude (opus) |
+| A | `codex_ask` | the server's default Codex model, `effort="medium"` |
+| B | `claude_ask` | `model="opus"` |
 
-The user can reassign either seat's model/effort per invocation (for example, Codex high and Claude Sonnet) — pass the overrides on every call for that discussion.
+The user can reassign either seat's model/effort per invocation ("this time
+Codex high and Sonnet") — pass the overrides on every call for that discussion.
 If the live tool schema has no `model`/`effort`/`thinking` parameters, the MCP
-server may need an upgrade or restart: proceed with
+server is older than LazyTools v0.10 or hasn't been restarted since: proceed with
 the server defaults and tell the user why the override was skipped.
 
-## Setup
+## Prerequisites
 
-Configure the LazyTools MCP server with `codex_ask` and `claude_ask` available.
-See the [LazyTools MCP server setup](../lazytools/references/mcp-server.md).
-The skill is the live interactive council run from Claude Code; the Python
-`WizengAImot` class is the programmatic council for scripts and pipelines.
-Both coexist.
-
-## Privacy
-
-The draft and discussion are sent to both external engines. Do not include
-secrets.
-
-## Failure handling
-
-If a seat errors or its session dies, retry once in a fresh session with the
-current artifact, charter, relevant prior positions and discussion reconstructed
-as context. If it still fails, continue with the remaining seat and record the
-failure, retry and reduced participation in the verbale.
+- The LazyTools MCP server registered in Claude Code **with `--allow-unsafe`**
+  and the `code_review` and `claude_review` providers, for example
+  `lazytools-mcp --allow-unsafe code_review claude_review`. Without that flag
+  `codex_ask` and `claude_ask` are not exposed. These tools start Codex and
+  Claude Code with read access to the repository you point them at.
+- A logged-in Codex CLI and Claude Code CLI on this machine.
+- Install this skill with
+  `python -c "from lazytools.skills.agent_skills import install_agent_skill; install_agent_skill('wizengaimot')"`
+  (pass `overwrite=True` to update an existing copy; writes `~/.claude/skills/wizengaimot/SKILL.md`), then invoke `/wizengaimot`.
+- Without Claude Code, the same idea runs as plain Python:
+  `from lazytools.skills.council import standard_council` (a multi-provider
+  council on LazyBridge agents; see docs/skills-council.md).
 
 ## The protocol
 
@@ -45,9 +41,11 @@ implementation plan, the analysis, or the answer the user asked for. This is
 what goes to discussion — never send the participants a bare open question
 when the protocol calls for a position to attack.
 
-Round 1 starts with blind, parallel comments; neither seat is the first
-speaker during that step. For cross-examination, choose A as first speaker
-unless the user specifies otherwise. Swap the roles for each subsequent round.
+Each round has a **first speaker** and a **second speaker**. In round 1 the
+first speaker is A (Codex) unless the user says otherwise; **the roles swap
+every round** — the structure gives the first speaker both the opening and
+the closing word, and alternation is what keeps that advantage from
+compounding across the discussion.
 
 **Round 1 — independent opinions, then cross-examination (4 calls):**
 
@@ -142,7 +140,7 @@ fourth round "just to be sure" unless the user raised the cap.
 ## Output — always both pieces
 
 1. **The final artifact** — the thing itself, ready to use.
-2. **The report (verbale)** — per round: each participant's substantive
+2. **The report (minutes)** — per round: each participant's substantive
    proposals, which were accepted/rejected/deferred and why, and how the
    artifact changed. Mark every **Orchestrator override** (a rejection of a
    position both participants shared) as such. End with the outcome
@@ -154,7 +152,8 @@ fourth round "just to be sure" unless the user raised the cap.
 
 - Each `codex_ask`/`claude_ask` call takes **minutes**. Expect a full round
   to take 5–15 minutes; keep the user informed between steps.
-- If tools are missing, check the MCP server configuration and restart the session.
+- The LazyTools MCP server takes ~16 s to start; a missing tool at session
+  start is usually `MCP_TIMEOUT`, not a fault.
 - One focused request per call. If a round's step needs two unrelated
   questions answered, that is a sign the artifact section should be split,
   not the call.

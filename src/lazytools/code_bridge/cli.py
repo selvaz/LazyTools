@@ -18,10 +18,27 @@ import signal
 import subprocess
 import sys
 import time
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _brief, _concurrency, _engines, _jobs, _progress, _routine, _routing, _store
+from lazytools.code_bridge import (
+    _autonomy,
+    _brief,
+    _cloud,
+    _cloud_envs,
+    _cloud_land,
+    _cloud_place,
+    _concurrency,
+    _engines,
+    _freshness,
+    _jobs,
+    _progress,
+    _routine,
+    _routing,
+    _store,
+    _watch,
+)
 from lazytools.code_bridge._concurrency import EngineBusy
 from lazytools.code_bridge._lockfile import LockHeld
 from lazytools.routing.policy import DEFAULT_POLICY, translate_model
@@ -51,7 +68,61 @@ def _print_json(payload: Any) -> None:
     # One compact line, not pretty-printed: easier for a caller to parse
     # line-by-line (the `run` command's output in particular is job-id
     # line + one JSON line, and a multi-line payload would break that).
-    print(json.dumps(payload, default=str))
+    print(json.dumps(payload, default=str), flush=True)
+
+
+def _safe_print(text: str) -> None:
+    """Print text even when a legacy Windows console cannot encode it."""
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    print(text.encode(encoding, errors="backslashreplace").decode(encoding), flush=True)
+
+
+def _job_identity(job_id: str, *, where: str, engine: Any, cwd: Any, **extra: Any) -> dict[str, Any]:
+    return {"job_id": job_id, "short_id": job_id[:8], "where": where, "engine": engine, "cwd": str(cwd), **extra}
+
+
+def _cloud_print(text: str, *, err: bool = False) -> None:
+    """Print one line of cloud-job output through the same redaction as the job record."""
+    print(_cloud.redact(text), file=sys.stderr if err else sys.stdout)
+
+
+def _cloud_json(payload: Any) -> None:
+    _print_json(_cloud.redact_obj(payload))
+
+
+def _configure_run_root(args: argparse.Namespace) -> int | None:
+    """Resolve the bridge root once and remember its user-visible provenance."""
+    try:
+        if args.root is not None:
+            root = Path(args.root).expanduser().resolve()
+            source = "flag (--root)"
+        elif env_root := os.environ.get("LAZYTOOLS_CODE_ROOT"):
+            root = Path(env_root).expanduser().resolve()
+            source = "env (LAZYTOOLS_CODE_ROOT)"
+        else:
+            workspace = _concurrency.load_workspace()
+            if workspace.root is not None:
+                root = workspace.root
+                source = f"config ({_concurrency.config_path()})"
+            else:
+                root = Path.cwd().resolve()
+                source = "cwd"
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    args.root = str(root)
+    args.root_source = source
+    return None
+
+
+def _root_error(args: argparse.Namespace, exc: Exception) -> str:
+    """Add actionable root provenance only to confinement failures."""
+    if "outside the allowed root" not in str(exc):
+        return str(exc)
+    return (
+        f"{exc} (root from {args.root_source}); pass --root PATH or set root in "
+        f"LAZYTOOLS_CODE_ROOT or {_concurrency.config_path()} to a directory containing the repository"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -63,19 +134,34 @@ def _print_json(payload: Any) -> None:
 #: "awaiting_approval" whose process is gone is reported as died by `wait`.
 _TERMINAL = ("done", "partial", "failed", "interrupted")
 
+
+def _record_intervention(store: Any, job_id: str, kind: str, reason: str | None = None) -> None:
+    """Best-effort audit write; an audit failure must not undo an operator action."""
+    try:
+        _store.record_intervention(store, job_id, kind, reason)
+    except Exception as exc:
+        print(f"warning: action succeeded but its {kind} intervention could not be recorded: {exc}", file=sys.stderr)
+
 # Windows process-creation flags for a child that must outlive its launcher:
 # no console tie to the parent, its own process group (so a Ctrl+C or a
 # console close aimed at the launcher does not reach it), and out of the
 # launcher's job object when that object allows it -- a job object is what
 # lets a supervising process (e.g. a Claude Code background shell being
 # reaped) take its whole tree down with it.
-_DETACHED_PROCESS = 0x00000008
+# CREATE_NO_WINDOW gives the child a NEW, hidden console instead of none
+# (DETACHED_PROCESS). Console programs the job starts (git, npm, pytest,
+# powershell, the engines) inherit that hidden console; with no console at
+# all, Windows allocates a visible one for each of them, which on a machine
+# whose default terminal is Windows Terminal opens one tab per command.
+_CREATE_NO_WINDOW = 0x08000000
 _CREATE_NEW_PROCESS_GROUP = 0x00000200
 _CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 
 
 def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
-    argv = [sys.executable, "-m", "lazytools.code_bridge", "run", "--engine", args.engine, "--cwd", args.cwd]
+    # --where local: the child must never re-resolve placement (a [cloud] default_where would send it to the cloud).
+    argv = [sys.executable, "-m", "lazytools.code_bridge", "run", "--where", "local", "--engine", args.engine,
+            "--cwd", args.cwd]
     argv += ["--task", args.task, "--job-id", job_id]
     argv += ["--timeout", str(args.timeout)]
     argv += ["--max-continuations", str(args.max_continuations)]
@@ -96,6 +182,8 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
         argv += ["--routing-record", json.dumps(args.routing)]
     if getattr(args, "wait_for_slot", False):
         argv += ["--wait-for-slot"]
+    if args.profile != "default":
+        argv += ["--profile", args.profile]
     # The launcher already checked the brief and printed its findings.
     argv += ["--brief-checked"]
     return argv
@@ -112,7 +200,7 @@ def _spawn_detached(argv: list[str], log_path: Path) -> int:
             "close_fds": True,
         }
         if os.name == "nt":
-            flags = _DETACHED_PROCESS | _CREATE_NEW_PROCESS_GROUP
+            flags = _CREATE_NO_WINDOW | _CREATE_NEW_PROCESS_GROUP
             try:
                 proc = subprocess.Popen(argv, creationflags=flags | _CREATE_BREAKAWAY_FROM_JOB, **common)
             except OSError:
@@ -139,7 +227,7 @@ def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
         root = _build_root(args.root)
         resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     # A busy engine is refused HERE too, naming the running job, rather than
     # in a child whose refusal only reaches its log. The child re-checks
@@ -177,7 +265,7 @@ def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
     if args.json:
         _print_json(
             {
-                "job_id": job_id,
+                **_job_identity(job_id, where="local", engine=args.engine, cwd=args.cwd),
                 "pid": pid,
                 "log": str(log_path),
                 **({"routing": args.routing} if getattr(args, "routing", None) else {}),
@@ -203,7 +291,7 @@ def _check_brief_before_launch(args: argparse.Namespace, task: str) -> int | Non
     try:
         cwd = _engines.resolve_cwd(args.cwd, args.root)
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     findings = _brief.check_brief(task, engine=args.engine, cwd=cwd, root=args.root)
     for finding in findings:
@@ -219,7 +307,191 @@ def _check_brief_before_launch(args: argparse.Namespace, task: str) -> int | Non
     return None
 
 
+def _check_freshness_before_launch(args: argparse.Namespace) -> int | None:
+    """Warn on stderr when the branch is behind its upstream; refuse only with ``--require-fresh``."""
+    if args.no_freshness_check:
+        return None
+    try:
+        cwd = _engines.resolve_cwd(args.cwd, args.root)
+    except (OSError, ValueError):
+        return None  # the launch reports a bad --cwd itself
+    result = _freshness.check_freshness(cwd)
+    if not result.stale():
+        return None
+    print(f"freshness: warn {result.message()}", file=sys.stderr)
+    if args.require_fresh:
+        print("error: launch refused by --require-fresh; update the branch, or drop --require-fresh", file=sys.stderr)
+        return 2
+    return None
+
+
+_CLOUD_INCOMPATIBLE = (
+    ("needs", "--needs"),
+    ("session", "--session"),
+    ("effort", "--effort"),
+    ("max_wall", "--max-wall"),
+    ("routine_auto", "--routine-auto"),
+    ("scratch_root", "--scratch-root"),
+    ("detach", "--detach"),
+    ("wait_for_slot", "--wait-for-slot"),
+)
+
+
+def _cmd_run_cloud(args: argparse.Namespace) -> int:
+    """Submit the brief to a cloud agent; return as soon as the task handle is recorded."""
+    import uuid
+
+    review_meta: dict[str, Any] | None = None
+    job_id = args.job_id or uuid.uuid4().hex
+    try:
+        if not args.allow_cloud:
+            raise ValueError(
+                "--where cloud requires --allow-cloud: a cloud agent's commands run on the provider's machine and "
+                "cannot pass through the local approval gate one by one (see docs/code-bridge.md, 'Approvals')"
+            )
+        if args.engine is None and not args.review_of:
+            raise ValueError("--where cloud requires an explicit --engine (quota routing is local-only; "
+                             "--review-of picks the opposite engine by itself)")
+        if args.routine and args.engine and args.engine != "claude":
+            raise ValueError("--routine is only for --where cloud --engine claude")
+        if args.profile != "default":
+            raise ValueError("--profile is only available for local jobs")
+        used = [flag for name, flag in _CLOUD_INCOMPATIBLE if getattr(args, name, None) not in (None, False)]
+        if used:
+            raise ValueError(f"--where cloud does not take {', '.join(used)}")
+        if args.review_of and (args.land or args.pr is not None or args.open_pr):
+            raise ValueError("--review-of posts a comment on the reviewed job's PR; it does not take --land, --pr or --open-pr")
+        task = _read_task(args.task) if args.task else ""
+        if not task and not args.review_of:
+            raise ValueError("run requires --task (or --review-of, for a cloud review)")
+        cwd = _engines.resolve_cwd(args.cwd, args.root)
+        branch = args.branch
+        extra_meta: dict[str, Any] = {}
+        if args.review_of:
+            store = _store.build_store(_db_path(args))
+            prep = _cloud_land.prepare_review(
+                store, _store.build_job_registry(store), args.review_of, job_id=job_id,
+                repo=_cloud.repo_slug(_cloud.repo_root(cwd)), engine=args.engine, extra=task,
+                root=_cloud.repo_root(cwd),
+            )
+            if branch and branch != prep["branch"]:
+                raise ValueError(f"--branch {branch!r} conflicts with the reviewed branch {prep['branch']!r}")
+            args.engine, branch, task = prep["engine"], prep["branch"], prep["task"]
+            review_meta = extra_meta["review"] = prep["review"]
+        if args.routine and args.engine != "claude":
+            raise ValueError("--routine is only for --where cloud --engine claude")
+    except (OSError, ValueError, _cloud.CloudError) as exc:
+        _cloud_print(f"error: {_root_error(args, exc)}", err=True)
+        return 2
+    if not args.brief_checked and not review_meta:
+        refusal = _check_brief_before_launch(args, task)
+        if refusal is not None:
+            return refusal
+    if _cloud.redact(task) != task:
+        print("warning: the brief contains credential-looking text; it is masked in the job record, but the cloud "
+              "agent receives the brief as written -- rotate the secret if it is real", file=sys.stderr)
+    try:
+        job = _cloud.submit_job(
+            engine=args.engine, cwd=cwd, task=task, branch=branch, db_path=_db_path(args), job_id=job_id,
+            approvals=tuple(args.approve_cloud or ()), routine=args.routine, pr=args.pr, open_pr=args.open_pr,
+            land=args.land, rebase_ok=args.rebase_ok, model=args.model, tier=args.tier, title=args.title,
+            extra_meta=extra_meta,
+        )
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _cloud_json(exc.payload())
+        else:
+            _cloud_print(f"error: {exc}", err=True)
+        return 2
+    except (_cloud.CloudError, ValueError) as exc:
+        _cloud_print(f"error: {exc}", err=True)
+        return 2
+    placement = getattr(args, "placement", None)
+    if args.json:
+        payload = {k: job.get(k) for k in ("job_id", "status", "where", "engine", "repo", "env_id", "branch",
+                                           "cloud_handle", "cloud_url", "model", "pr_number", "pr_url", "land", "open_pr")}
+        payload.update(short_id=str(job["job_id"])[:8], cwd=str(cwd), task_url=job.get("cloud_url"))
+        if review_meta:
+            payload["review_of"] = review_meta["of"]
+        if placement is not None and placement.requested == _cloud_place.WHERE_AUTO:
+            payload["placement"] = placement.payload()
+        _cloud_json(payload)
+    else:
+        _cloud_print(str(job["job_id"]))
+        _cloud_print(f"cloud: {job['engine']} task {job.get('cloud_url') or job.get('cloud_handle')} "
+              f"(repo {job['repo']}, branch {job['branch']}, env {job['env_id']})")
+        db_flag = f' --db "{args.db}"' if args.db else ""
+        if job.get("model"):
+            _cloud_print(f"model: {job['model']}")
+        elif job.get("model_note"):
+            _cloud_print(f"model: {job['model_note']}")
+        if job.get("pr_number"):
+            _cloud_print(f"PR target: #{job['pr_number']} ({job.get('pr_url')}), working on its head branch {job['branch']}")
+        elif job.get("open_pr"):
+            _cloud_print(f"PR target: a new branch and PR against {job['branch']} when landed")
+        if review_meta:
+            _cloud_print(f"review of job {review_meta['of'][:8]} ({review_meta['author']}'s work, branch "
+                         f"{review_meta['branch']}); the verdict is posted to "
+                         f"{review_meta.get('pr_url') or 'its PR (none recorded: the review stays in the result)'}")
+        if job.get("engine") == "claude":
+            if job.get("environment_note"):
+                _cloud_print(f"note: {job['environment_note']}")
+            _cloud_print("note: Claude cloud sessions have no status API; the bridge watches origin for the "
+                         "claude/ branch the session pushes")
+        if job.get("land") or review_meta:
+            _cloud_print("landing/posting is automatic: `lazytools-code-bridge wait` or `lazytools-code-bridge cloud-sync` "
+                         "does it when the task finishes")
+        _cloud_print(f"wait for it with: lazytools-code-bridge wait {job['job_id']}{db_flag}")
+    return 0
+
+
+def _resolve_placement(args: argparse.Namespace) -> int | None:
+    """Turn ``--where`` (or ``[cloud] default_where``) into ``args.where`` = local|cloud; ``auto`` explains itself."""
+    try:
+        config = _cloud.load_config()
+        requested = args.where or config.default_where
+        cwd = _engines.resolve_cwd(args.cwd, args.root) if requested in ("auto", "cloud") and args.engine == "codex" else None
+        placement = _cloud_place.decide_for_repo(requested, config=config, engine=args.engine, cwd=cwd)
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _print_json(exc.payload())
+        else:
+            print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except (ValueError, _cloud.CloudError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if placement.requested == _cloud_place.WHERE_AUTO or placement.requested != placement.where:
+        print(placement.line(), file=sys.stderr)  # stderr: stdout's first line is the job id
+    args.where = placement.where
+    args.placement = placement
+    if placement.where == _cloud.WHERE_LOCAL and placement.requested != _cloud.WHERE_LOCAL:
+        # The caller acknowledged that auto placement may use cloud.  If it
+        # instead selected local, that acknowledgement is harmless rather than
+        # a local-only option error.
+        args.allow_cloud = False
+    return None
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
+    refusal = _configure_run_root(args)
+    if refusal is not None:
+        return refusal
+    refusal = _resolve_placement(args)
+    if refusal is not None:
+        return refusal
+    if args.where == _cloud.WHERE_CLOUD:
+        return _cmd_run_cloud(args)
+    for name, flag in (("branch", "--branch"), ("allow_cloud", "--allow-cloud"), ("approve_cloud", "--approve-cloud"),
+                       ("routine", "--routine"), ("pr", "--pr"), ("open_pr", "--open-pr"), ("land", "--land"),
+                       ("title", "--title"),
+                       ("rebase_ok", "--rebase-ok")):
+        if getattr(args, name, None) not in (None, False, []):
+            print(f"error: {flag} is only for --where cloud", file=sys.stderr)
+            return 2
+    if args.task is None:
+        print("error: run requires --task", file=sys.stderr)
+        return 2
     try:
         if not math.isfinite(args.timeout) or args.timeout <= 0:
             raise ValueError("--timeout must be a finite number greater than 0")
@@ -273,10 +545,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 raise ValueError(rejection)
             args.effort = args.effort.strip()
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     if not args.brief_checked:
         refusal = _check_brief_before_launch(args, task)
+        if refusal is not None:
+            return refusal
+        refusal = _check_freshness_before_launch(args)
         if refusal is not None:
             return refusal
     if args.detach:
@@ -285,7 +560,18 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     def _announce(job_id: str) -> None:
         job_id_holder["job_id"] = job_id
-        print(job_id, flush=True)  # first line: the caller can capture this immediately
+        if args.json:
+            _print_json(
+                {
+                    **_job_identity(job_id, where="local", engine=args.engine, cwd=args.cwd),
+                    **({"routing": args.routing} if args.routing else {}),
+                }
+            )
+        else:
+            print(job_id, flush=True)  # first line: the caller can capture this immediately
+
+    def _slot_wait(busy: EngineBusy) -> None:
+        _announce_slot_wait(busy, err=args.json)
 
     try:
         result = _jobs.run_job(
@@ -306,7 +592,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             routine_auto=args.routine_auto,
             scratch_root=args.scratch_root,
             wait_for_slot=args.wait_for_slot,
-            on_slot_wait=_announce_slot_wait,
+            on_slot_wait=_slot_wait,
+            profile=args.profile,
         )
     except (LockHeld, EngineBusy) as exc:
         print(str(exc), file=sys.stderr)
@@ -318,6 +605,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if args.json:
         _print_json(
             {
+                "event": "result",
                 "job_id": result.job_id,
                 "status": result.status,
                 "result_path": str(result.result_path) if result.result_path else None,
@@ -347,12 +635,19 @@ def _job_line(job: dict[str, Any]) -> str:
     objective = str(job.get("objective") or "")[:80]
     routing = job.get("routing") or {}
     details = f"tier={routing.get('tier') or '-'} model={job.get('model') or 'default'} effort={job.get('effort') or 'default'}"
+    if _cloud.is_cloud(job):
+        details = f"where=cloud task={job.get('cloud_url') or job.get('cloud_handle') or '-'} branch={job.get('branch') or '-'}"
+        return _cloud.redact(f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}")
     return f"{short_id}  {engine:<6}  {status:<16}  {details}  {cwd}  {objective}"
 
 
-def _announce_slot_wait(busy: EngineBusy) -> None:
+def _announce_slot_wait(busy: EngineBusy, *, err: bool = False) -> None:
     jobs = ", ".join(str(h.get("job_id", "?")) for h in busy.holders)
-    print(f"waiting for a {busy.engine} slot (limit {busy.limit}; running: {jobs})", flush=True)
+    print(
+        f"waiting for a {busy.engine} slot (limit {busy.limit}; running: {jobs})",
+        file=sys.stderr if err else sys.stdout,
+        flush=True,
+    )
 
 
 def _slot_excluded(selection: _routing.Selection) -> bool:
@@ -376,20 +671,43 @@ def _select(args: argparse.Namespace, *, cwd: str, respect_slots: bool = True) -
 
 
 def _cmd_route(args: argparse.Namespace) -> int:
+    placement = None
     try:
-        cwd = Path(args.cwd).expanduser().resolve()
+        if args.where:
+            refusal = _configure_run_root(args)
+            if refusal is not None:
+                return refusal
+        if args.where in ("auto", "cloud") and args.engine == "codex":
+            # Resolve against the configured root, exactly as ``run`` does.
+            cwd = Path(_engines.resolve_cwd(args.cwd, args.root)).resolve()
+        else:
+            cwd = Path(args.cwd).expanduser().resolve()
         if not cwd.is_dir():
             raise ValueError(f"--cwd must name an existing directory: {cwd}")
-        selection = _select(args, cwd=str(cwd))
-    except (OSError, ValueError) as exc:
+        if args.where:
+            config = _cloud.load_config()
+            placement = _cloud_place.decide_for_repo(args.where, config=config, engine=args.engine, cwd=cwd)
+        # A cloud placement does not use local slots, so the pick ignores them.
+        selection = _select(args, cwd=str(cwd), respect_slots=not (placement and placement.where == "cloud"))
+    except _cloud.CloudEnvUnmapped as exc:
+        if args.json:
+            _print_json({**exc.payload(), "placement": "would fail: unmapped"})
+        else:
+            print(f"would fail: unmapped: {exc}", file=sys.stderr)
+        return 2
+    except (OSError, ValueError, _cloud.CloudError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     if args.json:
         payload = selection.payload()
         if selection.decision.provider is None:
             payload["error"] = selection.error()
+        if placement is not None:
+            payload["placement"] = placement.payload()
         _print_json(payload)
     else:
+        if placement is not None:
+            print(placement.line())
         _routing.print_selection(selection)
         if selection.decision.provider is None:
             print(f"error: {selection.error()}", file=sys.stderr)
@@ -421,13 +739,14 @@ def _cmd_jobs(args: argparse.Namespace) -> int:
     store = _store.build_store(_db_path(args))
     rows = _jobs.list_jobs(store, all_jobs=args.all)
     if args.json:
-        _print_json(rows)
+        for row in rows:
+            _print_json(row)
         return 0
     if not rows:
         print("no jobs yet" if args.all else "no active jobs (pass --all for history)")
         return 0
     for row in rows:
-        print(_job_line(row))
+        _safe_print(_job_line(row))
     return 0
 
 
@@ -438,10 +757,17 @@ def _cmd_status(args: argparse.Namespace) -> int:
     if job is None:
         print(f"no job found matching {args.job_id!r}", file=sys.stderr)
         return 1
+    if _cloud.is_cloud(job):
+        job = _cloud.refresh(store, registry, job)
     if args.json:
-        _print_json(job)
+        (_cloud_json if _cloud.is_cloud(job) else _print_json)(job)
     else:
         print(_job_line(job))
+        if _cloud.is_cloud(job):
+            if job.get("cloud_status"):
+                _cloud_print(f"cloud status: {job['cloud_status']}")
+            if job.get("last_poll_error"):
+                _cloud_print(f"last poll failed: {job['last_poll_error']}", err=True)
         if "routine_auto" in job:
             print(f"routine-auto: {'enabled' if job['routine_auto'] else 'disabled'}; {job.get('routine_rule_count', 0)} active rules")
         if job.get("turns"):
@@ -456,13 +782,24 @@ def _cmd_result(args: argparse.Namespace) -> int:
     if job is None:
         print(f"no job found matching {args.job_id!r}", file=sys.stderr)
         return 1
+    if _cloud.is_cloud(job):
+        job = _cloud.refresh(store, registry, job)
     status = job.get("status", "?")
     # Same exit code either way -- a caller scripting on exit status must
     # not see a failed job reported as success merely because it asked for
     # --json. Found by Codex review (it previously always returned 0 here).
     exit_code = 1 if status in ("partial", "failed", "interrupted") else 0
+    diff = None
+    if _cloud.is_cloud(job) and job.get("status") == "done" and job.get("cloud_handle"):
+        try:
+            job, diff = _cloud.capture_report(store, registry, job)
+        except _cloud.CloudError:
+            pass
     if args.json:
-        _print_json(job)
+        (_cloud_json if _cloud.is_cloud(job) else _print_json)(job)
+        return exit_code
+    if _cloud.is_cloud(job):
+        _cloud_print(_cloud.result_text(job, diff=diff))
         return exit_code
     print(f"[{status}] job {job.get('job_id')}")
     if job.get("turns"):
@@ -576,6 +913,11 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
     else:
         job_id = str(job["job_id"])
         pid = _detached_pid(db_path, job_id) or job.get("pid")
+    if _cloud.is_cloud(job):
+        result = _cancel_cloud(store, registry, job, args.reason)
+        if result == 0:
+            _record_intervention(store, job_id, "cancel", args.reason)
+        return result
     if job.get("status") in _TERMINAL:
         print(f"job {job['job_id']} already {job['status']}")
         return 0
@@ -618,7 +960,105 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         _store.write_meta(store, job_id, meta)
     message = "cancelled by operator during startup" if startup else "cancelled by operator"
     error = _jobs.interrupt_job(store, registry, job, f"{message}: {args.reason}", db_path=db_path)
+    _record_intervention(store, job_id, "cancel", args.reason)
     print(f"[interrupted] job {job_id}\n{error}")
+    return 0
+
+
+def _cmd_cloud_stop(args: argparse.Namespace) -> int:
+    """Stop provider work, rather than only dropping local tracking."""
+    from lazytools.code_bridge import _cloud_stop
+
+    store = _store.build_store(_db_path(args))
+    registry = _store.build_job_registry(store)
+    targets: list[tuple[str, str, dict[str, Any] | None]] = []
+    errors: list[dict[str, str]] = []
+    if args.all_running:
+        try:
+            targets.extend(("codex", handle, None) for handle in _cloud_stop.codex_running())
+        except Exception as exc:
+            errors.append({"provider": "codex", "status": "failed", "reason": _cloud.redact(str(exc))})
+        for job in _cloud.active_jobs(store):
+            handle = job.get("cloud_handle")
+            if handle:
+                try:
+                    provider, ident = _cloud_stop.resolve_handle(str(handle))
+                    targets.append((provider, ident, job))
+                except Exception as exc:
+                    errors.append({"handle": _cloud.redact(str(handle)), "status": "failed", "reason": _cloud.redact(str(exc))})
+    else:
+        found = _jobs.find_job(store, registry, args.target)
+        value = str(found.get("cloud_handle")) if found and found.get("cloud_handle") else args.target
+        try:
+            provider, ident = _cloud_stop.resolve_handle(value)
+            targets.append((provider, ident, found))
+        except Exception as exc:
+            errors.append({"handle": _cloud.redact(value), "status": "failed", "reason": _cloud.redact(str(exc))})
+
+    unique: dict[tuple[str, str], tuple[str, str, dict[str, Any] | None]] = {}
+    for target in targets:
+        key = target[:2]
+        previous = unique.get(key)
+        unique[key] = target if target[2] is not None or previous is None else previous
+    results: list[dict[str, Any]] = []
+    for provider, handle, owner_job in unique.values():
+        if args.dry_run:
+            result: dict[str, Any] = {"provider": provider, "handle": handle, "status": "would stop"}
+        else:
+            result = _stop_cloud_target(store, registry, provider, handle, owner_job)
+        results.append(result)
+    results.extend(errors)
+    safe = _cloud.redact_obj(results)
+    if args.json:
+        _print_json(safe)
+    else:
+        for item in safe:
+            suffix = f": {item['reason']}" if item.get("reason") else ""
+            print(f"{item.get('provider', 'cloud')} {item.get('handle', '')}: {item['status']}{suffix}")
+    return 1 if any(item.get("status") == "failed" for item in safe) else 0
+
+
+def _stop_cloud_target(store: Any, registry: Any, provider: str, handle: str,
+                       owner_job: dict[str, Any] | None) -> dict[str, Any]:
+    """Use the common provider-stop path and update local tracking when confirmed."""
+    from lazytools.code_bridge import _cloud_stop
+
+    try:
+        result = _cloud_stop.stop(provider, handle)
+        if owner_job is not None and result.get("status") in ("stopped", "already finished"):
+            _cloud.mark_interrupted(store, registry, str(owner_job["job_id"]), "cloud stop requested by operator")
+            result["job_id"] = owner_job["job_id"]
+        return result
+    except Exception as exc:
+        return {"provider": provider, "handle": handle, "status": "failed",
+                "reason": _cloud.redact(str(exc))}
+
+
+def _cancel_cloud(store: Any, registry: Any, job: dict[str, Any], reason: str) -> int:
+    """Stop a cloud job at its provider, then report the local tracking result."""
+    from lazytools.code_bridge import _cloud_stop
+
+    job_id = str(job["job_id"])
+    handle = job.get("cloud_handle")
+    try:
+        provider, ident = _cloud_stop.resolve_handle(str(handle))
+    except Exception as exc:
+        _cloud_print(f"cloud {handle or ''}: failed: {_cloud.redact(str(exc))}")
+        _cloud_print(f"job {job_id} remains {job.get('status')} locally", err=True)
+        return 1
+
+    result = _cloud.redact_obj(_stop_cloud_target(store, registry, provider, ident, job))
+    suffix = f": {result['reason']}" if result.get("reason") else ""
+    _cloud_print(f"{provider} {ident}: {result['status']}{suffix}")
+    if result.get("status") == "failed":
+        _cloud_print(f"job {job_id} remains {job.get('status')} locally", err=True)
+        return 1
+
+    latest = _jobs.find_job(store, registry, job_id) or job
+    if latest.get("status") == "interrupted":
+        _cloud_print(f"[interrupted] job {job_id}\nprovider stop succeeded and local tracking is interrupted")
+    else:
+        _cloud_print(f"job {job_id} remains {latest.get('status')} locally; provider stop is not confirmed")
     return 0
 
 
@@ -631,6 +1071,34 @@ def _cmd_wait(args: argparse.Namespace) -> int:
     from lazytools.code_bridge._lockfile import _pid_alive
 
     db_path = _db_path(args)
+    first = _store.build_store(db_path)
+    first_job = _jobs.find_job(first, _store.build_job_registry(first), args.job_id)
+    if first_job is not None and _cloud.is_cloud(first_job):
+        timeout = _cloud.DEFAULT_CLOUD_WAIT_TIMEOUT if args.timeout is None else args.timeout
+        job = _cloud.wait_job(lambda: _store.build_store(db_path), str(first_job["job_id"]),
+                              timeout=timeout, interval=args.interval)
+        if job is not None and job.get("status") in _TERMINAL:
+            owed_failed = False
+            if _cloud_land.needs_finishing(job):
+                # --land / --review-of: finishing the job (landing it, posting its review) is part of waiting for it.
+                finish_store = _store.build_store(db_path)
+                row = _cloud_land.process_job(finish_store, _store.build_job_registry(finish_store), job,
+                                              db_path=db_path)
+                _cloud_print(f"{row['action']}: {row['detail']}", err=True)
+                owed_failed = row["action"].endswith("-failed")
+            code = _cmd_result(args)
+            return code or (1 if owed_failed else 0)
+        if job is None:
+            print(f"job {args.job_id}: its record disappeared while waiting", file=sys.stderr)
+            return 1
+        errors = int(job.get("poll_errors_in_a_row") or 0)
+        if errors:
+            _cloud_print(f"job {args.job_id} still unknown after {errors} failed status poll(s); last error: "
+                         f"{job.get('last_poll_error')}", err=True)
+            return 4
+        print(f"job {args.job_id} still {job.get('status')} after {timeout:.0f}s", file=sys.stderr)
+        return 3
+
     deadline = None if args.timeout is None else time.monotonic() + args.timeout
     pid = _detached_pid(db_path, args.job_id)
     while True:
@@ -659,6 +1127,313 @@ def _cmd_wait(args: argparse.Namespace) -> int:
             print(f"job {args.job_id} still {status or 'starting'} after {args.timeout:.0f}s", file=sys.stderr)
             return 3
         time.sleep(args.interval)
+
+
+_WAIT_EVENTS = {"done", "failed", "approval", "landed", "interrupted"}
+
+
+def _wait_event(job: dict[str, Any], event: str, approval: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "event": event,
+        "job_id": str(job["job_id"]),
+        "state": job.get("status"),
+        "approval": approval,
+        "pr_url": job.get("pr_url"),
+    }
+
+
+def _cmd_wait_any(args: argparse.Namespace) -> int:
+    """Wait for the next actionable state across a snapshot of jobs."""
+    started_at = time.time()
+    db_path = _db_path(args)
+    try:
+        events = {value.strip() for value in args.events.split(",") if value.strip()}
+        unknown_events = events - _WAIT_EVENTS
+        if unknown_events:
+            raise ValueError(f"unknown --events value(s): {', '.join(sorted(unknown_events))}")
+        if not events:
+            raise ValueError("--events must contain at least one event")
+        if args.all_active == bool(args.job_ids):
+            raise ValueError("provide JOB_ID(s) or --all-active, but not both")
+        if args.timeout is not None and (not math.isfinite(args.timeout) or args.timeout < 0):
+            raise ValueError("--timeout must be a finite non-negative number")
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    store = _store.build_store(db_path)
+    registry = _store.build_job_registry(store)
+    if args.all_active:
+        watched = [str(job["job_id"]) for job in _jobs.list_jobs(store, all_jobs=False)]
+        if not watched:
+            print("error: no active jobs", file=sys.stderr)
+            return 2
+    else:
+        watched = []
+        for ref in args.job_ids:
+            job = _jobs.find_job(store, registry, ref)
+            if job is None:
+                print(f"error: no job found matching {ref!r}", file=sys.stderr)
+                return 2
+            job_id = str(job["job_id"])
+            if job_id not in watched:
+                watched.append(job_id)
+
+    deadline = None if args.timeout is None else time.monotonic() + args.timeout
+    emitted_approvals: set[str] = set()
+    terminal_seen: set[str] = set()
+    while True:
+        store = _store.build_store(db_path)
+        registry = _store.build_job_registry(store)
+        jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
+
+        # A ticket is emitted once per invocation, even if it remains pending.
+        queue = _store.build_approval_queue(store)
+        tickets = sorted(queue.list_pending_tickets(), key=lambda ticket: ticket.created_at)
+        for ticket in tickets:
+            job = jobs.get(str(ticket.task_id))
+            if job is None or ticket.approval_id in emitted_approvals:
+                continue
+            emitted_approvals.add(ticket.approval_id)
+            detail = _request_detail(ticket.prompt)
+            approval = {
+                "approval_id": ticket.approval_id,
+                "command": detail.get("command"),
+                "summary": detail.get("summary") or ticket.prompt.splitlines()[0],
+                "reason": detail.get("reason"),
+            }
+            if "approval" in events:
+                _print_json(_wait_event(job, "approval", approval))
+                if not args.loop:
+                    return 0
+
+        candidates: list[tuple[float, dict[str, Any], str]] = []
+        for job_id, current in jobs.items():
+            if current is None or job_id in terminal_seen:
+                continue
+            job = current
+            finishing_action = None
+            if _cloud.is_cloud(job) and (job.get("status") not in _TERMINAL or _cloud_land.needs_finishing(job)):
+                row = _cloud_land.process_job(store, registry, job, db_path=db_path, poll_interval=args.interval,
+                                              deadline=deadline, nonblocking_poll=True)
+                job = _jobs.find_job(store, registry, job_id) or job
+                finishing_action = row["action"]
+            status = str(job.get("status") or "")
+            landing_failed = finishing_action in {"land-failed", "review-failed"}
+            landed_at = job.get("landed_at")
+            landed = finishing_action == "landed" or bool(
+                _cloud.is_cloud(job)
+                and job.get("land")
+                and landed_at
+                and (float(landed_at) >= started_at or not job.get("landed_event_reported_at"))
+            )
+            event = "failed" if landing_failed else (
+                "landed" if landed else ({"done": "done", "failed": "failed", "partial": "failed",
+                                           "interrupted": "interrupted"}.get(status))
+            )
+            if event:
+                meta = _store.read_meta(store, job_id) or {}
+                candidates.append((float(meta.get("completed_at") or meta.get("updated_at") or 0), job, event))
+        for _at, job, event in sorted(candidates, key=lambda item: item[0]):
+            terminal_seen.add(str(job["job_id"]))
+            if event in events:
+                _print_json(_wait_event(job, event))
+                if event == "landed":
+                    meta = _store.read_meta(store, str(job["job_id"])) or {}
+                    meta["landed_event_reported_at"] = time.time()
+                    _store.write_meta(store, str(job["job_id"]), meta)
+                if not args.loop:
+                    return 0
+        if args.loop and len(terminal_seen) == len(watched):
+            return 0
+        if deadline is not None and time.monotonic() >= deadline:
+            return 3
+        time.sleep(args.interval)
+
+
+def _cmd_resync(args: argparse.Namespace) -> int:
+    store = _store.build_store(_db_path(args))
+    registry = _store.build_job_registry(store)
+    job = _jobs.find_job(store, registry, args.job_id)
+    if job is None:
+        print(f"no job found matching {args.job_id!r}", file=sys.stderr)
+        return 1
+    if not _cloud.is_cloud(job):
+        print(f"job {args.job_id} is a local job", file=sys.stderr)
+        return 2
+    try:
+        job = _cloud.resync(store, registry, job)
+    except _cloud.CloudError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    _record_intervention(store, str(job["job_id"]), "resync", args.reason)
+    if args.json:
+        _cloud_json(job)
+    else:
+        print(_job_line(job))
+        if job.get("cloud_status"):
+            _cloud_print(f"cloud status: {job['cloud_status']}")
+    return 0 if job.get("status") == "done" else (1 if job.get("status") in _TERMINAL else 4)
+
+
+def _cloud_base_branch(outcome: dict[str, Any]) -> str:
+    return str(outcome.get("base_branch") or "<branch>")
+
+
+def _cmd_setup_skill(args: argparse.Namespace) -> int:
+    """Print (or install) the bundled agent skill that walks a user through cloud setup."""
+    from lazytools.skills.agent_skills import agent_skill_path, install_agent_skill
+
+    name = "code-bridge-cloud-setup"
+    if args.install is None:
+        print(agent_skill_path(name))
+        return 0
+    try:
+        target = install_agent_skill(name, Path(args.install) if args.install else None, overwrite=args.force)
+    except FileExistsError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"installed {target}")
+    print('ask your assistant: "set up lazytools-code-bridge cloud jobs" (Claude Code picks the skill up by name)')
+    return 0
+
+
+def _cmd_apply(args: argparse.Namespace) -> int:
+    """Apply a finished cloud task in a fresh worktree/branch; never pushes."""
+    db_path = _db_path(args)
+    store = _store.build_store(db_path)
+    registry = _store.build_job_registry(store)
+    job = _jobs.find_job(store, registry, args.job_id)
+    if job is None:
+        print(f"no job found matching {args.job_id!r}", file=sys.stderr)
+        return 1
+    if not _cloud.is_cloud(job):
+        print(f"job {job['job_id']} is a local job: its changes are already in {job.get('cwd')}", file=sys.stderr)
+        return 2
+    if args.land:
+        result = _cmd_land(args, store, registry, job, db_path)
+        if result == 0 and not getattr(args, "_land_noop", False):
+            _record_intervention(store, str(job["job_id"]), "land", args.reason)
+        return result
+    try:
+        job = _cloud.refresh(store, registry, job)
+        outcome = _cloud.apply_job(
+            store,
+            registry,
+            job,
+            db_path=db_path,
+            branch=args.branch,
+            worktree=Path(args.worktree) if args.worktree else None,
+            rebase=args.rebase,
+            source=args.source,
+        )
+    except _cloud.CloudError as exc:
+        _cloud_print(f"error: {exc}", err=True)
+        return 1
+    if outcome.get("changed"):
+        _record_intervention(store, str(job["job_id"]), "apply", args.reason)
+    if args.json:
+        _cloud_json(outcome)
+        return 0
+    origin = f"{outcome['source_branch']} @ {outcome['base']}" if outcome.get("source_branch") else outcome["base"]
+    _cloud_print(f"applied cloud job {outcome['job_id']} in {outcome['worktree']} (branch {outcome['branch']}, from {origin})")
+    for line in outcome["changed"]:
+        _cloud_print(f"  {line}")
+    if outcome["output"]:
+        _cloud_print(outcome["output"])
+    if outcome.get("rebased_from"):
+        _cloud_print(f"note: --rebase: applied onto the current head of origin/{_cloud_base_branch(outcome)} "
+              f"({outcome['base'][:12]}), not the task's base {outcome['rebased_from'][:12]}; review the result carefully")
+    _cloud_print(f"not pushed. Review, commit, then push only after approval: git -C \"{outcome['worktree']}\" push -u origin {outcome['branch']}"
+                 f" -- or land it in one step: lazytools-code-bridge apply {outcome['job_id']} --land")
+    return 0
+
+
+def _cmd_land(args: argparse.Namespace, store: Any, registry: Any, job: dict[str, Any], db_path: Path | None) -> int:
+    """``apply --land``: commit, push, then update the recorded PR or open a new one."""
+    try:
+        job = _cloud.refresh(store, registry, job)
+        outcome = _cloud_land.land_job(
+            store, registry, job, db_path=db_path, rebase_ok=True if args.rebase_ok else None, branch=args.branch,
+            worktree=Path(args.worktree) if args.worktree else None, source=args.source,
+        )
+    except _cloud.CloudError as exc:
+        _cloud_print(f"error: not landed: {exc}", err=True)
+        return 1
+    if outcome.get("already"):
+        args._land_noop = True
+    if args.json:
+        _cloud_json(outcome)
+        return 0
+    if outcome.get("already"):
+        _cloud_print(f"job {outcome['job_id']} was already landed")
+    if outcome.get("note"):
+        _cloud_print(outcome["note"])
+    if outcome.get("pushed_sha"):
+        _cloud_print(f"landed cloud job {outcome['job_id']}: pushed {outcome['branch']} @ {str(outcome['pushed_sha'])[:12]}")
+    if outcome.get("pr_url"):
+        _cloud_print(f"PR: {outcome['pr_url']}")
+    if outcome.get("force_added_ignored"):
+        _cloud_print("force-added ignored cloud diff paths: " + ", ".join(outcome["force_added_ignored"]))
+    if outcome.get("skipped_bridge_artifacts"):
+        _cloud_print("warning: skipped bridge-owned cloud diff paths: " +
+                     ", ".join(outcome["skipped_bridge_artifacts"]))
+    return 0
+
+
+def _cmd_cloud_sync(args: argparse.Namespace) -> int:
+    """Reconcile every live cloud job: poll, land the finished ones that asked for it, record failures."""
+    store = _store.build_store(_db_path(args))
+    try:
+        rows = _cloud_land.sync(_db_path(args))
+    except (_cloud.CloudError, ValueError) as exc:
+        _cloud_print(f"error: {exc}", err=True)
+        return 1
+    if args.manual:
+        for row in rows:
+            if row.get("action") != "none":
+                _record_intervention(store, str(row["job_id"]), "cloud-sync", args.reason)
+    failed = any(row["action"].endswith("-failed") for row in rows)
+    if args.json:
+        _cloud_json({"jobs": rows, "ok": not failed})
+    elif not rows:
+        print("no live cloud jobs to reconcile")
+    else:
+        for row in rows:
+            _cloud_print(f"{str(row['job_id'])[:8]}  {row['engine']:<6}  {row['status']:<12}  {row['action']:<14}  {row['detail']}")
+    return 1 if failed else 0
+
+
+def _cmd_cloud_envs(args: argparse.Namespace) -> int:
+    try:
+        config = _cloud.load_config()
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    try:
+        slug: str | None = _cloud.repo_slug(_cloud.repo_root(Path(args.cwd).expanduser().resolve()))
+    except (_cloud.CloudError, OSError):
+        slug = None
+    report = _cloud_envs.list_envs(config, current_repo=slug, probe_codex=not args.no_probe)
+    if args.json:
+        _cloud_json(report)
+    else:
+        _cloud_print(_cloud_envs.format_envs(report))
+    return 0
+
+
+def _cmd_cloud_setup(args: argparse.Namespace) -> int:
+    try:
+        config = _cloud.load_config()
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    report = _cloud_envs.check_claude_setup(config)
+    if args.json:
+        _cloud_json(report)
+    else:
+        _cloud_print(_cloud_envs.format_claude_setup(report))
+    return 0 if report["ok"] else 1
 
 
 # --------------------------------------------------------------------------- #
@@ -778,10 +1553,13 @@ def _cmd_pending(args: argparse.Namespace) -> int:
 def _cmd_approve(args: argparse.Namespace) -> int:
     store = _store.build_store(_db_path(args))
     queue = _store.build_approval_queue(store)
+    ticket = queue.get_ticket(args.ticket_id)
     ok = queue.approve_ticket(args.ticket_id, actor=args.actor, channel="cli")
     if not ok:
         print(f"could not approve {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
         return 1
+    if ticket is not None and _store.read_meta(store, str(ticket.task_id)) is not None:
+        _record_intervention(store, str(ticket.task_id), "approve", args.reason)
     print(f"approved {args.ticket_id}")
     return 0
 
@@ -789,11 +1567,44 @@ def _cmd_approve(args: argparse.Namespace) -> int:
 def _cmd_reject(args: argparse.Namespace) -> int:
     store = _store.build_store(_db_path(args))
     queue = _store.build_approval_queue(store)
+    ticket = queue.get_ticket(args.ticket_id)
     ok = queue.reject_ticket(args.ticket_id, actor=args.actor, channel="cli", reason=args.reason)
     if not ok:
         print(f"could not reject {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
         return 1
+    if ticket is not None and _store.read_meta(store, str(ticket.task_id)) is not None:
+        _record_intervention(store, str(ticket.task_id), "reject", args.reason)
     print(f"rejected {args.ticket_id}")
+    return 0
+
+
+def _cmd_autonomy(args: argparse.Namespace) -> int:
+    try:
+        if args.week:
+            if args.until:
+                raise ValueError("--until cannot be combined with --week")
+            since, until = _autonomy.week_bounds(args.week)
+        else:
+            today_utc = datetime.now(UTC).date()
+            since = date.fromisoformat(args.since) if args.since else today_utc - timedelta(days=7)
+            until = date.fromisoformat(args.until) if args.until else today_utc + timedelta(days=1)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if since >= until:
+        print("error: --since must be before --until", file=sys.stderr)
+        return 2
+    payload = _autonomy.report(_store.build_store(_db_path(args)), since=since, until=until)
+    if args.json:
+        _print_json(payload)
+    else:
+        percent = "n/a" if payload["autonomy_percent"] is None else f'{payload["autonomy_percent"]:.1f}%'
+        print(f"Autonomy: {payload['autonomous_jobs']}/{payload['finished_jobs']} finished jobs ({percent}); target 90.0%")
+        print("Intervention causes:")
+        if not payload["intervention_causes"]:
+            print("  none")
+        for kind, count in payload["intervention_causes"].items():
+            print(f"  {kind}: {count}")
     return 0
 
 
@@ -851,6 +1662,32 @@ def _cmd_prune_sessions(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 
 
+def _cmd_watch(args: argparse.Namespace) -> int:
+    try:
+        pulls = [_watch.parse_pull(value) for value in args.pulls]
+        if not math.isfinite(args.interval) or args.interval <= 0:
+            raise ValueError("--interval must be a positive finite number")
+        until = None
+        if args.until:
+            try:
+                clock = datetime.strptime(args.until, "%H:%M").time()
+            except ValueError as exc:
+                raise ValueError("--until must use 24-hour HH:MM format") from exc
+            until = datetime.combine(datetime.now().astimezone().date(), clock).astimezone()
+        store = _store.build_store(_db_path(args))
+
+        def emit(event: _watch.WatchEvent) -> None:
+            if args.json:
+                _print_json(event.as_dict())
+            else:
+                print(event.time, event.pull, event.kind, event.detail, flush=True)
+
+        return _watch.run_watch(pulls, store, interval=args.interval, until=until, emit=emit)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
 def _add_routing_options(parser: argparse.ArgumentParser, *, required: bool = False) -> None:
     parser.add_argument("--tier", choices=["basic", "writing", "thinking", "critical"], required=required)
     parser.add_argument(
@@ -868,12 +1705,76 @@ def build_parser() -> argparse.ArgumentParser:
         description="Asynchronous delegation of coding work to Codex / Claude Code, with human approvals over a durable ticket queue.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    from lazytools.code_bridge._navigator import add_navigate_parser
+    add_navigate_parser(sub)
+
+    watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
+    watch_p.add_argument("pulls", nargs="+", metavar="owner/repo#pr")
+    watch_p.add_argument("--until", default=None, metavar="HH:MM",
+                         help="Stop successfully at this local 24-hour clock time.")
+    watch_p.add_argument("--interval", type=float, default=60.0,
+                         help="Polling interval in seconds (default 60; clamped to the configured minimum).")
+    watch_p.add_argument("--json", action="store_true", help="Print one JSON object per event.")
+    _add_db_option(watch_p)
+    watch_p.set_defaults(func=_cmd_watch)
 
     run_p = sub.add_parser("run", help="Run one coding-engine job to completion in this process.")
     run_p.add_argument("--engine", choices=list(_jobs.ENGINES))
+    run_p.add_argument(
+        "--where",
+        choices=list(_cloud_place.WHERE_CHOICES),
+        default=None,
+        help="local: run the engine on this machine. cloud: submit the brief to the engine's cloud "
+        "agent (Codex Cloud, or a Claude Code cloud session) and return at once; uses no local engine slot and "
+        "cannot read local data. auto: cloud inside a [cloud] busy_windows range or when no local engine slot is "
+        "free, else local. Default: [cloud] default_where, else local. Setup: docs/code-bridge-cloud-setup.md.",
+    )
+    run_p.add_argument("--pr", type=int, default=None, metavar="N",
+                       help="--where cloud only: work on pull request N's head branch; the job records the PR.")
+    run_p.add_argument("--open-pr", action="store_true",
+                       help="--where cloud only: when landed, push a new branch and open a PR against --branch.")
+    run_p.add_argument("--title", default=None,
+                       help="--where cloud only: explicit PR, landing commit, and squash subject (default: # Goal text).")
+    run_p.add_argument(
+        "--land",
+        action="store_true",
+        help="--where cloud only: land the result automatically when the job finishes (`wait` or `cloud-sync`): "
+        "commit, push, update the --pr PR or open a new one. Implies --open-pr without --pr.",
+    )
+    run_p.add_argument(
+        "--rebase-ok",
+        action="store_true",
+        help="--where cloud only: let landing proceed when the base branch moved since submit (refused otherwise). "
+        "Never force-pushes.",
+    )
+    run_p.add_argument(
+        "--branch", default=None, help="--where cloud only: the base branch the cloud agent starts from; it must exist on origin "
+        "(default: current)."
+    )
+    run_p.add_argument(
+        "--routine",
+        default=None,
+        help="--where cloud --engine claude only: fire this [cloud.claude.routines] entry (its API trigger token is "
+        "read from the env var the config names) instead of running `claude --cloud`. Without it, --model picks "
+        "the routine that declares that model, else [cloud.claude] default_routine.",
+    )
+    run_p.add_argument(
+        "--allow-cloud",
+        action="store_true",
+        help="--where cloud only, required: acknowledge that the cloud agent's commands run outside the local "
+        "approval gate (only its diff comes back, through `apply`).",
+    )
+    run_p.add_argument(
+        "--approve-cloud",
+        action="append",
+        choices=sorted(_cloud.GATED_ACTIONS),
+        default=None,
+        help="--where cloud only: approve up front an action the brief asks for that the local approval gate "
+        "would hold (classified by the same rule table); repeatable. Without it such a brief is refused.",
+    )
     _add_routing_options(run_p)
     run_p.add_argument("--cwd", required=True, help="Repository (or subdirectory) to work in.")
-    run_p.add_argument("--task", required=True, help="Task text, or @path/to/file.")
+    run_p.add_argument("--task", default=None, help="Task text, or @path/to/file (required, except for a cloud --review-of).")
     run_p.add_argument("--session", default=None, help="Durable session alias to create/resume.")
     run_p.add_argument("--model", default=None)
     run_p.add_argument("--effort", default=None)
@@ -889,10 +1790,13 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Total job wall-clock cap in seconds, including approvals (default: unlimited).")
     run_p.add_argument("--routine-auto", action=argparse.BooleanOptionalAction, default=None,
                        help="Enable the audited routine-auto approval tier (default: on, or [routine_auto] enabled).")
+    run_p.add_argument("--profile", choices=("default", "review"), default="default",
+                       help="Approval profile for local jobs (review auto-approves everything except review hazards).")
     run_p.add_argument("--scratch-root", default=None,
                        help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).")
     run_p.add_argument(
-        "--root", default=None, help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT or cwd)."
+        "--root", default=None,
+        help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT, root in code-bridge.toml, then cwd).",
     )
     run_p.add_argument("--json", action="store_true")
     run_p.add_argument(
@@ -916,6 +1820,16 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument(
         "--no-brief-check", action="store_true", help="Skip the pre-launch brief check (a note is printed)."
     )
+    run_p.add_argument(
+        "--require-fresh",
+        action="store_true",
+        help="Refuse to launch (exit 2, no job record) when the current branch is behind its upstream. "
+        "Without it, a stderr warning with the commit count is printed and the job still launches.",
+    )
+    run_p.add_argument(
+        "--no-freshness-check", action="store_true",
+        help="Skip the pre-launch fetch and the behind-upstream check.",
+    )
     run_p.add_argument("--brief-checked", action="store_true", help=argparse.SUPPRESS)
     run_p.add_argument("--job-id", default=None, help=argparse.SUPPRESS)
     run_p.add_argument("--routing-record", default=None, help=argparse.SUPPRESS)
@@ -924,8 +1838,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     route_p = sub.add_parser("route", help="Explain a quota-aware pick; launch nothing.")
     route_p.add_argument("--engine", choices=list(_jobs.ENGINES))
+    route_p.add_argument("--where", choices=list(_cloud_place.WHERE_CHOICES), default=None,
+                         help="Also show where the job would run: auto explains its local-vs-cloud decision.")
     _add_routing_options(route_p, required=True)
     route_p.add_argument("--cwd", default=".", help="Repository used to resolve session history (default: cwd).")
+    route_p.add_argument("--root", default=None, help="Confinement root for placement (same rules as run).")
     route_p.add_argument("--session", default=None)
     # Same overrides as `run`, so the exact pick (bucket, provider, effort check) can be dry-run.
     route_p.add_argument("--model", default=None)
@@ -948,11 +1865,31 @@ def build_parser() -> argparse.ArgumentParser:
 
     wait_p = sub.add_parser("wait", help="Block until a job ends (or its process dies), then print its outcome.")
     wait_p.add_argument("job_id")
-    wait_p.add_argument("--timeout", type=float, default=None, help="Give up after this many seconds (exit 3).")
+    wait_p.add_argument("--timeout", type=float, default=None,
+                        help="Give up after this many seconds (exit 3). Cloud jobs default to 7200.")
     wait_p.add_argument("--interval", type=float, default=5.0, help=argparse.SUPPRESS)
     wait_p.add_argument("--json", action="store_true")
     _add_db_option(wait_p)
     wait_p.set_defaults(func=_cmd_wait)
+
+    wait_any_p = sub.add_parser("wait-any", help="Block until an event occurs on any watched job.")
+    wait_any_p.add_argument("job_ids", nargs="*", metavar="JOB_ID")
+    wait_any_p.add_argument("--all-active", action="store_true", help="Watch a snapshot of all currently active jobs.")
+    wait_any_p.add_argument("--timeout", type=float, default=None, help="Give up after this many seconds (exit 3).")
+    wait_any_p.add_argument("--events", default="done,failed,approval,landed,interrupted",
+                            help="Comma-separated events to return.")
+    wait_any_p.add_argument("--loop", action="store_true", help="Print events until every watched job is terminal.")
+    wait_any_p.add_argument("--json", action="store_true", help="Emit the event as one JSON object (the default format).")
+    wait_any_p.add_argument("--interval", type=float, default=0.25, help=argparse.SUPPRESS)
+    _add_db_option(wait_any_p)
+    wait_any_p.set_defaults(func=_cmd_wait_any)
+
+    resync_p = sub.add_parser("resync", help="Re-check a cloud job that an older bridge failed after a poll error.")
+    resync_p.add_argument("job_id")
+    resync_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
+    resync_p.add_argument("--json", action="store_true")
+    _add_db_option(resync_p)
+    resync_p.set_defaults(func=_cmd_resync)
 
     jobs_p = sub.add_parser("jobs", help="List jobs.")
     jobs_p.add_argument("--all", action="store_true", help="Include finished jobs, not just active ones.")
@@ -974,6 +1911,17 @@ def build_parser() -> argparse.ArgumentParser:
     _add_db_option(cancel_p)
     cancel_p.set_defaults(func=_cmd_cancel)
 
+    stop_p = sub.add_parser(
+        "cloud-stop", help="Stop a Codex Cloud task or request that a Claude Code cloud session stop."
+    )
+    stop_target = stop_p.add_mutually_exclusive_group(required=True)
+    stop_target.add_argument("target", nargs="?", help="Task URL, task/session id, or bridge job id.")
+    stop_target.add_argument("--all-running", action="store_true", help="Stop account-wide Codex tasks and running bridge cloud jobs.")
+    stop_p.add_argument("--dry-run", action="store_true", help="List targets without making provider requests.")
+    stop_p.add_argument("--json", action="store_true", help="Emit machine-readable results for Agent Radar.")
+    _add_db_option(stop_p)
+    stop_p.set_defaults(func=_cmd_cloud_stop)
+
     result_p = sub.add_parser(
         "result", help="Show one job's result or error, including workspace evidence for unfinished jobs."
     )
@@ -981,6 +1929,88 @@ def build_parser() -> argparse.ArgumentParser:
     result_p.add_argument("--json", action="store_true")
     _add_db_option(result_p)
     result_p.set_defaults(func=_cmd_result)
+
+    apply_p = sub.add_parser(
+        "apply",
+        help="Apply a finished cloud job's diff in a NEW git worktree on a NEW branch (never your checkout); does not push.",
+    )
+    apply_p.add_argument("job_id")
+    apply_p.add_argument("--branch", default=None, help="New branch name (default: cloud/<job id prefix>).")
+    apply_p.add_argument("--worktree", default=None, help="New worktree path (default: beside the Store, cloud-worktrees/<job>).")
+    apply_p.add_argument(
+        "--rebase",
+        action="store_true",
+        help="Apply onto the branch's current head even if it moved since the task was submitted (refused otherwise).",
+    )
+    apply_p.add_argument(
+        "--source",
+        default=None,
+        help="Claude cloud jobs only: the claude/ branch to check out when several new ones were found.",
+    )
+    apply_p.add_argument(
+        "--land",
+        action="store_true",
+        help="After applying: commit (message from the job's brief), push, then update the job's recorded PR or open "
+        "a new one (gh). A Claude cloud job is verified and recorded instead. Refuses a moved base unless "
+        "--rebase-ok; never force-pushes.",
+    )
+    apply_p.add_argument("--rebase-ok", action="store_true", help="With --land: allow a moved base branch.")
+    apply_p.add_argument("--json", action="store_true")
+    apply_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
+    _add_db_option(apply_p)
+    apply_p.set_defaults(func=_cmd_apply)
+
+    sync_p = sub.add_parser(
+        "cloud-sync",
+        help="Reconcile every live cloud job: poll the provider, land finished jobs submitted with --land, post "
+        "finished reviews, record failures with the provider's reason. Safe to run from a scheduler.",
+    )
+    sync_p.add_argument("--json", action="store_true")
+    sync_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
+    sync_mode = sync_p.add_mutually_exclusive_group()
+    sync_mode.add_argument(
+        "--manual", action="store_true",
+        help="Record successful reconciliation work as an operator intervention.",
+    )
+    sync_mode.add_argument(
+        "--scheduled", action="store_true",
+        help="Scheduler mode (the default): do not record an operator intervention.",
+    )
+    _add_db_option(sync_p)
+    sync_p.set_defaults(func=_cmd_cloud_sync)
+
+    envs_p = sub.add_parser(
+        "cloud-envs", help="List Codex Cloud environments (and their linked repo) and the Claude cloud environment(s)."
+    )
+    envs_p.add_argument("--cwd", default=".", help="Repository to check for a mapped Codex environment (default: cwd).")
+    envs_p.add_argument("--no-probe", action="store_true", help="Do not call `codex cloud list`; show the config only.")
+    envs_p.add_argument("--json", action="store_true")
+    envs_p.set_defaults(func=_cmd_cloud_envs)
+
+    setup_p = sub.add_parser(
+        "cloud-setup",
+        help="Check the Claude cloud routine setup locally (config, token variables, a model per routine); "
+        "no network call, token values are never printed. Exit 1 when something is missing.",
+    )
+    setup_p.add_argument("provider", choices=["claude"])
+    setup_p.add_argument("--check", action="store_true", help="Run the check (the default and only action).")
+    setup_p.add_argument("--json", action="store_true")
+    setup_p.set_defaults(func=_cmd_cloud_setup)
+
+    skill_p = sub.add_parser(
+        "setup-skill",
+        help="Print the path of the agent skill (SKILL.md) that guides an LLM through cloud setup, or install it.",
+    )
+    skill_p.add_argument(
+        "--install",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="DIR",
+        help="Copy it to DIR/code-bridge-cloud-setup/SKILL.md (default DIR: ~/.claude/skills).",
+    )
+    skill_p.add_argument("--force", action="store_true", help="Replace an existing installed copy.")
+    skill_p.set_defaults(func=_cmd_setup_skill)
 
     pending_p = sub.add_parser("pending", help="List open approval tickets.")
     pending_p.add_argument("--json", action="store_true")
@@ -990,6 +2020,7 @@ def build_parser() -> argparse.ArgumentParser:
     approve_p = sub.add_parser("approve", help="Approve a pending ticket.")
     approve_p.add_argument("ticket_id")
     approve_p.add_argument("--actor", default="operator")
+    approve_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
     _add_db_option(approve_p)
     approve_p.set_defaults(func=_cmd_approve)
 
@@ -999,6 +2030,18 @@ def build_parser() -> argparse.ArgumentParser:
     reject_p.add_argument("--actor", default="operator")
     _add_db_option(reject_p)
     reject_p.set_defaults(func=_cmd_reject)
+
+    autonomy_p = sub.add_parser("autonomy", help="Report the share of finished jobs needing no manual intervention.")
+    range_group = autonomy_p.add_mutually_exclusive_group()
+    range_group.add_argument("--week", help="ISO week (YYYY-Www).")
+    range_group.add_argument("--since", help="First UTC date to include (YYYY-MM-DD).")
+    autonomy_p.add_argument(
+        "--until",
+        help="Exclusive UTC end date (YYYY-MM-DD): that date is not included; defaults to tomorrow in UTC.",
+    )
+    autonomy_p.add_argument("--json", action="store_true")
+    _add_db_option(autonomy_p)
+    autonomy_p.set_defaults(func=_cmd_autonomy)
 
     prune_p = sub.add_parser(
         "prune-sessions",

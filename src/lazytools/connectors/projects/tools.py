@@ -30,6 +30,7 @@ before pointing this at a live deployment's file.
 
 from __future__ import annotations
 
+import argparse
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -104,7 +105,7 @@ def _project_dict(record: _records.ProjectRecord, store: Store) -> dict[str, Any
 
 
 #: The tools a session gets by default. Every MCP tool costs context in every
-#: turn of every session that loads it, and most of the 37 are needed only
+#: turn of every session that loads it, and most of them are needed only
 #: while driving contracts and verifications by hand: the default is what
 #: planning and following projects needs, ``full`` adds the rest.
 CORE_TOOLS = frozenset(
@@ -127,6 +128,12 @@ CORE_TOOLS = frozenset(
         "projects_promote",
         "projects_set_owner",
         "projects_set_deadline",
+        # A contract-backed task can only be closed through its contract, so a
+        # profile that closes contracts must also be able to open them;
+        # otherwise sessions bypass the tool with direct library calls.
+        "projects_open_contract",
+        "projects_close_task",
+        "projects_complete_todo",
         "projects_add_note",
         "projects_revise_plan",
         "projects_schedule_task",
@@ -198,14 +205,19 @@ class ProjectsTools:
         return _timeline.render_project_timeline(self._store, blocked_reasons=blocked_reasons, owner=owners[0])
 
     def projects_gantt(
-        self, owner: str = "all", include_closed: bool = False, out_path: str | None = None
+        self,
+        owner: str = "all",
+        include_closed: bool = False,
+        out_path: str | None = None,
+        project_ids: list[str] | None = None,
     ) -> dict[str, str]:
         """The Gantt of every open and paused project, rendered by plain code
         (no model call), in two forms: ``text`` -- one character per day, to
         paste as-is in a monospace block in chat -- and ``html_path`` -- a
         colored, self-contained HTML page (inline SVG) written to disk, to
         attach. ``owner``: "all" (default), "default", or one of
-        ceo/claude/shared. ``include_closed`` also draws draft/done projects."""
+        ceo/claude/shared. ``include_closed`` also draws draft/done projects.
+        ``project_ids`` selects projects and orders their sections."""
         from lazytools.projects import gantt as _gantt
 
         owners = _owners_filter(owner)
@@ -219,8 +231,12 @@ class ProjectsTools:
                 "html_path": "",
             }
         target = Path(out_path).expanduser() if out_path else Path.home() / ".lazytools" / "gantt" / "gantt.html"
-        written = _gantt.write_gantt_html(self._store, target, statuses=statuses, owners=owners)
-        text = _gantt.render_gantt_text(self._store, statuses=statuses, owners=owners)
+        written = _gantt.write_gantt_html(
+            self._store, target, project_ids=project_ids, statuses=statuses, owners=owners
+        )
+        text = _gantt.render_gantt_text(
+            self._store, project_ids=project_ids, statuses=statuses, owners=owners
+        )
         return {"text": text, "html_path": str(written)}
 
     def projects_notes(self, project_id: str, limit: int = 5) -> list[dict[str, Any]]:
@@ -505,6 +521,56 @@ class ProjectsTools:
             else f"REJECTED: no open/paused/done project named {project_id!r}"
         )
 
+    def projects_close_task(
+        self,
+        project_id: str,
+        task_index: int,
+        checks: list[dict[str, Any] | str],
+        reason: str,
+        reviewer: str,
+        review: str = "",
+        review_by: str | None = None,
+        worker: str | None = None,
+    ) -> str:
+        """Close a contract-backed task with evidence, in one call: claim a
+        verification, record ``checks`` and ``review``, accept, close the board slot.
+
+        ``checks`` is ``[{"command": ..., "passed": true, "detail": "..."}, ...]``
+        (or the CLI form ``"COMMAND=pass|fail[:DETAIL]"``); every contract
+        required_check must be covered by its EXACT command string. Refusals
+        (missing/failed check, no review where one is required) happen before
+        anything is written. ``worker`` is who did the work (the task's claim
+        owner when it has one; required otherwise). ``review_by`` (who performed
+        the review) is required with any review; worker, ``review_by`` and
+        ``reviewer`` (who accepts) must all differ. A required review given as
+        ``"REVIEW NOT PERFORMED (reason)"`` is recorded, leaves the task open and
+        flags it for the owner. Already-done tasks are a no-op."""
+        from lazytools.projects import closure as _closure
+        from lazytools.projects.cli import parse_check
+
+        evidence: list[tuple[str, bool, str]] = []
+        for position, item in enumerate(checks):
+            if isinstance(item, str):
+                try:
+                    evidence.append(parse_check(item))
+                except argparse.ArgumentTypeError as exc:
+                    return f"REJECTED: checks[{position}]: {exc}"
+            elif isinstance(item, dict) and isinstance(item.get("command"), str) and isinstance(item.get("passed"), bool):
+                evidence.append((item["command"], item["passed"], str(item.get("detail", ""))))
+            else:
+                return (
+                    f"REJECTED: checks[{position}] must be {{'command': str, 'passed': bool, 'detail': str}} "
+                    "or 'COMMAND=pass|fail[:DETAIL]'"
+                )
+        return _closure.close_task_with_evidence(
+            self._store, project_id, task_index, checks=evidence, review=review, reason=reason, reviewer=reviewer,
+            review_by=review_by, worker=worker,
+        )
+
+    def projects_complete_todo(self, project_id: str, task_index: int, summary: str) -> str:
+        """Close a todo task that has NO acceptance contract, after verifying in person that the work is done. Tasks with a contract must use projects_close_task."""
+        return _task_claims.complete_todo_without_verification(self._store, project_id, task_index, summary)
+
     def projects_add_note(self, project_id: str, text: str, origin: str = "claude") -> str:
         """Record a freeform note against a project."""
         note_id = _notes.add_project_note(self._store, project_id, text, origin=origin)
@@ -714,6 +780,8 @@ class ProjectsTools:
             self.projects_set_owner,
             self.projects_set_brake_enabled,
             self.projects_set_deadline,
+            self.projects_close_task,
+            self.projects_complete_todo,
             self.projects_add_note,
             self.projects_retire_task,
             self.projects_reopen_task,

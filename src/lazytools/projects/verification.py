@@ -231,6 +231,15 @@ def record_checks(
     )
 
 
+def record_worker(store: Any, job_id: str, *, worker: str, prefix: str = VERIFICATION_PREFIX) -> Verification | None:
+    """Stamp who did the work being judged (an extra ``worker`` field). Does NOT change status.
+
+    Recorded so the identity separation the closer enforces (worker != reviewer
+    != acceptor) can be audited from the verification record itself.
+    """
+    return _transition(store, job_id, from_status=("running",), updates={"worker": worker}, prefix=prefix)
+
+
 def record_review(
     store: Any,
     job_id: str,
@@ -575,6 +584,7 @@ __all__ = [
     "reclaim_interrupted_verifications",
     "record_checks",
     "record_review",
+    "record_worker",
     "reopen_for_empty_review",
     "request_rework",
     "retry_harness",

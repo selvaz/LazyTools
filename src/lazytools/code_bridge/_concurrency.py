@@ -85,8 +85,15 @@ class ConcurrencyConfig:
     slot_dir: Path
 
 
+@dataclass(frozen=True)
+class WorkspaceConfig:
+    """Workspace paths from the top level of the config file (currently the confinement root)."""
+
+    root: Path | None = None
+
+
 def validate_top_level(data: dict[str, Any], path: Path) -> None:
-    unknown = data.keys() - {"concurrency", "routine_auto"}
+    unknown = data.keys() - {"root", "concurrency", "routine_auto", "cloud"}
     if unknown:
         raise ValueError(f"{path}: unknown top-level config keys: {sorted(unknown)}")
 
@@ -120,6 +127,27 @@ def load_config(path: Path | None = None) -> ConcurrencyConfig:
             raise ValueError(f"{path}: [concurrency] {key} must be an integer >= 0 (0 = unlimited), got {value!r}")
         limits[key] = value or None
     return ConcurrencyConfig(limits, slot_dir)
+
+
+def load_workspace(path: Path | None = None) -> WorkspaceConfig:
+    """The top-level ``root`` of the config file (relative paths resolve beside the file)."""
+    path = path or config_path()
+    if not path.is_file():
+        return WorkspaceConfig()
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(f"{path}: not valid TOML: {exc}") from exc
+    validate_top_level(data, path)
+    configured_root = data.get("root")
+    if configured_root is None:
+        return WorkspaceConfig()
+    if not isinstance(configured_root, str) or not configured_root.strip():
+        raise ValueError(f"{path}: root must be a non-empty path string")
+    root = Path(configured_root).expanduser()
+    if not root.is_absolute():
+        root = path.parent / root
+    return WorkspaceConfig(root.resolve())
 
 
 def load_limits(path: Path | None = None) -> dict[str, int | None]:
@@ -352,6 +380,7 @@ __all__ = [
     "ConcurrencyConfig",
     "EngineBusy",
     "EngineSlot",
+    "WorkspaceConfig",
     "busy_reason",
     "config_path",
     "default_slot_dir",
@@ -359,4 +388,5 @@ __all__ = [
     "live_holders",
     "load_config",
     "load_limits",
+    "load_workspace",
 ]

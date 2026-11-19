@@ -3,7 +3,9 @@
 Two flavours live here:
 
 * **Documentation skills** (``doc_skills``) — index local documentation folders
-  into a portable BM25 bundle and expose it as a tool. Stdlib only.
+  into a portable BM25 bundle and expose it as a tool. Stdlib only. Packaged
+  skills ship with LazyTools (``packaged_skills()``), e.g. ``agent-operations``
+  for running software work with coding agents (``agent_operations/SKILL.md``).
 * **Analyst skills** (``analyst``) — specialist agents (domain tools + a
   tailored system prompt = a skill) that share a blackboard, plus three
   orchestrators (deterministic Plan, blackboard, replan) that compose them.
@@ -42,7 +44,10 @@ from lazytools.skills.council import (
 from lazytools.skills.doc_skills import (
     DocChunk,
     SkillManifest,
+    build_packaged_skill,
     build_skill,
+    packaged_skill_dir,
+    packaged_skills,
     query_skill,
     skill_builder_tools,
     skill_pipeline,
@@ -72,7 +77,10 @@ __all__ = [
     # documentation skills
     "DocChunk",
     "SkillManifest",
+    "build_packaged_skill",
     "build_skill",
+    "packaged_skill_dir",
+    "packaged_skills",
     "query_skill",
     "skill_builder_tools",
     "skill_pipeline",

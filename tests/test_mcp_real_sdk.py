@@ -26,9 +26,12 @@ pytest.importorskip("mcp")
 from lazytools.connectors.mcp import MCP
 
 _TOY_SERVER = '''\
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server import MCPServer as _Server
+except ImportError:
+    from mcp.server.fastmcp import FastMCP as _Server
 
-app = FastMCP("toy")
+app = _Server("toy")
 
 
 @app.tool()
@@ -37,8 +40,110 @@ def add(a: int, b: int) -> int:
     return a + b
 
 
-app.run()
+app.run(transport="stdio")
 '''
+
+
+def test_http_custom_headers_follow_trailing_slash_redirect() -> None:
+    """A header-bearing HTTP client must follow an in-origin 307.
+
+    SDK 2.0's default client sets ``follow_redirects``. A bare ``httpx2``
+    client does not, so ``MCP.http(..., headers=...)`` would stop on the
+    redirect that a header-less connection follows (a trailing-slash 307).
+    Later SDKs follow that redirect inside the transport; either way the
+    ``Authorization`` header has to arrive at the redirected path.
+    """
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from lazytools.connectors.mcp.transports import HttpTransport
+
+    seen: dict[str, str] = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            if self.path == "/mcp":
+                host = self.headers["Host"]
+                self.send_response(307)
+                self.send_header("Location", f"http://{host}/mcp/")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            seen["path"] = self.path
+            seen["authorization"] = self.headers.get("Authorization", "")
+            payload = json.dumps(
+                {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "stop"}}
+            ).encode()
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def do_GET(self) -> None:
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def do_DELETE(self) -> None:
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, name="mcp-redirect", daemon=True)
+    thread.start()
+    try:
+        transport = HttpTransport(
+            f"http://127.0.0.1:{port}/mcp",
+            headers={"Authorization": "Bearer secret-token"},
+        )
+        # The stub answers the redirected POST with a JSON-RPC error, so the
+        # handshake fails. What matters is that it failed *after* the header
+        # arrived on ``/mcp/``, not on the 307.
+        handshake_failed = False
+        try:
+            asyncio.run(asyncio.wait_for(transport.connect(), timeout=15))
+        except Exception:
+            handshake_failed = True
+        assert handshake_failed
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert seen.get("path") == "/mcp/"
+    assert seen.get("authorization") == "Bearer secret-token"
+
+
+def test_installed_sdk_openers_construct_without_connecting() -> None:
+    """Importing the SDK 1 or SDK 2 client symbols must succeed before connect.
+
+    This is the failure mode of a pin that still names ``streamablehttp_client``
+    on SDK 2, or ``mcp.Client`` on SDK 1: ``MCP.stdio`` / ``MCP.http`` would
+    raise ``ImportError`` at construction of the session, not at the first
+    byte on the wire.
+    """
+    from importlib.metadata import version
+
+    from lazytools.connectors.mcp._sdk import mcp_major, open_http, open_stdio
+
+    major = int(version("mcp").split(".", 1)[0])
+    assert mcp_major() == major
+    assert major in (1, 2)
+
+    stdio_cm = open_stdio(sys.executable, ["-c", "pass"], None)
+    http_cm = open_http("http://127.0.0.1:9/mcp", {"Authorization": "Bearer test"})
+    assert hasattr(stdio_cm, "__aenter__")
+    assert hasattr(http_cm, "__aenter__")
 
 
 @pytest.fixture

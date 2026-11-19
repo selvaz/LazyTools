@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import json
+from argparse import Namespace
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _store
+from lazytools.code_bridge import _store, cli
 from lazytools.code_bridge.cli import main
 
 
 def _env(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(tmp_path / "sessions.json"))
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_POLL_SECONDS", "0.05")
+
+
+def test_json_lines_are_flushed(monkeypatch):
+    calls = []
+    monkeypatch.setattr("builtins.print", lambda *args, **kwargs: calls.append((args, kwargs)))
+
+    cli._print_json({"event": "ready"})
+
+    assert calls == [((json.dumps({"event": "ready"}),), {"flush": True})]
 
 
 def test_run_prints_job_id_first_line_and_exits_zero(tmp_path, monkeypatch, capsys):
@@ -40,10 +50,49 @@ def test_run_prints_job_id_first_line_and_exits_zero(tmp_path, monkeypatch, caps
     )
     out = capsys.readouterr().out.strip().splitlines()
     assert code == 0
-    job_id_line = out[0]
-    payload = json.loads(out[-1])
-    assert payload["job_id"] == job_id_line
-    assert payload["status"] == "done"
+    assert len(out) == 2
+    payload = json.loads(out[0])
+    assert payload["short_id"] == payload["job_id"][:8]
+    assert payload["where"] == "local"
+    assert payload["engine"] == "codex"
+    assert payload["cwd"] == str(repo)
+    result = json.loads(out[1])
+    assert result == {
+        "event": "result",
+        "job_id": payload["job_id"],
+        "status": "done",
+        "result_path": result["result_path"],
+        "error": None,
+    }
+
+
+def test_json_run_announces_before_engine_finishes(tmp_path, monkeypatch, capsys):
+    """The identity callback is observable while the production runner is still active."""
+    import lazybridge
+
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    original_run = lazybridge.Agent.run
+
+    async def finish_after_observing_identity(self, prompt):
+        first = capsys.readouterr().out.splitlines()
+        assert len(first) == 1
+        assert json.loads(first[0])["job_id"]
+        return await original_run(self, prompt)
+
+    monkeypatch.setattr(lazybridge.Agent, "run", finish_after_observing_identity)
+    assert main(["run", "--engine", "codex", "--cwd", str(repo), "--task", "x", "--root", str(tmp_path),
+                 "--db", str(tmp_path / "jobs.sqlite"), "--json"]) == 0
+
+
+def test_json_slot_wait_diagnostic_uses_stderr(capsys):
+    busy = cli.EngineBusy("codex", 1, [{"job_id": "running-job"}])
+    cli._announce_slot_wait(busy, err=True)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "waiting for a codex slot" in captured.err
 
 
 def test_run_task_from_file(tmp_path, monkeypatch, capsys):
@@ -74,7 +123,7 @@ def test_jobs_status_and_result_roundtrip(tmp_path, monkeypatch, capsys):
     job_id = capsys.readouterr().out.splitlines()[0]
 
     code = main(["jobs", "--all", "--json", "--db", str(db_path)])
-    rows = json.loads(capsys.readouterr().out)
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert code == 0
     assert any(r["job_id"] == job_id for r in rows)
 
@@ -208,6 +257,7 @@ def test_detach_spawns_a_child_with_the_same_job_and_reports_it(tmp_path, monkey
     assert argv[argv.index("--session") + 1] == "s1"
     assert "--detach" not in argv  # the child runs in the foreground of its own process
     assert payload["pid"] == 4242
+    assert payload["short_id"] == payload["job_id"][:8]
     pid_file = _store.results_dir(db_path) / f"{payload['job_id']}.pid"
     assert pid_file.read_text(encoding="utf-8") == "4242"
 
@@ -337,6 +387,146 @@ def test_detach_refuses_a_cwd_outside_the_root_before_spawning(tmp_path, monkeyp
     args = ["run", "--detach", "--engine", "codex", "--cwd", str(outside), "--task", "x", "--root", str(root), "--db", str(tmp_path / "s.sqlite")]
     assert main(args) == 2
     assert "outside" in capsys.readouterr().err
+
+
+def test_config_root_is_used_from_an_unrelated_cwd(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    workspace = tmp_path / "workspace"
+    repo = workspace / "repo"
+    unrelated = tmp_path / "unrelated"
+    repo.mkdir(parents=True)
+    unrelated.mkdir()
+    config = tmp_path / "code-bridge.toml"
+    config.write_text(f'root = "{workspace.as_posix()}"\n[concurrency]\nslot_dir = "{tmp_path.as_posix()}/slots"\n')
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.delenv("LAZYTOOLS_CODE_ROOT", raising=False)
+    monkeypatch.chdir(unrelated)
+    seen: dict = {}
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
+
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--task", "x"]) == 0
+    assert seen["argv"][seen["argv"].index("--root") + 1] == str(workspace)
+    capsys.readouterr()
+
+
+def test_root_flag_beats_config_root(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    configured = tmp_path / "configured"
+    override = tmp_path / "override"
+    repo = override / "repo"
+    configured.mkdir()
+    repo.mkdir(parents=True)
+    config = tmp_path / "code-bridge.toml"
+    config.write_text(f'root = "{configured.as_posix()}"\n')
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(configured))
+    seen: dict = {}
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
+
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--root", str(override),
+                 "--task", "x"]) == 0
+    assert seen["argv"][seen["argv"].index("--root") + 1] == str(override)
+    capsys.readouterr()
+
+
+def test_environment_root_is_used_without_a_flag_or_config_root(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    workspace = tmp_path / "workspace"
+    repo = workspace / "repo"
+    repo.mkdir(parents=True)
+    config = tmp_path / "code-bridge.toml"
+    config.write_text("")
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(workspace))
+    seen: dict = {}
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
+
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--task", "x"]) == 0
+    assert seen["argv"][seen["argv"].index("--root") + 1] == str(workspace)
+    capsys.readouterr()
+
+
+def test_environment_root_beats_config_root(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    configured = tmp_path / "configured"
+    environment = tmp_path / "environment"
+    repo = environment / "repo"
+    configured.mkdir()
+    repo.mkdir(parents=True)
+    config = tmp_path / "code-bridge.toml"
+    config.write_text(f'root = "{configured.as_posix()}"\n')
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(environment))
+    seen: dict = {}
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
+
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--task", "x"]) == 0
+    assert seen["argv"][seen["argv"].index("--root") + 1] == str(environment)
+    capsys.readouterr()
+
+
+def test_root_falls_back_to_launch_cwd(tmp_path, monkeypatch, capsys):
+    import lazytools.code_bridge.cli as cli
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    config = tmp_path / "code-bridge.toml"
+    config.write_text("")
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.delenv("LAZYTOOLS_CODE_ROOT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    seen: dict = {}
+    monkeypatch.setattr(cli, "_spawn_detached", lambda argv, log: seen.setdefault("argv", argv) and 1)
+
+    assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--task", "x"]) == 0
+    assert seen["argv"][seen["argv"].index("--root") + 1] == str(tmp_path)
+    capsys.readouterr()
+
+
+def test_root_error_is_one_plain_actionable_line(tmp_path, monkeypatch, capsys):
+    root = tmp_path / "root"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+
+    assert main(["run", "--engine", "codex", "--cwd", str(outside), "--root", str(root), "--task", "x"]) == 2
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1
+    assert err.startswith(f"error: repo_path {str(outside)!r} is outside the allowed root {str(root)!r}")
+    assert "from flag (--root)" in err
+    assert "pass --root PATH or set root in" in err
+    assert "usage:" not in err
+
+
+def test_root_error_reports_environment_config_and_cwd_sources(tmp_path, monkeypatch):
+    import lazytools.code_bridge.cli as cli
+
+    config = tmp_path / "code-bridge.toml"
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(config))
+    monkeypatch.chdir(tmp_path)
+    error = ValueError("repo_path 'outside' is outside the allowed root 'root'")
+
+    environment = tmp_path / "environment"
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(environment))
+    args = Namespace(root=None)
+    assert cli._configure_run_root(args) is None
+    assert "root from env (LAZYTOOLS_CODE_ROOT)" in cli._root_error(args, error)
+
+    configured = tmp_path / "configured"
+    config.write_text(f'root = "{configured.as_posix()}"\n')
+    monkeypatch.delenv("LAZYTOOLS_CODE_ROOT")
+    args = Namespace(root=None)
+    assert cli._configure_run_root(args) is None
+    assert f"root from config ({config})" in cli._root_error(args, error)
+
+    config.write_text("")
+    args = Namespace(root=None)
+    assert cli._configure_run_root(args) is None
+    assert "root from cwd" in cli._root_error(args, error)
 
 
 def test_detach_hands_the_child_absolute_root_cwd_and_task_paths(tmp_path, monkeypatch, capsys):

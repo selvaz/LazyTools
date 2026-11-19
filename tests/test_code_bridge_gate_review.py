@@ -210,6 +210,7 @@ CREDENTIAL_READS = [
     "cat .codex/config.toml", "ls .codex", "ls .claude", "cat .npmrc", "cat .pypirc", "cat .netrc", "cat .git-credentials",
     "cat foo.pem", "cat x.key", "cat id_rsa", "cat id_rsa.pub", "cat id_rsa_old", "cat my_secret.txt", "cat secrets/a",
     "cat token.txt", "cat access_token", "cat credentials.json", "cat Credentials", "cat .git/config", "ls .git",
+    "cat C:\\Users\\x\\.ssh\\id_rsa", "cat C:\\Users\\me\\.aws\\credentials", "cat sub\\.git\\config",
     "cat C:/x", "cat c:x", "cat file:stream", "cat '~/x'", "cat ~", "cat ENV~1", "cat PROGRA~1/x", "cat GIT~1/config",
     "git show HEAD:.env", "git show 'HEAD:../x'", "git show HEAD:sub/.ssh/id", "git diff -- .env",
     "git diff -- /etc/passwd", "git log -- /etc/passwd", "git log -- ../x", "git ls-files /x", "git ls-files ../x",

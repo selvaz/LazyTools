@@ -9,15 +9,72 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- Bundle the interactive WizengAImot skill and install it alongside the LazyTools skill.
-- Bundle an installable LazyTools skill for Claude Code and Codex, covering MCP, the async code bridge and projects.
-
-### Fixed
-- Count council quorum only for votes aligned on the current motion; expose the winning motion in the result. Only the moderator puts motions to a vote: when members could propose them, a live council churned through 12 motions and never reached quorum although every member was aligned.
-- Cap the total routed exchanges in a council debate (`max_exchanges`, default `max(8, 2 * max_rounds * members)`): the depth limit alone let a debate fan out without bound, and a three-member DeepSeek council at default depth did not finish in 25 minutes.
-- Run a closing vote when the free council debate ends without quorum: the moderator states the motion and every member votes once. Live, members spent the whole exchange budget among themselves and no motion was ever voted.
+- Bundled `agent-operations` skill (`src/lazytools/skills/agent_operations/`: `SKILL.md` + `references/*.md`): a general, portable guide for an assistant that leads coding agents through the code bridge (detached jobs, approvals, `--where cloud`), quota-aware routing and `--review-of`, the projects layer (contracts, Gantt, `close-task`) and twenty operating lessons. `python -m lazytools.skills.agent_operations install` copies it into Claude Code / Codex skill folders; `lazytools.skills.packaged_skills()` / `build_packaged_skill("agent-operations")` register it as a documentation skill. A test parses every CLI command in the skill against the real argparse definitions and checks it for private or domain-specific data. (#241)
+- Code bridge `run` (local) fetches the branch's upstream before launching and warns on stderr with the number of commits behind; `--require-fresh` refuses the launch, `--no-freshness-check` skips it (#271).
+- Code bridge Claude cloud: a routine entry may declare `model`, and `run --where cloud --engine claude --model M` fires the single routine that declares `M` (zero or several matches are refused with the configured routines and their models; `--routine` still wins). New `lazytools-code-bridge cloud-setup claude --check` verifies the routine setup locally (config, token variables, a model per routine) without a network call or printing token values (#260).
 
 ### Changed
+- Code bridge: the top-level `root` setting is read by a new `load_workspace()` / `WorkspaceConfig` instead of living on `ConcurrencyConfig`; root precedence and behaviour are unchanged (#270).
+
+## [0.10.11] — 2026-11-15
+
+### Added
+- Projects MCP: `projects_complete_todo` closes todo tasks without an acceptance contract after in-person verification, with a required summary (core and full profiles, write access) (#297).
+
+### Fixed
+- Count council quorum only for votes aligned on the current motion and expose the winning motion in the result.
+- Bound council debates with a total routed-exchange budget and run a closing vote when free debate ends without quorum.
+- Code bridge landing calls the Claude-only `job_diff` hook through `getattr` and refuses engines without it; restores the mypy gate on main (#298).
+
+## [0.10.10] — 2026-11-15
+
+### Added
+- Code bridge Navigator adds a merge-readiness navigation loop, an autonomy metric, and a `watch` command for streaming job and PR transitions (#275, #276, #277).
+- Bundle the WizengAImot multi-provider council as an installable Claude Code agent skill, with setup documentation and packaging coverage (#293).
+- Projects Gantt queries can filter tasks by project ID (#288).
+
+### Changed
+- Code bridge cloud submissions are serialized with a configurable minimum interval and retry immediately failed submissions with backoff (#264).
+- Code bridge Claude routines can be selected by model, and `cloud-setup claude --check` validates local routine configuration without a network call (#272).
+- Code bridge uses the configured default root, reports a plain error outside it, emits brief diagnostics on stderr before the job ID, and derives cleaner PR titles while preserving `snake_case` (#267, #268, #287).
+- Cancelling a cloud job now stops its provider task, and every cloud job returns a transport-only report that is stripped before a branch or PR is published (#284, #292).
+- Update the release train to market-data-hub v0.3.29, LazyStats v0.3.12, LazyPortfolio v0.2.12, and LazyRay v0.2.12 (#285).
+- `check_pins` now detects stale pins in installer manifests, nested projects, and every supported Git URL form while treating templated CI refs as warnings (#294).
+
+### Fixed
+- Code bridge produces real PR titles, restricts the brief gate to imperative instructions, lands ignored paths robustly, and refuses a cloud base branch missing from `origin` (#256, #262).
+- Code bridge landing supports file-to-directory replacements and is covered for deletes and edited renames (#269, #274).
+- Code bridge watch events sort by parsed UTC instants instead of timestamp text (#278).
+- Code bridge tests no longer require `pytest-asyncio`; the suite is hermetic on Windows, quoted reviewer executable paths work, and its fake Codex binary is copied only once per session (#273, #281).
+- Blank MCP server environment values now fall back to safe defaults instead of crashing or broadening the HTTP bind address (#291).
+
+## [0.10.9] — 2026-11-13
+
+### Changed
+- Projects MCP: `projects_open_contract` is in the core profile, so sessions can open the contracts that `projects_close_task` requires (#253).
+- Code bridge: transient poll errors (429, 5xx, timeouts) never fail a cloud job; exponential backoff honouring Retry-After, jitter and a shared per-account poll clock; `resync` recovers jobs failed by an earlier poll error (#254, #255).
+
+## [0.10.8] — 2026-11-13
+
+### Added
+- Code bridge `cloud-stop`: really stops Codex Cloud tasks (cancel + status confirmation, paginated `codex cloud list`) and asks Claude cloud sessions to stop through the Claude Code CLI; jobs stay tracked until a stop is confirmed (#251).
+- MCP connector and LazyTools MCP server support the official MCP Python SDK 2.x as well as 1.x; the `mcp` extra now allows `mcp>=1.0,<3` (#250).
+
+## [0.10.7] — 2026-11-13
+
+### Added
+- Bundle an installable LazyTools skill for Claude Code and Codex, covering MCP, the async code bridge and projects.
+- `lazytools.projects.closure.close_task_with_evidence`: close a contract-backed Gantt task in one call (claim verification, record checks and review, accept, close the board slot). Every contract `required_check` must be covered, every check must pass, and a required review must be present and attributed (`review_by`); the worker (the task's claim owner, or `worker` for an unclaimed task), `review_by` and the acceptor (`reviewer`) must be three different identities, and the worker is recorded on the verification. All of this is checked before anything is written. A required review reported as `REVIEW NOT PERFORMED (reason)` is recorded, blocks the verification and leaves the task open, flagged to the owner with a project note. A failure after the claim moves the verification to `rework`/`blocked` (retried on a fresh read; forced to `blocked` if every attempt is contested), never leaving it `pending`/`running`. An already-done task is a no-op, and an accepted-but-unclosed verification is reused only when the current call's evidence passes. `projects_close_task` is on `UNSAFE_TOOL_PATTERNS`, so `expand_tools(..., read_only=True)` drops it. Exposed as the `lazytools-projects close-task` CLI (`--check 'COMMAND=pass|fail[:DETAIL]'`, repeatable) and the write-gated `projects_close_task` MCP tool (core profile).
+- Code bridge cloud dispatch: `lazytools-code-bridge run --where cloud --allow-cloud --engine codex --cwd <repo> --task @brief.md [--branch B]` submits the brief to Codex Cloud (`codex cloud exec --env <id> --branch <b>`) so the job uses no local resources. Env ids come from `[cloud.codex.envs]` in `code-bridge.toml` (key = remote `owner/name`); a missing mapping is refused with instructions. `status`/`wait`/`result` poll `codex cloud status`, `result` adds a `codex cloud diff` summary, and the new `apply <job>` runs `codex cloud apply` in a fresh git worktree/branch and never pushes. Cloud jobs have their own limit (`[cloud] concurrency`, default 4) and never take a local engine slot. Claude cloud routines are a documented, unimplemented extension point. Because a cloud agent's commands cannot be gated one by one, `--allow-cloud` is required and a brief asking for a push, merge or delete is refused without the matching `--approve-cloud` approvals; `apply` refuses a branch that moved since submit unless `--rebase`; job ids must be hex or a UUID; briefs and provider diagnostics are redacted before they are stored or printed; a status poll that keeps failing or returns unreadable output marks the job failed after 5 tries.
+- Code bridge Claude cloud: `run --where cloud --engine claude` runs `claude --cloud` from a checkout of the requested branch (a temporary worktree when needed) after checking the branch is on `origin` at the same commit (the bridge never pushes), and records the session id/URL. `--routine NAME` fires a claude.ai routine (`POST /v1/claude_code/routines/{id}/fire`, token read from the env var named by `[cloud.claude.routines.NAME] token_env`; a literal token in the config is refused). Claude has no status API, so `status` says `submitted (no status API): open <url>` until a new `claude/...` branch appears on `origin`; `result` summarises that branch's diff and `apply` checks it out in a new worktree/branch without pushing (`--source` picks another candidate). Same safety rules as Codex cloud jobs. New guide `docs/code-bridge-cloud-setup.md` for both engines, and a bundled agent skill (`lazytools.skills.agent_skills`, `lazytools-code-bridge setup-skill [--install]`) that walks an assistant through the setup.
+
+- Code bridge cloud parity (builds on cloud dispatch and Claude cloud): cloud agents are used like local ones, with no hand-offs. `run --where cloud --pr N` works on PR N's head branch and `--open-pr` records a new branch + PR; `apply <job> --land` commits, pushes (fast-forward only, never forced) and updates the recorded PR or opens one with `gh`, or verifies and records the branch a Claude cloud session pushed, storing `pushed_sha` / `pr_url`; a moved base is refused unless `--rebase-ok`. `run --land` makes `wait` land the job, and the new `cloud-sync` reconciles every live cloud job (poll, land, post reviews, mark failures with the provider's reason) for schedulers. `run --where cloud --review-of <job>` runs the opposite engine on the pushed branch and posts one `<!-- independent-review v1 -->` PR comment (`author:`, `reviewer:`, `verdict:`, `head:`). `--where auto` / `[cloud] default_where` / `[cloud] busy_windows` place a job in the cloud inside a production window or when no local slot is free (`route --where auto` explains the decision). Claude cloud runs `--model` from `[cloud.claude.models]` (default `claude-sonnet-5-5`); Codex Cloud keeps its environment's model. `cloud-envs` lists Codex Cloud environments with their repo and the Claude cloud environment(s). Optional per-provider limits `[cloud.codex] concurrency` / `[cloud.claude] concurrency`. New `lazytools-mcp code_bridge --allow-unsafe` provider: `code_bridge_submit` / `_status` / `_result`.
+
+### Fixed
+- `MCP.http` with custom headers on SDK 2 sets `follow_redirects` on its HTTP client, matching the SDK 2.0 default client. A bare `httpx2.AsyncClient` leaves that off, so an `Authorization` header broke endpoints that answer a trailing-slash URL with 307. Later 2.x releases also follow that redirect inside the transport.
+
+### Changed
+- The `[mcp]` extra now accepts the official MCP Python SDK 1.x and 2.x (`mcp>=1.0,<3`). The connector's stdio and Streamable HTTP transports use `mcp.Client(stdio_client(...))` on 2.x (2.0.0 does not accept a bare `StdioServerParameters`; that shorthand arrived in 2.1) and `ClientSession` with `stdio_client` / `streamablehttp_client` on 1.x; tool schemas and structured results are read under either spelling (`input_schema` / `inputSchema`, `structured_content` / `structuredContent`). `MCP.stdio(...)`, `MCP.http(...)`, and `ToolProvider` / `as_tools()` are unchanged. The LazyTools MCP server registers low-level handlers in the shape each SDK expects (constructor `on_list_tools` / `on_call_tool` on 2.x, decorators on 1.x) and still returns tool failures as `isError` results. CI runs the suite on both majors.
 - Strict Anthropic/OpenAI tier pairing: the `thinking` ladder drops its Astra-only rung and the `critical` ladder pairs Opus with `gpt-6.1-sol` (Astra only ever pairs with Fable, which is explicit-only). An explicit model naming the other provider's tier is translated, not rejected: `--engine codex --model opus` runs `gpt-6.1-sol`, `--engine claude --model gpt-6.1-terra` runs `claude-sonnet-5-5` (`routing.policy.translate_model`, a local mirror of `lazybridge.model_tiers` with a parity test).
 
 ### Changed

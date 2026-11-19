@@ -1,6 +1,7 @@
-# Claude Code delegation ladders, ordered by capability. Fable is explicit-only.
-# Tier pairs (owner 31/10/2026): Haiku/Luna, Sonnet/Terra 6.1, Opus/Sol 6.1, Fable/Astra.
-# Astra pairs only with Fable, which is explicit-only, so no automatic rung uses it.
+# Claude Code delegation ladders, ordered by capability.
+# Tier pairs (owner 31/10/2026): Haiku/Luna, Sonnet/Terra 6.1, Opus/Sol 6.1, Fable 5.2/Astra.
+# Fable/Astra lead the critical tier (owner 10/11/2026); every other tier uses them only
+# when a caller names the model explicitly. Opus/Sol stay as critical's fallback rungs.
 [basic]
 [[basic.steps]]
 [basic.steps.providers.codex]
@@ -40,6 +41,13 @@ model = "claude-opus-5-5"
 effort = "high"
 
 [critical]
+[[critical.steps]]
+[critical.steps.providers.claude_code]
+model = "claude-fable-5-2"
+effort = "high"
+[critical.steps.providers.codex]
+model = "gpt-6-astra"
+effort = "high"
 [[critical.steps]]
 [critical.steps.providers.claude_code]
 model = "claude-opus-5-5"
