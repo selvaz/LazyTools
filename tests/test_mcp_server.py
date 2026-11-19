@@ -22,7 +22,29 @@ from lazytools.mcp_server import (
 from lazytools.mcp_server.server import UNSAFE_TOOL_PATTERNS
 
 mcp = pytest.importorskip("mcp")
-from mcp.shared.memory import create_connected_server_and_client_session
+
+
+def _connected_client(server):
+    """In-process MCP client for whichever SDK is installed.
+
+    SDK 1 ships ``create_connected_server_and_client_session``. SDK 2
+    removed it; ``Client(server)`` is the replacement and speaks the
+    server's protocol itself.
+    """
+    try:
+        from mcp import Client
+    except ImportError:
+        from mcp.shared.memory import create_connected_server_and_client_session
+
+        return create_connected_server_and_client_session(server)
+    return Client(server)
+
+
+def _field(obj, snake: str, camel: str):
+    """Read a protocol attribute under the SDK 2 or SDK 1 spelling."""
+    if hasattr(obj, snake):
+        return getattr(obj, snake)
+    return getattr(obj, camel)
 
 # --------------------------------------------------------------------------- #
 # expand_tools: isolation, read-only guard, collisions
@@ -199,18 +221,44 @@ async def test_end_to_end_list_and_call():
 
     server = build_server([DataHubTools(backend=backend)], name="lazytools-test")
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with _connected_client(server) as client:
         listed = await client.list_tools()
         names = {t.name for t in listed.tools}
         assert "datahub_list_datasets" in names
-        # inputSchema is passed through verbatim as a JSON-Schema object
-        schema = next(t.inputSchema for t in listed.tools if t.name == "datahub_list_datasets")
+        # inputSchema is passed through verbatim as a JSON-Schema object.
+        # SDK 2 exposes it as input_schema; SDK 1 as inputSchema.
+        tool = next(t for t in listed.tools if t.name == "datahub_list_datasets")
+        schema = _field(tool, "input_schema", "inputSchema")
         assert schema["type"] == "object"
 
         result = await client.call_tool("datahub_list_datasets", {})
-        assert not result.isError
+        assert not _field(result, "is_error", "isError")
         payload = json.loads(result.content[0].text)
         assert payload == [{"id": "prices", "name": "Prices"}]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("read_only", [False, True])
+async def test_projects_complete_todo_server_listing(tmp_path, read_only):
+    from lazytools.connectors.projects import ProjectsTools
+
+    provider = ProjectsTools(store_db=str(tmp_path / "store.sqlite"), allow_write=True)
+    server = build_server([provider], read_only=read_only)
+    async with _connected_client(server) as client:
+        listed = await client.list_tools()
+        names = {t.name for t in listed.tools}
+        assert ("projects_complete_todo" in names) is (not read_only)
+        if not read_only:
+            tool = next(t for t in listed.tools if t.name == "projects_complete_todo")
+            assert tool.description == (
+                "Close a todo task that has NO acceptance contract, after verifying in person that the work is done. "
+                "Tasks with a contract must use projects_close_task."
+            )
+            schema = _field(tool, "input_schema", "inputSchema")
+            assert set(schema["required"]) == {"project_id", "task_index", "summary"}
+            assert schema["properties"]["project_id"]["type"] == "string"
+            assert schema["properties"]["task_index"]["type"] == "integer"
+            assert schema["properties"]["summary"]["type"] == "string"
 
 
 @pytest.mark.anyio
@@ -221,9 +269,9 @@ async def test_call_tool_error_is_reported_not_raised():
     prov = _Provider(Tool.wrap(explode, name="datahub_boom", description="x"))
     server = build_server([prov], name="lazytools-test")
 
-    async with create_connected_server_and_client_session(server) as client:
+    async with _connected_client(server) as client:
         result = await client.call_tool("datahub_boom", {})
-        assert result.isError
+        assert _field(result, "is_error", "isError")
         assert "kaboom" in result.content[0].text
 
 
@@ -451,3 +499,26 @@ def test_result_to_text_keeps_numpy_integers_exact():
     big = np.uint64(2**63 + 1)
     parsed = json.loads(result_to_text({"count": np.int64(7), "id": big, "ratio": np.float64("nan")}))
     assert parsed == {"count": 7, "id": 2**63 + 1, "ratio": None}
+
+
+def test_blank_env_values_fall_back_to_safe_defaults(monkeypatch):
+    """Installers blank variables they do not set; blank must mean unset."""
+    from lazytools.mcp_server.__main__ import _parse_args
+
+    for name in ("LAZYTOOLS_MCP_HOST", "LAZYTOOLS_MCP_PORT", "LAZYTOOLS_MCP_LOG_LEVEL", "LAZYTOOLS_MCP_CONFIG"):
+        monkeypatch.setenv(name, "")
+    args = _parse_args([])
+    assert args.host == "127.0.0.1"
+    assert args.port == 8787
+    assert args.log_level == "INFO"
+    assert args.config is None
+
+
+def test_env_values_still_override_defaults(monkeypatch):
+    from lazytools.mcp_server.__main__ import _parse_args
+
+    monkeypatch.setenv("LAZYTOOLS_MCP_HOST", "0.0.0.0")
+    monkeypatch.setenv("LAZYTOOLS_MCP_PORT", "9999")
+    args = _parse_args([])
+    assert args.host == "0.0.0.0"
+    assert args.port == 9999

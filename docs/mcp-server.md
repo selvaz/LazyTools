@@ -6,11 +6,29 @@ durable approval tickets belong to [the async code bridge](code-bridge.md).
 Other connectors support data, reports and communication. The [MCP connector](mcp.md)
 is the reverse direction: it imports another server's tools into an agent.
 
-**LazyTools 0.10.5 is Alpha.** Install the coding runtime dependencies too:
+**LazyTools 0.10.5 is Alpha.** The `[mcp]` extra accepts the official MCP Python SDK 1.x and 2.x (`mcp>=1.0,<3`). Install the coding runtime dependencies too:
 
 ```sh
-python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.5"
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.6"
 ```
+
+## Install the assistant skills
+
+After installing LazyTools with the `mcp` extra and LazyBridge 1.8.7 or newer,
+run these three commands to install both skills and register the read-only
+server in Claude Code:
+
+```sh
+python -m lazybridge.skill install
+python -m lazytools.skill install
+claude mcp add --transport stdio lazytools -- lazytools-mcp
+```
+
+The installers also target Codex when its home exists; see the
+[MCP setup](#collaboration-setup) for persistent project state and write access. Rerun the installers after upgrades.
+
+For Codex, add `[mcp_servers.lazytools]` with `command = "lazytools-mcp"`
+to `~/.codex/config.toml`. Restart the host after changing its configuration.
 
 ## Collaboration setup
 
@@ -112,8 +130,48 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `projects` | `ProjectsTools()` | records, owner, plans, schedule/Gantt, quota, notes, cost; full profile adds contracts/verification | configured Store for persistence; writes need `--allow-unsafe` |
 | `code_write` | `CodeWriteTools(...)` | `codex_write`, `claude_code_write` | `--allow-unsafe`, local runtimes; Claude needs `[engines]` |
 | `code_sessions` | `CodeSessionTools(...)` | list/bind/rename/forget native aliases | explicit opt-in with `--allow-unsafe` |
+| `code_bridge` | `CodeBridgeTools(...)` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` — local and cloud coding jobs through `lazytools-code-bridge` | `--allow-unsafe`; cloud jobs also need `allow_cloud=true` per call |
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
 | `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — Tools that delegate through `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
+| `studio` | Published agents and pipelines discovered from LazyStudio | each published `studio_<slug>` tool, `studio_run_status`; `studio_status` when disconnected | LazyStudio operator token; published calls need `--allow-unsafe` |
+
+## Use Studio agents from Claude Code / Codex
+
+LazyStudio agents and pipelines marked as MCP-exposed can be discovered when
+the server starts and called through the `studio` provider. Set the Studio URL
+and operator-token path if you do not use their defaults:
+
+```bash
+export LAZYSTUDIO_URL=http://127.0.0.1:8000
+export LAZYSTUDIO_TOKEN_FILE=~/.lazystudio/operator-token
+lazytools-mcp studio --allow-unsafe
+```
+
+The defaults are the values above. `--allow-unsafe` is intentional: invoking a
+published tool runs an agent and may have side effects, so the provider follows
+the same provider-level opt-in used by other write-capable tools. Without the
+flag, only `studio_run_status` is exposed. If Studio is down or its token is
+missing, the MCP server still starts and exposes `studio_run_status` plus
+`studio_status`, which explains how to repair the connection. Restart the MCP
+server after publishing or unpublishing a tool so it refreshes the tool list.
+
+To let Claude Code spawn the stdio server:
+
+```bash
+claude mcp add studio -- lazytools-mcp studio --allow-unsafe
+```
+
+For Codex, add an equivalent stdio MCP server entry to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.studio]
+command = "lazytools-mcp"
+args = ["studio", "--allow-unsafe"]
+```
+
+Each published tool accepts one `task` string. A run that finishes during the
+Studio wait window returns its output directly. A longer run returns
+`still running, run_id=...`; pass that id to `studio_run_status(run_id)`.
 
 ### `web` — keep interactive research out of the production news DB
 
@@ -339,7 +397,29 @@ already have (`bind`), rename, or drop a name (`forget` never deletes the
 underlying conversation); they are only served with `--allow-unsafe`, and
 `repo_path` is confined to the code root like every other path.
 
+### `code_bridge` — local and cloud coding jobs for other agents
+
+```text
+code_bridge_submit(task, cwd=None, engine=None, where=None, tier=None, model=None, branch=None,
+                   pr=None, open_pr=False, land=False, rebase_ok=False, review_of=None, allow_cloud=False) -> dict
+code_bridge_status(job_id) -> dict
+code_bridge_result(job_id) -> dict
+```
+
+The agent-facing twin of `lazytools-code-bridge run | status | result` (see
+[Code bridge](code-bridge.md)): each tool runs that command and returns its JSON,
+so one agent can hand work to Codex or Claude Code, local or in the cloud, and
+read the outcome the way a person would. `where="auto"` (or `[cloud]
+default_where`) places the job; `land=true` lands a finished cloud job (commit,
+push, PR) without anyone running `apply`; `review_of=<job>` runs the opposite
+engine and posts an independent-review comment on that job's PR. `cwd` is
+confined to the code root, a task may not start with `@`, and a cloud job needs
+`allow_cloud=true` on each call. Approving a gated action up front
+(`--approve-cloud`) is not exposed: a brief that asks for a push or merge is
+refused, and a person decides. Only served with `--allow-unsafe`.
+
 ## Safety model
+
 
 Structured tool results use strict JSON: non-finite floats (`NaN`, positive or
 negative infinity, including NumPy floats) and pandas NA become `null` recursively.

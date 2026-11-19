@@ -25,6 +25,17 @@ from lazytools.mcp_server.providers import PROVIDER_FACTORIES, default_providers
 from lazytools.mcp_server.server import build_server, serve_http, serve_stdio
 
 
+def _env(name: str, default: str | None = None) -> str | None:
+    """Read ``name``; an unset OR blank value means "use the default".
+
+    Installers and launchers blank variables they do not set; a blank
+    ``LAZYTOOLS_MCP_HOST`` must not widen the bind to every interface, and a
+    blank ``LAZYTOOLS_MCP_PORT`` must not crash ``--help``.
+    """
+    value = os.environ.get(name, "").strip()
+    return value or default
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="lazytools-mcp",
@@ -45,7 +56,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--log-level",
-        default=os.environ.get("LAZYTOOLS_MCP_LOG_LEVEL", "INFO"),
+        default=_env("LAZYTOOLS_MCP_LOG_LEVEL", "INFO"),
         help="Logging level for stderr diagnostics (default: INFO).",
     )
     parser.add_argument(
@@ -62,7 +73,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--host",
-        default=os.environ.get("LAZYTOOLS_MCP_HOST", "127.0.0.1"),
+        default=_env("LAZYTOOLS_MCP_HOST", "127.0.0.1"),
         help="Interface to bind with --http (default: 127.0.0.1). Loopback by default "
         "deliberately: these tools read, and with --allow-unsafe write, local production "
         "databases.",
@@ -70,12 +81,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.environ.get("LAZYTOOLS_MCP_PORT", "8787")),
+        default=int(_env("LAZYTOOLS_MCP_PORT") or "8787"),
         help="Port to bind with --http (default: 8787).",
     )
     parser.add_argument(
         "--config",
-        default=os.environ.get("LAZYTOOLS_MCP_CONFIG"),
+        default=_env("LAZYTOOLS_MCP_CONFIG"),
         help="Path to a JSON file populating each provider factory's data_source dict "
         "(e.g. {\"path\": \"...\", \"regime_db_path\": \"...\", \"news_db_path\": \"...\", "
         "\"web_cache_db\": \"...\" (opt-in interactive web cache; see LAZYTOOLS_WEB_CACHE_DB), "

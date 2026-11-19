@@ -203,7 +203,8 @@ backfill, run by the store's owner (dry run by default, `--apply` to write):
 python -m lazytools.projects.contract_markers --store-db <ceo-store.sqlite> [--apply]
 ```
 
-The MCP tools expose no shortcut-close verb. For contracted tasks, call
+For tasks without a contract, use `projects_complete_todo(project_id, task_index, summary)` (core profile, write access) after verifying in person that the work is done; tasks with a contract must use `projects_close_task`.
+For contracted tasks, call
 `projects_accept_verification`, then `projects_close_accepted_task(project_id,
 task_index, verification_id)` to record completion on the board. Both tools
 require the `full` profile and write access.
@@ -402,8 +403,8 @@ Writes require `allow_write=True` programmatically or the server's
 
 | Profile | Read-only menu | Write-enabled menu | Included work |
 | --- | --- | --- | --- |
-| `core` | 10 tools | 18 tools | Registry, schedule/timeline/Gantt, board summary, quota/brake status, cost/jobs; create, review/promote, owner/deadline/notes/plan/scheduling writes |
-| `full` | 16 tools | 39 tools | Core plus contracts, verification history/decisions, accepted-task closure, brake writes and additional lifecycle operations |
+| `core` | 10 tools | 20 tools | Registry, schedule/timeline/Gantt, board summary, quota/brake status, cost/jobs; create, review/promote, owner/deadline/notes/plan/scheduling writes; open a task contract and close a contract-backed task |
+| `full` | 16 tools | 40 tools | Core plus contracts, verification history/decisions, accepted-task closure, brake writes and additional lifecycle operations |
 
 These counts come from the current `as_tools()` output, including the added
 Gantt tool; the old “all 37” count was stale. Exposing `full` does not delegate

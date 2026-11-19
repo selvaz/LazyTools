@@ -23,6 +23,7 @@ review tools apply, and listing without one only shows scopes under that root.
 
 from __future__ import annotations
 
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -204,6 +205,22 @@ class CodeSessionTools:
             self._reg().rename(k, scope, old, new)
         except KeyError as exc:
             raise ValueError(str(exc.args[0]) if exc.args else str(exc)) from exc
+        # Renaming an alias used by bridge jobs is an operator touch on those
+        # jobs. The session rename has already succeeded, so audit failures
+        # are warnings rather than failures of the tool call.
+        try:
+            from lazytools.code_bridge import _jobs, _store
+
+            db_path = _store.default_db_path()
+            if not db_path.exists():
+                return {"renamed": True, "kind": k, "old": old, "new": new, "scope": str(scope)}
+            store = _store.build_store(db_path)
+            for job in _jobs.list_jobs(store, all_jobs=True):
+                job_scope = Path(str(job.get("cwd") or "")).expanduser().resolve()
+                if job.get("engine") == k and job.get("session_name") == old and job_scope == scope:
+                    _store.record_intervention(store, str(job["job_id"]), "session-rename")
+        except Exception as exc:
+            print(f"warning: session renamed but its intervention could not be recorded: {exc}", file=sys.stderr)
         return {"renamed": True, "kind": k, "old": old, "new": new, "scope": str(scope)}
 
     def code_sessions_forget(self, kind: str, name: str, repo_path: str | None = None) -> dict[str, Any]:

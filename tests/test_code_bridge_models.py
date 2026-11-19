@@ -71,13 +71,12 @@ def install_server(monkeypatch, lines, *, hang=False):
     return server
 
 
-@pytest.mark.asyncio
-async def test_app_server_handshake_reads_models_without_thread_or_turn(monkeypatch):
+def test_app_server_handshake_reads_models_without_thread_or_turn(monkeypatch):
     server = install_server(monkeypatch, [
         b"not JSON\n", [], {"method": "notification"}, {"id": 1, "result": {}},
         {"id": 2, "result": {"data": codex_data(), "nextCursor": None}},
     ])
-    models = await _models.fetch_codex_models(executable="fake-codex")
+    models = asyncio.run(_models.fetch_codex_models(executable="fake-codex"))
     assert len(models) == 8 and models[0].is_default is True
     assert models[0].default_effort == "medium"
     assert "ultra" not in models[-1].efforts and "ultra" in models[0].efforts
@@ -88,8 +87,7 @@ async def test_app_server_handshake_reads_models_without_thread_or_turn(monkeypa
     assert server.killed and server.waited
 
 
-@pytest.mark.asyncio
-async def test_app_server_follows_model_pages_and_keeps_hidden_metadata(monkeypatch):
+def test_app_server_follows_model_pages_and_keeps_hidden_metadata(monkeypatch):
     data = codex_data()
     data[1]["hidden"] = True
     server = install_server(monkeypatch, [
@@ -97,7 +95,7 @@ async def test_app_server_follows_model_pages_and_keeps_hidden_metadata(monkeypa
         {"id": 2, "result": {"data": data[:2], "nextCursor": "next"}},
         {"id": 3, "result": {"data": data[2:], "nextCursor": None}},
     ])
-    models = await _models.fetch_codex_models(executable="fake-codex")
+    models = asyncio.run(_models.fetch_codex_models(executable="fake-codex"))
     assert len(models) == 8 and models[1].hidden is True
     assert server.messages[-1] == {"method": "model/list", "id": 3, "params": {"cursor": "next"}}
 
@@ -113,19 +111,17 @@ async def test_app_server_follows_model_pages_and_keeps_hidden_metadata(monkeypa
     ([{"id": 1, "result": {}}, {"id": 2, "result": {"data": [codex_data()[0]] * 2}}], "duplicate model"),
     ([{"id": 1, "result": {}}], "closed the stream"),
 ])
-@pytest.mark.asyncio
-async def test_app_server_refusals_and_bad_payloads_reap_child(monkeypatch, lines, match):
+def test_app_server_refusals_and_bad_payloads_reap_child(monkeypatch, lines, match):
     server = install_server(monkeypatch, lines)
     with pytest.raises(RuntimeError, match=match):
-        await _models.fetch_codex_models(executable="fake-codex")
+        asyncio.run(_models.fetch_codex_models(executable="fake-codex"))
     assert server.killed and server.waited
 
 
-@pytest.mark.asyncio
-async def test_app_server_timeout_reaps_child(monkeypatch):
+def test_app_server_timeout_reaps_child(monkeypatch):
     server = install_server(monkeypatch, [], hang=True)
     with pytest.raises(RuntimeError, match=r"within 0\.01s"):
-        await _models.fetch_codex_models(executable="fake-codex", timeout=0.01)
+        asyncio.run(_models.fetch_codex_models(executable="fake-codex", timeout=0.01))
     assert server.killed and server.waited
 
 

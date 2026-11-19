@@ -19,7 +19,7 @@ explains tier selection and admission. **Benchmark in progress**; no measured
 quality, time, quota-efficiency or subscription savings result is claimed.
 
 ```sh
-python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.5"
+python -m pip install "lazytoolkit[engines,mcp] @ git+https://github.com/selvaz/LazyTools.git@v0.10.6"
 lazytools-mcp projects code_review claude_review code_write code_sessions --allow-unsafe
 ```
 
@@ -44,14 +44,30 @@ lazyfin          Portfolio Manager AI — the finance domain layer on top of
                  the whole stack (private repo)
 ```
 
+## Install the assistant skills
+
+After installing LazyTools with the `mcp` extra and LazyBridge 1.8.7 or newer,
+run these three commands to install both skills and register the read-only
+server in Claude Code:
+
+```sh
+python -m lazybridge.skill install
+python -m lazytools.skill install
+claude mcp add --transport stdio lazytools -- lazytools-mcp
+```
+
+The installers also target Codex when its home exists; see the
+[MCP setup](docs/mcp-server.md#install-the-assistant-skills) for Codex registration,
+persistent project state and write access. Rerun the installers after upgrades.
+
 ## Install
 
 LazyTools is distributed from GitHub (only LazyBridge lives on PyPI). Install
 `lazytoolkit` and its extras with a PEP 508 direct reference — this pulls the
-release `v0.10.5`:
+release `v0.10.6`:
 
 ```bash
-G="git+https://github.com/selvaz/LazyTools.git@v0.10.5"
+G="git+https://github.com/selvaz/LazyTools.git@v0.10.6"
 pip install "lazytoolkit @ $G"                 # core (just lazybridge)
 pip install "lazytoolkit[gmail] @ $G"          # Gmail client + tools
 pip install "lazytoolkit[outlook] @ $G"        # Outlook client + tools (Windows desktop, COM)
@@ -334,6 +350,12 @@ lazytools-code-bridge result <job_id>
 ```
 
 See [Async Code Bridge](docs/code-bridge.md) for the full workflow.
+
+To run jobs in the cloud instead (`--where cloud`, Codex Cloud or Claude Code
+cloud sessions), follow [Cloud setup for the code bridge](docs/code-bridge-cloud-setup.md),
+or let an assistant walk you through it with the bundled agent skill
+(`lazytools-code-bridge setup-skill --install`, then ask it to "set up
+lazytools-code-bridge cloud jobs").
 
 ### Agent-operations skill
 

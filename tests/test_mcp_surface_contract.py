@@ -33,6 +33,7 @@ from lazytools.mcp_server.server import UNSAFE_TOOL_PATTERNS, expand_tools
 
 EXPECTED_PROVIDER_IDS = {
     "datahub",
+    "studio",
     "statistical",
     "econ_calendar",
     "earnings_calendar",
@@ -55,6 +56,7 @@ EXPECTED_PROVIDER_IDS = {
     "claude_review",
     "code_write",
     "code_sessions",
+    "code_bridge",
     "telegram",
     "gmail",
     "outlook",
@@ -224,6 +226,7 @@ PROJECTS_WRITE = {
     "projects_set_brake_enabled",
     "projects_set_deadline",
     "projects_close_task",
+    "projects_complete_todo",
     "projects_add_note",
     "projects_retire_task",
     "projects_reopen_task",
