@@ -63,6 +63,9 @@ class _Transport(ABC):
         - ``name``        — str
         - ``description`` — str
         - ``inputSchema`` — JSON Schema dict (object type with ``properties``)
+
+        Entries also carry ``annotations`` as a plain dict using the MCP
+        protocol's camel-case keys. Unannotated tools use an empty dict.
         """
 
     @abstractmethod
@@ -199,7 +202,7 @@ class _SdkTransport(_Transport):
     async def list_tools(self) -> list[dict[str, Any]]:
         if self._session is None:
             raise RuntimeError("list_tools called before connect()")
-        from lazytools.connectors.mcp._sdk import input_schema_of
+        from lazytools.connectors.mcp._sdk import annotations_of, input_schema_of
 
         result = await self._session.list_tools()
         return [
@@ -209,6 +212,7 @@ class _SdkTransport(_Transport):
                 # Normalise SDK 2 ``input_schema`` and SDK 1 ``inputSchema``
                 # to the dict key the rest of the connector already uses.
                 "inputSchema": input_schema_of(t),
+                "annotations": annotations_of(t),
             }
             for t in result.tools
         ]

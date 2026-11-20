@@ -49,6 +49,13 @@ class MCPServer:
     Without that, the transport stays open for the process lifetime; the
     underlying subprocess is normally cleaned up when the parent exits.
 
+    Every wrapped :class:`Tool` exposes an ``annotations`` dict. Its keys use
+    the MCP protocol spellings (for example ``readOnlyHint``,
+    ``destructiveHint``, ``idempotentHint``, and ``openWorldHint``), and an
+    unannotated MCP tool exposes an empty dict. When the installed LazyBridge
+    ``Tool`` type provides a metadata mapping, the same dict is also available
+    as ``tool.metadata["annotations"]``.
+
     **Closure is terminal.** Once :meth:`aclose` (or the ``async with``
     block) finishes, the server is single-shot: a subsequent
     :meth:`aconnect` / :meth:`as_tools` raises ``RuntimeError``.
@@ -238,6 +245,7 @@ class MCPServer:
         full_name = f"{self._prefix}{local_name}"
         description = mcp_tool.get("description") or f"MCP tool {local_name!r}"
         parameters = mcp_tool.get("inputSchema") or {"type": "object", "properties": {}}
+        annotations = dict(mcp_tool.get("annotations") or {})
         # Reject non-``object`` schema roots loudly.  Silently coercing an
         # array / union / string root to an empty object schema would make
         # the tool appear to the LLM as taking no parameters — a silent
@@ -267,12 +275,27 @@ class MCPServer:
         _call.__mcp_tool_name__ = local_name  # type: ignore[attr-defined]
         _call.__mcp_server_name__ = self.name  # type: ignore[attr-defined]
 
-        return Tool.from_schema(
+        tool = Tool.from_schema(
             name=full_name,
             description=description,
             parameters=parameters,
             func=_call,
         )
+        # This is the stable LazyTools surface consumed by LazyStudio. Keep
+        # protocol key spellings (readOnlyHint, destructiveHint, and so on).
+        tool.annotations = annotations
+
+        # Newer LazyBridge Tool versions may provide a general metadata bag.
+        # Mirror the annotations there without requiring that optional API or
+        # overwriting unrelated metadata supplied by LazyBridge.
+        if hasattr(tool, "metadata"):
+            metadata = tool.metadata  # type: ignore[attr-defined]
+            if metadata is None:
+                metadata = {}
+                tool.metadata = metadata  # type: ignore[attr-defined]
+            if isinstance(metadata, dict):
+                metadata["annotations"] = dict(annotations)
+        return tool
 
     async def _acall_impl(self, name: str, arguments: dict[str, Any]) -> Any:
         # Runs on the runner loop.

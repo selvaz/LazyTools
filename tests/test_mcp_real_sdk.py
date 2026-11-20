@@ -44,6 +44,36 @@ def add(a: int, b: int) -> int:
 app.run(transport="stdio")
 '''
 
+_ANNOTATED_SERVER = '''\
+try:
+    from mcp.server import MCPServer as _Server
+except ImportError:
+    from mcp.server.fastmcp import FastMCP as _Server
+
+app = _Server("annotated")
+
+
+@app.tool(annotations={"readOnlyHint": True, "openWorldHint": False})
+def read_record() -> str:
+    """Read a record."""
+    return "read"
+
+
+@app.tool(annotations={"readOnlyHint": False, "destructiveHint": True})
+def destroy_record() -> str:
+    """Destroy a record."""
+    return "destroyed"
+
+
+@app.tool()
+def unknown_record() -> str:
+    """A tool without annotations."""
+    return "unknown"
+
+
+app.run(transport="stdio")
+'''
+
 
 def test_http_custom_headers_follow_trailing_slash_redirect() -> None:
     """A header-bearing HTTP client must follow an in-origin 307.
@@ -152,6 +182,25 @@ def toy_server(tmp_path: Path) -> str:
     path = tmp_path / "toy_mcp_server.py"
     path.write_text(_TOY_SERVER)
     return str(path)
+
+
+def test_stdio_discovery_preserves_tool_annotations(tmp_path: Path) -> None:
+    path = tmp_path / "annotated_mcp_server.py"
+    path.write_text(_ANNOTATED_SERVER, encoding="utf-8")
+    srv = MCP.stdio("annotated", command=sys.executable, args=[str(path)], allow=["*"])
+    try:
+        tools = {tool.name: tool for tool in srv.as_tools()}
+        assert tools["annotated.read_record"].annotations == {
+            "readOnlyHint": True,
+            "openWorldHint": False,
+        }
+        assert tools["annotated.destroy_record"].annotations == {
+            "readOnlyHint": False,
+            "destructiveHint": True,
+        }
+        assert tools["annotated.unknown_record"].annotations == {}
+    finally:
+        asyncio.run(srv.aclose())
 
 
 def test_sync_discovery_then_call_on_a_fresh_loop(toy_server: str) -> None:
