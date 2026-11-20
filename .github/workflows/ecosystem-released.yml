@@ -50,8 +50,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install the verified combination (distributed artifacts only)
-        # LazyFin is excluded here and installed separately below with a
-        # scoped PAT -- it's the one PRIVATE sibling in the manifest, and
+        # PRIVATE_COMPONENTS are excluded here and installed separately below
+        # with a scoped PAT -- they are the PRIVATE siblings in the manifest, and
         # this step's plain `pip install` runs every package's own,
         # potentially untrusted, build backend/setup hooks with whatever is
         # in scope at the time.
