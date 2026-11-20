@@ -64,6 +64,32 @@ def input_schema_of(tool: Any) -> dict[str, Any]:
     return schema
 
 
+def annotations_of(tool: Any) -> dict[str, Any]:
+    """Return an MCP tool's annotations as a plain, camel-case-keyed dict.
+
+    Both supported SDK majors expose annotations as a Pydantic model, while
+    test doubles and non-standard clients may already provide a mapping.
+    Serialising with aliases retains the MCP protocol spellings such as
+    ``readOnlyHint`` and ``destructiveHint``. Missing annotations consistently
+    become an empty mapping.
+    """
+    annotations = getattr(tool, "annotations", None)
+    if annotations is None:
+        return {}
+    if isinstance(annotations, dict):
+        return dict(annotations)
+
+    model_dump = getattr(annotations, "model_dump", None)
+    if callable(model_dump):
+        return dict(model_dump(by_alias=True, exclude_none=True))
+
+    legacy_dict = getattr(annotations, "dict", None)
+    if callable(legacy_dict):
+        return dict(legacy_dict(by_alias=True, exclude_none=True))
+
+    return {}
+
+
 def structured_content_of(result: Any) -> Any:
     """Read structured tool output under either SDK spelling.
 

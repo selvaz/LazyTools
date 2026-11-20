@@ -118,6 +118,36 @@ def test_tools_carry_input_schema_from_mcp() -> None:
     assert d.parameters.get("required") == ["path"]
 
 
+def test_tools_expose_mcp_annotations_with_unannotated_default() -> None:
+    transport = FakeTransport(
+        tools=[
+            {
+                "name": "read_record",
+                "description": "Read a record.",
+                "inputSchema": {"type": "object", "properties": {}},
+                "annotations": {"readOnlyHint": True, "openWorldHint": False},
+            },
+            {
+                "name": "destroy_record",
+                "description": "Destroy a record.",
+                "inputSchema": {"type": "object", "properties": {}},
+                "annotations": {"destructiveHint": True, "idempotentHint": False},
+            },
+            {
+                "name": "unknown_record",
+                "description": "No annotation claims.",
+                "inputSchema": {"type": "object", "properties": {}},
+            },
+        ]
+    )
+
+    read, destructive, unannotated = MCP.from_transport("records", transport).as_tools()
+
+    assert read.annotations == {"readOnlyHint": True, "openWorldHint": False}
+    assert destructive.annotations == {"destructiveHint": True, "idempotentHint": False}
+    assert unannotated.annotations == {}
+
+
 def test_as_tools_caches_after_first_call() -> None:
     transport = FakeTransport()
     fs = MCP.from_transport("fs", transport)
@@ -588,8 +618,37 @@ def test_list_tools_reads_sdk2_input_schema_attribute() -> None:
                 "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
                 "required": ["a", "b"],
             },
+            "annotations": {},
         }
     ]
+
+
+def test_list_tools_serializes_annotation_model_with_protocol_keys() -> None:
+    from lazytools.connectors.mcp.transports import HttpTransport
+
+    class _Annotations:
+        def model_dump(self, *, by_alias: bool, exclude_none: bool) -> dict[str, bool]:
+            assert by_alias is True
+            assert exclude_none is True
+            return {"readOnlyHint": True, "openWorldHint": False}
+
+    class _Tool:
+        name = "lookup"
+        description = "Look up a record."
+        input_schema = {"type": "object", "properties": {}}
+        annotations = _Annotations()
+
+    class _Listing:
+        tools = [_Tool()]
+
+    class _Session:
+        async def list_tools(self) -> _Listing:
+            return _Listing()
+
+    transport = HttpTransport(url="https://example.invalid/mcp")
+    transport._session = _Session()  # type: ignore[assignment]
+    [listed] = asyncio.run(transport.list_tools())
+    assert listed["annotations"] == {"readOnlyHint": True, "openWorldHint": False}
 
 
 def test_extract_text_appends_structured_content() -> None:
