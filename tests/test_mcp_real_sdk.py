@@ -16,6 +16,7 @@ two contracts that keep real-world usage working:
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -167,6 +168,45 @@ def test_sync_discovery_then_call_on_a_fresh_loop(toy_server: str) -> None:
         # A second call on yet another loop must work too.
         result = asyncio.run(asyncio.wait_for(tools[0].run(a=10, b=20), timeout=30))
         assert "30" in str(result)
+    finally:
+        asyncio.run(srv.aclose())
+
+
+def test_stdio_datahub_first_lazy_pandas_call_returns(tmp_path: Path) -> None:
+    """Scientific imports are warmed on the server's main thread before calls."""
+    pytest.importorskip("pandas")
+
+    package = tmp_path / "market_data_hub"
+    package.mkdir()
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "agent_tools.py").write_text(
+        """\
+import json
+import sys
+
+def tool_list_datasets():
+    preimported = "pandas" in sys.modules
+    import pandas
+    return json.dumps({"pandas_preimported": preimported, "version": pandas.__version__})
+""",
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    source = str(Path(__file__).parents[1] / "src")
+    env["PYTHONPATH"] = os.pathsep.join((str(tmp_path), source, env.get("PYTHONPATH", "")))
+    srv = MCP.stdio(
+        "lazytools",
+        command=sys.executable,
+        args=["-m", "lazytools.mcp_server", "datahub"],
+        env=env,
+        allow=["lazytools.datahub_list_datasets"],
+    )
+    try:
+        tools = srv.as_tools()
+        assert [tool.name for tool in tools] == ["lazytools.datahub_list_datasets"]
+        result = asyncio.run(asyncio.wait_for(tools[0].run(), timeout=30))
+        assert '"pandas_preimported": true' in str(result).lower()
     finally:
         asyncio.run(srv.aclose())
 
