@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `ecosystem-released` handles private manifest components from one list (`PRIVATE_COMPONENTS`: lazyfin, lazyceo): they are left out of the credential-less install, installed only in the scoped `ECOSYSTEM_PAT` step and skipped by the Release-wheel check. The job had failed since lazyceo joined the manifest (clone without credentials, no public Release).
+
 ## [0.10.12] — 2026-11-20
 
 ### Added

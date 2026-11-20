@@ -27,6 +27,15 @@ on:
     - cron: "0 7 * * 1"   # weekly, after ecosystem-source-head
   workflow_dispatch:
 
+# Manifest components that live in PRIVATE repositories. They cannot be
+# cloned with the default token and publish no public GitHub Release, so
+# every job treats them the same way: left out of the credential-less
+# install, installed only in the scoped ECOSYSTEM_PAT step, and skipped by
+# the Release-wheel check. Add a name here when a private repo joins the
+# manifest; nothing else in this file names a private component.
+env:
+  PRIVATE_COMPONENTS: "lazyfin lazyceo"
+
 jobs:
   released:
     runs-on: ubuntu-latest
@@ -48,12 +57,13 @@ jobs:
         # in scope at the time.
         run: |
           python -m pip install -U pip
-          grep -v '^lazyfin' requirements/verified.txt > /tmp/verified-no-lazyfin.txt
-          pip install -r /tmp/verified-no-lazyfin.txt
-      - name: Install private LazyFin sibling
-        # LazyFin is the one PRIVATE sibling in the manifest: the workflow's
-        # default GITHUB_TOKEN is scoped to this repo only, so cloning it
-        # needs a PAT with repo read access (ECOSYSTEM_PAT secret) -- same
+          PRIVATE_RE="^($(echo $PRIVATE_COMPONENTS | tr ' ' '|'))([[ @=]|$)"
+          grep -Ev "$PRIVATE_RE" requirements/verified.txt > /tmp/verified-public.txt
+          pip install -r /tmp/verified-public.txt
+      - name: Install private siblings (PRIVATE_COMPONENTS)
+        # Private siblings (LazyFin, LazyCEO): the workflow's default
+        # GITHUB_TOKEN is scoped to this repo only, so cloning them needs a
+        # PAT with repo read access (ECOSYSTEM_PAT secret) -- same
         # pattern test.yml/ecosystem-source-head.yml already use (#72):
         # scoped to ONLY this step, which runs after the PR's own code and
         # every public sibling are already installed, so the PAT is never in
@@ -61,12 +71,16 @@ jobs:
         env:
           ECOSYSTEM_PAT: ${{ secrets.ECOSYSTEM_PAT }}
         run: |
-          LAZYFIN_LINE=$(grep '^lazyfin' requirements/verified.txt)
-          if [ -n "$ECOSYSTEM_PAT" ]; then
-            pip install "$(echo "$LAZYFIN_LINE" | sed "s#https://github.com/#https://x-access-token:${ECOSYSTEM_PAT}@github.com/#")"
-          else
-            echo "::warning::ECOSYSTEM_PAT not set -- skipping private LazyFin install; released combination validated without it"
-          fi
+          for name in $PRIVATE_COMPONENTS; do
+            LINE=$(grep -E "^${name}([[ @=]|$)" requirements/verified.txt || true)
+            if [ -z "$LINE" ]; then
+              echo "::notice::$name is not in requirements/verified.txt -- nothing to install"
+            elif [ -n "$ECOSYSTEM_PAT" ]; then
+              pip install "$(echo "$LINE" | sed "s#https://github.com/#https://x-access-token:${ECOSYSTEM_PAT}@github.com/#")"
+            else
+              echo "::warning::ECOSYSTEM_PAT not set -- skipping private $name install; released combination validated without it"
+            fi
+          done
           pip check
       - name: Record the resolved environment
         run: |
@@ -238,10 +252,14 @@ jobs:
 
           python - << 'EOF' > components.txt
           import tomllib, pathlib
+          import os
           m = tomllib.loads(pathlib.Path("../ecosystem/compatibility.toml").read_text(encoding="utf-8"))
+          private = set(os.environ.get("PRIVATE_COMPONENTS", "").split())
           for name, entry in m["verified"]["github"].items():
               ref = entry["ref"]
-              if ref.startswith("v"):  # tag => has a GitHub Release with wheels
+              if name in private:
+                  print(f"::notice::{name} is a private repository: no public Release wheels to verify", flush=True)
+              elif ref.startswith("v"):  # tag => has a GitHub Release with wheels
                   repo = entry["repo"].removeprefix("https://github.com/")
                   print(f"{name} {repo} {ref}")
               else:
