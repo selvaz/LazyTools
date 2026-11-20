@@ -107,7 +107,9 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
 )
 
 
-def _is_unsafe(name: str, patterns: Iterable[str]) -> bool:
+def is_unsafe_tool_name(name: str, patterns: Iterable[str] = UNSAFE_TOOL_PATTERNS) -> bool:
+    """Return whether ``name`` matches a server unsafe-tool pattern."""
+
     lowered = name.lower()
     return any(p in lowered for p in patterns)
 
@@ -156,7 +158,7 @@ def expand_tools(
             continue
 
         for tool in tools:
-            if read_only and _is_unsafe(tool.name, patterns):
+            if read_only and is_unsafe_tool_name(tool.name, patterns):
                 logger.warning(
                     "read_only: dropping mutating tool %r (matched unsafe pattern). Pass read_only=False to expose it.",
                     tool.name,
