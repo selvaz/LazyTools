@@ -9,6 +9,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- An importable MCP provider catalog now supplies functional grouping, origin labels, descriptions, ordering, and per-tool read/write access metadata for every registered provider.
 - Portfolio tree validation and save now infer a missing reference currency when every instrument resolves to the same currency, and report the inferred value.
 - The MCP stdio server pre-imports optional scientific and market-data provider modules on its main thread, preventing the first data-hub call from hanging during a worker-thread import.
 
