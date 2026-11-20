@@ -66,7 +66,7 @@ ref = "v0.1.0"  # pinned by market-data-hub, LazyStats, LazyCrawler and LazyPort
 
 [verified.github.lazyfin]
 repo = "https://github.com/selvaz/LazyFin"
-ref = "a0f513c1699b5b91e7b03b366a2a0e9b21f45044"  # LazyFin main after #54 (14/11): datacore extra pins mdh v0.3.29, lazytoolkit v0.10.6
+ref = "01f30826cb9c16e9b15c914555767691348f345e"  # LazyFin main after #56 (20/11): datacore extra pins mdh v0.4.0, tools lazytoolkit v0.10.12, regime lazystats v0.3.13
 # bridge+datacore is what LazyFin's own portfolio/BL surface actually needs;
 # LazyTools' pin already covers the rest. "tools"/"crawler"/"regime"/"all"
 # now point at current lazytoolkit/lazycrawler/lazystats too (the staleness
