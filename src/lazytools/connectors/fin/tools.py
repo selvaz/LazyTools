@@ -371,16 +371,35 @@ class PortfolioOptimizationTools:
             periods_per_year=self._annualization_factor(frequency),
         )
         result = next(iter(estimate.node_results.values()))
+        weights = dict(estimate.terminal_weights)
+        # Every requested instrument is reported: the solver may drop
+        # zero-weight names, which must not look like they were ignored.
+        target_weights = [
+            {"security_id": instrument, "weight": float(weights.get(instrument, 0.0))}
+            for instrument in universe
+        ]
+        target_weights.extend(
+            {"security_id": instrument, "weight": float(weight)}
+            for instrument, weight in weights.items()
+            if instrument not in universe
+        )
+        rf = 0.0 if risk_free_rate is None else float(risk_free_rate)
+        exp_ret = result.audit.expected_return_annualized
+        vol = result.audit.actual_volatility
+        sharpe = (exp_ret - rf) / vol if vol and vol > 0 else None
         return _json(
             {
                 "status": "optimal",
                 "objective": objective,
-                "target_weights": [
-                    {"security_id": instrument, "weight": weight}
-                    for instrument, weight in estimate.terminal_weights.items()
-                ],
-                "expected_return_annualized": result.audit.expected_return_annualized,
-                "actual_volatility": result.audit.actual_volatility,
+                "target_weights": target_weights,
+                "expected_return_annualized": exp_ret,
+                "actual_volatility": vol,
+                "sharpe_ratio_annualized": sharpe,
+                "sharpe_ratio_definition": (
+                    "(expected_return_annualized - risk_free_rate_annual) / actual_volatility, "
+                    "computed from this tool's own expected return and volatility"
+                ),
+                "risk_free_rate_annual_used": rf,
                 "resolved_mean_estimator": result.audit.resolved_mean_estimator,
                 "solver_message": result.audit.solver_message,
                 "provenance": {

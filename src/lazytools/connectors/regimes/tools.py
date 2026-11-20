@@ -28,6 +28,7 @@ with the ``[regimes]`` extra install hint.
 from __future__ import annotations
 
 import functools
+import re
 from typing import Any
 
 # Hard caps enforced at the bridge (audit CA-12): the underlying lazystats
@@ -85,7 +86,8 @@ class RegimeTools:
 
     def _init_db(self, db_path: str = "") -> dict:
         """Create / open the SQLite depot that backs regime_generate_plots and
-        the regime_db_* tools. Returns the resolved path."""
+        the regime_db_* tools. Returns a status and a public label, never the
+        local filesystem path."""
         path = db_path or self._resolve_db_path()
         self._db().init_regime_db(path)
         # Update self._db_path (not just the global) so _scoped's
@@ -93,7 +95,7 @@ class RegimeTools:
         # agent just explicitly re-pointed it to via this tool, rather than
         # snapping back to the construction-time path on the very next call.
         self._db_path = path
-        return {"status": "ok", "db_path": path}
+        return {"status": "ok", "store": "configured regime store"}
 
     def _scoped(self, fn: Any) -> Any:
         """Wrap fn so it re-asserts THIS instance's depot as the active
@@ -181,6 +183,24 @@ class RegimeTools:
         out["truncated"] = len(out["changes"]) < out["n_changes"]
         return out
 
+    def _get_regime_summary(self, result_key: str = "", fit_result: dict | None = None) -> str:
+        """Plain-text regime summary with the dispersion field labelled correctly.
+
+        lazystats reports the per-regime ``vol`` as a per-period VARIANCE of the
+        series' returns (not a standard deviation, not annualised). Relabel it
+        and state the units so agents do not read 2e-4 as a 0.02% volatility.
+        """
+        text = self._regimes().get_regime_summary(result_key=result_key, fit_result=fit_result)
+        if not isinstance(text, str):
+            return text
+        text = re.sub(r"\bvol=", "variance=", text)
+        return (
+            text.rstrip("\n")
+            + "\n\nUnits: 'variance' is the per-period (e.g. daily for daily data, "
+            "not annualised) variance of the series' returns; "
+            "standard deviation = sqrt(variance)."
+        )
+
     def _get_state_sequence(self, result_key: str, series_name: str,
                             last_n: int = 52) -> dict:
         effective = last_n if last_n and 0 < last_n <= _MAX_STATE_SEQUENCE_TIMESTEPS \
@@ -204,7 +224,7 @@ class RegimeTools:
             (r.scan_state_counts, "regime_scan_state_counts"),
             (r.get_current_regime, "regime_get_current"),
             (self._get_regime_changes, "regime_get_changes"),
-            (r.get_regime_summary, "regime_get_summary"),
+            (self._get_regime_summary, "regime_get_summary"),
             (r.compare_emission_models, "regime_compare_emission_models"),
             (r.compare_regime_windows, "regime_compare_windows"),
             # -- store / params inspection
@@ -270,8 +290,8 @@ class RegimeTools:
             ),
             "regime_get_summary": (
                 "Return a human-readable, plain-text summary of all fitted regimes "
-                "for a stored result — per-regime mean/volatility/occupancy/duration "
-                "and the current regime per series. Designed for direct LLM "
+                "for a stored result — per-regime mean/variance/occupancy/duration "
+                "(variance is per-period, not annualised) and the current regime per series. Designed for direct LLM "
                 "consumption (text, not structured data). Args: result_key (from "
                 "regime_fit) or fit_result."
             ),
