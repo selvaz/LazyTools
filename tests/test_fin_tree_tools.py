@@ -155,6 +155,44 @@ def test_validate_reports_a_clear_error_for_an_invalid_tree_without_raising() ->
     assert "unknown child id" in payload["error"]
 
 
+def test_validate_defaults_uniform_instrument_currency() -> None:
+    config = _tree_config()
+    del config["currency"]
+    looked_up: list[list[str]] = []
+
+    def lookup(symbols: list[str]) -> dict[str, str]:
+        looked_up.append(symbols)
+        return {symbol: "USD" for symbol in symbols}
+
+    tools = {tool.name: tool for tool in PortfolioTreeTools(currency_lookup=lookup).as_tools()}
+    payload = json.loads(tools["portfolio_tree_validate"].run_sync(config=config))
+
+    assert payload["ok"] is True
+    assert payload["currency_defaulted"] == "USD"
+    assert set(looked_up[0]) == {"AGG", "SPY", "TLT", "ACWI"}
+    assert "currency" not in config
+
+
+@pytest.mark.parametrize(
+    ("currencies", "error_fragment"),
+    [
+        ({"AGG": "USD", "SPY": "USD", "TLT": "EUR", "ACWI": "USD"}, "do not resolve to one currency"),
+        ({"AGG": "USD", "SPY": "USD", "TLT": "USD"}, "currency is unknown for: ACWI"),
+    ],
+)
+def test_validate_keeps_explicit_currency_error_for_mixed_or_unknown_instruments(
+    currencies: dict[str, str], error_fragment: str
+) -> None:
+    config = _tree_config()
+    del config["currency"]
+    tools = {tool.name: tool for tool in PortfolioTreeTools(currency_lookup=lambda _symbols: currencies).as_tools()}
+
+    payload = json.loads(tools["portfolio_tree_validate"].run_sync(config=config))
+
+    assert payload["ok"] is False
+    assert error_fragment in payload["error"]
+
+
 # --------------------------------------------------------------------------- #
 # Save / list / load / delete round-trip
 # --------------------------------------------------------------------------- #
@@ -164,9 +202,7 @@ def test_save_list_load_delete_round_trip(tmp_path) -> None:
     store_path = tmp_path / "store.sqlite3"
     tools = {
         t.name: t
-        for t in PortfolioTreeTools(
-            allow_persist=True, allow_delete=True, store_path=str(store_path)
-        ).as_tools()
+        for t in PortfolioTreeTools(allow_persist=True, allow_delete=True, store_path=str(store_path)).as_tools()
     }
     config = _tree_config()
 
@@ -186,12 +222,29 @@ def test_save_list_load_delete_round_trip(tmp_path) -> None:
     assert json.loads(tools["portfolio_tree_list"].run_sync())["items"] == []
 
 
+def test_save_persists_defaulted_currency_and_reports_it(tmp_path) -> None:
+    config = _tree_config()
+    del config["currency"]
+    tools = {
+        tool.name: tool
+        for tool in PortfolioTreeTools(
+            allow_persist=True,
+            store_path=str(tmp_path / "store.sqlite3"),
+            currency_lookup=lambda symbols: {symbol: "USD" for symbol in symbols},
+        ).as_tools()
+    }
+
+    saved = json.loads(tools["portfolio_tree_save"].run_sync(name="defaulted", config=config))
+    loaded = json.loads(tools["portfolio_tree_load"].run_sync(name="defaulted"))
+
+    assert saved["currency_defaulted"] == "USD"
+    assert loaded["currency"] == "USD"
+    assert "currency" not in config
+
+
 def test_save_rejects_an_invalid_tree_and_writes_nothing(tmp_path) -> None:
     store_path = tmp_path / "store.sqlite3"
-    tools = {
-        t.name: t
-        for t in PortfolioTreeTools(allow_persist=True, store_path=str(store_path)).as_tools()
-    }
+    tools = {t.name: t for t in PortfolioTreeTools(allow_persist=True, store_path=str(store_path)).as_tools()}
     config = _tree_config()
     config["nodes"][1]["proxy"] = ""  # a child with no proxy fails validation
 
@@ -207,9 +260,7 @@ def test_save_rejects_an_invalid_tree_and_writes_nothing(tmp_path) -> None:
 
 def test_estimate_runs_forward_mode_and_never_leaks_synthetic_returns(frame) -> None:
     backend = _FakeTreeBackend(frame)
-    tools = {
-        t.name: t for t in PortfolioTreeTools(allow_compute=True, backend=backend).as_tools()
-    }
+    tools = {t.name: t for t in PortfolioTreeTools(allow_compute=True, backend=backend).as_tools()}
 
     payload = json.loads(tools["portfolio_tree_estimate"].run_sync(config=_tree_config()))
     assert payload["ok"] is True
@@ -236,9 +287,7 @@ def test_estimate_config_wins_over_name_when_both_given(tmp_path, frame) -> None
     tools["portfolio_tree_save"].run_sync(name="saved", config=saved_config)
 
     inline_config = _tree_config(forward_enabled=False)  # -> flat, distinct from the saved tree's forward
-    payload = json.loads(
-        tools["portfolio_tree_estimate"].run_sync(config=inline_config, name="saved")
-    )
+    payload = json.loads(tools["portfolio_tree_estimate"].run_sync(config=inline_config, name="saved"))
     assert payload["mode"] == "flat"
 
 
@@ -250,9 +299,7 @@ def test_estimate_requires_config_or_name() -> None:
 
 def test_backtest_runs_and_never_leaks_curves_or_return_rows(frame) -> None:
     backend = _FakeTreeBackend(frame)
-    tools = {
-        t.name: t for t in PortfolioTreeTools(allow_compute=True, backend=backend).as_tools()
-    }
+    tools = {t.name: t for t in PortfolioTreeTools(allow_compute=True, backend=backend).as_tools()}
 
     payload = json.loads(tools["portfolio_tree_backtest"].run_sync(config=_tree_config()))
     assert payload["ok"] is True
@@ -278,9 +325,7 @@ def test_backtest_override_changes_the_run_without_mutating_the_saved_file(tmp_p
     tools["portfolio_tree_save"].run_sync(name="saved", config=config)
 
     default_run = json.loads(tools["portfolio_tree_backtest"].run_sync(name="saved"))
-    overridden_run = json.loads(
-        tools["portfolio_tree_backtest"].run_sync(name="saved", rebalance_frequency="Q")
-    )
+    overridden_run = json.loads(tools["portfolio_tree_backtest"].run_sync(name="saved", rebalance_frequency="Q"))
     assert default_run["provenance"]["rebalance_frequency"] == "M"
     assert overridden_run["provenance"]["rebalance_frequency"] == "Q"
 

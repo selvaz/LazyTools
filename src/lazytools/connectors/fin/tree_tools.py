@@ -20,6 +20,8 @@ so this module stays independent of the sibling ``tools.py``'s module-level
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Mapping
+from copy import deepcopy
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
@@ -103,6 +105,7 @@ class PortfolioTreeTools:
         allow_delete: bool = False,
         backend: OptimizationDataBackend | None = None,
         store_path: str | None = None,
+        currency_lookup: Callable[[list[str]], Mapping[str, str]] | None = None,
     ) -> None:
         try:
             from lazyportfolio import (
@@ -118,6 +121,7 @@ class PortfolioTreeTools:
                 write_model,
             )
             from lazyportfolio.calendar import _annualization_factor, _resample_simple_returns
+            from lazyportfolio.fx import instrument_currencies
         except ImportError as exc:  # pragma: no cover - optional dependency boundary
             raise ImportError(
                 "PortfolioTreeTools requires the lazyportfolio package: "
@@ -128,6 +132,7 @@ class PortfolioTreeTools:
         self._allow_delete = allow_delete
         self._backend = backend
         self._store_path = store_path
+        self._currency_lookup = currency_lookup or instrument_currencies
         self._market_data_backend = MarketDataHubOptimizationBackend
         self._v2_model = V2Model
         self._estimator = HierarchicalV2Estimator()
@@ -156,7 +161,8 @@ class PortfolioTreeTools:
                 name="portfolio_tree_validate",
                 description=(
                     "Check whether a tree config is a valid LazyPortfolio V2 model "
-                    "(never touches market data or the saved-tree store) -- call "
+                    "(uses the local instrument catalog only when currency must "
+                    "be inferred; never touches price data or the saved-tree store) -- call "
                     "this before portfolio_tree_save to see a clear structural "
                     "error, or the flattened instrument universe and per-sleeve "
                     "breakdown when it's valid. " + _TREE_SHAPE
@@ -244,9 +250,56 @@ class PortfolioTreeTools:
     # ------------------------------------------------------------------ #
     # Store-backed tools
     # ------------------------------------------------------------------ #
+    @staticmethod
+    def _config_instruments(config: dict[str, Any]) -> list[str]:
+        """Return every ticker used by a raw config, before V2 validation."""
+        instruments: list[str] = []
+        nodes = config.get("nodes")
+        if isinstance(nodes, list):
+            for node in nodes:
+                if not isinstance(node, dict):
+                    continue
+                raw = node.get("instruments")
+                if isinstance(raw, list):
+                    instruments.extend(item for item in raw if isinstance(item, str) and item)
+                proxy = node.get("proxy")
+                if isinstance(proxy, str) and proxy:
+                    instruments.append(proxy)
+        backtest = config.get("backtest")
+        if isinstance(backtest, dict):
+            benchmark = backtest.get("benchmark")
+            if isinstance(benchmark, dict) and isinstance(benchmark.get("weights"), dict):
+                instruments.extend(item for item in benchmark["weights"] if isinstance(item, str) and item)
+        return list(dict.fromkeys(instruments))
+
+    def _with_default_currency(self, config: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+        """Default a missing reference currency only for a uniform universe."""
+        if isinstance(config.get("currency"), str) and config["currency"].strip():
+            return config, None
+
+        instruments = self._config_instruments(config)
+        symbols = [item.split(":", 1)[1] if item.lower().startswith("ticker:") else item for item in instruments]
+        currencies = self._currency_lookup(symbols)
+        unknown = [symbol for symbol in symbols if not currencies.get(symbol.upper()) and not currencies.get(symbol)]
+        if unknown:
+            raise ValueError(
+                "currency is required because instrument currency is unknown for: " + ", ".join(sorted(unknown))
+            )
+        resolved = {
+            str(currencies.get(symbol.upper()) or currencies.get(symbol) or "").strip().upper() for symbol in symbols
+        }
+        if len(resolved) != 1:
+            detail = ", ".join(sorted(resolved)) if resolved else "no instruments"
+            raise ValueError(f"currency is required because instruments do not resolve to one currency ({detail})")
+        currency = next(iter(resolved))
+        defaulted = deepcopy(config)
+        defaulted["currency"] = currency
+        return defaulted, currency
+
     def _validate(self, config: dict[str, Any]) -> str:
         try:
-            model = self._v2_model.from_config(config)
+            resolved, currency_defaulted = self._with_default_currency(config)
+            model = self._v2_model.from_config(resolved)
         except (KeyError, TypeError, ValueError) as exc:
             return _json({"ok": False, "error": str(exc)})
         instruments = list(
@@ -258,33 +311,40 @@ class PortfolioTreeTools:
                 ]
             )
         )
-        return _json(
-            {
-                "ok": True,
-                "instruments": instruments,
-                "root_has_children": bool(model.root.children),
-                "sleeves": [
-                    {
-                        "node": child.name,
-                        "proxy": child.proxy,
-                        "instruments": child.instruments,
-                        "terminal_instruments": child.terminal_instruments(),
-                    }
-                    for child in model.root.children
-                ],
-            }
-        )
+        payload = {
+            "ok": True,
+            "instruments": instruments,
+            "root_has_children": bool(model.root.children),
+            "sleeves": [
+                {
+                    "node": child.name,
+                    "proxy": child.proxy,
+                    "instruments": child.instruments,
+                    "terminal_instruments": child.terminal_instruments(),
+                }
+                for child in model.root.children
+            ],
+        }
+        if currency_defaulted:
+            payload["currency_defaulted"] = currency_defaulted
+        return _json(payload)
 
     def _list(self) -> str:
         database = self._resolve_store_path(self._store_path)
-        return _json({"ok": True, "database": str(database), "items": self._list_saved_models(store_path=self._store_path)})
+        return _json(
+            {"ok": True, "database": str(database), "items": self._list_saved_models(store_path=self._store_path)}
+        )
 
     def _load(self, name: str) -> str:
         return _json(self._read_model(name, store_path=self._store_path))
 
     def _save(self, name: str, config: dict[str, Any]) -> str:
-        stored_name = self._write_model(name, config, store_path=self._store_path)
-        return _json({"ok": True, "name": stored_name})
+        resolved, currency_defaulted = self._with_default_currency(config)
+        stored_name = self._write_model(name, resolved, store_path=self._store_path)
+        payload = {"ok": True, "name": stored_name}
+        if currency_defaulted:
+            payload["currency_defaulted"] = currency_defaulted
+        return _json(payload)
 
     def _delete(self, name: str) -> str:
         deleted_name = self._delete_model(name, store_path=self._store_path)
@@ -330,9 +390,7 @@ class PortfolioTreeTools:
         train_size: int = 0,
     ) -> str:
         resolved = self._resolve_config(config, name)
-        backtest = self._effective_backtest(
-            resolved, estimation_frequency=estimation_frequency, train_size=train_size
-        )
+        backtest = self._effective_backtest(resolved, estimation_frequency=estimation_frequency, train_size=train_size)
         merged = {**resolved, "backtest": backtest}
         model = self._v2_model.from_config(merged)
         mode = self._mode_from_config(merged)
