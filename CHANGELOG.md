@@ -10,6 +10,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Portfolio tree validation and save now infer a missing reference currency when every instrument resolves to the same currency, and report the inferred value.
+- The MCP stdio server pre-imports optional scientific and market-data provider modules on its main thread, preventing the first data-hub call from hanging during a worker-thread import.
 
 ### Fixed
 - `ecosystem-released` handles private manifest components from one list (`PRIVATE_COMPONENTS`: lazyfin, lazyceo): they are left out of the credential-less install, installed only in the scoped `ECOSYSTEM_PAT` step and skipped by the Release-wheel check. The job had failed since lazyceo joined the manifest (clone without credentials, no public Release).

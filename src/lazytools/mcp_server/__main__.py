@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import json
 import logging
 import os
@@ -23,6 +24,49 @@ import os
 from lazytools import __version__
 from lazytools.mcp_server.providers import PROVIDER_FACTORIES, default_providers
 from lazytools.mcp_server.server import build_server, serve_http, serve_stdio
+
+_SCIENTIFIC_PROVIDER_MODULES: dict[str, tuple[str, ...]] = {
+    "datahub": ("market_data_hub.agent_tools",),
+    "statistical": (
+        "market_data_hub.extract",
+        "market_data_hub.reader",
+        "market_data_hub.lazydatacore",
+    ),
+    "econ_calendar": ("market_data_hub.db.connection", "market_data_hub.econ_calendar.catalog"),
+    "earnings_calendar": ("market_data_hub.db.connection", "market_data_hub.earnings_calendar"),
+    "cftc_cot": ("market_data_hub.reader",),
+    "treasury_fiscal": ("market_data_hub.reader",),
+    "report": ("market_data_hub.extract",),
+}
+
+
+def _preimport_scientific_modules(provider_ids: list[str] | None) -> None:
+    """Load scientific dependencies before stdio dispatch starts worker threads.
+
+    Some data providers deliberately import pandas and hub readers only at the
+    first tool call.  Importing those modules from the dispatch worker can
+    deadlock with the main event-loop thread, so warm the applicable import
+    graph here while startup still runs synchronously.  Every import remains
+    optional: an unavailable provider is handled by the existing provider
+    construction/expansion guards rather than making the server fail startup.
+    """
+    selected = provider_ids if provider_ids is not None else list(PROVIDER_FACTORIES)
+    provider_modules = [
+        module
+        for provider_id in selected
+        for module in _SCIENTIFIC_PROVIDER_MODULES.get(provider_id, ())
+    ]
+    if not provider_modules:
+        return
+    modules = ["numpy", "pandas"]
+    modules.extend(provider_modules)
+    for module in dict.fromkeys(modules):
+        try:
+            importlib.import_module(module)
+        except Exception:  # same isolation as default_providers(): a broken optional dep must not stop other providers
+            logging.getLogger("lazytools.mcp_server").debug(
+                "Optional startup pre-import unavailable: %s", module, exc_info=True
+            )
 
 
 def _env(name: str, default: str | None = None) -> str | None:
@@ -122,6 +166,7 @@ def main(argv: list[str] | None = None) -> None:
             ids = [part.strip() for part in env.split(",") if part.strip()]
 
     data_source = _load_data_source(args.config)
+    _preimport_scientific_modules(ids)
     providers = default_providers(ids, allow_write=args.allow_unsafe, data_source=data_source)
     server = build_server(
         providers,
