@@ -283,7 +283,7 @@ class MCPServer:
         )
         # This is the stable LazyTools surface consumed by LazyStudio. Keep
         # protocol key spellings (readOnlyHint, destructiveHint, and so on).
-        tool.annotations = annotations
+        tool.annotations = annotations  # type: ignore[attr-defined]  # dynamic surface read by LazyStudio
 
         # Newer LazyBridge Tool versions may provide a general metadata bag.
         # Mirror the annotations there without requiring that optional API or
