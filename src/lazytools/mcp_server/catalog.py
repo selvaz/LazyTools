@@ -52,7 +52,7 @@ PROVIDER_GROUPS: dict[str, ProviderCatalogEntry] = {
     "tradingview": _entry("Market data", 0, "TradingView", "LazyTools", "Screen live markets and inspect breadth and fund snapshots."),
     "cftc_cot": _entry("Market data", 0, "CFTC COT", "market-data-hub", "Inspect CFTC Commitments of Traders positioning."),
     "treasury_fiscal": _entry("Market data", 0, "Treasury Fiscal", "market-data-hub", "Query U.S. Treasury fiscal data."),
-    "alfred": _entry("Market data", 0, "ALFRED", "market-data-hub", "Query point-in-time FRED vintages."),
+    "alfred": _entry("Market data", 0, "ALFRED", "LazyTools", "Query point-in-time FRED vintages."),
     "gleif": _entry("Market data", 0, "GLEIF", "LazyTools", "Look up legal entities and LEIs."),
     "econ_calendar": _entry("Calendars and macro", 1, "Economic Calendar", "market-data-hub", "Inspect economic release dates and values."),
     "earnings_calendar": _entry("Calendars and macro", 1, "Earnings Calendar", "market-data-hub", "Inspect corporate earnings dates."),
