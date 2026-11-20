@@ -28,3 +28,19 @@ def test_preimport_scientific_modules_skips_unrelated_provider(monkeypatch) -> N
     entrypoint._preimport_scientific_modules(["studio"])
 
     assert imported == []
+
+
+def test_preimport_tolerates_non_import_errors(monkeypatch):
+    import importlib
+
+    from lazytools.mcp_server import __main__ as entry
+
+    real_import = importlib.import_module
+
+    def broken(name, *args, **kwargs):
+        if name == "pandas":
+            raise ValueError("binary incompatibility")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(entry.importlib, "import_module", broken)
+    entry._preimport_scientific_modules(None)  # must not raise

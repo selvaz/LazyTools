@@ -63,7 +63,7 @@ def _preimport_scientific_modules(provider_ids: list[str] | None) -> None:
     for module in dict.fromkeys(modules):
         try:
             importlib.import_module(module)
-        except (ImportError, OSError):
+        except Exception:  # same isolation as default_providers(): a broken optional dep must not stop other providers
             logging.getLogger("lazytools.mcp_server").debug(
                 "Optional startup pre-import unavailable: %s", module, exc_info=True
             )
