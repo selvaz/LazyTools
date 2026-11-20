@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Protocol, TypedDict
 
-from lazytools.mcp_server.server import UNSAFE_TOOL_PATTERNS, _is_unsafe
+from lazytools.mcp_server.server import is_unsafe_tool_name
 
 Access = Literal["read", "write"]
 
@@ -77,7 +77,7 @@ PROVIDER_GROUPS: dict[str, ProviderCatalogEntry] = {
     "outlook": _entry("Messaging", 7, "Outlook", "LazyTools", "Read, draft, and send Outlook messages."),
     "projects": _entry("Operations", 8, "Projects", "LazyTools", "Inspect and maintain the shared project registry."),
     "registry": _entry("Operations", 8, "Registry", "LazyTools", "Inspect ecosystem databases and artifacts."),
-    "pulse": _entry("Operations", 8, "Pulse", "LazyCEO", "Inspect LazyCEO backlog items and approval tickets."),
+    "pulse": _entry("Operations", 8, "LazyCEO backlog and approvals", "LazyCEO", "Inspect LazyCEO backlog items and approval tickets."),
     "studio": _entry("Operations", 8, "Studio", "LazyStudio", "Discover and invoke agents published by LazyStudio."),
 }
 
@@ -103,6 +103,19 @@ _STUDIO_READ_TOOLS = frozenset({"studio_run_status", "studio_status"})
 # guard. RegimeTools is the authoritative gate and only emits these in its
 # allow_write shape (the server module documents this limitation explicitly).
 _GATED_WRITE_TOOLS = {
+    "projects": frozenset(
+        {
+            "projects_add_note",
+            "projects_create",
+            "projects_open_contract",
+            "projects_promote",
+            "projects_review_plan",
+            "projects_revise_plan",
+            "projects_schedule_task",
+            "projects_set_deadline",
+            "projects_set_owner",
+        }
+    ),
     "regimes": frozenset(
         {
             "regime_apply_params",
@@ -111,6 +124,13 @@ _GATED_WRITE_TOOLS = {
         }
     )
 }
+
+# These optimizer calls only compute from market data and return their result;
+# they have no persisted store. They remain in the server's conservative unsafe
+# patterns as expensive computations, but catalog access describes state writes.
+_READ_ONLY_PATTERN_EXCEPTIONS = frozenset(
+    {"portfolio_optimizer_run", "portfolio_optimizer_backtest"}
+)
 
 
 def tool_metadata(provider_id: str, tool: str | NamedTool) -> ToolMetadata:
@@ -132,8 +152,14 @@ def tool_metadata(provider_id: str, tool: str | NamedTool) -> ToolMetadata:
     write = (
         provider_id in _WRITE_ONLY_PROVIDERS
         or name in _GATED_WRITE_TOOLS.get(provider_id, ())
-        or _is_unsafe(name, UNSAFE_TOOL_PATTERNS)
+        or is_unsafe_tool_name(name)
     )
+    if name in _READ_ONLY_PATTERN_EXCEPTIONS:
+        write = False
+    # web_* fetches may populate a disposable local page cache. That is an
+    # implementation detail, not a mutation of user or application state.
+    if provider_id == "web" and name.startswith("web_"):
+        write = False
     if provider_id == "studio" and name not in _STUDIO_READ_TOOLS:
         write = True
     return {

@@ -419,8 +419,9 @@ def _fin(allow_write: bool = False, *, data_source: dict[str, Any] | None = None
     * ``PortfolioOptimizationTools`` — ``portfolio_optimizer_*``, a single flat
       node over market-data-hub returns. Stateless: no persisted store, unlike
       the removed Skfolio-direct engine this replaced. Emits all its tools
-      regardless of ``allow_write``; the mutating ones (run / backtest) are
-      dropped in read-only server mode by the name guard alone.
+      regardless of ``allow_write``. Run / backtest are pure computations and
+      persist nothing; the server's conservative name guard still keeps these
+      potentially expensive calls off its default surface.
     * ``PortfolioTreeTools`` — ``portfolio_tree_*``, the full node-tree
       (parent/child hierarchies, per-node proxies, flat/forward/
       forward_backward modes), persisted through the same shared store Tree
