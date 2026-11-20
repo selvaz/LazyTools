@@ -2,14 +2,14 @@
 # — do not edit by hand. The verified, co-installable combination:
 #   pip install -r requirements/verified.txt
 
-lazybridge==1.8.7
-lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.6
-lazyceo @ git+https://github.com/selvaz/LazyCEO.git@v0.2.10
+lazybridge==1.8.9
+lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.12
+lazyceo @ git+https://github.com/selvaz/LazyCEO.git@v0.2.11
 lazypulse @ git+https://github.com/selvaz/LazyPulse.git@v0.5.7
 lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@v0.19.7
-market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@v0.3.29
-lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@v0.3.12
-lazyportfolio[datacore] @ git+https://github.com/selvaz/LazyPortfolio.git@v0.2.12
-lazyray @ git+https://github.com/selvaz/LazyRay.git@v0.2.12
+market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@v0.4.0
+lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@v0.3.13
+lazyportfolio[datacore] @ git+https://github.com/selvaz/LazyPortfolio.git@v0.2.13
+lazyray @ git+https://github.com/selvaz/LazyRay.git@v0.2.13
 lazydataspace @ git+https://github.com/selvaz/DataSpace.git@v0.1.0
-lazyfin[bridge,datacore] @ git+https://github.com/selvaz/LazyFin.git@a0f513c1699b5b91e7b03b366a2a0e9b21f45044
+lazyfin[bridge,datacore] @ git+https://github.com/selvaz/LazyFin.git@01f30826cb9c16e9b15c914555767691348f345e
