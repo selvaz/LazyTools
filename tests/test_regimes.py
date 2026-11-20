@@ -260,3 +260,29 @@ def test_every_tool_has_an_explicit_schema_description(tmp_path) -> None:
         description = tool.definition().description
         assert description, f"{name} has no description in its schema"
         assert len(description) >= 15, f"{name} description is too thin: {description!r}"
+
+
+def test_init_db_hides_local_path_from_tool_result(tmp_path) -> None:
+    """D48: the agent gets a public label, never the absolute depot path."""
+    db_file = tmp_path / "private_dir" / "t.db"
+    db_file.parent.mkdir()
+    tools = {t.name: t for t in RegimeTools(allow_write=True, db_path=str(db_file)).as_tools()}
+    out = tools["regime_init_db"].run_sync(db_path=str(db_file))
+    assert out["status"] == "ok"
+    assert out["store"] == "configured regime store"
+    assert "db_path" not in out
+    assert "private_dir" not in str(out)
+
+
+def test_regime_summary_labels_dispersion_as_variance(tmp_path) -> None:
+    """D47: lazystats' per-regime 'vol' is a per-period variance; say so."""
+    tools = {t.name: t for t in RegimeTools(allow_write=True, db_path=str(tmp_path / "t.db")).as_tools()}
+    tools["regime_fit"].run_sync(
+        data=_synthetic_two_state_series(), series_names=["SPY"],
+        result_key="test_var_label", S_max=3, n_starts=2, random_state=0,
+    )
+    text = tools["regime_get_summary"].run_sync(result_key="test_var_label")
+    assert "variance=" in text
+    assert "vol=" not in text
+    assert "not annualised" in text
+    assert "sqrt(variance)" in text
