@@ -149,12 +149,15 @@ def _existing_tools(
     if request.writer_repomap:
         roots = {name: path for name, path in workspace.paths().items()}
         roots[request.repo] = root
-        writer_tools = tuple(
-            RepoMapTools(
-                roots, executable=request.writer_repomap_executable,
-                use_embeddings=False,
-            ).as_tools()
+        codemap = RepoMapTools(
+            roots, executable=request.writer_repomap_executable,
+            use_embeddings=False,
         )
+        # The temporary clone has its own path/cache, so it needs an
+        # explicit cold index before native writer tools can use the graph.
+        # A failure aborts this arm rather than silently reverting to grep.
+        codemap.backend.index(request.repo)
+        writer_tools = tuple(codemap.as_tools())
     writer = CodeWriteTools(
         base_dir=str(root), claude=request.writer_engine == "claude",
         codex=request.writer_engine == "codex",
