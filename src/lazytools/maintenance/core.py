@@ -229,6 +229,7 @@ class RunState:
                 key_data["uncommitted_run_id"] = self.run_id
             key = _digest(key_data)
             path = self.workspace.state_dir / "snapshots" / repo.id / f"{key}.json"
+            cached: dict[str, Any] | None = None
             if path.exists():
                 try:
                     cached = json.loads(path.read_text(encoding="utf-8"))
@@ -239,21 +240,38 @@ class RunState:
                 if (cached.get("cache_key") != key or cached.get("sha") != self.sha[repo.id]
                         or cached.get("status") != "ready"):
                     raise MaintenanceError("Snapshot cache metadata mismatch")
-                self.snapshots[repo.id] = {**cached, "cache_hit": True}
-                continue
+            # An immutable metadata record does not guarantee the third-party
+            # engine's own cache still exists. RepoMap indexes quickly: probe
+            # and refresh it on EVERY run, even when snapshot metadata is hit.
             start = time.perf_counter()
             raw = self.mapper.index(repo.id)
+            elapsed = round(time.perf_counter() - start, 4)
             try:
                 indexed = json.loads(raw)
             except json.JSONDecodeError as exc:
                 raise MaintenanceError("RepoMap index did not return valid JSON") from exc
             if not isinstance(indexed, dict) or indexed.get("root") is None:
                 raise MaintenanceError("RepoMap index did not identify indexed root")
+            if cached is not None:
+                for field, observed in (
+                    ("files_count", indexed.get("files")),
+                    ("symbols_count", indexed.get("symbols")),
+                ):
+                    if cached.get(field) is not None and observed is not None and cached[field] != observed:
+                        raise MaintenanceError(
+                            f"RepoMap index for {repo.id} changed counts at unchanged SHA; rescan required"
+                        )
+                self.snapshots[repo.id] = {
+                    **cached, "cache_hit": True, "index_revalidated": True,
+                    "refresh_seconds": elapsed,
+                }
+                continue
             snapshot = {
                 "repo": repo.id, "sha": self.sha[repo.id], "dirty": self.dirty[repo.id],
                 "cache_key": key, "engine": version,
                 "status": "ready" if self.dirty[repo.id] == "clean" else "partial",
-                "indexed_seconds": round(time.perf_counter() - start, 4),
+                "indexed_seconds": elapsed, "refresh_seconds": elapsed,
+                "index_revalidated": True,
                 "files_count": indexed.get("files"), "symbols_count": indexed.get("symbols"),
                 "cache_hit": False,
             }
