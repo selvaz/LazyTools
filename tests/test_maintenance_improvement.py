@@ -212,7 +212,7 @@ def test_failed_approved_check_never_ready(source):
         report, request(checks=(check,), max_rounds=1),
         writer_tool=Writer(), reviewer_tool=Reviewer(),
     )
-    assert result["status"] in ("checks_failed", "round_cap")
+    assert result["status"] == "checks_failed"
     assert result["rounds"][0]["verification"]["status"] == "failed"
     assert not result["pushed"]
     assert (root / "module.py").read_text().endswith("return 1\n")
@@ -269,3 +269,73 @@ def test_self_improvement_plan_approval_before_read_only_scan(source):
     with pytest.raises(PermissionError, match="Explicit approval"):
         flow.run(writer_tool=Writer(), reviewer_tool=Reviewer())
     assert invoked == []
+
+
+def test_reverse_engine_pair_reuses_same_contract(source):
+    space, _, _, report = source
+    check = CheckSpec(
+        "target", "demo", (sys.executable, "-c", "from module import value; assert value() == 2"),
+    )
+    result = MaintenanceImprover(space).run(
+        report,
+        request(
+            writer_engine="codex", reviewer_engine="claude",
+            checks=(check,), max_rounds=1,
+        ),
+        writer_tool=Writer(), reviewer_tool=Reviewer(),
+    )
+    assert result["writer_engine"] == "codex"
+    assert result["reviewer_engine"] == "claude"
+    assert result["status"] == "proposal_ready_for_human_review"
+
+
+def test_failed_checks_trigger_a_bounded_writer_fix(source):
+    space, root, _, report = source
+    writer = Writer((2, 3))
+    reviewer = Reviewer(((), ()))
+    check = CheckSpec(
+        "accept_value_3", "demo",
+        (sys.executable, "-c", "from module import value; assert value() == 3"),
+    )
+    result = MaintenanceImprover(space).run(
+        report, request(checks=(check,), max_rounds=2),
+        writer_tool=writer, reviewer_tool=reviewer,
+    )
+    assert result["status"] == "proposal_ready_for_human_review", result
+    assert len(result["rounds"]) == 2
+    assert result["rounds"][0]["verification"]["status"] == "failed"
+    assert result["rounds"][1]["verification"]["status"] == "passed_selected_checks"
+    assert "Address these failed selected checks" in writer.calls[1]
+    assert (root / "module.py").read_text().endswith("return 1\n")
+
+
+def test_source_changes_during_review_invalidate_potentially_clean_proposal(source):
+    space, root, _, report = source
+
+    class AdvanceSource:
+        async def run(self, **kwargs):
+            root.joinpath("module.py").write_text("def value():\n    return 44\n")
+            return REVIEW_MARKER + '\n{"reviewer_model":"codex","findings":[]}'
+
+    check = CheckSpec("test", "demo", (sys.executable, "--version"))
+    result = MaintenanceImprover(space).run(
+        report, request(checks=(check,), max_rounds=1),
+        writer_tool=Writer(), reviewer_tool=AdvanceSource(),
+    )
+    assert result["status"] == "stale_source"
+    assert "re-run maintenance scan" in result["error"]
+    assert not result["pushed"]
+
+
+def test_review_severity_p1_halts_before_verification(source):
+    space, _, _, report = source
+    writer = Writer((2, 3))
+    reviewer = Reviewer(((("P1", "Potential data loss"),), ()))
+    check = CheckSpec("would_pass", "demo", (sys.executable, "--version"))
+    result = MaintenanceImprover(space).run(
+        report, request(checks=(check,)),
+        writer_tool=writer, reviewer_tool=reviewer,
+    )
+    assert result["status"] == "escalated"
+    assert len(writer.calls) == 1
+    assert "verification" not in result["rounds"][0]
