@@ -69,9 +69,17 @@ def _test_environment(home: Path) -> dict[str, str]:
 
 
 def _git_worktree(root: Path, *args: str) -> None:
+    env = {
+        key: os.environ[key]
+        for key in ("PATH", "HOME", "SYSTEMROOT", "SystemRoot", "WINDIR",
+                    "TMP", "TEMP", "TMPDIR")
+        if key in os.environ
+    }
+    env["GIT_TERMINAL_PROMPT"] = "0"
     try:
         p = subprocess.run(
             ["git", "-C", str(root), "worktree", *args],
+            env=env, stdin=subprocess.DEVNULL,
             capture_output=True, text=True, timeout=40, check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
