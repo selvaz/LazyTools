@@ -85,7 +85,7 @@ A declared dependency means a consumer *might* need a compatibility check, not t
 Run the focused tests with:
 
 ~~~sh
-PYTHONPATH=src python -m pytest -q tests/test_codemap.py tests/test_maintenance.py
+PYTHONPATH=src python -m pytest -q tests/test_codemap.py tests/test_maintenance.py tests/test_maintenance_cli.py tests/test_maintenance_verification.py
 ~~~
 
 GitHub CI adds a real RepoMap binary smoke with two successive Git commits, first/second snapshots and a verified cache hit. Ruff, mypy, multiple Python versions and MCP majors run in the regular LazyTools matrix.
@@ -155,3 +155,7 @@ Checks are granted in trusted Python code, not in the TOML, an LLM prompt, a PR 
 **Security boundary:** a temporary Git worktree is *not* an OS sandbox and does *not* enforce network isolation. Only execute code from trusted revisions, with proper container/CI isolation as appropriate. A restricted environment avoids forwarding ambient API credentials, but the subprocess retains its operating-system permissions. No automatic PR writes, merges or deployment capabilities are provided.
 
 Every scan has its own run_id and distinct report files; a later run cannot overwrite an older report for the same SHA.
+
+## Runnable two-repository example
+
+Run `PYTHONPATH=src python examples/maintenance_two_repos.py` after installing the optional RepoMap 1.9.0 binary. It creates two disposable local Git repositories, changes a library API, then demonstrates a SHA-pinned consumer import finding. The example never alters a real repository or requires an LLM.
