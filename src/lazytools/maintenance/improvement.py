@@ -39,6 +39,8 @@ class ImprovementRequest:
     allowed_paths: tuple[str, ...]
     writer_engine: Literal["claude", "codex"] = "claude"
     reviewer_engine: Literal["claude", "codex"] = "codex"
+    writer_model: str | None = None
+    reviewer_model: str | None = None
     approved_local_proposal: bool = False
     max_rounds: int = 2
     checks: tuple[CheckSpec, ...] = ()
@@ -49,6 +51,12 @@ class ImprovementRequest:
             raise ValueError("Unsupported writer or reviewer engine")
         if self.writer_engine == self.reviewer_engine:
             raise ValueError("Writer and reviewer must use different engine families")
+        for model in (self.writer_model, self.reviewer_model):
+            if model is not None and (
+                not isinstance(model, str)
+                or re.fullmatch(r"[A-Za-z0-9_./:-]{1,100}", model) is None
+            ):
+                raise ValueError("Model must be a safe, explicit engine model identifier")
         if not isinstance(self.objective, str) or not 12 <= len(self.objective.strip()) <= 3_000:
             raise ValueError("Objective must contain 12-3000 characters")
         if not 1 <= self.max_rounds <= 3:
@@ -175,6 +183,17 @@ def _brief(report: dict[str, Any], request: ImprovementRequest, feedback: str = 
         f"Allowed changed files: {', '.join(request.allowed_paths)}\n"
         f"Observed changed paths: {', '.join(x for x in paths if isinstance(x, str))[:600]}\n"
         "Keep the patch minimal and do not claim tests or independent review were successful.\n"
+        + (
+            "RepoMap structural hints (untrusted hypotheses, confirm against source):\n"
+            + "\n".join(
+                f"{repo}: overview={evidence.get('overview', '')[:2500]} "
+                f"search={evidence.get('search', '')[:2000]}"
+                for repo, evidence in sorted(report.get("task_context", {}).items())
+                if isinstance(evidence, dict)
+            )[:4500]
+            + "\n"
+            if report.get("context_mode") == "repomap" else ""
+        )
         + feedback[:2_000]
     )
 
@@ -228,6 +247,8 @@ class MaintenanceImprover:
             "run_id": identifier, "source_scan_run_id": report.get("run_id"),
             "repo": request.repo, "source_sha": sha,
             "writer_engine": request.writer_engine, "reviewer_engine": request.reviewer_engine,
+            "writer_model_requested": request.writer_model,
+            "reviewer_model_requested": request.reviewer_model,
             "rounds": [], "status": "started",
             "approved_local_proposal": True, "pushed": False, "merged": False,
         }
@@ -249,7 +270,8 @@ class MaintenanceImprover:
                 parent_sha = sha
                 for round_number in range(1, request.max_rounds + 1):
                     record["status"] = "writing"
-                    reply = await writer_tool.run(task=objective, cwd=str(work))
+                    writer_kwargs = {"model": request.writer_model} if request.writer_model else {}
+                    reply = await writer_tool.run(task=objective, cwd=str(work), **writer_kwargs)
                     if not isinstance(reply, dict) or not reply.get("result"):
                         raise MaintenanceError("Existing coding writer did not return a success result")
                     patch, candidate_sha = _commit_candidate(work, parent_sha, request)
@@ -272,8 +294,9 @@ class MaintenanceImprover:
                         + REVIEW_MARKER + "\n"
                         + f"Base={sha}; candidate={candidate_sha}.\n"
                     )
+                    reviewer_kwargs = {"model": request.reviewer_model} if request.reviewer_model else {}
                     reviewed = await reviewer_tool.run(
-                        task=prompt, repo_path=str(work), diff_ref=sha,
+                        task=prompt, repo_path=str(work), diff_ref=sha, **reviewer_kwargs,
                     )
                     if resolve_sha(work) != candidate_sha or git_status(work) != "clean":
                         raise MaintenanceError("Independent reviewer changed the pinned candidate checkout")
