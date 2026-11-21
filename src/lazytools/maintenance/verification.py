@@ -162,22 +162,24 @@ def run_approved_checks(
     results: list[dict[str, object]] = []
     with tempfile.TemporaryDirectory(prefix="maintenance-verify-", dir=workspace.state_dir) as temp:
         work_dir = Path(temp)
-        for repo_id in dict.fromkeys(check.repo for check in checks):
+        for check in checks:
+            repo_id = check.repo
             root = allowed[repo_id]
-            checkout = work_dir / repo_id
+            # Every check gets a fresh detached worktree; a previous test
+            # may modify its own files, so sharing one would violate the
+            # promise that every check observed exactly the pinned SHA.
+            checkout = work_dir / f"{repo_id}-{check.id}"
             _git_worktree(root, "add", "--detach", str(checkout), shas[repo_id])
             try:
-                if resolve_sha(checkout) != shas[repo_id]:
-                    raise MaintenanceError(f"Detached check worktree SHA mismatch: {repo_id}")
-                for check in checks:
-                    if check.repo == repo_id:
-                        home = work_dir / f"home-{check.id}"
-                        home.mkdir(mode=0o700)
-                        results.append(_run_one(check, shas[repo_id], checkout, home))
+                if resolve_sha(checkout) != shas[repo_id] or git_status(checkout) != "clean":
+                    raise MaintenanceError(f"Detached check worktree is not clean at SHA: {repo_id}")
+                home = work_dir / f"home-{check.id}"
+                home.mkdir(mode=0o700)
+                results.append(_run_one(check, shas[repo_id], checkout, home))
             finally:
                 _git_worktree(root, "remove", "--force", str(checkout))
-            if resolve_sha(root) != shas[repo_id]:
-                raise MaintenanceError(f"{repo_id} HEAD changed during verification")
+            if resolve_sha(root) != shas[repo_id] or git_status(root) != "clean":
+                raise MaintenanceError(f"{repo_id} source checkout changed during verification")
 
     statuses = {str(row["status"]) for row in results}
     overall = (
