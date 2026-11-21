@@ -299,6 +299,10 @@ class MaintenanceImprover:
                         "number": round_number, "candidate_sha": candidate_sha,
                         "patch_sha256": hashlib.sha256(patch).hexdigest(),
                         "patch_bytes": len(patch), "review_status": "pending",
+                        "writer_usage": (
+                            reply.get("usage") if isinstance(reply.get("usage"), dict)
+                            else {"source": "unavailable"}
+                        ),
                     }
                     record["rounds"].append(round_record)
                     record["status"] = "independent_review"
