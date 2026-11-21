@@ -175,3 +175,43 @@ def test_pipeline_rejects_unconfigured_base_refs_and_bad_reviewer_names(tmp_path
 
     with pytest.raises(ValueError, match="beginning with"):
         MaintenancePipeline(workspace, reviewers=[DummyReviewer()])
+
+
+@pytest.mark.parametrize("reviewer_count", [1, 2])
+def test_nested_subagents_are_plan_tools_and_cannot_claim_verification(
+    tmp_path, monkeypatch, reviewer_count
+):
+    """Nested Plan Agents run with bounded impact evidence, no LLM/network."""
+    from lazybridge import Agent, Plan, Step
+    import lazytools.maintenance.pipeline as module
+
+    workspace, _, _ = make_workspace(tmp_path)
+    mapper = FakeMapper()
+    seen: list[str] = []
+
+    class StubCLI:
+        def __new__(cls, *args, **kwargs):
+            return mapper
+
+    monkeypatch.setattr(module, "RepoMapCLI", StubCLI)
+
+    def make_reviewer(name):
+        def review(task: str) -> str:
+            payload = json.loads(task)
+            assert set(payload["sha"]) == {"core", "consumer"}
+            assert "Static analysis" in payload["note"]
+            seen.append(name)
+            return "Suggestion from " + name + ": inspect API consumers"
+
+        return Agent(name=name, engine=Plan(Step(review, name="assess")))
+
+    reviewers = [make_reviewer("review_architecture")]
+    if reviewer_count == 2:
+        reviewers.append(make_reviewer("review_tests"))
+    result = MaintenancePipeline(workspace, reviewers=reviewers).execute()
+    assert set(seen) == {reviewer.name for reviewer in reviewers}
+    assert result["reviews"]["status"] == "unverified_suggestions"
+    for reviewer in reviewers:
+        assert reviewer.name in result["reviews"]["text"]
+    assert result["verification"]["status"] == "not_run"
+    assert result["verified"] is False
