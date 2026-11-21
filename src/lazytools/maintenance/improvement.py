@@ -42,6 +42,7 @@ class ImprovementRequest:
     writer_model: str | None = None
     reviewer_model: str | None = None
     writer_repomap: bool = False
+    writer_repomap_executable: str = "repomap"
     approved_local_proposal: bool = False
     max_rounds: int = 2
     checks: tuple[CheckSpec, ...] = ()
@@ -54,6 +55,8 @@ class ImprovementRequest:
             raise ValueError("Writer and reviewer must use different engine families")
         if not isinstance(self.writer_repomap, bool):
             raise ValueError("writer_repomap must be a boolean")
+        if not isinstance(self.writer_repomap_executable, str) or not self.writer_repomap_executable.strip():
+            raise ValueError("writer_repomap_executable must be a configured local binary")
         for model in (self.writer_model, self.reviewer_model):
             if model is not None and (
                 not isinstance(model, str)
@@ -147,7 +150,10 @@ def _existing_tools(
         roots = {name: path for name, path in workspace.paths().items()}
         roots[request.repo] = root
         writer_tools = tuple(
-            RepoMapTools(roots, use_embeddings=False).as_tools()
+            RepoMapTools(
+                roots, executable=request.writer_repomap_executable,
+                use_embeddings=False,
+            ).as_tools()
         )
     writer = CodeWriteTools(
         base_dir=str(root), claude=request.writer_engine == "claude",
