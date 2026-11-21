@@ -64,7 +64,7 @@ def python_import_evidence(
                 if module == prefix or module.startswith(prefix + "."):
                     matches.append({
                         "path": relative,
-                        "line": node.lineno,
+                        "line": getattr(node, "lineno", 0),
                         "module": module,
                         "kind": "import" if isinstance(node, ast.Import) else "from_import",
                     })
