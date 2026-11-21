@@ -186,7 +186,8 @@ class RunState:
 
     workspace: Workspace
     base_refs: dict[str, str]
-    mapper: RepoMapCLI
+    mapper: RepoMapCLI | None
+    task_query: str | None = None
     sha: dict[str, str] = field(default_factory=dict)
     base: dict[str, str | None] = field(default_factory=dict)
     dirty: dict[str, str] = field(default_factory=dict)
@@ -194,6 +195,7 @@ class RunState:
     changes: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     truncated: dict[str, bool] = field(default_factory=dict)
     impacts: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    task_context: dict[str, dict[str, str]] = field(default_factory=dict)
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     review_text: str | None = None
     verification: dict[str, Any] = field(default_factory=lambda: {"status": "not_run", "tests": None})
@@ -218,6 +220,21 @@ class RunState:
     def refresh(self) -> str:
         if not self.sha:
             raise MaintenanceError("Resolve must run before snapshot refresh")
+        if self.mapper is None:
+            # Control arm: preserve the exact Plan graph without invoking
+            # RepoMap, Node, indexing or an alternative graph engine.
+            for repo in self.workspace.repos:
+                self.snapshots[repo.id] = {
+                    "repo": repo.id, "sha": self.sha[repo.id],
+                    "dirty": self.dirty[repo.id], "engine": "git-only",
+                    "status": "ready" if self.dirty[repo.id] == "clean" else "partial",
+                    "cache_hit": False, "index_revalidated": False,
+                    "refresh_seconds": 0.0,
+                }
+            return json.dumps({"snapshots": {
+                repo: {"sha": self.sha[repo], "cache_hit": False}
+                for repo in self.sha
+            }})
         version = self.mapper._invoke("version", [], self.workspace.repos[0].id).strip()[:100]
         for repo in self.workspace.repos:
             key_data = {"root": str(repo.root), "sha": self.sha[repo.id],
@@ -297,8 +314,16 @@ class RunState:
             raise MaintenanceError("Diff is required before impact")
         for repo in self.workspace.repos:
             evidence: list[dict[str, str]] = []
+            if self.mapper is not None and self.task_query:
+                # The mapped arm receives task-specific structural context.
+                # Missing RepoMap facts invalidate the experiment; do not
+                # silently fall back to the control arm.
+                self.task_context[repo.id] = {
+                    "overview": self.mapper.overview(repo=repo.id, tokens=900)[:4500],
+                    "search": self.mapper.search(self.task_query, repo=repo.id, limit=6)[:4500],
+                }
             for row in self.changes[repo.id][:limit]:
-                if row["path"].endswith((".py", ".ts", ".tsx", ".js", ".rs")):
+                if self.mapper is not None and row["path"].endswith((".py", ".ts", ".tsx", ".js", ".rs")):
                     try:
                         result = self.mapper.impact(row["path"], repo=repo.id, depth=2)
                         evidence.append({"path": row["path"], "source": "static_graph",
@@ -376,6 +401,8 @@ class RunState:
             "schema_version": 1, "run_id": self.run_id,
             "status": status, "verified": False,
             "sha": self.sha, "base_sha": self.base, "dirty": self.dirty,
+            "context_mode": "repomap" if self.mapper is not None else "git",
+            "task_context": self.task_context,
             "snapshots": self.snapshots, "changes": self.changes,
             "truncated": self.truncated, "impacts": self.impacts,
             "cross_repo_candidates": cross_repo,
