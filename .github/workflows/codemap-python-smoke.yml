@@ -1,0 +1,61 @@
+name: CodeMap Python adapter smoke (experimental)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lazytools/codemap/**"
+      - "tests/test_codemap.py"
+      - "docs/codemap.md"
+      - ".github/workflows/codemap-python-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python test environment
+        run: python -m pip install 'lazybridge==1.8.9' pytest
+
+      - name: Run isolated Python unit tests
+        run: PYTHONPATH=src python -m pytest -q tests/test_codemap.py
+
+      - name: Install pinned local RepoMap engine
+        run: |
+          npm install --global '@sylphx/repomap@1.9.0'
+          repomap version
+
+      - name: Run real local-binary smoke test
+        run: |
+          PYTHONPATH=src python - <<'PY'
+          import os
+          from pathlib import Path
+          from lazytools.codemap import RepoMapTools
+
+          provider = RepoMapTools({"LazyTools": Path(os.environ["GITHUB_WORKSPACE"])}, use_embeddings=False)
+          assert provider.backend.available(), "RepoMap executable is missing"
+          tools = {tool.name: tool for tool in provider.as_tools()}
+          overview = tools["codemap_overview"].run_sync(repo="LazyTools", tokens=900)
+          assert overview.strip(), "empty overview"
+          matches = tools["codemap_search"].run_sync(query="RegistryTools", repo="LazyTools", limit=5)
+          assert "registry/tools.py" in matches, matches[:1000]
+          detail = tools["codemap_context"].run_sync(target="RegistryTools", repo="LazyTools", code_lines=12)
+          assert detail.strip(), "empty context"
+          print("Live native Python smoke: overview, search, context passed")
+          PY
