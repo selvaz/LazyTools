@@ -152,7 +152,10 @@ def run_approved_checks(
             raise ValueError(f"Check {check.id} uses a repository outside the allowlist")
 
     for name, root in allowed.items():
-        if resolve_sha(root) != shas[name] or (workspace.require_clean and git_status(root) != "clean"):
+        # Approved checks run at committed SHAs only. A dirty working tree
+        # could have been indexed differently, so verification must not
+        # certify a mismatched code snapshot even in exploratory dirty mode.
+        if resolve_sha(root) != shas[name] or git_status(root) != "clean":
             raise MaintenanceError(f"{name} changed before verification; refusing stale check")
 
     workspace.state_dir.mkdir(parents=True, exist_ok=True)
