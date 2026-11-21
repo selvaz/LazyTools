@@ -96,7 +96,7 @@ def test_denies_unapproved_proposal_and_same_engine(source):
         request(writer_engine="codex", reviewer_engine="codex")
     with pytest.raises(ValueError, match="approved file"):
         request(allowed_paths=("../secret",))
-    with pytest.raises(ValueError, match="approved file"):
+    with pytest.raises(ValueError, match="repository-relative files"):
         request(allowed_paths=())
     with pytest.raises(PermissionError, match="local proposal approval"):
         MaintenanceImprover(space).run(report, request(approved_local_proposal=False))
