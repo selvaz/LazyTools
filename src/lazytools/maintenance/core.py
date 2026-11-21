@@ -388,6 +388,11 @@ class RunState:
                     f"- {item['provider']} -> {item['consumer']} "
                     f"({item['confidence']}; verification needed)"
                 )
+                for evidence in item.get("import_evidence", {}).get("matches", [])[:10]:
+                    summary.append(
+                        f"  - {item['consumer']}/{evidence['path']}:{evidence['line']} "
+                        f"imports {evidence['module']}"
+                    )
         if self.verification.get("tests"):
             summary += ["## Approved checks", ""]
             for check in self.verification["tests"]:
