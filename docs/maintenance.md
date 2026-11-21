@@ -278,7 +278,7 @@ workflow.
 
 ## Reusable scheduled scans
 
-Copy [the GitHub Actions template](../examples/maintenance-readonly-action.yml)
+Copy [the GitHub Actions template](https://github.com/selvaz/LazyTools/blob/feat/codemap-python-adapter/examples/maintenance-readonly-action.yml)
 into your own workflow directory after pinning a trusted version. Its default
 permissions are `contents: read` and it creates only scan artifacts: no
 agent writes, PRs, merges or deployments. LazyCEO can invoke the same
