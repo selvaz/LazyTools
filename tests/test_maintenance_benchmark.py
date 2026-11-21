@@ -28,6 +28,7 @@ def pair(tmp_path):
 
     class StubCoordinator:
         context_mode = "repomap"
+        executable = "fake-pinned-repomap"
         task_query = objective
 
         def __init__(self):
@@ -64,6 +65,7 @@ def test_same_scan_same_models_only_writer_tool_access_changes(pair, monkeypatch
             assert report["task_context"]["repo"]["search"] == "Same symbols"
             assert policy.objective == request.objective
             assert policy.writer_model == request.writer_model
+            assert policy.writer_repomap_executable == coordinator.executable
             assert policy.reviewer_model == request.reviewer_model
             captured.append(policy.writer_repomap)
             return {
@@ -142,7 +144,8 @@ def test_existing_writer_provider_gets_readonly_tools_on_clone_only(tmp_path, mo
     observed = {"maps": [], "writers": []}
 
     class FakeMap:
-        def __init__(self, roots, *, use_embeddings):
+        def __init__(self, roots, *, executable, use_embeddings):
+            assert executable == "repomap"
             assert use_embeddings is False
             observed["maps"].append(dict(roots))
 
