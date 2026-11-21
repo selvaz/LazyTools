@@ -72,7 +72,7 @@ def gold_is_defined(repo: Path, symbol: str, path: str) -> bool:
     return any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
                and n.name == symbol for n in ast.walk(tree))
 
-PATH_PATTERN = re.compile(r"(?:[A-Za-z]:)?(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\\.py")
+PATH_PATTERN = re.compile(r"(?:[A-Za-z]:)?(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\.py")
 
 def found_paths(text: str, repo: Path) -> list[str]:
     text = text.replace("\\\\", "/").replace("\\", "/")
