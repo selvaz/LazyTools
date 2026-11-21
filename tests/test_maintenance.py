@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-from lazytools.maintenance import Dependency, MaintenanceError, MaintenancePipeline, RepoSpec, Workspace
+from lazytools.maintenance import CheckSpec, Dependency, MaintenanceError, MaintenancePipeline, RepoSpec, Workspace
 from lazytools.maintenance.core import RunState, changed_paths, resolve_sha
 
 
@@ -232,3 +233,34 @@ def test_head_advances_mid_scan_is_rejected(tmp_path):
     with pytest.raises(MaintenanceError, match="HEAD moved during analysis"):
         state.finalize()
     assert state.report is None
+
+
+def test_real_plan_approved_checks_are_reported_without_claiming_full_review(tmp_path, monkeypatch):
+    """Verification runs after impact and never launders tests into full approval."""
+    import lazytools.maintenance.pipeline as module
+
+    workspace, first_sha, _ = make_workspace(tmp_path)
+    mapper = FakeMapper()
+
+    class StubCLI:
+        def __new__(cls, *args, **kwargs):
+            return mapper
+
+    monkeypatch.setattr(module, "RepoMapCLI", StubCLI)
+    good = CheckSpec(
+        "python_smoke", "core", (sys.executable, "-c",
+        "from pathlib import Path; assert Path('api.py').is_file()"),
+    )
+    success = MaintenancePipeline(workspace, checks=(good,)).execute(base_refs={"core": first_sha})
+    assert success["verification"]["status"] == "passed_selected_checks"
+    assert success["verification"]["tests"][0]["exit_code"] == 0
+    assert success["verified"] is False
+    assert "python_smoke" in Path(success["report_markdown"]).read_text()
+
+    bad = CheckSpec("failing_test", "core", (sys.executable, "-c", "import sys;sys.exit(3)"))
+    failure = MaintenancePipeline(workspace, checks=(bad,)).execute()
+    assert failure["verification"]["status"] == "failed"
+    assert failure["verification"]["tests"][0]["exit_code"] == 3
+    assert failure["verified"] is False
+    assert any("Approved tests failed" in w for w in failure["warnings"])
+    assert git(workspace.repos[0].root, "status", "--porcelain") == ""
