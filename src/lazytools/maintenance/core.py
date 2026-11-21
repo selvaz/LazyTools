@@ -289,6 +289,18 @@ class RunState:
     def finalize(self, review_text: str = "") -> str:
         if not self.impacts:
             raise MaintenanceError("Impact analysis required before reporting")
+        # A checkout can advance while a slow reviewer runs. The external
+        # mapper scans the worktree, not an immutable Git object; a moving
+        # HEAD would make the cached graph falsely attributable to old SHA.
+        for repo in self.workspace.repos:
+            if resolve_sha(repo.root) != self.sha[repo.id]:
+                raise MaintenanceError(
+                    f"{repo.id} HEAD moved during analysis; discard this run and refresh"
+                )
+            if self.workspace.require_clean and git_status(repo.root) != "clean":
+                raise MaintenanceError(
+                    f"{repo.id} checkout changed during analysis; discard this run"
+                )
         self.review_text = review_text[:6000] if review_text else None
         warnings = []
         if any(self.truncated.values()):
