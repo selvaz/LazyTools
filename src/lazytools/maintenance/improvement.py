@@ -242,6 +242,7 @@ class MaintenanceImprover:
                     raise MaintenanceError("Disposable clone is not pinned and clean")
                 if writer_tool is None or reviewer_tool is None:
                     writer_tool, reviewer_tool = _existing_tools(work, request)
+                assert writer_tool is not None and reviewer_tool is not None
                 objective = _brief(report, request)
                 for round_number in range(1, request.max_rounds + 1):
                     record["status"] = "writing"
@@ -306,12 +307,13 @@ class MaintenanceImprover:
                         record["status"] = "proposal_ready_for_human_review"
                         break
                     record["status"] = "checks_failed"
-                    if round_number < request.max_rounds:
-                        objective = _brief(
-                            report, request,
-                            "\nAddress these failed selected checks; do not mask failures:\n"
-                            + json.dumps(verification, default=str)[:1_000],
-                        )
+                    if round_number == request.max_rounds:
+                        break
+                    objective = _brief(
+                        report, request,
+                        "\nAddress these failed selected checks; do not mask failures:\n"
+                        + json.dumps(verification, default=str)[:1_000],
+                    )
                 else:
                     record["status"] = "round_cap"
                 if record["rounds"]:
