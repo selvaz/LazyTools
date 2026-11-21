@@ -377,9 +377,9 @@ Once this succeeds, add the simple two-repo dependency fixture. Do not start aut
 
 ## 17. Architecture decision: LazyBridge Plan with nested agent tools
 
-**Decision (2026-11-21):** Make a LazyBridge \`Agent(engine=Plan(...))\` the public pipeline's *declared execution graph*. Each deterministic operation is exposed as a Python callable or \`Tool\`; optional specialized review agents are ordinary nested LazyBridge \`Agent\` objects carried in the Plan owner's \`tools=[...]\`. This is a deliberate choice over writing a second generic DAG engine or using an LLM to choose the control flow.
+**Decision (2026-11-21):** Make a LazyBridge `Agent(engine=Plan(...))` the public pipeline's *declared execution graph*. Each deterministic operation is exposed as a Python callable or `Tool`; optional specialized review agents are ordinary nested LazyBridge `Agent` objects carried in the Plan owner's `tools=[...]`. This is a deliberate choice over writing a second generic DAG engine or using an LLM to choose the control flow.
 
-The existing LazyBridge contract supports \`Plan(Step(...))\`, explicit \`routes\`, \`parallel=True\`, \`from_step\` data dependencies, \`Store\` checkpoints, \`resume=True\`, and agents-as-tools. See [LazyBridge Plan guide](https://github.com/selvaz/LazyBridge/blob/main/docs/guides/full/plan.md) and [Step guide](https://github.com/selvaz/LazyBridge/blob/main/docs/guides/full/step.md).
+The existing LazyBridge contract supports `Plan(Step(...))`, explicit `routes`, `parallel=True`, `from_step` data dependencies, `Store` checkpoints, `resume=True`, and agents-as-tools. See [LazyBridge Plan guide](https://github.com/selvaz/LazyBridge/blob/main/docs/guides/full/plan.md) and [Step guide](https://github.com/selvaz/LazyBridge/blob/main/docs/guides/full/step.md).
 
 ### Execution topology
 
@@ -406,7 +406,7 @@ The review band may use independent parallel Plan steps when input snapshots are
 
 ### Illustrative Python wiring
 
-The following is *architecture pseudocode*, not a shipped API. Use the exact installed LazyBridge \`Plan\`/\`Step\` signatures when implementing.
+The following is *architecture pseudocode*, not a shipped API. Use the exact installed LazyBridge `Plan`/`Step` signatures when implementing.
 
 ~~~python
 from lazybridge import Agent, Plan, Step, Store, Tool, from_step
@@ -443,12 +443,12 @@ maintenance_agent = Agent(
 )
 ~~~
 
-In implementation, name \`Tool.wrap\` entries explicitly to match Step target names; validate exact input and output schemas at every boundary. The example omits the optional reviewer band parallelization and explicit policy routes for readability. No public function named above exists in the current CodeMap prototype.
+In implementation, name `Tool.wrap` entries explicitly to match Step target names; validate exact input and output schemas at every boundary. The example omits the optional reviewer band parallelization and explicit policy routes for readability. No public function named above exists in the current CodeMap prototype.
 
 ### Typed data and cost policy
 
 - All deterministic tools should exchange **bounded typed envelopes** with snapshot ids, SHAs, artifact refs, status and evidence; never pass an entire source tree or raw graph in an LLM prompt.
-- Place a short, versioned \`ImpactContext\` in each reviewer request; give a reviewer \`RepoMapTools\` access for scoped follow-up queries only.
+- Place a short, versioned `ImpactContext` in each reviewer request; give a reviewer `RepoMapTools` access for scoped follow-up queries only.
 - Validate reviewer output against a structured schema (finding, evidence, confidence, action); schema/timeout/token-budget failures are **unverified**, not a clean review.
 - Choose small models for narrow reviews, reserve expensive models for ambiguous high-risk changes, and allow a **no-LLM mode** where the same Plan skips review agents and generates deterministic evidence.
 - Expose per-reviewer tokens, cached tokens, cost, latency and file requests in the final report so the added review cost can be compared with context savings.
@@ -456,18 +456,18 @@ In implementation, name \`Tool.wrap\` entries explicitly to match Step target na
 
 ### Durable orchestration and permissions
 
-- Prefer Plan's existing \`Store\`, \`checkpoint_key\`, and \`resume=True\` rather than implementing a second step scheduler. Plan supports \`on_concurrent="fail"\` for one resumable run and \`on_concurrent="fork"\` for isolated concurrent runs; use distinct run ids when resumability and concurrency are both required.
+- Prefer Plan's existing `Store`, `checkpoint_key`, and `resume=True` rather than implementing a second step scheduler. Plan supports `on_concurrent="fail"` for one resumable run and `on_concurrent="fork"` for isolated concurrent runs; use distinct run ids when resumability and concurrency are both required.
 - Plan checkpointing alone does **not** guarantee exactly-once execution of external side effects. Each snapshot/index/report/PR stage also needs its own domain idempotency key and reconciliation.
-- An approval gate is an explicit deterministic Python step, not a prompt instruction. In particular, \`propose_pr\` must be exposed only on a separately authorized proposal-capable Plan or by a guarded operation after explicit consent, never silently attached to every reviewer.
-- For the first public release, end the Plan at \`render_report\`; no repo mutation. The PR-proposal branch comes in P4, behind a policy route and SHA freshness recheck.
-- On cancellation, stale SHA, unreachable repository or incomplete map, stop or explicitly route to a report with \`unverified\` state. Do not route implicitly to auto-repair.
+- An approval gate is an explicit deterministic Python step, not a prompt instruction. In particular, `propose_pr` must be exposed only on a separately authorized proposal-capable Plan or by a guarded operation after explicit consent, never silently attached to every reviewer.
+- For the first public release, end the Plan at `render_report`; no repo mutation. The PR-proposal branch comes in P4, behind a policy route and SHA freshness recheck.
+- On cancellation, stale SHA, unreachable repository or incomplete map, stop or explicitly route to a report with `unverified` state. Do not route implicitly to auto-repair.
 - Optional LazyCEO orchestrates *which* maintenance Plan runs and *when*; LazyStudio inspects its trace and exposes operator decisions. Both are consumers of the same reusable Python Plan definition. MCP projection remains optional and downstream.
 
 ### Acceptance tests specific to Plan composition
 
-1. Compile-time Plan validation catches missing tool names, duplicate step names, dangling \`from_step\` inputs and invalid routes before any LLM call.
+1. Compile-time Plan validation catches missing tool names, duplicate step names, dangling `from_step` inputs and invalid routes before any LLM call.
 2. Fake reviewers record exact sequence and inputs; deterministic steps run in declared order and preserve one immutable SHA vector throughout.
-3. Separate read-only reviewers have no write tools; failures and malformed outputs cannot become \`completed: clean\`.
+3. Separate read-only reviewers have no write tools; failures and malformed outputs cannot become `completed: clean`.
 4. Concurrent reviewer branches use immutable context, deterministic merging and bounded runtime; no concurrent writes to the same Store key.
 5. Crash/resume and duplicate delivery do not repeat external side effects or duplicate PRs; test reconciliation after partially completed checkpoint/storage operations.
 6. An end-to-end public two-repo fixture runs on a pinned revision, emits actionable cross-repo findings, reruns on a newer revision, and reports updated provenance.
