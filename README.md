@@ -10,7 +10,7 @@ writes, the other reviews; code runs the checks and records the acceptance.
 With a subscription login, coding runtimes use your plan's quota; LazyTools
 inherits runtime authentication and does not force a billing path.
 
-**Experimental (PR #326, not in a released tag):** the [Python-native CodeMap tools](docs/codemap.md) and [public repository maintenance pipeline](docs/maintenance.md) use a deterministic LazyBridge Plan, optional nested reviewer agents, SHA-pinned RepoMap refresh, cross-repository import evidence and operator-approved isolated-worktree tests. They do not merge or modify source repositories automatically.
+**Experimental (PR #326, not in a released tag):** the [Python-native CodeMap tools](docs/codemap.md) and [public repository maintenance pipeline](docs/maintenance.md) use a deterministic LazyBridge Plan, optional nested reviewer agents, SHA-pinned RepoMap refresh, cross-repository import evidence and operator-approved isolated-worktree tests. The opt-in handoff can publish a draft PR and invoke the already existing CodeBridge Navigator, but only under separate operator approvals. No step merges or modifies the original source checkout automatically.
 
 Start with the [async code bridge](docs/code-bridge.md) and its full
 Claude-writes/Codex-reviews toy-repo flow. Use the [MCP code-support tools](docs/code-support/index.md)
