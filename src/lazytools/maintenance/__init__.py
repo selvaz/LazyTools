@@ -1,21 +1,30 @@
-"""Public read-only repository maintenance, orchestrated by LazyBridge Plan.
+"""Python-native repository maintenance and explicitly gated improvements.
 
-The deterministic mode needs no remote LLM, LazyCEO, LazyStudio or MCP.
-Reviewer Agents can be supplied by the application and run as nested tools.
+The read-only Plan runs without MCP or LazyCEO; publication and coding
+capabilities are optional, independently authorized integrations.
 """
 from __future__ import annotations
 
 from .core import Dependency, MaintenanceError, RepoSpec, Workspace
+from .handoff import PublicationApproval, publish_draft_pr
 from .improvement import ImprovementRequest, MaintenanceImprover
 from .improvement_plan import MaintenanceSelfImprovementPlan
-from .handoff import PublicationApproval, publish_draft_pr
 from .navigation import NavigationApproval, navigate_published_pr
 from .pipeline import MaintenancePipeline
 from .verification import CheckSpec
 
 __all__ = [
-    "CheckSpec", "Dependency", "ImprovementRequest", "MaintenanceError",
-    "MaintenanceImprover", "MaintenancePipeline", "MaintenanceSelfImprovementPlan",
-    "RepoSpec", "Workspace", "PublicationApproval", "publish_draft_pr",
-    "NavigationApproval", "navigate_published_pr",
+    "CheckSpec",
+    "Dependency",
+    "ImprovementRequest",
+    "MaintenanceError",
+    "MaintenanceImprover",
+    "MaintenancePipeline",
+    "MaintenanceSelfImprovementPlan",
+    "NavigationApproval",
+    "PublicationApproval",
+    "RepoSpec",
+    "Workspace",
+    "navigate_published_pr",
+    "publish_draft_pr",
 ]
