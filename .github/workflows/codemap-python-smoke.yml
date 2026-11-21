@@ -9,6 +9,7 @@ on:
       - "tests/test_maintenance.py"
       - "tests/test_maintenance_cli.py"
       - "tests/test_maintenance_verification.py"
+      - "tests/test_maintenance_improvement.py"
       - "tests/test_codemap.py"
       - "docs/maintenance.md"
       - "examples/maintenance_two_repos.py"
@@ -40,7 +41,7 @@ jobs:
         run: python -m pip install 'lazybridge==1.8.9' pytest ruff mypy
 
       - name: Run isolated Python unit tests
-        run: PYTHONPATH=src python -m pytest -q tests/test_codemap.py tests/test_maintenance.py tests/test_maintenance_cli.py tests/test_maintenance_verification.py
+        run: PYTHONPATH=src python -m pytest -q tests/test_codemap.py tests/test_maintenance.py tests/test_maintenance_cli.py tests/test_maintenance_verification.py tests/test_maintenance_improvement.py
 
       - name: Ruff and mypy on experimental maintenance code
         run: |
