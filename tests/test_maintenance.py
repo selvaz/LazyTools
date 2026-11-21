@@ -314,6 +314,7 @@ def test_cross_repo_python_imports_are_grounded_and_linked_to_changed_provider(t
     assert all(row["path"] == "app.py" for row in evidence["matches"])
     assert all(row["line"] in (1, 2) for row in evidence["matches"])
     assert not evidence["incomplete"]
+    assert "consumer/app.py:1 imports corelib.api" in state.report_path.with_suffix(".md").read_text()
 
 
 def test_cross_repo_import_scans_fail_open_as_unknown_not_as_clean(tmp_path):
