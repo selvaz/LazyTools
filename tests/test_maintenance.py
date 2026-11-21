@@ -355,3 +355,28 @@ def test_run_report_paths_are_immutable_for_repeat_same_sha(tmp_path):
     assert old.report["run_id"] != fresh.report["run_id"]
     assert old.report_path.is_file()
     assert fresh.report_path.is_file()
+
+
+def test_dirty_checkout_allowed_explicitly_but_never_uses_sha_only_cache(tmp_path):
+    workspace, old_sha, _ = make_workspace(tmp_path)
+    dirty_workspace = Workspace(
+        workspace.repos, workspace.state_dir,
+        dependencies=workspace.dependencies, require_clean=False,
+    )
+    root = dirty_workspace.repos[0].root
+    (root / "api.py").write_text("def uncommitted():\n    return 7\n")
+    mapper = FakeMapper()
+    first = RunState(dirty_workspace, {}, mapper)
+    first.resolve()
+    first.refresh()
+    assert first.sha["core"] == old_sha
+    assert first.dirty["core"] == "dirty"
+    assert first.snapshots["core"]["status"] == "partial"
+    assert first.snapshots["core"]["cache_hit"] is False
+
+    second = RunState(dirty_workspace, {}, mapper)
+    second.resolve()
+    second.refresh()
+    assert second.snapshots["core"]["status"] == "partial"
+    assert second.snapshots["core"]["cache_hit"] is False
+    assert mapper.index_calls.count("core") == 2
