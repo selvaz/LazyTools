@@ -7,7 +7,9 @@ as misses. Results include repository SHAs, tool versions and raw excerpts.
 from __future__ import annotations
 
 import ast
+from collections import Counter
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -18,6 +20,7 @@ import time
 
 ROOT = Path.cwd()
 OUT = ROOT / "repo-map-results.json"
+SUMMARY_OUT = ROOT / "repo-map-summary.md"
 REPOS = {
     "LazyBridge": ROOT / "_benchmark_checkouts" / "LazyBridge",
     "LazyTools": ROOT / "_benchmark_checkouts" / "LazyTools",
@@ -137,6 +140,89 @@ def short_run(r: dict) -> dict:
         "sample": r["stdout"][:850], "tail": r["stdout"][-1800:]
     }
 
+
+TOKEN_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_]+")
+
+
+def terms(text: str) -> list[str]:
+    """Tokenize prose and Python identifiers without third-party packages."""
+    expanded = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
+    tokens = []
+    for token in TOKEN_PATTERN.findall(expanded):
+        tokens.extend(part for part in token.lower().split("_") if len(part) > 1)
+    return tokens
+
+
+def lexical_rank(repo: Path, query: str, limit: int = 10) -> list[str]:
+    """Rank Python source with BM25 over code, identifiers, comments and docstrings."""
+    documents: list[tuple[str, Counter]] = []
+    for path in sorted(repo.rglob("*.py")):
+        if ".git" in path.parts:
+            continue
+        try:
+            counts = Counter(terms(path.read_text(encoding="utf-8-sig")))
+        except (OSError, UnicodeError):
+            continue
+        documents.append((path.relative_to(repo).as_posix(), counts))
+    if not documents:
+        return []
+    query_terms = terms(query)
+    document_frequency = Counter(
+        token for _, counts in documents for token in set(counts) if token in query_terms
+    )
+    average_length = sum(sum(counts.values()) for _, counts in documents) / len(documents)
+    scores = []
+    for path, counts in documents:
+        length = sum(counts.values())
+        score_value = 0.0
+        for token in query_terms:
+            frequency = counts[token]
+            if not frequency:
+                continue
+            frequency_docs = document_frequency[token]
+            inverse_frequency = math.log(
+                1 + (len(documents) - frequency_docs + 0.5) / (frequency_docs + 0.5)
+            )
+            score_value += inverse_frequency * frequency * 2.2 / (
+                frequency + 1.2 * (0.25 + 0.75 * length / average_length)
+            )
+        scores.append((score_value, path))
+    return [path for score_value, path in sorted(scores, key=lambda x: (-x[0], x[1]))
+            if score_value > 0][:limit]
+
+
+def issue_score(paths: list[str], gold: list[str]) -> dict:
+    ranks = {path: next((i + 1 for i, candidate in enumerate(paths)
+                         if candidate == path or candidate.endswith("/" + path)), None)
+             for path in gold}
+    return {"ranks": ranks,
+            "hit_any_5": any(rank is not None and rank <= 5 for rank in ranks.values()),
+            "hit_all_10": all(rank is not None and rank <= 10 for rank in ranks.values())}
+
+
+def markdown_table(headers: list[str], rows: list[list[object]]) -> str:
+    lines = ["| " + " | ".join(headers) + " |",
+             "| " + " | ".join("---" for _ in headers) + " |"]
+    lines.extend("| " + " | ".join(str(value) for value in row) + " |" for row in rows)
+    return "\n".join(lines)
+
+
+def json_repo_entries(payload: object) -> list[str]:
+    """Find repository identities across RepoMap's map and search JSON shapes."""
+    entries: list[str] = []
+    repository_keys = {"repo", "repository", "repo_name", "repo_path", "root"}
+    def visit(value: object, key: str = "") -> None:
+        if isinstance(value, dict):
+            for child_key, child in value.items():
+                if child_key.lower() in repository_keys and isinstance(child, str):
+                    entries.append(child)
+                visit(child, child_key)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child, key)
+    visit(payload)
+    return list(dict.fromkeys(entries))
+
 def main() -> int:
     environment = dict(os.environ)
     environment["CI"] = "true"
@@ -191,12 +277,16 @@ def main() -> int:
                 "codegraphcontext": ["cgc", "--database", "kuzudb",
                                     "--db-path", str(cgc_root),
                                     "find", "name", symbol, "--no-fuzzy"],
-                "ripgrep": ["rg", "-l", "-F", "--glob", "*.py", symbol, "."],
+                "ripgrep_mentions": ["rg", "-l", "-F", "--glob", "*.py", symbol, "."],
+                "ripgrep_definitions": [
+                    "rg", "-l", "--glob", "*.py",
+                    rf"^\s*(async\s+)?(def|class)\s+{re.escape(symbol)}\b", ".",
+                ],
             }
             row = {"repo": label, "symbol": symbol, "gold": gold, "valid": True,
                    "results": {}}
             for tool, args in commands.items():
-                if tool != "ripgrep" and not indexing[tool]["ok"]:
+                if not tool.startswith("ripgrep") and not indexing[tool]["ok"]:
                     row["results"][tool] = {"usable": False, "reason": "index failed"}
                     continue
                 r = run(args, repo, timeout=120, env=environment)
@@ -220,7 +310,7 @@ def main() -> int:
                 # A structurally valid empty response counts as a miss.
                 # A failed parser/protocol still counts as missing evidence.
                 usable = valid_output and (r["ok"] or
-                                             (tool == "ripgrep" and r["exit"] == 1))
+                                             (tool.startswith("ripgrep") and r["exit"] == 1))
                 row["results"][tool] = {
                     "usable": usable, "seconds": r["seconds"],
                     "paths": files[:15], "score": score(files, gold) if usable else None,
@@ -230,7 +320,8 @@ def main() -> int:
                     "stderr": r["stderr"][:450] if not r["ok"] else "",
                 }
             result["cases"].append(row)
-    for tool in ("repomap", "codegraphcontext", "ripgrep"):
+    for tool in ("repomap", "codegraphcontext", "ripgrep_mentions",
+                 "ripgrep_definitions"):
         rows = [x["results"].get(tool, {}) for x in result["cases"] if x["valid"]]
         usable = [x for x in rows if x.get("usable")]
         hit5 = sum(x["score"]["hit5"] for x in usable)
@@ -242,45 +333,90 @@ def main() -> int:
             "query_median_s": round(statistics.median(x["seconds"] for x in usable), 3)
                               if usable else None,
         }
-    # Separate exploratory issue-to-code evaluation: repomap's hybrid search
-    # accepts natural-language queries. CGC's find name is not a semantic
-    # equivalent, so do not present this as a head-to-head accuracy score.
+    # Compare natural-language localization both after the fix and at the first
+    # parent of GitHub's PR merge commit. Fetching public refs is read-only; a
+    # failure to resolve or index a base is invalid evidence, never a miss.
     issue_rows = []
     for label, query, gold, number in ISSUE_CASES:
-        repo = REPOS[label]
-        missing = [p for p in gold if not (repo / p).is_file()]
-        if missing:
-            issue_rows.append({"repo": label, "pr": number, "query": query,
-                               "valid": False, "missing_gold": missing})
-            continue
-        call = run(["repomap", "search", query, "--limit", "10", "--json"],
-                   repo, timeout=90, env=environment)
-        try:
-            json.loads(call["stdout"])
-            valid_output = call["ok"]
-        except (ValueError, TypeError):
-            valid_output = False
-        paths = found_paths(call["stdout"], repo) if valid_output else []
-        ranks = {p: next((i+1 for i, result_path in enumerate(paths)
-                          if result_path == p or result_path.endswith("/"+p)), None)
-                 for p in gold}
-        issue_rows.append({"repo": label, "pr": number, "query": query,
-                           "gold": gold, "valid": True, "usable": valid_output,
-                           "seconds": call["seconds"], "ranks": ranks,
-                           "hit_any_5": any(v is not None and v <= 5 for v in ranks.values()),
-                           "hit_all_10": all(v is not None and v <= 10 for v in ranks.values()),
-                           "sample": call["stdout"][:500] if not valid_output else "",
-                           "stderr": call["stderr"][:400]})
-    valid_issues = [x for x in issue_rows if x.get("valid")]
-    usable_issues = [x for x in valid_issues if x.get("usable")]
+        post_repo = REPOS[label]
+        merge_ref = f"refs/benchmark/pr-{number}-merge"
+        fetch = run(["git", "fetch", "--quiet", "--force", "--depth", "2", "origin",
+                     f"refs/pull/{number}/merge:{merge_ref}"], post_repo, timeout=120)
+        merge = run(["git", "rev-parse", merge_ref], post_repo, timeout=30) \
+            if fetch["ok"] else {"ok": False, "stdout": "", "stderr": fetch["stderr"]}
+        base = run(["git", "rev-parse", f"{merge_ref}^1"], post_repo, timeout=30) \
+            if fetch["ok"] else {"ok": False, "stdout": "", "stderr": fetch["stderr"]}
+        changed_call = run(["git", "diff", "--name-only", f"{merge_ref}^1", merge_ref],
+                           post_repo, timeout=30) if base["ok"] else {"ok": False, "stdout": ""}
+        changed_files = changed_call["stdout"].splitlines() if changed_call["ok"] else []
+        worktree = ROOT / "_benchmark_bases" / f"{label}-{number}"
+        add = run(["git", "worktree", "add", "--detach", str(worktree),
+                   base["stdout"].strip()], post_repo, timeout=60) \
+            if base["ok"] else {"ok": False, "stderr": base.get("stderr", "")}
+        protocols = [("post_merge", post_repo, True),
+                     ("pre_fix", worktree, bool(add["ok"]))]
+        for protocol, repo, resolved in protocols:
+            missing = [path for path in gold if resolved and not (repo / path).is_file()]
+            valid = resolved and not missing
+            base_row = {"repo": label, "pr": number, "protocol": protocol,
+                        "query": query, "gold": gold, "valid": valid,
+                        "merge_commit": merge["stdout"].strip() if merge.get("ok") else None,
+                        "merge_changed_files": changed_files,
+                        "commit": (base["stdout"].strip() if protocol == "pre_fix"
+                                   and base.get("ok") else result["repos"][label]["sha"])}
+            if not valid:
+                base_row["reason"] = (f"missing gold files: {missing}" if missing
+                                      else "PR base commit could not be resolved")
+                base_row["diagnostic"] = add.get("stderr", "")[:500]
+                issue_rows.append(base_row)
+                continue
+            index = ({"ok": result["repos"][label]["index"]["repomap"]["ok"]}
+                     if protocol == "post_merge" else
+                     run(["repomap", "index", ".", "--json"], repo, timeout=600,
+                         env=environment))
+            methods = {}
+            if index["ok"]:
+                call = run(["repomap", "search", query, "--limit", "10", "--json"],
+                           repo, timeout=90, env=environment)
+                try:
+                    json.loads(call["stdout"])
+                    usable = call["ok"]
+                except (ValueError, TypeError):
+                    usable = False
+                paths = found_paths(call["stdout"], repo) if usable else []
+                methods["repomap"] = {"usable": usable, "seconds": call["seconds"],
+                                      "paths": paths[:10],
+                                      "score": issue_score(paths, gold) if usable else None,
+                                      "stderr": call["stderr"][:400]}
+            else:
+                methods["repomap"] = {"usable": False, "reason": "index failed"}
+            start = time.perf_counter()
+            lexical_paths = lexical_rank(repo, query)
+            methods["lexical_bm25"] = {
+                "usable": True, "seconds": round(time.perf_counter() - start, 3),
+                "paths": lexical_paths, "score": issue_score(lexical_paths, gold),
+            }
+            issue_rows.append(base_row | {"methods": methods})
+        if add["ok"]:
+            run(["git", "worktree", "remove", "--force", str(worktree)], post_repo,
+                timeout=60)
+    issue_summary = {}
+    for protocol in ("post_merge", "pre_fix"):
+        for method in ("repomap", "lexical_bm25"):
+            valid_rows = [row for row in issue_rows
+                          if row["protocol"] == protocol and row["valid"]]
+            usable = [row["methods"][method] for row in valid_rows
+                      if row["methods"][method].get("usable")]
+            issue_summary[f"{protocol}:{method}"] = {
+                "valid": len(valid_rows), "usable": len(usable),
+                "any_gold_in_top5": sum(row["score"]["hit_any_5"] for row in usable),
+                "all_gold_in_top10": sum(row["score"]["hit_all_10"] for row in usable),
+                "median_query_s": (round(statistics.median(row["seconds"] for row in usable), 3)
+                                   if usable else None),
+            }
     result["issue_localization"] = {
-        "method": "Repomap semantic search on curated public PR titles; no equivalent CGC semantic run",
-        "cases": issue_rows,
-        "summary": {"valid": len(valid_issues), "usable": len(usable_issues),
-                    "any_gold_in_top5": sum(x["hit_any_5"] for x in usable_issues),
-                    "all_gold_in_top10": sum(x["hit_all_10"] for x in usable_issues),
-                    "median_query_s": round(statistics.median(x["seconds"] for x in usable_issues), 3)
-                                      if usable_issues else None},
+        "method": "RepoMap and dependency-free BM25; post-merge and first-parent pre-fix checkouts",
+        "cases": issue_rows, "summary": issue_summary,
     }
     # Check optional multi-repo map and token-budget behavior without
     # asserting a specific output structure or changing production code.
@@ -300,22 +436,49 @@ def main() -> int:
             payload = json.loads(call["stdout"]) if call["ok"] else None
         except (TypeError, ValueError):
             payload = None
-        repo_entries = [item.get("repo") for item in payload.get("repos", [])] \
-            if isinstance(payload, dict) else []
+        repo_entries = json_repo_entries(payload) if payload is not None else []
+        serialized = json.dumps(payload) if payload is not None else ""
+        repos_present = {name: any(name.lower() in value.lower()
+                                   for value in repo_entries) or name in serialized
+                         for name in REPOS}
         multi[label] = short_run(call) | {"stdout_bytes": len(call["stdout"]),
-                                         "parsed_json": isinstance(payload, dict),
+                                         "parsed_json": payload is not None,
+                                         "json_type": type(payload).__name__,
                                          "repo_entries": repo_entries,
-                                         "repo_count": len(repo_entries),
-                                         "repo_names_present": {
-                                             name: name in call["stdout"] for name in REPOS}}
+                                         "repo_count": sum(repos_present.values()),
+                                         "repo_names_present": repos_present,
+                                         "finding": ("cross-repository identities found"
+                                                     if any(repos_present.values()) else
+                                                     "valid JSON contains no repository identity")}
     result["multirepo"] = multi
+    symbol_table = markdown_table(
+        ["Method", "Usable / valid", "Hit@1", "Hit@5", "Median query (s)"],
+        [[name, f'{values["usable_queries"]} / {values["valid_gold_tasks"]}',
+          values["hit_at_1"], values["hit_at_5"], values["query_median_s"]]
+         for name, values in result["summary"].items()],
+    )
+    issue_table = markdown_table(
+        ["Protocol", "Method", "Usable / valid", "Any gold @5", "All gold @10",
+         "Median query (s)"],
+        [[key.split(":", 1)[0], key.split(":", 1)[1],
+          f'{values["usable"]} / {values["valid"]}', values["any_gold_in_top5"],
+          values["all_gold_in_top10"], values["median_query_s"]]
+         for key, values in issue_summary.items()],
+    )
+    multi_table = markdown_table(
+        ["Check", "Usable", "JSON shape", "Repositories", "Finding"],
+        [[name, values["ok"], values["json_type"], values["repo_count"],
+          values["finding"]] for name, values in multi.items()],
+    )
+    summary_markdown = ("# RepoMap benchmark summary\n\n## Exact symbols\n\n" +
+                        symbol_table + "\n\n## Issue localization\n\n" + issue_table +
+                        "\n\n## Multi-repository behavior\n\n" + multi_table + "\n")
     OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({"versions": {k: v["sample"][:75] for k,v in versions.items()},
-                      "repos": result["repos"], "summary": result["summary"]},
-                     indent=2, ensure_ascii=False))
+    SUMMARY_OUT.write_text(summary_markdown, encoding="utf-8")
+    print(summary_markdown)
     print(f"Detailed results: {OUT}")
     return 0 if all(v["usable_queries"] >= 15 for k,v in result["summary"].items()
-                    if k != "ripgrep") else 1
+                    if not k.startswith("ripgrep")) else 1
 
 if __name__ == "__main__":
     sys.exit(main())
