@@ -153,6 +153,15 @@ class RepoMapCLI:
         """Check the optional executable without indexing or running it."""
         return bool(shutil.which(self._executable) or Path(self._executable).is_file())
 
+    def index(self, repo: str) -> str:
+        """Refresh one explicitly configured repo and return upstream JSON stats.
+
+        Only used by the maintenance runner; never published as an agent tool.
+        """
+        if not repo:
+            raise ValueError("index requires one explicit repository alias")
+        return self._invoke("index", [".", "--json"], repo)
+
     def overview(self, repo: str = "", tokens: int = 1200) -> str:
         if not isinstance(tokens, int) or not 256 <= tokens <= 4000:
             raise ValueError("tokens must be between 256 and 4000")
