@@ -192,3 +192,10 @@ def test_call_sends_caller_token_header_only_when_env_is_set(studio, monkeypatch
     monkeypatch.setenv("LAZYSTUDIO_CALLER_TOKEN", "a" * 129)
     tool.run_sync(task="hello")
     assert _StudioHandler.caller_headers == [None, "abc123DEF-_" * 8, None, None]
+
+
+def test_caller_token_with_surrounding_whitespace_is_not_sent(monkeypatch):
+    from lazytools.mcp_server import studio
+
+    monkeypatch.setenv(studio.CALLER_TOKEN_ENV, " abc ")
+    assert studio._caller_token() is None

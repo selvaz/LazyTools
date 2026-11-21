@@ -25,7 +25,7 @@ _CALLER_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 def _caller_token() -> str | None:
     """The secret capability of the LazyStudio run that launched this server, if any."""
-    value = os.environ.get(CALLER_TOKEN_ENV, "").strip()
+    value = os.environ.get(CALLER_TOKEN_ENV, "")
     return value if _CALLER_TOKEN_RE.fullmatch(value) else None
 
 
