@@ -293,8 +293,19 @@ def main() -> int:
                               "MCP tools and agent integration", "--workspace", workspace,
                               "--limit", "10", "--json"],
     }.items():
-        call = run(args, ROOT, timeout=120, env=environment)
+        # Run from one of the workspace members: otherwise the implicit
+        # current repository is included as a third, unrelated root.
+        call = run(args, REPOS["LazyBridge"], timeout=120, env=environment)
+        try:
+            payload = json.loads(call["stdout"]) if call["ok"] else None
+        except (TypeError, ValueError):
+            payload = None
+        repo_entries = [item.get("repo") for item in payload.get("repos", [])] \
+            if isinstance(payload, dict) else []
         multi[label] = short_run(call) | {"stdout_bytes": len(call["stdout"]),
+                                         "parsed_json": isinstance(payload, dict),
+                                         "repo_entries": repo_entries,
+                                         "repo_count": len(repo_entries),
                                          "repo_names_present": {
                                              name: name in call["stdout"] for name in REPOS}}
     result["multirepo"] = multi
