@@ -53,3 +53,42 @@ This is intentionally a small, opt-in, read-only prototype. No shared project da
 For the proposed reusable, public end-to-end review/refresh/maintenance pipeline, see [Repository Maintenance Pipeline — specification](repo-maintenance-pipeline-spec.md). The spec explicitly distinguishes current capabilities from planned features.
 
 The existing head-to-head benchmark measures search relevance and index timings, not actual token or wall-time savings for full coding agents. Before wider deployment, run paired real coding tasks against the same repository state, with and without this provider, and compare prompt tokens (including cache), wall time, final tests, and agent tool-call counts.
+
+
+## RepoMap directly available to Claude Code and Codex writers
+
+RepoMap is not limited to the outer coordinator's summary. The existing
+`CodeWriteTools` provider now accepts `application_tools=`, using the standard
+LazyBridge application-tool interface. This exposes the actual
+`codemap_overview`, `codemap_search`, `codemap_context` and `codemap_impact`
+operations **during** a native Claude Code / Codex coding turn.
+
+~~~python
+from lazytools.codemap import RepoMapTools
+from lazytools.connectors.code_support import CodeWriteTools
+
+repo = "/trusted/temporary/checkout"
+mapping = RepoMapTools({"project": repo}, use_embeddings=False)
+writer = CodeWriteTools(
+    base_dir=repo,
+    claude=True, codex=True,
+    claude_bash=False,
+    application_tools=mapping.as_tools(),
+)
+# Explicit one-shot write approval is still required by default.
+# Select writer.as_tools() and call confirm_write() when authorized.
+~~~
+
+These tools are read-only Python callbacks executed by LazyBridge. The
+existing engines expose them through Claude Code's in-process MCP bridge
+and Codex's App Server dynamic-tool channel. No new LLM wrapper is needed.
+For the bounded multi-repository improvement runner, the target root maps
+to a disposable clone and other explicitly configured workspace roots
+are available for read-only lookup. Neither setup grants extra write paths.
+
+For benchmarking the *incremental value of writer access*, use
+[PairedMaintenanceBenchmark](maintenance.md#prepared-paired-benchmark-repomap-available-to-writer-vs-unavailable):
+the **same RepoMap-enabled coordinator** supplies identical initial context
+to both arms; only the mapped writer receives codemap_* tools. Native
+registration is covered by CI mocks, not yet by a live authenticated
+Claude/Codex head-to-head run.
