@@ -126,3 +126,14 @@ def test_validation_refuses_unknown_repo_duplicate_check_and_bad_argv(checked_re
             workspace, {"library": sha},
             (CheckSpec("invalid", "another", (sys.executable, "--version")),),
         )
+
+
+def test_dirty_exploratory_scan_cannot_certify_pinned_commit(checked_repo):
+    workspace, root, sha = checked_repo
+    root.joinpath("source.py").write_text("VALUE = 99\n")
+    exploratory = Workspace(
+        workspace.repos, workspace.state_dir, require_clean=False,
+    )
+    check = CheckSpec("clean_only", "library", (sys.executable, "--version"))
+    with pytest.raises(MaintenanceError, match="changed before verification"):
+        run_approved_checks(exploratory, {"library": sha}, (check,))
