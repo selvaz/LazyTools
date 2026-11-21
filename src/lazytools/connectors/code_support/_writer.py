@@ -336,6 +336,21 @@ class CodeWriteTools:
     def _stream_idle(self) -> float:
         return max(self._timeout * 2 / 3, 30.0)
 
+    @staticmethod
+    def _usage(env: Any) -> dict[str, Any]:
+        """Expose observed engine tokens; absent counters are not estimates."""
+        metadata = env.metadata
+        return {
+            "source": "lazybridge_envelope",
+            "model": metadata.model,
+            "input_tokens": metadata.input_tokens,
+            "output_tokens": metadata.output_tokens,
+            "cache_read_input_tokens": metadata.cache_read_input_tokens,
+            "cache_creation_input_tokens": metadata.cache_creation_input_tokens,
+            "cost_usd": metadata.cost_usd,
+            "latency_ms": metadata.latency_ms,
+        }
+
     async def _claude_write(
         self,
         task: str,
@@ -403,7 +418,8 @@ class CodeWriteTools:
             message = env.error.message if env.error else "unknown error"
             return self._failure("claude_code", run_cwd, "session_id", handle, alias, message)
         header = _session_header("claude_code", Path(run_cwd), handle or "", "session_id", alias)
-        return {"result": f"{header}\n\n{env.text()}", "content_is_untrusted": True}
+        return {"result": f"{header}\n\n{env.text()}", "content_is_untrusted": True,
+                "usage": self._usage(env)}
 
     async def _codex_write(
         self,
@@ -458,4 +474,5 @@ class CodeWriteTools:
             message = env.error.message if env.error else "unknown error"
             return self._failure("codex", run_cwd, "thread_id", handle, alias, message)
         header = _session_header("codex", Path(run_cwd), handle or "", "thread_id", alias)
-        return {"result": f"{header}\n\n{env.text()}", "content_is_untrusted": True}
+        return {"result": f"{header}\n\n{env.text()}", "content_is_untrusted": True,
+                "usage": self._usage(env)}
