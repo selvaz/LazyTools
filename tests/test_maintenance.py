@@ -79,8 +79,9 @@ def test_commit_pinned_cache_refresh_and_declared_cross_repo_impact(tmp_path):
     cached = RunState(workspace, {}, mapper)
     cached.resolve()
     cached.refresh()
-    assert mapper.index_calls == ["core", "consumer"]
+    assert mapper.index_calls == ["core", "consumer", "core", "consumer"]
     assert cached.snapshots["core"]["cache_hit"] is True
+    assert cached.snapshots["core"]["index_revalidated"] is True
 
     root = workspace.repos[0].root
     (root / "api.py").write_text("def new_api():\n    return 2\n")
@@ -95,7 +96,7 @@ def test_commit_pinned_cache_refresh_and_declared_cross_repo_impact(tmp_path):
     assert next_run.sha["core"] != old_a
     assert next_run.snapshots["core"]["cache_hit"] is False
     assert next_run.snapshots["consumer"]["cache_hit"] is True
-    assert mapper.index_calls == ["core", "consumer", "core"]
+    assert mapper.index_calls == ["core", "consumer", "core", "consumer", "core", "consumer"]
     assert next_run.changes["core"] == [{"status": "M", "path": "api.py"}]
     assert ("core", "api.py") in mapper.impact_calls
     assert next_run.report["cross_repo_candidates"] == [{
