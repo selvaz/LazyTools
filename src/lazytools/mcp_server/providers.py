@@ -1130,8 +1130,12 @@ def default_providers(
                 "Could not construct provider %r: %s", provider_id, exc
             )
             continue
-        if isinstance(built, (list, tuple)):
-            providers.extend(built)
-        else:
-            providers.append(built)
+        expanded = list(built) if isinstance(built, (list, tuple)) else [built]
+        for provider in expanded:
+            # Preserve the catalog identity through expansion. Provider class
+            # names are not a stable key (and one catalog entry may construct
+            # several providers), while the MCP server needs this id to turn
+            # tool_metadata access into protocol annotations.
+            provider._lazytools_mcp_provider_id = provider_id
+        providers.extend(expanded)
     return providers

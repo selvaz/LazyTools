@@ -48,6 +48,14 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 logger = logging.getLogger("lazytools.mcp_server")
 
+
+class _ExpandedTools(dict[str, Tool]):
+    """Expanded tools plus their optional catalog provider identity."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.provider_ids: dict[str, str] = {}
+
 #: Substrings that mark a tool as mutating / side-effecting. When
 #: ``read_only=True`` (the default) any tool whose name contains one of
 #: these is dropped from the served surface with a logged warning.
@@ -135,7 +143,7 @@ def expand_tools(
     mirroring ``build_tool_map(collision_policy="replace")``.
     """
     patterns = tuple(unsafe_patterns)
-    result: dict[str, Tool] = {}
+    result = _ExpandedTools()
     for provider in providers:
         label = getattr(provider, "name", None) or type(provider).__name__
         try:
@@ -167,6 +175,11 @@ def expand_tools(
             if tool.name in result:
                 logger.warning("Tool name collision on %r — keeping the later registration.", tool.name)
             result[tool.name] = tool
+            provider_id = getattr(provider, "_lazytools_mcp_provider_id", None)
+            if isinstance(provider_id, str):
+                result.provider_ids[tool.name] = provider_id
+            else:
+                result.provider_ids.pop(tool.name, None)
     return result
 
 
@@ -357,13 +370,32 @@ def _mcp_tool_models(types: Any, tool_map: dict[str, Tool]) -> list[Any]:
     passed through unchanged.
     """
     listed: list[Any] = []
+    provider_ids = getattr(tool_map, "provider_ids", {})
     for tool in tool_map.values():
         definition = tool.definition()
+        provider_id = provider_ids.get(tool.name)
+        if provider_id is not None:
+            # Imported here to retain the server/catalog import boundary:
+            # catalog uses is_unsafe_tool_name as its shared write rule.
+            from lazytools.mcp_server.catalog import tool_metadata
+
+            read_only = tool_metadata(provider_id, tool)["access"] == "read"
+        else:
+            # Non-catalog providers remain supported by build_server. Give
+            # them complete annotations using the server's conservative rule.
+            read_only = not is_unsafe_tool_name(tool.name)
+        annotation_kwargs: dict[str, Any] = {
+            "title": definition.name.replace("_", " ").strip().title(),
+            "readOnlyHint": read_only,
+        }
+        if not read_only:
+            annotation_kwargs["destructiveHint"] = True
         listed.append(
             types.Tool(
                 name=definition.name,
                 description=definition.description or "",
                 inputSchema=definition.parameters,
+                annotations=types.ToolAnnotations(**annotation_kwargs),
             )
         )
     return listed
