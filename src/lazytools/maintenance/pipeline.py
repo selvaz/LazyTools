@@ -51,16 +51,16 @@ class MaintenancePipeline:
     def build_agent(self, state: RunState) -> Agent:
         """Return the inspectable Plan with deterministically named targets."""
 
-        def resolve(_input: str = "") -> str:
+        def resolve(task: str) -> str:
             return state.resolve()
 
-        def refresh(_input: str = "") -> str:
+        def refresh(task: str) -> str:
             return state.refresh()
 
-        def diff(_input: str = "") -> str:
+        def diff(task: str) -> str:
             return state.diff()
 
-        def impact(_input: str = "") -> str:
+        def impact(task: str) -> str:
             return state.impact()
 
         def report(review_text: str = "") -> str:
