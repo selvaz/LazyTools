@@ -216,3 +216,56 @@ def test_failed_approved_check_never_ready(source):
     assert result["rounds"][0]["verification"]["status"] == "failed"
     assert not result["pushed"]
     assert (root / "module.py").read_text().endswith("return 1\n")
+
+
+def test_lazybridge_plan_composes_scan_and_independent_reviewed_local_proposal(source):
+    from lazytools.maintenance import MaintenanceSelfImprovementPlan
+
+    space, root, sha, report = source
+    calls = []
+
+    class StubMaintenance:
+        workspace = space
+
+        def execute(self, *, base_refs=None):
+            calls.append(dict(base_refs or {}))
+            return report
+
+    check = CheckSpec(
+        "value_test", "demo",
+        (sys.executable, "-c", "from module import value; assert value() == 2"),
+    )
+    flow = MaintenanceSelfImprovementPlan(
+        StubMaintenance(), request(checks=(check,), max_rounds=1),
+        base_refs={"demo": sha},
+    )
+    agent = flow.build_agent(writer_tool=Writer(), reviewer_tool=Reviewer())
+    assert len(agent.engine.steps) == 2
+    assert [step.name for step in agent.engine.steps] == [
+        "maintenance_scan", "maintenance_propose",
+    ]
+    result = flow.run(writer_tool=Writer(), reviewer_tool=Reviewer())
+    assert result["status"] == "proposal_ready_for_human_review", result
+    assert calls == [{"demo": sha}]
+    assert (root / "module.py").read_text().endswith("return 1\n")
+
+
+def test_self_improvement_plan_approval_before_read_only_scan(source):
+    from lazytools.maintenance import MaintenanceSelfImprovementPlan
+
+    space, _, _, report = source
+    invoked = []
+
+    class StubMaintenance:
+        workspace = space
+
+        def execute(self, *, base_refs=None):
+            invoked.append(True)
+            return report
+
+    flow = MaintenanceSelfImprovementPlan(
+        StubMaintenance(), request(approved_local_proposal=False),
+    )
+    with pytest.raises(PermissionError, match="Explicit approval"):
+        flow.run(writer_tool=Writer(), reviewer_tool=Reviewer())
+    assert invoked == []
