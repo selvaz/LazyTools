@@ -98,6 +98,9 @@ class PairedMaintenanceBenchmark:
                     "writer_usage": [row.get("writer_usage", {"source": "unavailable"})
                                      for row in rounds],
                     "rounds": len(rounds),
+                    "first_writer_brief_sha256": (
+                        rounds[0].get("writer_brief_sha256") if rounds else None
+                    ),
                     "proposal_report": outcome["report_json"],
                     "patch_sha256": outcome.get("patch_sha256"),
                 }
@@ -108,6 +111,12 @@ class PairedMaintenanceBenchmark:
             if not all(key in captured for key in ("scan", "baseline", "repomap")):
                 raise MaintenanceError("The Plan did not complete both paired arms")
             scan_report = captured["scan"]
+            left = captured["baseline"]["first_writer_brief_sha256"]
+            right = captured["repomap"]["first_writer_brief_sha256"]
+            if not isinstance(left, str) or not left or left != right:
+                raise MaintenanceError(
+                    "Writer briefs differed between arms; the A/B is invalid"
+                )
             result = {
                 "schema_version": 1, "case_id": case_id,
                 "status": "comparison_ready", "order": self.order,
