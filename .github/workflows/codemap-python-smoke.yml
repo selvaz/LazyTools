@@ -7,7 +7,10 @@ on:
       - "src/lazytools/codemap/**"
       - "src/lazytools/maintenance/**"
       - "tests/test_maintenance.py"
+      - "tests/test_maintenance_cli.py"
+      - "tests/test_maintenance_verification.py"
       - "tests/test_codemap.py"
+      - "docs/maintenance.md"
       - "docs/codemap.md"
       - ".github/workflows/codemap-python-smoke.yml"
   workflow_dispatch:
@@ -36,7 +39,7 @@ jobs:
         run: python -m pip install 'lazybridge==1.8.9' pytest
 
       - name: Run isolated Python unit tests
-        run: PYTHONPATH=src python -m pytest -q tests/test_codemap.py tests/test_maintenance.py
+        run: PYTHONPATH=src python -m pytest -q tests/test_codemap.py tests/test_maintenance.py tests/test_maintenance_cli.py tests/test_maintenance_verification.py
 
       - name: Install pinned local RepoMap engine
         run: |
@@ -68,7 +71,9 @@ jobs:
           import subprocess
           import tempfile
           from pathlib import Path
-          from lazytools.maintenance import MaintenancePipeline, RepoSpec, Workspace
+          import sys
+          from lazytools.maintenance import CheckSpec, MaintenancePipeline, RepoSpec, Workspace
+          from lazytools.maintenance.cli import main as maintenance_main
 
           def git(root, *args):
               return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
@@ -100,5 +105,23 @@ jobs:
               assert third["sha"]["example"] != first_sha
               assert third["changes"]["example"] == [{"status": "M", "path": "example.py"}]
               assert third["verification"]["status"] == "not_run"
-              print("Real Plan + RepoMap: cold index, cache hit and SHA refresh passed")
+              approved = MaintenancePipeline(
+                  Workspace((RepoSpec("example", root),), Path(directory) / "state"),
+                  checks=(CheckSpec(
+                      "python_smoke", "example",
+                      (sys.executable, "-c", "from pathlib import Path;assert Path('example.py').is_file()"),
+                  ),),
+                  use_embeddings=False,
+              ).execute(base_refs={"example": first_sha})
+              assert approved["verification"]["status"] == "passed_selected_checks"
+              assert approved["verified"] is False
+              assert git(root, "status", "--porcelain") == ""
+              manifest = Path(directory) / "maintenance.toml"
+              manifest.write_text(
+                  'schema_version = 1\nstate_dir = "state"\n'
+                  '[[repos]]\nid = "example"\nroot = "example"\n'
+              )
+              assert maintenance_main(["--config", str(manifest), "--validate-only"]) == 0
+              assert maintenance_main(["--config", str(manifest), "--json"]) == 0
+              print("Real Plan + RepoMap: cold index, SHA refresh, approved check and CLI passed")
           PY
