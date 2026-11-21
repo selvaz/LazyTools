@@ -108,10 +108,12 @@ def publish_draft_pr(
         _git(root, "remote", "remove", "origin")
         _git(root, "checkout", "-b", branch, source_sha)
         _git(root, "apply", "--index", "--", str(patch))
-        names = _git(root, "diff", "--cached", "--name-only", "-z")
+        names = _git(root, "diff", "--cached", "--name-only", "--no-renames", "-z")
         changed = [p.decode("utf-8", "replace") for p in names.split(b"\0") if p]
         if not changed or any(p not in request.allowed_paths for p in changed):
             raise MaintenanceError("Patch changed a file outside approved scope")
+        if any((root / p).is_symlink() for p in changed):
+            raise MaintenanceError("Patch cannot introduce symlinks")
         _git(root, "diff", "--cached", "--check")
         _git(root, "-c", "user.name=LazyTools Maintenance",
              "-c", "user.email=maintenance@invalid.example",
