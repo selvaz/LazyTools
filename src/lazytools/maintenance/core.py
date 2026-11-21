@@ -11,6 +11,7 @@ import re
 import subprocess
 import tempfile
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,7 @@ class Dependency:
 
     consumer: str
     provider: str
+    import_prefix: str | None = None
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,10 @@ class Workspace:
                 raise ValueError(f"Unknown dependency endpoint: {dep}")
             if dep.consumer == dep.provider:
                 raise ValueError("A repository cannot depend on itself")
+            if dep.import_prefix is not None and not re.fullmatch(
+                r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*", dep.import_prefix
+            ):
+                raise ValueError("Dependency import_prefix must be a valid dotted Python module")
         state_dir = Path(self.state_dir).expanduser().resolve()
         for root in roots:
             if state_dir == root or root in state_dir.parents:
@@ -188,6 +194,7 @@ class RunState:
     changes: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     truncated: dict[str, bool] = field(default_factory=dict)
     impacts: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     review_text: str | None = None
     verification: dict[str, Any] = field(default_factory=lambda: {"status": "not_run", "tests": None})
     report: dict[str, Any] | None = None
@@ -313,14 +320,33 @@ class RunState:
         if any(row.get("source") == "unverified"
                for items in self.impacts.values() for row in items):
             warnings.append("Some impact queries failed or were incomplete")
-        cross_repo = [
-            {"consumer": dep.consumer, "provider": dep.provider,
-             "reason": "manifest_dependency", "confidence": "declared",
-             "action": "Check consumer compatibility and tests"}
-            for dep in self.workspace.dependencies if self.changes.get(dep.provider)
-        ]
+        cross_repo: list[dict[str, Any]] = []
+        for dep in self.workspace.dependencies:
+            # An initial inventory is not a diff or evidence of a changed API.
+            if self.base[dep.provider] is None or not self.changes.get(dep.provider):
+                continue
+            candidate: dict[str, Any] = {
+                "consumer": dep.consumer, "provider": dep.provider,
+                "reason": "manifest_dependency", "confidence": "declared",
+                "action": "Check consumer compatibility and tests",
+            }
+            if dep.import_prefix is not None:
+                from .relationships import python_import_evidence
+
+                evidence = python_import_evidence(
+                    self.workspace.paths()[dep.consumer], dep.import_prefix
+                )
+                candidate["import_evidence"] = evidence
+                if evidence["matches"]:
+                    candidate["confidence"] = "direct_import"
+                if evidence["incomplete"]:
+                    warnings.append(
+                        f"Import scan for {dep.consumer} was incomplete; missing matches are not proof of safety"
+                    )
+            cross_repo.append(candidate)
         report = {
-            "schema_version": 1, "status": "review_required", "verified": False,
+            "schema_version": 1, "run_id": self.run_id,
+            "status": "review_required", "verified": False,
             "sha": self.sha, "base_sha": self.base, "dirty": self.dirty,
             "snapshots": self.snapshots, "changes": self.changes,
             "truncated": self.truncated, "impacts": self.impacts,
@@ -330,10 +356,9 @@ class RunState:
             "verification": self.verification,
             "warnings": [*warnings, "Static impact suggestions have not been verified by tests"],
         }
-        key = _digest({"sha": self.sha, "base": self.base,
-                       "roots": {r.id: str(r.root) for r in self.workspace.repos},
-                       "reviews": self.review_text})
-        out = self.workspace.state_dir / "runs" / key[:24] / "report.json"
+        # Each completed run gets a unique immutable artifact path. Reports
+        # with the same SHA but different checks/reviews must never overwrite.
+        out = self.workspace.state_dir / "runs" / self.run_id / "report.json"
         _atomic_json(out, report)
         summary = ["# Repository maintenance scan", "",
                    "**Status:** review required; structural findings are not a full verification.",
@@ -351,7 +376,7 @@ class RunState:
             for item in cross_repo:
                 summary.append(
                     f"- {item['provider']} -> {item['consumer']} "
-                    "(manifest-declared; verification needed)"
+                    f"({item['confidence']}; verification needed)"
                 )
         if self.verification.get("tests"):
             summary += ["## Approved checks", ""]
