@@ -301,6 +301,7 @@ class MaintenanceImprover:
                         "number": round_number, "candidate_sha": candidate_sha,
                         "patch_sha256": hashlib.sha256(patch).hexdigest(),
                         "patch_bytes": len(patch), "review_status": "pending",
+                        "writer_brief_sha256": hashlib.sha256(objective.encode()).hexdigest(),
                         "writer_usage": (
                             reply.get("usage") if isinstance(reply.get("usage"), dict)
                             else {"source": "unavailable"}
