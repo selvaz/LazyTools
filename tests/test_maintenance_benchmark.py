@@ -71,6 +71,7 @@ def test_same_scan_same_models_only_writer_tool_access_changes(pair, monkeypatch
                 "report_json": "stub-local-proposal",
                 "rounds": [{
                     "verification": {"status": "passed_selected_checks"},
+                    "writer_brief_sha256": "the-same-frozen-brief-hash",
                     "writer_usage": {
                         "source": "lazybridge_envelope",
                         "input_tokens": 40, "output_tokens": 18,
