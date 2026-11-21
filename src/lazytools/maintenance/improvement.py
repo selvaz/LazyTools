@@ -138,7 +138,7 @@ def _existing_tools(root: Path, request: ImprovementRequest) -> tuple[Improvemen
 
 def _commit_candidate(root: Path, base: str, policy: ImprovementRequest) -> tuple[bytes, str]:
     _git(root, "add", "-A")
-    names = _git(root, "diff", "--cached", "--name-only", "-z")
+    names = _git(root, "diff", "--cached", "--name-only", "--no-renames", "-z")
     paths = [item.decode("utf-8", "replace") for item in names.split(b"\0") if item]
     if not paths:
         raise MaintenanceError("The coding agent did not modify any files")
