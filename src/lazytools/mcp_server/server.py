@@ -381,9 +381,12 @@ def _mcp_tool_models(types: Any, tool_map: dict[str, Tool]) -> list[Any]:
 
             read_only = tool_metadata(provider_id, tool)["access"] == "read"
         else:
-            # Non-catalog providers remain supported by build_server. Give
-            # them complete annotations using the server's conservative rule.
-            read_only = not is_unsafe_tool_name(tool.name)
+            # Providers supplied directly to build_server have no catalog
+            # identity: classify by name, conservatively (catalog gated
+            # writers and the unsafe-name guard both count as writes).
+            from lazytools.mcp_server.catalog import uncatalogued_tool_is_write
+
+            read_only = not uncatalogued_tool_is_write(tool.name)
         annotation_kwargs: dict[str, Any] = {
             "title": definition.name.replace("_", " ").strip().title(),
             "readOnlyHint": read_only,

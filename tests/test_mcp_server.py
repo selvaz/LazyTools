@@ -544,3 +544,15 @@ def test_env_values_still_override_defaults(monkeypatch):
     args = _parse_args([])
     assert args.host == "0.0.0.0"
     assert args.port == 9999
+
+
+@pytest.mark.anyio
+async def test_directly_supplied_provider_keeps_catalog_gated_writers_non_read_only(tmp_path):
+    """build_server with a provider object (no catalog identity) must not mark gated writers read-only."""
+    from lazytools.mcp_server.catalog import uncatalogued_tool_is_write
+
+    assert uncatalogued_tool_is_write("projects_set_owner") is True
+    assert uncatalogued_tool_is_write("studio_run") is True
+    assert uncatalogued_tool_is_write("studio_status") is False
+    assert uncatalogued_tool_is_write("datahub_list_datasets") is False
+    assert uncatalogued_tool_is_write("portfolio_optimizer_run") is False
