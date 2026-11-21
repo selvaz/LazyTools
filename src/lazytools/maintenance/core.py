@@ -325,7 +325,7 @@ class RunState:
             "reviews": {"status": "unverified_suggestions", "text": self.review_text}
             if self.review_text else {"status": "not_run"},
             "verification": {"status": "not_run", "tests": None},
-            "warnings": warnings + ["Static impact suggestions have not been verified by tests"],
+            "warnings": [*warnings, "Static impact suggestions have not been verified by tests"],
         }
         key = _digest({"sha": self.sha, "base": self.base,
                        "roots": {r.id: str(r.root) for r in self.workspace.repos},
