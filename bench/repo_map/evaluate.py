@@ -333,22 +333,43 @@ def main() -> int:
             "query_median_s": round(statistics.median(x["seconds"] for x in usable), 3)
                               if usable else None,
         }
-    # Compare natural-language localization both after the fix and at the first
-    # parent of GitHub's PR merge commit. Fetching public refs is read-only; a
-    # failure to resolve or index a base is invalid evidence, never a miss.
+    # Compare natural-language localization both after the fix and at the
+    # common ancestor of the PR head and the default branch. Merged PRs retain
+    # their head ref, while GitHub may delete their synthetic merge ref.
+    # Fetching public refs is read-only; an unresolved ref/base is invalid
+    # evidence, never a miss.
     issue_rows = []
+    history_fetches = {}
     for label, query, gold, number in ISSUE_CASES:
         post_repo = REPOS[label]
-        merge_ref = f"refs/benchmark/pr-{number}-merge"
-        fetch = run(["git", "fetch", "--quiet", "--force", "--depth", "2", "origin",
-                     f"refs/pull/{number}/merge:{merge_ref}"], post_repo, timeout=120)
-        merge = run(["git", "rev-parse", merge_ref], post_repo, timeout=30) \
+        default_ref_call = run(
+            ["git", "symbolic-ref", "refs/remotes/origin/HEAD"], post_repo, timeout=30)
+        default_ref = default_ref_call["stdout"].strip() if default_ref_call["ok"] else ""
+        if label not in history_fetches:
+            branch = default_ref.rsplit("/", 1)[-1] if default_ref else ""
+            unshallow = run(
+                ["git", "fetch", "--quiet", "--unshallow", "origin", branch],
+                post_repo, timeout=300) if branch else {"ok": False, "stderr": "default branch unknown"}
+            # A non-shallow clone rejects --unshallow, so refresh normally.
+            history_fetches[label] = unshallow if unshallow["ok"] else run(
+                ["git", "fetch", "--quiet", "origin", branch], post_repo, timeout=300)
+        history_fetch = history_fetches[label]
+        head_ref = f"refs/benchmark/pr-{number}-head"
+        fetch = run(["git", "fetch", "--quiet", "--force", "origin",
+                     f"refs/pull/{number}/head:{head_ref}"], post_repo, timeout=120)
+        head = run(["git", "rev-parse", "--verify", head_ref], post_repo, timeout=30) \
             if fetch["ok"] else {"ok": False, "stdout": "", "stderr": fetch["stderr"]}
-        base = run(["git", "rev-parse", f"{merge_ref}^1"], post_repo, timeout=30) \
-            if fetch["ok"] else {"ok": False, "stdout": "", "stderr": fetch["stderr"]}
-        changed_call = run(["git", "diff", "--name-only", f"{merge_ref}^1", merge_ref],
-                           post_repo, timeout=30) if base["ok"] else {"ok": False, "stdout": ""}
+        base = run(["git", "merge-base", head_ref, default_ref], post_repo, timeout=30) \
+            if head["ok"] and history_fetch["ok"] and default_ref else {
+                "ok": False, "stdout": "", "stderr": (
+                    fetch.get("stderr", "") or history_fetch.get("stderr", "")
+                    or default_ref_call.get("stderr", ""))}
+        changed_call = run(["git", "diff", "--name-only", base["stdout"].strip(),
+                            head_ref], post_repo, timeout=30) \
+            if base["ok"] else {"ok": False, "stdout": ""}
         changed_files = changed_call["stdout"].splitlines() if changed_call["ok"] else []
+        changed_python_files = [path for path in changed_files if path.endswith(".py")]
+        case_gold = [path for path in gold if path in changed_python_files]
         worktree = ROOT / "_benchmark_bases" / f"{label}-{number}"
         add = run(["git", "worktree", "add", "--detach", str(worktree),
                    base["stdout"].strip()], post_repo, timeout=60) \
@@ -356,18 +377,24 @@ def main() -> int:
         protocols = [("post_merge", post_repo, True),
                      ("pre_fix", worktree, bool(add["ok"]))]
         for protocol, repo, resolved in protocols:
-            missing = [path for path in gold if resolved and not (repo / path).is_file()]
-            valid = resolved and not missing
+            missing = [path for path in case_gold if resolved and not (repo / path).is_file()]
+            valid = resolved and bool(case_gold) and not missing
             base_row = {"repo": label, "pr": number, "protocol": protocol,
-                        "query": query, "gold": gold, "valid": valid,
-                        "merge_commit": merge["stdout"].strip() if merge.get("ok") else None,
-                        "merge_changed_files": changed_files,
+                        "query": query, "curated_gold": gold, "gold": case_gold,
+                        "valid": valid,
+                        "pull_head": head["stdout"].strip() if head.get("ok") else None,
+                        "changed_files": changed_files,
+                        "changed_python_files": changed_python_files,
                         "commit": (base["stdout"].strip() if protocol == "pre_fix"
                                    and base.get("ok") else result["repos"][label]["sha"])}
             if not valid:
-                base_row["reason"] = (f"missing gold files: {missing}" if missing
-                                      else "PR base commit could not be resolved")
+                base_row["reason"] = ("PR refs or merge-base could not be resolved"
+                                      if not resolved else
+                                      (f"missing gold files: {missing}" if missing else
+                                       "no curated Python gold file changed by PR"))
                 base_row["diagnostic"] = add.get("stderr", "")[:500]
+                print(f"INVALID {label} PR #{number} {protocol}: "
+                      f"{base_row['reason']} {base_row['diagnostic']}")
                 issue_rows.append(base_row)
                 continue
             index = ({"ok": result["repos"][label]["index"]["repomap"]["ok"]}
@@ -386,7 +413,7 @@ def main() -> int:
                 paths = found_paths(call["stdout"], repo) if usable else []
                 methods["repomap"] = {"usable": usable, "seconds": call["seconds"],
                                       "paths": paths[:10],
-                                      "score": issue_score(paths, gold) if usable else None,
+                                      "score": issue_score(paths, case_gold) if usable else None,
                                       "stderr": call["stderr"][:400]}
             else:
                 methods["repomap"] = {"usable": False, "reason": "index failed"}
@@ -394,7 +421,7 @@ def main() -> int:
             lexical_paths = lexical_rank(repo, query)
             methods["lexical_bm25"] = {
                 "usable": True, "seconds": round(time.perf_counter() - start, 3),
-                "paths": lexical_paths, "score": issue_score(lexical_paths, gold),
+                "paths": lexical_paths, "score": issue_score(lexical_paths, case_gold),
             }
             issue_rows.append(base_row | {"methods": methods})
         if add["ok"]:
@@ -415,7 +442,7 @@ def main() -> int:
                                    if usable else None),
             }
     result["issue_localization"] = {
-        "method": "RepoMap and dependency-free BM25; post-merge and first-parent pre-fix checkouts",
+        "method": "RepoMap and dependency-free BM25; post-merge and merge-base pre-fix checkouts",
         "cases": issue_rows, "summary": issue_summary,
     }
     # Check optional multi-repo map and token-budget behavior without

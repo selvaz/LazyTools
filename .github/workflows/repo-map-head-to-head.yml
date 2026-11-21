@@ -54,6 +54,8 @@ jobs:
           mkdir -p _benchmark_checkouts
           git clone --quiet --depth 1 https://github.com/selvaz/LazyBridge.git _benchmark_checkouts/LazyBridge
           git clone --quiet --depth 1 https://github.com/selvaz/LazyTools.git _benchmark_checkouts/LazyTools
+          git -C _benchmark_checkouts/LazyBridge fetch --quiet --unshallow origin
+          git -C _benchmark_checkouts/LazyTools fetch --quiet --unshallow origin
           git -C _benchmark_checkouts/LazyBridge fetch --quiet --depth 1 origin 11de2452c5953aefe6922e146475e9887a80c5d8
           git -C _benchmark_checkouts/LazyBridge checkout --quiet --detach 11de2452c5953aefe6922e146475e9887a80c5d8
           git -C _benchmark_checkouts/LazyTools fetch --quiet --depth 1 origin b4146966f1ca82557b1bf7b5fef1b3d8f0024b3e
