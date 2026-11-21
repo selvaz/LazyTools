@@ -1,7 +1,6 @@
 """Operator-granted checks run at pinned SHAs without changing source checkout."""
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
