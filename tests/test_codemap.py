@@ -20,7 +20,7 @@ import json, os, pathlib, sys
 args = sys.argv[1:]
 if args[0] == "search":
     result = {"results": [{"file": "src/app.py", "reason": "matched retry", "snippet": "def retry():"}],
-              "query": args[1], "limit": int(args[args.index("--limit") + 1])}
+              "query": args[args.index("--") + 1], "limit": int(args[args.index("--limit") + 1]), "args": args}
 else:
     result = {"map": "src/app.py: retry", "tokens": int(args[args.index("--tokens") + 1])}
 result["cwd"] = str(pathlib.Path.cwd())
@@ -50,6 +50,7 @@ def test_search_and_map_use_confined_repo_and_external_cache(
         "snippet": "def retry():",
     }
     assert result["limit"] == 50
+    assert result["args"][-2:] == ["--", "failed requests retry"]
     assert result["cwd"] == str(repo)
     assert result["cache"] == str(cache)
     assert result["repomap_cache"] == str(cache.resolve())
@@ -71,6 +72,30 @@ def test_repo_path_cannot_escape_code_root(tmp_path: Path, stub_repomap: Path) -
         tools.codemap_search("query", str(outside))
 
 
+def test_cache_cannot_be_inside_code_root(tmp_path: Path, stub_repomap: Path) -> None:
+    root = tmp_path / "code"
+    root.mkdir()
+    with pytest.raises(ValueError, match="cache directory must be outside"):
+        RepoMapTools(root=root, backend=RepoMapCLI(binary=str(stub_repomap), cache_dir=root / ".cache"))
+
+
+def test_option_like_query_is_positional_and_external_symlink_is_flagged(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = tmp_path / "secret.py"
+    outside.write_text("secret")
+    (repo / "linked.py").symlink_to(outside)
+    backend = RepoMapCLI(cache_dir=tmp_path / "cache")
+    tools = RepoMapTools(root=repo, backend=backend)
+
+    with pytest.raises(ValueError, match="must not start"):
+        tools.codemap_search("--help", ".")
+
+    cleaned = backend._sanitize({"file": "linked.py", "snippet": "x" * 1000}, repo)
+
+    assert cleaned == {"file": "linked.py", "outside_code_root": True}
+
+
 def test_missing_binary_has_installation_message(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -80,12 +105,45 @@ def test_missing_binary_has_installation_message(tmp_path: Path) -> None:
         backend.search("query", repo, 10)
 
 
+def test_windows_cmd_shim_resolves_to_node_and_package_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    shim = tmp_path / "repomap.cmd"
+    shim.touch()
+    node = tmp_path / "node.exe"
+    node.touch()
+    package = tmp_path / "node_modules" / "@sylphx" / "repomap"
+    (package / "bin").mkdir(parents=True)
+    (package / "package.json").write_text('{"bin":{"repomap":"bin/repomap.js"}}')
+    launcher = package / "bin" / "repomap.js"
+    launcher.touch()
+
+    monkeypatch.setattr(shutil, "which", lambda name: str(node if name in {"node", "node.exe"} else shim))
+
+    assert RepoMapCLI()._command(windows=True) == [str(node), str(launcher)]
+
+
+def test_error_detail_and_snippets_are_bounded(tmp_path: Path) -> None:
+    failing = tmp_path / "repomap"
+    failing.write_text("#!/usr/bin/env python3\nimport sys\nsys.stderr.write('e' * 2000)\nsys.exit(2)\n")
+    failing.chmod(0o755)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    backend = RepoMapCLI(binary=str(failing), cache_dir=tmp_path / "cache")
+
+    with pytest.raises(RepoMapError) as caught:
+        backend.search("query", repo, 1)
+
+    assert len(str(caught.value).partition(": ")[2]) == 500
+    assert backend._sanitize({"snippet": "x" * 1000}, repo)["snippet"] == "x" * 400
+
+
 def test_provider_is_on_read_only_mcp_surface(tmp_path: Path) -> None:
     providers = default_providers(["codemap"], data_source={"code_root": str(tmp_path)})
     assert set(expand_tools(providers, read_only=True)) == {"codemap_search", "codemap_map"}
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_server_lists_codemap_as_read_only(tmp_path: Path) -> None:
     pytest.importorskip("mcp")
     providers = default_providers(["codemap"], data_source={"code_root": str(tmp_path)})
@@ -101,5 +159,8 @@ async def test_server_lists_codemap_as_read_only(tmp_path: Path) -> None:
 @pytest.mark.skipif(shutil.which("repomap") is None, reason="repomap is not installed")
 def test_installed_repomap_smoke(tmp_path: Path) -> None:
     (tmp_path / "example.py").write_text("def retry_request():\n    pass\n")
+    before = {path.relative_to(tmp_path): (path.stat().st_size, path.stat().st_mtime_ns) for path in tmp_path.rglob("*")}
     result = RepoMapCLI(cache_dir=tmp_path.parent / "repomap-smoke-cache").search("retry request", tmp_path, 1)
     assert result is not None
+    after = {path.relative_to(tmp_path): (path.stat().st_size, path.stat().st_mtime_ns) for path in tmp_path.rglob("*")}
+    assert after == before

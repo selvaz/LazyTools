@@ -25,6 +25,9 @@ class RepoMapTools:
         configured = root or os.environ.get("LAZYTOOLS_CODE_ROOT") or Path.cwd()
         self._root = Path(configured).expanduser().resolve()
         self._backend = backend or RepoMapCLI(cache_dir=cache_dir)
+        resolved_cache = self._backend.cache_dir.resolve()
+        if resolved_cache == self._root or self._root in resolved_cache.parents:
+            raise ValueError("codemap cache directory must be outside the configured code root")
 
     def codemap_search(self, query: str, repo_path: str, limit: int = 10) -> Any:
         """Rank candidate files for issue text and return RepoMap's short matching lines and reasons.
@@ -34,11 +37,16 @@ class RepoMapTools:
             repo_path: repository directory, absolute or relative to the configured code root.
             limit: maximum ranked candidates to return, from 1 through 50.
         """
-        if not query.strip():
+        query = query.strip()
+        if not query:
             raise ValueError("query is required")
+        # RepoMap 1.9.0 does not reliably accept option-shaped positional
+        # queries even after ``--`` (for example, ``--help`` prints usage).
+        if query.startswith("-"):
+            raise ValueError("query must not start with '-' with RepoMap 1.9.0")
         bounded = max(1, min(int(limit), 50))
         repo = _resolve_repo(repo_path, self._root)
-        return self._backend.search(query.strip(), repo, bounded)
+        return self._backend.search(query, repo, bounded)
 
     def codemap_map(self, repo_path: str, tokens: int = 1200) -> Any:
         """Return a compact repository map within the requested token budget.
