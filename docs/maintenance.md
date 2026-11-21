@@ -156,6 +156,8 @@ Checks are granted in trusted Python code, not in the TOML, an LLM prompt, a PR 
 
 Every scan has its own run_id and distinct report files; a later run cannot overwrite an older report for the same SHA.
 
+**Freshness rule:** even when SHA-keyed snapshot metadata exists, the pipeline runs the RepoMap index command again to revalidate the engine cache. `cache_hit` means *metadata reused*, not indexing skipped. Reports record `refresh_seconds` for every run. Dirty worktrees never reuse SHA-only metadata.
+
 ## Runnable two-repository example
 
 Run `PYTHONPATH=src python examples/maintenance_two_repos.py` after installing the optional RepoMap 1.9.0 binary. It creates two disposable local Git repositories, changes a library API, then demonstrates a SHA-pinned consumer import finding. The example never alters a real repository or requires an LLM.
