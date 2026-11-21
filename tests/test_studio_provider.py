@@ -199,3 +199,10 @@ def test_caller_token_with_surrounding_whitespace_is_not_sent(monkeypatch):
 
     monkeypatch.setenv(studio.CALLER_TOKEN_ENV, " abc ")
     assert studio._caller_token() is None
+
+
+def test_stuck_result_names_the_condition_and_run():
+    assert StudioTools._result(
+        {"status": "stuck", "message": "nested run ignores cancellation", "run_id": "run-3"}
+    ) == "stuck: nested run ignores cancellation (run_id=run-3)"
+    assert StudioTools._result({"status": "stuck"}) == "stuck: nested run is stuck"
