@@ -85,7 +85,7 @@ class PairedMaintenanceBenchmark:
                 captured[name] = {
                     "arm": name,
                     "writer_repomap": mapped,
-                    "available_writer_tools": (
+                    "configured_writer_tools": (
                         ["codemap_overview", "codemap_search",
                          "codemap_context", "codemap_impact"] if mapped else []
                     ),
@@ -146,7 +146,7 @@ class PairedMaintenanceBenchmark:
         steps.append(Step("bench_report"))
         return Agent(name="paired_maintenance_benchmark",
                      engine=Plan(*steps, max_iterations=len(steps) + 1),
-                     tools=tools)
+                     tools=[*tools])
 
     def run(self, *, tools_factory: ToolPairFactory | None = None) -> dict[str, Any]:
         """Start real coding-agent turns only after explicit local approval."""
