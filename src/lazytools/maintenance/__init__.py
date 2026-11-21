@@ -5,6 +5,7 @@ capabilities are optional, independently authorized integrations.
 """
 from __future__ import annotations
 
+from .benchmark import PairedMaintenanceBenchmark
 from .core import Dependency, MaintenanceError, RepoSpec, Workspace
 from .handoff import PublicationApproval, publish_draft_pr
 from .improvement import ImprovementRequest, MaintenanceImprover
@@ -22,6 +23,7 @@ __all__ = [
     "MaintenancePipeline",
     "MaintenanceSelfImprovementPlan",
     "NavigationApproval",
+    "PairedMaintenanceBenchmark",
     "PublicationApproval",
     "RepoSpec",
     "Workspace",
