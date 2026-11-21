@@ -345,8 +345,11 @@ def test_declared_plan_has_scan_proposal_publish_and_existing_navigator_steps(
     source, monkeypatch
 ):
     from lazytools.maintenance import (
-        MaintenanceSelfImprovementPlan, NavigationApproval, PublicationApproval,
+        MaintenanceSelfImprovementPlan,
+        NavigationApproval,
+        PublicationApproval,
     )
+
     import lazytools.maintenance.improvement_plan as module
 
     workspace, _, _, report = source
@@ -400,10 +403,12 @@ def test_declared_plan_has_scan_proposal_publish_and_existing_navigator_steps(
 
 def test_plan_requires_separate_publish_and_navigator_approval(source):
     from lazytools.maintenance import (
-        MaintenanceSelfImprovementPlan, NavigationApproval, PublicationApproval,
+        MaintenanceSelfImprovementPlan,
+        NavigationApproval,
+        PublicationApproval,
     )
 
-    space, _, _, report = source
+    space, _, _, _ = source
 
     class Scan:
         workspace = space
