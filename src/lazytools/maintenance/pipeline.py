@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 from lazybridge import Agent, Plan, Step, Tool, from_parallel_all, from_prev, from_step
 
@@ -39,7 +39,18 @@ class MaintenancePipeline:
         executable: str = "repomap",
         use_embeddings: bool = False,
         timeout_seconds: float = 45.0,
+        context_mode: Literal["git", "repomap"] = "repomap",
+        task_query: str | None = None,
     ) -> None:
+        if context_mode not in ("git", "repomap"):
+            raise ValueError("context_mode must be git or repomap")
+        if task_query is not None and (
+            not isinstance(task_query, str) or not task_query.strip()
+            or len(task_query) > 450 or task_query.startswith("-")
+        ):
+            raise ValueError("task_query must be 1-450 safe characters")
+        self.context_mode = context_mode
+        self.task_query = task_query
         self.workspace = workspace
         self.reviewers = tuple(reviewers)
         self.checks = tuple(checks)
@@ -128,11 +139,14 @@ class MaintenancePipeline:
         unknown = set(base) - set(self.workspace.paths())
         if unknown:
             raise ValueError(f"Unknown repository in base_refs: {', '.join(sorted(unknown))}")
-        mapper = RepoMapCLI(
-            self.workspace.paths(), executable=self.executable,
-            timeout_seconds=self.timeout_seconds, use_embeddings=self.use_embeddings,
+        mapper = (
+            RepoMapCLI(
+                self.workspace.paths(), executable=self.executable,
+                timeout_seconds=self.timeout_seconds, use_embeddings=self.use_embeddings,
+            )
+            if self.context_mode == "repomap" else None
         )
-        state = RunState(self.workspace, base, mapper)
+        state = RunState(self.workspace, base, mapper, task_query=self.task_query)
         agent = self.build_agent(state)
         result = agent("Perform a read-only scan of configured repositories")
         # The Plan may capture an exception in its Envelope. Only the report
