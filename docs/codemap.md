@@ -50,4 +50,6 @@ The adapter invokes a local third-party executable with fixed arguments, no shel
 
 This is intentionally a small, opt-in, read-only prototype. No shared project database is introduced, no source files are rewritten by the tool, and no automatic invocation is added to LazyCEO or other agents.
 
+For the proposed reusable, public end-to-end review/refresh/maintenance pipeline, see [Repository Maintenance Pipeline — specification](repo-maintenance-pipeline-spec.md). The spec explicitly distinguishes current capabilities from planned features.
+
 The existing head-to-head benchmark measures search relevance and index timings, not actual token or wall-time savings for full coding agents. Before wider deployment, run paired real coding tasks against the same repository state, with and without this provider, and compare prompt tokens (including cache), wall time, final tests, and agent tool-call counts.
