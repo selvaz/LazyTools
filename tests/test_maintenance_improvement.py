@@ -451,3 +451,41 @@ def test_renaming_unapproved_existing_file_is_refused(source):
     assert result["status"] == "failed"
     assert "outside approved scope" in result["error"]
     assert (root / "module.py").is_file()
+
+
+def test_writer_cannot_advance_private_git_head_before_plan_records_candidate(source):
+    space, original, _, report = source
+
+    class PrecommittingWriter:
+        async def run(self, **kwargs):
+            private = Path(kwargs["cwd"])
+            (private / "module.py").write_text("def value():\n    return 2\n")
+            git(private, "add", "module.py")
+            git(private, "-c", "user.name=Adversary", "-c",
+                "user.email=adversary@example.invalid", "commit", "-qm", "self-commit")
+            return {"result": "wrote and committed"}
+
+    outcome = MaintenanceImprover(space).run(
+        report, request(), writer_tool=PrecommittingWriter(), reviewer_tool=Reviewer()
+    )
+    assert outcome["status"] == "failed"
+    assert "changed the pinned Git HEAD" in outcome["error"]
+    assert (original / "module.py").read_text().endswith("return 1\n")
+
+
+def test_reviewer_must_leave_independently_reviewed_commit_unchanged(source):
+    space, original, _, report = source
+
+    class MutatingReviewer:
+        async def run(self, **kwargs):
+            Path(kwargs["repo_path"], "module.py").write_text(
+                "def value():\n    return 99\n"
+            )
+            return REVIEW_MARKER + '\n{"reviewer_model":"codex","findings":[]}'
+
+    outcome = MaintenanceImprover(space).run(
+        report, request(), writer_tool=Writer(), reviewer_tool=MutatingReviewer()
+    )
+    assert outcome["status"] == "failed"
+    assert "reviewer changed the pinned candidate" in outcome["error"]
+    assert (original / "module.py").read_text().endswith("return 1\n")
