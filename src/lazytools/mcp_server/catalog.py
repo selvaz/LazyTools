@@ -133,24 +133,6 @@ _READ_ONLY_PATTERN_EXCEPTIONS = frozenset(
 )
 
 
-def uncatalogued_tool_is_write(name: str) -> bool:
-    """Conservative access for a tool whose provider has no catalog identity.
-
-    Used for providers handed directly to ``build_server``. A name counts as a
-    write when the shared unsafe-name guard matches, when any catalogued
-    provider gates it as a writer, or when it is a Studio tool outside the
-    read allow-list. Write-only providers cannot be recognised by name; supply
-    them through ``default_providers`` to get exact classification.
-    """
-    if name in _READ_ONLY_PATTERN_EXCEPTIONS:
-        return False
-    if is_unsafe_tool_name(name):
-        return True
-    if any(name in gated for gated in _GATED_WRITE_TOOLS.values()):
-        return True
-    return name.startswith("studio_") and name not in _STUDIO_READ_TOOLS
-
-
 def tool_metadata(provider_id: str, tool: str | NamedTool) -> ToolMetadata:
     """Return catalog metadata and effective access for ``tool``.
 
