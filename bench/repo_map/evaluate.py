@@ -49,6 +49,10 @@ CASES = [
     ("LazyTools", "_artifact_register", "src/lazytools/registry/tools.py"),
 ]
 
+# Curated from public PR titles in these repositories. No source paths are
+# included in the queries. This is a small exploratory held-in sample, not SWE-bench.
+ISSUE_CASES = [["LazyTools","report stuck nested Studio tool execution clearly to caller",["src/lazytools/mcp_server/studio.py"],323],["LazyTools","read-only MCP tools missing annotations are classified as write",["src/lazytools/mcp_server/providers.py","src/lazytools/mcp_server/server.py"],322],["LazyTools","propagate MCP tool annotations through client transports",["src/lazytools/connectors/mcp/_sdk.py","src/lazytools/connectors/mcp/server.py","src/lazytools/connectors/mcp/transports.py"],319],["LazyTools","stdio MCP server hangs when scientific modules import on worker threads",["src/lazytools/mcp_server/__main__.py"],318],["LazyTools","warn when code bridge launches from a git branch behind upstream",["src/lazytools/code_bridge/_freshness.py","src/lazytools/code_bridge/cli.py"],289],["LazyTools","wait for first completed agent job among multiple active jobs and provide machine readable ids",["src/lazytools/code_bridge/cli.py"],304],["LazyTools","recover cloud task polling from transient rate limits without marking job failed",["src/lazytools/code_bridge/_cloud.py","src/lazytools/code_bridge/_cloud_land.py","src/lazytools/code_bridge/cli.py"],307],["LazyTools","fallback to local coding agent execution if cloud environment mapping does not exist",["src/lazytools/code_bridge/_cloud.py","src/lazytools/code_bridge/_cloud_place.py","src/lazytools/code_bridge/_mcp.py","src/lazytools/code_bridge/cli.py"],302],["LazyBridge","report cached input token usage for Claude Code and Codex models",["lazybridge/engines/claude_code/engine.py","lazybridge/engines/codex/engine.py","lazybridge/envelope.py"],234],["LazyBridge","nested plan execution loses incoming envelope context for child steps",["lazybridge/agent.py","lazybridge/engines/plan/_plan.py"],227],["LazyBridge","load provider SDK packages lazily so initial import is fast",["lazybridge/core/providers/__init__.py"],222],["LazyBridge","synchronous agent run hangs when event loop executor thread shutdown begins",["lazybridge/_asyncbridge.py"],213],["LazyBridge","Claude Code SDK stalls and timeout cleanup must kill subprocess tree",["lazybridge/engines/claude_code/engine.py","lazybridge/engines/claude_code/sdk_client.py"],215],["LazyBridge","Codex App Server streaming idle timeout is not enforced between events",["lazybridge/engines/codex/app_server.py","lazybridge/engines/codex/engine.py"],216],["LazyBridge","map bare Claude aliases to currently supported model ids",["lazybridge/model_tiers.py"],220],["LazyBridge","record actual model selected by coding engine rather than requested alias",["lazybridge/engines/claude_code/engine.py","lazybridge/engines/codex/engine.py","lazybridge/envelope.py"],221]]
+
 def run(args: list[str], cwd: Path, timeout: int = 150, env: dict | None = None) -> dict:
     start = time.perf_counter()
     try:
@@ -186,6 +190,61 @@ def main() -> int:
             "query_median_s": round(statistics.median(x["seconds"] for x in usable), 3)
                               if usable else None,
         }
+    # Separate exploratory issue-to-code evaluation: repomap's hybrid search
+    # accepts natural-language queries. CGC's find name is not a semantic
+    # equivalent, so do not present this as a head-to-head accuracy score.
+    issue_rows = []
+    for label, query, gold, number in ISSUE_CASES:
+        repo = REPOS[label]
+        missing = [p for p in gold if not (repo / p).is_file()]
+        if missing:
+            issue_rows.append({"repo": label, "pr": number, "query": query,
+                               "valid": False, "missing_gold": missing})
+            continue
+        call = run(["repomap", "search", query, "--limit", "10", "--json"],
+                   repo, timeout=90, env=environment)
+        try:
+            json.loads(call["stdout"])
+            valid_output = call["ok"]
+        except (ValueError, TypeError):
+            valid_output = False
+        paths = found_paths(call["stdout"], repo) if valid_output else []
+        ranks = {p: next((i+1 for i, result_path in enumerate(paths)
+                          if result_path == p or result_path.endswith("/"+p)), None)
+                 for p in gold}
+        issue_rows.append({"repo": label, "pr": number, "query": query,
+                           "gold": gold, "valid": True, "usable": valid_output,
+                           "seconds": call["seconds"], "ranks": ranks,
+                           "hit_any_5": any(v is not None and v <= 5 for v in ranks.values()),
+                           "hit_all_10": all(v is not None and v <= 10 for v in ranks.values()),
+                           "sample": call["stdout"][:500] if not valid_output else "",
+                           "stderr": call["stderr"][:400]})
+    valid_issues = [x for x in issue_rows if x.get("valid")]
+    usable_issues = [x for x in valid_issues if x.get("usable")]
+    result["issue_localization"] = {
+        "method": "Repomap semantic search on curated public PR titles; no equivalent CGC semantic run",
+        "cases": issue_rows,
+        "summary": {"valid": len(valid_issues), "usable": len(usable_issues),
+                    "any_gold_in_top5": sum(x["hit_any_5"] for x in usable_issues),
+                    "all_gold_in_top10": sum(x["hit_all_10"] for x in usable_issues),
+                    "median_query_s": round(statistics.median(x["seconds"] for x in usable_issues), 3)
+                                      if usable_issues else None},
+    }
+    # Check optional multi-repo map and token-budget behavior without
+    # asserting a specific output structure or changing production code.
+    workspace = ",".join(str(REPOS[n]) for n in ("LazyBridge", "LazyTools"))
+    multi = {}
+    for label, args in {
+        "budgeted_map": ["repomap", "--workspace", workspace, "map",
+                         "--tokens", "1200", "--json"],
+        "cross_repo_search": ["repomap", "--workspace", workspace, "search",
+                              "MCP tools and agent integration", "--limit", "10", "--json"],
+    }.items():
+        call = run(args, ROOT, timeout=120, env=environment)
+        multi[label] = short_run(call) | {"stdout_bytes": len(call["stdout"]),
+                                         "repo_names_present": {
+                                             name: name in call["stdout"] for name in REPOS}}
+    result["multirepo"] = multi
     OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"versions": {k: v["sample"][:75] for k,v in versions.items()},
                       "repos": result["repos"], "summary": result["summary"]},
