@@ -136,6 +136,13 @@ class StudioTools:
             return f"still running, run_id={run_id}"
         if status == "succeeded" and isinstance(payload.get("output"), str):
             return payload["output"]
+        if status == "stuck":
+            # LazyStudio: a nested run ignored cancellation and holds the
+            # process environment; the operator must restart LazyStudio.
+            detail = payload.get("message") or payload.get("error") or "nested run is stuck"
+            if isinstance(detail, str):
+                run = f" (run_id={run_id})" if isinstance(run_id, str) else ""
+                return f"stuck: {detail}{run}"
         if status == "failed":
             detail = payload.get("output") or payload.get("error") or "unknown error"
             if isinstance(detail, str):
