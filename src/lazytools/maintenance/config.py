@@ -79,11 +79,15 @@ def load_config(filename: str | Path) -> MaintenanceConfig:
         raise ValueError("dependencies must be a list of at most 200 relations")
     deps: list[Dependency] = []
     for i, raw in enumerate(raw_deps):
-        row = _keys(raw, {"consumer", "provider"}, f"dependencies[{i}]")
+        row = _keys(raw, {"consumer", "provider", "import_prefix"}, f"dependencies[{i}]")
         deps.append(
             Dependency(
                 consumer=_text(row.get("consumer"), f"dependencies[{i}].consumer"),
                 provider=_text(row.get("provider"), f"dependencies[{i}].provider"),
+                import_prefix=(
+                    _text(row["import_prefix"], f"dependencies[{i}].import_prefix")
+                    if "import_prefix" in row else None
+                ),
             )
         )
     mapping = _keys(contents.get("mapping", {}), {"embeddings", "timeout_seconds"}, "mapping")
