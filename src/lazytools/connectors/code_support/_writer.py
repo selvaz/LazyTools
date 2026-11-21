@@ -30,6 +30,7 @@ per-call ``model`` / ``effort`` and their durable, renamable ``session_name``
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -164,6 +165,11 @@ class CodeWriteTools:
         Where ``session_name`` aliases live; default is LazyBridge's
         (``$LAZYBRIDGE_SESSIONS_FILE`` or ``~/.lazybridge/sessions.json``).
         Mainly for tests.
+    application_tools:
+        Additional *trusted* read-only LazyBridge tools exposed directly to
+        the Claude/Codex writing Agent. They are not exposed to the outer
+        orchestrator and must never be chosen by LLM text. Intended for
+        RepoMapTools(...).as_tools() on operator-approved repository roots.
     """
 
     _is_lazy_tool_provider = True
@@ -180,6 +186,7 @@ class CodeWriteTools:
         timeout: float = DEFAULT_TIMEOUT,
         claude_bash: bool = True,
         session_registry: SessionRegistry | None = None,
+        application_tools: Sequence[Tool] = (),
     ) -> None:
         root = Path(base_dir).resolve()
         if not root.is_dir():
@@ -199,6 +206,7 @@ class CodeWriteTools:
         self._timeout = timeout
         self._claude_bash = claude_bash
         self._session_registry = session_registry
+        self._application_tools = tuple(application_tools)
 
     # ------------------------------------------------------------------ #
     # Confirmation surface (mirrors GmailTools)
@@ -378,7 +386,9 @@ class CodeWriteTools:
             config=config,
         )
         try:
-            env: Any = await Agent(engine, name="claude_code_write").run(task)
+            env: Any = await Agent(
+                engine, name="claude_code_write", tools=list(self._application_tools)
+            ).run(task)
         except Exception as exc:  # the handle matters most when the run blew up
             return self._failure(
                 "claude_code",
@@ -436,7 +446,9 @@ class CodeWriteTools:
             config=CodingAgentConfig(codex=CodexPolicy(sandbox="workspace-write", approval_policy="never")),
         )
         try:
-            env: Any = await Agent(engine, name="codex_write").run(task)
+            env: Any = await Agent(
+                engine, name="codex_write", tools=list(self._application_tools)
+            ).run(task)
         except Exception as exc:
             return self._failure(
                 "codex", run_cwd, "thread_id", engine.thread_id or resumed, alias, f"{type(exc).__name__}: {exc}"
