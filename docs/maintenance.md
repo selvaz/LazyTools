@@ -267,6 +267,8 @@ with a reviewer_model and findings list. It must be supplied by trusted
 application code; neither TOML nor an LLM can supply it. Existing
 CodeBridge cloud fixes require valid authenticated provider configuration.
 
+Publication also checks that the supplied proposal matches its saved per-run `result.json` and exactly matches that run's `proposal.patch`; changing a reviewer verdict in memory or swapping a patch between runs is rejected. The report itself is an operator-owned local artifact, not a cryptographic signature or a replacement for human review.
+
 The full GitHub publication/Navigator route has **not yet undergone a live
 authenticated author/reviewer test**. Local contract tests use a bare Git
 remote and fake GitHub CLI output. A test that passes locally is not proof
@@ -283,4 +285,4 @@ into your own workflow directory after pinning a trusted version. Its default
 permissions are `contents: read` and it creates only scan artifacts: no
 agent writes, PRs, merges or deployments. LazyCEO can invoke the same
 `MaintenancePipeline` Python object on its own schedule, without creating
-a second controller.
+a second controller. The example also runs after every push to `main`, so mappings are refreshed promptly after accepted commits; adapt the branch name to the adopting repository.
