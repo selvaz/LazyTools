@@ -64,6 +64,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if cfg.workspace.require_clean and git_status(repo.root) != "clean":
                     raise MaintenanceError(f"{repo.id}: dirty Git checkout")
                 shas[repo.id] = resolve_sha(repo.root)
+                if repo.id in base:
+                    resolve_sha(repo.root, base[repo.id])
             result: dict[str, object] = {"status": "valid", "sha": shas}
         else:
             report = MaintenancePipeline(
