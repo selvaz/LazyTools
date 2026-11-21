@@ -145,8 +145,8 @@ class MaintenancePipeline:
                 if error is not None else getattr(result, "text", lambda: str(result))()
             )
             raise MaintenanceError(f"Maintenance Plan did not complete: {str(reason)[:600]}")
-        if getattr(result, "error", None) is not None:
-            error = result.error
+        error = result.error
+        if error is not None:
             raise MaintenanceError(
                 f"Maintenance Plan ended with {error.type}: {error.message[:400]}"
             )
