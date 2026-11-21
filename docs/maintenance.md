@@ -161,3 +161,56 @@ Every scan has its own run_id and distinct report files; a later run cannot over
 ## Runnable two-repository example
 
 Run `PYTHONPATH=src python examples/maintenance_two_repos.py` after installing the optional RepoMap 1.9.0 binary. It creates two disposable local Git repositories, changes a library API, then demonstrates a SHA-pinned consumer import finding. The example never alters a real repository or requires an LLM.
+
+
+## Experimental self-improvement: existing writer and independent reviewer
+
+The optional local improvement flow **reuses** the coding engines and review tools already in LazyTools; it does not implement a second LLM reviewer:
+
+- Writer: existing CodeWriteTools with claude_code_write **or** codex_write.
+- Independent reviewer: existing codex_reviewer / codex_code_review **or** claude_reviewer / claude_code_review, always the **other engine family**.
+- Deterministic outer controller: LazyBridge Agent(engine=Plan(...)) with a read-only maintenance scan step followed by an explicitly authorized local-proposal step.
+- Approved checks: the same CheckSpec and run_approved_checks machinery; every check starts in its own clean detached worktree.
+- For a **published GitHub PR**, continue to use the pre-existing LazyTools CodeBridge Navigator. It already owns exact-head review, repeat/fix limits, P0/P1 escalation, test gates and no-merge policy. Do not introduce a parallel production PR state machine.
+
+This initial implementation creates **only a local patch artifact**, never a GitHub PR or merge. It clones the selected repository into a private temporary Git checkout with no remotes and a distinct Git object store, applies a small change with the existing coding engine, commits that change **only in the private clone**, asks the opposite engine to review the cumulative diff and runs explicitly granted checks. The clone is deleted; a machine-readable report and a cumulative patch remain outside the source repositories.
+
+Example from a trusted Python application:
+
+~~~python
+import sys
+from lazytools.maintenance import (
+    CheckSpec, ImprovementRequest, MaintenanceSelfImprovementPlan,
+    MaintenancePipeline,
+)
+
+scan = MaintenancePipeline(workspace, use_embeddings=False)
+
+request = ImprovementRequest(
+    repo="library",
+    objective="Fix the public API compatibility bug and add the existing regression coverage",
+    allowed_paths=("library/api.py", "tests/test_api.py"),
+    writer_engine="claude",
+    reviewer_engine="codex",
+    approved_local_proposal=True,  # explicit permission for LOCAL PATCH only
+    max_rounds=2,                   # up to 3; critical findings stop immediately
+    checks=(
+        CheckSpec(
+            id="targeted-tests",
+            repo="library",
+            argv=(sys.executable, "-m", "pytest", "-q", "tests/test_api.py"),
+        ),
+    ),
+)
+
+proposal = MaintenanceSelfImprovementPlan(scan, request).run()
+print(proposal["status"])
+print(proposal.get("patch_path"))
+# A patch is not merged, pushed or submitted as a PR.
+~~~
+
+The default approval is False and the operator must enumerate exact allowed changed files. If writer and reviewer select the same engine family, construction fails. The reviewer must return the existing independent-review marker and a strict JSON findings contract (P0/P1/P2/P3 severities); missing, malformed or failed reviews **never** count as clean. P0/P1 escalates; lower-severity findings can trigger bounded additional writer rounds. A clean review without operator-approved tests is marked needs_approved_checks, **not** ready. All successful checks still yield proposal_ready_for_human_review, not automatic acceptance.
+
+**Security/operational limits:** the existing coding agents may have their own runtime access or network capabilities, and running untrusted repository test code is active execution. A private Git clone is not a secure OS sandbox. Use trusted checkouts or isolated runners with network restrictions for unattended usage; the built-in code writer is configured with Claude Bash disabled, and no remote is retained in the proposal clone. Do not give these tools high-privilege credentials. The initial feature is for opt-in developer-controlled experimentation; it does not launch live coding sessions automatically from GitHub events and does not provide automatic PR creation.
+
+The local loop is **not** a second implementation of CodeBridge Navigator: it prepares an auditable patch before any PR exists. Once an operator publishes an approved patch as a PR, use CodeBridge Navigator for the head-bound review/repair cycle. No automatic merge is provided by either path.
