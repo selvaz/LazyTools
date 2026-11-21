@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "src/lazytools/codemap/**"
+      - "src/lazytools/maintenance/**"
+      - "tests/test_maintenance.py"
       - "tests/test_codemap.py"
       - "docs/codemap.md"
       - ".github/workflows/codemap-python-smoke.yml"
@@ -34,7 +36,7 @@ jobs:
         run: python -m pip install 'lazybridge==1.8.9' pytest
 
       - name: Run isolated Python unit tests
-        run: PYTHONPATH=src python -m pytest -q tests/test_codemap.py
+        run: PYTHONPATH=src python -m pytest -q tests/test_codemap.py tests/test_maintenance.py
 
       - name: Install pinned local RepoMap engine
         run: |
@@ -58,4 +60,45 @@ jobs:
           detail = tools["codemap_context"].run_sync(target="RegistryTools", repo="LazyTools", code_lines=12)
           assert detail.strip(), "empty context"
           print("Live native Python smoke: overview, search, context passed")
+          PY
+
+      - name: Real Git commit refresh via LazyBridge Plan and RepoMap
+        run: |
+          PYTHONPATH=src python - <<'PY'
+          import subprocess
+          import tempfile
+          from pathlib import Path
+          from lazytools.maintenance import MaintenancePipeline, RepoSpec, Workspace
+
+          def git(root, *args):
+              return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+
+          with tempfile.TemporaryDirectory() as directory:
+              root = Path(directory) / "example"
+              root.mkdir()
+              git(root, "init", "-q")
+              git(root, "config", "user.name", "CI")
+              git(root, "config", "user.email", "ci@example.test")
+              (root / "example.py").write_text("def old_api():\n    return 1\n")
+              git(root, "add", "example.py")
+              git(root, "commit", "-qm", "first")
+              first_sha = git(root, "rev-parse", "HEAD")
+              pipeline = MaintenancePipeline(
+                  Workspace((RepoSpec("example", root),), Path(directory) / "state"),
+                  use_embeddings=False,
+              )
+              first = pipeline.execute()
+              assert first["verified"] is False
+              assert first["snapshots"]["example"]["cache_hit"] is False
+              second = pipeline.execute()
+              assert second["snapshots"]["example"]["cache_hit"] is True
+              (root / "example.py").write_text("def new_api():\n    return 2\n")
+              git(root, "add", "example.py")
+              git(root, "commit", "-qm", "second")
+              third = pipeline.execute(base_refs={"example": first_sha})
+              assert third["snapshots"]["example"]["cache_hit"] is False
+              assert third["sha"]["example"] != first_sha
+              assert third["changes"]["example"] == [{"status": "M", "path": "example.py"}]
+              assert third["verification"]["status"] == "not_run"
+              print("Real Plan + RepoMap: cold index, cache hit and SHA refresh passed")
           PY
