@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -174,6 +173,7 @@ def test_existing_writer_provider_gets_readonly_tools_on_clone_only(tmp_path, mo
 def test_native_coding_agent_receives_additional_lazybridge_tools(tmp_path, monkeypatch, engine):
     """No Claude/Codex authentication: test only Python tool registration."""
     import lazybridge
+
     import lazytools.connectors.code_support._writer as module
 
     root = tmp_path / "repo"
