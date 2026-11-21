@@ -137,6 +137,8 @@ def _existing_tools(root: Path, request: ImprovementRequest) -> tuple[Improvemen
 
 
 def _commit_candidate(root: Path, base: str, policy: ImprovementRequest) -> tuple[bytes, str]:
+    if resolve_sha(root) != base:
+        raise MaintenanceError("Coding writer changed the pinned Git HEAD outside approved Plan")
     _git(root, "add", "-A")
     names = _git(root, "diff", "--cached", "--name-only", "--no-renames", "-z")
     paths = [item.decode("utf-8", "replace") for item in names.split(b"\0") if item]
@@ -244,12 +246,14 @@ class MaintenanceImprover:
                     writer_tool, reviewer_tool = _existing_tools(work, request)
                 assert writer_tool is not None and reviewer_tool is not None
                 objective = _brief(report, request)
+                parent_sha = sha
                 for round_number in range(1, request.max_rounds + 1):
                     record["status"] = "writing"
                     reply = await writer_tool.run(task=objective, cwd=str(work))
                     if not isinstance(reply, dict) or not reply.get("result"):
                         raise MaintenanceError("Existing coding writer did not return a success result")
-                    patch, candidate_sha = _commit_candidate(work, sha, request)
+                    patch, candidate_sha = _commit_candidate(work, parent_sha, request)
+                    parent_sha = candidate_sha
                     round_record: dict[str, Any] = {
                         "number": round_number, "candidate_sha": candidate_sha,
                         "patch_sha256": hashlib.sha256(patch).hexdigest(),
@@ -271,6 +275,8 @@ class MaintenanceImprover:
                     reviewed = await reviewer_tool.run(
                         task=prompt, repo_path=str(work), diff_ref=sha,
                     )
+                    if resolve_sha(work) != candidate_sha or git_status(work) != "clean":
+                        raise MaintenanceError("Independent reviewer changed the pinned candidate checkout")
                     findings, reviewer_model = _parse_review(reviewed)
                     round_record["review_status"] = "completed"
                     round_record["reviewer_model"] = reviewer_model
