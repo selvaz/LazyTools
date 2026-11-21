@@ -286,3 +286,86 @@ permissions are `contents: read` and it creates only scan artifacts: no
 agent writes, PRs, merges or deployments. LazyCEO can invoke the same
 `MaintenancePipeline` Python object on its own schedule, without creating
 a second controller. The example also runs after every push to `main`, so mappings are refreshed promptly after accepted commits; adapt the branch name to the adopting repository.
+
+
+## Prepared paired benchmark: RepoMap available to writer vs unavailable
+
+This A/B isolates the **writer's direct tool access**, not the coordinator.
+**Both arms always use the SAME RepoMap-enabled coordinator**, the same
+single SHA-pinned scan, the same task-specific overview/search context, the
+same native engine/model IDs, an independent reviewer of the opposite engine
+family, an identical file allowlist and identical approved checks.
+
+The only variable is whether the writer's own Claude Code/Codex Agent receives
+four **native LazyBridge application tools**:
+`codemap_overview`, `codemap_search`, `codemap_context`, `codemap_impact`.
+The mapped writer can call these tools *during* implementation. Their targets
+are explicitly allowed repository roots; the repo it edits points to its
+private clone, while other workspace repos are mapped read-only. The baseline
+writer gets **no codemap_* tools**. Both writers may still use their existing
+native Read/Grep/Glob etc. This is an experiment on *direct tool access*
+rather than a claim that the control arm has zero architectural context.
+
+No new coding engine or scheduler exists: the benchmark itself is another
+`Agent(engine=Plan(...))` containing a shared scan, both isolated proposals
+and one JSON report. Using the standard `CodeWriteTools` is mandatory for
+normal execution; its new optional `application_tools=` parameter forwards
+the selected tools to the inner native Claude Code/Codex Agent.
+
+~~~python
+import sys
+from lazytools.maintenance import (
+    CheckSpec, ImprovementRequest, MaintenancePipeline,
+    PairedMaintenanceBenchmark,
+)
+
+objective = "Fix the API regression and preserve its existing behavior"
+coordinator = MaintenancePipeline(
+    workspace,
+    context_mode="repomap",  # mandatory for BOTH benchmark arms
+    task_query=objective,
+    use_embeddings=False,
+)
+request = ImprovementRequest(
+    repo="library",
+    objective=objective,
+    allowed_paths=("library/api.py", "tests/test_api.py"),
+    writer_engine="claude",
+    reviewer_engine="codex",
+    writer_model="sonnet",        # replace with an available fixed model
+    reviewer_model="YOUR_CODEX_MODEL",  # replace with actual fixed ID
+    approved_local_proposal=True,  # permits ONLY local patch proposals
+    checks=(CheckSpec(
+        "api_tests", "library",
+        (sys.executable, "-m", "pytest", "-q", "tests/test_api.py"),
+    ),),
+)
+experiment = PairedMaintenanceBenchmark(
+    coordinator, request, order="baseline_first",
+)
+print([step.name for step in experiment.build_agent().engine.steps])
+# No coding model is called by build_agent().
+results = experiment.run()  # live agent turns; run only with real authorization
+print(results["arms"], results["coordinator"])
+~~~
+
+For a second comparable task, swap `order="mapped_first"` to counterbalance
+model/runtime warm caches and temporal order. Start the two arms from identical
+committed checkouts and retain the baseline scan SHA, task, prompt, model,
+tool permissions, acceptance tests and review standards. **Never** run the two
+coding agents simultaneously when their shared provider capacity might create
+uncontrolled contention.
+
+A single pair writes a durable JSON result under
+`state_dir/benchmarks/<case_id>/pair.json`. It records the shared scan SHA,
+duration and context digest; per-arm elapsed seconds, writer tool availability,
+review/test status, attempt count, patch digest and observed writer token/cache
+counters. **Missing token telemetry remains unavailable or zero according to
+the native runtime; it is not estimated.** A reviewer currently returns text,
+so reviewer tokens are **not** reliably available from this adapter. Do not
+compare dollar cost inferred from zero native Codex prices.
+
+This benchmark is prepared but **has not yet run real paired authenticated
+Claude/Codex coding tasks**. CI uses injected local doubles and real Git
+fixtures to validate fairness and tool registration, not to claim observed
+token, speed or patch-quality gains. No PR is opened and no merge is performed.
