@@ -137,3 +137,21 @@ def test_dirty_exploratory_scan_cannot_certify_pinned_commit(checked_repo):
     check = CheckSpec("clean_only", "library", (sys.executable, "--version"))
     with pytest.raises(MaintenanceError, match="changed before verification"):
         run_approved_checks(exploratory, {"library": sha}, (check,))
+
+
+def test_each_approved_check_starts_from_its_own_clean_sha_worktree(checked_repo):
+    workspace, root, sha = checked_repo
+    modify = CheckSpec(
+        "mutates_temporary_copy", "library",
+        (sys.executable, "-c",
+         "from pathlib import Path;Path('source.py').write_text('MUTATED\\n')"),
+    )
+    inspect = CheckSpec(
+        "sees_original_sha", "library",
+        (sys.executable, "-c",
+         "from pathlib import Path;assert Path('source.py').read_text() == 'VALUE = 3\\n'"),
+    )
+    result = run_approved_checks(workspace, {"library": sha}, (modify, inspect))
+    assert result["status"] == "passed_selected_checks"
+    assert [check["status"] for check in result["tests"]] == ["passed", "passed"]
+    assert (root / "source.py").read_text() == "VALUE = 3\n"
