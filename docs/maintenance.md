@@ -91,3 +91,67 @@ PYTHONPATH=src python -m pytest -q tests/test_codemap.py tests/test_maintenance.
 GitHub CI adds a real RepoMap binary smoke with two successive Git commits, first/second snapshots and a verified cache hit. Ruff, mypy, multiple Python versions and MCP majors run in the regular LazyTools matrix.
 
 **Not yet included:** GitHub event triggers, safe patch/PR generation, full cross-repo behavioral compatibility, durable Plan checkpoints and idempotent locking, arbitrary-language coverage, remote-head freshness checks, and end-to-end coding-agent token/time savings. These are defined as future phases in the [full spec](repo-maintenance-pipeline-spec.md).
+
+
+## Public TOML configuration and CLI
+
+The experimental CLI works without LazyCEO, LazyStudio, MCP or an LLM. Store the following operator-owned manifest *outside* the source repositories (the state directory must also be outside all worktrees):
+
+~~~toml
+schema_version = 1
+state_dir = "maintenance-state"
+require_clean = true
+
+[mapping]
+embeddings = false
+timeout_seconds = 45
+
+[[repos]]
+id = "library"
+root = "../library"
+
+[[repos]]
+id = "service"
+root = "../service"
+
+[[dependencies]]
+consumer = "service"
+provider = "library"
+import_prefix = "library" # optional dotted Python import prefix
+~~~
+
+~~~sh
+lazytools-maintenance --config maintenance.toml --validate-only --json
+lazytools-maintenance --config maintenance.toml --json
+lazytools-maintenance --config maintenance.toml --base library=PREVIOUS_SHA
+# Also supported: python -m lazytools.maintenance --config maintenance.toml
+~~~
+
+Validating roots and SHAs does not need RepoMap installed. A normal scan requires an explicitly installed RepoMap CLI. The manifest may not grant commands, test execution, source writes or select arbitrary executables; unexpected keys are rejected. Only configured repositories are inspected. Optional import_prefix matching finds bounded static Python import statements in tracked consumer files. It does not guarantee behavioral compatibility or cover relative/dynamic imports.
+
+## Operator-approved tests (opt-in only)
+
+~~~python
+import sys
+from lazytools.maintenance import CheckSpec, MaintenancePipeline
+
+pipeline = MaintenancePipeline(
+    workspace,
+    checks=(CheckSpec(
+        id="library-tests",
+        repo="library",
+        argv=(sys.executable, "-m", "pytest", "-q", "tests/unit"),
+        timeout_seconds=120,
+    ),),
+)
+result = pipeline.execute()
+print(result["verification"]["status"])
+# Possible: passed_selected_checks / failed / incomplete
+assert result["verified"] is False
+~~~
+
+Checks are granted in trusted Python code, not in the TOML, an LLM prompt, a PR or the public CLI. Each command uses an argument vector, not a shell, and runs on a disposable detached worktree at the pinned Git SHA. The report includes bounded stdout/stderr, exit code, duration, truncation flag and the exact SHA. Source checkout files remain untouched; Git briefly registers and removes the detached worktree.
+
+**Security boundary:** a temporary Git worktree is *not* an OS sandbox and does *not* enforce network isolation. Only execute code from trusted revisions, with proper container/CI isolation as appropriate. A restricted environment avoids forwarding ambient API credentials, but the subprocess retains its operating-system permissions. No automatic PR writes, merges or deployment capabilities are provided.
+
+Every scan has its own run_id and distinct report files; a later run cannot overwrite an older report for the same SHA.
