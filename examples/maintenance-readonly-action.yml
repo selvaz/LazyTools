@@ -1,0 +1,59 @@
+# Public template: copy to .github/workflows/maintenance-readonly.yml.
+# Install this prototype from an approved release/commit before enabling.
+# No writes, code agents, PR publishing or private cross-repository discovery.
+name: Repository maintenance (read-only)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 4 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install checked-out maintenance code and pinned RepoMap
+        run: |
+          python -m pip install .
+          npm install --global '@sylphx/repomap@1.9.0'
+      - name: Scan the checked-out Git revision
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["GITHUB_WORKSPACE"])
+          output = Path(os.environ["RUNNER_TEMP"]) / "maintenance.toml"
+          state = Path(os.environ["RUNNER_TEMP"]) / "maintenance-artifacts"
+          output.write_text(
+              'schema_version = 1\n'
+              + f'state_dir = "{state.as_posix()}"\n'
+              + 'require_clean = true\n'
+              + '[[repos]]\n'
+              + 'id = "project"\n'
+              + f'root = "{root.as_posix()}"\n',
+              encoding="utf-8",
+          )
+          PY
+          lazytools-maintenance --config "$RUNNER_TEMP/maintenance.toml" --json
+      - name: Upload immutable scan evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repository-maintenance-evidence
+          path: ${{ runner.temp }}/maintenance-artifacts/runs/
+          if-no-files-found: warn
