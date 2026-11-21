@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import shutil
 from pathlib import Path
 
@@ -9,6 +8,7 @@ import pytest
 from lazytools.codemap import RepoMapCLI, RepoMapError, RepoMapTools
 from lazytools.mcp_server.providers import default_providers
 from lazytools.mcp_server.server import build_server, expand_tools
+from mcp_test_utils import connected_client, protocol_field
 
 
 @pytest.fixture
@@ -25,6 +25,7 @@ else:
     result = {"map": "src/app.py: retry", "tokens": int(args[args.index("--tokens") + 1])}
 result["cwd"] = str(pathlib.Path.cwd())
 result["cache"] = os.environ.get("XDG_CACHE_HOME")
+result["repomap_cache"] = os.environ.get("REPOMAP_CACHE_DIR")
 print(json.dumps(result))
 """
     )
@@ -32,11 +33,14 @@ print(json.dumps(result))
     return binary
 
 
-def test_search_and_map_use_confined_repo_and_external_cache(tmp_path: Path, stub_repomap: Path) -> None:
+def test_search_and_map_use_confined_repo_and_external_cache(
+    tmp_path: Path, stub_repomap: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = tmp_path / "code"
     repo = root / "project"
     repo.mkdir(parents=True)
     cache = tmp_path / "cache"
+    monkeypatch.setenv("REPOMAP_CACHE_DIR", ".")
     tools = RepoMapTools(root=root, backend=RepoMapCLI(binary=str(stub_repomap), cache_dir=cache))
 
     result = tools.codemap_search("failed requests retry", "project", limit=500)
@@ -48,6 +52,7 @@ def test_search_and_map_use_confined_repo_and_external_cache(tmp_path: Path, stu
     assert result["limit"] == 50
     assert result["cwd"] == str(repo)
     assert result["cache"] == str(cache)
+    assert result["repomap_cache"] == str(cache.resolve())
     assert not any(repo.iterdir())
 
     mapped = tools.codemap_map(str(repo), tokens=12)
@@ -80,18 +85,17 @@ def test_provider_is_on_read_only_mcp_surface(tmp_path: Path) -> None:
     assert set(expand_tools(providers, read_only=True)) == {"codemap_search", "codemap_map"}
 
 
-def test_server_lists_codemap_as_read_only(tmp_path: Path) -> None:
+@pytest.mark.anyio
+async def test_server_lists_codemap_as_read_only(tmp_path: Path) -> None:
     pytest.importorskip("mcp")
     providers = default_providers(["codemap"], data_source={"code_root": str(tmp_path)})
     server = build_server(providers, read_only=True, name="codemap-test")
-    listed = {tool.name: tool for tool in asyncio.run(server.list_tools())}
+    async with connected_client(server) as client:
+        listed = {tool.name: tool for tool in (await client.list_tools()).tools}
     assert set(listed) == {"codemap_search", "codemap_map"}
     for tool in listed.values():
         annotations = tool.annotations
-        value = getattr(annotations, "read_only_hint", None)
-        if value is None and isinstance(annotations, dict):
-            value = annotations.get("readOnlyHint")
-        assert value is True
+        assert protocol_field(annotations, "read_only_hint", "readOnlyHint") is True
 
 
 @pytest.mark.skipif(shutil.which("repomap") is None, reason="repomap is not installed")

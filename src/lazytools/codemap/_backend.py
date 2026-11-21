@@ -32,9 +32,12 @@ class RepoMapCLI:
             )
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         env = os.environ.copy()
-        # RepoMap uses the platform cache directory. Pinning XDG_CACHE_HOME
-        # keeps indexes out of the repository even when the child cwd is it.
-        env["XDG_CACHE_HOME"] = str(self.cache_dir.resolve())
+        # RepoMap prefers its own override, while XDG_CACHE_HOME confines any
+        # supporting cache files. Override both so inherited environment
+        # variables cannot redirect indexes into the repository child cwd.
+        resolved_cache = str(self.cache_dir.resolve())
+        env["REPOMAP_CACHE_DIR"] = resolved_cache
+        env["XDG_CACHE_HOME"] = resolved_cache
         try:
             completed = subprocess.run(
                 [executable, *args],
