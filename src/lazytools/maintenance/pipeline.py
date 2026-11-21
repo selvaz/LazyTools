@@ -13,7 +13,7 @@ from lazybridge import Agent, Plan, Step, Tool, from_parallel_all, from_prev, fr
 
 from lazytools.codemap import RepoMapCLI
 
-from .core import MaintenanceError, RunState, Workspace
+from .core import MaintenanceError, RunState, Workspace, _atomic_json
 from .verification import CheckSpec, run_approved_checks
 
 _STAGE_NAMES = {
@@ -145,6 +145,26 @@ class MaintenancePipeline:
                 if error is not None else getattr(result, "text", lambda: str(result))()
             )
             raise MaintenanceError(f"Maintenance Plan did not complete: {str(reason)[:600]}")
+        if getattr(result, "error", None) is not None:
+            error = result.error
+            raise MaintenanceError(
+                f"Maintenance Plan ended with {error.type}: {error.message[:400]}"
+            )
+        # Plan aggregates direct and nested agent tokens in distinct counters.
+        # Cached tokens have engine-dependent semantics and are not summed.
+        metadata = result.metadata
+        state.report["usage"] = {
+            "source": "lazybridge_envelope",
+            "input_tokens": metadata.input_tokens,
+            "output_tokens": metadata.output_tokens,
+            "nested_input_tokens": metadata.nested_input_tokens,
+            "nested_output_tokens": metadata.nested_output_tokens,
+            "cache_read_input_tokens": metadata.cache_read_input_tokens,
+            "cache_creation_input_tokens": metadata.cache_creation_input_tokens,
+            "cost_usd": round(metadata.cost_usd + metadata.nested_cost_usd, 8),
+            "note": "Cache counters are engine-specific; nested cache counters are not aggregated.",
+        }
+        _atomic_json(state.report_path, state.report)
         return {
             **state.report,
             "report_json": str(state.report_path),
