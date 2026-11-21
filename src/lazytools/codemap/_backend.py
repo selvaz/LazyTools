@@ -5,11 +5,11 @@ No third-party engine is imported, bundled or installed by this module.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
-from typing import Mapping
+from collections.abc import Mapping
+from pathlib import Path
 
 _NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _DRIVE = re.compile(r"^[A-Za-z]:")
