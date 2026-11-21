@@ -5,6 +5,7 @@ structural evidence and cannot authorize code changes through this pipeline.
 """
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -13,10 +14,11 @@ from lazybridge import Agent, Plan, Step, Tool, from_parallel_all, from_prev, fr
 from lazytools.codemap import RepoMapCLI
 
 from .core import MaintenanceError, RunState, Workspace
+from .verification import CheckSpec, run_approved_checks
 
 _STAGE_NAMES = {
     "maintenance_resolve", "maintenance_refresh", "maintenance_diff",
-    "maintenance_impact", "maintenance_report",
+    "maintenance_impact", "maintenance_verify", "maintenance_report",
 }
 
 
@@ -33,12 +35,21 @@ class MaintenancePipeline:
         workspace: Workspace,
         *,
         reviewers: Sequence[Agent] = (),
+        checks: Sequence[CheckSpec] = (),
         executable: str = "repomap",
         use_embeddings: bool = False,
         timeout_seconds: float = 45.0,
     ) -> None:
         self.workspace = workspace
         self.reviewers = tuple(reviewers)
+        self.checks = tuple(checks)
+        valid_repos = set(workspace.paths())
+        if any(check.repo not in valid_repos for check in self.checks):
+            raise ValueError("Approved checks must use configured repository aliases")
+        if len({check.id for check in self.checks}) != len(self.checks):
+            raise ValueError("Approved check ids must be unique")
+        if len(self.checks) > 20:
+            raise ValueError("At most 20 approved checks may run")
         names = [getattr(agent, "name", None) for agent in self.reviewers]
         if any(not isinstance(name, str) or not name.startswith("review_") for name in names):
             raise ValueError("Reviewers require distinct agent names beginning with 'review_'")
@@ -63,8 +74,14 @@ class MaintenancePipeline:
         def impact(task: str) -> str:
             return state.impact()
 
-        def report(review_text: str = "") -> str:
-            return state.finalize(review_text if self.reviewers else "")
+        def verify(task: str) -> str:
+            # The final reviewer output is advice, not proof of test success.
+            state.review_text = task[:6000] if self.reviewers else None
+            state.verification = run_approved_checks(state.workspace, state.sha, self.checks)
+            return json.dumps({"verification": state.verification["status"]})
+
+        def report(task: str) -> str:
+            return state.finalize(state.review_text or "")
 
         tools = [
             Tool.wrap(resolve, name="maintenance_resolve",
@@ -75,6 +92,8 @@ class MaintenancePipeline:
                       description="Diff commits, including renames, without changing code."),
             Tool.wrap(impact, name="maintenance_impact",
                       description="Produce bounded static impact evidence for review."),
+            Tool.wrap(verify, name="maintenance_verify",
+                      description="Run only explicitly approved test commands at pinned commits in temporary Git worktrees."),
             Tool.wrap(report, name="maintenance_report",
                       description="Write verified-provenance, unverified-conclusion JSON and Markdown."),
         ]
@@ -86,17 +105,18 @@ class MaintenancePipeline:
         ]
         if len(self.reviewers) == 1:
             steps.append(Step(self.reviewers[0].name, task=from_step("maintenance_impact")))
-            steps.append(Step("maintenance_report", task=from_prev))
+            steps.append(Step("maintenance_verify", task=from_prev))
         elif len(self.reviewers) > 1:
             for reviewer in self.reviewers:
                 steps.append(
                     Step(reviewer.name, task=from_step("maintenance_impact"), parallel=True)
                 )
             steps.append(
-                Step("maintenance_report", task=from_parallel_all(self.reviewers[0].name))
+                Step("maintenance_verify", task=from_parallel_all(self.reviewers[0].name))
             )
         else:
-            steps.append(Step("maintenance_report"))
+            steps.append(Step("maintenance_verify"))
+        steps.append(Step("maintenance_report"))
         return Agent(
             name="repository_maintenance",
             engine=Plan(*steps, max_iterations=len(steps) + 2),
