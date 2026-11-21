@@ -40,7 +40,7 @@ def _text(value: object, label: str) -> str:
 
 
 def _bool(value: object, label: str) -> bool:
-    if type(value) is not bool:
+    if not isinstance(value, bool):
         raise ValueError(f"{label} must be true or false")
     return value
 
@@ -58,7 +58,7 @@ def load_config(filename: str | Path) -> MaintenanceConfig:
         contents, {"schema_version", "state_dir", "require_clean", "repos",
                    "dependencies", "mapping"}, "manifest",
     )
-    if type(contents.get("schema_version")) is not int or contents["schema_version"] != 1:
+    if not isinstance(contents.get("schema_version"), int) or isinstance(contents.get("schema_version"), bool) or contents["schema_version"] != 1:
         raise ValueError("Unsupported maintenance manifest schema_version (expected 1)")
     state_dir = _text(contents.get("state_dir"), "state_dir")
     require_clean = _bool(contents.get("require_clean", True), "require_clean")
@@ -93,7 +93,7 @@ def load_config(filename: str | Path) -> MaintenanceConfig:
     mapping = _keys(contents.get("mapping", {}), {"embeddings", "timeout_seconds"}, "mapping")
     embeddings = _bool(mapping.get("embeddings", False), "mapping.embeddings")
     timeout = mapping.get("timeout_seconds", 45.0)
-    if type(timeout) not in (int, float) or not 0 < timeout <= 600:
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not 0 < timeout <= 600:
         raise ValueError("mapping.timeout_seconds must be within (0, 600]")
     state = Path(state_dir).expanduser()
     if not state.is_absolute():
