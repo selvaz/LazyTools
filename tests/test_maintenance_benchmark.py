@@ -148,6 +148,11 @@ def test_existing_writer_provider_gets_readonly_tools_on_clone_only(tmp_path, mo
             assert executable == "repomap"
             assert use_embeddings is False
             observed["maps"].append(dict(roots))
+            self.backend = self
+
+        def index(self, repo):
+            assert repo == "repo"
+            observed["indexed"] = True
 
         def as_tools(self):
             return [Tool.wrap(lambda query: query, name="codemap_search")]
@@ -171,6 +176,7 @@ def test_existing_writer_provider_gets_readonly_tools_on_clone_only(tmp_path, mo
     assert observed["maps"] == (
         [{"repo": clone, "dependency": other}] if mapped else []
     )
+    assert observed.get("indexed", False) is mapped
 
 
 @pytest.mark.parametrize("engine", ["claude", "codex"])
