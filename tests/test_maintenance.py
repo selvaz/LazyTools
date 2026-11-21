@@ -183,6 +183,7 @@ def test_nested_subagents_are_plan_tools_and_cannot_claim_verification(
 ):
     """Nested Plan Agents run with bounded impact evidence, no LLM/network."""
     from lazybridge import Agent, Plan, Step
+
     import lazytools.maintenance.pipeline as module
 
     workspace, _, _ = make_workspace(tmp_path)
