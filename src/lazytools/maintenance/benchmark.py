@@ -75,7 +75,10 @@ class PairedMaintenanceBenchmark:
                 report = captured.get("scan")
                 if not isinstance(report, dict) or ref.get("report_json") != report.get("report_json"):
                     raise MaintenanceError("Both arms must consume the same pinned scan")
-                request = replace(self.request, writer_repomap=mapped)
+                request = replace(
+                    self.request, writer_repomap=mapped,
+                    writer_repomap_executable=self.coordinator.executable,
+                )
                 injected = tools_factory(mapped) if tools_factory is not None else (None, None)
                 start = time.perf_counter()
                 outcome = MaintenanceImprover(self.coordinator.workspace).run(
