@@ -189,6 +189,7 @@ class RunState:
     truncated: dict[str, bool] = field(default_factory=dict)
     impacts: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     review_text: str | None = None
+    verification: dict[str, Any] = field(default_factory=lambda: {"status": "not_run", "tests": None})
     report: dict[str, Any] | None = None
     report_path: Path | None = None
 
@@ -305,6 +306,8 @@ class RunState:
         warnings = []
         if any(self.truncated.values()):
             warnings.append("Changed-path inventory exceeded 300 files in at least one repository")
+        if self.verification["status"] in ("failed", "incomplete"):
+            warnings.append("Approved tests failed or were unavailable; review the recorded evidence")
         if any(v != "clean" for v in self.dirty.values()):
             warnings.append("A checkout is dirty; snapshot describes committed SHA only")
         if any(row.get("source") == "unverified"
@@ -324,7 +327,7 @@ class RunState:
             "cross_repo_candidates": cross_repo,
             "reviews": {"status": "unverified_suggestions", "text": self.review_text}
             if self.review_text else {"status": "not_run"},
-            "verification": {"status": "not_run", "tests": None},
+            "verification": self.verification,
             "warnings": [*warnings, "Static impact suggestions have not been verified by tests"],
         }
         key = _digest({"sha": self.sha, "base": self.base,
@@ -333,7 +336,8 @@ class RunState:
         out = self.workspace.state_dir / "runs" / key[:24] / "report.json"
         _atomic_json(out, report)
         summary = ["# Repository maintenance scan", "",
-                   "**Status:** review required; no tests executed.", ""]
+                   "**Status:** review required; structural findings are not a full verification.",
+                   f"**Selected test status:** {self.verification['status']}.", ""]
         for repo in self.workspace.repos:
             name = repo.id
             summary += [
@@ -348,6 +352,13 @@ class RunState:
                 summary.append(
                     f"- {item['provider']} -> {item['consumer']} "
                     "(manifest-declared; verification needed)"
+                )
+        if self.verification.get("tests"):
+            summary += ["## Approved checks", ""]
+            for check in self.verification["tests"]:
+                summary.append(
+                    f"- {check['id']} ({check['repo']}): {check['status']} "
+                    f"at {check['sha'][:12]} (exit={check['exit_code']})"
                 )
         summary += ["", "## Limitations", "",
                     "- Structural evidence is not completed test verification.",
