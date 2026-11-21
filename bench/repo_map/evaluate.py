@@ -96,7 +96,7 @@ def score(paths: list[str], gold: str) -> dict:
 
 def short_run(r: dict) -> dict:
     return {k: r[k] for k in ("ok", "exit", "seconds", "stderr")} | {
-        "sample": r["stdout"][:850]
+        "sample": r["stdout"][:850], "tail": r["stdout"][-1800:]
     }
 
 def main() -> int:
@@ -126,9 +126,18 @@ def main() -> int:
         indexing = {}
         for tool, args in experiments.items():
             indexing[tool] = short_run(run(args, repo, timeout=600, env=environment))
+        diagnostics = {}
+        db_args = ["cgc", "--database", "kuzudb", "--db-path", str(cgc_root)]
+        for check, command in {
+            "list": db_args + ["list"],
+            "stats": db_args + ["stats"],
+            "cypher_count": db_args + ["query", "MATCH (n) RETURN count(n) AS total"],
+            "find_fuzzy": db_args + ["find", "name", "Agent", "--fuzzy"],
+        }.items():
+            diagnostics[check] = short_run(run(command, repo, timeout=45, env=environment))
         result["repos"][label] = {
             "sha": sha["stdout"].strip(), "index": indexing,
-            "valid_cases": 0,
+            "diagnostics": diagnostics, "valid_cases": 0,
         }
         for name, symbol, gold in CASES:
             if name != label:
@@ -161,7 +170,7 @@ def main() -> int:
                     "usable": usable, "seconds": r["seconds"],
                     "paths": files[:15], "score": score(files, gold) if usable else None,
                     "exit": r["exit"],
-                    "sample": r["stdout"][:500] if not usable else "",
+                    "sample": r["stdout"][:750],
                     "stderr": r["stderr"][:450] if not r["ok"] else "",
                 }
             result["cases"].append(row)
