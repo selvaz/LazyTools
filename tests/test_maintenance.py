@@ -264,3 +264,94 @@ def test_real_plan_approved_checks_are_reported_without_claiming_full_review(tmp
     assert failure["verified"] is False
     assert any("Approved tests failed" in w for w in failure["warnings"])
     assert git(workspace.repos[0].root, "status", "--porcelain") == ""
+
+
+def test_cross_repo_python_imports_are_grounded_and_linked_to_changed_provider(tmp_path):
+    workspace, old_provider_sha, _ = make_workspace(tmp_path)
+    provider, consumer = workspace.repos[0].root, workspace.repos[1].root
+    (consumer / "app.py").write_text(
+        "from corelib.api import old_api\nimport corelib.helpers\n", encoding="utf-8"
+    )
+    git(consumer, "add", "app.py")
+    git(consumer, "commit", "-qm", "declare provider imports")
+    with_imports = Workspace(
+        workspace.repos,
+        workspace.state_dir,
+        dependencies=(Dependency(consumer="consumer", provider="core", import_prefix="corelib"),),
+    )
+    initial = RunState(with_imports, {}, FakeMapper())
+    initial.resolve()
+    initial.refresh()
+    initial.diff()
+    initial.impact()
+    initial.finalize()
+    # An initial tracked-file inventory is NOT itself evidence of a change.
+    assert initial.report["cross_repo_candidates"] == []
+
+    (provider / "api.py").write_text("def renamed_api():\n    return 5\n", encoding="utf-8")
+    git(provider, "add", "api.py")
+    git(provider, "commit", "-qm", "rename provider API")
+    state = RunState(with_imports, {"core": old_provider_sha}, FakeMapper())
+    state.resolve()
+    state.refresh()
+    state.diff()
+    state.impact()
+    state.finalize()
+    candidates = state.report["cross_repo_candidates"]
+    assert len(candidates) == 1
+    assert candidates[0]["confidence"] == "direct_import"
+    evidence = candidates[0]["import_evidence"]
+    assert evidence["language"] == "python"
+    assert evidence["files_scanned"] >= 1
+    assert [row["module"] for row in evidence["matches"]] == [
+        "corelib.api", "corelib.helpers"
+    ]
+    assert all(row["path"] == "app.py" for row in evidence["matches"])
+    assert all(row["line"] in (1, 2) for row in evidence["matches"])
+    assert not evidence["incomplete"]
+
+
+def test_cross_repo_import_scans_fail_open_as_unknown_not_as_clean(tmp_path):
+    workspace, old_sha, _ = make_workspace(tmp_path)
+    provider, consumer = workspace.repos[0].root, workspace.repos[1].root
+    (consumer / "bad.py").write_text("def unfinished(\n", encoding="utf-8")
+    git(consumer, "add", "bad.py")
+    git(consumer, "commit", "-qm", "unparsable consumer file")
+    (provider / "api.py").write_text("def new_api():\n    return 5\n", encoding="utf-8")
+    git(provider, "add", "api.py")
+    git(provider, "commit", "-qm", "new provider API")
+    with_imports = Workspace(
+        workspace.repos, workspace.state_dir,
+        dependencies=(Dependency("consumer", "core", import_prefix="corelib"),),
+    )
+    state = RunState(with_imports, {"core": old_sha}, FakeMapper())
+    state.resolve()
+    state.refresh()
+    state.diff()
+    state.impact()
+    state.finalize()
+    candidate = state.report["cross_repo_candidates"][0]
+    assert candidate["confidence"] == "declared"
+    assert candidate["import_evidence"]["incomplete"] is True
+    assert candidate["import_evidence"]["files_skipped"] == 1
+    assert any("incomplete" in warning for warning in state.report["warnings"])
+
+
+def test_run_report_paths_are_immutable_for_repeat_same_sha(tmp_path):
+    workspace, _, _ = make_workspace(tmp_path)
+    old = RunState(workspace, {}, FakeMapper())
+    old.resolve()
+    old.refresh()
+    old.diff()
+    old.impact()
+    old.finalize()
+    fresh = RunState(workspace, {}, FakeMapper())
+    fresh.resolve()
+    fresh.refresh()
+    fresh.diff()
+    fresh.impact()
+    fresh.finalize()
+    assert old.report_path != fresh.report_path
+    assert old.report["run_id"] != fresh.report["run_id"]
+    assert old.report_path.is_file()
+    assert fresh.report_path.is_file()
