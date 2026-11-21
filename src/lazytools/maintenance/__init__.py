@@ -7,5 +7,6 @@ from __future__ import annotations
 
 from .core import Dependency, MaintenanceError, RepoSpec, Workspace
 from .pipeline import MaintenancePipeline
+from .verification import CheckSpec
 
-__all__ = ["Dependency", "MaintenanceError", "MaintenancePipeline", "RepoSpec", "Workspace"]
+__all__ = ["CheckSpec", "Dependency", "MaintenanceError", "MaintenancePipeline", "RepoSpec", "Workspace"]
