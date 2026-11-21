@@ -6,7 +6,11 @@ Reviewer Agents can be supplied by the application and run as nested tools.
 from __future__ import annotations
 
 from .core import Dependency, MaintenanceError, RepoSpec, Workspace
+from .improvement import ImprovementRequest, MaintenanceImprover
 from .pipeline import MaintenancePipeline
 from .verification import CheckSpec
 
-__all__ = ["CheckSpec", "Dependency", "MaintenanceError", "MaintenancePipeline", "RepoSpec", "Workspace"]
+__all__ = [
+    "CheckSpec", "Dependency", "ImprovementRequest", "MaintenanceError",
+    "MaintenanceImprover", "MaintenancePipeline", "RepoSpec", "Workspace",
+]
