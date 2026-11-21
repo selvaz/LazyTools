@@ -431,3 +431,23 @@ def test_plan_requires_separate_publish_and_navigator_approval(source):
             Scan(), request(),
             navigation=NavigationApproval("review-wrapper", ("pytest -q",)),
         )
+
+
+def test_renaming_unapproved_existing_file_is_refused(source):
+    """Destination-only allowlists must not authorize deletion of another file."""
+    space, root, _, report = source
+
+    class RenamingWriter:
+        async def run(self, **kwargs):
+            private = Path(kwargs["cwd"])
+            (private / "module.py").rename(private / "new.py")
+            return {"result": "renamed"}
+
+    result = MaintenanceImprover(space).run(
+        report,
+        request(allowed_paths=("new.py",)),
+        writer_tool=RenamingWriter(), reviewer_tool=Reviewer(),
+    )
+    assert result["status"] == "failed"
+    assert "outside approved scope" in result["error"]
+    assert (root / "module.py").is_file()
