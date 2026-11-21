@@ -11,6 +11,7 @@ on:
       - "tests/test_maintenance_verification.py"
       - "tests/test_codemap.py"
       - "docs/maintenance.md"
+      - "examples/maintenance_two_repos.py"
       - "docs/codemap.md"
       - ".github/workflows/codemap-python-smoke.yml"
   workflow_dispatch:
@@ -125,3 +126,6 @@ jobs:
               assert maintenance_main(["--config", str(manifest), "--json"]) == 0
               print("Real Plan + RepoMap: cold index, SHA refresh, approved check and CLI passed")
           PY
+
+      - name: Public two-repository maintenance demo
+        run: PYTHONPATH=src python examples/maintenance_two_repos.py
