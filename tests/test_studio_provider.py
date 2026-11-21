@@ -44,7 +44,7 @@ class _StudioHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         self.requests.append(("POST", self.path, self.headers["Authorization"], body))
-        self.caller_headers.append(self.headers.get("X-LazyStudio-Caller-Execution"))
+        self.caller_headers.append(self.headers.get("X-LazyStudio-Caller-Token"))
         if self.path == "/api/mcp-tools/studio_echo_demo/call":
             if body["task"] == "running":
                 self._send({"status": "running", "run_id": "run-2"})
@@ -181,12 +181,14 @@ def test_invalid_reserved_and_duplicate_names_are_skipped(studio, caplog):
     assert "Skipping invalid, reserved, or duplicate" in caplog.text
 
 
-def test_call_sends_caller_execution_header_only_when_env_is_set(studio, monkeypatch):
-    monkeypatch.delenv("LAZYSTUDIO_CALLER_EXECUTION", raising=False)
+def test_call_sends_caller_token_header_only_when_env_is_set(studio, monkeypatch):
+    monkeypatch.delenv("LAZYSTUDIO_CALLER_TOKEN", raising=False)
     tool = {t.name: t for t in StudioTools(allow_run=True).as_tools()}["studio_echo_demo"]
     tool.run_sync(task="hello")
-    monkeypatch.setenv("LAZYSTUDIO_CALLER_EXECUTION", "abc123DEF-_")
+    monkeypatch.setenv("LAZYSTUDIO_CALLER_TOKEN", "abc123DEF-_" * 8)
     tool.run_sync(task="hello")
-    monkeypatch.setenv("LAZYSTUDIO_CALLER_EXECUTION", "bad value\r\nX-Injected: 1")
+    monkeypatch.setenv("LAZYSTUDIO_CALLER_TOKEN", "bad value\r\nX-Injected: 1")
     tool.run_sync(task="hello")
-    assert _StudioHandler.caller_headers == [None, "abc123DEF-_", None]
+    monkeypatch.setenv("LAZYSTUDIO_CALLER_TOKEN", "a" * 129)
+    tool.run_sync(task="hello")
+    assert _StudioHandler.caller_headers == [None, "abc123DEF-_" * 8, None, None]

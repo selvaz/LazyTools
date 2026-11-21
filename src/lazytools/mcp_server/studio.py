@@ -18,15 +18,15 @@ from lazybridge import Tool
 logger = logging.getLogger(__name__)
 _PUBLISHED_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 _RESERVED_NAMES = {"studio_run_status", "studio_status"}
-CALLER_EXECUTION_ENV = "LAZYSTUDIO_CALLER_EXECUTION"
-CALLER_EXECUTION_HEADER = "X-LazyStudio-Caller-Execution"
-_EXECUTION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+CALLER_TOKEN_ENV = "LAZYSTUDIO_CALLER_TOKEN"
+CALLER_TOKEN_HEADER = "X-LazyStudio-Caller-Token"
+_CALLER_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
-def _caller_execution() -> str | None:
-    """The LazyStudio run that launched this server, when it published its id."""
-    value = os.environ.get(CALLER_EXECUTION_ENV, "").strip()
-    return value if _EXECUTION_ID_RE.fullmatch(value) else None
+def _caller_token() -> str | None:
+    """The secret capability of the LazyStudio run that launched this server, if any."""
+    value = os.environ.get(CALLER_TOKEN_ENV, "").strip()
+    return value if _CALLER_TOKEN_RE.fullmatch(value) else None
 
 
 class StudioTools:
@@ -91,7 +91,7 @@ class StudioTools:
         path: str,
         body: dict[str, Any] | None = None,
         *,
-        caller_execution: str | None = None,
+        caller_token: str | None = None,
     ) -> Any:
         data = json.dumps(body).encode() if body is not None else None
         headers = {
@@ -99,8 +99,8 @@ class StudioTools:
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
-        if caller_execution:
-            headers[CALLER_EXECUTION_HEADER] = caller_execution
+        if caller_token:
+            headers[CALLER_TOKEN_HEADER] = caller_token
         request = Request(f"{self.base_url}{path}", data=data, method=method, headers=headers)
         try:
             with urlopen(request, timeout=self.wait_seconds + 15) as response:
@@ -149,7 +149,7 @@ class StudioTools:
             "POST",
             f"/api/mcp-tools/{quote(name, safe='')}/call",
             {"task": task, "wait_seconds": self.wait_seconds},
-            caller_execution=_caller_execution(),
+            caller_token=_caller_token(),
         )
         return self._result(payload)
 
