@@ -373,3 +373,104 @@ These are intentionally visible decisions, **not unimplemented behavior presente
 Start with only workspace schema, immutable SHA resolver, a pure mapper protocol and a read-only snapshot/report API. Extend RepoMapCLI internally with an explicit index/refresh operation only after verifying upstream flags against a real binary. Create one integration test with a temporary Git repo and two commits: prove it refreshes at the second SHA, marks the first snapshot stale against HEAD, returns no source changes and reports real index timings.
 
 Once this succeeds, add the simple two-repo dependency fixture. Do not start automatic patch generation before deterministic read-only tests and evidence contracts are green.
+
+
+## 17. Architecture decision: LazyBridge Plan with nested agent tools
+
+**Decision (2026-11-21):** Make a LazyBridge \`Agent(engine=Plan(...))\` the public pipeline's *declared execution graph*. Each deterministic operation is exposed as a Python callable or \`Tool\`; optional specialized review agents are ordinary nested LazyBridge \`Agent\` objects carried in the Plan owner's \`tools=[...]\`. This is a deliberate choice over writing a second generic DAG engine or using an LLM to choose the control flow.
+
+The existing LazyBridge contract supports \`Plan(Step(...))\`, explicit \`routes\`, \`parallel=True\`, \`from_step\` data dependencies, \`Store\` checkpoints, \`resume=True\`, and agents-as-tools. See [LazyBridge Plan guide](https://github.com/selvaz/LazyBridge/blob/main/docs/guides/full/plan.md) and [Step guide](https://github.com/selvaz/LazyBridge/blob/main/docs/guides/full/step.md).
+
+### Execution topology
+
+~~~text
+Maintenance Plan (deterministic controller, one pinned SHA vector)
+ |
+ +-- resolve_workspace / verify_authorization [pure Python]
+ +-- read_or_refresh_maps                  [RepoMapCLI + snapshot store]
+ +-- diff_repositories                    [Git, pinned SHAs]
+ +-- build_impact_evidence                [static graph + manifest relations]
+ +-- check_review_policy                  [deterministic quality/coverage gate]
+ +-- review_architecture ---+             [nested read-only Agent-as-tool]
+ +-- review_compatibility --+ optional    [nested read-only Agent-as-tool]
+ +-- review_tests ---------+ parallel     [nested read-only Agent-as-tool]
+ +-- review_security ------+             [nested read-only Agent-as-tool]
+ +-- merge_findings                       [typed deterministic merger]
+ +-- verify_approved_checks               [allowlisted Python tool]
+ +-- render_report                        [deterministic report tool]
+ +-- policy_gate                           [read-only completion or explicit approval]
+ +-- propose_pr                            [optional separate privileged capability]
+~~~
+
+The review band may use independent parallel Plan steps when input snapshots are immutable and the reviewers do not mutate shared state. Review agents do **not** select or rewrite the Plan graph, execute shell commands, widen the workspace or change permission policy. Agents can make suggestions to the downstream deterministic verifier; they cannot mark verification as passed.
+
+### Illustrative Python wiring
+
+The following is *architecture pseudocode*, not a shipped API. Use the exact installed LazyBridge \`Plan\`/\`Step\` signatures when implementing.
+
+~~~python
+from lazybridge import Agent, Plan, Step, Store, Tool, from_step
+
+# Each callable below is a validated, bounded Python operation;
+# a reviewer is an ordinary LazyBridge Agent with read-only tools.
+maintenance_agent = Agent(
+    name="maintenance",
+    engine=Plan(
+        Step("resolve_workspace", name="resolve"),
+        Step("refresh_maps", name="snapshot", context=from_step("resolve")),
+        Step("diff_commits", name="diff", context=from_step("snapshot")),
+        Step("assess_impact", name="impact", context=from_step("diff")),
+        Step("review_architecture", name="architecture", context=from_step("impact")),
+        Step("review_tests", name="tests", context=from_step("impact")),
+        Step("merge_findings", name="merge",
+             context=[from_step("impact"), from_step("architecture"),
+                      from_step("tests")]),
+        Step("verify_checks", name="verify", context=from_step("merge")),
+        Step("render_report", name="report", context=from_step("verify")),
+    ),
+    tools=[
+        Tool.wrap(resolve_workspace),
+        Tool.wrap(refresh_maps),
+        Tool.wrap(diff_commits),
+        Tool.wrap(assess_impact),
+        architecture_reviewer,  # Agent with name="review_architecture"
+        test_reviewer,          # Agent with name="review_tests"
+        Tool.wrap(merge_findings),
+        Tool.wrap(verify_checks),
+        Tool.wrap(render_report),
+    ],
+    store=Store(db="maintenance-run.sqlite"),
+)
+~~~
+
+In implementation, name \`Tool.wrap\` entries explicitly to match Step target names; validate exact input and output schemas at every boundary. The example omits the optional reviewer band parallelization and explicit policy routes for readability. No public function named above exists in the current CodeMap prototype.
+
+### Typed data and cost policy
+
+- All deterministic tools should exchange **bounded typed envelopes** with snapshot ids, SHAs, artifact refs, status and evidence; never pass an entire source tree or raw graph in an LLM prompt.
+- Place a short, versioned \`ImpactContext\` in each reviewer request; give a reviewer \`RepoMapTools\` access for scoped follow-up queries only.
+- Validate reviewer output against a structured schema (finding, evidence, confidence, action); schema/timeout/token-budget failures are **unverified**, not a clean review.
+- Choose small models for narrow reviews, reserve expensive models for ambiguous high-risk changes, and allow a **no-LLM mode** where the same Plan skips review agents and generates deterministic evidence.
+- Expose per-reviewer tokens, cached tokens, cost, latency and file requests in the final report so the added review cost can be compared with context savings.
+- A stable Plan shell must not imply stable LLM output: version prompts, model ids, configuration and dataset inputs for reproducibility.
+
+### Durable orchestration and permissions
+
+- Prefer Plan's existing \`Store\`, \`checkpoint_key\`, and \`resume=True\` rather than implementing a second step scheduler. Plan supports \`on_concurrent="fail"\` for one resumable run and \`on_concurrent="fork"\` for isolated concurrent runs; use distinct run ids when resumability and concurrency are both required.
+- Plan checkpointing alone does **not** guarantee exactly-once execution of external side effects. Each snapshot/index/report/PR stage also needs its own domain idempotency key and reconciliation.
+- An approval gate is an explicit deterministic Python step, not a prompt instruction. In particular, \`propose_pr\` must be exposed only on a separately authorized proposal-capable Plan or by a guarded operation after explicit consent, never silently attached to every reviewer.
+- For the first public release, end the Plan at \`render_report\`; no repo mutation. The PR-proposal branch comes in P4, behind a policy route and SHA freshness recheck.
+- On cancellation, stale SHA, unreachable repository or incomplete map, stop or explicitly route to a report with \`unverified\` state. Do not route implicitly to auto-repair.
+- Optional LazyCEO orchestrates *which* maintenance Plan runs and *when*; LazyStudio inspects its trace and exposes operator decisions. Both are consumers of the same reusable Python Plan definition. MCP projection remains optional and downstream.
+
+### Acceptance tests specific to Plan composition
+
+1. Compile-time Plan validation catches missing tool names, duplicate step names, dangling \`from_step\` inputs and invalid routes before any LLM call.
+2. Fake reviewers record exact sequence and inputs; deterministic steps run in declared order and preserve one immutable SHA vector throughout.
+3. Separate read-only reviewers have no write tools; failures and malformed outputs cannot become \`completed: clean\`.
+4. Concurrent reviewer branches use immutable context, deterministic merging and bounded runtime; no concurrent writes to the same Store key.
+5. Crash/resume and duplicate delivery do not repeat external side effects or duplicate PRs; test reconciliation after partially completed checkpoint/storage operations.
+6. An end-to-end public two-repo fixture runs on a pinned revision, emits actionable cross-repo findings, reruns on a newer revision, and reports updated provenance.
+7. Compare baseline (without RepoMap), CodeMap-only and Plan-with-reviewers variants on token usage, final verification pass rate and wall time; do not count deterministic Plan overhead as token savings.
+
+**Resulting design:** one reusable Plan template, multiple configurable codebases, provider-style tools for data acquisition and specialized nested agents for judgment. The control plane is deterministic; conclusions remain evidence-based, inspectable and human-reviewable.
