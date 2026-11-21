@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -47,7 +48,8 @@ def proposal_fixture(tmp_path: Path):
     patch = subprocess.check_output(
         ["git", "-C", str(staging), "diff", "--binary", sha, "HEAD"]
     )
-    artifact = state / "improvements" / "local-run-123"
+    run_id = "a" * 32
+    artifact = state / "improvements" / run_id
     artifact.mkdir(parents=True)
     file = artifact / "proposal.patch"
     file.write_bytes(patch)
@@ -60,7 +62,7 @@ def proposal_fixture(tmp_path: Path):
                            "from module import value; assert value() == 2")),),
     )
     proposal = {
-        "run_id": "local-run-123", "status": "proposal_ready_for_human_review",
+        "run_id": run_id, "status": "proposal_ready_for_human_review",
         "repo": "demo", "writer_engine": "claude", "reviewer_engine": "codex",
         "source_sha": sha, "patch_path": str(file),
         "patch_sha256": hashlib.sha256(patch).hexdigest(),
@@ -69,6 +71,9 @@ def proposal_fixture(tmp_path: Path):
             "verification": {"status": "passed_selected_checks"},
         }],
     }
+    report_path = artifact / "result.json"
+    proposal["report_json"] = str(report_path)
+    report_path.write_text(json.dumps(proposal), encoding="utf-8")
     remote = tmp_path / "remote.git"
     subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
     git(root, "remote", "add", "test", str(remote))
@@ -105,9 +110,9 @@ def test_publishes_only_draft_branch_rechecks_tests_and_leaves_main_untouched(
     assert result["status"] == "draft_pr_created"
     assert result["pr_number"] == 42
     assert result["merged"] is False and result["merge_ready"] is False
-    assert result["branch"] == "maintenance/local-run-123"
+    assert result["branch"] == "maintenance/" + "a" * 32
     pushed = subprocess.check_output(
-        ["git", "--git-dir", str(remote), "rev-parse", "refs/heads/maintenance/local-run-123"],
+        ["git", "--git-dir", str(remote), "rev-parse", "refs/heads/maintenance/" + "a" * 32],
         text=True,
     ).strip()
     assert pushed == result["head_sha"]
@@ -128,7 +133,7 @@ def test_permission_and_review_integrity_gate_before_any_remote_action(proposal_
             workspace, request, {**proposal, "status": "needs_fixes"},
             PublicationApproval("example/project", approved_publish_draft=True),
         )
-    with pytest.raises(MaintenanceError, match="SHA-256"):
+    with pytest.raises(MaintenanceError, match="saved independent-review evidence"):
         publish_draft_pr(
             workspace, request, {**proposal, "patch_sha256": "0" * 64},
             PublicationApproval("example/project", approved_publish_draft=True),
@@ -186,4 +191,36 @@ def test_navigator_delegates_to_existing_codebridge_state_machine(monkeypatch, p
         navigate_published_pr(
             published, request,
             NavigationApproval("trusted-review-wrapper", ("pytest -q",)),
+        )
+
+
+def test_publication_rejects_forged_review_verdict_or_cross_run_patch(proposal_fixture):
+    workspace, _, _, request, proposal = proposal_fixture
+    approved = PublicationApproval("example/project", approved_publish_draft=True)
+    tampered = {
+        **proposal,
+        "rounds": [{"review_status": "completed", "findings": [],
+                    "verification": {"status": "passed_selected_checks"},
+                    "reviewer_model": "invented"}],
+    }
+    with pytest.raises(MaintenanceError, match="saved independent-review evidence"):
+        publish_draft_pr(workspace, request, tampered, approved)
+    unrelated = {**proposal, "run_id": "b" * 32}
+    with pytest.raises(MaintenanceError, match="saved improvement evidence"):
+        publish_draft_pr(workspace, request, unrelated, approved)
+    other_patch = workspace.state_dir / "improvements" / ("b" * 32) / "proposal.patch"
+    # No other run's patch is authorized by the retained audit record.
+    with pytest.raises(MaintenanceError, match="saved independent-review evidence"):
+        publish_draft_pr(
+            workspace, request, {**proposal, "patch_path": str(other_patch)}, approved
+        )
+
+
+def test_publication_rejects_patch_modified_after_review(proposal_fixture):
+    workspace, _, _, request, proposal = proposal_fixture
+    Path(proposal["patch_path"]).write_bytes(b"malicious patch after reviewer signoff")
+    with pytest.raises(MaintenanceError, match="SHA-256"):
+        publish_draft_pr(
+            workspace, request, proposal,
+            PublicationApproval("example/project", approved_publish_draft=True),
         )
