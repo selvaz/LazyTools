@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -10,8 +9,14 @@ from pathlib import Path
 import pytest
 
 from lazytools.maintenance import (
-    CheckSpec, ImprovementRequest, MaintenanceError, NavigationApproval,
-    PublicationApproval, RepoSpec, Workspace, publish_draft_pr,
+    CheckSpec,
+    ImprovementRequest,
+    MaintenanceError,
+    NavigationApproval,
+    PublicationApproval,
+    RepoSpec,
+    Workspace,
+    publish_draft_pr,
 )
 from lazytools.maintenance.navigation import navigate_published_pr
 
@@ -142,7 +147,7 @@ def test_existing_remote_maintenance_branch_refuses_overwrite(proposal_fixture, 
 
 
 def test_navigator_delegates_to_existing_codebridge_state_machine(monkeypatch, proposal_fixture):
-    workspace, _, _, request, _ = proposal_fixture
+    _, _, _, request, _ = proposal_fixture
     import lazytools.code_bridge._navigator as existing
 
     called = {}
