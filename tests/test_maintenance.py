@@ -163,6 +163,10 @@ def test_real_lazybridge_plan_executes_all_deterministic_stages(tmp_path, monkey
     assert result["status"] == "review_required"
     assert result["reviews"]["status"] == "not_run"
     assert Path(result["report_json"]).is_file()
+    assert result["usage"]["source"] == "lazybridge_envelope"
+    assert result["usage"]["input_tokens"] == 0
+    persisted = json.loads(Path(result["report_json"]).read_text())
+    assert persisted["usage"] == result["usage"]
     assert mapper.index_calls == ["core", "consumer"]
 
 
