@@ -9,6 +9,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -29,6 +30,7 @@ class RepoMapCLI:
     _MAX_STDOUT = 2 * 1024 * 1024
     _MAX_STDERR = 500
     _MAX_SNIPPET = 400
+    _READER_JOIN_TIMEOUT = 2.0
 
     def _command(self, *, windows: bool | None = None) -> list[str]:
         executable = shutil.which(self.binary)
@@ -76,6 +78,9 @@ class RepoMapCLI:
         resolved_cache = str(self.cache_dir.resolve())
         env["REPOMAP_CACHE_DIR"] = resolved_cache
         env["XDG_CACHE_HOME"] = resolved_cache
+        # Git otherwise refreshes and rewrites .git/index during ostensibly
+        # read-only status operations, especially for freshly-created files.
+        env["GIT_OPTIONAL_LOCKS"] = "0"
         try:
             process = subprocess.Popen(
                 [*command, *args], cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -99,8 +104,15 @@ class RepoMapCLI:
             process.wait()
             raise RepoMapError(f"repomap timed out after {self.timeout:g} seconds") from exc
         finally:
+            deadline = time.monotonic() + self._READER_JOIN_TIMEOUT
             for reader in readers:
-                reader.join()
+                reader.join(max(0.0, deadline - time.monotonic()))
+            if any(reader.is_alive() for reader in readers):
+                # A descendant can inherit the pipes even after the CLI exits.
+                # Make one last attempt to close the whole process group, but
+                # never let a pipe reader make the provider hang indefinitely.
+                self._terminate_tree(process)
+                raise RepoMapError("repomap output reader did not finish after the process exited")
         stdout_text = stdout.decode("utf-8", errors="replace")
         stderr_text = stderr.decode("utf-8", errors="replace")
         if returncode:

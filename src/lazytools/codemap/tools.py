@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,14 @@ class RepoMapTools:
         self._backend = backend or RepoMapCLI(cache_dir=cache_dir)
         resolved_cache = self._backend.cache_dir.resolve()
         if resolved_cache == self._root or self._root in resolved_cache.parents:
+            if backend is None and cache_dir is None:
+                # The normal ~/.lazytools location is unsafe when HOME itself is
+                # exposed as the code root. Keep the optional provider usable,
+                # but place RepoMap's cache in a process-external cache root.
+                fallback = Path(tempfile.gettempdir()).resolve() / "lazytools" / "repomap"
+                if fallback != self._root and self._root not in fallback.parents:
+                    self._backend = RepoMapCLI(cache_dir=fallback)
+                    return
             raise ValueError("codemap cache directory must be outside the configured code root")
 
     def codemap_search(self, query: str, repo_path: str, limit: int = 10) -> Any:

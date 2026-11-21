@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -79,7 +81,7 @@ def test_cache_cannot_be_inside_code_root(tmp_path: Path, stub_repomap: Path) ->
         RepoMapTools(root=root, backend=RepoMapCLI(binary=str(stub_repomap), cache_dir=root / ".cache"))
 
 
-def test_option_like_query_is_positional_and_external_symlink_is_flagged(tmp_path: Path) -> None:
+def test_option_like_query_is_rejected_and_external_symlink_is_flagged(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     outside = tmp_path / "secret.py"
@@ -138,9 +140,44 @@ def test_error_detail_and_snippets_are_bounded(tmp_path: Path) -> None:
     assert backend._sanitize({"snippet": "x" * 1000}, repo)["snippet"] == "x" * 400
 
 
+@pytest.mark.skipif(os.name == "nt", reason="fixture uses a POSIX process group")
+def test_inherited_output_pipe_reports_error_instead_of_hanging(tmp_path: Path) -> None:
+    hanging = tmp_path / "repomap"
+    hanging.write_text(
+        "#!/usr/bin/env python3\n"
+        "import subprocess\n"
+        "subprocess.Popen(['sleep', '30'])\n"
+        "print('{}')\n"
+    )
+    hanging.chmod(0o755)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    backend = RepoMapCLI(binary=str(hanging), cache_dir=tmp_path / "cache")
+    backend._READER_JOIN_TIMEOUT = 0.1
+
+    with pytest.raises(RepoMapError, match="output reader did not finish"):
+        backend.search("query", repo, 1)
+
+
 def test_provider_is_on_read_only_mcp_surface(tmp_path: Path) -> None:
     providers = default_providers(["codemap"], data_source={"code_root": str(tmp_path)})
     assert set(expand_tools(providers, read_only=True)) == {"codemap_search", "codemap_map"}
+
+
+def test_default_cache_moves_outside_code_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("LAZYTOOLS_DATA_DIR", raising=False)
+
+    providers = default_providers(["codemap"], data_source={"code_root": str(home)})
+
+    assert len(providers) == 1
+    cache = providers[0]._backend.cache_dir.resolve()
+    assert cache != home.resolve()
+    assert home.resolve() not in cache.parents
 
 
 @pytest.mark.asyncio
@@ -158,9 +195,41 @@ async def test_server_lists_codemap_as_read_only(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(shutil.which("repomap") is None, reason="repomap is not installed")
 def test_installed_repomap_smoke(tmp_path: Path) -> None:
-    (tmp_path / "example.py").write_text("def retry_request():\n    pass\n")
-    before = {path.relative_to(tmp_path): (path.stat().st_size, path.stat().st_mtime_ns) for path in tmp_path.rglob("*")}
-    result = RepoMapCLI(cache_dir=tmp_path.parent / "repomap-smoke-cache").search("retry request", tmp_path, 1)
-    assert result is not None
-    after = {path.relative_to(tmp_path): (path.stat().st_size, path.stat().st_mtime_ns) for path in tmp_path.rglob("*")}
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src" / "requests.py").write_text("def retry_request():\n    return True\n")
+    (repo / "src" / "worker.py").write_text("from .requests import retry_request\n")
+    (repo / "README.md").write_text("# RepoMap smoke fixture\n")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.name=Smoke Test", "-c", "user.email=smoke@example.invalid",
+         "commit", "-qm", "fixture"],
+        check=True,
+    )
+
+    def repository_state() -> tuple[dict[Path, tuple[int, int]], set[Path], str]:
+        status = subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain"],
+            check=True,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
+        ).stdout
+        paths = {path.relative_to(repo) for path in repo.rglob("*")}
+        files = {
+            path.relative_to(repo): (path.stat().st_size, path.stat().st_mtime_ns)
+            for path in repo.rglob("*")
+            if path.is_file()
+        }
+        return files, paths, status
+
+    before = repository_state()
+    tools = RepoMapTools(root=repo, cache_dir=tmp_path / "repomap-smoke-cache")
+    search_result = tools.codemap_search("retry request", ".", limit=1)
+    map_result = tools.codemap_map(".", tokens=100)
+    after = repository_state()
+
+    assert search_result is not None
+    assert map_result is not None
     assert after == before
