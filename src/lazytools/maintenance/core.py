@@ -223,6 +223,10 @@ class RunState:
             key_data = {"root": str(repo.root), "sha": self.sha[repo.id],
                         "dirty": self.dirty[repo.id], "engine": version,
                         "embed": self.mapper._use_embeddings}
+            # No content digest is available for a dirty working tree. Never
+            # reuse a cache entry keyed only by its committed HEAD SHA.
+            if self.dirty[repo.id] != "clean":
+                key_data["uncommitted_run_id"] = self.run_id
             key = _digest(key_data)
             path = self.workspace.state_dir / "snapshots" / repo.id / f"{key}.json"
             if path.exists():
@@ -247,7 +251,8 @@ class RunState:
                 raise MaintenanceError("RepoMap index did not identify indexed root")
             snapshot = {
                 "repo": repo.id, "sha": self.sha[repo.id], "dirty": self.dirty[repo.id],
-                "cache_key": key, "engine": version, "status": "ready",
+                "cache_key": key, "engine": version,
+                "status": "ready" if self.dirty[repo.id] == "clean" else "partial",
                 "indexed_seconds": round(time.perf_counter() - start, 4),
                 "files_count": indexed.get("files"), "symbols_count": indexed.get("symbols"),
                 "cache_hit": False,
