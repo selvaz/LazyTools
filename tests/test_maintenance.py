@@ -264,6 +264,7 @@ def test_real_plan_approved_checks_are_reported_without_claiming_full_review(tmp
     bad = CheckSpec("failing_test", "core", (sys.executable, "-c", "import sys;sys.exit(3)"))
     failure = MaintenancePipeline(workspace, checks=(bad,)).execute()
     assert failure["verification"]["status"] == "failed"
+    assert failure["status"] == "verification_failed"
     assert failure["verification"]["tests"][0]["exit_code"] == 3
     assert failure["verified"] is False
     assert any("Approved tests failed" in w for w in failure["warnings"])
