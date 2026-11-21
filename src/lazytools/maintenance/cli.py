@@ -9,6 +9,7 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from typing import Any
 
 from lazytools.codemap import RepoMapError
 
@@ -66,7 +67,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 shas[repo.id] = resolve_sha(repo.root)
                 if repo.id in base:
                     resolve_sha(repo.root, base[repo.id])
-            result: dict[str, object] = {"status": "valid", "sha": shas}
+            result: dict[str, Any] = {"status": "valid", "sha": shas}
         else:
             report = MaintenancePipeline(
                 cfg.workspace, executable=args.executable,
