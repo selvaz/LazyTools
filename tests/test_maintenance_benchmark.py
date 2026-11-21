@@ -71,6 +71,7 @@ def test_same_scan_same_models_only_writer_tool_access_changes(pair, monkeypatch
             return {
                 "status": "proposal_ready_for_human_review",
                 "report_json": "stub-local-proposal",
+                "initial_writer_brief_sha256": "the-same-frozen-brief-hash",
                 "rounds": [{
                     "verification": {"status": "passed_selected_checks"},
                     "writer_brief_sha256": "the-same-frozen-brief-hash",
