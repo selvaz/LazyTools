@@ -349,9 +349,14 @@ class RunState:
                         f"Import scan for {dep.consumer} was incomplete; missing matches are not proof of safety"
                     )
             cross_repo.append(candidate)
+        status = (
+            "verification_failed" if self.verification["status"] == "failed" else
+            "verification_incomplete" if self.verification["status"] == "incomplete" else
+            "review_required"
+        )
         report = {
             "schema_version": 1, "run_id": self.run_id,
-            "status": "review_required", "verified": False,
+            "status": status, "verified": False,
             "sha": self.sha, "base_sha": self.base, "dirty": self.dirty,
             "snapshots": self.snapshots, "changes": self.changes,
             "truncated": self.truncated, "impacts": self.impacts,
@@ -366,7 +371,7 @@ class RunState:
         out = self.workspace.state_dir / "runs" / self.run_id / "report.json"
         _atomic_json(out, report)
         summary = ["# Repository maintenance scan", "",
-                   "**Status:** review required; structural findings are not a full verification.",
+                   f"**Status:** {status}; structural findings are not a full verification.",
                    f"**Selected test status:** {self.verification['status']}.", ""]
         for repo in self.workspace.repos:
             name = repo.id
