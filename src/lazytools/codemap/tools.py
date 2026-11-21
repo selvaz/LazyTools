@@ -1,8 +1,8 @@
 """Native LazyBridge ToolProvider backed by the optional local repomap CLI."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping
 
 from lazybridge import Tool
 
