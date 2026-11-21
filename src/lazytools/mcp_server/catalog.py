@@ -48,6 +48,7 @@ def _entry(group: str, order: int, label: str, origin: str, description: str) ->
 # Keep this adjacent in purpose to PROVIDER_FACTORIES: coverage is enforced by
 # tests so adding a provider to the construction registry requires cataloguing it.
 PROVIDER_GROUPS: dict[str, ProviderCatalogEntry] = {
+    "codemap": _entry("Coding agents", 6, "Code Map", "LazyTools", "Rank candidate files and map repositories with RepoMap."),
     "datahub": _entry("Market data", 0, "Data Hub", "market-data-hub", "Discover and resolve market data and financial facts."),
     "tradingview": _entry("Market data", 0, "TradingView", "LazyTools", "Screen live markets and inspect breadth and fund snapshots."),
     "cftc_cot": _entry("Market data", 0, "CFTC COT", "market-data-hub", "Inspect CFTC Commitments of Traders positioning."),

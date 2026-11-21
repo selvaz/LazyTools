@@ -54,6 +54,15 @@ def _register(provider_id: str) -> Callable[[Callable[..., Any]], Callable[..., 
     return deco
 
 
+@_register("codemap")
+def _codemap(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Read-only issue-text search and repository maps from RepoMap."""
+    from lazytools.codemap import RepoMapTools
+
+    source = data_source or {}
+    return RepoMapTools(root=source.get("code_root"), cache_dir=source.get("codemap_cache_dir"))
+
+
 @_register("studio")
 def _studio(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Published LazyStudio agents (execution requires ``--allow-unsafe``)."""
