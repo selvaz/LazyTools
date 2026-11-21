@@ -99,9 +99,13 @@ jobs:
               first_sha = git(root, "rev-parse", "HEAD")
               pipeline = MaintenancePipeline(
                   Workspace((RepoSpec("example", root),), Path(directory) / "state"),
+                  context_mode="repomap", task_query="example.py",
                   use_embeddings=False,
               )
               first = pipeline.execute()
+              assert first["context_mode"] == "repomap"
+              assert first["task_context"]["example"]["overview"].strip()
+              assert first["task_context"]["example"]["search"].strip()
               assert first["verified"] is False
               assert first["snapshots"]["example"]["cache_hit"] is False
               second = pipeline.execute()
