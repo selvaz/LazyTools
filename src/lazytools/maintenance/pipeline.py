@@ -118,8 +118,13 @@ class MaintenancePipeline:
         # The Plan may capture an exception in its Envelope. Only the report
         # written by the deterministic final step establishes completion.
         if state.report is None or state.report_path is None:
-            message = getattr(result, "text", lambda: str(result))()
-            raise MaintenanceError(f"Maintenance Plan did not complete: {str(message)[:600]}")
+            error = getattr(result, "error", None)
+            reason = (
+                f"{getattr(error, 'type', type(error).__name__)}: "
+                f"{getattr(error, 'message', str(error))}"
+                if error is not None else getattr(result, "text", lambda: str(result))()
+            )
+            raise MaintenanceError(f"Maintenance Plan did not complete: {str(reason)[:600]}")
         return {
             **state.report,
             "report_json": str(state.report_path),
