@@ -7,10 +7,12 @@ from __future__ import annotations
 
 from .core import Dependency, MaintenanceError, RepoSpec, Workspace
 from .improvement import ImprovementRequest, MaintenanceImprover
+from .improvement_plan import MaintenanceSelfImprovementPlan
 from .pipeline import MaintenancePipeline
 from .verification import CheckSpec
 
 __all__ = [
     "CheckSpec", "Dependency", "ImprovementRequest", "MaintenanceError",
-    "MaintenanceImprover", "MaintenancePipeline", "RepoSpec", "Workspace",
+    "MaintenanceImprover", "MaintenancePipeline", "MaintenanceSelfImprovementPlan",
+    "RepoSpec", "Workspace",
 ]
