@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .core import MaintenanceError, Workspace, git_status, resolve_sha
+from .core import MaintenanceError, RepoSpec, Workspace, git_status, resolve_sha
 from .improvement import ImprovementRequest, _git
 from .verification import run_approved_checks
 
@@ -127,7 +127,7 @@ def publish_draft_pr(
         if existing.strip():
             raise MaintenanceError("A maintenance branch already exists; manual reconciliation required")
         checks = run_approved_checks(
-            Workspace(repos=(workspace_repo(request.repo, root),),
+            Workspace(repos=(RepoSpec(request.repo, root),),
                       state_dir=Path(workdir) / "verify"),
             {request.repo: candidate_sha},
             request.checks,
@@ -158,9 +158,3 @@ def publish_draft_pr(
             "reviewer_engine": request.reviewer_engine,
             "merge_ready": False, "merged": False,
         }
-
-
-def workspace_repo(alias: str, root: Path) -> Any:
-    from .core import RepoSpec
-
-    return RepoSpec(alias, root)
