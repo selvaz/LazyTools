@@ -94,6 +94,8 @@ lazytools-code-bridge = "lazytools.code_bridge.cli:main"
 lazytools-ecosystem-sync = "lazytools.ecosystem_sync.cli:main"
 # Project-layer verbs; close-task closes a contract-backed task with evidence.
 lazytools-projects = "lazytools.projects.cli:main"
+# Optional, read-only public maintenance CLI; requires local RepoMap executable at use time.
+lazytools-maintenance = "lazytools.maintenance.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/selvaz/LazyTools"
