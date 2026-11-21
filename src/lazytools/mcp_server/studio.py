@@ -18,6 +18,15 @@ from lazybridge import Tool
 logger = logging.getLogger(__name__)
 _PUBLISHED_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 _RESERVED_NAMES = {"studio_run_status", "studio_status"}
+CALLER_TOKEN_ENV = "LAZYSTUDIO_CALLER_TOKEN"
+CALLER_TOKEN_HEADER = "X-LazyStudio-Caller-Token"
+_CALLER_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def _caller_token() -> str | None:
+    """The secret capability of the LazyStudio run that launched this server, if any."""
+    value = os.environ.get(CALLER_TOKEN_ENV, "")
+    return value if _CALLER_TOKEN_RE.fullmatch(value) else None
 
 
 class StudioTools:
@@ -76,18 +85,23 @@ class StudioTools:
         except ValueError:
             return False
 
-    def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        *,
+        caller_token: str | None = None,
+    ) -> Any:
         data = json.dumps(body).encode() if body is not None else None
-        request = Request(
-            f"{self.base_url}{path}",
-            data=data,
-            method=method,
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            },
-        )
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        if caller_token:
+            headers[CALLER_TOKEN_HEADER] = caller_token
+        request = Request(f"{self.base_url}{path}", data=data, method=method, headers=headers)
         try:
             with urlopen(request, timeout=self.wait_seconds + 15) as response:
                 return json.load(response)
@@ -135,6 +149,7 @@ class StudioTools:
             "POST",
             f"/api/mcp-tools/{quote(name, safe='')}/call",
             {"task": task, "wait_seconds": self.wait_seconds},
+            caller_token=_caller_token(),
         )
         return self._result(payload)
 
