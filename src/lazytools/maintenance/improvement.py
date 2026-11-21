@@ -175,3 +175,170 @@ def _brief(report: dict[str, Any], request: ImprovementRequest, feedback: str = 
         "Keep the patch minimal and do not claim tests or independent review were successful.\n"
         + feedback[:2_000]
     )
+
+
+class MaintenanceImprover:
+    """Generate a reviewed local patch; never publish, merge or mutate source.
+
+    A read-only MaintenancePipeline Plan provides the pinned scan report.
+    Writer and independent reviewer are existing LazyTools code-support tools;
+    this layer only controls authorization, scope, rounds and evidence.
+    """
+
+    def __init__(self, workspace: Workspace) -> None:
+        self.workspace = workspace
+
+    async def arun(
+        self,
+        report: dict[str, Any],
+        request: ImprovementRequest,
+        *,
+        writer_tool: ImprovementTool | None = None,
+        reviewer_tool: ImprovementTool | None = None,
+    ) -> dict[str, Any]:
+        if not request.approved_local_proposal:
+            raise PermissionError("An explicit local proposal approval is required")
+        roots = self.workspace.paths()
+        if request.repo not in roots:
+            raise ValueError("Proposal repository is outside the configured workspace")
+        if (writer_tool is None) != (reviewer_tool is None):
+            raise ValueError("Both tool overrides must be provided together")
+        if not isinstance(report, dict) or report.get("status") != "review_required":
+            raise MaintenanceError("Start from a completed read-only maintenance scan")
+        version = report.get("sha")
+        sha = version.get(request.repo) if isinstance(version, dict) else None
+        if not isinstance(sha, str) or not re.fullmatch("[0-9a-f]{40}", sha):
+            raise MaintenanceError("Read-only scan has no pinned commit SHA")
+        snapshots = report.get("snapshots")
+        snapshot = snapshots.get(request.repo) if isinstance(snapshots, dict) else None
+        if not isinstance(snapshot, dict) or snapshot.get("status") != "ready" or snapshot.get("sha") != sha:
+            raise MaintenanceError("Cannot improve an incomplete or unpinned code snapshot")
+        if report.get("dirty", {}).get(request.repo) != "clean":
+            raise MaintenanceError("An improvement needs a clean, immutable source revision")
+        root = roots[request.repo]
+        if resolve_sha(root) != sha or git_status(root) != "clean":
+            raise MaintenanceError("Source changed since the scan; refresh before proposing")
+        identifier = uuid.uuid4().hex
+        run_dir = self.workspace.state_dir / "improvements" / identifier
+        run_dir.mkdir(parents=True, exist_ok=False)
+        record: dict[str, Any] = {
+            "schema_version": 1,
+            "run_id": identifier, "source_scan_run_id": report.get("run_id"),
+            "repo": request.repo, "source_sha": sha,
+            "writer_engine": request.writer_engine, "reviewer_engine": request.reviewer_engine,
+            "rounds": [], "status": "started",
+            "approved_local_proposal": True, "pushed": False, "merged": False,
+        }
+        try:
+            with tempfile.TemporaryDirectory(prefix="private-clone-", dir=run_dir) as tmp:
+                work = Path(tmp) / "repo"
+                # --no-local ensures a private object database: even local
+                # proposal commits never write objects to the source repo.
+                _git(run_dir, "clone", "--no-local", "--no-checkout",
+                     "--", str(root), str(work))
+                _git(work, "remote", "remove", "origin")
+                _git(work, "checkout", "--detach", sha)
+                if resolve_sha(work) != sha or git_status(work) != "clean":
+                    raise MaintenanceError("Disposable clone is not pinned and clean")
+                if writer_tool is None or reviewer_tool is None:
+                    writer_tool, reviewer_tool = _existing_tools(work, request)
+                objective = _brief(report, request)
+                for round_number in range(1, request.max_rounds + 1):
+                    record["status"] = "writing"
+                    reply = await writer_tool.run(task=objective, cwd=str(work))
+                    if not isinstance(reply, dict) or not reply.get("result"):
+                        raise MaintenanceError("Existing coding writer did not return a success result")
+                    patch, candidate_sha = _commit_candidate(work, sha, request)
+                    round_record: dict[str, Any] = {
+                        "number": round_number, "candidate_sha": candidate_sha,
+                        "patch_sha256": hashlib.sha256(patch).hexdigest(),
+                        "patch_bytes": len(patch), "review_status": "pending",
+                    }
+                    record["rounds"].append(round_record)
+                    record["status"] = "independent_review"
+                    prompt = (
+                        "Review only the proposed code changes; do not modify any files. "
+                        "Independently inspect the diff against the pinned base SHA. "
+                        "Report real defects as P0, P1, P2 or P3. "
+                        "After the following marker output exactly one JSON object "
+                        "and no commentary, with keys reviewer_model and findings. "
+                        "Each finding requires severity and message. "
+                        "Return an empty findings list only after a completed code review.\n"
+                        + REVIEW_MARKER + "\n"
+                        + f"Base={sha}; candidate={candidate_sha}.\n"
+                    )
+                    reviewed = await reviewer_tool.run(
+                        task=prompt, repo_path=str(work), diff_ref=sha,
+                    )
+                    findings, reviewer_model = _parse_review(reviewed)
+                    round_record["review_status"] = "completed"
+                    round_record["reviewer_model"] = reviewer_model
+                    round_record["findings"] = findings
+                    if any(finding["severity"] in ("P0", "P1") for finding in findings):
+                        record["status"] = "escalated"
+                        break
+                    if findings:
+                        record["status"] = "needs_fixes"
+                        objective = _brief(
+                            report, request,
+                            "\nResolve independent review findings before finalizing:\n"
+                            + "\n".join(
+                                f"- {finding['severity']}: {finding['message']}"
+                                for finding in findings
+                            ),
+                        )
+                        continue
+                    if not request.checks:
+                        record["status"] = "needs_approved_checks"
+                        break
+                    # The existing deterministic check runner executes at
+                    # candidate_sha in a separate detached worktree per test.
+                    record["status"] = "verifying"
+                    clone_workspace = Workspace(
+                        repos=(RepoSpec(request.repo, work),),
+                        state_dir=run_dir / "verification",
+                    )
+                    verification = run_approved_checks(
+                        clone_workspace, {request.repo: candidate_sha}, request.checks
+                    )
+                    round_record["verification"] = verification
+                    if verification["status"] == "passed_selected_checks":
+                        record["status"] = "proposal_ready_for_human_review"
+                        break
+                    record["status"] = "checks_failed"
+                    if round_number < request.max_rounds:
+                        objective = _brief(
+                            report, request,
+                            "\nAddress these failed selected checks; do not mask failures:\n"
+                            + json.dumps(verification, default=str)[:1_000],
+                        )
+                else:
+                    record["status"] = "round_cap"
+                if record["rounds"]:
+                    final = _git(work, "diff", "--binary", "--no-ext-diff", sha, "HEAD")
+                    if not final or len(final) > request.max_patch_bytes:
+                        raise MaintenanceError("Final cumulative patch exceeds the approved limit")
+                    patch_path = run_dir / "proposal.patch"
+                    patch_path.write_bytes(final)
+                    record["patch_path"] = str(patch_path)
+                    record["patch_sha256"] = hashlib.sha256(final).hexdigest()
+                    record["candidate_sha"] = resolve_sha(work)
+        except Exception as exc:
+            record["status"] = "failed"
+            record["error"] = f"{type(exc).__name__}: {str(exc)[:300]}"
+        finally:
+            try:
+                if resolve_sha(root) != sha or git_status(root) != "clean":
+                    record["status"] = "stale_source"
+                    record["error"] = "Source advanced during the proposal; re-run maintenance scan"
+            except (OSError, MaintenanceError):
+                record["status"] = "stale_source"
+                record["error"] = "Cannot revalidate the source revision"
+            path = run_dir / "result.json"
+            record["report_json"] = str(path)
+            _atomic_json(path, record)
+        return record
+
+    def run(self, report: dict[str, Any], request: ImprovementRequest, **kwargs: Any) -> dict[str, Any]:
+        """Synchronous wrapper for callers without an active event loop."""
+        return asyncio.run(self.arun(report, request, **kwargs))
