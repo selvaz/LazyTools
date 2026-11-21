@@ -321,7 +321,7 @@ class RunState:
         if self.verification["status"] in ("failed", "incomplete"):
             warnings.append("Approved tests failed or were unavailable; review the recorded evidence")
         if any(v != "clean" for v in self.dirty.values()):
-            warnings.append("A checkout is dirty; snapshot describes committed SHA only")
+            warnings.append("Dirty checkout: index may include uncommitted contents; no SHA-only cache reuse or full provenance")
         if any(row.get("source") == "unverified"
                for items in self.impacts.values() for row in items):
             warnings.append("Some impact queries failed or were incomplete")
