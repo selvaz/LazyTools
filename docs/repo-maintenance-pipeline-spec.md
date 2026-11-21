@@ -1,9 +1,11 @@
 # Repository Maintenance Pipeline — public, reusable specification
 
-Status: **proposed architecture / implementation specification**, not shipped functionality.  
+Status: **experimental first implementation in draft PR #326**, with later phases still proposed; not a released feature.  
 Target repository: **LazyTools** (package lazytoolkit), branch feat/codemap-python-adapter.  
-Date: 2026-11-21. API and CLI names below are **proposed**, not existing imports or commands.  
+Date: 2026-11-21. Section 8 describes a broader **proposed** API; the narrower working API and CLI are documented in [maintenance.md](maintenance.md).  
 Related current prototype: [CodeMap Python adapter](codemap.md). Evaluation evidence: [head-to-head PR #325](https://github.com/selvaz/LazyTools/pull/325).
+
+**Implementation ledger (draft PR #326):** Existing, experimental: native RepoMap tools; real LazyBridge Plan with optional nested reviewers; SHA-pinned local snapshots and diff; strict TOML CLI; explicit dependency hints with bounded Python import evidence; per-run JSON/Markdown reports; opt-in approved checks in detached Git worktrees. Still proposed: durable stage resume/idempotency and concurrency locks, network-isolated execution, remote HEAD freshness, full cross-language dependencies, PR generation/approvals, LazyCEO/Studio integrations, and measured end-to-end agent token savings.
 
 ## 1. Product contract
 
