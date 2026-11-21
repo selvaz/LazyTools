@@ -7,9 +7,10 @@ This implements a first, **experimental** slice of the [full public pipeline spe
 3. Compute bounded Git changed-path evidence and renames (or initial tracked-file inventory).
 4. Request bounded, explicitly unverified static impact evidence for changed source files.
 5. Optionally run nested reviewer Agents as Plan tools (parallel when multiple).
-6. Write JSON and Markdown reports. No code changes, test execution or PR creation.
+6. Optionally run operator-approved tests on detached temporary Git worktrees.
+7. Write SHA-addressed, immutable per-run JSON/Markdown reports. No source changes or automatic PRs.
 
-The deterministic mode requires **no LLM or MCP**.
+The deterministic mode requires **no LLM or MCP**. Verification is opt-in and can be granted only via the Python API.
 
 ## Install
 
@@ -71,11 +72,11 @@ Review notes are **unverified suggestions**, never test-pass proof or approval t
 
 ## Evidence and safety
 
-Reports include schema_version 1, exact SHA vector, base SHAs, dirty status, cache hit/miss, indexing time, bounded Git changes, static impact previews, declared cross-repo candidates, warnings and review/verification status. The initial implementation always reports:
+Reports include schema_version 1, exact SHA vector, base SHAs, dirty status, cache hit/miss, indexing time, bounded Git changes, static impact previews, declared cross-repo candidates, warnings and review/verification status. The default read-only scan reports:
 
 - status = review_required
 - verified = false
-- verification.status = not_run
+- verification.status = not_run (or passed_selected_checks / failed / incomplete with explicitly approved checks)
 
 A declared dependency means a consumer *might* need a compatibility check, not that static code references were established across repositories. When an impact query fails, it is labeled unverified rather than silently yielding no impact.
 
@@ -89,4 +90,4 @@ PYTHONPATH=src python -m pytest -q tests/test_codemap.py tests/test_maintenance.
 
 GitHub CI adds a real RepoMap binary smoke with two successive Git commits, first/second snapshots and a verified cache hit. Ruff, mypy, multiple Python versions and MCP majors run in the regular LazyTools matrix.
 
-**Not yet included:** GitHub event triggers, an operator-controlled test runner, safe patch/PR generation, complete cross-repo file-level dependency resolution, durable Plan checkpoints and idempotent locking, arbitrary-language coverage, remote-head freshness checks, and end-to-end coding-agent token/time savings. These are defined as future phases in the [full spec](repo-maintenance-pipeline-spec.md).
+**Not yet included:** GitHub event triggers, safe patch/PR generation, full cross-repo behavioral compatibility, durable Plan checkpoints and idempotent locking, arbitrary-language coverage, remote-head freshness checks, and end-to-end coding-agent token/time savings. These are defined as future phases in the [full spec](repo-maintenance-pipeline-spec.md).
