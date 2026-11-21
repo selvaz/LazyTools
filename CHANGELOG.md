@@ -8,13 +8,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.13] — 2026-11-21
+
 ### Added
+- Optional read-only `codemap` tools (`codemap_search`, `codemap_map`) backed by the RepoMap CLI: issue text to candidate files, confined to the code root, cache kept outside repositories; research note in `docs/research/repomap-benchmark.md` (#327).
 - An importable MCP provider catalog now supplies functional grouping, origin labels, descriptions, ordering, and per-tool read/write access metadata for every registered provider.
 - Portfolio tree validation and save now infer a missing reference currency when every instrument resolves to the same currency, and report the inferred value.
 - The MCP stdio server pre-imports optional scientific and market-data provider modules on its main thread, preventing the first data-hub call from hanging during a worker-thread import.
 - MCP client tools expose the server's MCP annotations through a stable ``Tool.annotations`` dict (and ``Tool.metadata["annotations"]`` when supported), allowing consumers to classify read-only and destructive tools.
 
 ### Fixed
+- The Studio provider sends the secret caller token header (`X-LazyStudio-Caller-Token`, from `LAZYSTUDIO_CALLER_TOKEN`) on nested published-tool calls, so a callback into the same Studio runs re-entrantly instead of queueing behind its caller (#321).
+- MCP Studio tool results report a stuck nested run explicitly instead of a bare timeout (#323).
 - The `lazytools-mcp` server now emits MCP tool annotations derived from catalog access metadata, so read-only clients can discover read tools while write tools are explicitly marked destructive.
 - MCP catalog access metadata now follows provider write gates, including all projects writers; stateless portfolio optimizer computations and disposable web-cache reads remain classified as read access.
 - `ecosystem-released` handles private manifest components from one list (`PRIVATE_COMPONENTS`: lazyfin, lazyceo): they are left out of the credential-less install, installed only in the scoped `ECOSYSTEM_PAT` step and skipped by the Release-wheel check. The job had failed since lazyceo joined the manifest (clone without credentials, no public Release).
