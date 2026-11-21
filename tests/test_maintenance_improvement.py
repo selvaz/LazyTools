@@ -344,13 +344,12 @@ def test_review_severity_p1_halts_before_verification(source):
 def test_declared_plan_has_scan_proposal_publish_and_existing_navigator_steps(
     source, monkeypatch
 ):
+    import lazytools.maintenance.improvement_plan as module
     from lazytools.maintenance import (
         MaintenanceSelfImprovementPlan,
         NavigationApproval,
         PublicationApproval,
     )
-
-    import lazytools.maintenance.improvement_plan as module
 
     workspace, _, _, report = source
     calls = []
