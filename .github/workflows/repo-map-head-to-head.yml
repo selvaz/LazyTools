@@ -1,0 +1,64 @@
+name: RepoMap vs CodeGraphContext (read-only experiment)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "bench/repo_map/**"
+      - ".github/workflows/repo-map-head-to-head.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout benchmark harness
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pinned candidate versions
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "codegraphcontext==0.6.13" kuzu
+          npm install --global "@sylphx/repomap@1.9.0"
+          repomap version
+          cgc version
+
+      - name: Prepare embedding cache (not included in index timings)
+        run: |
+          repomap model || echo "Embedding download unavailable; inspect result metadata"
+
+      - name: Clone public repos at recorded SHAs
+        run: |
+          mkdir -p _benchmark_checkouts
+          git clone --quiet --depth 1 https://github.com/selvaz/LazyBridge.git _benchmark_checkouts/LazyBridge
+          git clone --quiet --depth 1 https://github.com/selvaz/LazyTools.git _benchmark_checkouts/LazyTools
+          git -C _benchmark_checkouts/LazyBridge rev-parse HEAD
+          git -C _benchmark_checkouts/LazyTools rev-parse HEAD
+
+      - name: Run file localization comparison
+        run: |
+          python bench/repo_map/evaluate.py
+
+      - name: Upload full results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-map-benchmark
+          path: repo-map-results.json
+          if-no-files-found: warn
