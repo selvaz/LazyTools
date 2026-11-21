@@ -22,7 +22,7 @@
           "bridge",
           "datacore"
         ],
-        "ref": "01f30826cb9c16e9b15c914555767691348f345e",
+        "ref": "c8c2564eb450f9dd17ed4b88cc5120ac792ac766",
         "repo": "https://github.com/selvaz/LazyFin"
       },
       "lazyportfolio": {
@@ -37,7 +37,7 @@
         "repo": "https://github.com/selvaz/LazyPulse"
       },
       "lazyray": {
-        "ref": "v0.2.13",
+        "ref": "v0.2.14",
         "repo": "https://github.com/selvaz/LazyRay"
       },
       "lazystats": {
@@ -48,7 +48,7 @@
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
-        "ref": "v0.10.12",
+        "ref": "v0.10.13",
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {

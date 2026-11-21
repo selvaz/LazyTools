@@ -3,13 +3,13 @@
 #   pip install -r requirements/verified.txt
 
 lazybridge==1.8.9
-lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.12
+lazytoolkit @ git+https://github.com/selvaz/LazyTools.git@v0.10.13
 lazyceo @ git+https://github.com/selvaz/LazyCEO.git@v0.2.11
 lazypulse @ git+https://github.com/selvaz/LazyPulse.git@v0.5.7
 lazycrawler @ git+https://github.com/selvaz/LazyCrawler.git@v0.19.7
 market-data-hub @ git+https://github.com/selvaz/market-data-hub.git@v0.4.0
 lazystats[regimes] @ git+https://github.com/selvaz/LazyStats.git@v0.3.13
 lazyportfolio[datacore] @ git+https://github.com/selvaz/LazyPortfolio.git@v0.2.13
-lazyray @ git+https://github.com/selvaz/LazyRay.git@v0.2.13
+lazyray @ git+https://github.com/selvaz/LazyRay.git@v0.2.14
 lazydataspace @ git+https://github.com/selvaz/DataSpace.git@v0.1.0
-lazyfin[bridge,datacore] @ git+https://github.com/selvaz/LazyFin.git@01f30826cb9c16e9b15c914555767691348f345e
+lazyfin[bridge,datacore] @ git+https://github.com/selvaz/LazyFin.git@c8c2564eb450f9dd17ed4b88cc5120ac792ac766
