@@ -339,3 +339,91 @@ def test_review_severity_p1_halts_before_verification(source):
     assert result["status"] == "escalated"
     assert len(writer.calls) == 1
     assert "verification" not in result["rounds"][0]
+
+
+def test_declared_plan_has_scan_proposal_publish_and_existing_navigator_steps(
+    source, monkeypatch
+):
+    from lazytools.maintenance import (
+        MaintenanceSelfImprovementPlan, NavigationApproval, PublicationApproval,
+    )
+    import lazytools.maintenance.improvement_plan as module
+
+    workspace, _, _, report = source
+    calls = []
+
+    class Scan:
+        def __init__(self, space):
+            self.workspace = space
+
+        def execute(self, *, base_refs=None):
+            calls.append("scan")
+            return report
+
+    class FakeImprover:
+        def __init__(self, space):
+            pass
+
+        def run(self, result, policy, **kwargs):
+            calls.append("propose")
+            return {"status": "proposal_ready_for_human_review",
+                    "run_id": "local-proposal", "source_sha": result["sha"]["demo"]}
+
+    def publish(space, policy, artifact, approval):
+        calls.append("publish")
+        return {"status": "draft_pr_created", "github_repo": "example/project",
+                "pr_number": 51, "reviewer_engine": "codex"}
+
+    def navigate(published, policy, approval):
+        calls.append("navigate")
+        return {**published, "status": "merge_ready", "merged": False}
+
+    monkeypatch.setattr(module, "MaintenanceImprover", FakeImprover)
+    monkeypatch.setattr(module, "publish_draft_pr", publish)
+    monkeypatch.setattr(module, "navigate_published_pr", navigate)
+    flow = MaintenanceSelfImprovementPlan(
+        Scan(workspace), request(),
+        publication=PublicationApproval("example/project", approved_publish_draft=True),
+        navigation=NavigationApproval(
+            "review-wrapper", ("pytest -q",), approved_navigate=True,
+        ),
+    )
+    assert [step.name for step in flow.build_agent().engine.steps] == [
+        "maintenance_scan", "maintenance_propose",
+        "maintenance_publish", "maintenance_navigate",
+    ]
+    result = flow.run()
+    assert result["status"] == "merge_ready"
+    assert result["merged"] is False
+    assert calls == ["scan", "propose", "publish", "navigate"]
+
+
+def test_plan_requires_separate_publish_and_navigator_approval(source):
+    from lazytools.maintenance import (
+        MaintenanceSelfImprovementPlan, NavigationApproval, PublicationApproval,
+    )
+
+    space, _, _, report = source
+
+    class Scan:
+        workspace = space
+
+        def execute(self, *, base_refs=None):
+            raise AssertionError("No scan before required human authorizations")
+
+    with pytest.raises(PermissionError, match="Publishing"):
+        MaintenanceSelfImprovementPlan(
+            Scan(), request(),
+            publication=PublicationApproval("example/project"),
+        ).run()
+    with pytest.raises(PermissionError, match="Navigator"):
+        MaintenanceSelfImprovementPlan(
+            Scan(), request(),
+            publication=PublicationApproval("example/project", approved_publish_draft=True),
+            navigation=NavigationApproval("review-wrapper", ("pytest -q",)),
+        ).run()
+    with pytest.raises(ValueError, match="requires a configured publication"):
+        MaintenanceSelfImprovementPlan(
+            Scan(), request(),
+            navigation=NavigationApproval("review-wrapper", ("pytest -q",)),
+        )
