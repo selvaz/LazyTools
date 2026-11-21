@@ -7,6 +7,7 @@ only validates the patch and performs the operator-authorized handoff.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import tempfile
 from dataclasses import dataclass
@@ -57,6 +58,23 @@ def _validated_patch(
             or final.get("review_status") != "completed"
             or final.get("verification", {}).get("status") != "passed_selected_checks"):
         raise MaintenanceError("Missing clean independent review and passing approved checks")
+    # The caller's dict is not authority for a clean review: require it to
+    # match the durable report written by MaintenanceImprover for this run.
+    run_id = proposal.get("run_id")
+    if not isinstance(run_id, str) or re.fullmatch(r"[0-9a-f]{32}", run_id) is None:
+        raise MaintenanceError("Proposal must carry its generated 32-hex run id")
+    artifact_dir = workspace.state_dir / "improvements" / run_id
+    report_path = artifact_dir / "result.json"
+    expected_patch = artifact_dir / "proposal.patch"
+    if (artifact_dir.is_symlink() or report_path.is_symlink()
+            or not report_path.is_file()):
+        raise MaintenanceError("Missing or unsafe saved improvement evidence")
+    try:
+        saved = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise MaintenanceError("Saved improvement evidence could not be read") from exc
+    if saved != proposal or saved.get("report_json") != str(report_path):
+        raise MaintenanceError("Proposal differs from the saved independent-review evidence")
     source = workspace.paths().get(request.repo)
     if source is None:
         raise ValueError("Unknown repository alias")
@@ -72,8 +90,8 @@ def _validated_patch(
     if patch.is_symlink():
         raise MaintenanceError("Patch artifact cannot be a symlink")
     patch = patch.resolve(strict=True)
-    if not patch.is_file() or not patch.is_relative_to(workspace.state_dir / "improvements"):
-        raise MaintenanceError("Patch must belong to the managed improvement artifact directory")
+    if not patch.is_file() or patch != expected_patch.resolve():
+        raise MaintenanceError("Patch must exactly match this improvement run's artifact")
     data = patch.read_bytes()
     if (not data or len(data) > request.max_patch_bytes
             or hashlib.sha256(data).hexdigest() != proposal.get("patch_sha256")):
