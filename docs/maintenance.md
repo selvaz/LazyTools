@@ -214,3 +214,73 @@ The default approval is False and the operator must enumerate exact allowed chan
 **Security/operational limits:** the existing coding agents may have their own runtime access or network capabilities, and running untrusted repository test code is active execution. A private Git clone is not a secure OS sandbox. Use trusted checkouts or isolated runners with network restrictions for unattended usage; the built-in code writer is configured with Claude Bash disabled, and no remote is retained in the proposal clone. Do not give these tools high-privilege credentials. The initial feature is for opt-in developer-controlled experimentation; it does not launch live coding sessions automatically from GitHub events and does not provide automatic PR creation.
 
 The local loop is **not** a second implementation of CodeBridge Navigator: it prepares an auditable patch before any PR exists. Once an operator publishes an approved patch as a PR, use CodeBridge Navigator for the head-bound review/repair cycle. No automatic merge is provided by either path.
+
+
+## Complete Plan: scan, local improvement, draft PR and existing Navigator
+
+These are optional steps of ONE declared LazyBridge Plan. The independent
+reviewer is NOT reimplemented; the PR stage reuses the existing
+`lazytools.code_bridge._navigator.Navigator` with its exact-head review,
+bounded fixes and test gates. No component performs an automatic merge.
+
+A local patch grant, a draft PR publication grant, and a Navigator execution
+grant are **independent**. All are off by default. The handoff verifies the
+SHA-256 patch digest, approved paths, original Git SHA, remote base SHA,
+independent clean review and approved tests. It creates a unique
+`maintenance/<run-id>` branch, never force-pushes or touches main.
+
+~~~python
+from lazytools.maintenance import (
+    MaintenancePipeline, MaintenanceSelfImprovementPlan, ImprovementRequest,
+    PublicationApproval, NavigationApproval, CheckSpec,
+)
+
+scan = MaintenancePipeline(workspace, use_embeddings=False)
+request = ImprovementRequest(
+    repo="library",
+    objective="Fix the compatibility regression with a small, tested patch",
+    allowed_paths=("library/api.py", "tests/test_api.py"),
+    writer_engine="claude", reviewer_engine="codex",
+    approved_local_proposal=True,
+    checks=(approved_api_check,),  # trusted CheckSpec
+)
+plan = MaintenanceSelfImprovementPlan(
+    scan, request,
+    publication=PublicationApproval(
+        "OWNER/REPO", base_branch="main", approved_publish_draft=True,
+    ),
+    navigation=NavigationApproval(
+        reviewer_command="trusted-review-wrapper",
+        check_commands=("pytest -q tests/test_api.py",),
+        approved_navigate=True, max_rounds=2,
+    ),
+)
+result = plan.run()
+print(result["status"], result.get("pr_url"))
+~~~
+
+This example is **not an instruction to grant writes automatically**.
+The reviewer command implements the established
+[CodeBridge Navigator contract](code-bridge.md#navigator-r1-the-merge-ready-loop):
+it posts the independent-review marker to the PR and prints strict JSON
+with a reviewer_model and findings list. It must be supplied by trusted
+application code; neither TOML nor an LLM can supply it. Existing
+CodeBridge cloud fixes require valid authenticated provider configuration.
+
+The full GitHub publication/Navigator route has **not yet undergone a live
+authenticated author/reviewer test**. Local contract tests use a bare Git
+remote and fake GitHub CLI output. A test that passes locally is not proof
+that your credentials or external review wrapper work.
+
+For manual publication, omit publication/navigation and inspect the local
+patch first; use the existing CodeBridge Navigator after your usual PR
+workflow.
+
+## Reusable scheduled scans
+
+Copy [the GitHub Actions template](../examples/maintenance-readonly-action.yml)
+into your own workflow directory after pinning a trusted version. Its default
+permissions are `contents: read` and it creates only scan artifacts: no
+agent writes, PRs, merges or deployments. LazyCEO can invoke the same
+`MaintenancePipeline` Python object on its own schedule, without creating
+a second controller.
