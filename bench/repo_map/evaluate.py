@@ -60,7 +60,7 @@ def run(args: list[str], cwd: Path, timeout: int = 150, env: dict | None = None)
                            timeout=timeout, env=env, check=False)
         return {"ok": p.returncode == 0, "exit": p.returncode,
                 "seconds": round(time.perf_counter()-start, 3),
-                "stdout": p.stdout[:120_000], "stderr": p.stderr[:5000]}
+                "stdout": p.stdout[:120_000], "stderr": p.stderr[:120_000]}
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"ok": False, "exit": -1, "seconds": round(time.perf_counter()-start, 3),
                 "stdout": "", "stderr": str(exc)[:2500]}
@@ -91,6 +91,40 @@ def found_paths(text: str, repo: Path) -> list[str]:
         if path not in found:
             found.append(path)
     return found
+
+def cgc_paths(output: str, repo: Path) -> list[str]:
+    """Decode CodeGraphContext 0.6.13 Rich table on stderr (wrapped file paths).
+
+    Each table row can span several physical lines: the path is the third
+    column, with later continuation cells carrying its remaining text.
+    Do not treat setup messages or ambiguous matches as repository paths.
+    """
+    found: list[str] = []
+    pieces: list[str] = []
+
+    def flush() -> None:
+        if pieces:
+            for path in found_paths("".join(pieces), repo):
+                if path not in found:
+                    found.append(path)
+            pieces.clear()
+
+    for line in output.splitlines():
+        if "│" not in line:
+            continue
+        cells = line.split("│")
+        if len(cells) < 5:
+            continue
+        name, location = cells[1].strip(), cells[3].strip()
+        if name == "Name" or location == "Location":
+            continue
+        if name:
+            flush()
+        if location:
+            pieces.append(location)
+    flush()
+    return found
+
 
 def score(paths: list[str], gold: str) -> dict:
     # The ordered matches are from each tool's result, not the source checkout.
@@ -166,15 +200,33 @@ def main() -> int:
                     row["results"][tool] = {"usable": False, "reason": "index failed"}
                     continue
                 r = run(args, repo, timeout=120, env=environment)
-                files = found_paths(r["stdout"], repo)
-                # A 0 exit but no recognizable file paths is a parser-protocol
-                # failure, NOT a scored retrieval miss.
-                usable = r["ok"] and bool(files)
+                if tool == "codegraphcontext":
+                    # CGC writes find results to stderr as a Rich table, even
+                    # when the command exits successfully. Wrapped paths must
+                    # be joined before evaluating rank.
+                    files = cgc_paths(r["stderr"], repo)
+                    valid_output = bool(re.search(
+                        r"Found \\d+ match|No match|No .*found", r["stderr"], re.I))
+                elif tool == "repomap":
+                    try:
+                        json.loads(r["stdout"])
+                        valid_output = True
+                    except (TypeError, ValueError):
+                        valid_output = False
+                    files = found_paths(r["stdout"], repo) if valid_output else []
+                else:
+                    files = found_paths(r["stdout"], repo)
+                    valid_output = r["exit"] in (0, 1)
+                # A structurally valid empty response counts as a miss.
+                # A failed parser/protocol still counts as missing evidence.
+                usable = valid_output and (r["ok"] or
+                                             (tool == "ripgrep" and r["exit"] == 1))
                 row["results"][tool] = {
                     "usable": usable, "seconds": r["seconds"],
                     "paths": files[:15], "score": score(files, gold) if usable else None,
                     "exit": r["exit"],
-                    "sample": r["stdout"][:750],
+                    "sample": (r["stderr"] if tool == "codegraphcontext"
+                               else r["stdout"])[:750],
                     "stderr": r["stderr"][:450] if not r["ok"] else "",
                 }
             result["cases"].append(row)
@@ -235,10 +287,11 @@ def main() -> int:
     workspace = ",".join(str(REPOS[n]) for n in ("LazyBridge", "LazyTools"))
     multi = {}
     for label, args in {
-        "budgeted_map": ["repomap", "--workspace", workspace, "map",
+        "budgeted_map": ["repomap", "map", "--workspace", workspace,
                          "--tokens", "1200", "--json"],
-        "cross_repo_search": ["repomap", "--workspace", workspace, "search",
-                              "MCP tools and agent integration", "--limit", "10", "--json"],
+        "cross_repo_search": ["repomap", "search",
+                              "MCP tools and agent integration", "--workspace", workspace,
+                              "--limit", "10", "--json"],
     }.items():
         call = run(args, ROOT, timeout=120, env=environment)
         multi[label] = short_run(call) | {"stdout_bytes": len(call["stdout"]),
