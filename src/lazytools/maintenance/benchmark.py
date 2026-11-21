@@ -85,6 +85,11 @@ class PairedMaintenanceBenchmark:
                     report, request, writer_tool=injected[0], reviewer_tool=injected[1],
                 )
                 rounds = outcome.get("rounds", [])
+                if rounds and (
+                    rounds[0].get("writer_brief_sha256")
+                    != outcome.get("initial_writer_brief_sha256")
+                ):
+                    raise MaintenanceError("Recorded writer prompt differed from frozen brief")
                 captured[name] = {
                     "arm": name,
                     "writer_repomap": mapped,
@@ -101,9 +106,7 @@ class PairedMaintenanceBenchmark:
                     "writer_usage": [row.get("writer_usage", {"source": "unavailable"})
                                      for row in rounds],
                     "rounds": len(rounds),
-                    "first_writer_brief_sha256": (
-                        rounds[0].get("writer_brief_sha256") if rounds else None
-                    ),
+                    "first_writer_brief_sha256": outcome.get("initial_writer_brief_sha256"),
                     "proposal_report": outcome["report_json"],
                     "patch_sha256": outcome.get("patch_sha256"),
                 }
@@ -128,6 +131,7 @@ class PairedMaintenanceBenchmark:
                     "sha": scan_report["sha"],
                     "scan_run_id": scan_report["run_id"],
                     "scan_seconds": captured["scan_seconds"],
+                    "usage": scan_report.get("usage"),
                     "task_context_sha256": hashlib.sha256(json.dumps(
                         scan_report.get("task_context", {}), sort_keys=True,
                     ).encode()).hexdigest(),
