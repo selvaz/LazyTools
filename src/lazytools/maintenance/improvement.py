@@ -133,6 +133,8 @@ def _existing_tools(
     root: Path, request: ImprovementRequest, workspace: Workspace
 ) -> tuple[ImprovementTool, ImprovementTool]:
     # Reuse existing tools: no new coding or code-review engine is created.
+    from lazybridge import Tool
+
     from lazytools.codemap import RepoMapTools
     from lazytools.connectors.code_support import CodeWriteTools, claude_reviewer, codex_reviewer
 
@@ -140,7 +142,7 @@ def _existing_tools(
     # Only the mapped writer receives in-turn codemap_* application tools.
     # Read-only targets are explicitly configured; the writable target is
     # always the disposable clone, never the source checkout.
-    writer_tools = ()
+    writer_tools: tuple[Tool, ...] = ()
     if request.writer_repomap:
         roots = {name: path for name, path in workspace.paths().items()}
         roots[request.repo] = root
