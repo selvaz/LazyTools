@@ -70,26 +70,28 @@ class MaintenanceSelfImprovementPlan:
                       description="Generate a bounded independent-engine local patch, never merge."),
         ]
 
-        if self.publication is not None:
+        publication = self.publication
+        if publication is not None:
             def publish(task: str) -> str:
                 proposal = json.loads(task)
                 if proposal.get("status") != "proposal_ready_for_human_review":
                     return json.dumps(proposal)
                 return json.dumps(publish_draft_pr(
-                    self.maintenance.workspace, self.request, proposal, self.publication
+                    self.maintenance.workspace, self.request, proposal, publication
                 ))
 
             steps.append(Step("maintenance_publish"))
             tools.append(Tool.wrap(publish, name="maintenance_publish",
                                    description="Explicitly authorized draft-PR handoff only."))
 
-        if self.navigation is not None:
+        navigation = self.navigation
+        if navigation is not None:
             def navigate(task: str) -> str:
                 published = json.loads(task)
                 if published.get("status") != "draft_pr_created":
                     return json.dumps(published)
                 return json.dumps(navigate_published_pr(
-                    published, self.request, self.navigation
+                    published, self.request, navigation
                 ))
 
             steps.append(Step("maintenance_navigate"))
@@ -99,7 +101,7 @@ class MaintenanceSelfImprovementPlan:
         return Agent(
             name="repository_self_improvement",
             engine=Plan(*steps, max_iterations=len(steps) + 1),
-            tools=tools,
+            tools=[*tools],
         )
 
     def run(
