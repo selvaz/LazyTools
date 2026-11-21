@@ -41,6 +41,7 @@ class ImprovementRequest:
     reviewer_engine: Literal["claude", "codex"] = "codex"
     writer_model: str | None = None
     reviewer_model: str | None = None
+    writer_repomap: bool = False
     approved_local_proposal: bool = False
     max_rounds: int = 2
     checks: tuple[CheckSpec, ...] = ()
@@ -51,6 +52,8 @@ class ImprovementRequest:
             raise ValueError("Unsupported writer or reviewer engine")
         if self.writer_engine == self.reviewer_engine:
             raise ValueError("Writer and reviewer must use different engine families")
+        if not isinstance(self.writer_repomap, bool):
+            raise ValueError("writer_repomap must be a boolean")
         for model in (self.writer_model, self.reviewer_model):
             if model is not None and (
                 not isinstance(model, str)
@@ -126,14 +129,29 @@ def _parse_review(value: Any) -> tuple[list[dict[str, str]], str]:
     return findings, model.strip()
 
 
-def _existing_tools(root: Path, request: ImprovementRequest) -> tuple[ImprovementTool, ImprovementTool]:
+def _existing_tools(
+    root: Path, request: ImprovementRequest, workspace: Workspace
+) -> tuple[ImprovementTool, ImprovementTool]:
     # Reuse existing tools: no new coding or code-review engine is created.
+    from lazytools.codemap import RepoMapTools
     from lazytools.connectors.code_support import CodeWriteTools, claude_reviewer, codex_reviewer
 
+    # Both benchmark arms use RepoMap in their deterministic coordinator.
+    # Only the mapped writer receives in-turn codemap_* application tools.
+    # Read-only targets are explicitly configured; the writable target is
+    # always the disposable clone, never the source checkout.
+    writer_tools = ()
+    if request.writer_repomap:
+        roots = {name: path for name, path in workspace.paths().items()}
+        roots[request.repo] = root
+        writer_tools = tuple(
+            RepoMapTools(roots, use_embeddings=False).as_tools()
+        )
     writer = CodeWriteTools(
         base_dir=str(root), claude=request.writer_engine == "claude",
         codex=request.writer_engine == "codex",
         require_confirmation=False, claude_bash=False, timeout=1200,
+        application_tools=writer_tools,
     )
     name = "claude_code_write" if request.writer_engine == "claude" else "codex_write"
     write_tool = next(tool for tool in writer.as_tools() if tool.name == name)
@@ -248,6 +266,7 @@ class MaintenanceImprover:
             "repo": request.repo, "source_sha": sha,
             "writer_engine": request.writer_engine, "reviewer_engine": request.reviewer_engine,
             "writer_model_requested": request.writer_model,
+            "writer_repomap": request.writer_repomap,
             "reviewer_model_requested": request.reviewer_model,
             "rounds": [], "status": "started",
             "approved_local_proposal": True, "pushed": False, "merged": False,
@@ -264,7 +283,7 @@ class MaintenanceImprover:
                 if resolve_sha(work) != sha or git_status(work) != "clean":
                     raise MaintenanceError("Disposable clone is not pinned and clean")
                 if writer_tool is None or reviewer_tool is None:
-                    writer_tool, reviewer_tool = _existing_tools(work, request)
+                    writer_tool, reviewer_tool = _existing_tools(work, request, self.workspace)
                 assert writer_tool is not None and reviewer_tool is not None
                 objective = _brief(report, request)
                 parent_sha = sha
