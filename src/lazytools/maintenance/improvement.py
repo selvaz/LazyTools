@@ -271,6 +271,7 @@ class MaintenanceImprover:
         identifier = uuid.uuid4().hex
         run_dir = self.workspace.state_dir / "improvements" / identifier
         run_dir.mkdir(parents=True, exist_ok=False)
+        initial_brief = _brief(report, request)
         record: dict[str, Any] = {
             "schema_version": 1,
             "run_id": identifier, "source_scan_run_id": report.get("run_id"),
@@ -278,6 +279,7 @@ class MaintenanceImprover:
             "writer_engine": request.writer_engine, "reviewer_engine": request.reviewer_engine,
             "writer_model_requested": request.writer_model,
             "writer_repomap": request.writer_repomap,
+            "initial_writer_brief_sha256": hashlib.sha256(initial_brief.encode()).hexdigest(),
             "reviewer_model_requested": request.reviewer_model,
             "rounds": [], "status": "started",
             "approved_local_proposal": True, "pushed": False, "merged": False,
@@ -296,7 +298,7 @@ class MaintenanceImprover:
                 if writer_tool is None or reviewer_tool is None:
                     writer_tool, reviewer_tool = _existing_tools(work, request, self.workspace)
                 assert writer_tool is not None and reviewer_tool is not None
-                objective = _brief(report, request)
+                objective = initial_brief
                 parent_sha = sha
                 for round_number in range(1, request.max_rounds + 1):
                     record["status"] = "writing"
