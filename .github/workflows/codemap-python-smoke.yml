@@ -37,10 +37,15 @@ jobs:
           node-version: "20"
 
       - name: Install Python test environment
-        run: python -m pip install 'lazybridge==1.8.9' pytest
+        run: python -m pip install 'lazybridge==1.8.9' pytest ruff mypy
 
       - name: Run isolated Python unit tests
         run: PYTHONPATH=src python -m pytest -q tests/test_codemap.py tests/test_maintenance.py tests/test_maintenance_cli.py tests/test_maintenance_verification.py
+
+      - name: Ruff and mypy on experimental maintenance code
+        run: |
+          ruff check src/lazytools/codemap src/lazytools/maintenance tests/test_codemap.py tests/test_maintenance*.py examples/maintenance_two_repos.py
+          mypy src/lazytools/codemap src/lazytools/maintenance
 
       - name: Install pinned local RepoMap engine
         run: |
