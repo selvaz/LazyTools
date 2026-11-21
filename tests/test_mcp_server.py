@@ -230,11 +230,34 @@ async def test_end_to_end_list_and_call():
         tool = next(t for t in listed.tools if t.name == "datahub_list_datasets")
         schema = _field(tool, "input_schema", "inputSchema")
         assert schema["type"] == "object"
+        annotations = tool.annotations
+        # A directly supplied provider has no catalog identity: never read-only.
+        assert _field(annotations, "read_only_hint", "readOnlyHint") is False
+        assert annotations.title
 
         result = await client.call_tool("datahub_list_datasets", {})
         assert not _field(result, "is_error", "isError")
         payload = json.loads(result.content[0].text)
         assert payload == [{"id": "prices", "name": "Prices"}]
+
+
+@pytest.mark.anyio
+async def test_catalog_read_and_write_tools_have_mcp_annotations():
+    """Catalog access is visible on the wire, including unsafe surfaces."""
+    providers = default_providers(["datahub"], allow_write=True)
+    server = build_server(providers, read_only=False, name="lazytools-test")
+
+    async with _connected_client(server) as client:
+        tools = (await client.list_tools()).tools
+        assert tools
+        assert all(tool.annotations is not None and tool.annotations.title for tool in tools)
+
+        by_name = {tool.name: tool for tool in tools}
+        read = by_name["datahub_get_price_summary"].annotations
+        write = by_name["datahub_register_listing"].annotations
+        assert _field(read, "read_only_hint", "readOnlyHint") is True
+        assert _field(write, "read_only_hint", "readOnlyHint") is False
+        assert _field(write, "destructive_hint", "destructiveHint") is True
 
 
 @pytest.mark.anyio

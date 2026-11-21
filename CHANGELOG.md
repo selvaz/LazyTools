@@ -15,6 +15,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - MCP client tools expose the server's MCP annotations through a stable ``Tool.annotations`` dict (and ``Tool.metadata["annotations"]`` when supported), allowing consumers to classify read-only and destructive tools.
 
 ### Fixed
+- The `lazytools-mcp` server now emits MCP tool annotations derived from catalog access metadata, so read-only clients can discover read tools while write tools are explicitly marked destructive.
 - MCP catalog access metadata now follows provider write gates, including all projects writers; stateless portfolio optimizer computations and disposable web-cache reads remain classified as read access.
 - `ecosystem-released` handles private manifest components from one list (`PRIVATE_COMPONENTS`: lazyfin, lazyceo): they are left out of the credential-less install, installed only in the scoped `ECOSYSTEM_PAT` step and skipped by the Release-wheel check. The job had failed since lazyceo joined the manifest (clone without credentials, no public Release).
 
