@@ -206,7 +206,7 @@ def main() -> int:
                     # be joined before evaluating rank.
                     files = cgc_paths(r["stderr"], repo)
                     valid_output = bool(re.search(
-                        r"Found \\d+ match|No match|No .*found", r["stderr"], re.I))
+                        r"Found [0-9]+ match|No match|No .*found", r["stderr"], re.I))
                 elif tool == "repomap":
                     try:
                         json.loads(r["stdout"])
