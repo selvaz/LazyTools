@@ -4,6 +4,8 @@
 name: Repository maintenance (read-only)
 
 on:
+  push:
+    branches: [main]   # change to the repository's actual default branch
   workflow_dispatch:
   schedule:
     - cron: "23 4 * * *"
