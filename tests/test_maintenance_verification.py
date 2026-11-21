@@ -69,7 +69,7 @@ def test_no_checks_means_not_run(checked_repo):
 )
 def test_check_failure_modes_are_not_success(checked_repo, command, expected):
     workspace, root, sha = checked_repo
-    check = CheckSpec("demo", "library", command, timeout_seconds=0.05)
+    check = CheckSpec("demo", "library", command, timeout_seconds=0.05 if expected == "timed_out" else 3.0)
     outcome = run_approved_checks(workspace, {"library": sha}, (check,))
     assert outcome["tests"][0]["status"] == expected
     assert outcome["status"] == ("failed" if expected == "failed" else "incomplete")
