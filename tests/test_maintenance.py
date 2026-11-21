@@ -215,3 +215,19 @@ def test_nested_subagents_are_plan_tools_and_cannot_claim_verification(
         assert reviewer.name in result["reviews"]["text"]
     assert result["verification"]["status"] == "not_run"
     assert result["verified"] is False
+
+
+def test_head_advances_mid_scan_is_rejected(tmp_path):
+    workspace, _, _ = make_workspace(tmp_path)
+    state = RunState(workspace, {}, FakeMapper())
+    state.resolve()
+    state.refresh()
+    state.diff()
+    state.impact()
+    root = workspace.repos[0].root
+    (root / "api.py").write_text("def newer_api():\n    return 42\n")
+    git(root, "add", "api.py")
+    git(root, "commit", "-qm", "concurrent head advance")
+    with pytest.raises(MaintenanceError, match="HEAD moved during analysis"):
+        state.finalize()
+    assert state.report is None
