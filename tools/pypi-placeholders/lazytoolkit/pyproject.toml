@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lazytoolkit"
+version = "0.0.1"
+description = "Name reserved by the LazyTools project. Install the real package from GitHub, not from PyPI."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "selvaz" }]
+classifiers = ["Development Status :: 7 - Inactive"]
+
+[project.urls]
+Source = "https://github.com/selvaz/LazyTools"
+
+[tool.setuptools]
+# Placeholder: ships no importable module on purpose, so it can never shadow
+# the real `lazytools` package installed from GitHub.
+py-modules = []
+packages = []
