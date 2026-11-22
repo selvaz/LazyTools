@@ -32,7 +32,7 @@ ref = "v0.10.13"
 
 [verified.github.lazyceo]
 repo = "https://github.com/selvaz/LazyCEO"
-ref = "v0.2.11"
+ref = "v0.2.12"
 
 [verified.github.lazypulse]
 repo = "https://github.com/selvaz/LazyPulse"
