@@ -44,7 +44,7 @@
         "extras": [
           "regimes"
         ],
-        "ref": "v0.3.13",
+        "ref": "v0.3.14",
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
