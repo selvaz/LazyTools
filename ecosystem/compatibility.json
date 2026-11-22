@@ -10,7 +10,7 @@
         "repo": "https://github.com/selvaz/LazyCEO"
       },
       "lazycrawler": {
-        "ref": "v0.19.7",
+        "ref": "v0.19.9",
         "repo": "https://github.com/selvaz/LazyCrawler"
       },
       "lazydataspace": {
