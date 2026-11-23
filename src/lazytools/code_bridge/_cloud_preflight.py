@@ -125,12 +125,17 @@ def check(
         available = "on" if manifest_network is True else "off"
         return Result(False, f"requested network {requested} does not match cloud environment {env_id} network {available}")
 
+    for field in ("repositories", "imports"):
+        dependencies = entry.get(field, [])
+        if not isinstance(dependencies, list) or not all(isinstance(item, str) for item in dependencies):
+            return Result(False, f"cloud preflight manifest entry {env_id!r} field {field!r} must be a list of strings")
+
     entry_dependencies = {
-        "repositories": sorted(map(str, entry.get("repositories", []))),
-        "imports": sorted(map(str, entry.get("imports", []))),
+        "repositories": sorted(entry.get("repositories", [])),
+        "imports": sorted(entry.get("imports", [])),
     }
     key_data = [
-        repo, environment_revision, revision, manifest_network, entry_dependencies, requirements, SCHEMA_REVISION,
+        repo, env_id, environment_revision, revision, manifest_network, entry_dependencies, requirements, SCHEMA_REVISION,
     ]
     key = hashlib.sha256(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
     try:

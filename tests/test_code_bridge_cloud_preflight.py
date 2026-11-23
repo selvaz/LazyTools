@@ -115,6 +115,41 @@ def test_cache_invalidates_when_manifest_dependencies_change_without_revision_bu
     assert not _check(tmp_path, "ordinary task", manifest).cache_hit
 
 
+def test_cache_invalidates_when_selected_environment_changes(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path / "manifest.json")
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["environments"]["env_other"] = dict(data["environments"]["env_test"])
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+    brief = "Required imports: pytest"
+
+    assert _check(tmp_path, brief, manifest).eligible
+    result = _cloud_preflight.check(
+        repo="owner/project", env_id="env_other", brief=brief, root=tmp_path,
+        manifest_path=manifest, cache_path=tmp_path / "cache.json",
+    )
+    assert result.eligible
+    assert not result.cache_hit
+
+
+@pytest.mark.parametrize("field,value", [
+    ("repositories", None),
+    ("imports", None),
+    ("repositories", ["owner/public", 1]),
+    ("imports", ["pytest", False]),
+])
+def test_manifest_dependency_fields_must_be_lists_of_strings(
+    tmp_path: Path, field: str, value: object,
+) -> None:
+    manifest = _manifest(tmp_path / "manifest.json")
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["environments"]["env_test"][field] = value
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    result = _check(tmp_path, "ordinary task", manifest)
+    assert not result.eligible
+    assert f"field '{field}' must be a list of strings" in result.reason
+
+
 def test_cloud_preflight_init_uses_pyproject_and_configured_environment(tmp_path: Path, monkeypatch) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
