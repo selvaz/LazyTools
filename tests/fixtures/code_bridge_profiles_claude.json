@@ -1,0 +1,41 @@
+{
+  "mcp_config": {
+    "allowedTools": {
+      "approved": [
+        "lookup"
+      ]
+    },
+    "mcpServers": {
+      "approved": {
+        "command": "approved-server"
+      }
+    },
+    "strict": true
+  },
+  "policy_digest": "6e476b372a4e34d2ba40dd6d869836832d29f574eaef8d44341bd6bf5c57dd4d",
+  "policy_revision": "2026-11-23.1",
+  "policy_version": 1,
+  "settings": {
+    "network": {
+      "allowedRoutes": [
+        "https://example.test"
+      ],
+      "enabled": true
+    },
+    "permissions": {
+      "additionalDirectories": [],
+      "allow": [
+        "edit",
+        "mcp",
+        "read",
+        "shell",
+        "web"
+      ],
+      "deny": [
+        "*"
+      ]
+    },
+    "settingSources": [],
+    "workspace": "/workspace/example-task"
+  }
+}

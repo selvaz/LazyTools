@@ -1,0 +1,33 @@
+{
+  "config_overrides": {
+    "mcp_servers": {
+      "approved": {
+        "command": "approved-server",
+        "enabled": true,
+        "tools": [
+          "lookup"
+        ]
+      }
+    },
+    "network_routes": [
+      "https://example.test"
+    ],
+    "sandbox_mode": "workspace-write",
+    "sandbox_workspace_write": {
+      "network_access": true,
+      "writable_roots": [
+        "/workspace/example-task",
+        "/workspace/example-task/.scratch"
+      ]
+    },
+    "shell_execution": true,
+    "web_search": true
+  },
+  "policy_digest": "6e476b372a4e34d2ba40dd6d869836832d29f574eaef8d44341bd6bf5c57dd4d",
+  "policy_revision": "2026-11-23.1",
+  "policy_version": 1,
+  "session_config": {
+    "inherit_project_config": false,
+    "inherit_user_config": false
+  }
+}
