@@ -1279,6 +1279,14 @@ def submit_job(
     env_id = prov.env_for(repo, config, routine)  # first: a repo with no environment fails before anything else
     if not _ENV_ID_RE.fullmatch(env_id):
         raise CloudError(f"env id {env_id!r} for {repo} has unexpected characters")
+    from lazytools.code_bridge import _cloud_preflight
+
+    cache_path = (Path(db_path).parent / "cloud-preflight-cache.json") if db_path else None
+    preflight = _cloud_preflight.check(
+        repo=repo, env_id=env_id, brief=task, root=root, cache_path=cache_path,
+    )
+    if not preflight.eligible:
+        raise CloudError(f"cloud preflight refused launch: {preflight.reason}")
     chosen_model, model_note = model_for(engine, config, tier=tier, explicit=model, routine=routine)
     pr_info: dict[str, Any] = {}
     if pr is not None:

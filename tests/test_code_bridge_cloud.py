@@ -205,6 +205,18 @@ def cloud(tmp_path, monkeypatch):
     _git(tmp_path, "init", "-q", "--bare", str(origin))
     _git(repo, "remote", "add", "origin", origin.as_posix())
     _git(repo, "push", "-q", "origin", "main")
+    bridge = repo / ".bridge"
+    bridge.mkdir()
+    (bridge / "cloud-preflight.json").write_text(json.dumps({
+        "revision": "test-manifest-1",
+        "environments": {"env_widgets": {
+            "revision": "test-environment-1", "network": False,
+            "repositories": [], "imports": [],
+        }},
+    }), encoding="utf-8")
+    _git(repo, "add", ".bridge/cloud-preflight.json")
+    _git(repo, "commit", "-q", "-m", "cloud manifest")
+    _git(repo, "push", "-q", "origin", "main")
 
     with open(os.environ[_concurrency.CONFIG_ENV], "a", encoding="utf-8") as fh:
         fh.write('\n[cloud.codex.envs]\n"acme/widgets" = "env_widgets"\n')
@@ -232,6 +244,13 @@ def _run_cloud(ctx, *extra: str) -> int:
 def _set_cloud_config(text: str) -> None:
     path = Path(os.environ[_concurrency.CONFIG_ENV])
     path.write_text(path.read_text(encoding="utf-8") + text, encoding="utf-8")
+
+
+def test_run_refuses_before_provider_launch_when_preflight_manifest_is_missing(cloud, capsys):
+    (cloud.repo / ".bridge/cloud-preflight.json").unlink()
+    assert _run_cloud(cloud) == 2
+    assert "cloud preflight refused launch" in capsys.readouterr().err
+    assert cloud.calls() == []
 
 
 # --------------------------------------------------------------------------- #
