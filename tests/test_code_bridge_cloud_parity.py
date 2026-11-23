@@ -783,7 +783,7 @@ def test_normal_diff_lands_without_report_transport_file(cloud, gh, capsys, monk
 
 def test_codex_land_skips_every_bridge_artifact_and_warns(cloud, gh, capsys, monkeypatch):
     bridge = cloud.repo / ".bridge"
-    bridge.mkdir()
+    bridge.mkdir(exist_ok=True)
     (bridge / "modified.txt").write_text("base modified content\n", encoding="utf-8")
     (bridge / "deleted.txt").write_text("base deleted content\n", encoding="utf-8")
     _git(cloud.repo, "add", ".bridge")
@@ -958,12 +958,14 @@ def test_claude_land_skips_every_bridge_artifact_and_warns(cloud, claude, gh, ca
     landed = _job(cloud, job_id)
     assert "warning: skipped bridge-owned cloud diff paths:" in output
     assert landed["skipped_bridge_artifacts"] == [".bridge/forced-job.json", ".bridge/report.md"]
-    assert not _git(cloud.repo, "ls-tree", "-r", "--name-only", landed["pushed_sha"], "--", ".bridge")
+    assert _git(cloud.repo, "ls-tree", "-r", "--name-only", landed["pushed_sha"], "--", ".bridge") == (
+        ".bridge/cloud-preflight.json"
+    )
 
 
 def test_claude_land_restores_both_sides_of_a_bridge_artifact_rename(cloud, claude, gh, capsys):
     old = cloud.repo / ".bridge" / "old.json"
-    old.parent.mkdir()
+    old.parent.mkdir(exist_ok=True)
     old.write_text('{"owned": true}\n', encoding="utf-8")
     _git(cloud.repo, "add", ".bridge/old.json")
     _git(cloud.repo, "commit", "-q", "-m", "Add tracked bridge state")
@@ -979,7 +981,7 @@ def test_claude_land_restores_both_sides_of_a_bridge_artifact_rename(cloud, clau
     output = capsys.readouterr().out
     landed = _job(cloud, job_id)
     tree = _git(cloud.repo, "ls-tree", "-r", "--name-only", landed["pushed_sha"], "--", ".bridge")
-    assert tree == ".bridge/old.json"
+    assert tree.splitlines() == [".bridge/cloud-preflight.json", ".bridge/old.json"]
     assert landed["skipped_bridge_artifacts"] == [".bridge/new.json", ".bridge/old.json"]
     assert ".bridge/new.json" in output and ".bridge/old.json" in output
 

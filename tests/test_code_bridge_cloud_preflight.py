@@ -5,8 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from lazytools.code_bridge import _cloud_preflight
-from lazytools.code_bridge import cli
+from lazytools.code_bridge import _cloud_preflight, cli
 
 
 def _manifest(path: Path, *, revision: str = "m1", environment_revision: str = "e1", network: bool = False) -> Path:

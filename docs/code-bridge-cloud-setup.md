@@ -41,13 +41,15 @@ gh auth status                        # optional: helps with the GitHub steps
 lazytools-code-bridge run --help      # must list --where
 ```
 
-### Record the environment preflight manifest
+### Record the Codex environment preflight manifest
 
-Every cloud repository must commit `.bridge/cloud-preflight.json`. The bridge
-uses this local evidence to refuse impossible jobs before contacting the cloud
-provider. Each environment entry records the revision of the built environment,
-its network policy, and the sibling repositories and Python imports verified by
-that environment build:
+Every repository submitted to Codex Cloud must commit
+`.bridge/cloud-preflight.json`. The bridge uses this local evidence to refuse
+impossible Codex jobs before contacting the provider. Claude cloud routines
+already select their environment in Claude and are not gated by this manifest.
+Each Codex environment entry records the revision of the built environment, its
+network policy, and the sibling repositories and Python imports verified by that
+environment build:
 
 Create a starter manifest after mapping the repository to its cloud environment:
 
