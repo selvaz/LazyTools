@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 
@@ -50,7 +51,8 @@ def test_all_profile_switch_combinations(tmp_path: Path, profile: str, network: 
     assert set(policy.mcp_servers) == ({"approved"} if network == "on" else set())
     codex = compile_codex(policy)
     assert codex["config_overrides"]["sandbox_workspace_write"]["network_access"] is (network == "on")
-    assert codex["config_overrides"]["web_search"] is (network == "on")
+    assert codex["config_overrides"]["tools"]["web_search"] is (network == "on")
+    assert tomllib.loads(codex["codex_home_config_toml"]) == codex["config_overrides"]
     assert "rogue" not in json.dumps(compile_claude(policy))
     assert codex["config_overrides"]["mcp_servers"]["rogue"] == {"enabled": False}
     assert codex["config_overrides"]["mcp_servers"]["approved"]["enabled"] is (network == "on")
@@ -60,7 +62,9 @@ def test_all_profile_switch_combinations(tmp_path: Path, profile: str, network: 
 def test_edit_never_gets_shell(tmp_path: Path, network: str, placement: str) -> None:
     policy = resolve("edit", grant(tmp_path, network, placement))
     assert "shell" not in policy.tool_classes
-    assert compile_codex(policy)["config_overrides"]["shell_execution"] is False
+    compiled = compile_codex(policy)
+    assert not compiled["eligible"]
+    assert any("shell denial" in reason for reason in compiled["ineligibility_reasons"])
 
 
 @pytest.mark.parametrize(("profile", "tool"), [("edit", "shell"), ("edit", "Bash"), ("read", "edit"), ("read", "shell")])
