@@ -253,6 +253,12 @@ def test_run_refuses_before_provider_launch_when_preflight_manifest_is_missing(c
     assert cloud.calls() == []
 
 
+def test_run_refuses_when_requested_network_mismatches_manifest(cloud, capsys):
+    assert _run_cloud(cloud, "--network", "on") == 2
+    assert "requested network on" in capsys.readouterr().err
+    assert cloud.calls() == []
+
+
 # --------------------------------------------------------------------------- #
 # config / mapping
 # --------------------------------------------------------------------------- #

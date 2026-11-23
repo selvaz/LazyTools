@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,8 @@ _LOCAL_PATH = re.compile(
 )
 _REPOSITORIES = re.compile(r"(?im)^\s*(?:required[-_ ]?)?repositor(?:y|ies)\s*:\s*(.+)$")
 _IMPORTS = re.compile(r"(?im)^\s*(?:required[-_ ]?)?imports?\s*:\s*(.+)$")
+_DEPENDENCY_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+_GITHUB_REPOSITORY = re.compile(r"github\.com[/:]([^/\s]+/[^/@\s]+?)(?:\.git)?(?:@|$)", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -47,8 +50,44 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def init_manifest(*, root: Path, env_id: str, network: bool) -> Path:
+    """Create an operator-attested starter manifest from ``pyproject.toml``."""
+    pyproject_path = root / "pyproject.toml"
+    try:
+        pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError(f"cannot read project dependencies from {pyproject_path}: {exc}") from exc
+    project = pyproject.get("project", {})
+    if not isinstance(project, dict):
+        raise ValueError(f"{pyproject_path}: [project] must be a table")
+    dependencies = list(project.get("dependencies", []))
+    optional = project.get("optional-dependencies", {})
+    if isinstance(optional, dict):
+        dependencies.extend(item for group in optional.values() if isinstance(group, list) for item in group)
+    if not all(isinstance(item, str) for item in dependencies):
+        raise ValueError(f"{pyproject_path}: project dependencies must be strings")
+
+    imports = sorted({match.group(1).replace("-", "_") for item in dependencies
+                      if (match := _DEPENDENCY_NAME.match(item))})
+    repositories = sorted({match.group(1) for item in dependencies
+                           if (match := _GITHUB_REPOSITORY.search(item))})
+    path = root / MANIFEST
+    if path.exists():
+        raise ValueError(f"refusing to overwrite existing cloud preflight manifest: {path}")
+    data = {
+        "revision": "starter-1",
+        "environments": {env_id: {
+            "revision": "operator-attested-1", "network": network,
+            "repositories": repositories, "imports": imports, "attested_by": "operator",
+        }},
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
 def check(
-    *, repo: str, env_id: str, brief: str, root: Path,
+    *, repo: str, env_id: str, brief: str, root: Path, network: bool = False,
     manifest_path: Path | None = None, cache_path: Path | None = None,
 ) -> Result:
     """Return cloud eligibility without making network calls.
@@ -72,8 +111,8 @@ def check(
     if not isinstance(revision, (str, int)) or not isinstance(entry, dict):
         return Result(False, f"cloud preflight manifest has no environment {env_id!r} or revision")
     environment_revision = entry.get("revision")
-    network = entry.get("network")
-    if not isinstance(environment_revision, (str, int)) or not isinstance(network, (str, bool)):
+    manifest_network = entry.get("network")
+    if not isinstance(environment_revision, (str, int)) or not isinstance(manifest_network, (str, bool)):
         return Result(False, f"cloud preflight manifest entry {env_id!r} needs revision and network")
 
     requirements = {
@@ -81,7 +120,18 @@ def check(
         "repositories": sorted(_items(_REPOSITORIES, brief)),
         "imports": sorted(_items(_IMPORTS, brief)),
     }
-    key_data = [repo, environment_revision, revision, network, requirements, SCHEMA_REVISION]
+    if network != (manifest_network is True):
+        requested = "on" if network else "off"
+        available = "on" if manifest_network is True else "off"
+        return Result(False, f"requested network {requested} does not match cloud environment {env_id} network {available}")
+
+    entry_dependencies = {
+        "repositories": sorted(map(str, entry.get("repositories", []))),
+        "imports": sorted(map(str, entry.get("imports", []))),
+    }
+    key_data = [
+        repo, environment_revision, revision, manifest_network, entry_dependencies, requirements, SCHEMA_REVISION,
+    ]
     key = hashlib.sha256(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
     try:
         cached = _read_json(cache_path).get(key)
@@ -90,8 +140,8 @@ def check(
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
         pass
 
-    available_repos = set(map(str, entry.get("repositories", [])))
-    available_imports = set(map(str, entry.get("imports", [])))
+    available_repos = set(entry_dependencies["repositories"])
+    available_imports = set(entry_dependencies["imports"])
     if requirements["paths"]:
         result = Result(False, f"brief references a local absolute path unavailable in cloud: {requirements['paths'][0]}")
     elif missing := sorted(set(requirements["repositories"]) - available_repos):

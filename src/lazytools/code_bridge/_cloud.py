@@ -1228,6 +1228,7 @@ def submit_job(
     model: str | None = None,
     tier: str | None = None,
     title: str | None = None,
+    network: bool = False,
     extra_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Submit ``task`` to the cloud provider for ``engine``; return the job record.
@@ -1283,7 +1284,7 @@ def submit_job(
 
     cache_path = (Path(db_path).parent / "cloud-preflight-cache.json") if db_path else None
     preflight = _cloud_preflight.check(
-        repo=repo, env_id=env_id, brief=task, root=root, cache_path=cache_path,
+        repo=repo, env_id=env_id, brief=task, root=root, network=network, cache_path=cache_path,
     )
     if not preflight.eligible:
         raise CloudError(f"cloud preflight refused launch: {preflight.reason}")
