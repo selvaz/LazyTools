@@ -73,6 +73,22 @@ def _strings(value: Any, where: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(item) for item in value)
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _thaw(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw(item) for item in value]
+    return value
+
+
 def load_profiles(path: Path | str = DEFAULT_PROFILE_PATH) -> ProfileDocument:
     """Load a strictly validated profile document from *path*."""
     try:
@@ -127,7 +143,7 @@ def _normalise_servers(grants: Mapping[str, Any]) -> Mapping[str, Mapping[str, A
             )
         config = {key: value for key, value in source.items() if key != "tools"}
         config["tools"] = sorted(granted_tools)
-        result[name] = MappingProxyType(config)
+        result[name] = _freeze(config)
     return MappingProxyType(result)
 
 
@@ -188,7 +204,7 @@ def resolve(profile: str, grant: TaskGrant, document: ProfileDocument | None = N
         "network": grant.network,
         "network_routes": list(routes),
         "placement": grant.placement,
-        "mcp_servers": {name: dict(config) for name, config in sorted(servers.items())},
+        "mcp_servers": _thaw(servers),
         "mcp_inventory": inventory,
     }
     return EffectivePolicy(
@@ -215,26 +231,30 @@ def _metadata(policy: EffectivePolicy) -> dict[str, str | int]:
 def compile_claude(policy: EffectivePolicy) -> dict[str, Any]:
     """Compile isolated Claude settings and a strict MCP allowlist."""
     servers = {
-        name: {key: value for key, value in config.items() if key != "tools"}
+        name: {key: _thaw(value) for key, value in config.items() if key != "tools"}
         for name, config in sorted(policy.mcp_servers.items())
     }
+    allow = []
+    deny = []
+    for tool_class, names in (("read", ("Read", "Glob", "Grep")), ("edit", ("Edit", "Write"))):
+        (allow if tool_class in policy.tool_classes else deny).extend(names)
+    # No command allowlist exists in the grant schema, so no Bash command is admitted.
+    deny.append("Bash")
+    (allow if "web" in policy.tools else deny).extend(("WebFetch", "WebSearch"))
+    allow.extend(f"mcp__{name}__{tool}" for name, config in sorted(policy.mcp_servers.items())
+                 for tool in config["tools"])
+    reasons = ["The launcher and workspace restrictions have not been verified."]
+    if "shell" in policy.tool_classes:
+        reasons.append("No scoped shell commands are specified in the grant.")
+    if policy.network_routes:
+        reasons.append("Network route restrictions are not enforced by these settings.")
     return {
         **_metadata(policy),
-        "settings": {
-            "settingSources": [],
-            "permissions": {
-                "allow": sorted(policy.tools | policy.tool_classes),
-                "deny": ["*"],
-                "additionalDirectories": [],
-            },
-            "workspace": str(policy.folder),
-            "network": {"enabled": policy.network == "on", "allowedRoutes": list(policy.network_routes)},
-        },
-        "mcp_config": {
-            "strict": True,
-            "mcpServers": servers,
-            "allowedTools": {name: list(config["tools"]) for name, config in sorted(policy.mcp_servers.items())},
-        },
+        "eligible": False,
+        "ineligibility_reasons": reasons,
+        "launch_args": ["--setting-sources", "", "--strict-mcp-config"],
+        "settings": {"permissions": {"allow": sorted(allow), "deny": sorted(deny)}},
+        "mcp_config": {"mcpServers": servers},
     }
 
 

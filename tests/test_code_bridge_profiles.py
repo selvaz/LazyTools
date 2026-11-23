@@ -106,6 +106,23 @@ def test_policy_is_frozen(tmp_path: Path) -> None:
         policy.mcp_servers["rogue"] = {}  # type: ignore[index]
 
 
+def test_claude_permissions_and_mcp_are_scoped_and_immutable(tmp_path: Path) -> None:
+    task = grant(tmp_path, "on")
+    task.grants["mcp_inventory"]["approved"]["args"] = ["original"]
+    policy = resolve("edit", task)
+    task.grants["mcp_inventory"]["approved"]["args"].append("changed")
+    with pytest.raises(AttributeError):
+        policy.mcp_servers["approved"]["tools"].append("mutate")
+    result = compile_claude(policy)
+    assert result["launch_args"] == ["--setting-sources", "", "--strict-mcp-config"]
+    permissions = result["settings"]["permissions"]
+    assert {"Read", "Edit", "Write", "WebFetch", "WebSearch", "mcp__approved__lookup"} <= set(permissions["allow"])
+    assert "Bash" in permissions["deny"] and "*" not in permissions["deny"]
+    assert result["mcp_config"] == {"mcpServers": {"approved": {"command": "approved-server", "args": ["original"]}}}
+    result["mcp_config"]["mcpServers"]["approved"]["args"].append("output")
+    assert compile_claude(policy)["mcp_config"]["mcpServers"]["approved"]["args"] == ["original"]
+
+
 def test_digest_changes_with_revision(tmp_path: Path) -> None:
     original = load_profiles()
     changed = ProfileDocument(original.version, original.revision + ".new", original.profiles)
