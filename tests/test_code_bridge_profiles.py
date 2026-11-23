@@ -62,6 +62,12 @@ def test_edit_never_gets_shell(tmp_path: Path, network: str, placement: str) -> 
     assert compile_codex(policy)["config_overrides"]["shell_execution"] is False
 
 
+@pytest.mark.parametrize(("profile", "tool"), [("edit", "shell"), ("edit", "Bash"), ("read", "edit"), ("read", "shell")])
+def test_native_tools_cannot_bypass_profile_ceiling(tmp_path: Path, profile: str, tool: str) -> None:
+    with pytest.raises(PolicyError, match="unknown tool grant"):
+        resolve(profile, TaskGrant(tmp_path, {"tools": [tool]}, "on", "local"))
+
+
 @pytest.mark.parametrize(
     ("mutation", "match"),
     [

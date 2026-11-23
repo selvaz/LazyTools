@@ -12,6 +12,7 @@ from types import MappingProxyType
 from typing import Any
 
 TOOL_CLASSES = frozenset({"read", "edit", "shell"})
+TOOL_GRANTS = frozenset({"web", "mcp"})
 NETWORK_VALUES = frozenset({"on", "off"})
 PLACEMENT_VALUES = frozenset({"local", "cloud"})
 GRANT_KEYS = frozenset({"tool_classes", "tools", "mcp_servers", "mcp_inventory", "network_routes", "scratch_folder"})
@@ -157,6 +158,9 @@ def resolve(profile: str, grant: TaskGrant, document: ProfileDocument | None = N
         raise PolicyError(f"unknown granted tool class(es): {', '.join(sorted(unknown_classes))}")
     classes = requested_classes & document.profiles[profile].allowed_tool_classes
     tools = frozenset(_strings(grant.grants.get("tools", ()), "tools"))
+    unknown_tools = tools - TOOL_GRANTS
+    if unknown_tools:
+        raise PolicyError(f"unknown tool grant(s): {', '.join(sorted(unknown_tools))}")
     routes = _strings(grant.grants.get("network_routes", ()), "network_routes")
     if grant.network == "off" and routes:
         raise PolicyError("network_routes require network='on'")
