@@ -41,6 +41,56 @@ gh auth status                        # optional: helps with the GitHub steps
 lazytools-code-bridge run --help      # must list --where
 ```
 
+### Record the Codex environment preflight manifest
+
+Every repository submitted to Codex Cloud must commit
+`.bridge/cloud-preflight.json`. The bridge uses this local evidence to refuse
+impossible Codex jobs before contacting the provider. Claude cloud routines
+already select their environment in Claude and are not gated by this manifest.
+Each Codex environment entry records the revision of the built environment, its
+network policy, and the sibling repositories and Python imports verified by that
+environment build:
+
+Create a starter manifest after mapping the repository to its cloud environment:
+
+```bash
+lazytools-code-bridge cloud-preflight init --repo <path> --network off
+git -C <path> add .bridge/cloud-preflight.json
+```
+
+The command reads the project's base and optional dependencies from
+`pyproject.toml`, records the configured Codex environment id, and marks the
+entry as operator-attested. Review the generated imports and repositories,
+adjust them to describe what the built environment actually contains, and
+commit the file. Pass `--network on` only when that environment permits task
+network access.
+
+```json
+{
+  "revision": "manifest-1",
+  "environments": {
+    "env_0123abcd": {
+      "revision": "image-2026-11-23",
+      "network": false,
+      "repositories": ["owner/shared-library"],
+      "imports": ["pytest", "pytest_asyncio"]
+    }
+  }
+}
+```
+
+Briefs can declare dependencies on lines such as `Required repositories:
+owner/shared-library` and `Required imports: pytest_asyncio`. A missing manifest,
+a local absolute path, or an undeclared dependency refuses the launch. Results
+are cached by repository, environment revision, manifest revision, network
+setting, and brief requirements; changing any of those inputs forces a new
+decision. The check itself is offline.
+
+Follow-ups: automatically probe a provider environment to replace the initial
+operator attestation with observed evidence, and route an ineligible cloud task
+to local execution when policy permits it. Neither behavior is implemented yet;
+preflight remains deterministic and refuses mismatches.
+
 If `run --help` does not list `--where`, the installed LazyTools predates
 cloud jobs. Update the editable LazyTools checkout or reinstall it before
 continuing. Cloud runs use the same lifecycle as local runs: they appear in

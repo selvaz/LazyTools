@@ -395,7 +395,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             engine=args.engine, cwd=cwd, task=task, branch=branch, db_path=_db_path(args), job_id=job_id,
             approvals=tuple(args.approve_cloud or ()), routine=args.routine, pr=args.pr, open_pr=args.open_pr,
             land=args.land, rebase_ok=args.rebase_ok, model=args.model, tier=args.tier, title=args.title,
-            extra_meta=extra_meta,
+            network=args.network == "on", extra_meta=extra_meta,
         )
     except _cloud.CloudEnvUnmapped as exc:
         if args.json:
@@ -1422,6 +1422,24 @@ def _cmd_cloud_envs(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_cloud_preflight_init(args: argparse.Namespace) -> int:
+    from lazytools.code_bridge import _cloud_preflight
+
+    try:
+        root = _cloud.repo_root(Path(args.repo).expanduser().resolve())
+        slug = _cloud.repo_slug(root)
+        config = _cloud.load_config()
+        env_id = config.envs.get("codex", {}).get(slug.lower())
+        if not env_id:
+            raise ValueError(f"no configured Codex cloud environment id for {slug} in {config.path}")
+        path = _cloud_preflight.init_manifest(root=root, env_id=env_id, network=args.network == "on")
+    except (OSError, ValueError, _cloud.CloudError) as exc:
+        _cloud_print(f"error: {exc}", err=True)
+        return 2
+    _cloud_print(str(path))
+    return 0
+
+
 def _cmd_cloud_setup(args: argparse.Namespace) -> int:
     try:
         config = _cloud.load_config()
@@ -1765,6 +1783,10 @@ def build_parser() -> argparse.ArgumentParser:
         "approval gate (only its diff comes back, through `apply`).",
     )
     run_p.add_argument(
+        "--network", choices=("on", "off"), default="off",
+        help="--where cloud only: requested task network access (default: off); must match the preflight manifest.",
+    )
+    run_p.add_argument(
         "--approve-cloud",
         action="append",
         choices=sorted(_cloud.GATED_ACTIONS),
@@ -1986,6 +2008,14 @@ def build_parser() -> argparse.ArgumentParser:
     envs_p.add_argument("--no-probe", action="store_true", help="Do not call `codex cloud list`; show the config only.")
     envs_p.add_argument("--json", action="store_true")
     envs_p.set_defaults(func=_cmd_cloud_envs)
+
+    preflight_p = sub.add_parser("cloud-preflight", help="Manage repository-owned cloud eligibility evidence.")
+    preflight_sub = preflight_p.add_subparsers(dest="cloud_preflight_command", required=True)
+    preflight_init_p = preflight_sub.add_parser("init", help="Write a starter manifest from pyproject dependencies.")
+    preflight_init_p.add_argument("--repo", required=True, help="Repository whose manifest should be created.")
+    preflight_init_p.add_argument("--network", choices=("on", "off"), default="off",
+                                  help="Attest that the configured environment network is on or off (default: off).")
+    preflight_init_p.set_defaults(func=_cmd_cloud_preflight_init)
 
     setup_p = sub.add_parser(
         "cloud-setup",
