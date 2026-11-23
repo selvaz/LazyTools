@@ -57,6 +57,7 @@ class EffectivePolicy:
     network_routes: tuple[str, ...]
     placement: str
     mcp_servers: Mapping[str, Mapping[str, Any]]
+    mcp_inventory: tuple[str, ...]
     digest: str
 
 
@@ -107,6 +108,8 @@ def _normalise_servers(grants: Mapping[str, Any]) -> Mapping[str, Mapping[str, A
     inventory = grants.get("mcp_inventory", requested)
     if not isinstance(requested, dict) or not isinstance(inventory, dict):
         raise PolicyError("mcp_servers and mcp_inventory must be tables")
+    if any(not isinstance(name, str) or not name or not isinstance(value, dict) for name, value in inventory.items()):
+        raise PolicyError("each mcp_inventory entry must be a named table")
     result: dict[str, Mapping[str, Any]] = {}
     for name, request in requested.items():
         if not isinstance(name, str) or not isinstance(request, dict):
@@ -165,6 +168,7 @@ def resolve(profile: str, grant: TaskGrant, document: ProfileDocument | None = N
     if grant.network == "off" and routes:
         raise PolicyError("network_routes require network='on'")
     servers = _normalise_servers(grant.grants)
+    inventory = tuple(sorted(grant.grants.get("mcp_inventory", grant.grants.get("mcp_servers", {}))))
     if servers and "mcp" not in tools:
         raise PolicyError("MCP servers require the explicit 'mcp' tool grant")
     # Native web and tool hosts are task-controlled egress surfaces.  They are
@@ -185,6 +189,7 @@ def resolve(profile: str, grant: TaskGrant, document: ProfileDocument | None = N
         "network_routes": list(routes),
         "placement": grant.placement,
         "mcp_servers": {name: dict(config) for name, config in sorted(servers.items())},
+        "mcp_inventory": inventory,
     }
     return EffectivePolicy(
         profile,
@@ -198,6 +203,7 @@ def resolve(profile: str, grant: TaskGrant, document: ProfileDocument | None = N
         routes,
         grant.placement,
         servers,
+        inventory,
         _digest(canonical),
     )
 
@@ -248,7 +254,9 @@ def compile_codex(policy: EffectivePolicy) -> dict[str, Any]:
             "web_search": policy.network == "on" and "web" in policy.tools,
             "network_routes": list(policy.network_routes),
             "mcp_servers": {
-                name: {**dict(config), "enabled": True} for name, config in sorted(policy.mcp_servers.items())
+                name: ({**dict(policy.mcp_servers[name]), "enabled": True}
+                       if name in policy.mcp_servers else {"enabled": False})
+                for name in policy.mcp_inventory
             },
         },
     }

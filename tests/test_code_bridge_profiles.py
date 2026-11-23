@@ -52,7 +52,8 @@ def test_all_profile_switch_combinations(tmp_path: Path, profile: str, network: 
     assert codex["config_overrides"]["sandbox_workspace_write"]["network_access"] is (network == "on")
     assert codex["config_overrides"]["web_search"] is (network == "on")
     assert "rogue" not in json.dumps(compile_claude(policy))
-    assert "rogue" not in json.dumps(codex)
+    assert codex["config_overrides"]["mcp_servers"]["rogue"] == {"enabled": False}
+    assert codex["config_overrides"]["mcp_servers"]["approved"]["enabled"] is (network == "on")
 
 
 @pytest.mark.parametrize("network,placement", [("off", "local"), ("off", "cloud"), ("on", "local"), ("on", "cloud")])
