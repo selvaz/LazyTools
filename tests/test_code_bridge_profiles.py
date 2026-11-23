@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import tomllib
-from dataclasses import FrozenInstanceError
-from pathlib import Path
+from dataclasses import FrozenInstanceError, replace
+from pathlib import Path, PurePosixPath
 
 import pytest
+
+import lazytools.code_bridge.profiles as profiles_module
 
 from lazytools.code_bridge.profiles import (
     PolicyError,
@@ -129,10 +131,25 @@ def test_digest_changes_with_revision(tmp_path: Path) -> None:
     assert resolve("read", grant(tmp_path), original).digest != resolve("read", grant(tmp_path), changed).digest
 
 
-@pytest.mark.parametrize("engine", ["claude", "codex"])
-def test_compiler_golden(engine: str) -> None:
-    workspace = Path("/workspace/example-task")
+def golden_policy(tmp_path: Path, monkeypatch) -> object:
+    workspace = tmp_path / "example-task"
+    original_digest = profiles_module._digest
+
+    def portable_digest(payload):
+        portable = dict(payload)
+        portable["folder"] = "/workspace/example-task"
+        portable["scratch_folder"] = "/workspace/example-task/.scratch"
+        return original_digest(portable)
+
+    monkeypatch.setattr(profiles_module, "_digest", portable_digest)
     policy = resolve("edit-and-run", grant(workspace, "on", "cloud"))
+    return replace(policy, folder=PurePosixPath("/workspace/example-task"),
+                   scratch_folder=PurePosixPath("/workspace/example-task/.scratch"))
+
+
+@pytest.mark.parametrize("engine", ["claude", "codex"])
+def test_compiler_golden(engine: str, tmp_path: Path, monkeypatch) -> None:
+    policy = golden_policy(tmp_path, monkeypatch)
     actual = compile_claude(policy) if engine == "claude" else compile_codex(policy)
     golden = Path(__file__).with_name("fixtures") / f"code_bridge_profiles_{engine}.json"
     assert actual == json.loads(golden.read_text())
