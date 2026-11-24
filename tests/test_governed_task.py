@@ -303,6 +303,35 @@ def test_required_check_failure_stops_before_review(trial, capsys, monkeypatch, 
     assert second.read_text().strip() == "ran second"
 
 
+def test_check_timeout_stops_the_entire_process_tree(trial, capsys, monkeypatch):
+    start, _, setup, script, state, _, _ = trial
+    checkout = setup()
+    monkeypatch.setattr(importlib.import_module("governed_task"), "CHECK_TIMEOUT", 2)
+    helper = state.parent.parent / "spawn_child.py"
+    helper.write_text(
+        "import os, subprocess, sys, time\n"
+        "from pathlib import Path\n"
+        "temp = Path(os.environ['TMP'])\n"
+        "if sys.argv[1:] == ['child']:\n"
+        "    (temp / 'child-ready').touch()\n"
+        "    time.sleep(3)\n"
+        "    (temp / 'child-survived').touch()\n"
+        "else:\n"
+        "    subprocess.Popen([sys.executable, __file__, 'child'])\n"
+        "    time.sleep(10)\n",
+        encoding="utf-8",
+    )
+
+    assert start(checkout, "--check", f'"{sys.executable}" "{helper}"') == 1
+    assert "Timed out after 2 seconds." in capsys.readouterr().err
+    assert (state / "tmp" / "child-ready").exists()
+    assert len(script.prompts) == 1
+    worktree, = state.glob("checks-*/results.md")
+    assert not (worktree.parent / "tree").exists()
+    time.sleep(3)
+    assert not (state / "tmp" / "child-survived").exists()
+
+
 def test_review_receives_bounded_copies_of_external_specs(trial, monkeypatch):
     start, _, setup, script, state, _, _ = trial
     checkout = setup()

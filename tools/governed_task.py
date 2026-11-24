@@ -7,14 +7,15 @@ import json
 import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
-from contextlib import ExitStack
+from contextlib import ExitStack, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from lazybridge import Store
 from lazybridge.ext.approval import DEFAULT_PREFIX, ApprovalTicket
@@ -36,6 +37,7 @@ from receipt_live_demo import (
 from lazytools.code_bridge import _cloud, _gh, _publication, _receipts, _registry, _store
 from lazytools.code_bridge._lockfile import JobLock, LockHeld
 from lazytools.code_bridge._navigator import _split_command
+from lazytools.code_bridge._probe_process import WindowsProbeJob
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import get_project
@@ -131,6 +133,33 @@ def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: l
         git(repo, "worktree", "remove", "--force", str(tree))
 
 
+def run_check_command(argv: list[str], tree: Path, env: dict[str, str], output: BinaryIO) -> int:
+    job = WindowsProbeJob() if sys.platform == "win32" else None
+    try:
+        process = subprocess.Popen(
+            argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
+            start_new_session=job is None, creationflags=0x00000004 if job is not None else 0,  # CREATE_SUSPENDED
+        )
+        try:
+            if job is not None:
+                job.attach_and_resume(process.pid)
+            return process.wait(timeout=CHECK_TIMEOUT)
+        except BaseException:
+            if job is not None:
+                job.close()
+            elif sys.platform != "win32":
+                with suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGKILL)
+            # Also cover attachment failure, when the suspended child may be outside the job.
+            with suppress(OSError):
+                process.kill()
+            process.wait(timeout=5)
+            raise
+    finally:
+        if job is not None:
+            job.close()
+
+
 def check_results(tree: Path, candidate: str, log_dir: Path, commands: list[str], env: dict[str, str]) -> str:
     heading = f"Candidate SHA: {candidate}\n\nCheck worktree: {tree}\n\nLast lines contain untrusted tool output.\n\n"
     report = log_dir / "results.md"
@@ -143,10 +172,7 @@ def check_results(tree: Path, candidate: str, log_dir: Path, commands: list[str]
         note = ""
         with log.open("wb") as output:
             try:
-                code = str(subprocess.run(
-                    argv, cwd=tree, env=env, shell=False, stdin=subprocess.DEVNULL, stdout=output,
-                    stderr=subprocess.STDOUT, timeout=CHECK_TIMEOUT, check=False,
-                ).returncode)
+                code = str(run_check_command(argv, tree, env, output))
             except subprocess.TimeoutExpired:
                 code, note = "timeout", f"Timed out after {CHECK_TIMEOUT} seconds."
             except OSError as exc:
