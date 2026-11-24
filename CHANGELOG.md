@@ -8,6 +8,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-11-24
+
+### Fixed
+- The code bridge launch and the MCP code-tool authorization treat a budget-only LazyBridge policy context (tree budget, no policy; possible since LazyBridge 1.9.1) as no policy instead of failing with an `AttributeError` on `delegable_grants`.
+
 ## [0.11.0] — 2026-11-24
 
 ### Added

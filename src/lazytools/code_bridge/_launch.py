@@ -93,7 +93,9 @@ def resolve_launch(
         raise PolicyError(f"Unknown core policy profile {name!r}")
     # Intentional review stays read-only even if a replacement document widens read.
     classes = ("read",) if name == "read" else tuple(ceiling.allowed_tool_classes)
-    parent = current_policy_context()
+    context = current_policy_context()
+    # A budget-only context (tree budget, no policy) carries no authority ceiling.
+    parent = context.delegable_grants if context is not None else None
     report_setting = os.environ.get(f"LAZYTOOLS_CODE_BRIDGE_{engine.upper()}_RELEASE_REPORT")
     report = Path(report_setting).expanduser().resolve() if report_setting and mode != "legacy" else None
     # Legacy profile names retain GitHub reads in review and web for writers.
@@ -104,7 +106,7 @@ def resolve_launch(
     if parent is None:
         policy = resolve(name, grant, document)
     else:
-        policy = child_within_parent(parent.delegable_grants, grant, name, document)
+        policy = child_within_parent(parent, grant, name, document)
         if mode == "legacy":
             raise PolicyError("A delegated policy requires a governed launch")
 
