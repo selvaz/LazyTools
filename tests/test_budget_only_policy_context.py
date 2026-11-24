@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from lazybridge.policy import TreeBudget, current_policy_context, policy_scope
+import pytest
+from lazybridge import policy as lb_policy
+
+if not hasattr(lb_policy, "TreeBudget"):
+    pytest.skip("budget-only contexts need LazyBridge 1.9.1 or later", allow_module_level=True)
+
+TreeBudget = lb_policy.TreeBudget
+current_policy_context = lb_policy.current_policy_context
+policy_scope = lb_policy.policy_scope
 
 from lazytools.code_bridge import _launch
 from lazytools.connectors.code_support._policy import authorize
