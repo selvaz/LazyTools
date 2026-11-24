@@ -208,6 +208,47 @@ async def test_governed_writer_uses_single_registry_and_one_shot_bound_approval(
         assert script.kwargs["web"] is False
 
 
+@pytest.mark.parametrize(("engine", "operation", "handle_kind"), [
+    ("codex", "codex_write", "thread_id"),
+    ("claude", "claude_code_write", "session_id"),
+])
+async def test_governed_writer_can_resume_native_session_after_exception(
+    workspace, qualified, monkeypatch, engine, operation, handle_kind,
+):
+    script = install(monkeypatch)
+    registry = SessionRegistry(workspace.parent / "sessions.json")
+    writer = CodeWriteTools(base_dir=str(workspace), codex=True, session_registry=registry)
+    tool = next(tool for tool in writer.as_tools() if tool.name == operation)
+    task = context(workspace, "edit-and-run", ("read", "edit"))
+    args = {"task": "Edit this file", "session_name": "writer"}
+
+    with task_scope(task), pytest.raises(CodeWriteBlocked, match="approval_id=") as exc:
+        await tool.run(**args)
+    ticket_id = str(exc.value).split("approval_id=")[1].split()[0]
+    assert cli.main(["approve", ticket_id]) == 0
+    script.mode = "raise"
+    with task_scope(task):
+        failure = await tool.run(**args, approval_id=ticket_id)
+
+    handle = script.last.handle
+    assert isinstance(failure, str)
+    assert handle and f"{handle_kind}={handle}" in failure and "engine blew up" in failure
+    assert registry.resolve(engine, workspace, "writer") == handle
+    ticket = ApprovalQueue(_registry.registry_store()).get_ticket(ticket_id)
+    assert ticket.consumed_at is not None and ticket.effect_outcome is None
+
+    script.mode = "ok"
+    follow_up = {**args, handle_kind: handle}
+    with task_scope(task), pytest.raises(CodeWriteBlocked, match="approval_id=") as exc:
+        await tool.run(**follow_up)
+    retry_ticket_id = str(exc.value).split("approval_id=")[1].split()[0]
+    assert cli.main(["approve", retry_ticket_id]) == 0
+    with task_scope(task):
+        result = await tool.run(**follow_up, approval_id=retry_ticket_id)
+    assert f"{handle_kind}={handle}" in result["result"]
+    assert script.counter == 1
+
+
 def test_credentials_and_egress_are_narrowed_at_the_native_boundary(workspace, qualified, monkeypatch):
     from types import SimpleNamespace
 

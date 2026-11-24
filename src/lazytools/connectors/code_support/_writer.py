@@ -462,8 +462,9 @@ class CodeWriteTools:
                 alias,
                 f"{type(exc).__name__}: {exc}",
             )
-        handle = engine.session_id or resumed
-        binding.finish(reg, run_cwd, alias, handle)
+        finally:
+            handle = engine.session_id or resumed
+            binding.finish(reg, run_cwd, alias, handle)
         if not env.ok:
             message = env.error.message if env.error else "unknown error"
             return self._failure("claude_code", run_cwd, "session_id", handle, alias, message)
@@ -537,8 +538,9 @@ class CodeWriteTools:
             return self._failure(
                 "codex", run_cwd, "thread_id", engine.thread_id or resumed, alias, f"{type(exc).__name__}: {exc}"
             )
-        handle = engine.thread_id or resumed
-        binding.finish(reg, run_cwd, alias, handle)
+        finally:
+            handle = engine.thread_id or resumed
+            binding.finish(reg, run_cwd, alias, handle)
         if not env.ok:
             message = env.error.message if env.error else "unknown error"
             return self._failure("codex", run_cwd, "thread_id", handle, alias, message)
