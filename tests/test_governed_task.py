@@ -362,12 +362,24 @@ def test_review_receives_bounded_copies_of_external_specs(trial, monkeypatch):
     second.write_text("OK" * 32 + "omitted text", encoding="utf-8")
     monkeypatch.setattr(importlib.import_module("governed_task"), "SPEC_MAX_BYTES", 64)
 
-    assert start(checkout, "--spec", str(first), "--spec", str(second)) == 0
+    assert start(checkout, *(["--spec", str(first)] * 9), "--spec", str(second)) == 0
     review = script.prompts[1]
     assert f"Path: {first.as_posix()}" in review and "A1. Keep the negative result.\n```" in review
+    assert review.count(f"Path: {first.as_posix()}") == 9
     assert f"Path: {second.as_posix()}" in review and "OK" * 32 in review
     assert "Attachment truncated after 64 bytes." in review
     assert "omitted text" not in review
+
+
+def test_spec_count_limit_stops_before_reading_attachments_or_dispatching(trial, capsys):
+    start, _, setup, script, state, _, _ = trial
+    checkout = setup()
+    missing = state.parent.parent / "missing.md"
+
+    assert start(checkout, *(["--spec", str(missing)] * 11)) == 1
+    assert "Pass at most 10 --spec files per command." in capsys.readouterr().err
+    assert not state.exists()
+    assert not script.prompts
 
 
 def test_review_judges_the_code_and_uses_runner_evidence(trial, monkeypatch):

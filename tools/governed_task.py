@@ -59,6 +59,7 @@ CHECK_ENV_ALLOWLIST = frozenset({
     "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "PYTHONPATH",
 })
 SPEC_MAX_BYTES = 32 * 1024
+SPEC_MAX_FILES = 10
 
 
 class CheckFailure(DemoError):
@@ -203,6 +204,7 @@ def check_results(tree: Path, candidate: str, log_dir: Path, commands: list[str]
 
 
 def spec_attachments(paths: list[Path]) -> str:
+    require(len(paths) <= SPEC_MAX_FILES, f"Pass at most {SPEC_MAX_FILES} --spec files per command.")
     attachments = []
     for supplied in paths:
         path = supplied.expanduser().resolve()
@@ -612,7 +614,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     evidence = argparse.ArgumentParser(add_help=False)
     evidence.add_argument("--review-brief", type=at_file, metavar="@file")
     evidence.add_argument("--check", action="append", metavar="CMD", help="Required check (repeat to override Checks)")
-    evidence.add_argument("--spec", type=Path, action="append", default=[], help="Attach a spec file (repeatable)")
+    evidence.add_argument("--spec", type=Path, action="append", default=[],
+                          help=f"Attach a spec file (up to {SPEC_MAX_FILES})")
     subcommands = parser.add_subparsers(dest="command", required=True)
     start = subcommands.add_parser("start", parents=[shared, evidence], help="Run a writer and independent reviewer")
     start.add_argument("--repo", type=Path, required=True)
