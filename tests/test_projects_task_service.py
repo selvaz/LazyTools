@@ -129,6 +129,22 @@ def test_queue_metrics_groups_and_blocked_reasons(queue):
     assert service.queue_metrics(OPERATOR)["overall"]["running"] == 1
 
 
+def test_fallback_ready_age_survives_unchanged_negative_cloud_checks(queue):
+    projects, service = queue
+    admit(projects, [task("a", requested_placement="cloud"), task("b")])
+    placement(service, "a")
+    placement(service, "a", "cloud", eligible=False)
+    service.clock.now += 100
+    placement(service, "a", "cloud", eligible=False)
+    group = service.queue_metrics(OPERATOR)["overall"]["ready"][0]
+    assert group["effective_placement"] == "local"
+    assert group["oldest_ready_age_seconds"] == 100
+    placement(service, "a", "cloud")
+    service.clock.now += 10
+    placement(service, "a", "cloud", eligible=False)
+    assert service.queue_metrics(OPERATOR)["overall"]["ready"][0]["oldest_ready_age_seconds"] == 0
+
+
 def test_route_quarantine_and_fresh_clearance(queue):
     projects, service = queue
     admit(projects, [task("a", repo="org/repo"), task("b", repo="org/repo"),

@@ -259,6 +259,10 @@ class ProjectTaskService:
             if (old.get("revision") == revision and previous.get("eligible") and evidence.eligible
                     and previous.get("expires_at", 0) > now):
                 since = old.get("eligible_since", now)
+            ineligible_since = now
+            if (old.get("revision") == revision and previous.get("eligible") is False
+                    and not evidence.eligible):
+                ineligible_since = old.get("ineligible_since", old.get("recorded_at", now))
             route = _route(task, evidence)
             fresh_for_route = False
             if route:
@@ -274,6 +278,7 @@ class ProjectTaskService:
                 "revision": revision,
                 "evidence": evidence.model_dump(mode="json"),
                 "eligible_since": since,
+                "ineligible_since": ineligible_since if not evidence.eligible else None,
                 "recorded_at": now,
                 "fresh_for_route": fresh_for_route,
             }
@@ -339,7 +344,7 @@ class ProjectTaskService:
                         if cloud and cloud.get("revision") == task.revision:
                             observed = cloud.get("evidence", {})
                             timestamps.append(observed.get("expires_at") if observed.get("eligible")
-                                              else cloud.get("recorded_at"))
+                                              else cloud.get("ineligible_since", cloud.get("recorded_at")))
                     if route_state.get("history"):
                         timestamps.append(route_state["history"][-1]["at"])
                     if data.get("attempts"):
