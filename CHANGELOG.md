@@ -8,6 +8,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-11-24
+
+### Added
+- Task service and approval tools on the projects store: `tasks_next_ready`, `tasks_claim`, `tasks_complete`, `approvals_pending`, `approvals_decide`, with typed tickets from the LazyBridge approval registry (#342).
+- Task queue ready-wait metrics (`queue_metrics`) and route quarantine (#343).
+- Cloud preflight before Codex Cloud submission (#341).
+
+### Changed
+- The code bridge resolves permissions through the LazyBridge core policy (profiles, grants, no-widen) and uses the single typed approval registry; review jobs run with the read profile (#344).
+- The MCP code tools (ask, review, write) resolve permissions through the core policy; governed write approvals go through the shared typed registry, and each call records the policy revision, digest and launch mode (#346).
+- Requires `lazybridge>=1.9.0`.
+
+### Fixed
+- Bridge jobs with a custom `--db` use a sibling approval registry, or the one given by `--registry-db`, instead of the production projects store (D191, #345).
+- The cloud wait retry test is deterministic (D187, #347).
+
 ## [0.10.13] — 2026-11-21
 
 ### Added
