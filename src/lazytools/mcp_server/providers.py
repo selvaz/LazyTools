@@ -1076,8 +1076,15 @@ def _projects(allow_write: bool = False, *, data_source: dict[str, Any] | None =
     ``lazytools-code-bridge``'s.
     """
     from lazytools.connectors.projects import ProjectsTools
+    from lazytools.projects.task_service import TaskPrincipal
 
-    return ProjectsTools(store_db=(data_source or {}).get("projects_store_db"), allow_write=allow_write)
+    config = data_source or {}
+    principal = config.get("projects_task_principal")
+    return ProjectsTools(
+        store_db=config.get("projects_store_db"),
+        allow_write=allow_write,
+        task_principal=TaskPrincipal.model_validate(principal) if principal is not None else None,
+    )
 
 
 @_register("registry")

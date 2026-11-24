@@ -166,6 +166,8 @@ def main(argv: list[str] | None = None) -> None:
             ids = [part.strip() for part in env.split(",") if part.strip()]
 
     data_source = _load_data_source(args.config)
+    if args.http and (data_source or {}).get("projects_task_principal") is not None:
+        raise SystemExit("projects_task_principal requires a dedicated stdio host for one authenticated principal")
     _preimport_scientific_modules(ids)
     providers = default_providers(ids, allow_write=args.allow_unsafe, data_source=data_source)
     server = build_server(
