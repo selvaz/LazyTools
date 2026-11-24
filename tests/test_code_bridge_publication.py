@@ -21,6 +21,7 @@ from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService
 from lazytools.projects.task_store import transaction
+from mcp_test_utils import protocol_field
 from test_projects_task_service import (
     PROJECT,
     REVIEWER,
@@ -403,8 +404,8 @@ def test_mcp_receipt_tools_are_read_only(publication, capsys):
         default_providers(["projects"], data_source={"projects_store_db": str(publication.service.path)})
     )
     by_name = {tool.name: tool for tool in _mcp_tool_models(types, tools)}
-    assert by_name["receipts_get"].annotations.readOnlyHint
-    assert by_name["receipts_verify"].annotations.readOnlyHint
+    assert protocol_field(by_name["receipts_get"].annotations, "read_only_hint", "readOnlyHint") is True
+    assert protocol_field(by_name["receipts_verify"].annotations, "read_only_hint", "readOnlyHint") is True
     assert not any("publish" in name for name in by_name)
     assert tools["receipts_get"].func(receipt_id=receipt["receipt_id"]) == receipt
     assert tools["receipts_verify"].func(receipt_id=receipt["receipt_id"]) == {"valid": True, "reason": None}
