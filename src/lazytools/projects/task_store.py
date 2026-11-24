@@ -89,3 +89,44 @@ def migrate_publication_receipts(path: Path | None) -> None:
     """Add publication receipts to an existing projects store."""
     with transaction(path, write=True) as store:
         store.connection.execute(PUBLICATION_RECEIPTS_SCHEMA)
+
+
+def publication_receipt(store: TransactionStore, receipt_id: str) -> str | None:
+    exists = store.connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'publication_receipts'"
+    ).fetchone()
+    if not exists:
+        return None
+    row = store.connection.execute(
+        "SELECT receipt_json FROM publication_receipts WHERE receipt_id = ?", (receipt_id,)
+    ).fetchone()
+    return str(row[0]) if row else None
+
+
+def published_ticket_receipt(store: TransactionStore, ticket_id: str) -> str | None:
+    receipt_id = store.read(f"publication:receipt:{ticket_id}")
+    return publication_receipt(store, receipt_id) if receipt_id else None
+
+
+def save_publication_receipt(
+    path: Path | None,
+    *,
+    receipt_id: str,
+    task_id: str,
+    attempt: int,
+    head_sha: str,
+    pr_number: int | None,
+    status: str,
+    receipt_json: str,
+    created_at: str,
+    consumed_ticket_id: str | None,
+) -> None:
+    with transaction(path, write=True) as store:
+        store.connection.execute(
+            "INSERT INTO publication_receipts VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (receipt_id, task_id, attempt, head_sha, pr_number, status, receipt_json, created_at),
+        )
+        if consumed_ticket_id and not store.compare_and_swap(
+            f"publication:receipt:{consumed_ticket_id}", None, receipt_id
+        ):
+            raise TaskServiceError("conflict", "This approval already has a publication outcome")

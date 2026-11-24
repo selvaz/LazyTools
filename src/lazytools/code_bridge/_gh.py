@@ -24,16 +24,23 @@ _PR_URL_RE = re.compile(r"https?://[^\s/]+/[^\s/]+/[^\s/]+/pull/(\d+)")
 def gh_argv() -> list[str]:
     found = os.environ.get("GH_BIN") or shutil.which("gh")
     if not found:
-        raise CloudError("GitHub CLI (gh) not found: install it and run `gh auth login` (or set GH_BIN); landing a cloud "
-                         "job and posting a review need it")
+        raise CloudError(
+            "GitHub CLI (gh) not found: install it and run `gh auth login` (or set GH_BIN); landing a cloud "
+            "job and posting a review need it"
+        )
     return [found]
 
 
 def run_gh(*args: str, stdin: str | None = None) -> str:
     try:
         proc = subprocess.run(
-            [*gh_argv(), *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=GH_TIMEOUT, input=stdin if stdin is not None else None,
+            [*gh_argv(), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT,
+            input=stdin if stdin is not None else None,
             stdin=None if stdin is not None else subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired as exc:
@@ -59,10 +66,12 @@ def pr_number_from_url(url: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def pr_view(repo: str, number: int) -> dict[str, Any]:
+def pr_view(repo: str, number: int, *, publication: bool = False) -> dict[str, Any]:
     """``number, url, state, title, headRefName, headRefOid, baseRefName, isCrossRepository`` of one PR."""
-    payload = _json("pr", "view", str(number), "--repo", repo, "--json",
-                    "number,url,state,title,headRefName,headRefOid,baseRefName,isCrossRepository")
+    fields = "number,url,state,title,headRefName,headRefOid,baseRefName,isCrossRepository"
+    if publication:
+        fields += ",isDraft,baseRefOid"
+    payload = _json("pr", "view", str(number), "--repo", repo, "--json", fields)
     if not isinstance(payload, dict):
         raise CloudError(f"gh pr view {number} returned an unexpected payload")
     return payload
@@ -70,17 +79,32 @@ def pr_view(repo: str, number: int) -> dict[str, Any]:
 
 def pr_for_branch(repo: str, branch: str) -> dict[str, Any] | None:
     """The open PR whose head is ``branch``, if any."""
-    payload = _json("pr", "list", "--repo", repo, "--head", branch, "--state", "open", "--json",
-                    "number,url,headRefOid,baseRefName")
+    payload = _json(
+        "pr", "list", "--repo", repo, "--head", branch, "--state", "open", "--json", "number,url,headRefOid,baseRefName"
+    )
     if isinstance(payload, list) and payload and isinstance(payload[0], dict):
         return payload[0]
     return None
 
 
-def pr_create(repo: str, *, base: str, head: str, title: str, body: str) -> str:
+def pr_create(repo: str, *, base: str, head: str, title: str, body: str, draft: bool = False) -> str:
     """Open a PR; returns its URL."""
-    out = run_gh("pr", "create", "--repo", repo, "--base", base, "--head", head, "--title", title,
-                 "--body-file", "-", stdin=body)
+    out = run_gh(
+        "pr",
+        "create",
+        "--repo",
+        repo,
+        "--base",
+        base,
+        "--head",
+        head,
+        "--title",
+        title,
+        "--body-file",
+        "-",
+        *(("--draft",) if draft else ()),
+        stdin=body,
+    )
     match = _PR_URL_RE.search(out)
     if not match:
         raise CloudError(f"gh pr create printed no PR URL: {redact(out.strip())[:500]}")
@@ -98,5 +122,13 @@ def pr_comment(repo: str, number: int, body: str) -> str:
     return run_gh("pr", "comment", str(number), "--repo", repo, "--body-file", "-", stdin=body).strip()
 
 
-__all__ = ["gh_argv", "pr_comment", "pr_comments", "pr_create", "pr_for_branch", "pr_number_from_url", "pr_view",
-           "run_gh"]
+__all__ = [
+    "gh_argv",
+    "pr_comment",
+    "pr_comments",
+    "pr_create",
+    "pr_for_branch",
+    "pr_number_from_url",
+    "pr_view",
+    "run_gh",
+]
