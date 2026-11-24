@@ -49,6 +49,7 @@ JOBS_KEY = "governed-task:jobs"
 CHECK_TIMEOUT = 600
 CHECK_TAIL_BYTES = 4096
 CHECK_TAIL_LINES = 5
+SPEC_MAX_BYTES = 32 * 1024
 
 
 def brief_checks(brief: str) -> list[str]:
@@ -126,6 +127,24 @@ def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: l
     return "\n".join(rows)
 
 
+def spec_attachments(paths: list[Path]) -> str:
+    attachments = []
+    for supplied in paths:
+        path = supplied.expanduser().resolve()
+        require(path.is_file(), f"Spec must be a file: {path}")
+        with path.open("rb") as source:
+            data = source.read(SPEC_MAX_BYTES + 1)
+        content = data[:SPEC_MAX_BYTES].decode("utf-8-sig", errors="replace").replace("\r\n", "\n")
+        label = f"Path: {path.as_posix()}"
+        longest = max((len(match) for match in re.findall(r"`+", label + content)), default=0)
+        fence = "`" * max(3, longest + 1)
+        attachment = f"{fence}text\n{label}\n\n{content}\n{fence}"
+        if len(data) > SPEC_MAX_BYTES:
+            attachment += f"\nAttachment truncated after {SPEC_MAX_BYTES} bytes."
+        attachments.append(attachment)
+    return "\n\nAttached specs\n\n" + "\n\n".join(attachments) if attachments else ""
+
+
 def db_options(stores: dict[str, Path]) -> list[str]:
     return ["--db", str(stores["bridge"]), "--registry-db", str(stores["registry"])]
 
@@ -195,7 +214,7 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     require(promoted.startswith("promoted"), promoted)
     revisions = {task["task_id"]: task.get("revision", "0") for task in store.read(_board_key(project))["tasks"]}
     store.write(RUN_KEY, {"repo": str(repo), "branch": branch, "base": base, "title": title,
-                          "ledger": str(args.ledger), "checks": commands})
+                          "ledger": str(args.ledger), "checks": commands, "specs": args.specs})
     step(2, "Create project and promote plan", f"{writer_id} and {review_id} (depends on writer)")
 
     # Leave time for the bridge's one-hour job timeout and for completion bookkeeping.
@@ -230,7 +249,7 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
         'Return one JSON object with verdict ("accepted" or "blocked"), '
         f'sha (the full commit SHA "{candidate}"), and reason (one sentence explaining the verdict).\n\n'
         f"Writer brief\n{args.brief}\n\nExtra review instructions\n{args.review_brief or 'None'}\n\n"
-        f"Runner checks on {candidate}\n{checks}",
+        f"Runner checks on {candidate}\n{checks}{args.specs}",
         review_of=writer_job,
     )
     require(stable_checkout(repo, branch) == candidate, "The checkout changed during review")
@@ -394,6 +413,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     start.add_argument("--brief", type=at_file, required=True, metavar="@file")
     start.add_argument("--review-brief", type=at_file, metavar="@file")
     start.add_argument("--check", action="append", metavar="CMD", help="Required check (repeat to override Checks)")
+    start.add_argument("--spec", type=Path, action="append", default=[], help="Attach a spec file (repeatable)")
     start.add_argument("--engine", choices=("codex", "claude"), default="codex")
     start.add_argument("--model", help="Writer model (Codex defaults to gpt-6.2-sol)")
     start.add_argument("--effort", default="high")
@@ -420,6 +440,7 @@ def execute(args: argparse.Namespace, stack: ExitStack) -> None:
     new = args.command == "start"
     if new:
         args.checks = check_commands(args.brief, args.check)
+        args.specs = spec_attachments(args.spec)
         repo = args.repo = safe_path(args.repo)
         args.ledger = safe_path(args.ledger)
         git = _cloud._git

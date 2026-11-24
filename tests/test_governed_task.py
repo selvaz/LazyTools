@@ -242,3 +242,20 @@ def test_required_check_failure_stops_before_review(trial, capsys, monkeypatch, 
     first, second = sorted(state.glob("checks-*/*.log"))
     assert str(first) in error
     assert second.read_text().strip() == "ran second"
+
+
+def test_review_receives_bounded_copies_of_external_specs(trial, monkeypatch):
+    start, _, setup, script, state, _, _ = trial
+    checkout = setup()
+    first = state.parent.parent / "external spec.md"
+    first.write_text("A1. Keep the negative result.\n```\n", encoding="utf-8")
+    second = first.with_name("large spec.md")
+    second.write_text("OK" * 32 + "omitted text", encoding="utf-8")
+    monkeypatch.setattr(importlib.import_module("governed_task"), "SPEC_MAX_BYTES", 64)
+
+    assert start(checkout, "--spec", str(first), "--spec", str(second)) == 0
+    review = script.prompts[1]
+    assert f"Path: {first.as_posix()}" in review and "A1. Keep the negative result.\n```" in review
+    assert f"Path: {second.as_posix()}" in review and "OK" * 32 in review
+    assert "Attachment truncated after 64 bytes." in review
+    assert "omitted text" not in review
