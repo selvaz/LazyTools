@@ -17,6 +17,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from contextlib import ExitStack, closing, redirect_stderr, redirect_stdout
 from datetime import UTC, datetime, timedelta
 from io import StringIO
@@ -70,8 +71,13 @@ def isolated_state(parent: Path | None, stack: ExitStack) -> Path:
     parent = safe_path(parent or Path(tempfile.gettempdir()))
     parent.mkdir(parents=True, exist_ok=True)
     state = Path(tempfile.mkdtemp(prefix="receipt-demo-", dir=parent))
+    configure_state(state, stack)
+    return state
+
+
+def configure_state(state: Path, stack: ExitStack) -> None:
     temp = state / "tmp"
-    temp.mkdir()
+    temp.mkdir(exist_ok=True)
     config = state / "code-bridge.toml"
     config.write_text(f"[concurrency]\nslot_dir = {json.dumps((state / 'slots').as_posix())}\n", encoding="utf-8")
     stack.enter_context(patch.object(tempfile, "tempdir", str(temp)))
@@ -88,7 +94,6 @@ def isolated_state(parent: Path | None, stack: ExitStack) -> Path:
     }))
     for name in ("LAZYTOOLS_CODE_BRIDGE_PROFILES", _task.MCP_POLICY_DIGEST_ENV):
         os.environ.pop(name, None)
-    return state
 
 
 def table_counts(stores: dict[str, Path]) -> Counts:
@@ -101,6 +106,18 @@ def table_counts(stores: dict[str, Path]) -> Counts:
                     quoted = table.replace('"', '""')
                     counts[f"{name}.{table}"] = db.execute(f'SELECT count(*) FROM "{quoted}"').fetchone()[0]
     return counts
+
+
+def step_trace(stores: dict[str, Path], previous: Counts) -> Callable[[int, str, str], None]:
+    def step(number: int, action: str, result: str) -> None:
+        nonlocal previous
+        current = table_counts(stores)
+        delta = ", ".join(f"{key} {value - previous.get(key, 0):+d}" for key, value in current.items()
+                          if value != previous.get(key, 0))
+        print(f"STEP {number}: {action} -> {result} [rows added: {delta or '0'}]", flush=True)
+        previous = current
+
+    return step
 
 
 def bridge(argv: list[str]) -> tuple[int, str]:
@@ -116,16 +133,16 @@ def claim(
     service: ProjectTaskService, principal: TaskPrincipal, task_id: str, engine: str, revision: str
 ) -> dict[str, Any]:
     service.record_placement(task_id, revision, PlacementEvidence(
-        placement="local", eligible=True, reason="Demo checkout and local engine selected",
+        placement="local", eligible=True, reason="Local checkout and engine selected",
         reference=f"local-{task_id}", expires_at=service.clock() + service.lease_seconds + 60,
         engine_family=_routing.provider(engine),
     ))
-    return cast(dict[str, Any], service.claim(principal, task_id, revision, "demo-dispatch")["claim"])
+    return cast(dict[str, Any], service.claim(principal, task_id, revision, "local-dispatch")["claim"])
 
 
 def run_job(
     repo: Path, stores: dict[str, Path], engine: str, principal: TaskPrincipal, lease: dict[str, Any],
-    prompt: str, *, review_of: str | None = None,
+    prompt: str, *, review_of: str | None = None, model: str | None = None, effort: str | None = None,
 ) -> tuple[str, str]:
     argv = [
         "run", "--cwd", str(repo), "--root", str(repo), "--where", "local",
@@ -136,6 +153,10 @@ def run_job(
     ]
     if review_of:
         argv += ["--review-of", review_of, "--tier", "basic", "--tiers", str(DEFAULT_PATH)]
+    if model is not None:
+        argv += ["--model", model]
+    if effort is not None:
+        argv += ["--effort", effort]
     with patch.dict(os.environ, {_task.PRINCIPAL_ENV: principal.model_dump_json()}):
         status, output = bridge(argv)
     require(status == 0 and output, f"{engine} job failed: {output or 'see bridge error above'}")
@@ -159,7 +180,7 @@ def finish_task(
         review_passed=review and accepted, review_independence="opposite-engine" if review else None,
     )
     service.record_completion_evidence(operator, lease["task_id"], lease["attempt"], evidence)
-    service.complete(worker, lease["task_id"], lease["claim_token"], "demo-complete", state, reference)
+    service.complete(worker, lease["task_id"], lease["claim_token"], "local-complete", state, reference)
     return reference
 
 
@@ -195,15 +216,8 @@ def run_demo(args: argparse.Namespace, stack: ExitStack) -> None:
             pass
     migrate_publication_receipts(stores["projects"])
     issuer = _receipts.load_issuer()
-    before = previous = table_counts(stores)
-
-    def step(number: int, action: str, result: str) -> None:
-        nonlocal previous
-        current = table_counts(stores)
-        delta = ", ".join(f"{key} {value - previous.get(key, 0):+d}" for key, value in current.items()
-                          if value != previous.get(key, 0))
-        print(f"STEP {number}: {action} -> {result} [rows added: {delta or '0'}]", flush=True)
-        previous = current
+    before = table_counts(stores)
+    step = step_trace(stores, before)
 
     mode = "dry run" if args.dry_run else "live"
     step(1, "Isolate state", f"{mode} in {state} with three SQLite stores and issuer {issuer.fingerprint()}")
