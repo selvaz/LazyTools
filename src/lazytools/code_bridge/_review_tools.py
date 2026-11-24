@@ -67,10 +67,11 @@ def review_tools(cwd: Path, *, network: str, validate: Callable[[], None]) -> li
     def review_read_file(path: str) -> str:
         """Read a UTF-8 text file using a path relative to the review workspace."""
         validate()
+        if not _readonly.operand_ok(path.replace("\\", "/"), git=False):
+            raise ValueError("File is outside the review read-only grant")
         target = (cwd / path).resolve()
         if (
-            not _readonly.operand_ok(path.replace("\\", "/"), git=False)
-            or not target.is_relative_to(cwd)
+            not target.is_relative_to(cwd)
             or not _readonly.operand_ok(target.relative_to(cwd).as_posix(), git=False)
             or not target.is_file()
         ):

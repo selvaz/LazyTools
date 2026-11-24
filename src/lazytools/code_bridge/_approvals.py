@@ -672,9 +672,9 @@ class BridgeGate(TieredGate):
                 if request.kind == "tool" and request.name == "Bash":
                     from lazytools.code_bridge import _readonly
 
-                    # An independent read-only match is still safe when the
-                    # routine validator has no match for this command.
-                    if _readonly.match(command):
+                    # Local Git reads need no routine grant. Other commands
+                    # still need its stricter destination and operand checks.
+                    if _readonly.match(command) in {"git-status", "git-diff", "git-log", "git-show", "git-rev-parse"}:
                         return self._match_bash(request)
                 # Escalations rejected by a capability validator must not
                 # earn an older classifier's allow/session grant. Apply the
