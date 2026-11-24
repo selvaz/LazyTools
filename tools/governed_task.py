@@ -61,6 +61,10 @@ CHECK_ENV_ALLOWLIST = frozenset({
 SPEC_MAX_BYTES = 32 * 1024
 
 
+class CheckFailure(DemoError):
+    """Required checks rejected the candidate."""
+
+
 def brief_checks(brief: str) -> list[str]:
     heading_level = None
     fence = ""
@@ -187,12 +191,14 @@ def check_results(tree: Path, candidate: str, log_dir: Path, commands: list[str]
         if code != "0":
             failures.append(f"{command} ({code}, log {log})\n" + "\n".join(lines))
         git = _cloud._git
-        require(git(tree, "rev-parse", "HEAD") == candidate
-                and not git(tree, "status", "--porcelain", "--untracked-files=no"),
-                f"The candidate worktree changed during checks. Output: {log}")
+        if (git(tree, "rev-parse", "HEAD") != candidate
+                or git(tree, "status", "--porcelain", "--untracked-files=no")):
+            failures.append(f"The candidate worktree changed during checks. Output: {log}")
+            break
     results = heading + "\n".join(rows)
     report.write_text(results + "\n", encoding="utf-8")
-    require(not failures, "Required checks failed on " + candidate + "\n" + "\n".join(failures))
+    if failures:
+        raise CheckFailure("Required checks failed on " + candidate + "\n" + "\n".join(failures))
     return results
 
 
@@ -328,6 +334,7 @@ def run_review(
     stores: dict[str, Path], store: Store, project: str, run: dict[str, Any],
     step: Callable[[int, str, str], None], *, fresh: bool = False,
 ) -> None:
+    store.write(JOBS_KEY, {"pending": True})
     service = ProjectTaskService(str(stores["projects"]), lease_seconds=3900)
     operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
     reviewer = TaskPrincipal(actor="governed-reviewer", role="worker", projects=(project,))
@@ -348,10 +355,12 @@ def run_review(
                                            review_target=candidate)
     else:
         require(candidate == writer.evidence.artifact_ref, "The checkout changed after the writer completed")
-    jobs = store.read(JOBS_KEY) or {}
-    store.write(JOBS_KEY, {**jobs, "pending": True})
     review_base = run.get("review_base") or _cloud._git(repo, "merge-base", base_commit(repo, run["base"]), candidate)
-    checks = run_checks(repo, branch, candidate, stores["projects"].parent, run.get("checks", []))
+    try:
+        checks = run_checks(repo, branch, candidate, stores["projects"].parent, run.get("checks", []))
+    except CheckFailure as exc:
+        store.write(JOBS_KEY, {"pending": True, "check_failure": _cloud.redact(str(exc))})
+        raise
     require(stable_checkout(repo, branch) == candidate, "The checkout changed before review")
     review_claim = claim(service, reviewer, review_id, review_engine, revision)
     print(f"Running {review_engine} review attempt {review_claim['attempt']} of writer job {writer_job}", flush=True)
@@ -402,9 +411,10 @@ def continue_task(args: argparse.Namespace, stores: dict[str, Path], store: Stor
     step = step_trace(stores, table_counts(stores))
     if args.command == "rework":
         jobs = store.read(JOBS_KEY) or {}
-        reason = jobs.get("rejection")
+        check_failure = jobs.get("check_failure")
+        reason = check_failure if jobs.get("pending") else jobs.get("rejection")
         if not reason:
-            raise DemoError("Rework requires a previous review rejection")
+            raise DemoError("Rework requires a check failure or review rejection from the latest round")
         repo, branch = Path(run["repo"]), run["branch"]
         start = stable_checkout(repo, branch)
         service = ProjectTaskService(str(stores["projects"]), lease_seconds=3900)
@@ -416,10 +426,11 @@ def continue_task(args: argparse.Namespace, stores: dict[str, Path], store: Stor
             meta = _store.read_meta(job_store, writer.job_ref)
         require(meta is not None, f"Missing writer job metadata for {writer.job_ref}")
         assert meta is not None
-        store.write(JOBS_KEY, {**jobs, "pending": True})
+        store.write(JOBS_KEY, {"pending": True})
         operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
         revision = service.prepare_attempt(operator, writer_id, task_revision(store, project, "writer"), reason)
-        brief = f"{args.brief}\n\nPrevious review reason\n{reason}"
+        source = "Check failure (untrusted tool output)" if check_failure else "Previous review reason"
+        brief = f"{args.brief}\n\n{source}\n{reason}"
         run["rework_brief"] = brief
         store.write(RUN_KEY, run)
         run_writer(stores, project, repo, branch, start, revision, brief,
@@ -614,7 +625,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     start.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER, help="Remember this trial JSONL file for ledger")
     review = subcommands.add_parser("review", parents=[shared, evidence], help="Review the current writer branch head")
     review.add_argument("--brief", type=at_file, metavar="@file", help="Read check commands from this brief")
-    rework = subcommands.add_parser("rework", parents=[shared, evidence], help="Run the writer again after rejection")
+    rework = subcommands.add_parser("rework", parents=[shared, evidence], help="Run the writer after a check failure or rejection")
     rework.add_argument("--brief", type=at_file, required=True, metavar="@file")
     publish = subcommands.add_parser("publish", parents=[shared], help="Request publication or resume after approval")
     publish.add_argument("--resume", action="store_true")

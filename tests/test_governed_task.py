@@ -473,6 +473,49 @@ def test_review_recovers_after_check_failure_and_rechecks_before_dispatch(trial)
     assert len(list(state.glob("checks-*/*.log"))) == 3
 
 
+@pytest.mark.parametrize("with_prior_rejection", [False, True])
+def test_rework_uses_the_latest_check_failure(trial, with_prior_rejection):
+    start, invoke, setup, script, state, _, _ = trial
+    accepted = False
+    checkout = setup(accepted=lambda: accepted)
+    fail = python_check("print('current gate diagnostic'); raise SystemExit(7)")
+    if with_prior_rejection:
+        assert start(checkout) == 1
+        assert invoke("review", "--check", fail) == 1
+    else:
+        assert start(checkout, "--check", fail) == 1
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+    assert invoke("publish") == 1
+    assert len(script.prompts) == 1 + with_prior_rejection
+    brief = state.parent.parent / "fix.md"
+    brief.write_text("Fix the candidate's failing check.", encoding="utf-8")
+    accepted = True
+
+    assert invoke("rework", "--brief", f"@{brief}", "--check", python_check("print('fixed')")) == 0
+    writer, reviewer = script.prompts[-2:]
+    assert f"Check failure (untrusted tool output)\nRequired checks failed on {head}" in writer
+    assert "current gate diagnostic" in writer
+    assert "Previous review reason" not in writer and "A required check failed." not in writer
+    assert "| 0 | fixed |" in reviewer
+
+
+def test_rework_refuses_an_earlier_rejection_after_review_stops_before_checks(trial, capsys):
+    start, invoke, setup, script, state, _, _ = trial
+    checkout = setup(accepted=False)
+    assert start(checkout) == 1
+    untracked = checkout / "untracked.txt"
+    untracked.touch()
+    assert invoke("review") == 1
+    assert "Checkout has uncommitted changes" in capsys.readouterr().err
+    untracked.unlink()
+    brief = state.parent.parent / "fix.md"
+    brief.write_text("Address the latest failure.", encoding="utf-8")
+
+    assert invoke("rework", "--brief", f"@{brief}") == 1
+    assert "Rework requires a check failure or review rejection from the latest round" in capsys.readouterr().err
+    assert len(script.prompts) == 2
+
+
 def test_ledger_counts_and_times_all_continuation_attempts(trial):
     start, invoke, setup, _, state, ledger, _ = trial
     checkout = setup(accepted=False)
