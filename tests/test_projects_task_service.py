@@ -106,6 +106,29 @@ def ready(service):
     return service.next_ready(OPERATOR, PROJECT)["tasks"]
 
 
+def test_queue_metrics_groups_and_blocked_reasons(queue):
+    projects, service = queue
+    admit(projects, [task("a"), task("b", "writing", requested_placement="cloud"),
+                     task("waiting", dependency_ids=["a"]), task("held"), task("missing"),
+                     task("failed"), task("after_failure", dependency_ids=["failed"])])
+    for name in ("a", "waiting", "held", "failed", "after_failure"):
+        placement(service, name)
+    placement(service, "b", "cloud")
+    assert "scheduled" in projects.projects_schedule_task(PROJECT, 3, "Produce held", "Waiting for input", hold=True)
+    receipt = claim(service, "failed", "failure")
+    complete(service, receipt, evidence(service, receipt, submit(service, receipt), state="blocked"), state="blocked")
+    service.clock.now += 10
+    metrics = service.queue_metrics(OPERATOR)
+    view = metrics["projects"][PROJECT]
+    assert metrics["overall"] == view
+    assert {(g["tier"], g["effective_placement"], g["count"], g["oldest_ready_age_seconds"]) for g in view["ready"]} == {
+        ("basic", "local", 1, 10), ("writing", "cloud", 1, 10)}
+    assert view["blocked"] == {"unmet_dependency": 1, "failed_dependency": 1, "hold": 1,
+                               "missing_placement_evidence": 1}
+    claim(service, "a")
+    assert service.queue_metrics(OPERATOR)["overall"]["running"] == 1
+
+
 def parallel(*operations):
     gate = Barrier(len(operations), timeout=10)
 

@@ -231,11 +231,18 @@ class ProjectTaskService:
             _require_open(store, task.project_id)
             if task.revision != revision:
                 raise TaskServiceError("stale", "Task revision changed")
+            now = self.clock()
+            old = task.data.get("placement_evidence", {}).get(evidence.placement, {})
+            previous = old.get("evidence", {})
+            since = now
+            if (old.get("revision") == revision and previous.get("eligible") and evidence.eligible
+                    and previous.get("expires_at", 0) > now):
+                since = old.get("eligible_since", now)
             task.data.setdefault("placement_evidence", {})[evidence.placement] = {
                 "revision": revision,
                 "evidence": evidence.model_dump(mode="json"),
+                "eligible_since": since,
             }
-            now = self.clock()
             if task.data["status"] == "todo":
                 effective, reason = _placement(task, now)
                 task.data.update(
@@ -244,6 +251,75 @@ class ProjectTaskService:
                     preflight_ref=effective.reference if effective else None,
                 )
             task.save(store, now)
+
+    def queue_metrics(self, principal: TaskPrincipal, project_id: str | None = None) -> dict[str, Any]:
+        """Count scoped open work; unknown historical ready ages are reported separately."""
+        if project_id is not None:
+            principal.require_project(project_id)
+        projects = [project_id] if project_id is not None else sorted(set(principal.projects))
+        def empty() -> dict[str, Any]:
+            return {"ready": [], "blocked": {key: 0 for key in (
+                "unmet_dependency", "failed_dependency", "hold", "missing_placement_evidence")}, "running": 0}
+        with transaction(self.path) as store:
+            now = self.clock()
+            result = {pid: empty() for pid in projects}
+            overall = empty()
+            for pid in projects:
+                project, board = get_project(store, pid), store.read(_board_key(pid))
+                if project is None or project.status != "open" or not board:
+                    continue
+                for index, data in enumerate(board["tasks"]):
+                    task = BoardTask(pid, board, index)
+                    targets = (result[pid], overall)
+                    if data.get("status") == "claimed":
+                        for target in targets:
+                            target["running"] += 1
+                        continue
+                    if data.get("status") != "todo" or data.get("owner") or data.get("claimed_at") is not None:
+                        continue
+                    deps = _dependencies(task)
+                    reasons = []
+                    if any(d["status"] in ("failed", "cancelled") for d in deps):
+                        reasons.append("failed_dependency")
+                    if any(d["status"] not in ("done", "failed", "cancelled") for d in deps):
+                        reasons.append("unmet_dependency")
+                    if data.get("start_hold"):
+                        reasons.append("hold")
+                    ready = _ready(task, now)
+                    if _placement(task, now)[0] is None:
+                        reasons.append("missing_placement_evidence")
+                    for target in targets:
+                        for reason in reasons:
+                            target["blocked"][reason] += 1
+                    if ready is None:
+                        continue
+                    placement = ready[1].placement
+                    record = data["placement_evidence"][placement]
+                    timestamps = [record.get("eligible_since")]
+                    if data.get("attempts"):
+                        timestamps.append(data.get("queue_released_at"))
+                    by_id = {task_id(item, i): item for i, item in enumerate(board["tasks"])}
+                    timestamps.extend(by_id[d].get("completed_at") for d in data.get("dependency_ids", []))
+                    timestamps.extend(e["at"] for e in board.get("schedule_events", [])
+                                      if e.get("task_index") == index and not e.get("hold") and "at" in e)
+                    timestamps.extend(e["at"] for e in board.get("plan_events", [])
+                                      if e.get("task_index") == index and e.get("event") == "reopened" and "at" in e)
+                    timestamps.extend(d.get("completion", {}).get("result", {}).get("completed_at")
+                                      for d in data.get("dispatches", []) if d.get("completion"))
+                    age = max(0.0, now - max(timestamps)) if all(isinstance(t, (int, float)) for t in timestamps) else None
+                    for target in targets:
+                        group = next((g for g in target["ready"] if g["tier"] == data.get("tier")
+                                      and g["effective_placement"] == placement), None)
+                        if group is None:
+                            group = {"tier": data.get("tier"), "effective_placement": placement, "count": 0,
+                                     "oldest_ready_age_seconds": None, "unknown_age_count": 0}
+                            target["ready"].append(group)
+                        group["count"] += 1
+                        if age is None:
+                            group["unknown_age_count"] += 1
+                        else:
+                            group["oldest_ready_age_seconds"] = max(group["oldest_ready_age_seconds"] or 0, age)
+            return {"projects": result, "overall": overall, "as_of": now}
 
     def next_ready(
         self, principal: TaskPrincipal, project_id: str, limit: int = 20, cursor: int | None = None
@@ -405,6 +481,7 @@ class ProjectTaskService:
                 if dispatch.get("unresolved_effects"):
                     raise TaskServiceError("unresolved", "Reconcile outstanding effects before releasing the claim")
                 _release(task)
+                task.data["queue_released_at"] = now
             if job_ref:
                 dispatch["job_ref"] = job_ref
             dispatch.update(state=observation, reconciliation_ref=evidence_ref, reconciled_at=now)
@@ -475,6 +552,7 @@ class ProjectTaskService:
                 completion={"idempotency_key": idempotency_key, "binding": replay_binding, "result": result},
             )
             _release(task)
+            task.data["queue_released_at"] = now
             if result_state == "accepted":
                 task.data.update(status="done", completed_at=now, result=evidence_ref, error="")
                 touch_project_progress(store, task.project_id)
