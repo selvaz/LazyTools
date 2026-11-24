@@ -10,7 +10,7 @@ from typing import Any, Literal, cast
 from lazybridge import Store
 from lazybridge.ext.approval import ApprovalQueue, ExecutorContext
 
-from lazytools.code_bridge import _cloud, _launch
+from lazytools.code_bridge import _cloud, _launch, _registry
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError
@@ -68,11 +68,16 @@ class Claim:
     def recheck(self, job_id: str) -> None:
         self.service.local_claim(self.principal, self.task_id, self.token, state="submitted", job_ref=job_id)
 
-    def consume_approval(self, job_id: str, approval_id: str, executor: ExecutorContext) -> bool:
+    def consume_approval(
+        self, job_id: str, approval_id: str, executor: ExecutorContext, *, registry: _registry.Registry | None = None,
+    ) -> bool:
         with self.service.local_dispatch(
             self.principal, self.task_id, self.token, state="submitted", job_ref=job_id, write=True,
         ) as (store, _):
-            return ApprovalQueue(cast(Store, store)).consume_typed_ticket(approval_id, executor=executor)
+            queue = registry.queue if registry is not None and registry.path != self.service.path else ApprovalQueue(
+                cast(Store, store)
+            )
+            return queue.consume_typed_ticket(approval_id, executor=executor)
 
 
 def load(

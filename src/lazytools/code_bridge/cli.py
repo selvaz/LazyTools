@@ -18,9 +18,13 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Iterable, Iterator
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+from lazybridge import Store
+from lazybridge.ext.approval import ApprovalTicket
 
 from lazytools.code_bridge import (
     _autonomy,
@@ -65,6 +69,57 @@ def _add_db_option(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Store path (default: $LAZYTOOLS_CODE_BRIDGE_DB or ~/.lazytools/code-bridge.sqlite).",
     )
+
+
+def _add_registry_option(parser: argparse.ArgumentParser) -> None:
+    _add_db_option(parser)
+    parser.add_argument(
+        "--registry-db", type=Path,
+        help="Approval registry path (default: sibling <db stem>.registry.sqlite for a non-default --db, "
+        "otherwise the shared projects registry).",
+    )
+
+
+def _selected_registry_db(args: argparse.Namespace) -> Path | None:
+    return _registry.isolated_path(_db_path(args), args.registry_db)
+
+
+def _ticket_job_store(args: argparse.Namespace) -> Any:
+    db_path = _db_path(args)
+    path = db_path or _store.default_db_path()
+    if path.is_file():
+        return _store.build_store(db_path)
+    # A caller can point both stores at the same file. Looking up a ticket
+    # must not create the registry indirectly through the job store.
+    return Store()
+
+
+def _operator_registries(
+    args: argparse.Namespace, store: Any, *, jobs: Iterable[dict[str, Any]] | None = None,
+) -> Iterator[_registry.Registry]:
+    primary = _registry.Registry(store, _selected_registry_db(args))
+    yield primary
+    if args.registry_db is not None:
+        return
+    if jobs is None:
+        jobs = (meta for _, meta in store.items(prefix=_store.META_PREFIX) if isinstance(meta, dict))
+    seen = {primary.path}
+    for job in jobs:
+        path = _registry.recorded_path(job)
+        if path is not None and path not in seen:
+            seen.add(path)
+            yield _registry.Registry(store, path)
+
+
+def _pending_tickets(
+    args: argparse.Namespace, store: Any, *, jobs: Iterable[dict[str, Any]] | None = None,
+) -> list[ApprovalTicket]:
+    tickets = {
+        ticket.approval_id: ticket
+        for registry in _operator_registries(args, store, jobs=jobs)
+        for ticket in registry.pending()
+    }
+    return sorted(tickets.values(), key=lambda ticket: ticket.created_at)
 
 
 def _print_json(payload: Any) -> None:
@@ -181,6 +236,8 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
         argv += ["--root", args.root]
     if args.db:
         argv += ["--db", args.db]
+    if args.registry_db is not None:
+        argv += ["--registry-db", str(args.registry_db)]
     if getattr(args, "routing", None) is not None:
         argv += ["--routing-record", json.dumps(args.routing)]
     if getattr(args, "wait_for_slot", False):
@@ -226,7 +283,7 @@ def _spawn_detached(argv: list[str], log_path: Path) -> int:
         log.close()
 
 
-def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
+def _cmd_run_detached(args: argparse.Namespace, task: str, registry_db: Path | None) -> int:
     # Everything the child would refuse is checked HERE, where the caller sees
     # it: a detached child's error only reaches its log file. Found live -- a
     # --cwd outside the default root (the launcher's own cwd) died in the
@@ -282,8 +339,11 @@ def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     store = _store.build_store(_db_path(args))
+    args.registry_db = registry_db
+    if args.db:
+        args.db = str(Path(args.db).expanduser().resolve())
     store.write(_launch.DETACH_PREFIX + job_id, _jobs.detach_binding(
-        launch, args.engine, resolved_cwd, task, args.session, claim,
+        launch, args.engine, resolved_cwd, task, args.session, claim, registry_db=registry_db,
     ))
     pid = _spawn_detached(_child_argv(args, job_id), log_path)
     (out_dir / f"{job_id}.pid").write_text(str(pid), encoding="utf-8")
@@ -295,12 +355,15 @@ def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
                 "log": str(log_path),
                 **launch.metadata(),
                 **(claim.binding() if claim else {}),
+                **({"registry_db": str(registry_db)} if registry_db is not None else {}),
                 **({"routing": args.routing} if getattr(args, "routing", None) else {}),
             }
         )
     else:
         print(job_id)
         print(f"detached: pid {pid}, log {log_path} ({launch.mode}, {launch.policy.profile})")
+        if registry_db is not None:
+            print(f"approval registry: {registry_db}")
         db_flag = f' --db "{args.db}"' if args.db else ""
         print(f"wait for it with: lazytools-code-bridge wait {job_id}{db_flag}")
     return 0
@@ -535,6 +598,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 "run requires --tier T or --engine E; choose a tier for quota-aware routing or an explicit engine"
             )
         task = _read_task(args.task)
+        registry_db = _selected_registry_db(args)
         args.routing = json.loads(args.routing_record) if args.routing_record else None
         if not args.tier and args.session:
             from lazytools.code_bridge import _engines
@@ -585,7 +649,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         if refusal is not None:
             return refusal
     if args.detach:
-        return _cmd_run_detached(args, task)
+        return _cmd_run_detached(args, task, registry_db)
     job_id_holder: dict[str, str] = {}
 
     def _announce(job_id: str) -> None:
@@ -594,11 +658,14 @@ def _cmd_run(args: argparse.Namespace) -> int:
             _print_json(
                 {
                     **_job_identity(job_id, where="local", engine=args.engine, cwd=args.cwd),
+                    **({"registry_db": str(registry_db)} if registry_db is not None else {}),
                     **({"routing": args.routing} if args.routing else {}),
                 }
             )
         else:
             print(job_id, flush=True)  # first line: the caller can capture this immediately
+            if registry_db is not None:
+                print(f"approval registry: {registry_db}", flush=True)
 
     def _slot_wait(busy: EngineBusy) -> None:
         _announce_slot_wait(busy, err=args.json)
@@ -613,6 +680,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             effort=args.effort,
             root=args.root,
             db_path=_db_path(args),
+            registry_db=registry_db,
             on_job_id=_announce,
             job_id=args.job_id,
             routing=args.routing,
@@ -799,10 +867,14 @@ def _cmd_status(args: argparse.Namespace) -> int:
         return 1
     if _cloud.is_cloud(job):
         job = _cloud.refresh(store, registry, job)
+    elif registry_db := _registry.recorded_path(job) or _selected_registry_db(args):
+        job["registry_db"] = str(registry_db)
     if args.json:
         (_cloud_json if _cloud.is_cloud(job) else _print_json)(job)
     else:
         print(_job_line(job))
+        if job.get("registry_db"):
+            print(f"approval registry: {job['registry_db']}")
         if _cloud.is_cloud(job):
             if job.get("cloud_status"):
                 _cloud_print(f"cloud status: {job['cloud_status']}")
@@ -999,7 +1071,10 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         meta.setdefault("pid", pid)
         _store.write_meta(store, job_id, meta)
     message = "cancelled by operator during startup" if startup else "cancelled by operator"
-    error = _jobs.interrupt_job(store, registry, job, f"{message}: {args.reason}", db_path=db_path)
+    error = _jobs.interrupt_job(
+        store, registry, job, f"{message}: {args.reason}", db_path=db_path,
+        registry_db=_registry.isolated_path(None, args.registry_db),
+    )
     _record_intervention(store, job_id, "cancel", args.reason)
     print(f"[interrupted] job {job_id}\n{error}")
     return 0
@@ -1141,9 +1216,14 @@ def _cmd_wait(args: argparse.Namespace) -> int:
 
     deadline = None if args.timeout is None else time.monotonic() + args.timeout
     pid = _detached_pid(db_path, args.job_id)
+    registry_announced = False
     while True:
         store = _store.build_store(db_path)
         job = _jobs.find_job(store, _store.build_job_registry(store), args.job_id)
+        if job is not None and not registry_announced:
+            if registry_db := _registry.recorded_path(job) or _selected_registry_db(args):
+                print(f"approval registry: {registry_db}", file=sys.stderr)
+            registry_announced = True
         status = job.get("status") if job else None
         if status in _TERMINAL:
             return _cmd_result(args)
@@ -1228,7 +1308,7 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
         jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
 
         # A ticket is emitted once per invocation, even if it remains pending.
-        tickets = _registry.Registry(store).pending()
+        tickets = _pending_tickets(args, store, jobs=(job for job in jobs.values() if job is not None))
         for ticket in tickets:
             job = jobs.get(_registry.job_ref(ticket))
             if job is None or ticket.approval_id in emitted_approvals:
@@ -1577,8 +1657,8 @@ def _request_detail(prompt: str) -> dict[str, str]:
 def _cmd_pending(args: argparse.Namespace) -> int:
     from lazybridge.ext.approval import ticket_gist
 
-    store = _store.build_store(_db_path(args))
-    tickets = _registry.Registry(store).pending()
+    store = _ticket_job_store(args)
+    tickets = _pending_tickets(args, store)
     if args.json:
         _print_json(
             [
@@ -1608,32 +1688,28 @@ def _cmd_pending(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_decide(args: argparse.Namespace, action: Literal["approve", "reject"]) -> int:
+    store = _ticket_job_store(args)
+    verdict: Literal["approved", "rejected"] = "approved" if action == "approve" else "rejected"
+    for registry in _operator_registries(args, store):
+        if (ticket := registry.inspect(args.ticket_id)) is not None:
+            if registry.decide(ticket, verdict, args.actor, args.reason):
+                job_id = _registry.job_ref(ticket)
+                if _store.read_meta(store, job_id) is not None:
+                    _record_intervention(store, job_id, action, args.reason)
+                print(f"{verdict} {args.ticket_id}")
+                return 0
+            break
+    print(f"could not {action} {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
+    return 1
+
+
 def _cmd_approve(args: argparse.Namespace) -> int:
-    store = _store.build_store(_db_path(args))
-    registry = _registry.Registry(store)
-    ticket = registry.inspect(args.ticket_id)
-    ok = ticket is not None and registry.decide(ticket, "approved", args.actor, args.reason)
-    if not ok:
-        print(f"could not approve {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
-        return 1
-    if ticket is not None and _store.read_meta(store, _registry.job_ref(ticket)) is not None:
-        _record_intervention(store, _registry.job_ref(ticket), "approve", args.reason)
-    print(f"approved {args.ticket_id}")
-    return 0
+    return _cmd_decide(args, "approve")
 
 
 def _cmd_reject(args: argparse.Namespace) -> int:
-    store = _store.build_store(_db_path(args))
-    registry = _registry.Registry(store)
-    ticket = registry.inspect(args.ticket_id)
-    ok = ticket is not None and registry.decide(ticket, "rejected", args.actor, args.reason)
-    if not ok:
-        print(f"could not reject {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
-        return 1
-    if ticket is not None and _store.read_meta(store, _registry.job_ref(ticket)) is not None:
-        _record_intervention(store, _registry.job_ref(ticket), "reject", args.reason)
-    print(f"rejected {args.ticket_id}")
-    return 0
+    return _cmd_decide(args, "reject")
 
 
 def _cmd_autonomy(args: argparse.Namespace) -> int:
@@ -1901,7 +1977,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--brief-checked", action="store_true", help=argparse.SUPPRESS)
     run_p.add_argument("--job-id", default=None, help=argparse.SUPPRESS)
     run_p.add_argument("--routing-record", default=None, help=argparse.SUPPRESS)
-    _add_db_option(run_p)
+    _add_registry_option(run_p)
     run_p.set_defaults(func=_cmd_run)
 
     route_p = sub.add_parser("route", help="Explain a quota-aware pick; launch nothing.")
@@ -1937,7 +2013,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Give up after this many seconds (exit 3). Cloud jobs default to 7200.")
     wait_p.add_argument("--interval", type=float, default=5.0, help=argparse.SUPPRESS)
     wait_p.add_argument("--json", action="store_true")
-    _add_db_option(wait_p)
+    _add_registry_option(wait_p)
     wait_p.set_defaults(func=_cmd_wait)
 
     wait_any_p = sub.add_parser("wait-any", help="Block until an event occurs on any watched job.")
@@ -1949,7 +2025,7 @@ def build_parser() -> argparse.ArgumentParser:
     wait_any_p.add_argument("--loop", action="store_true", help="Print events until every watched job is terminal.")
     wait_any_p.add_argument("--json", action="store_true", help="Emit the event as one JSON object (the default format).")
     wait_any_p.add_argument("--interval", type=float, default=0.25, help=argparse.SUPPRESS)
-    _add_db_option(wait_any_p)
+    _add_registry_option(wait_any_p)
     wait_any_p.set_defaults(func=_cmd_wait_any)
 
     resync_p = sub.add_parser("resync", help="Re-check a cloud job that an older bridge failed after a poll error.")
@@ -1968,7 +2044,7 @@ def build_parser() -> argparse.ArgumentParser:
     status_p = sub.add_parser("status", help="Show one job's current status.")
     status_p.add_argument("job_id")
     status_p.add_argument("--json", action="store_true")
-    _add_db_option(status_p)
+    _add_registry_option(status_p)
     status_p.set_defaults(func=_cmd_status)
 
     cancel_p = sub.add_parser(
@@ -1976,7 +2052,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cancel_p.add_argument("job_id", help="Full job id or unique prefix.")
     cancel_p.add_argument("--reason", default="requested cancellation", help="Reason recorded with the interruption.")
-    _add_db_option(cancel_p)
+    _add_registry_option(cancel_p)
     cancel_p.set_defaults(func=_cmd_cancel)
 
     stop_p = sub.add_parser(
@@ -2090,21 +2166,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     pending_p = sub.add_parser("pending", help="List open approval tickets.")
     pending_p.add_argument("--json", action="store_true")
-    _add_db_option(pending_p)
+    _add_registry_option(pending_p)
     pending_p.set_defaults(func=_cmd_pending)
 
     approve_p = sub.add_parser("approve", help="Approve a pending ticket.")
     approve_p.add_argument("ticket_id")
     approve_p.add_argument("--actor", default="operator")
     approve_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
-    _add_db_option(approve_p)
+    _add_registry_option(approve_p)
     approve_p.set_defaults(func=_cmd_approve)
 
     reject_p = sub.add_parser("reject", help="Reject a pending ticket.")
     reject_p.add_argument("ticket_id")
     reject_p.add_argument("--reason", required=True)
     reject_p.add_argument("--actor", default="operator")
-    _add_db_option(reject_p)
+    _add_registry_option(reject_p)
     reject_p.set_defaults(func=_cmd_reject)
 
     autonomy_p = sub.add_parser("autonomy", help="Report the share of finished jobs needing no manual intervention.")
