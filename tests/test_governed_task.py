@@ -174,6 +174,7 @@ def test_governed_task_publication_and_ledger(trial, capsys):
         "stops_real": ["Stop one https://example.invalid/one", "Stop two https://example.invalid/two"],
         "stops_false": ["False stop"], "reconstruct_seconds": 20,
         "receipt": {"id": receipt_id, "verification": "live valid"}, "notes": "Trial note",
+        "re_reviews": 0, "rework_attempts": 0,
     }
 
 
@@ -356,3 +357,27 @@ def test_review_recovers_after_check_failure_and_rechecks_before_dispatch(trial)
     assert len(script.prompts) == 2
     assert "| 0 | gate passed |" in script.prompts[1]
     assert len(list(state.glob("checks-*/*.log"))) == 3
+
+
+def test_ledger_counts_and_times_all_continuation_attempts(trial):
+    start, invoke, setup, _, state, ledger, _ = trial
+    checkout = setup(accepted=False)
+    assert start(checkout) == 1
+    assert invoke("ledger", "--manual", "2", "--notes", "Initial review was blocked.") == 0
+    assert invoke("review") == 1
+    rework = state.parent.parent / "fix.md"
+    rework.write_text("Address the review feedback.", encoding="utf-8")
+    assert invoke("rework", "--brief", f"@{rework}") == 1
+
+    assert invoke("ledger") == 0
+    assert invoke("ledger") == 0
+    row = json.loads(ledger.read_text(encoding="utf-8"))
+    assert row["re_reviews"] == 2 and row["rework_attempts"] == 1
+    assert row["manual_interventions"] == 2 and row["notes"] == "Initial review was blocked."
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        tasks = project_store.read(_board_key(PROJECT))["tasks"]
+        jobs = [d["job_ref"] for task in tasks for d in task["dispatches"]]
+    with Store(db=str(state / "bridge.sqlite")) as job_store:
+        seconds = sum(turn["ended_at"] - turn["started_at"]
+                      for job in jobs for turn in _store.read_meta(job_store, job)["turns"])
+    assert row["agent_minutes"] == round(seconds / 60, 4)

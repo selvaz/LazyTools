@@ -48,6 +48,7 @@ RUN_KEY = "governed-task:run"
 TICKET_KEY = "governed-task:ticket"
 VERIFIED_KEY = "governed-task:live-verified-receipt"
 JOBS_KEY = "governed-task:jobs"
+LEDGER_MANUAL_KEY = "governed-task:ledger-manual"
 CHECK_TIMEOUT = 600
 CHECK_TAIL_BYTES = 4096
 CHECK_TAIL_LINES = 5
@@ -410,17 +411,24 @@ def publish_task(args: argparse.Namespace, stores: dict[str, Path], store: Store
     step(8, "Replay publication", f"returned stored receipt {receipt.receipt_id}, PR {receipt.publication.pr_url}")
 
 
-def trial_row(args: argparse.Namespace, stores: dict[str, Path], store: Store, task: str) -> dict[str, Any]:
+def trial_row(
+    args: argparse.Namespace, stores: dict[str, Path], store: Store, task: str, job_ids: list[str],
+    counts: dict[str, int], previous: dict[str, Any], manual_extra: int,
+) -> dict[str, Any]:
     jobs = store.read(JOBS_KEY)
     receipt_id = store.read(VERIFIED_KEY)
-    require(jobs and (receipt_id or jobs["rejection"]), "Finish publish --resume before recording the trial row")
+    require(jobs and not jobs.get("pending") and (receipt_id or jobs["rejection"]),
+            "Finish review and, if accepted, publish --resume before recording the trial row")
+    job_meta = []
     with Store(db=str(stores["bridge"])) as job_store:
-        writer, reviewer = [_store.read_meta(job_store, job_id) for job_id in jobs["ids"]]
-    require(writer and reviewer, "Writer or reviewer job metadata is missing")
-    assert writer is not None and reviewer is not None
-    seconds = sum(turn["ended_at"] - turn["started_at"] for job in (writer, reviewer) for turn in job["turns"])
+        for job_id in job_ids:
+            meta = _store.read_meta(job_store, job_id)
+            if meta is None:
+                raise DemoError(f"Job metadata is missing for {job_id}")
+            job_meta.append(meta)
+    seconds = sum(turn["ended_at"] - turn["started_at"] for job in job_meta for turn in job["turns"])
 
-    manual = args.manual
+    manual = manual_extra
     task_ids = {f"{args.project}/writer", f"{args.project}/review"}
     with Store(db=str(stores["registry"])) as registry_store:
         for _, record in registry_store.items(prefix=DEFAULT_PREFIX):
@@ -444,14 +452,18 @@ def trial_row(args: argparse.Namespace, stores: dict[str, Path], store: Store, t
         assert isinstance(created_at, str)
         pr_created = datetime.fromisoformat(created_at).timestamp()
         # GitHub timestamps have whole-second precision, unlike bridge job timestamps.
-        wall_minutes = round(max(0, pr_created - writer["created_at"]) / 60, 4)
+        wall_minutes = round(max(0, pr_created - job_meta[0]["created_at"]) / 60, 4)
 
     return {
         "task": task, "flow": "unified", "wall_minutes": wall_minutes, "agent_minutes": round(seconds / 60, 4),
-        "manual_interventions": manual, "stops_real": args.stop_real, "stops_false": args.stop_false,
-        "reconstruct_seconds": args.reconstruct_seconds,
+        "manual_interventions": max(manual, previous.get("manual_interventions", 0)),
+        "stops_real": args.stop_real or previous.get("stops_real", []),
+        "stops_false": args.stop_false or previous.get("stops_false", []),
+        "reconstruct_seconds": (args.reconstruct_seconds if args.reconstruct_seconds is not None
+                                else previous.get("reconstruct_seconds")),
         "receipt": {"id": receipt_id, "verification": "live valid"} if receipt_id else None,
-        "notes": args.notes,
+        "notes": args.notes if args.notes is not None else previous.get("notes", ""),
+        **counts,
     }
 
 
@@ -462,15 +474,31 @@ def append_ledger(args: argparse.Namespace, stores: dict[str, Path], store: Stor
     lock.acquire(args.project)
     try:
         content = path.read_bytes() if path.exists() else b""
-        for line in content.splitlines():
+        lines = content.splitlines(keepends=True)
+        tasks = {entry["task_id"]: entry for entry in store.read(_board_key(args.project))["tasks"]}
+        writer = tasks["writer"].get("dispatches", [])
+        review = tasks["review"].get("dispatches", [])
+        counts = {"rework_attempts": max(0, len(writer) - 1), "re_reviews": max(0, len(review) - 1)}
+        target = len(lines)
+        previous: dict[str, Any] = {}
+        for index, line in enumerate(lines):
             if line.strip():
-                row = json.loads(line)
-                if (row.get("task"), row.get("flow")) == (task, "unified"):
-                    print(f"Already recorded {task} in {path}")
-                    return
-        row = trial_row(args, stores, store, task)
-        separator = b"\n" if content and not content.endswith(b"\n") else b""
-        _receipts._write_atomic(path, content + separator + (json.dumps(row, ensure_ascii=False) + "\n").encode())
+                entry = json.loads(line)
+                if (entry.get("task"), entry.get("flow")) == (task, "unified"):
+                    previous = entry
+                    if all(previous.get(key, 0) == count for key, count in counts.items()):
+                        print(f"Already recorded {task} in {path}")
+                        return
+                    target = index
+                    break
+        jobs = [dispatch["job_ref"] for dispatch in writer + review if dispatch.get("job_ref")]
+        manual = args.manual if args.manual is not None else store.read(LEDGER_MANUAL_KEY, 0)
+        row = trial_row(args, stores, store, task, jobs, counts, previous, manual)
+        if target == len(lines) and content and not content.endswith(b"\n"):
+            lines[-1] += b"\n"
+        lines[target:target + 1] = [(json.dumps(row, ensure_ascii=False) + "\n").encode()]
+        store.write(LEDGER_MANUAL_KEY, manual)
+        _receipts._write_atomic(path, b"".join(lines))
         print(f"Recorded {task} in {path}")
     finally:
         lock.release()
@@ -522,11 +550,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     publish.add_argument("--resume", action="store_true")
     ledger = subcommands.add_parser("ledger", parents=[shared], help="Record one trial row")
     ledger.add_argument("--ledger", type=Path, help="Override the trial JSONL file selected at start")
-    ledger.add_argument("--manual", type=nonnegative, default=0, help="Additional manual interventions")
+    ledger.add_argument("--manual", type=nonnegative, help="Additional manual interventions")
     ledger.add_argument("--stop-real", action="append", default=[], help="Real stop and its evidence link")
     ledger.add_argument("--stop-false", action="append", default=[], help="False stop and its evidence link")
     ledger.add_argument("--reconstruct-seconds", type=nonnegative, help="Manually timed record reconstruction")
-    ledger.add_argument("--notes", default="")
+    ledger.add_argument("--notes")
     args = parser.parse_args(argv)
     if not re.fullmatch(r"[a-z][a-z0-9-]{1,40}", args.project):
         parser.error("--project must be 2 to 41 lowercase letters, digits or hyphens and start with a letter")
