@@ -31,6 +31,7 @@ per-call ``model`` / ``effort`` and their durable, renamable ``session_name``
 from __future__ import annotations
 
 import hashlib
+import logging
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -64,6 +65,8 @@ if TYPE_CHECKING:
     from lazybridge.engines.sessions import SessionRegistry
 
     from lazytools.code_bridge._launch import Launch
+
+logger = logging.getLogger(__name__)
 
 
 #: One hour. Was five minutes for writes and fifteen for reviews, which
@@ -103,6 +106,18 @@ def _claude_writer_gate(request: ApprovalRequest) -> ApprovalDecision:
 def _inside_git_repo(path: Path) -> bool:
     """True when ``path`` or one of its parents holds a ``.git`` (dir or worktree file)."""
     return any((candidate / ".git").exists() for candidate in (path, *path.parents))
+
+
+def _finish_writer_binding(
+    binding: NativeBinding, registry: SessionRegistry, cwd: str, alias: str | None, handle: str | None,
+    *, run_succeeded: bool,
+) -> None:
+    try:
+        binding.finish(registry, cwd, alias, handle)
+    except Exception:
+        if run_succeeded:
+            raise
+        logger.exception("Could not persist %s writer session binding", binding.engine)
 
 
 class CodeWriteBlocked(ActionBlocked):
@@ -450,9 +465,11 @@ class CodeWriteTools:
             max_retries=0,
             config=config,
         )
+        run_succeeded = False
         try:
             async with native_scope(launch):
                 env: Any = await Agent(engine, name="claude_code_write").run(task)
+            run_succeeded = bool(env.ok)
         except Exception as exc:  # the handle matters most when the run blew up
             return self._failure(
                 "claude_code",
@@ -464,8 +481,8 @@ class CodeWriteTools:
             )
         finally:
             handle = engine.session_id or resumed
-            binding.finish(reg, run_cwd, alias, handle)
-        if not env.ok:
+            _finish_writer_binding(binding, reg, run_cwd, alias, handle, run_succeeded=run_succeeded)
+        if not run_succeeded:
             message = env.error.message if env.error else "unknown error"
             return self._failure("claude_code", run_cwd, "session_id", handle, alias, message)
         if record_success:
@@ -531,17 +548,19 @@ class CodeWriteTools:
             )),
             **native_client("codex", launch),
         )
+        run_succeeded = False
         try:
             async with native_scope(launch):
                 env: Any = await Agent(engine, name="codex_write").run(task)
+            run_succeeded = bool(env.ok)
         except Exception as exc:
             return self._failure(
                 "codex", run_cwd, "thread_id", engine.thread_id or resumed, alias, f"{type(exc).__name__}: {exc}"
             )
         finally:
             handle = engine.thread_id or resumed
-            binding.finish(reg, run_cwd, alias, handle)
-        if not env.ok:
+            _finish_writer_binding(binding, reg, run_cwd, alias, handle, run_succeeded=run_succeeded)
+        if not run_succeeded:
             message = env.error.message if env.error else "unknown error"
             return self._failure("codex", run_cwd, "thread_id", handle, alias, message)
         if record_success:

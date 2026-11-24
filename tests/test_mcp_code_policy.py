@@ -29,6 +29,7 @@ from lazytools.connectors.code_support import (
 from lazytools.connectors.code_support._policy import (
     CODE_ACCESS,
     CodeTaskContext,
+    NativeBinding,
     local_launch,
     native_client,
     task_scope,
@@ -280,6 +281,46 @@ async def test_governed_writer_can_resume_native_session_after_exception(
         result = await tool.run(**follow_up, approval_id=retry_ticket_id)
     assert f"{handle_kind}={handle}" in result["result"]
     assert script.counter == 1
+
+
+@pytest.mark.parametrize("operation", ["codex_write", "claude_code_write"])
+@pytest.mark.parametrize(("mode", "original_error"), [
+    ("raise", "RuntimeError: engine blew up"),
+    ("error", "turn failed"),
+    ("ok", None),
+])
+async def test_writer_binding_failure_preserves_original_outcome(
+    workspace, qualified, monkeypatch, caplog, operation, mode, original_error,
+):
+    script = install(monkeypatch)
+    projects_db = workspace.parent / "scoped-projects.sqlite"
+    task = context(workspace, "edit-and-run", ("read", "edit"), projects_db=str(projects_db))
+    writer = CodeWriteTools(base_dir=str(workspace), codex=True)
+    tool = next(tool for tool in writer.as_tools() if tool.name == operation)
+    args = {"task": "Edit this file", "session_name": "writer"}
+    with task_scope(task), pytest.raises(CodeWriteBlocked, match="approval_id=") as exc:
+        await tool.run(**args)
+    ticket_id = str(exc.value).split("approval_id=")[1].split()[0]
+    assert cli.main(["approve", ticket_id, "--registry-db", str(projects_db)]) == 0
+
+    def reject_binding(*_args):
+        raise PolicyError("session binding rejected")
+
+    script.mode = mode
+    monkeypatch.setattr(NativeBinding, "finish", reject_binding)
+    with task_scope(task):
+        if original_error is None:
+            with pytest.raises(PolicyError, match="session binding rejected"):
+                await tool.run(**args, approval_id=ticket_id)
+        else:
+            result = await tool.run(**args, approval_id=ticket_id)
+            assert isinstance(result, str) and original_error in result
+            assert "Could not persist" in caplog.text
+            assert "session binding rejected" in caplog.text
+    assert script.counter == 1
+    assert not (workspace.parent / "projects.sqlite").exists()
+    ticket = ApprovalQueue(_registry.registry_store(projects_db)).get_ticket(ticket_id)
+    assert ticket.consumed_at is not None and ticket.effect_outcome is None
 
 
 def test_credentials_and_egress_are_narrowed_at_the_native_boundary(workspace, qualified, monkeypatch):
