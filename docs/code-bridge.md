@@ -104,14 +104,21 @@ in the pending approval before deciding. The default base is `main`. Use
 ticket. Pass the same `--db` and `--registry-db` selections to `approve` as
 to `publish` when using an isolated registry.
 
-The executor checks the local branch again before consuming the decision.
+The executor refuses `main`, `master`, the chosen base and the repository's
+default branch as publication heads. The head must match the writer task's
+assigned branch when one is recorded. Otherwise, the receipt records an
+`assigned_branch` check with status `not_configured`. The executor checks the
+local head again before consuming the decision.
 It pushes the reviewed object ID with an ordinary fast-forward push, opens a
 draft, then reads its head from GitHub. A published receipt records the draft
-at that head. A head mismatch produces a signed refusal and leaves the PR
-untouched. A replay returns the stored receipt or an
+at that head. A head mismatch or a PR that is no longer an open draft produces
+a signed refusal with the PR URL. LazyBridge 1.9.2 requires a null `pr_number`
+in signed refusals. The projects store records the number alongside the
+receipt. A replay returns the stored receipt or an
 `approval_already_consumed` refusal when the first process has yet to save
-its outcome. If the first process stops after consuming approval, the same
-ticket cannot trigger a second push or PR.
+its outcome. The ticket stays consumed if the push or `gh pr create` fails,
+or if the process stops after consuming approval. A retry requires a new
+approval.
 
 The projects store retains both published and refused receipts. Each also has a
 `receipt.json` under `results/<writer-job-id>/publication/<receipt-id>/`.
@@ -122,9 +129,11 @@ fingerprint on the draft PR.
 The issuer private key defaults to
 `~/.lazytools/receipt-issuer/ed25519.pem`. Set `LAZYTOOLS_RECEIPT_ISSUER_KEY`
 to use a different location. The executor exports the public key beside it
-with a `.pub.pem` suffix. On Windows, keep the key directory under a
-user-restricted ACL. The offline verifier accepts a stored receipt ID or a
-`receipt.json` file and an optional `--public-key PEM` from a trusted issuer.
+with a `.pub.pem` suffix. Windows does not enforce the `0o600` private-key
+mode. Private-key protection relies on the containing folder's ACL, which
+should restrict access to the issuer's user account. The offline verifier
+accepts a stored receipt ID or a `receipt.json` file and an optional
+`--public-key PEM` from a trusted issuer.
 It uses the local public-key export by default. For published receipts,
 `--live` additionally compares the signed head with the PR head.
 
