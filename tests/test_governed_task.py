@@ -1,0 +1,198 @@
+"""Exercise the NC-7 runner with fake engines, GitHub, and a local Git remote."""
+
+from __future__ import annotations
+
+import importlib
+import json
+import os
+import subprocess
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
+from datetime import datetime
+from pathlib import Path
+
+import pytest
+from lazybridge import Store
+
+from _code_bridge_fakes import Script
+from _receipt_demo_fakes import install
+from lazytools.code_bridge import _cloud, _store, cli
+from lazytools.projects.plan_edit import _board_key
+
+ROOT = Path(__file__).resolve().parents[1]
+PROJECT = "nc-7-subtraction"
+BRANCH = "trial/subtraction"
+
+
+@pytest.fixture
+def trial(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    runner = importlib.import_module("governed_task")
+    monkeypatch.setenv("GIT_ALLOW_PROTOCOL", "file")
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "0")
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_POLL_SECONDS", "0.05")
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_TICKET_TTL", "20")
+    monkeypatch.setenv("LAZYTOOLS_PROJECTS_STORE_DB", str(tmp_path / "ambient-projects.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(tmp_path / "ambient-bridge.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_RECEIPT_ISSUER_KEY", str(tmp_path / "ambient-issuer.pem"))
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    git = _cloud._git
+    git(seed, "init", "--initial-branch=main")
+    git(seed, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "--allow-empty", "-m", "Base")
+
+    fake_state = tmp_path / "fakes"
+    fake_state.mkdir()
+    state_parent = tmp_path / "trial state"
+    state = state_parent / f"task-{PROJECT}"
+    ledger = tmp_path / "ledger.jsonl"
+    brief = tmp_path / "brief.md"
+    brief.write_text("# Brief: Subtraction\n\nAdd subtraction and test a negative result.", encoding="utf-8")
+    review = tmp_path / "review.md"
+    review.write_text("Check that the test uses 2 minus 5.", encoding="utf-8")
+    script = Script()
+
+    def setup(*, accepted=True, native_approval=False):
+        script.request_approval = native_approval
+        checkout = install(stack, fake_state, seed, "main", "subtraction.py", "test_subtraction.py",
+                           writer_script=script, writer_commit=True, review_accepted=accepted)
+        return checkout
+
+    def invoke(command, *args):
+        return runner.main([command, "--project", PROJECT, "--state-dir", str(state_parent), *args])
+
+    def start(checkout, *args):
+        return invoke("start", "--repo", str(checkout), "--branch", BRANCH, "--brief", f"@{brief}",
+                      "--review-brief", f"@{review}", "--ledger", str(ledger), *args)
+
+    with ExitStack() as stack:
+        yield start, invoke, setup, script, state, ledger, fake_state
+    assert not list(tmp_path.glob("ambient-*"))
+
+
+def test_governed_task_publication_and_ledger(trial, capsys):
+    start, invoke, setup, script, state, ledger, fake_state = trial
+    checkout = setup(native_approval=True)
+    git = _cloud._git
+    base = git(checkout, "rev-parse", "HEAD")
+    git(checkout, "switch", "-c", "unrelated")
+    git(checkout, "commit", "--allow-empty", "-m", "Unrelated work")
+    options = ["--db", str(state / "bridge.sqlite"), "--registry-db", str(state / "registry.sqlite")]
+    gh_state = fake_state / "fake-github.json"
+
+    def writer_operator():
+        pythonpath = os.pathsep.join(filter(None, (str(ROOT / "src"), os.environ.get("PYTHONPATH"))))
+        env = {**os.environ, "PYTHONPATH": pythonpath}
+        command = [sys.executable, "-m", "lazytools.code_bridge"]
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if (state / "registry.sqlite").is_file():
+                output = subprocess.check_output([*command, "pending", "--json", *options], env=env, text=True, timeout=10)
+                tickets = json.loads(output)
+                if tickets:
+                    ticket, = tickets
+                    assert ticket["task_id"] == f"{PROJECT}/writer"
+                    subprocess.run([*command, "approve", ticket["approval_id"], *options], env=env, check=True,
+                                   capture_output=True, timeout=10)
+                    return
+            time.sleep(0.05)
+        pytest.fail("No writer approval appeared in the isolated registry")
+
+    with ThreadPoolExecutor() as pool:
+        approval = pool.submit(writer_operator)
+        assert start(checkout) == 0
+        approval.result()
+    trace = capsys.readouterr().out
+    assert all(f"STEP {step}:" in trace for step in range(1, 5))
+    assert "lazytools-code-bridge pending" in trace and "lazytools-code-bridge approve TICKET" in trace
+    assert all(option in trace for option in options)
+    head = git(checkout, "rev-parse", "HEAD")
+    assert git(checkout, "rev-parse", "HEAD^") == base
+    assert git(checkout, "branch", "--show-current") == BRANCH
+    assert "Check that the test uses 2 minus 5." in script.prompts[1]
+    assert "Add subtraction and test a negative result." in script.prompts[0]
+    assert not gh_state.exists()
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        _, review = project_store.read(_board_key(PROJECT))["tasks"]
+        assert review["dependency_ids"] == ["writer"]
+        writer_job, review_job = project_store.read("governed-task:jobs")["ids"]
+    with Store(db=str(state / "bridge.sqlite")) as job_store:
+        writer_meta = _store.read_meta(job_store, writer_job)
+        review_meta = _store.read_meta(job_store, review_job)
+        assert writer_meta and review_meta
+        assert (writer_meta["engine"], writer_meta["model"], writer_meta["effort"]) == ("codex", "gpt-6.2-sol", "high")
+        assert (review_meta["engine"], review_meta["profile"]) == ("claude", "read")
+        assert review_meta["routing"]["provider"] == "claude_code"
+
+    assert invoke("publish", "--resume") == 1
+    assert not gh_state.exists()
+    capsys.readouterr()
+    assert invoke("publish") == 0
+    trace = capsys.readouterr().out
+    assert f"example/publication {BRANCH} A={head} into main" in trace
+    approve_line = next(line for line in trace.splitlines() if line.startswith("lazytools-code-bridge approve "))
+    ticket = approve_line.split()[2]
+    assert all(option in approve_line for option in options)
+    assert not gh_state.exists()
+    assert cli.main(["approve", ticket, *options, "--actor", "test-operator"]) == 0
+
+    assert invoke("publish") == 0
+    assert "is approved. Run publish --resume" in capsys.readouterr().out
+    assert not gh_state.exists()
+    assert invoke("publish", "--resume") == 0
+    trace = capsys.readouterr().out
+    assert "live valid" in trace and "returned stored receipt" in trace
+    gh = json.loads(gh_state.read_text(encoding="utf-8"))
+    pr, = gh["prs"]
+    assert pr["isDraft"] and pr["headRefOid"] == head and pr["url"] in trace
+    assert len(gh["comments"]) == 1
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        receipt_id = project_store.read("governed-task:live-verified-receipt")
+    assert receipt_id in trace
+
+    ledger.write_text('{"task":"baseline","flow":"manual"}\n', encoding="utf-8")
+    assert invoke("ledger", "--manual", "2", "--stop-real", "Stop one https://example.invalid/one",
+                  "--stop-real", "Stop two https://example.invalid/two", "--stop-false", "False stop",
+                  "--reconstruct-seconds", "20", "--notes", "Trial note") == 0
+    assert invoke("ledger") == 0
+    baseline, row = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
+    seconds = sum(turn["ended_at"] - turn["started_at"] for meta in (writer_meta, review_meta) for turn in meta["turns"])
+    wall = datetime.fromisoformat(pr["createdAt"]).timestamp() - writer_meta["created_at"]
+    assert baseline == {"task": "baseline", "flow": "manual"}
+    assert row == {
+        "task": f"{PROJECT}: Subtraction", "flow": "unified", "wall_minutes": round(max(0, wall) / 60, 4),
+        "agent_minutes": round(seconds / 60, 4), "manual_interventions": 4,
+        "stops_real": ["Stop one https://example.invalid/one", "Stop two https://example.invalid/two"],
+        "stops_false": ["False stop"], "reconstruct_seconds": 20,
+        "receipt": {"id": receipt_id, "verification": "live valid"}, "notes": "Trial note",
+    }
+
+
+def test_governed_task_reuses_branch_and_stops_on_review_rejection(trial, capsys):
+    start, invoke, setup, _, state, ledger, fake_state = trial
+    checkout = setup(accepted=False)
+    git = _cloud._git
+    git(checkout, "switch", "-c", BRANCH)
+    git(checkout, "commit", "--allow-empty", "-m", "Earlier branch work")
+    earlier = git(checkout, "rev-parse", "HEAD")
+    git(checkout, "switch", "main")
+
+    assert start(checkout, "--engine", "claude", "--model", "claude-sonnet-5-5", "--effort", "medium") == 1
+    trace = capsys.readouterr()
+    assert "rejected" in trace.out and "A required check failed." in trace.err
+    assert git(checkout, "rev-parse", "HEAD^") == earlier
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        writer_job, _ = project_store.read("governed-task:jobs")["ids"]
+    with Store(db=str(state / "bridge.sqlite")) as job_store:
+        writer = _store.read_meta(job_store, writer_job)
+        assert writer and (writer["engine"], writer["model"], writer["effort"]) == ("claude", "claude-sonnet-5-5", "medium")
+    assert invoke("publish") == 1
+    assert not (fake_state / "fake-github.json").exists()
+    assert invoke("ledger", "--stop-real", "A required check failed") == 0
+    row = json.loads(ledger.read_text(encoding="utf-8"))
+    assert row["wall_minutes"] is None and row["receipt"] is None
+    assert row["stops_real"] == ["A required check failed"]

@@ -49,6 +49,7 @@ def preserve_windows_shell_environment(env: dict[str, str]) -> dict[str, str]:
 PUBLICATION_REMOTE = "https://github.com/example/publication.git"
 FAKE_GH = """
 import json, os, subprocess, sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 state_path = Path(os.environ["FAKE_GH_STATE"])
@@ -77,6 +78,7 @@ if args[1] == "create":
         "number": number, "url": url, "headRefName": head, "baseRefName": base,
         "headRefOid": os.environ.get("FAKE_GH_HEAD") or sha(head), "baseRefOid": sha(base),
         "isDraft": not os.environ.get("FAKE_GH_NON_DRAFT"), "isCrossRepository": False, "state": "OPEN",
+        "createdAt": datetime.now(UTC).isoformat(timespec="seconds"),
     })
     print(url)
 elif args[1] == "view":

@@ -20,7 +20,8 @@ from lazytools.projects.admission import TelemetryReading, WindowReading
 
 
 def install(
-    stack: ExitStack, state: Path, repo: Path, base: str, source_file: str, test_file: str
+    stack: ExitStack, state: Path, repo: Path, base: str, source_file: str, test_file: str,
+    *, writer_script: Script | None = None, writer_commit: bool = False, review_accepted: bool = True,
 ) -> Path:
     stack.enter_context(patch.dict(os.environ, {
         "GIT_ALLOW_PROTOCOL": "file",
@@ -67,14 +68,17 @@ def install(
             WindowReading("session", 10, 300, now + timedelta(hours=5)),
         )),
     }
-    script = Script()
+    script = writer_script if writer_script is not None else Script()
+    writer_requests_approval = script.request_approval
 
     class DemoAgent(FakeAgent):
         async def run(self, prompt: str) -> Any:
-            if prompt.startswith("Review commit "):
+            review = prompt.startswith("Review commit ")
+            script.request_approval = writer_requests_approval and not review
+            if review:
                 script.text = json.dumps({
-                    "verdict": "accepted", "sha": prompt.split()[2],
-                    "reason": "Subtraction and its test match the brief.",
+                    "verdict": "accepted" if review_accepted else "blocked", "sha": prompt.split()[2],
+                    "reason": ("Subtraction and its test match the brief." if review_accepted else "A required check failed."),
                 })
             else:
                 (checkout / source_file).write_text("def sub(a, b):\n    return a - b\n", encoding="utf-8")
@@ -85,7 +89,11 @@ def install(
                     "        self.assertEqual(sub(2, 5), -3)\n",
                     encoding="utf-8",
                 )
-            return await super().run(prompt)
+            result = await super().run(prompt)
+            if writer_commit and not review and result.ok:
+                git(checkout, "add", "--", source_file, test_file)
+                git(checkout, "commit", "-m", "Add subtraction and its test")
+            return result
 
     DemoAgent.script = script
     stack.enter_context(patch.object(lazybridge, "Agent", DemoAgent))
