@@ -259,3 +259,24 @@ def test_review_receives_bounded_copies_of_external_specs(trial, monkeypatch):
     assert f"Path: {second.as_posix()}" in review and "OK" * 32 in review
     assert "Attachment truncated after 64 bytes." in review
     assert "omitted text" not in review
+
+
+def test_review_judges_the_code_and_uses_runner_evidence(trial, monkeypatch):
+    start, _, setup, script, _, _, _ = trial
+    checkout = setup()
+    runner = importlib.import_module("governed_task")
+    run_job = runner.run_job
+
+    def multi_commit_writer(*args, **kwargs):
+        result = run_job(*args, **kwargs)
+        if not kwargs.get("review_of"):
+            _cloud._git(checkout, "commit", "--allow-empty", "-m", "Second writer commit")
+        return result
+
+    monkeypatch.setattr(runner, "run_job", multi_commit_writer)
+    assert start(checkout) == 0
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+    assert script.prompts[1].startswith(f"Review commit {head}")
+    assert "Judge correctness, security and spec coverage." in script.prompts[1]
+    assert "Use the attached runner check results instead of running checks." in script.prompts[1]
+    assert "writer-process preferences are not review blockers unless they hide risk" in script.prompts[1]

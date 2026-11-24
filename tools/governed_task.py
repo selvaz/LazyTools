@@ -201,7 +201,7 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     common = {"repo": args.repository, "assigned_branch": branch, "requested_network": False}
     tasks = [
         {**common, "task_id": "writer", "text": title, "requested_profile": "edit-and-run",
-         "acceptance_criteria": ["One local commit addresses the brief, and the checks required by the brief pass."]},
+         "acceptance_criteria": ["The local commits address the brief, and its required checks pass."]},
         {**common, "task_id": "review", "text": "Independently review the exact writer commit",
          "requested_profile": "read", "review_of": "writer", "dependency_ids": ["writer"],
          "acceptance_criteria": ["The reviewer accepts the writer's full commit SHA against the brief."]},
@@ -228,14 +228,14 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     print(f"Replace TICKET with an ID from pending: {approval_command(stores, 'approve', 'TICKET')}", flush=True)
     writer_job, _ = run_job(
         repo, stores, args.engine, writer, writer_claim,
-        f"Implement the brief on {branch}. Run the required checks and make exactly one local commit. "
+        f"Implement the brief on {branch}. Run the required checks and commit your changes locally. "
         "Leave the checkout clean. Do not push or open a pull request. Use English and omit AI attribution.\n\n"
         f"{args.brief}",
         model=model, effort=args.effort,
     )
     candidate = stable_checkout(repo, branch)
-    require(git(repo, "rev-list", "--parents", "-n", "1", candidate).split() == [candidate, start],
-            "Writer must leave exactly one new commit on the assigned branch")
+    require(candidate != start and git(repo, "merge-base", start, candidate) == start,
+            "Writer must advance the assigned branch from its starting commit")
     evidence = finish_task(service, operator, writer, writer_claim, writer_job, candidate)
     step(3, "Claim, run and complete writer", f"{writer_id}, {args.engine} job {writer_job}, A={candidate}, {evidence}")
 
@@ -246,6 +246,9 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
         repo, stores, review_engine, reviewer, review_claim,
         f"Review commit {candidate} against the writer brief below. Inspect git show {candidate} and "
         f"the proposed PR diff with git diff {review_base} {candidate}. Leave the checkout unchanged. "
+        "Judge correctness, security and spec coverage. Use the attached runner check results instead of "
+        "running checks. Commit granularity and other writer-process preferences are not review blockers "
+        "unless they hide risk. If a process issue hides risk, explain the specific risk. "
         'Return one JSON object with verdict ("accepted" or "blocked"), '
         f'sha (the full commit SHA "{candidate}"), and reason (one sentence explaining the verdict).\n\n'
         f"Writer brief\n{args.brief}\n\nExtra review instructions\n{args.review_brief or 'None'}\n\n"
