@@ -128,7 +128,10 @@ def check_resume(store: Any, engine: str, native_id: str | None, binding: dict[s
         return
     saved = store.read(f"{_NATIVE_PREFIX}{engine}:{native_id}")
     if saved is None:
-        raise PolicyError("No bridge policy binding for this native session; use a new session alias")
+        if binding.get("launch_mode") != "ungoverned-legacy":
+            raise PolicyError("No bridge policy binding for this native session; use a new session alias")
+        bind_native(store, engine, native_id, binding)
+        return
     check_binding(saved, binding)
 
 

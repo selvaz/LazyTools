@@ -1666,12 +1666,13 @@ record is marked `interrupted` rather than left stuck at `running` forever.
 `--session NAME` behaves exactly like `codex_write`/`claude_code_write`'s own
 `session_name`: an unused name opens a new Codex thread / Claude Code
 session and remembers it (in LazyBridge's own `SessionRegistry`,
-`~/.lazybridge/sessions.json` by default). Resume requires a native handle
-previously bound by this bridge to the same policy and task claim, when
-present. Use a new alias for pre-migration sessions or after policy changes.
-LazyBridge 1.9.0 keeps governed Claude resume bindings in the original SDK
-client, so governed Claude continuation is available within one bridge job.
-Session aliases are scoped per repository and engine.
+`~/.lazybridge/sessions.json` by default). Legacy launches bind an existing
+pre-migration alias on its first resume. Subsequent resumes require the
+same policy and task claim, when present. Governed launches require a
+previously bound native handle. LazyBridge 1.9.0 refuses governed Claude
+resume across bridge jobs because the bindings live in the original SDK
+client. In-job continuation can reuse that client. Session aliases are
+scoped per repository and engine.
 
 ## Delegation method
 

@@ -15,6 +15,7 @@ from lazybridge import Envelope
 from lazybridge.engines.codex.app_server import codex_executable
 from lazybridge.engines.codex.policy_launch import runtime_revision
 from lazybridge.engines.coding import ApprovalRequest
+from lazybridge.engines.sessions import default_session_registry
 from lazybridge.ext.approval import ApprovalQueue
 from lazybridge.policy import current_policy_context, load_profiles
 from lazybridge.policy.codex_admission import LAUNCH_PATH, REQUIRED_PROBES
@@ -311,6 +312,29 @@ def test_revision_change_refuses_continuation_and_native_resume(tmp_path, monkey
     resumed = _jobs.run_job(**kwargs)
     assert "launch binding changed" in resumed.error
     assert calls == ["Run"] and len(script.engines) == 1
+
+
+@pytest.mark.parametrize(("engine", "id_arg"), [("claude", "session_id"), ("codex", "thread_id")])
+def test_legacy_resume_binds_preexisting_alias(tmp_path, monkeypatch, engine, id_arg):
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(tmp_path / "sessions.json"))
+    script = fakes.install(monkeypatch)
+    default_session_registry().bind(engine, tmp_path, "writer", "native-before-pr")
+    kwargs = dict(engine_name=engine, cwd=str(tmp_path), root=str(tmp_path), task="Run", session_name="writer")
+
+    result = _jobs.run_job(**kwargs)
+    assert result.status == "done", result.error
+    assert script.kwargs[id_arg] == "native-before-pr"
+    assert _jobs.run_job(**kwargs).status == "done"
+    widened = _jobs.run_job(**kwargs, network="off")
+    assert widened.status == "failed" and "launch binding changed" in widened.error
+    assert len(script.engines) == 2
+
+
+def test_governed_resume_refuses_unbound_handle(tmp_path):
+    store = _store.build_store(tmp_path / "jobs.sqlite")
+    binding = {"launch_mode": "governed"}
+    with pytest.raises(ValueError, match="No bridge policy binding"):
+        _launch.check_resume(store, "codex", "unbound", binding)
 
 
 def test_release_receipt_matches_runtime_and_policy(tmp_path, monkeypatch):
