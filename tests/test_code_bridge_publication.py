@@ -65,7 +65,7 @@ if args[1] == "create":
     state["prs"].append({
         "number": number, "url": url, "headRefName": head, "baseRefName": base,
         "headRefOid": os.environ.get("FAKE_GH_HEAD") or sha(head), "baseRefOid": sha(base),
-        "isDraft": True, "isCrossRepository": False, "state": "OPEN",
+        "isDraft": not os.environ.get("FAKE_GH_NON_DRAFT"), "isCrossRepository": False, "state": "OPEN",
     })
     print(url)
 elif args[1] == "view":
@@ -230,11 +230,12 @@ def publish(fixture, capsys, *, writer="writer", branch="feature/reviewed", base
         ).fetchone()
     assert row is not None
     receipt = json.loads(row[-1])
+    pr_url = receipt["publication"]["pr_url"]
     assert row[:5] == (
         f"{PROJECT}/{writer}",
         receipt["writer"]["attempt"],
         receipt["publication"]["head_sha"],
-        receipt["publication"]["pr_number"],
+        int(pr_url.rsplit("/", 1)[1]) if pr_url is not None else None,
         receipt["outcome"]["status"],
     )
     return receipt
@@ -410,20 +411,28 @@ def test_same_provider_fresh_review_is_visible_and_verifiable(publication, capsy
     assert cli.main(["verify-receipt", receipt["receipt_id"], "--live"]) == 0
 
 
-def test_pr_head_mismatch_has_signed_refusal_and_no_retry(publication, capsys, monkeypatch):
+@pytest.mark.parametrize("reason", ["pr_head_mismatch", "pr_not_draft"])
+def test_created_pr_has_signed_refusal_and_no_retry(publication, capsys, monkeypatch, reason):
     accept(publication)
     approve(publication, capsys)
-    monkeypatch.setenv("FAKE_GH_HEAD", publication.other)
+    if reason == "pr_head_mismatch":
+        monkeypatch.setenv("FAKE_GH_HEAD", publication.other)
+    else:
+        monkeypatch.setenv("FAKE_GH_NON_DRAFT", "1")
     receipt = publish(publication, capsys)
-    assert receipt["outcome"]["refusal_reason"] == "pr_head_mismatch"
+    assert receipt["outcome"]["refusal_reason"] == reason
     assert receipt["publication"]["pr_number"] is None
-    assert receipt["publication"]["head_sha"] == publication.other
+    assert receipt["publication"]["pr_url"] == "https://github.com/example/publication/pull/1"
+    expected_head = publication.other if reason == "pr_head_mismatch" else publication.reviewed
+    assert receipt["publication"]["head_sha"] == expected_head
     assert receipt["reviewer"]["reviewed_sha"] == publication.reviewed
     assert receipt["approval"]["target"]["head_sha"] == publication.reviewed
     assert cli.main(["verify-receipt", receipt["receipt_id"]]) == 0
     assert cli.main(["verify-receipt", receipt["receipt_id"], "--live"]) == 0
     assert publish(publication, capsys) == receipt
-    assert len(json.loads(publication.state.read_text())["prs"]) == len(publication.pushes) == 1
+    state = json.loads(publication.state.read_text())
+    assert len(state["prs"]) == len(publication.pushes) == 1
+    assert state["comments"] == []
 
 
 def test_missing_review_and_rejected_ticket_are_signed(publication, capsys):

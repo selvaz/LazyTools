@@ -190,7 +190,14 @@ def finish(
     decision = bound.decision if bound else None
     fields = receipt.model_dump(mode="json")
     fields["issued_at"] = datetime.now(UTC).isoformat()
-    fields["publication"].update(base_sha=result.base_sha, pr_number=result.pr_number, pr_url=result.pr_url)
+    status: Literal["refused", "published"] = "refused" if result.reason else "published"
+    # LazyBridge v1 requires a null PR number on refusals. The signed URL
+    # still identifies the PR, and the store indexes its numeric ID below.
+    fields["publication"].update(
+        base_sha=result.base_sha,
+        pr_number=result.pr_number if status == "published" else None,
+        pr_url=result.pr_url,
+    )
     if result.observed_head is not None:
         fields["publication"]["head_sha"] = result.observed_head
     fields["approval"].update(
@@ -200,7 +207,6 @@ def finish(
         consumed_at=bound.consumed_at.isoformat() if bound and bound.consumed_at else None,
         request_digest=bound.request.digest if bound and bound.request else None,
     )
-    status: Literal["refused", "published"] = "refused" if result.reason else "published"
     fields["outcome"] = {"status": status, "refusal_reason": result.reason}
     receipt = sign(PublicationReceipt.model_validate(fields), key)
     encoded = json.dumps(receipt.model_dump(mode="json"), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
@@ -210,7 +216,7 @@ def finish(
         task_id=receipt.writer.task_id,
         attempt=receipt.writer.attempt,
         head_sha=receipt.publication.head_sha,
-        pr_number=receipt.publication.pr_number,
+        pr_number=result.pr_number,
         status=status,
         receipt_json=encoded,
         created_at=receipt.issued_at,

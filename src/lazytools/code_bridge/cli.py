@@ -2497,7 +2497,7 @@ def _cmd_publish(args: argparse.Namespace) -> int:
     print(
         f"{receipt.outcome.status} {receipt.receipt_id} {receipt.outcome.refusal_reason or receipt.publication.pr_url}"
     )
-    if result.pr_number is not None:
+    if result.reason is None and result.pr_number is not None:
         try:
             _gh.pr_comment(
                 f"github.com/{attempt.repository}",

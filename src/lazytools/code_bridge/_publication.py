@@ -263,6 +263,7 @@ def _publish(attempt: PublicationAttempt, outcome: PublicationOutcome) -> Public
             return replace(outcome, reason="pr_create_failed")
     except _GIT_ERRORS:
         return replace(outcome, reason="pr_create_failed")
+    outcome = replace(outcome, pr_number=number, pr_url=url)
     try:
         pr = _gh.pr_view(repo, number, publication=True)
     except _GIT_ERRORS:
@@ -281,7 +282,7 @@ def _publish(attempt: PublicationAttempt, outcome: PublicationOutcome) -> Public
     base_sha = pr.get("baseRefOid")
     if not isinstance(base_sha, str) or not _SHA.fullmatch(base_sha):
         return replace(outcome, reason="pr_head_unavailable")
-    return replace(outcome, base_sha=base_sha, pr_number=number, pr_url=url)
+    return replace(outcome, base_sha=base_sha)
 
 
 def run(
