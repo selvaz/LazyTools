@@ -184,6 +184,7 @@ def finish(
     bound = ticket if result.reason != "approval_target_mismatch" else None
     decision = bound.decision if bound else None
     fields = receipt.model_dump(mode="json")
+    fields["issued_at"] = datetime.now(UTC).isoformat()
     fields["publication"].update(base_sha=result.base_sha, pr_number=result.pr_number, pr_url=result.pr_url)
     fields["approval"].update(
         ticket_id=ticket.approval_id if ticket else None,

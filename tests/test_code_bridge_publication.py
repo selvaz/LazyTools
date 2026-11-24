@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -242,7 +243,7 @@ def test_publish_reviewed_head_and_verify_tampering(publication, capsys):
     number = receipt["publication"]["pr_number"]
     assert number == 1
     assert receipt["approval"]["ticket_id"] == ticket
-    assert receipt["approval"]["consumed_at"]
+    assert datetime.fromisoformat(receipt["approval"]["consumed_at"]) <= datetime.fromisoformat(receipt["issued_at"])
     assert receipt["publication"]["head_sha"] == publication.reviewed
     assert receipt["publication"]["base_sha"] == publication.base
     assert receipt["reviewer"]["independence_mode"] == "opposite-engine"
