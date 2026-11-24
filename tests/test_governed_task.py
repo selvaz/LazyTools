@@ -26,6 +26,10 @@ PROJECT = "nc-7-subtraction"
 BRANCH = "trial/subtraction"
 
 
+def python_check(code):
+    return f'"{sys.executable}" -c "{code}"'
+
+
 @pytest.fixture
 def trial(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(ROOT / "tools"))
@@ -196,3 +200,45 @@ def test_governed_task_reuses_branch_and_stops_on_review_rejection(trial, capsys
     row = json.loads(ledger.read_text(encoding="utf-8"))
     assert row["wall_minutes"] is None and row["receipt"] is None
     assert row["stops_real"] == ["A required check failed"]
+
+
+def test_checks_from_brief_run_in_order_on_writer_commit(trial):
+    start, _, setup, script, state, _, _ = trial
+    checkout = setup()
+    first = python_check("import subprocess; print(subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True))")
+    second = python_check("from subtraction import sub; assert sub(2, 5) == -3; print('negative result | OK')")
+    brief = state.parent.parent / "checks.md"
+    brief.write_text(f"# Subtraction\n\n## Checks\n\n```text\n{first}\n{second}\n```\n", encoding="utf-8")
+
+    assert start(checkout, "--brief", f"@{brief}") == 0
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+    logs = sorted(state.glob("checks-*/*.log"))
+    assert [log.read_text().strip() for log in logs] == [head, "negative result | OK"]
+    assert f"| 0 | {head} |" in script.prompts[1]
+    assert "| 0 | negative result &#124; OK |" in script.prompts[1]
+
+
+@pytest.mark.parametrize("failure", ["exit", "timeout", "missing"])
+def test_required_check_failure_stops_before_review(trial, capsys, monkeypatch, failure):
+    start, _, setup, script, state, _, _ = trial
+    checkout = setup()
+    brief = state.parent.parent / "checks.md"
+    brief.write_text("# Subtraction\n\n## Checks\n```\nshould-never-run\n```\n", encoding="utf-8")
+    if failure == "exit":
+        command = python_check("import sys; print('check error', file=sys.stderr); sys.exit(7)")
+        expected = "check error"
+    elif failure == "timeout":
+        monkeypatch.setattr(importlib.import_module("governed_task"), "CHECK_TIMEOUT", 1)
+        command = python_check("import time; time.sleep(30)")
+        expected = "Timed out after 1 seconds."
+    else:
+        command = "missing-governed-check"
+        expected = "launch error"
+
+    assert start(checkout, "--brief", f"@{brief}", "--check", command, "--check", python_check("print('ran second')")) == 1
+    error = capsys.readouterr().err
+    assert expected in error and "Required checks failed" in error and "should-never-run" not in error
+    assert len(script.prompts) == 1
+    first, second = sorted(state.glob("checks-*/*.log"))
+    assert str(first) in error
+    assert second.read_text().strip() == "ran second"

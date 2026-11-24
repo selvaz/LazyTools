@@ -9,6 +9,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tempfile
 from contextlib import ExitStack
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -33,6 +34,7 @@ from receipt_live_demo import (
 
 from lazytools.code_bridge import _cloud, _gh, _publication, _receipts, _registry, _store
 from lazytools.code_bridge._lockfile import JobLock, LockHeld
+from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
@@ -44,6 +46,84 @@ RUN_KEY = "governed-task:run"
 TICKET_KEY = "governed-task:ticket"
 VERIFIED_KEY = "governed-task:live-verified-receipt"
 JOBS_KEY = "governed-task:jobs"
+CHECK_TIMEOUT = 600
+CHECK_TAIL_BYTES = 4096
+CHECK_TAIL_LINES = 5
+
+
+def brief_checks(brief: str) -> list[str]:
+    heading_level = None
+    fence = ""
+    commands: list[str] = []
+    for line in brief.splitlines():
+        line = line.strip()
+        marker = re.match(r"^(`{3,}|~{3,})", line)
+        if fence:
+            if line.startswith(fence) and not line.strip(fence[0]):
+                if heading_level is not None:
+                    return commands
+                fence = ""
+            elif heading_level is not None and line:
+                commands.append(line)
+            continue
+        if marker:
+            fence = marker[1]
+            continue
+        heading = re.fullmatch(r"(#{1,6})\s+(.+?)(?:\s+#+)?", line)
+        if heading and heading[2].casefold() == "checks":
+            heading_level = len(heading[1])
+        elif heading and heading_level is not None and len(heading[1]) <= heading_level:
+            break
+    require(not fence or heading_level is None, "The Checks command block is missing its closing fence")
+    return []
+
+
+def check_commands(brief: str, overrides: list[str] | None) -> list[str]:
+    commands = overrides if overrides else brief_checks(brief)
+    for command in commands:
+        require("\n" not in command and "\r" not in command and _split_command(command),
+                f"Expected one check command per line: {command!r}")
+    return commands
+
+
+def table_cell(value: str) -> str:
+    return (value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace("|", "&#124;").replace("`", "&#96;").replace("\\", "&#92;"))
+
+
+def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: list[str]) -> str:
+    if not commands:
+        return "No check commands were supplied."
+    log_dir = Path(tempfile.mkdtemp(prefix=f"checks-{candidate[:12]}-", dir=state))
+    rows = ["| Command | Exit code | Last lines |", "| --- | --- | --- |"]
+    failures = []
+    for index, command in enumerate(commands, 1):
+        require(stable_checkout(repo, branch) == candidate, "The checkout changed before checks")
+        log = log_dir / f"{index:02d}.log"
+        argv = _split_command(command)
+        note = ""
+        with log.open("wb") as output:
+            try:
+                code = str(subprocess.run(
+                    argv, cwd=repo, shell=False, stdin=subprocess.DEVNULL, stdout=output,
+                    stderr=subprocess.STDOUT, timeout=CHECK_TIMEOUT, check=False,
+                ).returncode)
+            except subprocess.TimeoutExpired:
+                code, note = "timeout", f"Timed out after {CHECK_TIMEOUT} seconds."
+            except OSError as exc:
+                code, note = "launch error", str(exc)
+            if note:
+                output.write(f"\n{note}\n".encode("utf-8", errors="replace"))
+        with log.open("rb") as output:
+            output.seek(max(0, log.stat().st_size - CHECK_TAIL_BYTES))
+            tail = _cloud.redact(output.read().decode("utf-8", errors="replace")).rstrip()
+            lines = tail.splitlines()[-CHECK_TAIL_LINES:]
+        rows.append(f"| {table_cell(command)} | {code} | {'<br>'.join(map(table_cell, lines))} |")
+        if code != "0":
+            failures.append(f"{command} ({code}, log {log})\n" + "\n".join(lines))
+        require(stable_checkout(repo, branch) == candidate, f"The checkout changed during checks. Output: {log}")
+    require(not failures, "Required checks failed on " + candidate + "\n" + "\n".join(failures))
+    return "\n".join(rows)
 
 
 def db_options(stores: dict[str, Path]) -> list[str]:
@@ -91,6 +171,7 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     writer_id, review_id = f"{project}/writer", f"{project}/review"
     review_engine = "claude" if args.engine == "codex" else "codex"
     model = args.model or ("gpt-6.2-sol" if args.engine == "codex" else None)
+    commands = args.checks
 
     step = step_trace(stores, table_counts(stores))
     issuer = _receipts.load_issuer()
@@ -113,7 +194,8 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     promoted = projects.projects_promote(*plan)
     require(promoted.startswith("promoted"), promoted)
     revisions = {task["task_id"]: task.get("revision", "0") for task in store.read(_board_key(project))["tasks"]}
-    store.write(RUN_KEY, {"repo": str(repo), "branch": branch, "base": base, "title": title, "ledger": str(args.ledger)})
+    store.write(RUN_KEY, {"repo": str(repo), "branch": branch, "base": base, "title": title,
+                          "ledger": str(args.ledger), "checks": commands})
     step(2, "Create project and promote plan", f"{writer_id} and {review_id} (depends on writer)")
 
     # Leave time for the bridge's one-hour job timeout and for completion bookkeeping.
@@ -138,6 +220,7 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     evidence = finish_task(service, operator, writer, writer_claim, writer_job, candidate)
     step(3, "Claim, run and complete writer", f"{writer_id}, {args.engine} job {writer_job}, A={candidate}, {evidence}")
 
+    checks = run_checks(repo, branch, candidate, stores["projects"].parent, commands)
     review_claim = claim(service, reviewer, review_id, review_engine, revisions["review"])
     print(f"Running {review_engine} review of writer job {writer_job}", flush=True)
     review_job, result = run_job(
@@ -146,7 +229,8 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
         f"the proposed PR diff with git diff {review_base} {candidate}. Leave the checkout unchanged. "
         'Return one JSON object with verdict ("accepted" or "blocked"), '
         f'sha (the full commit SHA "{candidate}"), and reason (one sentence explaining the verdict).\n\n'
-        f"Writer brief\n{args.brief}\n\nExtra review instructions\n{args.review_brief or 'None'}",
+        f"Writer brief\n{args.brief}\n\nExtra review instructions\n{args.review_brief or 'None'}\n\n"
+        f"Runner checks on {candidate}\n{checks}",
         review_of=writer_job,
     )
     require(stable_checkout(repo, branch) == candidate, "The checkout changed during review")
@@ -309,6 +393,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     start.add_argument("--base", default="main")
     start.add_argument("--brief", type=at_file, required=True, metavar="@file")
     start.add_argument("--review-brief", type=at_file, metavar="@file")
+    start.add_argument("--check", action="append", metavar="CMD", help="Required check (repeat to override Checks)")
     start.add_argument("--engine", choices=("codex", "claude"), default="codex")
     start.add_argument("--model", help="Writer model (Codex defaults to gpt-6.2-sol)")
     start.add_argument("--effort", default="high")
@@ -334,6 +419,7 @@ def execute(args: argparse.Namespace, stack: ExitStack) -> None:
     stores = {name: state / f"{name}.sqlite" for name in ("projects", "bridge", "registry")}
     new = args.command == "start"
     if new:
+        args.checks = check_commands(args.brief, args.check)
         repo = args.repo = safe_path(args.repo)
         args.ledger = safe_path(args.ledger)
         git = _cloud._git
