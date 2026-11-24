@@ -74,7 +74,8 @@ def _add_db_option(parser: argparse.ArgumentParser) -> None:
 def _add_registry_option(parser: argparse.ArgumentParser) -> None:
     _add_db_option(parser)
     parser.add_argument(
-        "--registry-db", type=Path,
+        "--registry-db",
+        type=Path,
         help="Approval registry path (default: sibling <db stem>.registry.sqlite for a non-default --db, "
         "otherwise the shared projects registry).",
     )
@@ -95,7 +96,10 @@ def _ticket_job_store(args: argparse.Namespace) -> Any:
 
 
 def _operator_registries(
-    args: argparse.Namespace, store: Any, *, jobs: Iterable[dict[str, Any]] | None = None,
+    args: argparse.Namespace,
+    store: Any,
+    *,
+    jobs: Iterable[dict[str, Any]] | None = None,
 ) -> Iterator[tuple[_registry.Registry, set[str] | None]]:
     primary = _registry.Registry(store, _selected_registry_db(args))
     yield primary, None
@@ -116,7 +120,10 @@ def _operator_registries(
 
 
 def _pending_tickets(
-    args: argparse.Namespace, store: Any, *, jobs: Iterable[dict[str, Any]] | None = None,
+    args: argparse.Namespace,
+    store: Any,
+    *,
+    jobs: Iterable[dict[str, Any]] | None = None,
 ) -> list[ApprovalTicket]:
     tickets = {
         ticket.approval_id: ticket
@@ -205,6 +212,7 @@ def _record_intervention(store: Any, job_id: str, kind: str, reason: str | None 
     except Exception as exc:
         print(f"warning: action succeeded but its {kind} intervention could not be recorded: {exc}", file=sys.stderr)
 
+
 # Windows process-creation flags for a child that must outlive its launcher:
 # no console tie to the parent, its own process group (so a Ctrl+C or a
 # console close aimed at the launcher does not reach it), and out of the
@@ -223,8 +231,18 @@ _CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 
 def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
     # --where local: the child must never re-resolve placement (a [cloud] default_where would send it to the cloud).
-    argv = [sys.executable, "-m", "lazytools.code_bridge", "run", "--where", "local", "--engine", args.engine,
-            "--cwd", args.cwd]
+    argv = [
+        sys.executable,
+        "-m",
+        "lazytools.code_bridge",
+        "run",
+        "--where",
+        "local",
+        "--engine",
+        args.engine,
+        "--cwd",
+        args.cwd,
+    ]
     argv += ["--task", args.task, "--job-id", job_id]
     argv += ["--timeout", str(args.timeout)]
     argv += ["--max-continuations", str(args.max_continuations)]
@@ -337,7 +355,11 @@ def _cmd_run_detached(args: argparse.Namespace, task: str, registry_db: Path | N
         claim = _task.load(args.task_id, args.claim_token, state="intent")
         resolver = claim.launch if claim else _launch.resolve_launch
         launch = resolver(
-            args.engine, resolved_cwd, args.profile, args.network, args.launch_mode,
+            args.engine,
+            resolved_cwd,
+            args.profile,
+            args.network,
+            args.launch_mode,
             review=bool(args.review_of or args.intentional_review),
         )
     except (OSError, ValueError, ImportError) as exc:
@@ -347,9 +369,18 @@ def _cmd_run_detached(args: argparse.Namespace, task: str, registry_db: Path | N
     args.registry_db = registry_db
     if args.db:
         args.db = str(Path(args.db).expanduser().resolve())
-    store.write(_launch.DETACH_PREFIX + job_id, _jobs.detach_binding(
-        launch, args.engine, resolved_cwd, task, args.session, claim, registry_db=registry_db,
-    ))
+    store.write(
+        _launch.DETACH_PREFIX + job_id,
+        _jobs.detach_binding(
+            launch,
+            args.engine,
+            resolved_cwd,
+            task,
+            args.session,
+            claim,
+            registry_db=registry_db,
+        ),
+    )
     pid = _spawn_detached(_child_argv(args, job_id), log_path)
     (out_dir / f"{job_id}.pid").write_text(str(pid), encoding="utf-8")
     if args.json:
@@ -445,8 +476,10 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
                 "cannot pass through the local approval gate one by one (see docs/code-bridge.md, 'Approvals')"
             )
         if args.engine is None and not args.review_of:
-            raise ValueError("--where cloud requires an explicit --engine (quota routing is local-only; "
-                             "--review-of picks the opposite engine by itself)")
+            raise ValueError(
+                "--where cloud requires an explicit --engine (quota routing is local-only; "
+                "--review-of picks the opposite engine by itself)"
+            )
         if args.routine and args.engine and args.engine != "claude":
             raise ValueError("--routine is only for --where cloud --engine claude")
         if args.profile != "default":
@@ -455,7 +488,9 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         if used:
             raise ValueError(f"--where cloud does not take {', '.join(used)}")
         if args.review_of and (args.land or args.pr is not None or args.open_pr):
-            raise ValueError("--review-of posts a comment on the reviewed job's PR; it does not take --land, --pr or --open-pr")
+            raise ValueError(
+                "--review-of posts a comment on the reviewed job's PR; it does not take --land, --pr or --open-pr"
+            )
         task = _read_task(args.task) if args.task else ""
         if not task and not args.review_of:
             raise ValueError("run requires --task (or --review-of, for a cloud review)")
@@ -465,8 +500,13 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         if args.review_of:
             store = _store.build_store(_db_path(args))
             prep = _cloud_land.prepare_review(
-                store, _store.build_job_registry(store), args.review_of, job_id=job_id,
-                repo=_cloud.repo_slug(_cloud.repo_root(cwd)), engine=args.engine, extra=task,
+                store,
+                _store.build_job_registry(store),
+                args.review_of,
+                job_id=job_id,
+                repo=_cloud.repo_slug(_cloud.repo_root(cwd)),
+                engine=args.engine,
+                extra=task,
                 root=_cloud.repo_root(cwd),
             )
             if branch and branch != prep["branch"]:
@@ -483,14 +523,30 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         if refusal is not None:
             return refusal
     if _cloud.redact(task) != task:
-        print("warning: the brief contains credential-looking text; it is masked in the job record, but the cloud "
-              "agent receives the brief as written -- rotate the secret if it is real", file=sys.stderr)
+        print(
+            "warning: the brief contains credential-looking text; it is masked in the job record, but the cloud "
+            "agent receives the brief as written -- rotate the secret if it is real",
+            file=sys.stderr,
+        )
     try:
         job = _cloud.submit_job(
-            engine=args.engine, cwd=cwd, task=task, branch=branch, db_path=_db_path(args), job_id=job_id,
-            approvals=tuple(args.approve_cloud or ()), routine=args.routine, pr=args.pr, open_pr=args.open_pr,
-            land=args.land, rebase_ok=args.rebase_ok, model=args.model, tier=args.tier, title=args.title,
-            network=args.network == "on", extra_meta=extra_meta,
+            engine=args.engine,
+            cwd=cwd,
+            task=task,
+            branch=branch,
+            db_path=_db_path(args),
+            job_id=job_id,
+            approvals=tuple(args.approve_cloud or ()),
+            routine=args.routine,
+            pr=args.pr,
+            open_pr=args.open_pr,
+            land=args.land,
+            rebase_ok=args.rebase_ok,
+            model=args.model,
+            tier=args.tier,
+            title=args.title,
+            network=args.network == "on",
+            extra_meta=extra_meta,
         )
     except _cloud.CloudEnvUnmapped as exc:
         if args.json:
@@ -503,8 +559,25 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         return 2
     placement = getattr(args, "placement", None)
     if args.json:
-        payload = {k: job.get(k) for k in ("job_id", "status", "where", "engine", "repo", "env_id", "branch",
-                                           "cloud_handle", "cloud_url", "model", "pr_number", "pr_url", "land", "open_pr")}
+        payload = {
+            k: job.get(k)
+            for k in (
+                "job_id",
+                "status",
+                "where",
+                "engine",
+                "repo",
+                "env_id",
+                "branch",
+                "cloud_handle",
+                "cloud_url",
+                "model",
+                "pr_number",
+                "pr_url",
+                "land",
+                "open_pr",
+            )
+        }
         payload.update(short_id=str(job["job_id"])[:8], cwd=str(cwd), task_url=job.get("cloud_url"))
         if review_meta:
             payload["review_of"] = review_meta["of"]
@@ -513,29 +586,39 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         _cloud_json(payload)
     else:
         _cloud_print(str(job["job_id"]))
-        _cloud_print(f"cloud: {job['engine']} task {job.get('cloud_url') or job.get('cloud_handle')} "
-              f"(repo {job['repo']}, branch {job['branch']}, env {job['env_id']})")
+        _cloud_print(
+            f"cloud: {job['engine']} task {job.get('cloud_url') or job.get('cloud_handle')} "
+            f"(repo {job['repo']}, branch {job['branch']}, env {job['env_id']})"
+        )
         db_flag = f' --db "{args.db}"' if args.db else ""
         if job.get("model"):
             _cloud_print(f"model: {job['model']}")
         elif job.get("model_note"):
             _cloud_print(f"model: {job['model_note']}")
         if job.get("pr_number"):
-            _cloud_print(f"PR target: #{job['pr_number']} ({job.get('pr_url')}), working on its head branch {job['branch']}")
+            _cloud_print(
+                f"PR target: #{job['pr_number']} ({job.get('pr_url')}), working on its head branch {job['branch']}"
+            )
         elif job.get("open_pr"):
             _cloud_print(f"PR target: a new branch and PR against {job['branch']} when landed")
         if review_meta:
-            _cloud_print(f"review of job {review_meta['of'][:8]} ({review_meta['author']}'s work, branch "
-                         f"{review_meta['branch']}); the verdict is posted to "
-                         f"{review_meta.get('pr_url') or 'its PR (none recorded: the review stays in the result)'}")
+            _cloud_print(
+                f"review of job {review_meta['of'][:8]} ({review_meta['author']}'s work, branch "
+                f"{review_meta['branch']}); the verdict is posted to "
+                f"{review_meta.get('pr_url') or 'its PR (none recorded: the review stays in the result)'}"
+            )
         if job.get("engine") == "claude":
             if job.get("environment_note"):
                 _cloud_print(f"note: {job['environment_note']}")
-            _cloud_print("note: Claude cloud sessions have no status API; the bridge watches origin for the "
-                         "claude/ branch the session pushes")
+            _cloud_print(
+                "note: Claude cloud sessions have no status API; the bridge watches origin for the "
+                "claude/ branch the session pushes"
+            )
         if job.get("land") or review_meta:
-            _cloud_print("landing/posting is automatic: `lazytools-code-bridge wait` or `lazytools-code-bridge cloud-sync` "
-                         "does it when the task finishes")
+            _cloud_print(
+                "landing/posting is automatic: `lazytools-code-bridge wait` or `lazytools-code-bridge cloud-sync` "
+                "does it when the task finishes"
+            )
         _cloud_print(f"wait for it with: lazytools-code-bridge wait {job['job_id']}{db_flag}")
     return 0
 
@@ -545,7 +628,11 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
     try:
         config = _cloud.load_config()
         requested = args.where or config.default_where
-        cwd = _engines.resolve_cwd(args.cwd, args.root) if requested in ("auto", "cloud") and args.engine == "codex" else None
+        cwd = (
+            _engines.resolve_cwd(args.cwd, args.root)
+            if requested in ("auto", "cloud") and args.engine == "codex"
+            else None
+        )
         placement = _cloud_place.decide_for_repo(requested, config=config, engine=args.engine, cwd=cwd)
     except _cloud.CloudEnvUnmapped as exc:
         if args.json:
@@ -576,14 +663,26 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if refusal is not None:
         return refusal
     if args.where == _cloud.WHERE_CLOUD:
-        if args.launch_mode != "auto" or args.profile not in _launch.LEGACY_PROFILES or args.task_id or args.claim_token:
+        if (
+            args.launch_mode != "auto"
+            or args.profile not in _launch.LEGACY_PROFILES
+            or args.task_id
+            or args.claim_token
+        ):
             print("error: core launch mode, profiles, and task claims require local placement", file=sys.stderr)
             return 2
         return _cmd_run_cloud(args)
-    for name, flag in (("branch", "--branch"), ("allow_cloud", "--allow-cloud"), ("approve_cloud", "--approve-cloud"),
-                       ("routine", "--routine"), ("pr", "--pr"), ("open_pr", "--open-pr"), ("land", "--land"),
-                       ("title", "--title"),
-                       ("rebase_ok", "--rebase-ok")):
+    for name, flag in (
+        ("branch", "--branch"),
+        ("allow_cloud", "--allow-cloud"),
+        ("approve_cloud", "--approve-cloud"),
+        ("routine", "--routine"),
+        ("pr", "--pr"),
+        ("open_pr", "--open-pr"),
+        ("land", "--land"),
+        ("title", "--title"),
+        ("rebase_ok", "--rebase-ok"),
+    ):
         if getattr(args, name, None) not in (None, False, []):
             print(f"error: {flag} is only for --where cloud", file=sys.stderr)
             return 2
@@ -886,7 +985,9 @@ def _cmd_status(args: argparse.Namespace) -> int:
             if job.get("last_poll_error"):
                 _cloud_print(f"last poll failed: {job['last_poll_error']}", err=True)
         if "routine_auto" in job:
-            print(f"routine-auto: {'enabled' if job['routine_auto'] else 'disabled'}; {job.get('routine_rule_count', 0)} active rules")
+            print(
+                f"routine-auto: {'enabled' if job['routine_auto'] else 'disabled'}; {job.get('routine_rule_count', 0)} active rules"
+            )
         if job.get("turns"):
             print(_progress.history_text(job["turns"]))
     return 0
@@ -1077,7 +1178,11 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         _store.write_meta(store, job_id, meta)
     message = "cancelled by operator during startup" if startup else "cancelled by operator"
     error = _jobs.interrupt_job(
-        store, registry, job, f"{message}: {args.reason}", db_path=db_path,
+        store,
+        registry,
+        job,
+        f"{message}: {args.reason}",
+        db_path=db_path,
         registry_db=_registry.isolated_path(None, args.registry_db),
     )
     _record_intervention(store, job_id, "cancel", args.reason)
@@ -1105,7 +1210,9 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
                     provider, ident = _cloud_stop.resolve_handle(str(handle))
                     targets.append((provider, ident, job))
                 except Exception as exc:
-                    errors.append({"handle": _cloud.redact(str(handle)), "status": "failed", "reason": _cloud.redact(str(exc))})
+                    errors.append(
+                        {"handle": _cloud.redact(str(handle)), "status": "failed", "reason": _cloud.redact(str(exc))}
+                    )
     else:
         found = _jobs.find_job(store, registry, args.target)
         value = str(found.get("cloud_handle")) if found and found.get("cloud_handle") else args.target
@@ -1138,8 +1245,9 @@ def _cmd_cloud_stop(args: argparse.Namespace) -> int:
     return 1 if any(item.get("status") == "failed" for item in safe) else 0
 
 
-def _stop_cloud_target(store: Any, registry: Any, provider: str, handle: str,
-                       owner_job: dict[str, Any] | None) -> dict[str, Any]:
+def _stop_cloud_target(
+    store: Any, registry: Any, provider: str, handle: str, owner_job: dict[str, Any] | None
+) -> dict[str, Any]:
     """Use the common provider-stop path and update local tracking when confirmed."""
     from lazytools.code_bridge import _cloud_stop
 
@@ -1150,8 +1258,7 @@ def _stop_cloud_target(store: Any, registry: Any, provider: str, handle: str,
             result["job_id"] = owner_job["job_id"]
         return result
     except Exception as exc:
-        return {"provider": provider, "handle": handle, "status": "failed",
-                "reason": _cloud.redact(str(exc))}
+        return {"provider": provider, "handle": handle, "status": "failed", "reason": _cloud.redact(str(exc))}
 
 
 def _cancel_cloud(store: Any, registry: Any, job: dict[str, Any], reason: str) -> int:
@@ -1195,15 +1302,17 @@ def _cmd_wait(args: argparse.Namespace) -> int:
     first_job = _jobs.find_job(first, _store.build_job_registry(first), args.job_id)
     if first_job is not None and _cloud.is_cloud(first_job):
         timeout = _cloud.DEFAULT_CLOUD_WAIT_TIMEOUT if args.timeout is None else args.timeout
-        job = _cloud.wait_job(lambda: _store.build_store(db_path), str(first_job["job_id"]),
-                              timeout=timeout, interval=args.interval)
+        job = _cloud.wait_job(
+            lambda: _store.build_store(db_path), str(first_job["job_id"]), timeout=timeout, interval=args.interval
+        )
         if job is not None and job.get("status") in _TERMINAL:
             owed_failed = False
             if _cloud_land.needs_finishing(job):
                 # --land / --review-of: finishing the job (landing it, posting its review) is part of waiting for it.
                 finish_store = _store.build_store(db_path)
-                row = _cloud_land.process_job(finish_store, _store.build_job_registry(finish_store), job,
-                                              db_path=db_path)
+                row = _cloud_land.process_job(
+                    finish_store, _store.build_job_registry(finish_store), job, db_path=db_path
+                )
                 _cloud_print(f"{row['action']}: {row['detail']}", err=True)
                 owed_failed = row["action"].endswith("-failed")
             code = _cmd_result(args)
@@ -1213,8 +1322,11 @@ def _cmd_wait(args: argparse.Namespace) -> int:
             return 1
         errors = int(job.get("poll_errors_in_a_row") or 0)
         if errors:
-            _cloud_print(f"job {args.job_id} still unknown after {errors} failed status poll(s); last error: "
-                         f"{job.get('last_poll_error')}", err=True)
+            _cloud_print(
+                f"job {args.job_id} still unknown after {errors} failed status poll(s); last error: "
+                f"{job.get('last_poll_error')}",
+                err=True,
+            )
             return 4
         print(f"job {args.job_id} still {job.get('status')} after {timeout:.0f}s", file=sys.stderr)
         return 3
@@ -1338,8 +1450,15 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
             job = current
             finishing_action = None
             if _cloud.is_cloud(job) and (job.get("status") not in _TERMINAL or _cloud_land.needs_finishing(job)):
-                row = _cloud_land.process_job(store, registry, job, db_path=db_path, poll_interval=args.interval,
-                                              deadline=deadline, nonblocking_poll=True)
+                row = _cloud_land.process_job(
+                    store,
+                    registry,
+                    job,
+                    db_path=db_path,
+                    poll_interval=args.interval,
+                    deadline=deadline,
+                    nonblocking_poll=True,
+                )
                 job = _jobs.find_job(store, registry, job_id) or job
                 finishing_action = row["action"]
             status = str(job.get("status") or "")
@@ -1351,9 +1470,18 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
                 and landed_at
                 and (float(landed_at) >= started_at or not job.get("landed_event_reported_at"))
             )
-            event = "failed" if landing_failed else (
-                "landed" if landed else ({"done": "done", "failed": "failed", "partial": "failed",
-                                           "interrupted": "interrupted"}.get(status))
+            event = (
+                "failed"
+                if landing_failed
+                else (
+                    "landed"
+                    if landed
+                    else (
+                        {"done": "done", "failed": "failed", "partial": "failed", "interrupted": "interrupted"}.get(
+                            status
+                        )
+                    )
+                )
             )
             if event:
                 meta = _store.read_meta(store, job_id) or {}
@@ -1460,16 +1588,22 @@ def _cmd_apply(args: argparse.Namespace) -> int:
         _cloud_json(outcome)
         return 0
     origin = f"{outcome['source_branch']} @ {outcome['base']}" if outcome.get("source_branch") else outcome["base"]
-    _cloud_print(f"applied cloud job {outcome['job_id']} in {outcome['worktree']} (branch {outcome['branch']}, from {origin})")
+    _cloud_print(
+        f"applied cloud job {outcome['job_id']} in {outcome['worktree']} (branch {outcome['branch']}, from {origin})"
+    )
     for line in outcome["changed"]:
         _cloud_print(f"  {line}")
     if outcome["output"]:
         _cloud_print(outcome["output"])
     if outcome.get("rebased_from"):
-        _cloud_print(f"note: --rebase: applied onto the current head of origin/{_cloud_base_branch(outcome)} "
-              f"({outcome['base'][:12]}), not the task's base {outcome['rebased_from'][:12]}; review the result carefully")
-    _cloud_print(f"not pushed. Review, commit, then push only after approval: git -C \"{outcome['worktree']}\" push -u origin {outcome['branch']}"
-                 f" -- or land it in one step: lazytools-code-bridge apply {outcome['job_id']} --land")
+        _cloud_print(
+            f"note: --rebase: applied onto the current head of origin/{_cloud_base_branch(outcome)} "
+            f"({outcome['base'][:12]}), not the task's base {outcome['rebased_from'][:12]}; review the result carefully"
+        )
+    _cloud_print(
+        f'not pushed. Review, commit, then push only after approval: git -C "{outcome["worktree"]}" push -u origin {outcome["branch"]}'
+        f" -- or land it in one step: lazytools-code-bridge apply {outcome['job_id']} --land"
+    )
     return 0
 
 
@@ -1478,8 +1612,14 @@ def _cmd_land(args: argparse.Namespace, store: Any, registry: Any, job: dict[str
     try:
         job = _cloud.refresh(store, registry, job)
         outcome = _cloud_land.land_job(
-            store, registry, job, db_path=db_path, rebase_ok=True if args.rebase_ok else None, branch=args.branch,
-            worktree=Path(args.worktree) if args.worktree else None, source=args.source,
+            store,
+            registry,
+            job,
+            db_path=db_path,
+            rebase_ok=True if args.rebase_ok else None,
+            branch=args.branch,
+            worktree=Path(args.worktree) if args.worktree else None,
+            source=args.source,
         )
     except _cloud.CloudError as exc:
         _cloud_print(f"error: not landed: {exc}", err=True)
@@ -1494,14 +1634,17 @@ def _cmd_land(args: argparse.Namespace, store: Any, registry: Any, job: dict[str
     if outcome.get("note"):
         _cloud_print(outcome["note"])
     if outcome.get("pushed_sha"):
-        _cloud_print(f"landed cloud job {outcome['job_id']}: pushed {outcome['branch']} @ {str(outcome['pushed_sha'])[:12]}")
+        _cloud_print(
+            f"landed cloud job {outcome['job_id']}: pushed {outcome['branch']} @ {str(outcome['pushed_sha'])[:12]}"
+        )
     if outcome.get("pr_url"):
         _cloud_print(f"PR: {outcome['pr_url']}")
     if outcome.get("force_added_ignored"):
         _cloud_print("force-added ignored cloud diff paths: " + ", ".join(outcome["force_added_ignored"]))
     if outcome.get("skipped_bridge_artifacts"):
-        _cloud_print("warning: skipped bridge-owned cloud diff paths: " +
-                     ", ".join(outcome["skipped_bridge_artifacts"]))
+        _cloud_print(
+            "warning: skipped bridge-owned cloud diff paths: " + ", ".join(outcome["skipped_bridge_artifacts"])
+        )
     return 0
 
 
@@ -1524,7 +1667,9 @@ def _cmd_cloud_sync(args: argparse.Namespace) -> int:
         print("no live cloud jobs to reconcile")
     else:
         for row in rows:
-            _cloud_print(f"{str(row['job_id'])[:8]}  {row['engine']:<6}  {row['status']:<12}  {row['action']:<14}  {row['detail']}")
+            _cloud_print(
+                f"{str(row['job_id'])[:8]}  {row['engine']:<6}  {row['status']:<12}  {row['action']:<14}  {row['detail']}"
+            )
     return 1 if failed else 0
 
 
@@ -1675,8 +1820,15 @@ def _cmd_pending(args: argparse.Namespace) -> int:
                     "kind": t.kind,
                     "created_at": t.created_at.isoformat(),
                     "expires_at": t.expires_at.isoformat(),
-                    **({"task_id": t.task_id, "action_digest": t.request.digest,
-                        "policy_revision": t.request.policy_revision} if t.request is not None else {}),
+                    **(
+                        {
+                            "task_id": t.task_id,
+                            "action_digest": t.request.digest,
+                            "policy_revision": t.request.policy_revision,
+                        }
+                        if t.request is not None
+                        else {}
+                    ),
                 }
                 for t in tickets
             ]
@@ -1741,8 +1893,10 @@ def _cmd_autonomy(args: argparse.Namespace) -> int:
     if args.json:
         _print_json(payload)
     else:
-        percent = "n/a" if payload["autonomy_percent"] is None else f'{payload["autonomy_percent"]:.1f}%'
-        print(f"Autonomy: {payload['autonomous_jobs']}/{payload['finished_jobs']} finished jobs ({percent}); target 90.0%")
+        percent = "n/a" if payload["autonomy_percent"] is None else f"{payload['autonomy_percent']:.1f}%"
+        print(
+            f"Autonomy: {payload['autonomous_jobs']}/{payload['finished_jobs']} finished jobs ({percent}); target 90.0%"
+        )
         print("Intervention causes:")
         if not payload["intervention_causes"]:
             print("  none")
@@ -1849,14 +2003,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
     from lazytools.code_bridge._navigator import add_navigate_parser
+
     add_navigate_parser(sub)
 
     watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
     watch_p.add_argument("pulls", nargs="+", metavar="owner/repo#pr")
-    watch_p.add_argument("--until", default=None, metavar="HH:MM",
-                         help="Stop successfully at this local 24-hour clock time.")
-    watch_p.add_argument("--interval", type=float, default=60.0,
-                         help="Polling interval in seconds (default 60; clamped to the configured minimum).")
+    watch_p.add_argument(
+        "--until", default=None, metavar="HH:MM", help="Stop successfully at this local 24-hour clock time."
+    )
+    watch_p.add_argument(
+        "--interval",
+        type=float,
+        default=60.0,
+        help="Polling interval in seconds (default 60; clamped to the configured minimum).",
+    )
     watch_p.add_argument("--json", action="store_true", help="Print one JSON object per event.")
     _add_db_option(watch_p)
     watch_p.set_defaults(func=_cmd_watch)
@@ -1872,12 +2032,23 @@ def build_parser() -> argparse.ArgumentParser:
         "cannot read local data. auto: cloud inside a [cloud] busy_windows range or when no local engine slot is "
         "free, else local. Default: [cloud] default_where, else local. Setup: docs/code-bridge-cloud-setup.md.",
     )
-    run_p.add_argument("--pr", type=int, default=None, metavar="N",
-                       help="--where cloud only: work on pull request N's head branch; the job records the PR.")
-    run_p.add_argument("--open-pr", action="store_true",
-                       help="--where cloud only: when landed, push a new branch and open a PR against --branch.")
-    run_p.add_argument("--title", default=None,
-                       help="--where cloud only: explicit PR, landing commit, and squash subject (default: # Goal text).")
+    run_p.add_argument(
+        "--pr",
+        type=int,
+        default=None,
+        metavar="N",
+        help="--where cloud only: work on pull request N's head branch; the job records the PR.",
+    )
+    run_p.add_argument(
+        "--open-pr",
+        action="store_true",
+        help="--where cloud only: when landed, push a new branch and open a PR against --branch.",
+    )
+    run_p.add_argument(
+        "--title",
+        default=None,
+        help="--where cloud only: explicit PR, landing commit, and squash subject (default: # Goal text).",
+    )
     run_p.add_argument(
         "--land",
         action="store_true",
@@ -1891,8 +2062,10 @@ def build_parser() -> argparse.ArgumentParser:
         "Never force-pushes.",
     )
     run_p.add_argument(
-        "--branch", default=None, help="--where cloud only: the base branch the cloud agent starts from; it must exist on origin "
-        "(default: current)."
+        "--branch",
+        default=None,
+        help="--where cloud only: the base branch the cloud agent starts from; it must exist on origin "
+        "(default: current).",
     )
     run_p.add_argument(
         "--routine",
@@ -1908,7 +2081,9 @@ def build_parser() -> argparse.ArgumentParser:
         "approval gate (only its diff comes back, through `apply`).",
     )
     run_p.add_argument(
-        "--network", choices=("on", "off"), default=None,
+        "--network",
+        choices=("on", "off"),
+        default=None,
         help="Requested task network access. Defaults to off for core profiles and cloud; the legacy writer defaults to on.",
     )
     run_p.add_argument(
@@ -1921,7 +2096,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_routing_options(run_p)
     run_p.add_argument("--cwd", required=True, help="Repository (or subdirectory) to work in.")
-    run_p.add_argument("--task", default=None, help="Task text, or @path/to/file (required, except for a cloud --review-of).")
+    run_p.add_argument(
+        "--task", default=None, help="Task text, or @path/to/file (required, except for a cloud --review-of)."
+    )
     run_p.add_argument("--session", default=None, help="Durable session alias to create/resume.")
     run_p.add_argument("--model", default=None)
     run_p.add_argument("--effort", default=None)
@@ -1931,24 +2108,48 @@ def build_parser() -> argparse.ArgumentParser:
         default=_engines.DEFAULT_TIMEOUT,
         help=f"Per-turn timeout in seconds, greater than 0 (default: {_engines.DEFAULT_TIMEOUT:g}).",
     )
-    run_p.add_argument("--max-continuations", type=int, default=_jobs.DEFAULT_MAX_CONTINUATIONS,
-                       help="Automatic continuations after a timeout with committed/pushed progress (0-10, default: 3).")
-    run_p.add_argument("--max-wall", type=float, default=None,
-                       help="Total job wall-clock cap in seconds, including approvals (default: unlimited).")
-    run_p.add_argument("--routine-auto", action=argparse.BooleanOptionalAction, default=None,
-                       help="Enable the audited routine-auto approval tier (default: on, or [routine_auto] enabled).")
-    run_p.add_argument("--profile", choices=_launch.PROFILES, default="default",
-                       help="Local core policy profile. Legacy default maps to edit-and-run, and review maps to read.")
-    run_p.add_argument("--launch-mode", choices=_launch.MODES, default="auto",
-                       help="Governed requires matching release evidence. Legacy explicitly allows an ungoverned launch.")
+    run_p.add_argument(
+        "--max-continuations",
+        type=int,
+        default=_jobs.DEFAULT_MAX_CONTINUATIONS,
+        help="Automatic continuations after a timeout with committed/pushed progress (0-10, default: 3).",
+    )
+    run_p.add_argument(
+        "--max-wall",
+        type=float,
+        default=None,
+        help="Total job wall-clock cap in seconds, including approvals (default: unlimited).",
+    )
+    run_p.add_argument(
+        "--routine-auto",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable the audited routine-auto approval tier (default: on, or [routine_auto] enabled).",
+    )
+    run_p.add_argument(
+        "--profile",
+        choices=_launch.PROFILES,
+        default="default",
+        help="Local core policy profile. Legacy default maps to edit-and-run, and review maps to read.",
+    )
+    run_p.add_argument(
+        "--launch-mode",
+        choices=_launch.MODES,
+        default="auto",
+        help="Governed requires matching release evidence. Legacy explicitly allows an ungoverned launch.",
+    )
     run_p.add_argument("--task-id", help="Projects task ID for a local launch, paired with --claim-token.")
     run_p.add_argument("--claim-token", help="Fence token returned by the projects task claim.")
     run_p.add_argument("--intentional-review", action="store_true", help=argparse.SUPPRESS)
     run_p.add_argument("--detached-binding", action="store_true", help=argparse.SUPPRESS)
-    run_p.add_argument("--scratch-root", default=None,
-                       help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).")
     run_p.add_argument(
-        "--root", default=None,
+        "--scratch-root",
+        default=None,
+        help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).",
+    )
+    run_p.add_argument(
+        "--root",
+        default=None,
         help="Confinement root for --cwd (default: $LAZYTOOLS_CODE_ROOT, root in code-bridge.toml, then cwd).",
     )
     run_p.add_argument("--json", action="store_true")
@@ -1980,7 +2181,8 @@ def build_parser() -> argparse.ArgumentParser:
         "Without it, a stderr warning with the commit count is printed and the job still launches.",
     )
     run_p.add_argument(
-        "--no-freshness-check", action="store_true",
+        "--no-freshness-check",
+        action="store_true",
         help="Skip the pre-launch fetch and the behind-upstream check.",
     )
     run_p.add_argument("--brief-checked", action="store_true", help=argparse.SUPPRESS)
@@ -1991,8 +2193,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     route_p = sub.add_parser("route", help="Explain a quota-aware pick; launch nothing.")
     route_p.add_argument("--engine", choices=list(_jobs.ENGINES))
-    route_p.add_argument("--where", choices=list(_cloud_place.WHERE_CHOICES), default=None,
-                         help="Also show where the job would run: auto explains its local-vs-cloud decision.")
+    route_p.add_argument(
+        "--where",
+        choices=list(_cloud_place.WHERE_CHOICES),
+        default=None,
+        help="Also show where the job would run: auto explains its local-vs-cloud decision.",
+    )
     _add_routing_options(route_p, required=True)
     route_p.add_argument("--cwd", default=".", help="Repository used to resolve session history (default: cwd).")
     route_p.add_argument("--root", default=None, help="Confinement root for placement (same rules as run).")
@@ -2018,8 +2224,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     wait_p = sub.add_parser("wait", help="Block until a job ends (or its process dies), then print its outcome.")
     wait_p.add_argument("job_id")
-    wait_p.add_argument("--timeout", type=float, default=None,
-                        help="Give up after this many seconds (exit 3). Cloud jobs default to 7200.")
+    wait_p.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Give up after this many seconds (exit 3). Cloud jobs default to 7200.",
+    )
     wait_p.add_argument("--interval", type=float, default=5.0, help=argparse.SUPPRESS)
     wait_p.add_argument("--json", action="store_true")
     _add_registry_option(wait_p)
@@ -2029,10 +2239,13 @@ def build_parser() -> argparse.ArgumentParser:
     wait_any_p.add_argument("job_ids", nargs="*", metavar="JOB_ID")
     wait_any_p.add_argument("--all-active", action="store_true", help="Watch a snapshot of all currently active jobs.")
     wait_any_p.add_argument("--timeout", type=float, default=None, help="Give up after this many seconds (exit 3).")
-    wait_any_p.add_argument("--events", default="done,failed,approval,landed,interrupted",
-                            help="Comma-separated events to return.")
+    wait_any_p.add_argument(
+        "--events", default="done,failed,approval,landed,interrupted", help="Comma-separated events to return."
+    )
     wait_any_p.add_argument("--loop", action="store_true", help="Print events until every watched job is terminal.")
-    wait_any_p.add_argument("--json", action="store_true", help="Emit the event as one JSON object (the default format).")
+    wait_any_p.add_argument(
+        "--json", action="store_true", help="Emit the event as one JSON object (the default format)."
+    )
     wait_any_p.add_argument("--interval", type=float, default=0.25, help=argparse.SUPPRESS)
     _add_registry_option(wait_any_p)
     wait_any_p.set_defaults(func=_cmd_wait_any)
@@ -2069,7 +2282,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stop_target = stop_p.add_mutually_exclusive_group(required=True)
     stop_target.add_argument("target", nargs="?", help="Task URL, task/session id, or bridge job id.")
-    stop_target.add_argument("--all-running", action="store_true", help="Stop account-wide Codex tasks and running bridge cloud jobs.")
+    stop_target.add_argument(
+        "--all-running", action="store_true", help="Stop account-wide Codex tasks and running bridge cloud jobs."
+    )
     stop_p.add_argument("--dry-run", action="store_true", help="List targets without making provider requests.")
     stop_p.add_argument("--json", action="store_true", help="Emit machine-readable results for Agent Radar.")
     _add_db_option(stop_p)
@@ -2089,7 +2304,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     apply_p.add_argument("job_id")
     apply_p.add_argument("--branch", default=None, help="New branch name (default: cloud/<job id prefix>).")
-    apply_p.add_argument("--worktree", default=None, help="New worktree path (default: beside the Store, cloud-worktrees/<job>).")
+    apply_p.add_argument(
+        "--worktree", default=None, help="New worktree path (default: beside the Store, cloud-worktrees/<job>)."
+    )
     apply_p.add_argument(
         "--rebase",
         action="store_true",
@@ -2122,11 +2339,13 @@ def build_parser() -> argparse.ArgumentParser:
     sync_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
     sync_mode = sync_p.add_mutually_exclusive_group()
     sync_mode.add_argument(
-        "--manual", action="store_true",
+        "--manual",
+        action="store_true",
         help="Record successful reconciliation work as an operator intervention.",
     )
     sync_mode.add_argument(
-        "--scheduled", action="store_true",
+        "--scheduled",
+        action="store_true",
         help="Scheduler mode (the default): do not record an operator intervention.",
     )
     _add_db_option(sync_p)
@@ -2144,8 +2363,12 @@ def build_parser() -> argparse.ArgumentParser:
     preflight_sub = preflight_p.add_subparsers(dest="cloud_preflight_command", required=True)
     preflight_init_p = preflight_sub.add_parser("init", help="Write a starter manifest from pyproject dependencies.")
     preflight_init_p.add_argument("--repo", required=True, help="Repository whose manifest should be created.")
-    preflight_init_p.add_argument("--network", choices=("on", "off"), default="off",
-                                  help="Attest that the configured environment network is on or off (default: off).")
+    preflight_init_p.add_argument(
+        "--network",
+        choices=("on", "off"),
+        default="off",
+        help="Attest that the configured environment network is on or off (default: off).",
+    )
     preflight_init_p.set_defaults(func=_cmd_cloud_preflight_init)
 
     setup_p = sub.add_parser(
@@ -2178,14 +2401,15 @@ def build_parser() -> argparse.ArgumentParser:
     publish_p.add_argument("--repo", required=True, type=Path)
     publish_p.add_argument("--branch", required=True)
     publish_p.add_argument("--base", default="main")
+    publish_p.add_argument("--ticket", metavar="ID", help="Use this typed publication ticket.")
     _add_registry_option(publish_p)
-    publish_p.set_defaults(func=_cmd_publication_pending)
+    publish_p.set_defaults(func=_cmd_publish)
 
     verify_p = sub.add_parser("verify-receipt", help="Verify a signed publication receipt.")
     verify_p.add_argument("receipt", metavar="receipt_id|file")
     verify_p.add_argument("--live", action="store_true")
     verify_p.add_argument("--public-key", type=Path)
-    verify_p.set_defaults(func=_cmd_publication_pending)
+    verify_p.set_defaults(func=_cmd_verify_receipt)
 
     pending_p = sub.add_parser("pending", help="List open approval tickets.")
     pending_p.add_argument("--json", action="store_true")
@@ -2233,9 +2457,74 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _cmd_publication_pending(_args: argparse.Namespace) -> int:
-    print("Publication executor is unavailable", file=sys.stderr)
-    return 1
+def _cmd_publish(args: argparse.Namespace) -> int:
+    from lazytools.code_bridge import _gh, _publication, _receipts
+    from lazytools.connectors.projects.tools import _resolve_store_db
+    from lazytools.projects.task_service import ProjectTaskService
+    from lazytools.projects.task_store import TaskServiceError, migrate_publication_receipts
+
+    try:
+        service = ProjectTaskService(_resolve_store_db(None))
+        migrate_publication_receipts(service.path)
+        attempt = _publication.prepare(service, args.task, args.repo.resolve(), args.branch, args.base)
+        store = _ticket_job_store(args)
+        registry = _registry.Registry(store, _selected_registry_db(args))
+        key = _receipts.load_issuer()
+        receipt = _receipts.template(attempt, store, key)
+        policy = receipt.writer.policy
+        job = attempt.review.writer
+        result = _publication.run(
+            service,
+            registry,
+            attempt,
+            policy_revision=policy.revision or "publication-v1",
+            policy_digest=policy.digest,
+            ticket_id=args.ticket,
+        )
+        receipt = _receipts.finish(
+            receipt,
+            result,
+            key,
+            projects_db=service.path,
+            job_db=_db_path(args),
+            job_ref=job.job_ref if job else None,
+        )
+    except (ImportError, OSError, subprocess.SubprocessError, TaskServiceError, ValueError, _cloud.CloudError) as exc:
+        print(f"Publication unavailable: {_cloud.redact(str(exc))}", file=sys.stderr)
+        return 1
+    if ticket := receipt.approval.ticket_id:
+        print(f"approval {ticket} {attempt.repository} {attempt.head_branch} {attempt.head_sha}")
+    print(
+        f"{receipt.outcome.status} {receipt.receipt_id} {receipt.outcome.refusal_reason or receipt.publication.pr_url}"
+    )
+    if result.pr_number is not None:
+        try:
+            _gh.pr_comment(
+                attempt.repository,
+                result.pr_number,
+                f"Publication receipt `{receipt.receipt_id}`\n\n"
+                f"Issuer fingerprint `{receipt.issuer.public_key_fingerprint}`",
+            )
+        except (_cloud.CloudError, OSError, subprocess.SubprocessError):
+            print("The publication receipt was stored. The PR comment could not be posted.", file=sys.stderr)
+    return 0 if receipt.outcome.status == "published" else 1
+
+
+def _cmd_verify_receipt(args: argparse.Namespace) -> int:
+    from lazytools.code_bridge import _receipts
+    from lazytools.connectors.projects.tools import _resolve_store_db
+    from lazytools.projects.task_service import ProjectTaskService
+    from lazytools.projects.task_store import TaskServiceError
+
+    try:
+        path = ProjectTaskService(_resolve_store_db(None)).path
+        raw = _receipts.read_source(path, args.receipt)
+        result = _receipts.verify_json(raw, live=args.live, public_key=args.public_key)
+    except (ImportError, OSError, TaskServiceError) as exc:
+        print(f"Verification unavailable: {exc}", file=sys.stderr)
+        return 1
+    print("valid" if result["valid"] else result["reason"])
+    return 0 if result["valid"] else 1
 
 
 def _utf8_output() -> None:

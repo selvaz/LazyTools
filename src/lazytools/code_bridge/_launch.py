@@ -33,6 +33,7 @@ class Launch:
     mode: str
     report: Path | None
     receipt: str | None
+    parent_digest: str = ""
 
     def binding(self) -> dict[str, Any]:
         return {
@@ -46,11 +47,18 @@ class Launch:
         }
 
     def metadata(self) -> dict[str, Any]:
-        return {**self.binding(), "policy_ineligibility": self.compiled["ineligibility_reasons"]}
+        return {
+            **self.binding(),
+            "policy_ineligibility": self.compiled["ineligibility_reasons"],
+            "policy_tool_classes": sorted(self.policy.tool_classes),
+            "parent_policy_digest": self.parent_digest,
+        }
 
 
 def _compile(
-    engine: str, policy: EffectivePolicy, report: Path | None,
+    engine: str,
+    policy: EffectivePolicy,
+    report: Path | None,
 ) -> tuple[dict[str, Any], str | None]:
     compiler = compile_codex if engine == "codex" else compile_claude
     if report is None:
@@ -81,7 +89,13 @@ def _compile(
 
 
 def resolve_launch(
-    engine: str, cwd: Path, profile: str, network: str | None, mode: str, *, review: bool = False,
+    engine: str,
+    cwd: Path,
+    profile: str,
+    network: str | None,
+    mode: str,
+    *,
+    review: bool = False,
 ) -> Launch:
     if engine not in {"claude", "codex"} or profile not in PROFILES or mode not in MODES:
         raise PolicyError("Unknown bridge engine, profile, or launch mode")
@@ -112,12 +126,10 @@ def resolve_launch(
 
     compiled, receipt = _compile(engine, policy, report)
     if receipt is not None and compiled["eligible"]:
-        return Launch(policy, compiled, "governed", report, receipt)
+        return Launch(policy, compiled, "governed", report, receipt, parent.digest if parent is not None else "")
     if mode == "legacy" or (mode == "auto" and parent is None and profile in LEGACY_PROFILES and report is None):
         return Launch(policy, compiled, "ungoverned-legacy", None, None)
-    raise PolicyError(
-        "Governed local launch refused. " + " ".join(compiled["ineligibility_reasons"])
-    )
+    raise PolicyError("Governed local launch refused. " + " ".join(compiled["ineligibility_reasons"]))
 
 
 def check_binding(expected: Any, observed: dict[str, Any]) -> None:
