@@ -50,7 +50,13 @@ async def test_async_promotion_matches_original_tool(findings, performed):
         assert seen[0][key] == seen[1][key]
     for field in ("status", "reviewed_digest", "observable_result", "acceptance_criteria", "target_completion_at"):
         assert getattr(records.get_project(stores[0], "alpha"), field) == getattr(records.get_project(stores[1], "alpha"), field)
-    assert DurableBlackboard(stores[0], "project:alpha").snapshot().tasks == DurableBlackboard(stores[1], "project:alpha").snapshot().tasks
+    original_tasks = DurableBlackboard(stores[0], "project:alpha").snapshot().tasks
+    promoted_tasks = DurableBlackboard(stores[1], "project:alpha").snapshot().tasks
+    for original_task, promoted_task, subtask in zip(original_tasks, promoted_tasks, SUBTASKS, strict=True):
+        # The projects service now records criteria and a revision on each installed task.
+        assert promoted_task["acceptance_criteria"] == subtask["acceptance_criteria"]
+        assert promoted_task["revision"]
+        assert {key: value for key, value in promoted_task.items() if key not in ("acceptance_criteria", "revision")} == original_task
 
 
 async def test_reviewer_not_performed_and_checklist_fail_closed():
