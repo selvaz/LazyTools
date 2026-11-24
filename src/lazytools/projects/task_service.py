@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
+from lazybridge.policy.review import ReviewIndependence
 from pydantic import BaseModel, ConfigDict, FiniteFloat, StringConstraints
 
 from lazytools.projects.contracts import find_contract_for_task
@@ -20,7 +21,7 @@ from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import get_project, touch_project_progress
 from lazytools.projects.task_fields import Placement, task_id
 from lazytools.projects.task_store import TaskServiceError, TransactionStore, transaction
-from lazytools.projects.verification import get_verification, get_verification_for_contract
+from lazytools.projects.verification import CheckResult, get_verification, get_verification_for_contract
 
 Nonempty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 ResultState = Literal["accepted", "blocked", "rework"]
@@ -71,6 +72,7 @@ class CompletionEvidence(BaseModel):
     verification_id: Nonempty | None = None
     reviewed_sha: Nonempty | None = None
     review_passed: bool = False
+    review_independence: ReviewIndependence | None = None
     outcome: Outcome | None = None
 
 
@@ -107,6 +109,60 @@ class BoardTask:
     def save(self, store: TransactionStore, now: float) -> None:
         self.board["updated_at"] = now
         store.write(_board_key(self.project_id), self.board)
+
+
+@dataclass(frozen=True)
+class AcceptedRun:
+    task_id: str
+    revision: str
+    attempt: int
+    job_ref: str
+    evidence: CompletionEvidence
+
+
+@dataclass(frozen=True)
+class PublicationReview:
+    repository: str
+    branch: str
+    writer: AcceptedRun | None = None
+    reviewer: AcceptedRun | None = None
+    independence: ReviewIndependence | None = None
+    checks: tuple[CheckResult, ...] = ()
+
+
+def _accepted_run(task: BoardTask) -> AcceptedRun | None:
+    history = task.data.get("dispatches", [])
+    if not history or task.data.get("status") != "done":
+        return None
+    dispatch = history[-1]
+    result = dispatch.get("completion", {}).get("result", {})
+    if result.get("state") != "accepted" or result.get("revision") != task.revision:
+        return None
+    evidence = dispatch.get("evidence", {}).get(result["evidence_ref"])
+    if evidence is None:
+        return None
+    return AcceptedRun(
+        task.identifier,
+        task.revision,
+        result["attempt"],
+        dispatch["job_ref"],
+        CompletionEvidence.model_validate(evidence),
+    )
+
+
+def _review_independence(
+    writer_engine: str,
+    reviewer: CompletionEvidence,
+    writer_executor: str,
+) -> ReviewIndependence | None:
+    engines = {writer_engine, reviewer.engine_family}
+    if reviewer.executor == writer_executor:
+        return None
+    if engines == {"codex", "claude_code"} and reviewer.review_independence in (None, "opposite-engine"):
+        return "opposite-engine"
+    if engines in ({"codex"}, {"claude_code"}) and reviewer.review_independence == "same-provider-fresh":
+        return "same-provider-fresh"
+    return None
 
 
 def _load_task(store: TransactionStore, identifier: str) -> BoardTask:
@@ -165,7 +221,12 @@ def _placement(task: BoardTask, now: float) -> tuple[PlacementEvidence | None, s
 
 def _ready(task: BoardTask, now: float) -> tuple[dict[str, Any], PlacementEvidence] | None:
     data = task.data
-    if data.get("status") != "todo" or data.get("owner") or data.get("claimed_at") is not None or data.get("start_hold"):
+    if (
+        data.get("status") != "todo"
+        or data.get("owner")
+        or data.get("claimed_at") is not None
+        or data.get("start_hold")
+    ):
         return None
     dependencies = _dependencies(task)
     if any(dep["status"] != "done" for dep in dependencies):
@@ -236,17 +297,72 @@ def _release(task: BoardTask) -> None:
 
 class ProjectTaskService:
     def __init__(
-        self, store_db: str | None, *, lease_seconds: int = 900, quarantine_threshold: int = 3,
-        clock: Callable[[], float] = time.time
+        self,
+        store_db: str | None,
+        *,
+        lease_seconds: int = 900,
+        quarantine_threshold: int = 3,
+        clock: Callable[[], float] = time.time,
     ):
         self.path = Path(store_db).resolve() if store_db and store_db != ":memory:" else None
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
         self.lease_seconds = lease_seconds
-        if isinstance(quarantine_threshold, bool) or not isinstance(quarantine_threshold, int) or quarantine_threshold < 1:
+        if (
+            isinstance(quarantine_threshold, bool)
+            or not isinstance(quarantine_threshold, int)
+            or quarantine_threshold < 1
+        ):
             raise ValueError("quarantine_threshold must be a positive integer")
         self.quarantine_threshold = quarantine_threshold
         self.clock = clock
+
+    def publication_review(
+        self,
+        task_id: str,
+        *,
+        store: TransactionStore | None = None,
+    ) -> PublicationReview:
+        """Read the current writer acceptance and a review of that exact run."""
+        if store is None:
+            with transaction(self.path) as snapshot:
+                return self.publication_review(task_id, store=snapshot)
+        task = _load_task(store, task_id)
+        writer = _accepted_run(task)
+        repository = task.data.get("repo") or ""
+        branch = task.data.get("assigned_branch") or ""
+        if writer is None:
+            return PublicationReview(repository, branch)
+        checks = []
+        if writer.evidence.verification_id:
+            verification = get_verification(store, writer.evidence.verification_id)
+            if verification and verification.status == "accepted":
+                checks = verification.checks
+        reviews: list[tuple[AcceptedRun, ReviewIndependence | None]] = []
+        for index, entry in enumerate(task.board["tasks"]):
+            if entry.get("review_of") != task.identifier.split("/", 1)[1]:
+                continue
+            review_task = BoardTask(task.project_id, task.board, index)
+            reviewer = _accepted_run(review_task)
+            if reviewer is None or not reviewer.evidence.review_passed:
+                continue
+            dependencies = entry["dispatches"][-1]["receipt"]["dependencies"]
+            if not any(dep.get("task_id") == task_id and dep.get("attempt") == writer.attempt for dep in dependencies):
+                continue
+            sha = writer.evidence.artifact_ref
+            if not sha or reviewer.evidence.reviewed_sha != sha or reviewer.evidence.artifact_ref != sha:
+                continue
+            independence = _review_independence(
+                writer.evidence.engine_family, reviewer.evidence, writer.evidence.executor
+            )
+            if writer.job_ref == reviewer.job_ref:
+                independence = None
+            reviews.append((reviewer, independence))
+        if not reviews:
+            return PublicationReview(repository, branch, writer, checks=tuple(checks))
+        order = {None: 0, "same-provider-fresh": 1, "opposite-engine": 2}
+        reviewer, independence = max(reviews, key=lambda review: order[review[1]])
+        return PublicationReview(repository, branch, writer, reviewer, independence, tuple(checks))
 
     def record_placement(self, task_id: str, revision: str, evidence: PlacementEvidence) -> None:
         """Persist an executor's preflight/runtime observation. Host operation."""
@@ -260,20 +376,21 @@ class ProjectTaskService:
             previous = old.get("evidence", {})
             eligible = evidence.eligible and (evidence.placement != "cloud" or bool(evidence.environment_id))
             was_eligible = previous.get("eligible") and (
-                evidence.placement != "cloud" or bool(previous.get("environment_id")))
+                evidence.placement != "cloud" or bool(previous.get("environment_id"))
+            )
             since = now
-            if (old.get("revision") == revision and was_eligible and eligible
-                    and previous.get("expires_at", 0) > now):
+            if old.get("revision") == revision and was_eligible and eligible and previous.get("expires_at", 0) > now:
                 since = old.get("eligible_since", now)
             ineligible_since = now
-            if (old.get("revision") == revision and previous and not was_eligible and not eligible):
+            if old.get("revision") == revision and previous and not was_eligible and not eligible:
                 ineligible_since = old.get("ineligible_since", old.get("recorded_at", now))
             route = _route(task, evidence)
             fresh_for_route = False
             if route:
                 key = _route_key(*route)
-                state = store.read(key, {"route": list(route), "consecutive_failures": 0,
-                                         "quarantined": False, "history": []})
+                state = store.read(
+                    key, {"route": list(route), "consecutive_failures": 0, "quarantined": False, "history": []}
+                )
                 references = state.setdefault("preflight_refs", [])
                 fresh_for_route = evidence.reference not in references
                 if fresh_for_route:
@@ -301,9 +418,23 @@ class ProjectTaskService:
         if project_id is not None:
             principal.require_project(project_id)
         projects = [project_id] if project_id is not None else sorted(set(principal.projects))
+
         def empty() -> dict[str, Any]:
-            return {"ready": [], "blocked": {key: 0 for key in (
-                "unmet_dependency", "failed_dependency", "hold", "missing_placement_evidence", "route_quarantined")}, "running": 0}
+            return {
+                "ready": [],
+                "blocked": {
+                    key: 0
+                    for key in (
+                        "unmet_dependency",
+                        "failed_dependency",
+                        "hold",
+                        "missing_placement_evidence",
+                        "route_quarantined",
+                    )
+                },
+                "running": 0,
+            }
+
         with transaction(self.path) as store:
             now = self.clock()
             result = {pid: empty() for pid in projects}
@@ -349,28 +480,54 @@ class ProjectTaskService:
                         cloud = data.get("placement_evidence", {}).get("cloud")
                         if cloud and cloud.get("revision") == task.revision:
                             observed = cloud.get("evidence", {})
-                            timestamps.append(observed.get("expires_at") if observed.get("eligible")
-                                              and observed.get("environment_id")
-                                              else cloud.get("ineligible_since", cloud.get("recorded_at")))
+                            timestamps.append(
+                                observed.get("expires_at")
+                                if observed.get("eligible") and observed.get("environment_id")
+                                else cloud.get("ineligible_since", cloud.get("recorded_at"))
+                            )
                     if route_state.get("history"):
                         timestamps.append(route_state["history"][-1]["at"])
                     if data.get("attempts"):
                         timestamps.append(data.get("queue_released_at"))
                     by_id = {task_id(item, i): item for i, item in enumerate(board["tasks"])}
                     timestamps.extend(by_id[d].get("completed_at") for d in data.get("dependency_ids", []))
-                    timestamps.extend(e["at"] for e in board.get("schedule_events", [])
-                                      if e.get("task_index") == index and not e.get("hold") and "at" in e)
-                    timestamps.extend(e["at"] for e in board.get("plan_events", [])
-                                      if e.get("task_index") == index and e.get("event") == "reopened" and "at" in e)
-                    timestamps.extend(d.get("completion", {}).get("result", {}).get("completed_at")
-                                      for d in data.get("dispatches", []) if d.get("completion"))
-                    age = max(0.0, now - max(timestamps)) if all(isinstance(t, (int, float)) for t in timestamps) else None
+                    timestamps.extend(
+                        e["at"]
+                        for e in board.get("schedule_events", [])
+                        if e.get("task_index") == index and not e.get("hold") and "at" in e
+                    )
+                    timestamps.extend(
+                        e["at"]
+                        for e in board.get("plan_events", [])
+                        if e.get("task_index") == index and e.get("event") == "reopened" and "at" in e
+                    )
+                    timestamps.extend(
+                        d.get("completion", {}).get("result", {}).get("completed_at")
+                        for d in data.get("dispatches", [])
+                        if d.get("completion")
+                    )
+                    age = (
+                        max(0.0, now - max(timestamps))
+                        if all(isinstance(t, (int, float)) for t in timestamps)
+                        else None
+                    )
                     for target in targets:
-                        group = next((g for g in target["ready"] if g["tier"] == data.get("tier")
-                                      and g["effective_placement"] == placement), None)
+                        group = next(
+                            (
+                                g
+                                for g in target["ready"]
+                                if g["tier"] == data.get("tier") and g["effective_placement"] == placement
+                            ),
+                            None,
+                        )
                         if group is None:
-                            group = {"tier": data.get("tier"), "effective_placement": placement, "count": 0,
-                                     "oldest_ready_age_seconds": None, "unknown_age_count": 0}
+                            group = {
+                                "tier": data.get("tier"),
+                                "effective_placement": placement,
+                                "count": 0,
+                                "oldest_ready_age_seconds": None,
+                                "unknown_age_count": 0,
+                            }
                             target["ready"].append(group)
                         group["count"] += 1
                         if age is None:
@@ -455,9 +612,14 @@ class ProjectTaskService:
             # A null claimed_at keeps the legacy board's lease timer from
             # independently recycling this claim. This receipt owns the lease.
             task.data.update(
-                status="claimed", owner=principal.actor, claimed_at=None, attempts=attempt,
-                active_queue_claim=True, effective_placement=placement.placement,
-                placement_reason=summary["placement_reason"], preflight_ref=placement.reference,
+                status="claimed",
+                owner=principal.actor,
+                claimed_at=None,
+                attempts=attempt,
+                active_queue_claim=True,
+                effective_placement=placement.placement,
+                placement_reason=summary["placement_reason"],
+                preflight_ref=placement.reference,
                 dispatches=[*history, {"receipt": receipt, "state": "intent", "created_at": now}],
             )
             task.save(store, now)
@@ -476,8 +638,10 @@ class ProjectTaskService:
             receipt = dispatch["receipt"]
             current_route = _route(task, placement) if placement is not None else None
             if (
-                placement is None or placement.placement != receipt["effective_placement"]
-                or placement.engine_family != receipt["engine_family"] or placement.reference != receipt["preflight_ref"]
+                placement is None
+                or placement.placement != receipt["effective_placement"]
+                or placement.engine_family != receipt["engine_family"]
+                or placement.reference != receipt["preflight_ref"]
                 or (list(current_route) if current_route is not None else None) != receipt.get("route")
                 or _dependencies(task) != receipt["dependencies"]
                 or task.data.get("start_hold")
@@ -487,8 +651,13 @@ class ProjectTaskService:
             task.save(store, now)
 
     def local_claim(
-        self, principal: TaskPrincipal, task_id: str, claim_token: str, *,
-        state: Literal["intent", "submitting", "submitted"], job_ref: str | None = None,
+        self,
+        principal: TaskPrincipal,
+        task_id: str,
+        claim_token: str,
+        *,
+        state: Literal["intent", "submitting", "submitted"],
+        job_ref: str | None = None,
     ) -> dict[str, Any]:
         """Recheck the local dispatch fence and its current placement evidence."""
         with self.local_dispatch(principal, task_id, claim_token, state=state, job_ref=job_ref) as (_, receipt):
@@ -496,8 +665,14 @@ class ProjectTaskService:
 
     @contextmanager
     def local_dispatch(
-        self, principal: TaskPrincipal, task_id: str, claim_token: str, *,
-        state: Literal["intent", "submitting", "submitted"], job_ref: str | None = None, write: bool = False,
+        self,
+        principal: TaskPrincipal,
+        task_id: str,
+        claim_token: str,
+        *,
+        state: Literal["intent", "submitting", "submitted"],
+        job_ref: str | None = None,
+        write: bool = False,
     ) -> Iterator[tuple[TransactionStore, dict[str, Any]]]:
         """Hold the dispatch fence through a local registry transition."""
         with transaction(self.path, write=write) as store:
@@ -510,15 +685,22 @@ class ProjectTaskService:
             if dispatch["state"] != state or (job_ref is not None and dispatch.get("job_ref") != job_ref):
                 raise TaskServiceError("stale", "The dispatch no longer belongs to this local launch")
             if (
-                placement is None or placement.placement != "local" or receipt["effective_placement"] != "local"
-                or placement.reference != receipt["preflight_ref"] or placement.engine_family != receipt["engine_family"]
-                or _dependencies(task) != receipt["dependencies"] or task.data.get("start_hold")
+                placement is None
+                or placement.placement != "local"
+                or receipt["effective_placement"] != "local"
+                or placement.reference != receipt["preflight_ref"]
+                or placement.engine_family != receipt["engine_family"]
+                or _dependencies(task) != receipt["dependencies"]
+                or task.data.get("start_hold")
             ):
                 raise TaskServiceError("stale", "Local placement evidence or dispatch prerequisites changed")
-            yield store, {
-                **{key: value for key, value in receipt.items() if key != "claim_token"},
-                **{key: task.data.get(key) for key in ("repo", "assigned_branch", "review_of")},
-            }
+            yield (
+                store,
+                {
+                    **{key: value for key, value in receipt.items() if key != "claim_token"},
+                    **{key: task.data.get(key) for key in ("repo", "assigned_branch", "review_of")},
+                },
+            )
 
     def record_submit(self, principal: TaskPrincipal, task_id: str, claim_token: str, job_ref: str) -> None:
         """Persist the provider's acknowledgement, including a late acknowledgement."""
@@ -553,9 +735,14 @@ class ProjectTaskService:
             }
 
     def reconcile_dispatch(
-        self, principal: TaskPrincipal, task_id: str, attempt: int,
+        self,
+        principal: TaskPrincipal,
+        task_id: str,
+        attempt: int,
         observation: Literal["absent", "submitted", "ambiguous", "terminated"],
-        *, evidence_ref: str | None = None, job_ref: str | None = None,
+        *,
+        evidence_ref: str | None = None,
+        job_ref: str | None = None,
     ) -> None:
         """Record trusted provider evidence. Release only after conclusively ruling out live work."""
         principal.require_role("orchestrator")
@@ -601,8 +788,10 @@ class ProjectTaskService:
             if receipt["attempt"] != attempt:
                 raise TaskServiceError("stale", "Dispatch attempt has been superseded")
             if (
-                dispatch["state"] != "submitted" or evidence.job_ref != dispatch["job_ref"]
-                or evidence.executor != receipt["executor"] or evidence.engine_family != receipt["engine_family"]
+                dispatch["state"] != "submitted"
+                or evidence.job_ref != dispatch["job_ref"]
+                or evidence.executor != receipt["executor"]
+                or evidence.engine_family != receipt["engine_family"]
             ):
                 raise TaskServiceError("stale", "Evidence does not match the submitted job, executor and engine")
             record = evidence.model_dump(mode="json")
@@ -616,11 +805,21 @@ class ProjectTaskService:
             task.save(store, self.clock())
 
     def complete(
-        self, principal: TaskPrincipal, task_id: str, claim_token: str, idempotency_key: str,
-        result_state: ResultState, evidence_ref: str, outcome: Outcome | None = None,
+        self,
+        principal: TaskPrincipal,
+        task_id: str,
+        claim_token: str,
+        idempotency_key: str,
+        result_state: ResultState,
+        evidence_ref: str,
+        outcome: Outcome | None = None,
     ) -> dict[str, Any]:
         principal.require_role("worker", "orchestrator")
-        if result_state not in ("accepted", "blocked", "rework") or not idempotency_key.strip() or not evidence_ref.strip():
+        if (
+            result_state not in ("accepted", "blocked", "rework")
+            or not idempotency_key.strip()
+            or not evidence_ref.strip()
+        ):
             raise TaskServiceError("invalid", "Completion requires a result, idempotency key and evidence reference")
         with transaction(self.path, write=True) as store:
             task = _scoped_task(store, principal, task_id)
@@ -658,20 +857,32 @@ class ProjectTaskService:
             if result_state == "accepted":
                 _validate_acceptance(store, task, dispatch, evidence)
             result = {
-                "task_id": task_id, "revision": task.revision, "attempt": dispatch["receipt"]["attempt"],
-                "state": result_state, "evidence_ref": evidence_ref, "artifact_ref": evidence.artifact_ref,
-                "verification_id": evidence.verification_id, "engine_family": evidence.engine_family,
-                "executor": evidence.executor, "reviewed_sha": evidence.reviewed_sha, "completed_at": now,
+                "task_id": task_id,
+                "revision": task.revision,
+                "attempt": dispatch["receipt"]["attempt"],
+                "state": result_state,
+                "evidence_ref": evidence_ref,
+                "artifact_ref": evidence.artifact_ref,
+                "verification_id": evidence.verification_id,
+                "engine_family": evidence.engine_family,
+                "executor": evidence.executor,
+                "reviewed_sha": evidence.reviewed_sha,
+                "completed_at": now,
                 "outcome": effective_outcome,
             }
             if route:
                 key = _route_key(*route)
-                state = store.read(key, {"route": route, "consecutive_failures": 0, "quarantined": False, "history": []})
+                state = store.read(
+                    key, {"route": route, "consecutive_failures": 0, "quarantined": False, "history": []}
+                )
                 if effective_outcome == "infrastructure_failure":
                     state["consecutive_failures"] += 1
                     if state["consecutive_failures"] >= self.quarantine_threshold and not state["quarantined"]:
-                        state.update(quarantined=True, quarantined_at=now,
-                                     failed_preflight_ref=dispatch["receipt"]["preflight_ref"])
+                        state.update(
+                            quarantined=True,
+                            quarantined_at=now,
+                            failed_preflight_ref=dispatch["receipt"]["preflight_ref"],
+                        )
                 elif not state["quarantined"]:
                     state["consecutive_failures"] = 0
                 store.write(key, state)
@@ -710,11 +921,19 @@ class ProjectTaskService:
             state = store.read(key)
             if not state or not state.get("quarantined"):
                 raise TaskServiceError("conflict", "Route is not quarantined")
-            if (not record.get("fresh_for_route") or record.get("recorded_at", 0) <= state["quarantined_at"]
-                    or placement.reference == state.get("failed_preflight_ref")):
+            if (
+                not record.get("fresh_for_route")
+                or record.get("recorded_at", 0) <= state["quarantined_at"]
+                or placement.reference == state.get("failed_preflight_ref")
+            ):
                 raise TaskServiceError("stale", "A fresh green preflight recorded after quarantine is required")
-            event = {"actor": principal.actor, "reason": reason.strip(), "at": now,
-                     "preflight_ref": placement.reference, "task_id": task_id}
+            event = {
+                "actor": principal.actor,
+                "reason": reason.strip(),
+                "at": now,
+                "preflight_ref": placement.reference,
+                "task_id": task_id,
+            }
             state.update(quarantined=False, consecutive_failures=0, history=[*state.get("history", []), event])
             store.write(key, state)
             return {"route": route, "clearance": event}
@@ -737,8 +956,10 @@ def _validate_acceptance(
     if contract is not None:
         verification = get_verification(store, evidence.verification_id or "")
         if (
-            verification is None or verification.verification_id != evidence.verification_id
-            or verification.status != "accepted" or verification.job_id != evidence.job_ref
+            verification is None
+            or verification.verification_id != evidence.verification_id
+            or verification.status != "accepted"
+            or verification.job_id != evidence.job_ref
             or verification.contract_id != contract.contract_id
             or get_verification_for_contract(store, contract.contract_id) != verification
         ):
@@ -746,10 +967,13 @@ def _validate_acceptance(
     if review_of:
         writer = next(dep for dep in dependencies if dep["task_id"] == f"{task.project_id}/{review_of}")
         writer_sha = writer.get("artifact_ref")
-        engines = {writer.get("engine_family"), evidence.engine_family}
         if (
-            writer_sha is None or evidence.reviewed_sha != writer_sha or evidence.artifact_ref != writer_sha
-            or engines != {"codex", "claude_code"} or writer.get("executor") == evidence.executor
+            writer_sha is None
+            or evidence.reviewed_sha != writer_sha
+            or evidence.artifact_ref != writer_sha
+            or not _review_independence(writer.get("engine_family") or "", evidence, writer.get("executor") or "")
             or not evidence.review_passed
         ):
-            raise TaskServiceError("invalid", "Review must pass on the writer's exact commit with the opposite engine")
+            raise TaskServiceError(
+                "invalid", "Review must pass on the writer's exact commit with the opposite engine or a fresh reviewer"
+            )
