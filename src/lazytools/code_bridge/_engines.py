@@ -113,10 +113,13 @@ def build_codex_engine(
     native = launch.compiled["config_overrides"]
     shell = "shell" in launch.policy.tool_classes
     writable = "edit" in launch.policy.tool_classes
+    writable_roots: tuple[str, ...] | None = ()
+    if writable:
+        writable_roots = (temp_dir,) if temp_dir else None
     config = CodingAgentConfig.writer(gate)
     config = replace(config, codex=replace(
         config.codex, sandbox=native["sandbox_mode"], approval_policy="on-request" if shell else "never",
-        web_search=native["web_search"], writable_roots=(temp_dir,) if writable and temp_dir else (),
+        web_search=native["web_search"], writable_roots=writable_roots,
         preapprove_dynamic_tools=False,
     ))
     client: CodexAppServerClient

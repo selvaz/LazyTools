@@ -12,9 +12,10 @@ import time
 from pathlib import Path
 
 import pytest
+from lazybridge.ext.approval import ApprovalQueue, ApproverContext
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _concurrency, _jobs, _lockfile, _store, _tempdir, cli
+from lazytools.code_bridge import _concurrency, _jobs, _lockfile, _registry, _store, _tempdir, cli
 from lazytools.code_bridge._concurrency import EngineBusy, EngineSlot
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -412,15 +413,14 @@ def test_two_different_db_directories_share_the_limit(env, tmp_path):
     db_one = tmp_path / "store-one" / "bridge.sqlite"
     db_two = tmp_path / "store-two" / "bridge.sqlite"
     started = threading.Event()
-    release = threading.Event()
     script = env[0]
     script.request_approval = True  # park the first job on a ticket so it stays live
 
     box: dict = {}
     thread = threading.Thread(target=lambda: box.setdefault("r", run(repo_a, db_one)), daemon=True)
     thread.start()
+    queue = ApprovalQueue(_registry.registry_store())
     try:
-        queue = _store.build_approval_queue(_store.build_store(db_one))
         deadline = time.monotonic() + 10
         while not queue.list_pending_tickets():
             assert time.monotonic() < deadline and thread.is_alive()
@@ -429,9 +429,9 @@ def test_two_different_db_directories_share_the_limit(env, tmp_path):
         with pytest.raises(EngineBusy):
             run(repo_b, db_two)
     finally:
-        ticket = queue.list_pending_tickets()[0]
-        queue.reject_ticket(ticket.approval_id, actor="test", channel="test", reason="done")
-        release.set()
+        for ticket in queue.list_pending_tickets():
+            queue.decide_typed_ticket(ticket.approval_id, approver=ApproverContext(actor="test"),
+                                      verdict="rejected", reason="done")
         thread.join(10)
     assert started.is_set() and not thread.is_alive()
 
