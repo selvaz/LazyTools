@@ -125,13 +125,15 @@ to use a different location. The executor exports the public key beside it
 with a `.pub.pem` suffix. On Windows, keep the key directory under a
 user-restricted ACL. The offline verifier accepts a stored receipt ID or a
 `receipt.json` file and an optional `--public-key PEM` from a trusted issuer.
-It uses the local public-key export by default. `--live` additionally
-compares the signed head with the PR head and requires an existing PR.
+It uses the local public-key export by default. For published receipts,
+`--live` additionally compares the signed head with the PR head.
 
 The receipt reports the accepted review's independence mode, launch and
 admission evidence, and policy metadata available in the bridge job store.
-For a head-drift refusal, the signed head is the reviewed commit. A reviewer
-verdict of `unavailable` indicates absent independence evidence and leaves
+For a refusal, the publication head records the observed local branch head
+or, for `pr_head_mismatch`, the head read back from GitHub. The review and
+approval target fields keep their original values. A reviewer verdict of
+`unavailable` indicates absent independence evidence and leaves
 the required version 1 independence field at its placeholder value. The
 projects MCP provider exposes `receipts_get` and `receipts_verify` as
 read-only tools.

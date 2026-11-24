@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import subprocess
@@ -15,7 +16,7 @@ from lazybridge.ext.approval import ApprovalQueue
 from lazybridge.policy.review import select_reviewer
 
 from code_bridge_test_helpers import write_python_executable
-from lazytools.code_bridge import _cloud, _gh, _launch, _store, cli
+from lazytools.code_bridge import _cloud, _gh, _launch, _publication, _receipts, _store, cli
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService
@@ -270,13 +271,25 @@ def test_publish_reviewed_head_and_verify_tampering(publication, capsys):
     assert capsys.readouterr().out.splitlines()[-1] == "bad_signature"
 
 
-def test_head_moved_after_review_refuses_before_push(publication, capsys):
+@pytest.mark.parametrize("during_authorization", [False, True])
+def test_head_moved_after_review_refuses_before_push(publication, capsys, monkeypatch, during_authorization):
     accept(publication)
     ticket = approve(publication, capsys)
-    assert commit(publication.repo, "unreviewed change") != publication.reviewed
+    if during_authorization:
+        find_ticket = _publication._find_ticket
+
+        def move_head_and_find_ticket(*args, **kwargs):
+            git(publication.repo, "update-ref", "refs/heads/feature/reviewed", publication.other)
+            return find_ticket(*args, **kwargs)
+
+        monkeypatch.setattr(_publication, "_find_ticket", move_head_and_find_ticket)
+    else:
+        git(publication.repo, "update-ref", "refs/heads/feature/reviewed", publication.other)
     receipt = publish(publication, capsys)
     assert receipt["outcome"]["refusal_reason"] == "head_changed_after_review"
-    assert receipt["publication"]["head_sha"] == publication.reviewed
+    assert receipt["publication"]["head_sha"] == publication.other
+    assert receipt["reviewer"]["reviewed_sha"] == publication.reviewed
+    assert receipt["approval"]["target"]["head_sha"] == publication.reviewed
     assert cli.main(["verify-receipt", receipt["receipt_id"]]) == 0
     assert not publication.pushes and not publication.state.exists()
     with Store(str(publication.registry_db)) as registry:
@@ -341,7 +354,11 @@ def test_pr_head_mismatch_has_signed_refusal_and_no_retry(publication, capsys, m
     receipt = publish(publication, capsys)
     assert receipt["outcome"]["refusal_reason"] == "pr_head_mismatch"
     assert receipt["publication"]["pr_number"] is None
+    assert receipt["publication"]["head_sha"] == publication.other
+    assert receipt["reviewer"]["reviewed_sha"] == publication.reviewed
+    assert receipt["approval"]["target"]["head_sha"] == publication.reviewed
     assert cli.main(["verify-receipt", receipt["receipt_id"]]) == 0
+    assert cli.main(["verify-receipt", receipt["receipt_id"], "--live"]) == 0
     assert publish(publication, capsys) == receipt
     assert len(json.loads(publication.state.read_text())["prs"]) == len(publication.pushes) == 1
 
@@ -391,3 +408,37 @@ def test_mcp_receipt_tools_are_read_only(publication, capsys):
     assert not any("publish" in name for name in by_name)
     assert tools["receipts_get"].func(receipt_id=receipt["receipt_id"]) == receipt
     assert tools["receipts_verify"].func(receipt_id=receipt["receipt_id"]) == {"valid": True, "reason": None}
+
+
+def test_receipt_verifiers_report_key_failures(publication, capsys):
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    from lazybridge.ext.receipt import PublicationReceipt, canonical_bytes
+
+    from lazytools.connectors.projects.receipt_tools import ReceiptTools
+
+    accept(publication, include_review=False)
+    receipt = publish(publication, capsys)
+    receipt_id = receipt["receipt_id"]
+    tools = ReceiptTools(publication.service.path, None)
+
+    def assert_failure(reason):
+        assert cli.main(["verify-receipt", receipt_id]) == 1
+        assert capsys.readouterr().out.strip() == reason
+        assert tools.receipts_verify(receipt_id) == {"valid": False, "reason": reason}
+
+    public_key = publication.public_key.read_bytes()
+    publication.public_key.unlink()
+    assert_failure("invalid_public_key")
+    publication.public_key.write_bytes(b"malformed public key")
+    assert_failure("invalid_public_key")
+    publication.public_key.write_bytes(public_key)
+
+    receipt["issuer"]["key_id"] = "mismatched-issuer"
+    key = load_pem_private_key(_receipts.issuer_path().read_bytes(), password=None)
+    signature = key.sign(canonical_bytes(PublicationReceipt.model_validate(receipt)))
+    receipt["signature"] = base64.b64encode(signature).decode("ascii")
+    with transaction(publication.service.path, write=True) as store:
+        store.connection.execute(
+            "UPDATE publication_receipts SET receipt_json = ? WHERE receipt_id = ?", (json.dumps(receipt), receipt_id)
+        )
+    assert_failure("issuer_mismatch")

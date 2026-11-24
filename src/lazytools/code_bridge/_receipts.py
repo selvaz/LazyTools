@@ -120,7 +120,7 @@ def template(attempt: PublicationAttempt, job_store: Any, key: IssuerKey) -> Pub
             "repository": {"owner": owner, "name": name, "base_branch": attempt.base_branch},
             "publication": {
                 "head_branch": attempt.head_branch,
-                "head_sha": attempt.head_sha,
+                "head_sha": attempt.local_head or "",
                 "base_sha": "",
                 "pr_number": None,
                 "pr_url": None,
@@ -186,6 +186,8 @@ def finish(
     fields = receipt.model_dump(mode="json")
     fields["issued_at"] = datetime.now(UTC).isoformat()
     fields["publication"].update(base_sha=result.base_sha, pr_number=result.pr_number, pr_url=result.pr_url)
+    if result.observed_head is not None:
+        fields["publication"]["head_sha"] = result.observed_head
     fields["approval"].update(
         ticket_id=ticket.approval_id if ticket else None,
         decided_by=_identifier(decision.decider) if decision else None,
@@ -244,6 +246,9 @@ def read_source(projects_db: Path | None, source: str) -> str:
 
 
 def verify_json(raw: str, *, live: bool = False, public_key: Path | None = None) -> dict[str, Any]:
+    from cryptography.exceptions import UnsupportedAlgorithm
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key
     from lazybridge.ext.receipt import PublicationReceipt, verify
 
     try:
@@ -251,11 +256,13 @@ def verify_json(raw: str, *, live: bool = False, public_key: Path | None = None)
     except ValueError:
         return {"valid": False, "reason": "invalid_receipt"}
     try:
-        pem = (public_key or public_key_path()).read_bytes()
-    except OSError:
-        return {"valid": False, "reason": "public_key_unavailable"}
-    result = verify(receipt, pem)
-    if result.valid and live:
+        key = load_pem_public_key((public_key or public_key_path()).read_bytes())
+    except (OSError, UnsupportedAlgorithm, ValueError):
+        return {"valid": False, "reason": "invalid_public_key"}
+    if not isinstance(key, Ed25519PublicKey):
+        return {"valid": False, "reason": "invalid_public_key"}
+    result = verify(receipt, key)
+    if result.valid and live and receipt.outcome.status == "published":
         number = receipt.publication.pr_number
         if number is None:
             return {"valid": False, "reason": "no_pull_request"}
@@ -266,5 +273,5 @@ def verify_json(raw: str, *, live: bool = False, public_key: Path | None = None)
             return {"valid": False, "reason": "live_head_unavailable"}
         if not isinstance(head, str) or not head:
             return {"valid": False, "reason": "live_head_unavailable"}
-        result = verify(receipt, pem, expected_head_sha=head)
+        result = verify(receipt, key, expected_head_sha=head)
     return {"valid": result.valid, "reason": result.reason}

@@ -51,6 +51,7 @@ class PublicationOutcome:
     base_sha: str = ""
     pr_number: int | None = None
     pr_url: str | None = None
+    observed_head: str | None = None
 
 
 def _remote_repository(url: str) -> str | None:
@@ -217,8 +218,9 @@ def _authorize(
             return PublicationOutcome("approval_not_decided", ticket=fresh)
         if service.publication_review(attempt.task_id, store=store) != attempt.review:
             return PublicationOutcome("review_changed_before_publication", ticket=fresh)
-        if _branch_sha(attempt.repo, attempt.head_branch) != attempt.head_sha:
-            return PublicationOutcome("head_changed_after_review", ticket=fresh)
+        local_head = _branch_sha(attempt.repo, attempt.head_branch)
+        if local_head != attempt.head_sha:
+            return PublicationOutcome("head_changed_after_review", ticket=fresh, observed_head=local_head or "")
         if not queue.consume_typed_ticket(fresh.approval_id, executor=executor):
             return PublicationOutcome("approval_already_consumed", ticket=fresh)
         claim_ticket_publication(store, fresh.approval_id)
@@ -253,13 +255,15 @@ def _publish(attempt: PublicationAttempt, outcome: PublicationOutcome) -> Public
         pr = _gh.pr_view(repo, number, publication=True)
     except _GIT_ERRORS:
         return replace(outcome, reason="pr_head_unavailable")
+    pr_head = pr.get("headRefOid")
     if (
-        pr.get("headRefOid") != attempt.head_sha
+        pr_head != attempt.head_sha
         or pr.get("headRefName") != head
         or pr.get("baseRefName") != base
         or pr.get("isCrossRepository") is not False
     ):
-        return replace(outcome, reason="pr_head_mismatch")
+        observed_head = pr_head if isinstance(pr_head, str) and _SHA.fullmatch(pr_head) else ""
+        return replace(outcome, reason="pr_head_mismatch", observed_head=observed_head)
     if pr.get("isDraft") is not True or pr.get("state") != "OPEN":
         return replace(outcome, reason="pr_not_draft")
     base_sha = pr.get("baseRefOid")

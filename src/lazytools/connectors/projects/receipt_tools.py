@@ -31,7 +31,7 @@ class ReceiptTools:
         return json.loads(raw) if raw is not None else None
 
     def receipts_verify(self, receipt_id: str, live: bool = False) -> dict[str, Any]:
-        """Verify a stored receipt, optionally comparing its head with the live pull request."""
+        """Verify a stored receipt, optionally checking a published head against the live pull request."""
         try:
             raw = self._read(receipt_id)
             if raw is None:
