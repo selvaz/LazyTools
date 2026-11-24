@@ -15,7 +15,12 @@ from lazybridge.ext.approval import ApprovalQueue, ApprovalTarget, ApprovalTicke
 
 from lazytools.code_bridge import _cloud, _gh, _registry
 from lazytools.projects.task_service import ProjectTaskService, PublicationReview
-from lazytools.projects.task_store import TaskServiceError, published_ticket_receipt, transaction
+from lazytools.projects.task_store import (
+    TaskServiceError,
+    claim_ticket_publication,
+    publication_for_ticket,
+    transaction,
+)
 
 _EXECUTOR = "local-publication-executor"
 _ACTION = "open_draft_pr"
@@ -51,12 +56,21 @@ class PublicationOutcome:
 def _remote_repository(url: str) -> str | None:
     if "://" in url:
         parsed = urlsplit(url)
-        if parsed.scheme not in {"https", "ssh"} or parsed.hostname != "github.com":
+        if (
+            parsed.scheme not in {"https", "ssh"}
+            or parsed.hostname != "github.com"
+            or parsed.port not in (None, 443 if parsed.scheme == "https" else 22)
+            or parsed.query
+            or parsed.fragment
+        ):
             return None
-    elif not url.startswith("git@github.com:"):
+        path = parsed.path.removeprefix("/")
+    elif url.startswith("git@github.com:"):
+        path = url.removeprefix("git@github.com:")
+    else:
         return None
-    slug = _cloud.parse_remote(url)
-    return slug.lower() if slug and _REPOSITORY.fullmatch(slug) else None
+    slug = path.rstrip("/").removesuffix(".git")
+    return slug.lower() if _REPOSITORY.fullmatch(slug) else None
 
 
 def _branch_sha(repo: Path, branch: str) -> str | None:
@@ -106,6 +120,8 @@ def _refusal(attempt: PublicationAttempt) -> str | None:
         return "review_not_independent"
     if attempt.head_sha != attempt.local_head:
         return "head_changed_after_review"
+    if any((check.model_extra or {}).get("head_sha", attempt.head_sha) != attempt.head_sha for check in review.checks):
+        return "check_head_mismatch"
     if review.repository.casefold() != attempt.repository or (
         review.branch and review.branch.removeprefix("refs/heads/") != attempt.head_branch
     ):
@@ -150,7 +166,11 @@ def _find_ticket(
         key = f"publication:request:{request.digest}"
         ticket_id = store.read(key)
         if ticket_id is not None:
-            return queue.get_ticket(ticket_id)
+            existing = queue.get_ticket(ticket_id)
+            if existing is None or existing.consumed_at or existing.status == "rejected":
+                return existing
+            if existing.expires_at > datetime.now(UTC):
+                return existing
         target = request.target
         ticket = queue.create_typed_ticket(
             request,
@@ -169,7 +189,7 @@ def _authorize(
     ticket: ApprovalTicket,
 ) -> PublicationOutcome:
     if ticket.request != request or not ticket.operator_only:
-        return PublicationOutcome("approval_target_mismatch")
+        return PublicationOutcome("approval_target_mismatch", ticket=ticket)
     executor = ExecutorContext(
         actor=_EXECUTOR,
         task_id=request.task_id,
@@ -180,12 +200,15 @@ def _authorize(
     )
     separate_queue = registry.queue if registry.path != service.path else None
     with transaction(service.path, write=True) as store:
-        if saved := published_ticket_receipt(store, ticket.approval_id):
+        claimed, saved = publication_for_ticket(store, ticket.approval_id)
+        if saved is not None:
             return PublicationOutcome(ticket=ticket, stored_receipt=saved)
+        if claimed:
+            return PublicationOutcome("approval_already_consumed", ticket=ticket)
         queue = separate_queue if separate_queue is not None else ApprovalQueue(cast(Store, store))
         fresh = queue.get_ticket(ticket.approval_id)
-        if fresh is None or fresh.request != request:
-            return PublicationOutcome("approval_target_mismatch")
+        if fresh is None or fresh.request != request or not fresh.operator_only:
+            return PublicationOutcome("approval_target_mismatch", ticket=fresh)
         if fresh.consumed_at is not None:
             return PublicationOutcome("approval_already_consumed", ticket=fresh)
         if fresh.status == "rejected":
@@ -198,11 +221,12 @@ def _authorize(
             return PublicationOutcome("head_changed_after_review", ticket=fresh)
         if not queue.consume_typed_ticket(fresh.approval_id, executor=executor):
             return PublicationOutcome("approval_already_consumed", ticket=fresh)
+        claim_ticket_publication(store, fresh.approval_id)
         return PublicationOutcome(ticket=queue.get_ticket(fresh.approval_id), consumed=True)
 
 
 def _publish(attempt: PublicationAttempt, outcome: PublicationOutcome) -> PublicationOutcome:
-    repo, head, base = attempt.repository, attempt.head_branch, attempt.base_branch
+    repo, head, base = f"github.com/{attempt.repository}", attempt.head_branch, attempt.base_branch
     try:
         # The push source is the reviewed object ID even if the local ref moves
         # after the final check. A literal URL avoids named remote push refspecs.
@@ -221,7 +245,7 @@ def _publish(attempt: PublicationAttempt, outcome: PublicationOutcome) -> Public
     try:
         url = _gh.pr_create(repo, base=base, head=head, title=f"Publish {head}", body="", draft=True)
         number = _gh.pr_number_from_url(url)
-        if number is None:
+        if number is None or url.casefold() != f"https://{repo}/pull/{number}":
             return replace(outcome, reason="pr_create_failed")
     except _GIT_ERRORS:
         return replace(outcome, reason="pr_create_failed")
@@ -236,7 +260,7 @@ def _publish(attempt: PublicationAttempt, outcome: PublicationOutcome) -> Public
         or pr.get("isCrossRepository") is not False
     ):
         return replace(outcome, reason="pr_head_mismatch")
-    if pr.get("isDraft") is not True:
+    if pr.get("isDraft") is not True or pr.get("state") != "OPEN":
         return replace(outcome, reason="pr_not_draft")
     base_sha = pr.get("baseRefOid")
     if not isinstance(base_sha, str) or not _SHA.fullmatch(base_sha):

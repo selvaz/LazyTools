@@ -2500,7 +2500,7 @@ def _cmd_publish(args: argparse.Namespace) -> int:
     if result.pr_number is not None:
         try:
             _gh.pr_comment(
-                attempt.repository,
+                f"github.com/{attempt.repository}",
                 result.pr_number,
                 f"Publication receipt `{receipt.receipt_id}`\n\n"
                 f"Issuer fingerprint `{receipt.issuer.public_key_fingerprint}`",

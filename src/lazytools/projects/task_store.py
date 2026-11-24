@@ -103,9 +103,15 @@ def publication_receipt(store: TransactionStore, receipt_id: str) -> str | None:
     return str(row[0]) if row else None
 
 
-def published_ticket_receipt(store: TransactionStore, ticket_id: str) -> str | None:
+def publication_for_ticket(store: TransactionStore, ticket_id: str) -> tuple[bool, str | None]:
     receipt_id = store.read(f"publication:receipt:{ticket_id}")
-    return publication_receipt(store, receipt_id) if receipt_id else None
+    return receipt_id is not None, publication_receipt(store, receipt_id) if receipt_id else None
+
+
+def claim_ticket_publication(store: TransactionStore, ticket_id: str) -> None:
+    # An empty receipt ID reserves the effect until its outcome is recorded.
+    if not store.compare_and_swap(f"publication:receipt:{ticket_id}", None, ""):
+        raise TaskServiceError("conflict", "This approval already has a publication claim")
 
 
 def save_publication_receipt(
@@ -127,6 +133,6 @@ def save_publication_receipt(
             (receipt_id, task_id, attempt, head_sha, pr_number, status, receipt_json, created_at),
         )
         if consumed_ticket_id and not store.compare_and_swap(
-            f"publication:receipt:{consumed_ticket_id}", None, receipt_id
+            f"publication:receipt:{consumed_ticket_id}", "", receipt_id
         ):
             raise TaskServiceError("conflict", "This approval already has a publication outcome")

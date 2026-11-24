@@ -61,7 +61,9 @@ def load_issuer() -> IssuerKey:
 
 
 def _identifier(value: object) -> str:
-    return value if isinstance(value, str) and _SAFE_ID.fullmatch(value) and not value.startswith("/") else ""
+    if isinstance(value, str) and _SAFE_ID.fullmatch(value) and not re.match(r"(?:[a-zA-Z]:)?/", value):
+        return value
+    return ""
 
 
 def _run_evidence(run: AcceptedRun | None, job_store: Any, fallback_task: str = "") -> dict[str, Any]:
@@ -153,6 +155,7 @@ def template(attempt: PublicationAttempt, job_store: Any, key: IssuerKey) -> Pub
                     "head_sha": attempt.head_sha,
                 }
                 for index, check in enumerate(review.checks, 1)
+                if (check.model_extra or {}).get("head_sha", attempt.head_sha) == attempt.head_sha
             ],
             "outcome": {"status": "refused", "refusal_reason": "publication_not_attempted"},
         }
@@ -168,20 +171,26 @@ def finish(
     job_db: Path | None,
     job_ref: str | None,
 ) -> PublicationReceipt:
-    from lazybridge.ext.receipt import PublicationReceipt, sign
+    from lazybridge.ext.receipt import PublicationReceipt, sign, verify
 
     if result.stored_receipt is not None:
-        return PublicationReceipt.model_validate_json(result.stored_receipt)
+        stored = PublicationReceipt.model_validate_json(result.stored_receipt)
+        verification = verify(stored, key.public_key_pem())
+        if not verification.valid:
+            raise TaskServiceError("invalid_receipt", f"Stored receipt verification failed: {verification.reason}")
+        write_evidence(stored.receipt_id, result.stored_receipt, job_db, job_ref)
+        return stored
     ticket = result.ticket
-    decision = ticket.decision if ticket else None
+    bound = ticket if result.reason != "approval_target_mismatch" else None
+    decision = bound.decision if bound else None
     fields = receipt.model_dump(mode="json")
     fields["publication"].update(base_sha=result.base_sha, pr_number=result.pr_number, pr_url=result.pr_url)
     fields["approval"].update(
         ticket_id=ticket.approval_id if ticket else None,
         decided_by=_identifier(decision.decider) if decision else None,
         decided_at=decision.decided_at.isoformat() if decision else None,
-        consumed_at=ticket.consumed_at.isoformat() if ticket and ticket.consumed_at else None,
-        request_digest=ticket.request.digest if ticket and ticket.request else None,
+        consumed_at=bound.consumed_at.isoformat() if bound and bound.consumed_at else None,
+        request_digest=bound.request.digest if bound and bound.request else None,
     )
     status: Literal["refused", "published"] = "refused" if result.reason else "published"
     fields["outcome"] = {"status": status, "refusal_reason": result.reason}
@@ -207,7 +216,14 @@ def write_evidence(receipt_id: str, encoded: str, job_db: Path | None, job_ref: 
     evidence_dir = _store.results_dir(job_db)
     if job_ref and _SAFE_JOB.fullmatch(job_ref):
         evidence_dir /= job_ref
-    _write_atomic(evidence_dir / "publication" / receipt_id / "receipt.json", encoded.encode("utf-8"))
+    path = evidence_dir / "publication" / receipt_id / "receipt.json"
+    content = encoded.encode("utf-8")
+    try:
+        if path.read_bytes() == content:
+            return
+    except FileNotFoundError:
+        pass
+    _write_atomic(path, content)
 
 
 def stored_json(projects_db: Path | None, receipt_id: str) -> str | None:
@@ -242,7 +258,7 @@ def verify_json(raw: str, *, live: bool = False, public_key: Path | None = None)
         number = receipt.publication.pr_number
         if number is None:
             return {"valid": False, "reason": "no_pull_request"}
-        repo = f"{receipt.repository.owner}/{receipt.repository.name}"
+        repo = f"github.com/{receipt.repository.owner}/{receipt.repository.name}"
         try:
             head = _gh.pr_view(repo, number).get("headRefOid")
         except (_cloud.CloudError, OSError, subprocess.SubprocessError):
