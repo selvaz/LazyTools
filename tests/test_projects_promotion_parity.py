@@ -52,9 +52,9 @@ async def test_async_promotion_matches_original_tool(findings, performed):
         assert getattr(records.get_project(stores[0], "alpha"), field) == getattr(records.get_project(stores[1], "alpha"), field)
     original_tasks = DurableBlackboard(stores[0], "project:alpha").snapshot().tasks
     promoted_tasks = DurableBlackboard(stores[1], "project:alpha").snapshot().tasks
-    for original_task, promoted_task, subtask in zip(original_tasks, promoted_tasks, SUBTASKS, strict=True):
+    for index, (original_task, promoted_task) in enumerate(zip(original_tasks, promoted_tasks, strict=True)):
         # The projects service now records criteria and a revision on each installed task.
-        assert promoted_task["acceptance_criteria"] == subtask["acceptance_criteria"]
+        assert promoted_task["acceptance_criteria"] == SUBTASKS[index]["acceptance_criteria"]
         assert promoted_task["revision"]
         assert {key: value for key, value in promoted_task.items() if key not in ("acceptance_criteria", "revision")} == original_task
 
