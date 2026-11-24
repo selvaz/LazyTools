@@ -473,10 +473,11 @@ class ProjectTaskService:
                 raise TaskServiceError("conflict", "Dispatch already started and must be reconciled")
             placement, _ = _placement(task, now)
             receipt = dispatch["receipt"]
+            current_route = _route(task, placement) if placement is not None else None
             if (
                 placement is None or placement.placement != receipt["effective_placement"]
                 or placement.engine_family != receipt["engine_family"] or placement.reference != receipt["preflight_ref"]
-                or (list(_route(task, placement)) if _route(task, placement) else None) != receipt.get("route")
+                or (list(current_route) if current_route is not None else None) != receipt.get("route")
                 or _dependencies(task) != receipt["dependencies"]
                 or task.data.get("start_hold")
             ):
