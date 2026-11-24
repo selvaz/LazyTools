@@ -231,6 +231,24 @@ def test_race_claims_replay_and_reclaim_before_submit(queue):
         complete(service, receipt, "old-evidence", principal=winner)
 
 
+def test_claim_replay_reports_dispatch_state_and_lease(queue):
+    projects, service = queue
+    admit(projects, [task("a"), task("b")])
+    placement(service, "a")
+    receipt = claim(service, "a")
+    args = (WORKER, receipt["task_id"], receipt["revision"], receipt["idempotency_key"])
+    assert service.claim(*args) == {"claim": receipt, "dispatch_state": "intent", "claim_active": True}
+    service.begin_submit(WORKER, receipt["task_id"], receipt["claim_token"])
+    assert service.claim(*args)["dispatch_state"] == "submitting"
+    service.clock.now += 61
+    assert service.claim(*args)["claim_active"] is False
+    service.reconcile_dispatch(OPERATOR, receipt["task_id"], receipt["attempt"], "absent", evidence_ref="provider lookup")
+    replay = service.claim(*args)
+    assert replay == {"claim": receipt, "dispatch_state": "absent", "claim_active": False}
+    claim(service, "a", "replacement", REVIEWER)
+    assert service.claim(*args) == replay
+
+
 @pytest.mark.parametrize("provider_received", [False, True])
 def test_interruption_at_provider_submit_holds_until_reconciliation(queue, provider_received):
     projects, service = queue

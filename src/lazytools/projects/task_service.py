@@ -285,7 +285,13 @@ class ProjectTaskService:
                 if receipt["idempotency_key"] == idempotency_key:
                     if receipt["executor"] != principal.actor or receipt["revision"] != expected_revision:
                         raise TaskServiceError("conflict", "Dispatch idempotency key has already been used")
-                    return {"claim": receipt}
+                    active = (
+                        task.data.get("active_queue_claim") is True
+                        and task.data.get("status") == "claimed"
+                        and history[-1] is dispatch
+                        and receipt["lease_expires_at"] > self.clock()
+                    )
+                    return {"claim": receipt, "dispatch_state": dispatch["state"], "claim_active": active}
             if task.revision != expected_revision:
                 raise TaskServiceError("stale", "Task revision changed")
             _require_open(store, task.project_id)
