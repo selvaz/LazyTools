@@ -178,6 +178,16 @@ def test_governed_task_publication_and_ledger(trial, capsys):
         "re_reviews": 0, "rework_attempts": 0,
     }
 
+    git(checkout, "commit", "--allow-empty", "-m", "Advance the candidate after publication")
+    assert invoke("review") == 0
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        assert project_store.read("governed-task:live-verified-receipt") is None
+        assert project_store.read("governed-task:ticket") is None
+    assert invoke("publish", "--resume") == 1
+    assert invoke("ledger") == 1
+    assert "publish --resume before recording the trial row" in capsys.readouterr().err
+    assert [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()] == [baseline, row]
+
 
 def test_governed_task_reuses_branch_and_stops_on_review_rejection(trial, capsys):
     start, invoke, setup, _, state, ledger, fake_state = trial
@@ -414,12 +424,19 @@ def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
     checkout = setup(accepted=lambda: accepted)
     check = python_check("print('retained gate')")
     assert start(checkout, "--check", check) == 1
+    # A previous runner version could leave publication state behind after a rejection.
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        project_store.write("governed-task:live-verified-receipt", "old-receipt")
+        project_store.write("governed-task:ticket", "old-ticket")
     original = _cloud._git(checkout, "rev-parse", "HEAD")
     accepted = True
     brief = state.parent.parent / "fix.md"
     brief.write_text("Address the rejection on the same branch.", encoding="utf-8")
 
     assert invoke("rework", "--brief", f"@{brief}") == 0
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        assert project_store.read("governed-task:live-verified-receipt") is None
+        assert project_store.read("governed-task:ticket") is None
     head = _cloud._git(checkout, "rev-parse", "HEAD")
     assert head != original
     assert "Address the rejection on the same branch." in script.prompts[2]

@@ -397,6 +397,8 @@ def continue_task(args: argparse.Namespace, stores: dict[str, Path], store: Stor
         run["specs"] = spec_attachments(args.spec)
     if args.review_brief:
         run["review_brief"] = args.review_brief
+    store.delete(VERIFIED_KEY)
+    store.delete(TICKET_KEY)
     step = step_trace(stores, table_counts(stores))
     if args.command == "rework":
         jobs = store.read(JOBS_KEY) or {}
