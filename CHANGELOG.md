@@ -8,6 +8,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Guarded draft PR publication for accepted reviews through `lazytools-code-bridge publish`, with one-time typed approvals bound to the reviewed commit and signed publication or refusal receipts.
+- CLI and optional live receipt verification through `verify-receipt`, plus read-only projects MCP tools `receipts_get` and `receipts_verify`.
+
 ## [0.11.1] — 2026-11-24
 
 ### Fixed

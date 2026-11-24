@@ -81,6 +81,61 @@ Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;
 for every lifecycle command. Logs are under the Store's results directory
 (default `~/.lazytools/results/`).
 
+## Publish an accepted review
+
+`publish` opens a draft pull request for a completed writer task whose current
+attempt has an accepted independent review. Use the full writer task ID
+(`project/task`), its local repository with a GitHub `origin`, and the reviewed
+branch. Configure `LAZYTOOLS_PROJECTS_STORE_DB` for the projects task service
+and use a LazyBridge build that provides `lazybridge.ext.receipt` with Ed25519
+support.
+
+```console
+lazytools-code-bridge publish --task project/task --repo ./repo --branch feature/reviewed
+lazytools-code-bridge approve TICKET_ID
+lazytools-code-bridge publish --task project/task --repo ./repo --branch feature/reviewed
+lazytools-code-bridge verify-receipt RECEIPT_ID --live
+```
+
+The first invocation files a typed ticket and exits 1 with a signed
+`approval_not_decided` receipt. Read the repository, branch, commit and base
+in the pending approval before deciding. The default base is `main`. Use
+`--base` to specify another base or `--ticket ID` to resume with a specific
+ticket. Pass the same `--db` and `--registry-db` selections to `approve` as
+to `publish` when using an isolated registry.
+
+The executor checks the local branch again before consuming the decision.
+It pushes the reviewed object ID with an ordinary fast-forward push, opens a
+draft, then reads its head from GitHub. A published receipt records the draft
+at that head. A head mismatch produces a signed refusal and leaves the PR
+untouched. A replay returns the stored receipt or an
+`approval_already_consumed` refusal when the first process has yet to save
+its outcome. If the first process stops after consuming approval, the same
+ticket cannot trigger a second push or PR.
+
+The projects store retains both published and refused receipts. Each also has a
+`receipt.json` under `results/<writer-job-id>/publication/<receipt-id>/`.
+For attempts without a writer job, the path starts at `results/publication/`.
+After saving a successful receipt, the executor posts its ID and issuer
+fingerprint on the draft PR.
+
+The issuer private key defaults to
+`~/.lazytools/receipt-issuer/ed25519.pem`. Set `LAZYTOOLS_RECEIPT_ISSUER_KEY`
+to use a different location. The executor exports the public key beside it
+with a `.pub.pem` suffix. On Windows, keep the key directory under a
+user-restricted ACL. The offline verifier accepts a stored receipt ID or a
+`receipt.json` file and an optional `--public-key PEM` from a trusted issuer.
+It uses the local public-key export by default. `--live` additionally
+compares the signed head with the PR head and requires an existing PR.
+
+The receipt reports the accepted review's independence mode, launch and
+admission evidence, and policy metadata available in the bridge job store.
+For a head-drift refusal, the signed head is the reviewed commit. A reviewer
+verdict of `unavailable` indicates absent independence evidence and leaves
+the required version 1 independence field at its placeholder value. The
+projects MCP provider exposes `receipts_get` and `receipts_verify` as
+read-only tools.
+
 ## Navigator R1: the merge-ready loop
 
 Run the production loop with one check flag per required command:
