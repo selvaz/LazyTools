@@ -2173,6 +2173,20 @@ def build_parser() -> argparse.ArgumentParser:
     skill_p.add_argument("--force", action="store_true", help="Replace an existing installed copy.")
     skill_p.set_defaults(func=_cmd_setup_skill)
 
+    publish_p = sub.add_parser("publish", help="Publish a reviewed commit as a draft pull request.")
+    publish_p.add_argument("--task", required=True)
+    publish_p.add_argument("--repo", required=True, type=Path)
+    publish_p.add_argument("--branch", required=True)
+    publish_p.add_argument("--base", default="main")
+    _add_registry_option(publish_p)
+    publish_p.set_defaults(func=_cmd_publication_pending)
+
+    verify_p = sub.add_parser("verify-receipt", help="Verify a signed publication receipt.")
+    verify_p.add_argument("receipt", metavar="receipt_id|file")
+    verify_p.add_argument("--live", action="store_true")
+    verify_p.add_argument("--public-key", type=Path)
+    verify_p.set_defaults(func=_cmd_publication_pending)
+
     pending_p = sub.add_parser("pending", help="List open approval tickets.")
     pending_p.add_argument("--json", action="store_true")
     _add_registry_option(pending_p)
@@ -2217,6 +2231,11 @@ def build_parser() -> argparse.ArgumentParser:
     prune_p.set_defaults(func=_cmd_prune_sessions)
 
     return parser
+
+
+def _cmd_publication_pending(_args: argparse.Namespace) -> int:
+    print("Publication executor is unavailable", file=sys.stderr)
+    return 1
 
 
 def _utf8_output() -> None:

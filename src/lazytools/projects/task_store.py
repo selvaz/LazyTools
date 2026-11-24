@@ -10,6 +10,19 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any, Protocol
 
+PUBLICATION_RECEIPTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS publication_receipts (
+    receipt_id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    attempt INTEGER NOT NULL,
+    head_sha TEXT NOT NULL,
+    pr_number INTEGER,
+    status TEXT NOT NULL CHECK (status IN ('published', 'refused')),
+    receipt_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+)
+"""
+
 
 class TaskServiceError(Exception):
     """A typed refusal returned by the task and approval tools."""
@@ -70,3 +83,9 @@ def transaction(path: Path | None, *, write: bool = False) -> Iterator[Transacti
             yield TransactionStore(connection)
     except (sqlite3.Error, json.JSONDecodeError) as exc:
         raise TaskServiceError("unavailable", "The projects store is unavailable") from exc
+
+
+def migrate_publication_receipts(path: Path | None) -> None:
+    """Add publication receipts to an existing projects store."""
+    with transaction(path, write=True) as store:
+        store.connection.execute(PUBLICATION_RECEIPTS_SCHEMA)
