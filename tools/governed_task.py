@@ -98,18 +98,34 @@ def table_cell(value: str) -> str:
 def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: list[str]) -> str:
     if not commands:
         return "No check commands were supplied."
+    require(stable_checkout(repo, branch) == candidate, "The checkout changed before checks")
     log_dir = Path(tempfile.mkdtemp(prefix=f"checks-{candidate[:12]}-", dir=state))
+    tree = log_dir / "tree"
+    git = _cloud._git
+    # A post-checkout hook could populate the worktree with local artifacts.
+    git(repo, "-c", f"core.hooksPath={log_dir / 'disabled-hooks'}", "worktree", "add", "--detach", str(tree), candidate)
+    try:
+        require(not git(tree, "status", "--porcelain", "--untracked-files=all", "--ignored"),
+                f"Check worktree is not clean: {tree}")
+        return check_results(tree, candidate, log_dir, commands)
+    finally:
+        git(repo, "worktree", "remove", "--force", str(tree))
+
+
+def check_results(tree: Path, candidate: str, log_dir: Path, commands: list[str]) -> str:
+    heading = f"Candidate SHA: {candidate}\n\nCheck worktree: {tree}\n\n"
+    report = log_dir / "results.md"
+    report.write_text(heading, encoding="utf-8")
     rows = ["| Command | Exit code | Last lines |", "| --- | --- | --- |"]
     failures = []
     for index, command in enumerate(commands, 1):
-        require(stable_checkout(repo, branch) == candidate, "The checkout changed before checks")
         log = log_dir / f"{index:02d}.log"
         argv = _split_command(command)
         note = ""
         with log.open("wb") as output:
             try:
                 code = str(subprocess.run(
-                    argv, cwd=repo, shell=False, stdin=subprocess.DEVNULL, stdout=output,
+                    argv, cwd=tree, shell=False, stdin=subprocess.DEVNULL, stdout=output,
                     stderr=subprocess.STDOUT, timeout=CHECK_TIMEOUT, check=False,
                 ).returncode)
             except subprocess.TimeoutExpired:
@@ -125,9 +141,14 @@ def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: l
         rows.append(f"| {table_cell(command)} | {code} | {'<br>'.join(map(table_cell, lines))} |")
         if code != "0":
             failures.append(f"{command} ({code}, log {log})\n" + "\n".join(lines))
-        require(stable_checkout(repo, branch) == candidate, f"The checkout changed during checks. Output: {log}")
+        git = _cloud._git
+        require(git(tree, "rev-parse", "HEAD") == candidate
+                and not git(tree, "status", "--porcelain", "--untracked-files=no"),
+                f"The candidate worktree changed during checks. Output: {log}")
+    results = heading + "\n".join(rows)
+    report.write_text(results + "\n", encoding="utf-8")
     require(not failures, "Required checks failed on " + candidate + "\n" + "\n".join(failures))
-    return "\n".join(rows)
+    return results
 
 
 def spec_attachments(paths: list[Path]) -> str:
@@ -245,7 +266,8 @@ def run_writer(
     print(f"Replace TICKET with an ID from pending: {approval_command(stores, 'approve', 'TICKET')}", flush=True)
     writer_job, _ = run_job(
         repo, stores, engine, writer, writer_claim,
-        f"Implement the brief on {branch}. Run the required checks and commit your changes locally. "
+        f"Implement the brief on {branch} and commit your changes locally. "
+        "The runner will run the required checks on the committed candidate. "
         "Leave the checkout clean. Do not push or open a pull request. Use English and omit AI attribution.\n\n"
         f"{brief}",
         model=model, effort=effort,

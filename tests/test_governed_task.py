@@ -113,6 +113,7 @@ def test_governed_task_publication_and_ledger(trial, capsys):
         approval.result()
     trace = capsys.readouterr().out
     assert all(f"STEP {step}:" in trace for step in range(1, 5))
+    assert "The runner will run the required checks on the committed candidate." in script.prompts[0]
     assert "lazytools-code-bridge pending" in trace and "lazytools-code-bridge approve TICKET" in trace
     assert all(option in trace for option in options)
     head = git(checkout, "rev-parse", "HEAD")
@@ -207,7 +208,10 @@ def test_governed_task_reuses_branch_and_stops_on_review_rejection(trial, capsys
 def test_checks_from_brief_run_in_order_on_writer_commit(trial):
     start, _, setup, script, state, _, _ = trial
     checkout = setup()
-    first = python_check("import subprocess; print(subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True))")
+    first = python_check(
+        "import subprocess; assert not subprocess.check_output(['git', 'branch', '--show-current']); "
+        "print(subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True))"
+    )
     second = python_check("from subtraction import sub; assert sub(2, 5) == -3; print('negative result | OK')")
     brief = state.parent.parent / "checks.md"
     brief.write_text(f"# Subtraction\n\n## Checks\n\n```text\n{first}\n{second}\n```\n", encoding="utf-8")
@@ -218,6 +222,34 @@ def test_checks_from_brief_run_in_order_on_writer_commit(trial):
     assert [log.read_text().strip() for log in logs] == [head, "negative result | OK"]
     assert f"| 0 | {head} |" in script.prompts[1]
     assert "| 0 | negative result &#124; OK |" in script.prompts[1]
+    log_dir = logs[0].parent
+    report = (log_dir / "results.md").read_text(encoding="utf-8")
+    for provenance in (f"Candidate SHA: {head}", f"Check worktree: {log_dir / 'tree'}"):
+        assert provenance in report and provenance in script.prompts[1]
+    assert not (log_dir / "tree").exists()
+
+
+def test_check_cannot_pass_using_an_ignored_file_from_the_writer_checkout(trial, capsys):
+    start, _, setup, script, state, _, _ = trial
+    checkout = setup()
+    exclude = checkout / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(exist_ok=True)
+    exclude.write_text("local-fixture.txt\n", encoding="utf-8")
+    ignored = checkout / "local-fixture.txt"
+    ignored.write_text("writer-only fixture", encoding="utf-8")
+    git = _cloud._git
+    assert not git(checkout, "status", "--porcelain")
+    command = python_check("from pathlib import Path; print(Path('local-fixture.txt').read_text())")
+
+    assert start(checkout, "--check", command) == 1
+    assert "FileNotFoundError" in capsys.readouterr().err
+    assert len(script.prompts) == 1
+    report, = state.glob("checks-*/results.md")
+    tree = report.parent / "tree"
+    assert f"Check worktree: {tree}" in report.read_text(encoding="utf-8")
+    assert not tree.exists()
+    assert git(checkout, "worktree", "list", "--porcelain").count("worktree ") == 1
+    assert ignored.read_text(encoding="utf-8") == "writer-only fixture"
 
 
 @pytest.mark.parametrize("failure", ["exit", "timeout", "missing"])
