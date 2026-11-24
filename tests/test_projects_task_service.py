@@ -71,6 +71,7 @@ def placement(service, identifier, kind="local", *, eligible=True, reason="Runne
         PlacementEvidence(
             placement=kind, eligible=eligible, reason=reason, reference=f"preflight-{identifier}-{kind}",
             expires_at=service.clock() + ttl, engine_family=engine,
+            environment_id="cloud-env" if kind == "cloud" else None,
         ),
     )
 
@@ -143,6 +144,28 @@ def test_fallback_ready_age_survives_unchanged_negative_cloud_checks(queue):
     service.clock.now += 10
     placement(service, "a", "cloud", eligible=False)
     assert service.queue_metrics(OPERATOR)["overall"]["ready"][0]["oldest_ready_age_seconds"] == 0
+
+
+def test_cloud_without_environment_fails_closed_and_local_fallback_is_independent(queue):
+    projects, service = queue
+    admit(projects, [task("a", requested_placement="cloud", repo="org/repo"), task("b")])
+    def unidentified_cloud():
+        service.record_placement(f"{PROJECT}/a", revision(service, "a"), PlacementEvidence(
+            placement="cloud", eligible=True, reason="Green", reference="cloud-check",
+            expires_at=service.clock() + 1000, engine_family="codex"))
+    unidentified_cloud()
+    assert ready(service) == []
+    assert service.queue_metrics(OPERATOR)["overall"]["blocked"]["missing_placement_evidence"] == 2
+    with pytest.raises(TaskServiceError, match="no longer ready"):
+        claim(service, "a")
+    placement(service, "a")
+    assert ready(service)[0]["effective_placement"] == "local"
+    assert "environment_id" in ready(service)[0]["placement_reason"]
+    service.clock.now += 10
+    unidentified_cloud()
+    assert service.queue_metrics(OPERATOR)["overall"]["ready"][0]["oldest_ready_age_seconds"] == 10
+    placement(service, "a", "cloud")
+    assert ready(service)[0]["effective_placement"] == "cloud"
 
 
 def test_route_quarantine_and_fresh_clearance(queue):

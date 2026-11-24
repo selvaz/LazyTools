@@ -100,6 +100,8 @@ record a fresh eligible preflight with a new reference for the same route after
 quarantine; then an orchestrator or owner calls `tasks_route_clear(task_id,
 reason)`. The authenticated actor, reason and preflight reference are recorded.
 Routes without repo or environment identity cannot be quarantined.
+Cloud placement evidence without an environment ID is ineligible, even if its
+probe reports green; an independently eligible local fallback can still run.
 
 Structured plan objects can provide a project-local `task_id`, `dependency_ids`,
 `tier` (`basic`, `writing`, `thinking`, or `critical`), `requested_profile`,

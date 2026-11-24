@@ -151,6 +151,8 @@ def _placement(task: BoardTask, now: float) -> tuple[PlacementEvidence | None, s
         current = PlacementEvidence.model_validate(record["evidence"])
         if current.expires_at <= now:
             return None, f"{location} placement evidence is stale"
+        if location == "cloud" and current.eligible and not current.environment_id:
+            return None, "cloud placement evidence is missing environment_id"
         return current if current.eligible else None, current.reason
 
     eligible, reason = check(requested)
@@ -255,13 +257,15 @@ class ProjectTaskService:
             now = self.clock()
             old = task.data.get("placement_evidence", {}).get(evidence.placement, {})
             previous = old.get("evidence", {})
+            eligible = evidence.eligible and (evidence.placement != "cloud" or bool(evidence.environment_id))
+            was_eligible = previous.get("eligible") and (
+                evidence.placement != "cloud" or bool(previous.get("environment_id")))
             since = now
-            if (old.get("revision") == revision and previous.get("eligible") and evidence.eligible
+            if (old.get("revision") == revision and was_eligible and eligible
                     and previous.get("expires_at", 0) > now):
                 since = old.get("eligible_since", now)
             ineligible_since = now
-            if (old.get("revision") == revision and previous.get("eligible") is False
-                    and not evidence.eligible):
+            if (old.get("revision") == revision and previous and not was_eligible and not eligible):
                 ineligible_since = old.get("ineligible_since", old.get("recorded_at", now))
             route = _route(task, evidence)
             fresh_for_route = False
@@ -278,7 +282,7 @@ class ProjectTaskService:
                 "revision": revision,
                 "evidence": evidence.model_dump(mode="json"),
                 "eligible_since": since,
-                "ineligible_since": ineligible_since if not evidence.eligible else None,
+                "ineligible_since": ineligible_since if not eligible else None,
                 "recorded_at": now,
                 "fresh_for_route": fresh_for_route,
             }
@@ -345,6 +349,7 @@ class ProjectTaskService:
                         if cloud and cloud.get("revision") == task.revision:
                             observed = cloud.get("evidence", {})
                             timestamps.append(observed.get("expires_at") if observed.get("eligible")
+                                              and observed.get("environment_id")
                                               else cloud.get("ineligible_since", cloud.get("recorded_at")))
                     if route_state.get("history"):
                         timestamps.append(route_state["history"][-1]["at"])
