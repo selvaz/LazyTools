@@ -70,22 +70,22 @@ def brief_checks(brief: str) -> list[str]:
         marker = re.match(r"^(`{3,}|~{3,})", line)
         if fence:
             if line.startswith(fence) and not line.strip(fence[0]):
-                if heading_level is not None:
-                    return commands
                 fence = ""
-            elif heading_level is not None and line:
+            elif heading_level is not None and line and not line.startswith("#"):
                 commands.append(line)
             continue
         if marker:
             fence = marker[1]
             continue
         heading = re.fullmatch(r"(#{1,6})\s+(.+?)(?:\s+#+)?", line)
-        if heading and heading[2].casefold() == "checks":
-            heading_level = len(heading[1])
-        elif heading and heading_level is not None and len(heading[1]) <= heading_level:
-            break
+        if heading:
+            level = len(heading[1])
+            if heading_level is not None and level <= heading_level:
+                break
+            if heading_level is None and heading[2].casefold() == "checks":
+                heading_level = level
     require(not fence or heading_level is None, "The Checks command block is missing its closing fence")
-    return []
+    return commands
 
 
 def check_commands(brief: str, overrides: list[str] | None) -> list[str]:

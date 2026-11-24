@@ -224,7 +224,12 @@ def test_checks_from_brief_run_in_order_on_writer_commit(trial):
     )
     second = python_check("from subtraction import sub; assert sub(2, 5) == -3; print('negative result | OK')")
     brief = state.parent.parent / "checks.md"
-    brief.write_text(f"# Subtraction\n\n## Checks\n\n```text\n{first}\n{second}\n```\n", encoding="utf-8")
+    brief.write_text(
+        f"# Subtraction\n\n## Checks\n\n```text\n# First check\n{first}\n```\n\n"
+        f"### Behavior\n\n~~~sh\n  # Second check\n\n{second}\n~~~~\n\n"
+        "## Notes\n\n```\nshould-never-run\n```\n",
+        encoding="utf-8",
+    )
 
     assert start(checkout, "--brief", f"@{brief}") == 0
     head = _cloud._git(checkout, "rev-parse", "HEAD")
@@ -237,6 +242,12 @@ def test_checks_from_brief_run_in_order_on_writer_commit(trial):
     for provenance in (f"Candidate SHA: {head}", f"Check worktree: {log_dir / 'tree'}"):
         assert provenance in report and provenance in script.prompts[1]
     assert not (log_dir / "tree").exists()
+
+
+def test_checks_parser_rejects_an_unclosed_later_block(trial):
+    runner = importlib.import_module("governed_task")
+    with pytest.raises(runner.DemoError, match="missing its closing fence"):
+        runner.brief_checks("## Checks\n```\nfirst-check\n```\n~~~\nsecond-check")
 
 
 def test_check_cannot_pass_using_an_ignored_file_from_the_writer_checkout(trial, capsys):
