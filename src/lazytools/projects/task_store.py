@@ -10,6 +10,19 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any, Protocol
 
+PUBLICATION_RECEIPTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS publication_receipts (
+    receipt_id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    attempt INTEGER NOT NULL,
+    head_sha TEXT NOT NULL,
+    pr_number INTEGER,
+    status TEXT NOT NULL CHECK (status IN ('published', 'refused')),
+    receipt_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+)
+"""
+
 
 class TaskServiceError(Exception):
     """A typed refusal returned by the task and approval tools."""
@@ -70,3 +83,56 @@ def transaction(path: Path | None, *, write: bool = False) -> Iterator[Transacti
             yield TransactionStore(connection)
     except (sqlite3.Error, json.JSONDecodeError) as exc:
         raise TaskServiceError("unavailable", "The projects store is unavailable") from exc
+
+
+def migrate_publication_receipts(path: Path | None) -> None:
+    """Add publication receipts to an existing projects store."""
+    with transaction(path, write=True) as store:
+        store.connection.execute(PUBLICATION_RECEIPTS_SCHEMA)
+
+
+def publication_receipt(store: TransactionStore, receipt_id: str) -> str | None:
+    exists = store.connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'publication_receipts'"
+    ).fetchone()
+    if not exists:
+        return None
+    row = store.connection.execute(
+        "SELECT receipt_json FROM publication_receipts WHERE receipt_id = ?", (receipt_id,)
+    ).fetchone()
+    return str(row[0]) if row else None
+
+
+def publication_for_ticket(store: TransactionStore, ticket_id: str) -> tuple[bool, str | None]:
+    receipt_id = store.read(f"publication:receipt:{ticket_id}")
+    return receipt_id is not None, publication_receipt(store, receipt_id) if receipt_id else None
+
+
+def claim_ticket_publication(store: TransactionStore, ticket_id: str) -> None:
+    # An empty receipt ID reserves the effect until its outcome is recorded.
+    if not store.compare_and_swap(f"publication:receipt:{ticket_id}", None, ""):
+        raise TaskServiceError("conflict", "This approval already has a publication claim")
+
+
+def save_publication_receipt(
+    path: Path | None,
+    *,
+    receipt_id: str,
+    task_id: str,
+    attempt: int,
+    head_sha: str,
+    pr_number: int | None,
+    status: str,
+    receipt_json: str,
+    created_at: str,
+    consumed_ticket_id: str | None,
+) -> None:
+    with transaction(path, write=True) as store:
+        store.connection.execute(
+            "INSERT INTO publication_receipts VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (receipt_id, task_id, attempt, head_sha, pr_number, status, receipt_json, created_at),
+        )
+        if consumed_ticket_id and not store.compare_and_swap(
+            f"publication:receipt:{consumed_ticket_id}", "", receipt_id
+        ):
+            raise TaskServiceError("conflict", "This approval already has a publication outcome")

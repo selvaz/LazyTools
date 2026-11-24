@@ -161,13 +161,27 @@ class ProjectsTools:
     _is_lazy_tool_provider = True
 
     def __init__(
-        self, *, store_db: str | None = None, allow_write: bool = False,
-        profile: str | None = None, task_principal: TaskPrincipal | None = None, quarantine_threshold: int = 3,
+        self,
+        *,
+        store_db: str | None = None,
+        allow_write: bool = False,
+        profile: str | None = None,
+        task_principal: TaskPrincipal | None = None,
+        quarantine_threshold: int = 3,
     ) -> None:
         path = _resolve_store_db(store_db)
+        from lazytools.connectors.projects.receipt_tools import ReceiptTools
+
+        self._receipt_tools = ReceiptTools(
+            Path(path).resolve() if path and path != ":memory:" else None,
+            task_principal.projects if task_principal else None,
+        )
         self._store = _open_store(str(Path(path).resolve()) if path and path != ":memory:" else path)
-        self._task_tools = TaskTools(path, task_principal, allow_write=allow_write,
-                                     quarantine_threshold=quarantine_threshold) if task_principal else None
+        self._task_tools = (
+            TaskTools(path, task_principal, allow_write=allow_write, quarantine_threshold=quarantine_threshold)
+            if task_principal
+            else None
+        )
         self._allow_write = allow_write and task_principal is None
         self._profile = _resolve_profile(profile)
 
@@ -242,9 +256,7 @@ class ProjectsTools:
         written = _gantt.write_gantt_html(
             self._store, target, project_ids=project_ids, statuses=statuses, owners=owners
         )
-        text = _gantt.render_gantt_text(
-            self._store, project_ids=project_ids, statuses=statuses, owners=owners
-        )
+        text = _gantt.render_gantt_text(self._store, project_ids=project_ids, statuses=statuses, owners=owners)
         return {"text": text, "html_path": str(written)}
 
     def projects_notes(self, project_id: str, limit: int = 5) -> list[dict[str, Any]]:
@@ -565,7 +577,9 @@ class ProjectsTools:
                     evidence.append(parse_check(item))
                 except argparse.ArgumentTypeError as exc:
                     return f"REJECTED: checks[{position}]: {exc}"
-            elif isinstance(item, dict) and isinstance(item.get("command"), str) and isinstance(item.get("passed"), bool):
+            elif (
+                isinstance(item, dict) and isinstance(item.get("command"), str) and isinstance(item.get("passed"), bool)
+            ):
                 evidence.append((item["command"], item["passed"], str(item.get("detail", ""))))
             else:
                 return (
@@ -573,8 +587,15 @@ class ProjectsTools:
                     "or 'COMMAND=pass|fail[:DETAIL]'"
                 )
         return _closure.close_task_with_evidence(
-            self._store, project_id, task_index, checks=evidence, review=review, reason=reason, reviewer=reviewer,
-            review_by=review_by, worker=worker,
+            self._store,
+            project_id,
+            task_index,
+            checks=evidence,
+            review=review,
+            reason=reason,
+            reviewer=reviewer,
+            review_by=review_by,
+            worker=worker,
         )
 
     def projects_complete_todo(self, project_id: str, task_index: int, summary: str) -> str:
@@ -778,6 +799,10 @@ class ProjectsTools:
         if self._profile == "core":
             read_methods = [m for m in read_methods if m.__name__ in CORE_TOOLS]
         tools = [Tool.wrap(method, name=method.__name__) for method in read_methods]
+        tools.extend(
+            Tool.wrap(method, name=method.__name__)
+            for method in (self._receipt_tools.receipts_get, self._receipt_tools.receipts_verify)
+        )
         if self._task_tools is not None:
             tools.extend(self._task_tools.as_tools())
         if not self._allow_write:

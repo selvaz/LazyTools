@@ -457,12 +457,16 @@ def test_projects_provider_contract(tmp_path) -> None:
 
     store_db = str(tmp_path / "ceo_simple.sqlite")
     full = {"store_db": store_db, "profile": "full"}
-    assert _names(ProjectsTools(**full, allow_write=False)) == PROJECTS_READ
-    assert _names(ProjectsTools(**full, allow_write=True)) == PROJECTS_READ | PROJECTS_WRITE
+    receipts = {"receipts_get", "receipts_verify"}
+    assert _names(ProjectsTools(**full, allow_write=False)) == PROJECTS_READ | receipts
+    assert _names(ProjectsTools(**full, allow_write=True)) == PROJECTS_READ | PROJECTS_WRITE | receipts
     # The default profile is a strict subset, and still never emits a writer read-only.
     assert CORE_TOOLS <= PROJECTS_READ | PROJECTS_WRITE
-    assert _names(ProjectsTools(store_db=store_db, profile="core", allow_write=False)) == PROJECTS_READ & CORE_TOOLS
-    assert _names(ProjectsTools(store_db=store_db, profile="core", allow_write=True)) == CORE_TOOLS
+    assert (
+        _names(ProjectsTools(store_db=store_db, profile="core", allow_write=False))
+        == (PROJECTS_READ & CORE_TOOLS) | receipts
+    )
+    assert _names(ProjectsTools(store_db=store_db, profile="core", allow_write=True)) == CORE_TOOLS | receipts
 
 
 def test_comms_connectors_contract() -> None:
@@ -590,7 +594,9 @@ def test_projects_core_profile_can_take_a_project_from_draft_to_runnable(tmp_pat
     it, or every project it creates is stuck as a draft."""
     from lazytools.connectors.projects import ProjectsTools
 
-    core = {t.name for t in ProjectsTools(store_db=str(tmp_path / "s.sqlite"), profile="core", allow_write=True).as_tools()}
+    core = {
+        t.name for t in ProjectsTools(store_db=str(tmp_path / "s.sqlite"), profile="core", allow_write=True).as_tools()
+    }
     assert {"projects_create", "projects_review_plan", "projects_promote"} <= core
 
 
