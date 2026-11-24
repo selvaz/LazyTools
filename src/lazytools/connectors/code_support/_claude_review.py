@@ -40,6 +40,13 @@ from lazytools.connectors.code_support._common import (
     clean,
 )
 from lazytools.connectors.code_support._common import session_registry as _session_registry
+from lazytools.connectors.code_support._policy import (
+    NativeBinding,
+    code_tool,
+    local_launch,
+    native_client,
+    native_scope,
+)
 from lazytools.connectors.code_support._review import (
     DEFAULT_REVIEW_TIMEOUT,
     ReviewNotPerformed,
@@ -210,6 +217,7 @@ async def _claude_turn(
     effort: str | None = None,
     session_name: str | None = None,
     registry: SessionRegistry | None = None,
+    operation: str = "claude_code_review",
 ) -> str:
     """One Claude Code turn on a durable session, rendered for an MCP caller.
 
@@ -219,24 +227,31 @@ async def _claude_turn(
     explicit ``session_id`` wins over the alias and rebinds it.
     """
     from lazybridge import Agent
-    from lazybridge.engines.coding import CodingAgentConfig
+    from lazybridge.engines.coding import ClaudeCodePolicy, CodingAgentConfig
+    from lazybridge.policy import PolicyDenied
 
+    if operation not in {"claude_ask", "claude_code_review"}:
+        raise PolicyDenied(operation, "The Claude read adapter requires an advice or review operation.")
     model = clean(model) or model
     effort = check_effort(effort, CLAUDE_EFFORTS, provider="Claude Code")
     reg = _session_registry(registry)
     alias = check_session_name("claude", cwd, session_name, reg)
     resumed = _decode_handle(session_id, cwd, base)
+    launch = local_launch(operation, "claude", cwd, web=web)
+    legacy = launch.mode == "ungoverned-legacy"
+    binding = NativeBinding(launch, "claude")
+    resumed = binding.resume(reg, cwd, alias, resumed)
     engine = _make_claude_engine(
         model=model,
         reasoning_effort=effort,
-        session_alias=alias,
+        session_alias=alias if legacy else None,
         session_registry=reg,
         cwd=str(cwd),
         file_roots=[str(cwd)],
         # web=True by default for both roles since 2026-08-19 — a review can
         # need to check a CVE or a library's current behavior too. The caller
         # (claude_reviewer/claude_consultant) still decides per factory call.
-        web=web,
+        web="web" in launch.policy.tools,
         system=system,
         thinking=thinking,
         request_timeout=timeout,
@@ -254,14 +269,19 @@ async def _claude_turn(
         # surface; pre-approving exactly them is the intent. Confinement does
         # not depend on the profile: ``file_roots`` is enforced by a
         # ``PreToolUse`` hook regardless, and the engine still has no shell.
-        config=CodingAgentConfig(),
+        config=CodingAgentConfig(claude=ClaudeCodePolicy(
+            disallowed_tools=tuple(launch.compiled["settings"]["permissions"]["deny"]),
+        )),
+        **native_client("claude", launch),
     )
     agent = Agent(
         engine,
         name=agent_name,
-        tools=[*(_git_tools(cwd) if with_git else []), *(tools or [])],
+        tools=[*(_git_tools(cwd) if with_git else []), *(tools or [])] if legacy else [],
     )
-    env: Any = await agent.run(prompt)
+    async with native_scope(launch):
+        env: Any = await agent.run(prompt)
+    binding.finish(reg, cwd, alias, engine.session_id or resumed)
     handle = _encode_handle(cwd, base, engine.session_id or resumed or "")
     if not env.ok:
         message = env.error.message if env.error else "unknown error"
@@ -412,7 +432,7 @@ def claude_reviewer(
             registry=session_registry,
         )
 
-    return Tool(claude_code_review, name=name)
+    return code_tool(Tool(claude_code_review, name=name), root=base, operation="claude_code_review")
 
 
 def claude_consultant(
@@ -510,6 +530,7 @@ def claude_consultant(
             effort=clean(effort) or default_effort,
             session_name=session_name,
             registry=session_registry,
+            operation="claude_ask",
         )
 
-    return Tool(claude_ask, name=name)
+    return code_tool(Tool(claude_ask, name=name), root=base, operation="claude_ask")

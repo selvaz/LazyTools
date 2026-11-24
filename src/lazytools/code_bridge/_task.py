@@ -16,6 +16,9 @@ from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError
 
 PRINCIPAL_ENV = "LAZYTOOLS_CODE_BRIDGE_TASK_PRINCIPAL"
+MCP_POLICY_DIGEST_ENV = "LAZYTOOLS_CODE_BRIDGE_MCP_POLICY_DIGEST"
+MCP_CODEX_KEY_ENV = "LAZYTOOLS_CODE_BRIDGE_MCP_CODEX_API_KEY"
+MCP_CODEX_ID_ENV = "LAZYTOOLS_CODE_BRIDGE_MCP_CODEX_CREDENTIAL_ID"
 
 
 def principal() -> TaskPrincipal:
@@ -63,7 +66,11 @@ class Claim:
             network = network or ("on" if claimed_network else "off")
         if mode == "auto":
             mode = "governed"
-        return _launch.resolve_launch(engine, cwd, profile, network, mode, review=review)
+        launch = _launch.resolve_launch(engine, cwd, profile, network, mode, review=review)
+        expected = os.environ.get(MCP_POLICY_DIGEST_ENV)
+        if expected and (launch.mode != "governed" or launch.policy.digest != expected):
+            raise ValueError("The launch no longer matches the MCP task's policy digest")
+        return launch
 
     def recheck(self, job_id: str) -> None:
         self.service.local_claim(self.principal, self.task_id, self.token, state="submitted", job_ref=job_id)

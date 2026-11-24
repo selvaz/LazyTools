@@ -30,6 +30,11 @@ per-call ``model`` / ``effort`` and their durable, renamable ``session_name``
 
 from __future__ import annotations
 
+import hashlib
+import logging
+from collections.abc import Callable
+from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -42,6 +47,15 @@ from lazytools.connectors.code_support._common import (
     clean,
 )
 from lazytools.connectors.code_support._common import session_registry as _session_registry
+from lazytools.connectors.code_support._policy import (
+    NativeBinding,
+    authorize,
+    code_tool,
+    current_task,
+    local_launch,
+    native_client,
+    native_scope,
+)
 from lazytools.connectors.code_support._review import _make_codex_engine, _session_header
 from lazytools.safety import ActionBlocked, ConfirmationGate, current_scope
 
@@ -49,6 +63,10 @@ if TYPE_CHECKING:
     from lazybridge import Tool
     from lazybridge.engines.coding import ApprovalDecision, ApprovalRequest
     from lazybridge.engines.sessions import SessionRegistry
+
+    from lazytools.code_bridge._launch import Launch
+
+logger = logging.getLogger(__name__)
 
 
 #: One hour. Was five minutes for writes and fifteen for reviews, which
@@ -88,6 +106,18 @@ def _claude_writer_gate(request: ApprovalRequest) -> ApprovalDecision:
 def _inside_git_repo(path: Path) -> bool:
     """True when ``path`` or one of its parents holds a ``.git`` (dir or worktree file)."""
     return any((candidate / ".git").exists() for candidate in (path, *path.parents))
+
+
+def _finish_writer_binding(
+    binding: NativeBinding, registry: SessionRegistry, cwd: str, alias: str | None, handle: str | None,
+    *, run_succeeded: bool,
+) -> None:
+    try:
+        binding.finish(registry, cwd, alias, handle)
+    except Exception:
+        if run_succeeded:
+            raise
+        logger.exception("Could not persist %s writer session binding", binding.engine)
 
 
 class CodeWriteBlocked(ActionBlocked):
@@ -276,7 +306,7 @@ class CodeWriteTools:
                     ),
                 )
             )
-        return tools
+        return [code_tool(tool, root=self._base_dir) for tool in tools]
 
     # ------------------------------------------------------------------ #
     # Guarded implementations
@@ -307,6 +337,51 @@ class CodeWriteTools:
                 "one grant authorizes exactly one write call."
             )
 
+    def _authorize_write(
+        self, name: str, launch: Launch, approval_id: str | None, prompt: str, **inputs: Any,
+    ) -> Callable[[], bool] | None:
+        if launch.mode == "ungoverned-legacy":
+            self._consume_grant(name)
+            return None
+        from lazybridge.ext.approval import ApprovalQueue, ApprovalTarget, ExecutorContext, TypedApprovalRequest
+
+        from lazytools.code_bridge._cloud import redact
+        from lazytools.code_bridge._registry import registry_store
+
+        context = current_task()
+        if context is None:
+            raise CodeWriteBlocked("A governed write requires an authenticated MCP task context.")
+        authorize(name, launch.policy.folder)
+        queue = ApprovalQueue(registry_store(projects_db=context.projects_db))
+        target = ApprovalTarget(path=str(launch.policy.folder))
+        request = TypedApprovalRequest.create(
+            task_id=context.task_id, attempt=context.attempt, requested_by=context.actor,
+            action=name, target=target, policy_revision=launch.policy.revision,
+            payload={
+                "registry": "mcp-code", "policy_digest": launch.policy.digest,
+                "release_receipt": launch.receipt,
+                "credential_id": context.credential_id("codex" if name == "codex_write" else "claude"),
+                "prompt_digest": hashlib.sha256(prompt.encode()).hexdigest(),
+                "expires_at": context.expires_at.isoformat(), **inputs,
+            },
+        )
+        if approval_id is None:
+            ttl = context.expires_at - datetime.now(UTC)
+            if ttl.total_seconds() <= 0:
+                raise CodeWriteBlocked("The MCP task context has expired.")
+            ticket = queue.create_typed_ticket(
+                request, prompt=f"Allow {name} in {target.path} for task {context.task_id}?\n\n{redact(prompt)}",
+                ttl=ttl, operator_only=True,
+            )
+            raise CodeWriteBlocked(f"Write approval required. Retry with approval_id={ticket.approval_id} after approval.")
+        executor = ExecutorContext(
+            actor=context.actor, task_id=context.task_id, attempt=context.attempt, target=target,
+            policy_revision=launch.policy.revision, digest=request.digest,
+        )
+        if not queue.consume_typed_ticket(approval_id, executor=executor):
+            raise CodeWriteBlocked("Write approval is pending, expired, already used, or does not match this call.")
+        return lambda: queue.record_effect_outcome(approval_id, executor=executor, succeeded=True)
+
     def _failure(
         self,
         label: str,
@@ -336,6 +411,7 @@ class CodeWriteTools:
         model: str | None = None,
         effort: str | None = None,
         session_name: str | None = None,
+        approval_id: str | None = None,
     ) -> dict[str, Any] | str:
         # Async on purpose: the ambient task scope (lazytools.safety.context)
         # propagates into async tools only, so cwd check + grant consume run
@@ -344,25 +420,37 @@ class CodeWriteTools:
         from lazybridge import Agent
         from lazybridge.engines.coding import ClaudeCodePolicy, CodingAgentConfig
 
+        if not self._claude:
+            raise CodeWriteBlocked("claude_code_write is disabled on this provider.")
         run_cwd = self._checked_cwd(cwd)
         effort = check_effort(effort, CLAUDE_EFFORTS, provider="Claude Code")
         reg = _session_registry(self._session_registry)
         alias = check_session_name("claude", run_cwd, session_name, reg)
-        self._consume_grant("claude_code_write")
-
-        tools = ("Write", "Edit", "Bash") if self._claude_bash else ("Write", "Edit")
+        launch = local_launch("claude_code_write", "claude", Path(run_cwd), shell=self._claude_bash)
+        legacy = launch.mode == "ungoverned-legacy"
+        shell = "shell" in launch.policy.tool_classes
+        permissions = launch.compiled["settings"]["permissions"]
+        tools = (*[name for name in permissions["allow"] if name in {"Write", "Edit"}], *(("Bash",) if shell else ()))
+        denied = tuple(name for name in permissions["deny"] if not (shell and name == "Bash"))
         config = CodingAgentConfig(
-            claude=ClaudeCodePolicy(permission_mode="acceptEdits", extra_tools=tools),
-            approval_gate=_claude_writer_gate if self._claude_bash else None,
+            claude=ClaudeCodePolicy(
+                permission_mode="acceptEdits" if legacy else "default", extra_tools=tools, disallowed_tools=denied,
+            ),
+            approval_gate=_claude_writer_gate if shell else None,
         )
-        kwargs: dict[str, Any] = {}
-        if clean(model):
-            kwargs["model"] = clean(model)
-        resumed = clean(session_id)
+        model = clean(model)
+        binding = NativeBinding(launch, "claude")
+        resumed = binding.resume(reg, run_cwd, alias, clean(session_id))
+        kwargs = native_client("claude", launch)
+        if model:
+            kwargs["model"] = model
+        record_success = self._authorize_write(
+            "claude_code_write", launch, approval_id, task, model=model, effort=effort, alias=alias, native_id=resumed,
+        )
         engine = _make_claude_engine(
             **kwargs,
             reasoning_effort=effort,
-            session_alias=alias,
+            session_alias=alias if legacy else None,
             session_registry=reg,
             cwd=run_cwd,
             file_roots=[run_cwd],
@@ -377,8 +465,11 @@ class CodeWriteTools:
             max_retries=0,
             config=config,
         )
+        run_succeeded = False
         try:
-            env: Any = await Agent(engine, name="claude_code_write").run(task)
+            async with native_scope(launch):
+                env: Any = await Agent(engine, name="claude_code_write").run(task)
+            run_succeeded = bool(env.ok)
         except Exception as exc:  # the handle matters most when the run blew up
             return self._failure(
                 "claude_code",
@@ -388,10 +479,14 @@ class CodeWriteTools:
                 alias,
                 f"{type(exc).__name__}: {exc}",
             )
-        handle = engine.session_id or resumed
-        if not env.ok:
+        finally:
+            handle = engine.session_id or resumed
+            _finish_writer_binding(binding, reg, run_cwd, alias, handle, run_succeeded=run_succeeded)
+        if not run_succeeded:
             message = env.error.message if env.error else "unknown error"
             return self._failure("claude_code", run_cwd, "session_id", handle, alias, message)
+        if record_success:
+            record_success()
         header = _session_header("claude_code", Path(run_cwd), handle or "", "session_id", alias)
         return {"result": f"{header}\n\n{env.text()}", "content_is_untrusted": True}
 
@@ -403,15 +498,20 @@ class CodeWriteTools:
         model: str | None = None,
         effort: str | None = None,
         session_name: str | None = None,
+        approval_id: str | None = None,
     ) -> dict[str, Any] | str:
         from lazybridge import Agent
         from lazybridge.engines.coding import CodexPolicy, CodingAgentConfig
 
+        if not self._codex:
+            raise CodeWriteBlocked("codex_write is disabled on this provider.")
         run_cwd = self._checked_cwd(cwd)
         effort = check_effort(effort, CODEX_EFFORTS, provider="Codex")
         reg = _session_registry(self._session_registry)
         alias = check_session_name("codex", run_cwd, session_name, reg)
-        self._consume_grant("codex_write")
+        launch = local_launch("codex_write", "codex", Path(run_cwd), shell=True)
+        if launch.mode == "ungoverned-legacy":
+            self._consume_grant("codex_write")
         # The Codex App Server has no --skip-git-repo-check: the recovery rail
         # the CLI writer enforced is enforced here instead.
         if not self._codex_skip_git_check and not _inside_git_repo(Path(run_cwd)):
@@ -421,9 +521,18 @@ class CodeWriteTools:
                 "codex_skip_git_check=True for a throwaway directory."
             )
 
-        resumed = clean(thread_id)
+        legacy = launch.mode == "ungoverned-legacy"
+        binding = NativeBinding(launch, "codex")
+        resumed = binding.resume(reg, run_cwd, alias, clean(thread_id))
+        model = clean(model)
+        record_success = None
+        if launch.mode == "governed":
+            record_success = self._authorize_write(
+                "codex_write", launch, approval_id, task, model=model, effort=effort, alias=alias, native_id=resumed,
+            )
+        native = launch.compiled["config_overrides"]
         engine = _make_codex_engine(
-            model=clean(model),
+            model=model,
             cwd=run_cwd,
             reasoning_effort=effort,
             request_timeout=self._timeout,
@@ -431,19 +540,30 @@ class CodeWriteTools:
             max_retries=0,
             thread_id=resumed,
             persist_thread=True,
-            session_alias=alias,
+            session_alias=alias if legacy else None,
             session_registry=reg,
-            config=CodingAgentConfig(codex=CodexPolicy(sandbox="workspace-write", approval_policy="never")),
+            config=CodingAgentConfig(codex=replace(
+                CodexPolicy(), sandbox=native["sandbox_mode"], approval_policy=native["approval_policy"],
+                web_search=native["web_search"],
+            )),
+            **native_client("codex", launch),
         )
+        run_succeeded = False
         try:
-            env: Any = await Agent(engine, name="codex_write").run(task)
+            async with native_scope(launch):
+                env: Any = await Agent(engine, name="codex_write").run(task)
+            run_succeeded = bool(env.ok)
         except Exception as exc:
             return self._failure(
                 "codex", run_cwd, "thread_id", engine.thread_id or resumed, alias, f"{type(exc).__name__}: {exc}"
             )
-        handle = engine.thread_id or resumed
-        if not env.ok:
+        finally:
+            handle = engine.thread_id or resumed
+            _finish_writer_binding(binding, reg, run_cwd, alias, handle, run_succeeded=run_succeeded)
+        if not run_succeeded:
             message = env.error.message if env.error else "unknown error"
             return self._failure("codex", run_cwd, "thread_id", handle, alias, message)
+        if record_success:
+            record_success()
         header = _session_header("codex", Path(run_cwd), handle or "", "thread_id", alias)
         return {"result": f"{header}\n\n{env.text()}", "content_is_untrusted": True}
