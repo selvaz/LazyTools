@@ -136,7 +136,8 @@ def authorize(operation: str, cwd: Path | None = None, *, access: str | None = N
         if operation not in task.operations:
             raise PolicyDenied(operation)
     context = current_policy_context()
-    if context is None:
+    # A budget-only context (tree budget, no policy) carries no authority ceiling.
+    if context is None or context.delegable_grants is None:
         return None
     parent = context.delegable_grants
     document = profiles()
