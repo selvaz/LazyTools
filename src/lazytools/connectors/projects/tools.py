@@ -607,7 +607,7 @@ class ProjectsTools:
         )
 
     def projects_revise_plan(
-        self, project_id: str, reason: str, new_tasks: list[str], keep: list[int] | None = None
+        self, project_id: str, reason: str, new_tasks: list[str | dict[str, Any]], keep: list[int] | None = None
     ) -> str:
         """Retire every retirable task (except those in ``keep``) and append
         ``new_tasks``, in one write."""

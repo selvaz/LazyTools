@@ -20,10 +20,12 @@ import math
 import time
 from collections.abc import Callable
 from typing import Any, Literal
+from uuid import uuid4
 
 from lazybridge import Store
 
 from lazytools.projects.keys import BOARD_KEY_PREFIX
+from lazytools.projects.task_fields import plan_fields, validate_dependencies
 
 CAS_ATTEMPTS = 8
 
@@ -381,7 +383,7 @@ def open_indexes(store: Store, project_id: str, *, keep: tuple[int, ...] = (), p
 
 
 def revise_plan(
-    store: Store, project_id: str, reason: str, new_tasks: list[str], *, keep: tuple[int, ...] = ()
+    store: Store, project_id: str, reason: str, new_tasks: list[str | dict[str, Any]], *, keep: tuple[int, ...] = ()
 ) -> tuple[str, list[int], int | None]:
     """Retire every retirable task except those in ``keep`` AND append ``new_tasks``, in ONE write.
 
@@ -390,7 +392,18 @@ def revise_plan(
     """
     if not reason.strip():
         return "REJECTED: a reason is required.", [], None
-    clean = [str(t).strip() for t in new_tasks if str(t).strip()]
+    clean = []
+    try:
+        for task in new_tasks:
+            if isinstance(task, dict):
+                text = task.get("text")
+                if not isinstance(text, str) or not text.strip():
+                    raise ValueError("new task object needs nonempty text")
+                clean.append({**_fresh_task(text.strip()), **plan_fields(task), "revision": uuid4().hex})
+            elif str(task).strip():
+                clean.append(_fresh_task(str(task).strip()))
+    except ValueError as exc:
+        return f"REJECTED: {exc}", [], None
     retired: list[int] = []
     first_new: list[int] = []
 
@@ -422,7 +435,7 @@ def revise_plan(
             return None, "nothing to retire: no task is todo, claimed or failed outside `keep`."
         if clean:
             first_new.append(len(tasks))
-            tasks.extend(_fresh_task(text) for text in clean)
+            tasks.extend(clean)
             events.append(
                 {
                     "at": now,
@@ -432,6 +445,10 @@ def revise_plan(
                     "reason": reason.strip(),
                 }
             )
+        try:
+            validate_dependencies(tasks)
+        except ValueError as exc:
+            return None, f"REJECTED: {exc}"
         parts = [f"retired {len(retired)} task(s): {list(retired)}" if retired else "nothing to retire"]
         if clean:
             parts.append(f"added {len(clean)} new task(s) from index {first_new[0]}")
