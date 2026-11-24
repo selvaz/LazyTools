@@ -6,7 +6,8 @@ import hashlib
 import json
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -484,6 +485,40 @@ class ProjectTaskService:
                 raise TaskServiceError("stale", "Dispatch prerequisites changed after the claim")
             dispatch.update(state="submitting", submit_started_at=now)
             task.save(store, now)
+
+    def local_claim(
+        self, principal: TaskPrincipal, task_id: str, claim_token: str, *,
+        state: Literal["intent", "submitting", "submitted"], job_ref: str | None = None,
+    ) -> dict[str, Any]:
+        """Recheck the local dispatch fence and its current placement evidence."""
+        with self.local_dispatch(principal, task_id, claim_token, state=state, job_ref=job_ref) as (_, receipt):
+            return receipt
+
+    @contextmanager
+    def local_dispatch(
+        self, principal: TaskPrincipal, task_id: str, claim_token: str, *,
+        state: Literal["intent", "submitting", "submitted"], job_ref: str | None = None, write: bool = False,
+    ) -> Iterator[tuple[TransactionStore, dict[str, Any]]]:
+        """Hold the dispatch fence through a local registry transition."""
+        with transaction(self.path, write=write) as store:
+            task = _scoped_task(store, principal, task_id)
+            _require_open(store, task.project_id)
+            now = self.clock()
+            dispatch = _fenced_dispatch(task, principal, claim_token, now)
+            receipt = dispatch["receipt"]
+            placement, _ = _placement(task, now)
+            if dispatch["state"] != state or (job_ref is not None and dispatch.get("job_ref") != job_ref):
+                raise TaskServiceError("stale", "The dispatch no longer belongs to this local launch")
+            if (
+                placement is None or placement.placement != "local" or receipt["effective_placement"] != "local"
+                or placement.reference != receipt["preflight_ref"] or placement.engine_family != receipt["engine_family"]
+                or _dependencies(task) != receipt["dependencies"] or task.data.get("start_hold")
+            ):
+                raise TaskServiceError("stale", "Local placement evidence or dispatch prerequisites changed")
+            yield store, {
+                **{key: value for key, value in receipt.items() if key != "claim_token"},
+                **{key: task.data.get(key) for key in ("repo", "assigned_branch", "review_of")},
+            }
 
     def record_submit(self, principal: TaskPrincipal, task_id: str, claim_token: str, job_ref: str) -> None:
         """Persist the provider's acknowledgement, including a late acknowledgement."""

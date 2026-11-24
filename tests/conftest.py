@@ -50,6 +50,17 @@ def _isolated_code_bridge_config(tmp_path_factory, monkeypatch):
     path = base / "code-bridge.toml"
     path.write_text(f"[concurrency]\nslot_dir = '{slots}'\n", encoding="utf-8")
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(path))
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(base / "jobs.sqlite"))
+
+
+@pytest.fixture(autouse=True)
+def _isolated_bridge_authority(request, tmp_path_factory, monkeypatch):
+    if "code_bridge" not in request.node.path.name:
+        return
+    base = tmp_path_factory.mktemp("bridge-authority")
+    monkeypatch.setenv("LAZYTOOLS_PROJECTS_STORE_DB", str(base / "projects.sqlite"))
+    for name in ("TASK_PRINCIPAL", "PROFILES", "CODEX_RELEASE_REPORT", "CLAUDE_RELEASE_REPORT"):
+        monkeypatch.delenv(f"LAZYTOOLS_CODE_BRIDGE_{name}", raising=False)
 
 
 @pytest.fixture(autouse=True)

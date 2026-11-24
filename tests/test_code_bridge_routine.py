@@ -10,9 +10,10 @@ from types import SimpleNamespace
 
 import pytest
 from lazybridge.engines.coding import ApprovalRequest
+from lazybridge.ext.approval import ApprovalQueue
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _concurrency, _jobs, _routine, _routine_commands, _store, cli
+from lazytools.code_bridge import _concurrency, _jobs, _registry, _routine, _routine_commands, _store, cli
 from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._policy import CODING_RULES
 
@@ -182,21 +183,15 @@ def test_unmatched_command_still_files_pending_ticket(policy, tmp_path, monkeypa
     script = fakes.install(monkeypatch)
     script.request_approval = True
     script.approval_overrides = {"arguments": {"command": "Stop-Process -Id 123"}}
-    seen = []
-
-    class Channel:
-        async def ask(self, prompt):
-            store = _store.build_store(tmp_path / "jobs.sqlite")
-            ticket = _store.build_approval_queue(store).create_ticket(task_id="job", prompt=prompt)
-            seen.append(ticket)
-            return False
-
-    monkeypatch.setattr(_jobs, "_store_channel", lambda *a: Channel())
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_TICKET_TTL", "0.2")
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_POLL_SECONDS", "0.01")
     result = _jobs.run_job(engine_name="codex", cwd=str(tmp_path), root=str(tmp_path),
                            task="x", db_path=tmp_path / "jobs.sqlite")
     assert result.status == "failed"
-    assert seen[0].status == "pending"
-    assert "Stop-Process" in seen[0].prompt
+    meta = _store.read_meta(_store.build_store(tmp_path / "jobs.sqlite"), result.job_id)
+    ticket = ApprovalQueue(_registry.registry_store()).get_ticket(meta["registry_ticket_ids"][0])
+    assert ticket.status == "expired"
+    assert "Stop-Process" in ticket.prompt
 
 
 def test_job_uses_routine_tier_by_default(policy, tmp_path, monkeypatch):
@@ -208,9 +203,11 @@ def test_job_uses_routine_tier_by_default(policy, tmp_path, monkeypatch):
                            task="x", db_path=tmp_path / "jobs.sqlite")
     assert result.status == "done"
     store = _store.build_store(tmp_path / "jobs.sqlite")
-    tickets = [raw for _, raw in store.items(prefix=_store.APPROVAL_PREFIX)]
-    assert tickets[0]["approved_by"] == "routine-auto"
-    assert tickets[0]["matched_rule_id"] == "git-fetch"
+    meta = _store.read_meta(store, result.job_id)
+    ticket = ApprovalQueue(_registry.registry_store()).get_ticket(meta["registry_ticket_ids"][0])
+    assert ticket.decision.decider == "routine-auto"
+    assert ticket.request.payload["rule_id"] == "git-fetch"
+    assert ticket.consumed_at
 
 
 def test_disable_and_extension_config(policy, tmp_path):
