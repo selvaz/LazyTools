@@ -110,6 +110,32 @@ def test_promotion_installs_matching_plan_or_replaces_untouched(existing) -> Non
         assert store.read(board.key) == before
 
 
+def test_promote_matching_structured_plan_preserves_schedule_and_hold() -> None:
+    from lazytools.projects.plan_edit import set_task_schedule
+
+    store = Store()
+    records.open_project(store, project_id="alpha", title="Alpha", objective="do a thing")
+    board = DurableBlackboard(store, "project:alpha")
+    board.set_plan("do a thing", ["step one", "step two"])
+    set_task_schedule(store, "alpha", 0, "step one", planned_start_at=100, due_at=200, reason="Hold", hold=True)
+    before = store.read(board.key)
+    subtasks = [{**_GOOD_SUBTASKS[0], "task_id": "first", "tier": "basic"}, _GOOD_SUBTASKS[1]]
+    digest = intake.plan_digest(objective="do a thing", observable_result="y", deadline="2026-12-01", subtasks=subtasks)
+    intake.record_project_review(store, "alpha", reviewed_digest=digest)
+    assert "promoted project" in intake.promote_project_plan(
+        store, "alpha", observable_result="y", deadline="2026-12-01", subtasks=subtasks
+    )
+    after = store.read(board.key)
+    assert after["schedule_events"] == before["schedule_events"]
+    assert after["created_at"] == before["created_at"]
+    assert {k: after["tasks"][0][k] for k in ("planned_start_at", "due_at", "start_hold")} == {
+        "planned_start_at": 100, "due_at": 200, "start_hold": True,
+    }
+    assert after["tasks"][0]["acceptance_criteria"] == subtasks[0]["acceptance_criteria"]
+    assert after["tasks"][0]["task_id"] == "first"
+    assert after["tasks"][0]["revision"]
+
+
 @pytest.mark.parametrize("status,attempts", [("claimed", 1), ("done", 1), ("failed", 3), ("todo", 1), ("cancelled", 1)])
 def test_promotion_refuses_different_started_plan(status, attempts) -> None:
     store = Store()

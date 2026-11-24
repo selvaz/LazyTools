@@ -266,8 +266,10 @@ def install_project_plan(
         current = raw if isinstance(raw, dict) else {}
         old_tasks = current.get("tasks", [])
         same_content = current.get("reasoning") == objective.strip() and [t.get("text") for t in old_tasks] == tasks
+        legacy_plan = fields is not None and all(set(item) <= {"acceptance_criteria"} for item in fields)
         if same_content and (
             fields is None
+            or (legacy_plan and current.get("installed_plan_digest") is None)
             or (
                 current.get("installed_plan_digest") == current_digest
                 and [plan_fields(task) for task in old_tasks] == fields
@@ -300,9 +302,12 @@ def install_project_plan(
                 "REJECTED: cannot replace a different plan; tasks already carry an acceptance contract: "
                 + ", ".join(replaced)
             )
-        new_tasks = [_fresh_task(text) for text in tasks]
+        new_tasks = [dict(task) for task in old_tasks] if same_content else [_fresh_task(text) for text in tasks]
         if fields is not None:
             for task, metadata in zip(new_tasks, fields, strict=True):
+                if same_content:
+                    for name in plan_fields(task):
+                        task.pop(name, None)
                 task.update(metadata, revision=uuid4().hex)
         for i, t in contracted:
             new_tasks[i]["contract_id"] = t["contract_id"]
@@ -317,6 +322,9 @@ def install_project_plan(
             "tasks": new_tasks,
             "schedule_events": [],
         }
+        if same_content:
+            updated["created_at"] = current.get("created_at")
+            updated["schedule_events"] = current.get("schedule_events", [])
         if fields is not None:
             updated["installed_plan_digest"] = current_digest
         if current_digest is not None:
