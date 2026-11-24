@@ -32,11 +32,17 @@ _SOURCE = "code-bridge"
 _request: ContextVar[ApprovalRequest] = ContextVar("bridge_approval_request")
 
 
-def registry_store() -> Store:
+def _registry_path() -> Path | None:
     configured = _resolve_store_db(None)
     if configured == ":memory:":
+        return None
+    return Path(configured or Path.home() / ".lazytools" / "projects.sqlite").expanduser().resolve()
+
+
+def registry_store() -> Store:
+    path = _registry_path()
+    if path is None:
         raise ValueError("The bridge approval registry must be persistent")
-    path = Path(configured or Path.home() / ".lazytools" / "projects.sqlite").expanduser().resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     return Store(db=str(path))
 
@@ -53,18 +59,35 @@ def job_ref(ticket: ApprovalTicket) -> str:
 
 class Registry:
     def __init__(self, job_store: Any) -> None:
-        self.store = registry_store()
-        self.queue = ApprovalQueue(self.store)
+        self._store: Store | None = None
         # A worker started by an older bridge can still be waiting here.
         self.legacy = _store.build_approval_queue(job_store)
         self.job_store = job_store
 
+    @property
+    def queue(self) -> ApprovalQueue:
+        """Open the registry for a worker filing or consuming its own tickets."""
+        if self._store is None:
+            self._store = registry_store()
+        return ApprovalQueue(self._store)
+
+    def _existing_store(self) -> Store | None:
+        if self._store is None:
+            path = _registry_path()
+            if path is not None and path.is_file():
+                self._store = Store(db=str(path))
+        return self._store
+
     def pending(self) -> list[ApprovalTicket]:
-        current = [t for t in self.queue.list_pending_tickets(limit=sys.maxsize) if is_bridge_ticket(t)]
+        store = self._existing_store()
+        current = [] if store is None else [
+            t for t in ApprovalQueue(store).list_pending_tickets(limit=sys.maxsize) if is_bridge_ticket(t)
+        ]
         return sorted([*current, *self.legacy.list_pending_tickets()], key=lambda t: t.created_at)
 
     def inspect(self, approval_id: str) -> ApprovalTicket | None:
-        ticket = self.queue.get_ticket(approval_id)
+        store = self._existing_store()
+        ticket = ApprovalQueue(store).get_ticket(approval_id) if store is not None else None
         if ticket is not None and is_bridge_ticket(ticket):
             return ticket
         return self.legacy.get_ticket(approval_id)
@@ -73,7 +96,10 @@ class Registry:
         self, ticket: ApprovalTicket, verdict: Literal["approved", "rejected"], actor: str, reason: str | None,
     ) -> bool:
         if is_bridge_ticket(ticket):
-            return self.queue.decide_typed_ticket(
+            store = self._existing_store()
+            if store is None:
+                return False
+            return ApprovalQueue(store).decide_typed_ticket(
                 ticket.approval_id, approver=ApproverContext(actor=actor), verdict=verdict, reason=reason,
             )
         if verdict == "approved":
@@ -81,12 +107,13 @@ class Registry:
         return bool(self.legacy.reject_ticket(ticket.approval_id, actor=actor, channel="cli", reason=reason or "rejected"))
 
     def open_for_job(self, job_id: str) -> list[ApprovalTicket]:
-        current = [
-            ticket for key, raw in self.store.items(prefix=DEFAULT_PREFIX)
+        store = self._existing_store()
+        current = [] if store is None else [
+            ticket for key, raw in store.items(prefix=DEFAULT_PREFIX)
             if isinstance(raw, dict) and raw.get("status") == "pending"
             and isinstance(raw.get("request"), dict)
             and raw["request"].get("payload", {}).get("job_ref") == job_id
-            and (ticket := self.queue.get_ticket(key.removeprefix(DEFAULT_PREFIX))) is not None
+            and (ticket := ApprovalQueue(store).get_ticket(key.removeprefix(DEFAULT_PREFIX))) is not None
             and is_bridge_ticket(ticket) and job_ref(ticket) == job_id
         ]
         return [
@@ -97,8 +124,12 @@ class Registry:
 
     def close(self, ticket: ApprovalTicket, reason: str) -> None:
         if not self.decide(ticket, "rejected", "bridge-cleanup", reason):
-            queue = self.queue if is_bridge_ticket(ticket) else self.legacy
-            queue.expire_ticket(ticket.approval_id)
+            if is_bridge_ticket(ticket):
+                store = self._existing_store()
+                if store is not None:
+                    ApprovalQueue(store).expire_ticket(ticket.approval_id)
+            else:
+                self.legacy.expire_ticket(ticket.approval_id)
 
 
 @dataclass

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +14,30 @@ def _job(db, job_id: str, status: str):
     _store.build_job_registry(store).write(job_id, "task", tool_name="codex", status=status)
     _store.write_meta(store, job_id, {"job_id": job_id, "engine": "codex", "where": "local", "cwd": "."})
     return store
+
+
+@pytest.mark.parametrize("configured", [None, ":memory:"])
+def test_legacy_approval_commands_do_not_create_projects_store(tmp_path, monkeypatch, capsys, configured):
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.delenv("LAZYCEO_CEO_STORE_DB", raising=False)
+    monkeypatch.delenv("LAZYTOOLS_PROJECTS_STORE_DB", raising=False)
+    if configured is not None:
+        monkeypatch.setenv("LAZYTOOLS_PROJECTS_STORE_DB", configured)
+    db = tmp_path / "jobs.sqlite"
+    job = "legacy-approval"
+    queue = _store.build_approval_queue(_job(db, job, "awaiting_approval"))
+    first = queue.create_ticket(task_id=job, prompt="First")
+    second = queue.create_ticket(task_id=job, prompt="Second")
+    db_args = ["--db", str(db)]
+
+    assert main(["pending", "--json", *db_args]) == 0
+    assert {row["approval_id"] for row in json.loads(capsys.readouterr().out)} == {first.approval_id, second.approval_id}
+    assert main(["wait-any", job, "--events", "approval", "--timeout", "0", *db_args]) == 0
+    assert main(["approve", first.approval_id, *db_args]) == 0
+    assert main(["reject", second.approval_id, "--reason", "Test decision", *db_args]) == 0
+    assert queue.get_ticket(first.approval_id).status == "approved"
+    assert queue.get_ticket(second.approval_id).status == "rejected"
+    assert not (tmp_path / ".lazytools").exists()
 
 
 @pytest.mark.parametrize(
