@@ -38,6 +38,7 @@ from typing import Any
 
 from lazybridge import Store
 
+from lazytools.connectors.projects.task_tools import TaskTools
 from lazytools.projects import admission as _admission
 from lazytools.projects import brake as _brake
 from lazytools.projects import contracts as _contracts
@@ -53,6 +54,7 @@ from lazytools.projects import task_claims as _task_claims
 from lazytools.projects import timeline as _timeline
 from lazytools.projects import verification as _verification
 from lazytools.projects.keys import CEO_STORE_DB_ENV
+from lazytools.projects.task_service import TaskPrincipal
 
 #: Claude Code's default list/timeline view when no explicit ``owner`` is
 #: given: its own projects plus shared ones, never a CEO project by
@@ -158,9 +160,14 @@ class ProjectsTools:
 
     _is_lazy_tool_provider = True
 
-    def __init__(self, *, store_db: str | None = None, allow_write: bool = False, profile: str | None = None) -> None:
-        self._store = _open_store(store_db)
-        self._allow_write = allow_write
+    def __init__(
+        self, *, store_db: str | None = None, allow_write: bool = False,
+        profile: str | None = None, task_principal: TaskPrincipal | None = None,
+    ) -> None:
+        path = _resolve_store_db(store_db)
+        self._store = _open_store(str(Path(path).resolve()) if path and path != ":memory:" else path)
+        self._task_tools = TaskTools(path, task_principal, allow_write=allow_write) if task_principal else None
+        self._allow_write = allow_write and task_principal is None
         self._profile = _resolve_profile(profile)
 
     # ---- read: projects -------------------------------------------------
@@ -397,6 +404,8 @@ class ProjectsTools:
         passes, record that THIS caller reviewed it (by digest).
 
         ``subtasks`` is ``[{"text": ..., "acceptance_criteria": [...]}, ...]``.
+        Subtasks can also set task_id, dependency_ids, tier, requested_profile,
+        requested_network, requested_placement, effective_placement and placement_reason.
         ``deadline`` needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00;
         date-only values are refused (they do not represent a whole day).
         Judging whether each criterion could actually FAIL is the caller's
@@ -607,10 +616,11 @@ class ProjectsTools:
         )
 
     def projects_revise_plan(
-        self, project_id: str, reason: str, new_tasks: list[str], keep: list[int] | None = None
+        self, project_id: str, reason: str, new_tasks: list[str | dict[str, Any]], keep: list[int] | None = None
     ) -> str:
         """Retire every retirable task (except those in ``keep``) and append
-        ``new_tasks``, in one write."""
+        ``new_tasks``, in one write. Accepts text strings and structured subtask objects
+        with the same fields as projects_review_plan."""
         message, _retired, _first_new = _plan_edit.revise_plan(
             self._store, project_id, reason, new_tasks, keep=tuple(keep or ())
         )
@@ -767,6 +777,8 @@ class ProjectsTools:
         if self._profile == "core":
             read_methods = [m for m in read_methods if m.__name__ in CORE_TOOLS]
         tools = [Tool.wrap(method, name=method.__name__) for method in read_methods]
+        if self._task_tools is not None:
+            tools.extend(self._task_tools.as_tools())
         if not self._allow_write:
             return tools
 

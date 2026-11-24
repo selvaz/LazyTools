@@ -26,8 +26,10 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from lazytools.projects.records import _apply, get_project
+from lazytools.projects.task_fields import plan_fields, validate_dependencies
 
 if TYPE_CHECKING:
     from lazybridge import Store
@@ -140,6 +142,11 @@ def check_project_intake(
                     "something that could be shown to have failed"
                 )
 
+    if not findings:
+        try:
+            validate_dependencies([plan_fields(subtask) for subtask in subtasks])
+        except ValueError as exc:
+            findings.append(str(exc))
     return IntakeVerdict(ok=not findings, findings=findings)
 
 
@@ -152,7 +159,8 @@ def plan_digest(*, objective: str, observable_result: str, deadline: str, subtas
         "subtasks": [
             {
                 "text": str(subtask.get("text", "")).strip(),
-                "acceptance_criteria": [str(c).strip() for c in subtask.get("acceptance_criteria", [])],
+                "acceptance_criteria": [],
+                **plan_fields(subtask),
             }
             for subtask in subtasks
         ],
@@ -233,7 +241,8 @@ def _apply_intake_fields(
 
 
 def install_project_plan(
-    store: Store, project_id: str, *, objective: str, tasks: list[str], current_digest: str | None = None
+    store: Store, project_id: str, *, objective: str, tasks: list[str], current_digest: str | None = None,
+    subtasks: list[dict[str, Any]] | None = None,
 ) -> str | None:
     """Install or replace an untouched plan with whole-board CAS; None means success.
 
@@ -249,11 +258,23 @@ def install_project_plan(
     from lazytools.projects.plan_edit import _fresh_task
 
     key = f"{BOARD_KEY_PREFIX}project:{project_id}"
+    fields = [plan_fields(subtask) for subtask in subtasks] if subtasks is not None else None
+    if fields is not None:
+        validate_dependencies(fields)
     for _ in range(8):
         raw = store.read(key)
         current = raw if isinstance(raw, dict) else {}
         old_tasks = current.get("tasks", [])
-        if current.get("reasoning") == objective.strip() and [t.get("text") for t in old_tasks] == tasks:
+        same_content = current.get("reasoning") == objective.strip() and [t.get("text") for t in old_tasks] == tasks
+        legacy_plan = fields is not None and all(set(item) <= {"acceptance_criteria"} for item in fields)
+        if same_content and (
+            fields is None
+            or (legacy_plan and current.get("installed_plan_digest") is None)
+            or (
+                current.get("installed_plan_digest") == current_digest
+                and [plan_fields(task) for task in old_tasks] == fields
+            )
+        ):
             return None
         started = [
             f"{i}: {t.get('text')!r}"
@@ -281,7 +302,13 @@ def install_project_plan(
                 "REJECTED: cannot replace a different plan; tasks already carry an acceptance contract: "
                 + ", ".join(replaced)
             )
-        new_tasks = [_fresh_task(text) for text in tasks]
+        new_tasks = [dict(task) for task in old_tasks] if same_content else [_fresh_task(text) for text in tasks]
+        if fields is not None:
+            for task, metadata in zip(new_tasks, fields, strict=True):
+                if same_content:
+                    for name in plan_fields(task):
+                        task.pop(name, None)
+                task.update(metadata, revision=uuid4().hex)
         for i, t in contracted:
             new_tasks[i]["contract_id"] = t["contract_id"]
         moment = time.time()
@@ -295,6 +322,11 @@ def install_project_plan(
             "tasks": new_tasks,
             "schedule_events": [],
         }
+        if same_content:
+            updated["created_at"] = current.get("created_at")
+            updated["schedule_events"] = current.get("schedule_events", [])
+        if fields is not None:
+            updated["installed_plan_digest"] = current_digest
         if current_digest is not None:
             project = get_project(store, project_id)
             if project is None or project.objective != objective or project.status != "draft":
@@ -350,6 +382,11 @@ def promote_project_plan(
             str(s["text"]) for s in subtasks
         ]:
             return "REJECTED: the open project's board does not match the reviewed plan"
+        from lazytools.projects.plan_edit import _board_key
+
+        installed = store.read(_board_key(project_id)).get("installed_plan_digest")
+        if installed is not None and installed != digest:
+            return "REJECTED: the open project's board does not match the reviewed plan"
         return f"promoted project {project_id!r} to open with the reviewed plan installed: {len(subtasks)} subtask(s), each with acceptance criteria"
 
     criteria = [str(c) for s in subtasks for c in s.get("acceptance_criteria", [])]
@@ -359,7 +396,8 @@ def promote_project_plan(
         return "REJECTED: the project changed while it was being promoted -- read it again and retry"
 
     refusal = install_project_plan(
-        store, project_id, objective=record.objective, tasks=[str(s["text"]) for s in subtasks], current_digest=digest
+        store, project_id, objective=record.objective, tasks=[str(s["text"]) for s in subtasks],
+        current_digest=digest, subtasks=subtasks,
     )
     if refusal is not None:
         return refusal

@@ -30,6 +30,8 @@ from lazytools.projects.keys import BOARD_KEY_PREFIX, TASK_CONTRACT_PREFIX
 if TYPE_CHECKING:
     from lazybridge import Store
 
+    from lazytools.projects.task_store import ProjectsStore
+
 _VALID_RISKS = ("low", "medium", "high")
 _MARK_ATTEMPTS = 8
 
@@ -210,7 +212,7 @@ def repos_for_project(store: Store, project_id: str, *, prefix: str = TASK_CONTR
 
 
 def find_contract_for_task(
-    store: Store, project_id: str, task_index: int, *, prefix: str = TASK_CONTRACT_PREFIX
+    store: ProjectsStore, project_id: str, task_index: int, *, prefix: str = TASK_CONTRACT_PREFIX
 ) -> TaskContract | None:
     """The contract governing one project task, or None if it never had one."""
     candidates = [

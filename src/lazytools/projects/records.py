@@ -36,6 +36,8 @@ from lazytools.projects.owner import get_project_owner
 if TYPE_CHECKING:
     from lazybridge import Store
 
+    from lazytools.projects.task_store import ProjectsStore
+
 ProjectStatus = Literal["draft", "open", "paused", "done"]
 
 _SIZE_ALIASES = {"small": "small", "low": "small", "medium": "medium", "large": "large", "high": "large"}
@@ -175,7 +177,7 @@ def project_classification_suffix(record: ProjectRecord) -> str:
     return suffix
 
 
-def get_project(store: Store, project_id: str, *, prefix: str = PROJECT_PREFIX) -> ProjectRecord | None:
+def get_project(store: ProjectsStore, project_id: str, *, prefix: str = PROJECT_PREFIX) -> ProjectRecord | None:
     raw = store.read(_key(project_id, prefix=prefix))
     return ProjectRecord.model_validate(raw) if isinstance(raw, dict) else None
 
@@ -208,7 +210,8 @@ def list_projects(
 
 
 def _apply(
-    store: Store, project_id: str, updates: dict[str, object], *, allowed_from: tuple[str, ...], prefix: str = PROJECT_PREFIX
+    store: ProjectsStore, project_id: str, updates: dict[str, object], *,
+    allowed_from: tuple[str, ...], prefix: str = PROJECT_PREFIX,
 ) -> bool:
     """Compare-and-swap one field change, guarded by the current status.
 
@@ -291,7 +294,7 @@ def set_project_deadline(
     )
 
 
-def touch_project_progress(store: Store, project_id: str) -> None:
+def touch_project_progress(store: ProjectsStore, project_id: str) -> None:
     """Best-effort progress bookkeeping that never interrupts real work.
 
     Only an open project records progress -- see ``lazyceo.projects``'s own
