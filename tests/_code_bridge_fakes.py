@@ -17,9 +17,10 @@ underlying engine faked out.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pytest
+if TYPE_CHECKING:
+    import pytest
 
 _SEAMS = (
     ("lazytools.code_bridge._engines", "_make_codex_engine", "codex"),

@@ -1,9 +1,9 @@
 """Durable storage layout for the async code bridge.
 
-One ``lazybridge.Store`` backs the job registry, the approval queue, and
-this bridge's own per-job metadata -- one file, one lock discipline,
-instead of three. Default location: ``~/.lazytools/code-bridge.sqlite``,
-overridable with ``LAZYTOOLS_CODE_BRIDGE_DB`` or the CLI's ``--db``.
+One ``lazybridge.Store`` backs job records and launch metadata. Its default
+is ``~/.lazytools/code-bridge.sqlite``, overridable with
+``LAZYTOOLS_CODE_BRIDGE_DB`` or the CLI's ``--db``. The old approval prefix
+remains readable for in-flight jobs during migration.
 """
 
 from __future__ import annotations
@@ -44,6 +44,7 @@ def build_job_registry(store: Any) -> Any:
 
 
 def build_approval_queue(store: Any) -> Any:
+    """Open the pre-migration queue for tickets from already running workers."""
     from lazybridge.ext.approval import ApprovalQueue
 
     return ApprovalQueue(store, prefix=APPROVAL_PREFIX)
@@ -82,6 +83,10 @@ def write_meta(store: Any, job_id: str, meta: dict[str, Any]) -> None:
                 *stored,
                 *(item for item in supplied if item not in stored),
             ]
+        if isinstance(raw, dict) and raw.get("registry_ticket_ids"):
+            updated["registry_ticket_ids"] = list(dict.fromkeys([
+                *raw["registry_ticket_ids"], *updated.get("registry_ticket_ids", []),
+            ]))
         if store.compare_and_swap(key, raw, updated):
             return
     raise RuntimeError(f"could not write metadata for job {job_id}: concurrent updates did not settle")

@@ -23,10 +23,23 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _concurrency, _engines, _progress, _routine, _store, _tempdir
+from lazybridge.policy import PolicyError, policy_scope
+
+from lazytools.code_bridge import (
+    _concurrency,
+    _engines,
+    _launch,
+    _progress,
+    _registry,
+    _routine,
+    _store,
+    _task,
+    _tempdir,
+)
 from lazytools.code_bridge._approvals import BridgeGate, short_branch
 from lazytools.code_bridge._lockfile import JobLock
-from lazytools.code_bridge._policy import CODING_RULES, REVIEW_RULES
+from lazytools.code_bridge._policy import CODING_RULES
+from lazytools.code_bridge._review_tools import review_tools
 from lazytools.code_bridge._turn_cleanup import TurnCleanup
 
 ENGINES: tuple[str, ...] = ("codex", "claude")
@@ -75,35 +88,34 @@ def poll_seconds() -> float:
     return value
 
 
-class _StatusTrackingChannel:
-    """Wraps an approval ``Channel`` so the job record reflects a pending ticket.
-
-    ``TieredGate`` only ever sees this wrapper, never the inner
-    ``StoreApprovalChannel`` directly, so every ``ask()`` -- "session" and
-    "ask" tier alike -- flips the job's status to ``awaiting_approval``
-    while a human has not yet answered, and back once they have (approved,
-    rejected, or the ticket expired).
-    """
-
-    def __init__(self, inner: Any, on_waiting: Callable[[], None], on_resumed: Callable[[], None]) -> None:
-        self._inner = inner
-        self._on_waiting = on_waiting
-        self._on_resumed = on_resumed
-        self.name = getattr(inner, "name", "store-approval-queue")
-        self.accepting = True
-
-    async def ask(self, prompt: str) -> bool:
-        if not self.accepting:
-            return False
-        self._on_waiting()
-        try:
-            return await self._inner.ask(prompt)
-        finally:
-            self._on_resumed()
-
-
 def new_job_id() -> str:
     return uuid.uuid4().hex
+
+
+def detach_binding(
+    launch: _launch.Launch, engine: str, cwd: Path, task: str, session: str | None, claim: _task.Claim | None = None,
+) -> dict[str, Any]:
+    return {
+        **launch.binding(), "engine": engine, "cwd": str(cwd),
+        "brief_hash": _store.brief_hash(task), "session": session,
+        **(claim.binding() if claim else {}),
+    }
+
+
+def record_detached_refusal(db_path: Path | None, job_id: str | None, task: str, reason: str) -> None:
+    if job_id is None or not re.fullmatch(r"[0-9a-f]{32}", job_id):
+        return
+    store = _store.build_store(db_path)
+    binding = store.read(_launch.DETACH_PREFIX + job_id)
+    registry = _store.build_job_registry(store)
+    if not isinstance(binding, dict) or _store.read_meta(store, job_id) or registry.find(job_id):
+        return
+    now = time.time()
+    _store.write_meta(store, job_id, {
+        **binding, "job_id": job_id, "created_at": now, "updated_at": now, "completed_at": now,
+    })
+    _write_result(db_path, job_id, f"[failed] {reason}")
+    registry.write(job_id, task, tool_name=binding["engine"], status="failed", error=reason)
 
 
 @dataclass
@@ -268,11 +280,7 @@ def pending_ticket_ids(store: Any, job_id: str) -> list[str]:
     100-ticket cap and hides a ticket whose TTL ran out, which is still
     ``"pending"`` on disk until someone transitions it.
     """
-    return [
-        key.removeprefix(_store.APPROVAL_PREFIX)
-        for key, raw in store.items(prefix=_store.APPROVAL_PREFIX)
-        if isinstance(raw, dict) and raw.get("task_id") == job_id and raw.get("status") == "pending"
-    ]
+    return [ticket.approval_id for ticket in _registry.Registry(store).open_for_job(job_id)]
 
 
 def close_pending_tickets(store: Any, job_id: str, reason: str) -> None:
@@ -283,16 +291,17 @@ def close_pending_tickets(store: Any, job_id: str, reason: str) -> None:
     closes those, so "no pending tickets left" is reachable. May raise if the
     queue's Store fails; callers decide whether that is fatal.
     """
-    queue = _store.build_approval_queue(store)
-    for approval_id in pending_ticket_ids(store, job_id):
-        if not queue.reject_ticket(approval_id, actor="operator", channel="cli", reason=reason):
-            queue.expire_ticket(approval_id)
+    registry = _registry.Registry(store)
+    for ticket in registry.open_for_job(job_id):
+        registry.close(ticket, reason)
 
 
-async def _run_agent(engine: Any, task: str, agent_name: str) -> Any:
+async def _run_agent(
+    engine: Any, task: str, agent_name: str, *, tools: list[Callable[[str], str]] | None = None,
+) -> Any:
     from lazybridge import Agent
 
-    return await Agent(engine, name=agent_name).run(task)
+    return await Agent(engine, name=agent_name, tools=list(tools) if tools else None).run(task)
 
 
 def run_job(
@@ -316,6 +325,12 @@ def run_job(
     wait_for_slot: bool = False,
     on_slot_wait: Callable[[_concurrency.EngineBusy], None] | None = None,
     profile: str = "default",
+    network: str | None = None,
+    launch_mode: str = "auto",
+    intentional_review: bool = False,
+    detached_binding: bool = False,
+    task_id: str | None = None,
+    claim_token: str | None = None,
 ) -> RunResult:
     """Run one job to completion. Raises before any job is recorded for a
     bad engine name or a ``cwd`` outside the confinement root; raises
@@ -331,8 +346,6 @@ def run_job(
     """
     if engine_name not in ENGINES:
         raise ValueError(f"engine must be one of {ENGINES}, got {engine_name!r}")
-    if profile not in {"default", "review"}:
-        raise ValueError(f"unknown approval profile {profile!r}")
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("--timeout must be a finite number greater than 0")
     timeout = float(timeout)
@@ -343,6 +356,11 @@ def run_job(
     wall_started = time.monotonic()
     routine_policy = _routine.load_policy(enabled=routine_auto, scratch_root=scratch_root)
     resolved_cwd = _engines.resolve_cwd(cwd, root)
+    claim = _task.load(task_id, claim_token, state="intent")
+    resolver = claim.launch if claim else _launch.resolve_launch
+    launch = resolver(engine_name, resolved_cwd, profile, network, launch_mode, review=intentional_review)
+    legacy = launch.mode == "ungoverned-legacy"
+    routine_enabled = legacy and "shell" in launch.policy.tool_classes and routine_policy.enabled
 
     # A detached launch (`run --detach`) picks the id in the parent so it can
     # report it before the child exists; every other caller gets a fresh one.
@@ -357,7 +375,11 @@ def run_job(
 
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)
-    queue = _store.build_approval_queue(store)
+    if detached_binding:
+        _launch.check_binding(
+            store.read(_launch.DETACH_PREFIX + job_id),
+            detach_binding(launch, engine_name, resolved_cwd, task, session_name, claim),
+        )
     # A caller-chosen id must be new: writing its records would otherwise
     # silently replace an earlier job's history.
     if _store.read_meta(store, job_id) is not None:
@@ -458,7 +480,9 @@ def run_job(
         # The job's own temp dir: the ONLY extra writable root it gets, and
         # what TEMP/TMP/TMPDIR point at for the engine. None (with the reason
         # recorded) when the OS temp base is unsafe -- fail closed.
-        temp_dir, temp_refused = _tempdir.create_job_temp_dir(job_id, cwd=resolved_cwd, db_path=store_path)
+        temp_refused = None
+        if "edit" in launch.policy.tool_classes and launch.mode == "ungoverned-legacy":
+            temp_dir, temp_refused = _tempdir.create_job_temp_dir(job_id, cwd=resolved_cwd, db_path=store_path)
 
         now = time.time()
         registry.write(job_id, task, tool_name=engine_name, status="running")
@@ -475,9 +499,12 @@ def run_job(
                 "timeout": timeout,
                 "max_continuations": max_continuations,
                 "max_wall": max_wall,
-                "routine_auto": routine_policy.enabled,
+                "routine_auto": routine_enabled,
                 "approval_profile": profile,
-                "routine_rule_count": len(routine_policy.rules) if routine_policy.enabled else 0,
+                **launch.metadata(),
+                **(claim.binding() if claim else {}),
+                "registry_ticket_ids": [],
+                "routine_rule_count": len(routine_policy.rules) if routine_enabled else 0,
                 "scratch_root": routine_policy.scratch_root,
                 "continuations": 0,
                 "turns": [],
@@ -498,50 +525,78 @@ def run_job(
         except Exception as exc:
             print(f"warning: job started but its relaunch intervention could not be recorded: {exc}", file=sys.stderr)
         temp_arg = str(temp_dir) if temp_dir is not None else None
-        print(f"routine-auto: {'enabled' if routine_policy.enabled else 'disabled'}; "
-              f"{len(routine_policy.rules) if routine_policy.enabled else 0} active rules", file=sys.stderr)
+        print(f"local launch: {launch.mode}; profile={launch.policy.profile}; network={launch.policy.network}",
+              file=sys.stderr)
+        print(f"routine-auto: {'enabled' if routine_enabled else 'disabled'}; "
+              f"{len(routine_policy.rules) if routine_enabled else 0} active rules", file=sys.stderr)
 
-        channel = _StatusTrackingChannel(
-            _store_channel(queue, job_id),
+        def validate_policy() -> None:
+            if claim:
+                claim.recheck(job_id)
+            current = resolver(engine_name, resolved_cwd, profile, network, launch_mode, review=intentional_review)
+            _launch.check_binding(launch.binding(), current.binding())
+
+        scoped_reads = (
+            review_tools(resolved_cwd, network=launch.policy.network, validate=validate_policy)
+            if legacy and launch.policy.profile == "read" and "read" in launch.policy.tool_classes else None
+        )
+        channel = _registry.ApprovalChannel(
+            _registry.Registry(store), job_id, launch.policy.revision, launch.policy.digest,
+            ticket_ttl(), poll_seconds(),
             on_waiting=lambda: _set_status("awaiting_approval"),
             on_resumed=lambda: _set_status("running"),
+            validate=validate_policy,
+            task_id=claim.task_id if claim else None,
+            actor=claim.principal.actor if claim else "local-bridge",
+            attempt=claim.receipt["attempt"] if claim else 1,
+            fenced_consume=claim.consume_approval if claim else None,
         )
-        gate = BridgeGate(channel=channel, rules=REVIEW_RULES if profile == "review" else CODING_RULES,
-                          cwd=str(resolved_cwd), temp_dir=temp_arg, profile=profile,
-                          routine=_routine.RoutineAuto(routine_policy, store, queue, job_id))
+        gate = BridgeGate(channel=channel, rules=CODING_RULES if legacy else (), cwd=str(resolved_cwd), temp_dir=temp_arg,
+                          effective_policy=launch.policy, legacy_callbacks=legacy,
+                          routine=_routine.RoutineAuto(routine_policy, store, None, job_id) if routine_enabled else None)
 
         from lazybridge.engines.sessions import default_session_registry
 
         session_registry = default_session_registry()
+        native_id = session_registry.resolve(engine_name, resolved_cwd, session_name) if session_name else None
+        native_binding = {**launch.binding(), "cwd": str(resolved_cwd), **(claim.binding() if claim else {})}
+        _launch.check_resume(store, engine_name, native_id, native_binding)
+        if native_id and engine_name == "claude" and launch.mode == "governed":
+            raise PolicyError("Governed Claude resume requires the original SDK client; use a new session alias")
 
         if engine_name == "codex":
-            thread_id = session_registry.resolve("codex", resolved_cwd, session_name) if session_name else None
             engine = _engines.build_codex_engine(
                 cwd=str(resolved_cwd),
                 gate=gate,
                 model=model,
                 effort=effort,
-                thread_id=thread_id,
+                thread_id=native_id,
                 session_alias=session_name,
                 session_registry=session_registry,
                 timeout=timeout,
                 temp_dir=temp_arg,
+                launch=launch,
+                state_dir=store_path.parent / "codex-policy-state",
             )
             agent_name = "code-bridge-codex"
         else:
-            session_id = session_registry.resolve("claude", resolved_cwd, session_name) if session_name else None
             engine = _engines.build_claude_engine(
                 cwd=str(resolved_cwd),
                 gate=gate,
                 model=model,
                 effort=effort,
-                session_id=session_id,
+                session_id=native_id,
                 session_alias=session_name,
                 session_registry=session_registry,
                 timeout=timeout,
                 temp_dir=temp_arg,
+                launch=launch,
             )
             agent_name = "code-bridge-claude"
+
+        if claim:
+            claim.service.begin_submit(claim.principal, claim.task_id, claim.token)
+            claim.service.record_submit(claim.principal, claim.task_id, claim.token, job_id)
 
         # The engine subprocess inherits this process's environment: point its
         # TEMP/TMP/TMPDIR at the job's own temp dir for exactly this run.
@@ -555,6 +610,7 @@ def run_job(
             # The one branch a session push / `gh pr create --head` grant covers.
             gate.job_branch = short_branch(job_branch)
             for turn in range(max_continuations + 1):
+                validate_policy()
                 if turn:
                     before = await asyncio.to_thread(_progress.snapshot, lock.cwd, job_branch)
                     close_pending_tickets(store, job_id, "continuation preflight: previous turn is closed")
@@ -569,15 +625,24 @@ def run_job(
                 _store.write_meta(store, job_id, meta)
                 started = time.time()
                 wall_expired = False
-                deadline = asyncio.timeout(min(timeout, remaining) if remaining is not None else timeout)
+                turn_limit = min(timeout, remaining) if remaining is not None else timeout
+                lease_left = claim.receipt["lease_expires_at"] - time.time() if claim else math.inf
+                deadline = asyncio.timeout(min(turn_limit, lease_left))
                 gate.accepting = channel.accepting = True
                 async with TurnCleanup() as cleanup:
                     try:
                         async with deadline:
-                            env = await _run_agent(engine, prompt, agent_name)
+                            with policy_scope(launch.policy if launch.mode == "governed" else None):
+                                if scoped_reads:
+                                    env = await _run_agent(engine, prompt, agent_name, tools=scoped_reads)
+                                else:
+                                    env = await _run_agent(engine, prompt, agent_name)
                     except TimeoutError as exc:
                         wall_expired = deadline.expired() and remaining is not None and remaining <= timeout
-                        env = Envelope.error_envelope(exc)
+                        if deadline.expired() and lease_left <= turn_limit:
+                            env = Envelope.error_envelope(PolicyError("Task claim lease expired during the turn"))
+                        else:
+                            env = Envelope.error_envelope(exc)
                     except Exception as exc:
                         env = Envelope.error_envelope(exc)
                     finally:
@@ -593,10 +658,13 @@ def run_job(
                 timed_out = not env.ok and env.error is not None and (
                     env.error.type == "TimeoutError" or "Turn timed out on durable thread" in env.error.message
                 )
+                handle = getattr(engine, "thread_id", None) or getattr(engine, "session_id", None)
+                if handle:
+                    _launch.bind_native(store, engine_name, handle, native_binding)
                 turns.append({
                     "turn": turn, "started_at": started, "ended_at": time.time(),
                     "outcome": "done" if env.ok else "checkpoint" if timed_out and evidence["progress"] else "failed",
-                    "thread_id": getattr(engine, "thread_id", None) or getattr(engine, "session_id", None),
+                    "thread_id": handle,
                     **evidence,
                     "cleanup_error": cleanup.error,
                 })
@@ -700,12 +768,6 @@ def _mark_interrupted(store: Any, registry: Any, old_job_id: str, *, db_path: Pa
     interrupt_job(
         store, registry, old, "lock reclaimed: the process running this job appears to have died", db_path=db_path
     )
-
-
-def _store_channel(queue: Any, job_id: str) -> Any:
-    from lazybridge.ext.approval import StoreApprovalChannel
-
-    return StoreApprovalChannel(queue, task_id=job_id, ttl=ticket_ttl(), poll_seconds=poll_seconds())
 
 
 def find_job(store: Any, registry: Any, job_id: str) -> dict[str, Any] | None:

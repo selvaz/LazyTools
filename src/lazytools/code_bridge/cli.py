@@ -33,10 +33,13 @@ from lazytools.code_bridge import (
     _engines,
     _freshness,
     _jobs,
+    _launch,
     _progress,
+    _registry,
     _routine,
     _routing,
     _store,
+    _task,
     _watch,
 )
 from lazytools.code_bridge._concurrency import EngineBusy
@@ -184,6 +187,14 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
         argv += ["--wait-for-slot"]
     if args.profile != "default":
         argv += ["--profile", args.profile]
+    for flag, value in (("--network", args.network), ("--launch-mode", args.launch_mode)):
+        if value is not None:
+            argv += [flag, value]
+    if args.review_of or args.intentional_review:
+        argv += ["--intentional-review"]
+    if args.task_id:
+        argv += ["--task-id", args.task_id, "--claim-token", args.claim_token]
+    argv += ["--detached-binding"]
     # The launcher already checked the brief and printed its findings.
     argv += ["--brief-checked"]
     return argv
@@ -260,6 +271,20 @@ def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
             return 2
         args.task = "@" + str(snapshot.resolve())  # absolute: nothing depends on the child's cwd
     log_path = out_dir / f"{job_id}.log"
+    try:
+        claim = _task.load(args.task_id, args.claim_token, state="intent")
+        resolver = claim.launch if claim else _launch.resolve_launch
+        launch = resolver(
+            args.engine, resolved_cwd, args.profile, args.network, args.launch_mode,
+            review=bool(args.review_of or args.intentional_review),
+        )
+    except (OSError, ValueError, ImportError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    store = _store.build_store(_db_path(args))
+    store.write(_launch.DETACH_PREFIX + job_id, _jobs.detach_binding(
+        launch, args.engine, resolved_cwd, task, args.session, claim,
+    ))
     pid = _spawn_detached(_child_argv(args, job_id), log_path)
     (out_dir / f"{job_id}.pid").write_text(str(pid), encoding="utf-8")
     if args.json:
@@ -268,12 +293,14 @@ def _cmd_run_detached(args: argparse.Namespace, task: str) -> int:
                 **_job_identity(job_id, where="local", engine=args.engine, cwd=args.cwd),
                 "pid": pid,
                 "log": str(log_path),
+                **launch.metadata(),
+                **(claim.binding() if claim else {}),
                 **({"routing": args.routing} if getattr(args, "routing", None) else {}),
             }
         )
     else:
         print(job_id)
-        print(f"detached: pid {pid}, log {log_path}")
+        print(f"detached: pid {pid}, log {log_path} ({launch.mode}, {launch.policy.profile})")
         db_flag = f' --db "{args.db}"' if args.db else ""
         print(f"wait for it with: lazytools-code-bridge wait {job_id}{db_flag}")
     return 0
@@ -481,6 +508,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if refusal is not None:
         return refusal
     if args.where == _cloud.WHERE_CLOUD:
+        if args.launch_mode != "auto" or args.profile not in _launch.LEGACY_PROFILES or args.task_id or args.claim_token:
+            print("error: core launch mode, profiles, and task claims require local placement", file=sys.stderr)
+            return 2
         return _cmd_run_cloud(args)
     for name, flag in (("branch", "--branch"), ("allow_cloud", "--allow-cloud"), ("approve_cloud", "--approve-cloud"),
                        ("routine", "--routine"), ("pr", "--pr"), ("open_pr", "--open-pr"), ("land", "--land"),
@@ -535,8 +565,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             args.model, args.effort, args.routing = selection.model, selection.effort, selection.record()
             if not args.json:
                 _routing.print_selection(selection)
-        elif args.needs or args.review_of:
-            raise ValueError("--needs and --review-of require --tier")
+        elif args.needs:
+            raise ValueError("--needs requires --tier")
         elif args.effort is not None:
             rejection = DEFAULT_POLICY.reject_effort(
                 args.effort, engine=_routing.provider(args.engine), model=args.model
@@ -594,11 +624,21 @@ def _cmd_run(args: argparse.Namespace) -> int:
             wait_for_slot=args.wait_for_slot,
             on_slot_wait=_slot_wait,
             profile=args.profile,
+            network=args.network,
+            launch_mode=args.launch_mode,
+            intentional_review=bool(args.review_of or args.intentional_review),
+            detached_binding=args.detached_binding,
+            task_id=args.task_id,
+            claim_token=args.claim_token,
         )
     except (LockHeld, EngineBusy) as exc:
+        if args.detached_binding:
+            _jobs.record_detached_refusal(_db_path(args), args.job_id, task, str(exc))
         print(str(exc), file=sys.stderr)
         return 2
-    except ValueError as exc:
+    except (OSError, ValueError, ImportError) as exc:
+        if args.detached_binding:
+            _jobs.record_detached_refusal(_db_path(args), args.job_id, task, str(exc))
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -1188,10 +1228,9 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
         jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
 
         # A ticket is emitted once per invocation, even if it remains pending.
-        queue = _store.build_approval_queue(store)
-        tickets = sorted(queue.list_pending_tickets(), key=lambda ticket: ticket.created_at)
+        tickets = _registry.Registry(store).pending()
         for ticket in tickets:
-            job = jobs.get(str(ticket.task_id))
+            job = jobs.get(_registry.job_ref(ticket))
             if job is None or ticket.approval_id in emitted_approvals:
                 continue
             emitted_approvals.add(ticket.approval_id)
@@ -1539,19 +1578,20 @@ def _cmd_pending(args: argparse.Namespace) -> int:
     from lazybridge.ext.approval import ticket_gist
 
     store = _store.build_store(_db_path(args))
-    queue = _store.build_approval_queue(store)
-    tickets = queue.list_pending_tickets()
+    tickets = _registry.Registry(store).pending()
     if args.json:
         _print_json(
             [
                 {
                     "approval_id": t.approval_id,
-                    "job_id": t.task_id,
+                    "job_id": _registry.job_ref(t),
                     "gist": ticket_gist(t.prompt),
                     **_request_detail(t.prompt),
                     "kind": t.kind,
                     "created_at": t.created_at.isoformat(),
                     "expires_at": t.expires_at.isoformat(),
+                    **({"task_id": t.task_id, "action_digest": t.request.digest,
+                        "policy_revision": t.request.policy_revision} if t.request is not None else {}),
                 }
                 for t in tickets
             ]
@@ -1561,7 +1601,7 @@ def _cmd_pending(args: argparse.Namespace) -> int:
         print("no pending approvals")
         return 0
     for t in tickets:
-        print(f"{t.approval_id}  job={t.task_id[:8]}  {ticket_gist(t.prompt, max_len=120)}")
+        print(f"{t.approval_id}  job={_registry.job_ref(t)[:8]}  {ticket_gist(t.prompt, max_len=120)}")
         for key, value in _request_detail(t.prompt).items():
             print(f"  {key}: {value}")
         print(f"  created {t.created_at.isoformat()}  expires {t.expires_at.isoformat()}")
@@ -1570,28 +1610,28 @@ def _cmd_pending(args: argparse.Namespace) -> int:
 
 def _cmd_approve(args: argparse.Namespace) -> int:
     store = _store.build_store(_db_path(args))
-    queue = _store.build_approval_queue(store)
-    ticket = queue.get_ticket(args.ticket_id)
-    ok = queue.approve_ticket(args.ticket_id, actor=args.actor, channel="cli")
+    registry = _registry.Registry(store)
+    ticket = registry.inspect(args.ticket_id)
+    ok = ticket is not None and registry.decide(ticket, "approved", args.actor, args.reason)
     if not ok:
         print(f"could not approve {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
         return 1
-    if ticket is not None and _store.read_meta(store, str(ticket.task_id)) is not None:
-        _record_intervention(store, str(ticket.task_id), "approve", args.reason)
+    if ticket is not None and _store.read_meta(store, _registry.job_ref(ticket)) is not None:
+        _record_intervention(store, _registry.job_ref(ticket), "approve", args.reason)
     print(f"approved {args.ticket_id}")
     return 0
 
 
 def _cmd_reject(args: argparse.Namespace) -> int:
     store = _store.build_store(_db_path(args))
-    queue = _store.build_approval_queue(store)
-    ticket = queue.get_ticket(args.ticket_id)
-    ok = queue.reject_ticket(args.ticket_id, actor=args.actor, channel="cli", reason=args.reason)
+    registry = _registry.Registry(store)
+    ticket = registry.inspect(args.ticket_id)
+    ok = ticket is not None and registry.decide(ticket, "rejected", args.actor, args.reason)
     if not ok:
         print(f"could not reject {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
         return 1
-    if ticket is not None and _store.read_meta(store, str(ticket.task_id)) is not None:
-        _record_intervention(store, str(ticket.task_id), "reject", args.reason)
+    if ticket is not None and _store.read_meta(store, _registry.job_ref(ticket)) is not None:
+        _record_intervention(store, _registry.job_ref(ticket), "reject", args.reason)
     print(f"rejected {args.ticket_id}")
     return 0
 
@@ -1783,8 +1823,8 @@ def build_parser() -> argparse.ArgumentParser:
         "approval gate (only its diff comes back, through `apply`).",
     )
     run_p.add_argument(
-        "--network", choices=("on", "off"), default="off",
-        help="--where cloud only: requested task network access (default: off); must match the preflight manifest.",
+        "--network", choices=("on", "off"), default=None,
+        help="Requested task network access. Defaults to off for core profiles and cloud; the legacy writer defaults to on.",
     )
     run_p.add_argument(
         "--approve-cloud",
@@ -1792,7 +1832,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=sorted(_cloud.GATED_ACTIONS),
         default=None,
         help="--where cloud only: approve up front an action the brief asks for that the local approval gate "
-        "would hold (classified by the same rule table); repeatable. Without it such a brief is refused.",
+        "classifies as gated; repeatable. Without it such a brief is refused.",
     )
     _add_routing_options(run_p)
     run_p.add_argument("--cwd", required=True, help="Repository (or subdirectory) to work in.")
@@ -1812,8 +1852,14 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Total job wall-clock cap in seconds, including approvals (default: unlimited).")
     run_p.add_argument("--routine-auto", action=argparse.BooleanOptionalAction, default=None,
                        help="Enable the audited routine-auto approval tier (default: on, or [routine_auto] enabled).")
-    run_p.add_argument("--profile", choices=("default", "review"), default="default",
-                       help="Approval profile for local jobs (review auto-approves everything except review hazards).")
+    run_p.add_argument("--profile", choices=_launch.PROFILES, default="default",
+                       help="Local core policy profile. Legacy default maps to edit-and-run, and review maps to read.")
+    run_p.add_argument("--launch-mode", choices=_launch.MODES, default="auto",
+                       help="Governed requires matching release evidence. Legacy explicitly allows an ungoverned launch.")
+    run_p.add_argument("--task-id", help="Projects task ID for a local launch, paired with --claim-token.")
+    run_p.add_argument("--claim-token", help="Fence token returned by the projects task claim.")
+    run_p.add_argument("--intentional-review", action="store_true", help=argparse.SUPPRESS)
+    run_p.add_argument("--detached-binding", action="store_true", help=argparse.SUPPRESS)
     run_p.add_argument("--scratch-root", default=None,
                        help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).")
     run_p.add_argument(

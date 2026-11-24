@@ -1136,7 +1136,15 @@ def test_worktree_containment_uses_resolved_paths(tmp_path):
     container.mkdir()
     assert _cloud._inside(container / "deadbeef", container)
     assert not _cloud._inside(container / ".." / "escape", container)
-    (container / "link").symlink_to(tmp_path)
+    link = container / "link"
+    try:
+        link.symlink_to(tmp_path, target_is_directory=True)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) != 1314:
+            raise
+        # Locked-down Windows test accounts can still create directory junctions.
+        subprocess.run(["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(tmp_path)],
+                       check=True, capture_output=True)
     assert not _cloud._inside(container / "link" / "escape", container)
 
 

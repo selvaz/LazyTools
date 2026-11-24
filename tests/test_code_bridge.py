@@ -12,9 +12,10 @@ import threading
 import time
 
 import pytest
+from lazybridge.ext.approval import ApprovalQueue, ApproverContext
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _jobs, _store
+from lazytools.code_bridge import _jobs, _registry, _store
 from lazytools.code_bridge._lockfile import JobLock, LockHeld
 
 
@@ -99,17 +100,16 @@ def test_lock_is_keyed_on_the_git_repo_root_not_the_literal_cwd(tmp_path, monkey
         db_path=db_path,
     )
     try:
-        store = _store.build_store(db_path)
-        queue = _store.build_approval_queue(store)
-        _wait_for_one_ticket(queue, thread=thread, box=_box)  # job is live and holding the repo-root lock
+        queue = ApprovalQueue(_registry.registry_store())
+        ticket = _wait_for_one_ticket(queue, thread=thread, box=_box)  # job holds the repo-root lock
 
         with pytest.raises(LockHeld):
             _jobs.run_job(
                 engine_name="codex", cwd=str(repo_root), task="y", root=str(tmp_path), db_path=db_path
             )
 
-        assert queue.reject_ticket(
-            queue.list_pending_tickets()[0].approval_id, actor="test", channel="test", reason="done"
+        assert queue.decide_typed_ticket(
+            ticket.approval_id, approver=ApproverContext(actor="test"), verdict="rejected", reason="done",
         )
         thread.join(timeout=10)
     finally:
@@ -284,11 +284,10 @@ def test_approval_ticket_approved_lets_the_job_continue(tmp_path, repo, monkeypa
         engine_name="codex", cwd=str(repo), task="do a risky thing", root=str(tmp_path), db_path=db_path
     )
     try:
-        store = _store.build_store(db_path)
-        queue = _store.build_approval_queue(store)
+        queue = ApprovalQueue(_registry.registry_store())
         ticket = _wait_for_one_ticket(queue, thread=thread, box=box)
         assert ticket.task_id  # scoped to the job
-        assert queue.approve_ticket(ticket.approval_id, actor="test", channel="test")
+        assert queue.decide_typed_ticket(ticket.approval_id, approver=ApproverContext(actor="test"), verdict="approved")
         thread.join(timeout=10)
     finally:
         assert not thread.is_alive()
@@ -310,10 +309,9 @@ def test_approval_ticket_rejected_fails_the_job(tmp_path, repo, monkeypatch):
         engine_name="codex", cwd=str(repo), task="do a risky thing", root=str(tmp_path), db_path=db_path
     )
     try:
-        store = _store.build_store(db_path)
-        queue = _store.build_approval_queue(store)
+        queue = ApprovalQueue(_registry.registry_store())
         ticket = _wait_for_one_ticket(queue, thread=thread, box=box)
-        assert queue.reject_ticket(ticket.approval_id, actor="test", channel="test", reason="no")
+        assert queue.decide_typed_ticket(ticket.approval_id, approver=ApproverContext(actor="test"), verdict="rejected", reason="no")
         thread.join(timeout=10)
     finally:
         assert not thread.is_alive()
@@ -321,6 +319,9 @@ def test_approval_ticket_rejected_fails_the_job(tmp_path, repo, monkeypatch):
     result = box["result"]
     assert result.status == "failed"
     assert "denied" in result.error
+    meta = _store.read_meta(_store.build_store(db_path), result.job_id)
+    ticket = ApprovalQueue(_registry.registry_store()).get_ticket(meta["registry_ticket_ids"][0])
+    assert ticket.status == "rejected"
 
 
 def test_approval_ticket_ttl_expiry_fails_the_job_cleanly(tmp_path, repo, monkeypatch):
@@ -338,6 +339,9 @@ def test_approval_ticket_ttl_expiry_fails_the_job_cleanly(tmp_path, repo, monkey
 
     assert result.status == "failed"
     assert "denied" in result.error
+    meta = _store.read_meta(_store.build_store(db_path), result.job_id)
+    ticket = ApprovalQueue(_registry.registry_store()).get_ticket(meta["registry_ticket_ids"][0])
+    assert ticket.status == "expired"
 
 
 # --------------------------------------------------------------------------- #

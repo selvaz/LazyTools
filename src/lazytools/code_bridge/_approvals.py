@@ -31,10 +31,14 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from fnmatch import fnmatch
-from typing import Any, cast
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 
 from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import Rule, TieredGate
+
+if TYPE_CHECKING:
+    from lazybridge.policy import EffectivePolicy
 
 # --------------------------------------------------------------------------- #
 # strict tokenisation
@@ -602,9 +606,14 @@ class BridgeGate(TieredGate):
     cwd: str | None = None
     temp_dir: str | None = None
     profile: str = "default"
+    effective_policy: EffectivePolicy | None = None
+    legacy_callbacks: bool = False
 
     async def _decide(self, request: ApprovalRequest, rule: Rule | None) -> Any:
         if isinstance(rule, _RoutineMatch):
+            automatic = getattr(self.channel, "automatic", None)
+            if automatic is not None:
+                return automatic(request, rule.rule_id), "routine-auto"
             return self.routine.approve(request, rule.rule_id), "routine-auto"
         if isinstance(rule, _ProfileMatch):
             return self.routine.approve_profile(request, rule.profile), f"profile:{rule.profile}"
@@ -615,11 +624,19 @@ class BridgeGate(TieredGate):
             )
             arguments = {key: value for key, value in request.arguments.items() if key != "gate_rule"}
             request = replace(request, arguments={"gate_rule": label, **arguments})
-        return await super()._decide(request, rule)
+        bind = getattr(self.channel, "bind", None)
+        if bind is None:
+            return await super()._decide(request, rule)
+        with bind(request):
+            return await super()._decide(request, rule)
 
     def _match(self, request: ApprovalRequest) -> Rule | None:
         if not self.accepting:
             return Rule("deny", "*")
+        if self.effective_policy is not None:
+            narrowed = self._match_policy_request(request, self.effective_policy)
+            if narrowed is not None:
+                return narrowed
         command = request.arguments.get("command")
         if self.profile == "review" and request.kind == "tool" and request.name in {"Read", "Glob", "Grep"}:
             from lazytools.code_bridge._review_policy import review_tool_denial
@@ -652,6 +669,13 @@ class BridgeGate(TieredGate):
                 from lazytools.code_bridge._routine import normalise
 
                 normal = normalise(command)
+                if request.kind == "tool" and request.name == "Bash":
+                    from lazytools.code_bridge import _readonly
+
+                    # Local Git reads need no routine grant. Other commands
+                    # still need its stricter destination and operand checks.
+                    if _readonly.match(command) in {"git-status", "git-diff", "git-log", "git-show", "git-rev-parse"}:
+                        return self._match_bash(request)
                 # Escalations rejected by a capability validator must not
                 # earn an older classifier's allow/session grant. Apply the
                 # same rule to protected Claude Bash command families.
@@ -674,6 +698,41 @@ class BridgeGate(TieredGate):
             if not paths or any(not isinstance(p, str) or not p or protected_write_path(p, roots) for p in paths):
                 return Rule("ask", request.name)
         return matched
+
+    def _match_policy_request(self, request: ApprovalRequest, policy: EffectivePolicy) -> Rule | None:
+        name = request.name
+        deny = Rule("deny", name)
+        if not self.legacy_callbacks:
+            # The governed launch handles native tool authority itself.
+            return deny
+        if request.kind == "command" or name == "Bash":
+            return None if "shell" in policy.tool_classes else deny
+        if request.kind != "tool":
+            return deny
+        if name in {"Read", "Glob", "Grep"} and "read" in policy.tool_classes:
+            if policy.profile == "read":
+                from lazytools.code_bridge._review_policy import review_tool_denial
+
+                arguments = dict(request.arguments)
+                for key in ("path", "file_path"):
+                    value = arguments.get(key)
+                    if isinstance(value, str) and Path(value).is_absolute():
+                        try:
+                            arguments[key] = Path(value).resolve().relative_to(policy.folder).as_posix()
+                        except (ValueError, OSError):
+                            return deny
+                if review_tool_denial(name, arguments):
+                    return deny
+            return None
+        if name in {"WebSearch", "WebFetch"} and "web" in policy.tools:
+            return None
+        if name in _EDIT_TOOLS and "edit" in policy.tool_classes:
+            paths = [request.arguments[key] for key in _EDIT_PATH_KEYS if key in request.arguments]
+            roots = tuple(root for root in (str(policy.folder), self.temp_dir) if root)
+            if not paths or any(not isinstance(path, str) or not path or outside_roots(path, roots) for path in paths):
+                return deny
+            return None
+        return deny
 
     def _match_bash(self, request: ApprovalRequest) -> Rule:
         from lazytools.code_bridge import _readonly

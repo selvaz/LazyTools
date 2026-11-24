@@ -934,8 +934,15 @@ def _code_bridge(allow_write: bool = False, *, data_source: dict[str, Any] | Non
         raise RuntimeError("code_bridge is opt-in only: pass allow_write=True (--allow-unsafe).")
 
     from lazytools.code_bridge._mcp import CodeBridgeTools
+    from lazytools.projects.task_service import TaskPrincipal
 
-    return CodeBridgeTools(root=(data_source or {}).get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"))
+    config = data_source or {}
+    principal = config.get("projects_task_principal")
+    return CodeBridgeTools(
+        root=config.get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
+        task_principal=TaskPrincipal.model_validate(principal).model_dump_json() if principal is not None else None,
+        projects_db=config.get("projects_store_db"),
+    )
 
 
 @_register("telegram")

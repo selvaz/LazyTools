@@ -22,6 +22,7 @@ and a person decides.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -38,16 +39,26 @@ class CodeBridgeTools:
 
     _is_lazy_tool_provider = True  # how lazytools.mcp_server.expand_tools recognises a provider
 
-    def __init__(self, root: str | None = None) -> None:
+    def __init__(self, root: str | None = None, *, task_principal: str | None = None, projects_db: str | None = None) -> None:
         self._root = str(Path(root or Path.cwd()).expanduser().resolve())
+        self._task_principal = task_principal
+        self._projects_db = projects_db
 
     # -- plumbing ---------------------------------------------------------- #
 
     def _invoke(self, argv: list[str], timeout: float) -> tuple[int, str, str]:
         """Run one bridge CLI command in a child process. Patched in tests."""
+        from lazytools.code_bridge._task import PRINCIPAL_ENV
+
+        env = os.environ.copy()
+        env.pop(PRINCIPAL_ENV, None)
+        if self._task_principal is not None:
+            env[PRINCIPAL_ENV] = self._task_principal
+        if self._projects_db is not None:
+            env["LAZYTOOLS_PROJECTS_STORE_DB"] = self._projects_db
         proc = subprocess.run(
             [sys.executable, "-m", "lazytools.code_bridge", *argv], capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=timeout, stdin=subprocess.DEVNULL,
+            encoding="utf-8", errors="replace", timeout=timeout, stdin=subprocess.DEVNULL, env=env,
         )
         return proc.returncode, proc.stdout, proc.stderr
 
@@ -91,16 +102,21 @@ class CodeBridgeTools:
         review_of: str | None = None,
         allow_cloud: bool = False,
         profile: str = "default",
+        network: str | None = None,
+        launch_mode: str = "auto",
+        task_id: str | None = None,
+        claim_token: str | None = None,
+        session: str | None = None,
     ) -> dict[str, Any]:
         """Submit a coding job; returns at once with its ``job_id``."""
-        from lazytools.code_bridge import _cloud, _cloud_place, _engines
+        from lazytools.code_bridge import _cloud, _cloud_place, _engines, _launch
 
         if not isinstance(task, str) or (not task.strip() and not review_of):
             raise ValueError("task is required (except for a cloud review_of)")
         if task.lstrip().startswith("@"):
             raise ValueError("a task may not start with '@' here (the CLI would read it as a file path)")
-        if profile not in {"default", "review"}:
-            return {"ok": False, "error": "profile must be 'default' or 'review'", "exit_code": 2}
+        if profile not in _launch.PROFILES or launch_mode not in _launch.MODES:
+            return {"ok": False, "error": "Unknown bridge profile or launch mode", "exit_code": 2}
         config = _cloud.load_config()
         requested = where or config.default_where
         resolved = _engines.resolve_cwd(cwd or ".", self._root) if requested in ("auto", "cloud") and engine == "codex" else None
@@ -109,11 +125,12 @@ class CodeBridgeTools:
         except _cloud.CloudEnvUnmapped as exc:
             return {**exc.payload(), "exit_code": 2}
         argv = ["run", "--where", placement.where, "--cwd", cwd or ".", "--root", self._root, "--json"]
-        argv += ["--profile", profile]
+        argv += ["--profile", profile, "--launch-mode", launch_mode]
         if task.strip():
             argv += ["--task", task]
         for flag, value in (("--engine", engine), ("--tier", tier), ("--model", model), ("--branch", branch),
-                            ("--review-of", review_of)):
+                            ("--review-of", review_of), ("--network", network), ("--task-id", task_id),
+                            ("--claim-token", claim_token), ("--session", session)):
             if value:
                 argv += [flag, str(value)]
         if placement.where == "cloud":

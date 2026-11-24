@@ -659,9 +659,9 @@ Without Claude probing, exit 0 covers Codex and local policy checks only.
 
 ## What is gated, and how
 
-Both engines can use the web: Claude Code gets `WebSearch`/`WebFetch`
-(allowed by the rule table, so they never ask), and Codex runs with live web
-search set explicitly per job rather than inherited from `~/.codex/config.toml`.
+When the policy grants web access, Claude Code exposes `WebSearch` and
+`WebFetch`, and Codex uses live web search. In ungoverned legacy mode the
+legacy writer retains its default web access.
 
 The `--cwd` argument must resolve inside the selected confinement root. Root
 precedence is `--root`, `LAZYTOOLS_CODE_ROOT`, the top-level `root` in
@@ -670,85 +670,61 @@ configured root is resolved beside the configuration file. The top-level
 `root` is a workspace setting, read separately from the `[concurrency]` table
 (`load_workspace` versus `load_config`). A confinement error
 reports the selected root and whether it came from the flag, environment,
-configuration, or current working directory. Codex uses workspace-write; Claude file
-hooks confine file tools to `cwd` and the job's own temp directory, while
-Bash is not path-confined. Requests
-are gated by one `BridgeGate` (a `lazybridge.ext.approval.TieredGate`
-with the structural steps described below) whose rule table
-(`lazytools.code_bridge._policy.CODING_RULES`) allows file reads, `Write`,
-`Edit` and web tools. Claude **Bash fails closed**: its final rule is `ask`.
-A Bash command runs unattended only through one of three paths:
+configuration, or current working directory. The compiled profile controls
+native reads, writes, shell and web exposure. In legacy mode, Claude Bash
+callbacks and Codex command escalations use the routine validators and
+legacy approval rules within the shell grant. Claude also uses the
+read-only allow-list and session grants for its assigned push and PR
+commands. The legacy mode label indicates that runtime confinement has
+not been verified.
 
-1. An existing **routine-auto** capability validator approves it (and records
-   its matched rule id).
-2. An existing **session grant** covers a single simple `git add`, `git commit`,
-   `git push origin <the job's own branch>` (nothing else: the remote must be
-   `origin`, exactly one refspec equal to the branch the job started on, every
-   word unquoted, no flags, no `:`/`+`), or a `gh pr create` that uses only
-   `--title/-t`, `--body/-b` (inline text), `--base/-B`, `--head/-H` (= the job
-   branch), `--draft/-d`, `--label/-l` and `--fill`. `--body-file`/`-F`,
-   `--repo/-R`, `--web`, `--hostname`, templates and anything else ask. A quote-split
-   ref such as `ma"i"n` is never grantable. The first approval still asks a human
-   and is scoped to the run, cwd and rule.
-3. The packaged **read-only allow-list** positively recognises the whole command.
-
-Everything else asks. Existing restrictions take precedence: dangerous push
-forms, pushing to `main`/`master`, `gh pr merge`, `git reset
---hard`, and anything matching `*rm *`/`*delete*` ask every time; and any
-command a coding engine escalates beyond its own sandbox (Codex's
-`approval_policy="on-request"`) asks, except the routine-auto tier, read-only GitHub queries and
-the session-granted simple `git add`/`git commit` described below. The channel behind "ask" is a
-durable, `Store`-backed `ApprovalQueue`
-(default `~/.lazytools/code-bridge.sqlite`, override with
-`LAZYTOOLS_CODE_BRIDGE_DB` / `--db`) — the ticket survives this process
-exiting, which is the whole point: a human answers it from an entirely
-different process (this bridge's `approve`/`reject`, or any other surface
-that reads the same queue).
+Operator decisions use a typed LazyBridge `ApprovalQueue` in the projects Store. Set
+`LAZYTOOLS_PROJECTS_STORE_DB` to the same file used by the projects tools.
+The bridge also honors `LAZYCEO_CEO_STORE_DB` and defaults to
+`~/.lazytools/projects.sqlite` when neither is set. `pending`, `approve`
+and `reject` work across processes. Job logs and routing still use
+`LAZYTOOLS_CODE_BRIDGE_DB` or `--db`. Those commands can also answer tickets
+from workers launched before this migration.
 
 ### Approval profiles
 
-Local jobs use the existing, conservative approval policy by default. Pass
-`lazytools-code-bridge run --profile review ...` for reviewer jobs. The MCP
-`code_bridge_submit` tool accepts the same `profile="review"` argument. The
-profile name is stored on the job and on every auto-approval audit record;
-changing the profile never changes default jobs.
+Local jobs resolve and compile LazyBridge's `read`, `edit`, or
+`edit-and-run` profiles. Existing `--profile default` and `--profile review`
+map to `edit-and-run` and `read`. Intentional reviews use `read` even
+when the caller supplies writer options. Claude exposes its repo read tools
+and Codex uses read-only sandbox settings with escalations disabled. In
+ungoverned legacy mode both engines get `review_command` for repository Git
+reads and `review_read_file` for workspace text files. GitHub PR reads use the
+repository's origin and require network access. Legacy profile names keep
+that access by default, and callers can select `--network off`.
 
-The `review` profile is fail closed. It tokenizes each command and auto-approves
-only an explicit routine allow-list: `gh pr view|diff|checks`, selected
-read-only `git status|log|diff|show|rev-parse` forms, helper-free `git fetch`,
-pytest, `npm test`, `npm run build|lint`, and common file readers (`ls`, `cat`,
-`grep`, `head`, and `tail`). Every segment of a compound command must match. Native `Read`, `Glob`, and
-`Grep` requests are also held when an explicit path or pattern is sensitive or
-unbounded; shell `grep -r`, `-R`, and `--recursive` are never auto-approved.
+`--launch-mode governed` requires matching runtime release evidence.
+Configure it through `LAZYTOOLS_CODE_BRIDGE_CODEX_RELEASE_REPORT` or
+`LAZYTOOLS_CODE_BRIDGE_CLAUDE_RELEASE_REPORT`. The default `auto` uses
+governed mode when eligible. Without a configured report it accepts the
+legacy profile names as ungoverned migration inputs. A configured but
+ineligible report causes a refusal. Pass `--launch-mode legacy` to select
+the explicitly ungoverned path. The job records its launch mode, requested
+network, effective profile, policy revision and digest, and release receipt
+when applicable. An operator can select a profile document with
+`LAZYTOOLS_CODE_BRIDGE_PROFILES`. Each continuation checks the same binding.
 
-Unknown commands or flags, abbreviations, environment/config overrides,
-wrappers, expansions, redirections, writes, deletes, credential reads, GitHub
-mutations (including `gh pr comment`), and unparseable or ambiguous syntax are
-always held for a human. Codex sandbox/network escalations are held even when
-their command would otherwise be on the allow-list.
-
-Every automatic decision is logged as `profile:review`. Cloud jobs do not run
-through the local gate and therefore reject `--profile review`.
-
-The profile intentionally remains narrower than the general read-only command
-catalog. In particular, `ruff`, `mypy`, `npm ci`, `git branch --show-current`,
-`git ls-files`, and combined pytest short flags such as `-qx` or `-vv` are known
-limits and are held for human approval. This preserves fail-closed behavior at
-the cost of occasional prompts for otherwise harmless reviewer commands.
+For a claimed Projects task, pass `--task-id PROJECT/TASK --claim-token TOKEN`.
+Configure `LAZYTOOLS_CODE_BRIDGE_TASK_PRINCIPAL` with the trusted executor's
+task principal, or use the dedicated MCP stdio host's `projects_task_principal`
+configuration. The claim controls placement, engine and the requested
+profile and network when specified. The bridge records the dispatch
+acknowledgement and local job ID. The MCP tool accepts the corresponding
+`profile`, `launch_mode`, `network`, `task_id`, and `claim_token` arguments.
 
 ### Routine auto-approval (R13)
 
-`BridgeGate` adds a **routine-auto** tier before the existing rule table,
-enabled by default. Every match creates and consumes an approved ticket in
-the same Store, with `approved_by = "routine-auto"`, `actor = "routine-auto"`,
-`matched_rule_id`, the original command and cwd. Auto-approvals are auditable
-under `code-bridge:approval:` and do not appear in `pending`. Escalations that
-miss the tier ask the human; older allow/session classifiers cannot override
-the validator. Protected Claude Bash command families (`git`, `gh`, configured
-Python) also ask on a miss, before the session/read-only fallbacks. Other
-native-tool policy remains in the rule table.
+`BridgeGate` enables **routine-auto** for ungoverned legacy writers by default.
+Every match creates and consumes a typed ticket in the shared registry and
+records the rule ID and decision actor `routine-auto`. Shell callbacks and
+command escalations that miss the tier ask the operator.
 
-### Claude Bash read-only allow-list
+### Legacy Claude Bash read-only allow-list
 
 `readonly_allowlist.toml`, packaged beside `routine_allowlist.toml`, lists exact
 command/subcommand tokens, permitted flags and value options, positional limits,
@@ -1314,19 +1290,16 @@ approved step**.
 
 ### Approvals: where the gate is for cloud jobs
 
-A local job's `BridgeGate` sits between the engine and every tool call on
-this machine, and files a ticket for gated ones (a push, a merge, a delete,
-a `gh` write). A cloud agent's tool calls happen on the provider's machine,
+A cloud agent's tool calls happen on the provider's machine,
 where no local gate can see them one by one. So the gate is applied **before
 submit** instead:
 
 - `--where cloud` requires an explicit operator flag, **`--allow-cloud`**;
   without it nothing is submitted or recorded.
-- A brief that requests anything the local gate would ask for is **refused**
+- A brief that requests a listed gated action is **refused**
   unless the operator approves each such action up front with
   `--approve-cloud <action>` (repeatable). Commands in the brief are
-  classified by the **same rule table** the local `BridgeGate` uses
-  (`_policy.CODING_RULES`): every ask or session rule maps to one action --
+  classified by the cloud brief rules (`_policy.CODING_RULES`). Actions include
   `push` (`git push origin main`, any push form), `pr-create` (`gh pr
   create`), `merge` (`gh pr merge`), `delete` (`rm …`, `… delete …`), `reset`
   (`git reset --hard`), `commit` (`git add`, `git commit`), `git-option`
@@ -1693,9 +1666,13 @@ record is marked `interrupted` rather than left stuck at `running` forever.
 `--session NAME` behaves exactly like `codex_write`/`claude_code_write`'s own
 `session_name`: an unused name opens a new Codex thread / Claude Code
 session and remembers it (in LazyBridge's own `SessionRegistry`,
-`~/.lazybridge/sessions.json` by default); a known name resumes it. Scoped
-per repository, so the same name in two different repos is two different
-sessions.
+`~/.lazybridge/sessions.json` by default). Legacy launches bind an existing
+pre-migration alias on its first resume. Subsequent resumes require the
+same policy and task claim, when present. Governed launches require a
+previously bound native handle. LazyBridge 1.9.0 refuses governed Claude
+resume across bridge jobs because the bindings live in the original SDK
+client. In-job continuation can reuse that client. Session aliases are
+scoped per repository and engine.
 
 ## Delegation method
 
