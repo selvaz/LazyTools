@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -122,50 +123,167 @@ def subprocess_bridge(tmp_path, monkeypatch):
     return repo
 
 
-@pytest.mark.parametrize("decision", ["approve", "reject"])
-def test_cli_detach_uses_typed_registry_across_processes(subprocess_bridge, monkeypatch, decision):
+@pytest.mark.parametrize(("mode", "decision"), [
+    ("default", "approve"),
+    ("explicit-default", "reject"),
+    ("sibling", "approve"),
+    ("sibling", "reject"),
+    ("override", "approve"),
+])
+def test_cli_detach_uses_typed_registry_across_processes(subprocess_bridge, monkeypatch, mode, decision):
     repo = subprocess_bridge
     monkeypatch.setenv("BRIDGE_TEST_APPROVAL", "1")
+    monkeypatch.chdir(repo.parent)
+    shared = Path(os.environ["LAZYTOOLS_PROJECTS_STORE_DB"])
+    isolated = mode in {"sibling", "override"}
+    db = _store.default_db_path() if not isolated else Path("job files/demo.db")
+    db_flags = [] if mode == "default" else ["--db", str(db)]
+    override = Path("approval files/custom.sqlite")
+    registry_flags = ["--registry-db", str(override)] if mode == "override" else []
+    expected_registry = shared
+    if mode == "sibling":
+        expected_registry = db.with_suffix(".registry.sqlite").resolve()
+    elif mode == "override":
+        expected_registry = override.resolve()
     code, out, err = command(
         "run", "--detach", "--engine", "codex", "--cwd", str(repo), "--root", str(repo.parent),
-        "--task", "Wait for one approval", "--profile", "default", "--json",
+        "--task", "Wait for one approval", "--profile", "default", "--json", *db_flags, *registry_flags,
     )
     assert code == 0, err
     launch = json.loads(out)
     assert (launch["profile"], launch["launch_mode"], launch["network"]) == ("edit-and-run", "ungoverned-legacy", "on")
     job = launch["job_id"]
+    if isolated:
+        assert launch["registry_db"] == str(expected_registry)
+    else:
+        assert "registry_db" not in launch
     deadline = time.monotonic() + 15
     pending = []
     while not pending and time.monotonic() < deadline:
-        code, out, err = command("pending", "--json")
+        code, out, err = command("pending", "--json", *db_flags)
         assert code == 0, err
         pending = json.loads(out)
     assert pending, Path(launch["log"]).read_text(encoding="utf-8")
     ticket_id = pending[0]["approval_id"]
     assert [(row["job_id"], row["approval_id"]) for row in pending] == [(job, ticket_id)]
-    code, out, err = command(decision, ticket_id, "--reason", "Test operator decision")
+    if isolated:
+        assert not shared.exists()
+        code, out, err = command("status", job, "--json", *db_flags, *registry_flags)
+        assert code == 0, err
+        assert json.loads(out)["registry_db"] == str(expected_registry)
+        code, out, err = command("wait-any", job, "--timeout", "0", *db_flags)
+        assert code == 0, err
+        assert json.loads(out)["approval"]["approval_id"] == ticket_id
+    if registry_flags:
+        assert not db.with_suffix(".registry.sqlite").exists()
+        code, out, err = command("pending", "--json", *db_flags, *registry_flags)
+        assert code == 0, err
+        assert json.loads(out) == pending
+    code, out, err = command(decision, ticket_id, "--reason", "Test operator decision", *db_flags)
     assert code == 0, (out, err)
-    code, out, err = command("wait", job, "--timeout", "15")
+    code, out, err = command("wait", job, "--timeout", "15", *db_flags, *registry_flags)
     assert code == (0 if decision == "approve" else 1), (out, err)
-    metadata = record(job)
+    store = _store.build_store(db)
+    metadata = _store.read_meta(store, job)
     assert metadata["registry_ticket_ids"] == [ticket_id]
-    ticket = ApprovalQueue(_registry.registry_store()).get_ticket(ticket_id)
+    assert metadata.get("registry_db") == launch.get("registry_db")
+    assert expected_registry.is_file()
+    ticket = ApprovalQueue(_registry.registry_store(expected_registry)).get_ticket(ticket_id)
     assert ticket.request.digest == pending[0]["action_digest"]
     assert ticket.request.payload["policy_digest"] == metadata["policy_digest"]
     assert ticket.status == ("approved" if decision == "approve" else "rejected")
     assert "Test operator decision" in ticket.decision.reason
     assert (ticket.consumed_at is not None) == (decision == "approve")
-    assert _store.build_approval_queue(_store.build_store()).get_ticket(ticket_id) is None
+    assert _store.build_approval_queue(store).get_ticket(ticket_id) is None
 
 
-def test_cancel_closes_typed_ticket(tmp_path, monkeypatch):
-    store = _store.build_store()
+def test_custom_job_store_finds_pre_isolation_shared_tickets(tmp_path, monkeypatch, capsys):
+    shared = tmp_path / "projects.sqlite"
+    monkeypatch.setenv("LAZYTOOLS_PROJECTS_STORE_DB", str(shared))
+    db = tmp_path / "demo.db"
+    sibling = db.with_suffix(".registry.sqlite")
+    store = _store.build_store(db)
+    jobs = _store.build_job_registry(store)
+    old_job, isolated_job = "pre-isolation", "isolated"
+    for job_id in (old_job, isolated_job):
+        jobs.write(job_id, "Run", tool_name="codex", status="awaiting_approval")
+    _store.write_meta(store, isolated_job, {"registry_db": str(sibling)})
+
+    def file_ticket(job_id, registry):
+        channel = _registry.ApprovalChannel(
+            registry, job_id, "revision", "digest", timedelta(minutes=1), 0.01,
+            lambda: None, lambda: None, lambda: None,
+        )
+        ticket, _ = channel._file(
+            ApprovalRequest(provider="codex", kind="command", name="shell", arguments={"command": "git status"}),
+            "Approval requested",
+        )
+        return ticket.approval_id
+
+    shared_registry = _registry.Registry(store, shared)
+    first = file_ticket(old_job, shared_registry)
+    second = file_ticket(old_job, shared_registry)
+    isolated = file_ticket(isolated_job, _registry.Registry(store, sibling))
+    misplaced = file_ticket(isolated_job, shared_registry)
+    other_store = _store.build_store(tmp_path / "other.db")
+    _store.build_job_registry(other_store).write("other-job", "Run", tool_name="codex", status="awaiting_approval")
+    unrelated = file_ticket("other-job", _registry.Registry(other_store, shared))
+    assert "registry_db" not in _store.read_meta(store, old_job)
+
+    flags = ["--db", str(db)]
+    assert cli.main(["pending", "--json", *flags]) == 0
+    assert {row["approval_id"] for row in json.loads(capsys.readouterr().out)} == {first, second, isolated}
+    assert cli.main(["wait-any", old_job, "--events", "approval", "--timeout", "0", *flags]) == 0
+    assert json.loads(capsys.readouterr().out)["approval"]["approval_id"] in {first, second}
+    assert cli.main(["approve", first, *flags]) == 0
+    assert cli.main(["reject", second, "--reason", "Test decision", *flags]) == 0
+    assert cli.main(["approve", misplaced, *flags]) == 1
+    assert cli.main(["reject", unrelated, "--reason", "Test decision", *flags]) == 1
+
+    shared_queue = shared_registry.queue
+    assert shared_queue.get_ticket(first).status == "approved"
+    assert shared_queue.get_ticket(second).status == "rejected"
+    assert shared_queue.get_ticket(misplaced).status == "pending"
+    assert shared_queue.get_ticket(unrelated).status == "pending"
+
+
+def test_operator_commands_do_not_create_missing_registries(tmp_path, capsys):
+    shared = Path(os.environ["LAZYTOOLS_PROJECTS_STORE_DB"])
+    db = tmp_path / "demo.db"
+    sibling = tmp_path / "demo.registry.sqlite"
+    override = tmp_path / "missing" / "override.sqlite"
+    both = tmp_path / "both.sqlite"
+    _store.write_meta(_store.build_store(db), "job", {"registry_db": str(override)})
+    for flags in (
+        [], ["--db", str(db)], ["--db", str(db), "--registry-db", str(override)],
+        ["--db", str(both), "--registry-db", str(both)],
+    ):
+        assert cli.main(["pending", "--json", *flags]) == 0
+        assert json.loads(capsys.readouterr().out) == []
+        assert cli.main(["approve", "missing-ticket", *flags]) == 1
+        assert cli.main(["reject", "missing-ticket", "--reason", "Test", *flags]) == 1
+        capsys.readouterr()
+    assert not shared.exists()
+    assert not sibling.exists()
+    assert not override.parent.exists()
+    assert not both.exists()
+
+
+@pytest.mark.parametrize("isolated", [False, True])
+def test_cancel_closes_typed_ticket(tmp_path, monkeypatch, isolated):
+    db = tmp_path / "demo.sqlite" if isolated else None
+    registry_db = tmp_path / "custom.sqlite" if isolated else None
+    db_flags = ["--db", str(db)] if db else []
+    store = _store.build_store(db)
+    registry = _registry.Registry(store, registry_db)
     job_id = "cancel-native"
     _store.build_job_registry(store).write(job_id, "Run", tool_name="codex", status="awaiting_approval")
     pid = 12345
-    _store.write_meta(store, job_id, {"pid": pid, "cwd": str(tmp_path)})
+    _store.write_meta(store, job_id, {
+        "pid": pid, "cwd": str(tmp_path), **({"registry_db": str(registry_db)} if registry_db else {}),
+    })
     channel = _registry.ApprovalChannel(
-        _registry.Registry(store), job_id, "revision", "digest", timedelta(minutes=1), 0.01,
+        registry, job_id, "revision", "digest", timedelta(minutes=1), 0.01,
         lambda: None, lambda: None, lambda: None,
     )
     ticket, _ = channel._file(
@@ -176,13 +294,14 @@ def test_cancel_closes_typed_ticket(tmp_path, monkeypatch):
     monkeypatch.setattr(_lockfile, "_pid_alive", alive.__contains__)
     monkeypatch.setattr(cli, "_process_matches_bridge", lambda _: True)
     monkeypatch.setattr(cli, "_kill_process_tree", lambda pid, **kwargs: alive.remove(pid))
-    assert cli.main(["cancel", job_id, "--reason", "Cancelled by the test operator"]) == 0
-    assert record(job_id)["status"] == "interrupted"
-    assert record(job_id)["registry_ticket_ids"] == [ticket.approval_id]
-    decided = ApprovalQueue(_registry.registry_store()).get_ticket(ticket.approval_id)
+    assert cli.main(["cancel", job_id, "--reason", "Cancelled by the test operator", *db_flags]) == 0
+    metadata = _jobs.find_job(store, _store.build_job_registry(store), job_id)
+    assert metadata["status"] == "interrupted"
+    assert metadata["registry_ticket_ids"] == [ticket.approval_id]
+    decided = registry.queue.get_ticket(ticket.approval_id)
     assert decided.decision.verdict == "rejected"
     assert decided.consumed_at is None
-    assert cli.main(["approve", ticket.approval_id]) == 1
+    assert cli.main(["approve", ticket.approval_id, *db_flags]) == 1
 
 
 def test_mcp_submits_and_worker_validates_claim(subprocess_bridge):
@@ -218,7 +337,8 @@ def test_mcp_submits_and_worker_validates_claim(subprocess_bridge):
     assert "claim_token" not in metadata
 
 
-def test_claimed_approval_consumes_only_for_its_dispatch(monkeypatch):
+@pytest.mark.parametrize("isolated", [False, True])
+def test_claimed_approval_consumes_only_for_its_dispatch(tmp_path, monkeypatch, isolated):
     path = os.environ["LAZYTOOLS_PROJECTS_STORE_DB"]
     projects = ProjectsTools(store_db=path, allow_write=True)
     projects.projects_create(PROJECT, "Bridge test", "Exercise the approval fence")
@@ -232,11 +352,12 @@ def test_claimed_approval_consumes_only_for_its_dispatch(monkeypatch):
     job_id = "claimed-native"
     service.begin_submit(WORKER, task_id, token)
     service.record_submit(WORKER, task_id, token, job_id)
-    registry = _registry.Registry(_store.build_store())
+    registry = _registry.Registry(_store.build_store(), tmp_path / "registry.sqlite" if isolated else None)
+    consume = partial(binding.consume_approval, registry=registry)
     channel = _registry.ApprovalChannel(
         registry, job_id, "revision", "digest", timedelta(minutes=1), 0.01,
         lambda: None, lambda: None, lambda: binding.recheck(job_id), task_id=task_id, actor=WORKER.actor,
-        attempt=receipt["attempt"], fenced_consume=binding.consume_approval,
+        attempt=receipt["attempt"], fenced_consume=consume,
     )
     ticket, executor = channel._file(
         ApprovalRequest(provider="codex", kind="command", name="shell", arguments={"command": "git status"}),
@@ -244,7 +365,7 @@ def test_claimed_approval_consumes_only_for_its_dispatch(monkeypatch):
     )
     assert registry.decide(ticket, "approved", "operator", "Confirmed")
     with pytest.raises(TaskServiceError, match="no longer belongs"):
-        binding.consume_approval("wrong-job", ticket.approval_id, executor)
+        consume("wrong-job", ticket.approval_id, executor)
     assert not channel._consume(ticket, executor.model_copy(update={"digest": "wrong-digest"}))
     assert channel._consume(ticket, executor)
     assert not channel._consume(ticket, executor)

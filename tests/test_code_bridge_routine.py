@@ -189,7 +189,9 @@ def test_unmatched_command_still_files_pending_ticket(policy, tmp_path, monkeypa
                            task="x", db_path=tmp_path / "jobs.sqlite")
     assert result.status == "failed"
     meta = _store.read_meta(_store.build_store(tmp_path / "jobs.sqlite"), result.job_id)
-    ticket = ApprovalQueue(_registry.registry_store()).get_ticket(meta["registry_ticket_ids"][0])
+    ticket = ApprovalQueue(_registry.registry_store(tmp_path / "jobs.registry.sqlite")).get_ticket(
+        meta["registry_ticket_ids"][0]
+    )
     assert ticket.status == "expired"
     assert "Stop-Process" in ticket.prompt
 
@@ -204,7 +206,9 @@ def test_job_uses_routine_tier_by_default(policy, tmp_path, monkeypatch):
     assert result.status == "done"
     store = _store.build_store(tmp_path / "jobs.sqlite")
     meta = _store.read_meta(store, result.job_id)
-    ticket = ApprovalQueue(_registry.registry_store()).get_ticket(meta["registry_ticket_ids"][0])
+    ticket = ApprovalQueue(_registry.registry_store(tmp_path / "jobs.registry.sqlite")).get_ticket(
+        meta["registry_ticket_ids"][0]
+    )
     assert ticket.decision.decider == "routine-auto"
     assert ticket.request.payload["rule_id"] == "git-fetch"
     assert ticket.consumed_at
