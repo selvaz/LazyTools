@@ -197,6 +197,56 @@ def test_cli_detach_uses_typed_registry_across_processes(subprocess_bridge, monk
     assert _store.build_approval_queue(store).get_ticket(ticket_id) is None
 
 
+def test_custom_job_store_finds_pre_isolation_shared_tickets(tmp_path, monkeypatch, capsys):
+    shared = tmp_path / "projects.sqlite"
+    monkeypatch.setenv("LAZYTOOLS_PROJECTS_STORE_DB", str(shared))
+    db = tmp_path / "demo.db"
+    sibling = db.with_suffix(".registry.sqlite")
+    store = _store.build_store(db)
+    jobs = _store.build_job_registry(store)
+    old_job, isolated_job = "pre-isolation", "isolated"
+    for job_id in (old_job, isolated_job):
+        jobs.write(job_id, "Run", tool_name="codex", status="awaiting_approval")
+    _store.write_meta(store, isolated_job, {"registry_db": str(sibling)})
+
+    def file_ticket(job_id, registry):
+        channel = _registry.ApprovalChannel(
+            registry, job_id, "revision", "digest", timedelta(minutes=1), 0.01,
+            lambda: None, lambda: None, lambda: None,
+        )
+        ticket, _ = channel._file(
+            ApprovalRequest(provider="codex", kind="command", name="shell", arguments={"command": "git status"}),
+            "Approval requested",
+        )
+        return ticket.approval_id
+
+    shared_registry = _registry.Registry(store, shared)
+    first = file_ticket(old_job, shared_registry)
+    second = file_ticket(old_job, shared_registry)
+    isolated = file_ticket(isolated_job, _registry.Registry(store, sibling))
+    misplaced = file_ticket(isolated_job, shared_registry)
+    other_store = _store.build_store(tmp_path / "other.db")
+    _store.build_job_registry(other_store).write("other-job", "Run", tool_name="codex", status="awaiting_approval")
+    unrelated = file_ticket("other-job", _registry.Registry(other_store, shared))
+    assert "registry_db" not in _store.read_meta(store, old_job)
+
+    flags = ["--db", str(db)]
+    assert cli.main(["pending", "--json", *flags]) == 0
+    assert {row["approval_id"] for row in json.loads(capsys.readouterr().out)} == {first, second, isolated}
+    assert cli.main(["wait-any", old_job, "--events", "approval", "--timeout", "0", *flags]) == 0
+    assert json.loads(capsys.readouterr().out)["approval"]["approval_id"] in {first, second}
+    assert cli.main(["approve", first, *flags]) == 0
+    assert cli.main(["reject", second, "--reason", "Test decision", *flags]) == 0
+    assert cli.main(["approve", misplaced, *flags]) == 1
+    assert cli.main(["reject", unrelated, "--reason", "Test decision", *flags]) == 1
+
+    shared_queue = shared_registry.queue
+    assert shared_queue.get_ticket(first).status == "approved"
+    assert shared_queue.get_ticket(second).status == "rejected"
+    assert shared_queue.get_ticket(misplaced).status == "pending"
+    assert shared_queue.get_ticket(unrelated).status == "pending"
+
+
 def test_operator_commands_do_not_create_missing_registries(tmp_path, capsys):
     shared = Path(os.environ["LAZYTOOLS_PROJECTS_STORE_DB"])
     db = tmp_path / "demo.db"

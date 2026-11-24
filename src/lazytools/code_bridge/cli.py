@@ -96,19 +96,23 @@ def _ticket_job_store(args: argparse.Namespace) -> Any:
 
 def _operator_registries(
     args: argparse.Namespace, store: Any, *, jobs: Iterable[dict[str, Any]] | None = None,
-) -> Iterator[_registry.Registry]:
+) -> Iterator[tuple[_registry.Registry, set[str] | None]]:
     primary = _registry.Registry(store, _selected_registry_db(args))
-    yield primary
+    yield primary, None
     if args.registry_db is not None:
         return
     if jobs is None:
-        jobs = (meta for _, meta in store.items(prefix=_store.META_PREFIX) if isinstance(meta, dict))
-    seen = {primary.path}
+        jobs = _jobs.list_jobs(store, all_jobs=True)
+    # Older jobs have no saved path and still use the shared projects registry.
+    # Scope discovered registries so a custom job store cannot see other jobs' tickets.
+    jobs_by_path: dict[Path | None, set[str]] = {}
     for job in jobs:
-        path = _registry.recorded_path(job)
-        if path is not None and path not in seen:
-            seen.add(path)
-            yield _registry.Registry(store, path)
+        if job_id := job.get("job_id"):
+            jobs_by_path.setdefault(_registry.recorded_path(job), set()).add(str(job_id))
+    for path, job_ids in jobs_by_path.items():
+        registry = _registry.Registry(store, path)
+        if registry.path != primary.path:
+            yield registry, job_ids
 
 
 def _pending_tickets(
@@ -116,8 +120,9 @@ def _pending_tickets(
 ) -> list[ApprovalTicket]:
     tickets = {
         ticket.approval_id: ticket
-        for registry in _operator_registries(args, store, jobs=jobs)
+        for registry, job_ids in _operator_registries(args, store, jobs=jobs)
         for ticket in registry.pending()
+        if job_ids is None or _registry.job_ref(ticket) in job_ids
     }
     return sorted(tickets.values(), key=lambda ticket: ticket.created_at)
 
@@ -1691,15 +1696,19 @@ def _cmd_pending(args: argparse.Namespace) -> int:
 def _cmd_decide(args: argparse.Namespace, action: Literal["approve", "reject"]) -> int:
     store = _ticket_job_store(args)
     verdict: Literal["approved", "rejected"] = "approved" if action == "approve" else "rejected"
-    for registry in _operator_registries(args, store):
-        if (ticket := registry.inspect(args.ticket_id)) is not None:
-            if registry.decide(ticket, verdict, args.actor, args.reason):
-                job_id = _registry.job_ref(ticket)
-                if _store.read_meta(store, job_id) is not None:
-                    _record_intervention(store, job_id, action, args.reason)
-                print(f"{verdict} {args.ticket_id}")
-                return 0
+    for registry, job_ids in _operator_registries(args, store):
+        ticket = registry.inspect(args.ticket_id)
+        if ticket is None:
+            continue
+        job_id = _registry.job_ref(ticket)
+        if job_ids is not None and job_id not in job_ids:
+            continue
+        if not registry.decide(ticket, verdict, args.actor, args.reason):
             break
+        if _store.read_meta(store, job_id) is not None:
+            _record_intervention(store, job_id, action, args.reason)
+        print(f"{verdict} {args.ticket_id}")
+        return 0
     print(f"could not {action} {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
     return 1
 
