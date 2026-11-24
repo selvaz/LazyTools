@@ -125,7 +125,7 @@ async def test_real_sdk_rechecks_list_and_call_on_an_existing_connection(workspa
     async with connected_client(server) as client:
         by_name = {tool.name: tool for tool in (await client.list_tools()).tools}
         assert set(by_name) == {"codex_ask", "code_sessions_list"}
-        assert protocol_field(by_name["codex_ask"].annotations, "read_only_hint", "readOnlyHint") is False
+        assert protocol_field(by_name["codex_ask"].annotations, "read_only_hint", "readOnlyHint") is True
         assert protocol_field(by_name["code_sessions_list"].annotations, "read_only_hint", "readOnlyHint") is True
         for name in ("codex_write", "codex_review_changes", "sounds_read_only", "code_sessions_forget"):
             result_error(await client.call_tool(name, {}))
@@ -146,6 +146,39 @@ async def test_real_sdk_rechecks_list_and_call_on_an_existing_connection(workspa
         assert {tool.name for tool in (await client.list_tools()).tools} == {"code_sessions_list"}
         result_error(await client.call_tool("codex_ask", {"question": "Reuse prior runtime evidence"}))
     assert script.prompts == ["Explain this API"]
+
+
+async def test_code_tool_annotations_distinguish_reads_and_writes(workspace):
+    root = str(workspace)
+    providers = [
+        codex_consultant(root=root),
+        claude_consultant(root=root),
+        codex_reviewer(root=root),
+        claude_reviewer(root=root),
+        codex_native_reviewer(root=root),
+        CodeWriteTools(base_dir=root, codex=True),
+        CodeSessionTools(root=root, allow_mutate=True),
+        CodeBridgeTools(root=root),
+    ]
+    server = build_server(providers, read_only=False)
+    async with connected_client(server) as client:
+        annotations = {tool.name: tool.annotations for tool in (await client.list_tools()).tools}
+
+    readers = {
+        "codex_ask", "claude_ask", "codex_code_review", "claude_code_review", "codex_review_changes",
+        "code_sessions_list", "code_bridge_status", "code_bridge_result",
+    }
+    writers = {
+        "codex_write", "claude_code_write", "code_sessions_bind", "code_sessions_rename", "code_sessions_forget",
+        "code_bridge_submit",
+    }
+    assert set(annotations) == readers | writers
+    for name in readers:
+        assert protocol_field(annotations[name], "read_only_hint", "readOnlyHint") is True, name
+        assert protocol_field(annotations[name], "destructive_hint", "destructiveHint") is not True, name
+    for name in writers:
+        assert protocol_field(annotations[name], "read_only_hint", "readOnlyHint") is False, name
+        assert protocol_field(annotations[name], "destructive_hint", "destructiveHint") is True, name
 
 
 @pytest.mark.parametrize("factory", [codex_consultant, claude_consultant, codex_reviewer, claude_reviewer])

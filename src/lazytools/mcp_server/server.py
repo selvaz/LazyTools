@@ -434,9 +434,14 @@ def _mcp_tool_models(types: Any, tool_map: dict[str, Tool]) -> list[Any]:
         definition = tool.definition()
         provider_id = provider_ids.get(tool.name)
         if tool.name in CODE_ACCESS:
-            # Native reviews and advice persist sessions and may use provider
-            # services. Bridge status/result can poll and land cloud jobs.
-            read_only = tool.name == "code_sessions_list"
+            # Submit has read admission because the requested job profile is
+            # checked at invocation, but it can still launch a writer.
+            read_only = (
+                CODE_ACCESS[tool.name] == "read"
+                and tool.name != "code_bridge_submit"
+                and tool.policy_grant == "read"
+                and getattr(tool, "_lazytools_code_root", None) is not None
+            )
         elif provider_id is not None:
             # Imported here to retain the server/catalog import boundary:
             # catalog uses is_unsafe_tool_name as its shared write rule.
