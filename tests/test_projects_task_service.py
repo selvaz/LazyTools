@@ -148,13 +148,15 @@ def test_fallback_ready_age_survives_unchanged_negative_cloud_checks(queue):
 def test_route_quarantine_and_fresh_clearance(queue):
     projects, service = queue
     admit(projects, [task("a", repo="org/repo"), task("b", repo="org/repo"),
-                     task("other", repo="org/other")])
+                     task("other", repo="org/other"), task("held", repo="org/repo"),
+                     task("waiting", repo="org/repo", dependency_ids=["a"])])
     def probe(name, reference, environment="env"):
         service.record_placement(f"{PROJECT}/{name}", revision(service, name), PlacementEvidence(
             placement="local", eligible=True, reason="Green", reference=reference,
             expires_at=service.clock() + 1000, engine_family="codex", environment_id=environment))
-    for name in ("a", "b", "other"):
+    for name in ("a", "b", "other", "held", "waiting"):
         probe(name, "initial")
+    assert "scheduled" in projects.projects_schedule_task(PROJECT, 3, "Produce held", "Waiting for input", hold=True)
     def fail(key, outcome):
         receipt = claim(service, "a", key)
         ref = evidence(service, receipt, submit(service, receipt), state="rework", outcome=outcome)
@@ -170,7 +172,9 @@ def test_route_quarantine_and_fresh_clearance(queue):
         claim(service, "b")
     assert refusal.value.code == "route_quarantined"
     assert [item["task_id"] for item in ready(service)] == [f"{PROJECT}/other"]
-    assert service.queue_metrics(OPERATOR)["overall"]["blocked"]["route_quarantined"] == 2
+    blocked = service.queue_metrics(OPERATOR)["overall"]["blocked"]
+    assert blocked["route_quarantined"] == 4
+    assert blocked["hold"] == 1 and blocked["unmet_dependency"] == 1
     with pytest.raises(TaskServiceError, match="fresh"):
         service.route_clear(OPERATOR, f"{PROJECT}/b", "Verified recovery")
     service.clock.now += 1

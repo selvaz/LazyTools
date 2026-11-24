@@ -325,9 +325,10 @@ class ProjectTaskService:
                     if data.get("start_hold"):
                         reasons.append("hold")
                     ready = _ready(task, now)
-                    if _placement(task, now)[0] is None:
+                    eligible, _ = _placement(task, now)
+                    if eligible is None:
                         reasons.append("missing_placement_evidence")
-                    route = _route(task, ready[1]) if ready else None
+                    route = _route(task, eligible) if eligible else None
                     route_state = store.read(_route_key(*route), {}) if route else {}
                     if route_state.get("quarantined"):
                         reasons.append("route_quarantined")
