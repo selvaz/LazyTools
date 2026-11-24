@@ -12,7 +12,7 @@ TIERS = ("basic", "writing", "thinking", "critical")
 PLACEMENTS = ("local", "cloud")
 _TEXT_FIELDS = (
     "task_id", "parent_id", "requested_profile", "placement_reason", "preflight_ref",
-    "repo", "assigned_branch",
+    "repo", "assigned_branch", "review_of",
 )
 
 
@@ -58,6 +58,9 @@ def validate_dependencies(tasks: list[dict[str, Any]]) -> None:
     graph = {task_id(task, index): task.get("dependency_ids", []) for index, task in enumerate(tasks)}
     if len(graph) != len(tasks):
         raise ValueError("duplicate task_id")
+    for index, task in enumerate(tasks):
+        if task.get("review_of") and task["review_of"] not in graph[task_id(task, index)]:
+            raise ValueError("review_of must also be listed in dependency_ids")
     for identifier, dependencies in graph.items():
         for dependency in dependencies:
             if dependency not in graph:

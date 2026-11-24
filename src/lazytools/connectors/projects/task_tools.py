@@ -7,7 +7,7 @@ from typing import Any
 
 from lazybridge import Tool
 
-from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
+from lazytools.projects.task_service import ProjectTaskService, ResultState, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError
 
 
@@ -17,8 +17,10 @@ class TaskTools:
         self.principal = principal
         self.allow_write = allow_write
 
-    def _call(self, operation: Callable[..., dict[str, Any]], *args: Any) -> dict[str, Any]:
+    def _call(self, operation: Callable[..., dict[str, Any]], *args: Any, write: bool = False) -> dict[str, Any]:
         try:
+            if write and not self.allow_write:
+                raise TaskServiceError("forbidden", "This host is read-only")
             return {"ok": True, **operation(self.principal, *args)}
         except TaskServiceError as exc:
             return {"ok": False, "error": {"code": exc.code, "message": str(exc)}}
@@ -29,12 +31,18 @@ class TaskTools:
 
     def tasks_claim(self, task_id: str, expected_revision: str, idempotency_key: str) -> dict[str, Any]:
         """Reserve ready work and durably record its dispatch intent."""
-        if not self.allow_write:
-            return {"ok": False, "error": {"code": "forbidden", "message": "This host is read-only"}}
-        return self._call(self.service.claim, task_id, expected_revision, idempotency_key)
+        return self._call(self.service.claim, task_id, expected_revision, idempotency_key, write=True)
+
+    def tasks_complete(
+        self, task_id: str, claim_token: str, idempotency_key: str, result_state: ResultState, evidence_ref: str
+    ) -> dict[str, Any]:
+        """Complete the active attempt using an independently recorded result reference."""
+        return self._call(
+            self.service.complete, task_id, claim_token, idempotency_key, result_state, evidence_ref, write=True
+        )
 
     def as_tools(self) -> list[Tool]:
         methods = [self.tasks_next_ready]
         if self.allow_write and self.principal.role in ("worker", "orchestrator"):
-            methods.append(self.tasks_claim)
+            methods.extend((self.tasks_claim, self.tasks_complete))
         return [Tool.wrap(method, name=method.__name__, strict=True) for method in methods]

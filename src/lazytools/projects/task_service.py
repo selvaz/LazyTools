@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
@@ -11,12 +14,16 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, FiniteFloat, StringConstraints
 from typing_extensions import Annotated
 
+from lazytools.projects.contracts import find_contract_for_task
 from lazytools.projects.plan_edit import _board_key
-from lazytools.projects.records import get_project
+from lazytools.projects.records import get_project, touch_project_progress
 from lazytools.projects.task_fields import Placement, task_id
 from lazytools.projects.task_store import TaskServiceError, TransactionStore, transaction
+from lazytools.projects.verification import get_verification, get_verification_for_contract
 
 Nonempty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+ResultState = Literal["accepted", "blocked", "rework"]
+_COMMIT_SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 
 
 class TaskPrincipal(BaseModel):
@@ -46,6 +53,21 @@ class PlacementEvidence(BaseModel):
     reference: Nonempty
     expires_at: FiniteFloat
     engine_family: Nonempty
+
+
+class CompletionEvidence(BaseModel):
+    """An independently observed terminal provider receipt."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    reference: Nonempty
+    job_ref: Nonempty
+    executor: Nonempty
+    engine_family: Nonempty
+    state: ResultState
+    artifact_ref: Nonempty | None = None
+    verification_id: Nonempty | None = None
+    reviewed_sha: Nonempty | None = None
+    review_passed: bool = False
 
 
 @dataclass
@@ -83,10 +105,24 @@ def _load_task(store: TransactionStore, identifier: str) -> BoardTask:
 
 def _dependencies(task: BoardTask) -> list[dict[str, Any]]:
     by_id = {task_id(item, index): item for index, item in enumerate(task.board["tasks"])}
-    return [
-        {"task_id": f"{task.project_id}/{dependency}", "status": by_id.get(dependency, {}).get("status", "missing")}
-        for dependency in task.data.get("dependency_ids", [])
-    ]
+    dependencies = []
+    for dependency in task.data.get("dependency_ids", []):
+        entry = by_id.get(dependency, {})
+        status = entry.get("status", "missing")
+        summary = {"task_id": f"{task.project_id}/{dependency}", "status": status}
+        if entry.get("dispatches") and status == "done":
+            completed = entry["dispatches"][-1].get("completion", {}).get("result", {})
+            if completed.get("state") != "accepted":
+                summary["status"] = "unverified"
+            else:
+                summary.update(
+                    artifact_ref=completed["artifact_ref"],
+                    engine_family=completed["engine_family"],
+                    executor=completed["executor"],
+                    attempt=completed["attempt"],
+                )
+        dependencies.append(summary)
+    return dependencies
 
 
 def _placement(task: BoardTask, now: float) -> tuple[PlacementEvidence | None, str]:
@@ -181,11 +217,14 @@ def _release(task: BoardTask) -> None:
 
 
 class ProjectTaskService:
-    def __init__(self, store_db: str | None, *, lease_seconds: int = 900):
+    def __init__(
+        self, store_db: str | None, *, lease_seconds: int = 900, clock: Callable[[], float] = time.time
+    ):
         self.path = Path(store_db).resolve() if store_db and store_db != ":memory:" else None
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
         self.lease_seconds = lease_seconds
+        self.clock = clock
 
     def record_placement(self, task_id: str, revision: str, evidence: PlacementEvidence) -> None:
         """Persist an executor's preflight/runtime observation. Host operation."""
@@ -197,7 +236,7 @@ class ProjectTaskService:
                 "revision": revision,
                 "evidence": evidence.model_dump(mode="json"),
             }
-            task.save(store, time.time())
+            task.save(store, self.clock())
 
     def next_ready(
         self, principal: TaskPrincipal, project_id: str, limit: int = 20, cursor: int | None = None
@@ -211,7 +250,7 @@ class ProjectTaskService:
             board = store.read(_board_key(project_id))
             if project is None or project.status != "open" or board is None:
                 return {"tasks": [], "next_cursor": None}
-            now = time.time()
+            now = self.clock()
             items = []
             next_cursor = None
             for index in range(0 if cursor is None else cursor + 1, len(board["tasks"])):
@@ -242,7 +281,7 @@ class ProjectTaskService:
             if task.revision != expected_revision:
                 raise TaskServiceError("stale", "Task revision changed")
             _require_open(store, task.project_id)
-            now = time.time()
+            now = self.clock()
             ready = _ready(task, now)
             if ready is None:
                 raise TaskServiceError("conflict", "Task is no longer ready")
@@ -273,7 +312,7 @@ class ProjectTaskService:
         with transaction(self.path, write=True) as store:
             task = _scoped_task(store, principal, task_id)
             _require_open(store, task.project_id)
-            now = time.time()
+            now = self.clock()
             dispatch = _fenced_dispatch(task, principal, claim_token, now)
             if dispatch["state"] != "intent":
                 raise TaskServiceError("conflict", "Dispatch already started and must be reconciled")
@@ -282,7 +321,7 @@ class ProjectTaskService:
             if (
                 placement is None or placement.placement != receipt["effective_placement"]
                 or placement.engine_family != receipt["engine_family"] or placement.reference != receipt["preflight_ref"]
-                or any(dep["status"] != "done" for dep in _dependencies(task))
+                or _dependencies(task) != receipt["dependencies"]
                 or task.data.get("start_hold")
             ):
                 raise TaskServiceError("stale", "Dispatch prerequisites changed after the claim")
@@ -295,7 +334,7 @@ class ProjectTaskService:
             raise TaskServiceError("invalid", "Provider job reference is required")
         with transaction(self.path, write=True) as store:
             task = _scoped_task(store, principal, task_id)
-            now = time.time()
+            now = self.clock()
             dispatch = _fenced_dispatch(task, principal, claim_token, now, allow_expired=True)
             if dispatch["state"] == "submitted" and dispatch["job_ref"] == job_ref:
                 return
@@ -332,7 +371,7 @@ class ProjectTaskService:
             receipt = dispatch["receipt"]
             if receipt["attempt"] != attempt:
                 raise TaskServiceError("stale", "Dispatch attempt has been superseded")
-            now = time.time()
+            now = self.clock()
             if observation not in ("absent", "submitted", "ambiguous", "terminated"):
                 raise TaskServiceError("invalid", "Unknown provider observation")
             if dispatch["state"] == "intent" and observation != "absent":
@@ -340,7 +379,7 @@ class ProjectTaskService:
             if dispatch["state"] != "intent" and not (evidence_ref or "").strip():
                 raise TaskServiceError("invalid", "Provider reconciliation evidence is required")
             known_job = dispatch.get("job_ref")
-            if observation == "absent" and known_job or known_job and job_ref and known_job != job_ref:
+            if known_job and (observation == "absent" or job_ref and known_job != job_ref):
                 raise TaskServiceError("conflict", "Provider observation conflicts with the recorded job")
             if observation in ("submitted", "terminated") and not (job_ref or "").strip():
                 raise TaskServiceError("invalid", "Provider job reference is required")
@@ -354,3 +393,113 @@ class ProjectTaskService:
                 dispatch["job_ref"] = job_ref
             dispatch.update(state=observation, reconciliation_ref=evidence_ref, reconciled_at=now)
             task.save(store, now)
+
+    def record_completion_evidence(
+        self, principal: TaskPrincipal, task_id: str, attempt: int, evidence: CompletionEvidence
+    ) -> None:
+        """Attach a trusted reconciler's immutable result to the matching provider job."""
+        principal.require_role("orchestrator")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, task_id)
+            dispatch = _active_dispatch(task)
+            receipt = dispatch["receipt"]
+            if receipt["attempt"] != attempt:
+                raise TaskServiceError("stale", "Dispatch attempt has been superseded")
+            if (
+                dispatch["state"] != "submitted" or evidence.job_ref != dispatch["job_ref"]
+                or evidence.executor != receipt["executor"] or evidence.engine_family != receipt["engine_family"]
+            ):
+                raise TaskServiceError("stale", "Evidence does not match the submitted job, executor and engine")
+            record = evidence.model_dump(mode="json")
+            records = dispatch.setdefault("evidence", {})
+            if evidence.reference in records:
+                if records[evidence.reference] != record:
+                    raise TaskServiceError("conflict", "Evidence reference already binds a different result")
+                return
+            records[evidence.reference] = record
+            dispatch["current_evidence"] = evidence.reference
+            task.save(store, self.clock())
+
+    def complete(
+        self, principal: TaskPrincipal, task_id: str, claim_token: str, idempotency_key: str,
+        result_state: ResultState, evidence_ref: str,
+    ) -> dict[str, Any]:
+        principal.require_role("worker", "orchestrator")
+        if result_state not in ("accepted", "blocked", "rework") or not idempotency_key.strip() or not evidence_ref.strip():
+            raise TaskServiceError("invalid", "Completion requires a result, idempotency key and evidence reference")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, task_id)
+            replay_binding = [claim_token, principal.actor, result_state, evidence_ref]
+            for previous in task.data.get("dispatches", []):
+                completed = previous.get("completion")
+                if completed is not None and completed["idempotency_key"] == idempotency_key:
+                    if completed["binding"] != replay_binding:
+                        raise TaskServiceError("conflict", "Completion idempotency key has already been used")
+                    return {"completion": completed["result"]}
+            now = self.clock()
+            dispatch = _fenced_dispatch(task, principal, claim_token, now)
+            _require_open(store, task.project_id)
+            if dispatch.get("unresolved_effects"):
+                raise TaskServiceError("unresolved", "Reconcile outstanding effects before completing the task")
+            if dispatch["state"] != "submitted" or dispatch.get("current_evidence") != evidence_ref:
+                raise TaskServiceError("stale", "Completion needs current evidence for the submitted job")
+            evidence = CompletionEvidence.model_validate(dispatch["evidence"][evidence_ref])
+            if evidence.state != result_state:
+                raise TaskServiceError("conflict", "Result state differs from the trusted evidence")
+            if result_state == "accepted":
+                _validate_acceptance(store, task, dispatch, evidence)
+            result = {
+                "task_id": task_id, "revision": task.revision, "attempt": dispatch["receipt"]["attempt"],
+                "state": result_state, "evidence_ref": evidence_ref, "artifact_ref": evidence.artifact_ref,
+                "verification_id": evidence.verification_id, "engine_family": evidence.engine_family,
+                "executor": evidence.executor, "reviewed_sha": evidence.reviewed_sha, "completed_at": now,
+            }
+            dispatch.update(
+                state="completed",
+                completion={"idempotency_key": idempotency_key, "binding": replay_binding, "result": result},
+            )
+            _release(task)
+            if result_state == "accepted":
+                task.data.update(status="done", completed_at=now, result=evidence_ref, error="")
+                touch_project_progress(store, task.project_id, now=datetime.fromtimestamp(now, UTC))
+            elif result_state == "blocked":
+                task.data.update(status="failed", completed_at=now, error=evidence_ref)
+            else:
+                task.data.update(completed_at=None, error=evidence_ref)
+            task.save(store, now)
+            return {"completion": result}
+
+
+def _validate_acceptance(
+    store: TransactionStore, task: BoardTask, dispatch: dict[str, Any], evidence: CompletionEvidence
+) -> None:
+    dependencies = _dependencies(task)
+    if dependencies != dispatch["receipt"]["dependencies"]:
+        raise TaskServiceError("stale", "Dependency acceptance changed during the run")
+    contract = find_contract_for_task(store, task.project_id, task.index)
+    marker = task.data.get("contract_id")
+    if marker and (contract is None or contract.contract_id != marker):
+        raise TaskServiceError("unavailable", "The task's acceptance contract is unavailable")
+    review_of = task.data.get("review_of")
+    code_task = task.data.get("repo") or contract is not None or review_of
+    if not evidence.artifact_ref or code_task and not _COMMIT_SHA.fullmatch(evidence.artifact_ref):
+        raise TaskServiceError("invalid", "Accepted completion requires an immutable artifact reference")
+    if contract is not None:
+        verification = get_verification(store, evidence.verification_id or "")
+        if (
+            verification is None or verification.verification_id != evidence.verification_id
+            or verification.status != "accepted" or verification.job_id != evidence.job_ref
+            or verification.contract_id != contract.contract_id
+            or get_verification_for_contract(store, contract.contract_id) != verification
+        ):
+            raise TaskServiceError("stale", "The job needs its latest accepted contract verification")
+    if review_of:
+        writer = next(dep for dep in dependencies if dep["task_id"] == f"{task.project_id}/{review_of}")
+        writer_sha = writer.get("artifact_ref")
+        engines = {writer.get("engine_family"), evidence.engine_family}
+        if (
+            writer_sha is None or evidence.reviewed_sha != writer_sha or evidence.artifact_ref != writer_sha
+            or engines != {"codex", "claude_code"} or writer.get("executor") == evidence.executor
+            or not evidence.review_passed
+        ):
+            raise TaskServiceError("invalid", "Review must pass on the writer's exact commit with the opposite engine")
