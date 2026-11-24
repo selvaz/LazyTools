@@ -2402,6 +2402,7 @@ def build_parser() -> argparse.ArgumentParser:
     publish_p.add_argument("--branch", required=True)
     publish_p.add_argument("--base", default="main")
     publish_p.add_argument("--ticket", metavar="ID", help="Use this typed publication ticket.")
+    publish_p.add_argument("--request-only", action="store_true", help="File or inspect the ticket without publishing.")
     _add_registry_option(publish_p)
     publish_p.set_defaults(func=_cmd_publish)
 
@@ -2480,6 +2481,7 @@ def _cmd_publish(args: argparse.Namespace) -> int:
             policy_revision=policy.revision or "publication-v1",
             policy_digest=policy.digest,
             ticket_id=args.ticket,
+            request_only=args.request_only,
         )
         receipt = _receipts.finish(
             receipt,

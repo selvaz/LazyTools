@@ -75,11 +75,13 @@ def default_branch(repo: str) -> str:
     return name
 
 
-def pr_view(repo: str, number: int, *, publication: bool = False) -> dict[str, Any]:
+def pr_view(repo: str, number: int, *, publication: bool = False, timing: bool = False) -> dict[str, Any]:
     """``number, url, state, title, headRefName, headRefOid, baseRefName, isCrossRepository`` of one PR."""
     fields = "number,url,state,title,headRefName,headRefOid,baseRefName,isCrossRepository"
     if publication:
         fields += ",isDraft,baseRefOid"
+    if timing:
+        fields += ",createdAt"
     payload = _json("pr", "view", str(number), "--repo", repo, "--json", fields)
     if not isinstance(payload, dict):
         raise CloudError(f"gh pr view {number} returned an unexpected payload")

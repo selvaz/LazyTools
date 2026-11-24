@@ -200,6 +200,8 @@ def _authorize(
     attempt: PublicationAttempt,
     request: TypedApprovalRequest,
     ticket: ApprovalTicket,
+    *,
+    request_only: bool,
 ) -> PublicationOutcome:
     if ticket.request != request or not ticket.operator_only:
         return PublicationOutcome("approval_target_mismatch", ticket=ticket)
@@ -228,6 +230,8 @@ def _authorize(
             return PublicationOutcome("approval_rejected", ticket=fresh)
         if fresh.status != "approved" or fresh.expires_at <= datetime.now(UTC):
             return PublicationOutcome("approval_not_decided", ticket=fresh)
+        if request_only:
+            return PublicationOutcome("publication_not_attempted", ticket=fresh)
         if service.publication_review(attempt.task_id, store=store) != attempt.review:
             return PublicationOutcome("review_changed_before_publication", ticket=fresh)
         local_head = _branch_sha(attempt.repo, attempt.head_branch)
@@ -293,6 +297,7 @@ def run(
     policy_revision: str,
     policy_digest: str,
     ticket_id: str | None,
+    request_only: bool = False,
 ) -> PublicationOutcome:
     if reason := _refusal(attempt):
         return PublicationOutcome(reason)
@@ -300,5 +305,5 @@ def run(
     ticket = _find_ticket(registry, request, ticket_id)
     if ticket is None:
         return PublicationOutcome("approval_target_mismatch")
-    outcome = _authorize(service, registry, attempt, request, ticket)
+    outcome = _authorize(service, registry, attempt, request, ticket, request_only=request_only)
     return _publish(attempt, outcome) if outcome.consumed else outcome
