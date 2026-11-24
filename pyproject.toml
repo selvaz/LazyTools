@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = ["lazybridge>=1.8.1,<2.0", "tzdata>=2024.1"]
+dependencies = ["lazybridge>=1.9.0,<2.0", "tzdata>=2024.1"]
 
 [project.optional-dependencies]
 gmail      = ["google-api-python-client>=2.0,<3.0", "google-auth>=2.0,<3.0", "google-auth-oauthlib>=1.0,<2.0"]
@@ -34,7 +34,7 @@ telegram   = ["httpx>=0.27,<1.0"]
 # Claude Code as an engine: the code bridge's `--engine claude` and reading Claude's quota in
 # lazytools.projects.quota_telemetry / lazytools.routing both import the Claude Agent SDK.
 # Without it a clean install fails at the first quota read ("Claude Agent SDK is not installed").
-engines    = ["lazybridge[claude-code]>=1.8.1,<2.0"]
+engines    = ["lazybridge[claude-code]>=1.9.0,<2.0"]
 # Official MCP Python SDK. 1.x and 2.x are both supported: the connector
 # and the LazyTools MCP server branch on the installed major (see
 # lazytools.connectors.mcp._sdk and lazytools.mcp_server.server).
