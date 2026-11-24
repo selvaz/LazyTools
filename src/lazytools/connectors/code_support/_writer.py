@@ -337,7 +337,7 @@ class CodeWriteTools:
         if context is None:
             raise CodeWriteBlocked("A governed write requires an authenticated MCP task context.")
         authorize(name, launch.policy.folder)
-        queue = ApprovalQueue(registry_store(context.projects_db))
+        queue = ApprovalQueue(registry_store(projects_db=context.projects_db))
         target = ApprovalTarget(path=str(launch.policy.folder))
         request = TypedApprovalRequest.create(
             task_id=context.task_id, attempt=context.attempt, requested_by=context.actor,

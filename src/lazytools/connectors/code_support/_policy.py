@@ -322,7 +322,7 @@ class NativeBinding:
             from lazytools.code_bridge._registry import registry_store
 
             task = current_task()
-            self.store = registry_store(task.projects_db if task else None)
+            self.store = registry_store(projects_db=task.projects_db if task else None)
             context = current_policy_context()
             self.binding = self.launch.binding()
             if task:

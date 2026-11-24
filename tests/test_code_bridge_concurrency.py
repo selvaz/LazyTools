@@ -419,7 +419,7 @@ def test_two_different_db_directories_share_the_limit(env, tmp_path):
     box: dict = {}
     thread = threading.Thread(target=lambda: box.setdefault("r", run(repo_a, db_one)), daemon=True)
     thread.start()
-    queue = ApprovalQueue(_registry.registry_store())
+    queue = ApprovalQueue(_registry.registry_store(db_one.with_suffix(".registry.sqlite")))
     try:
         deadline = time.monotonic() + 10
         while not queue.list_pending_tickets():

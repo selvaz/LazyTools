@@ -1,4 +1,4 @@
-"""Native bridge approvals in the shared projects registry."""
+"""Registry selection and lifecycle for native bridge approvals."""
 
 from __future__ import annotations
 
@@ -32,15 +32,26 @@ _SOURCE = "code-bridge"
 _request: ContextVar[ApprovalRequest] = ContextVar("bridge_approval_request")
 
 
-def _registry_path(db: str | None = None) -> Path | None:
-    configured = _resolve_store_db(db)
+def isolated_path(db_path: Path | None, registry_db: Path | None) -> Path | None:
+    """Resolve a registry override or derive a sibling for an explicit custom job store."""
+    if registry_db is not None:
+        return registry_db.expanduser().resolve()
+    if db_path is not None:
+        path = db_path.expanduser().resolve()
+        if path != _store.default_db_path().resolve():
+            return path.with_name(f"{path.stem}.registry.sqlite")
+    return None
+
+
+def _registry_path(projects_db: str | None = None) -> Path | None:
+    configured = _resolve_store_db(projects_db)
     if configured == ":memory:":
         return None
     return Path(configured or Path.home() / ".lazytools" / "projects.sqlite").expanduser().resolve()
 
 
-def registry_store(db: str | None = None) -> Store:
-    path = _registry_path(db)
+def registry_store(registry_db: Path | None = None, *, projects_db: str | None = None) -> Store:
+    path = registry_db if registry_db is not None else _registry_path(projects_db)
     if path is None:
         raise ValueError("The bridge approval registry must be persistent")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,25 +72,35 @@ def job_ref(ticket: ApprovalTicket) -> str:
     return ticket.task_id
 
 
+def recorded_path(job: dict[str, Any]) -> Path | None:
+    path = job.get("registry_db")
+    return Path(path) if isinstance(path, str) and path else None
+
+
 class Registry:
-    def __init__(self, job_store: Any) -> None:
+    def __init__(self, job_store: Any, registry_db: Path | None = None) -> None:
         self._store: Store | None = None
+        self.path = registry_db if registry_db is not None else _registry_path()
         # A worker started by an older bridge can still be waiting here.
         self.legacy = _store.build_approval_queue(job_store)
         self.job_store = job_store
+
+    @classmethod
+    def for_job(cls, store: Any, job_id: str, registry_db: Path | None = None) -> Registry:
+        return cls(store, recorded_path(_store.read_meta(store, job_id) or {}) or registry_db)
 
     @property
     def queue(self) -> ApprovalQueue:
         """Open the registry for a worker filing or consuming its own tickets."""
         if self._store is None:
-            self._store = registry_store()
+            if self.path is None:
+                raise ValueError("The bridge approval registry must be persistent")
+            self._store = registry_store(self.path)
         return ApprovalQueue(self._store)
 
     def _existing_store(self) -> Store | None:
-        if self._store is None:
-            path = _registry_path()
-            if path is not None and path.is_file():
-                self._store = Store(db=str(path))
+        if self._store is None and self.path is not None and self.path.is_file():
+            self._store = Store(db=str(self.path))
         return self._store
 
     def pending(self) -> list[ApprovalTicket]:

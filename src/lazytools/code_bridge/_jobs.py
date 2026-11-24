@@ -20,6 +20,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -94,11 +95,13 @@ def new_job_id() -> str:
 
 def detach_binding(
     launch: _launch.Launch, engine: str, cwd: Path, task: str, session: str | None, claim: _task.Claim | None = None,
+    *, registry_db: Path | None = None,
 ) -> dict[str, Any]:
     return {
         **launch.binding(), "engine": engine, "cwd": str(cwd),
         "brief_hash": _store.brief_hash(task), "session": session,
         **(claim.binding() if claim else {}),
+        **({"registry_db": str(registry_db)} if registry_db is not None else {}),
     }
 
 
@@ -251,7 +254,10 @@ def _with_workspace(
     return f"{error}\n{suffix}"
 
 
-def interrupt_job(store: Any, registry: Any, job: dict[str, Any], error: str, *, db_path: Path | None = None) -> str:
+def interrupt_job(
+    store: Any, registry: Any, job: dict[str, Any], error: str, *,
+    db_path: Path | None = None, registry_db: Path | None = None,
+) -> str:
     """Persist an interruption and close this job's still-open approval tickets."""
     job_id = str(job["job_id"])
     error = _with_workspace(store, job_id, error)
@@ -269,7 +275,7 @@ def interrupt_job(store: Any, registry: Any, job: dict[str, Any], error: str, *,
         status="interrupted",
         error=error,
     )
-    close_pending_tickets(store, job_id, error)
+    close_pending_tickets(store, job_id, error, registry_db=registry_db)
     return error
 
 
@@ -280,10 +286,10 @@ def pending_ticket_ids(store: Any, job_id: str) -> list[str]:
     100-ticket cap and hides a ticket whose TTL ran out, which is still
     ``"pending"`` on disk until someone transitions it.
     """
-    return [ticket.approval_id for ticket in _registry.Registry(store).open_for_job(job_id)]
+    return [ticket.approval_id for ticket in _registry.Registry.for_job(store, job_id).open_for_job(job_id)]
 
 
-def close_pending_tickets(store: Any, job_id: str, reason: str) -> None:
+def close_pending_tickets(store: Any, job_id: str, reason: str, *, registry_db: Path | None = None) -> None:
     """Reject this job's pending tickets; a ticket already past its TTL is marked expired.
 
     ``reject_ticket`` refuses a ticket whose TTL ran out (it is no longer
@@ -291,7 +297,7 @@ def close_pending_tickets(store: Any, job_id: str, reason: str) -> None:
     closes those, so "no pending tickets left" is reachable. May raise if the
     queue's Store fails; callers decide whether that is fatal.
     """
-    registry = _registry.Registry(store)
+    registry = _registry.Registry.for_job(store, job_id, registry_db)
     for ticket in registry.open_for_job(job_id):
         registry.close(ticket, reason)
 
@@ -314,6 +320,7 @@ def run_job(
     effort: str | None = None,
     root: str | None = None,
     db_path: Path | None = None,
+    registry_db: Path | None = None,
     on_job_id: Callable[[str], None] | None = None,
     job_id: str | None = None,
     routing: dict[str, Any] | None = None,
@@ -354,6 +361,7 @@ def run_job(
     if max_wall is not None and (not math.isfinite(max_wall) or max_wall <= 0):
         raise ValueError("--max-wall must be a finite number greater than 0")
     wall_started = time.monotonic()
+    registry_db = _registry.isolated_path(db_path, registry_db)
     routine_policy = _routine.load_policy(enabled=routine_auto, scratch_root=scratch_root)
     resolved_cwd = _engines.resolve_cwd(cwd, root)
     claim = _task.load(task_id, claim_token, state="intent")
@@ -378,7 +386,7 @@ def run_job(
     if detached_binding:
         _launch.check_binding(
             store.read(_launch.DETACH_PREFIX + job_id),
-            detach_binding(launch, engine_name, resolved_cwd, task, session_name, claim),
+            detach_binding(launch, engine_name, resolved_cwd, task, session_name, claim, registry_db=registry_db),
         )
     # A caller-chosen id must be new: writing its records would otherwise
     # silently replace an earlier job's history.
@@ -504,6 +512,7 @@ def run_job(
                 **launch.metadata(),
                 **(claim.binding() if claim else {}),
                 "registry_ticket_ids": [],
+                **({"registry_db": str(registry_db)} if registry_db is not None else {}),
                 "routine_rule_count": len(routine_policy.rules) if routine_enabled else 0,
                 "scratch_root": routine_policy.scratch_root,
                 "continuations": 0,
@@ -540,8 +549,9 @@ def run_job(
             review_tools(resolved_cwd, network=launch.policy.network, validate=validate_policy)
             if legacy and launch.policy.profile == "read" and "read" in launch.policy.tool_classes else None
         )
+        approval_registry = _registry.Registry(store, registry_db)
         channel = _registry.ApprovalChannel(
-            _registry.Registry(store), job_id, launch.policy.revision, launch.policy.digest,
+            approval_registry, job_id, launch.policy.revision, launch.policy.digest,
             ticket_ttl(), poll_seconds(),
             on_waiting=lambda: _set_status("awaiting_approval"),
             on_resumed=lambda: _set_status("running"),
@@ -549,7 +559,7 @@ def run_job(
             task_id=claim.task_id if claim else None,
             actor=claim.principal.actor if claim else "local-bridge",
             attempt=claim.receipt["attempt"] if claim else 1,
-            fenced_consume=claim.consume_approval if claim else None,
+            fenced_consume=partial(claim.consume_approval, registry=approval_registry) if claim else None,
         )
         gate = BridgeGate(channel=channel, rules=CODING_RULES if legacy else (), cwd=str(resolved_cwd), temp_dir=temp_arg,
                           effective_policy=launch.policy, legacy_callbacks=legacy,
