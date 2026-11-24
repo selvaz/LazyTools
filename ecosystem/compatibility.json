@@ -1,6 +1,6 @@
 {
   "minimums": {
-    "lazybridge": ">=1.9.0,<2.0"
+    "lazybridge": ">=1.9.2,<2.0"
   },
   "schema_version": 1,
   "verified": {
@@ -48,7 +48,7 @@
         "repo": "https://github.com/selvaz/LazyStats"
       },
       "lazytoolkit": {
-        "ref": "v0.11.1",
+        "ref": "v0.12.0",
         "repo": "https://github.com/selvaz/LazyTools"
       },
       "market-data-hub": {
