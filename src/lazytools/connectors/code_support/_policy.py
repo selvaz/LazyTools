@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import logging
 import os
 from collections.abc import AsyncIterator, Iterator
@@ -21,6 +22,8 @@ from lazybridge import Tool
 from lazybridge.policy import (
     EffectivePolicy,
     PolicyDenied,
+    PolicyError,
+    PolicyWidening,
     TaskGrant,
     child_within_parent,
     current_policy_context,
@@ -28,6 +31,7 @@ from lazybridge.policy import (
     policy_scope,
     resolve,
 )
+from lazybridge.policy.resolve import validate_child_policy
 
 from lazytools.code_bridge import _launch
 
@@ -168,6 +172,51 @@ def record_operation(operation: str, cwd: Path, *, access: str | None = None) ->
     return parent
 
 
+def _resolve_local_child(
+    parent: EffectivePolicy, grant: TaskGrant, profile: str, document: ProfileDocument,
+) -> EffectivePolicy:
+    cwd = Path(grant.folder).resolve()
+    scratch = parent.scratch_folder
+    if not scratch.is_relative_to(cwd):
+        scratch = cwd / ".scratch"
+        if not scratch.is_relative_to(parent.scratch_folder):
+            scratch = parent.scratch_folder / cwd.relative_to(parent.folder)
+    scratch = scratch.resolve()
+    if not scratch.is_relative_to(parent.scratch_folder):
+        raise PolicyWidening("scratch folder outside parent scratch folder")
+
+    request = replace(grant, folder=cwd, grants={**grant.grants, "scratch_folder": scratch})
+    try:
+        return child_within_parent(parent, request, profile, document)
+    except PolicyError as exc:
+        if scratch.is_relative_to(cwd) or str(exc) != "scratch_folder must be inside the assigned folder":
+            raise
+
+    # LazyBridge 1.9.0 applies the root scratch restriction to children before
+    # checking the parent grant. Resolve the other fields and then validate the
+    # real scratch against the parent, preserving the D188 canonical digest.
+    child = resolve(profile, replace(request, grants={**request.grants, "scratch_folder": cwd}), document)
+    canonical = {
+        "profile": child.profile,
+        "version": child.version,
+        "revision": child.revision,
+        "folder": str(child.folder),
+        "scratch_folder": str(scratch),
+        "tool_classes": sorted(child.tool_classes),
+        "tools": sorted(child.tools),
+        "network": child.network,
+        "network_routes": child.network_routes,
+        "placement": child.placement,
+        "mcp_servers": dict(child.mcp_servers),
+        "mcp_inventory": child.mcp_inventory,
+        "mcp_inventory_tools": dict(child.mcp_inventory_tools),
+    }
+    digest = sha256(json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    child = replace(child, scratch_folder=scratch, digest=digest)
+    validate_child_policy(parent, child)
+    return child
+
+
 def local_launch(
     operation: str, engine: str, cwd: Path, *, web: bool = False, shell: bool = False, discovery: bool = False,
 ) -> _launch.Launch:
@@ -184,12 +233,11 @@ def local_launch(
     grants: dict[str, Any] = {"tool_classes": classes, "tools": ("web",) if legacy and web else ()}
     if parent is not None:
         grants["tool_classes"] = tuple(set(classes) & parent.tool_classes)
-        grants["scratch_folder"] = parent.scratch_folder if parent.scratch_folder.is_relative_to(cwd) else cwd / ".scratch"
         grants["mcp_inventory"] = {
             name: {"tools": parent.mcp_inventory_tools[name]} for name in parent.mcp_inventory
         }
     grant = TaskGrant(cwd, grants, "on" if legacy and web else "off", "local")
-    policy = resolve(profile, grant, document) if parent is None else child_within_parent(parent, grant, profile, document)
+    policy = resolve(profile, grant, document) if parent is None else _resolve_local_child(parent, grant, profile, document)
     mode = "ungoverned-legacy" if legacy else "governed"
     if not discovery:
         audit(operation, policy, mode)

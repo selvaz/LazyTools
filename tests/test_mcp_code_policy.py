@@ -84,6 +84,33 @@ def result_error(result):
     return result.content[0].text
 
 
+async def test_nested_writer_keeps_scratch_under_parent_and_is_discoverable(workspace, qualified, monkeypatch):
+    script = install(monkeypatch)
+    nested = workspace / "packages" / "app"
+    nested.mkdir(parents=True)
+    task = context(workspace, "edit-and-run", ("read", "edit"))
+    writer = CodeWriteTools(base_dir=str(nested), claude=False, codex=True)
+    server = build_server([writer], read_only=False, code_task_resolver=lambda _: task)
+
+    async with connected_client(server) as client:
+        assert {tool.name for tool in (await client.list_tools()).tools} == {"codex_write"}
+        args = {"task": "Make a scoped edit"}
+        approval = result_error(await client.call_tool("codex_write", args))
+        ticket_id = approval.split("approval_id=")[1].split()[0]
+        assert cli.main(["approve", ticket_id]) == 0
+        result = await client.call_tool("codex_write", {**args, "approval_id": ticket_id})
+        assert not protocol_field(result, "is_error", "isError")
+
+    with task_scope(task):
+        launch = local_launch("codex_write", "codex", nested)
+    scratch = task.policy.scratch_folder / "packages" / "app"
+    assert launch.policy.folder == nested
+    assert launch.policy.scratch_folder == scratch
+    assert script.kwargs["cwd"] == str(nested)
+    roots = launch.compiled["config_overrides"]["sandbox_workspace_write"]["writable_roots"]
+    assert roots == [str(nested), str(scratch)]
+
+
 async def test_real_sdk_rechecks_list_and_call_on_an_existing_connection(workspace, qualified, monkeypatch):
     script = install(monkeypatch)
     writer = CodeWriteTools(base_dir=str(workspace), claude=False, codex=True, require_confirmation=False)
