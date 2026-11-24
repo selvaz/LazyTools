@@ -38,6 +38,7 @@ from lazytools.code_bridge import (
 )
 from lazytools.code_bridge._approvals import BridgeGate, short_branch
 from lazytools.code_bridge._lockfile import JobLock
+from lazytools.code_bridge._policy import CODING_RULES
 from lazytools.code_bridge._turn_cleanup import TurnCleanup
 
 ENGINES: tuple[str, ...] = ("codex", "claude")
@@ -543,7 +544,7 @@ def run_job(
             attempt=claim.receipt["attempt"] if claim else 1,
             fenced_consume=claim.consume_approval if claim else None,
         )
-        gate = BridgeGate(channel=channel, rules=(), cwd=str(resolved_cwd), temp_dir=temp_arg,
+        gate = BridgeGate(channel=channel, rules=CODING_RULES if legacy else (), cwd=str(resolved_cwd), temp_dir=temp_arg,
                           effective_policy=launch.policy, legacy_callbacks=legacy,
                           routine=_routine.RoutineAuto(routine_policy, store, None, job_id) if routine_enabled else None)
 

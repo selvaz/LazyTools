@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from lazybridge import Envelope
 from lazybridge.engines.codex.app_server import codex_executable
 from lazybridge.engines.codex.policy_launch import runtime_revision
 from lazybridge.engines.coding import ApprovalRequest
@@ -39,6 +40,63 @@ def command(*args):
 def record(job_id):
     store = _store.build_store()
     return _jobs.find_job(store, _store.build_job_registry(store), job_id)
+
+
+def test_legacy_writer_retains_readonly_commands_and_routine_pytest(tmp_path, monkeypatch):
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    (repo / "tests").mkdir(parents=True)
+    scratch = tmp_path / "scratch"
+
+    async def turn(engine, prompt, name):
+        gate = engine.kwargs["config"].approval_gate
+        for command in ("git status", "git diff", "git log -1",
+                        f"'{Path(sys.executable).as_posix()}' -m pytest tests --basetemp {scratch.as_posix()}/run"):
+            request = ApprovalRequest(provider="claude-code", kind="tool", name="Bash",
+                                      arguments={"command": command}, cwd=str(repo))
+            assert (await gate(request)).action == "allow", command
+        return Envelope(payload="done")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = _jobs.run_job(engine_name="claude", cwd=str(repo), root=str(tmp_path), task="Write",
+                           scratch_root=str(scratch))
+    assert result.status == "done", result.error
+    ticket_id, = record(result.job_id)["registry_ticket_ids"]
+    assert ApprovalQueue(_registry.registry_store()).get_ticket(ticket_id).request.payload["rule_id"] == "pytest-scratch"
+
+
+def test_legacy_writer_retains_branch_session_grants(tmp_path, monkeypatch):
+    fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init")
+    git(repo, "symbolic-ref", "HEAD", "refs/heads/feat/legacy")
+    prompts = []
+
+    async def turn(engine, prompt, name):
+        gate = engine.kwargs["config"].approval_gate
+
+        async def approve(prompt):
+            prompts.append(prompt)
+            return True
+
+        monkeypatch.setattr(gate.channel, "ask", approve)
+
+        async def request(command):
+            return await gate(ApprovalRequest(provider="claude-code", kind="tool", name="Bash",
+                                              arguments={"command": command}, cwd=str(repo)))
+
+        for command in ("git push origin feat/legacy", "gh pr create --head feat/legacy"):
+            assert (await request(command)).action == "allow_session"
+            assert (await request(command)).action == "allow"
+        assert (await request("git push origin main")).action == "allow"
+        assert (await request("git push origin main")).action == "allow"
+        return Envelope(payload="done")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = _jobs.run_job(engine_name="claude", cwd=str(repo), root=str(tmp_path), task="Write", routine_auto=False)
+    assert result.status == "done", result.error
+    assert len(prompts) == 4 and all("git push origin main" in prompt for prompt in prompts[-2:])
 
 
 @pytest.fixture
