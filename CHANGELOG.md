@@ -8,9 +8,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-11-24
+
 ### Added
-- Guarded draft PR publication for accepted reviews through `lazytools-code-bridge publish`, with one-time typed approvals bound to the reviewed commit and signed publication or refusal receipts.
-- CLI and optional live receipt verification through `verify-receipt`, plus read-only projects MCP tools `receipts_get` and `receipts_verify`.
+- Guarded draft PR publication for accepted reviews through `lazytools-code-bridge publish`, with one-time typed approvals bound to the reviewed commit and signed publication or refusal receipts (#351).
+- CLI and optional live receipt verification through `verify-receipt`, plus read-only projects MCP tools `receipts_get` and `receipts_verify` (#351).
+- `tools/governed_task.py` runs a real task on the unified flow (queue, writer, independent review, publication ticket, receipt) and appends a usefulness-trial ledger row; `tools/receipt_live_demo.py` runs the end-to-end receipt demo (#353).
+
+### Changed
+- Requires `lazybridge[receipt]>=1.9.2`.
+
+### Fixed
+- Local Claude launches bind to the Projects provider claim (#353).
 
 ## [0.11.1] — 2026-11-24
 
