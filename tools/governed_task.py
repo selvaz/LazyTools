@@ -10,6 +10,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from contextlib import ExitStack
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -37,6 +38,7 @@ from lazytools.code_bridge._lockfile import JobLock, LockHeld
 from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.plan_edit import _board_key
+from lazytools.projects.records import get_project
 from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError, migrate_publication_receipts
 
@@ -158,12 +160,16 @@ def approval_command(stores: dict[str, Path], *args: str) -> str:
                     for word in words)
 
 
-def checkout_base(repo: Path, branch: str, base: str) -> tuple[str, str]:
+def base_commit(repo: Path, base: str) -> str:
     git = _cloud._git
     upstream = f"refs/remotes/origin/{base}"
     base_sha = git(repo, "rev-parse", "--verify", "--quiet", f"{upstream}^{{commit}}", check=False)
-    if not base_sha:
-        base_sha = git(repo, "rev-parse", "--verify", f"refs/heads/{base}^{{commit}}")
+    return base_sha or git(repo, "rev-parse", "--verify", f"refs/heads/{base}^{{commit}}")
+
+
+def checkout_base(repo: Path, branch: str, base: str) -> tuple[str, str]:
+    git = _cloud._git
+    base_sha = base_commit(repo, base)
     head = _publication._branch_sha(repo, branch)
     if head is None:
         start = review_base = base_sha
@@ -183,14 +189,16 @@ def stable_checkout(repo: Path, branch: str) -> str:
     return _cloud._git(repo, "rev-parse", "HEAD")
 
 
+def task_revision(store: Store, project: str, identifier: str) -> str:
+    return next(task.get("revision", "0") for task in store.read(_board_key(project))["tasks"]
+                if task["task_id"] == identifier)
+
+
 def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) -> None:
     repo, branch, base, project = args.repo, args.branch, args.base, args.project
-    git = _cloud._git
     title = args.brief.splitlines()[0].lstrip("# ").removeprefix("Brief:").strip() or project
     writer_id, review_id = f"{project}/writer", f"{project}/review"
-    review_engine = "claude" if args.engine == "codex" else "codex"
     model = args.model or ("gpt-6.2-sol" if args.engine == "codex" else None)
-    commands = args.checks
 
     step = step_trace(stores, table_counts(stores))
     issuer = _receipts.load_issuer()
@@ -212,36 +220,74 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     require(intake["ok"] and intake["recorded"], f"Plan review failed: {intake}")
     promoted = projects.projects_promote(*plan)
     require(promoted.startswith("promoted"), promoted)
-    revisions = {task["task_id"]: task.get("revision", "0") for task in store.read(_board_key(project))["tasks"]}
-    store.write(RUN_KEY, {"repo": str(repo), "branch": branch, "base": base, "title": title,
-                          "ledger": str(args.ledger), "checks": commands, "specs": args.specs})
+    run = {"repo": str(repo), "branch": branch, "base": base, "title": title, "ledger": str(args.ledger),
+           "checks": args.checks, "specs": args.specs, "review_brief": args.review_brief, "review_base": review_base}
+    store.write(RUN_KEY, run)
     step(2, "Create project and promote plan", f"{writer_id} and {review_id} (depends on writer)")
+    run_writer(stores, project, repo, branch, start, task_revision(store, project, "writer"),
+               args.brief, args.engine, model, args.effort, step)
+    run_review(stores, store, project, run, step)
 
+
+def run_writer(
+    stores: dict[str, Path], project: str, repo: Path, branch: str, start: str, revision: str,
+    brief: str, engine: str, model: str | None, effort: str | None, step: Callable[[int, str, str], None],
+) -> None:
     # Leave time for the bridge's one-hour job timeout and for completion bookkeeping.
     service = ProjectTaskService(str(stores["projects"]), lease_seconds=3900)
     operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
     writer = TaskPrincipal(actor="governed-writer", role="worker", projects=(project,))
-    reviewer = TaskPrincipal(actor="governed-reviewer", role="worker", projects=(project,))
-    writer_claim = claim(service, writer, writer_id, args.engine, revisions["writer"])
-    print(f"Running {args.engine} writer on {branch} from {start}", flush=True)
+    writer_id = f"{project}/writer"
+    writer_claim = claim(service, writer, writer_id, engine, revision)
+    print(f"Running {engine} writer attempt {writer_claim['attempt']} on {branch} from {start}", flush=True)
     print(approval_command(stores, "pending"), flush=True)
     print(f"Replace TICKET with an ID from pending: {approval_command(stores, 'approve', 'TICKET')}", flush=True)
     writer_job, _ = run_job(
-        repo, stores, args.engine, writer, writer_claim,
+        repo, stores, engine, writer, writer_claim,
         f"Implement the brief on {branch}. Run the required checks and commit your changes locally. "
         "Leave the checkout clean. Do not push or open a pull request. Use English and omit AI attribution.\n\n"
-        f"{args.brief}",
-        model=model, effort=args.effort,
+        f"{brief}",
+        model=model, effort=effort,
     )
     candidate = stable_checkout(repo, branch)
-    require(candidate != start and git(repo, "merge-base", start, candidate) == start,
+    require(candidate != start and _cloud._git(repo, "merge-base", start, candidate) == start,
             "Writer must advance the assigned branch from its starting commit")
     evidence = finish_task(service, operator, writer, writer_claim, writer_job, candidate)
-    step(3, "Claim, run and complete writer", f"{writer_id}, {args.engine} job {writer_job}, A={candidate}, {evidence}")
+    step(3, "Claim, run and complete writer", f"{writer_id}, {engine} job {writer_job}, A={candidate}, {evidence}")
 
-    checks = run_checks(repo, branch, candidate, stores["projects"].parent, commands)
-    review_claim = claim(service, reviewer, review_id, review_engine, revisions["review"])
-    print(f"Running {review_engine} review of writer job {writer_job}", flush=True)
+
+def run_review(
+    stores: dict[str, Path], store: Store, project: str, run: dict[str, Any],
+    step: Callable[[int, str, str], None], *, fresh: bool = False,
+) -> None:
+    service = ProjectTaskService(str(stores["projects"]), lease_seconds=3900)
+    operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
+    reviewer = TaskPrincipal(actor="governed-reviewer", role="worker", projects=(project,))
+    record = get_project(store, project)
+    require(record is not None, f"Project {project} is missing")
+    assert record is not None
+    writer = service.publication_review(f"{project}/writer").writer
+    require(writer is not None, "Complete a writer attempt before reviewing")
+    assert writer is not None
+    repo, branch = Path(run["repo"]), run["branch"]
+    candidate = stable_checkout(repo, branch)
+    writer_job = writer.job_ref
+    review_engine = {"codex": "claude", "claude_code": "codex"}[writer.evidence.engine_family]
+    review_id = f"{project}/review"
+    revision = task_revision(store, project, "review")
+    if fresh:
+        revision = service.prepare_attempt(operator, review_id, revision, f"Review current head {candidate}",
+                                           review_target=candidate)
+    else:
+        require(candidate == writer.evidence.artifact_ref, "The checkout changed after the writer completed")
+    jobs = store.read(JOBS_KEY) or {}
+    store.write(JOBS_KEY, {**jobs, "pending": True})
+    review_base = run.get("review_base") or _cloud._git(repo, "merge-base", base_commit(repo, run["base"]), candidate)
+    checks = run_checks(repo, branch, candidate, stores["projects"].parent, run.get("checks", []))
+    require(stable_checkout(repo, branch) == candidate, "The checkout changed before review")
+    review_claim = claim(service, reviewer, review_id, review_engine, revision)
+    print(f"Running {review_engine} review attempt {review_claim['attempt']} of writer job {writer_job}", flush=True)
+    rework = f"\n\nRework brief\n{run['rework_brief']}" if run.get("rework_brief") else ""
     review_job, result = run_job(
         repo, stores, review_engine, reviewer, review_claim,
         f"Review commit {candidate} against the writer brief below. Inspect git show {candidate} and "
@@ -251,8 +297,8 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
         "unless they hide risk. If a process issue hides risk, explain the specific risk. "
         'Return one JSON object with verdict ("accepted" or "blocked"), '
         f'sha (the full commit SHA "{candidate}"), and reason (one sentence explaining the verdict).\n\n'
-        f"Writer brief\n{args.brief}\n\nExtra review instructions\n{args.review_brief or 'None'}\n\n"
-        f"Runner checks on {candidate}\n{checks}{args.specs}",
+        f"Writer brief\n{record.objective}{rework}\n\nExtra review instructions\n{run.get('review_brief') or 'None'}\n\n"
+        f"Runner checks on {candidate}\n{checks}{run.get('specs', '')}",
         review_of=writer_job,
     )
     require(stable_checkout(repo, branch) == candidate, "The checkout changed during review")
@@ -266,11 +312,57 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     require(accepted, f"Review rejected {candidate}: {reason}")
 
 
+def continue_task(args: argparse.Namespace, stores: dict[str, Path], store: Store, run: dict[str, Any]) -> None:
+    project = args.project
+    record = get_project(store, project)
+    require(record is not None, f"Project {project} is missing")
+    assert record is not None
+    if args.check or args.brief:
+        checks = check_commands(args.brief or record.objective, args.check)
+    else:
+        checks = []
+    if not checks:
+        checks = run["checks"] if "checks" in run else check_commands(record.objective, None)
+    run = {**run, "checks": checks}
+    if args.spec:
+        run["specs"] = spec_attachments(args.spec)
+    if args.review_brief:
+        run["review_brief"] = args.review_brief
+    step = step_trace(stores, table_counts(stores))
+    if args.command == "rework":
+        jobs = store.read(JOBS_KEY) or {}
+        reason = jobs.get("rejection")
+        if not reason:
+            raise DemoError("Rework requires a previous review rejection")
+        repo, branch = Path(run["repo"]), run["branch"]
+        start = stable_checkout(repo, branch)
+        service = ProjectTaskService(str(stores["projects"]), lease_seconds=3900)
+        writer_id = f"{project}/writer"
+        writer = service.publication_review(writer_id).writer
+        require(writer is not None, "Complete a writer attempt before reworking")
+        assert writer is not None
+        with Store(db=str(stores["bridge"])) as job_store:
+            meta = _store.read_meta(job_store, writer.job_ref)
+        require(meta is not None, f"Missing writer job metadata for {writer.job_ref}")
+        assert meta is not None
+        store.write(JOBS_KEY, {**jobs, "pending": True})
+        operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
+        revision = service.prepare_attempt(operator, writer_id, task_revision(store, project, "writer"), reason)
+        brief = f"{args.brief}\n\nPrevious review reason\n{reason}"
+        run["rework_brief"] = brief
+        store.write(RUN_KEY, run)
+        run_writer(stores, project, repo, branch, start, revision, brief,
+                   meta["engine"], meta.get("model"), meta.get("effort"), step)
+    else:
+        store.write(RUN_KEY, run)
+    run_review(stores, store, project, run, step, fresh=True)
+
+
 def publish_task(args: argparse.Namespace, stores: dict[str, Path], store: Store, run: dict[str, Any]) -> None:
     task_id = f"{args.project}/writer"
     step = step_trace(stores, table_counts(stores))
     jobs = store.read(JOBS_KEY)
-    require(jobs, "Run start through independent review before publishing")
+    require(jobs and not jobs.get("pending"), "Complete independent review before publishing")
     require(not jobs["rejection"], f"Review rejected publication: {jobs['rejection']}")
     command = ["publish", "--repo", run["repo"], "--task", task_id, "--branch", run["branch"],
                "--base", run["base"], *db_options(stores)]
@@ -408,19 +500,24 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     shared = argparse.ArgumentParser(add_help=False)
     shared.add_argument("--project", required=True, help="Unique trial task ID (lowercase letters, digits and hyphens)")
     shared.add_argument("--state-dir", type=Path, default=DEFAULT_STATE, help="Parent of the retained per-task state")
+    evidence = argparse.ArgumentParser(add_help=False)
+    evidence.add_argument("--review-brief", type=at_file, metavar="@file")
+    evidence.add_argument("--check", action="append", metavar="CMD", help="Required check (repeat to override Checks)")
+    evidence.add_argument("--spec", type=Path, action="append", default=[], help="Attach a spec file (repeatable)")
     subcommands = parser.add_subparsers(dest="command", required=True)
-    start = subcommands.add_parser("start", parents=[shared], help="Run a writer and independent reviewer")
+    start = subcommands.add_parser("start", parents=[shared, evidence], help="Run a writer and independent reviewer")
     start.add_argument("--repo", type=Path, required=True)
     start.add_argument("--branch", required=True)
     start.add_argument("--base", default="main")
     start.add_argument("--brief", type=at_file, required=True, metavar="@file")
-    start.add_argument("--review-brief", type=at_file, metavar="@file")
-    start.add_argument("--check", action="append", metavar="CMD", help="Required check (repeat to override Checks)")
-    start.add_argument("--spec", type=Path, action="append", default=[], help="Attach a spec file (repeatable)")
     start.add_argument("--engine", choices=("codex", "claude"), default="codex")
     start.add_argument("--model", help="Writer model (Codex defaults to gpt-6.2-sol)")
     start.add_argument("--effort", default="high")
     start.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER, help="Remember this trial JSONL file for ledger")
+    review = subcommands.add_parser("review", parents=[shared, evidence], help="Review the current writer branch head")
+    review.add_argument("--brief", type=at_file, metavar="@file", help="Read check commands from this brief")
+    rework = subcommands.add_parser("rework", parents=[shared, evidence], help="Run the writer again after rejection")
+    rework.add_argument("--brief", type=at_file, required=True, metavar="@file")
     publish = subcommands.add_parser("publish", parents=[shared], help="Request publication or resume after approval")
     publish.add_argument("--resume", action="store_true")
     ledger = subcommands.add_parser("ledger", parents=[shared], help="Record one trial row")
@@ -467,6 +564,13 @@ def execute(args: argparse.Namespace, stack: ExitStack) -> None:
         state.mkdir(parents=True)
     else:
         require(all(path.is_file() for path in stores.values()), f"No task state at {state}. Run start first.")
+        with Store(db=str(stores["projects"])) as existing:
+            run = existing.read(RUN_KEY)
+        require(run, f"Task setup did not finish for {args.project}")
+        repo = safe_path(Path(run["repo"]))
+        lock = JobLock(parent / ".checkout-locks", repo)
+        lock.acquire(args.project)
+        stack.callback(lock.release)
     configure_state(state, stack)
     store = stack.enter_context(Store(db=str(stores["projects"])))
     if new:
@@ -478,7 +582,9 @@ def execute(args: argparse.Namespace, stack: ExitStack) -> None:
         return
     run = store.read(RUN_KEY)
     require(run, f"Task setup did not finish for {args.project}")
-    if args.command == "publish":
+    if args.command in ("review", "rework"):
+        continue_task(args, stores, store, run)
+    elif args.command == "publish":
         publish_task(args, stores, store, run)
     else:
         append_ledger(args, stores, store, run)

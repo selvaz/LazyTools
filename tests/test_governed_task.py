@@ -20,6 +20,7 @@ from _code_bridge_fakes import Script
 from _receipt_demo_fakes import install
 from lazytools.code_bridge import _cloud, _store, cli
 from lazytools.projects.plan_edit import _board_key
+from lazytools.projects.task_service import ProjectTaskService
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = "nc-7-subtraction"
@@ -280,3 +281,78 @@ def test_review_judges_the_code_and_uses_runner_evidence(trial, monkeypatch):
     assert "Judge correctness, security and spec coverage." in script.prompts[1]
     assert "Use the attached runner check results instead of running checks." in script.prompts[1]
     assert "writer-process preferences are not review blockers unless they hide risk" in script.prompts[1]
+
+
+def test_rereview_uses_legacy_state_and_current_head(trial):
+    start, invoke, setup, script, state, _, _ = trial
+    accepted = False
+    checkout = setup(accepted=lambda: accepted)
+    assert start(checkout, "--engine", "claude", "--model", "claude-sonnet-5-5") == 1
+    git = _cloud._git
+    original = git(checkout, "rev-parse", "HEAD")
+    git(checkout, "commit", "--allow-empty", "-m", "Advance review target")
+    head = git(checkout, "rev-parse", "HEAD")
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        run = project_store.read("governed-task:run")
+        project_store.write("governed-task:run", {k: run[k] for k in ("repo", "branch", "base", "title", "ledger")})
+        previous = project_store.read("governed-task:jobs")["ids"]
+
+    accepted = True
+    spec = state.parent.parent / "spec.md"
+    spec.write_text("A1. Return a negative number.", encoding="utf-8")
+    brief = spec.with_name("check-brief.md")
+    command = python_check("print('fresh gate')")
+    brief.write_text(f"# Gate\n\n## Checks\n```\n{command}\n```\n", encoding="utf-8")
+    assert invoke("review", "--brief", f"@{brief}", "--spec", str(spec)) == 0
+    assert len(script.prompts) == 3
+    assert script.prompts[2].startswith(f"Review commit {head}")
+    assert "Add subtraction and test a negative result." in script.prompts[2]
+    assert "| 0 | fresh gate |" in script.prompts[2] and "A1. Return a negative number." in script.prompts[2]
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        writer, reviewer = project_store.read(_board_key(PROJECT))["tasks"]
+        latest = project_store.read("governed-task:jobs")["ids"]
+    assert latest[0] == previous[0] and latest[1] != previous[1]
+    assert len(writer["dispatches"]) == 1
+    assert [d["receipt"]["attempt"] for d in reviewer["dispatches"]] == [1, 2]
+    assert reviewer["dispatches"][1]["receipt"]["engine_family"] == "codex"
+    assert reviewer["dispatches"][1]["completion"]["result"]["reviewed_sha"] == head
+    publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
+    assert publication.writer.evidence.artifact_ref == original and publication.reviewer is None
+    assert invoke("publish") == 1
+
+
+def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
+    start, invoke, setup, script, state, _, _ = trial
+    accepted = False
+    checkout = setup(accepted=lambda: accepted)
+    check = python_check("print('retained gate')")
+    assert start(checkout, "--check", check) == 1
+    original = _cloud._git(checkout, "rev-parse", "HEAD")
+    accepted = True
+    brief = state.parent.parent / "fix.md"
+    brief.write_text("Address the rejection on the same branch.", encoding="utf-8")
+
+    assert invoke("rework", "--brief", f"@{brief}") == 0
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+    assert head != original
+    assert "Address the rejection on the same branch." in script.prompts[2]
+    assert script.prompts[2].endswith("Previous review reason\nA required check failed.")
+    assert script.prompts[3].startswith(f"Review commit {head}")
+    assert "| 0 | retained gate |" in script.prompts[3]
+    publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
+    assert publication.writer.attempt == publication.reviewer.attempt == 2
+    assert publication.independence == "opposite-engine"
+    assert publication.writer.evidence.artifact_ref == publication.reviewer.evidence.reviewed_sha == head
+
+
+def test_review_recovers_after_check_failure_and_rechecks_before_dispatch(trial):
+    start, invoke, setup, script, state, _, _ = trial
+    checkout = setup()
+    fail = python_check("print('gate failed'); raise SystemExit(7)")
+    assert start(checkout, "--check", fail) == 1
+    assert invoke("review") == 1
+    assert len(script.prompts) == 1
+    assert invoke("review", "--check", python_check("print('gate passed')")) == 0
+    assert len(script.prompts) == 2
+    assert "| 0 | gate passed |" in script.prompts[1]
+    assert len(list(state.glob("checks-*/*.log"))) == 3

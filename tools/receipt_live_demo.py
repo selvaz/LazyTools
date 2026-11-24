@@ -137,7 +137,7 @@ def claim(
         reference=f"local-{task_id}", expires_at=service.clock() + service.lease_seconds + 60,
         engine_family=_routing.provider(engine),
     ))
-    return cast(dict[str, Any], service.claim(principal, task_id, revision, "local-dispatch")["claim"])
+    return cast(dict[str, Any], service.claim(principal, task_id, revision, f"local-dispatch-{revision}")["claim"])
 
 
 def run_job(
@@ -180,7 +180,7 @@ def finish_task(
         review_passed=review and accepted, review_independence="opposite-engine" if review else None,
     )
     service.record_completion_evidence(operator, lease["task_id"], lease["attempt"], evidence)
-    service.complete(worker, lease["task_id"], lease["claim_token"], "local-complete", state, reference)
+    service.complete(worker, lease["task_id"], lease["claim_token"], f"local-complete-{lease['attempt']}", state, reference)
     return reference
 
 
