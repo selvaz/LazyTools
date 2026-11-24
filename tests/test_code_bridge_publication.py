@@ -16,7 +16,7 @@ from lazybridge.ext.approval import ApprovalQueue
 from lazybridge.policy.review import select_reviewer
 
 from code_bridge_test_helpers import write_python_executable
-from lazytools.code_bridge import _cloud, _gh, _launch, _publication, _receipts, _store, cli
+from lazytools.code_bridge import _cloud, _gh, _launch, _publication, _receipts, _store, _task, cli
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService
@@ -86,6 +86,17 @@ def git(path, *args):
 def commit(repo, message):
     git(repo, "commit", "--allow-empty", "-m", message)
     return git(repo, "rev-parse", "HEAD")
+
+
+def test_local_claude_launch_accepts_the_projects_engine_family(tmp_path):
+    service = ProjectTaskService(str(tmp_path / "projects.sqlite"))
+    receipt = {"engine_family": "claude_code", "repo": "", "assigned_branch": "", "review_of": "writer",
+               "requested_profile": "read", "requested_network": False}
+    task_claim = _task.Claim(service, REVIEWER, f"{PROJECT}/review", "token", receipt)
+    launch = task_claim.launch("claude", tmp_path, "default", None, "legacy", False)
+    assert launch.policy.profile == "read"
+    with pytest.raises(ValueError, match="Local engine differs"):
+        task_claim.launch("codex", tmp_path, "default", None, "legacy", False)
 
 
 @pytest.fixture(params=["shared", "isolated"])

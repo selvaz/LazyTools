@@ -47,7 +47,9 @@ class Claim:
 
     def launch(self, engine: str, cwd: Path, profile: str, network: str | None, mode: str, review: bool) -> _launch.Launch:
         receipt = self.receipt
-        if receipt["engine_family"] != engine:
+        # Projects records the provider family; the local CLI calls Claude `claude`.
+        claimed_engine = receipt["engine_family"]
+        if claimed_engine != engine and (claimed_engine, engine) != ("claude_code", "claude"):
             raise ValueError("Local engine differs from the task claim")
         if receipt["repo"] and _cloud.repo_slug(cwd).casefold() != receipt["repo"].casefold():
             raise ValueError("Local repository differs from the task claim")
