@@ -830,15 +830,10 @@ def _code_write(allow_write: bool = False, *, data_source: dict[str, Any] | None
     Same opt-in gating as ``code_review``/``claude_review``: absent unless
     ``allow_write=True`` (``--allow-unsafe``).
 
-    Unlike ``CodeWriteTools``'s own default, the one-shot ``confirm_write()``
-    gate is disabled here (``require_confirmation=False``). That gate exists
-    to require a human grant *outside* the calling agent's reach before each
-    write; this server has no such out-of-band channel (there is no MCP tool
-    that calls ``confirm_write()``, and adding one here would let the same
-    caller grant its own permission, which defeats the point). Leaving the
-    gate enabled would therefore make the tool permanently unusable, not
-    safer — ``--allow-unsafe`` is the accepted-responsibility gate instead,
-    exactly as documented at the top of this module.
+    In ungoverned legacy mode, ``--allow-unsafe`` retains the host's opt-in
+    and the Python-only ``confirm_write()`` gate is disabled. A governed task
+    receives a typed approval request in the projects registry and must retry
+    with the operator-approved ID.
 
     Configuration: ``code_root`` in ``--config`` (else ``LAZYTOOLS_CODE_ROOT``,
     else the server process' cwd) — same fallback chain ``code_review`` uses

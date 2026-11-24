@@ -22,6 +22,7 @@ import logging
 import os
 
 from lazytools import __version__
+from lazytools.mcp_server._code_scope import configured_task_resolver
 from lazytools.mcp_server.providers import PROVIDER_FACTORIES, default_providers
 from lazytools.mcp_server.server import build_server, serve_http, serve_stdio
 
@@ -175,6 +176,7 @@ def main(argv: list[str] | None = None) -> None:
         name="lazytools",
         version=__version__,
         read_only=not args.allow_unsafe,
+        code_task_resolver=configured_task_resolver(data_source or {}, http=args.http),
         instructions=(
             "LazyTools ecosystem tools: market-data-hub discovery/financials (datahub_*), "
             "statistical analysis (statistical_*), regime detection (regime_*), Skfolio "
@@ -188,8 +190,8 @@ def main(argv: list[str] | None = None) -> None:
             "delegates a read-only code review of a local repository to Codex (minutes, one "
             "model turn per call). With --allow-unsafe, codex_write(task, cwd, session_name) "
             "delegates a coding task to Codex WITH write access (workspace-write sandbox), "
-            "confined to the same root, with no per-call confirmation gate -- treat it as "
-            "fully trusted within that scope. The code tools take optional per-call model, "
+            "confined to the same root. A governed code task requires a typed approval "
+            "for each write. The code tools take optional per-call model, "
             "effort and session_name (a durable, renamable conversation alias; see "
             "code_sessions_list)."
         ),

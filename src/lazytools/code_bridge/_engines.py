@@ -15,9 +15,11 @@ of a one-shot CLI process instead.
 
 from __future__ import annotations
 
+import os
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from lazybridge.engines.coding import ApprovalGate
@@ -124,7 +126,15 @@ def build_codex_engine(
     ))
     client: CodexAppServerClient
     if launch.report is not None:
-        client = CodexAppServerClient(policy_release_report=launch.report, policy_state_dir=state_dir)
+        from lazytools.code_bridge._task import MCP_CODEX_ID_ENV, MCP_CODEX_KEY_ENV, MCP_POLICY_DIGEST_ENV
+
+        scoped = os.environ.get(MCP_POLICY_DIGEST_ENV)
+        credential_id = os.environ.get(MCP_CODEX_ID_ENV) if scoped else None
+        client = CodexAppServerClient(
+            policy_release_report=launch.report, policy_state_dir=state_dir,
+            policy_api_key=os.environ.get(MCP_CODEX_KEY_ENV) if scoped else None,
+            policy_credential_id=UUID(credential_id) if credential_id else None,
+        )
     else:
         client = CodexAppServerClient() if shell else RestrictedClient()
     return _make_codex_engine(

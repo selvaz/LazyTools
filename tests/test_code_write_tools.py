@@ -83,10 +83,10 @@ def test_tool_schemas_expose_model_effort_and_session_name(tmp_path):
     tools = {t.name: t for t in _writer(tmp_path, codex=True).as_tools()}
 
     claude = set(tools["claude_code_write"].definition().parameters["properties"])
-    assert claude == {"task", "cwd", "session_id", "model", "effort", "session_name"}
+    assert claude == {"task", "cwd", "session_id", "model", "effort", "session_name", "approval_id"}
 
     codex = set(tools["codex_write"].definition().parameters["properties"])
-    assert codex == {"task", "cwd", "thread_id", "model", "effort", "session_name"}
+    assert codex == {"task", "cwd", "thread_id", "model", "effort", "session_name", "approval_id"}
     # Breaking change: the "continue the last thread" flag is gone — name the session instead.
     assert "resume_last" not in codex
 

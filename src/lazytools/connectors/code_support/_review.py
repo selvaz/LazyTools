@@ -44,6 +44,13 @@ from lazytools.connectors.code_support._common import (
     clean,
 )
 from lazytools.connectors.code_support._common import session_registry as _session_registry
+from lazytools.connectors.code_support._policy import (
+    NativeBinding,
+    code_tool,
+    local_launch,
+    native_client,
+    native_scope,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from lazybridge import Tool
@@ -386,7 +393,7 @@ def codex_reviewer(
             registry=session_registry,
         )
 
-    return Tool(codex_code_review, name=name)
+    return code_tool(Tool(codex_code_review, name=name), root=base, operation="codex_code_review")
 
 
 def _encode_handle(cwd: Path, base: Path, thread_id: str) -> str:
@@ -469,6 +476,7 @@ async def _turn(
     tools: list[Any] | None = None,
     session_name: str | None = None,
     registry: SessionRegistry | None = None,
+    operation: str = "codex_code_review",
 ) -> str:
     """Run one Codex turn on a durable thread and render it for an MCP caller.
 
@@ -487,12 +495,23 @@ async def _turn(
     explicit ``thread_id`` wins over the alias and rebinds it.
     """
     from lazybridge import Agent
+    from lazybridge.engines.coding import CodexPolicy, CodingAgentConfig
+    from lazybridge.policy import PolicyDenied
 
+    if operation not in {"codex_ask", "codex_code_review", "codex_review_changes"}:
+        raise PolicyDenied(operation, "The Codex read adapter requires an advice or review operation.")
     model = clean(model)
     effort = check_effort(effort, CODEX_EFFORTS, provider="Codex")
     reg = _session_registry(registry)
     alias = check_session_name("codex", cwd, session_name, reg)
     resumed = _decode_handle(thread_id, cwd, base)
+    launch = local_launch(operation, "codex", cwd)
+    legacy = launch.mode == "ungoverned-legacy"
+    if not legacy and review_target is not None:
+        raise PolicyDenied(operation, "The native Codex review harness has no governed launch evidence.")
+    binding = NativeBinding(launch, "codex")
+    resumed = binding.resume(reg, cwd, alias, resumed)
+    native = launch.compiled["config_overrides"]
     engine = _make_codex_engine(
         model=model,
         cwd=str(cwd),
@@ -503,10 +522,18 @@ async def _turn(
         thread_id=resumed,
         persist_thread=True,
         review_target=review_target,
-        session_alias=alias,
+        session_alias=alias if legacy else None,
         session_registry=reg,
+        config=CodingAgentConfig(codex=CodexPolicy(
+            sandbox=native["sandbox_mode"], approval_policy=native["approval_policy"], web_search=native["web_search"],
+        )),
+        **native_client("codex", launch),
     )
-    env: Any = await Agent(engine, name=agent_name, tools=tools or []).run(prompt)
+    async with native_scope(launch):
+        env: Any = await Agent(
+            engine, name=agent_name, tools=(tools or []) if legacy else [],
+        ).run(prompt)
+    binding.finish(reg, cwd, alias, engine.thread_id or resumed)
     handle = _encode_handle(cwd, base, engine.thread_id or resumed or "")
     if not env.ok:
         message = env.error.message if env.error else "unknown error"
@@ -622,9 +649,10 @@ def codex_consultant(
             tools=extra_tools,
             session_name=session_name,
             registry=session_registry,
+            operation="codex_ask",
         )
 
-    return Tool(codex_ask, name=name)
+    return code_tool(Tool(codex_ask, name=name), root=base, operation="codex_ask")
 
 
 #: ``ReviewTarget`` union of the App Server's ``review/start``, as the three
@@ -728,6 +756,7 @@ def codex_native_reviewer(
             review_target=_REVIEW_TARGETS[scope](ref),
             session_name=session_name,
             registry=session_registry,
+            operation="codex_review_changes",
         )
 
-    return Tool(codex_review_changes, name=name)
+    return code_tool(Tool(codex_review_changes, name=name), root=base, operation="codex_review_changes")

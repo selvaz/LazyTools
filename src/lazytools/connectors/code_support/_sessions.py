@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 from lazytools.connectors.code_support._claude_review import _build_root
 from lazytools.connectors.code_support._common import clean
 from lazytools.connectors.code_support._common import session_registry as _session_registry
+from lazytools.connectors.code_support._policy import authorize, code_tool, record_operation
 from lazytools.connectors.code_support._review import _resolve_repo
 
 if TYPE_CHECKING:
@@ -90,8 +91,11 @@ class CodeSessionTools:
     def _reg(self) -> SessionRegistry:
         return _session_registry(self._registry)
 
-    def _scope(self, repo_path: str | None) -> Path:
-        return _resolve_repo(clean(repo_path), self._root)
+    def _scope(self, operation: str, repo_path: str | None) -> Path:
+        parent = authorize(operation)
+        scope = _resolve_repo(clean(repo_path) or (str(parent.folder) if parent else None), self._root)
+        record_operation(operation, scope)
+        return scope
 
     # ------------------------------------------------------------------ #
     # ToolProvider
@@ -146,7 +150,7 @@ class CodeSessionTools:
                     ),
                 ),
             ]
-        return tools
+        return [code_tool(tool, root=self._root) for tool in tools]
 
     # ------------------------------------------------------------------ #
     # Tools
@@ -166,10 +170,12 @@ class CodeSessionTools:
         limit = min(limit, 200)
         wanted = _kind(kind)
         reg = self._reg()
+        operation = "code_sessions_list"
         if clean(repo_path):
-            rows = reg.entries(wanted, self._scope(repo_path))
+            rows = reg.entries(wanted, self._scope(operation, repo_path))
         else:
-            root = normalize_scope(self._root)
+            scope = self._scope(operation, None)
+            root = normalize_scope(scope)
             prefix = root.rstrip("/") + "/"
             rows = [r for r in reg.entries(wanted) if r["scope"] == root or r["scope"].startswith(prefix)]
         cutoff = datetime.now(UTC) - timedelta(days=since_days) if since_days is not None else None
@@ -192,7 +198,7 @@ class CodeSessionTools:
         """Bind ``name`` to ``native_id`` for ``kind`` in ``repo_path``'s scope."""
         self._require_mutate()
         k = _required_kind(kind)
-        scope = self._scope(repo_path)
+        scope = self._scope("code_sessions_bind", repo_path)
         self._reg().bind(k, scope, name, native_id)
         return {"bound": True, "kind": k, "name": name, "native_id": native_id, "scope": str(scope)}
 
@@ -200,7 +206,7 @@ class CodeSessionTools:
         """Rename a session name."""
         self._require_mutate()
         k = _required_kind(kind)
-        scope = self._scope(repo_path)
+        scope = self._scope("code_sessions_rename", repo_path)
         try:
             self._reg().rename(k, scope, old, new)
         except KeyError as exc:
@@ -227,7 +233,7 @@ class CodeSessionTools:
         """Drop a session name (the native session is untouched)."""
         self._require_mutate()
         k = _required_kind(kind)
-        scope = self._scope(repo_path)
+        scope = self._scope("code_sessions_forget", repo_path)
         removed = self._reg().forget(k, scope, name)
         return {"forgotten": removed, "kind": k, "name": name, "scope": str(scope)}
 

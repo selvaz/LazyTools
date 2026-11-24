@@ -363,15 +363,15 @@ Claude tools down with it, and vice versa.
 ### `code_write` — let Codex / Claude Code edit
 
 ```text
-codex_write(task, cwd=None, thread_id=None, session_name=None, model=None, effort=None) -> dict | str
-claude_code_write(task, cwd=None, session_id=None, session_name=None, model=None, effort=None) -> dict | str
+codex_write(task, cwd=None, thread_id=None, session_name=None, model=None, effort=None, approval_id=None) -> dict | str
+claude_code_write(task, cwd=None, session_id=None, session_name=None, model=None, effort=None, approval_id=None) -> dict | str
 ```
 
 Opt-in (`--allow-unsafe`), confined to the code root, and now run on the
 LazyBridge engines like the review tools, with the same per-call `model`,
 `effort` and `session_name`. **`codex_write` no longer takes `resume_last`** —
 continue a conversation by `session_name` or the previous reply's `thread_id`.
-Claude's writer edits only inside its `cwd` and runs `Bash` behind an
+In ungoverned legacy mode, Claude's writer edits inside its `cwd` and runs `Bash` behind an
 allow-list gate; Bash is not path-confined, so treat the code root as fully
 trusted scope.
 
@@ -417,6 +417,49 @@ confined to the code root, a task may not start with `@`, and a cloud job needs
 `allow_cloud=true` on each call. Approving a gated action up front
 (`--approve-cloud`) is not exposed: a brief that asks for a push or merge is
 refused, and a person decides. Only served with `--allow-unsafe`.
+
+### Scoped code tasks
+
+Set `code_task_context` in the server's trusted JSON configuration to serve the
+configured task's code operations. Use a dedicated stdio process for its caller.
+For HTTP, set `http_token_env` to the name of the environment variable holding the
+task's bearer token. The server checks the token on every list and call.
+
+```json
+{
+  "code_root": "/work/repo",
+  "code_task_context": {
+    "task_id": "project/review",
+    "actor": "worker",
+    "expires_at": "2027-01-01T12:00:00Z",
+    "folder": "/work/repo",
+    "profile": "read",
+    "tool_classes": ["read"],
+    "operations": ["codex_ask", "code_sessions_list"]
+  }
+}
+```
+
+Mount the corresponding providers with `--allow-unsafe`. The live task, provider
+inventory and native release report determine what is available. Configure the
+same `LAZYTOOLS_CODE_BRIDGE_CODEX_RELEASE_REPORT` and
+`LAZYTOOLS_CODE_BRIDGE_CLAUDE_RELEASE_REPORT` as for governed bridge runs.
+Local governed turns use network-off policy and omit shell and application
+tools. LazyBridge 1.9.0 has no governed launch evidence for
+`codex_review_changes`, so use `codex_code_review` for scoped review.
+The host can assign provider credentials using `codex_api_key_env` with
+`codex_credential_id` or `claude_api_key_env` with `claude_credential_id`.
+Credential IDs are executor-assigned UUIDs.
+
+For a governed write, the first request returns an approval ID. The operator
+can find it with `lazytools-code-bridge pending` and decide it with
+`lazytools-code-bridge approve ID` or `reject ID`. Use the same projects DB for
+both processes, via `LAZYTOOLS_PROJECTS_STORE_DB` or the server's
+`projects_store_db` configuration. Retry the original invocation with its
+`approval_id`. Approval authorizes one matching call within the task lease.
+
+A scoped bridge submission requires the matching projects task ID and claim
+token. Use a local `read` claim for review or an `edit` claim for writes.
 
 ## Safety model
 

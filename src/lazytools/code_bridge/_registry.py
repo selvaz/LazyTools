@@ -32,15 +32,15 @@ _SOURCE = "code-bridge"
 _request: ContextVar[ApprovalRequest] = ContextVar("bridge_approval_request")
 
 
-def _registry_path() -> Path | None:
-    configured = _resolve_store_db(None)
+def _registry_path(db: str | None = None) -> Path | None:
+    configured = _resolve_store_db(db)
     if configured == ":memory:":
         return None
     return Path(configured or Path.home() / ".lazytools" / "projects.sqlite").expanduser().resolve()
 
 
-def registry_store() -> Store:
-    path = _registry_path()
+def registry_store(db: str | None = None) -> Store:
+    path = _registry_path(db)
     if path is None:
         raise ValueError("The bridge approval registry must be persistent")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,6 +49,10 @@ def registry_store() -> Store:
 
 def is_bridge_ticket(ticket: ApprovalTicket) -> bool:
     return ticket.request is not None and ticket.request.payload.get("registry") == _SOURCE
+
+
+def _operator_ticket(ticket: ApprovalTicket) -> bool:
+    return ticket.request is not None and ticket.request.payload.get("registry") in {_SOURCE, "mcp-code"}
 
 
 def job_ref(ticket: ApprovalTicket) -> str:
@@ -81,21 +85,21 @@ class Registry:
     def pending(self) -> list[ApprovalTicket]:
         store = self._existing_store()
         current = [] if store is None else [
-            t for t in ApprovalQueue(store).list_pending_tickets(limit=sys.maxsize) if is_bridge_ticket(t)
+            t for t in ApprovalQueue(store).list_pending_tickets(limit=sys.maxsize) if _operator_ticket(t)
         ]
         return sorted([*current, *self.legacy.list_pending_tickets()], key=lambda t: t.created_at)
 
     def inspect(self, approval_id: str) -> ApprovalTicket | None:
         store = self._existing_store()
         ticket = ApprovalQueue(store).get_ticket(approval_id) if store is not None else None
-        if ticket is not None and is_bridge_ticket(ticket):
+        if ticket is not None and _operator_ticket(ticket):
             return ticket
         return self.legacy.get_ticket(approval_id)
 
     def decide(
         self, ticket: ApprovalTicket, verdict: Literal["approved", "rejected"], actor: str, reason: str | None,
     ) -> bool:
-        if is_bridge_ticket(ticket):
+        if _operator_ticket(ticket):
             store = self._existing_store()
             if store is None:
                 return False

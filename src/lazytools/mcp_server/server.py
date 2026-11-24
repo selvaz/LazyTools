@@ -39,14 +39,27 @@ import math
 import sys
 from collections.abc import Iterable, Sequence
 from numbers import Integral, Real
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from lazybridge import Tool
+from lazybridge.policy import PolicyDenied, PolicyError, current_policy_context
+
+from lazytools.connectors.code_support._policy import CODE_ACCESS, authorize, local_launch, task_scope
+from lazytools.mcp_server._code_scope import CodeTaskResolver
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from mcp.server.lowlevel import Server
 
 logger = logging.getLogger("lazytools.mcp_server")
+
+_NATIVE_CODE_TOOLS = {
+    "codex_code_review": "codex",
+    "codex_ask": "codex",
+    "codex_write": "codex",
+    "claude_code_review": "claude",
+    "claude_ask": "claude",
+    "claude_code_write": "claude",
+}
 
 
 class _ExpandedTools(dict[str, Tool]):
@@ -292,6 +305,7 @@ def build_server(
     read_only: bool = True,
     unsafe_patterns: Iterable[str] = UNSAFE_TOOL_PATTERNS,
     instructions: str | None = None,
+    code_task_resolver: CodeTaskResolver | None = None,
 ) -> Server:
     """Build a low-level MCP :class:`~mcp.server.lowlevel.Server` for ``providers``.
 
@@ -317,6 +331,41 @@ def build_server(
     logger.info("LazyTools MCP server exposing %d tool(s): %s", len(tool_map), ", ".join(sorted(tool_map)))
 
     listed = _mcp_tool_models(types, tool_map)
+
+    def visible(request: Any) -> dict[str, Tool]:
+        if code_task_resolver is None:
+            if current_policy_context() is None:
+                return tool_map
+            return _scoped_tools(tool_map)
+        task = code_task_resolver(request)
+        if task is None:
+            return {}
+        try:
+            with task_scope(task):
+                return _scoped_tools(tool_map)
+        except PolicyError:
+            return {}
+
+    def list_tools(request: Any) -> list[Any]:
+        allowed = visible(request)
+        return [tool for tool in listed if tool.name in allowed]
+
+    async def call_tool(request: Any, tool_name: str, arguments: dict[str, Any] | None) -> list[Any]:
+        def check_visible() -> None:
+            tool = tool_map.get(tool_name)
+            if tool is None or not _scoped_tools({tool_name: tool}):
+                raise PolicyDenied(tool_name, f"Tool {tool_name!r} is unavailable in the authenticated task context.")
+
+        if code_task_resolver is not None:
+            task = code_task_resolver(request)
+            if task is None:
+                raise PolicyDenied(tool_name, "An authenticated MCP task context is required.")
+            with task_scope(task):
+                check_visible()
+                return await _call_tool_content(types, tool_map, tool_name, arguments)
+        if current_policy_context() is not None:
+            check_visible()
+        return await _call_tool_content(types, tool_map, tool_name, arguments)
     # SDK 2 dropped the decorator registration API. ``getattr`` keeps the
     # SDK 1 branch from being type-checked against a SDK 2 ``Server``.
     if _mcp_is_v2():
@@ -326,8 +375,8 @@ def build_server(
             name=name,
             version=version,
             instructions=instructions,
-            listed=listed,
-            tool_map=tool_map,
+            list_tools=list_tools,
+            call_tool=call_tool,
         )
 
     # SDK 1 treats a missing version as "use the mcp package version".
@@ -335,13 +384,19 @@ def build_server(
     # so the same call type-checks against either installed SDK.
     server: Server = Server(name, version=version or "", instructions=instructions)
 
+    def request() -> Any:
+        try:
+            return cast(Any, server).request_context.request
+        except LookupError:  # handler invoked directly, outside a transport
+            return None
+
     async def _list_tools() -> list[Any]:
-        return listed
+        return list_tools(request())
 
     async def _call_tool(tool_name: str, arguments: dict[str, Any]) -> list[Any]:
         # SDK 1's decorator turns a raised exception into an ``isError``
         # result. Let it propagate so that behaviour is unchanged.
-        return await _call_tool_content(types, tool_map, tool_name, arguments)
+        return await call_tool(request(), tool_name, arguments)
 
     # Names are strings so this stays valid when type-checking against SDK 2,
     # whose ``Server`` no longer has these decorator methods.
@@ -378,7 +433,11 @@ def _mcp_tool_models(types: Any, tool_map: dict[str, Tool]) -> list[Any]:
     for tool in tool_map.values():
         definition = tool.definition()
         provider_id = provider_ids.get(tool.name)
-        if provider_id is not None:
+        if tool.name in CODE_ACCESS:
+            # Native reviews and advice persist sessions and may use provider
+            # services. Bridge status/result can poll and land cloud jobs.
+            read_only = tool.name == "code_sessions_list"
+        elif provider_id is not None:
             # Imported here to retain the server/catalog import boundary:
             # catalog uses is_unsafe_tool_name as its shared write rule.
             from lazytools.mcp_server.catalog import tool_metadata
@@ -406,6 +465,33 @@ def _mcp_tool_models(types: Any, tool_map: dict[str, Tool]) -> list[Any]:
     return listed
 
 
+def _scoped_tools(tool_map: dict[str, Tool]) -> dict[str, Tool]:
+    allowed = {}
+    for name, tool in tool_map.items():
+        if name not in CODE_ACCESS or tool.policy_grant != CODE_ACCESS[name]:
+            continue
+        root = getattr(tool, "_lazytools_code_root", None)
+        if root is None:
+            continue
+        if name == "codex_review_changes":  # Core 1.9.0 cannot qualify native review.
+            continue
+        try:
+            policy = authorize(name)
+            if policy is not None:
+                if root.is_relative_to(policy.folder):
+                    cwd = root
+                elif policy.folder.is_relative_to(root):
+                    cwd = policy.folder
+                else:
+                    continue
+                if name in _NATIVE_CODE_TOOLS:
+                    local_launch(name, _NATIVE_CODE_TOOLS[name], cwd, discovery=True)
+        except (ValueError, OSError, ImportError):
+            continue
+        allowed[name] = tool
+    return allowed
+
+
 async def _call_tool_content(
     types: Any,
     tool_map: dict[str, Tool],
@@ -426,8 +512,8 @@ def _build_server_v2(
     name: str,
     version: str | None,
     instructions: str | None,
-    listed: list[Any],
-    tool_map: dict[str, Tool],
+    list_tools: Any,
+    call_tool: Any,
 ) -> Any:
     """SDK 2 low-level server: handlers are constructor arguments.
 
@@ -436,12 +522,12 @@ def _build_server_v2(
     failure would otherwise hide the message from the calling model.
     """
 
-    async def _on_list_tools(_ctx: Any, _params: Any) -> Any:
-        return types.ListToolsResult(tools=listed)
+    async def _on_list_tools(ctx: Any, _params: Any) -> Any:
+        return types.ListToolsResult(tools=list_tools(getattr(ctx, "request", None)))
 
-    async def _on_call_tool(_ctx: Any, params: Any) -> Any:
+    async def _on_call_tool(ctx: Any, params: Any) -> Any:
         try:
-            content = await _call_tool_content(types, tool_map, params.name, params.arguments)
+            content = await call_tool(getattr(ctx, "request", None), params.name, params.arguments)
         except Exception as exc:
             return types.CallToolResult(
                 content=[types.TextContent(type="text", text=str(exc))],
