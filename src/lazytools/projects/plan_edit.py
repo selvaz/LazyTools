@@ -181,6 +181,8 @@ def retire_task(
         if problem is not None:
             return None, problem
         status = tasks[task_index].get("status")
+        if tasks[task_index].get("active_queue_claim"):
+            return None, "REJECTED: reconcile the active queue claim before retiring the task."
         if status not in RETIRABLE:
             return None, (
                 f"REJECTED: task {task_index} is {status}; only a task that is todo, claimed or failed can be "
@@ -418,6 +420,8 @@ def revise_plan(
         events = list(doc.get("plan_events", []))
         for i, task in enumerate(tasks):
             if task.get("status") in RETIRABLE and i not in keep:
+                if task.get("active_queue_claim"):
+                    return None, f"REJECTED: reconcile the active queue claim on task {i} before retiring it."
                 events.append(
                     {
                         "at": now,

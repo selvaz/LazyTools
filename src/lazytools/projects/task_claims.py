@@ -263,6 +263,8 @@ def close_accepted_task(
         if not 0 <= task_index < len(tasks):
             return f"REJECTED: task_index out of range (valid: 0..{len(tasks) - 1})."
         task = tasks[task_index]
+        if task.get("active_queue_claim"):
+            return "REJECTED: complete this task through its active queue claim."
         if task.get("status") not in ("todo", "claimed"):
             return f"REJECTED: task {task_index} is {task.get('status')!r}, not todo or claimed."
         if not task.get("contract_id"):
@@ -363,6 +365,8 @@ def release_claim(
             if not 0 <= task_index < len(tasks):
                 return False
             task = tasks[task_index]
+            if task.get("active_queue_claim"):
+                return False
             if task.get("status") != "claimed":
                 return False
             if owner is not None and task.get("owner") != owner:
