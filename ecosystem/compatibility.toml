@@ -28,7 +28,7 @@ lazybridge = "1.9.2"
 # ``extras`` are the extras exercised by the released-artifact CI.
 [verified.github.lazytoolkit]
 repo = "https://github.com/selvaz/LazyTools"
-ref = "v0.11.1"
+ref = "v0.12.0"
 
 [verified.github.lazyceo]
 repo = "https://github.com/selvaz/LazyCEO"
@@ -82,4 +82,4 @@ extras = ["bridge", "datacore"]
 # of the verified stack.
 
 [minimums]
-lazybridge = ">=1.9.0,<2.0"
+lazybridge = ">=1.9.2,<2.0"
