@@ -7,11 +7,10 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, FiniteFloat, StringConstraints
-from typing_extensions import Annotated
 
 from lazytools.projects.contracts import find_contract_for_task
 from lazytools.projects.plan_edit import _board_key
@@ -229,13 +228,22 @@ class ProjectTaskService:
         """Persist an executor's preflight/runtime observation. Host operation."""
         with transaction(self.path, write=True) as store:
             task = _load_task(store, task_id)
+            _require_open(store, task.project_id)
             if task.revision != revision:
                 raise TaskServiceError("stale", "Task revision changed")
             task.data.setdefault("placement_evidence", {})[evidence.placement] = {
                 "revision": revision,
                 "evidence": evidence.model_dump(mode="json"),
             }
-            task.save(store, self.clock())
+            now = self.clock()
+            if task.data["status"] == "todo":
+                effective, reason = _placement(task, now)
+                task.data.update(
+                    effective_placement=effective.placement if effective else None,
+                    placement_reason=reason,
+                    preflight_ref=effective.reference if effective else None,
+                )
+            task.save(store, now)
 
     def next_ready(
         self, principal: TaskPrincipal, project_id: str, limit: int = 20, cursor: int | None = None
@@ -250,8 +258,9 @@ class ProjectTaskService:
             if project is None or project.status != "open" or board is None:
                 return {"tasks": [], "next_cursor": None}
             now = self.clock()
-            items = []
+            items: list[dict[str, Any]] = []
             next_cursor = None
+            last_index = cursor
             for index in range(0 if cursor is None else cursor + 1, len(board["tasks"])):
                 ready = _ready(BoardTask(project_id, board, index), now)
                 if ready is not None:
@@ -337,6 +346,8 @@ class ProjectTaskService:
             dispatch = _fenced_dispatch(task, principal, claim_token, now, allow_expired=True)
             if dispatch["state"] == "submitted" and dispatch["job_ref"] == job_ref:
                 return
+            if dispatch.get("job_ref") not in (None, job_ref):
+                raise TaskServiceError("conflict", "Acknowledgement conflicts with the known provider job")
             if dispatch["state"] not in ("submitting", "ambiguous"):
                 raise TaskServiceError("conflict", "Acknowledgement conflicts with recorded dispatch")
             dispatch.update(state="submitted", job_ref=job_ref)
@@ -378,7 +389,7 @@ class ProjectTaskService:
             if dispatch["state"] != "intent" and not (evidence_ref or "").strip():
                 raise TaskServiceError("invalid", "Provider reconciliation evidence is required")
             known_job = dispatch.get("job_ref")
-            if known_job and (observation == "absent" or job_ref and known_job != job_ref):
+            if known_job and (observation == "absent" or (job_ref and known_job != job_ref)):
                 raise TaskServiceError("conflict", "Provider observation conflicts with the recorded job")
             if observation in ("submitted", "terminated") and not (job_ref or "").strip():
                 raise TaskServiceError("invalid", "Provider job reference is required")
@@ -481,7 +492,7 @@ def _validate_acceptance(
         raise TaskServiceError("unavailable", "The task's acceptance contract is unavailable")
     review_of = task.data.get("review_of")
     code_task = task.data.get("repo") or contract is not None or review_of
-    if not evidence.artifact_ref or code_task and not _COMMIT_SHA.fullmatch(evidence.artifact_ref):
+    if not evidence.artifact_ref or (code_task and not _COMMIT_SHA.fullmatch(evidence.artifact_ref)):
         raise TaskServiceError("invalid", "Accepted completion requires an immutable artifact reference")
     if contract is not None:
         verification = get_verification(store, evidence.verification_id or "")

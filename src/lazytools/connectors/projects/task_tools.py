@@ -7,7 +7,7 @@ from typing import Any
 
 from lazybridge import Tool
 
-from lazytools.projects.task_approvals import ProjectTaskApprovals
+from lazytools.projects.task_approvals import Decision, ProjectTaskApprovals
 from lazytools.projects.task_service import ProjectTaskService, ResultState, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError
 
@@ -50,8 +50,16 @@ class TaskTools:
         """List pending approval requests visible to the authenticated principal."""
         return self._call(self.approvals.pending, project_id, task_id, limit, cursor)
 
+    def approvals_decide(
+        self, request_id: str, expected_action_digest: str, decision: Decision, reason: str,
+    ) -> dict[str, Any]:
+        """Decide the exact action using the authenticated approver's project scope."""
+        return self._call(self.approvals.decide, request_id, expected_action_digest, decision, reason, write=True)
+
     def as_tools(self) -> list[Tool]:
         methods = [self.tasks_next_ready, self.approvals_pending]
         if self.allow_write and self.principal.role in ("worker", "orchestrator"):
             methods.extend((self.tasks_claim, self.tasks_complete))
+        if self.allow_write and self.principal.role in ("orchestrator", "owner"):
+            methods.append(self.approvals_decide)
         return [Tool.wrap(method, name=method.__name__, strict=True) for method in methods]

@@ -21,7 +21,7 @@ def task_id(task: dict[str, Any], index: int) -> str:
 
 
 def plan_fields(task: dict[str, Any]) -> dict[str, Any]:
-    fields = {}
+    fields: dict[str, Any] = {}
     for name in _TEXT_FIELDS:
         value = task.get(name)
         if value is not None:

@@ -114,6 +114,7 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "projects_complete_todo",
     "tasks_claim",
     "tasks_complete",
+    "approvals_decide",
 )
 
 

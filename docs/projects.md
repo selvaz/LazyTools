@@ -52,6 +52,51 @@ surface. This documentation change does not update or deploy a running CEO.
 
 ## Records, owner and plans
 
+### Governed task queue
+
+Configure a dedicated stdio `lazytools-mcp projects --allow-unsafe --config projects.json`
+process for each authenticated principal. The trusted launcher supplies the
+principal binding in the configuration file.
+
+```json
+{
+  "projects_store_db": "projects.sqlite",
+  "projects_task_principal": {
+    "actor": "release-operator",
+    "role": "orchestrator",
+    "projects": ["deployment"]
+  }
+}
+```
+
+`tasks_next_ready` and `approvals_pending` use the principal's project scope.
+With writes enabled, workers and orchestrators can claim and complete tasks,
+and orchestrators and owners can decide approvals for their assigned authority.
+Use the ordinary projects provider to author plans. The governed tools require
+a file-backed Store, and approvals require a LazyBridge build with typed
+`ApprovalQueue` support.
+
+Structured plan objects can provide a project-local `task_id`, `dependency_ids`,
+`tier` (`basic`, `writing`, `thinking`, or `critical`), `requested_profile`,
+`requested_network`, `requested_placement`, `effective_placement` and
+`placement_reason`. The queue exposes IDs such as `deployment/build` and
+derives IDs such as `deployment/@0` for tasks without an explicit ID. Use the
+project-local IDs in dependencies. A `review_of` field names the writer task
+and requires it as a dependency.
+
+The trusted execution host supplies placement evidence for the task revision,
+reserves the provider call with `begin_submit`, and records its job reference
+and completion evidence. After a crash it must reconcile using the persisted
+dispatch key. An absence observation must rule out a delayed or in-flight
+submit before releasing an expired claim. At the effect boundary the host
+supplies a current grant evaluator and the observed target, consumes the
+canonical approval, and records a conclusive outcome with an evidence
+reference. For a main update the evaluator attests the head that passed both
+checks and independent review. Keep unresolved effects held until the provider
+can confirm the result.
+
+### Project intake
+
 Run this in a fresh demo folder. `Store(db="projects.sqlite")` persists;
 `Store()` is in-memory. Projects open as drafts. The example deliberately
 keeps the draft until its intake plan has been independently reviewed.

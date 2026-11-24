@@ -265,12 +265,13 @@ def install_project_plan(
         raw = store.read(key)
         current = raw if isinstance(raw, dict) else {}
         old_tasks = current.get("tasks", [])
-        if (
-            current.get("reasoning") == objective.strip()
-            and [t.get("text") for t in old_tasks] == tasks
-            and (fields is None or current.get("installed_plan_digest") == current_digest and [
-                plan_fields(t) for t in old_tasks
-            ] == fields)
+        same_content = current.get("reasoning") == objective.strip() and [t.get("text") for t in old_tasks] == tasks
+        if same_content and (
+            fields is None
+            or (
+                current.get("installed_plan_digest") == current_digest
+                and [plan_fields(task) for task in old_tasks] == fields
+            )
         ):
             return None
         started = [

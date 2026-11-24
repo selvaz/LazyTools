@@ -8,7 +8,7 @@ import time
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 
 class TaskServiceError(Exception):
@@ -17,6 +17,14 @@ class TaskServiceError(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
+
+
+class ProjectsStore(Protocol):
+    """The Store operations shared by normal and transactional project code."""
+
+    def read(self, key: str, default: Any = None) -> Any: ...
+    def items(self, *, prefix: str) -> list[tuple[str, Any]]: ...
+    def compare_and_swap(self, key: str, expected: Any, new: Any, *, agent_id: str | None = None) -> bool: ...
 
 
 class TransactionStore:

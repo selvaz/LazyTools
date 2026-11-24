@@ -167,7 +167,7 @@ class ProjectsTools:
         path = _resolve_store_db(store_db)
         self._store = _open_store(str(Path(path).resolve()) if path and path != ":memory:" else path)
         self._task_tools = TaskTools(path, task_principal, allow_write=allow_write) if task_principal else None
-        self._allow_write = allow_write and (task_principal is None or task_principal.role == "owner")
+        self._allow_write = allow_write and task_principal is None
         self._profile = _resolve_profile(profile)
 
     # ---- read: projects -------------------------------------------------
@@ -404,6 +404,8 @@ class ProjectsTools:
         passes, record that THIS caller reviewed it (by digest).
 
         ``subtasks`` is ``[{"text": ..., "acceptance_criteria": [...]}, ...]``.
+        Subtasks can also set task_id, dependency_ids, tier, requested_profile,
+        requested_network, requested_placement, effective_placement and placement_reason.
         ``deadline`` needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00;
         date-only values are refused (they do not represent a whole day).
         Judging whether each criterion could actually FAIL is the caller's
@@ -617,7 +619,8 @@ class ProjectsTools:
         self, project_id: str, reason: str, new_tasks: list[str | dict[str, Any]], keep: list[int] | None = None
     ) -> str:
         """Retire every retirable task (except those in ``keep``) and append
-        ``new_tasks``, in one write."""
+        ``new_tasks``, in one write. Accepts text strings and structured subtask objects
+        with the same fields as projects_review_plan."""
         message, _retired, _first_new = _plan_edit.revise_plan(
             self._store, project_id, reason, new_tasks, keep=tuple(keep or ())
         )
