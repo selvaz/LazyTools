@@ -66,6 +66,15 @@ def pr_number_from_url(url: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def default_branch(repo: str) -> str:
+    payload = _json("repo", "view", repo, "--json", "defaultBranchRef")
+    ref = payload.get("defaultBranchRef") if isinstance(payload, dict) else None
+    name = ref.get("name") if isinstance(ref, dict) else None
+    if not isinstance(name, str) or not name:
+        raise CloudError("gh repo view returned no default branch")
+    return name
+
+
 def pr_view(repo: str, number: int, *, publication: bool = False) -> dict[str, Any]:
     """``number, url, state, title, headRefName, headRefOid, baseRefName, isCrossRepository`` of one PR."""
     fields = "number,url,state,title,headRefName,headRefOid,baseRefName,isCrossRepository"
@@ -123,6 +132,7 @@ def pr_comment(repo: str, number: int, body: str) -> str:
 
 
 __all__ = [
+    "default_branch",
     "gh_argv",
     "pr_comment",
     "pr_comments",

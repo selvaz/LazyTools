@@ -43,6 +43,12 @@ from pathlib import Path
 state_path = Path(os.environ["FAKE_GH_STATE"])
 state = json.loads(state_path.read_text()) if state_path.exists() else {"prs": [], "comments": []}
 args = sys.argv[1:]
+if args[0] == "repo":
+    assert args == ["repo", "view", "github.com/example/publication", "--json", "defaultBranchRef"]
+    branch = os.environ.get("FAKE_GH_DEFAULT_BRANCH", "main")
+    ref = None if os.environ.get("FAKE_GH_DEFAULT_BRANCH_MISSING") else {"name": branch}
+    print(json.dumps({"defaultBranchRef": ref}))
+    sys.exit(0)
 assert args[0] == "pr"
 assert args[args.index("--repo") + 1] == "github.com/example/publication"
 if args[1] == "create":
@@ -192,7 +198,7 @@ def accept(fixture, *, writer="writer", review="review", same_provider=False, in
         _store.write_meta(jobs, review_job, {**launch.metadata(), "cwd": str(fixture.repo), "model": "review-model"})
 
 
-def publish(fixture, capsys, *, writer="writer", branch="feature/reviewed", ticket=None, status=1):
+def publish(fixture, capsys, *, writer="writer", branch="feature/reviewed", base="main", ticket=None, status=1):
     extra = ["--ticket", ticket] if ticket else []
     assert (
         cli.main(
@@ -204,6 +210,8 @@ def publish(fixture, capsys, *, writer="writer", branch="feature/reviewed", tick
                 f"{PROJECT}/{writer}",
                 "--branch",
                 branch,
+                "--base",
+                base,
                 *fixture.options,
                 *extra,
             ]
@@ -236,6 +244,37 @@ def approve(fixture, capsys, **kwargs):
     ticket = receipt["approval"]["ticket_id"]
     assert cli.main(["approve", ticket, *fixture.options]) == 0
     return ticket
+
+
+@pytest.mark.parametrize(
+    ("branch", "base", "default"),
+    [
+        ("main", "release", "trunk"),
+        ("master", "release", "trunk"),
+        ("release", "release", "trunk"),
+        ("trunk", "release", "trunk"),
+    ],
+)
+def test_protected_head_branch_has_signed_refusal(publication, capsys, monkeypatch, branch, base, default):
+    accept(publication)
+    git(publication.repo, "update-ref", f"refs/heads/{branch}", publication.reviewed)
+    monkeypatch.setenv("FAKE_GH_DEFAULT_BRANCH", default)
+    receipt = publish(publication, capsys, branch=branch, base=base)
+    assert receipt["outcome"]["refusal_reason"] == "protected_head_branch"
+    assert receipt["publication"]["head_branch"] == branch
+    assert receipt["approval"]["ticket_id"] is None
+    assert cli.main(["verify-receipt", receipt["receipt_id"]]) == 0
+    assert not publication.pushes and not publication.state.exists()
+
+
+def test_missing_default_branch_has_signed_refusal(publication, capsys, monkeypatch):
+    accept(publication)
+    monkeypatch.setenv("FAKE_GH_DEFAULT_BRANCH_MISSING", "1")
+    receipt = publish(publication, capsys)
+    assert receipt["outcome"]["refusal_reason"] == "default_branch_unavailable"
+    assert receipt["approval"]["ticket_id"] is None
+    assert cli.main(["verify-receipt", receipt["receipt_id"]]) == 0
+    assert not publication.pushes and not publication.state.exists()
 
 
 def test_publish_reviewed_head_and_verify_tampering(publication, capsys):

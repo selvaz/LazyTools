@@ -40,6 +40,7 @@ class PublicationAttempt:
     head_sha: str
     review: PublicationReview
     local_head: str | None
+    branch_refusal: str | None
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,16 @@ def _branch_sha(repo: Path, branch: str) -> str | None:
     return head if _SHA.fullmatch(head) else None
 
 
+def _branch_refusal(repository: str, head: str, base: str) -> str | None:
+    if head in {"main", "master", base}:
+        return "protected_head_branch"
+    try:
+        default = _gh.default_branch(f"github.com/{repository}")
+    except _GIT_ERRORS:
+        return "default_branch_unavailable"
+    return "protected_head_branch" if head == default else None
+
+
 def prepare(
     service: ProjectTaskService,
     task_id: str,
@@ -96,8 +107,6 @@ def prepare(
         if branch.startswith("-"):
             raise ValueError("Publication requires a valid branch name")
         _cloud._git(repo, "check-ref-format", f"refs/heads/{branch}")
-    if head == base:
-        raise ValueError("Publication requires distinct head and base branches")
     fetch = _cloud._git(repo, "remote", "get-url", "--all", "origin").splitlines()
     push = _cloud._git(repo, "remote", "get-url", "--push", "--all", "origin").splitlines()
     if len(fetch) != 1 or len(push) != 1 or not (repository := _remote_repository(push[0])):
@@ -109,11 +118,14 @@ def prepare(
     if candidate is None and review.writer:
         candidate = review.writer.evidence.artifact_ref
     return PublicationAttempt(
-        task_id, repo, repository, push[0], head, base, candidate or local_head or "", review, local_head
+        task_id, repo, repository, push[0], head, base, candidate or local_head or "", review, local_head,
+        _branch_refusal(repository, head, base),
     )
 
 
 def _refusal(attempt: PublicationAttempt) -> str | None:
+    if attempt.branch_refusal is not None:
+        return attempt.branch_refusal
     review = attempt.review
     if review.writer is None or review.reviewer is None:
         return "review_missing"
