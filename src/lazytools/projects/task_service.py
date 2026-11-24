@@ -449,7 +449,7 @@ class ProjectTaskService:
                 "lease_expires_at": now + self.lease_seconds,
                 "attempt": attempt,
                 "engine_family": placement.engine_family,
-                "route": list(route) if route else None,
+                "route": list(route) if route is not None else None,
             }
             # A null claimed_at keeps the legacy board's lease timer from
             # independently recycling this claim. This receipt owns the lease.
@@ -667,6 +667,8 @@ class ProjectTaskService:
             route = _route(task, placement) if placement else None
             if route is None:
                 raise TaskServiceError("invalid", "A green route preflight with repo and environment is required")
+            if placement is None:
+                raise TaskServiceError("invalid", "A green route preflight is required")
             record = task.data["placement_evidence"][placement.placement]
             key = _route_key(*route)
             state = store.read(key)

@@ -204,6 +204,12 @@ def test_route_quarantine_and_fresh_clearance(queue):
     probe("b", "initial")
     with pytest.raises(TaskServiceError, match="fresh"):
         service.route_clear(OPERATOR, f"{PROJECT}/b", "Verified recovery")
+    service.record_placement(f"{PROJECT}/b", revision(service, "b"), PlacementEvidence(
+        placement="local", eligible=False, reason="Unavailable", reference="red",
+        expires_at=service.clock() + 1000, engine_family="codex", environment_id="env"))
+    with pytest.raises(TaskServiceError) as missing:
+        service.route_clear(OPERATOR, f"{PROJECT}/b", "Verified recovery")
+    assert missing.value.code == "invalid"
     probe("b", "new-green")
     cleared = service.route_clear(OPERATOR, f"{PROJECT}/b", "Verified recovery")
     assert cleared["clearance"]["actor"] == "operator"
