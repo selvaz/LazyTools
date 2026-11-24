@@ -34,7 +34,12 @@ _SCOPED_REPO_ACTIONS = ("local_commit", "push", "open_pr")
 _ACTIONS = ("read", *_SCOPED_REPO_ACTIONS, "scoped_delete", "production_change", "merge_main")
 
 if TYPE_CHECKING:
-    from lazybridge.ext.approval import ApprovalTarget, ApprovalTicket, ExecutorContext, TypedApprovalRequest  # type: ignore[attr-defined]
+    from lazybridge.ext.approval import (  # type: ignore[attr-defined]
+        ApprovalTarget,
+        ApprovalTicket,
+        ExecutorContext,
+        TypedApprovalRequest,
+    )
 
 
 class EffectAuthorization(BaseModel):
