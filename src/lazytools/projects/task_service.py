@@ -6,7 +6,6 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
@@ -461,7 +460,7 @@ class ProjectTaskService:
             _release(task)
             if result_state == "accepted":
                 task.data.update(status="done", completed_at=now, result=evidence_ref, error="")
-                touch_project_progress(store, task.project_id, now=datetime.fromtimestamp(now, UTC))
+                touch_project_progress(store, task.project_id)
             elif result_state == "blocked":
                 task.data.update(status="failed", completed_at=now, error=evidence_ref)
             else:
