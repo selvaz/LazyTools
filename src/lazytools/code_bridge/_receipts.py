@@ -112,6 +112,20 @@ def template(attempt: PublicationAttempt, job_store: Any, key: IssuerKey) -> Pub
     parent = _identifier((writer_meta or {}).get("parent_policy_digest"))
     if parent != _identifier((reviewer_meta or {}).get("parent_policy_digest")):
         parent = ""
+    checks = [
+        {
+            "name": f"check-{index}",
+            "command": check.command if _SAFE_CHECK.fullmatch(check.command) else "[redacted]",
+            "status": check.outcome,
+            "head_sha": attempt.head_sha,
+        }
+        for index, check in enumerate(review.checks, 1)
+        if (check.model_extra or {}).get("head_sha", attempt.head_sha) == attempt.head_sha
+    ]
+    if review.writer is not None and not review.branch:
+        checks.append(
+            {"name": "assigned_branch", "command": "", "status": "not_configured", "head_sha": attempt.head_sha}
+        )
     return PublicationReceipt.model_validate(
         {
             "receipt_id": str(uuid4()),
@@ -147,16 +161,7 @@ def template(attempt: PublicationAttempt, job_store: Any, key: IssuerKey) -> Pub
                     "head_sha": attempt.head_sha,
                 },
             },
-            "checks": [
-                {
-                    "name": f"check-{index}",
-                    "command": check.command if _SAFE_CHECK.fullmatch(check.command) else "[redacted]",
-                    "status": check.outcome,
-                    "head_sha": attempt.head_sha,
-                }
-                for index, check in enumerate(review.checks, 1)
-                if (check.model_extra or {}).get("head_sha", attempt.head_sha) == attempt.head_sha
-            ],
+            "checks": checks,
             "outcome": {"status": "refused", "refusal_reason": "publication_not_attempted"},
         }
     )

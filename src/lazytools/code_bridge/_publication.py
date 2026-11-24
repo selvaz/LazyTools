@@ -135,9 +135,9 @@ def _refusal(attempt: PublicationAttempt) -> str | None:
         return "head_changed_after_review"
     if any((check.model_extra or {}).get("head_sha", attempt.head_sha) != attempt.head_sha for check in review.checks):
         return "check_head_mismatch"
-    if review.repository.casefold() != attempt.repository or (
-        review.branch and review.branch.removeprefix("refs/heads/") != attempt.head_branch
-    ):
+    if review.repository.casefold() != attempt.repository:
+        return "approval_target_mismatch"
+    if review.branch and review.branch.removeprefix("refs/heads/") != attempt.head_branch:
         return "approval_target_mismatch"
     return None
 

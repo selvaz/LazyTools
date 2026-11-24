@@ -128,10 +128,12 @@ def publication(tmp_path, monkeypatch, request):
     admit(
         projects,
         [
-            task("writer", repo=REPOSITORY, assigned_branch="feature/reviewed"),
+            task("writer", repo=REPOSITORY, assigned_branch="refs/heads/feature/reviewed"),
             task("review", review_of="writer", dependency_ids=["writer"]),
             task("other", repo=REPOSITORY, assigned_branch="feature/other"),
             task("other-review", review_of="other", dependency_ids=["other"]),
+            task("unassigned", repo=REPOSITORY),
+            task("unassigned-review", review_of="unassigned", dependency_ids=["unassigned"]),
         ],
     )
     pushes = []
@@ -334,6 +336,27 @@ def test_head_moved_after_review_refuses_before_push(publication, capsys, monkey
     assert not publication.pushes and not publication.state.exists()
     with Store(str(publication.registry_db)) as registry:
         assert ApprovalQueue(registry).get_ticket(ticket).consumed_at is None
+
+
+def test_assigned_branch_must_match_even_with_the_reviewed_commit(publication, capsys):
+    accept(publication)
+    git(publication.repo, "update-ref", "refs/heads/feature/other", publication.reviewed)
+    receipt = publish(publication, capsys, branch="feature/other")
+    assert receipt["outcome"]["refusal_reason"] == "approval_target_mismatch"
+    assert receipt["approval"]["ticket_id"] is None
+    assert cli.main(["verify-receipt", receipt["receipt_id"]]) == 0
+    assert not publication.pushes and not publication.state.exists()
+
+
+def test_missing_assigned_branch_is_recorded_in_publication_receipt(publication, capsys):
+    accept(publication, writer="unassigned", review="unassigned-review")
+    approve(publication, capsys, writer="unassigned")
+    receipt = publish(publication, capsys, writer="unassigned", status=0)
+    assert receipt["checks"] == [
+        {"name": "assigned_branch", "command": "", "status": "not_configured", "head_sha": publication.reviewed}
+    ]
+    assert publication.service.publication_review(f"{PROJECT}/unassigned").branch == ""
+    assert cli.main(["verify-receipt", receipt["receipt_id"]]) == 0
 
 
 def test_ticket_for_other_commit_refuses_without_consuming(publication, capsys):
