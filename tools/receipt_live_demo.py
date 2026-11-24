@@ -230,7 +230,7 @@ def run_demo(args: argparse.Namespace, stack: ExitStack) -> None:
     branch = f"demo/{identifier}"
     writer_id = f"{project}/writer"
     options = ["--db", str(stores["bridge"]), "--registry-db", str(stores["registry"])]
-    service = ProjectTaskService(str(stores["projects"]))
+    service = ProjectTaskService(str(stores["projects"]), lease_seconds=3900)  # covers a 3600 s agent turn
     operator = TaskPrincipal(actor=args.operator, role="orchestrator", projects=(project,))
     writer = TaskPrincipal(actor="receipt-demo-writer", role="worker", projects=(project,))
     reviewer = TaskPrincipal(actor="receipt-demo-reviewer", role="worker", projects=(project,))
