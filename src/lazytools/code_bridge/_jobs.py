@@ -39,6 +39,7 @@ from lazytools.code_bridge import (
 from lazytools.code_bridge._approvals import BridgeGate, short_branch
 from lazytools.code_bridge._lockfile import JobLock
 from lazytools.code_bridge._policy import CODING_RULES
+from lazytools.code_bridge._review_tools import review_tools
 from lazytools.code_bridge._turn_cleanup import TurnCleanup
 
 ENGINES: tuple[str, ...] = ("codex", "claude")
@@ -295,10 +296,12 @@ def close_pending_tickets(store: Any, job_id: str, reason: str) -> None:
         registry.close(ticket, reason)
 
 
-async def _run_agent(engine: Any, task: str, agent_name: str) -> Any:
+async def _run_agent(
+    engine: Any, task: str, agent_name: str, *, tools: list[Callable[[str], str]] | None = None,
+) -> Any:
     from lazybridge import Agent
 
-    return await Agent(engine, name=agent_name).run(task)
+    return await Agent(engine, name=agent_name, tools=list(tools) if tools else None).run(task)
 
 
 def run_job(
@@ -533,6 +536,10 @@ def run_job(
             current = resolver(engine_name, resolved_cwd, profile, network, launch_mode, review=intentional_review)
             _launch.check_binding(launch.binding(), current.binding())
 
+        scoped_reads = (
+            review_tools(resolved_cwd, network=launch.policy.network, validate=validate_policy)
+            if legacy and launch.policy.profile == "read" and "read" in launch.policy.tool_classes else None
+        )
         channel = _registry.ApprovalChannel(
             _registry.Registry(store), job_id, launch.policy.revision, launch.policy.digest,
             ticket_ttl(), poll_seconds(),
@@ -626,7 +633,10 @@ def run_job(
                     try:
                         async with deadline:
                             with policy_scope(launch.policy if launch.mode == "governed" else None):
-                                env = await _run_agent(engine, prompt, agent_name)
+                                if scoped_reads:
+                                    env = await _run_agent(engine, prompt, agent_name, tools=scoped_reads)
+                                else:
+                                    env = await _run_agent(engine, prompt, agent_name)
                     except TimeoutError as exc:
                         wall_expired = deadline.expired() and remaining is not None and remaining <= timeout
                         if deadline.expired() and lease_left <= turn_limit:

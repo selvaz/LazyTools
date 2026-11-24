@@ -120,7 +120,7 @@ def build_codex_engine(
     config = replace(config, codex=replace(
         config.codex, sandbox=native["sandbox_mode"], approval_policy="on-request" if shell else "never",
         web_search=native["web_search"], writable_roots=writable_roots,
-        preapprove_dynamic_tools=False,
+        preapprove_dynamic_tools=launch.mode == "ungoverned-legacy" and launch.policy.profile == "read",
     ))
     client: CodexAppServerClient
     if launch.report is not None:
@@ -173,7 +173,7 @@ def build_claude_engine(
     config = CodingAgentConfig(
         claude=ClaudeCodePolicy(
             permission_mode="default",
-            preapprove_application_tools=False,
+            preapprove_application_tools=launch.mode == "ungoverned-legacy" and launch.policy.profile == "read",
             extra_tools=tuple(extra),
             disallowed_tools=tuple(sorted(denied)),
         ),

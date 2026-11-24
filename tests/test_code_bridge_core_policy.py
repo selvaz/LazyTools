@@ -20,7 +20,7 @@ from lazybridge.policy import current_policy_context, load_profiles
 from lazybridge.policy.codex_admission import LAUNCH_PATH, REQUIRED_PROBES
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _jobs, _launch, _lockfile, _registry, _store, _task, cli
+from lazytools.code_bridge import _jobs, _launch, _lockfile, _registry, _review_tools, _store, _task, cli
 from lazytools.code_bridge._mcp import CodeBridgeTools
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.task_service import ProjectTaskService
@@ -368,3 +368,60 @@ def test_intentional_review_cannot_borrow_writer_options(tmp_path, monkeypatch, 
         assert kwargs["config"].codex.sandbox == "read-only"
         assert kwargs["config"].codex.approval_policy == "never"
         assert kwargs["config"].codex.writable_roots == ()
+
+
+@pytest.mark.parametrize("engine", ["codex", "claude"])
+def test_review_tools_read_real_diffs_and_workspace_files(tmp_path, monkeypatch, engine):
+    script = fakes.install(monkeypatch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init")
+    git(repo, "config", "user.name", "Bridge Test")
+    git(repo, "config", "user.email", "bridge@example.invalid")
+    git(repo, "remote", "add", "origin", "https://github.com/example/review.git")
+    file = repo / "example.txt"
+    file.write_text("before\n", encoding="utf-8")
+    git(repo, "add", "example.txt")
+    git(repo, "commit", "-m", "Initial review fixture")
+    file.write_text("after\n", encoding="utf-8")
+    (tmp_path / "outside.txt").write_text("outside", encoding="utf-8")
+    native_run = _review_tools._run
+    gh_calls = []
+
+    def run(cwd, executable, args, env):
+        if executable == "gh":
+            gh_calls.append(args)
+            return "PR read"
+        return native_run(cwd, executable, args, env)
+
+    async def turn(agent, prompt):
+        review_command, review_read_file = agent.tools
+        assert "+after" in review_command("git diff")
+        assert "Initial review fixture" in review_command("git log -1")
+        assert review_read_file("example.txt") == "after\n"
+        assert review_command("gh pr view 1") == "PR read"
+        assert review_command("gh pr diff 1") == "PR read"
+        for denied in ("git push origin main", "git checkout -- example.txt", "python -m pytest",
+                       "gh pr diff 1 --repo other/repo", "gh pr view https://github.com/other/repo/pull/1"):
+            with pytest.raises(ValueError):
+                review_command(denied)
+        with pytest.raises(ValueError):
+            review_read_file("../outside.txt")
+        return Envelope(payload="done")
+
+    monkeypatch.setattr(_review_tools, "_run", run)
+    monkeypatch.setattr(fakes.FakeAgent, "run", turn)
+    result = _jobs.run_job(engine_name=engine, cwd=str(repo), root=str(tmp_path), task="Review", profile="review")
+    assert result.status == "done", result.error
+    assert all(args[-2:] == ["--repo", "github.com/example/review"] for args in gh_calls)
+    config = script.kwargs["config"]
+    if engine == "claude":
+        assert config.claude.preapprove_application_tools
+    else:
+        assert config.codex.preapprove_dynamic_tools and config.codex.sandbox == "read-only"
+
+
+def test_offline_review_denies_github_reads(tmp_path):
+    review_command, _ = _review_tools.review_tools(tmp_path, network="off", validate=lambda: None)
+    with pytest.raises(ValueError, match="require network"):
+        review_command("gh pr view 1")

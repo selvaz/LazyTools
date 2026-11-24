@@ -672,9 +672,11 @@ configured root is resolved beside the configuration file. The top-level
 reports the selected root and whether it came from the flag, environment,
 configuration, or current working directory. The compiled profile controls
 native reads, writes, shell and web exposure. In legacy mode, Claude Bash
-callbacks and Codex command escalations require an operator decision when
-the grant includes shell and the routine validator has no match. The legacy
-mode label indicates that runtime confinement has not been verified.
+callbacks and Codex command escalations use the routine validators and
+legacy approval rules within the shell grant. Claude also uses the
+read-only allow-list and session grants for its assigned push and PR
+commands. The legacy mode label indicates that runtime confinement has
+not been verified.
 
 Operator decisions use a typed LazyBridge `ApprovalQueue` in the projects Store. Set
 `LAZYTOOLS_PROJECTS_STORE_DB` to the same file used by the projects tools.
@@ -690,7 +692,11 @@ Local jobs resolve and compile LazyBridge's `read`, `edit`, or
 `edit-and-run` profiles. Existing `--profile default` and `--profile review`
 map to `edit-and-run` and `read`. Intentional reviews use `read` even
 when the caller supplies writer options. Claude exposes its repo read tools
-and Codex uses read-only sandbox settings with escalations disabled.
+and Codex uses read-only sandbox settings with escalations disabled. In
+ungoverned legacy mode both engines get `review_command` for repository Git
+reads and `review_read_file` for workspace text files. GitHub PR reads use the
+repository's origin and require network access. Legacy profile names keep
+that access by default, and callers can select `--network off`.
 
 `--launch-mode governed` requires matching runtime release evidence.
 Configure it through `LAZYTOOLS_CODE_BRIDGE_CODEX_RELEASE_REPORT` or
@@ -718,9 +724,7 @@ Every match creates and consumes a typed ticket in the shared registry and
 records the rule ID and decision actor `routine-auto`. Shell callbacks and
 command escalations that miss the tier ask the operator.
 
-### Pre-migration Claude Bash read-only allow-list
-
-This allow-list describes workers launched before the core-policy migration.
+### Legacy Claude Bash read-only allow-list
 
 `readonly_allowlist.toml`, packaged beside `routine_allowlist.toml`, lists exact
 command/subcommand tokens, permitted flags and value options, positional limits,
@@ -917,7 +921,7 @@ patterns narrow. Duplicate ids, invalid expressions and unknown validators
 are errors before launch, including detached launches. Installed defaults
 remain intact; the extra file appends rules.
 
-### Pre-migration structural approval rules
+### Legacy structural approval rules
 
 The following table describes the older policy, available with
 `--no-routine-auto`. With routine-auto enabled, rejected escalations and

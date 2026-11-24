@@ -94,10 +94,13 @@ def resolve_launch(
     # Intentional review stays read-only even if a replacement document widens read.
     classes = ("read",) if name == "read" else tuple(ceiling.allowed_tool_classes)
     parent = current_policy_context()
-    # The old writer exposed web and the old reviewer could read remote PRs.
-    # Canonical inputs default to offline.
-    network = network or ("on" if profile in LEGACY_PROFILES and name != "read" and parent is None else "off")
-    grant = TaskGrant(cwd, {"tool_classes": classes, "tools": ("web",) if network == "on" else ()}, network, "local")
+    report_setting = os.environ.get(f"LAZYTOOLS_CODE_BRIDGE_{engine.upper()}_RELEASE_REPORT")
+    report = Path(report_setting).expanduser().resolve() if report_setting and mode != "legacy" else None
+    # Legacy profile names retain GitHub reads in review and web for writers.
+    legacy_input = profile in LEGACY_PROFILES and parent is None and report is None and mode != "governed"
+    network = network or ("on" if legacy_input else "off")
+    web = network == "on" and name != "read"
+    grant = TaskGrant(cwd, {"tool_classes": classes, "tools": ("web",) if web else ()}, network, "local")
     if parent is None:
         policy = resolve(name, grant, document)
     else:
@@ -105,8 +108,6 @@ def resolve_launch(
         if mode == "legacy":
             raise PolicyError("A delegated policy requires a governed launch")
 
-    report_setting = os.environ.get(f"LAZYTOOLS_CODE_BRIDGE_{engine.upper()}_RELEASE_REPORT")
-    report = Path(report_setting).expanduser().resolve() if report_setting and mode != "legacy" else None
     compiled, receipt = _compile(engine, policy, report)
     if receipt is not None and compiled["eligible"]:
         return Launch(policy, compiled, "governed", report, receipt)
