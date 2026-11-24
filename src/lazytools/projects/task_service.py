@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 import time
+import hashlib
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +23,7 @@ from lazytools.projects.verification import get_verification, get_verification_f
 
 Nonempty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 ResultState = Literal["accepted", "blocked", "rework"]
+Outcome = Literal["success", "task_failure", "infrastructure_failure"]
 _COMMIT_SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 
 
@@ -51,6 +54,7 @@ class PlacementEvidence(BaseModel):
     reference: Nonempty
     expires_at: FiniteFloat
     engine_family: Nonempty
+    environment_id: Nonempty | None = None
 
 
 class CompletionEvidence(BaseModel):
@@ -66,6 +70,19 @@ class CompletionEvidence(BaseModel):
     verification_id: Nonempty | None = None
     reviewed_sha: Nonempty | None = None
     review_passed: bool = False
+    outcome: Outcome | None = None
+
+
+def _route_key(repo: str, placement: str, environment_id: str) -> str:
+    encoded = json.dumps([repo, placement, environment_id], ensure_ascii=True, separators=(",", ":"))
+    return "task-route:" + hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def _route(task: BoardTask, placement: PlacementEvidence) -> tuple[str, str, str] | None:
+    repo = task.data.get("repo")
+    if not repo or not placement.environment_id:
+        return None
+    return repo, placement.placement, placement.environment_id
 
 
 @dataclass
@@ -216,12 +233,16 @@ def _release(task: BoardTask) -> None:
 
 class ProjectTaskService:
     def __init__(
-        self, store_db: str | None, *, lease_seconds: int = 900, clock: Callable[[], float] = time.time
+        self, store_db: str | None, *, lease_seconds: int = 900, quarantine_threshold: int = 3,
+        clock: Callable[[], float] = time.time
     ):
         self.path = Path(store_db).resolve() if store_db and store_db != ":memory:" else None
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
         self.lease_seconds = lease_seconds
+        if isinstance(quarantine_threshold, bool) or not isinstance(quarantine_threshold, int) or quarantine_threshold < 1:
+            raise ValueError("quarantine_threshold must be a positive integer")
+        self.quarantine_threshold = quarantine_threshold
         self.clock = clock
 
     def record_placement(self, task_id: str, revision: str, evidence: PlacementEvidence) -> None:
@@ -238,10 +259,23 @@ class ProjectTaskService:
             if (old.get("revision") == revision and previous.get("eligible") and evidence.eligible
                     and previous.get("expires_at", 0) > now):
                 since = old.get("eligible_since", now)
+            route = _route(task, evidence)
+            fresh_for_route = False
+            if route:
+                key = _route_key(*route)
+                state = store.read(key, {"route": list(route), "consecutive_failures": 0,
+                                         "quarantined": False, "history": []})
+                references = state.setdefault("preflight_refs", [])
+                fresh_for_route = evidence.reference not in references
+                if fresh_for_route:
+                    references.append(evidence.reference)
+                    store.write(key, state)
             task.data.setdefault("placement_evidence", {})[evidence.placement] = {
                 "revision": revision,
                 "evidence": evidence.model_dump(mode="json"),
                 "eligible_since": since,
+                "recorded_at": now,
+                "fresh_for_route": fresh_for_route,
             }
             if task.data["status"] == "todo":
                 effective, reason = _placement(task, now)
@@ -259,7 +293,7 @@ class ProjectTaskService:
         projects = [project_id] if project_id is not None else sorted(set(principal.projects))
         def empty() -> dict[str, Any]:
             return {"ready": [], "blocked": {key: 0 for key in (
-                "unmet_dependency", "failed_dependency", "hold", "missing_placement_evidence")}, "running": 0}
+                "unmet_dependency", "failed_dependency", "hold", "missing_placement_evidence", "route_quarantined")}, "running": 0}
         with transaction(self.path) as store:
             now = self.clock()
             result = {pid: empty() for pid in projects}
@@ -288,14 +322,26 @@ class ProjectTaskService:
                     ready = _ready(task, now)
                     if _placement(task, now)[0] is None:
                         reasons.append("missing_placement_evidence")
+                    route = _route(task, ready[1]) if ready else None
+                    route_state = store.read(_route_key(*route), {}) if route else {}
+                    if route_state.get("quarantined"):
+                        reasons.append("route_quarantined")
                     for target in targets:
                         for reason in reasons:
                             target["blocked"][reason] += 1
-                    if ready is None:
+                    if ready is None or route_state.get("quarantined"):
                         continue
                     placement = ready[1].placement
                     record = data["placement_evidence"][placement]
                     timestamps = [record.get("eligible_since")]
+                    if data.get("requested_placement") == "cloud" and placement == "local":
+                        cloud = data.get("placement_evidence", {}).get("cloud")
+                        if cloud and cloud.get("revision") == task.revision:
+                            observed = cloud.get("evidence", {})
+                            timestamps.append(observed.get("expires_at") if observed.get("eligible")
+                                              else cloud.get("recorded_at"))
+                    if route_state.get("history"):
+                        timestamps.append(route_state["history"][-1]["at"])
                     if data.get("attempts"):
                         timestamps.append(data.get("queue_released_at"))
                     by_id = {task_id(item, i): item for i, item in enumerate(board["tasks"])}
@@ -340,6 +386,10 @@ class ProjectTaskService:
             for index in range(0 if cursor is None else cursor + 1, len(board["tasks"])):
                 ready = _ready(BoardTask(project_id, board, index), now)
                 if ready is not None:
+                    route = _route(BoardTask(project_id, board, index), ready[1])
+                    if route and store.read(_route_key(*route), {}).get("quarantined"):
+                        continue
+                if ready is not None:
                     if len(items) == limit:
                         next_cursor = last_index
                         break
@@ -376,6 +426,9 @@ class ProjectTaskService:
             if ready is None:
                 raise TaskServiceError("conflict", "Task is no longer ready")
             summary, placement = ready
+            route = _route(task, placement)
+            if route and store.read(_route_key(*route), {}).get("quarantined"):
+                raise TaskServiceError("route_quarantined", "Route is quarantined pending a fresh green preflight")
             attempt = max(task.data.get("attempts", 0), history[-1]["receipt"]["attempt"] if history else 0) + 1
             receipt = {
                 **summary,
@@ -385,6 +438,7 @@ class ProjectTaskService:
                 "lease_expires_at": now + self.lease_seconds,
                 "attempt": attempt,
                 "engine_family": placement.engine_family,
+                "route": list(route) if route else None,
             }
             # A null claimed_at keeps the legacy board's lease timer from
             # independently recycling this claim. This receipt owns the lease.
@@ -411,6 +465,7 @@ class ProjectTaskService:
             if (
                 placement is None or placement.placement != receipt["effective_placement"]
                 or placement.engine_family != receipt["engine_family"] or placement.reference != receipt["preflight_ref"]
+                or (list(_route(task, placement)) if _route(task, placement) else None) != receipt.get("route")
                 or _dependencies(task) != receipt["dependencies"]
                 or task.data.get("start_hold")
             ):
@@ -515,7 +570,7 @@ class ProjectTaskService:
 
     def complete(
         self, principal: TaskPrincipal, task_id: str, claim_token: str, idempotency_key: str,
-        result_state: ResultState, evidence_ref: str,
+        result_state: ResultState, evidence_ref: str, outcome: Outcome | None = None,
     ) -> dict[str, Any]:
         principal.require_role("worker", "orchestrator")
         if result_state not in ("accepted", "blocked", "rework") or not idempotency_key.strip() or not evidence_ref.strip():
@@ -523,6 +578,8 @@ class ProjectTaskService:
         with transaction(self.path, write=True) as store:
             task = _scoped_task(store, principal, task_id)
             replay_binding = [claim_token, principal.actor, result_state, evidence_ref]
+            if outcome is not None:
+                replay_binding.append(outcome)
             for previous in task.data.get("dispatches", []):
                 completed = previous.get("completion")
                 if completed is not None and completed["idempotency_key"] == idempotency_key:
@@ -539,6 +596,18 @@ class ProjectTaskService:
             evidence = CompletionEvidence.model_validate(dispatch["evidence"][evidence_ref])
             if evidence.state != result_state:
                 raise TaskServiceError("conflict", "Result state differs from the trusted evidence")
+            effective_outcome = outcome or ("success" if result_state == "accepted" else "task_failure")
+            if effective_outcome not in ("success", "task_failure", "infrastructure_failure"):
+                raise TaskServiceError("invalid", "Unknown completion outcome")
+            if (result_state == "accepted") != (effective_outcome == "success"):
+                raise TaskServiceError("invalid", "Outcome is inconsistent with result state")
+            if evidence.outcome is not None and evidence.outcome != effective_outcome:
+                raise TaskServiceError("conflict", "Outcome differs from the trusted evidence")
+            if effective_outcome == "infrastructure_failure" and evidence.outcome != effective_outcome:
+                raise TaskServiceError("invalid", "Infrastructure failure requires trusted outcome evidence")
+            route = dispatch["receipt"].get("route")
+            if effective_outcome == "infrastructure_failure" and not route:
+                raise TaskServiceError("invalid", "Infrastructure failure requires repo and environment identity")
             if result_state == "accepted":
                 _validate_acceptance(store, task, dispatch, evidence)
             result = {
@@ -546,7 +615,19 @@ class ProjectTaskService:
                 "state": result_state, "evidence_ref": evidence_ref, "artifact_ref": evidence.artifact_ref,
                 "verification_id": evidence.verification_id, "engine_family": evidence.engine_family,
                 "executor": evidence.executor, "reviewed_sha": evidence.reviewed_sha, "completed_at": now,
+                "outcome": effective_outcome,
             }
+            if route:
+                key = _route_key(*route)
+                state = store.read(key, {"route": route, "consecutive_failures": 0, "quarantined": False, "history": []})
+                if effective_outcome == "infrastructure_failure":
+                    state["consecutive_failures"] += 1
+                    if state["consecutive_failures"] >= self.quarantine_threshold and not state["quarantined"]:
+                        state.update(quarantined=True, quarantined_at=now,
+                                     failed_preflight_ref=dispatch["receipt"]["preflight_ref"])
+                elif not state["quarantined"]:
+                    state["consecutive_failures"] = 0
+                store.write(key, state)
             dispatch.update(
                 state="completed",
                 completion={"idempotency_key": idempotency_key, "binding": replay_binding, "result": result},
@@ -562,6 +643,32 @@ class ProjectTaskService:
                 task.data.update(completed_at=None, error=evidence_ref)
             task.save(store, now)
             return {"completion": result}
+
+    def route_clear(self, principal: TaskPrincipal, task_id: str, reason: str) -> dict[str, Any]:
+        """Clear a route only with this task's fresh, green recorded preflight."""
+        principal.require_role("orchestrator", "owner")
+        if not reason.strip():
+            raise TaskServiceError("invalid", "A reason is required")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, task_id)
+            now = self.clock()
+            placement, _ = _placement(task, now)
+            route = _route(task, placement) if placement else None
+            if route is None:
+                raise TaskServiceError("invalid", "A green route preflight with repo and environment is required")
+            record = task.data["placement_evidence"][placement.placement]
+            key = _route_key(*route)
+            state = store.read(key)
+            if not state or not state.get("quarantined"):
+                raise TaskServiceError("conflict", "Route is not quarantined")
+            if (not record.get("fresh_for_route") or record.get("recorded_at", 0) <= state["quarantined_at"]
+                    or placement.reference == state.get("failed_preflight_ref")):
+                raise TaskServiceError("stale", "A fresh green preflight recorded after quarantine is required")
+            event = {"actor": principal.actor, "reason": reason.strip(), "at": now,
+                     "preflight_ref": placement.reference, "task_id": task_id}
+            state.update(quarantined=False, consecutive_failures=0, history=[*state.get("history", []), event])
+            store.write(key, state)
+            return {"route": route, "clearance": event}
 
 
 def _validate_acceptance(

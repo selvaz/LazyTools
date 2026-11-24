@@ -162,11 +162,12 @@ class ProjectsTools:
 
     def __init__(
         self, *, store_db: str | None = None, allow_write: bool = False,
-        profile: str | None = None, task_principal: TaskPrincipal | None = None,
+        profile: str | None = None, task_principal: TaskPrincipal | None = None, quarantine_threshold: int = 3,
     ) -> None:
         path = _resolve_store_db(store_db)
         self._store = _open_store(str(Path(path).resolve()) if path and path != ":memory:" else path)
-        self._task_tools = TaskTools(path, task_principal, allow_write=allow_write) if task_principal else None
+        self._task_tools = TaskTools(path, task_principal, allow_write=allow_write,
+                                     quarantine_threshold=quarantine_threshold) if task_principal else None
         self._allow_write = allow_write and task_principal is None
         self._profile = _resolve_profile(profile)
 

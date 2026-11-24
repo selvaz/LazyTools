@@ -124,9 +124,68 @@ def test_queue_metrics_groups_and_blocked_reasons(queue):
     assert {(g["tier"], g["effective_placement"], g["count"], g["oldest_ready_age_seconds"]) for g in view["ready"]} == {
         ("basic", "local", 1, 10), ("writing", "cloud", 1, 10)}
     assert view["blocked"] == {"unmet_dependency": 1, "failed_dependency": 1, "hold": 1,
-                               "missing_placement_evidence": 1}
+                               "missing_placement_evidence": 1, "route_quarantined": 0}
     claim(service, "a")
     assert service.queue_metrics(OPERATOR)["overall"]["running"] == 1
+
+
+def test_route_quarantine_and_fresh_clearance(queue):
+    projects, service = queue
+    admit(projects, [task("a", repo="org/repo"), task("b", repo="org/repo"),
+                     task("other", repo="org/other")])
+    def probe(name, reference, environment="env"):
+        service.record_placement(f"{PROJECT}/{name}", revision(service, name), PlacementEvidence(
+            placement="local", eligible=True, reason="Green", reference=reference,
+            expires_at=service.clock() + 1000, engine_family="codex", environment_id=environment))
+    for name in ("a", "b", "other"):
+        probe(name, "initial")
+    def fail(key, outcome):
+        receipt = claim(service, "a", key)
+        ref = evidence(service, receipt, submit(service, receipt), state="rework", outcome=outcome)
+        return service.complete(WORKER, receipt["task_id"], receipt["claim_token"], key, "rework", ref, outcome)
+    fail("infra1", "infrastructure_failure")
+    fail("task", "task_failure")
+    fail("infra2", "infrastructure_failure")
+    fail("infra3", "infrastructure_failure")
+    assert any(item["task_id"].endswith("/b") for item in ready(service))
+    result = fail("infra4", "infrastructure_failure")
+    assert result["completion"]["outcome"] == "infrastructure_failure"
+    with pytest.raises(TaskServiceError) as refusal:
+        claim(service, "b")
+    assert refusal.value.code == "route_quarantined"
+    assert [item["task_id"] for item in ready(service)] == [f"{PROJECT}/other"]
+    assert service.queue_metrics(OPERATOR)["overall"]["blocked"]["route_quarantined"] == 2
+    with pytest.raises(TaskServiceError, match="fresh"):
+        service.route_clear(OPERATOR, f"{PROJECT}/b", "Verified recovery")
+    service.clock.now += 1
+    probe("b", "initial")
+    with pytest.raises(TaskServiceError, match="fresh"):
+        service.route_clear(OPERATOR, f"{PROJECT}/b", "Verified recovery")
+    probe("b", "new-green")
+    cleared = service.route_clear(OPERATOR, f"{PROJECT}/b", "Verified recovery")
+    assert cleared["clearance"]["actor"] == "operator"
+    assert cleared["clearance"]["reason"] == "Verified recovery"
+    with Store(db=str(service.path)) as store:
+        assert any(value["history"][-1] == cleared["clearance"] for _, value in store.items(prefix="task-route:")
+                   if value.get("history"))
+    assert claim(service, "b")["task_id"] == f"{PROJECT}/b"
+
+
+def test_configurable_quarantine_threshold(queue):
+    projects, original = queue
+    service = ProjectTaskService(str(original.path), quarantine_threshold=1, clock=original.clock)
+    admit(projects, [task("a", repo="org/repo"), task("b", repo="org/repo")])
+    for name in ("a", "b"):
+        service.record_placement(f"{PROJECT}/{name}", revision(service, name), PlacementEvidence(
+            placement="local", eligible=True, reason="Green", reference="check",
+            expires_at=service.clock() + 1000, engine_family="codex", environment_id="env"))
+    receipt = claim(service, "a")
+    ref = evidence(service, receipt, submit(service, receipt), state="rework", outcome="infrastructure_failure")
+    service.complete(WORKER, receipt["task_id"], receipt["claim_token"], "done", "rework", ref,
+                     "infrastructure_failure")
+    with pytest.raises(TaskServiceError) as refusal:
+        claim(service, "b")
+    assert refusal.value.code == "route_quarantined"
 
 
 def parallel(*operations):
@@ -412,7 +471,8 @@ async def test_mcp_lists_all_five_and_rejects_identity_in_arguments(queue):
     admit(projects, [task("a"), task("b")])
     placement(service, "a")
     config = {"projects_store_db": str(service.path), "projects_task_principal": OPERATOR.model_dump(mode="json")}
-    expected = {"tasks_next_ready", "tasks_claim", "tasks_complete", "approvals_pending", "approvals_decide"}
+    expected = {"tasks_next_ready", "tasks_queue_metrics", "tasks_claim", "tasks_complete", "tasks_route_clear",
+                "approvals_pending", "approvals_decide"}
     providers = default_providers(["projects"], allow_write=True, data_source=config)
     async with connected_client(build_server(providers, read_only=False)) as client:
         tools = {tool.name for tool in (await client.list_tools()).tools}
@@ -427,7 +487,7 @@ async def test_mcp_lists_all_five_and_rejects_identity_in_arguments(queue):
         assert ready(service)
     async with connected_client(build_server(providers, read_only=True)) as client:
         tools = {tool.name for tool in (await client.list_tools()).tools}
-        assert tools & expected == {"tasks_next_ready", "approvals_pending"}
+        assert tools & expected == {"tasks_next_ready", "tasks_queue_metrics", "approvals_pending"}
 
 
 def test_missing_persistent_store_refuses(queue):

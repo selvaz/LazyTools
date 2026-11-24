@@ -69,12 +69,37 @@ principal binding in the configuration file.
 }
 ```
 
-`tasks_next_ready` and `approvals_pending` use the principal's project scope.
+`tasks_next_ready`, `tasks_queue_metrics` and `approvals_pending` use the principal's project scope.
 With writes enabled, workers and orchestrators can claim and complete tasks,
 and orchestrators and owners can decide approvals for their assigned authority.
 Use the ordinary projects provider to author plans. The governed tools require
 a file-backed Store, and approvals require a LazyBridge build with typed
 `ApprovalQueue` support.
+
+`tasks_queue_metrics` reports ready counts and oldest known ready age in seconds
+by tier and effective placement, both per project and across the principal's
+scope. Blocked reason counts can overlap. Claimed work is counted as running.
+`unknown_age_count` identifies ready tasks whose historical timing is missing;
+the oldest age covers only tasks with known timing. Legacy board changes outside
+the queue may not retain every readiness transition.
+
+For route protection, plan tasks must provide `repo` and the trusted host must
+record `environment_id` in `PlacementEvidence`. The route is the exact tuple
+of repo, effective placement and environment ID, shared across projects in the
+same Store. The host records `CompletionEvidence.outcome` and passes the same
+`outcome` to `tasks_complete`: `success`, `task_failure`, or
+`infrastructure_failure`. Infrastructure failures need trusted matching
+evidence and a complete route identity. Existing callers may omit outcome;
+accepted results default to success and other results to task failure. After
+three consecutive infrastructure failures, new claims return
+`route_quarantined`; other outcomes reset the count before quarantine. Configure
+the threshold with `projects_task_quarantine_threshold` in the MCP config or
+`quarantine_threshold` on `ProjectTaskService`. All hosts sharing a Store should
+use the same threshold. Quarantined work remains queued. A trusted host must
+record a fresh eligible preflight with a new reference for the same route after
+quarantine; then an orchestrator or owner calls `tasks_route_clear(task_id,
+reason)`. The authenticated actor, reason and preflight reference are recorded.
+Routes without repo or environment identity cannot be quarantined.
 
 Structured plan objects can provide a project-local `task_id`, `dependency_ids`,
 `tier` (`basic`, `writing`, `thinking`, or `critical`), `requested_profile`,

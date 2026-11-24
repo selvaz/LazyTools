@@ -8,13 +8,13 @@ from typing import Any
 from lazybridge import Tool
 
 from lazytools.projects.task_approvals import Decision, ProjectTaskApprovals
-from lazytools.projects.task_service import ProjectTaskService, ResultState, TaskPrincipal
+from lazytools.projects.task_service import Outcome, ProjectTaskService, ResultState, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError
 
 
 class TaskTools:
-    def __init__(self, store_db: str | None, principal: TaskPrincipal, *, allow_write: bool):
-        self.service = ProjectTaskService(store_db)
+    def __init__(self, store_db: str | None, principal: TaskPrincipal, *, allow_write: bool, quarantine_threshold: int = 3):
+        self.service = ProjectTaskService(store_db, quarantine_threshold=quarantine_threshold)
         self.approvals = ProjectTaskApprovals(self.service)
         self.principal = principal
         self.allow_write = allow_write
@@ -40,12 +40,17 @@ class TaskTools:
         return self._call(self.service.claim, task_id, expected_revision, idempotency_key, write=True)
 
     def tasks_complete(
-        self, task_id: str, claim_token: str, idempotency_key: str, result_state: ResultState, evidence_ref: str
+        self, task_id: str, claim_token: str, idempotency_key: str, result_state: ResultState, evidence_ref: str,
+        outcome: Outcome | None = None,
     ) -> dict[str, Any]:
         """Complete the active attempt using an independently recorded result reference."""
         return self._call(
-            self.service.complete, task_id, claim_token, idempotency_key, result_state, evidence_ref, write=True
+            self.service.complete, task_id, claim_token, idempotency_key, result_state, evidence_ref, outcome, write=True
         )
+
+    def tasks_route_clear(self, task_id: str, reason: str) -> dict[str, Any]:
+        """Clear the task's quarantined route using its fresh green preflight."""
+        return self._call(self.service.route_clear, task_id, reason, write=True)
 
     def approvals_pending(
         self, project_id: str | None = None, task_id: str | None = None,
@@ -65,5 +70,5 @@ class TaskTools:
         if self.allow_write and self.principal.role in ("worker", "orchestrator"):
             methods.extend((self.tasks_claim, self.tasks_complete))
         if self.allow_write and self.principal.role in ("orchestrator", "owner"):
-            methods.append(self.approvals_decide)
+            methods.extend((self.approvals_decide, self.tasks_route_clear))
         return [Tool.wrap(method, name=method.__name__, strict=True) for method in methods]

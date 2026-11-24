@@ -1084,6 +1084,7 @@ def _projects(allow_write: bool = False, *, data_source: dict[str, Any] | None =
         store_db=config.get("projects_store_db"),
         allow_write=allow_write,
         task_principal=TaskPrincipal.model_validate(principal) if principal is not None else None,
+        quarantine_threshold=config.get("projects_task_quarantine_threshold", 3),
     )
 
 
