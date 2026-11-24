@@ -13,9 +13,9 @@ import json
 import os
 import subprocess
 import textwrap
-import time
 from itertools import pairwise
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -893,18 +893,20 @@ def test_consecutive_poll_errors_grow_exponential_backoff(cloud, monkeypatch, ca
     store = _store.build_store(cloud.db)
     registry = _store.build_job_registry(store)
     delays = []
+    now = 100.0
+    monkeypatch.setattr(_cloud, "time", SimpleNamespace(time=lambda: now))
     monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
     monkeypatch.setattr(_cloud, "_wait_for_poll_turn",
                         lambda _store, _task, _interval, delay, _deadline: delays.append(delay) or False)
     for errors in (1, 2, 3):
         meta = _store.read_meta(store, job_id) or {}
         meta.update(poll_errors_in_a_row=errors, last_poll_error="HTTP 503 Service Unavailable",
-                    last_polled_at=_cloud.time.time())
+                    last_polled_at=now)
         _store.write_meta(store, job_id, meta)
         _cloud.poll_job_once(store, registry, _cloud._merged(store, registry, job_id), interval=2.0,
                              deadline=None)
 
-    assert delays == pytest.approx([2.0, 4.0, 8.0], abs=0.01)
+    assert delays == [2.0, 4.0, 8.0]
 
 
 def test_unparseable_status_output_never_fails_job(cloud, capsys):
@@ -950,9 +952,17 @@ def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsy
     ])
     observed_before_poll = []
     poll_times = []
+    now = 100.0
+
+    def read_clock():
+        return now
+
+    def sleep(delay):
+        nonlocal now
+        now += delay
 
     def status(_self, _handle):
-        poll_times.append(time.monotonic())
+        poll_times.append(read_clock())
         current_store = _store.build_store(cloud.db)
         current = _jobs.find_job(current_store, _store.build_job_registry(current_store), job_id)
         observed_before_poll.append(current["status"])
@@ -962,15 +972,8 @@ def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsy
         return answer
 
     monkeypatch.setattr(_cloud.CodexCloud, "status", status)
-    sleeps = []
-    real_sleep = _cloud.time.sleep
-
-    def recording_sleep(delay):
-        sleeps.append(delay)
-        real_sleep(delay)
-
     monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
-    monkeypatch.setattr(_cloud.time, "sleep", recording_sleep)
+    monkeypatch.setattr(_cloud, "time", SimpleNamespace(time=read_clock, monotonic=read_clock, sleep=sleep))
     assert cli.main(["wait", job_id, "--db", str(cloud.db), "--timeout", "1", "--interval", "0.02"]) == 0
     store = _store.build_store(cloud.db)
     job = _jobs.find_job(store, _store.build_job_registry(store), job_id)
@@ -978,16 +981,9 @@ def test_transient_status_failures_retry_until_success(cloud, monkeypatch, capsy
     assert job["poll_errors_in_a_row"] == 0
     assert job["last_poll_error"] is None
     assert observed_before_poll == ["running"] * 4
-    # Each failure independently imposes its own minimum: Retry-After for the
-    # first, then exponential backoff for the second and third attempts.
-    assert len(sleeps) >= 3, "the wait loop did not sleep through each transient failure"
-    # Measure provider attempts rather than positionally indexing sleep calls:
-    # implementation overhead is correctly part of the reserved delay and can
-    # make the eventual time.sleep argument a few milliseconds shorter.
+    # Only sleep advances the clock, so each gap measures the requested wait.
     gaps = [later - earlier for earlier, later in pairwise(poll_times)]
-    assert gaps[0] >= 0.045, f"Retry-After delay was not honoured: {gaps}"
-    assert gaps[1] >= 0.03, f"second-attempt backoff was not honoured: {gaps}"
-    assert gaps[2] >= 0.07, f"third-attempt backoff was not honoured: {gaps}"
+    assert gaps == pytest.approx([0.05, 0.04, 0.08])  # Retry-After, then exponential backoff.
 
 
 @pytest.mark.parametrize("http_status", ["429 Too Many Requests", "503 Service Unavailable"])
