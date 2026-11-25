@@ -45,6 +45,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(tmp_path / "sessions.json"))
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(tmp_path / "bridge.sqlite"))
+    monkeypatch.setenv("LAZYTOOLS_PROJECTS_STORE_DB", str(tmp_path / "projects.sqlite"))
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_POLL_SECONDS", "0.01")
     monkeypatch.setenv("CODEX_BIN", "mock-codex")
     monkeypatch.setenv("PYTHONDONTWRITEBYTECODE", "1")
@@ -55,7 +56,7 @@ def isolated(tmp_path, monkeypatch):
         def __init__(self, args, *pargs, **kwargs):
             allowed = str(args[0]).lower() == "git" or (
                 args[0] == sys.executable and args[1:3] == ["-m", "unittest"]
-            )
+            ) or Path(args[0]).name.lower() in {"whoami.exe", "icacls.exe"}
             if not allowed:
                 raise AssertionError(f"Unmocked process: {args}")
             super().__init__(args, *pargs, **kwargs)
@@ -126,7 +127,8 @@ def test_projects_and_gantt_snippets(isolated, monkeypatch):
     assert gantt.main(["--store", "projects.sqlite", "--out", "gantt.html", "--all-statuses", "--text"]) == 0
 
 
-def test_bridge_worked_flow_from_markdown(isolated, monkeypatch):
+def test_bridge_worked_flow_from_markdown(isolated, monkeypatch, provision_bridge_approver):
+    provision_bridge_approver()
     code = python_blocks("docs/code-bridge.md")
     execute(code[0])  # Actual setup, Git baseline and four independent boundaries.
     execute(code[1])  # Pure route + recommend with supplied readings.

@@ -76,6 +76,20 @@ def _isolated_bridge_authority(request, tmp_path_factory, monkeypatch):
         monkeypatch.delenv(f"LAZYTOOLS_CODE_BRIDGE_{name}", raising=False)
 
 
+@pytest.fixture
+def provision_bridge_approver(tmp_path, monkeypatch):
+    from lazybridge import Store
+
+    from lazytools.code_bridge import _credentials, _registry
+
+    monkeypatch.setattr(_credentials, "credential_directory", lambda: tmp_path / "operator-credentials")
+
+    def provision(registry_db=None):
+        _registry.Registry(Store(), registry_db).initialize_credential()
+
+    return provision
+
+
 @pytest.fixture(autouse=True)
 def _fast_cloud_submit(monkeypatch):
     """Cloud submits are spaced and retried with real sleeps; tests skip both.
