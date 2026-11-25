@@ -17,6 +17,14 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, BinaryIO
 
+if __name__ == "__main__":
+    if not sys.flags.isolated:
+        raise SystemExit("Run this script with the runtime interpreter in isolated mode: python -I tools/governed_task.py")
+    tools_dir = Path(__file__).resolve().parent
+    # -I excludes the script directory and PYTHONPATH. Add only the runner's own code.
+    sys.path[:0] = [str(tools_dir), str(tools_dir.parent / "src")]
+
+import lazybridge
 from lazybridge import Store
 from lazybridge.engines.sessions import default_session_registry
 from lazybridge.ext.approval import DEFAULT_PREFIX, ApprovalTicket
@@ -57,7 +65,7 @@ CHECK_TAIL_BYTES = 4096
 CHECK_TAIL_LINES = 5
 CHECK_ENV_ALLOWLIST = frozenset({
     "PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "COMSPEC",
-    "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "PYTHONPATH",
+    "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE",
 })
 SPEC_MAX_BYTES = 32 * 1024
 SPEC_MAX_FILES = 10
@@ -107,22 +115,25 @@ def table_cell(value: str) -> str:
             .replace("|", "&#124;").replace("`", "&#96;").replace("\\", "&#92;"))
 
 
-def check_environment(repo: Path, tree: Path) -> dict[str, str]:
+def check_environment(repo: Path, tree: Path, pythonpath: str) -> dict[str, str]:
     env = {key: value for key, value in os.environ.items() if key in CHECK_ENV_ALLOWLIST}
-    if "PYTHONPATH" in env:
-        entries = []
-        for entry in env["PYTHONPATH"].split(os.pathsep):
-            path = Path(entry)
-            if path.is_absolute():
-                resolved = path.resolve()
-                if resolved.is_relative_to(repo):
-                    entry = str(tree / resolved.relative_to(repo))
-            entries.append(entry)
-        env["PYTHONPATH"] = os.pathsep.join(entries)
+    entries = [str(tree)]
+    if (tree / "src").is_dir():
+        entries.append(str(tree / "src"))
+    for entry in pythonpath.split(os.pathsep):
+        if not entry:
+            continue  # The check cwd is already first.
+        path = Path(entry)
+        if path.is_absolute():
+            resolved = path.resolve()
+            if resolved.is_relative_to(repo):
+                entry = str(tree / resolved.relative_to(repo))
+        entries.append(entry)
+    env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(entries))
     return env
 
 
-def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: list[str]) -> str:
+def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: list[str], pythonpath: str) -> str:
     if not commands:
         return "No check commands were supplied."
     require(stable_checkout(repo, branch) == candidate, "The checkout changed before checks")
@@ -134,7 +145,7 @@ def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: l
     try:
         require(not git(tree, "status", "--porcelain", "--untracked-files=all", "--ignored"),
                 f"Check worktree is not clean: {tree}")
-        return check_results(tree, candidate, log_dir, commands, check_environment(repo, tree))
+        return check_results(tree, candidate, log_dir, commands, check_environment(repo, tree, pythonpath))
     finally:
         git(repo, "worktree", "remove", "--force", str(tree))
 
@@ -241,6 +252,13 @@ def base_commit(repo: Path, base: str) -> str:
     upstream = f"refs/remotes/origin/{base}"
     base_sha = git(repo, "rev-parse", "--verify", "--quiet", f"{upstream}^{{commit}}", check=False)
     return base_sha or git(repo, "rev-parse", "--verify", f"refs/heads/{base}^{{commit}}")
+
+
+def require_separate_runtime(repo: Path) -> None:
+    runner_path = Path(__file__).resolve()
+    bridge_path = Path(lazybridge.__file__).resolve()
+    require(not runner_path.is_relative_to(repo) and not bridge_path.is_relative_to(repo),
+            "Use a runner checkout and a released LazyBridge installation outside the candidate checkout")
 
 
 def checkout_base(repo: Path, branch: str, base: str) -> tuple[str, str]:
@@ -351,7 +369,7 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     step(2, "Create project and promote plan", f"{writer_id} and {review_id} (depends on writer)")
     run_writer(stores, project, repo, branch, start, task_revision(store, project, "writer"),
                args.brief, args.engine, model, args.effort, step)
-    run_review(stores, store, project, run, step, fresh_session=args.fresh_review)
+    run_review(stores, store, project, run, step, check_pythonpath=args.check_pythonpath, fresh_session=args.fresh_review)
 
 
 def run_writer(
@@ -408,7 +426,7 @@ def review_session(
 
 def run_review(
     stores: dict[str, Path], store: Store, project: str, run: dict[str, Any],
-    step: Callable[[int, str, str], None], *, prepare: bool = False, fresh_session: bool = False,
+    step: Callable[[int, str, str], None], *, check_pythonpath: str, prepare: bool = False, fresh_session: bool = False,
 ) -> None:
     store.write(JOBS_KEY, {"pending": True})
     service = ProjectTaskService(str(stores["projects"]), lease_seconds=3900)
@@ -434,7 +452,7 @@ def run_review(
         require(candidate == writer.evidence.artifact_ref, "The checkout changed after the writer completed")
     review_base = run.get("review_base") or _cloud._git(repo, "merge-base", base_commit(repo, run["base"]), candidate)
     try:
-        checks = run_checks(repo, branch, candidate, stores["projects"].parent, run.get("checks", []))
+        checks = run_checks(repo, branch, candidate, stores["projects"].parent, run.get("checks", []), check_pythonpath)
     except CheckFailure as exc:
         store.write(JOBS_KEY, {"pending": True, "check_failure": _cloud.redact(str(exc))})
         raise
@@ -530,7 +548,8 @@ def continue_task(args: argparse.Namespace, stores: dict[str, Path], store: Stor
                    meta["engine"], meta.get("model"), meta.get("effort"), step)
     else:
         store.write(RUN_KEY, run)
-    run_review(stores, store, project, run, step, prepare=True, fresh_session=args.fresh_review)
+    run_review(stores, store, project, run, step, check_pythonpath=args.check_pythonpath,
+               prepare=True, fresh_session=args.fresh_review)
 
 
 def publish_task(args: argparse.Namespace, stores: dict[str, Path], store: Store, run: dict[str, Any]) -> None:
@@ -747,6 +766,7 @@ def execute(args: argparse.Namespace, stack: ExitStack) -> None:
         args.checks = check_commands(args.brief, args.check)
         args.specs = spec_attachments(args.spec)
         repo = args.repo = safe_path(args.repo)
+        require_separate_runtime(repo)
         args.ledger = safe_path(args.ledger)
         git = _cloud._git
         require(_cloud.repo_root(repo).resolve() == repo, "--repo must name the root of a worktree")
@@ -773,6 +793,7 @@ def execute(args: argparse.Namespace, stack: ExitStack) -> None:
             run = existing.read(RUN_KEY)
         require(run, f"Task setup did not finish for {args.project}")
         repo = safe_path(Path(run["repo"]))
+        require_separate_runtime(repo)
         lock = JobLock(parent / ".checkout-locks", repo)
         lock.acquire(args.project)
         stack.callback(lock.release)
@@ -803,6 +824,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         with ExitStack() as stack:
+            # Keep the caller's check-specific paths out of every other subprocess.
+            pythonpath = os.environ.pop("PYTHONPATH", None)
+            if pythonpath is not None:
+                stack.callback(os.environ.__setitem__, "PYTHONPATH", pythonpath)
+            args.check_pythonpath = pythonpath or ""
             execute(args, stack)
     except (DemoError, LockHeld, TaskServiceError, _cloud.CloudError, OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"Governed task stopped: {_cloud.redact(str(exc))}", file=sys.stderr)

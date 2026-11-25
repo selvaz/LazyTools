@@ -147,6 +147,40 @@ the required version 1 independence field at its placeholder value. The
 projects MCP provider exposes `receipts_get` and `receipts_verify` as
 read-only tools.
 
+## Governed task runner
+
+Run `tools/governed_task.py` with `python -I` from an interpreter that has a
+released LazyBridge installed. Use a separate checkout for the candidate.
+Isolated Python startup excludes the current directory and `PYTHONPATH` from
+imports. The script adds the tools and LazyTools source directories from the
+runner checkout and calls the bridge in that same interpreter. The runner
+clears the caller's `PYTHONPATH` before launching subprocesses and passes the
+saved paths only to checks.
+
+Required checks run as subprocesses in a fresh worktree of the candidate
+commit. Each check gets that worktree as its working directory and gets the
+worktree root and its `src` directory, if present, on `PYTHONPATH`. Absolute
+entries in the caller's `PYTHONPATH` under the writer checkout are remapped to
+the check worktree. Use commands such as `python -m pytest` to test the
+candidate code.
+
+Run `recover` when a submitted writer job has reached a terminal state and
+its task attempt is still open. Recovery records the job ID as failure evidence,
+keeps the checkout as-is, and is safe to run again. Provide the next writer
+brief to `rework`, which starts from the current clean branch head.
+
+```console
+python -I tools/governed_task.py recover --project trial-example
+python -I tools/governed_task.py rework --project trial-example --brief @fix.md
+```
+
+The first review starts the opposite-engine conversation `<project>-review`.
+Both `review` and the review in `rework` reuse the latest named reviewer
+conversation. Under NC-16, a re-review may block on unresolved previous
+findings, issues introduced by the fix, or critical security issues. Use
+`--fresh-review` for a full review in a new conversation. State from earlier
+runners without a named review starts a new conversation on its next review.
+
 ## Navigator R1: the merge-ready loop
 
 Run the production loop with one check flag per required command:
