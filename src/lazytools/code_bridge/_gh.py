@@ -98,6 +98,25 @@ def pr_for_branch(repo: str, branch: str) -> dict[str, Any] | None:
     return None
 
 
+def publication_prs(repository: str, branch: str) -> list[dict[str, Any]]:
+    """PRs, newest first, whose head is in the destination repository."""
+    owner = repository.split("/", 1)[0]
+    pages = _json(
+        "api", "--hostname", "github.com", "--method", "GET", "--paginate", "--slurp",
+        f"repos/{repository}/pulls", "-f", f"head={owner}:{branch}", "-f", "state=all",
+    )
+    if not isinstance(pages, list) or not all(isinstance(page, list) for page in pages):
+        raise CloudError("gh api returned an unexpected pull request list")
+    matches = []
+    for page in pages:
+        for pr in page:
+            head = pr["head"]
+            source = head["repo"]
+            if head["ref"] == branch and source and source["full_name"].casefold() == repository:
+                matches.append(pr)
+    return matches
+
+
 def pr_create(repo: str, *, base: str, head: str, title: str, body: str, draft: bool = False) -> str:
     """Open a PR; returns its URL."""
     out = run_gh(

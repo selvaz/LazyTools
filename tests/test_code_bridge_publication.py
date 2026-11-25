@@ -169,7 +169,8 @@ def accept(fixture, *, writer="writer", review="review", same_provider=False, in
         _store.write_meta(jobs, review_job, {**launch.metadata(), "cwd": str(fixture.repo), "model": "review-model"})
 
 
-def publish(fixture, capsys, *, writer="writer", branch="feature/reviewed", base="main", ticket=None, status=1):
+def publish(fixture, capsys, *, writer="writer", branch="feature/reviewed", base="main", ticket=None, status=1,
+            options=()):
     extra = ["--ticket", ticket] if ticket else []
     assert (
         cli.main(
@@ -185,6 +186,7 @@ def publish(fixture, capsys, *, writer="writer", branch="feature/reviewed", base
                 base,
                 *fixture.options,
                 *extra,
+                *options,
             ]
         )
         == status
@@ -353,6 +355,69 @@ def test_replay_returns_stored_outcome(publication, capsys):
     assert json.loads(evidence_file.read_text()) == first
     state = json.loads(publication.state.read_text())
     assert len(state["prs"]) == len(state["comments"]) == len(publication.pushes) == 1
+
+
+def draft_at_base(publication):
+    git(publication.bare, "update-ref", "refs/heads/feature/reviewed", publication.base)
+    return _gh.pr_create("github.com/example/publication", base="main", head="feature/reviewed",
+                         title="Existing draft", body="", draft=True)
+
+
+def test_publication_updates_existing_draft(publication, capsys):
+    url = draft_at_base(publication)
+    accept(publication)
+    ticket = approve(publication, capsys)
+    receipt = publish(publication, capsys, ticket=ticket, status=0)
+    assert receipt["publication"]["pr_number"] == 1
+    assert receipt["publication"]["pr_url"] == url
+    assert receipt["publication"]["head_sha"] == publication.reviewed
+    assert publication.pushes == [f"{publication.reviewed}:refs/heads/feature/reviewed"]
+    assert cli.main(["verify-receipt", receipt["receipt_id"], "--live"]) == 0
+    state = json.loads(publication.state.read_text())
+    assert len(state["prs"]) == len(state["comments"]) == 1
+
+
+@pytest.mark.parametrize(("state", "draft", "base", "reason"), [
+    ("OPEN", False, "main", "pr_not_draft"),
+    ("CLOSED", True, "main", "pr_not_draft"),
+    ("MERGED", False, "main", "pr_not_draft"),
+    ("OPEN", True, "release", "pr_base_mismatch"),
+])
+def test_publication_refuses_ineligible_existing_pr_before_push(publication, capsys, state, draft, base, reason):
+    draft_at_base(publication)
+    data = json.loads(publication.state.read_text())
+    data["prs"][0].update(state=state, isDraft=draft, baseRefName=base)
+    publication.state.write_text(json.dumps(data))
+    accept(publication)
+    approve(publication, capsys)
+    receipt = publish(publication, capsys)
+    assert receipt["outcome"]["refusal_reason"] == reason
+    assert cli.main(["verify-receipt", receipt["receipt_id"]]) == 0
+    assert not publication.pushes
+    assert git(publication.bare, "rev-parse", "refs/heads/feature/reviewed") == publication.base
+
+
+def test_publication_renews_approval_after_legacy_create_refusal(publication, capsys, monkeypatch):
+    draft_at_base(publication)
+    accept(publication)
+    old_ticket = approve(publication, capsys)
+    with monkeypatch.context() as legacy:
+        legacy.setattr(_gh, "publication_prs", lambda *args: [])
+        refused = publish(publication, capsys, ticket=old_ticket)
+    assert refused["outcome"]["refusal_reason"] == "pr_create_failed"
+    assert len(publication.pushes) == 1
+    options = ("--retry-ticket", old_ticket)
+    pending = publish(publication, capsys, options=options)
+    assert pending["outcome"]["refusal_reason"] == "approval_not_decided"
+    new_ticket = pending["approval"]["ticket_id"]
+    assert old_ticket != new_ticket
+    assert publish(publication, capsys, options=options)["approval"]["ticket_id"] == new_ticket
+    assert cli.main(["approve", new_ticket, *publication.options]) == 0
+    assert publish(publication, capsys, options=options)["outcome"]["refusal_reason"] == "publication_not_attempted"
+    assert len(publication.pushes) == 1
+    receipt = publish(publication, capsys, ticket=new_ticket, status=0)
+    assert receipt["publication"]["pr_number"] == 1
+    assert publish(publication, capsys, ticket=old_ticket) == refused
 
 
 def test_interrupted_publication_cannot_reuse_approval(publication, capsys, monkeypatch):

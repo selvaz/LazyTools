@@ -640,7 +640,8 @@ def publish_task(args: argparse.Namespace, stores: dict[str, Path], store: Store
         return receipt
 
     if not args.resume:
-        receipt = publication_receipt("--request-only")
+        options = ["--retry-ticket", args.retry_ticket] if args.retry_ticket else []
+        receipt = publication_receipt("--request-only", *options)
         ticket_id = receipt.approval.ticket_id
         if receipt.outcome.status == "published":
             print(f"Already published as {receipt.publication.pr_url}. Run publish --resume to verify the receipt.")
@@ -813,7 +814,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     rework.add_argument("--brief", type=at_file, required=True, metavar="@file")
     subcommands.add_parser("recover", parents=[shared], help="Settle an unfinished writer or review attempt as failed")
     publish = subcommands.add_parser("publish", parents=[shared], help="Request publication or resume after approval")
-    publish.add_argument("--resume", action="store_true")
+    publish_mode = publish.add_mutually_exclusive_group()
+    publish_mode.add_argument("--resume", action="store_true")
+    publish_mode.add_argument("--retry-ticket", metavar="ID", help="Request fresh approval after pr_create_failed")
     ledger = subcommands.add_parser("ledger", parents=[shared], help="Record one trial row")
     ledger.add_argument("--ledger", type=Path, help="Override the trial JSONL file selected at start")
     ledger.add_argument("--manual", type=nonnegative, help="Additional manual interventions")

@@ -2401,7 +2401,9 @@ def build_parser() -> argparse.ArgumentParser:
     publish_p.add_argument("--repo", required=True, type=Path)
     publish_p.add_argument("--branch", required=True)
     publish_p.add_argument("--base", default="main")
-    publish_p.add_argument("--ticket", metavar="ID", help="Use this typed publication ticket.")
+    publish_ticket = publish_p.add_mutually_exclusive_group()
+    publish_ticket.add_argument("--ticket", metavar="ID", help="Use this typed publication ticket.")
+    publish_ticket.add_argument("--retry-ticket", metavar="ID", help="Request fresh approval after pr_create_failed.")
     publish_p.add_argument("--request-only", action="store_true", help="File or inspect the ticket without publishing.")
     _add_registry_option(publish_p)
     publish_p.set_defaults(func=_cmd_publish)
@@ -2481,7 +2483,8 @@ def _cmd_publish(args: argparse.Namespace) -> int:
             policy_revision=policy.revision or "publication-v1",
             policy_digest=policy.digest,
             ticket_id=args.ticket,
-            request_only=args.request_only,
+            request_only=args.request_only or args.retry_ticket is not None,
+            retry_id=args.retry_ticket,
         )
         receipt = _receipts.finish(
             receipt,

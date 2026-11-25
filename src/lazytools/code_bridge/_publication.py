@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 from lazybridge import Store
 from lazybridge.ext.approval import ApprovalQueue, ApprovalTarget, ApprovalTicket, ExecutorContext, TypedApprovalRequest
+from lazybridge.ext.receipt import PublicationReceipt
 
 from lazytools.code_bridge import _cloud, _gh, _registry
 from lazytools.projects.task_service import ProjectTaskService, PublicationReview
@@ -166,7 +167,7 @@ def _request(attempt: PublicationAttempt, policy_revision: str, policy_digest: s
 
 
 def _find_ticket(
-    registry: _registry.Registry, request: TypedApprovalRequest, selected_id: str | None
+    registry: _registry.Registry, request: TypedApprovalRequest, selected_id: str | None, retry_id: str | None
 ) -> ApprovalTicket | None:
     if selected_id is not None:
         return registry.inspect(selected_id)
@@ -178,7 +179,7 @@ def _find_ticket(
         queue = ApprovalQueue(cast(Store, store))
         key = f"publication:request:{request.digest}"
         ticket_id = store.read(key)
-        if ticket_id is not None:
+        if ticket_id is not None and ticket_id != retry_id:
             existing = queue.get_ticket(ticket_id)
             if existing is None or existing.consumed_at or existing.status == "rejected":
                 return existing
@@ -187,7 +188,7 @@ def _find_ticket(
         target = request.target
         ticket = queue.create_typed_ticket(
             request,
-            prompt=f"Open draft PR in {target.repo} from {target.ref} at {target.sha} into {request.payload['base_branch']}",
+            prompt=f"Publish draft PR in {target.repo} from {target.ref} at {target.sha} into {request.payload['base_branch']}",
             operator_only=True,
         )
         store.write(key, ticket.approval_id)
@@ -246,6 +247,23 @@ def _authorize(
 def _publish(attempt: PublicationAttempt, outcome: PublicationOutcome) -> PublicationOutcome:
     repo, head, base = f"github.com/{attempt.repository}", attempt.head_branch, attempt.base_branch
     try:
+        matches = _gh.publication_prs(attempt.repository, head)
+        opened = [pr for pr in matches if pr["state"] == "open"]
+        if len(opened) > 1:
+            return replace(outcome, reason="pr_head_ambiguous")
+        if matches:
+            existing = (opened or matches)[0]
+            number, url = existing["number"], existing["html_url"]
+            if type(number) is not int or number < 1 or url.casefold() != f"https://{repo}/pull/{number}":
+                return replace(outcome, reason="pr_lookup_failed")
+            outcome = replace(outcome, pr_number=number, pr_url=url)
+            if existing["state"] != "open" or existing["draft"] is not True:
+                return replace(outcome, reason="pr_not_draft")
+            if existing["base"]["ref"] != base:
+                return replace(outcome, reason="pr_base_mismatch")
+    except (*_GIT_ERRORS, AttributeError, KeyError, TypeError):
+        return replace(outcome, reason="pr_lookup_failed")
+    try:
         # The push source is the reviewed object ID even if the local ref moves
         # after the final check. A literal URL avoids named remote push refspecs.
         _cloud._git(
@@ -260,16 +278,18 @@ def _publish(attempt: PublicationAttempt, outcome: PublicationOutcome) -> Public
         )
     except _GIT_ERRORS:
         return replace(outcome, reason="push_failed")
-    try:
-        url = _gh.pr_create(repo, base=base, head=head, title=f"Publish {head}", body="", draft=True)
-        number = _gh.pr_number_from_url(url)
-        if number is None or url.casefold() != f"https://{repo}/pull/{number}":
+    if outcome.pr_number is None:
+        try:
+            url = _gh.pr_create(repo, base=base, head=head, title=f"Publish {head}", body="", draft=True)
+            number = _gh.pr_number_from_url(url)
+            if number is None or url.casefold() != f"https://{repo}/pull/{number}":
+                return replace(outcome, reason="pr_create_failed")
+        except _GIT_ERRORS:
             return replace(outcome, reason="pr_create_failed")
-    except _GIT_ERRORS:
-        return replace(outcome, reason="pr_create_failed")
-    outcome = replace(outcome, pr_number=number, pr_url=url)
+        outcome = replace(outcome, pr_number=number, pr_url=url)
     try:
-        pr = _gh.pr_view(repo, number, publication=True)
+        assert outcome.pr_number is not None
+        pr = _gh.pr_view(repo, outcome.pr_number, publication=True)
     except _GIT_ERRORS:
         return replace(outcome, reason="pr_head_unavailable")
     pr_head = pr.get("headRefOid")
@@ -298,11 +318,21 @@ def run(
     policy_digest: str,
     ticket_id: str | None,
     request_only: bool = False,
+    retry_id: str | None = None,
 ) -> PublicationOutcome:
     if reason := _refusal(attempt):
         return PublicationOutcome(reason)
     request = _request(attempt, policy_revision, policy_digest)
-    ticket = _find_ticket(registry, request, ticket_id)
+    if retry_id is not None:
+        previous = registry.inspect(retry_id)
+        if previous is None or previous.request != request or previous.consumed_at is None:
+            return PublicationOutcome("approval_target_mismatch", ticket=previous)
+        with transaction(service.path) as store:
+            _, saved = publication_for_ticket(store, previous.approval_id)
+        if saved is None or PublicationReceipt.model_validate_json(saved).outcome.refusal_reason != "pr_create_failed":
+            return PublicationOutcome("publication_retry_unavailable", ticket=previous)
+        retry_id = previous.approval_id
+    ticket = _find_ticket(registry, request, ticket_id, retry_id)
     if ticket is None:
         return PublicationOutcome("approval_target_mismatch")
     outcome = _authorize(service, registry, attempt, request, ticket, request_only=request_only)
