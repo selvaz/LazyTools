@@ -1,4 +1,4 @@
-"""Local, deterministic eligibility check performed before a cloud submit.
+"""Codex probe evidence and the local eligibility check before a cloud submit.
 
 The environment manifest is deliberately a repository-owned JSON file.  It is
 evidence about a built cloud environment, not a promise that the bridge tries
@@ -14,7 +14,7 @@ import tomllib
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 from typing import Any
 
 MANIFEST = ".bridge/cloud-preflight.json"
@@ -55,6 +55,50 @@ class ProbeEvidence:
     repositories: dict[str, bool]
 
 
+@dataclass(frozen=True)
+class Probe:
+    requirements: Requirements
+    expected_network: bool | None
+
+    def brief(self) -> str:
+        expected = {None: "unspecified", True: "on", False: "off"}[self.expected_network]
+        imports = json.dumps(self.requirements.imports)
+        repositories = json.dumps(self.requirements.repositories)
+        return f"""# Codex cloud preflight probe
+
+## Goal
+Measure the capabilities of this cloud environment from the task container.
+
+## Context
+Expected network: {expected}. Report the observed result regardless of this expectation.
+Import names to test: {imports}
+Sibling GitHub repositories to test: {repositories}
+
+## Constraints
+- Record Python's version using platform.python_version().
+- Make one HTTPS request to https://pypi.org/ with a 10-second timeout and redirects disabled.
+  Set network to true only for a successful response. Do not retry.
+- Before testing sibling installs, try each named import in its own Python process with a
+  15-second timeout. Mark it true only if importlib.import_module(name) succeeds.
+- A sibling passes if a matching checkout is present or its declared dependency reference
+  in pyproject.toml installs successfully. Verify checkout identity from its Git remote.
+  For an install attempt, use the declared source and ref, a temporary install target,
+  GIT_TERMINAL_PROMPT=0, pip --no-input, and a 60-second timeout. Never substitute an unpinned source
+  or a PyPI package for a sibling. Mark unavailable or unverified checks false.
+- Keep the checkout unchanged except for .bridge/report.md. Keep credentials and
+  command diagnostics out of the report. Ensure the report appears in the task diff,
+  staging just this file if it is ignored.
+
+## Done when
+Every listed name has been checked and appears exactly once with a JSON boolean result.
+
+## Report
+Print only one fenced ```json block, with no surrounding prose, and copy the same block
+to .bridge/report.md. Use exactly these fields: network (boolean), python_version
+(major.minor.patch string), imports (object keyed by the listed import names), and
+repositories (object keyed by the listed sibling slugs). Use empty objects for empty lists."""
+
+
 def _items(pattern: re.Pattern[str], brief: str) -> set[str]:
     found: set[str] = set()
     for match in pattern.finditer(brief):
@@ -69,9 +113,11 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def project_requirements(root: Path) -> Requirements:
+def project_requirements(root: Path, *, allow_missing: bool = False) -> Requirements:
     """Read the import names and sibling slugs used by both manifest workflows."""
     pyproject_path = root / "pyproject.toml"
+    if allow_missing and not pyproject_path.exists():
+        return Requirements(imports=[], repositories=[])
     try:
         pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
@@ -157,12 +203,16 @@ def parse_probe_output(output: str, requirements: Requirements) -> ProbeEvidence
 def write_probe_manifest(*, root: Path, env_id: str, job_id: str, evidence: ProbeEvidence) -> Path:
     """Replace the probed environment entry, preserving other environment entries."""
     path = root / MANIFEST
-    data: dict[str, Any] = {"revision": "probe-1", "environments": {}}
+    environments: dict[str, Any] = {}
     if path.exists():
-        data = _read_json(path)
-    environments = data.get("environments")
-    if not isinstance(environments, dict) or not isinstance(data.get("revision"), (str, int)):
-        raise ValueError(f"invalid cloud preflight manifest: {path}")
+        # A fresh probe must also recover a manifest that check cannot read.
+        try:
+            existing = _read_json(path)
+        except (UnicodeError, ValueError):
+            pass
+        else:
+            if isinstance(existing.get("environments"), dict):
+                environments = existing["environments"]
     environments[env_id] = {
         "revision": f"probe:{job_id}",
         "attested_by": f"probe:{job_id}",
@@ -172,15 +222,12 @@ def write_probe_manifest(*, root: Path, env_id: str, job_id: str, evidence: Prob
         "imports": sorted(name for name, passed in evidence.imports.items() if passed),
         "repositories": sorted(name for name, passed in evidence.repositories.items() if passed),
     }
-    output = json.dumps(data, indent=2, sort_keys=True) + "\n"
+    output = json.dumps({"revision": "probe-1", "environments": environments}, indent=2, sort_keys=True) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
-    with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as temp:
-        temporary_path = Path(temp.name)
-    try:
+    with TemporaryDirectory(dir=path.parent) as directory:
+        temporary_path = Path(directory) / path.name
         temporary_path.write_text(output, encoding="utf-8")
         temporary_path.replace(path)
-    finally:
-        temporary_path.unlink(missing_ok=True)
     return path
 
 
@@ -196,8 +243,9 @@ def check(
     """
     manifest_path = manifest_path or root / MANIFEST
     cache_path = cache_path or root / CACHE
+    refresh = f"run cloud-preflight probe --repo <path> for environment {env_id!r}"
     if not manifest_path.is_file():
-        return Result(False, f"cloud preflight manifest is missing: {manifest_path}; build/probe the environment first")
+        return Result(False, f"cloud preflight manifest is missing: {manifest_path}; {refresh}")
     try:
         manifest = _read_json(manifest_path)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
@@ -214,11 +262,13 @@ def check(
         return Result(False, f"cloud preflight manifest entry {env_id!r} needs revision and network")
 
     attested_on = entry.get("attested_on")
-    refresh = f"run cloud-preflight probe --repo <path> for environment {env_id!r}"
+    invalid_date = f"cloud preflight manifest needs a valid attestation date; {refresh}"
+    if not isinstance(attested_on, str):
+        return Result(False, invalid_date)
     try:
         attestation_date = date.fromisoformat(attested_on)
-    except (TypeError, ValueError):
-        return Result(False, f"cloud preflight manifest needs a valid attestation date; {refresh}")
+    except ValueError:
+        return Result(False, invalid_date)
     age = (_today() - attestation_date).days
     if age < 0 or age > MAX_AGE_DAYS:
         return Result(False, f"cloud preflight manifest date {attestation_date} is outside the last "
