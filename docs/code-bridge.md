@@ -88,10 +88,11 @@ for every lifecycle command. Logs are under the Store's results directory
 attempt has an accepted independent review. Use the full writer task ID
 (`project/task`), its local repository with a GitHub `origin`, and the reviewed
 branch. Configure `LAZYTOOLS_PROJECTS_STORE_DB` for the projects task service
-and use a LazyBridge build that provides `lazybridge.ext.receipt` with Ed25519
-support.
+and initialize its owner credential once from the operator shell. Publication
+uses `lazybridge.ext.receipt` with Ed25519 support.
 
 ```console
+lazytools-code-bridge approver-credential init
 lazytools-code-bridge publish --task project/task --repo ./repo --branch feature/reviewed
 lazytools-code-bridge approve TICKET_ID
 lazytools-code-bridge publish --task project/task --repo ./repo --branch feature/reviewed
@@ -102,8 +103,8 @@ The first invocation files a typed ticket and exits 1 with a signed
 `approval_not_decided` receipt. Read the repository, branch, commit and base
 in the pending approval before deciding. The default base is `main`. Use
 `--base` to specify another base or `--ticket ID` to resume with a specific
-ticket. Pass the same `--db` and `--registry-db` selections to `approve` as
-to `publish` when using an isolated registry.
+ticket. Use the same `--db` and `--registry-db` selections for initialization,
+approval, and publication when using an isolated registry.
 
 The executor refuses `main`, `master`, the chosen base and the repository's
 default branch as publication heads. The head must match the writer task's
@@ -116,9 +117,8 @@ existing open draft to target the approved base. It pushes the reviewed object
 ID with an ordinary fast-forward push, opens a draft if needed, then reads the
 draft's head from GitHub. A published receipt records the PR number and head.
 A head mismatch or a PR that is no longer an open draft produces a signed
-refusal with the PR URL. LazyBridge 1.9.2 requires a null `pr_number`
-in signed refusals. The projects store records the number alongside the
-receipt. A replay returns the stored receipt or an
+refusal with the PR URL. The projects store records the number alongside the
+signed refusal. A replay returns the stored receipt or an
 `approval_already_consumed` refusal when the first process has yet to save
 its outcome. The ticket stays consumed if the push or `gh pr create` fails,
 or if the process stops after consuming approval. A retry requires a new
@@ -842,8 +842,8 @@ stores the bearer secret in a current-user-only file under
 The CLI prints only initialization status. Run decisions under the account
 that initialized the credential. Keep the state directory outside job
 workspaces. The bridge keeps the credential out of job environments and
-blocks its directory and file names in the read allow-list. Typed decisions
-are recorded as `owner`. `--actor` applies to historical prompt-only tickets.
+excludes credential paths from automatic read approvals. Typed decisions are
+recorded as `owner`. `--actor` applies to historical prompt-only tickets.
 Only a person should run credential initialization and operator decisions.
 
 ### Approval profiles
@@ -876,6 +876,8 @@ configuration. The claim controls placement, engine and the requested
 profile and network when specified. The bridge records the dispatch
 acknowledgement and local job ID. The MCP tool accepts the corresponding
 `profile`, `launch_mode`, `network`, `task_id`, and `claim_token` arguments.
+
+### Governed Projects approvals
 
 The governed Projects effect registry checks the deciding principal, project
 scope, required role, and exact request digest. Provision a LazyBridge

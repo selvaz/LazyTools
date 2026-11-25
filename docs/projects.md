@@ -72,9 +72,13 @@ principal binding in the configuration file.
 `tasks_next_ready`, `tasks_queue_metrics` and `approvals_pending` use the principal's project scope.
 With writes enabled, workers and orchestrators can claim and complete tasks,
 and orchestrators and owners can decide approvals for their assigned authority.
-Use the ordinary projects provider to author plans. The governed tools require
-a file-backed Store, and approvals require a LazyBridge build with typed
-`ApprovalQueue` support.
+The governed tools require a file-backed Store. Configure
+`projects_approver_credential_file` on the human approver's stdio host.
+When the request producer uses a custom orchestrator identity, pass that actor
+as `orchestrator_actor` to `ProjectTaskApprovals` so the ticket routes to the
+same principal. See [approval credential setup](code-bridge.md#governed-projects-approvals).
+
+Use the ordinary projects provider to author plans.
 
 `tasks_queue_metrics` reports ready counts and oldest known ready age in seconds
 by tier and effective placement, both per project and across the principal's
