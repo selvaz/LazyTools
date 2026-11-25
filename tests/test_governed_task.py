@@ -13,6 +13,7 @@ from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
 
+import lazybridge
 import pytest
 from lazybridge import Store
 
@@ -470,6 +471,62 @@ def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
     assert publication.writer.attempt == publication.reviewer.attempt == 2
     assert publication.independence == "opposite-engine"
     assert publication.writer.evidence.artifact_ref == publication.reviewer.evidence.reviewed_sha == head
+
+
+def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, capsys):
+    start, invoke, setup, script, state, _, _ = trial
+    checkout = setup()
+    fake_run = lazybridge.Agent.run
+
+    async def fail_after_commit(agent, prompt):
+        await fake_run(agent, prompt)
+        return lazybridge.Envelope.error_envelope(RuntimeError("Writer bridge interrupted after a commit"))
+
+    with monkeypatch.context() as failed:
+        failed.setattr(lazybridge.Agent, "run", fail_after_commit)
+        assert start(checkout) == 1
+    git = _cloud._git
+    head = git(checkout, "rev-parse", "HEAD")
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        writer, _ = project_store.read(_board_key(PROJECT))["tasks"]
+    attempt, = writer["dispatches"]
+    job_id = attempt["job_ref"]
+    assert writer["status"] == "claimed" and attempt["state"] == "submitted"
+    capsys.readouterr()
+
+    with Store(db=str(state / "bridge.sqlite")) as job_store:
+        registry = _store.build_job_registry(job_store)
+        registry.write(job_id, "Writer", tool_name="codex", status="awaiting_approval")
+        assert invoke("recover") == 1
+        assert f"Writer job {job_id} is still running (awaiting_approval)" in capsys.readouterr().err
+        registry.write(job_id, "Writer", tool_name="codex", status="failed")
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        assert project_store.read(_board_key(PROJECT))["tasks"][0] == writer
+
+    runner = importlib.import_module("governed_task")
+    with monkeypatch.context() as expired:
+        expired.setattr(runner, "ProjectTaskService", lambda path: ProjectTaskService(
+            path, clock=lambda: attempt["receipt"]["lease_expires_at"] + 1,
+        ))
+        assert invoke("recover") == 0
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        recovered = project_store.read(_board_key(PROJECT))["tasks"][0]
+        assert recovered["status"] == "failed" and not recovered["active_queue_claim"]
+        dispatch, = recovered["dispatches"]
+        evidence = dispatch["evidence"][dispatch["completion"]["result"]["evidence_ref"]]
+        assert dispatch["state"] == "completed" and evidence["job_ref"] == job_id and evidence["state"] == "blocked"
+        assert invoke("recover") == 0
+        assert project_store.read(_board_key(PROJECT))["tasks"][0] == recovered
+    assert f"Writer job {job_id} already recorded as failed" in capsys.readouterr().out
+    assert git(checkout, "rev-parse", "HEAD") == head
+
+    brief = state.parent.parent / "recover.md"
+    brief.write_text("Finish the writer's work.", encoding="utf-8")
+    assert invoke("rework", "--brief", f"@{brief}") == 0
+    assert git(checkout, "rev-parse", "HEAD^") == head
+    assert f"Previous writer failure\nBridge job {job_id}" in script.prompts[1]
+    publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
+    assert publication.writer.attempt == 2 and publication.reviewer.attempt == 1
 
 
 def test_review_recovers_after_check_failure_and_rechecks_before_dispatch(trial):

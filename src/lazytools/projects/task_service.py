@@ -850,8 +850,15 @@ class ProjectTaskService:
         result_state: ResultState,
         evidence_ref: str,
         outcome: Outcome | None = None,
+        *,
+        reconcile_failure: bool = False,
     ) -> dict[str, Any]:
+        """Complete a claim, or let a trusted reconciler close it with blocked evidence after lease expiry."""
         principal.require_role("worker", "orchestrator")
+        if reconcile_failure:
+            principal.require_role("orchestrator")
+            if result_state != "blocked":
+                raise TaskServiceError("invalid", "Recovered completion must be blocked")
         if (
             result_state not in ("accepted", "blocked", "rework")
             or not idempotency_key.strip()
@@ -870,7 +877,12 @@ class ProjectTaskService:
                         raise TaskServiceError("conflict", "Completion idempotency key has already been used")
                     return {"completion": completed["result"]}
             now = self.clock()
-            dispatch = _fenced_dispatch(task, principal, claim_token, now)
+            if reconcile_failure:
+                dispatch = _active_dispatch(task)
+                if dispatch["receipt"]["claim_token"] != claim_token:
+                    raise TaskServiceError("stale", "Claim token has been superseded")
+            else:
+                dispatch = _fenced_dispatch(task, principal, claim_token, now)
             _require_open(store, task.project_id)
             if dispatch.get("unresolved_effects"):
                 raise TaskServiceError("unresolved", "Reconcile outstanding effects before completing the task")

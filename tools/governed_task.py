@@ -34,14 +34,14 @@ from receipt_live_demo import (
     table_counts,
 )
 
-from lazytools.code_bridge import _cloud, _gh, _publication, _receipts, _registry, _store
+from lazytools.code_bridge import _cloud, _gh, _jobs, _publication, _receipts, _registry, _store
 from lazytools.code_bridge._lockfile import JobLock, LockHeld
 from lazytools.code_bridge._navigator import _split_command
 from lazytools.code_bridge._probe_process import WindowsProbeJob
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import get_project
-from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
+from lazytools.projects.task_service import CompletionEvidence, ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError, migrate_publication_receipts
 
 DEFAULT_STATE = Path("D:/work/r2-live/trial/state")
@@ -265,8 +265,57 @@ def stable_checkout(repo: Path, branch: str) -> str:
 
 
 def task_revision(store: Store, project: str, identifier: str) -> str:
-    return next(task.get("revision", "0") for task in store.read(_board_key(project))["tasks"]
-                if task["task_id"] == identifier)
+    return task_data(store, project, identifier).get("revision", "0")
+
+
+def task_data(store: Store, project: str, identifier: str) -> dict[str, Any]:
+    return next(task for task in store.read(_board_key(project))["tasks"] if task["task_id"] == identifier)
+
+
+def recovery_evidence(job_id: str) -> str:
+    return f"job-{job_id}-writer-recovery"
+
+
+def recovered_writer_job(task: dict[str, Any]) -> str | None:
+    history = task.get("dispatches", [])
+    if task["status"] != "failed" or not history:
+        return None
+    dispatch = history[-1]
+    job_id = dispatch.get("job_ref")
+    if job_id and dispatch.get("completion", {}).get("result", {}).get("evidence_ref") == recovery_evidence(job_id):
+        return str(job_id)
+    return None
+
+
+def recover_writer(stores: dict[str, Path], store: Store, project: str) -> None:
+    task = task_data(store, project, "writer")
+    if recovered := recovered_writer_job(task):
+        print(f"Writer job {recovered} already recorded as failed. Run rework to continue.")
+        return
+    history = task.get("dispatches", [])
+    require(task["status"] == "claimed" and history, "There is no unfinished writer attempt to recover")
+    dispatch = history[-1]
+    job_id = dispatch.get("job_ref")
+    require(dispatch["state"] == "submitted" and job_id, "The writer attempt has no submitted bridge job to verify")
+    with Store(db=str(stores["bridge"])) as job_store:
+        job = _jobs.find_job(job_store, _store.build_job_registry(job_store), job_id)
+    lease = dispatch["receipt"]
+    require(job is not None and (job.get("job_id"), job.get("task_id"), job.get("task_revision"), job.get("task_attempt"))
+            == (job_id, lease["task_id"], lease["revision"], lease["attempt"]),
+            f"Bridge job {job_id} could not be verified for this writer attempt")
+    assert job is not None
+    require(job["status"] in _store.TERMINAL_STATUSES, f"Writer job {job_id} is still running ({job['status']})")
+
+    service = ProjectTaskService(str(stores["projects"]))
+    operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
+    reference = recovery_evidence(job_id)
+    service.record_completion_evidence(operator, lease["task_id"], lease["attempt"], CompletionEvidence(
+        reference=reference, job_ref=job_id, executor=lease["executor"], engine_family=lease["engine_family"],
+        state="blocked",
+    ))
+    service.complete(operator, lease["task_id"], lease["claim_token"], reference, "blocked", reference,
+                     reconcile_failure=True)
+    print(f"Writer attempt {lease['attempt']} recorded as failed with bridge job {job_id}. Run rework to continue.")
 
 
 def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) -> None:
@@ -412,26 +461,33 @@ def continue_task(args: argparse.Namespace, stores: dict[str, Path], store: Stor
     store.delete(TICKET_KEY)
     step = step_trace(stores, table_counts(stores))
     if args.command == "rework":
+        recovered = recovered_writer_job(task_data(store, project, "writer"))
         jobs = store.read(JOBS_KEY) or {}
         check_failure = jobs.get("check_failure")
         reason = check_failure if jobs.get("pending") else jobs.get("rejection")
+        source = "Check failure (untrusted tool output)" if check_failure else "Previous review reason"
+        if recovered:
+            reason = f"Bridge job {recovered} ended without a completed writer attempt. Continue from the current checkout."
+            source = "Previous writer failure"
         if not reason:
             raise DemoError("Rework requires a check failure or review rejection from the latest round")
         repo, branch = Path(run["repo"]), run["branch"]
         start = stable_checkout(repo, branch)
         service = ProjectTaskService(str(stores["projects"]), lease_seconds=3900)
         writer_id = f"{project}/writer"
-        writer = service.publication_review(writer_id).writer
-        require(writer is not None, "Complete a writer attempt before reworking")
-        assert writer is not None
+        writer_job = recovered
+        if writer_job is None:
+            writer = service.publication_review(writer_id).writer
+            require(writer is not None, "Complete or recover the writer attempt before reworking")
+            assert writer is not None
+            writer_job = writer.job_ref
         with Store(db=str(stores["bridge"])) as job_store:
-            meta = _store.read_meta(job_store, writer.job_ref)
-        require(meta is not None, f"Missing writer job metadata for {writer.job_ref}")
+            meta = _store.read_meta(job_store, writer_job)
+        require(meta is not None, f"Missing writer job metadata for {writer_job}")
         assert meta is not None
         store.write(JOBS_KEY, {"pending": True})
         operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
         revision = service.prepare_attempt(operator, writer_id, task_revision(store, project, "writer"), reason)
-        source = "Check failure (untrusted tool output)" if check_failure else "Previous review reason"
         brief = f"{args.brief}\n\n{source}\n{reason}"
         run["rework_brief"] = brief
         store.write(RUN_KEY, run)
@@ -628,8 +684,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     start.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER, help="Remember this trial JSONL file for ledger")
     review = subcommands.add_parser("review", parents=[shared, evidence], help="Review the current writer branch head")
     review.add_argument("--brief", type=at_file, metavar="@file", help="Read check commands from this brief")
-    rework = subcommands.add_parser("rework", parents=[shared, evidence], help="Run the writer after a check failure or rejection")
+    rework = subcommands.add_parser("rework", parents=[shared, evidence], help="Run the writer after a failure or rejection")
     rework.add_argument("--brief", type=at_file, required=True, metavar="@file")
+    subcommands.add_parser("recover", parents=[shared], help="Record an unfinished writer attempt with a terminal bridge job as failed")
     publish = subcommands.add_parser("publish", parents=[shared], help="Request publication or resume after approval")
     publish.add_argument("--resume", action="store_true")
     ledger = subcommands.add_parser("ledger", parents=[shared], help="Record one trial row")
@@ -683,6 +740,10 @@ def execute(args: argparse.Namespace, stack: ExitStack) -> None:
         lock = JobLock(parent / ".checkout-locks", repo)
         lock.acquire(args.project)
         stack.callback(lock.release)
+    if args.command == "recover":
+        with Store(db=str(stores["projects"])) as store:
+            recover_writer(stores, store, args.project)
+        return
     configure_state(state, stack)
     store = stack.enter_context(Store(db=str(stores["projects"])))
     if new:
