@@ -109,16 +109,25 @@ default branch as publication heads. The head must match the writer task's
 assigned branch when one is recorded. Otherwise, the receipt records an
 `assigned_branch` check with status `not_configured`. The executor checks the
 local head again before consuming the decision.
-It pushes the reviewed object ID with an ordinary fast-forward push, opens a
-draft, then reads its head from GitHub. A published receipt records the draft
-at that head. A head mismatch or a PR that is no longer an open draft produces
-a signed refusal with the PR URL. LazyBridge 1.9.2 requires a null `pr_number`
+The executor looks up PRs from the same repository and head branch before
+pushing. It refuses a closed, merged, or ready-for-review PR, and requires an
+existing open draft to target the approved base. It pushes the reviewed object
+ID with an ordinary fast-forward push, opens a draft if needed, then reads the
+draft's head from GitHub. A published receipt records the PR number and head.
+A head mismatch or a PR that is no longer an open draft produces a signed
+refusal with the PR URL. LazyBridge 1.9.2 requires a null `pr_number`
 in signed refusals. The projects store records the number alongside the
 receipt. A replay returns the stored receipt or an
 `approval_already_consumed` refusal when the first process has yet to save
 its outcome. The ticket stays consumed if the push or `gh pr create` fails,
 or if the process stops after consuming approval. A retry requires a new
 approval.
+
+If an earlier executor pushed the head and recorded `pr_create_failed`, use
+`publish --retry-ticket OLD_TICKET_ID` to file a fresh approval for the same
+reviewed head. Approve the new ticket and publish with `--ticket NEW_TICKET_ID`.
+The governed runner accepts the same `--retry-ticket` option and resumes with
+`publish --resume` after approval.
 
 The projects store retains both published and refused receipts. Each also has a
 `receipt.json` under `results/<writer-job-id>/publication/<receipt-id>/`.
@@ -161,22 +170,44 @@ Required checks run as subprocesses in a fresh worktree of the candidate
 commit. Each check gets that worktree as its working directory and gets the
 worktree root and its `src` directory, if present, on `PYTHONPATH`. Absolute
 entries in the caller's `PYTHONPATH` under the writer checkout are remapped to
-the check worktree. Use commands such as `python -m pytest` to test the
-candidate code.
+the check worktree. Match the repository's CI gate in the brief's `Checks`
+block or with repeated `--check` options. Include the full test suite and
+any lint, format and pre-commit commands the repository runs in CI. The
+default timeout is 600 seconds per command. Use `--check-timeout SECONDS`
+on `start`, `review` or `rework` to set the default for the task. Append
+`::timeout=N` to a command in the brief or a `--check` option to override
+its timeout individually.
+
+The check environment preserves `HOME` and `USERPROFILE` when present so
+tools can resolve the user's home directory.
+
+Run `publish --resume --ci-gate` after approval to wait for GitHub's check
+rollup for the exact published commit. The runner waits up to 30 minutes
+for a nonempty result, exits nonzero if the gate fails, and writes the
+result to the trial ledger with the PR number, head SHA, and receipt ID.
+Repeat the command after a GitHub CI rerun to refresh the ledger without
+pushing again. The signed publication receipt records the draft and its head.
 
 If the bridge refuses a launch before it creates a job, the runner records the
 launch error and releases the task claim. Use `recover` if a writer or review
 claim is still open after an interruption. Recovery handles claims with no job
 and claims with a verified terminal bridge job. It refuses while a job is
-active, preserves the checkout, and is safe to run again. Retry a review with
-`review`, or give `rework` a new writer brief to continue from the current clean
-branch head.
+active. When recovering a writer, it commits any staged, unstaged, and
+untracked changes in a local WIP commit on the assigned branch and records its
+SHA in the recovery evidence. Ignored files stay in the worktree. Recovery is
+safe to run again. Retry a review with `review`, or use `rework` to continue the
+writer from the current branch head.
 
 ```console
 python -I tools/governed_task.py recover --project trial-example
 python -I tools/governed_task.py review --project trial-example
 python -I tools/governed_task.py rework --project trial-example --brief @fix.md
 ```
+
+To start a rework from an operator-supplied failure, such as a CI log after
+publication, run `rework --project trial-example --reason @ci.log`. This
+reuses the original brief and retained checks. Pass `--brief @fix.md` if
+the writer needs updated instructions.
 
 The first review starts the opposite-engine conversation `<project>-review`.
 Both `review` and the review in `rework` reuse the latest named reviewer

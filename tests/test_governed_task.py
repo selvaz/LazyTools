@@ -284,6 +284,51 @@ def test_governed_task_publication_and_ledger(trial, capsys):
     assert [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()] == [baseline, row]
 
 
+def test_governed_ci_gate_records_the_exact_published_head(trial, monkeypatch, capsys):
+    start, invoke, setup, _, state, ledger, fake_state = trial
+    checkout = setup()
+    assert start(checkout) == 0
+    assert invoke("publish") == 0
+    with Store(db=str(state / "projects.sqlite")) as store:
+        ticket = store.read("governed-task:ticket")
+    assert cli.main(["approve", ticket, "--db", str(state / "bridge.sqlite"),
+                     "--registry-db", str(state / "registry.sqlite")]) == 0
+    assert invoke("publish", "--resume") == 0
+    assert invoke("ledger", "--notes", "Retained note") == 0
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+    gh_state = fake_state / "fake-github.json"
+    runner = importlib.import_module("governed_task")
+    monkeypatch.setattr(runner, "CI_POLL_INTERVAL", 0)
+
+    def gate(statuses, expected, *, observed_head=None):
+        github = json.loads(gh_state.read_text())
+        github.update(ci_head=observed_head, ci_rollups=statuses)
+        gh_state.write_text(json.dumps(github))
+        assert invoke("publish", "--resume", "--ci-gate") == int(expected != "passed")
+        assert json.loads(gh_state.read_text())["ci_rollups"] == []
+        row = json.loads(ledger.read_text())
+        assert row["notes"] == "Retained note"
+        assert row["ci_gate"] == {
+            "status": expected, "receipt_id": row["receipt"]["id"], "head_sha": head, "pr_number": 1,
+            **({"observed_head": observed_head} if observed_head else
+               {"github_state": statuses[-1]["state"] if statuses[-1] else None}),
+        }
+
+    failure = {"state": "FAILURE", "contexts": {"totalCount": 4}}
+    pending = {"state": "PENDING", "contexts": {"totalCount": 4}}
+    passed = {"state": "SUCCESS", "contexts": {"totalCount": 4}}
+    gate([None, pending, failure], "failed")
+    assert f"GitHub CI failed for {head}" in capsys.readouterr().err
+    gate([passed], "head_changed", observed_head="a" * 40)
+    with monkeypatch.context() as timeout:
+        timeout.setattr(runner, "CI_TIMEOUT", 0)
+        gate([{"state": "SUCCESS", "contexts": {"totalCount": 0}}], "timed_out")
+    gate([pending, passed], "passed")
+    assert invoke("ledger", "--notes", "Updated note") == 0
+    row = json.loads(ledger.read_text())
+    assert row["notes"] == "Updated note" and row["ci_gate"]["status"] == "passed"
+
+
 def test_governed_task_reuses_branch_and_stops_on_review_rejection(trial, capsys):
     start, invoke, setup, _, state, ledger, fake_state = trial
     checkout = setup(accepted=False)
@@ -321,17 +366,17 @@ def test_checks_from_brief_run_in_order_on_writer_commit(trial):
     brief = state.parent.parent / "checks.md"
     brief.write_text(
         f"# Subtraction\n\n## Checks\n\n```text\n# First check\n{first}\n```\n\n"
-        f"### Behavior\n\n~~~sh\n  # Second check\n\n{second}\n~~~~\n\n"
+        f"### Behavior\n\n~~~sh\n  # Second check\n\n{second}::timeout=24\n~~~~\n\n"
         "## Notes\n\n```\nshould-never-run\n```\n",
         encoding="utf-8",
     )
 
-    assert start(checkout, "--brief", f"@{brief}") == 0
+    assert start(checkout, "--brief", f"@{brief}", "--check-timeout", "12") == 0
     head = _cloud._git(checkout, "rev-parse", "HEAD")
     logs = sorted(state.glob("checks-*/*.log"))
     assert [log.read_text().strip() for log in logs] == [head, "negative result | OK"]
-    assert f"| 0 | {head} |" in script.prompts[1]
-    assert "| 0 | negative result &#124; OK |" in script.prompts[1]
+    assert f"| 12 | 0 | {head} |" in script.prompts[1]
+    assert "| 24 | 0 | negative result &#124; OK |" in script.prompts[1]
     log_dir = logs[0].parent
     report = (log_dir / "results.md").read_text(encoding="utf-8")
     for provenance in (f"Candidate SHA: {head}", f"Check worktree: {log_dir / 'tree'}"):
@@ -384,6 +429,8 @@ def test_checks_receive_only_the_allowlisted_environment(trial, monkeypatch):
     assert not set(blocked).intersection(env)
     assert "LAZYTOOLS_RECEIPT_ISSUER_KEY" not in env
     assert env["PATH"] == os.environ["PATH"]
+    assert env["HOME"] == os.environ["HOME"]
+    assert env["USERPROFILE"] == os.environ["USERPROFILE"]
     for key in ("TEMP", "TMP", "TMPDIR"):
         assert Path(env[key]) == state / "tmp"
     if os.name == "nt":
@@ -441,7 +488,7 @@ def test_candidate_pythonpath_is_used_by_checks_and_removed_for_bridge(trial, mo
 
 
 @pytest.mark.parametrize("failure", ["exit", "timeout", "missing"])
-def test_required_check_failure_stops_before_review(trial, capsys, monkeypatch, failure):
+def test_required_check_failure_stops_before_review(trial, capsys, failure):
     start, _, setup, script, state, _, _ = trial
     checkout = setup()
     brief = state.parent.parent / "checks.md"
@@ -450,8 +497,7 @@ def test_required_check_failure_stops_before_review(trial, capsys, monkeypatch, 
         command = python_check("import sys; print('check error', file=sys.stderr); sys.exit(7)")
         expected = "check error"
     elif failure == "timeout":
-        monkeypatch.setattr(importlib.import_module("governed_task"), "CHECK_TIMEOUT", 1)
-        command = python_check("import time; time.sleep(30)")
+        command = python_check("import time; time.sleep(30)") + "::timeout=1"
         expected = "Timed out after 1 seconds."
     else:
         command = "missing-governed-check"
@@ -466,10 +512,9 @@ def test_required_check_failure_stops_before_review(trial, capsys, monkeypatch, 
     assert second.read_text().strip() == "ran second"
 
 
-def test_check_timeout_stops_the_entire_process_tree(trial, capsys, monkeypatch):
+def test_check_timeout_stops_the_entire_process_tree(trial, capsys):
     start, _, setup, script, state, _, _ = trial
     checkout = setup()
-    monkeypatch.setattr(importlib.import_module("governed_task"), "CHECK_TIMEOUT", 2)
     helper = state.parent.parent / "spawn_child.py"
     helper.write_text(
         "import os, subprocess, sys, time\n"
@@ -485,7 +530,7 @@ def test_check_timeout_stops_the_entire_process_tree(trial, capsys, monkeypatch)
         encoding="utf-8",
     )
 
-    assert start(checkout, "--check", f'"{sys.executable}" "{helper}"') == 1
+    assert start(checkout, "--check-timeout", "2", "--check", f'"{sys.executable}" "{helper}"') == 1
     assert "Timed out after 2 seconds." in capsys.readouterr().err
     assert (state / "tmp" / "child-ready").exists()
     assert len(script.prompts) == 1
@@ -627,6 +672,48 @@ def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
     assert first["turns"][0]["thread_id"] == second["turns"][0]["thread_id"]
 
 
+def test_governed_rework_from_published_ci_failure_republishes_same_draft(trial):
+    start, invoke, setup, script, state, _, fake_state = trial
+    checkout = setup()
+    check = python_check("print('repository CI gate')")
+    assert start(checkout, "--check", check) == 0
+    options = ["--db", str(state / "bridge.sqlite"), "--registry-db", str(state / "registry.sqlite")]
+
+    def publish():
+        assert invoke("publish") == 0
+        with Store(db=str(state / "projects.sqlite")) as store:
+            ticket = store.read("governed-task:ticket")
+        assert cli.main(["approve", ticket, *options]) == 0
+        assert invoke("publish", "--resume") == 0
+        with Store(db=str(state / "projects.sqlite")) as store:
+            return store.read("governed-task:live-verified-receipt")
+
+    original = publish()
+    assert original
+    original_head = _cloud._git(checkout, "rev-parse", "HEAD")
+    failure = "CI failed on the published SHA. Fix the full-suite regression."
+    log = state.parent / "ci.log"
+    log.write_text(failure, encoding="utf-8")
+    assert invoke("rework", "--reason", f"@{log}") == 0
+    assert "Add subtraction and test a negative result." in script.prompts[2]
+    assert "Operator-supplied failure" in script.prompts[2] and failure in script.prompts[2]
+    assert "| 0 | repository CI gate |" in script.prompts[3]
+    with Store(db=str(state / "projects.sqlite")) as store:
+        writer, _ = store.read(_board_key(PROJECT))["tasks"]
+        assert writer["attempt_reason"] == failure
+        assert store.read("governed-task:live-verified-receipt") is None
+
+    current = publish()
+    assert current and current != original
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+    assert head != original_head
+    github = json.loads((fake_state / "fake-github.json").read_text())
+    pr, = github["prs"]
+    assert pr["number"] == 1 and pr["isDraft"]
+    assert _cloud._git(fake_state / "fake-remote.git", "rev-parse", f"refs/heads/{BRANCH}") == head
+    assert all(receipt in comment for receipt, comment in zip((original, current), github["comments"], strict=True))
+
+
 def test_fresh_review_starts_a_new_conversation_and_then_continues_it(trial, capsys):
     start, invoke, setup, script, state, _, _ = trial
     checkout = setup(accepted=False)
@@ -651,7 +738,8 @@ def test_fresh_review_starts_a_new_conversation_and_then_continues_it(trial, cap
     assert first["turns"][0]["thread_id"] != fresh["turns"][0]["thread_id"] == resumed["turns"][0]["thread_id"]
 
 
-def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, capsys):
+@pytest.mark.parametrize("dirty", [False, True])
+def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, capsys, dirty):
     start, invoke, setup, script, state, _, _ = trial
     checkout = setup()
     fake_run = lazybridge.Agent.run
@@ -665,6 +753,12 @@ def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, c
         assert start(checkout) == 1
     git = _cloud._git
     head = git(checkout, "rev-parse", "HEAD")
+    if dirty:
+        (checkout / "subtraction.py").write_text("def sub(a, b):\n    return a - b\n# Unstaged fix\n", encoding="utf-8")
+        (checkout / "staged.txt").write_text("Staged fix\n", encoding="utf-8")
+        git(checkout, "add", "--", "staged.txt")
+        (checkout / "untracked.txt").write_text("Untracked fix\n", encoding="utf-8")
+    worktree_status = git(checkout, "status", "--porcelain")
     with Store(db=str(state / "projects.sqlite")) as project_store:
         writer, _ = project_store.read(_board_key(PROJECT))["tasks"]
     attempt, = writer["dispatches"]
@@ -677,6 +771,8 @@ def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, c
         registry.write(job_id, "Writer", tool_name="codex", status="awaiting_approval")
         assert invoke("recover") == 1
         assert f"Writer job {job_id} is still running (awaiting_approval)" in capsys.readouterr().err
+        assert git(checkout, "rev-parse", "HEAD") == head
+        assert git(checkout, "status", "--porcelain") == worktree_status
         registry.write(job_id, "Writer", tool_name="codex", status="failed")
     with Store(db=str(state / "projects.sqlite")) as project_store:
         assert project_store.read(_board_key(PROJECT))["tasks"][0] == writer
@@ -687,21 +783,32 @@ def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, c
             path, clock=lambda: attempt["receipt"]["lease_expires_at"] + 1,
         ))
         assert invoke("recover") == 0
+    recovered_head = git(checkout, "rev-parse", "HEAD")
+    if dirty:
+        assert git(checkout, "rev-parse", "HEAD^") == head
+        assert git(checkout, "log", "-1", "--format=%s").startswith("WIP: recover ")
+        assert git(checkout, "show", "HEAD:staged.txt") == "Staged fix"
+        assert git(checkout, "show", "HEAD:untracked.txt") == "Untracked fix"
+        assert "# Unstaged fix" in git(checkout, "show", "HEAD:subtraction.py")
+        assert not git(checkout, "status", "--porcelain")
+    else:
+        assert recovered_head == head
     with Store(db=str(state / "projects.sqlite")) as project_store:
         recovered = project_store.read(_board_key(PROJECT))["tasks"][0]
         assert recovered["status"] == "failed" and not recovered["active_queue_claim"]
         dispatch, = recovered["dispatches"]
         evidence = dispatch["evidence"][dispatch["completion"]["result"]["evidence_ref"]]
         assert dispatch["state"] == "completed" and evidence["job_ref"] == job_id and evidence["state"] == "blocked"
+        assert evidence.get("artifact_ref") == (recovered_head if dirty else None)
         assert invoke("recover") == 0
         assert project_store.read(_board_key(PROJECT))["tasks"][0] == recovered
     assert f"Writer job {job_id} already recorded as failed" in capsys.readouterr().out
-    assert git(checkout, "rev-parse", "HEAD") == head
+    assert git(checkout, "rev-parse", "HEAD") == recovered_head
 
     brief = state.parent.parent / "recover.md"
     brief.write_text("Finish the writer's work.", encoding="utf-8")
     assert invoke("rework", "--brief", f"@{brief}") == 0
-    assert git(checkout, "rev-parse", "HEAD^") == head
+    assert git(checkout, "rev-parse", "HEAD^") == recovered_head
     assert f"Previous writer failure\nBridge job {job_id}" in script.prompts[1]
     publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
     assert publication.writer.attempt == 2 and publication.reviewer.attempt == 1
