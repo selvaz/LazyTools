@@ -9,6 +9,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 from lazybridge.engines.coding import ApprovalRequest
@@ -57,6 +58,7 @@ _GIT_HOOKS = {
     "post-index-change", "pre-commit", "prepare-commit-msg", "commit-msg", "post-commit",
     "reference-transaction", "pre-auto-gc",
 }
+_SENSITIVE_ADD_NAMES = ("*.jks", "id_*", "*credential*")
 
 
 def _args(command: str, *, powershell: bool) -> list[str] | None:
@@ -246,7 +248,14 @@ class Workspace:
             if not files or any(path.startswith("-") for path in files):
                 return None
             paths = [self._write(path, cwd) for path in files]
-            if any(path is None or not path.is_relative_to(cwd) or path.is_dir() for path in paths):
+            if any(
+                path is None or not path.is_relative_to(cwd) or path.is_dir() or any(
+                    _readonly.sensitive_name(part)
+                    or any(fnmatchcase(part.casefold(), pattern) for pattern in _SENSITIVE_ADD_NAMES)
+                    for part in path.relative_to(cwd).parts
+                )
+                for path in paths
+            ):
                 return None
             return tuple(path for path in paths if path is not None)
         if subcommand == "commit":

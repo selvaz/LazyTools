@@ -147,12 +147,18 @@ def test_external_and_unconfined_requests_file_one_use_tickets(writer, monkeypat
         subprocess.run(["cmd", "/c", "mklink", "/J", str(junction), str(outside)], check=True, capture_output=True)
     else:
         junction.symlink_to(outside, target_is_directory=True)
+    for name in ("creds.pem", "id_deploy/note.txt", "release.JKS", "service-credentials.json"):
+        path = repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("fixture", encoding="utf-8")
     commands = [
         "git push origin feat/writer", "git push origin feat/writer", "git fetch origin",
         "gh pr edit 1 --body changed", "gh issue comment 1 --body changed",
         "python -m pip install requests", "npm install",
         f'git -C "{outside.as_posix()}" status', "git --git-dir=../other/.git status",
         "git add -- ../other.txt", "git add -- link/outside.txt",
+        "git add -- creds.pem", "git add -- old.txt id_deploy/note.txt",
+        "git add -- release.JKS", "git add -- service-credentials.json",
         "git commit -F ../other/message.txt", "rm -rf old.txt", "rm -rf link",
         "rm -rf ../other", "mkdir ../outside", "git status && git push origin feat/writer",
         "python -m pytest --basetemp ../other", "python -m pytest --basetemp=../other",
