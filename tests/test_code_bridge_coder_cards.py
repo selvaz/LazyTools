@@ -8,6 +8,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from lazybridge import Envelope
@@ -15,7 +16,7 @@ from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import DEFAULT_PREFIX, ApprovalTicket, CardApproval
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _credentials, _jobs, _lockfile, _registry, _store, _tempdir, cli
+from lazytools.code_bridge import _coder_actions, _credentials, _jobs, _lockfile, _registry, _store, _tempdir, cli
 from test_code_bridge_continuations import git
 
 
@@ -57,6 +58,33 @@ def run(writer, monkeypatch, turn, *, engine="claude", network=None):
         engine_name=engine, cwd=str(repo), root=str(repo.parent), task="Exercise the coder hand",
         db_path=db, registry_db=registry_db, timeout=30, network=network,
     )
+
+
+def test_standard_system_lfs_filters_allow_local_git_on_posix(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    system_config = tmp_path / "gitconfig"
+    filters = (
+        '[filter "lfs"]\n'
+        "clean = git-lfs clean -- %f\n"
+        "smudge = git-lfs smudge -- %f\n"
+        "process = git-lfs filter-process\n"
+        "required = true\n"
+    )
+    system_config.write_text(filters, encoding="utf-8")
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", str(system_config))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.delenv("GIT_CONFIG_NOSYSTEM", raising=False)
+    git(repo, "init")
+    # Exercise the POSIX policy with real Git config output on either platform.
+    monkeypatch.setattr(_coder_actions, "os", SimpleNamespace(name="posix", path=os.path))
+
+    assert _coder_actions._git_execution_is_local(repo, repo / ".git", writes=True)
+    git(repo, "config", "--local", "filter.lfs.process", "git-lfs filter-process")
+    assert not _coder_actions._git_execution_is_local(repo, repo / ".git", writes=False)
+    git(repo, "config", "--local", "--unset", "filter.lfs.process")
+    system_config.write_text(filters.replace("git-lfs filter-process", "custom-filter"), encoding="utf-8")
+    assert not _coder_actions._git_execution_is_local(repo, repo / ".git", writes=True)
 
 
 def test_writer_commits_and_cleans_up_with_audited_cards(writer, monkeypatch, capsys):

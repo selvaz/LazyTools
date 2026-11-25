@@ -51,8 +51,8 @@ _GIT_EXEC_CONFIG = (
     r"^(core\.(hookspath|fsmonitor)|diff\.(external|.+\.(command|textconv))|"
     r"filter\..+\.(clean|smudge|process)|lfs\.storage|commit\.gpgsign|maintenance\.prefetch\.enabled)$"
 )
-_GIT_WINDOWS_DEFAULTS = {
-    "diff.astextplain.textconv": "astextplain",
+# Git LFS installs these same filters at system or global scope on any OS.
+_GIT_LFS_DEFAULTS = {
     "filter.lfs.clean": "git-lfs clean -- %f",
     "filter.lfs.smudge": "git-lfs smudge -- %f",
     "filter.lfs.process": "git-lfs filter-process",
@@ -178,7 +178,10 @@ def _git_execution_is_local(cwd: Path, common_dir: Path, *, writes: bool) -> boo
     for line in settings.stdout.splitlines():
         scope, _, entry = line.partition("\t")
         key, _, value = entry.partition(" ")
-        if os.name == "nt" and scope in {"system", "global"} and _GIT_WINDOWS_DEFAULTS.get(key) == value:
+        if scope in {"system", "global"} and (
+            _GIT_LFS_DEFAULTS.get(key) == value
+            or (os.name == "nt" and key == "diff.astextplain.textconv" and value == "astextplain")
+        ):
             continue
         if key in {"core.fsmonitor", "commit.gpgsign", "maintenance.prefetch.enabled"} and value.lower() in {
             "false", "no", "off", "0",
