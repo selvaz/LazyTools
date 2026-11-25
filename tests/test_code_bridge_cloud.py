@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import textwrap
+from datetime import UTC, datetime
 from itertools import pairwise
 from pathlib import Path
 from types import SimpleNamespace
@@ -211,6 +212,7 @@ def cloud(tmp_path, monkeypatch):
         "revision": "test-manifest-1",
         "environments": {"env_widgets": {
             "revision": "test-environment-1", "network": False,
+            "attested_on": datetime.now(UTC).date().isoformat(),
             "repositories": [], "imports": [],
         }},
     }), encoding="utf-8")

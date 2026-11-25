@@ -12,12 +12,15 @@ import json
 import re
 import tomllib
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 
 MANIFEST = ".bridge/cloud-preflight.json"
 CACHE = ".bridge/cloud-preflight-cache.json"
 SCHEMA_REVISION = 1
+MAX_AGE_DAYS = 14
 
 _LOCAL_PATH = re.compile(
     r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/][^\s`'\"]+|\\\\[^\s`'\"]+|file://[^\s`'\"]+|/(?:Users|home|mnt|media|Volumes)/[^\s`'\"]+)",
@@ -27,6 +30,8 @@ _REPOSITORIES = re.compile(r"(?im)^\s*(?:required[-_ ]?)?repositor(?:y|ies)\s*:\
 _IMPORTS = re.compile(r"(?im)^\s*(?:required[-_ ]?)?imports?\s*:\s*(.+)$")
 _DEPENDENCY_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
 _GITHUB_REPOSITORY = re.compile(r"github\.com[/:]([^/\s]+/[^/@\s]+?)(?:\.git)?(?:@|$)", re.IGNORECASE)
+_PROBE_BLOCK = re.compile(r"```json\r?\n(.+?)\r?\n```", re.DOTALL)
+_PYTHON_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:a[0-9]+|b[0-9]+|rc[0-9]+|\+)?")
 
 
 @dataclass(frozen=True)
@@ -34,6 +39,20 @@ class Result:
     eligible: bool
     reason: str
     cache_hit: bool = False
+
+
+@dataclass(frozen=True)
+class Requirements:
+    imports: list[str]
+    repositories: list[str]
+
+
+@dataclass(frozen=True)
+class ProbeEvidence:
+    network: bool
+    python_version: str
+    imports: dict[str, bool]
+    repositories: dict[str, bool]
 
 
 def _items(pattern: re.Pattern[str], brief: str) -> set[str]:
@@ -50,8 +69,8 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def init_manifest(*, root: Path, env_id: str, network: bool) -> Path:
-    """Create an operator-attested starter manifest from ``pyproject.toml``."""
+def project_requirements(root: Path) -> Requirements:
+    """Read the import names and sibling slugs used by both manifest workflows."""
     pyproject_path = root / "pyproject.toml"
     try:
         pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
@@ -60,17 +79,30 @@ def init_manifest(*, root: Path, env_id: str, network: bool) -> Path:
     project = pyproject.get("project", {})
     if not isinstance(project, dict):
         raise ValueError(f"{pyproject_path}: [project] must be a table")
-    dependencies = list(project.get("dependencies", []))
+    dependencies = project.get("dependencies", [])
     optional = project.get("optional-dependencies", {})
-    if isinstance(optional, dict):
-        dependencies.extend(item for group in optional.values() if isinstance(group, list) for item in group)
-    if not all(isinstance(item, str) for item in dependencies):
-        raise ValueError(f"{pyproject_path}: project dependencies must be strings")
+    if not isinstance(optional, dict):
+        raise ValueError(f"{pyproject_path}: [project.optional-dependencies] must be a table")
+    requirements: list[str] = []
+    for group in [dependencies, *optional.values()]:
+        if not isinstance(group, list) or not all(isinstance(item, str) for item in group):
+            raise ValueError(f"{pyproject_path}: project dependency groups must be lists of strings")
+        requirements.extend(group)
 
-    imports = sorted({match.group(1).replace("-", "_") for item in dependencies
+    imports = sorted({match.group(1).replace("-", "_") for item in requirements
                       if (match := _DEPENDENCY_NAME.match(item))})
-    repositories = sorted({match.group(1) for item in dependencies
+    repositories = sorted({match.group(1) for item in requirements
                            if (match := _GITHUB_REPOSITORY.search(item))})
+    return Requirements(imports=imports, repositories=repositories)
+
+
+def _today() -> date:
+    return datetime.now(UTC).date()
+
+
+def init_manifest(*, root: Path, env_id: str, network: bool) -> Path:
+    """Create an operator-attested starter manifest from ``pyproject.toml``."""
+    requirements = project_requirements(root)
     path = root / MANIFEST
     if path.exists():
         raise ValueError(f"refusing to overwrite existing cloud preflight manifest: {path}")
@@ -78,11 +110,77 @@ def init_manifest(*, root: Path, env_id: str, network: bool) -> Path:
         "revision": "starter-1",
         "environments": {env_id: {
             "revision": "operator-attested-1", "network": network,
-            "repositories": repositories, "imports": imports, "attested_by": "operator",
+            "repositories": requirements.repositories, "imports": requirements.imports,
+            "attested_by": "operator", "attested_on": _today().isoformat(),
         }},
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate probe JSON key: {key!r}")
+        result[key] = value
+    return result
+
+
+def parse_probe_output(output: str, requirements: Requirements) -> ProbeEvidence:
+    """Accept one fenced JSON result with a boolean for every requested check."""
+    block = _PROBE_BLOCK.fullmatch(output.strip())
+    if block is None:
+        raise ValueError("probe evidence must be a single fenced JSON block")
+    try:
+        payload = json.loads(block.group(1), object_pairs_hook=_unique_object)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid probe JSON at line {exc.lineno}, column {exc.colno}") from exc
+    if not isinstance(payload, dict) or payload.keys() != {"network", "python_version", "imports", "repositories"}:
+        raise ValueError("probe JSON must have exactly network, python_version, imports and repositories fields")
+    network = payload["network"]
+    python_version = payload["python_version"]
+    if not isinstance(network, bool):
+        raise ValueError("probe network result must be a boolean")
+    if not isinstance(python_version, str) or not _PYTHON_VERSION.fullmatch(python_version):
+        raise ValueError("probe python_version must be a Python version string such as 3.12.4")
+    for field, requested in (("imports", requirements.imports), ("repositories", requirements.repositories)):
+        results = payload[field]
+        if not isinstance(results, dict) or results.keys() != set(requested):
+            raise ValueError(f"probe {field} must contain exactly the requested names")
+        if not all(isinstance(passed, bool) for passed in results.values()):
+            raise ValueError(f"probe {field} results must be booleans")
+    return ProbeEvidence(network, python_version, payload["imports"], payload["repositories"])
+
+
+def write_probe_manifest(*, root: Path, env_id: str, job_id: str, evidence: ProbeEvidence) -> Path:
+    """Replace the probed environment entry, preserving other environment entries."""
+    path = root / MANIFEST
+    data: dict[str, Any] = {"revision": "probe-1", "environments": {}}
+    if path.exists():
+        data = _read_json(path)
+    environments = data.get("environments")
+    if not isinstance(environments, dict) or not isinstance(data.get("revision"), (str, int)):
+        raise ValueError(f"invalid cloud preflight manifest: {path}")
+    environments[env_id] = {
+        "revision": f"probe:{job_id}",
+        "attested_by": f"probe:{job_id}",
+        "attested_on": _today().isoformat(),
+        "network": evidence.network,
+        "python_version": evidence.python_version,
+        "imports": sorted(name for name, passed in evidence.imports.items() if passed),
+        "repositories": sorted(name for name, passed in evidence.repositories.items() if passed),
+    }
+    output = json.dumps(data, indent=2, sort_keys=True) + "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as temp:
+        temporary_path = Path(temp.name)
+    try:
+        temporary_path.write_text(output, encoding="utf-8")
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
     return path
 
 
@@ -114,6 +212,17 @@ def check(
     manifest_network = entry.get("network")
     if not isinstance(environment_revision, (str, int)) or not isinstance(manifest_network, (str, bool)):
         return Result(False, f"cloud preflight manifest entry {env_id!r} needs revision and network")
+
+    attested_on = entry.get("attested_on")
+    refresh = f"run cloud-preflight probe --repo <path> for environment {env_id!r}"
+    try:
+        attestation_date = date.fromisoformat(attested_on)
+    except (TypeError, ValueError):
+        return Result(False, f"cloud preflight manifest needs a valid attestation date; {refresh}")
+    age = (_today() - attestation_date).days
+    if age < 0 or age > MAX_AGE_DAYS:
+        return Result(False, f"cloud preflight manifest date {attestation_date} is outside the last "
+                      f"{MAX_AGE_DAYS} days; {refresh}")
 
     requirements = {
         "paths": sorted(set(_LOCAL_PATH.findall(brief))),

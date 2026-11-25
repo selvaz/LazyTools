@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ def _manifest(path: Path, *, revision: str = "m1", environment_revision: str = "
         "revision": revision,
         "environments": {"env_test": {
             "revision": environment_revision,
+            "attested_on": datetime.now(UTC).date().isoformat(),
             "network": network,
             "repositories": ["owner/public"],
             "imports": ["pytest", "pytest_asyncio"],
@@ -169,6 +171,7 @@ def test_cloud_preflight_init_uses_pyproject_and_configured_environment(tmp_path
     manifest = json.loads((repo / _cloud_preflight.MANIFEST).read_text(encoding="utf-8"))
     entry = manifest["environments"]["env_demo"]
     assert entry == {
+        "attested_on": datetime.now(UTC).date().isoformat(),
         "attested_by": "operator", "imports": ["httpx", "pytest_asyncio", "shared_lib"],
         "network": True, "repositories": ["acme/shared-lib"], "revision": "operator-attested-1",
     }
