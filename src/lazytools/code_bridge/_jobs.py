@@ -18,16 +18,18 @@ import sys
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta
 from functools import partial
 from pathlib import Path
 from typing import Any
 
+from lazybridge.engines.coding import ApprovalDecision, ApprovalRequest
 from lazybridge.policy import PolicyError, policy_scope
 
 from lazytools.code_bridge import (
     _concurrency,
+    _credentials,
     _engines,
     _launch,
     _progress,
@@ -310,6 +312,7 @@ async def _run_agent(
     return await Agent(engine, name=agent_name, tools=list(tools) if tools else None).run(task)
 
 
+@_credentials.scrub_job_environment()
 def run_job(
     *,
     engine_name: str,
@@ -550,6 +553,20 @@ def run_job(
             if legacy and launch.policy.profile == "read" and "read" in launch.policy.tool_classes else None
         )
         approval_registry = _registry.Registry(store, registry_db)
+        routine = _routine.RoutineAuto(routine_policy, store, _store.build_approval_queue(store), job_id)
+
+        def approve_routine(request: ApprovalRequest, rule_id: str) -> ApprovalDecision:
+            if claim is None:
+                return routine.approve(request, rule_id)
+            with claim.service.local_dispatch(
+                claim.principal, claim.task_id, claim.token, state="submitted", job_ref=job_id, write=True,
+            ) as (task_store, _):
+                if store_path.resolve() == claim.service.path:
+                    return replace(routine, store=task_store, queue=_store.build_approval_queue(task_store)).approve(
+                        request, rule_id,
+                    )
+                return routine.approve(request, rule_id)
+
         channel = _registry.ApprovalChannel(
             approval_registry, job_id, launch.policy.revision, launch.policy.digest,
             ticket_ttl(), poll_seconds(),
@@ -560,10 +577,11 @@ def run_job(
             actor=claim.principal.actor if claim else "local-bridge",
             attempt=claim.receipt["attempt"] if claim else 1,
             fenced_consume=partial(claim.consume_approval, registry=approval_registry) if claim else None,
+            approve_routine=approve_routine if routine_enabled else None,
         )
         gate = BridgeGate(channel=channel, rules=CODING_RULES if legacy else (), cwd=str(resolved_cwd), temp_dir=temp_arg,
                           effective_policy=launch.policy, legacy_callbacks=legacy,
-                          routine=_routine.RoutineAuto(routine_policy, store, None, job_id) if routine_enabled else None)
+                          routine=routine if routine_enabled else None)
 
         from lazybridge.engines.sessions import default_session_registry
 

@@ -32,6 +32,7 @@ from typing import Any
 
 from lazybridge.policy import PolicyDenied
 
+from lazytools.code_bridge._credentials import job_environment
 from lazytools.connectors.code_support._policy import _RUNTIME_ENV, authorize, code_tool, current_task, record_operation
 
 SUBMIT_TIMEOUT = 900.0
@@ -67,7 +68,7 @@ class CodeBridgeTools:
         )
 
         context = current_task()
-        env = os.environ.copy() if context is None else {
+        env = job_environment(os.environ) if context is None else {
             key: value for key, value in os.environ.items() if key.upper() in _BRIDGE_ENV
         }
         for key in (PRINCIPAL_ENV, MCP_POLICY_DIGEST_ENV, MCP_CODEX_ID_ENV, MCP_CODEX_KEY_ENV):

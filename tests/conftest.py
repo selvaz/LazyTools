@@ -57,10 +57,37 @@ def _isolated_code_bridge_config(tmp_path_factory, monkeypatch):
 def _isolated_bridge_authority(request, tmp_path_factory, monkeypatch):
     if "code_bridge" not in request.node.path.name:
         return
+    from lazytools.code_bridge import _jobs
+
+    # The runner may put its pytest temp tree inside its own checkout.
+    # Keep Git discovery inside the fixtures' repositories in that case.
+    test_root = tmp_path_factory.getbasetemp()
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(test_root), prepend=os.pathsep)
+    repo_root = _jobs._git_repo_root
+
+    def isolated_repo_root(path):
+        root = repo_root(path)
+        return path if path.is_relative_to(test_root) and not root.is_relative_to(test_root) else root
+
+    monkeypatch.setattr(_jobs, "_git_repo_root", isolated_repo_root)
     base = tmp_path_factory.mktemp("bridge-authority")
     monkeypatch.setenv("LAZYTOOLS_PROJECTS_STORE_DB", str(base / "projects.sqlite"))
     for name in ("TASK_PRINCIPAL", "PROFILES", "CODEX_RELEASE_REPORT", "CLAUDE_RELEASE_REPORT"):
         monkeypatch.delenv(f"LAZYTOOLS_CODE_BRIDGE_{name}", raising=False)
+
+
+@pytest.fixture
+def provision_bridge_approver(tmp_path, monkeypatch):
+    from lazytools.code_bridge import _credentials, cli
+
+    monkeypatch.setattr(_credentials, "credential_directory", lambda: tmp_path / "operator-credentials")
+
+    def provision(registry_db=None):
+        flags = ["--registry-db", str(registry_db)] if registry_db is not None else []
+        assert cli.main(["approver-credential", "init", *flags]) == 0
+        return _credentials._path(registry_db) if registry_db is not None else None
+
+    return provision
 
 
 @pytest.fixture(autouse=True)

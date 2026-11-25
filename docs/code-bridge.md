@@ -37,11 +37,13 @@ detached launch JSON gives the id, pid and log path at once.
 | --- | --- |
 | `run` | Foreground: job id on stdout's first line, then final result; detached `--json`: one launch object |
 | `pending --json` | `approval_id`, `job_id`, gist, command/reason when available, creation and expiry |
-| `approve` / `reject` | Decision on a pending ticket; rejection requires `--reason` |
+| `approver-credential init` | Provision the local owner credential for a typed approval registry |
+| `approver-credential provision-automatic PROJECT_ID` | Provision the project's automatic approval cards |
+| `approve` / `reject` | Decide a pending ticket. Rejection requires `--reason` |
 | `status` / `result` | Status or full job record/text; `--json` preserves metadata |
 | `wait` | Terminal result; exit 3 on waiter timeout, 1 when process disappears before final record |
 | `jobs --all` | History, including finished jobs, for recovering a lost id |
-| `cancel` | Stop process tree, reject open tickets, retain interruption and workspace evidence |
+| `cancel` | Stop the process tree, close open tickets, retain interruption and workspace evidence |
 | `autonomy` | Report the percentage of finished jobs with no manual intervention and group intervention causes |
 
 ### Machine-readable ids and multi-job waiting
@@ -87,10 +89,11 @@ for every lifecycle command. Logs are under the Store's results directory
 attempt has an accepted independent review. Use the full writer task ID
 (`project/task`), its local repository with a GitHub `origin`, and the reviewed
 branch. Configure `LAZYTOOLS_PROJECTS_STORE_DB` for the projects task service
-and use a LazyBridge build that provides `lazybridge.ext.receipt` with Ed25519
-support.
+and initialize the selected approval registry's owner credential once from the
+operator shell. Publication uses `lazybridge.ext.receipt` with Ed25519 support.
 
 ```console
+lazytools-code-bridge approver-credential init
 lazytools-code-bridge publish --task project/task --repo ./repo --branch feature/reviewed
 lazytools-code-bridge approve TICKET_ID
 lazytools-code-bridge publish --task project/task --repo ./repo --branch feature/reviewed
@@ -101,8 +104,8 @@ The first invocation files a typed ticket and exits 1 with a signed
 `approval_not_decided` receipt. Read the repository, branch, commit and base
 in the pending approval before deciding. The default base is `main`. Use
 `--base` to specify another base or `--ticket ID` to resume with a specific
-ticket. Pass the same `--db` and `--registry-db` selections to `approve` as
-to `publish` when using an isolated registry.
+ticket. Use the same `--db` and `--registry-db` selections for initialization,
+approval, and publication when using an isolated registry.
 
 The executor refuses `main`, `master`, the chosen base and the repository's
 default branch as publication heads. The head must match the writer task's
@@ -116,13 +119,12 @@ ID with an ordinary fast-forward push, opens a draft if needed, then polls
 GitHub for the reviewed head for up to 30 seconds. A published receipt records
 the PR number and head.
 A head mismatch or a PR that is no longer an open draft produces a signed
-refusal with the PR URL. LazyBridge 1.9.2 requires a null `pr_number`
-in signed refusals. The projects store records the number alongside the
-receipt. A replay returns the stored receipt or an
-`approval_already_consumed` refusal when the first process has yet to save
-its outcome. The ticket stays consumed if the push or `gh pr create` fails,
-or if the process stops after consuming approval. A retry requires a new
-approval.
+refusal with the PR URL and a null `pr_number`. The projects store records
+the observed PR number alongside the signed refusal. A replay returns the
+stored receipt or an `approval_already_consumed` refusal when the first process
+has yet to save its outcome. The ticket stays consumed if the push fails, draft
+creation fails, or the process stops after consuming approval. A retry requires
+a new approval.
 
 Use `publish --retry-ticket OLD_TICKET_ID` to file a fresh approval for the same
 reviewed head after `pr_create_failed`, `pr_head_mismatch`, or `pr_head_unavailable`.
@@ -382,7 +384,8 @@ lazytools-code-bridge pending --json
 ```
 
 If a ticket appears, inspect it and run `lazytools-code-bridge approve APPROVAL_ID`
-only for an authorized action; otherwise use `reject APPROVAL_ID --reason "Outside the task"`.
+only for an authorized action. Use `reject APPROVAL_ID --reason "Outside the task"`
+for a refusal. Typed tickets require [one-time operator setup](#operator-credentials).
 No ticket is required for every edit: the approval policy governs escalations.
 Poll pending while the job runs, then:
 
@@ -528,8 +531,8 @@ lazytools-code-bridge cancel JOB_ID --reason "operator stopped the task"
 kills the process tree (`taskkill /PID ... /T /F` on Windows; the CLI's
 private process group on POSIX, falling back to the single pid if no
 private group is available), marks the job `interrupted` with
-`cancelled by operator: <reason>` and workspace evidence, and rejects its
-still-open approval tickets. A dead process is also marked interrupted.
+`cancelled by operator: <reason>` and workspace evidence, and expires its
+still-open typed approval tickets. A dead process is also marked interrupted.
 Cancelling a terminal job prints its status and exits **0** without changing
 it, including when the job finishes while cancellation is stopping the process.
 Cancellation also works immediately after `run --detach`, before the child
@@ -822,13 +825,33 @@ read-only allow-list and session grants for its assigned push and PR
 commands. The legacy mode label indicates that runtime confinement has
 not been verified.
 
+### Operator credentials
+
 Operator decisions use a typed LazyBridge `ApprovalQueue` in the projects Store. Set
 `LAZYTOOLS_PROJECTS_STORE_DB` to the same file used by the projects tools.
 The bridge also honors `LAZYCEO_CEO_STORE_DB` and defaults to
-`~/.lazytools/projects.sqlite` when neither is set. `pending`, `approve`
-and `reject` work across processes. Job logs and routing still use
-`LAZYTOOLS_CODE_BRIDGE_DB` or `--db`. Those commands can also answer tickets
-from workers launched before this migration.
+`~/.lazytools/projects.sqlite` when neither is set. Job logs and routing use
+`LAZYTOOLS_CODE_BRIDGE_DB` or `--db`.
+
+Run the following once from the operator's shell before deciding typed tickets.
+Use the same `--db` and `--registry-db` selections as the job if it uses a
+custom registry. The command is safe to repeat for the same registry.
+
+```console
+lazytools-code-bridge approver-credential init
+lazytools-code-bridge pending
+lazytools-code-bridge approve APPROVAL_ID
+```
+
+LazyBridge stores the credential's hash in the selected registry. The bridge
+stores the bearer secret in a current-user-only file under
+`~/.lazytools/approver-credentials/`, keyed by the resolved registry path.
+The CLI prints only initialization status. Run decisions under the account
+that initialized the credential. Keep the state directory outside job
+workspaces. The bridge keeps the credential out of job environments and
+excludes credential paths from automatic read approvals. Typed decisions are
+recorded as `owner`. `--actor` applies to historical prompt-only tickets.
+Only a person should run credential initialization and operator decisions.
 
 ### Approval profiles
 
@@ -861,12 +884,50 @@ profile and network when specified. The bridge records the dispatch
 acknowledgement and local job ID. The MCP tool accepts the corresponding
 `profile`, `launch_mode`, `network`, `task_id`, and `claim_token` arguments.
 
+### Governed Projects approvals
+
+The governed Projects effect registry checks the deciding principal, project
+scope, required role, and exact request digest. By default, the `owner`
+principal can decide both owner-tier and orchestrator-tier requests with the
+credential from `approver-credential init` for the Projects Store. Pass the
+credential through the trusted Python adapter or set
+`projects_approver_credential_file` to the registry's private credential file
+on a dedicated Projects stdio host bound to the owner. Tool calls carry the
+request ID, digest, verdict, and reason. The credential stays in the host.
+
+A deployment can set `orchestrator_actor` on `ProjectTaskApprovals` to assign
+new orchestrator-tier requests to a separate human principal. Existing tickets
+retain their recorded assignee. Older tickets without a recorded route go to
+the registry owner. For a separate human approver, provision a credential for
+the assigned principal with both the LazyBridge `owner` role and the Projects
+`orchestrator` role. The following command uses `operator` as an example.
+
+```console
+python -m lazybridge.ext.approval --db PROJECTS_DB issue-approver-credential operator --role owner --role orchestrator --output PRIVATE_DIR/operator.credential
+```
+
+Before enabling automatic Projects effects, run these commands from the
+operator shell. Select the same Projects Store as the effect adapter, either
+through `LAZYTOOLS_PROJECTS_STORE_DB` or with `--registry-db` on both commands.
+
+```console
+lazytools-code-bridge approver-credential init --registry-db PROJECTS_DB
+lazytools-code-bridge approver-credential provision-automatic PROJECT_ID --registry-db PROJECTS_DB
+```
+
+The two project-scoped, nontransferable cards cover `read` and `local_commit`.
+An automatic request requires a matching card and must pass the effect policy,
+task claim, and target checks. Only the provisioning command reads the owner
+credential for this flow.
+The Projects registry records the card use and retains the one-time effect
+consumption and outcome record.
+
 ### Routine auto-approval (R13)
 
 `BridgeGate` enables **routine-auto** for ungoverned legacy writers by default.
-Every match creates and consumes a typed ticket in the shared registry and
-records the rule ID and decision actor `routine-auto`. Shell callbacks and
-command escalations that miss the tier ask the operator.
+Every match writes a consumed approval record in the job Store, with the
+rule ID and decision actor `routine-auto`. Shell callbacks and command
+escalations that miss the tier ask the operator through the typed registry.
 
 ### Legacy Claude Bash read-only allow-list
 
@@ -1250,11 +1311,11 @@ claude = 2   # absent or 0 = unlimited
 - **Reclaim.** A slot whose pid died stops counting at once. The slot records
   its owner's Store path, and the next *successful* launch marks that job
   `interrupted` in the right Store (even a different `--db`) and closes its
-  pending tickets: they are rejected, or marked `expired` if their TTL has
-  already run out. Bookkeeping counts as complete only when the job has **no
-  pending tickets left**, and only then is the slot file deleted. If ticket
-  rejection fails after the status was saved, the next launch sees an
-  already-`interrupted` job and retries the rejection. A refused launch
+  pending tickets. Typed tickets are marked `expired`. Historical prompt-only
+  tickets are rejected while actionable. Bookkeeping counts as complete only
+  when the job has **no pending tickets left**, and only then is the slot file
+  deleted. If closing tickets fails after the status was saved, the next launch
+  sees an already-`interrupted` job and retries. A refused launch
   leaves stale slot files untouched, and an incomplete bookkeeping attempt
   keeps the file for a later launch, so the record of a dead job is never lost.
 

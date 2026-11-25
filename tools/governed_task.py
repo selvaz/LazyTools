@@ -6,7 +6,6 @@ import argparse
 import json
 import os
 import re
-import shlex
 import signal
 import subprocess
 import sys
@@ -32,9 +31,11 @@ from lazybridge.ext.approval import DEFAULT_PREFIX, ApprovalTicket
 from lazybridge.ext.receipt import PublicationReceipt
 from receipt_live_demo import (
     DemoError,
+    approval_command,
     bridge,
     claim,
     configure_state,
+    db_options,
     finish_task,
     require,
     review_verdict,
@@ -251,19 +252,6 @@ def spec_attachments(paths: list[Path]) -> str:
             attachment += f"\nAttachment truncated after {SPEC_MAX_BYTES} bytes."
         attachments.append(attachment)
     return "\n\nAttached specs\n\n" + "\n\n".join(attachments) if attachments else ""
-
-
-def db_options(stores: dict[str, Path]) -> list[str]:
-    return ["--db", str(stores["bridge"]), "--registry-db", str(stores["registry"])]
-
-
-def approval_command(stores: dict[str, Path], *args: str) -> str:
-    words = ["lazytools-code-bridge", *args, *db_options(stores)]
-    if os.name != "nt":
-        return shlex.join(words)
-    # Windows operators run the printed command in PowerShell.
-    return " ".join(word if re.fullmatch(r"[\w./:\\-]+", word) else "'" + word.replace("'", "''") + "'"
-                    for word in words)
 
 
 def base_commit(repo: Path, base: str) -> str:
@@ -495,6 +483,7 @@ def run_writer(
     writer_id = f"{project}/writer"
     writer_claim = claim(service, writer, writer_id, engine, revision)
     print(f"Running {engine} writer attempt {writer_claim['attempt']} on {branch} from {start}", flush=True)
+    print(approval_command(stores, "approver-credential", "init"), flush=True)
     print(approval_command(stores, "pending"), flush=True)
     print(f"Replace TICKET with an ID from pending: {approval_command(stores, 'approve', 'TICKET')}", flush=True)
     writer_job, _ = launch_job(
@@ -738,6 +727,7 @@ def publish_task(args: argparse.Namespace, stores: dict[str, Path], store: Store
         step(5, "File publication ticket", f"{ticket_id} for {target.repository} {target.head_branch} "
              f"A={target.head_sha} into {run['base']}, receipt {receipt.receipt_id}")
         if refusal == "approval_not_decided":
+            print(approval_command(stores, "approver-credential", "init"), flush=True)
             print(approval_command(stores, "approve", str(ticket_id)), flush=True)
         else:
             print(f"Ticket {ticket_id} is approved. Run publish --resume to publish.", flush=True)

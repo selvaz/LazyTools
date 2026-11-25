@@ -20,7 +20,7 @@ from lazybridge import Store
 
 from _code_bridge_fakes import Script
 from _receipt_demo_fakes import install
-from lazytools.code_bridge import _cloud, _routing, _store, cli
+from lazytools.code_bridge import _cloud, _credentials, _routing, _store, cli
 from lazytools.projects.admission import TelemetryReading, WindowReading
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService
@@ -46,7 +46,9 @@ def global_quota_cache(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def trial(tmp_path, monkeypatch, global_quota_cache):
+def trial(tmp_path_factory, monkeypatch, global_quota_cache):
+    # Git for Windows limits the paths used for linked-worktree metadata.
+    tmp_path = tmp_path_factory.mktemp("gt")
     monkeypatch.syspath_prepend(str(ROOT / "tools"))
     runner = importlib.import_module("governed_task")
     monkeypatch.setenv("GIT_ALLOW_PROTOCOL", "file")
@@ -172,7 +174,7 @@ def test_governed_quota_seed_skips_unusable_global_cache(tmp_path, global_quota_
     assert cache.read_bytes() == original
 
 
-def test_governed_task_publication_and_ledger(trial, capsys):
+def test_governed_task_publication_and_ledger(trial, capsys, provision_bridge_approver):
     start, invoke, setup, script, state, ledger, fake_state = trial
     checkout = setup(native_approval=True)
     git = _cloud._git
@@ -185,7 +187,16 @@ def test_governed_task_publication_and_ledger(trial, capsys):
     def writer_operator():
         pythonpath = os.pathsep.join(filter(None, (str(ROOT / "src"), os.environ.get("PYTHONPATH"))))
         env = {**os.environ, "PYTHONPATH": pythonpath}
-        command = [sys.executable, "-m", "lazytools.code_bridge"]
+        command = [
+            sys.executable, "-c",
+            "import sys\n"
+            "from pathlib import Path\n"
+            "from lazytools.code_bridge import _credentials, cli\n"
+            "directory = Path(sys.argv.pop(1))\n"
+            "_credentials.credential_directory = lambda: directory\n"
+            "raise SystemExit(cli.main())\n",
+            str(_credentials.credential_directory()),
+        ]
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
             if (state / "registry.sqlite").is_file():
@@ -194,6 +205,7 @@ def test_governed_task_publication_and_ledger(trial, capsys):
                 if tickets:
                     ticket, = tickets
                     assert ticket["task_id"] == f"{PROJECT}/writer"
+                    provision_bridge_approver(state / "registry.sqlite")
                     subprocess.run([*command, "approve", ticket["approval_id"], *options], env=env, check=True,
                                    capture_output=True, timeout=10)
                     return
@@ -239,7 +251,7 @@ def test_governed_task_publication_and_ledger(trial, capsys):
     ticket = approve_line.split()[2]
     assert all(option in approve_line for option in options)
     assert not gh_state.exists()
-    assert cli.main(["approve", ticket, *options, "--actor", "test-operator"]) == 0
+    assert cli.main(["approve", ticket, *options]) == 0
 
     assert invoke("publish") == 0
     assert "is approved. Run publish --resume" in capsys.readouterr().out
@@ -284,13 +296,14 @@ def test_governed_task_publication_and_ledger(trial, capsys):
     assert [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()] == [baseline, row]
 
 
-def test_governed_ci_gate_records_the_exact_published_head(trial, monkeypatch, capsys):
+def test_governed_ci_gate_records_the_exact_published_head(trial, monkeypatch, capsys, provision_bridge_approver):
     start, invoke, setup, _, state, ledger, fake_state = trial
     checkout = setup()
     assert start(checkout) == 0
     assert invoke("publish") == 0
     with Store(db=str(state / "projects.sqlite")) as store:
         ticket = store.read("governed-task:ticket")
+    provision_bridge_approver(state / "registry.sqlite")
     assert cli.main(["approve", ticket, "--db", str(state / "bridge.sqlite"),
                      "--registry-db", str(state / "registry.sqlite")]) == 0
     assert invoke("publish", "--resume") == 0
@@ -672,12 +685,13 @@ def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
     assert first["turns"][0]["thread_id"] == second["turns"][0]["thread_id"]
 
 
-def test_governed_rework_from_published_ci_failure_republishes_same_draft(trial):
+def test_governed_rework_from_published_ci_failure_republishes_same_draft(trial, provision_bridge_approver):
     start, invoke, setup, script, state, _, fake_state = trial
     checkout = setup()
     check = python_check("print('repository CI gate')")
     assert start(checkout, "--check", check) == 0
     options = ["--db", str(state / "bridge.sqlite"), "--registry-db", str(state / "registry.sqlite")]
+    provision_bridge_approver(state / "registry.sqlite")
 
     def publish():
         assert invoke("publish") == 0

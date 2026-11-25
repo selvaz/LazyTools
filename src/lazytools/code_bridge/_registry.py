@@ -20,12 +20,11 @@ from lazybridge.ext.approval import (
     ApprovalQueue,
     ApprovalTarget,
     ApprovalTicket,
-    ApproverContext,
     ExecutorContext,
     TypedApprovalRequest,
 )
 
-from lazytools.code_bridge import _store
+from lazytools.code_bridge import _credentials, _store
 from lazytools.connectors.projects.tools import _resolve_store_db
 
 _SOURCE = "code-bridge"
@@ -122,14 +121,23 @@ class Registry:
     ) -> bool:
         if _operator_ticket(ticket):
             store = self._existing_store()
-            if store is None:
+            if store is None or self.path is None or ticket.status != "pending":
                 return False
-            return ApprovalQueue(store).decide_typed_ticket(
-                ticket.approval_id, approver=ApproverContext(actor=actor), verdict=verdict, reason=reason,
-            )
+            queue = ApprovalQueue(store)
+            credential = _credentials.load(self.path)
+            approver = queue._authenticated_approver(credential)
+            if approver is None or approver.actor != "owner" or "owner" not in approver.roles:
+                raise ValueError("Invalid owner approver credential for this registry")
+            return queue.decide_typed_ticket(ticket.approval_id, credential=credential, verdict=verdict, reason=reason)
         if verdict == "approved":
             return bool(self.legacy.approve_ticket(ticket.approval_id, actor=actor, channel="cli"))
         return bool(self.legacy.reject_ticket(ticket.approval_id, actor=actor, channel="cli", reason=reason or "rejected"))
+
+    def initialize_credential(self) -> bool:
+        if self.path is None:
+            raise ValueError("The bridge approval registry must be persistent")
+        with registry_store(self.path) as store:
+            return _credentials.initialize(self.path, ApprovalQueue(store, allow_credential_issuance=True))
 
     def open_for_job(self, job_id: str) -> list[ApprovalTicket]:
         store = self._existing_store()
@@ -148,13 +156,10 @@ class Registry:
         ]
 
     def close(self, ticket: ApprovalTicket, reason: str) -> None:
-        if not self.decide(ticket, "rejected", "bridge-cleanup", reason):
-            if is_bridge_ticket(ticket):
-                store = self._existing_store()
-                if store is not None:
-                    ApprovalQueue(store).expire_ticket(ticket.approval_id)
-            else:
-                self.legacy.expire_ticket(ticket.approval_id)
+        if is_bridge_ticket(ticket):
+            self.queue.expire_ticket(ticket.approval_id)
+        elif not self.legacy.reject_ticket(ticket.approval_id, actor="bridge-cleanup", channel="cli", reason=reason):
+            self.legacy.expire_ticket(ticket.approval_id)
 
 
 @dataclass
@@ -172,6 +177,7 @@ class ApprovalChannel:
     actor: str = "local-bridge"
     attempt: int = 1
     fenced_consume: Callable[[str, str, ExecutorContext], bool] | None = None
+    approve_routine: Callable[[ApprovalRequest, str], ApprovalDecision] | None = None
     accepting: bool = True
     name: str = "projects-registry"
 
@@ -183,9 +189,7 @@ class ApprovalChannel:
         finally:
             _request.reset(token)
 
-    def _file(
-        self, request: ApprovalRequest, prompt: str, *, rule_id: str | None = None,
-    ) -> tuple[ApprovalTicket, ExecutorContext]:
+    def _file(self, request: ApprovalRequest, prompt: str) -> tuple[ApprovalTicket, ExecutorContext]:
         self.validate()
         target = ApprovalTarget(path=request.cwd)
         typed = TypedApprovalRequest.create(
@@ -194,7 +198,7 @@ class ApprovalChannel:
             payload={
                 "registry": _SOURCE, "job_ref": self.job_id, "invocation_id": uuid4().hex,
                 "policy_digest": self.policy_digest, "provider": request.provider, "tool": request.name,
-                "arguments": dict(request.arguments), "rule_id": rule_id,
+                "arguments": dict(request.arguments), "rule_id": None,
             },
         )
         ticket = self.registry.queue.create_typed_ticket(typed, prompt=prompt, ttl=self.ttl, operator_only=True)
@@ -243,8 +247,7 @@ class ApprovalChannel:
             self.on_resumed()
 
     def automatic(self, request: ApprovalRequest, rule_id: str) -> ApprovalDecision:
-        if self.accepting:
-            ticket, executor = self._file(request, f"[routine-auto:{rule_id}] {request.name}", rule_id=rule_id)
-            if self.registry.decide(ticket, "approved", "routine-auto", rule_id) and self._consume(ticket, executor):
-                return ApprovalDecision.allow()
-        return ApprovalDecision.deny("Routine approval could not be consumed")
+        if not self.accepting or self.approve_routine is None:
+            return ApprovalDecision.deny("Routine approval is unavailable")
+        self.validate()
+        return self.approve_routine(request, rule_id)

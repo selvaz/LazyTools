@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -43,7 +44,10 @@ def test_search_and_map_use_confined_repo_and_external_cache(
     repo.mkdir(parents=True)
     cache = tmp_path / "cache"
     monkeypatch.setenv("REPOMAP_CACHE_DIR", ".")
-    tools = RepoMapTools(root=root, backend=RepoMapCLI(binary=str(stub_repomap), cache_dir=cache))
+    backend = RepoMapCLI(binary=str(stub_repomap), cache_dir=cache)
+    if os.name == "nt":
+        monkeypatch.setattr(backend, "_command", lambda: [sys.executable, str(stub_repomap)])
+    tools = RepoMapTools(root=root, backend=backend)
 
     result = tools.codemap_search("failed requests retry", "project", limit=500)
     assert result["results"][0] == {
@@ -81,17 +85,24 @@ def test_cache_cannot_be_inside_code_root(tmp_path: Path, stub_repomap: Path) ->
         RepoMapTools(root=root, backend=RepoMapCLI(binary=str(stub_repomap), cache_dir=root / ".cache"))
 
 
-def test_option_like_query_is_rejected_and_external_symlink_is_flagged(tmp_path: Path) -> None:
+def test_option_like_query_is_rejected(tmp_path: Path) -> None:
+    tools = RepoMapTools(root=tmp_path, cache_dir=tmp_path.parent / "cache")
+    with pytest.raises(ValueError, match="must not start"):
+        tools.codemap_search("--help", ".")
+
+
+def test_external_symlink_is_flagged(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     outside = tmp_path / "secret.py"
     outside.write_text("secret")
-    (repo / "linked.py").symlink_to(outside)
+    try:
+        (repo / "linked.py").symlink_to(outside)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) != 1314:
+            raise
+        pytest.skip("Windows test account lacks symlink privileges")
     backend = RepoMapCLI(cache_dir=tmp_path / "cache")
-    tools = RepoMapTools(root=repo, backend=backend)
-
-    with pytest.raises(ValueError, match="must not start"):
-        tools.codemap_search("--help", ".")
 
     cleaned = backend._sanitize({"file": "linked.py", "snippet": "x" * 1000}, repo)
 
@@ -125,13 +136,15 @@ def test_windows_cmd_shim_resolves_to_node_and_package_entry(
     assert RepoMapCLI()._command(windows=True) == [str(node), str(launcher)]
 
 
-def test_error_detail_and_snippets_are_bounded(tmp_path: Path) -> None:
+def test_error_detail_and_snippets_are_bounded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     failing = tmp_path / "repomap"
     failing.write_text("#!/usr/bin/env python3\nimport sys\nsys.stderr.write('e' * 2000)\nsys.exit(2)\n")
     failing.chmod(0o755)
     repo = tmp_path / "repo"
     repo.mkdir()
     backend = RepoMapCLI(binary=str(failing), cache_dir=tmp_path / "cache")
+    if os.name == "nt":
+        monkeypatch.setattr(backend, "_command", lambda: [sys.executable, str(failing)])
 
     with pytest.raises(RepoMapError) as caught:
         backend.search("query", repo, 1)

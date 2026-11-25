@@ -58,7 +58,7 @@ def test_local_claude_launch_accepts_the_projects_engine_family(tmp_path):
 
 
 @pytest.fixture(params=["shared", "isolated"])
-def publication(tmp_path, monkeypatch, request):
+def publication(tmp_path, monkeypatch, request, provision_bridge_approver):
     repo, bare = tmp_path / "work", tmp_path / "bare"
     repo.mkdir()
     bare.mkdir()
@@ -135,6 +135,7 @@ def publication(tmp_path, monkeypatch, request):
         service=service,
         jobs_db=jobs_db,
         registry_db=registry_db,
+        provision_approver=lambda: provision_bridge_approver(registry_db),
         public_key=key.with_suffix(".pub.pem"),
         pushes=pushes,
         read_back_sleeps=read_back_sleeps,
@@ -220,6 +221,7 @@ def approve(fixture, capsys, **kwargs):
     receipt = publish(fixture, capsys, **kwargs)
     assert receipt["outcome"]["refusal_reason"] == "approval_not_decided"
     ticket = receipt["approval"]["ticket_id"]
+    fixture.provision_approver()
     assert cli.main(["approve", ticket, *fixture.options]) == 0
     return ticket
 
@@ -589,6 +591,7 @@ def test_missing_review_and_rejected_ticket_are_signed(publication, capsys):
     assert cli.main(["verify-receipt", missing["receipt_id"]]) == 0
     accept(publication, writer="other", review="other-review")
     pending = publish(publication, capsys, writer="other", branch="feature/other")
+    publication.provision_approver()
     assert cli.main(["reject", pending["approval"]["ticket_id"], "--reason", "declined", *publication.options]) == 0
     rejected = publish(publication, capsys, writer="other", branch="feature/other")
     assert rejected["outcome"]["refusal_reason"] == "approval_rejected"

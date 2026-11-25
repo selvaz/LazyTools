@@ -371,7 +371,11 @@ async def test_codex_write_engine_configuration(repo, script, registry):
     assert "thread_id=codex-id-1" in out["result"].splitlines()[0]
 
 
-async def test_codex_write_keeps_git_as_the_recovery_rail(tmp_path, script, registry):
+async def test_codex_write_keeps_git_as_the_recovery_rail(tmp_path, script, registry, monkeypatch):
+    from lazytools.connectors.code_support import _writer as writer_module
+
+    # The managed test runner may place temp directories inside its own repository.
+    monkeypatch.setattr(writer_module, "_inside_git_repo", lambda _: False)
     plain = tmp_path / "plain"
     plain.mkdir()
     writer = _writer(plain, registry, codex=True, require_confirmation=False)
