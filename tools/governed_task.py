@@ -52,6 +52,7 @@ from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import get_project
 from lazytools.projects.task_service import CompletionEvidence, ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError, migrate_publication_receipts
+from lazytools.routing.live import CACHE_FILENAME, seed_cache_from_global
 
 DEFAULT_STATE = Path("D:/work/r2-live/trial/state")
 DEFAULT_LEDGER = Path("D:/work/_wt/eo-decisions/design/new-course/trial/ledger.jsonl")
@@ -380,6 +381,9 @@ def launch_job(
     worker: TaskPrincipal, lease: dict[str, Any], prompt: str, **options: Any,
 ) -> tuple[str, str]:
     try:
+        cache = stores["bridge"].with_name(CACHE_FILENAME)
+        if seed_cache_from_global(cache):
+            print(f"Seeded isolated quota cache at {cache} from the global bridge cache", flush=True)
         return run_job(repo, stores, engine, worker, lease, prompt, **options)
     except Exception as exc:
         dispatch = service.dispatch_status(operator, lease["task_id"])
@@ -851,8 +855,12 @@ def execute(args: argparse.Namespace, stack: ExitStack) -> None:
         require(args.repository and args.repository == _publication._remote_repository(push[0]),
                 "Origin must name one GitHub repository")
         require(not git(repo, "status", "--porcelain", "--untracked-files=all"), f"Checkout must be clean: {repo}")
-        require(not state.exists(), f"Trial state already exists at {state}. Use a new project ID to start again.")
-        state.mkdir(parents=True)
+        state_lock = JobLock(parent / ".state-locks", state)
+        state_lock.acquire(args.project)
+        stack.callback(state_lock.release)
+        state.mkdir(parents=True, exist_ok=True)
+        require(all(entry.name == CACHE_FILENAME and entry.is_file() for entry in state.iterdir()),
+                f"Trial state already exists at {state}. Use a new project ID to start again.")
     else:
         require(all(path.is_file() for path in stores.values()), f"No task state at {state}. Run start first.")
         with Store(db=str(stores["projects"])) as existing:

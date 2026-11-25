@@ -43,6 +43,7 @@ from lazytools.projects.task_service import (
 )
 from lazytools.projects.task_store import TaskServiceError, migrate_publication_receipts
 from lazytools.routing.catalogue import DEFAULT_PATH
+from lazytools.routing.live import CACHE_FILENAME, CACHE_PATH_ENV
 
 SOURCE = "receipt_demo_sub.py"
 TEST = "test_receipt_demo_sub.py"
@@ -86,7 +87,7 @@ def configure_state(state: Path, stack: ExitStack) -> None:
         "LAZYTOOLS_CODE_BRIDGE_DB": str(state / "bridge.sqlite"),
         "LAZYTOOLS_RECEIPT_ISSUER_KEY": str(state / "issuer.pem"),
         "LAZYTOOLS_CODE_BRIDGE_CONFIG": str(config),
-        "LAZYTOOLS_QUOTA_CACHE": str(state / "quota-cache.json"),
+        CACHE_PATH_ENV: str(state / CACHE_FILENAME),
         "LAZYBRIDGE_SESSIONS_FILE": str(state / "sessions.json"),
         "TEMP": str(temp),
         "TMP": str(temp),
