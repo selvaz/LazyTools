@@ -82,9 +82,10 @@ def provision_bridge_approver(tmp_path, monkeypatch):
 
     monkeypatch.setattr(_credentials, "credential_directory", lambda: tmp_path / "operator-credentials")
 
-    def provision(registry_db):
-        assert cli.main(["approver-credential", "init", "--registry-db", str(registry_db)]) == 0
-        return _credentials._path(registry_db)
+    def provision(registry_db=None):
+        flags = ["--registry-db", str(registry_db)] if registry_db is not None else []
+        assert cli.main(["approver-credential", "init", *flags]) == 0
+        return _credentials._path(registry_db) if registry_db is not None else None
 
     return provision
 

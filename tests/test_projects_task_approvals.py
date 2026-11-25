@@ -54,7 +54,7 @@ def approvals(queue):  # noqa: F811
             production=target.path == "production", verified_head=state["verified_head"],
         )
 
-    return ProjectTaskApprovals(service, authorize=authorize, orchestrator_actor=OPERATOR.actor), receipt, job, state
+    return ProjectTaskApprovals(service, authorize=authorize), receipt, job, state
 
 
 def target(**fields):
@@ -74,17 +74,14 @@ def credential(registry, principal):
 
 
 @pytest.fixture
-def initialized_owner(approvals, tmp_path, monkeypatch):
+def initialized_owner(approvals, provision_bridge_approver):
     registry, _, _, _ = approvals
-    path = registry.service.path
-    monkeypatch.setattr(_credentials, "credential_directory", lambda: tmp_path / "operator-state")
-    assert cli.main(["approver-credential", "init", "--registry-db", str(path)]) == 0
-    return _credentials._path(path)
+    return provision_bridge_approver(registry.service.path)
 
 
-def decide(registry, req, principal=OPERATOR, verdict="allow", reason="Reviewed exact effect", **kwargs):
+def decide(registry, req, principal=OWNER, verdict="allow", reason="Reviewed exact effect", **kwargs):
     if "credential" not in kwargs:
-        kwargs["credential"] = credential(registry, principal)
+        kwargs["credential"] = _credentials.load(registry.service.path)
     return registry.decide(principal, req["request_id"], req["action_digest"], verdict, reason, **kwargs)
 
 
@@ -96,8 +93,11 @@ def consume(registry, receipt, req, key="effect", principal=WORKER, action=None,
     )
 
 
-def test_canonical_persistence_scopes_and_idempotent_decisions(approvals):
+def test_canonical_persistence_scopes_and_idempotent_decisions(approvals, initialized_owner):
     registry, receipt, _, _ = approvals
+    registry = ProjectTaskApprovals(
+        registry.service, authorize=registry.authorize, orchestrator_actor=OPERATOR.actor,
+    )
     req = request(registry, receipt)
     other = request(registry, receipt, action="open_pr", invocation="studio-tool")
     assert request(registry, receipt) == req
@@ -119,17 +119,18 @@ def test_canonical_persistence_scopes_and_idempotent_decisions(approvals):
     with pytest.raises(TaskServiceError, match="digest"):
         registry.decide(OPERATOR, req["request_id"], "incorrect", "allow", "Verified")
     with pytest.raises(TaskServiceError, match="credential is required"):
-        decide(registry, req, credential=None)
+        decide(registry, req, principal=OPERATOR, credential=None)
     with pytest.raises(TaskServiceError, match="does not match"):
-        decide(registry, req, credential="x" * 43)
+        decide(registry, req, principal=OPERATOR, credential="x" * 43)
     with pytest.raises(TaskServiceError, match="does not match"):
-        decide(registry, req, credential=credential(registry, OWNER))
-    stored = decide(registry, req)
-    assert decide(registry, req) == stored
+        decide(registry, req, principal=OPERATOR)
+    operator_credential = credential(registry, OPERATOR)
+    stored = decide(registry, req, principal=OPERATOR, credential=operator_credential)
+    assert decide(registry, req, principal=OPERATOR, credential=operator_credential) == stored
     with pytest.raises(TaskServiceError, match="credential is required"):
-        decide(registry, req, credential=None)
+        decide(registry, req, principal=OPERATOR, credential=None)
     with pytest.raises(TaskServiceError, match="different decision"):
-        decide(registry, req, verdict="deny")
+        decide(registry, req, principal=OPERATOR, credential=operator_credential, verdict="deny")
     bridge_adapter = ProjectTaskApprovals(ProjectTaskService(str(registry.service.path)))
     assert bridge_adapter.get(WORKER, req["request_id"]) == stored["request"]
     with Store(db=str(registry.service.path)) as store:
@@ -149,7 +150,6 @@ async def test_projects_approval_tool_uses_the_initialized_owner_for_orchestrato
     from mcp_test_utils import connected_client, protocol_field
 
     registry, receipt, _, _ = approvals
-    registry = ProjectTaskApprovals(registry.service, authorize=registry.authorize)
     req = request(registry, receipt)
     assert req["required_approver"] == "orchestrator"
     secret = initialized_owner.read_text(encoding="ascii")
@@ -175,7 +175,6 @@ async def test_projects_approval_tool_uses_the_initialized_owner_for_orchestrato
 
 def test_projects_approval_owner_credential_also_decides_owner_tier(approvals, initialized_owner):
     registry, receipt, _, _ = approvals
-    registry = ProjectTaskApprovals(registry.service, authorize=registry.authorize)
     req = request(registry, receipt, "production_change")
     assert req["required_approver"] == "owner"
     secret = initialized_owner.read_text(encoding="ascii")
@@ -188,6 +187,21 @@ def test_projects_approval_owner_credential_also_decides_owner_tier(approvals, i
     assert rejected["decision"]["decider"] == OWNER.actor
 
 
+def test_initialized_owner_can_decide_an_unclassified_projects_ticket(approvals, initialized_owner):
+    registry, receipt, _, _ = approvals
+    req = request(registry, receipt)
+    with Store(db=str(registry.service.path)) as store:
+        key = approval.DEFAULT_PREFIX + req["request_id"]
+        raw = store.read(key)
+        del raw["route"]
+        store.write(key, raw)
+
+    assert registry.pending(OWNER)["requests"] == [req]
+    approved = decide(registry, req)["request"]
+    assert approved["decision"]["decider"] == OWNER.actor
+    consume(registry, receipt, approved)
+
+
 @pytest.mark.parametrize(("action", "required", "fields"), [
     ("read", "automatic", {}),
     ("local_commit", "automatic", {}),
@@ -198,22 +212,21 @@ def test_projects_approval_owner_credential_also_decides_owner_tier(approvals, i
     ("scoped_delete", "owner", {"path": "production"}),
     ("production_change", "owner", {}),
 ])
-def test_effect_policy_rows(approvals, action, required, fields, tmp_path, monkeypatch, capsys):
+def test_effect_policy_rows(approvals, action, required, fields, provision_bridge_approver, capsys):
     registry, receipt, _, _ = approvals
+    provision = [
+        "approver-credential", "provision-automatic", PROJECT, "--registry-db", str(registry.service.path),
+    ]
     if required == "automatic":
         with pytest.raises(TaskServiceError, match="must provision"):
             request(registry, receipt, action, **fields)
-        monkeypatch.setattr(_credentials, "credential_directory", lambda: tmp_path / "operator-state")
-        flags = ["--registry-db", str(registry.service.path)]
-        provision = ["approver-credential", "provision-automatic", PROJECT, *flags]
         assert cli.main(provision) == 1
         assert "credential is missing" in capsys.readouterr().err
-        assert cli.main(["approver-credential", "init", *flags]) == 0
-        secret = _credentials.load(registry.service.path)
-        assert cli.main(provision) == 0
-        output = capsys.readouterr()
-        assert "Automatic approval cards provisioned" in output.out
-        assert secret not in output.out + output.err
+    credential_file = provision_bridge_approver(registry.service.path)
+    assert cli.main(provision) == 0
+    output = capsys.readouterr()
+    assert "Automatic approval cards provisioned" in output.out
+    assert credential_file.read_text(encoding="ascii") not in output.out + output.err
     req = request(registry, receipt, action, **fields)
     assert request(registry, receipt, action, **fields) == req
     assert req["required_approver"] == required
@@ -221,18 +234,43 @@ def test_effect_policy_rows(approvals, action, required, fields, tmp_path, monke
         assert req["status"] == "pending"
         with pytest.raises(TaskServiceError, match="unapproved"):
             consume(registry, receipt, req)
-        decide(registry, req, principal=OWNER if required == "owner" else OPERATOR)
+        decide(registry, req)
     else:
         assert req["status"] == "approved" and req["decision"]["reason"] == req["rule_id"]
         with Store(db=str(registry.service.path)) as store:
             receipt_row = store.read(f"projects-task:card-receipt:{req['request_id']}")
-            assert receipt_row["action_class"] == f"projects_{action}"
-            assert receipt_row["task_id"] == req["task_id"]
+            (card_receipt,) = approval.ApprovalQueue(store).list_card_approvals()
+            assert receipt_row == card_receipt.model_dump(mode="json")
+            assert card_receipt.action_class == f"projects_{action}"
+            assert card_receipt.task_id == req["task_id"]
     consume(registry, receipt, req)
     assert registry.get(WORKER, req["request_id"])["effect_unresolved"]
 
 
-def test_policy_refuses_unknown_effect_unbound_worker_and_head_drift(approvals):
+def test_revoked_automatic_card_cannot_approve_an_effect(approvals, initialized_owner):
+    registry, receipt, _, _ = approvals
+    provision = [
+        "approver-credential", "provision-automatic", PROJECT, "--registry-db", str(registry.service.path),
+    ]
+    assert cli.main(provision) == 0
+    with Store(db=str(registry.service.path)) as store:
+        queue = approval.ApprovalQueue(store)
+        read_card = store.read(f"projects-task:automatic-cards:{PROJECT}")["read"]
+        assert queue.revoke_card(read_card["card_id"], credential=initialized_owner.read_text(encoding="ascii"))
+
+    with pytest.raises(TaskServiceError, match="card did not authorize"):
+        request(registry, receipt, "read")
+    with Store(db=str(registry.service.path)) as store:
+        queue = approval.ApprovalQueue(store)
+        assert queue.list_card_approvals() == []
+        assert queue.list_pending_tickets() == []
+
+    assert cli.main(provision) == 0
+    req = request(registry, receipt, "read")
+    consume(registry, receipt, req)
+
+
+def test_policy_refuses_unknown_effect_unbound_worker_and_head_drift(approvals, initialized_owner):
     registry, receipt, _, state = approvals
     for action in ("unsafe_shell", "merge_main"):
         with pytest.raises(TaskServiceError):
@@ -260,7 +298,7 @@ def test_policy_refuses_unknown_effect_unbound_worker_and_head_drift(approvals):
     consume(registry, receipt, req)
 
 
-def test_main_update_requires_orchestrator_and_current_head(approvals):
+def test_main_update_requires_orchestrator_and_current_head(approvals, initialized_owner):
     registry, receipt, job, state = approvals
     service = registry.service
     service.clock.now += 61
@@ -282,7 +320,7 @@ def test_main_update_requires_orchestrator_and_current_head(approvals):
     consume(registry, receipt, req, principal=OPERATOR)
 
 
-def test_deny_and_expire_approvals(approvals):
+def test_deny_and_expire_approvals(approvals, initialized_owner):
     registry, receipt, _, _ = approvals
     req = request(registry, receipt)
     decide(registry, req, verdict="deny")
@@ -298,7 +336,7 @@ def test_deny_and_expire_approvals(approvals):
         consume(registry, receipt, expiring)
 
 
-def test_stale_attempt_cannot_consume(approvals):
+def test_stale_attempt_cannot_consume(approvals, initialized_owner):
     registry, receipt, job, _ = approvals
     req = request(registry, receipt)
     decide(registry, req)
@@ -316,7 +354,7 @@ def test_stale_attempt_cannot_consume(approvals):
 
 
 @pytest.mark.parametrize("result", ["succeeded", "not_applied"])
-def test_raced_consumption_and_interruption_hold_effect_until_reconciled(approvals, result):
+def test_raced_consumption_and_interruption_hold_effect_until_reconciled(approvals, initialized_owner, result):
     registry, receipt, job, _ = approvals
     req = request(registry, receipt)
     decide(registry, req)

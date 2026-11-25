@@ -894,7 +894,8 @@ request ID, digest, verdict, and reason. The credential stays in the host.
 
 A deployment can set `orchestrator_actor` on `ProjectTaskApprovals` to assign
 new orchestrator-tier requests to a separate human principal. Existing tickets
-retain their recorded assignee. For these routes, provision a credential for
+retain their recorded assignee. Older tickets without a recorded route go to
+the registry owner. For a separate human approver, provision a credential for
 the assigned principal with both the LazyBridge `owner` role and the Projects
 `orchestrator` role. The following command uses `operator` as an example.
 

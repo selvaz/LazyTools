@@ -340,10 +340,8 @@ class ProjectTaskApprovals:
             if approver is None or approver.actor != principal.actor or principal.role not in approver.roles:
                 raise TaskServiceError("forbidden", "The approver credential does not match the authenticated principal")
             assignee = ticket.route.assignee if ticket.route else None
-            # Honor the persisted assignee for tickets already routed to a separate operator.
+            # LazyBridge routes unclassified tickets without a stored route to the owner.
             actor = assignee.actor if assignee else self.owner_actor
-            if assignee is None and principal.role == "orchestrator":
-                actor = self.orchestrator_actor or "operator"
             if actor != approver.actor or "owner" not in approver.roles:
                 raise TaskServiceError("forbidden", "The approver credential cannot decide this ticket")
             previous = ticket.decision
