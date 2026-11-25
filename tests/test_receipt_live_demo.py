@@ -69,7 +69,7 @@ def test_receipt_demo_dry_run(tmp_path, scenario, engine):
         pending, = [receipt for receipt in receipts if receipt["outcome"]["status"] == "refused"]
         assert pending["outcome"]["refusal_reason"] == "approval_not_decided"
         assert published["approval"]["ticket_id"] == pending["approval"]["ticket_id"]
-        assert published["approval"]["decided_by"] == "receipt-demo-operator"
+        assert published["approval"]["decided_by"] == "owner"
         assert "signature valid" in result.stdout
         assert published["publication"]["head_sha"] == published["reviewer"]["reviewed_sha"]
         assert published["reviewer"]["independence_mode"] == "opposite-engine"
