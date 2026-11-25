@@ -134,6 +134,8 @@ def test_governed_task_publication_and_ledger(trial, capsys):
         assert (writer_meta["engine"], writer_meta["model"], writer_meta["effort"]) == ("codex", "gpt-6.2-sol", "high")
         assert (review_meta["engine"], review_meta["profile"]) == ("claude", "read")
         assert review_meta["routing"]["provider"] == "claude_code"
+        assert review_meta["session_name"] == f"{PROJECT}-review"
+        assert "NC-16" not in script.prompts[1]
 
     assert invoke("publish", "--resume") == 1
     assert not gh_state.exists()
@@ -427,12 +429,18 @@ def test_rereview_uses_legacy_state_and_current_head(trial):
     assert invoke("review", "--brief", f"@{brief}", "--spec", str(spec)) == 0
     assert len(script.prompts) == 3
     assert script.prompts[2].startswith(f"Review commit {head}")
+    assert f"This is a re-review under NC-16. Revisit your findings from commit {original}" in script.prompts[2]
+    assert "Block only on unresolved previous findings, issues introduced by the fix, or critical security issues." in script.prompts[2]
     assert "Add subtraction and test a negative result." in script.prompts[2]
     assert "| 0 | fresh gate |" in script.prompts[2] and "A1. Return a negative number." in script.prompts[2]
     with Store(db=str(state / "projects.sqlite")) as project_store:
         writer, reviewer = project_store.read(_board_key(PROJECT))["tasks"]
         latest = project_store.read("governed-task:jobs")["ids"]
     assert latest[0] == previous[0] and latest[1] != previous[1]
+    with Store(db=str(state / "bridge.sqlite")) as job_store:
+        first, second = (_store.read_meta(job_store, jobs[1]) for jobs in (previous, latest))
+    assert first["session_name"] == second["session_name"] == f"{PROJECT}-review"
+    assert first["turns"][0]["thread_id"] == second["turns"][0]["thread_id"]
     assert len(writer["dispatches"]) == 1
     assert [d["receipt"]["attempt"] for d in reviewer["dispatches"]] == [1, 2]
     assert reviewer["dispatches"][1]["receipt"]["engine_family"] == "codex"
@@ -466,11 +474,42 @@ def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
     assert "Address the rejection on the same branch." in script.prompts[2]
     assert script.prompts[2].endswith("Previous review reason\nA required check failed.")
     assert script.prompts[3].startswith(f"Review commit {head}")
+    assert f"This is a re-review under NC-16. Revisit your findings from commit {original}" in script.prompts[3]
     assert "| 0 | retained gate |" in script.prompts[3]
     publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
     assert publication.writer.attempt == publication.reviewer.attempt == 2
     assert publication.independence == "opposite-engine"
     assert publication.writer.evidence.artifact_ref == publication.reviewer.evidence.reviewed_sha == head
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        _, review = project_store.read(_board_key(PROJECT))["tasks"]
+    with Store(db=str(state / "bridge.sqlite")) as job_store:
+        first, second = (_store.read_meta(job_store, d["job_ref"]) for d in review["dispatches"])
+    assert first["session_name"] == second["session_name"] == f"{PROJECT}-review"
+    assert first["turns"][0]["thread_id"] == second["turns"][0]["thread_id"]
+
+
+def test_fresh_review_starts_a_new_conversation_and_then_continues_it(trial, capsys):
+    start, invoke, setup, script, state, _, _ = trial
+    checkout = setup(accepted=False)
+    assert start(checkout) == 1
+    (state / "sessions.json").unlink()
+    assert invoke("review") == 1
+    assert "Use --fresh-review" in capsys.readouterr().err
+    assert len(script.prompts) == 2
+
+    brief = state.parent.parent / "fix.md"
+    brief.write_text("Address the review findings.", encoding="utf-8")
+    # A fresh override also works directly on review, even after the old alias is lost.
+    assert invoke("review", "--fresh-review") == 1
+    assert invoke("rework", "--brief", f"@{brief}") == 1
+    assert "NC-16" not in script.prompts[2] and "NC-16" in script.prompts[4]
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        _, review = project_store.read(_board_key(PROJECT))["tasks"]
+    with Store(db=str(state / "bridge.sqlite")) as job_store:
+        first, fresh, resumed = (_store.read_meta(job_store, d["job_ref"]) for d in review["dispatches"])
+    assert first["session_name"] == f"{PROJECT}-review"
+    assert fresh["session_name"] == resumed["session_name"] == f"{PROJECT}-review-2"
+    assert first["turns"][0]["thread_id"] != fresh["turns"][0]["thread_id"] == resumed["turns"][0]["thread_id"]
 
 
 def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, capsys):

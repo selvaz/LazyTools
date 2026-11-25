@@ -569,7 +569,16 @@ def run_job(
 
         session_registry = default_session_registry()
         native_id = session_registry.resolve(engine_name, resolved_cwd, session_name) if session_name else None
-        native_binding = {**launch.binding(), "cwd": str(resolved_cwd), **(claim.binding() if claim else {})}
+        native_binding = {**launch.binding(), "cwd": str(resolved_cwd)}
+        if claim:
+            if (session_name and intentional_review and legacy and launch.policy.profile == "read"
+                    and launch.policy.network == "off" and claim.receipt["review_of"]):
+                # The transcript spans review rounds. The new claim still fences the job and every tool call.
+                native_binding.update(task_id=claim.task_id, task_executor=claim.principal.actor,
+                                      task_review_of=claim.receipt["review_of"],
+                                      task_branch=claim.receipt["assigned_branch"])
+            else:
+                native_binding.update(claim.binding())
         _launch.check_resume(store, engine_name, native_id, native_binding)
         if native_id and engine_name == "claude" and launch.mode == "governed":
             raise PolicyError("Governed Claude resume requires the original SDK client; use a new session alias")
