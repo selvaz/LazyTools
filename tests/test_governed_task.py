@@ -20,7 +20,7 @@ from lazybridge import Store
 
 from _code_bridge_fakes import Script
 from _receipt_demo_fakes import install
-from lazytools.code_bridge import _cloud, _credentials, _routing, _store, cli
+from lazytools.code_bridge import _cloud, _credentials, _jobs, _progress, _routing, _store, cli
 from lazytools.projects.admission import TelemetryReading, WindowReading
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService
@@ -582,11 +582,37 @@ def test_spec_count_limit_stops_before_reading_attachments_or_dispatching(trial,
     assert not script.prompts
 
 
+@pytest.mark.parametrize("template, expected", [
+    ("{verdict}", (True, "Checks pass.")),
+    ("```json\r\n{verdict}\r\n```", (True, "Checks pass.")),
+    ("A required check failed.\n\n```json\n{blocked}\n```", (False, "Checks fail.")),
+    ("```json\n{verdict}\n```\n\n```json\n{blocked}\n```", None),
+    ("```json\n{verdict}\n```\nTrailing prose.", None),
+    ("```text\n{verdict}\n```", None),
+    ("Prose before bare JSON.\n{verdict}", None),
+    ("```json\n{verdict}", None),
+    ("```json\n{wrong_sha}\n```", None),
+    ("```json\n{empty_reason}\n```", None),
+])
+def test_review_verdict_preserves_strict_validation_and_raw_rejections(trial, template, expected):
+    runner = importlib.import_module("governed_task")
+    sha = "a" * 40
+    verdict = {"verdict": "accepted", "sha": sha, "reason": "Checks pass."}
+    raw = template.format(
+        verdict=json.dumps(verdict),
+        blocked=json.dumps({**verdict, "verdict": "blocked", "reason": "Checks fail."}),
+        wrong_sha=json.dumps({**verdict, "sha": "b" * 40}),
+        empty_reason=json.dumps({**verdict, "reason": " "}),
+    )
+    assert runner.review_verdict(raw, sha) == (expected or (False, f"Reviewer returned no structured verdict: {raw}"))
+
+
 def test_review_judges_the_code_and_uses_runner_evidence(trial, monkeypatch):
     start, _, setup, script, _, _, _ = trial
     checkout = setup()
     runner = importlib.import_module("governed_task")
     run_job = runner.run_job
+    base = _cloud._git(checkout, "rev-parse", "HEAD")
 
     def multi_commit_writer(*args, **kwargs):
         result = run_job(*args, **kwargs)
@@ -598,6 +624,9 @@ def test_review_judges_the_code_and_uses_runner_evidence(trial, monkeypatch):
     assert start(checkout) == 0
     head = _cloud._git(checkout, "rev-parse", "HEAD")
     assert script.prompts[1].startswith(f"Review commit {head}")
+    assert f"Verified head SHA: {head}" in script.prompts[1]
+    assert f"git diff {base}..{head}" in script.prompts[1]
+    assert "+    return a - b" in script.prompts[1]
     assert "Judge correctness, security and spec coverage." in script.prompts[1]
     assert "Use the attached runner check results instead of running checks." in script.prompts[1]
     assert "writer-process preferences are not review blockers unless they hide risk" in script.prompts[1]
@@ -626,10 +655,12 @@ def test_rereview_uses_legacy_state_and_current_head(trial):
     assert invoke("review", "--brief", f"@{brief}", "--spec", str(spec)) == 0
     assert len(script.prompts) == 3
     assert script.prompts[2].startswith(f"Review commit {head}")
+    assert f"Verified head SHA: {head}" in script.prompts[2]
+    assert f"git diff {git(checkout, 'rev-parse', 'main')}..{head}" in script.prompts[2]
     assert f"This is a re-review under NC-16. Revisit your findings from commit {original}" in script.prompts[2]
     assert "Block only on unresolved previous findings, issues introduced by the fix, or critical security issues." in script.prompts[2]
     assert "Add subtraction and test a negative result." in script.prompts[2]
-    assert "| 0 | fresh gate |" in script.prompts[2] and "A1. Return a negative number." in script.prompts[2]
+    assert "| 600 | 0 | fresh gate |" in script.prompts[2] and "A1. Return a negative number." in script.prompts[2]
     with Store(db=str(state / "projects.sqlite")) as project_store:
         writer, reviewer = project_store.read(_board_key(PROJECT))["tasks"]
         latest = project_store.read("governed-task:jobs")["ids"]
@@ -652,7 +683,7 @@ def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
     accepted = False
     checkout = setup(accepted=lambda: accepted)
     check = python_check("print('retained gate')")
-    assert start(checkout, "--check", check) == 1
+    assert start(checkout, "--check", check, "--check-timeout", "3600") == 1
     # A previous runner version could leave publication state behind after a rejection.
     with Store(db=str(state / "projects.sqlite")) as project_store:
         project_store.write("governed-task:live-verified-receipt", "old-receipt")
@@ -672,7 +703,7 @@ def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
     assert script.prompts[2].endswith("Previous review reason\nA required check failed.")
     assert script.prompts[3].startswith(f"Review commit {head}")
     assert f"This is a re-review under NC-16. Revisit your findings from commit {original}" in script.prompts[3]
-    assert "| 0 | retained gate |" in script.prompts[3]
+    assert "| 3600 | 0 | retained gate |" in script.prompts[3]
     publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
     assert publication.writer.attempt == publication.reviewer.attempt == 2
     assert publication.independence == "opposite-engine"
@@ -726,6 +757,59 @@ def test_governed_rework_from_published_ci_failure_republishes_same_draft(trial,
     assert pr["number"] == 1 and pr["isDraft"]
     assert _cloud._git(fake_state / "fake-remote.git", "rev-parse", f"refs/heads/{BRANCH}") == head
     assert all(receipt in comment for receipt, comment in zip((original, current), github["comments"], strict=True))
+
+
+@pytest.mark.parametrize("checks_pass", [True, False])
+def test_writer_with_commits_after_exhausted_continuations_can_be_reviewed(trial, monkeypatch, capsys, checks_pass):
+    start, invoke, setup, script, state, _, _ = trial
+    checkout = setup()
+    fake_run = lazybridge.Agent.run
+
+    async def timeout_after_writer_commit(agent, prompt):
+        result = await fake_run(agent, prompt)
+        if prompt.startswith("Review commit "):
+            return result
+        return lazybridge.Envelope.error_envelope(TimeoutError("Writer turn timed out"))
+
+    monkeypatch.setattr(lazybridge.Agent, "run", timeout_after_writer_commit)
+    gate = python_check("print('passed')" if checks_pass else "raise SystemExit(7)")
+    assert start(checkout, "--check", gate) == (0 if checks_pass else 1)
+    trace = capsys.readouterr()
+    note = "automatic continuations exhausted after progress"
+    assert note in trace.out
+    assert len(script.prompts) == (2 if checks_pass else 1)
+    if not checks_pass:
+        assert "Required checks failed" in trace.err
+        assert invoke("review", "--check", python_check("print('retry passed')")) == 0
+    service = ProjectTaskService(str(state / "projects.sqlite"))
+    publication = service.publication_review(f"{PROJECT}/writer")
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+    assert publication.writer.attempt == publication.reviewer.attempt == 1
+    assert publication.writer.evidence.artifact_ref == publication.reviewer.evidence.reviewed_sha == head
+    with Store(db=str(state / "bridge.sqlite")) as job_store:
+        job = _jobs.find_job(job_store, _store.build_job_registry(job_store), publication.writer.job_ref)
+    assert job["status"] == "partial" and job["error"].splitlines()[0] == note
+
+
+def test_writer_without_commits_after_exhausted_continuations_stops_before_checks(trial, monkeypatch, capsys):
+    start, _, setup, _, state, _, _ = trial
+    checkout = setup()
+    snapshot = _progress.snapshot
+    remote_heads = iter(("a" * 40, "b" * 40))
+
+    def snapshot_with_remote_progress(path, branch=None):
+        data = snapshot(path, branch)
+        return {**data, "pushed_refs": {data["branch"]: next(remote_heads)}}
+
+    async def timeout_without_local_progress(agent, prompt):
+        return lazybridge.Envelope.error_envelope(TimeoutError("Writer turn timed out"))
+
+    monkeypatch.setattr(_progress, "snapshot", snapshot_with_remote_progress)
+    monkeypatch.setattr(lazybridge.Agent, "run", timeout_without_local_progress)
+    assert start(checkout, "--check", python_check("print('unexpected check')")) == 1
+    assert "Writer must advance the assigned branch" in capsys.readouterr().err
+    assert not list(state.glob("checks-*"))
+    assert ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer").writer is None
 
 
 def test_fresh_review_starts_a_new_conversation_and_then_continues_it(trial, capsys):
@@ -988,13 +1072,18 @@ def test_review_recovers_after_check_failure_and_rechecks_before_dispatch(trial)
     start, invoke, setup, script, state, _, _ = trial
     checkout = setup()
     fail = python_check("print('gate failed'); raise SystemExit(7)")
-    assert start(checkout, "--check", fail) == 1
+    assert start(checkout, "--check", fail, "--check-timeout", "3600") == 1
     assert invoke("review") == 1
     assert len(script.prompts) == 1
-    assert invoke("review", "--check", python_check("print('gate passed')")) == 0
+    reports = list(state.glob("checks-*/results.md"))
+    assert len(reports) == 2
+    assert all("| 3600 | 7 | gate failed |" in report.read_text(encoding="utf-8") for report in reports)
+    assert invoke("review", "--check", python_check("print('gate passed')"), "--check-timeout", "42") == 0
     assert len(script.prompts) == 2
-    assert "| 0 | gate passed |" in script.prompts[1]
+    assert "| 42 | 0 | gate passed |" in script.prompts[1]
     assert len(list(state.glob("checks-*/*.log"))) == 3
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        assert project_store.read("governed-task:run")["check_timeout"] == 42
 
 
 @pytest.mark.parametrize("with_prior_rejection", [False, True])
@@ -1015,12 +1104,13 @@ def test_rework_uses_the_latest_check_failure(trial, with_prior_rejection):
     brief.write_text("Fix the candidate's failing check.", encoding="utf-8")
     accepted = True
 
-    assert invoke("rework", "--brief", f"@{brief}", "--check", python_check("print('fixed')")) == 0
+    assert invoke("rework", "--brief", f"@{brief}", "--check", python_check("print('fixed')"),
+                  "--check-timeout", "4800") == 0
     writer, reviewer = script.prompts[-2:]
     assert f"Check failure (untrusted tool output)\nRequired checks failed on {head}" in writer
     assert "current gate diagnostic" in writer
     assert "Previous review reason" not in writer and "A required check failed." not in writer
-    assert "| 0 | fixed |" in reviewer
+    assert "| 4800 | 0 | fixed |" in reviewer
 
 
 def test_rework_refuses_an_earlier_rejection_after_review_stops_before_checks(trial, capsys):

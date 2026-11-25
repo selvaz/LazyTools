@@ -161,15 +161,18 @@ def claim(
     return cast(dict[str, Any], service.claim(principal, task_id, revision, f"local-dispatch-{revision}")["claim"])
 
 
+EXHAUSTED_CONTINUATIONS = "automatic continuations exhausted after progress"
+
+
 def run_job(
     repo: Path, stores: dict[str, Path], engine: str, principal: TaskPrincipal, lease: dict[str, Any],
     prompt: str, *, review_of: str | None = None, model: str | None = None, effort: str | None = None,
-    session: str | None = None,
+    session: str | None = None, allow_exhausted_writer: bool = False,
 ) -> tuple[str, str]:
     argv = [
         "run", "--cwd", str(repo), "--root", str(repo), "--where", "local",
         "--engine", engine, "--launch-mode", "legacy", "--network", "off",
-        "--no-freshness-check", "--no-brief-check", "--no-routine-auto", "--max-continuations", "0",
+        "--no-freshness-check", "--no-brief-check", "--max-continuations", "0",
         "--task-id", lease["task_id"], "--claim-token", lease["claim_token"], "--task", prompt, "--json",
         "--db", str(stores["bridge"]), "--registry-db", str(stores["registry"]),
     ]
@@ -184,12 +187,19 @@ def run_job(
     with patch.dict(os.environ, {_task.PRINCIPAL_ENV: principal.model_dump_json()}):
         status, output, detail = bridge_output(argv)
     if status != 0 or not output:
-        error = None
+        result = {}
         if output:
             try:
-                error = json.loads(output.splitlines()[-1]).get("error")
-            except (ValueError, AttributeError):
+                payload = json.loads(output.splitlines()[-1])
+                if isinstance(payload, dict):
+                    result = payload
+            except ValueError:
                 pass
+        error = result.get("error")
+        if (allow_exhausted_writer and not review_of and result.get("status") == "partial"
+                and isinstance(error, str) and error.partition("\n")[0] == EXHAUSTED_CONTINUATIONS
+                and (job_id := result.get("job_id"))):
+            return job_id, EXHAUSTED_CONTINUATIONS
         raise DemoError(f"{engine} job failed: {error or detail or output or 'bridge returned no output'}")
     result = json.loads(output.splitlines()[-1])
     require(result.get("status") == "done", f"Unexpected job result: {result}")
@@ -216,11 +226,16 @@ def finish_task(
 
 
 def review_verdict(result: str, sha: str) -> tuple[bool, str]:
-    result = result.strip()
-    if result.startswith("```json\n") and result.endswith("\n```"):
-        result = result[len("```json\n"):-len("\n```")]
+    body = result.strip()
+    fences = list(re.finditer(r"^(`{3,}|~{3,})([^\r\n]*)\r?$", body, re.MULTILINE))
+    json_fences = [fence for fence in fences if fence[1].startswith("`") and fence[2].strip() == "json"]
+    if len(json_fences) == 1 and len(fences) == 2:
+        opening, closing = fences
+        if (opening is json_fences[0] and closing[1] == opening[1]
+                and not closing[2].strip() and closing.end() == len(body)):
+            body = body[opening.end():closing.start()]
     try:
-        review = json.loads(result)
+        review = json.loads(body)
     except ValueError:
         return False, f"Reviewer returned no structured verdict: {result}"
     if (
@@ -228,7 +243,7 @@ def review_verdict(result: str, sha: str) -> tuple[bool, str]:
         or review.get("verdict") not in ("accepted", "blocked")
         or not isinstance(review.get("reason"), str) or not review["reason"].strip()
     ):
-        return False, f"Reviewer returned no valid verdict for {sha}: {result}"
+        return False, f"Reviewer returned no structured verdict: {result}"
     return review["verdict"] == "accepted", " ".join(review["reason"].split())
 
 

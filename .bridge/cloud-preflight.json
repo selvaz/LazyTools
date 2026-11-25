@@ -1,0 +1,22 @@
+{
+  "environments": {
+    "6af62c38f52881919d3d60f68175ab4c": {
+      "attested_by": "probe:8c5fbb24840f470b8862a2ff8297985a",
+      "attested_on": "2026-11-25",
+      "imports": [
+        "lazybridge",
+        "mypy",
+        "pytest",
+        "ruff",
+        "tzdata"
+      ],
+      "network": true,
+      "python_version": "3.14.4",
+      "repositories": [
+        "selvaz/LazyCrawler"
+      ],
+      "revision": "probe:8c5fbb24840f470b8862a2ff8297985a"
+    }
+  },
+  "revision": "probe-1"
+}

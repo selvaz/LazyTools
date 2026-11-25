@@ -75,7 +75,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from lazytools.code_bridge import _cloud_place, _concurrency, _store
+from lazytools.code_bridge import _cloud_place, _cloud_preflight, _concurrency, _store
 
 WHERE_LOCAL = "local"
 WHERE_CLOUD = "cloud"
@@ -589,6 +589,19 @@ def current_branch(cwd: Path) -> str:
     if not branch or branch == "HEAD":
         raise CloudError(f"{cwd} is on a detached HEAD: pass --branch to say which remote branch the cloud agent starts from")
     return branch
+
+
+def _probe_branch(root: Path) -> str:
+    """Use the remote default branch, falling back to the checked-out branch."""
+    prefix = "refs/remotes/origin/"
+    tracking_head = _git(root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD", check=False)
+    if tracking_head.startswith(prefix):
+        return tracking_head.removeprefix(prefix)
+    remote_head = _git(root, "ls-remote", "--symref", "origin", "HEAD", check=False)
+    for line in remote_head.splitlines():
+        if match := re.fullmatch(r"ref: refs/heads/(.+)\tHEAD", line):
+            return match.group(1)
+    return current_branch(root)
 
 
 # --------------------------------------------------------------------------- #
@@ -1214,7 +1227,7 @@ def submit_job(
     *,
     engine: str,
     cwd: Path,
-    task: str,
+    task: str | _cloud_preflight.Probe,
     branch: str | None = None,
     db_path: Path | None = None,
     job_id: str | None = None,
@@ -1233,6 +1246,8 @@ def submit_job(
 ) -> dict[str, Any]:
     """Submit ``task`` to the cloud provider for ``engine``; return the job record.
 
+    A structured ``Probe`` task supplies its own brief and skips Codex manifest
+    eligibility so it can collect the evidence needed to create the manifest.
     ``pr`` works on that pull request's head branch (the job records the PR);
     ``open_pr`` records that landing should open a new branch and PR against
     ``branch``; ``land`` makes ``wait`` / ``cloud-sync`` land the result by
@@ -1248,12 +1263,16 @@ def submit_job(
     """
     import uuid
 
+    probe = isinstance(task, _cloud_preflight.Probe)
+    if probe and (engine != "codex" or pr is not None or open_pr or land or extra_meta):
+        raise CloudError("preflight probes are Codex jobs without review or landing options")
+    brief = task if isinstance(task, str) else task.brief()
     if job_id is not None and not JOB_ID_RE.fullmatch(job_id):
         raise CloudError(f"job id must be 8-32 lowercase hex digits or a UUID, got {redact(job_id)[:80]!r}")
     unknown = sorted(set(approvals) - set(GATED_ACTIONS))
     if unknown:
         raise CloudError(f"unknown cloud approval(s) {unknown}: one of {', '.join(GATED_ACTIONS)}")
-    missing = [action for action in gated_actions(task) if action not in approvals]
+    missing = [action for action in gated_actions(brief) if action not in approvals]
     if missing:
         flags = " ".join(f"--approve-cloud {action}" for action in missing)
         raise CloudError(
@@ -1280,12 +1299,10 @@ def submit_job(
     env_id = prov.env_for(repo, config, routine)  # first: a repo with no environment fails before anything else
     if not _ENV_ID_RE.fullmatch(env_id):
         raise CloudError(f"env id {env_id!r} for {repo} has unexpected characters")
-    if engine == "codex":
-        from lazytools.code_bridge import _cloud_preflight
-
+    if engine == "codex" and not probe:
         cache_path = (Path(db_path).parent / "cloud-preflight-cache.json") if db_path else None
         preflight = _cloud_preflight.check(
-            repo=repo, env_id=env_id, brief=task, root=root, network=network, cache_path=cache_path,
+            repo=repo, env_id=env_id, brief=brief, root=root, network=network, cache_path=cache_path,
         )
         if not preflight.eligible:
             raise CloudError(f"cloud preflight refused launch: {preflight.reason}")
@@ -1306,7 +1323,7 @@ def submit_job(
         branch = head_ref
         pr_info = {"pr_number": int(view.get("number") or pr), "pr_url": view.get("url"), "pr_head": head_ref,
                    "pr_base": view.get("baseRefName"), "pr_head_sha_at_submit": view.get("headRefOid")}
-    branch = branch or current_branch(root)
+    branch = branch or (_probe_branch(root) if probe else current_branch(root))
     if branch.startswith("-") or _git(root, "check-ref-format", "--branch", branch, check=False) != branch:
         raise CloudError(f"{branch!r} is not a valid branch name")
     _require_remote_branch(root, branch)
@@ -1331,8 +1348,8 @@ def submit_job(
         "branch": branch,
         "base_commit": base_commit,
         # Stored and printed redacted; the provider still receives the brief as written.
-        "objective": redact(task),
-        "brief_hash": _store.brief_hash(task),
+        "objective": redact(brief),
+        "brief_hash": _store.brief_hash(brief),
         "title": redact(title.strip()) if title and title.strip() else None,
         "cloud_approvals": sorted(set(approvals)),
         "created_at": time.time(),
@@ -1346,10 +1363,12 @@ def submit_job(
         **pr_info,
         **(extra_meta or {}),
     }
+    if probe:
+        meta["preflight_probe"] = True
     if engine == "claude":
         from lazytools.code_bridge._cloud_claude import ENV_NOTE, named_branch
 
-        meta["named_result_branch"] = named_branch(task)
+        meta["named_result_branch"] = named_branch(brief)
         # An unnamed Claude session gets an unambiguous branch before it is
         # submitted.  This is the only branch later status/apply operations
         # will accept for this job.
@@ -1358,13 +1377,13 @@ def submit_job(
             meta["environment_note"] = ENV_NOTE
     _admit(store, registry, config, job_id, meta)
     try:
-        _store.record_relaunch(store, job_id, task, repo, now=float(meta["created_at"]))
+        _store.record_relaunch(store, job_id, brief, repo, now=float(meta["created_at"]))
     except Exception as exc:
         print(f"warning: cloud job submitted locally but its relaunch intervention could not be recorded: {exc}", file=sys.stderr)
     try:
         sub = _submit_with_retry(
             prov, store, config, engine,
-            dict(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + task + CLOUD_REPORT_SUFFIX,
+            dict(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + brief + CLOUD_REPORT_SUFFIX,
                  job_id=job_id, db_path=db_path, routine=routine, config=config, model=chosen_model),
         )
     except BaseException as exc:

@@ -175,14 +175,76 @@ unmapped = "local"  # default: "error"
 Auto placement still runs locally when a local slot is free outside busy windows.
 JSON and MCP errors include `error_code: "cloud_env_unmapped"` and the repository slug.
 
-### 4. Log in and test
+### 4. Probe the environment
+
+Log in with `codex login`, then run the probe against your local checkout.
+
+```bash
+lazytools-code-bridge cloud-preflight probe --repo <repo>
+lazytools-code-bridge cloud-preflight probe --repo <repo> --network off
+lazytools-code-bridge cloud-preflight probe --all
+```
+
+The probe uses the repository's mapped Codex environment and its remote default
+branch, falling back to the checked-out branch if the default is unavailable.
+It checks Python's version, makes one HTTPS request to `pypi.org`, tries the
+imports derived from the checkout's `pyproject.toml` dependencies and extras,
+and verifies which referenced sibling repositories are present or installable.
+The import names follow the starter manifest's convention of replacing hyphens
+in distribution names with underscores. A checkout without `pyproject.toml`
+still gets the Python and network checks.
+
+`--network on|off` sets an optional expectation. The command reports any
+mismatch and records the observed PyPI reachability. The probe still uses the
+environment's existing internet settings. Pass `--network on` to a subsequent
+`run` when the manifest reports network access.
+
+`--all` searches for local Git checkouts by their `origin` remotes under
+`LAZYTOOLS_CODE_ROOT` or the `root` in `code-bridge.toml`. With neither set, it
+uses the current repository's parent directory, or the current directory when
+outside a checkout. The command waits for each probe before submitting the next
+one and reports any mappings without a local checkout.
+
+The probe bypasses the manifest requirement for its own submission and waits
+for the cloud result. It accepts one fenced JSON block with a boolean result
+for every requested check. The job also puts that block in `.bridge/report.md`
+so the bridge can retrieve it when Codex status provides only task metadata.
+The bridge writes the manifest after the job succeeds and the evidence passes validation.
+
+The command writes `.bridge/cloud-preflight.json` in the local checkout and
+prints the failed imports and repositories. For example, a probe that can
+import `httpx` and verify `owner/shared-lib` could produce this manifest.
+
+```json
+{
+  "revision": "probe-1",
+  "environments": {
+    "env_0123abcd": {
+      "revision": "probe:abcd1234",
+      "attested_by": "probe:abcd1234",
+      "attested_on": "2026-11-25",
+      "network": false,
+      "python_version": "3.12.4",
+      "imports": ["httpx"],
+      "repositories": ["owner/shared-lib"]
+    }
+  }
+}
+```
+
+Normal Codex cloud submissions check this file locally. If a brief declares
+`Required imports:` or `Required repositories:`, every named requirement must
+be listed in the environment entry. Run the probe again when you change the
+environment or when the entry is more than 14 days old, using the UTC date.
+Undated entries also require a fresh probe.
+
+### 5. Submit a test job
 
 First discover the repository's real default branch; do not assume it is
 `main`:
 
 ```bash
 gh repo view owner/repo --json defaultBranchRef --jq .defaultBranchRef.name
-codex login        # once; uses your ChatGPT account
 lazytools-code-bridge run --where cloud --allow-cloud --engine codex \
     --cwd <repo> --branch <default-branch> --task @brief.md
 lazytools-code-bridge wait <job>
@@ -473,7 +535,8 @@ apply), scope it to one repository, and prefer short-lived tokens.
 
 ## Safety rules (both engines)
 
-- `--allow-cloud` is required for every cloud submit.
+- `run` requires `--allow-cloud` for a cloud submit. `cloud-preflight probe`
+  explicitly requests a Codex cloud job.
 - Briefs asking for push, PR creation, merge, delete, reset, commit or `git -C`
   are refused unless approved up front with `--approve-cloud <action>`.
 - Provider output and the stored brief are redacted (tokens, keys, JWTs).
