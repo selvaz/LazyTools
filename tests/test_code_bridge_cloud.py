@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import textwrap
+from datetime import UTC, datetime
 from itertools import pairwise
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,7 +21,7 @@ from types import SimpleNamespace
 import pytest
 
 from code_bridge_test_helpers import write_python_executable
-from lazytools.code_bridge import _cloud, _cloud_stop, _concurrency, _jobs, _store, cli
+from lazytools.code_bridge import _cloud, _cloud_preflight, _cloud_stop, _concurrency, _jobs, _store, cli
 from lazytools.code_bridge._concurrency import EngineSlot
 
 TASK_URL = "https://chatgpt.com/codex/tasks/task_e_abc123"
@@ -211,6 +212,7 @@ def cloud(tmp_path, monkeypatch):
         "revision": "test-manifest-1",
         "environments": {"env_widgets": {
             "revision": "test-environment-1", "network": False,
+            "attested_on": datetime.now(UTC).date().isoformat(),
             "repositories": [], "imports": [],
         }},
     }), encoding="utf-8")
@@ -257,6 +259,80 @@ def test_run_refuses_when_requested_network_mismatches_manifest(cloud, capsys):
     assert _run_cloud(cloud, "--network", "on") == 2
     assert "requested network on" in capsys.readouterr().err
     assert cloud.calls() == []
+
+
+def _probe_block(*, imports=None, repositories=None):
+    evidence = {"network": False, "python_version": "3.12.4", "imports": imports or {},
+                "repositories": repositories or {}}
+    return f"```json\n{json.dumps(evidence)}\n```"
+
+
+def test_cloud_preflight_probe_bootstraps_from_report_diff(cloud, tmp_path, monkeypatch, capsys):
+    path = cloud.repo / _cloud_preflight.MANIFEST
+    path.unlink()
+    (cloud.repo / "pyproject.toml").write_text(
+        '[project]\ndependencies = ["httpx", "private-lib @ git+https://github.com/acme/private-lib.git@v1"]\n',
+        encoding="utf-8",
+    )
+    _git(cloud.repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+    _git(cloud.repo, "switch", "-c", "local-only")
+    cloud.set_status("Title: Cloud preflight probe\nStatus: ready\n")
+    block = _probe_block(imports={"httpx": True, "private_lib": False}, repositories={"acme/private-lib": False})
+    diff = tmp_path / "probe.diff"
+    diff.write_text(
+        "diff --git a/.bridge/report.md b/.bridge/report.md\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/report.md\n@@ -0,0 +1,3 @@\n"
+        + "".join(f"+{line}\n" for line in block.splitlines()), encoding="utf-8",
+    )
+    monkeypatch.setenv("FAKE_CODEX_DIFF", str(diff))
+
+    assert cli.main(["cloud-preflight", "probe", "--repo", str(cloud.repo), "--network", "on", "--db", str(cloud.db)]) == 0
+    out, err = capsys.readouterr()
+    assert "unavailable imports: private_lib" in out
+    assert "unavailable repositories: acme/private-lib" in out
+    assert "expected network on, observed off" in err
+    entry = json.loads(path.read_text(encoding="utf-8"))["environments"]["env_widgets"]
+    assert entry["network"] is False
+    assert entry["imports"] == ["httpx"] and entry["repositories"] == []
+    job_id = entry["attested_by"].removeprefix("probe:")
+    assert f"waiting for probe {job_id}" in out
+    assert not (cloud.repo / ".bridge/report.md").exists()
+    submit, status, fetch = cloud.calls()
+    assert submit["argv"] == ["cloud", "exec", "--env", "env_widgets", "--branch", "main"]
+    assert status["argv"][1] == "status" and fetch["argv"][1] == "diff"
+    assert 'Import names to test: ["httpx", "private_lib"]' in submit["stdin"]
+    assert "https://pypi.org/" in submit["stdin"]
+    assert _cloud_preflight.check(
+        repo="acme/widgets", env_id="env_widgets", brief="Required imports: httpx", root=cloud.repo,
+    ).eligible
+
+
+def test_cloud_preflight_probe_rejects_prose_around_block_without_overwriting(cloud, capsys):
+    path = cloud.repo / _cloud_preflight.MANIFEST
+    original = path.read_bytes()
+    cloud.set_status("Status: ready\nExtra text\n" + _probe_block())
+
+    assert cli.main(["cloud-preflight", "probe", "--repo", str(cloud.repo), "--db", str(cloud.db)]) == 1
+    assert "single fenced JSON block" in capsys.readouterr().err
+    assert path.read_bytes() == original
+
+
+def test_cloud_preflight_probe_all_waits_for_each_mapping(cloud, tmp_path, monkeypatch, capsys):
+    origin = tmp_path / "remotes" / "acme" / "other.git"
+    _git(cloud.repo, "clone", "-q", "--bare", ".", str(origin))
+    second = cloud.root / "checkout-with-a-different-name"
+    _git(cloud.root, "clone", "-q", origin.as_posix(), str(second))
+    _set_cloud_config('"acme/other" = "env_other"\n')
+    monkeypatch.setenv("LAZYTOOLS_CODE_ROOT", str(cloud.root))
+    cloud.set_status("Status: ready\n" + _probe_block())
+
+    assert cli.main(["cloud-preflight", "probe", "--all", "--db", str(cloud.db)]) == 0
+    assert [call["argv"][1] for call in cloud.calls()] == ["exec", "status", "exec", "status"]
+    assert [call["argv"][3] for call in cloud.calls()[::2]] == ["env_other", "env_widgets"]
+    assert capsys.readouterr().out.count("wrote") == 2
+    for repo, env_id in [(second, "env_other"), (cloud.repo, "env_widgets")]:
+        data = json.loads((repo / _cloud_preflight.MANIFEST).read_text(encoding="utf-8"))
+        assert data["environments"][env_id]["attested_by"].startswith("probe:")
 
 
 # --------------------------------------------------------------------------- #

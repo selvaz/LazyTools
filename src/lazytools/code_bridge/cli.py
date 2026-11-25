@@ -33,6 +33,7 @@ from lazytools.code_bridge import (
     _cloud_envs,
     _cloud_land,
     _cloud_place,
+    _cloud_preflight,
     _concurrency,
     _credentials,
     _engines,
@@ -1696,8 +1697,6 @@ def _cmd_cloud_envs(args: argparse.Namespace) -> int:
 
 
 def _cmd_cloud_preflight_init(args: argparse.Namespace) -> int:
-    from lazytools.code_bridge import _cloud_preflight
-
     try:
         root = _cloud.repo_root(Path(args.repo).expanduser().resolve())
         slug = _cloud.repo_slug(root)
@@ -1711,6 +1710,104 @@ def _cmd_cloud_preflight_init(args: argparse.Namespace) -> int:
         return 2
     _cloud_print(str(path))
     return 0
+
+
+def _preflight_checkouts(mapped: dict[str, str]) -> dict[str, Path]:
+    """Locate local checkouts by their origin, including linked worktrees."""
+    configured = os.environ.get("LAZYTOOLS_CODE_ROOT")
+    workspace = Path(configured).expanduser() if configured else _concurrency.load_workspace().root
+    if workspace is None:
+        cwd = Path.cwd()
+        try:
+            workspace = _cloud.repo_root(cwd).parent
+        except _cloud.CloudError:
+            workspace = cwd
+    found: dict[str, Path] = {}
+    for directory, dirs, files in os.walk(workspace.resolve()):
+        if ".git" in dirs or ".git" in files:
+            dirs.clear()
+            root = Path(directory)
+            try:
+                slug = _cloud.repo_slug(root).lower()
+            except _cloud.CloudError:
+                continue
+            if slug in mapped:
+                found.setdefault(slug, root)
+            if found.keys() == mapped.keys():
+                break
+        else:
+            dirs[:] = sorted(name for name in dirs if not name.startswith("."))
+    return found
+
+
+def _probe_cloud_preflight(root: Path, slug: str, config: _cloud.CloudConfig, args: argparse.Namespace) -> None:
+    requirements = _cloud_preflight.project_requirements(root, allow_missing=True)
+    expected = None if args.network is None else args.network == "on"
+    db_path = _db_path(args)
+    job = _cloud.submit_job(
+        engine="codex", cwd=root, task=_cloud_preflight.Probe(requirements, expected),
+        config=config, db_path=db_path, title="Cloud preflight probe",
+    )
+    job_id = str(job["job_id"])
+    _cloud_print(f"{slug}: waiting for probe {job_id}")
+    sys.stdout.flush()
+    completed = _cloud.wait_job(
+        lambda: _store.build_store(db_path), job_id, timeout=_cloud.DEFAULT_CLOUD_WAIT_TIMEOUT, interval=5.0,
+    )
+    if completed is None or completed.get("status") not in _cloud.TERMINAL_STATUSES:
+        raise TimeoutError(f"probe {job_id} did not reach a terminal state; check its status before retrying")
+    if completed.get("status") != "done":
+        raise _cloud.CloudError(str(completed.get("error") or f"probe {job_id} ended with {completed['status']}"))
+
+    # The CLI may show task metadata in status without the agent's final message.
+    output = str(completed.get("cloud_message") or completed.get("result") or "")
+    if "```" not in output:
+        store = _store.build_store(db_path)
+        reported, _ = _cloud.capture_report(store, _store.build_job_registry(store), completed)
+        output = str(reported.get("report") or "")
+    evidence = _cloud_preflight.parse_probe_output(output, requirements)
+    path = _cloud_preflight.write_probe_manifest(root=root, env_id=str(job["env_id"]), job_id=job_id, evidence=evidence)
+    network = "on" if evidence.network else "off"
+    _cloud_print(f"{slug}: wrote {path} (Python {evidence.python_version}, network {network})")
+    if expected is not None and expected != evidence.network:
+        _cloud_print(f"{slug}: expected network {args.network}, observed {network}", err=True)
+    for field, results in (("imports", evidence.imports), ("repositories", evidence.repositories)):
+        gaps = sorted(name for name, passed in results.items() if not passed)
+        if gaps:
+            _cloud_print(f"{slug}: unavailable {field}: {', '.join(gaps)}")
+
+
+def _cmd_cloud_preflight_probe(args: argparse.Namespace) -> int:
+    try:
+        config = _cloud.load_config()
+        mapped = config.envs.get("codex", {})
+        if args.all:
+            if not mapped:
+                raise ValueError(f"no Codex cloud environments are mapped in {config.path}")
+            found = _preflight_checkouts(mapped)
+            targets = {slug: found.get(slug) for slug in sorted(mapped)}
+        else:
+            root = _cloud.repo_root(Path(args.repo).expanduser().resolve())
+            targets = {_cloud.repo_slug(root).lower(): root}
+    except (OSError, ValueError, _cloud.CloudError, subprocess.TimeoutExpired) as exc:
+        _cloud_print(f"error: {exc}", err=True)
+        return 2
+
+    failed = False
+    for slug, checkout in targets.items():
+        if checkout is None:
+            _cloud_print(f"error: {slug}: no local checkout found; set LAZYTOOLS_CODE_ROOT or use --repo", err=True)
+            failed = True
+            continue
+        try:
+            _probe_cloud_preflight(checkout, slug, config, args)
+        except (TimeoutError, subprocess.TimeoutExpired) as exc:
+            _cloud_print(f"error: {slug}: {exc}", err=True)
+            return 1
+        except (OSError, ValueError, _cloud.CloudError) as exc:
+            _cloud_print(f"error: {slug}: {exc}", err=True)
+            failed = True
+    return int(failed)
 
 
 def _cmd_cloud_setup(args: argparse.Namespace) -> int:
@@ -2409,6 +2506,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Attest that the configured environment network is on or off (default: off).",
     )
     preflight_init_p.set_defaults(func=_cmd_cloud_preflight_init)
+
+    preflight_probe_p = preflight_sub.add_parser("probe", help="Measure Codex cloud capabilities and write a manifest.")
+    probe_target = preflight_probe_p.add_mutually_exclusive_group(required=True)
+    probe_target.add_argument("--repo", help="Repository whose mapped environment should be probed.")
+    probe_target.add_argument("--all", action="store_true", help="Probe every mapped Codex environment in sequence.")
+    preflight_probe_p.add_argument("--network", choices=("on", "off"), help="Expected PyPI reachability for the probe.")
+    _add_db_option(preflight_probe_p)
+    preflight_probe_p.set_defaults(func=_cmd_cloud_preflight_probe)
 
     setup_p = sub.add_parser(
         "cloud-setup",

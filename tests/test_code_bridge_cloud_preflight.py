@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ def _manifest(path: Path, *, revision: str = "m1", environment_revision: str = "
         "revision": revision,
         "environments": {"env_test": {
             "revision": environment_revision,
+            "attested_on": datetime.now(UTC).date().isoformat(),
             "network": network,
             "repositories": ["owner/public"],
             "imports": ["pytest", "pytest_asyncio"],
@@ -169,6 +171,101 @@ def test_cloud_preflight_init_uses_pyproject_and_configured_environment(tmp_path
     manifest = json.loads((repo / _cloud_preflight.MANIFEST).read_text(encoding="utf-8"))
     entry = manifest["environments"]["env_demo"]
     assert entry == {
+        "attested_on": datetime.now(UTC).date().isoformat(),
         "attested_by": "operator", "imports": ["httpx", "pytest_asyncio", "shared_lib"],
         "network": True, "repositories": ["acme/shared-lib"], "revision": "operator-attested-1",
     }
+
+
+PROBE_REQUIREMENTS = _cloud_preflight.Requirements(["httpx", "private_lib"], ["acme/private-lib"])
+PROBE_RESULTS = {
+    "network": True,
+    "python_version": "3.12.4",
+    "imports": {"httpx": True, "private_lib": False},
+    "repositories": {"acme/private-lib": False},
+}
+
+
+def _fence(payload: object) -> str:
+    return f"```json\n{json.dumps(payload)}\n```"
+
+
+def test_cloud_probe_parses_partial_failures() -> None:
+    evidence = _cloud_preflight.parse_probe_output(_fence(PROBE_RESULTS), PROBE_REQUIREMENTS)
+    assert evidence == _cloud_preflight.ProbeEvidence(
+        True, "3.12.4", {"httpx": True, "private_lib": False}, {"acme/private-lib": False},
+    )
+
+
+@pytest.mark.parametrize("output", [
+    json.dumps(PROBE_RESULTS),
+    "Report:\n" + _fence(PROBE_RESULTS),
+    _fence(PROBE_RESULTS) + "\nExtra text",
+    _fence(PROBE_RESULTS) + "\n" + _fence(PROBE_RESULTS),
+    "```json\n{bad json}\n```",
+    _fence([]),
+    _fence({**PROBE_RESULTS, "extra": False}),
+    _fence({**PROBE_RESULTS, "network": 1}),
+    _fence({**PROBE_RESULTS, "python_version": "Python 3.12.4"}),
+    _fence({**PROBE_RESULTS, "imports": {"httpx": True}}),
+    _fence({**PROBE_RESULTS, "imports": {"httpx": True, "private_lib": "false"}}),
+    _fence({**PROBE_RESULTS, "repositories": {"acme/private-lib": False, "acme/extra": True}}),
+    _fence(PROBE_RESULTS).replace('"httpx": true', '"httpx": false, "httpx": true'),
+])
+def test_cloud_probe_rejects_malformed_or_incomplete_output(output: str) -> None:
+    with pytest.raises(ValueError, match="probe"):
+        _cloud_preflight.parse_probe_output(output, PROBE_REQUIREMENTS)
+
+
+def test_cloud_probe_manifest_replaces_evidence_and_keeps_other_environments(tmp_path: Path, monkeypatch) -> None:
+    stamped = date(2026, 11, 25)
+    monkeypatch.setattr(_cloud_preflight, "_today", lambda: stamped)
+    path = tmp_path / _cloud_preflight.MANIFEST
+    path.parent.mkdir()
+    _manifest(path)
+    evidence = _cloud_preflight.ProbeEvidence(False, "3.12.4", {"httpx": True, "old_lib": False},
+                                             {"acme/present": True, "acme/missing": False})
+
+    assert _cloud_preflight.write_probe_manifest(root=tmp_path, env_id="env_new", job_id="abc123", evidence=evidence) == path
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["environments"]["env_test"]["imports"] == ["pytest", "pytest_asyncio"]
+    assert data["environments"]["env_new"] == {
+        "revision": "probe:abc123", "attested_by": "probe:abc123", "attested_on": "2026-11-25",
+        "network": False, "python_version": "3.12.4", "imports": ["httpx"], "repositories": ["acme/present"],
+    }
+
+    _cloud_preflight.write_probe_manifest(
+        root=tmp_path, env_id="env_new", job_id="abc124",
+        evidence=_cloud_preflight.ProbeEvidence(False, "3.12.4", {"httpx": False}, {"acme/present": False}),
+    )
+    refreshed = json.loads(path.read_text(encoding="utf-8"))["environments"]["env_new"]
+    assert refreshed["attested_by"] == "probe:abc124"
+    assert refreshed["imports"] == refreshed["repositories"] == []
+
+
+def test_cloud_preflight_age_expires_even_with_cached_verdict(tmp_path: Path, monkeypatch) -> None:
+    manifest = _manifest(tmp_path / "manifest.json")
+    today = datetime.now(UTC).date()
+    monkeypatch.setattr(_cloud_preflight, "_today", lambda: today + timedelta(days=_cloud_preflight.MAX_AGE_DAYS))
+    assert _check(tmp_path, "ordinary task", manifest).eligible
+    assert _check(tmp_path, "ordinary task", manifest).cache_hit
+    today += timedelta(days=1)
+    result = _check(tmp_path, "ordinary task", manifest)
+    assert not result.eligible
+    assert not result.cache_hit
+    assert "cloud-preflight probe" in result.reason
+
+
+@pytest.mark.parametrize("stamp", [None, "invalid", "2999-01-01"])
+def test_cloud_preflight_refuses_missing_invalid_or_future_date(tmp_path: Path, stamp: str | None) -> None:
+    manifest = _manifest(tmp_path / "manifest.json")
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    entry = data["environments"]["env_test"]
+    entry.pop("attested_on")
+    if stamp is not None:
+        entry["attested_on"] = stamp
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    result = _check(tmp_path, "ordinary task", manifest)
+    assert not result.eligible
+    assert "cloud-preflight probe" in result.reason
