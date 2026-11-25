@@ -884,21 +884,23 @@ acknowledgement and local job ID. The MCP tool accepts the corresponding
 ### Governed Projects approvals
 
 The governed Projects effect registry checks the deciding principal, project
-scope, required role, and exact request digest. Provision a LazyBridge
-credential for the configured `owner` or `operator` principal in the Projects
-registry. For the default orchestrator route, the `operator` credential needs
-both the LazyBridge `owner` role for that route and the Projects `orchestrator`
-role. Issue it from the operator shell using a new file in a private directory.
+scope, required role, and exact request digest. By default, the `owner`
+principal can decide both owner-tier and orchestrator-tier requests with the
+credential from `approver-credential init` for the Projects Store. Pass the
+credential through the trusted Python adapter or set
+`projects_approver_credential_file` to the registry's private credential file
+on a dedicated Projects stdio host bound to the owner. Tool calls carry the
+request ID, digest, verdict, and reason. The credential stays in the host.
+
+A deployment can set `orchestrator_actor` on `ProjectTaskApprovals` to assign
+new orchestrator-tier requests to a separate human principal. Existing tickets
+retain their recorded assignee. For these routes, provision a credential for
+the assigned principal with both the LazyBridge `owner` role and the Projects
+`orchestrator` role. The following command uses `operator` as an example.
 
 ```console
 python -m lazybridge.ext.approval --db PROJECTS_DB issue-approver-credential operator --role owner --role orchestrator --output PRIVATE_DIR/operator.credential
 ```
-
-For the default Projects owner route, issue the credential for `owner` with
-the `owner` role. Pass the credential through the trusted Python adapter or set
-`projects_approver_credential_file` on a dedicated Projects stdio host used by
-the human approver. Tool calls carry the request ID, digest, verdict, and
-reason. The credential stays in the host.
 
 Before enabling automatic Projects effects, run these commands from the
 operator shell. Select the same Projects Store as the effect adapter, either

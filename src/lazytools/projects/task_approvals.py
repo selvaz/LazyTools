@@ -90,13 +90,21 @@ def _require_request(ticket: ApprovalTicket) -> TypedApprovalRequest:
     return request
 
 
-def _visible(principal: TaskPrincipal, ticket: ApprovalTicket) -> bool:
+def _visible(principal: TaskPrincipal, ticket: ApprovalTicket, *, owner_actor: str) -> bool:
     request = _governed_request(ticket)
     if request is None or ticket.task_id.partition("/")[0] not in principal.projects:
         return False
     if principal.role == "worker":
         return principal.actor == request.requested_by
-    return principal.role == request.payload["required_approver"] or principal.actor == request.requested_by
+    required = request.payload["required_approver"]
+    assignee = ticket.route.assignee if ticket.route else None
+    return (
+        principal.role == required or principal.actor == request.requested_by
+        or (
+            required == "orchestrator" and principal.role == "owner" and principal.actor == owner_actor
+            and (assignee is None or assignee.actor == owner_actor)
+        )
+    )
 
 
 def _view(ticket: ApprovalTicket | None) -> dict[str, Any]:
@@ -184,7 +192,7 @@ def _effect_history(
 class ProjectTaskApprovals:
     def __init__(
         self, service: ProjectTaskService, *, authorize: EffectPolicy | None = None,
-        owner_actor: str = "owner", orchestrator_actor: str = "operator",
+        owner_actor: str = "owner", orchestrator_actor: str | None = None,
     ):
         self.service = service
         self.authorize = authorize
@@ -285,7 +293,7 @@ class ProjectTaskApprovals:
                     continue
                 if task_id is not None and ticket.task_id != task_id:
                     continue
-                if not _visible(principal, ticket) or ticket.expires_at.timestamp() <= now:
+                if not _visible(principal, ticket, owner_actor=self.owner_actor) or ticket.expires_at.timestamp() <= now:
                     continue
                 try:
                     _active_binding(store, ticket, now)
@@ -301,7 +309,7 @@ class ProjectTaskApprovals:
         """Read the canonical decision and effect history from an executor adapter."""
         with transaction(self.service.path) as store:
             ticket = self._queue(store).get_ticket(request_id)
-            if ticket is None or not _visible(principal, ticket):
+            if ticket is None or not _visible(principal, ticket, owner_actor=self.owner_actor):
                 raise TaskServiceError("not_found", "Unknown governed approval request")
             return _view(ticket)
 
@@ -317,10 +325,12 @@ class ProjectTaskApprovals:
         with transaction(self.service.path, write=True) as store:
             queue = self._queue(store)
             ticket = queue.get_ticket(request_id)
-            if ticket is None or not _visible(principal, ticket):
+            if ticket is None or not _visible(principal, ticket, owner_actor=self.owner_actor):
                 raise TaskServiceError("not_found", "Unknown governed approval request")
             request = _require_request(ticket)
-            if request.payload["required_approver"] != principal.role:
+            required = request.payload["required_approver"]
+            is_owner = principal.role == "owner" and principal.actor == self.owner_actor
+            if required != principal.role and not (required == "orchestrator" and is_owner):
                 raise TaskServiceError("forbidden", "The request requires a different approver role")
             if request.digest != expected_action_digest:
                 raise TaskServiceError("stale", "Approval action digest changed")
@@ -330,9 +340,10 @@ class ProjectTaskApprovals:
             if approver is None or approver.actor != principal.actor or principal.role not in approver.roles:
                 raise TaskServiceError("forbidden", "The approver credential does not match the authenticated principal")
             assignee = ticket.route.assignee if ticket.route else None
-            actor = assignee.actor if assignee else (
-                self.orchestrator_actor if principal.role == "orchestrator" else self.owner_actor
-            )
+            # Honor the persisted assignee for tickets already routed to a separate operator.
+            actor = assignee.actor if assignee else self.owner_actor
+            if assignee is None and principal.role == "orchestrator":
+                actor = self.orchestrator_actor or "operator"
             if actor != approver.actor or "owner" not in approver.roles:
                 raise TaskServiceError("forbidden", "The approver credential cannot decide this ticket")
             previous = ticket.decision

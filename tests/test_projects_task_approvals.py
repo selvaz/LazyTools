@@ -54,7 +54,7 @@ def approvals(queue):  # noqa: F811
             production=target.path == "production", verified_head=state["verified_head"],
         )
 
-    return ProjectTaskApprovals(service, authorize=authorize), receipt, job, state
+    return ProjectTaskApprovals(service, authorize=authorize, orchestrator_actor=OPERATOR.actor), receipt, job, state
 
 
 def target(**fields):
@@ -71,6 +71,15 @@ def credential(registry, principal):
     with Store(db=str(registry.service.path)) as store:
         queue = approval.ApprovalQueue(store, allow_credential_issuance=True)
         return queue.issue_approver_credential(principal.actor, {"owner", principal.role})
+
+
+@pytest.fixture
+def initialized_owner(approvals, tmp_path, monkeypatch):
+    registry, _, _, _ = approvals
+    path = registry.service.path
+    monkeypatch.setattr(_credentials, "credential_directory", lambda: tmp_path / "operator-state")
+    assert cli.main(["approver-credential", "init", "--registry-db", str(path)]) == 0
+    return _credentials._path(path)
 
 
 def decide(registry, req, principal=OPERATOR, verdict="allow", reason="Reviewed exact effect", **kwargs):
@@ -101,6 +110,8 @@ def test_canonical_persistence_scopes_and_idempotent_decisions(approvals):
     assert {page["requests"][0]["request_id"], following["requests"][0]["request_id"]} == {
         req["request_id"], other["request_id"],
     }
+    # Reopening with the default configuration preserves the ticket's stored operator route.
+    registry = ProjectTaskApprovals(registry.service, authorize=registry.authorize)
     with pytest.raises(TaskServiceError):
         decide(registry, req, principal=REVIEWER)
     with pytest.raises(TaskServiceError):
@@ -133,21 +144,23 @@ def test_canonical_persistence_scopes_and_idempotent_decisions(approvals):
         registry.decide(OPERATOR, legacy.approval_id, legacy.prompt_hash, "allow", "Legacy")
 
 
-async def test_projects_approval_tool_uses_the_host_credential(approvals, tmp_path):
+async def test_projects_approval_tool_uses_the_initialized_owner_for_orchestrator_tickets(approvals, initialized_owner):
     from lazytools.mcp_server import build_server, default_providers
     from mcp_test_utils import connected_client, protocol_field
 
     registry, receipt, _, _ = approvals
+    registry = ProjectTaskApprovals(registry.service, authorize=registry.authorize)
     req = request(registry, receipt)
-    secret = credential(registry, OPERATOR)
-    credential_file = tmp_path / "operator.credential"
-    credential_file.write_text(secret + "\n", encoding="ascii")
+    assert req["required_approver"] == "orchestrator"
+    secret = initialized_owner.read_text(encoding="ascii")
     providers = default_providers(["projects"], allow_write=True, data_source={
         "projects_store_db": str(registry.service.path),
-        "projects_task_principal": OPERATOR.model_dump(mode="json"),
-        "projects_approver_credential_file": str(credential_file),
+        "projects_task_principal": OWNER.model_dump(mode="json"),
+        "projects_approver_credential_file": str(initialized_owner),
     })
     async with connected_client(build_server(providers, read_only=False)) as client:
+        pending = await client.call_tool("approvals_pending", {})
+        assert json.loads(pending.content[0].text)["requests"] == [req]
         tool = next(entry for entry in (await client.list_tools()).tools if entry.name == "approvals_decide")
         assert "credential" not in protocol_field(tool, "input_schema", "inputSchema")["properties"]
         result = await client.call_tool(tool.name, {
@@ -157,7 +170,22 @@ async def test_projects_approval_tool_uses_the_host_credential(approvals, tmp_pa
     assert secret not in result.content[0].text
     approval_result = json.loads(result.content[0].text)
     assert approval_result["ok"]
-    assert approval_result["request"]["decision"]["decider"] == OPERATOR.actor
+    assert approval_result["request"]["decision"]["decider"] == OWNER.actor
+
+
+def test_projects_approval_owner_credential_also_decides_owner_tier(approvals, initialized_owner):
+    registry, receipt, _, _ = approvals
+    registry = ProjectTaskApprovals(registry.service, authorize=registry.authorize)
+    req = request(registry, receipt, "production_change")
+    assert req["required_approver"] == "owner"
+    secret = initialized_owner.read_text(encoding="ascii")
+    with pytest.raises(TaskServiceError, match="Unknown governed"):
+        decide(registry, req, principal=OUTSIDER, credential=secret)
+    with pytest.raises(TaskServiceError, match="does not match"):
+        decide(registry, req, principal=OWNER, credential=credential(registry, OPERATOR))
+    rejected = decide(registry, req, principal=OWNER, credential=secret, verdict="deny")["request"]
+    assert rejected["status"] == "rejected"
+    assert rejected["decision"]["decider"] == OWNER.actor
 
 
 @pytest.mark.parametrize(("action", "required", "fields"), [
@@ -299,7 +327,8 @@ def test_raced_consumption_and_interruption_hold_effect_until_reconciled(approva
     assert outcomes.count(None) == 1 and outcomes.count("unresolved") == 1
     spent_key = ("first", "second")[outcomes.index(None)]
     registry = ProjectTaskApprovals(
-        ProjectTaskService(str(registry.service.path), clock=registry.service.clock), authorize=registry.authorize,
+        ProjectTaskService(str(registry.service.path), clock=registry.service.clock),
+        authorize=registry.authorize, orchestrator_actor=registry.orchestrator_actor,
     )
     assert registry.get(WORKER, req["request_id"])["effect_unresolved"]
     ref = evidence(registry.service, receipt, job)
