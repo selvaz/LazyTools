@@ -216,11 +216,16 @@ def finish_task(
 
 
 def review_verdict(result: str, sha: str) -> tuple[bool, str]:
-    result = result.strip()
-    if result.startswith("```json\n") and result.endswith("\n```"):
-        result = result[len("```json\n"):-len("\n```")]
+    body = result.strip()
+    fences = list(re.finditer(r"^(`{3,}|~{3,})([^\r\n]*)\r?$", body, re.MULTILINE))
+    json_fences = [fence for fence in fences if fence[1].startswith("`") and fence[2].strip() == "json"]
+    if len(json_fences) == 1 and len(fences) == 2:
+        opening, closing = fences
+        if (opening is json_fences[0] and closing[1] == opening[1]
+                and not closing[2].strip() and closing.end() == len(body)):
+            body = body[opening.end():closing.start()]
     try:
-        review = json.loads(result)
+        review = json.loads(body)
     except ValueError:
         return False, f"Reviewer returned no structured verdict: {result}"
     if (
@@ -228,7 +233,7 @@ def review_verdict(result: str, sha: str) -> tuple[bool, str]:
         or review.get("verdict") not in ("accepted", "blocked")
         or not isinstance(review.get("reason"), str) or not review["reason"].strip()
     ):
-        return False, f"Reviewer returned no valid verdict for {sha}: {result}"
+        return False, f"Reviewer returned no structured verdict: {result}"
     return review["verdict"] == "accepted", " ".join(review["reason"].split())
 
 

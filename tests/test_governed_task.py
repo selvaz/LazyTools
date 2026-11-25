@@ -582,11 +582,37 @@ def test_spec_count_limit_stops_before_reading_attachments_or_dispatching(trial,
     assert not script.prompts
 
 
+@pytest.mark.parametrize("template, expected", [
+    ("{verdict}", (True, "Checks pass.")),
+    ("```json\r\n{verdict}\r\n```", (True, "Checks pass.")),
+    ("A required check failed.\n\n```json\n{blocked}\n```", (False, "Checks fail.")),
+    ("```json\n{verdict}\n```\n\n```json\n{blocked}\n```", None),
+    ("```json\n{verdict}\n```\nTrailing prose.", None),
+    ("```text\n{verdict}\n```", None),
+    ("Prose before bare JSON.\n{verdict}", None),
+    ("```json\n{verdict}", None),
+    ("```json\n{wrong_sha}\n```", None),
+    ("```json\n{empty_reason}\n```", None),
+])
+def test_review_verdict_preserves_strict_validation_and_raw_rejections(trial, template, expected):
+    runner = importlib.import_module("governed_task")
+    sha = "a" * 40
+    verdict = {"verdict": "accepted", "sha": sha, "reason": "Checks pass."}
+    raw = template.format(
+        verdict=json.dumps(verdict),
+        blocked=json.dumps({**verdict, "verdict": "blocked", "reason": "Checks fail."}),
+        wrong_sha=json.dumps({**verdict, "sha": "b" * 40}),
+        empty_reason=json.dumps({**verdict, "reason": " "}),
+    )
+    assert runner.review_verdict(raw, sha) == (expected or (False, f"Reviewer returned no structured verdict: {raw}"))
+
+
 def test_review_judges_the_code_and_uses_runner_evidence(trial, monkeypatch):
     start, _, setup, script, _, _, _ = trial
     checkout = setup()
     runner = importlib.import_module("governed_task")
     run_job = runner.run_job
+    base = _cloud._git(checkout, "rev-parse", "HEAD")
 
     def multi_commit_writer(*args, **kwargs):
         result = run_job(*args, **kwargs)
@@ -598,6 +624,9 @@ def test_review_judges_the_code_and_uses_runner_evidence(trial, monkeypatch):
     assert start(checkout) == 0
     head = _cloud._git(checkout, "rev-parse", "HEAD")
     assert script.prompts[1].startswith(f"Review commit {head}")
+    assert f"Verified head SHA: {head}" in script.prompts[1]
+    assert f"git diff {base}..{head}" in script.prompts[1]
+    assert "+    return a - b" in script.prompts[1]
     assert "Judge correctness, security and spec coverage." in script.prompts[1]
     assert "Use the attached runner check results instead of running checks." in script.prompts[1]
     assert "writer-process preferences are not review blockers unless they hide risk" in script.prompts[1]
@@ -626,6 +655,8 @@ def test_rereview_uses_legacy_state_and_current_head(trial):
     assert invoke("review", "--brief", f"@{brief}", "--spec", str(spec)) == 0
     assert len(script.prompts) == 3
     assert script.prompts[2].startswith(f"Review commit {head}")
+    assert f"Verified head SHA: {head}" in script.prompts[2]
+    assert f"git diff {git(checkout, 'rev-parse', 'main')}..{head}" in script.prompts[2]
     assert f"This is a re-review under NC-16. Revisit your findings from commit {original}" in script.prompts[2]
     assert "Block only on unresolved previous findings, issues introduced by the fix, or critical security issues." in script.prompts[2]
     assert "Add subtraction and test a negative result." in script.prompts[2]
