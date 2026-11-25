@@ -112,8 +112,9 @@ local head again before consuming the decision.
 The executor looks up PRs from the same repository and head branch before
 pushing. It refuses a closed, merged, or ready-for-review PR, and requires an
 existing open draft to target the approved base. It pushes the reviewed object
-ID with an ordinary fast-forward push, opens a draft if needed, then reads the
-draft's head from GitHub. A published receipt records the PR number and head.
+ID with an ordinary fast-forward push, opens a draft if needed, then polls
+GitHub for the reviewed head for up to 30 seconds. A published receipt records
+the PR number and head.
 A head mismatch or a PR that is no longer an open draft produces a signed
 refusal with the PR URL. LazyBridge 1.9.2 requires a null `pr_number`
 in signed refusals. The projects store records the number alongside the
@@ -123,9 +124,11 @@ its outcome. The ticket stays consumed if the push or `gh pr create` fails,
 or if the process stops after consuming approval. A retry requires a new
 approval.
 
-If an earlier executor pushed the head and recorded `pr_create_failed`, use
-`publish --retry-ticket OLD_TICKET_ID` to file a fresh approval for the same
-reviewed head. Approve the new ticket and publish with `--ticket NEW_TICKET_ID`.
+Use `publish --retry-ticket OLD_TICKET_ID` to file a fresh approval for the same
+reviewed head after `pr_create_failed`, `pr_head_mismatch`, or `pr_head_unavailable`.
+Approve the new ticket and publish with `--ticket NEW_TICKET_ID`. After either
+head read-back refusal, the new ticket verifies the same draft PR and records
+the result without pushing again.
 The governed runner accepts the same `--retry-ticket` option and resumes with
 `publish --resume` after approval.
 

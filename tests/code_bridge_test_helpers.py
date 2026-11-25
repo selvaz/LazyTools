@@ -114,6 +114,8 @@ if args[1] == "create":
 elif args[1] == "view":
     pr = state["prs"][int(args[2]) - 1]
     actual_head = sha(pr["headRefName"]) if pr["headRefOid"] == pr["headAtCreation"] else pr["headRefOid"]
+    if state.get("stale_head_reads"):
+        actual_head = state["stale_head_reads"].pop(0)
     print(json.dumps({**pr, "headRefOid": actual_head}))
 elif args[1] == "comment":
     assert "--body-file" in args and args[args.index("--body-file") + 1] == "-"

@@ -31,7 +31,7 @@ def gh_argv() -> list[str]:
     return [found]
 
 
-def run_gh(*args: str, stdin: str | None = None) -> str:
+def run_gh(*args: str, stdin: str | None = None, timeout: float = GH_TIMEOUT) -> str:
     try:
         proc = subprocess.run(
             [*gh_argv(), *args],
@@ -39,12 +39,12 @@ def run_gh(*args: str, stdin: str | None = None) -> str:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=GH_TIMEOUT,
+            timeout=timeout,
             input=stdin if stdin is not None else None,
             stdin=None if stdin is not None else subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired as exc:
-        raise CloudError(f"gh {args[0]} {args[1] if len(args) > 1 else ''} timed out after {GH_TIMEOUT:g}s") from exc
+        raise CloudError(f"gh {args[0]} {args[1] if len(args) > 1 else ''} timed out after {timeout:g}s") from exc
     except OSError as exc:
         raise CloudError(f"could not start the GitHub CLI: {exc}") from exc
     if proc.returncode != 0:
@@ -53,8 +53,8 @@ def run_gh(*args: str, stdin: str | None = None) -> str:
     return proc.stdout
 
 
-def _json(*args: str) -> Any:
-    out = run_gh(*args)
+def _json(*args: str, timeout: float = GH_TIMEOUT) -> Any:
+    out = run_gh(*args, timeout=timeout)
     try:
         return json.loads(out)
     except ValueError as exc:
@@ -75,14 +75,16 @@ def default_branch(repo: str) -> str:
     return name
 
 
-def pr_view(repo: str, number: int, *, publication: bool = False, timing: bool = False) -> dict[str, Any]:
+def pr_view(
+    repo: str, number: int, *, publication: bool = False, timing: bool = False, timeout: float = GH_TIMEOUT
+) -> dict[str, Any]:
     """``number, url, state, title, headRefName, headRefOid, baseRefName, isCrossRepository`` of one PR."""
     fields = "number,url,state,title,headRefName,headRefOid,baseRefName,isCrossRepository"
     if publication:
         fields += ",isDraft,baseRefOid"
     if timing:
         fields += ",createdAt"
-    payload = _json("pr", "view", str(number), "--repo", repo, "--json", fields)
+    payload = _json("pr", "view", str(number), "--repo", repo, "--json", fields, timeout=timeout)
     if not isinstance(payload, dict):
         raise CloudError(f"gh pr view {number} returned an unexpected payload")
     return payload
