@@ -88,8 +88,8 @@ for every lifecycle command. Logs are under the Store's results directory
 attempt has an accepted independent review. Use the full writer task ID
 (`project/task`), its local repository with a GitHub `origin`, and the reviewed
 branch. Configure `LAZYTOOLS_PROJECTS_STORE_DB` for the projects task service
-and initialize its owner credential once from the operator shell. Publication
-uses `lazybridge.ext.receipt` with Ed25519 support.
+and initialize the selected approval registry's owner credential once from the
+operator shell. Publication uses `lazybridge.ext.receipt` with Ed25519 support.
 
 ```console
 lazytools-code-bridge approver-credential init
@@ -117,12 +117,12 @@ existing open draft to target the approved base. It pushes the reviewed object
 ID with an ordinary fast-forward push, opens a draft if needed, then reads the
 draft's head from GitHub. A published receipt records the PR number and head.
 A head mismatch or a PR that is no longer an open draft produces a signed
-refusal with the PR URL. The projects store records the number alongside the
-signed refusal. A replay returns the stored receipt or an
-`approval_already_consumed` refusal when the first process has yet to save
-its outcome. The ticket stays consumed if the push or `gh pr create` fails,
-or if the process stops after consuming approval. A retry requires a new
-approval.
+refusal with the PR URL and a null `pr_number`. The projects store records
+the observed PR number alongside the signed refusal. A replay returns the
+stored receipt or an `approval_already_consumed` refusal when the first process
+has yet to save its outcome. The ticket stays consumed if the push fails, draft
+creation fails, or the process stops after consuming approval. A retry requires
+a new approval.
 
 If an earlier executor pushed the head and recorded `pr_create_failed`, use
 `publish --retry-ticket OLD_TICKET_ID` to file a fresh approval for the same
@@ -380,7 +380,8 @@ lazytools-code-bridge pending --json
 ```
 
 If a ticket appears, inspect it and run `lazytools-code-bridge approve APPROVAL_ID`
-only for an authorized action; otherwise use `reject APPROVAL_ID --reason "Outside the task"`.
+only for an authorized action. Use `reject APPROVAL_ID --reason "Outside the task"`
+for a refusal. Typed tickets require [one-time operator setup](#operator-credentials).
 No ticket is required for every edit: the approval policy governs escalations.
 Poll pending while the job runs, then:
 
@@ -820,6 +821,8 @@ read-only allow-list and session grants for its assigned push and PR
 commands. The legacy mode label indicates that runtime confinement has
 not been verified.
 
+### Operator credentials
+
 Operator decisions use a typed LazyBridge `ApprovalQueue` in the projects Store. Set
 `LAZYTOOLS_PROJECTS_STORE_DB` to the same file used by the projects tools.
 The bridge also honors `LAZYCEO_CEO_STORE_DB` and defaults to
@@ -884,16 +887,23 @@ scope, required role, and exact request digest. Provision a LazyBridge
 credential for the configured `owner` or `operator` principal in the Projects
 registry. For the default orchestrator route, the `operator` credential needs
 both the LazyBridge `owner` role for that route and the Projects `orchestrator`
-role. Use the `owner` role for the default Projects owner route. Pass the
-credential through the trusted Python adapter or set
+role. Issue it from the operator shell using a new file in a private directory.
+
+```console
+python -m lazybridge.ext.approval --db PROJECTS_DB issue-approver-credential operator --role owner --role orchestrator --output PRIVATE_DIR/operator.credential
+```
+
+For the default Projects owner route, issue the credential for `owner` with
+the `owner` role. Pass the credential through the trusted Python adapter or set
 `projects_approver_credential_file` on a dedicated Projects stdio host used by
 the human approver. Tool calls carry the request ID, digest, verdict, and
 reason. The credential stays in the host.
 
 Before enabling automatic Projects effects, the owner provisions the project's
 cards with `ProjectTaskApprovals.provision_automatic_cards(project_id,
-credential=...)` in the trusted host. The two cards cover `read` and
-`local_commit`. The effect policy, task claim, and target checks still apply.
+credential=...)` in the trusted host. The two project-scoped cards cover
+`read` and `local_commit`. An automatic request requires a matching card
+and must pass the effect policy, task claim, and target checks.
 The Projects registry records the card use and retains the one-time effect
 consumption and outcome record.
 

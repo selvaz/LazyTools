@@ -61,8 +61,9 @@ principal binding in the configuration file.
 ```json
 {
   "projects_store_db": "projects.sqlite",
+  "projects_approver_credential_file": "~/.lazytools/approver-credentials/operator.credential",
   "projects_task_principal": {
-    "actor": "release-operator",
+    "actor": "operator",
     "role": "orchestrator",
     "projects": ["deployment"]
   }
@@ -73,7 +74,8 @@ principal binding in the configuration file.
 With writes enabled, workers and orchestrators can claim and complete tasks,
 and orchestrators and owners can decide approvals for their assigned authority.
 The governed tools require a file-backed Store. Configure
-`projects_approver_credential_file` on the human approver's stdio host.
+`projects_approver_credential_file` on the human approver's stdio host using
+a private credential file issued in that Store.
 When the request producer uses a custom orchestrator identity, pass that actor
 as `orchestrator_actor` to `ProjectTaskApprovals` so the ticket routes to the
 same principal. See [approval credential setup](code-bridge.md#governed-projects-approvals).
