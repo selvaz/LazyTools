@@ -17,18 +17,23 @@ from lazybridge.engines.codex.app_server import codex_executable
 from lazybridge.engines.codex.policy_launch import runtime_revision
 from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.engines.sessions import default_session_registry
-from lazybridge.ext.approval import ApprovalQueue
+from lazybridge.ext.approval import ApprovalQueue, ApprovalTarget, TypedApprovalRequest
 from lazybridge.policy import current_policy_context, load_profiles
 from lazybridge.policy.codex_admission import LAUNCH_PATH, REQUIRED_PROBES
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _jobs, _launch, _lockfile, _registry, _review_tools, _store, _task, cli
+from lazytools.code_bridge import _credentials, _jobs, _launch, _lockfile, _registry, _review_tools, _store, _task, cli
 from lazytools.code_bridge._mcp import CodeBridgeTools
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.task_service import ProjectTaskService
 from lazytools.projects.task_store import TaskServiceError
 from test_code_bridge_continuations import git
 from test_projects_task_service import OPERATOR, PROJECT, WORKER, admit, claim, placement, task
+
+
+@pytest.fixture(autouse=True)
+def credential_home(tmp_path, monkeypatch):
+    monkeypatch.setattr(_credentials, "credential_directory", lambda: tmp_path / "operator-credentials")
 
 
 def command(*args):
@@ -63,8 +68,9 @@ def test_legacy_writer_retains_readonly_commands_and_routine_pytest(tmp_path, mo
     result = _jobs.run_job(engine_name="claude", cwd=str(repo), root=str(tmp_path), task="Write",
                            scratch_root=str(scratch))
     assert result.status == "done", result.error
-    ticket_id, = record(result.job_id)["registry_ticket_ids"]
-    assert ApprovalQueue(_registry.registry_store()).get_ticket(ticket_id).request.payload["rule_id"] == "pytest-scratch"
+    _, receipt = next(iter(_store.build_store().items(prefix=_store.APPROVAL_PREFIX)))
+    assert receipt["matched_rule_id"] == "pytest-scratch"
+    assert receipt["consumed_at"] is not None
 
 
 def test_legacy_writer_retains_branch_session_grants(tmp_path, monkeypatch):
@@ -107,8 +113,11 @@ def subprocess_bridge(tmp_path, monkeypatch):
     # Python imports this fixture in the subprocess to replace only the agents.
     (tmp_path / "sitecustomize.py").write_text(
         "import os\n"
+        "from pathlib import Path\n"
         "from types import SimpleNamespace\n"
         "from _code_bridge_fakes import install\n"
+        "from lazytools.code_bridge import _credentials\n"
+        "_credentials.credential_directory = lambda: Path(__file__).parent / 'operator-credentials'\n"
         "script = install(SimpleNamespace(setattr=setattr))\n"
         "script.request_approval = os.getenv('BRIDGE_TEST_APPROVAL') == '1'\n",
         encoding="utf-8",
@@ -145,6 +154,8 @@ def test_cli_detach_uses_typed_registry_across_processes(subprocess_bridge, monk
         expected_registry = db.with_suffix(".registry.sqlite").resolve()
     elif mode == "override":
         expected_registry = override.resolve()
+    code, out, err = command("approver-credential", "init", *db_flags, *registry_flags)
+    assert code == 0, err
     code, out, err = command(
         "run", "--detach", "--engine", "codex", "--cwd", str(repo), "--root", str(repo.parent),
         "--task", "Wait for one approval", "--profile", "default", "--json", *db_flags, *registry_flags,
@@ -192,6 +203,7 @@ def test_cli_detach_uses_typed_registry_across_processes(subprocess_bridge, monk
     assert ticket.request.digest == pending[0]["action_digest"]
     assert ticket.request.payload["policy_digest"] == metadata["policy_digest"]
     assert ticket.status == ("approved" if decision == "approve" else "rejected")
+    assert ticket.decision.decider == "owner"
     assert "Test operator decision" in ticket.decision.reason
     assert (ticket.consumed_at is not None) == (decision == "approve")
     assert _store.build_approval_queue(store).get_ticket(ticket_id) is None
@@ -235,6 +247,7 @@ def test_custom_job_store_finds_pre_isolation_shared_tickets(tmp_path, monkeypat
     assert {row["approval_id"] for row in json.loads(capsys.readouterr().out)} == {first, second, isolated}
     assert cli.main(["wait-any", old_job, "--events", "approval", "--timeout", "0", *flags]) == 0
     assert json.loads(capsys.readouterr().out)["approval"]["approval_id"] in {first, second}
+    assert cli.main(["approver-credential", "init", "--registry-db", str(shared)]) == 0
     assert cli.main(["approve", first, *flags]) == 0
     assert cli.main(["reject", second, "--reason", "Test decision", *flags]) == 0
     assert cli.main(["approve", misplaced, *flags]) == 1
@@ -245,6 +258,54 @@ def test_custom_job_store_finds_pre_isolation_shared_tickets(tmp_path, monkeypat
     assert shared_queue.get_ticket(second).status == "rejected"
     assert shared_queue.get_ticket(misplaced).status == "pending"
     assert shared_queue.get_ticket(unrelated).status == "pending"
+
+
+def test_typed_bridge_credentials_are_required_and_bound_to_the_registry(tmp_path, capsys):
+    path = tmp_path / "approvals.sqlite"
+    store = _store.build_store()
+    registry = _registry.Registry(store, path)
+    ticket = registry.queue.create_typed_ticket(TypedApprovalRequest.create(
+        task_id="job", attempt=1, action="native_command", target=ApprovalTarget(),
+        requested_by="worker", policy_revision="test", payload={"registry": "code-bridge"},
+    ), operator_only=True)
+    flags = ["--registry-db", str(path)]
+    assert cli.main(["approve", ticket.approval_id, *flags]) == 1
+    assert "credential is missing" in capsys.readouterr().err
+    assert registry.queue.get_ticket(ticket.approval_id).status == "pending"
+
+    assert cli.main(["approver-credential", "init", *flags]) == 0
+    secret = _credentials.load(path)
+    assert secret not in capsys.readouterr().out
+    assert cli.main(["approver-credential", "init", *flags]) == 0
+    assert "already initialized" in capsys.readouterr().out
+    assert _credentials.load(path) == secret
+    if os.name != "nt":
+        assert _credentials._path(path).stat().st_mode & 0o777 == 0o600
+
+    other = _registry.Registry(store, tmp_path / "other.sqlite")
+    assert other.initialize_credential()
+    _credentials._path(path).write_text(_credentials.load(other.path), encoding="ascii")
+    assert cli.main(["approve", ticket.approval_id, *flags]) == 1
+    assert "Invalid owner approver credential" in capsys.readouterr().err
+    assert registry.queue.get_ticket(ticket.approval_id).status == "pending"
+
+
+def test_job_environment_scrubs_owner_credential(tmp_path, monkeypatch):
+    fakes.install(monkeypatch)
+    monkeypatch.setenv(_credentials.CREDENTIAL_ENV, "worker-must-not-inherit-this")
+
+    async def turn(*args):
+        child = subprocess.run(
+            [sys.executable, "-c", "import os, sys; sys.exit(sys.argv[1] in os.environ)", _credentials.CREDENTIAL_ENV],
+            check=False,
+        )
+        assert child.returncode == 0
+        return Envelope(payload="done")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = _jobs.run_job(engine_name="codex", cwd=str(tmp_path), root=str(tmp_path), task="Check environment")
+    assert result.status == "done", result.error
+    assert os.environ[_credentials.CREDENTIAL_ENV] == "worker-must-not-inherit-this"
 
 
 def test_operator_commands_do_not_create_missing_registries(tmp_path, capsys):
@@ -299,7 +360,8 @@ def test_cancel_closes_typed_ticket(tmp_path, monkeypatch, isolated):
     assert metadata["status"] == "interrupted"
     assert metadata["registry_ticket_ids"] == [ticket.approval_id]
     decided = registry.queue.get_ticket(ticket.approval_id)
-    assert decided.decision.verdict == "rejected"
+    assert decided.status == "expired"
+    assert decided.decision is None
     assert decided.consumed_at is None
     assert cli.main(["approve", ticket.approval_id, *db_flags]) == 1
 
@@ -363,6 +425,7 @@ def test_claimed_approval_consumes_only_for_its_dispatch(tmp_path, monkeypatch, 
         ApprovalRequest(provider="codex", kind="command", name="shell", arguments={"command": "git status"}),
         "Approval requested",
     )
+    assert registry.initialize_credential()
     assert registry.decide(ticket, "approved", "operator", "Confirmed")
     with pytest.raises(TaskServiceError, match="no longer belongs"):
         consume("wrong-job", ticket.approval_id, executor)

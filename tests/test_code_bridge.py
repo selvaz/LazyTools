@@ -12,7 +12,7 @@ import threading
 import time
 
 import pytest
-from lazybridge.ext.approval import ApprovalQueue, ApproverContext
+from lazybridge.ext.approval import ApprovalQueue
 
 import _code_bridge_fakes as fakes
 from lazytools.code_bridge import _jobs, _registry, _store
@@ -100,7 +100,7 @@ def test_lock_is_keyed_on_the_git_repo_root_not_the_literal_cwd(tmp_path, monkey
         db_path=db_path,
     )
     try:
-        queue = ApprovalQueue(_registry.registry_store(db_path.with_suffix(".registry.sqlite")))
+        queue = ApprovalQueue(_registry.registry_store(db_path.with_suffix(".registry.sqlite")), allow_credential_issuance=True)
         ticket = _wait_for_one_ticket(queue, thread=thread, box=_box)  # job holds the repo-root lock
 
         with pytest.raises(LockHeld):
@@ -109,7 +109,8 @@ def test_lock_is_keyed_on_the_git_repo_root_not_the_literal_cwd(tmp_path, monkey
             )
 
         assert queue.decide_typed_ticket(
-            ticket.approval_id, approver=ApproverContext(actor="test"), verdict="rejected", reason="done",
+            ticket.approval_id, credential=queue.issue_approver_credential("owner", ("owner",)),
+            verdict="rejected", reason="done",
         )
         thread.join(timeout=10)
     finally:
@@ -284,10 +285,12 @@ def test_approval_ticket_approved_lets_the_job_continue(tmp_path, repo, monkeypa
         engine_name="codex", cwd=str(repo), task="do a risky thing", root=str(tmp_path), db_path=db_path
     )
     try:
-        queue = ApprovalQueue(_registry.registry_store(db_path.with_suffix(".registry.sqlite")))
+        queue = ApprovalQueue(_registry.registry_store(db_path.with_suffix(".registry.sqlite")), allow_credential_issuance=True)
         ticket = _wait_for_one_ticket(queue, thread=thread, box=box)
         assert ticket.task_id  # scoped to the job
-        assert queue.decide_typed_ticket(ticket.approval_id, approver=ApproverContext(actor="test"), verdict="approved")
+        assert queue.decide_typed_ticket(
+            ticket.approval_id, credential=queue.issue_approver_credential("owner", ("owner",)), verdict="approved",
+        )
         thread.join(timeout=10)
     finally:
         assert not thread.is_alive()
@@ -309,9 +312,12 @@ def test_approval_ticket_rejected_fails_the_job(tmp_path, repo, monkeypatch):
         engine_name="codex", cwd=str(repo), task="do a risky thing", root=str(tmp_path), db_path=db_path
     )
     try:
-        queue = ApprovalQueue(_registry.registry_store(db_path.with_suffix(".registry.sqlite")))
+        queue = ApprovalQueue(_registry.registry_store(db_path.with_suffix(".registry.sqlite")), allow_credential_issuance=True)
         ticket = _wait_for_one_ticket(queue, thread=thread, box=box)
-        assert queue.decide_typed_ticket(ticket.approval_id, approver=ApproverContext(actor="test"), verdict="rejected", reason="no")
+        assert queue.decide_typed_ticket(
+            ticket.approval_id, credential=queue.issue_approver_credential("owner", ("owner",)),
+            verdict="rejected", reason="no",
+        )
         thread.join(timeout=10)
     finally:
         assert not thread.is_alive()
