@@ -8,6 +8,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-11-25
+
+### Fixed
+- Operator-directed routing (explicit engine, including `--review-of`) no longer refuses when quota telemetry is unreadable: it records a `telemetry_unreadable` warning; stale readings are labelled `telemetry_stale`; an applicable window at its ceiling still blocks whatever the reading's age (D203, #357).
+- Governed runner: checks run in a fresh detached worktree of the candidate SHA with a scrubbed environment and process-tree timeouts; `--spec` attachments; `review` and `rework` continuations with same-session re-reviews; `recover` after failed attempts; the runner runs on the installed LazyBridge (#356).
+- Governed runner: failed review/writer launches before a job exists are settled so the task can continue (#358).
+- Governed runner: the isolated quota cache is seeded from the read-only global cache before routed launches (#359).
+
 ## [0.12.0] — 2026-11-24
 
 ### Added
