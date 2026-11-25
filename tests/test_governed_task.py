@@ -19,7 +19,7 @@ from lazybridge import Store
 
 from _code_bridge_fakes import Script
 from _receipt_demo_fakes import install
-from lazytools.code_bridge import _cloud, _store, cli
+from lazytools.code_bridge import _cloud, _routing, _store, cli
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService
 
@@ -613,6 +613,156 @@ def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, c
     assert f"Previous writer failure\nBridge job {job_id}" in script.prompts[1]
     publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
     assert publication.writer.attempt == 2 and publication.reviewer.attempt == 1
+
+
+def test_review_launch_refusal_records_routing_error_and_allows_retry(trial, monkeypatch, capsys):
+    start, invoke, setup, script, state, _, _ = trial
+    checkout = setup()
+    readings = _routing.read_readings()
+    with monkeypatch.context() as refused:
+        refused.setattr(_routing, "read_readings", lambda: {"codex": readings["codex"]})
+        assert start(checkout) == 1
+    error = capsys.readouterr().err
+    assert "human_review_required" in error and len(script.prompts) == 1
+    with Store(db=str(state / "projects.sqlite")) as store:
+        writer, review = store.read(_board_key(PROJECT))["tasks"]
+    dispatch, = review["dispatches"]
+    assert writer["status"] == "done"
+    assert review["status"] == "failed" and not review["active_queue_claim"]
+    assert dispatch["state"] == "absent" and not dispatch.get("job_ref")
+    assert "human_review_required" in dispatch["launch_error"] and dispatch["launch_error"] in error
+    assert invoke("review") == 0
+    publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
+    assert publication.writer.attempt == 1 and publication.reviewer.attempt == 2
+
+
+def test_writer_launch_refusal_records_stderr_and_rework_keeps_launch_options(trial, monkeypatch, capsys):
+    start, invoke, setup, script, state, _, _ = trial
+    checkout = setup()
+
+    def refuse(argv):
+        assert argv[0] == "run"
+        print("error: writer launch slot unavailable", file=sys.stderr)
+        return 2
+
+    with monkeypatch.context() as refused:
+        refused.setattr(cli, "main", refuse)
+        assert start(checkout, "--engine", "claude", "--model", "claude-sonnet-5-5", "--effort", "medium") == 1
+    assert "writer launch slot unavailable" in capsys.readouterr().err
+    assert not script.prompts
+    with Store(db=str(state / "projects.sqlite")) as store:
+        writer, _ = store.read(_board_key(PROJECT))["tasks"]
+    dispatch, = writer["dispatches"]
+    assert writer["status"] == "failed" and not writer["active_queue_claim"]
+    assert dispatch["state"] == "absent" and not dispatch.get("job_ref")
+    assert "writer launch slot unavailable" in dispatch["launch_error"]
+
+    brief = state.parent.parent / "retry.md"
+    brief.write_text("Retry the writer brief.", encoding="utf-8")
+    assert invoke("rework", "--brief", f"@{brief}") == 0
+    assert "Previous writer failure\n" + dispatch["launch_error"] in script.prompts[0]
+    publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
+    assert publication.writer.attempt == 2 and publication.reviewer.attempt == 1
+    with Store(db=str(state / "bridge.sqlite")) as store:
+        meta = _store.read_meta(store, publication.writer.job_ref)
+    assert (meta["engine"], meta["model"], meta["effort"]) == ("claude", "claude-sonnet-5-5", "medium")
+
+
+@pytest.mark.parametrize("with_job", [False, True])
+def test_recover_unsubmitted_review_is_repeatable(trial, monkeypatch, capsys, with_job):
+    start, invoke, setup, script, state, _, _ = trial
+    checkout = setup()
+    runner = importlib.import_module("governed_task")
+    launch = runner.launch_job
+
+    def interrupt(*args, **kwargs):
+        if kwargs.get("review_of"):
+            raise runner.DemoError("Interrupted before review submission")
+        return launch(*args, **kwargs)
+
+    with monkeypatch.context() as interrupted:
+        interrupted.setattr(runner, "launch_job", interrupt)
+        assert start(checkout) == 1
+    with Store(db=str(state / "projects.sqlite")) as store:
+        _, review = store.read(_board_key(PROJECT))["tasks"]
+    dispatch, = review["dispatches"]
+    lease = dispatch["receipt"]
+    assert review["status"] == "claimed" and dispatch["state"] == "intent" and not dispatch.get("job_ref")
+    assert invoke("review") == 1
+    assert "Settle the current dispatch" in capsys.readouterr().err
+
+    if with_job:
+        # The local bridge registers its job before it binds the claim to the job ID.
+        with Store(db=str(state / "bridge.sqlite")) as store:
+            registry = _store.build_job_registry(store)
+            registry.write("unsubmitted-review", "Review", tool_name="claude", status="running")
+            _store.write_meta(store, "unsubmitted-review", {
+                "task_id": lease["task_id"], "task_revision": lease["revision"], "task_attempt": lease["attempt"],
+            })
+            assert invoke("recover") == 1
+            assert "Review job unsubmitted-review is still running" in capsys.readouterr().err
+            registry.write("unsubmitted-review", "Review", tool_name="claude", status="failed", error="Boot failed")
+        with Store(db=str(state / "projects.sqlite")) as store:
+            assert store.read(_board_key(PROJECT))["tasks"][1] == review
+
+    assert invoke("recover") == 0
+    with Store(db=str(state / "projects.sqlite")) as store:
+        recovered = store.read(_board_key(PROJECT))["tasks"][1]
+    dispatch, = recovered["dispatches"]
+    assert recovered["status"] == "failed" and not recovered["active_queue_claim"]
+    assert dispatch["state"] == "absent" and not dispatch.get("job_ref")
+    assert ("Boot failed" if with_job else "No bridge job was recorded") in dispatch["launch_error"]
+    assert invoke("recover") == 0
+    assert "Review attempt 1 already recorded as failed" in capsys.readouterr().out
+    with Store(db=str(state / "projects.sqlite")) as store:
+        assert store.read(_board_key(PROJECT))["tasks"][1] == recovered
+    assert invoke("review") == 0 and len(script.prompts) == 2
+
+
+def test_recover_submitted_review_refuses_live_job_and_continues_previous_verdict(trial, monkeypatch, capsys):
+    start, invoke, setup, script, state, _, _ = trial
+    accepted = False
+    checkout = setup(accepted=lambda: accepted)
+    assert start(checkout) == 1
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+
+    async def fail_review(agent, prompt):
+        return lazybridge.Envelope.error_envelope(RuntimeError("Review bridge interrupted"))
+
+    with monkeypatch.context() as interrupted:
+        interrupted.setattr(lazybridge.Agent, "run", fail_review)
+        assert invoke("review") == 1
+    with Store(db=str(state / "projects.sqlite")) as store:
+        _, review = store.read(_board_key(PROJECT))["tasks"]
+    dispatch = review["dispatches"][-1]
+    job_id = dispatch["job_ref"]
+    assert review["status"] == "claimed" and dispatch["state"] == "submitted"
+
+    with Store(db=str(state / "bridge.sqlite")) as store:
+        registry = _store.build_job_registry(store)
+        registry.write(job_id, "Review", tool_name="claude", status="awaiting_approval")
+        assert invoke("recover") == 1
+        assert f"Review job {job_id} is still running (awaiting_approval)" in capsys.readouterr().err
+        registry.write(job_id, "Review", tool_name="claude", status="failed")
+    with Store(db=str(state / "projects.sqlite")) as store:
+        assert store.read(_board_key(PROJECT))["tasks"][1] == review
+
+    assert invoke("recover") == 0
+    with Store(db=str(state / "projects.sqlite")) as store:
+        recovered = store.read(_board_key(PROJECT))["tasks"][1]
+    dispatch = recovered["dispatches"][-1]
+    assert recovered["status"] == "failed" and not recovered["active_queue_claim"]
+    result = dispatch["completion"]["result"]
+    assert result["state"] == "blocked" and dispatch["evidence"][result["evidence_ref"]]["job_ref"] == job_id
+    assert invoke("recover") == 0
+    assert f"Review job {job_id} already recorded as failed" in capsys.readouterr().out
+    with Store(db=str(state / "projects.sqlite")) as store:
+        assert store.read(_board_key(PROJECT))["tasks"][1] == recovered
+
+    accepted = True
+    assert invoke("review") == 0
+    assert f"This is a re-review under NC-16. Revisit your findings from commit {head}" in script.prompts[-1]
+    assert _cloud._git(checkout, "rev-parse", "HEAD") == head
 
 
 def test_review_recovers_after_check_failure_and_rechecks_before_dispatch(trial):

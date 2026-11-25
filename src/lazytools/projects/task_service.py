@@ -771,6 +771,32 @@ class ProjectTaskService:
                 "job_ref": dispatch.get("job_ref"),
             }
 
+    def fail_local_launch(self, principal: TaskPrincipal, task_id: str, claim_token: str, error: str) -> None:
+        """Settle a local dispatch after the reconciler rules out a submitted job."""
+        principal.require_role("orchestrator")
+        if not error.strip():
+            raise TaskServiceError("invalid", "Launch failure evidence is required")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, task_id)
+            _require_open(store, task.project_id)
+            dispatch = _active_dispatch(task)
+            receipt = dispatch["receipt"]
+            if receipt["claim_token"] != claim_token:
+                raise TaskServiceError("stale", "Claim token has been superseded")
+            if (
+                receipt["effective_placement"] != "local"
+                or dispatch["state"] not in ("intent", "submitting")
+                or dispatch.get("job_ref")
+            ):
+                raise TaskServiceError("conflict", "Only an unsubmitted local launch can be settled as failed")
+            if dispatch.get("unresolved_effects"):
+                raise TaskServiceError("unresolved", "Reconcile outstanding effects before releasing the claim")
+            now = self.clock()
+            dispatch.update(state="absent", launch_error=error.strip(), reconciled_at=now)
+            _release(task)
+            task.data.update(status="failed", completed_at=now, queue_released_at=now, error=dispatch["launch_error"])
+            task.save(store, now)
+
     def reconcile_dispatch(
         self,
         principal: TaskPrincipal,
