@@ -6,16 +6,16 @@ import json
 import os
 import subprocess
 import sys
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from lazybridge import Envelope
 from lazybridge.engines.coding import ApprovalRequest
-from lazybridge.ext.approval import DEFAULT_PREFIX, ApprovalTicket
+from lazybridge.ext.approval import DEFAULT_PREFIX, ApprovalTicket, CardApproval
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _credentials, _jobs, _registry, _store, _tempdir, cli
+from lazytools.code_bridge import _credentials, _jobs, _lockfile, _registry, _store, _tempdir, cli
 from test_code_bridge_continuations import git
 
 
@@ -121,20 +121,58 @@ def test_writer_commits_and_cleans_up_with_audited_cards(writer, monkeypatch, ca
     assert 'approved git commit -m "Add trial test"' in capsys.readouterr().out
 
 
-def test_job_completion_revokes_unused_copies(writer, monkeypatch):
+@pytest.mark.parametrize("status", ["done", "failed"])
+def test_job_end_revokes_unused_copies(writer, monkeypatch, status):
     repo, _, _, _ = writer
     seen = {}
 
     async def turn(engine, prompt, name):
         seen["channel"] = engine.kwargs["config"].approval_gate.channel
         assert seen["channel"].hand is not None
+        if status == "failed":
+            raise RuntimeError("Writer turn failed")
         return Envelope(payload="done")
 
     result = run(writer, monkeypatch, turn)
-    assert result.status == "done", result.error
+    assert result.status == status, result.error
+    if status == "failed":
+        assert "Writer turn failed" in result.error
     # Bypass the closed channel to exercise the queue's durable revocation.
     decision = seen["channel"]._submit(request(repo, "git status"), "replay")
-    assert isinstance(decision[0], ApprovalTicket)
+    assert isinstance(decision, tuple) and isinstance(decision[0], ApprovalTicket)
+
+
+def test_cancel_revokes_writer_copies(writer, monkeypatch):
+    repo, db, registry_db, flags = writer
+    store = _store.build_store(db)
+    jobs = _store.build_job_registry(store)
+    registry = _registry.Registry(store, registry_db)
+    job_id, pid = "cancel-writer", 12345
+    jobs.write(job_id, "Exercise writer cancellation", tool_name="codex", status="running")
+    _store.write_meta(store, job_id, {"cwd": str(repo), "pid": pid, "registry_db": str(registry_db)})
+    hand = registry.copy_coder_hand(
+        job_id, job_id, repo, None, datetime.now(UTC) + timedelta(minutes=5), network="off",
+    )
+    assert hand is not None
+    channel = _registry.ApprovalChannel(
+        registry, job_id, "revision", "digest", timedelta(minutes=1), 0.01,
+        lambda: None, lambda: None, lambda: None, hand=hand,
+    )
+    status_request = request(repo, "git status")
+    assert isinstance(channel._submit(status_request, "before cancel"), CardApproval)
+
+    alive = {pid}
+    monkeypatch.setattr(_lockfile, "_pid_alive", alive.__contains__)
+    monkeypatch.setattr(cli, "_process_matches_bridge", lambda _: True)
+    monkeypatch.setattr(cli, "_kill_process_tree", lambda worker_pid, **kwargs: alive.remove(worker_pid))
+    assert cli.main(["cancel", job_id, "--reason", "Cancel the test writer", *flags]) == 0
+    job = _jobs.find_job(store, jobs, job_id)
+    assert job["status"] == "interrupted"
+    assert job["coder_cards_revoked"]
+
+    # The stopped worker never reached its own finalizer. The registry still refuses its copy.
+    decision = channel._submit(status_request, "after cancel")
+    assert isinstance(decision, tuple) and isinstance(decision[0], ApprovalTicket)
 
 
 @pytest.mark.parametrize("network", ["on", "off"])
