@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -248,6 +249,7 @@ def choose(
         if rejection is not None:
             raise ValueError(rejection)
     available = frozenset((requested,)) if requested is not None else frozenset(ENGINES)
+    explicit_engine = requested if engine else None
     # Native conversations cannot migrate providers, including after two failures.
     if continuity.engine is not None:
         available &= frozenset((continuity.engine,))
@@ -327,7 +329,7 @@ def choose(
             tier, catalogue=routing_catalogue, in_flight=in_flight, continuity=continuity,
             capability=CapabilityRequirement(images=needs == "images"),
             writer_provider_for_review=writer, available=available, readings=routing_readings,
-            operator_directed=operator_directed,
+            operator_directed=operator_directed, requested_engine=explicit_engine,
         )
         scores.update(decision.scores)
         if decision.provider is None:
@@ -338,10 +340,25 @@ def choose(
         # buckets (such as Claude Fable) do not apply to this job.
         chosen_model = model.strip() if model is not None else decision.model
         assert chosen_model is not None
-        admission = decide(_admission_reading(readings[chosen], chosen_model), budget_for(chosen),
-                           operator_directed=operator_directed, in_flight=in_flight[chosen])
+        reading = readings.get(chosen)
+        if reading is None:
+            break  # The explicit engine was picked with a missing-telemetry warning.
+        scoped = _admission_reading(reading, chosen_model)
+        budget = budget_for(chosen)
+        admission = decide(scoped, budget, operator_directed=operator_directed, in_flight=in_flight[chosen])
         if admission.allowed:
             break
+        if chosen == explicit_engine and admission.reason in ("telemetry_unreadable", "telemetry_stale"):
+            # A partial reading can still establish a ceiling on a usable window.
+            usable = tuple(window for window in scoped.windows
+                           if math.isfinite(window.used_percent) and window.used_percent >= 0)
+            ceiling = decide(replace(scoped, windows=usable, error=None), budget,
+                             operator_directed=operator_directed, in_flight=in_flight[chosen])
+            if ceiling.reason != "absolute_ceiling":
+                warning = decision.warnings.get(chosen, f"telemetry_unreadable: {admission.detail}")
+                decision = replace(decision, warnings={chosen: warning})
+                break
+            admission = ceiling
         refused[chosen] = f"bridge_admission_would_refuse:{admission.reason} ({admission.rejection_text()})"
         available -= frozenset((chosen,))
     exclusions = dict(decision.ineligible)
@@ -440,6 +457,8 @@ def print_selection(selection: Selection) -> None:
                 if forecast is not None and forecast[0] > forecast[1]:
                     print(f"warning: {bridge_engine(engine)} {label} projected {forecast[0]:.0f}% (limit {forecast[1]:.0f}%) at the current pace")
     if selection.decision.provider is not None:
+        for engine, warning in selection.decision.warnings.items():
+            print(f"warning: {bridge_engine(engine)} {warning}")
         for provider_name, why in selection.decision.ineligible.items():
             print(f"excluded {provider_name}: {why}")
     if selection.notice and selection.decision.provider is not None:

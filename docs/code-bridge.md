@@ -610,17 +610,20 @@ engine, session, review and capability constraints cannot silently relax
 these rules. `--needs` and `--review-of` on `run` require a tier.
 
 Running bridge jobs with a recorded, live PID are counted per engine across the Store and reserve
-quota in the score. Missing, unreadable, stale or exhausted weekly quota
-excludes the engine. After each router pick, the bridge also calls admission
+quota in the score. Missing, unreadable or stale weekly quota excludes the
+engine in tier routing without an explicit `--engine`. With `--tier` and an
+explicit `--engine`, including for `--review-of`, unusable quota telemetry
+produces a `telemetry_unreadable` warning in the route decision and CLI output.
+After each router pick, the bridge calls admission
 on the effective model's weekly bucket plus Codex's account-wide short window
 or Claude's session window. Sonnet/Opus use `weekly/all models`; an explicit
 Fable override uses `weekly/Fable`. Other model-specific buckets are ignored,
 including extra Codex limit buckets regardless of their order in telemetry.
 The bridge filters recommendation inputs too, preserving the shared router's
 matching/scoring rules while retaining raw quota for display.
-An override with no applicable weekly
-telemetry is refused. An absolute ceiling on an applicable window excludes
-that engine and repeats the routing
+An override with no applicable weekly telemetry is refused unless it also
+names an explicit `--engine`. An absolute ceiling on an applicable window
+still excludes that engine and repeats the routing
 calculation with the remaining engines and the same constraints. Every rejected
 pick keeps its admission reason in the routing record. This additional bridge
 gate does not change the shared router's weekly scoring or parity behavior.
