@@ -930,7 +930,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     publish_mode = publish.add_mutually_exclusive_group()
     publish_mode.add_argument("--resume", action="store_true")
     publish_mode.add_argument(
-        "--retry-ticket", metavar="ID", help="Request fresh approval after pr_create_failed or pr_head_mismatch"
+        "--retry-ticket", metavar="ID",
+        help="Request fresh approval after pr_create_failed, pr_head_mismatch, or pr_head_unavailable",
     )
     publish.add_argument("--ci-gate", action="store_true", help="With --resume, wait for GitHub CI and record a ledger row")
     publish.set_defaults(ledger=None, manual=None, stop_real=[], stop_false=[], reconstruct_seconds=None, notes=None)

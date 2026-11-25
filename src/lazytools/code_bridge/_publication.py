@@ -322,10 +322,13 @@ def _read_back(attempt: PublicationAttempt, outcome: PublicationOutcome) -> Publ
     repo = f"github.com/{attempt.repository}"
     deadline = monotonic() + _PR_HEAD_TIMEOUT
     remaining, delay = _PR_HEAD_TIMEOUT, 0.5
+    last_observed_head = ""
     while True:
         try:
             pr = _gh.pr_view(repo, outcome.pr_number, publication=True, timeout=remaining)
         except _GIT_ERRORS:
+            if last_observed_head and monotonic() >= deadline:
+                return replace(outcome, reason="pr_head_mismatch", observed_head=last_observed_head)
             return replace(outcome, reason="pr_head_unavailable")
         pr_head = pr.get("headRefOid")
         observed_head = pr_head if isinstance(pr_head, str) and _SHA.fullmatch(pr_head) else ""
@@ -337,10 +340,11 @@ def _read_back(attempt: PublicationAttempt, outcome: PublicationOutcome) -> Publ
             return replace(outcome, reason="pr_head_mismatch", observed_head=observed_head)
         if pr_head == attempt.head_sha:
             break
+        last_observed_head = observed_head or last_observed_head
         sleep(min(delay, max(0, deadline - monotonic())))
         remaining = deadline - monotonic()
         if remaining <= 0:
-            return replace(outcome, reason="pr_head_mismatch", observed_head=observed_head)
+            return replace(outcome, reason="pr_head_mismatch", observed_head=last_observed_head)
         delay = min(delay * 2, 2.0)
     if pr.get("isDraft") is not True or pr.get("state") != "OPEN":
         return replace(outcome, reason="pr_not_draft")
@@ -377,7 +381,7 @@ def run(
         if saved is None:
             return PublicationOutcome("publication_retry_unavailable", ticket=previous)
         refused = PublicationReceipt.model_validate_json(saved)
-        if refused.outcome.refusal_reason == "pr_head_mismatch":
+        if refused.outcome.refusal_reason in {"pr_head_mismatch", "pr_head_unavailable"}:
             url = refused.publication.pr_url
             retry_pr = _gh.pr_number_from_url(url or "")
             if not retry_pr or url is None or url.casefold() != f"https://github.com/{attempt.repository}/pull/{retry_pr}":

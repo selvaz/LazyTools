@@ -2404,7 +2404,8 @@ def build_parser() -> argparse.ArgumentParser:
     publish_ticket = publish_p.add_mutually_exclusive_group()
     publish_ticket.add_argument("--ticket", metavar="ID", help="Use this typed publication ticket.")
     publish_ticket.add_argument(
-        "--retry-ticket", metavar="ID", help="Request fresh approval after pr_create_failed or pr_head_mismatch."
+        "--retry-ticket", metavar="ID",
+        help="Request fresh approval after pr_create_failed, pr_head_mismatch, or pr_head_unavailable.",
     )
     publish_p.add_argument("--request-only", action="store_true", help="File or inspect the ticket without publishing.")
     _add_registry_option(publish_p)

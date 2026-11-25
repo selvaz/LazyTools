@@ -124,11 +124,11 @@ its outcome. The ticket stays consumed if the push or `gh pr create` fails,
 or if the process stops after consuming approval. A retry requires a new
 approval.
 
-If an earlier executor pushed the head and recorded `pr_create_failed` or
-`pr_head_mismatch`, use `publish --retry-ticket OLD_TICKET_ID` to file a fresh
-approval for the same reviewed head. Approve the new ticket and publish with
-`--ticket NEW_TICKET_ID`. After a head mismatch, the new ticket verifies the
-same draft PR and records the result without pushing again.
+Use `publish --retry-ticket OLD_TICKET_ID` to file a fresh approval for the same
+reviewed head after `pr_create_failed`, `pr_head_mismatch`, or `pr_head_unavailable`.
+Approve the new ticket and publish with `--ticket NEW_TICKET_ID`. After either
+head read-back refusal, the new ticket verifies the same draft PR and records
+the result without pushing again.
 The governed runner accepts the same `--retry-ticket` option and resumes with
 `publish --resume` after approval.
 

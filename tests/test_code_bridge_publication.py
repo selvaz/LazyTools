@@ -488,6 +488,51 @@ def test_publication_reverifies_stored_head_mismatch_without_pushing(publication
     assert len(state["comments"]) == int(head_caught_up)
 
 
+@pytest.mark.parametrize(("stale_reads", "reason"), [(False, "pr_head_unavailable"), (True, "pr_head_mismatch")])
+def test_publication_reverifies_after_read_back_timeout(publication, capsys, monkeypatch, stale_reads, reason):
+    stale_heads = [publication.base, publication.other] if stale_reads else []
+    publication.state.write_text(json.dumps({"prs": [], "comments": [], "stale_head_reads": stale_heads}))
+    accept(publication)
+    old_ticket = approve(publication, capsys)
+    pr_view = _gh.pr_view
+    timeouts = []
+    read_time = 0.0
+
+    def view_until_timeout(*args, timeout, **kwargs):
+        nonlocal read_time
+        timeouts.append(timeout)
+        if len(timeouts) <= len(stale_heads):
+            return pr_view(*args, timeout=timeout, **kwargs)
+        read_time += timeout
+        raise _cloud.CloudError("gh pr view timed out")
+
+    with monkeypatch.context() as timed_out:
+        timed_out.setattr(_publication, "monotonic", lambda: read_time + sum(publication.read_back_sleeps))
+        timed_out.setattr(_gh, "pr_view", view_until_timeout)
+        refused = publish(publication, capsys, ticket=old_ticket)
+
+    assert timeouts == ([30, 29.5, 28.5] if stale_reads else [30])
+    assert refused["outcome"]["refusal_reason"] == reason
+    assert refused["publication"]["head_sha"] == (publication.other if stale_reads else publication.reviewed)
+    assert refused["publication"]["pr_url"] == "https://github.com/example/publication/pull/1"
+    assert refused["approval"]["consumed_at"] is not None
+    assert publish(publication, capsys, ticket=old_ticket) == refused
+
+    pending = publish(publication, capsys, options=("--retry-ticket", old_ticket))
+    assert pending["outcome"]["refusal_reason"] == "approval_not_decided"
+    new_ticket = pending["approval"]["ticket_id"]
+    assert new_ticket != old_ticket
+    with Store(str(publication.registry_db)) as registry:
+        assert ApprovalQueue(registry).get_ticket(new_ticket).request.payload["reverify_pr"] == 1
+    assert cli.main(["approve", new_ticket, *publication.options]) == 0
+    receipt = publish(publication, capsys, ticket=new_ticket, status=0)
+    assert receipt["publication"]["pr_number"] == 1
+    assert receipt["publication"]["head_sha"] == publication.reviewed
+    assert len(publication.pushes) == 1
+    state = json.loads(publication.state.read_text())
+    assert len(state["prs"]) == len(state["comments"]) == 1
+
+
 def test_interrupted_publication_cannot_reuse_approval(publication, capsys, monkeypatch):
     accept(publication)
     approve(publication, capsys)
