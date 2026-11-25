@@ -340,22 +340,29 @@ def choose(
         # buckets (such as Claude Fable) do not apply to this job.
         chosen_model = model.strip() if model is not None else decision.model
         assert chosen_model is not None
-        reading = readings.get(chosen)
-        if reading is None:
+        chosen_reading = readings.get(chosen)
+        if chosen_reading is None:
             break  # The explicit engine was picked with a missing-telemetry warning.
-        scoped = _admission_reading(reading, chosen_model)
+        scoped = _admission_reading(chosen_reading, chosen_model)
         budget = budget_for(chosen)
         admission = decide(scoped, budget, operator_directed=operator_directed, in_flight=in_flight[chosen])
         if admission.allowed:
             break
         if chosen == explicit_engine and admission.reason in ("telemetry_unreadable", "telemetry_stale"):
-            # A partial reading can still establish a ceiling on a usable window.
-            usable = tuple(window for window in scoped.windows
-                           if math.isfinite(window.used_percent) and window.used_percent >= 0)
-            ceiling = decide(replace(scoped, windows=usable, error=None), budget,
-                             operator_directed=operator_directed, in_flight=in_flight[chosen])
+            # Use the current time for this ceiling-only check. An older observation
+            # can still establish exhaustion until the reported window resets.
+            moment = admission.decided_at
+            usable = tuple(
+                window for window in scoped.windows
+                if math.isfinite(window.used_percent) and window.used_percent >= 0
+                and (window.resets_at is None or window.resets_at > moment)
+            )
+            ceiling = decide(
+                replace(scoped, observed_at=moment, windows=usable, error=None), budget,
+                operator_directed=operator_directed, in_flight=in_flight[chosen], now=moment,
+            )
             if ceiling.reason != "absolute_ceiling":
-                warning = decision.warnings.get(chosen, f"telemetry_unreadable: {admission.detail}")
+                warning = decision.warnings.get(chosen, f"{admission.reason}: {admission.detail}")
                 decision = replace(decision, warnings={chosen: warning})
                 break
             admission = ceiling

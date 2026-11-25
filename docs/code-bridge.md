@@ -612,8 +612,11 @@ these rules. `--needs` and `--review-of` on `run` require a tier.
 Running bridge jobs with a recorded, live PID are counted per engine across the Store and reserve
 quota in the score. Missing, unreadable or stale weekly quota excludes the
 engine in tier routing without an explicit `--engine`. With `--tier` and an
-explicit `--engine`, including for `--review-of`, unusable quota telemetry
-produces a `telemetry_unreadable` warning in the route decision and CLI output.
+explicit `--engine`, including for `--review-of`, missing or unreadable quota
+produces a `telemetry_unreadable` warning, and stale quota produces a
+`telemetry_stale` warning in the route decision and CLI output. A reading that
+shows an applicable window at its ceiling before its reset still blocks the job
+regardless of the reading's age.
 After each router pick, the bridge calls admission
 on the effective model's weekly bucket plus Codex's account-wide short window
 or Claude's session window. Sonnet/Opus use `weekly/all models`; an explicit

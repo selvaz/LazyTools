@@ -188,10 +188,10 @@ class RoutingDecision:
     ineligible: dict[str, str] = field(default_factory=dict)
     telemetry_age: dict[str, float | None] = field(default_factory=dict)
     decided_at: datetime | None = None
-    warnings: dict[str, str] = field(default_factory=dict)
+    warnings: dict[Engine, str] = field(default_factory=dict)
 
     def as_record(self) -> dict[str, Any]:
-        record = {
+        record: dict[str, Any] = {
             "tier": self.tier,
             "provider": self.provider,
             "model": self.model,
@@ -412,7 +412,7 @@ def route(
     continuity = continuity or ContinuityHint()
     capability = capability or CapabilityRequirement()
 
-    warnings: dict[str, str] = {}
+    warnings: dict[Engine, str] = {}
     common: dict[str, Any] = dict(tier=tier, decided_at=moment, warnings=warnings)
 
     tier_catalogue = catalogue.get(tier)
@@ -463,6 +463,7 @@ def route(
                 step_ineligible[engine] = "no_budget_configured"
                 continue
 
+            result: ProviderScore | str
             if reading is None:
                 result = "telemetry_missing: no quota reading"
             else:
@@ -479,7 +480,9 @@ def route(
                 if not (allow_unreadable and result.startswith("telemetry_")):
                     step_ineligible[engine] = result
                     continue
-                warnings[engine] = f"telemetry_unreadable: {result.partition(': ')[2]}"
+                telemetry_reason, _, detail = result.partition(": ")
+                warning_reason = "telemetry_stale" if telemetry_reason == "telemetry_stale" else "telemetry_unreadable"
+                warnings[engine] = f"{warning_reason}: {detail}"
             else:
                 step_scores[engine] = result.as_record()
             eligible_models[engine] = step_model

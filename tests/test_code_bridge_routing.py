@@ -318,6 +318,46 @@ def test_explicit_reviewer_route_is_blocked_by_an_applicable_exhausted_window(br
     assert bridge[0].engines == []
 
 
+@pytest.mark.parametrize("observed_hours", [-7, 1], ids=["stale", "clock-skewed"])
+def test_explicit_engine_is_blocked_by_exhausted_quota_with_a_future_reset(bridge, capsys, observed_hours):
+    script, readings, _, _ = bridge
+    reading = readings["claude_code"]
+    weekly, session = reading.windows
+    readings["claude_code"] = replace(
+        reading,
+        observed_at=reading.observed_at + timedelta(hours=observed_hours),
+        windows=(replace(weekly, used_percent=100), session),
+    )
+
+    assert cli.main(args(bridge, "run", "--engine", "claude", "--json")) == 2
+    routing = json.loads(capsys.readouterr().out)
+    assert routing["provider"] is None
+    assert "admission_would_refuse:absolute_ceiling" in routing["ineligible"]["claude_code"]
+    assert weekly.resets_at.isoformat() in routing["error"]
+    assert not routing.get("warnings")
+    assert script.engines == []
+
+
+@pytest.mark.parametrize("weekly_usage", [40, 100], ids=["below-ceiling", "reset-passed"])
+def test_explicit_engine_records_stale_quota_warning(bridge, capsys, weekly_usage):
+    _, readings, _, db = bridge
+    reading = readings["claude_code"]
+    weekly, session = reading.windows
+    reset = reading.observed_at - timedelta(hours=1) if weekly_usage == 100 else weekly.resets_at
+    readings["claude_code"] = replace(
+        reading,
+        observed_at=reading.observed_at - timedelta(hours=7),
+        windows=(replace(weekly, used_percent=weekly_usage, resets_at=reset), session),
+    )
+
+    assert cli.main(args(bridge, "run", "--engine", "claude", "--json")) == 0
+    payload = json.loads(capsys.readouterr().out.splitlines()[-1])
+    warnings = {"claude_code": "telemetry_stale: fake quota last read 7.0h ago, limit 6.0h"}
+    assert payload["routing"]["warnings"] == warnings
+    (job,) = _jobs.list_jobs(_store.build_store(db), all_jobs=True)
+    assert job["routing"]["warnings"] == warnings
+
+
 def test_explicit_engine_prints_warning_for_missing_quota_reading(bridge, capsys):
     bridge[1].pop("claude_code")
     assert cli.main(args(bridge, "route", "--engine", "claude")) == 0
