@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 
 import pytest
@@ -52,9 +53,7 @@ def approvals(queue):  # noqa: F811
             production=target.path == "production", verified_head=state["verified_head"],
         )
 
-    registry = ProjectTaskApprovals(service, authorize=authorize)
-    registry.provision_automatic_cards(PROJECT, credential=credential(registry, OWNER))
-    return registry, receipt, job, state
+    return ProjectTaskApprovals(service, authorize=authorize), receipt, job, state
 
 
 def target(**fields):
@@ -133,9 +132,37 @@ def test_canonical_persistence_scopes_and_idempotent_decisions(approvals):
         registry.decide(OPERATOR, legacy.approval_id, legacy.prompt_hash, "allow", "Legacy")
 
 
+async def test_projects_approval_tool_uses_the_host_credential(approvals, tmp_path):
+    from lazytools.mcp_server import build_server, default_providers
+    from mcp_test_utils import connected_client, protocol_field
+
+    registry, receipt, _, _ = approvals
+    req = request(registry, receipt)
+    secret = credential(registry, OPERATOR)
+    credential_file = tmp_path / "operator.credential"
+    credential_file.write_text(secret + "\n", encoding="ascii")
+    providers = default_providers(["projects"], allow_write=True, data_source={
+        "projects_store_db": str(registry.service.path),
+        "projects_task_principal": OPERATOR.model_dump(mode="json"),
+        "projects_approver_credential_file": str(credential_file),
+    })
+    async with connected_client(build_server(providers, read_only=False)) as client:
+        tool = next(entry for entry in (await client.list_tools()).tools if entry.name == "approvals_decide")
+        assert "credential" not in protocol_field(tool, "input_schema", "inputSchema")["properties"]
+        result = await client.call_tool(tool.name, {
+            "request_id": req["request_id"], "expected_action_digest": req["action_digest"],
+            "decision": "allow", "reason": "Reviewed exact effect",
+        })
+    assert secret not in result.content[0].text
+    approval_result = json.loads(result.content[0].text)
+    assert approval_result["ok"]
+    assert approval_result["request"]["decision"]["decider"] == OPERATOR.actor
+
+
 @pytest.mark.parametrize(("action", "required", "fields"), [
     ("read", "automatic", {}),
     ("local_commit", "automatic", {}),
+    ("local_commit", "owner", {"path": "production"}),
     ("push", "orchestrator", {}),
     ("open_pr", "orchestrator", {}),
     ("scoped_delete", "orchestrator", {"path": "scratch/output"}),
@@ -144,7 +171,12 @@ def test_canonical_persistence_scopes_and_idempotent_decisions(approvals):
 ])
 def test_effect_policy_rows(approvals, action, required, fields):
     registry, receipt, _, _ = approvals
+    if required == "automatic":
+        with pytest.raises(TaskServiceError, match="must provision"):
+            request(registry, receipt, action, **fields)
+    registry.provision_automatic_cards(PROJECT, credential=credential(registry, OWNER))
     req = request(registry, receipt, action, **fields)
+    assert request(registry, receipt, action, **fields) == req
     assert req["required_approver"] == required
     if required != "automatic":
         assert req["status"] == "pending"
