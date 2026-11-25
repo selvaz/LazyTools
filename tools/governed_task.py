@@ -901,7 +901,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     evidence.add_argument("--review-brief", type=at_file, metavar="@file")
     evidence.add_argument("--check", action="append", metavar="CMD", help="Required check (repeat to override Checks)")
     evidence.add_argument("--check-timeout", type=positive, metavar="SECONDS",
-                          help=f"Default per-check timeout (initially {CHECK_TIMEOUT}; override with CMD::timeout=N)")
+                          help=f"Per-check timeout saved for this task (initially {CHECK_TIMEOUT} seconds). "
+                               "Override individual checks with CMD::timeout=N.")
     evidence.add_argument("--spec", type=Path, action="append", default=[],
                           help=f"Attach a spec file (up to {SPEC_MAX_FILES})")
     evidence.add_argument("--fresh-review", action="store_true", help="Start a new reviewer conversation with a full review")

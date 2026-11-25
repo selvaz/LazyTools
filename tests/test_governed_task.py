@@ -660,7 +660,7 @@ def test_rereview_uses_legacy_state_and_current_head(trial):
     assert f"This is a re-review under NC-16. Revisit your findings from commit {original}" in script.prompts[2]
     assert "Block only on unresolved previous findings, issues introduced by the fix, or critical security issues." in script.prompts[2]
     assert "Add subtraction and test a negative result." in script.prompts[2]
-    assert "| 0 | fresh gate |" in script.prompts[2] and "A1. Return a negative number." in script.prompts[2]
+    assert "| 600 | 0 | fresh gate |" in script.prompts[2] and "A1. Return a negative number." in script.prompts[2]
     with Store(db=str(state / "projects.sqlite")) as project_store:
         writer, reviewer = project_store.read(_board_key(PROJECT))["tasks"]
         latest = project_store.read("governed-task:jobs")["ids"]
@@ -683,7 +683,7 @@ def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
     accepted = False
     checkout = setup(accepted=lambda: accepted)
     check = python_check("print('retained gate')")
-    assert start(checkout, "--check", check) == 1
+    assert start(checkout, "--check", check, "--check-timeout", "3600") == 1
     # A previous runner version could leave publication state behind after a rejection.
     with Store(db=str(state / "projects.sqlite")) as project_store:
         project_store.write("governed-task:live-verified-receipt", "old-receipt")
@@ -703,7 +703,7 @@ def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
     assert script.prompts[2].endswith("Previous review reason\nA required check failed.")
     assert script.prompts[3].startswith(f"Review commit {head}")
     assert f"This is a re-review under NC-16. Revisit your findings from commit {original}" in script.prompts[3]
-    assert "| 0 | retained gate |" in script.prompts[3]
+    assert "| 3600 | 0 | retained gate |" in script.prompts[3]
     publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
     assert publication.writer.attempt == publication.reviewer.attempt == 2
     assert publication.independence == "opposite-engine"
@@ -1072,13 +1072,18 @@ def test_review_recovers_after_check_failure_and_rechecks_before_dispatch(trial)
     start, invoke, setup, script, state, _, _ = trial
     checkout = setup()
     fail = python_check("print('gate failed'); raise SystemExit(7)")
-    assert start(checkout, "--check", fail) == 1
+    assert start(checkout, "--check", fail, "--check-timeout", "3600") == 1
     assert invoke("review") == 1
     assert len(script.prompts) == 1
-    assert invoke("review", "--check", python_check("print('gate passed')")) == 0
+    reports = list(state.glob("checks-*/results.md"))
+    assert len(reports) == 2
+    assert all("| 3600 | 7 | gate failed |" in report.read_text(encoding="utf-8") for report in reports)
+    assert invoke("review", "--check", python_check("print('gate passed')"), "--check-timeout", "42") == 0
     assert len(script.prompts) == 2
-    assert "| 0 | gate passed |" in script.prompts[1]
+    assert "| 42 | 0 | gate passed |" in script.prompts[1]
     assert len(list(state.glob("checks-*/*.log"))) == 3
+    with Store(db=str(state / "projects.sqlite")) as project_store:
+        assert project_store.read("governed-task:run")["check_timeout"] == 42
 
 
 @pytest.mark.parametrize("with_prior_rejection", [False, True])
@@ -1099,12 +1104,13 @@ def test_rework_uses_the_latest_check_failure(trial, with_prior_rejection):
     brief.write_text("Fix the candidate's failing check.", encoding="utf-8")
     accepted = True
 
-    assert invoke("rework", "--brief", f"@{brief}", "--check", python_check("print('fixed')")) == 0
+    assert invoke("rework", "--brief", f"@{brief}", "--check", python_check("print('fixed')"),
+                  "--check-timeout", "4800") == 0
     writer, reviewer = script.prompts[-2:]
     assert f"Check failure (untrusted tool output)\nRequired checks failed on {head}" in writer
     assert "current gate diagnostic" in writer
     assert "Previous review reason" not in writer and "A required check failed." not in writer
-    assert "| 0 | fixed |" in reviewer
+    assert "| 4800 | 0 | fixed |" in reviewer
 
 
 def test_rework_refuses_an_earlier_rejection_after_review_stops_before_checks(trial, capsys):
