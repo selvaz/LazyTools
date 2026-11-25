@@ -69,6 +69,18 @@ if args[0] == "repo":
     print(json.dumps({"defaultBranchRef": ref}))
     sys.exit(0)
 if args[0] == "api":
+    if args[1] == "graphql":
+        fields = dict(arg.split("=", 1) for arg in args[2:] if "=" in arg)
+        assert "object(oid: $sha)" in fields["query"] and "pullRequest(number: $number)" in fields["query"]
+        assert fields["owner"] == "example" and fields["name"] == "publication"
+        pr = state["prs"][int(fields["number"]) - 1]
+        head = state.get("ci_head") or sha(pr["headRefName"])
+        assert fields["sha"] == sha(pr["headRefName"])
+        rollup = state["ci_rollups"].pop(0)
+        state_path.write_text(json.dumps(state))
+        print(json.dumps({"data": {"repository": {"pullRequest": {"headRefOid": head},
+                         "object": {"oid": fields["sha"], "statusCheckRollup": rollup}}}}))
+        sys.exit(0)
     assert args[1:8] == ["--hostname", "github.com", "--method", "GET", "--paginate", "--slurp",
                          "repos/example/publication/pulls"]
     assert args[8] == args[10] == "-f" and args[11] == "state=all"

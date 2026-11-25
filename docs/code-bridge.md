@@ -170,8 +170,20 @@ Required checks run as subprocesses in a fresh worktree of the candidate
 commit. Each check gets that worktree as its working directory and gets the
 worktree root and its `src` directory, if present, on `PYTHONPATH`. Absolute
 entries in the caller's `PYTHONPATH` under the writer checkout are remapped to
-the check worktree. Use commands such as `python -m pytest` to test the
-candidate code.
+the check worktree. Match the repository's CI gate in the brief's `Checks`
+block or with repeated `--check` options. Include the full test suite and
+any lint, format and pre-commit commands the repository runs in CI. The
+default timeout is 600 seconds per command. Use `--check-timeout SECONDS`
+on `start`, `review` or `rework` to set the default for the task. Append
+`::timeout=N` to a command in the brief or a `--check` option to override
+its timeout individually.
+
+Run `publish --resume --ci-gate` after approval to wait for GitHub's check
+rollup for the exact published commit. The runner waits up to 30 minutes
+for a nonempty result, exits nonzero if the gate fails, and writes the
+result to the trial ledger with the PR number, head SHA, and receipt ID.
+Repeat the command after a GitHub CI rerun to refresh the ledger without
+pushing again. The signed publication receipt records the draft and its head.
 
 If the bridge refuses a launch before it creates a job, the runner records the
 launch error and releases the task claim. Use `recover` if a writer or review

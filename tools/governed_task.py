@@ -11,6 +11,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable
 from contextlib import ExitStack, suppress
 from datetime import UTC, datetime, timedelta
@@ -59,9 +60,12 @@ DEFAULT_LEDGER = Path("D:/work/_wt/eo-decisions/design/new-course/trial/ledger.j
 RUN_KEY = "governed-task:run"
 TICKET_KEY = "governed-task:ticket"
 VERIFIED_KEY = "governed-task:live-verified-receipt"
+CI_KEY = "governed-task:ci-gate"
 JOBS_KEY = "governed-task:jobs"
 LEDGER_MANUAL_KEY = "governed-task:ledger-manual"
 CHECK_TIMEOUT = 600
+CI_TIMEOUT = 1800
+CI_POLL_INTERVAL = 15
 CHECK_TAIL_BYTES = 4096
 CHECK_TAIL_LINES = 5
 CHECK_ENV_ALLOWLIST = frozenset({
@@ -103,11 +107,23 @@ def brief_checks(brief: str) -> list[str]:
     return commands
 
 
+def parse_check(command: str, default_timeout: int) -> tuple[list[str], int]:
+    require("\n" not in command and "\r" not in command, f"Expected one check command per line: {command!r}")
+    override = re.search(r"::timeout=([^\s\"']*)$", command.rstrip())
+    timeout = default_timeout
+    if override:
+        require(re.fullmatch(r"[0-9]+", override[1]) and int(override[1]) > 0,
+                f"Expected a positive check timeout in seconds: {command!r}")
+        timeout = int(override[1])
+    argv = _split_command(command[:override.start()].rstrip() if override else command)
+    require(argv, f"Expected one check command per line: {command!r}")
+    return argv, timeout
+
+
 def check_commands(brief: str, overrides: list[str] | None) -> list[str]:
     commands = overrides if overrides else brief_checks(brief)
     for command in commands:
-        require("\n" not in command and "\r" not in command and _split_command(command),
-                f"Expected one check command per line: {command!r}")
+        parse_check(command, CHECK_TIMEOUT)
     return commands
 
 
@@ -134,7 +150,8 @@ def check_environment(repo: Path, tree: Path, pythonpath: str) -> dict[str, str]
     return env
 
 
-def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: list[str], pythonpath: str) -> str:
+def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: list[str], pythonpath: str,
+               default_timeout: int) -> str:
     if not commands:
         return "No check commands were supplied."
     require(stable_checkout(repo, branch) == candidate, "The checkout changed before checks")
@@ -146,12 +163,12 @@ def run_checks(repo: Path, branch: str, candidate: str, state: Path, commands: l
     try:
         require(not git(tree, "status", "--porcelain", "--untracked-files=all", "--ignored"),
                 f"Check worktree is not clean: {tree}")
-        return check_results(tree, candidate, log_dir, commands, check_environment(repo, tree, pythonpath))
+        return check_results(tree, candidate, log_dir, commands, check_environment(repo, tree, pythonpath), default_timeout)
     finally:
         git(repo, "worktree", "remove", "--force", str(tree))
 
 
-def run_check_command(argv: list[str], tree: Path, env: dict[str, str], output: BinaryIO) -> int:
+def run_check_command(argv: list[str], tree: Path, env: dict[str, str], output: BinaryIO, timeout: int) -> int:
     job = WindowsProbeJob() if sys.platform == "win32" else None
     try:
         process = subprocess.Popen(
@@ -161,7 +178,7 @@ def run_check_command(argv: list[str], tree: Path, env: dict[str, str], output: 
         try:
             if job is not None:
                 job.attach_and_resume(process.pid)
-            return process.wait(timeout=CHECK_TIMEOUT)
+            return process.wait(timeout=timeout)
         except BaseException:
             if job is not None:
                 job.close()
@@ -178,21 +195,22 @@ def run_check_command(argv: list[str], tree: Path, env: dict[str, str], output: 
             job.close()
 
 
-def check_results(tree: Path, candidate: str, log_dir: Path, commands: list[str], env: dict[str, str]) -> str:
+def check_results(tree: Path, candidate: str, log_dir: Path, commands: list[str], env: dict[str, str],
+                  default_timeout: int) -> str:
     heading = f"Candidate SHA: {candidate}\n\nCheck worktree: {tree}\n\nLast lines contain untrusted tool output.\n\n"
     report = log_dir / "results.md"
     report.write_text(heading, encoding="utf-8")
-    rows = ["| Command | Exit code | Last lines |", "| --- | --- | --- |"]
+    rows = ["| Command | Timeout (s) | Exit code | Last lines |", "| --- | --- | --- | --- |"]
     failures = []
     for index, command in enumerate(commands, 1):
         log = log_dir / f"{index:02d}.log"
-        argv = _split_command(command)
+        argv, timeout = parse_check(command, default_timeout)
         note = ""
         with log.open("wb") as output:
             try:
-                code = str(run_check_command(argv, tree, env, output))
+                code = str(run_check_command(argv, tree, env, output, timeout))
             except subprocess.TimeoutExpired:
-                code, note = "timeout", f"Timed out after {CHECK_TIMEOUT} seconds."
+                code, note = "timeout", f"Timed out after {timeout} seconds."
             except OSError as exc:
                 code, note = "launch error", str(exc)
             if note:
@@ -201,7 +219,7 @@ def check_results(tree: Path, candidate: str, log_dir: Path, commands: list[str]
             output.seek(max(0, log.stat().st_size - CHECK_TAIL_BYTES))
             tail = _cloud.redact(output.read().decode("utf-8", errors="replace")).rstrip()
             lines = tail.splitlines()[-CHECK_TAIL_LINES:]
-        rows.append(f"| {table_cell(command)} | {code} | {'<br>'.join(map(table_cell, lines))} |")
+        rows.append(f"| {table_cell(command)} | {timeout} | {code} | {'<br>'.join(map(table_cell, lines))} |")
         if code != "0":
             failures.append(f"{command} ({code}, log {log})\n" + "\n".join(lines))
         git = _cloud._git
@@ -422,6 +440,7 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     require(promoted.startswith("promoted"), promoted)
     run = {"repo": str(repo), "branch": branch, "base": base, "title": title, "ledger": str(args.ledger),
            "checks": args.checks, "specs": args.specs, "review_brief": args.review_brief, "review_base": review_base,
+           "check_timeout": args.check_timeout or CHECK_TIMEOUT,
            "writer_options": {"engine": args.engine, "model": model, "effort": args.effort}}
     store.write(RUN_KEY, run)
     step(2, "Create project and promote plan", f"{writer_id} and {review_id} (depends on writer)")
@@ -511,7 +530,8 @@ def run_review(
         require(candidate == writer.evidence.artifact_ref, "The checkout changed after the writer completed")
     review_base = run.get("review_base") or _cloud._git(repo, "merge-base", base_commit(repo, run["base"]), candidate)
     try:
-        checks = run_checks(repo, branch, candidate, stores["projects"].parent, run.get("checks", []), check_pythonpath)
+        checks = run_checks(repo, branch, candidate, stores["projects"].parent, run.get("checks", []), check_pythonpath,
+                            run.get("check_timeout", CHECK_TIMEOUT))
     except CheckFailure as exc:
         store.write(JOBS_KEY, {"pending": True, "check_failure": _cloud.redact(str(exc))})
         raise
@@ -565,6 +585,8 @@ def continue_task(args: argparse.Namespace, stores: dict[str, Path], store: Stor
     if not checks:
         checks = run["checks"] if "checks" in run else check_commands(record.objective, None)
     run = {**run, "checks": checks}
+    if args.check_timeout is not None:
+        run["check_timeout"] = args.check_timeout
     if args.spec:
         run["specs"] = spec_attachments(args.spec)
     if args.review_brief:
@@ -622,6 +644,28 @@ def continue_task(args: argparse.Namespace, stores: dict[str, Path], store: Stor
                prepare=True, fresh_session=args.fresh_review)
 
 
+def wait_for_ci(receipt: PublicationReceipt) -> dict[str, Any]:
+    publication = receipt.publication
+    assert publication.pr_number is not None
+    repository = f"{receipt.repository.owner}/{receipt.repository.name}"
+    result = {"receipt_id": receipt.receipt_id, "head_sha": publication.head_sha, "pr_number": publication.pr_number}
+    print(f"Waiting for GitHub CI on {publication.pr_url} at {publication.head_sha}", flush=True)
+    deadline = time.monotonic() + CI_TIMEOUT
+    while True:
+        try:
+            head, state, count = _gh.publication_ci(repository, publication.pr_number, publication.head_sha)
+        except _cloud.CloudError as exc:
+            return {**result, "status": "error", "detail": str(exc)}
+        if head != publication.head_sha:
+            return {**result, "status": "head_changed", "observed_head": head}
+        if count and state in {"SUCCESS", "FAILURE", "ERROR"}:
+            return {**result, "status": "passed" if state == "SUCCESS" else "failed", "github_state": state}
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return {**result, "status": "timed_out", "github_state": state}
+        time.sleep(min(CI_POLL_INTERVAL, remaining))
+
+
 def publish_task(args: argparse.Namespace, stores: dict[str, Path], store: Store, run: dict[str, Any]) -> None:
     task_id = f"{args.project}/writer"
     step = step_trace(stores, table_counts(stores))
@@ -673,6 +717,17 @@ def publish_task(args: argparse.Namespace, stores: dict[str, Path], store: Store
     require(replay == receipt and table_counts(stores) == counts, "Replay changed the publication outcome")
     store.write(VERIFIED_KEY, receipt.receipt_id)
     step(8, "Replay publication", f"returned stored receipt {receipt.receipt_id}, PR {receipt.publication.pr_url}")
+    if args.ci_gate:
+        result = wait_for_ci(receipt)
+        store.write(CI_KEY, result)
+        append_ledger(args, stores, store, run)
+        require(result["status"] == "passed", f"GitHub CI {result['status']} for {receipt.publication.head_sha}")
+        print(f"GitHub CI passed for {receipt.publication.head_sha}")
+
+
+def ledger_ci(store: Store, receipt_id: str | None) -> dict[str, Any] | None:
+    result = store.read(CI_KEY)
+    return result if result and result["receipt_id"] == receipt_id else None
 
 
 def trial_row(
@@ -718,7 +773,7 @@ def trial_row(
         # GitHub timestamps have whole-second precision, unlike bridge job timestamps.
         wall_minutes = round(max(0, pr_created - job_meta[0]["created_at"]) / 60, 4)
 
-    return {
+    row = {
         "task": task, "flow": "unified", "wall_minutes": wall_minutes, "agent_minutes": round(seconds / 60, 4),
         "manual_interventions": max(manual, previous.get("manual_interventions", 0)),
         "stops_real": args.stop_real or previous.get("stops_real", []),
@@ -729,6 +784,9 @@ def trial_row(
         "notes": args.notes if args.notes is not None else previous.get("notes", ""),
         **counts,
     }
+    if ci := ledger_ci(store, receipt_id):
+        row["ci_gate"] = ci
+    return row
 
 
 def append_ledger(args: argparse.Namespace, stores: dict[str, Path], store: Store, run: dict[str, Any]) -> None:
@@ -745,12 +803,17 @@ def append_ledger(args: argparse.Namespace, stores: dict[str, Path], store: Stor
         counts = {"rework_attempts": max(0, len(writer) - 1), "re_reviews": max(0, len(review) - 1)}
         target = len(lines)
         previous: dict[str, Any] = {}
+        receipt_id = store.read(VERIFIED_KEY)
+        ci = ledger_ci(store, receipt_id)
+        metadata_given = (args.manual is not None or args.stop_real or args.stop_false
+                          or args.reconstruct_seconds is not None or args.notes is not None)
         for index, line in enumerate(lines):
             if line.strip():
                 entry = json.loads(line)
                 if (entry.get("task"), entry.get("flow")) == (task, "unified"):
                     previous = entry
-                    if all(previous.get(key, 0) == count for key, count in counts.items()):
+                    if (not metadata_given and all(previous.get(key, 0) == count for key, count in counts.items())
+                            and (previous.get("receipt") or {}).get("id") == receipt_id and previous.get("ci_gate") == ci):
                         print(f"Already recorded {task} in {path}")
                         return
                     target = index
@@ -787,6 +850,13 @@ def nonnegative(value: str) -> int:
     return number
 
 
+def positive(value: str) -> int:
+    number = int(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError("expected a positive integer")
+    return number
+
+
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     shared = argparse.ArgumentParser(add_help=False)
@@ -795,6 +865,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     evidence = argparse.ArgumentParser(add_help=False)
     evidence.add_argument("--review-brief", type=at_file, metavar="@file")
     evidence.add_argument("--check", action="append", metavar="CMD", help="Required check (repeat to override Checks)")
+    evidence.add_argument("--check-timeout", type=positive, metavar="SECONDS",
+                          help=f"Default per-check timeout (initially {CHECK_TIMEOUT}; override with CMD::timeout=N)")
     evidence.add_argument("--spec", type=Path, action="append", default=[],
                           help=f"Attach a spec file (up to {SPEC_MAX_FILES})")
     evidence.add_argument("--fresh-review", action="store_true", help="Start a new reviewer conversation with a full review")
@@ -817,6 +889,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     publish_mode = publish.add_mutually_exclusive_group()
     publish_mode.add_argument("--resume", action="store_true")
     publish_mode.add_argument("--retry-ticket", metavar="ID", help="Request fresh approval after pr_create_failed")
+    publish.add_argument("--ci-gate", action="store_true", help="With --resume, wait for GitHub CI and record a ledger row")
+    publish.set_defaults(ledger=None, manual=None, stop_real=[], stop_false=[], reconstruct_seconds=None, notes=None)
     ledger = subcommands.add_parser("ledger", parents=[shared], help="Record one trial row")
     ledger.add_argument("--ledger", type=Path, help="Override the trial JSONL file selected at start")
     ledger.add_argument("--manual", type=nonnegative, help="Additional manual interventions")
@@ -825,6 +899,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     ledger.add_argument("--reconstruct-seconds", type=nonnegative, help="Manually timed record reconstruction")
     ledger.add_argument("--notes")
     args = parser.parse_args(argv)
+    if args.command == "publish" and args.ci_gate and not args.resume:
+        parser.error("--ci-gate requires --resume")
     if not re.fullmatch(r"[a-z][a-z0-9-]{1,40}", args.project):
         parser.error("--project must be 2 to 41 lowercase letters, digits or hyphens and start with a letter")
     return args

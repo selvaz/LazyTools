@@ -117,6 +117,45 @@ def publication_prs(repository: str, branch: str) -> list[dict[str, Any]]:
     return matches
 
 
+def publication_ci(repository: str, number: int, sha: str) -> tuple[str, str | None, int]:
+    """Read the PR head and the check rollup for an immutable commit in one query."""
+    query = """
+    query($owner: String!, $name: String!, $number: Int!, $sha: GitObjectID!) {
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) { headRefOid }
+        object(oid: $sha) {
+          ... on Commit {
+            oid
+            statusCheckRollup { state contexts(first: 1) { totalCount } }
+          }
+        }
+      }
+    }
+    """
+    owner, name = repository.split("/", 1)
+    payload = _json("api", "graphql", "--hostname", "github.com", "-f", f"query={query}",
+                    "-f", f"owner={owner}", "-f", f"name={name}", "-F", f"number={number}", "-f", f"sha={sha}")
+    try:
+        repo = payload["data"]["repository"]
+        head = repo["pullRequest"]["headRefOid"]
+        if not isinstance(head, str):
+            raise TypeError
+        if head != sha:
+            return head, None, 0
+        commit = repo["object"]
+        if commit["oid"] != sha:
+            raise ValueError
+        rollup = commit["statusCheckRollup"]
+        if rollup is None:
+            return head, None, 0
+        count, state = rollup["contexts"]["totalCount"], rollup["state"]
+        if type(count) is not int or count < 0 or state not in {"SUCCESS", "FAILURE", "ERROR", "PENDING", "EXPECTED"}:
+            raise ValueError
+        return head, state, count
+    except (KeyError, TypeError, ValueError) as exc:
+        raise CloudError("GitHub returned an unexpected CI result for the published commit") from exc
+
+
 def pr_create(repo: str, *, base: str, head: str, title: str, body: str, draft: bool = False) -> str:
     """Open a PR; returns its URL."""
     out = run_gh(

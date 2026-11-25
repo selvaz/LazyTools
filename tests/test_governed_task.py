@@ -284,6 +284,51 @@ def test_governed_task_publication_and_ledger(trial, capsys):
     assert [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()] == [baseline, row]
 
 
+def test_governed_ci_gate_records_the_exact_published_head(trial, monkeypatch, capsys):
+    start, invoke, setup, _, state, ledger, fake_state = trial
+    checkout = setup()
+    assert start(checkout) == 0
+    assert invoke("publish") == 0
+    with Store(db=str(state / "projects.sqlite")) as store:
+        ticket = store.read("governed-task:ticket")
+    assert cli.main(["approve", ticket, "--db", str(state / "bridge.sqlite"),
+                     "--registry-db", str(state / "registry.sqlite")]) == 0
+    assert invoke("publish", "--resume") == 0
+    assert invoke("ledger", "--notes", "Retained note") == 0
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+    gh_state = fake_state / "fake-github.json"
+    runner = importlib.import_module("governed_task")
+    monkeypatch.setattr(runner, "CI_POLL_INTERVAL", 0)
+
+    def gate(statuses, expected, *, observed_head=None):
+        github = json.loads(gh_state.read_text())
+        github.update(ci_head=observed_head, ci_rollups=statuses)
+        gh_state.write_text(json.dumps(github))
+        assert invoke("publish", "--resume", "--ci-gate") == int(expected != "passed")
+        assert json.loads(gh_state.read_text())["ci_rollups"] == []
+        row = json.loads(ledger.read_text())
+        assert row["notes"] == "Retained note"
+        assert row["ci_gate"] == {
+            "status": expected, "receipt_id": row["receipt"]["id"], "head_sha": head, "pr_number": 1,
+            **({"observed_head": observed_head} if observed_head else
+               {"github_state": statuses[-1]["state"] if statuses[-1] else None}),
+        }
+
+    failure = {"state": "FAILURE", "contexts": {"totalCount": 4}}
+    pending = {"state": "PENDING", "contexts": {"totalCount": 4}}
+    passed = {"state": "SUCCESS", "contexts": {"totalCount": 4}}
+    gate([None, pending, failure], "failed")
+    assert f"GitHub CI failed for {head}" in capsys.readouterr().err
+    gate([passed], "head_changed", observed_head="a" * 40)
+    with monkeypatch.context() as timeout:
+        timeout.setattr(runner, "CI_TIMEOUT", 0)
+        gate([{"state": "SUCCESS", "contexts": {"totalCount": 0}}], "timed_out")
+    gate([pending, passed], "passed")
+    assert invoke("ledger", "--notes", "Updated note") == 0
+    row = json.loads(ledger.read_text())
+    assert row["notes"] == "Updated note" and row["ci_gate"]["status"] == "passed"
+
+
 def test_governed_task_reuses_branch_and_stops_on_review_rejection(trial, capsys):
     start, invoke, setup, _, state, ledger, fake_state = trial
     checkout = setup(accepted=False)
@@ -321,17 +366,17 @@ def test_checks_from_brief_run_in_order_on_writer_commit(trial):
     brief = state.parent.parent / "checks.md"
     brief.write_text(
         f"# Subtraction\n\n## Checks\n\n```text\n# First check\n{first}\n```\n\n"
-        f"### Behavior\n\n~~~sh\n  # Second check\n\n{second}\n~~~~\n\n"
+        f"### Behavior\n\n~~~sh\n  # Second check\n\n{second}::timeout=24\n~~~~\n\n"
         "## Notes\n\n```\nshould-never-run\n```\n",
         encoding="utf-8",
     )
 
-    assert start(checkout, "--brief", f"@{brief}") == 0
+    assert start(checkout, "--brief", f"@{brief}", "--check-timeout", "12") == 0
     head = _cloud._git(checkout, "rev-parse", "HEAD")
     logs = sorted(state.glob("checks-*/*.log"))
     assert [log.read_text().strip() for log in logs] == [head, "negative result | OK"]
-    assert f"| 0 | {head} |" in script.prompts[1]
-    assert "| 0 | negative result &#124; OK |" in script.prompts[1]
+    assert f"| 12 | 0 | {head} |" in script.prompts[1]
+    assert "| 24 | 0 | negative result &#124; OK |" in script.prompts[1]
     log_dir = logs[0].parent
     report = (log_dir / "results.md").read_text(encoding="utf-8")
     for provenance in (f"Candidate SHA: {head}", f"Check worktree: {log_dir / 'tree'}"):
@@ -441,7 +486,7 @@ def test_candidate_pythonpath_is_used_by_checks_and_removed_for_bridge(trial, mo
 
 
 @pytest.mark.parametrize("failure", ["exit", "timeout", "missing"])
-def test_required_check_failure_stops_before_review(trial, capsys, monkeypatch, failure):
+def test_required_check_failure_stops_before_review(trial, capsys, failure):
     start, _, setup, script, state, _, _ = trial
     checkout = setup()
     brief = state.parent.parent / "checks.md"
@@ -450,8 +495,7 @@ def test_required_check_failure_stops_before_review(trial, capsys, monkeypatch, 
         command = python_check("import sys; print('check error', file=sys.stderr); sys.exit(7)")
         expected = "check error"
     elif failure == "timeout":
-        monkeypatch.setattr(importlib.import_module("governed_task"), "CHECK_TIMEOUT", 1)
-        command = python_check("import time; time.sleep(30)")
+        command = python_check("import time; time.sleep(30)") + "::timeout=1"
         expected = "Timed out after 1 seconds."
     else:
         command = "missing-governed-check"
@@ -466,10 +510,9 @@ def test_required_check_failure_stops_before_review(trial, capsys, monkeypatch, 
     assert second.read_text().strip() == "ran second"
 
 
-def test_check_timeout_stops_the_entire_process_tree(trial, capsys, monkeypatch):
+def test_check_timeout_stops_the_entire_process_tree(trial, capsys):
     start, _, setup, script, state, _, _ = trial
     checkout = setup()
-    monkeypatch.setattr(importlib.import_module("governed_task"), "CHECK_TIMEOUT", 2)
     helper = state.parent.parent / "spawn_child.py"
     helper.write_text(
         "import os, subprocess, sys, time\n"
@@ -485,7 +528,7 @@ def test_check_timeout_stops_the_entire_process_tree(trial, capsys, monkeypatch)
         encoding="utf-8",
     )
 
-    assert start(checkout, "--check", f'"{sys.executable}" "{helper}"') == 1
+    assert start(checkout, "--check-timeout", "2", "--check", f'"{sys.executable}" "{helper}"') == 1
     assert "Timed out after 2 seconds." in capsys.readouterr().err
     assert (state / "tmp" / "child-ready").exists()
     assert len(script.prompts) == 1
