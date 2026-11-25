@@ -8,6 +8,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-11-25
+
+### Changed (breaking)
+- The code bridge's `routine-auto` approval rules are replaced by a LazyBridge 1.10 coder card hand: the owner provisions it once per registry, each local writer job gets narrower copies scoped to its worktree and private temp directory, revoked when the job ends. Actions with effects outside the task (push, network installs, writes or deletions outside the worktree, sensitive files, other repositories) still file a ticket; card uses appear in `status` and `result` (#373).
+
+### Added
+- `cloud-preflight probe [--repo|--all]`: Codex cloud preflight manifests written from probe evidence (network, Python, imports, sibling repositories), refreshed after 14 days (#369); the LazyTools environment manifest (#371).
+- Per-test timeout (300 s) in the test configuration (#372).
+
+### Fixed
+- Governed runner: verdicts given as the final fenced JSON block are read; review briefs include the head SHA and diff; an attempt that ran out of continuations after committing is checked instead of failed; check timeouts persist across commands (#370).
+
 ## [0.13.0] — 2026-11-25
 
 ### Changed (breaking)
