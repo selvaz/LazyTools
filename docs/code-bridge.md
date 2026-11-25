@@ -192,9 +192,11 @@ If the bridge refuses a launch before it creates a job, the runner records the
 launch error and releases the task claim. Use `recover` if a writer or review
 claim is still open after an interruption. Recovery handles claims with no job
 and claims with a verified terminal bridge job. It refuses while a job is
-active, preserves the checkout, and is safe to run again. Retry a review with
-`review`, or give `rework` a new writer brief to continue from the current clean
-branch head.
+active. When recovering a writer, it commits any staged, unstaged, and
+untracked changes in a local WIP commit on the assigned branch and records its
+SHA in the recovery evidence. Ignored files stay in the worktree. Recovery is
+safe to run again. Retry a review with `review`, or use `rework` to continue the
+writer from the current branch head.
 
 ```console
 python -I tools/governed_task.py recover --project trial-example

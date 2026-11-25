@@ -343,50 +343,85 @@ def require_terminal_job(job: dict[str, Any], role: str) -> None:
             f"{role.title()} job {job['job_id']} is still running ({job['status']})")
 
 
+def snapshot_writer(repo: Path, branch: str, state: Path, store: Store, lease: dict[str, Any]) -> str | None:
+    git = _cloud._git
+    require(_cloud.current_branch(repo) == branch, f"Expected branch {branch} in {repo}")
+    subject = f"WIP: recover {lease['task_id']} attempt {lease['attempt']}"
+    marker = f"Governed-Writer-Revision: {lease['revision']}"
+    if git(repo, "status", "--porcelain", "--untracked-files=all"):
+        git_dir = Path(git(repo, "rev-parse", "--absolute-git-dir"))
+        operations = ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "sequencer")
+        require(not any((git_dir / name).exists() for name in operations),
+                "Resolve the in-progress Git operation before recovering the writer")
+        git(repo, "add", "--all", "--", ".")
+        git(repo, "-c", f"core.hooksPath={state / 'disabled-hooks'}", "commit", "--allow-empty", "-m", subject, "-m", marker)
+        print(f"Created writer WIP snapshot for {lease['task_id']} attempt {lease['attempt']}", flush=True)
+    elif git(repo, "log", "-1", "--format=%B") != f"{subject}\n\n{marker}":
+        return None
+    # A retry after a commit but before settling the dispatch reuses this SHA.
+    sha = git(repo, "rev-parse", "HEAD")
+    key = f"governed-task:recovery:{lease['task_id']}:{lease['attempt']}"
+    evidence = {"wip_sha": sha, "branch": branch}
+    if store.read(key) != evidence:
+        store.write(key, evidence)
+        print(f"Writer WIP evidence commit {sha}", flush=True)
+    return sha
+
+
 def recover_attempt(
-    stores: dict[str, Path], service: ProjectTaskService, operator: TaskPrincipal, role: str, dispatch: dict[str, Any],
+    stores: dict[str, Path], store: Store, service: ProjectTaskService, operator: TaskPrincipal,
+    role: str, dispatch: dict[str, Any], repo: Path, branch: str,
 ) -> None:
     lease = dispatch["receipt"]
     job_id = dispatch.get("job_ref")
     action = "rework" if role == "writer" else "review"
-    if not job_id:
+    jobs = []
+    if job_id:
+        with Store(db=str(stores["bridge"])) as job_store:
+            job = _jobs.find_job(job_store, _store.build_job_registry(job_store), job_id)
+        require(job is not None and job.get("job_id") == job_id and matches_attempt(job, lease),
+                f"Bridge job {job_id} could not be verified for this {role} attempt")
+        assert job is not None
+        require_terminal_job(job, role)
+    else:
         jobs = unsubmitted_jobs(stores, lease)
         for job in jobs:
             require_terminal_job(job, role)
+    snapshot = snapshot_writer(repo, branch, stores["projects"].parent, store, lease) if role == "writer" else None
+
+    if not job_id:
         error = "No bridge job was recorded for this dispatch."
         if jobs:
             job = jobs[0]
             error = f"Bridge job {job['job_id']} ended ({job['status']}) before submission. {job.get('error') or ''}"
+        if snapshot:
+            error += f" Writer WIP snapshot {snapshot}."
         service.fail_local_launch(operator, lease["task_id"], lease["claim_token"], _cloud.redact(error))
         print(f"{role.title()} attempt {lease['attempt']} recorded as failed before submission. Run {action} to continue.")
         return
 
-    with Store(db=str(stores["bridge"])) as job_store:
-        job = _jobs.find_job(job_store, _store.build_job_registry(job_store), job_id)
-    require(job is not None and job.get("job_id") == job_id and matches_attempt(job, lease),
-            f"Bridge job {job_id} could not be verified for this {role} attempt")
-    assert job is not None
-    require_terminal_job(job, role)
     reference = recovery_evidence(job_id, role)
     service.record_completion_evidence(operator, lease["task_id"], lease["attempt"], CompletionEvidence(
         reference=reference, job_ref=job_id, executor=lease["executor"], engine_family=lease["engine_family"],
-        state="blocked",
+        state="blocked", artifact_ref=snapshot,
     ))
     service.complete(operator, lease["task_id"], lease["claim_token"], reference, "blocked", reference,
                      reconcile_failure=True)
     print(f"{role.title()} attempt {lease['attempt']} recorded as failed with bridge job {job_id}. Run {action} to continue.")
 
 
-def recover_task(stores: dict[str, Path], store: Store, project: str) -> None:
+def recover_task(stores: dict[str, Path], store: Store, project: str, repo: Path, branch: str) -> None:
     tasks = [(role, task_data(store, project, role)) for role in ("writer", "review")]
     for role, task in tasks:
         if task["status"] == "claimed" and (history := task.get("dispatches")):
             service = ProjectTaskService(str(stores["projects"]))
             operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
-            recover_attempt(stores, service, operator, role, history[-1])
+            recover_attempt(stores, store, service, operator, role, history[-1], repo, branch)
             return
     for role, task in tasks:
         if settled := settled_failure(task, role):
+            if role == "writer":
+                snapshot_writer(repo, branch, stores["projects"].parent, store, settled["receipt"])
             action = "rework" if role == "writer" else "review"
             label = f"job {settled['job_ref']}" if settled.get("job_ref") else f"attempt {settled['receipt']['attempt']}"
             print(f"{role.title()} {label} already recorded as failed. Run {action} to continue.")
@@ -960,7 +995,7 @@ def execute(args: argparse.Namespace, stack: ExitStack) -> None:
         stack.callback(lock.release)
     if args.command == "recover":
         with Store(db=str(stores["projects"])) as store:
-            recover_task(stores, store, args.project)
+            recover_task(stores, store, args.project, repo, run["branch"])
         return
     configure_state(state, stack)
     store = stack.enter_context(Store(db=str(stores["projects"])))

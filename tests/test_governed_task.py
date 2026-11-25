@@ -738,7 +738,8 @@ def test_fresh_review_starts_a_new_conversation_and_then_continues_it(trial, cap
     assert first["turns"][0]["thread_id"] != fresh["turns"][0]["thread_id"] == resumed["turns"][0]["thread_id"]
 
 
-def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, capsys):
+@pytest.mark.parametrize("dirty", [False, True])
+def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, capsys, dirty):
     start, invoke, setup, script, state, _, _ = trial
     checkout = setup()
     fake_run = lazybridge.Agent.run
@@ -752,6 +753,12 @@ def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, c
         assert start(checkout) == 1
     git = _cloud._git
     head = git(checkout, "rev-parse", "HEAD")
+    if dirty:
+        (checkout / "subtraction.py").write_text("def sub(a, b):\n    return a - b\n# Unstaged fix\n", encoding="utf-8")
+        (checkout / "staged.txt").write_text("Staged fix\n", encoding="utf-8")
+        git(checkout, "add", "--", "staged.txt")
+        (checkout / "untracked.txt").write_text("Untracked fix\n", encoding="utf-8")
+    worktree_status = git(checkout, "status", "--porcelain")
     with Store(db=str(state / "projects.sqlite")) as project_store:
         writer, _ = project_store.read(_board_key(PROJECT))["tasks"]
     attempt, = writer["dispatches"]
@@ -764,6 +771,8 @@ def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, c
         registry.write(job_id, "Writer", tool_name="codex", status="awaiting_approval")
         assert invoke("recover") == 1
         assert f"Writer job {job_id} is still running (awaiting_approval)" in capsys.readouterr().err
+        assert git(checkout, "rev-parse", "HEAD") == head
+        assert git(checkout, "status", "--porcelain") == worktree_status
         registry.write(job_id, "Writer", tool_name="codex", status="failed")
     with Store(db=str(state / "projects.sqlite")) as project_store:
         assert project_store.read(_board_key(PROJECT))["tasks"][0] == writer
@@ -774,21 +783,32 @@ def test_recover_expired_writer_and_rework_from_its_commit(trial, monkeypatch, c
             path, clock=lambda: attempt["receipt"]["lease_expires_at"] + 1,
         ))
         assert invoke("recover") == 0
+    recovered_head = git(checkout, "rev-parse", "HEAD")
+    if dirty:
+        assert git(checkout, "rev-parse", "HEAD^") == head
+        assert git(checkout, "log", "-1", "--format=%s").startswith("WIP: recover ")
+        assert git(checkout, "show", "HEAD:staged.txt") == "Staged fix"
+        assert git(checkout, "show", "HEAD:untracked.txt") == "Untracked fix"
+        assert "# Unstaged fix" in git(checkout, "show", "HEAD:subtraction.py")
+        assert not git(checkout, "status", "--porcelain")
+    else:
+        assert recovered_head == head
     with Store(db=str(state / "projects.sqlite")) as project_store:
         recovered = project_store.read(_board_key(PROJECT))["tasks"][0]
         assert recovered["status"] == "failed" and not recovered["active_queue_claim"]
         dispatch, = recovered["dispatches"]
         evidence = dispatch["evidence"][dispatch["completion"]["result"]["evidence_ref"]]
         assert dispatch["state"] == "completed" and evidence["job_ref"] == job_id and evidence["state"] == "blocked"
+        assert evidence.get("artifact_ref") == (recovered_head if dirty else None)
         assert invoke("recover") == 0
         assert project_store.read(_board_key(PROJECT))["tasks"][0] == recovered
     assert f"Writer job {job_id} already recorded as failed" in capsys.readouterr().out
-    assert git(checkout, "rev-parse", "HEAD") == head
+    assert git(checkout, "rev-parse", "HEAD") == recovered_head
 
     brief = state.parent.parent / "recover.md"
     brief.write_text("Finish the writer's work.", encoding="utf-8")
     assert invoke("rework", "--brief", f"@{brief}") == 0
-    assert git(checkout, "rev-parse", "HEAD^") == head
+    assert git(checkout, "rev-parse", "HEAD^") == recovered_head
     assert f"Previous writer failure\nBridge job {job_id}" in script.prompts[1]
     publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
     assert publication.writer.attempt == 2 and publication.reviewer.attempt == 1
