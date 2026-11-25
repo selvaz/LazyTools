@@ -7,6 +7,7 @@ import subprocess
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from time import monotonic, sleep
 from typing import cast
 from urllib.parse import urlsplit
 
@@ -28,6 +29,7 @@ _ACTION = "open_draft_pr"
 _SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 _REPOSITORY = re.compile(r"[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+")
 _GIT_ERRORS = (_cloud.CloudError, OSError, subprocess.SubprocessError)
+_PR_HEAD_TIMEOUT = 30.0
 
 
 @dataclass(frozen=True)
@@ -166,8 +168,24 @@ def _request(attempt: PublicationAttempt, policy_revision: str, policy_digest: s
     )
 
 
+def _reverify_request(request: TypedApprovalRequest, number: int) -> TypedApprovalRequest:
+    return TypedApprovalRequest.create(
+        **request.model_dump(exclude={"digest", "payload"}),
+        payload={**request.payload, "reverify_pr": number},
+    )
+
+
+def _ticket_request(request: TypedApprovalRequest, ticket: ApprovalTicket) -> TypedApprovalRequest:
+    number = ticket.request.payload.get("reverify_pr") if ticket.request is not None else None
+    return _reverify_request(request, number) if type(number) is int and number > 0 else request
+
+
 def _find_ticket(
-    registry: _registry.Registry, request: TypedApprovalRequest, selected_id: str | None, retry_id: str | None
+    registry: _registry.Registry,
+    request: TypedApprovalRequest,
+    selected_id: str | None,
+    retry_id: str | None,
+    retry_pr: int | None,
 ) -> ApprovalTicket | None:
     if selected_id is not None:
         return registry.inspect(selected_id)
@@ -185,10 +203,19 @@ def _find_ticket(
                 return existing
             if existing.expires_at > datetime.now(UTC):
                 return existing
+            # Renew an expired verification ticket in the same mode.
+            request = _ticket_request(request, existing)
+        if retry_pr is not None:
+            request = _reverify_request(request, retry_pr)
         target = request.target
+        number = request.payload.get("reverify_pr")
+        destination = f"in {target.repo} from {target.ref} at {target.sha} into {request.payload['base_branch']}"
+        prompt = f"Publish draft PR {destination}"
+        if number is not None:
+            prompt = f"Verify draft PR #{number} {destination} and record its publication"
         ticket = queue.create_typed_ticket(
             request,
-            prompt=f"Publish draft PR in {target.repo} from {target.ref} at {target.sha} into {request.payload['base_branch']}",
+            prompt=prompt,
             operator_only=True,
         )
         store.write(key, ticket.approval_id)
@@ -287,20 +314,34 @@ def _publish(attempt: PublicationAttempt, outcome: PublicationOutcome) -> Public
         except _GIT_ERRORS:
             return replace(outcome, reason="pr_create_failed")
         outcome = replace(outcome, pr_number=number, pr_url=url)
-    try:
-        assert outcome.pr_number is not None
-        pr = _gh.pr_view(repo, outcome.pr_number, publication=True)
-    except _GIT_ERRORS:
-        return replace(outcome, reason="pr_head_unavailable")
-    pr_head = pr.get("headRefOid")
-    if (
-        pr_head != attempt.head_sha
-        or pr.get("headRefName") != head
-        or pr.get("baseRefName") != base
-        or pr.get("isCrossRepository") is not False
-    ):
+    return _read_back(attempt, outcome)
+
+
+def _read_back(attempt: PublicationAttempt, outcome: PublicationOutcome) -> PublicationOutcome:
+    assert outcome.pr_number is not None
+    repo = f"github.com/{attempt.repository}"
+    deadline = monotonic() + _PR_HEAD_TIMEOUT
+    remaining, delay = _PR_HEAD_TIMEOUT, 0.5
+    while True:
+        try:
+            pr = _gh.pr_view(repo, outcome.pr_number, publication=True, timeout=remaining)
+        except _GIT_ERRORS:
+            return replace(outcome, reason="pr_head_unavailable")
+        pr_head = pr.get("headRefOid")
         observed_head = pr_head if isinstance(pr_head, str) and _SHA.fullmatch(pr_head) else ""
-        return replace(outcome, reason="pr_head_mismatch", observed_head=observed_head)
+        if (
+            pr.get("headRefName") != attempt.head_branch
+            or pr.get("baseRefName") != attempt.base_branch
+            or pr.get("isCrossRepository") is not False
+        ):
+            return replace(outcome, reason="pr_head_mismatch", observed_head=observed_head)
+        if pr_head == attempt.head_sha:
+            break
+        sleep(min(delay, max(0, deadline - monotonic())))
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            return replace(outcome, reason="pr_head_mismatch", observed_head=observed_head)
+        delay = min(delay * 2, 2.0)
     if pr.get("isDraft") is not True or pr.get("state") != "OPEN":
         return replace(outcome, reason="pr_not_draft")
     base_sha = pr.get("baseRefOid")
@@ -323,17 +364,35 @@ def run(
     if reason := _refusal(attempt):
         return PublicationOutcome(reason)
     request = _request(attempt, policy_revision, policy_digest)
+    retry_pr = None
     if retry_id is not None:
         previous = registry.inspect(retry_id)
-        if previous is None or previous.request != request or previous.consumed_at is None:
+        if (
+            previous is None or previous.consumed_at is None or not previous.operator_only
+            or previous.request != _ticket_request(request, previous)
+        ):
             return PublicationOutcome("approval_target_mismatch", ticket=previous)
         with transaction(service.path) as store:
             _, saved = publication_for_ticket(store, previous.approval_id)
-        if saved is None or PublicationReceipt.model_validate_json(saved).outcome.refusal_reason != "pr_create_failed":
+        if saved is None:
+            return PublicationOutcome("publication_retry_unavailable", ticket=previous)
+        refused = PublicationReceipt.model_validate_json(saved)
+        if refused.outcome.refusal_reason == "pr_head_mismatch":
+            url = refused.publication.pr_url
+            retry_pr = _gh.pr_number_from_url(url or "")
+            if not retry_pr or url is None or url.casefold() != f"https://github.com/{attempt.repository}/pull/{retry_pr}":
+                return PublicationOutcome("publication_retry_unavailable", ticket=previous)
+        elif refused.outcome.refusal_reason != "pr_create_failed":
             return PublicationOutcome("publication_retry_unavailable", ticket=previous)
         retry_id = previous.approval_id
-    ticket = _find_ticket(registry, request, ticket_id, retry_id)
+    ticket = _find_ticket(registry, request, ticket_id, retry_id, retry_pr)
     if ticket is None:
         return PublicationOutcome("approval_target_mismatch")
+    request = _ticket_request(request, ticket)
     outcome = _authorize(service, registry, attempt, request, ticket, request_only=request_only)
-    return _publish(attempt, outcome) if outcome.consumed else outcome
+    if not outcome.consumed:
+        return outcome
+    if (number := request.payload.get("reverify_pr")) is not None:
+        url = f"https://github.com/{attempt.repository}/pull/{number}"
+        return _read_back(attempt, replace(outcome, pr_number=number, pr_url=url))
+    return _publish(attempt, outcome)

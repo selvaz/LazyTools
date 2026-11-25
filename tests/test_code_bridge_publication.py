@@ -123,6 +123,9 @@ def publication(tmp_path, monkeypatch, request):
     monkeypatch.setenv("FAKE_GH_BARE", str(bare))
     if os.name == "nt":
         monkeypatch.setattr(_gh, "gh_argv", lambda: [sys.executable, str(gh.with_suffix(".py"))])
+    read_back_sleeps = []
+    monkeypatch.setattr(_publication, "monotonic", lambda: sum(read_back_sleeps))
+    monkeypatch.setattr(_publication, "sleep", read_back_sleeps.append)
     return SimpleNamespace(
         repo=repo,
         bare=bare,
@@ -134,6 +137,7 @@ def publication(tmp_path, monkeypatch, request):
         registry_db=registry_db,
         public_key=key.with_suffix(".pub.pem"),
         pushes=pushes,
+        read_back_sleeps=read_back_sleeps,
         state=state,
         options=options,
     )
@@ -363,17 +367,26 @@ def draft_at_base(publication):
                          title="Existing draft", body="", draft=True)
 
 
-def test_publication_updates_existing_draft(publication, capsys):
-    url = draft_at_base(publication)
+@pytest.mark.parametrize("existing_draft", [False, True])
+def test_publication_waits_for_github_to_show_reviewed_head(publication, capsys, existing_draft):
+    if existing_draft:
+        draft_at_base(publication)
+        state = json.loads(publication.state.read_text())
+    else:
+        state = {"prs": [], "comments": []}
+    state["stale_head_reads"] = [publication.base] * 3
+    publication.state.write_text(json.dumps(state))
     accept(publication)
     ticket = approve(publication, capsys)
     receipt = publish(publication, capsys, ticket=ticket, status=0)
     assert receipt["publication"]["pr_number"] == 1
-    assert receipt["publication"]["pr_url"] == url
+    assert receipt["publication"]["pr_url"] == "https://github.com/example/publication/pull/1"
     assert receipt["publication"]["head_sha"] == publication.reviewed
     assert publication.pushes == [f"{publication.reviewed}:refs/heads/feature/reviewed"]
+    assert publication.read_back_sleeps == [0.5, 1.0, 2.0]
     assert cli.main(["verify-receipt", receipt["receipt_id"], "--live"]) == 0
     state = json.loads(publication.state.read_text())
+    assert state["stale_head_reads"] == []
     assert len(state["prs"]) == len(state["comments"]) == 1
 
 
@@ -420,6 +433,61 @@ def test_publication_renews_approval_after_legacy_create_refusal(publication, ca
     assert publish(publication, capsys, ticket=old_ticket) == refused
 
 
+@pytest.mark.parametrize("head_caught_up", [False, True])
+def test_publication_reverifies_stored_head_mismatch_without_pushing(publication, capsys, head_caught_up):
+    url = draft_at_base(publication)
+    state = json.loads(publication.state.read_text())
+    state["prs"][0]["headRefOid"] = publication.other
+    publication.state.write_text(json.dumps(state))
+    accept(publication)
+    old_ticket = approve(publication, capsys)
+    refused = publish(publication, capsys, ticket=old_ticket)
+    assert refused["outcome"]["refusal_reason"] == "pr_head_mismatch"
+    assert refused["approval"]["consumed_at"] is not None
+    assert refused["publication"]["pr_url"] == url
+    assert sum(publication.read_back_sleeps) == 30
+    assert publish(publication, capsys) == refused
+
+    if head_caught_up:
+        state["prs"][0]["headRefOid"] = publication.base
+        publication.state.write_text(json.dumps(state))
+    options = ("--retry-ticket", old_ticket)
+    pending = publish(publication, capsys, options=options)
+    assert pending["outcome"]["refusal_reason"] == "approval_not_decided"
+    new_ticket = pending["approval"]["ticket_id"]
+    assert new_ticket != old_ticket
+    assert publish(publication, capsys, options=options)["approval"]["ticket_id"] == new_ticket
+    with Store(str(publication.registry_db)) as registry:
+        new = ApprovalQueue(registry).get_ticket(new_ticket)
+        assert new.request.payload["reverify_pr"] == 1
+        assert new.request.target.sha == publication.reviewed
+        assert new.consumed_at is None
+    assert cli.main(["approve", new_ticket, *publication.options]) == 0
+    assert publish(publication, capsys, options=options)["outcome"]["refusal_reason"] == "publication_not_attempted"
+
+    receipt = publish(publication, capsys, ticket=new_ticket, status=int(not head_caught_up))
+    assert receipt["approval"]["ticket_id"] == new_ticket
+    assert receipt["approval"]["consumed_at"] is not None
+    assert receipt["publication"]["pr_url"] == url
+    if head_caught_up:
+        assert receipt["publication"]["pr_number"] == 1
+        assert receipt["publication"]["head_sha"] == publication.reviewed
+    else:
+        assert receipt["outcome"]["refusal_reason"] == "pr_head_mismatch"
+        assert receipt["publication"]["head_sha"] == publication.other
+        assert sum(publication.read_back_sleeps) == 60
+        next_attempt = publish(publication, capsys, options=("--retry-ticket", new_ticket))
+        assert next_attempt["outcome"]["refusal_reason"] == "approval_not_decided"
+        assert next_attempt["approval"]["ticket_id"] not in {old_ticket, new_ticket}
+    assert cli.main(["verify-receipt", receipt["receipt_id"], "--live"]) == 0
+    assert publish(publication, capsys, ticket=old_ticket) == refused
+    assert publish(publication, capsys, ticket=new_ticket, status=int(not head_caught_up)) == receipt
+    assert len(publication.pushes) == 1
+    state = json.loads(publication.state.read_text())
+    assert len(state["prs"]) == 1
+    assert len(state["comments"]) == int(head_caught_up)
+
+
 def test_interrupted_publication_cannot_reuse_approval(publication, capsys, monkeypatch):
     accept(publication)
     approve(publication, capsys)
@@ -446,7 +514,7 @@ def test_same_provider_fresh_review_is_visible_and_verifiable(publication, capsy
 
 
 @pytest.mark.parametrize("reason", ["pr_head_mismatch", "pr_not_draft"])
-def test_created_pr_has_signed_refusal_and_no_retry(publication, capsys, monkeypatch, reason):
+def test_created_pr_has_signed_refusal_and_replays(publication, capsys, monkeypatch, reason):
     accept(publication)
     approve(publication, capsys)
     if reason == "pr_head_mismatch":
