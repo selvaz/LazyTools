@@ -78,14 +78,13 @@ def _isolated_bridge_authority(request, tmp_path_factory, monkeypatch):
 
 @pytest.fixture
 def provision_bridge_approver(tmp_path, monkeypatch):
-    from lazybridge import Store
-
-    from lazytools.code_bridge import _credentials, _registry
+    from lazytools.code_bridge import _credentials, cli
 
     monkeypatch.setattr(_credentials, "credential_directory", lambda: tmp_path / "operator-credentials")
 
-    def provision(registry_db=None):
-        _registry.Registry(Store(), registry_db).initialize_credential()
+    def provision(registry_db):
+        assert cli.main(["approver-credential", "init", "--registry-db", str(registry_db)]) == 0
+        return _credentials._path(registry_db)
 
     return provision
 

@@ -15,7 +15,7 @@ import pytest
 from lazybridge.ext.approval import ApprovalQueue
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _jobs, _registry, _store
+from lazytools.code_bridge import _jobs, _registry, _store, cli
 from lazytools.code_bridge._lockfile import JobLock, LockHeld
 
 
@@ -81,7 +81,7 @@ def test_job_failure_is_recorded_not_raised(tmp_path, repo, monkeypatch):
     assert "[failed]" in result.result_path.read_text(encoding="utf-8")
 
 
-def test_lock_is_keyed_on_the_git_repo_root_not_the_literal_cwd(tmp_path, monkeypatch):
+def test_lock_is_keyed_on_the_git_repo_root_not_the_literal_cwd(tmp_path, monkeypatch, provision_bridge_approver):
     """Two cwds inside the SAME repo (root + a subdirectory) must share one lock."""
     _env(monkeypatch, tmp_path)
     repo_root = tmp_path / "repo"
@@ -91,6 +91,8 @@ def test_lock_is_keyed_on_the_git_repo_root_not_the_literal_cwd(tmp_path, monkey
     script = fakes.install(monkeypatch)
     script.request_approval = True  # keep the job parked on a ticket so it's still "running"
     db_path = tmp_path / "store.sqlite"
+    registry_path = db_path.with_suffix(".registry.sqlite")
+    provision_bridge_approver(registry_path)
 
     thread, _box = _run_in_thread(
         engine_name="codex",
@@ -100,7 +102,7 @@ def test_lock_is_keyed_on_the_git_repo_root_not_the_literal_cwd(tmp_path, monkey
         db_path=db_path,
     )
     try:
-        queue = ApprovalQueue(_registry.registry_store(db_path.with_suffix(".registry.sqlite")), allow_credential_issuance=True)
+        queue = ApprovalQueue(_registry.registry_store(registry_path))
         ticket = _wait_for_one_ticket(queue, thread=thread, box=_box)  # job holds the repo-root lock
 
         with pytest.raises(LockHeld):
@@ -108,10 +110,7 @@ def test_lock_is_keyed_on_the_git_repo_root_not_the_literal_cwd(tmp_path, monkey
                 engine_name="codex", cwd=str(repo_root), task="y", root=str(tmp_path), db_path=db_path
             )
 
-        assert queue.decide_typed_ticket(
-            ticket.approval_id, credential=queue.issue_approver_credential("owner", ("owner",)),
-            verdict="rejected", reason="done",
-        )
+        assert cli.main(["reject", ticket.approval_id, "--db", str(db_path), "--reason", "done"]) == 0
         thread.join(timeout=10)
     finally:
         assert not thread.is_alive()
@@ -273,24 +272,24 @@ def _wait_for_one_ticket(queue, timeout: float = 30.0, thread=None, box=None):
     raise AssertionError(f"no approval ticket appeared in time (job box: {box!r})")
 
 
-def test_approval_ticket_approved_lets_the_job_continue(tmp_path, repo, monkeypatch):
+def test_approval_ticket_approved_lets_the_job_continue(tmp_path, repo, monkeypatch, provision_bridge_approver):
     _env(monkeypatch, tmp_path)
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_TICKET_TTL", "30")
     script = fakes.install(monkeypatch)
     script.request_approval = True
     script.text = "continued after approval"
     db_path = tmp_path / "store.sqlite"
+    registry_path = db_path.with_suffix(".registry.sqlite")
+    provision_bridge_approver(registry_path)
 
     thread, box = _run_in_thread(
         engine_name="codex", cwd=str(repo), task="do a risky thing", root=str(tmp_path), db_path=db_path
     )
     try:
-        queue = ApprovalQueue(_registry.registry_store(db_path.with_suffix(".registry.sqlite")), allow_credential_issuance=True)
+        queue = ApprovalQueue(_registry.registry_store(registry_path))
         ticket = _wait_for_one_ticket(queue, thread=thread, box=box)
         assert ticket.task_id  # scoped to the job
-        assert queue.decide_typed_ticket(
-            ticket.approval_id, credential=queue.issue_approver_credential("owner", ("owner",)), verdict="approved",
-        )
+        assert cli.main(["approve", ticket.approval_id, "--db", str(db_path)]) == 0
         thread.join(timeout=10)
     finally:
         assert not thread.is_alive()
@@ -301,23 +300,22 @@ def test_approval_ticket_approved_lets_the_job_continue(tmp_path, repo, monkeypa
     assert result.text == "continued after approval"
 
 
-def test_approval_ticket_rejected_fails_the_job(tmp_path, repo, monkeypatch):
+def test_approval_ticket_rejected_fails_the_job(tmp_path, repo, monkeypatch, provision_bridge_approver):
     _env(monkeypatch, tmp_path)
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_TICKET_TTL", "30")
     script = fakes.install(monkeypatch)
     script.request_approval = True
     db_path = tmp_path / "store.sqlite"
+    registry_path = db_path.with_suffix(".registry.sqlite")
+    provision_bridge_approver(registry_path)
 
     thread, box = _run_in_thread(
         engine_name="codex", cwd=str(repo), task="do a risky thing", root=str(tmp_path), db_path=db_path
     )
     try:
-        queue = ApprovalQueue(_registry.registry_store(db_path.with_suffix(".registry.sqlite")), allow_credential_issuance=True)
+        queue = ApprovalQueue(_registry.registry_store(registry_path))
         ticket = _wait_for_one_ticket(queue, thread=thread, box=box)
-        assert queue.decide_typed_ticket(
-            ticket.approval_id, credential=queue.issue_approver_credential("owner", ("owner",)),
-            verdict="rejected", reason="no",
-        )
+        assert cli.main(["reject", ticket.approval_id, "--db", str(db_path), "--reason", "no"]) == 0
         thread.join(timeout=10)
     finally:
         assert not thread.is_alive()
