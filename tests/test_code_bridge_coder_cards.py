@@ -50,12 +50,12 @@ def writer(tmp_path, monkeypatch, provision_bridge_approver):
     return repo, db, registry_db, flags
 
 
-def run(writer, monkeypatch, turn, *, engine="claude"):
+def run(writer, monkeypatch, turn, *, engine="claude", network=None):
     repo, db, registry_db, _ = writer
     monkeypatch.setattr(_jobs, "_run_agent", turn)
     return _jobs.run_job(
         engine_name=engine, cwd=str(repo), root=str(repo.parent), task="Exercise the coder hand",
-        db_path=db, registry_db=registry_db, timeout=30,
+        db_path=db, registry_db=registry_db, timeout=30, network=network,
     )
 
 
@@ -135,6 +135,45 @@ def test_job_completion_revokes_unused_copies(writer, monkeypatch):
     # Bypass the closed channel to exercise the queue's durable revocation.
     decision = seen["channel"]._submit(request(repo, "git status"), "replay")
     assert isinstance(decision[0], ApprovalTicket)
+
+
+@pytest.mark.parametrize("network", ["on", "off"])
+def test_github_reads_spend_cards_only_with_network_access(writer, monkeypatch, network):
+    repo, db, registry_db, _ = writer
+    reads = [
+        "gh pr view 42 --json title",
+        "gh pr list --head topic",
+        "gh run list --limit 3",
+        "gh run view 10 --log",
+        "gh api repos/example/repo/pulls/42/comments --paginate",
+    ]
+    held = [
+        "gh pr edit 42 --body changed", "gh run rerun 10",
+        "gh api repos/example/repo/pulls/42/comments -X POST",
+        "gh api repos/example/repo/pulls/42/comments --method=DELETE",
+        "gh api repos/example/repo/pulls/42/comments -f body=changed",
+        "gh api repos/example/repo/pulls/42/comments -F body=changed",
+        "gh api repos/example/repo/pulls/42/comments --input change.json",
+        "gh pr view 42 --web",
+    ]
+    allowed = reads if network == "on" else []
+    if network == "off":
+        held.extend(reads)
+
+    async def turn(engine, prompt, name):
+        gate = engine.kwargs["config"].approval_gate
+        for command in allowed:
+            assert (await gate(request(repo, command, provider="codex"))).action == "allow", command
+        for command in held:
+            assert (await gate(request(repo, command, provider="codex"))).action == "deny", command
+        return Envelope(payload="done")
+
+    result = run(writer, monkeypatch, turn, engine="codex", network=network)
+    assert result.status == "done", result.error
+    registry = _registry.Registry(_store.build_store(db), registry_db)
+    meta = _store.read_meta(registry.job_store, result.job_id)
+    assert len(meta["registry_ticket_ids"]) == len(held)
+    assert [receipt["command"] for receipt in registry.card_audit(meta)] == allowed
 
 
 def test_external_and_unconfined_requests_file_one_use_tickets(writer, monkeypatch):

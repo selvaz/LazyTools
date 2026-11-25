@@ -38,7 +38,7 @@ def provision(path: Path) -> bool:
         cards = tuple(
             queue.issue_card(
                 credential=credential, action_class=ACTION, tier="routine",
-                matcher=CardMatcher(command=command), transferable=True,
+                matcher=CardMatcher(command=command, network="on" if command[0] == "gh" else "off"), transferable=True,
             )
             for command in _coder_actions.COMMANDS
         )
@@ -50,8 +50,9 @@ def provision(path: Path) -> bool:
 def _policy(folder: Path, cards: tuple[ApprovalCard, ...]) -> EffectivePolicy:
     # The card adapter describes shell or file effects. Native policy is
     # checked by BridgeGate before any request reaches this adapter.
+    network = "on" if any(card.matcher.network == "on" for card in cards) else "off"
     return resolve("edit-and-run", TaskGrant(
-        folder, {"tool_classes": ["shell"]}, "off", "local", approval_cards=cards,
+        folder, {"tool_classes": ["shell"]}, network, "local", approval_cards=cards,
     ))
 
 
@@ -63,9 +64,10 @@ class Hand:
 
 def copy_for_job(
     store: Store, queue: ApprovalQueue, cwd: Path, temp: Path | None, task_id: str, expires: datetime,
-    record: Callable[[str], None],
+    record: Callable[[str], None], *, network: str,
 ) -> Hand | None:
-    originals = tuple(ApprovalCard.model_validate(raw) for raw in store.read(_HAND_KEY, []))
+    cards = (ApprovalCard.model_validate(raw) for raw in store.read(_HAND_KEY, []))
+    originals = tuple(card for card in cards if card.matcher.network == "off" or network == "on")
     if not originals:
         return None
     workspace = _coder_actions.Workspace.capture(cwd, temp)

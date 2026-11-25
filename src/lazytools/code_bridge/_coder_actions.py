@@ -24,7 +24,10 @@ from lazytools.code_bridge._approvals import (
     protected_write_path,
 )
 
-_READS = tuple(rule.command for rule in _readonly.packaged_policy() if rule.command[0] != "gh")
+_GH_READS = {
+    ("gh", "pr", "view"), ("gh", "pr", "list"), ("gh", "run", "list"), ("gh", "run", "view"), ("gh", "api"),
+}
+_READS = tuple(rule.command for rule in _readonly.packaged_policy() if rule.command[0] != "gh" or rule.command in _GH_READS)
 _GIT_METADATA = {
     ("rev-parse", "--git-common-dir"),
     ("rev-parse", "--path-format=absolute", "--git-common-dir"),
@@ -390,13 +393,20 @@ class Workspace:
             if all(path.is_relative_to(root) for path in affected):
                 # Temp cards cover effects inside the separately scoped job
                 # temp directory. The native cwd and operands were checked above.
-                return root, CardAction(argv=tuple(argv), cwd=root, paths=affected, network="off")
+                return root, CardAction(
+                    argv=tuple(argv), cwd=root, paths=affected, network="on" if argv[0] == "gh" else "off",
+                )
         return None
 
     def _shell(self, argv: list[str], cwd: Path) -> tuple[Path | None, ...] | None:
         executable = argv[0]
         if executable == "git":
             return self._git(argv, cwd)
+        if executable in {"gh", "gh.exe"}:
+            argv[0] = "gh"
+            if any(rule.command in _GH_READS and rule.matches(argv) for rule in _readonly.packaged_policy()):
+                return (cwd,)
+            return None
         if Path(executable).name in {"python", "python3", "python.exe"}:
             return self._python(argv, cwd)
         if executable == "rm":

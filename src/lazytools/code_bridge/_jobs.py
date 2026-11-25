@@ -553,6 +553,7 @@ def run_job(
             expires = datetime.now(UTC) + timedelta(seconds=min(lifetime + 60, 7 * 24 * 3600))
             hand = approval_registry.copy_coder_hand(
                 job_id, claim.task_id if claim else job_id, resolved_cwd, temp_dir, expires,
+                network=launch.policy.network,
             )
         channel = _registry.ApprovalChannel(
             approval_registry, job_id, launch.policy.revision, launch.policy.digest,

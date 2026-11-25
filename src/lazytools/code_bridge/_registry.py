@@ -144,7 +144,7 @@ class Registry:
             return _credentials.initialize(self.path, ApprovalQueue(store, allow_credential_issuance=True))
 
     def copy_coder_hand(
-        self, job_id: str, task_id: str, cwd: Path, temp: Path | None, expires: datetime,
+        self, job_id: str, task_id: str, cwd: Path, temp: Path | None, expires: datetime, *, network: str,
     ) -> _coder.Hand | None:
         store = self._existing_store()
         if store is None:
@@ -161,7 +161,7 @@ class Registry:
                 self.queue.revoke_card(card_id, credential=_credentials.load(self.path))
                 raise
 
-        return _coder.copy_for_job(store, self.queue, cwd, temp, task_id, expires, remember)
+        return _coder.copy_for_job(store, self.queue, cwd, temp, task_id, expires, remember, network=network)
 
     def revoke_coder_hand(self, job_id: str) -> None:
         meta = _store.read_meta(self.job_store, job_id) or {}

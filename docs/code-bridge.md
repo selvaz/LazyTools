@@ -953,7 +953,9 @@ python -m venv --copies .trial-venv
 
 Use \`rm -rf -- PATH\` on POSIX or
 \`Remove-Item -LiteralPath PATH -Recurse -Force\` in PowerShell for scratch cleanup.
-Pushes, fetches, network installs, GitHub commands, messages, cross-repository
+Network-enabled jobs can use cards for `gh pr view`, `gh pr list`, `gh run list`,
+`gh run view` and GET-only `gh api` queries. Pushes, fetches, network installs,
+GitHub writes, messages, cross-repository
 \`git -C\`, production paths, external writes and deletions, and requests that
 the bridge cannot scope require a one-use operator ticket. Native sandbox
 policy still governs actions that execute without a bridge callback.
