@@ -429,6 +429,8 @@ def test_checks_receive_only_the_allowlisted_environment(trial, monkeypatch):
     assert not set(blocked).intersection(env)
     assert "LAZYTOOLS_RECEIPT_ISSUER_KEY" not in env
     assert env["PATH"] == os.environ["PATH"]
+    assert env["HOME"] == os.environ["HOME"]
+    assert env["USERPROFILE"] == os.environ["USERPROFILE"]
     for key in ("TEMP", "TMP", "TMPDIR"):
         assert Path(env[key]) == state / "tmp"
     if os.name == "nt":

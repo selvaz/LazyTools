@@ -178,6 +178,9 @@ on `start`, `review` or `rework` to set the default for the task. Append
 `::timeout=N` to a command in the brief or a `--check` option to override
 its timeout individually.
 
+The check environment preserves `HOME` and `USERPROFILE` when present so
+tools can resolve the user's home directory.
+
 Run `publish --resume --ci-gate` after approval to wait for GitHub's check
 rollup for the exact published commit. The runner waits up to 30 minutes
 for a nonempty result, exits nonzero if the gate fails, and writes the
