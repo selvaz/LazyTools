@@ -672,6 +672,48 @@ def test_rework_appends_rejection_and_reviews_new_writer_attempt(trial):
     assert first["turns"][0]["thread_id"] == second["turns"][0]["thread_id"]
 
 
+def test_governed_rework_from_published_ci_failure_republishes_same_draft(trial):
+    start, invoke, setup, script, state, _, fake_state = trial
+    checkout = setup()
+    check = python_check("print('repository CI gate')")
+    assert start(checkout, "--check", check) == 0
+    options = ["--db", str(state / "bridge.sqlite"), "--registry-db", str(state / "registry.sqlite")]
+
+    def publish():
+        assert invoke("publish") == 0
+        with Store(db=str(state / "projects.sqlite")) as store:
+            ticket = store.read("governed-task:ticket")
+        assert cli.main(["approve", ticket, *options]) == 0
+        assert invoke("publish", "--resume") == 0
+        with Store(db=str(state / "projects.sqlite")) as store:
+            return store.read("governed-task:live-verified-receipt")
+
+    original = publish()
+    assert original
+    original_head = _cloud._git(checkout, "rev-parse", "HEAD")
+    failure = "CI failed on the published SHA. Fix the full-suite regression."
+    log = state.parent / "ci.log"
+    log.write_text(failure, encoding="utf-8")
+    assert invoke("rework", "--reason", f"@{log}") == 0
+    assert "Add subtraction and test a negative result." in script.prompts[2]
+    assert "Operator-supplied failure" in script.prompts[2] and failure in script.prompts[2]
+    assert "| 0 | repository CI gate |" in script.prompts[3]
+    with Store(db=str(state / "projects.sqlite")) as store:
+        writer, _ = store.read(_board_key(PROJECT))["tasks"]
+        assert writer["attempt_reason"] == failure
+        assert store.read("governed-task:live-verified-receipt") is None
+
+    current = publish()
+    assert current and current != original
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+    assert head != original_head
+    github = json.loads((fake_state / "fake-github.json").read_text())
+    pr, = github["prs"]
+    assert pr["number"] == 1 and pr["isDraft"]
+    assert _cloud._git(fake_state / "fake-remote.git", "rev-parse", f"refs/heads/{BRANCH}") == head
+    assert all(receipt in comment for receipt, comment in zip((original, current), github["comments"], strict=True))
+
+
 def test_fresh_review_starts_a_new_conversation_and_then_continues_it(trial, capsys):
     start, invoke, setup, script, state, _, _ = trial
     checkout = setup(accepted=False)

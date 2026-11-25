@@ -202,6 +202,11 @@ python -I tools/governed_task.py review --project trial-example
 python -I tools/governed_task.py rework --project trial-example --brief @fix.md
 ```
 
+To start a rework from an operator-supplied failure, such as a CI log after
+publication, run `rework --project trial-example --reason @ci.log`. This
+reuses the original brief and retained checks. Pass `--brief @fix.md` if
+the writer needs updated instructions.
+
 The first review starts the opposite-engine conversation `<project>-review`.
 Both `review` and the review in `rework` reuse the latest named reviewer
 conversation. Under NC-16, a re-review may block on unresolved previous

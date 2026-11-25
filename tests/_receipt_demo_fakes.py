@@ -54,9 +54,7 @@ def install(
         if args[:3] == ("-c", "push.followTags=false", "push"):
             if args[3:5] != ("--", PUBLICATION_REMOTE) or len(args) != 6:
                 raise AssertionError(f"Unexpected publication push: {args}")
-            sha, ref = args[5].split(":", 1)
-            git(bare, "update-ref", ref, sha, "0" * len(sha))
-            return ""
+            return git(cwd, *args[:4], str(bare), args[5], **kwargs)
         return git(cwd, *args, **kwargs)
 
     now = datetime.now(UTC)
