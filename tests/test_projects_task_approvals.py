@@ -9,6 +9,7 @@ import pytest
 from lazybridge import Store
 from lazybridge.ext import approval
 
+from lazytools.code_bridge import _credentials, cli
 from lazytools.projects.task_approvals import EffectAuthorization, ProjectTaskApprovals
 from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError
@@ -169,12 +170,22 @@ async def test_projects_approval_tool_uses_the_host_credential(approvals, tmp_pa
     ("scoped_delete", "owner", {"path": "production"}),
     ("production_change", "owner", {}),
 ])
-def test_effect_policy_rows(approvals, action, required, fields):
+def test_effect_policy_rows(approvals, action, required, fields, tmp_path, monkeypatch, capsys):
     registry, receipt, _, _ = approvals
     if required == "automatic":
         with pytest.raises(TaskServiceError, match="must provision"):
             request(registry, receipt, action, **fields)
-    registry.provision_automatic_cards(PROJECT, credential=credential(registry, OWNER))
+        monkeypatch.setattr(_credentials, "credential_directory", lambda: tmp_path / "operator-state")
+        flags = ["--registry-db", str(registry.service.path)]
+        provision = ["approver-credential", "provision-automatic", PROJECT, *flags]
+        assert cli.main(provision) == 1
+        assert "credential is missing" in capsys.readouterr().err
+        assert cli.main(["approver-credential", "init", *flags]) == 0
+        secret = _credentials.load(registry.service.path)
+        assert cli.main(provision) == 0
+        output = capsys.readouterr()
+        assert "Automatic approval cards provisioned" in output.out
+        assert secret not in output.out + output.err
     req = request(registry, receipt, action, **fields)
     assert request(registry, receipt, action, **fields) == req
     assert req["required_approver"] == required

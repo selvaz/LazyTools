@@ -34,6 +34,7 @@ from lazytools.code_bridge import (
     _cloud_land,
     _cloud_place,
     _concurrency,
+    _credentials,
     _engines,
     _freshness,
     _jobs,
@@ -1891,6 +1892,26 @@ def _cmd_init_approver_credential(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_provision_automatic_cards(args: argparse.Namespace) -> int:
+    from lazytools.projects.task_approvals import ProjectTaskApprovals
+    from lazytools.projects.task_service import ProjectTaskService
+    from lazytools.projects.task_store import TaskServiceError
+
+    try:
+        path = _selected_registry_db(args) or _registry._registry_path()
+        if path is None:
+            raise ValueError("A persistent projects store is required")
+        credential = _credentials.load(path)
+        ProjectTaskApprovals(ProjectTaskService(str(path))).provision_automatic_cards(
+            args.project_id, credential=credential,
+        )
+    except (OSError, ValueError, TaskServiceError) as exc:
+        print(f"could not provision automatic approval cards: {exc}", file=sys.stderr)
+        return 1
+    print(f"Automatic approval cards provisioned for {args.project_id}.")
+    return 0
+
+
 def _cmd_autonomy(args: argparse.Namespace) -> int:
     try:
         if args.week:
@@ -2442,6 +2463,13 @@ def build_parser() -> argparse.ArgumentParser:
     credential_init = credential_sub.add_parser("init", help="Initialize the owner credential for a registry.")
     _add_registry_option(credential_init)
     credential_init.set_defaults(func=_cmd_init_approver_credential)
+
+    automatic_cards = credential_sub.add_parser(
+        "provision-automatic", help="Provision the owner's automatic approval cards for a project.",
+    )
+    automatic_cards.add_argument("project_id")
+    _add_registry_option(automatic_cards)
+    automatic_cards.set_defaults(func=_cmd_provision_automatic_cards)
 
     approve_p = sub.add_parser("approve", help="Approve a pending ticket.")
     approve_p.add_argument("ticket_id")

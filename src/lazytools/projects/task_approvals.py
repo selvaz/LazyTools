@@ -222,7 +222,10 @@ class ProjectTaskApprovals:
         request = _require_request(ticket)
         raw_card = store.read(_CARD_SET_PREFIX + project_id, {}).get(request.action)
         if raw_card is None:
-            raise TaskServiceError("unavailable", "The owner must provision this project's automatic approval cards")
+            raise TaskServiceError(
+                "unavailable", "The owner must provision this project's automatic approval cards with "
+                f"`lazytools-code-bridge approver-credential provision-automatic {project_id}`",
+            )
         card = ApprovalCard.model_validate(raw_card)
         folder = self._card_folder()
         # Bind the card to the host adapter operation and original digest. This

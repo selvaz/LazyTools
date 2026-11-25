@@ -38,6 +38,7 @@ detached launch JSON gives the id, pid and log path at once.
 | `run` | Foreground: job id on stdout's first line, then final result; detached `--json`: one launch object |
 | `pending --json` | `approval_id`, `job_id`, gist, command/reason when available, creation and expiry |
 | `approver-credential init` | Provision the local owner credential for a typed approval registry |
+| `approver-credential provision-automatic PROJECT_ID` | Provision the project's automatic approval cards |
 | `approve` / `reject` | Decide a pending ticket. Rejection requires `--reason` |
 | `status` / `result` | Status or full job record/text; `--json` preserves metadata |
 | `wait` | Terminal result; exit 3 on waiter timeout, 1 when process disappears before final record |
@@ -899,11 +900,19 @@ the `owner` role. Pass the credential through the trusted Python adapter or set
 the human approver. Tool calls carry the request ID, digest, verdict, and
 reason. The credential stays in the host.
 
-Before enabling automatic Projects effects, the owner provisions the project's
-cards with `ProjectTaskApprovals.provision_automatic_cards(project_id,
-credential=...)` in the trusted host. The two project-scoped cards cover
-`read` and `local_commit`. An automatic request requires a matching card
-and must pass the effect policy, task claim, and target checks.
+Before enabling automatic Projects effects, run these commands from the
+operator shell. Select the same Projects Store as the effect adapter, either
+through `LAZYTOOLS_PROJECTS_STORE_DB` or with `--registry-db` on both commands.
+
+```console
+lazytools-code-bridge approver-credential init --registry-db PROJECTS_DB
+lazytools-code-bridge approver-credential provision-automatic PROJECT_ID --registry-db PROJECTS_DB
+```
+
+The two project-scoped, nontransferable cards cover `read` and `local_commit`.
+An automatic request requires a matching card and must pass the effect policy,
+task claim, and target checks. Only the provisioning command reads the owner
+credential for this flow.
 The Projects registry records the card use and retains the one-time effect
 consumption and outcome record.
 
