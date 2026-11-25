@@ -82,4 +82,4 @@ extras = ["bridge", "datacore"]
 # of the verified stack.
 
 [minimums]
-lazybridge = ">=1.9.2,<2.0"
+lazybridge = ">=1.9.2,<1.10"
