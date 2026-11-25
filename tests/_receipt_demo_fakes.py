@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from collections.abc import Callable
 from contextlib import ExitStack
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -21,7 +22,8 @@ from lazytools.projects.admission import TelemetryReading, WindowReading
 
 def install(
     stack: ExitStack, state: Path, repo: Path, base: str, source_file: str, test_file: str,
-    *, writer_script: Script | None = None, writer_commit: bool = False, review_accepted: bool = True,
+    *, writer_script: Script | None = None, writer_commit: bool = False,
+    review_accepted: bool | Callable[[], bool] = True,
 ) -> Path:
     stack.enter_context(patch.dict(os.environ, {
         "GIT_ALLOW_PROTOCOL": "file",
@@ -76,12 +78,17 @@ def install(
             review = prompt.startswith("Review commit ")
             script.request_approval = writer_requests_approval and not review
             if review:
+                accepted = review_accepted() if callable(review_accepted) else review_accepted
                 script.text = json.dumps({
-                    "verdict": "accepted" if review_accepted else "blocked", "sha": prompt.split()[2],
-                    "reason": ("Subtraction and its test match the brief." if review_accepted else "A required check failed."),
+                    "verdict": "accepted" if accepted else "blocked", "sha": prompt.split()[2],
+                    "reason": ("Subtraction and its test match the brief." if accepted else "A required check failed."),
                 })
             else:
-                (checkout / source_file).write_text("def sub(a, b):\n    return a - b\n", encoding="utf-8")
+                source = checkout / source_file
+                content = source.read_text(encoding="utf-8") + "\n# Revision\n" if source.exists() else (
+                    "def sub(a, b):\n    return a - b\n"
+                )
+                source.write_text(content, encoding="utf-8")
                 (checkout / test_file).write_text(
                     f"import unittest\n\nfrom {Path(source_file).stem} import sub\n\n\n"
                     "class SubTests(unittest.TestCase):\n"

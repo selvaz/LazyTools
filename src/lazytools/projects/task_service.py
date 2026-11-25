@@ -234,7 +234,7 @@ def _ready(task: BoardTask, now: float) -> tuple[dict[str, Any], PlacementEviden
     placement, reason = _placement(task, now)
     if placement is None:
         return None
-    return {
+    summary = {
         "task_id": task.identifier,
         "project_id": task.project_id,
         "revision": task.revision,
@@ -248,7 +248,10 @@ def _ready(task: BoardTask, now: float) -> tuple[dict[str, Any], PlacementEviden
         "effective_placement": placement.placement,
         "placement_reason": reason,
         "preflight_ref": placement.reference,
-    }, placement
+    }
+    if target := data.get("review_target"):
+        summary["review_target"] = target
+    return summary, placement
 
 
 def _validate_limit(limit: int) -> None:
@@ -566,6 +569,40 @@ class ProjectTaskService:
                     last_index = index
             return {"tasks": items, "next_cursor": next_cursor}
 
+    def prepare_attempt(
+        self, principal: TaskPrincipal, task_id: str, expected_revision: str, reason: str, *,
+        review_target: str | None = None,
+    ) -> str:
+        """Queue another attempt while retaining the previous dispatch and its evidence."""
+        principal.require_role("orchestrator", "owner")
+        if not reason.strip():
+            raise TaskServiceError("invalid", "An attempt reason is required")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, task_id)
+            _require_open(store, task.project_id)
+            if task.revision != expected_revision:
+                raise TaskServiceError("stale", "Task revision changed")
+            history = task.data.get("dispatches", [])
+            if (
+                task.data.get("status") not in ("todo", "done", "failed")
+                or task.data.get("active_queue_claim")
+                or (
+                    history
+                    and (history[-1]["state"] not in ("completed", "absent", "terminated")
+                         or history[-1].get("unresolved_effects"))
+                )
+            ):
+                raise TaskServiceError("conflict", "Settle the current dispatch before preparing another attempt")
+            if review_target is not None and (not task.data.get("review_of") or not _COMMIT_SHA.fullmatch(review_target)):
+                raise TaskServiceError("invalid", "A review target requires a review task and a full commit SHA")
+            _release(task)
+            task.data.update(
+                revision=uuid4().hex, completed_at=None, result="", error="", attempt_reason=reason.strip(),
+                review_target=review_target,
+            )
+            task.save(store, self.clock())
+            return task.revision
+
     def claim(
         self, principal: TaskPrincipal, task_id: str, expected_revision: str, idempotency_key: str
     ) -> dict[str, Any]:
@@ -813,8 +850,15 @@ class ProjectTaskService:
         result_state: ResultState,
         evidence_ref: str,
         outcome: Outcome | None = None,
+        *,
+        reconcile_failure: bool = False,
     ) -> dict[str, Any]:
+        """Complete a claim, or let a trusted reconciler close it with blocked evidence after lease expiry."""
         principal.require_role("worker", "orchestrator")
+        if reconcile_failure:
+            principal.require_role("orchestrator")
+            if result_state != "blocked":
+                raise TaskServiceError("invalid", "Recovered completion must be blocked")
         if (
             result_state not in ("accepted", "blocked", "rework")
             or not idempotency_key.strip()
@@ -833,7 +877,12 @@ class ProjectTaskService:
                         raise TaskServiceError("conflict", "Completion idempotency key has already been used")
                     return {"completion": completed["result"]}
             now = self.clock()
-            dispatch = _fenced_dispatch(task, principal, claim_token, now)
+            if reconcile_failure:
+                dispatch = _active_dispatch(task)
+                if dispatch["receipt"]["claim_token"] != claim_token:
+                    raise TaskServiceError("stale", "Claim token has been superseded")
+            else:
+                dispatch = _fenced_dispatch(task, principal, claim_token, now)
             _require_open(store, task.project_id)
             if dispatch.get("unresolved_effects"):
                 raise TaskServiceError("unresolved", "Reconcile outstanding effects before completing the task")
@@ -967,13 +1016,16 @@ def _validate_acceptance(
     if review_of:
         writer = next(dep for dep in dependencies if dep["task_id"] == f"{task.project_id}/{review_of}")
         writer_sha = writer.get("artifact_ref")
+        # An explicit target can be reviewed independently. Publication still
+        # requires the latest review to match the writer's accepted artifact.
+        target = dispatch["receipt"].get("review_target") or writer_sha
         if (
             writer_sha is None
-            or evidence.reviewed_sha != writer_sha
-            or evidence.artifact_ref != writer_sha
+            or evidence.reviewed_sha != target
+            or evidence.artifact_ref != target
             or not _review_independence(writer.get("engine_family") or "", evidence, writer.get("executor") or "")
             or not evidence.review_passed
         ):
             raise TaskServiceError(
-                "invalid", "Review must pass on the writer's exact commit with the opposite engine or a fresh reviewer"
+                "invalid", "Review must pass on the exact commit with the opposite engine or a fresh reviewer"
             )

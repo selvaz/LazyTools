@@ -137,12 +137,13 @@ def claim(
         reference=f"local-{task_id}", expires_at=service.clock() + service.lease_seconds + 60,
         engine_family=_routing.provider(engine),
     ))
-    return cast(dict[str, Any], service.claim(principal, task_id, revision, "local-dispatch")["claim"])
+    return cast(dict[str, Any], service.claim(principal, task_id, revision, f"local-dispatch-{revision}")["claim"])
 
 
 def run_job(
     repo: Path, stores: dict[str, Path], engine: str, principal: TaskPrincipal, lease: dict[str, Any],
     prompt: str, *, review_of: str | None = None, model: str | None = None, effort: str | None = None,
+    session: str | None = None,
 ) -> tuple[str, str]:
     argv = [
         "run", "--cwd", str(repo), "--root", str(repo), "--where", "local",
@@ -153,6 +154,8 @@ def run_job(
     ]
     if review_of:
         argv += ["--review-of", review_of, "--tier", "basic", "--tiers", str(DEFAULT_PATH)]
+    if session is not None:
+        argv += ["--session", session]
     if model is not None:
         argv += ["--model", model]
     if effort is not None:
@@ -180,7 +183,7 @@ def finish_task(
         review_passed=review and accepted, review_independence="opposite-engine" if review else None,
     )
     service.record_completion_evidence(operator, lease["task_id"], lease["attempt"], evidence)
-    service.complete(worker, lease["task_id"], lease["claim_token"], "local-complete", state, reference)
+    service.complete(worker, lease["task_id"], lease["claim_token"], f"local-complete-{lease['attempt']}", state, reference)
     return reference
 
 
