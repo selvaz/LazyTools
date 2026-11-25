@@ -181,6 +181,7 @@ def recommend(
     readings: dict[Engine, TelemetryReading] | None = None,
     now: datetime | None = None,
     operator_directed: bool = False,
+    requested_engine: Engine | None = None,
 ) -> RoutingDecision:
     """Read quota, obtain admission budgets, and route in the caller's admission mode.
 
@@ -199,4 +200,5 @@ def recommend(
         available=available,
         now=now,
         operator_directed=operator_directed,
+        requested_engine=requested_engine,
     )

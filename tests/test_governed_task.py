@@ -10,6 +10,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -619,8 +620,13 @@ def test_review_launch_refusal_records_routing_error_and_allows_retry(trial, mon
     start, invoke, setup, script, state, _, _ = trial
     checkout = setup()
     readings = _routing.read_readings()
+    claude = readings["claude_code"]
+    exhausted_claude = replace(claude, windows=tuple(
+        replace(window, used_percent=100) if window.window_id == "weekly/all models" else window
+        for window in claude.windows
+    ))
     with monkeypatch.context() as refused:
-        refused.setattr(_routing, "read_readings", lambda: {"codex": readings["codex"]})
+        refused.setattr(_routing, "read_readings", lambda: {**readings, "claude_code": exhausted_claude})
         assert start(checkout) == 1
     error = capsys.readouterr().err
     assert "human_review_required" in error and len(script.prompts) == 1
@@ -631,6 +637,7 @@ def test_review_launch_refusal_records_routing_error_and_allows_retry(trial, mon
     assert review["status"] == "failed" and not review["active_queue_claim"]
     assert dispatch["state"] == "absent" and not dispatch.get("job_ref")
     assert "human_review_required" in dispatch["launch_error"] and dispatch["launch_error"] in error
+    assert "admission_would_refuse:absolute_ceiling" in dispatch["launch_error"]
     assert invoke("review") == 0
     publication = ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer")
     assert publication.writer.attempt == 1 and publication.reviewer.attempt == 2

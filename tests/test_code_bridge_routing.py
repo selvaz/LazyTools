@@ -259,6 +259,111 @@ def test_successful_review_run_records_opposite_provider(bridge, capsys):
     assert review["engine"] == "claude" and review["routing"]["ineligible"]["codex"] == "same_as_writer"
 
 
+@pytest.mark.parametrize("command", ["route", "run"])
+@pytest.mark.parametrize("review", [False, True])
+def test_explicit_engine_routes_with_unreadable_telemetry_warning(bridge, capsys, command, review):
+    extra = ["--engine", "claude", "--json"]
+    if review:
+        seed(bridge, "writer")
+        extra += ["--review-of", "writer"]
+    reading = bridge[1]["claude_code"]
+    bridge[1]["claude_code"] = replace(reading, windows=(), error="timed out after 45.0s")
+
+    assert cli.main(args(bridge, command, *extra)) == 0
+    payload = json.loads(capsys.readouterr().out.splitlines()[-1])
+    routing = payload["routing"] if command == "run" else payload
+    assert routing["provider"] == "claude_code"
+    assert routing["warnings"] == {"claude_code": "telemetry_unreadable: timed out after 45.0s"}
+    assert "claude_code" not in routing["ineligible"] and "claude_code" not in routing["scores"]
+    if command == "run":
+        rows = _jobs.list_jobs(_store.build_store(bridge[3]), all_jobs=True)
+        job = next(row for row in rows if row["job_id"] != "writer")
+        assert job["routing"]["warnings"] == routing["warnings"]
+
+
+@pytest.mark.parametrize("review", [False, True])
+def test_unreadable_telemetry_still_excludes_engine_from_tier_routing_without_explicit_choice(bridge, capsys, review):
+    extra = ["--json"]
+    if review:
+        seed(bridge, "writer")
+        extra += ["--review-of", "writer"]
+    reading = bridge[1]["claude_code"]
+    bridge[1]["claude_code"] = replace(reading, windows=(), error="timed out after 45.0s")
+
+    assert cli.main(args(bridge, "route", *extra)) == (2 if review else 0)
+    routing = json.loads(capsys.readouterr().out)
+    assert routing["ineligible"]["claude_code"] == "telemetry_unreadable: timed out after 45.0s"
+    assert not routing.get("warnings")
+    if review:
+        assert routing["reason"] == "human_review_required"
+    else:
+        assert routing["provider"] == "codex"
+
+
+@pytest.mark.parametrize("weekly_usage,session_usage", [(100, 10), (10, 100), (None, 100), (100, float("nan"))])
+def test_explicit_reviewer_route_is_blocked_by_an_applicable_exhausted_window(bridge, capsys, weekly_usage, session_usage):
+    seed(bridge, "writer")
+    reading = bridge[1]["claude_code"]
+    weekly, session = reading.windows
+    windows = (replace(session, used_percent=session_usage),)
+    if weekly_usage is not None:
+        windows = (replace(weekly, used_percent=weekly_usage), *windows)
+    bridge[1]["claude_code"] = replace(reading, windows=windows)
+
+    assert cli.main(args(bridge, "run", "--review-of", "writer", "--engine", "claude", "--json")) == 2
+    routing = json.loads(capsys.readouterr().out)
+    assert routing["reason"] == "human_review_required"
+    assert "admission_would_refuse:absolute_ceiling" in routing["ineligible"]["claude_code"]
+    assert not routing.get("warnings")
+    assert bridge[0].engines == []
+
+
+@pytest.mark.parametrize("observed_hours", [-7, 1], ids=["stale", "clock-skewed"])
+def test_explicit_engine_is_blocked_by_exhausted_quota_with_a_future_reset(bridge, capsys, observed_hours):
+    script, readings, _, _ = bridge
+    reading = readings["claude_code"]
+    weekly, session = reading.windows
+    readings["claude_code"] = replace(
+        reading,
+        observed_at=reading.observed_at + timedelta(hours=observed_hours),
+        windows=(replace(weekly, used_percent=100), session),
+    )
+
+    assert cli.main(args(bridge, "run", "--engine", "claude", "--json")) == 2
+    routing = json.loads(capsys.readouterr().out)
+    assert routing["provider"] is None
+    assert "admission_would_refuse:absolute_ceiling" in routing["ineligible"]["claude_code"]
+    assert weekly.resets_at.isoformat() in routing["error"]
+    assert not routing.get("warnings")
+    assert script.engines == []
+
+
+@pytest.mark.parametrize("weekly_usage", [40, 100], ids=["below-ceiling", "reset-passed"])
+def test_explicit_engine_records_stale_quota_warning(bridge, capsys, weekly_usage):
+    _, readings, _, db = bridge
+    reading = readings["claude_code"]
+    weekly, session = reading.windows
+    reset = reading.observed_at - timedelta(hours=1) if weekly_usage == 100 else weekly.resets_at
+    readings["claude_code"] = replace(
+        reading,
+        observed_at=reading.observed_at - timedelta(hours=7),
+        windows=(replace(weekly, used_percent=weekly_usage, resets_at=reset), session),
+    )
+
+    assert cli.main(args(bridge, "run", "--engine", "claude", "--json")) == 0
+    payload = json.loads(capsys.readouterr().out.splitlines()[-1])
+    warnings = {"claude_code": "telemetry_stale: fake quota last read 7.0h ago, limit 6.0h"}
+    assert payload["routing"]["warnings"] == warnings
+    (job,) = _jobs.list_jobs(_store.build_store(db), all_jobs=True)
+    assert job["routing"]["warnings"] == warnings
+
+
+def test_explicit_engine_prints_warning_for_missing_quota_reading(bridge, capsys):
+    bridge[1].pop("claude_code")
+    assert cli.main(args(bridge, "route", "--engine", "claude")) == 0
+    assert "warning: claude telemetry_unreadable: no quota reading" in capsys.readouterr().out
+
+
 def test_unknown_review_job_fails_before_quota_or_launch(bridge, monkeypatch, capsys):
     monkeypatch.setattr(_routing, "read_readings", lambda: pytest.fail("unexpected quota read"))
     assert cli.main(args(bridge, "route", "--review-of", "unknown")) == 2
@@ -697,10 +802,9 @@ def test_ceiling_error_lists_all_applicable_windows_and_resets_without_manual_hi
     assert bridge[0].engines == []
 
 
-@pytest.mark.parametrize("restriction", [["--engine", "claude"], ["--model", "claude-opus-5-5"]])
-def test_requested_engine_failure_does_not_suggest_requesting_an_engine_again(bridge, capsys, restriction):
+def test_model_restriction_failure_does_not_suggest_requesting_an_engine_again(bridge, capsys):
     bridge[1].clear()
-    assert cli.main(args(bridge, "run", *restriction, "--json")) == 2
+    assert cli.main(args(bridge, "run", "--model", "claude-opus-5-5", "--json")) == 2
     payload = json.loads(capsys.readouterr().out)
     assert "telemetry_missing" in payload["error"]
     assert "Try an explicit --engine" not in payload["error"]

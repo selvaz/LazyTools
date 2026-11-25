@@ -188,9 +188,10 @@ class RoutingDecision:
     ineligible: dict[str, str] = field(default_factory=dict)
     telemetry_age: dict[str, float | None] = field(default_factory=dict)
     decided_at: datetime | None = None
+    warnings: dict[Engine, str] = field(default_factory=dict)
 
     def as_record(self) -> dict[str, Any]:
-        return {
+        record: dict[str, Any] = {
             "tier": self.tier,
             "provider": self.provider,
             "model": self.model,
@@ -202,6 +203,9 @@ class RoutingDecision:
             "telemetry_age": self.telemetry_age,
             "decided_at": self.decided_at.isoformat() if self.decided_at else None,
         }
+        if self.warnings:
+            record["warnings"] = self.warnings
+        return record
 
 
 def _weekly_window_id(engine: Engine, model: str) -> str:
@@ -373,6 +377,7 @@ def route(
     available: frozenset[Engine] | None = None,
     now: datetime | None = None,
     operator_directed: bool = False,
+    requested_engine: Engine | None = None,
 ) -> RoutingDecision:
     """What the router would choose for ``tier``, right now -- PURE and DETERMINISTIC: no
     store, no network, no side effect, and no LLM ever makes this choice. Walks
@@ -384,8 +389,9 @@ def route(
 
     ``operator_directed`` is forwarded to admission's eligibility check. Its default
     preserves autonomous routing. An operator-directed call may cross the autonomous
-    boundary or forecast limit, while absolute ceilings and telemetry checks still
-    exclude providers. Scoring keeps the same margins in either mode.
+    boundary or forecast limit. With an explicit ``requested_engine``, unreadable
+    telemetry for that engine produces a warning instead of a score. A readable
+    weekly window at its absolute ceiling still excludes the engine.
 
     ``available`` names the providers THIS AGENT PROCESS actually has an engine factory for
     (e.g. a specialist built with no Codex writer at all) -- ``None`` (the default) means every
@@ -406,7 +412,8 @@ def route(
     continuity = continuity or ContinuityHint()
     capability = capability or CapabilityRequirement()
 
-    common: dict[str, Any] = dict(tier=tier, decided_at=moment)
+    warnings: dict[Engine, str] = {}
+    common: dict[str, Any] = dict(tier=tier, decided_at=moment, warnings=warnings)
 
     tier_catalogue = catalogue.get(tier)
     if tier_catalogue is None or not tier_catalogue.steps:
@@ -437,7 +444,7 @@ def route(
             elif engine not in telemetry_age:
                 telemetry_age[engine] = None
 
-            if available is not None and engine not in available:
+            if (requested_engine is not None and engine != requested_engine) or (available is not None and engine not in available):
                 step_ineligible[engine] = "not_available_to_this_agent"
                 continue
             if capability.codex_only and engine != "codex":
@@ -446,7 +453,8 @@ def route(
             if writer_provider_for_review is not None and engine == writer_provider_for_review:
                 step_ineligible[engine] = "same_as_writer"
                 continue
-            if reading is None:
+            allow_unreadable = operator_directed and engine == requested_engine
+            if reading is None and not allow_unreadable:
                 step_ineligible[engine] = "telemetry_missing"
                 continue
 
@@ -455,19 +463,28 @@ def route(
                 step_ineligible[engine] = "no_budget_configured"
                 continue
 
-            result = _score_provider(
-                engine=engine,
-                model=step_model.model,
-                reading=reading,
-                budget=budget,
-                in_flight=in_flight.get(engine, 0),
-                moment=moment,
-                operator_directed=operator_directed,
-            )
+            result: ProviderScore | str
+            if reading is None:
+                result = "telemetry_missing: no quota reading"
+            else:
+                result = _score_provider(
+                    engine=engine,
+                    model=step_model.model,
+                    reading=reading,
+                    budget=budget,
+                    in_flight=in_flight.get(engine, 0),
+                    moment=moment,
+                    operator_directed=operator_directed,
+                )
             if isinstance(result, str):
-                step_ineligible[engine] = result
-                continue
-            step_scores[engine] = result.as_record()
+                if not (allow_unreadable and result.startswith("telemetry_")):
+                    step_ineligible[engine] = result
+                    continue
+                telemetry_reason, _, detail = result.partition(": ")
+                warning_reason = "telemetry_stale" if telemetry_reason == "telemetry_stale" else "telemetry_unreadable"
+                warnings[engine] = f"{warning_reason}: {detail}"
+            else:
+                step_scores[engine] = result.as_record()
             eligible_models[engine] = step_model
 
         for provider_name, why in step_ineligible.items():
