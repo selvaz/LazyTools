@@ -148,6 +148,7 @@ def test_unknown_roots_make_every_absolute_write_ask_but_not_relative_ones():
     "cat AUTH.JSON.BAK", "cat auth.json.bak.", "cat .ssh.bak", "grep -r -e KEY auth.json.bak", "head -n 1 .pgpass",
     "git show HEAD:auth.json.bak", "git show HEAD:id_ed25519", "git log -p -- terraform.tfstate", "git diff -- prod.tfvars",
     "rg -e KEY auth.json.bak", "rg -e KEY .kube",
+    "ls approver-credentials", "cat approver-credentials/owner.credential", "cat owner.credential",
 ])
 def test_additional_credential_names_and_backup_copies_ask(command):
     assert bash(command) == "ask"

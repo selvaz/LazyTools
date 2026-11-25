@@ -35,6 +35,7 @@ from lazytools.code_bridge import (
     _cloud_place,
     _cloud_preflight,
     _concurrency,
+    _credentials,
     _engines,
     _freshness,
     _jobs,
@@ -283,6 +284,8 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
 
 def _spawn_detached(argv: list[str], log_path: Path) -> int:
     """Start ``argv`` as a process that survives this one and its supervisor."""
+    from lazytools.code_bridge._credentials import job_environment
+
     log = open(log_path, "ab")  # noqa: SIM115 -- handed to the child, closed below
     try:
         common: dict[str, Any] = {
@@ -290,6 +293,7 @@ def _spawn_detached(argv: list[str], log_path: Path) -> int:
             "stdout": log,
             "stderr": subprocess.STDOUT,
             "close_fds": True,
+            "env": job_environment(os.environ),
         }
         if os.name == "nt":
             flags = _CREATE_NO_WINDOW | _CREATE_NEW_PROCESS_GROUP
@@ -1952,8 +1956,12 @@ def _cmd_decide(args: argparse.Namespace, action: Literal["approve", "reject"]) 
         job_id = _registry.job_ref(ticket)
         if job_ids is not None and job_id not in job_ids:
             continue
-        if not registry.decide(ticket, verdict, args.actor, args.reason):
-            break
+        try:
+            if not registry.decide(ticket, verdict, args.actor, args.reason):
+                break
+        except (OSError, ValueError) as exc:
+            print(f"could not {action} {args.ticket_id!r}: {exc}", file=sys.stderr)
+            return 1
         if _store.read_meta(store, job_id) is not None:
             _record_intervention(store, job_id, action, args.reason)
         print(f"{verdict} {args.ticket_id}")
@@ -1968,6 +1976,37 @@ def _cmd_approve(args: argparse.Namespace) -> int:
 
 def _cmd_reject(args: argparse.Namespace) -> int:
     return _cmd_decide(args, "reject")
+
+
+def _cmd_init_approver_credential(args: argparse.Namespace) -> int:
+    registry = _registry.Registry(_ticket_job_store(args), _selected_registry_db(args))
+    try:
+        created = registry.initialize_credential()
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(f"could not initialize owner approver credential: {exc}", file=sys.stderr)
+        return 1
+    print("Owner approver credential initialized." if created else "Owner approver credential already initialized.")
+    return 0
+
+
+def _cmd_provision_automatic_cards(args: argparse.Namespace) -> int:
+    from lazytools.projects.task_approvals import ProjectTaskApprovals
+    from lazytools.projects.task_service import ProjectTaskService
+    from lazytools.projects.task_store import TaskServiceError
+
+    try:
+        path = _selected_registry_db(args) or _registry._registry_path()
+        if path is None:
+            raise ValueError("A persistent projects store is required")
+        credential = _credentials.load(path)
+        ProjectTaskApprovals(ProjectTaskService(str(path))).provision_automatic_cards(
+            args.project_id, credential=credential,
+        )
+    except (OSError, ValueError, TaskServiceError) as exc:
+        print(f"could not provision automatic approval cards: {exc}", file=sys.stderr)
+        return 1
+    print(f"Automatic approval cards provisioned for {args.project_id}.")
+    return 0
 
 
 def _cmd_autonomy(args: argparse.Namespace) -> int:
@@ -2527,9 +2566,22 @@ def build_parser() -> argparse.ArgumentParser:
     _add_registry_option(pending_p)
     pending_p.set_defaults(func=_cmd_pending)
 
+    credential_p = sub.add_parser("approver-credential", help="Manage the local owner approver credential.")
+    credential_sub = credential_p.add_subparsers(dest="credential_command", required=True)
+    credential_init = credential_sub.add_parser("init", help="Initialize the owner credential for a registry.")
+    _add_registry_option(credential_init)
+    credential_init.set_defaults(func=_cmd_init_approver_credential)
+
+    automatic_cards = credential_sub.add_parser(
+        "provision-automatic", help="Provision the owner's automatic approval cards for a project.",
+    )
+    automatic_cards.add_argument("project_id")
+    _add_registry_option(automatic_cards)
+    automatic_cards.set_defaults(func=_cmd_provision_automatic_cards)
+
     approve_p = sub.add_parser("approve", help="Approve a pending ticket.")
     approve_p.add_argument("ticket_id")
-    approve_p.add_argument("--actor", default="operator")
+    approve_p.add_argument("--actor", default="operator", help="Actor label for historical prompt-only tickets.")
     approve_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
     _add_registry_option(approve_p)
     approve_p.set_defaults(func=_cmd_approve)
@@ -2537,7 +2589,7 @@ def build_parser() -> argparse.ArgumentParser:
     reject_p = sub.add_parser("reject", help="Reject a pending ticket.")
     reject_p.add_argument("ticket_id")
     reject_p.add_argument("--reason", required=True)
-    reject_p.add_argument("--actor", default="operator")
+    reject_p.add_argument("--actor", default="operator", help="Actor label for historical prompt-only tickets.")
     _add_registry_option(reject_p)
     reject_p.set_defaults(func=_cmd_reject)
 
@@ -2660,6 +2712,11 @@ def main(argv: list[str] | None = None) -> int:
     if argv is None and os.name != "nt" and args.command == "run" and not args.detach:
         # Keep engine descendants in our own session/group for `cancel`.
         _isolate_process_group()
+    if args.command == "run":
+        from lazytools.code_bridge._credentials import scrub_job_environment
+
+        with scrub_job_environment():
+            return args.func(args)
     return args.func(args)
 
 

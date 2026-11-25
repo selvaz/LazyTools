@@ -6,10 +6,29 @@ import hashlib
 import sys
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, Literal, cast
+from pathlib import Path
+from typing import Any, Literal, cast
 
 from lazybridge import Store
-from lazybridge.ext.approval import ApprovalQueue
+from lazybridge.ext.approval import (
+    DEFAULT_PREFIX,
+    ApprovalDecision,
+    ApprovalQueue,
+    ApprovalTarget,
+    ApprovalTicket,
+    CardApproval,
+    ExecutorContext,
+    TypedApprovalRequest,
+)
+from lazybridge.policy import (
+    ApprovalCard,
+    ApprovalTier,
+    CardAction,
+    CardMatcher,
+    TaskGrant,
+    policy_scope,
+    resolve,
+)
 from pydantic import BaseModel, ConfigDict
 
 from lazytools.projects.task_service import (
@@ -32,14 +51,11 @@ Decision = Literal["allow", "deny"]
 EffectResult = Literal["succeeded", "not_applied"]
 _SCOPED_REPO_ACTIONS = ("local_commit", "push", "open_pr")
 _ACTIONS = ("read", *_SCOPED_REPO_ACTIONS, "scoped_delete", "production_change", "merge_main")
-
-if TYPE_CHECKING:
-    from lazybridge.ext.approval import (  # type: ignore[attr-defined]
-        ApprovalTarget,
-        ApprovalTicket,
-        ExecutorContext,
-        TypedApprovalRequest,
-    )
+_AUTOMATIC_ACTIONS = ("read", "local_commit")
+_CARD_CLASSES: dict[str, ApprovalTier] = {f"projects_{action}": "routine" for action in _AUTOMATIC_ACTIONS}
+_CARD_COMMAND = "lazytools-project-effect"
+_CARD_SET_PREFIX = "projects-task:automatic-cards:"
+_CARD_RECEIPT_PREFIX = "projects-task:card-receipt:"
 
 
 class EffectAuthorization(BaseModel):
@@ -61,7 +77,7 @@ def _fence(token: str) -> str:
 
 
 def _governed_request(ticket: ApprovalTicket) -> TypedApprovalRequest | None:
-    request: TypedApprovalRequest | None = getattr(ticket, "request", None)
+    request = ticket.request
     if request is None or request.payload.get("registry") != _REGISTRY:
         return None
     return request
@@ -74,13 +90,21 @@ def _require_request(ticket: ApprovalTicket) -> TypedApprovalRequest:
     return request
 
 
-def _visible(principal: TaskPrincipal, ticket: ApprovalTicket) -> bool:
+def _visible(principal: TaskPrincipal, ticket: ApprovalTicket, *, owner_actor: str) -> bool:
     request = _governed_request(ticket)
     if request is None or ticket.task_id.partition("/")[0] not in principal.projects:
         return False
     if principal.role == "worker":
         return principal.actor == request.requested_by
-    return principal.role == request.payload["required_approver"] or principal.actor == request.requested_by
+    required = request.payload["required_approver"]
+    assignee = ticket.route.assignee if ticket.route else None
+    return (
+        principal.role == required or principal.actor == request.requested_by
+        or (
+            required == "orchestrator" and principal.role == "owner" and principal.actor == owner_actor
+            and (assignee is None or assignee.actor == owner_actor)
+        )
+    )
 
 
 def _view(ticket: ApprovalTicket | None) -> dict[str, Any]:
@@ -108,10 +132,10 @@ def _view(ticket: ApprovalTicket | None) -> dict[str, Any]:
         "created_at": ticket.created_at.isoformat(),
         "expires_at": ticket.expires_at.isoformat(),
         "status": ticket.status,
-        "decision": ticket.decision.model_dump(mode="json") if ticket.decision else None,  # type: ignore[attr-defined]
+        "decision": ticket.decision.model_dump(mode="json") if ticket.decision else None,
         "consumed_at": ticket.consumed_at.isoformat() if ticket.consumed_at else None,
-        "effect_outcome": ticket.effect_outcome.model_dump(mode="json") if ticket.effect_outcome else None,  # type: ignore[attr-defined]
-        "effect_unresolved": ticket.consumed_at is not None and ticket.effect_outcome is None,  # type: ignore[attr-defined]
+        "effect_outcome": ticket.effect_outcome.model_dump(mode="json") if ticket.effect_outcome else None,
+        "effect_unresolved": ticket.consumed_at is not None and ticket.effect_outcome is None,
     }
 
 
@@ -138,8 +162,6 @@ def _active_binding(
 
 
 def _executor(ticket: ApprovalTicket) -> ExecutorContext:
-    from lazybridge.ext.approval import ExecutorContext  # type: ignore[attr-defined]
-
     request = _require_request(ticket)
     return ExecutorContext(
         actor=request.requested_by, task_id=request.task_id, attempt=request.attempt,
@@ -159,24 +181,93 @@ def _effect_history(
             request = _require_request(other)
             if request.action != action or request.target != target:
                 continue
-            if other.consumed_at is not None and other.effect_outcome is None:  # type: ignore[attr-defined]
+            if other.consumed_at is not None and other.effect_outcome is None:
                 raise TaskServiceError("unresolved", "The effect must be reconciled before retry")
-            if action != "read" and other.effect_outcome is not None and other.effect_outcome.succeeded:  # type: ignore[attr-defined]
+            if action != "read" and other.effect_outcome is not None and other.effect_outcome.succeeded:
                 raise TaskServiceError("conflict", "This exact effect already succeeded")
             if other.status == "rejected" and request.attempt == attempt:
                 raise TaskServiceError("forbidden", "This exact effect was denied for the attempt")
 
 
 class ProjectTaskApprovals:
-    def __init__(self, service: ProjectTaskService, *, authorize: EffectPolicy | None = None):
+    def __init__(
+        self, service: ProjectTaskService, *, authorize: EffectPolicy | None = None,
+        owner_actor: str = "owner", orchestrator_actor: str | None = None,
+    ):
         self.service = service
         self.authorize = authorize
+        self.owner_actor = owner_actor
+        self.orchestrator_actor = orchestrator_actor
 
-    def _queue(self, store: TransactionStore) -> ApprovalQueue:
-        if not hasattr(ApprovalQueue, "create_typed_ticket"):
-            raise TaskServiceError("unavailable", "This LazyBridge version lacks the typed approval registry")
+    def _queue(self, store: TransactionStore, *, owner_actor: str | None = None) -> ApprovalQueue:
         # ApprovalQueue uses the adapter's read/write/items/CAS methods directly.
-        return ApprovalQueue(cast(Store, store), clock=lambda: datetime.fromtimestamp(self.service.clock(), UTC))  # type: ignore[call-arg]
+        return ApprovalQueue(
+            cast(Store, store), owner_actor=owner_actor or self.owner_actor, action_tiers=_CARD_CLASSES,
+            clock=lambda: datetime.fromtimestamp(self.service.clock(), UTC),
+        )
+
+    def provision_automatic_cards(self, project_id: str, *, credential: str) -> None:
+        """Provision the owner's standing, nontransferable grants for one project."""
+        folder = self._card_folder()
+        with transaction(self.service.path, write=True) as store:
+            queue = self._queue(store)
+            cards = {
+                action: queue.issue_card(
+                    credential=credential, action_class=f"projects_{action}", tier="routine", project_id=project_id,
+                    matcher=CardMatcher(command=(_CARD_COMMAND, action), path_prefix=folder),
+                ).model_dump(mode="json") for action in _AUTOMATIC_ACTIONS
+            }
+            store.write(_CARD_SET_PREFIX + project_id, cards)
+
+    def _card_folder(self) -> Path:
+        if self.service.path is None:
+            raise TaskServiceError("unavailable", "A persistent projects store is required")
+        return self.service.path.parent
+
+    def _approve_automatically(
+        self, store: TransactionStore, queue: ApprovalQueue, ticket: ApprovalTicket, project_id: str,
+    ) -> ApprovalTicket:
+        request = _require_request(ticket)
+        raw_card = store.read(_CARD_SET_PREFIX + project_id, {}).get(request.action)
+        if raw_card is None:
+            raise TaskServiceError(
+                "unavailable", "The owner must provision this project's automatic approval cards with "
+                f"`lazytools-code-bridge approver-credential provision-automatic {project_id}`",
+            )
+        card = ApprovalCard.model_validate(raw_card)
+        folder = self._card_folder()
+        # Bind the card to the host adapter operation and original digest. This
+        # operation is dispatched by the effect adapter and has no shell command.
+        card_request = TypedApprovalRequest.create(
+            **request.model_dump(exclude={"digest", "target", "tier", "action_class", "card_action"}),
+            target=ApprovalTarget(), tier="routine", action_class=f"projects_{request.action}",
+            card_action=CardAction(
+                argv=(_CARD_COMMAND, request.action, request.digest), cwd=folder,
+                paths=(folder,), network="off", project_id=project_id,
+            ),
+        )
+        policy = resolve("edit-and-run", TaskGrant(
+            folder, {"tool_classes": ["shell"]}, "off", "local", approval_cards=(card,),
+        ))
+        with policy_scope(policy) as requester:
+            assert requester is not None
+            receipt = queue.submit_typed_request(card_request, requester=requester)
+        if not isinstance(receipt, CardApproval) or receipt.approved_at >= ticket.expires_at:
+            raise TaskServiceError("forbidden", "The project's automatic approval card did not authorize this effect")
+        # Materialize the card-backed decision in the existing effect ledger so
+        # claim binding, consumption and outcome recording stay transactional.
+        decision = ApprovalDecision(
+            decider=self.owner_actor, decided_at=receipt.approved_at, verdict="approved", reason=request.payload["rule_id"],
+        )
+        approved = ticket.model_copy(update={
+            "status": "approved", "actor": decision.decider, "reason": decision.reason,
+            "channel": "policy-card", "decision": decision,
+        })
+        key = DEFAULT_PREFIX + ticket.approval_id
+        if not store.compare_and_swap(key, ticket.model_dump(mode="json"), approved.model_dump(mode="json")):
+            raise TaskServiceError("conflict", "The automatic approval could not be recorded")
+        store.write(_CARD_RECEIPT_PREFIX + ticket.approval_id, receipt.model_dump(mode="json"))
+        return approved
 
     def pending(
         self, principal: TaskPrincipal, project_id: str | None = None, task_id: str | None = None,
@@ -202,7 +293,7 @@ class ProjectTaskApprovals:
                     continue
                 if task_id is not None and ticket.task_id != task_id:
                     continue
-                if not _visible(principal, ticket) or ticket.expires_at.timestamp() <= now:
+                if not _visible(principal, ticket, owner_actor=self.owner_actor) or ticket.expires_at.timestamp() <= now:
                     continue
                 try:
                     _active_binding(store, ticket, now)
@@ -218,13 +309,13 @@ class ProjectTaskApprovals:
         """Read the canonical decision and effect history from an executor adapter."""
         with transaction(self.service.path) as store:
             ticket = self._queue(store).get_ticket(request_id)
-            if ticket is None or not _visible(principal, ticket):
+            if ticket is None or not _visible(principal, ticket, owner_actor=self.owner_actor):
                 raise TaskServiceError("not_found", "Unknown governed approval request")
             return _view(ticket)
 
     def decide(
         self, principal: TaskPrincipal, request_id: str, expected_action_digest: str,
-        decision: Decision, reason: str,
+        decision: Decision, reason: str, *, credential: str | None = None,
     ) -> dict[str, Any]:
         principal.require_role("orchestrator", "owner")
         if decision not in ("allow", "deny") or not reason.strip():
@@ -233,17 +324,27 @@ class ProjectTaskApprovals:
         verdict: Literal["approved", "rejected"] = "approved" if decision == "allow" else "rejected"
         with transaction(self.service.path, write=True) as store:
             queue = self._queue(store)
-            from lazybridge.ext.approval import ApproverContext  # type: ignore[attr-defined]
-
             ticket = queue.get_ticket(request_id)
-            if ticket is None or not _visible(principal, ticket):
+            if ticket is None or not _visible(principal, ticket, owner_actor=self.owner_actor):
                 raise TaskServiceError("not_found", "Unknown governed approval request")
             request = _require_request(ticket)
-            if request.payload["required_approver"] != principal.role:
+            required = request.payload["required_approver"]
+            is_owner = principal.role == "owner" and principal.actor == self.owner_actor
+            if required != principal.role and not (required == "orchestrator" and is_owner):
                 raise TaskServiceError("forbidden", "The request requires a different approver role")
             if request.digest != expected_action_digest:
                 raise TaskServiceError("stale", "Approval action digest changed")
-            previous = getattr(ticket, "decision", None)
+            if not credential:
+                raise TaskServiceError("forbidden", "An approver credential is required")
+            approver = queue._authenticated_approver(credential)
+            if approver is None or approver.actor != principal.actor or principal.role not in approver.roles:
+                raise TaskServiceError("forbidden", "The approver credential does not match the authenticated principal")
+            assignee = ticket.route.assignee if ticket.route else None
+            # LazyBridge routes unclassified tickets without a stored route to the owner.
+            actor = assignee.actor if assignee else self.owner_actor
+            if actor != approver.actor or "owner" not in approver.roles:
+                raise TaskServiceError("forbidden", "The approver credential cannot decide this ticket")
+            previous = ticket.decision
             if previous is not None:
                 if (
                     previous.decider != principal.actor or previous.verdict != verdict
@@ -252,8 +353,8 @@ class ProjectTaskApprovals:
                     raise TaskServiceError("conflict", "The request already has a different decision")
                 return {"request": _view(ticket)}
             _active_binding(store, ticket, self.service.clock())
-            if not queue.decide_typed_ticket(  # type: ignore[attr-defined]
-                request_id, approver=ApproverContext(actor=principal.actor), verdict=verdict, reason=reason
+            if not self._queue(store, owner_actor=actor).decide_typed_ticket(
+                request_id, credential=credential, verdict=verdict, reason=reason,
             ):
                 raise TaskServiceError("stale", "The request is no longer pending or has expired")
             return {"request": _view(queue.get_ticket(request_id))}
@@ -285,7 +386,7 @@ class ProjectTaskApprovals:
             raise TaskServiceError("forbidden", "Main updates require checks and review on the current head")
         if grant.production or action == "production_change":
             return grant, "owner"
-        if action in ("read", "local_commit"):
+        if action in _AUTOMATIC_ACTIONS:
             return grant, "automatic"
         return grant, "orchestrator"
 
@@ -298,8 +399,6 @@ class ProjectTaskApprovals:
             raise TaskServiceError("invalid", "A tool invocation ID and positive expiry are required")
         with transaction(self.service.path, write=True) as store:
             queue = self._queue(store)
-            from lazybridge.ext.approval import ApproverContext, TypedApprovalRequest  # type: ignore[attr-defined]
-
             task = _scoped_task(store, principal, task_id)
             _require_open(store, task.project_id)
             now = self.service.clock()
@@ -325,15 +424,12 @@ class ProjectTaskApprovals:
             if dispatch.get("unresolved_effects"):
                 raise TaskServiceError("unresolved", "Reconcile the outstanding effect before requesting another grant")
             _effect_history(queue, task, action, target, request.attempt)
-            ticket = queue.create_typed_ticket(request, ttl=ttl, operator_only=required != "automatic")  # type: ignore[attr-defined]
+            if required == "orchestrator":
+                queue = self._queue(store, owner_actor=self.orchestrator_actor)
+            ticket = queue.create_typed_ticket(request, ttl=ttl, operator_only=required != "automatic")
             requests[invocation_id] = ticket.approval_id
             if required == "automatic":
-                if not queue.decide_typed_ticket(  # type: ignore[attr-defined]
-                    ticket.approval_id, approver=ApproverContext(actor="projects-policy"),
-                    verdict="approved", reason=grant.rule_id,
-                ):
-                    raise TaskServiceError("stale", "Automatic decision expired before it could be recorded")
-                ticket = queue.get_ticket(ticket.approval_id)
+                ticket = self._approve_automatically(store, queue, ticket, task.project_id)
             task.save(store, now)
             return _view(ticket)
 
@@ -367,7 +463,7 @@ class ProjectTaskApprovals:
             if any(effect_key in attempt.get("effect_keys", {}) for attempt in task.data["dispatches"]):
                 raise TaskServiceError("conflict", "The effect idempotency key has already been spent")
             _effect_history(queue, task, action, observed_target, request.attempt)
-            if not queue.consume_typed_ticket(request_id, executor=_executor(ticket)):  # type: ignore[attr-defined]
+            if not queue.consume_typed_ticket(request_id, executor=_executor(ticket)):
                 raise TaskServiceError("stale", "Approval is expired, unapproved, or already consumed")
             dispatch.setdefault("effect_keys", {})[effect_key] = request_id
             dispatch.setdefault("unresolved_effects", {})[request_id] = effect_key
@@ -396,12 +492,12 @@ class ProjectTaskApprovals:
             if dispatch is None:
                 raise TaskServiceError("stale", "The effect has no matching consumption")
             succeeded = result == "succeeded"
-            previous = getattr(ticket, "effect_outcome", None)
+            previous = ticket.effect_outcome
             if previous:
                 if previous.succeeded != succeeded or previous.detail != evidence_ref:
                     raise TaskServiceError("conflict", "The effect has a different recorded outcome")
                 return _view(ticket)
-            if not queue.record_effect_outcome(  # type: ignore[attr-defined]
+            if not queue.record_effect_outcome(
                 request_id, executor=_executor(ticket), succeeded=succeeded, detail=evidence_ref
             ):
                 raise TaskServiceError("conflict", "The effect outcome could not be recorded")

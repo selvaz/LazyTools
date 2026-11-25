@@ -1000,29 +1000,28 @@ def test_429_then_completed_retries_and_honours_retry_after(cloud, monkeypatch, 
     job_id = _submit(cloud, capsys)
     answers = iter([_cloud.CloudError("HTTP 429 Too Many Requests; Retry-After: 2"),
                     _cloud.CloudStatus("done", "completed", "finished", "status: completed")])
-
-    def status(_self, _handle):
-        answer = next(answers)
-        if isinstance(answer, Exception):
-            raise answer
-        return answer
-
-    sleeps = []
     now = 100.0
+    poll_times = []
 
     def read_clock():
         return now
 
     def sleep(delay):
         nonlocal now
-        sleeps.append(delay)
         now += delay
+
+    def status(_self, _handle):
+        poll_times.append(now)
+        answer = next(answers)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
 
     monkeypatch.setattr(_cloud.CodexCloud, "status", status)
     monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
     monkeypatch.setattr(_cloud, "time", SimpleNamespace(time=read_clock, monotonic=read_clock, sleep=sleep))
     assert cli.main(["wait", job_id, "--db", str(cloud.db), "--timeout", "5", "--interval", "0.01"]) == 0
-    assert sleeps == pytest.approx([2.0])
+    assert poll_times == [100.0, 102.0]
     job = _jobs.find_job(_store.build_store(cloud.db), _store.build_job_registry(_store.build_store(cloud.db)), job_id)
     assert job["status"] == "done"
 

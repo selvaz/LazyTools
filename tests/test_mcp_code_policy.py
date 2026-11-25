@@ -85,7 +85,9 @@ def result_error(result):
     return result.content[0].text
 
 
-async def test_nested_writer_keeps_scratch_under_parent_and_is_discoverable(workspace, qualified, monkeypatch):
+async def test_nested_writer_keeps_scratch_under_parent_and_is_discoverable(
+    workspace, qualified, monkeypatch, provision_bridge_approver,
+):
     script = install(monkeypatch)
     nested = workspace / "packages" / "app"
     nested.mkdir(parents=True)
@@ -98,6 +100,7 @@ async def test_nested_writer_keeps_scratch_under_parent_and_is_discoverable(work
         args = {"task": "Make a scoped edit"}
         approval = result_error(await client.call_tool("codex_write", args))
         ticket_id = approval.split("approval_id=")[1].split()[0]
+        provision_bridge_approver()
         assert cli.main(["approve", ticket_id]) == 0
         result = await client.call_tool("codex_write", {**args, "approval_id": ticket_id})
         assert not protocol_field(result, "is_error", "isError")
@@ -202,7 +205,9 @@ async def test_constructed_read_tool_checks_scope_and_records_policy(workspace, 
 
 
 @pytest.mark.parametrize("engine", ["codex", "claude"])
-async def test_governed_writer_uses_single_registry_and_one_shot_bound_approval(workspace, qualified, monkeypatch, engine):
+async def test_governed_writer_uses_single_registry_and_one_shot_bound_approval(
+    workspace, qualified, monkeypatch, engine, provision_bridge_approver,
+):
     script = install(monkeypatch)
     writer = CodeWriteTools(base_dir=str(workspace), claude=True, codex=True, require_confirmation=False)
     writer.confirm_write()
@@ -216,6 +221,7 @@ async def test_governed_writer_uses_single_registry_and_one_shot_bound_approval(
             await tool.run(task="Edit this file", effort="high")
         ticket_id = str(exc.value).split("approval_id=")[1].split()[0]
     assert not script.prompts
+    provision_bridge_approver()
     assert cli.main(["approve", ticket_id]) == 0
     queue = ApprovalQueue(_registry.registry_store())
     ticket = queue.get_ticket(ticket_id)
@@ -247,7 +253,7 @@ async def test_governed_writer_uses_single_registry_and_one_shot_bound_approval(
     ("claude", "claude_code_write", "session_id"),
 ])
 async def test_governed_writer_can_resume_native_session_after_exception(
-    workspace, qualified, monkeypatch, engine, operation, handle_kind,
+    workspace, qualified, monkeypatch, engine, operation, handle_kind, provision_bridge_approver,
 ):
     script = install(monkeypatch)
     registry = SessionRegistry(workspace.parent / "sessions.json")
@@ -259,6 +265,7 @@ async def test_governed_writer_can_resume_native_session_after_exception(
     with task_scope(task), pytest.raises(CodeWriteBlocked, match="approval_id=") as exc:
         await tool.run(**args)
     ticket_id = str(exc.value).split("approval_id=")[1].split()[0]
+    provision_bridge_approver()
     assert cli.main(["approve", ticket_id]) == 0
     script.mode = "raise"
     with task_scope(task):
@@ -290,7 +297,7 @@ async def test_governed_writer_can_resume_native_session_after_exception(
     ("ok", None),
 ])
 async def test_writer_binding_failure_preserves_original_outcome(
-    workspace, qualified, monkeypatch, caplog, operation, mode, original_error,
+    workspace, qualified, monkeypatch, caplog, operation, mode, original_error, provision_bridge_approver,
 ):
     script = install(monkeypatch)
     projects_db = workspace.parent / "scoped-projects.sqlite"
@@ -301,6 +308,7 @@ async def test_writer_binding_failure_preserves_original_outcome(
     with task_scope(task), pytest.raises(CodeWriteBlocked, match="approval_id=") as exc:
         await tool.run(**args)
     ticket_id = str(exc.value).split("approval_id=")[1].split()[0]
+    provision_bridge_approver(projects_db)
     assert cli.main(["approve", ticket_id, "--registry-db", str(projects_db)]) == 0
 
     def reject_binding(*_args):

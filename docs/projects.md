@@ -61,9 +61,10 @@ principal binding in the configuration file.
 ```json
 {
   "projects_store_db": "projects.sqlite",
+  "projects_approver_credential_file": "~/.lazytools/approver-credentials/<registry-key>.credential",
   "projects_task_principal": {
-    "actor": "release-operator",
-    "role": "orchestrator",
+    "actor": "owner",
+    "role": "owner",
     "projects": ["deployment"]
   }
 }
@@ -72,9 +73,14 @@ principal binding in the configuration file.
 `tasks_next_ready`, `tasks_queue_metrics` and `approvals_pending` use the principal's project scope.
 With writes enabled, workers and orchestrators can claim and complete tasks,
 and orchestrators and owners can decide approvals for their assigned authority.
-Use the ordinary projects provider to author plans. The governed tools require
-a file-backed Store, and approvals require a LazyBridge build with typed
-`ApprovalQueue` support.
+The governed tools require a file-backed Store. Configure
+`projects_approver_credential_file` on the human approver's stdio host using
+the private credential file issued for that Store. The owner handles both
+manual approval tiers by default. To assign orchestrator-tier requests to a
+separate human, set `orchestrator_actor` on the request producer's
+`ProjectTaskApprovals`. See [approval credential setup](code-bridge.md#governed-projects-approvals).
+
+Use the ordinary projects provider to author plans.
 
 `tasks_queue_metrics` reports ready counts and oldest known ready age in seconds
 by tier and effective placement, both per project and across the principal's

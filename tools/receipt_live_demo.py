@@ -1,7 +1,7 @@
 """Run the Projects-to-publication flow from a LazyTools source checkout.
 
 Live mode creates a local demo branch in a clean checkout. The publish scenario
-uses --operator to approve the printed target and opens a draft PR on origin.
+pauses for an authenticated owner decision before opening a draft PR on origin.
 Dry-run mode uses a private local clone and the bridge's existing test fakes.
 Both modes retain the state directory so the receipts remain inspectable.
 """
@@ -13,6 +13,7 @@ import importlib
 import json
 import os
 import re
+import shlex
 import sqlite3
 import subprocess
 import sys
@@ -26,6 +27,7 @@ from typing import Any, cast
 from unittest.mock import patch
 
 from lazybridge import Store
+from lazybridge.ext.approval import ApprovalQueue
 from lazybridge.ext.receipt import PublicationReceipt
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -133,6 +135,19 @@ def bridge_output(argv: list[str]) -> tuple[int, str, str]:
 def bridge(argv: list[str]) -> tuple[int, str]:
     status, output, _ = bridge_output(argv)
     return status, output
+
+
+def db_options(stores: dict[str, Path]) -> list[str]:
+    return ["--db", str(stores["bridge"]), "--registry-db", str(stores["registry"])]
+
+
+def approval_command(stores: dict[str, Path], *args: str) -> str:
+    words = ["lazytools-code-bridge", *args, *db_options(stores)]
+    if os.name != "nt":
+        return shlex.join(words)
+    # Windows operators run the printed command in PowerShell.
+    return " ".join(word if re.fullmatch(r"[\w./:\\-]+", word) else "'" + word.replace("'", "''") + "'"
+                    for word in words)
 
 
 def claim(
@@ -245,7 +260,7 @@ def run_demo(args: argparse.Namespace, stack: ExitStack) -> None:
     project = f"receipt-demo-{identifier.lower()}"
     branch = f"demo/{identifier}"
     writer_id = f"{project}/writer"
-    options = ["--db", str(stores["bridge"]), "--registry-db", str(stores["registry"])]
+    options = db_options(stores)
     service = ProjectTaskService(str(stores["projects"]), lease_seconds=3900)  # covers a 3600 s agent turn
     operator = TaskPrincipal(actor=args.operator, role="orchestrator", projects=(project,))
     writer = TaskPrincipal(actor="receipt-demo-writer", role="worker", projects=(project,))
@@ -386,12 +401,28 @@ def run_demo(args: argparse.Namespace, stack: ExitStack) -> None:
                 step(6, "File publication ticket",
                      f"{ticket.approval_id} pending for {target.repo} {target.ref} A={target.sha} into {args.base}, "
                      f"receipt {pending.receipt_id}, {pending_verification}")
-                require(registry.decide(ticket, "approved", operator.actor, "Approve the displayed demo target"),
-                        f"Could not approve ticket {ticket.approval_id}")
-                step(6, "Approve publication ticket", f"{ticket.approval_id} approved by {operator.actor}, registry row updated")
+                if args.dry_run:
+                    with Store(db=str(stores["registry"])) as approval_store:
+                        queue = ApprovalQueue(approval_store, allow_credential_issuance=True)
+                        credential = queue.issue_approver_credential("owner", ("owner",))
+                        require(queue.decide_typed_ticket(
+                            ticket.approval_id, credential=credential, verdict="approved",
+                            reason="Approve the displayed demo target",
+                        ), f"Could not approve ticket {ticket.approval_id}")
+                else:
+                    print(approval_command(stores, "approver-credential", "init"), flush=True)
+                    print(approval_command(stores, "approve", ticket.approval_id), flush=True)
+                    try:
+                        input("Run these commands in the operator shell and press Enter after approving the ticket. ")
+                    except EOFError:
+                        raise DemoError("An owner decision is required before publication") from None
+                decided = registry.inspect(ticket.approval_id)
+                require(decided is not None and decided.status == "approved" and decided.actor == "owner",
+                        f"Ticket {ticket.approval_id} requires owner approval")
+                step(6, "Approve publication ticket", f"{ticket.approval_id} approved by owner, registry row updated")
             receipt = publish("--ticket", cast(str, ticket_id))
             require(receipt.outcome.status == "published" and receipt.publication.head_sha == candidate
-                    and receipt.publication.pr_url and receipt.approval.decided_by == operator.actor,
+                    and receipt.publication.pr_url and receipt.approval.decided_by == "owner",
                     f"Expected a draft PR at A, got {receipt.outcome}")
             step(6, "Publish approved head",
                  f"draft PR {receipt.publication.pr_url} at A={candidate}, receipt {receipt.receipt_id}")
@@ -417,7 +448,7 @@ def main() -> int:
     parser.add_argument("--repo", type=Path, required=True, help="Local repository root")
     parser.add_argument("--state-dir", type=Path, help="Parent directory for a fresh, retained run directory")
     parser.add_argument("--engine", choices=("codex", "claude"), default="codex", help="Writer engine")
-    parser.add_argument("--operator", help="Actor to record on the publication approval")
+    parser.add_argument("--operator", help="Projects orchestrator principal for the demo")
     parser.add_argument("--base", default="main", help="Base branch for the draft PR (default: main)")
     parser.add_argument("--scenario", choices=("drift", "publish"), default="publish")
     parser.add_argument("--dry-run", action="store_true", help="Use fake agents and GitHub, with a private local checkout")

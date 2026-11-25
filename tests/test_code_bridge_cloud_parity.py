@@ -1893,7 +1893,10 @@ def test_missing_gh_is_a_clear_error(monkeypatch, tmp_path):
         _gh.gh_argv()
 
 
-def test_subprocess_default_python_is_importable_for_mcp_child():
+def test_subprocess_default_python_is_importable_for_mcp_child(monkeypatch):
+    # pytest adds src to this interpreter's import path. Child interpreters
+    # need the checkout on PYTHONPATH when the package is not installed.
+    monkeypatch.setenv("PYTHONPATH", str(Path(__file__).resolve().parents[1] / "src"), prepend=os.pathsep)
     proc = subprocess.run([sys.executable, "-c", "import lazytools.code_bridge._mcp"], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
 

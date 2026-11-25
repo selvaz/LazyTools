@@ -1087,6 +1087,7 @@ def _projects(allow_write: bool = False, *, data_source: dict[str, Any] | None =
         allow_write=allow_write,
         task_principal=TaskPrincipal.model_validate(principal) if principal is not None else None,
         quarantine_threshold=config.get("projects_task_quarantine_threshold", 3),
+        approver_credential_file=config.get("projects_approver_credential_file"),
     )
 
 

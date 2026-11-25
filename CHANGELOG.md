@@ -8,6 +8,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-11-25
+
+### Changed (breaking)
+- Requires LazyBridge `>=1.10.0,<2.0`: typed approval decisions are authenticated with credentials. Run `lazytools-code-bridge approver-credential init` once to create the owner credential (stored in a user-only file, never in job environments), and `approver-credential provision-automatic` to enable automatic Projects approvals. `approve`/`reject` of typed tickets use the owner credential (#366).
+
+### Fixed
+- Publish: bounded PR head read-back; a stale read followed by a timeout keeps the observed mismatch, and `--retry-ticket` also accepts `pr_head_unavailable` (#363).
+- Governed runner: checks equal to the CI gate with per-check timeouts, update of an existing draft PR with a new receipt, rework from an operator-supplied failure, WIP snapshot before recovery (#362).
+- Deterministic Retry-After test for cloud jobs (#366).
+
 ## [0.12.1] — 2026-11-25
 
 ### Fixed

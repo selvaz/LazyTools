@@ -205,13 +205,10 @@ def test_job_uses_routine_tier_by_default(policy, tmp_path, monkeypatch):
                            task="x", db_path=tmp_path / "jobs.sqlite")
     assert result.status == "done"
     store = _store.build_store(tmp_path / "jobs.sqlite")
-    meta = _store.read_meta(store, result.job_id)
-    ticket = ApprovalQueue(_registry.registry_store(tmp_path / "jobs.registry.sqlite")).get_ticket(
-        meta["registry_ticket_ids"][0]
-    )
-    assert ticket.decision.decider == "routine-auto"
-    assert ticket.request.payload["rule_id"] == "git-fetch"
-    assert ticket.consumed_at
+    _, receipt = next(iter(store.items(prefix=_store.APPROVAL_PREFIX)))
+    assert receipt["approved_by"] == "routine-auto"
+    assert receipt["matched_rule_id"] == "git-fetch"
+    assert receipt["consumed_at"]
 
 
 def test_disable_and_extension_config(policy, tmp_path):
