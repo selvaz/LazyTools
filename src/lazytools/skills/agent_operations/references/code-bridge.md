@@ -68,24 +68,15 @@ be restarted at any time without touching the worker.
 
 ## Approvals
 
-Each ticket is a real decision: a push, PR creation, the first `git add` /
-`git commit` escalation, a delete, a merge. Read the command and reason,
-compare with the brief, then `approve` or `reject --reason`. Unanswered
-tickets expire as rejections after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL`
-seconds.
+The local writer's routine approvals use the owner-provisioned coder hand.
+The bridge gives each job copies scoped to its worktree and private scratch
+directory, then revokes them at completion. Use `status JOB --json` to see
+the card approval receipts.
 
-What runs without asking: file reads, `Write`/`Edit`, web search/fetch,
-audited routine-auto commands (recorded with `approved_by = routine-auto`),
-the packaged read-only allow-list, and — after the first human approval in a
-run — simple `git add`, `git commit`, `git push origin <the job's own
-branch>` and a narrow `gh pr create`. Always asking: pushes to `main` /
-`master`, `gh pr merge`, `git reset --hard`, anything matching `rm` or
-`delete`, and arguments with quotes, backslashes, backticks or `$`. That last
-rule is why briefs should ask for `git commit -F <file>` and
-`gh ... --json <fields>` without `--jq`.
-
-The gate checks command text, not file contents, and Claude's Bash is not
-path-confined. It is a capability check, not an operating-system sandbox.
+Pushes, network installs, external paths, GitHub writes, and commands outside
+the hand's scope file one-use tickets. Read the request, compare it with the
+brief, then use `approve` or `reject --reason`. Unanswered tickets expire after
+`LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.
 
 ## Timeouts, continuations and evidence
 
@@ -162,8 +153,8 @@ branch = "main"
   Detection is keyword-based and fail-closed, so a harmless mention also
   needs the flag.
 - `--where cloud` needs an explicit `--engine` and refuses `--session`,
-  `--effort`, `--needs`, `--detach`, `--wait-for-slot`, `--max-wall` and the
-  routine-auto options. Codex Cloud uses the model set on its environment
+  `--effort`, `--needs`, `--detach`, `--wait-for-slot` and `--max-wall`.
+  Codex Cloud uses the model set on its environment
   (`--model` is refused); Claude cloud takes `--model` or a tier mapping, but
   not with `--routine`.
 - **Data boundary.** The agent sees only the repository as cloned from the

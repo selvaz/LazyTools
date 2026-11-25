@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import itertools
 
 import pytest
 from lazybridge.engines.coding import ApprovalRequest
 
-from lazytools.code_bridge import _routine, _store
 from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._policy import CODING_RULES, REVIEW_RULES
 from lazytools.code_bridge._readonly import SENSITIVE_NAMES
@@ -160,33 +158,6 @@ def test_default_profile_is_unchanged():
     )
     assert gate._match(request).tier == "ask"
 
-
-def test_review_auto_approval_records_profile(tmp_path):
-    store = _store.build_store(tmp_path / "jobs.sqlite")
-    queue = _store.build_approval_queue(store)
-    policy = _routine.load_policy(enabled=False).for_job(tmp_path, "job")
-    gate = BridgeGate(
-        channel=_NoChannel(),
-        rules=REVIEW_RULES,
-        cwd=str(tmp_path),
-        profile="review",
-        routine=_routine.RoutineAuto(policy, store, queue, "job"),
-    )
-    request = ApprovalRequest(
-        provider="codex",
-        kind="command",
-        name="codex-shell",
-        arguments={"command": "python -m pytest"},
-        cwd=str(tmp_path),
-        raw={"command": "python -m pytest"},
-    )
-    assert asyncio.run(gate(request)).action == "allow"
-    records = [value for _, value in store.items(prefix=_store.APPROVAL_PREFIX)]
-    assert len(records) == 1
-    assert records[0]["approval_profile"] == "review"
-    assert records[0]["approved_by"] == "profile:review"
-    assert records[0]["consumed_at"]
-    assert gate.log[-1].tier == "allow"
 
 
 def _obfuscated_denied_commands() -> list[str]:
@@ -415,15 +386,11 @@ def test_review_holds_final_hardening_regressions(command: str):
 
 
 def test_review_held_command_records_profile(tmp_path):
-    store = _store.build_store(tmp_path / "jobs.sqlite")
-    queue = _store.build_approval_queue(store)
-    policy = _routine.load_policy(enabled=False).for_job(tmp_path, "job-held")
     gate = BridgeGate(
         channel=_NoChannel(),
         rules=REVIEW_RULES,
         cwd=str(tmp_path),
         profile="review",
-        routine=_routine.RoutineAuto(policy, store, queue, "job-held"),
     )
     request = ApprovalRequest(
         provider="codex",

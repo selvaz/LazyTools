@@ -3,7 +3,6 @@
 import pytest
 from lazybridge.engines.coding import ApprovalRequest
 
-from lazytools.code_bridge import _routine
 from lazytools.code_bridge._approvals import BridgeGate, is_readonly_gh_query
 from lazytools.code_bridge._policy import CODING_RULES
 
@@ -43,7 +42,6 @@ def test_gh_jq_and_template_always_ask(command):
     assert bash(command) == "ask"
     assert not is_readonly_gh_query(command)
     assert not is_readonly_gh_query(f"powershell.exe -Command '{command}'") or "'" in command
-    assert not _routine._gh_read(command)
 
 
 def test_gh_reads_without_jq_still_allow():
@@ -55,7 +53,6 @@ def test_gh_reads_without_jq_still_allow():
     # The Codex classifier's default table has no `pr list` / `issue` shapes.
     for command in ("gh pr view 1 --json title", "gh pr checks 1 --json name", "gh api repos/a/b/pulls/1/comments --paginate"):
         assert is_readonly_gh_query(command)
-    assert _routine._gh_read("gh pr view 1 --json title")
 
 
 # --- 2. git pathspec wildcards and magic -------------------------------------

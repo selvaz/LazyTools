@@ -93,7 +93,7 @@ class WorkspaceConfig:
 
 
 def validate_top_level(data: dict[str, Any], path: Path) -> None:
-    unknown = data.keys() - {"root", "concurrency", "routine_auto", "cloud"}
+    unknown = data.keys() - {"root", "concurrency", "cloud"}
     if unknown:
         raise ValueError(f"{path}: unknown top-level config keys: {sorted(unknown)}")
 

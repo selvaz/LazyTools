@@ -18,13 +18,12 @@ import sys
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass, replace
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
 from typing import Any
 
-from lazybridge.engines.coding import ApprovalDecision, ApprovalRequest
 from lazybridge.policy import PolicyError, policy_scope
 
 from lazytools.code_bridge import (
@@ -34,14 +33,13 @@ from lazytools.code_bridge import (
     _launch,
     _progress,
     _registry,
-    _routine,
     _store,
     _task,
     _tempdir,
 )
-from lazytools.code_bridge._approvals import BridgeGate, short_branch
+from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._lockfile import JobLock
-from lazytools.code_bridge._policy import CODING_RULES
+from lazytools.code_bridge._policy import NATIVE_READ_RULES
 from lazytools.code_bridge._review_tools import review_tools
 from lazytools.code_bridge._turn_cleanup import TurnCleanup
 
@@ -277,7 +275,10 @@ def interrupt_job(
         status="interrupted",
         error=error,
     )
-    close_pending_tickets(store, job_id, error, registry_db=registry_db)
+    try:
+        _registry.Registry.for_job(store, job_id, registry_db).revoke_coder_hand(job_id)
+    finally:
+        close_pending_tickets(store, job_id, error, registry_db=registry_db)
     return error
 
 
@@ -330,8 +331,6 @@ def run_job(
     timeout: float = _engines.DEFAULT_TIMEOUT,
     max_continuations: int = DEFAULT_MAX_CONTINUATIONS,
     max_wall: float | None = None,
-    routine_auto: bool | None = None,
-    scratch_root: str | None = None,
     wait_for_slot: bool = False,
     on_slot_wait: Callable[[_concurrency.EngineBusy], None] | None = None,
     profile: str = "default",
@@ -365,13 +364,12 @@ def run_job(
         raise ValueError("--max-wall must be a finite number greater than 0")
     wall_started = time.monotonic()
     registry_db = _registry.isolated_path(db_path, registry_db)
-    routine_policy = _routine.load_policy(enabled=routine_auto, scratch_root=scratch_root)
     resolved_cwd = _engines.resolve_cwd(cwd, root)
     claim = _task.load(task_id, claim_token, state="intent")
     resolver = claim.launch if claim else _launch.resolve_launch
     launch = resolver(engine_name, resolved_cwd, profile, network, launch_mode, review=intentional_review)
     legacy = launch.mode == "ungoverned-legacy"
-    routine_enabled = legacy and "shell" in launch.policy.tool_classes and routine_policy.enabled
+    writer = legacy and bool(launch.policy.tool_classes & {"edit", "shell"})
 
     # A detached launch (`run --detach`) picks the id in the parent so it can
     # report it before the child exists; every other caller gets a fresh one.
@@ -380,7 +378,6 @@ def run_job(
     if job_id is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
         raise ValueError(f"job id must be 1-64 letters, digits, '-' or '_', got {job_id!r}")
     job_id = job_id or new_job_id()
-    routine_policy = routine_policy.for_job(resolved_cwd, job_id)
     if on_job_id is not None:
         on_job_id(job_id)
 
@@ -404,6 +401,7 @@ def run_job(
     # before anything is recorded, like the repo lock: a refused or
     # interrupted wait leaves no job record behind.
     store_path = (db_path or _store.default_db_path()).expanduser().resolve()
+    approval_registry = _registry.Registry(store, registry_db)
     try:
         slot_config = _concurrency.load_config()
         slot = _concurrency.EngineSlot(
@@ -441,6 +439,7 @@ def run_job(
             registry.write(job_id, task, tool_name=engine_name, status=status, result=result, error=error)
 
         def _finish(status: str, text: str, error: str | None) -> RunResult:
+            approval_registry.revoke_coder_hand(job_id)
             if status != "done":
                 error = _with_workspace(
                     store,
@@ -510,14 +509,11 @@ def run_job(
                 "timeout": timeout,
                 "max_continuations": max_continuations,
                 "max_wall": max_wall,
-                "routine_auto": routine_enabled,
                 "approval_profile": profile,
                 **launch.metadata(),
                 **(claim.binding() if claim else {}),
                 "registry_ticket_ids": [],
                 **({"registry_db": str(registry_db)} if registry_db is not None else {}),
-                "routine_rule_count": len(routine_policy.rules) if routine_enabled else 0,
-                "scratch_root": routine_policy.scratch_root,
                 "continuations": 0,
                 "turns": [],
                 "head_at_start": head_at_start,
@@ -539,8 +535,6 @@ def run_job(
         temp_arg = str(temp_dir) if temp_dir is not None else None
         print(f"local launch: {launch.mode}; profile={launch.policy.profile}; network={launch.policy.network}",
               file=sys.stderr)
-        print(f"routine-auto: {'enabled' if routine_enabled else 'disabled'}; "
-              f"{len(routine_policy.rules) if routine_enabled else 0} active rules", file=sys.stderr)
 
         def validate_policy() -> None:
             if claim:
@@ -552,21 +546,14 @@ def run_job(
             review_tools(resolved_cwd, network=launch.policy.network, validate=validate_policy)
             if legacy and launch.policy.profile == "read" and "read" in launch.policy.tool_classes else None
         )
-        approval_registry = _registry.Registry(store, registry_db)
-        routine = _routine.RoutineAuto(routine_policy, store, _store.build_approval_queue(store), job_id)
-
-        def approve_routine(request: ApprovalRequest, rule_id: str) -> ApprovalDecision:
-            if claim is None:
-                return routine.approve(request, rule_id)
-            with claim.service.local_dispatch(
-                claim.principal, claim.task_id, claim.token, state="submitted", job_ref=job_id, write=True,
-            ) as (task_store, _):
-                if store_path.resolve() == claim.service.path:
-                    return replace(routine, store=task_store, queue=_store.build_approval_queue(task_store)).approve(
-                        request, rule_id,
-                    )
-                return routine.approve(request, rule_id)
-
+        hand = None
+        if writer:
+            lifetime = min(max_wall or math.inf, timeout * (max_continuations + 1))
+            # An expiry also covers a worker that dies before it can revoke.
+            expires = datetime.now(UTC) + timedelta(seconds=min(lifetime + 60, 7 * 24 * 3600))
+            hand = approval_registry.copy_coder_hand(
+                job_id, claim.task_id if claim else job_id, resolved_cwd, temp_dir, expires,
+            )
         channel = _registry.ApprovalChannel(
             approval_registry, job_id, launch.policy.revision, launch.policy.digest,
             ticket_ttl(), poll_seconds(),
@@ -577,11 +564,12 @@ def run_job(
             actor=claim.principal.actor if claim else "local-bridge",
             attempt=claim.receipt["attempt"] if claim else 1,
             fenced_consume=partial(claim.consume_approval, registry=approval_registry) if claim else None,
-            approve_routine=approve_routine if routine_enabled else None,
+            hand=hand,
+            fenced_queue=partial(claim.card_queue, job_id, approval_registry) if claim else None,
         )
-        gate = BridgeGate(channel=channel, rules=CODING_RULES if legacy else (), cwd=str(resolved_cwd), temp_dir=temp_arg,
+        gate = BridgeGate(channel=channel, rules=NATIVE_READ_RULES if legacy else (), cwd=str(resolved_cwd), temp_dir=temp_arg,
                           effective_policy=launch.policy, legacy_callbacks=legacy,
-                          routine=routine if routine_enabled else None)
+                          writer=writer)
 
         from lazybridge.engines.sessions import default_session_registry
 
@@ -644,8 +632,6 @@ def run_job(
             turns: list[dict[str, Any]] = []
             before = await asyncio.to_thread(_progress.snapshot, lock.cwd)
             job_branch = before.get("branch")
-            # The one branch a session push / `gh pr create --head` grant covers.
-            gate.job_branch = short_branch(job_branch)
             for turn in range(max_continuations + 1):
                 validate_policy()
                 if turn:
@@ -749,9 +735,12 @@ def run_job(
             raise  # propagate the signal rather than reporting a fabricated RunResult; `finally` below still releases the lock
         return finished
     finally:
-        _tempdir.remove_job_temp_dir(temp_dir)  # best effort, never raises
-        slot.release()
-        lock.release()
+        try:
+            approval_registry.revoke_coder_hand(job_id)
+        finally:
+            _tempdir.remove_job_temp_dir(temp_dir)
+            slot.release()
+            lock.release()
 
 
 def _mark_slot_interrupted(
@@ -801,6 +790,7 @@ def _mark_interrupted(store: Any, registry: Any, old_job_id: str, *, db_path: Pa
     old = registry.find(old_job_id)
     if old is None or old.get("status") in ("done", "partial", "failed", "interrupted"):
         close_pending_tickets(store, old_job_id, "the process running this job appears to have died")
+        _registry.Registry.for_job(store, old_job_id).revoke_coder_hand(old_job_id)
         return
     interrupt_job(
         store, registry, old, "lock reclaimed: the process running this job appears to have died", db_path=db_path

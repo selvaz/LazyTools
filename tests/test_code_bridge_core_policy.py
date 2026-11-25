@@ -49,64 +49,6 @@ def record(job_id):
     return _jobs.find_job(store, _store.build_job_registry(store), job_id)
 
 
-def test_legacy_writer_retains_readonly_commands_and_routine_pytest(tmp_path, monkeypatch):
-    fakes.install(monkeypatch)
-    repo = tmp_path / "repo"
-    (repo / "tests").mkdir(parents=True)
-    scratch = tmp_path / "scratch"
-
-    async def turn(engine, prompt, name):
-        gate = engine.kwargs["config"].approval_gate
-        for command in ("git status", "git diff", "git log -1",
-                        f"'{Path(sys.executable).as_posix()}' -m pytest tests --basetemp {scratch.as_posix()}/run"):
-            request = ApprovalRequest(provider="claude-code", kind="tool", name="Bash",
-                                      arguments={"command": command}, cwd=str(repo))
-            assert (await gate(request)).action == "allow", command
-        return Envelope(payload="done")
-
-    monkeypatch.setattr(_jobs, "_run_agent", turn)
-    result = _jobs.run_job(engine_name="claude", cwd=str(repo), root=str(tmp_path), task="Write",
-                           scratch_root=str(scratch))
-    assert result.status == "done", result.error
-    _, receipt = next(iter(_store.build_store().items(prefix=_store.APPROVAL_PREFIX)))
-    assert receipt["matched_rule_id"] == "pytest-scratch"
-    assert receipt["consumed_at"] is not None
-
-
-def test_legacy_writer_retains_branch_session_grants(tmp_path, monkeypatch):
-    fakes.install(monkeypatch)
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    git(repo, "init")
-    git(repo, "symbolic-ref", "HEAD", "refs/heads/feat/legacy")
-    prompts = []
-
-    async def turn(engine, prompt, name):
-        gate = engine.kwargs["config"].approval_gate
-
-        async def approve(prompt):
-            prompts.append(prompt)
-            return True
-
-        monkeypatch.setattr(gate.channel, "ask", approve)
-
-        async def request(command):
-            return await gate(ApprovalRequest(provider="claude-code", kind="tool", name="Bash",
-                                              arguments={"command": command}, cwd=str(repo)))
-
-        for command in ("git push origin feat/legacy", "gh pr create --head feat/legacy"):
-            assert (await request(command)).action == "allow_session"
-            assert (await request(command)).action == "allow"
-        assert (await request("git push origin main")).action == "allow"
-        assert (await request("git push origin main")).action == "allow"
-        return Envelope(payload="done")
-
-    monkeypatch.setattr(_jobs, "_run_agent", turn)
-    result = _jobs.run_job(engine_name="claude", cwd=str(repo), root=str(tmp_path), task="Write", routine_auto=False)
-    assert result.status == "done", result.error
-    assert len(prompts) == 4 and all("git push origin main" in prompt for prompt in prompts[-2:])
-
-
 @pytest.fixture
 def subprocess_bridge(tmp_path, monkeypatch):
     # Keep the production CLI, MCP subprocess, detach worker, and SQLite paths.
@@ -226,7 +168,7 @@ def test_custom_job_store_finds_pre_isolation_shared_tickets(tmp_path, monkeypat
             registry, job_id, "revision", "digest", timedelta(minutes=1), 0.01,
             lambda: None, lambda: None, lambda: None,
         )
-        ticket, _ = channel._file(
+        ticket, _ = channel._submit(
             ApprovalRequest(provider="codex", kind="command", name="shell", arguments={"command": "git status"}),
             "Approval requested",
         )
@@ -347,7 +289,7 @@ def test_cancel_closes_typed_ticket(tmp_path, monkeypatch, isolated):
         registry, job_id, "revision", "digest", timedelta(minutes=1), 0.01,
         lambda: None, lambda: None, lambda: None,
     )
-    ticket, _ = channel._file(
+    ticket, _ = channel._submit(
         ApprovalRequest(provider="codex", kind="command", name="shell", arguments={"command": "git status"}),
         "Approval requested",
     )
@@ -421,7 +363,7 @@ def test_claimed_approval_consumes_only_for_its_dispatch(tmp_path, monkeypatch, 
         lambda: None, lambda: None, lambda: binding.recheck(job_id), task_id=task_id, actor=WORKER.actor,
         attempt=receipt["attempt"], fenced_consume=consume,
     )
-    ticket, executor = channel._file(
+    ticket, executor = channel._submit(
         ApprovalRequest(provider="codex", kind="command", name="shell", arguments={"command": "git status"}),
         "Approval requested",
     )
@@ -562,7 +504,7 @@ def test_intentional_review_cannot_borrow_writer_options(tmp_path, monkeypatch, 
     script.approval_overrides = {"kind": "tool", "name": "Write", "arguments": {"file_path": "forbidden.txt"}}
     result = _jobs.run_job(
         engine_name=engine, cwd=str(tmp_path), root=str(tmp_path), task="Review", profile="edit-and-run",
-        launch_mode="legacy", intentional_review=True, routine_auto=True, scratch_root=str(tmp_path),
+        launch_mode="legacy", intentional_review=True,
     )
     meta = record(result.job_id)
     assert result.status == "failed" and "barred" in result.error

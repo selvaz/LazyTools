@@ -818,12 +818,9 @@ configured root is resolved beside the configuration file. The top-level
 (`load_workspace` versus `load_config`). A confinement error
 reports the selected root and whether it came from the flag, environment,
 configuration, or current working directory. The compiled profile controls
-native reads, writes, shell and web exposure. In legacy mode, Claude Bash
-callbacks and Codex command escalations use the routine validators and
-legacy approval rules within the shell grant. Claude also uses the
-read-only allow-list and session grants for its assigned push and PR
-commands. The legacy mode label indicates that runtime confinement has
-not been verified.
+native reads, writes, shell and web exposure. In legacy mode, local writer callbacks and Codex command escalations use
+the coder hand and the typed ticket queue within the native tool grants.
+The legacy mode label indicates that runtime confinement has not been verified.
 
 ### Operator credentials
 
@@ -922,308 +919,50 @@ credential for this flow.
 The Projects registry records the card use and retains the one-time effect
 consumption and outcome record.
 
-### Routine auto-approval (R13)
+### Coder approval cards
 
-`BridgeGate` enables **routine-auto** for ungoverned legacy writers by default.
-Every match writes a consumed approval record in the job Store, with the
-rule ID and decision actor `routine-auto`. Shell callbacks and command
-escalations that miss the tier ask the operator through the typed registry.
+Provision the coder hand once per approval registry from the owner shell.
+Use the same store options for provisioning, running the job and inspecting
+its audit. With a custom \`--db\` alone, the bridge uses the sibling
+\`<db-stem>.registry.sqlite\` registry.
 
-### Legacy Claude Bash read-only allow-list
+\`\`\`console
+lazytools-code-bridge approver-credential init --db JOBS_DB --registry-db REGISTRY_DB
+lazytools-code-bridge approver-credential provision-coder --db JOBS_DB --registry-db REGISTRY_DB
+\`\`\`
 
-`readonly_allowlist.toml`, packaged beside `routine_allowlist.toml`, lists exact
-command/subcommand tokens, permitted flags and value options, positional limits,
-and capability validators. Both files use the same strict TOML envelope loader:
-unknown keys, duplicate ids and malformed capabilities are errors. Adding a
-read option or command shape uses TOML; a new validator requires code review.
+Each local writer that uses bridge approval callbacks receives nontransferable
+copies scoped to its job and workspace. A separate copy can cover its own
+temporary directory. The bridge revokes the copies when the job finishes or is
+cancelled, and expires them if an interrupted worker cannot be recovered. A
+revoked original also invalidates its copies.
 
-The initial set covers `ls`, `pwd`, `cat`, `head`, non-following `tail`, `wc`,
-`grep`/`rg`, `find` with read predicates, Git status/log/diff/show, branch listing,
-rev-parse/describe/ls-files/grep; GitHub PR
-view/list/checks/diff, run view/list, issue view/list, and GET-only `gh api` on
-`repos/...` endpoints. `git fetch` is **not** read-only (it writes refs/objects
-and uses the network) and asks; routine-auto keeps its own validated
-`git fetch origin`. `git remote` (including `-v`) asks: it prints remote URLs,
-which can embed credentials. `gh pr checks --watch/--interval` and `gh run watch`
-poll until completion and ask. `gh ... --jq/-q/--template/-t` ask: a jq filter or
-template can print the process environment (`--jq env`). Output-writing,
-external-command and unknown options ask.
+Cards cover direct local commands such as Git status, diff and metadata reads,
+staging explicit file paths, committing the index with an inline or scoped file message,
+running pytest and creating scratch virtual environments. They cover ordinary
+native file edits and literal cleanup targets created during the job. Cleanup
+checks the worktree at launch and checks the live path and its contents for
+links and reparse points. Use separate commands with literal paths. Examples:
 
-Operands of every allow-listed `git` command are literal: one containing `*`, `?`,
-`[`, `]`, `{`, `}` or starting with `:` (pathspec magic such as `:(top).env`) asks,
-because git expands it against the tree and `".e*"` or `".en?"` would reach `.env`
-past the name check. `git branch --list 'feat/*'` is exempt, since its operand is a
-ref-name pattern and not a path.
+\`\`\`console
+git add -- src/example.py
+git commit -m "Update example"
+python -m pytest -q -p no:cacheprovider tests
+python -m venv --copies .trial-venv
+\`\`\`
 
-Every read tool also checks its operands. Paths must be relative, contain no
-`..`, and live in the job's cwd; absolute paths (`/`, `C:`, `~`, `/dev/*`), stdin
-(`-`), Windows device names (`CON`, `NUL`, ...), 8.3 aliases and NTFS stream
-names ask. Any path segment matching `.env*`, `auth.json`, `.ssh`, `.codex`,
-`.claude`, `.aws`, `.azure`, `.gnupg`, `.npmrc`, `.pypirc`, `.netrc`,
-`.git-credentials`, `credentials*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`,
-`id_ecdsa*`, `id_dsa*`, `.pgpass`, `*.tfstate*`, `*.tfvars*`, `*.pfx`, `*.p12`,
-`kubeconfig`, `.kube`, `.docker`, `*secret*`, `*token*` (or `.git`), or a `.bak`
-copy of any of them (`auth.json.bak`, `.env.bak`), asks, so `cat src/tokenizer.py` asks too: a false ask is
-cheap. For `grep`/`rg`/`git grep` the search pattern is not a path, so
-`grep -r token src` is fine. `rg --hidden`, `--no-ignore`, `-u`, positive
-`-g` globs that could re-include dotfiles (`*`, `.*`, `**`), and
-`git grep --no-index` ask. `cat`, `head`, `tail`, `wc`, `grep` and `rg` given no
-path operand would read stdin and could block forever, so they ask unless they
-are the right side of an allowed pipe (`grep -r` and `rg --files` search the
-cwd instead). Operand rules live in the TOML (`operands`, `stdin`,
-`no_stdin_flags`, `globs`).
+Use \`rm -rf -- PATH\` on POSIX or
+\`Remove-Item -LiteralPath PATH -Recurse -Force\` in PowerShell for scratch cleanup.
+Pushes, fetches, network installs, GitHub commands, messages, cross-repository
+\`git -C\`, production paths, external writes and deletions, and requests that
+the bridge cannot scope require a one-use operator ticket. Native sandbox
+policy still governs actions that execute without a bridge callback.
 
-Claude `Write`/`Edit` (and `MultiEdit`/`NotebookEdit` if ever allowed) ask for
-any path under `.git/` (including `.git/hooks/**` and `.git/config`) and for
-`.gitattributes`, `.gitmodules` and `.gitconfig`, after NTFS normalisation. Those
-files can make an allow-listed git read run a command: `core.fsmonitor` runs on
-`git status`, `core.sshCommand`/`ext::` remotes on network use, and
-`textconv`/external-diff drivers on `git diff|log|show`. They also ask for
-`.claude/**`, `.mcp.json`, `.husky/**`, any `.env*`, `.vscode/settings.json`, the
-shell rc files (`.bashrc`, `.bash_profile`, `.profile`, `.zshrc`, `.zprofile`,
-`.zshenv`, `Microsoft.PowerShell_profile.ps1`, `profile.ps1`) and any path outside
-the job: absolute paths that are not under the job cwd or the job's temp dir
-(where the writer's helper files live), and any path with a `..` segment. Paths
-are compared lexically after slash/case normalisation. A write call with no
-usable path also asks.
-
-The parser rejects backslash escapes, substitution, comments, malformed quotes,
-control/non-ASCII characters, environment prefixes, interpreters and wrappers.
-Shell chaining (`;`, `&&`, `||`) asks. A pipeline passes only if **every stage**
-matches a read capability; a quoted jq pipe remains an argument. File redirects
-ask; only numeric descriptor duplication and literal `/dev/null` output targets
-are accepted. Sessions cannot cover redirects or pipelines. Existing explicit
-ask patterns remain in force. Tickets show the matched rule, or
-`no allow rule matched (fail closed)` for the fallback.
-
-### Routine-auto configuration
-
-Configuration lives beside `[concurrency]` in `~/.lazytools/code-bridge.toml`
-(or `$LAZYTOOLS_CODE_BRIDGE_CONFIG`):
-
-```toml
-[routine_auto]
-enabled = true
-scratch_root = "D:/Temp"
-# Defaults to the Python executable running the bridge:
-python_executable = "C:/ProgramData/spyder-6/python.exe"
-test_roots = ["tests"]  # repo-relative roots permitted for pytest test paths
-# Optional extra rules; relative paths resolve beside this config file:
-allowlist = "routine-extra.toml"
-```
-
-`scratch_root` defaults to `D:/Temp` on Windows and the system temp directory
-elsewhere. It must be absolute. `run --scratch-root PATH` overrides it.
-`--no-routine-auto` disables this tier; `--routine-auto` enables it regardless
-of the config. Neither changes the deployed environment or grants new
-sandbox writable roots. PR body files must be children of the system temp
-directory's `lazytools-bridge` folder.
-Startup logs whether routine-auto is enabled and the active rule count to
-stderr (the detached worker log). Plain `status` prints both, and JSON includes
-`routine_auto` and `routine_rule_count`. Unknown top-level configuration keys
-are errors. The supported top-level key and tables are `root`, `[concurrency]`,
-`[routine_auto]`, and `[cloud]`.
-
-The packaged `lazytools/code_bridge/routine_allowlist.toml` contains:
-
-| Rule id | Allowed command |
-| --- | --- |
-| `gh-pr-read` | `gh pr view N`, `gh pr checks N`, including read-only output/watch flags |
-| `gh-pr-list` | `gh pr list --head BRANCH` with read-only filters/output |
-| `gh-run-read` | `gh run view N`, `gh run watch N` with read-only flags |
-| `gh-run-list` | `gh run list` with read-only filters/output |
-| `gh-job-logs` | `gh api repos/selvaz/REPO/actions/jobs/N/logs` |
-| `gh-comments-reviews` | GET `gh api repos/selvaz/REPO/{pulls,issues}/N/{comments,reviews}` |
-| `gh-pr-body` | `gh pr edit N --body-file FILE` under the bridge temp folder |
-| `git-add-paths` | `git add -- FILE...`; explicit repo-relative files only, no traversal, globs, sensitive names or directories |
-| `git-fetch` | `git fetch origin` |
-| `git-merge` | `git merge --no-edit origin/main` or `origin/{feat,fix,docs,research}/NAME`; current branch must be known and not main/master |
-| `git-push-feature` | `git push origin {feat,fix,docs}/NAME`; release branches stay manual |
-| `pytest-scratch` | Configured Python, optional `-B`, `-m pytest`, the exact flag allow-list below, and one fresh/job-owned `--basetemp` |
-| `macro-verifier-scratch` | Configured Python `-B scripts/verify_macro_NAME.py --source C:/ProgramData/InvestmentCommittee/live/db/macro_releases.sqlite --destination-root PATH`, optional `--families a,b`; PATH inside `scratch_root` |
-
-Commands are matched in full after normalising Windows backslash runs to `/`,
-stripping a recognised PowerShell wrapper and removing literal argument
-quotes with strict tokenisation. On POSIX, commands and configured paths with
-backslashes are rejected, preserving native filename semantics. Only the exact
-`$env:PYTHONPATH=(Get-Location).Path; ` prefix (pytest only) and a leading
-`& ` call operator are accepted. Semicolons (even inside quotes), `&`,
-backticks, `$`, newlines, redirection and shell pipes are rejected. A pipe
-inside a quoted argument is literal data and is accepted. `--jq`/`-q` and
-`--template`/`-t` are not accepted on any `gh` shape (they can print the
-environment).
-Only ASCII spaces/tabs are trimmed; non-ASCII characters and control characters
-are rejected before trimming. All validated paths reject components ending in
-a dot or space, and components containing `~`, to exclude Windows path aliases.
-Embedded quote/escape characters fail closed. Scratch paths reject traversal,
-sibling-prefix tricks, duplicate basetemp overrides and symlink escapes.
-Force pushes, pushes to main/master, PR merges, GraphQL mutations, process
-kills and impersonation downloads earn no routine approval.
-
-Pytest accepts only `-q`, `-x`, `-v`, `-vv`, attached report flags such as
-`-rN`/`-ra`, `--tb=WORD`, `-k EXPR`, `-m EXPR`, `--maxfail=N`,
-`-p no:cacheprovider`, `--no-header`, and `-s`, plus exactly one separate
-`--basetemp PATH`. Positional test paths (including `::` node selectors) must
-be repo-relative, free of traversal/globs, and under `test_roots` (default
-`["tests"]`). Unknown flags, attached options, abbreviations, output flags,
-plugin loading, alternate config/root/discovery controls and argument files
-ask. In particular, `-o*`, `--ov*`, other `-p*`, `-c*`, `--root*`,
-`--conf*` and `--py*` cannot be used to bypass the allow-list.
-
-Pytest removes basetemp before use. The path must be a strict child of
-`scratch_root` and either not exist, or resolve under an existing
-`bridge-JOB_ID-UNIQUE` prefix belonging to this job. `UNIQUE` must be a non-empty
-single token of ASCII letters, digits or underscores, so the job ID boundary
-is exact even when one job ID is a prefix of another. Existing non-job
-directories, symlinks, the scratch root, the bridge's temp tree and the
-reserved `scratch_root/lazytools-bridge` tree are never approved as basetemp.
-The freshness check occurs at approval; it is not an atomic filesystem lease.
-
-Staging rejects `.`, `-A`, absolute paths, `..`, globs, directories (which
-could hide sensitive files), and any path component matching `.env*`,
-`.npmrc`, `.netrc`, `.pypirc`, `.git`, `*.pem`, `*.key`, `*.pfx`, `*.p12`,
-`*.token`, `*.jks`, `id_*`, `*secret*`, or `*credential*`, case-insensitively.
-Feature branch suffixes cannot start with `.` or `-`, contain `..`, or end with `/`;
-invalid dot/lock suffixes also ask. GitHub API repo segments cannot be `.` or
-`..` or contain `..`. API endpoints require a known job origin and must name it,
-and every `-R`/`--repo` override must name that origin. An unknown origin
-cannot earn an explicit repo override. A different execution cwd cannot
-borrow another job's relative-path, branch or origin validation.
-
-**Known limit: engine-written Python runs code.** Pytest imports test modules,
-conftest, project configuration and installed plugins; a verifier is a Python
-script. The engine can edit those files, and they can execute arbitrary code,
-including writes outside scratch_root. The routine tier constrains the
-approved command line and does **not** sandbox Python or establish trust in
-its source. Ambient pytest configuration/environment can also alter behavior.
-Use trusted code/configuration or disable routine-auto when that trust is not
-appropriate. We deliberately permit new feature-branch verifier scripts:
-requiring an unchanged script from origin/main would prevent the intended
-workflow of verifying newly written helpers. This is a documented trust limit,
-not a claim that the verifier is read-only.
-
-To extend the allow-list, create the optional TOML file with additional
-unique ids and Python regular expressions. Patterns use **fullmatch**, and
-still pass through the shared command syntax checks:
-
-```toml
-[[rules]]
-id = "local-git-status"
-pattern = 'git status --short'
-validator = "git-status"
-```
-
-Every rule must declare a known capability validator. Supported validators
-are `gh-read`, `gh-api`, `gh-pr-body`, `git-add`, `git-fetch`, `git-merge`,
-`git-push`, `git-status`, `pytest`, and `macro-verifier`. An extension must
-contain a `rules` array, even if empty. A broad regex such as `.*` cannot
-override the validator's command family, flags or scope. New capabilities
-need a reviewed Python validator; a TOML pattern alone cannot grant them. The
-`{python}` placeholder is replaced by the escaped configured executable.
-Named regex groups `(?P<scratch>...)` and `(?P<bridge_temp>...)` enforce the
-corresponding path root. Extensions are trusted operator policy: keep their
-patterns narrow. Duplicate ids, invalid expressions and unknown validators
-are errors before launch, including detached launches. Installed defaults
-remain intact; the extra file appends rules.
-
-### Legacy structural approval rules
-
-The following table describes the older policy, available with
-`--no-routine-auto`. With routine-auto enabled, rejected escalations and
-protected Bash commands ask as described above, rather than falling back to
-these older grants.
-
-On 17/10/2026 one day of delegated work filed about fifteen tickets in
-fifteen minutes, nearly all harmless. Three changes, all in the bridge
-itself (`_approvals.py`, `_policy.py`, `_engines.py`), remove that noise
-without loosening anything that matters. The gate is a
-`BridgeGate` — a `TieredGate` that consults explicit, unit-tested
-classifiers on the **whole** command before the stock fnmatch rules.
-
-| Request | Before | Now | Why it is safe |
-| --- | --- | --- | --- |
-| Codex runs `pytest` (needs `tmp_path`) | escalation → ask | runs **inside** the sandbox | The job gets its own temp directory, `<os temp>/lazytools-bridge/<job_id>`, as its **only** extra writable root, with `TEMP`/`TMP`/`TMPDIR` pointing at it (see "Per-job temp directory"). No repo history, no other repository, no network. |
-| Codex escalates a read-only GitHub query: `gh pr view\|checks\|diff`, `gh run view\|list`, `gh api` GET on `repos/...`, bare or inside `powershell.exe -Command '...'` | ask | **allow** | An allow-list over a strict tokeniser (see below). Codex escalates these only because its sandbox has no network; they read and never write. |
-| Codex escalates `git add ...` / `git commit ...` | ask, every time | **session**: first asks, rest of the run granted | The same session semantics the Claude `Bash` rules already give `git add`/`commit`, for one simple command whose options, after quote removal, all come from a short allow-list (below). Scoped to cwd and to that exact rule. |
-| Claude writes a file through a shell heredoc whose *body* contains `delete`/`rm ` | ask | **still asks** — but the writer is told not to do it | Option B: the Claude writer's instructions say to create files only with Write/Edit (already allowed), never heredocs or `echo >`, and to put helper files in its job temp dir. The gate matches the whole `Bash` text, exactly as stock `TieredGate` does. |
-
-**The read-only `gh` classifier** (`is_readonly_gh_query`) returns "allow"
-only when every check passes; anything it does not positively recognise
-falls through to the catch-all `ask`. A false "ask" is cheap; a false
-"allow" is not.
-
-- One command only. Outside quotes, only `[A-Za-z0-9_./:,=+-]` are allowed —
-  so `;`, `&&`, `||`, `|`, `>`, `<`, `(`, `{`, globs and `#` all mean "ask".
-  `|` and `{}` inside quotes are literal data (but `--jq`/`--template` themselves ask, below).
-- `$`, backtick, `\` and any non-ASCII character mean "ask" anywhere, quoted
-  or not (bash/PowerShell substitution; PowerShell treats Unicode smart
-  quotes as quotes).
-- An **empty argument** (`''`, `""`, or empty after quote removal) means
-  "ask", for the `gh` classifier and the `git add`/`commit` grants alike,
-  wrapped in PowerShell or not. Windows PowerShell 5.1 drops empty arguments
-  when it starts a native program, so `gh api --jq '' --template -XDELETE …`
-  would reach gh as `--jq --template -XDELETE …` (a DELETE), and
-  `git commit -m '' -m --amend` as `-m -m --amend`. The classifier does not
-  try to emulate PowerShell's argument passing; it fails closed.
-- **No quote or escape character inside an argument.** If any argument,
-  *after* quote removal, contains `"`, `'`, backtick, `\` or `$`, the command
-  asks. This applies to the `gh` classifier and the `git` grants, wrapped or
-  not. Windows PowerShell 5.1 does not escape an embedded `"` when it builds
-  a native command line, so the program splits that value again:
-  `gh api --jq '". -XDELETE -q" .' repos/…` reaches gh with an extra
-  `-XDELETE` (a DELETE), and `git commit -m '"x --amend -m" y'` reaches git
-  with `--amend`. After three review rounds on PowerShell quoting, the rule is
-  to refuse these characters rather than model PowerShell's behaviour.
-
-  **Trade-off:** a commit message with an apostrophe (`-m "it's"`) asks.
-  Quoted values *without* inner quotes keep working: `-m 'fix: the typo'`. The
-  plain forms (`gh pr view 77 --repo a/b --json state`, `git commit -m fix-typo`)
-  never needed quotes at all.
-- **No `--jq`/`-q` or `--template`/`-t` on any read-only `gh` shape.** A jq
-  filter can read the process environment (`--jq env`, `--jq 'env|keys'`), which
-  holds API keys and bot tokens, and a Go template can too. Every such use asks,
-  in the Claude Bash gate, the Codex `readonly_gh_query` classifier and
-  routine-auto alike. Use `--json <fields>` and read the result.
-- The PowerShell wrapper is unwrapped only in its exact form:
-  `powershell.exe|pwsh [-NoProfile|-NonInteractive|-NoLogo] -Command '<one payload>'`
-  with nothing after the closing quote and no quote of the same kind inside.
-- Per subcommand, an explicit list of permitted flags. `gh api` may carry only
-  output/pagination flags — `-X`/`--method`, `-f`/`-F`/`--field`/`--raw-field`,
-  `--input`, `-H` all mean "ask" — and exactly one positional matching
-  `repos/<owner>/<repo>/...` (no `..`, no query string, no `graphql`).
-- Any other `gh` subcommand (`pr merge`, `pr comment`, `release create`,
-  `run rerun`, `auth token`, ...) and anything that is not `gh` mean "ask".
-
-**Escalated `git add` / `git commit` allow-list.** Every word is judged
-*after* quote removal (so `"--amend"` is `--amend`) and options must match
-exactly — git accepts unambiguous abbreviations (`--amen`, `--no-ver`), so a
-deny-list cannot work.
-
-- `git add`: paths, `-A`, `--all`, `-u`, `--update`, `--`. Anything else
-  (`-f`/`--force`, `-p`, `--chmod`, abbreviations) asks.
-- `git commit`: `-m <msg>`, `--message=<msg>`, `-a`, `--all`, `-am <msg>`,
-  `-F <file>` / `--file=<file>` (a relative path with no `..`), `--` and
-  repo-relative paths. Anything else asks: `--amend`, `--no-verify`/`-n`,
-  `--fixup`, `-c`/`-C`, `--author`, `-mx`, abbreviations, absolute or `..`
-  paths.
-
-**Heredocs: why the gate does not look past them.** Stock `TieredGate` splits
-a command on newlines, so every line of a heredoc body is matched as if it
-were a command. A first version of this work hid the bodies of "data"
-heredocs (`cat > file <<'EOF'`). The opposite-engine review showed that this
-could hide commands that really run: `echo ok # ; cat > x <<'EOF'` (bash
-ignores the commented `cat`, so the "body" lines execute),
-`bash -c "$(cat <<'EOF' ... EOF)"`, or a data file that is then run with
-`bash x`. It was removed. The Bash text is matched in full again, and the
-Claude writer is instructed instead (system prompt, see
-`_engines.claude_writer_instructions`):
-
-- create and change files **only with Write/Edit** — no heredocs, no
-  `echo`/`printf` redirection, no `python -c` that writes files;
-- use Bash to run programs, not to author files;
-- put temporary helper files in the job's temp directory, created with Write.
-
-A heredoc that slips through still asks, which is the safe failure.
+Use \`status JOB --json\` or \`result JOB --json\` to see \`card_approvals\`, including
+the copied card ID, its original, the request digest and the command or file
+paths. The plain-text output lists each approved action. Use the coder hand
+with trusted local repositories and toolchains. Tests execute repository code.
+Git hooks and custom execution settings can require operator approval.
 
 ### Per-job temp directory
 
@@ -2045,12 +1784,6 @@ What to hand back: the diff summary, the command output, anything undecided.
   command-time file changes would make that check vulnerable to a
   time-of-check/time-of-use race.
 
-- A session grant for an escalated `git commit` runs the repository's commit
-  hooks outside the sandbox. Codex's sandbox keeps `.git` read-only, but a
-  repository configured with `core.hooksPath` pointing at a tracked
-  directory lets a job edit the hook it will later trigger — the first
-  commit escalation is the moment to notice that.
-
 - The per-`cwd` lock's "is this pid alive, and is the stale lock still the
   same lock file" check is two separate steps, not one atomic operation —
   two `run`s racing to reclaim the exact same stale lock at the exact same
@@ -2076,11 +1809,9 @@ What to hand back: the diff summary, the command output, anything undecided.
   quoting can be held even when harmless, and newly installed command wrappers
   are not classified until added to the policy. The gate is an approval aid,
   not a shell sandbox.
-- Claude Bash uses BridgeGate's whole-command parser before any session or
-  read-only grant; substitution and ambiguous syntax ask. These checks are
-  capability checks, not an operating-system sandbox. Installed executables,
-  repository configuration and the existing routine-auto trust limits still
-  matter.
+- The coder hand classifies complete native callback commands. Substitution
+  and ambiguous syntax ask. Installed executables and repository configuration
+  remain part of the execution trust boundary.
 - Residual risk of the allow-listed git reads: they carry no `-c` and `git config`
   asks, but a `core.fsmonitor`, `textconv`/`filter` driver or `ext::` remote that
   already exists in the repository's config before the job starts (or is written
