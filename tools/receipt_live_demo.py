@@ -172,7 +172,7 @@ def run_job(
     argv = [
         "run", "--cwd", str(repo), "--root", str(repo), "--where", "local",
         "--engine", engine, "--launch-mode", "legacy", "--network", "off",
-        "--no-freshness-check", "--no-brief-check", "--no-routine-auto", "--max-continuations", "0",
+        "--no-freshness-check", "--no-brief-check", "--max-continuations", "0",
         "--task-id", lease["task_id"], "--claim-token", lease["claim_token"], "--task", prompt, "--json",
         "--db", str(stores["bridge"]), "--registry-db", str(stores["registry"]),
     ]

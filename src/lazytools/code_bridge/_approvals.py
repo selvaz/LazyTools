@@ -32,7 +32,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import Rule, TieredGate
@@ -217,7 +217,6 @@ _GH_READONLY: dict[tuple[str, ...], _GhShape] = {
 }  # fmt: skip
 
 #: The shapes the Codex escalation classifier auto-allows. ``_GH_READONLY`` itself
-#: is also the base of routine-auto's own validated gh shapes (``_routine.py``,
 #: which keeps ``--watch``); the unattended classifier must not block the job by
 #: polling, so ``gh pr checks`` loses ``--watch`` and ``--interval`` here only.
 _GH_ESCALATION_READONLY: dict[tuple[str, ...], _GhShape] = {
@@ -582,8 +581,7 @@ class ClassifiedRule(Rule):
 class BridgeGate(TieredGate):
     """``TieredGate`` that tries :class:`ClassifiedRule` entries first, on the whole command.
 
-    Routine-auto validators run first. Claude Bash then checks session rules
-    and the read-only allow-list on the whole command, asking on any miss.
+    Local writer callbacks reach the registry for a card or a one-use ticket.
     Codex escalations try classified rules before stock ``TieredGate`` matching
     on the unmodified text. (An earlier revision hid
     "data" heredoc bodies from the patterns; review showed a commented-out
@@ -595,7 +593,7 @@ class BridgeGate(TieredGate):
     session-grant scoping -- is ``TieredGate``'s own.
     """
 
-    routine: Any = None
+    writer: bool = False
     accepting: bool = True
     #: The branch this job started on (``feat/x``, not ``refs/heads/feat/x``),
     #: set by the job runner. The only ref a push / ``gh pr create --head`` grant
@@ -610,13 +608,6 @@ class BridgeGate(TieredGate):
     legacy_callbacks: bool = False
 
     async def _decide(self, request: ApprovalRequest, rule: Rule | None) -> Any:
-        if isinstance(rule, _RoutineMatch):
-            automatic = getattr(self.channel, "automatic", None)
-            if automatic is not None:
-                return automatic(request, rule.rule_id), "routine-auto"
-            return self.routine.approve(request, rule.rule_id), "routine-auto"
-        if isinstance(rule, _ProfileMatch):
-            return self.routine.approve_profile(request, rule.profile), f"profile:{rule.profile}"
         if request.kind == "tool" and request.name == "Bash" and rule is not None:
             label = (
                 f"matched {rule.tier} rule: {rule.arg_pattern}"
@@ -637,6 +628,11 @@ class BridgeGate(TieredGate):
             narrowed = self._match_policy_request(request, self.effective_policy)
             if narrowed is not None:
                 return narrowed
+        if self.writer and (
+            request.kind in {"command", "file_change", "permissions"}
+            or (request.kind == "tool" and request.name in _EDIT_TOOLS | {"Bash"})
+        ):
+            return Rule("ask", request.name, arg_pattern="writer approval")
         command = request.arguments.get("command")
         if self.profile == "review" and request.kind == "tool" and request.name in {"Read", "Glob", "Grep"}:
             from lazytools.code_bridge._review_policy import review_tool_denial
@@ -660,28 +656,7 @@ class BridgeGate(TieredGate):
                     reason = reason or "Codex sandbox escalation"
             if reason:
                 return Rule("ask", request.name, arg_pattern=f"profile:review:{reason}")
-            return _ProfileMatch("allow", request.name, profile="review")
-        if self.routine is not None and isinstance(command, str) and (request.kind == "command" or request.name == "Bash"):
-            rule_id = self.routine.match(request)
-            if rule_id:
-                return _RoutineMatch(cast(Any, "routine-auto"), "*", rule_id=rule_id)
-            if self.routine.policy.enabled:
-                from lazytools.code_bridge._routine import normalise
-
-                normal = normalise(command)
-                if request.kind == "tool" and request.name == "Bash":
-                    from lazytools.code_bridge import _readonly
-
-                    # Local Git reads need no routine grant. Other commands
-                    # still need its stricter destination and operand checks.
-                    if _readonly.match(command) in {"git-status", "git-diff", "git-log", "git-show", "git-rev-parse"}:
-                        return self._match_bash(request)
-                # Escalations rejected by a capability validator must not
-                # earn an older classifier's allow/session grant. Apply the
-                # same rule to protected Claude Bash command families.
-                protected = normal is None or normal[1][0] in ("git", "gh", self.routine.policy.python_executable)
-                if request.kind == "command" or protected:
-                    return Rule("ask", "*")
+            return Rule("allow", request.name, arg_pattern="profile:review")
         if request.kind == "tool" and request.name == "Bash":
             return self._match_bash(request)
         if isinstance(request.arguments.get("command"), str):
@@ -707,6 +682,8 @@ class BridgeGate(TieredGate):
             return deny
         if request.kind == "command" or name == "Bash":
             return None if "shell" in policy.tool_classes else deny
+        if self.writer and request.kind in {"file_change", "permissions"}:
+            return None
         if request.kind != "tool":
             return deny
         if name in {"Read", "Glob", "Grep"} and "read" in policy.tool_classes:
@@ -727,6 +704,8 @@ class BridgeGate(TieredGate):
         if name in {"WebSearch", "WebFetch"} and "web" in policy.tools:
             return None
         if name in _EDIT_TOOLS and "edit" in policy.tool_classes:
+            if self.writer:
+                return None
             paths = [request.arguments[key] for key in _EDIT_PATH_KEYS if key in request.arguments]
             roots = tuple(root for root in (str(policy.folder), self.temp_dir) if root)
             if not paths or any(not isinstance(path, str) or not path or outside_roots(path, roots) for path in paths):
@@ -767,16 +746,6 @@ class BridgeGate(TieredGate):
                     return Rule("allow", "Bash", arg_pattern=f"readonly:{rule_id}")
             return rule
         return Rule("ask", "Bash")
-
-
-@dataclass(frozen=True)
-class _RoutineMatch(Rule):
-    rule_id: str = ""
-
-
-@dataclass(frozen=True)
-class _ProfileMatch(Rule):
-    profile: str = ""
 
 
 __all__ = [

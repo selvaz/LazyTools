@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -14,20 +14,24 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from lazybridge import Store
-from lazybridge.engines.coding import ApprovalDecision, ApprovalRequest
+from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import (
     DEFAULT_PREFIX,
     ApprovalQueue,
     ApprovalTarget,
     ApprovalTicket,
+    CardApproval,
     ExecutorContext,
     TypedApprovalRequest,
+    redact_approval_payload,
 )
+from lazybridge.policy import policy_scope
 
-from lazytools.code_bridge import _credentials, _store
+from lazytools.code_bridge import _coder, _credentials, _store
 from lazytools.connectors.projects.tools import _resolve_store_db
 
 _SOURCE = "code-bridge"
+_CARD_AUDIT = "code-bridge:card-request:"
 _request: ContextVar[ApprovalRequest] = ContextVar("bridge_approval_request")
 
 
@@ -95,7 +99,7 @@ class Registry:
             if self.path is None:
                 raise ValueError("The bridge approval registry must be persistent")
             self._store = registry_store(self.path)
-        return ApprovalQueue(self._store)
+        return ApprovalQueue(self._store, action_tiers=_coder.TIERS)
 
     def _existing_store(self) -> Store | None:
         if self._store is None and self.path is not None and self.path.is_file():
@@ -139,6 +143,47 @@ class Registry:
         with registry_store(self.path) as store:
             return _credentials.initialize(self.path, ApprovalQueue(store, allow_credential_issuance=True))
 
+    def copy_coder_hand(
+        self, job_id: str, task_id: str, cwd: Path, temp: Path | None, expires: datetime, *, network: str,
+    ) -> _coder.Hand | None:
+        store = self._existing_store()
+        if store is None:
+            return None
+
+        def remember(card_id: str) -> None:
+            meta = _store.read_meta(self.job_store, job_id) or {}
+            assert self.path is not None
+            meta["registry_db"] = str(self.path)
+            meta["coder_card_ids"] = [*meta.get("coder_card_ids", []), card_id]
+            try:
+                _store.write_meta(self.job_store, job_id, meta)
+            except Exception:
+                self.queue.revoke_card(card_id, credential=_credentials.load(self.path))
+                raise
+
+        return _coder.copy_for_job(store, self.queue, cwd, temp, task_id, expires, remember, network=network)
+
+    def revoke_coder_hand(self, job_id: str) -> None:
+        meta = _store.read_meta(self.job_store, job_id) or {}
+        ids = meta.get("coder_card_ids", [])
+        if not ids or meta.get("coder_cards_revoked"):
+            return
+        assert self.path is not None
+        credential = _credentials.load(self.path)
+        for card_id in ids:
+            self.queue.revoke_card(card_id, credential=credential)
+        meta["coder_cards_revoked"] = True
+        _store.write_meta(self.job_store, job_id, meta)
+
+    def card_audit(self, job: dict[str, Any]) -> list[dict[str, Any]]:
+        ids = set(job.get("coder_card_ids", []))
+        if not ids:
+            return []
+        return [
+            {**self.job_store.read(_CARD_AUDIT + receipt.request_digest, {}), **receipt.model_dump(mode="json")}
+            for receipt in self.queue.list_card_approvals() if receipt.card_id in ids
+        ]
+
     def open_for_job(self, job_id: str) -> list[ApprovalTicket]:
         store = self._existing_store()
         current = [] if store is None else [
@@ -177,7 +222,8 @@ class ApprovalChannel:
     actor: str = "local-bridge"
     attempt: int = 1
     fenced_consume: Callable[[str, str, ExecutorContext], bool] | None = None
-    approve_routine: Callable[[ApprovalRequest, str], ApprovalDecision] | None = None
+    hand: _coder.Hand | None = None
+    fenced_queue: Callable[[], AbstractContextManager[ApprovalQueue]] | None = None
     accepting: bool = True
     name: str = "projects-registry"
 
@@ -189,19 +235,38 @@ class ApprovalChannel:
         finally:
             _request.reset(token)
 
-    def _file(self, request: ApprovalRequest, prompt: str) -> tuple[ApprovalTicket, ExecutorContext]:
+    def _submit(self, request: ApprovalRequest, prompt: str) -> tuple[ApprovalTicket, ExecutorContext] | CardApproval:
         self.validate()
-        target = ApprovalTarget(path=request.cwd)
+        action = self.hand.workspace.action(request) if self.hand is not None else None
+        target = ApprovalTarget(path=request.cwd if action is None else None)
         typed = TypedApprovalRequest.create(
             task_id=self.task_id or self.job_id, attempt=self.attempt, requested_by=self.actor,
             action="native_" + request.kind, target=target, policy_revision=self.policy_revision,
+            tier="routine" if action else None, action_class=_coder.ACTION if action else None,
+            card_action=action[1] if action else None,
             payload={
                 "registry": _SOURCE, "job_ref": self.job_id, "invocation_id": uuid4().hex,
                 "policy_digest": self.policy_digest, "provider": request.provider, "tool": request.name,
                 "arguments": dict(request.arguments), "rule_id": None,
             },
         )
-        ticket = self.registry.queue.create_typed_ticket(typed, prompt=prompt, ttl=self.ttl, operator_only=True)
+        if action is not None and self.hand is not None:
+            root, card_action = action
+            self.registry.job_store.write(_CARD_AUDIT + typed.digest, redact_approval_payload({
+                "tool": request.name, "command": request.arguments.get("command"),
+                "cwd": request.cwd, "paths": [str(path) for path in card_action.paths],
+            }))
+            with (
+                self.fenced_queue() if self.fenced_queue else nullcontext(self.registry.queue) as queue,
+                policy_scope(self.hand.policies[root], approval_actor=self.actor) as requester,
+            ):
+                assert requester is not None
+                decision = queue.submit_typed_request(typed, requester=requester, prompt=prompt, ttl=self.ttl)
+            if isinstance(decision, CardApproval):
+                return decision
+            ticket = decision
+        else:
+            ticket = self.registry.queue.create_typed_ticket(typed, prompt=prompt, ttl=self.ttl, operator_only=True)
         try:
             meta = _store.read_meta(self.registry.job_store, self.job_id) or {}
             meta["registry_ticket_ids"] = [*meta.get("registry_ticket_ids", []), ticket.approval_id]
@@ -226,7 +291,10 @@ class ApprovalChannel:
     async def ask(self, prompt: str) -> bool:
         if not self.accepting:
             return False
-        ticket, executor = self._file(_request.get(), prompt)
+        decision = self._submit(_request.get(), prompt)
+        if isinstance(decision, CardApproval):
+            return True
+        ticket, executor = decision
         try:
             self.on_waiting()
             while self.accepting:
@@ -245,9 +313,3 @@ class ApprovalChannel:
         finally:
             self.registry.close(ticket, "Native approval wait ended")
             self.on_resumed()
-
-    def automatic(self, request: ApprovalRequest, rule_id: str) -> ApprovalDecision:
-        if not self.accepting or self.approve_routine is None:
-            return ApprovalDecision.deny("Routine approval is unavailable")
-        self.validate()
-        return self.approve_routine(request, rule_id)

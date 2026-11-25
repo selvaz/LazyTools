@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -10,7 +12,7 @@ from typing import Any, Literal, cast
 from lazybridge import Store
 from lazybridge.ext.approval import ApprovalQueue, ExecutorContext
 
-from lazytools.code_bridge import _cloud, _launch, _registry
+from lazytools.code_bridge import _cloud, _coder, _launch, _registry
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError
@@ -87,6 +89,15 @@ class Claim:
                 cast(Store, store)
             )
             return queue.consume_typed_ticket(approval_id, executor=executor)
+
+    @contextmanager
+    def card_queue(self, job_id: str, registry: _registry.Registry) -> Iterator[ApprovalQueue]:
+        with self.service.local_dispatch(
+            self.principal, self.task_id, self.token, state="submitted", job_ref=job_id, write=True,
+        ) as (store, _):
+            yield registry.queue if registry.path != self.service.path else ApprovalQueue(
+                cast(Store, store), action_tiers=_coder.TIERS,
+            )
 
 
 def load(

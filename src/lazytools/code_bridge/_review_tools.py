@@ -3,17 +3,29 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from lazytools.code_bridge import _readonly, _routine_commands
+from lazytools.code_bridge import _readonly
 from lazytools.code_bridge._approvals import _tokenize
 
 _GIT_RULES = {"git-status", "git-diff", "git-log", "git-show", "git-rev-parse", "git-ls-files"}
 _GH_RULES = {"gh-pr-view", "gh-pr-diff"}
 _OUTPUT_LIMIT = 64_000
+
+
+def _github_repository(remote: str) -> str | None:
+    slug = remote.rstrip("/").removesuffix(".git")
+    for prefix in ("https://github.com/", "http://github.com/", "ssh://git@github.com/", "git@github.com:", "github.com/"):
+        if slug.startswith(prefix):
+            slug = slug[len(prefix):]
+            break
+    if ".." in slug or not re.fullmatch(r"[\w-][\w.-]*/[\w-][\w.-]*", slug):
+        return None
+    return slug.casefold()
 
 
 def _run(cwd: Path, executable: str, args: list[str], env: dict[str, str]) -> str:
@@ -58,7 +70,7 @@ def review_tools(cwd: Path, *, network: str, validate: Callable[[], None]) -> li
         ):
             raise ValueError("Use a PR number from the workspace's origin")
         origin = _run(cwd, "git", ["config", "--get", "remote.origin.url"], env).strip()
-        repo = _routine_commands.repository(origin, remote=True)
+        repo = _github_repository(origin)
         if repo is None:
             raise ValueError("GitHub review reads require a GitHub origin")
         env.update(GH_PROMPT_DISABLED="1", GH_HOST="github.com")

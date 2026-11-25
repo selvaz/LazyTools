@@ -222,16 +222,13 @@ def test_slot_wait_respects_total_wall_cap(tmp_path, monkeypatch):
     assert now[0] == 2
 
 
-def test_detached_child_receives_recovery_and_routine_options(tmp_path):
+def test_detached_child_receives_recovery_options(tmp_path):
     parser = cli.build_parser()
     args = parser.parse_args(["run", "--engine", "codex", "--cwd", str(tmp_path), "--task", "x",
-                              "--max-continuations", "2", "--max-wall", "600", "--scratch-root", "E:/Scratch",
-                              "--no-routine-auto"])
+                              "--max-continuations", "2", "--max-wall", "600"])
     child = parser.parse_args(cli._child_argv(args, "job")[3:])
     assert child.max_continuations == 2
     assert child.max_wall == 600
-    assert child.scratch_root == "E:/Scratch"
-    assert child.routine_auto is False
 
 
 def test_unrelated_remote_commits_do_not_count_as_job_progress(workspace, monkeypatch):
@@ -373,12 +370,3 @@ def test_wait_reports_dead_checkpoint_owner_without_pid_file(monkeypatch, capsys
     result = json.loads(capsys.readouterr().out)
     assert result["status"] == "died"
     assert result["last_status"] == "checkpoint"
-
-
-@pytest.mark.parametrize("enabled", [True, False])
-def test_routine_rule_count_is_logged_and_visible_in_status(workspace, capsys, enabled):
-    result = run(workspace, routine_auto=enabled)
-    expected = "routine-auto: enabled; 13 active rules" if enabled else "routine-auto: disabled; 0 active rules"
-    assert expected in capsys.readouterr().err
-    assert cli.main(["status", result.job_id, "--db", str(workspace.parent / "jobs.sqlite")]) == 0
-    assert expected in capsys.readouterr().out

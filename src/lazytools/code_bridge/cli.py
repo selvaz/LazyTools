@@ -34,6 +34,7 @@ from lazytools.code_bridge import (
     _cloud_land,
     _cloud_place,
     _cloud_preflight,
+    _coder,
     _concurrency,
     _credentials,
     _engines,
@@ -42,7 +43,6 @@ from lazytools.code_bridge import (
     _launch,
     _progress,
     _registry,
-    _routine,
     _routing,
     _store,
     _task,
@@ -250,10 +250,6 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
     argv += ["--max-continuations", str(args.max_continuations)]
     if args.max_wall is not None:
         argv += ["--max-wall", str(args.max_wall)]
-    if args.routine_auto is not None:
-        argv += ["--routine-auto" if args.routine_auto else "--no-routine-auto"]
-    if args.scratch_root is not None:
-        argv += ["--scratch-root", args.scratch_root]
     for flag, value in (("--session", args.session), ("--model", args.model), ("--effort", args.effort)):
         if value:
             argv += [flag, value]
@@ -461,8 +457,6 @@ _CLOUD_INCOMPATIBLE = (
     ("session", "--session"),
     ("effort", "--effort"),
     ("max_wall", "--max-wall"),
-    ("routine_auto", "--routine-auto"),
-    ("scratch_root", "--scratch-root"),
     ("detach", "--detach"),
     ("wait_for_slot", "--wait-for-slot"),
 )
@@ -701,7 +695,6 @@ def _cmd_run(args: argparse.Namespace) -> int:
             raise ValueError(f"--max-continuations must be an integer from 0 to {_jobs.MAX_CONTINUATIONS}")
         if args.max_wall is not None and (not math.isfinite(args.max_wall) or args.max_wall <= 0):
             raise ValueError("--max-wall must be a finite number greater than 0")
-        _routine.load_policy(enabled=args.routine_auto, scratch_root=args.scratch_root)
         if args.engine is None and args.tier is None:
             raise ValueError(
                 "run requires --tier T or --engine E; choose a tier for quota-aware routing or an explicit engine"
@@ -796,8 +789,6 @@ def _cmd_run(args: argparse.Namespace) -> int:
             timeout=args.timeout,
             max_continuations=args.max_continuations,
             max_wall=args.max_wall,
-            routine_auto=args.routine_auto,
-            scratch_root=args.scratch_root,
             wait_for_slot=args.wait_for_slot,
             on_slot_wait=_slot_wait,
             profile=args.profile,
@@ -976,8 +967,8 @@ def _cmd_status(args: argparse.Namespace) -> int:
         return 1
     if _cloud.is_cloud(job):
         job = _cloud.refresh(store, registry, job)
-    elif registry_db := _registry.recorded_path(job) or _selected_registry_db(args):
-        job["registry_db"] = str(registry_db)
+    else:
+        _attach_card_audit(args, store, job)
     if args.json:
         (_cloud_json if _cloud.is_cloud(job) else _print_json)(job)
     else:
@@ -989,10 +980,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
                 _cloud_print(f"cloud status: {job['cloud_status']}")
             if job.get("last_poll_error"):
                 _cloud_print(f"last poll failed: {job['last_poll_error']}", err=True)
-        if "routine_auto" in job:
-            print(
-                f"routine-auto: {'enabled' if job['routine_auto'] else 'disabled'}; {job.get('routine_rule_count', 0)} active rules"
-            )
+        _print_card_audit(job)
         if job.get("turns"):
             print(_progress.history_text(job["turns"]))
     return 0
@@ -1007,6 +995,8 @@ def _cmd_result(args: argparse.Namespace) -> int:
         return 1
     if _cloud.is_cloud(job):
         job = _cloud.refresh(store, registry, job)
+    else:
+        _attach_card_audit(args, store, job)
     status = job.get("status", "?")
     # Same exit code either way -- a caller scripting on exit status must
     # not see a failed job reported as success merely because it asked for
@@ -1025,6 +1015,7 @@ def _cmd_result(args: argparse.Namespace) -> int:
         _cloud_print(_cloud.result_text(job, diff=diff))
         return exit_code
     print(f"[{status}] job {job.get('job_id')}")
+    _print_card_audit(job)
     if job.get("turns"):
         print(_progress.history_text(job["turns"]))
     if job.get("result"):
@@ -1034,6 +1025,19 @@ def _cmd_result(args: argparse.Namespace) -> int:
     else:
         print("(no result yet)")
     return exit_code
+
+
+def _attach_card_audit(args: argparse.Namespace, store: Any, job: dict[str, Any]) -> None:
+    path = _registry.recorded_path(job) or _selected_registry_db(args)
+    if path is not None:
+        job["registry_db"] = str(path)
+    job["card_approvals"] = _registry.Registry(store, path).card_audit(job) if job.get("coder_card_ids") else []
+
+
+def _print_card_audit(job: dict[str, Any]) -> None:
+    for receipt in job.get("card_approvals", []):
+        label = receipt.get("command") or receipt.get("tool") or receipt["action"]
+        _safe_print(f"coder card {receipt['card_id']} approved {label}")
 
 
 def _detached_job(db_path: Path | None, job_id: str) -> tuple[str, int] | None:
@@ -2009,6 +2013,21 @@ def _cmd_provision_automatic_cards(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_provision_coder(args: argparse.Namespace) -> int:
+    from lazytools.projects.task_store import TaskServiceError
+
+    try:
+        path = _selected_registry_db(args) or _registry._registry_path()
+        if path is None:
+            raise ValueError("A persistent approval registry is required")
+        created = _coder.provision(path)
+    except (OSError, ValueError, TaskServiceError) as exc:
+        print(f"could not provision coder cards: {exc}", file=sys.stderr)
+        return 1
+    print("Coder hand provisioned." if created else "Coder hand already provisioned.")
+    return 0
+
+
 def _cmd_autonomy(args: argparse.Namespace) -> int:
     try:
         if args.week:
@@ -2257,12 +2276,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Total job wall-clock cap in seconds, including approvals (default: unlimited).",
     )
     run_p.add_argument(
-        "--routine-auto",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Enable the audited routine-auto approval tier (default: on, or [routine_auto] enabled).",
-    )
-    run_p.add_argument(
         "--profile",
         choices=_launch.PROFILES,
         default="default",
@@ -2278,11 +2291,6 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--claim-token", help="Fence token returned by the projects task claim.")
     run_p.add_argument("--intentional-review", action="store_true", help=argparse.SUPPRESS)
     run_p.add_argument("--detached-binding", action="store_true", help=argparse.SUPPRESS)
-    run_p.add_argument(
-        "--scratch-root",
-        default=None,
-        help="Routine pytest/verifier output root (default: [routine_auto] scratch_root, or D:/Temp on Windows).",
-    )
     run_p.add_argument(
         "--root",
         default=None,
@@ -2431,7 +2439,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     result_p.add_argument("job_id")
     result_p.add_argument("--json", action="store_true")
-    _add_db_option(result_p)
+    _add_registry_option(result_p)
     result_p.set_defaults(func=_cmd_result)
 
     apply_p = sub.add_parser(
@@ -2578,6 +2586,10 @@ def build_parser() -> argparse.ArgumentParser:
     automatic_cards.add_argument("project_id")
     _add_registry_option(automatic_cards)
     automatic_cards.set_defaults(func=_cmd_provision_automatic_cards)
+
+    coder_cards = credential_sub.add_parser("provision-coder", help="Provision the owner's coder hand for this registry.")
+    _add_registry_option(coder_cards)
+    coder_cards.set_defaults(func=_cmd_provision_coder)
 
     approve_p = sub.add_parser("approve", help="Approve a pending ticket.")
     approve_p.add_argument("ticket_id")

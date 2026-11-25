@@ -30,19 +30,20 @@ from lazybridge.ext.approval import Rule
 
 from lazytools.code_bridge._approvals import ClassifiedRule
 
-#: Pure reads/navigation/web run free. Write/Edit are "allow" here because
-#: this gate is the ONLY thing standing between the agent and a file change
-#: (both engines are configured with nothing pre-approved -- see
-#: ``_engines.py``): denying them here would make the writer unusable, and
-#: a git checkout is the recovery rail, same reasoning as LazyCEO's table.
-CODING_RULES: tuple[Rule, ...] = (
+NATIVE_READ_RULES = (
     Rule("allow", "Read"),
     Rule("allow", "Glob"),
     Rule("allow", "Grep"),
-    Rule("allow", "Write"),
-    Rule("allow", "Edit"),
     Rule("allow", "WebSearch"),
     Rule("allow", "WebFetch"),
+)
+
+# The cloud brief preflight uses this table to identify actions that need
+# up-front approval. Local writers use the registry for their callbacks.
+CODING_RULES: tuple[Rule, ...] = (
+    *NATIVE_READ_RULES,
+    Rule("allow", "Write"),
+    Rule("allow", "Edit"),
     # Session grant, not allow: a human reviews the FIRST add/commit of this
     # job, then the rest of the same run is auto-granted. Not allow, because
     # content these agents stage/commit can carry command substitution a
