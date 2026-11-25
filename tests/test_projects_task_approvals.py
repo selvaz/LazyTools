@@ -35,8 +35,6 @@ OUTSIDER = TaskPrincipal(actor="elsewhere", role="orchestrator", projects=("othe
 
 @pytest.fixture
 def approvals(queue):  # noqa: F811
-    if not hasattr(approval.ApprovalQueue, "create_typed_ticket"):
-        pytest.skip("Requires LazyBridge main with the typed ApprovalQueue")
     projects, service = queue
     admit(projects, [
         task("a", repo="test/repo", assigned_branch="work"), task("b", dependency_ids=["a"]),
@@ -54,7 +52,9 @@ def approvals(queue):  # noqa: F811
             production=target.path == "production", verified_head=state["verified_head"],
         )
 
-    return ProjectTaskApprovals(service, authorize=authorize), receipt, job, state
+    registry = ProjectTaskApprovals(service, authorize=authorize)
+    registry.provision_automatic_cards(PROJECT, credential=credential(registry, OWNER))
+    return registry, receipt, job, state
 
 
 def target(**fields):
@@ -67,8 +67,16 @@ def request(registry, receipt, action="push", invocation="invocation", principal
     )
 
 
-def decide(registry, req, principal=OPERATOR, verdict="allow", reason="Reviewed exact effect"):
-    return registry.decide(principal, req["request_id"], req["action_digest"], verdict, reason)
+def credential(registry, principal):
+    with Store(db=str(registry.service.path)) as store:
+        queue = approval.ApprovalQueue(store, allow_credential_issuance=True)
+        return queue.issue_approver_credential(principal.actor, {"owner", principal.role})
+
+
+def decide(registry, req, principal=OPERATOR, verdict="allow", reason="Reviewed exact effect", **kwargs):
+    if "credential" not in kwargs:
+        kwargs["credential"] = credential(registry, principal)
+    return registry.decide(principal, req["request_id"], req["action_digest"], verdict, reason, **kwargs)
 
 
 def consume(registry, receipt, req, key="effect", principal=WORKER, action=None, observed=None):
@@ -99,8 +107,16 @@ def test_canonical_persistence_scopes_and_idempotent_decisions(approvals):
         decide(registry, req, principal=OUTSIDER)
     with pytest.raises(TaskServiceError, match="digest"):
         registry.decide(OPERATOR, req["request_id"], "incorrect", "allow", "Verified")
+    with pytest.raises(TaskServiceError, match="credential is required"):
+        decide(registry, req, credential=None)
+    with pytest.raises(TaskServiceError, match="does not match"):
+        decide(registry, req, credential="x" * 43)
+    with pytest.raises(TaskServiceError, match="does not match"):
+        decide(registry, req, credential=credential(registry, OWNER))
     stored = decide(registry, req)
     assert decide(registry, req) == stored
+    with pytest.raises(TaskServiceError, match="credential is required"):
+        decide(registry, req, credential=None)
     with pytest.raises(TaskServiceError, match="different decision"):
         decide(registry, req, verdict="deny")
     bridge_adapter = ProjectTaskApprovals(ProjectTaskService(str(registry.service.path)))
@@ -137,6 +153,10 @@ def test_effect_policy_rows(approvals, action, required, fields):
         decide(registry, req, principal=OWNER if required == "owner" else OPERATOR)
     else:
         assert req["status"] == "approved" and req["decision"]["reason"] == req["rule_id"]
+        with Store(db=str(registry.service.path)) as store:
+            receipt_row = store.read(f"projects-task:card-receipt:{req['request_id']}")
+            assert receipt_row["action_class"] == f"projects_{action}"
+            assert receipt_row["task_id"] == req["task_id"]
     consume(registry, receipt, req)
     assert registry.get(WORKER, req["request_id"])["effect_unresolved"]
 

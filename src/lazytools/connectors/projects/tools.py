@@ -168,6 +168,7 @@ class ProjectsTools:
         profile: str | None = None,
         task_principal: TaskPrincipal | None = None,
         quarantine_threshold: int = 3,
+        approver_credential_file: str | None = None,
     ) -> None:
         path = _resolve_store_db(store_db)
         from lazytools.connectors.projects.receipt_tools import ReceiptTools
@@ -178,7 +179,10 @@ class ProjectsTools:
         )
         self._store = _open_store(str(Path(path).resolve()) if path and path != ":memory:" else path)
         self._task_tools = (
-            TaskTools(path, task_principal, allow_write=allow_write, quarantine_threshold=quarantine_threshold)
+            TaskTools(
+                path, task_principal, allow_write=allow_write, quarantine_threshold=quarantine_threshold,
+                approver_credential_file=Path(approver_credential_file).expanduser() if approver_credential_file else None,
+            )
             if task_principal
             else None
         )

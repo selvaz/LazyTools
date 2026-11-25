@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from lazybridge import Tool
@@ -13,11 +14,15 @@ from lazytools.projects.task_store import TaskServiceError
 
 
 class TaskTools:
-    def __init__(self, store_db: str | None, principal: TaskPrincipal, *, allow_write: bool, quarantine_threshold: int = 3):
+    def __init__(
+        self, store_db: str | None, principal: TaskPrincipal, *, allow_write: bool, quarantine_threshold: int = 3,
+        approver_credential_file: Path | None = None,
+    ):
         self.service = ProjectTaskService(store_db, quarantine_threshold=quarantine_threshold)
         self.approvals = ProjectTaskApprovals(self.service)
         self.principal = principal
         self.allow_write = allow_write
+        self.approver_credential_file = approver_credential_file
 
     def _call(self, operation: Callable[..., dict[str, Any]], *args: Any, write: bool = False) -> dict[str, Any]:
         try:
@@ -63,7 +68,19 @@ class TaskTools:
         self, request_id: str, expected_action_digest: str, decision: Decision, reason: str,
     ) -> dict[str, Any]:
         """Decide the exact action using the authenticated approver's project scope."""
-        return self._call(self.approvals.decide, request_id, expected_action_digest, decision, reason, write=True)
+        def decide(principal: TaskPrincipal) -> dict[str, Any]:
+            principal.require_role("orchestrator", "owner")
+            credential = None
+            if self.approver_credential_file is not None:
+                try:
+                    credential = self.approver_credential_file.read_text(encoding="ascii").strip()
+                except (OSError, UnicodeError) as exc:
+                    raise TaskServiceError("unavailable", "The configured approver credential is unreadable") from exc
+            return self.approvals.decide(
+                principal, request_id, expected_action_digest, decision, reason, credential=credential,
+            )
+
+        return self._call(decide, write=True)
 
     def as_tools(self) -> list[Tool]:
         methods = [self.tasks_next_ready, self.tasks_queue_metrics, self.approvals_pending]

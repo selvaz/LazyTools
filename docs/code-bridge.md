@@ -37,11 +37,12 @@ detached launch JSON gives the id, pid and log path at once.
 | --- | --- |
 | `run` | Foreground: job id on stdout's first line, then final result; detached `--json`: one launch object |
 | `pending --json` | `approval_id`, `job_id`, gist, command/reason when available, creation and expiry |
-| `approve` / `reject` | Decision on a pending ticket; rejection requires `--reason` |
+| `approver-credential init` | Provision the local owner credential for a typed approval registry |
+| `approve` / `reject` | Decide a pending ticket. Rejection requires `--reason` |
 | `status` / `result` | Status or full job record/text; `--json` preserves metadata |
 | `wait` | Terminal result; exit 3 on waiter timeout, 1 when process disappears before final record |
 | `jobs --all` | History, including finished jobs, for recovering a lost id |
-| `cancel` | Stop process tree, reject open tickets, retain interruption and workspace evidence |
+| `cancel` | Stop the process tree, close open tickets, retain interruption and workspace evidence |
 | `autonomy` | Report the percentage of finished jobs with no manual intervention and group intervention causes |
 
 ### Machine-readable ids and multi-job waiting
@@ -525,8 +526,8 @@ lazytools-code-bridge cancel JOB_ID --reason "operator stopped the task"
 kills the process tree (`taskkill /PID ... /T /F` on Windows; the CLI's
 private process group on POSIX, falling back to the single pid if no
 private group is available), marks the job `interrupted` with
-`cancelled by operator: <reason>` and workspace evidence, and rejects its
-still-open approval tickets. A dead process is also marked interrupted.
+`cancelled by operator: <reason>` and workspace evidence, and expires its
+still-open typed approval tickets. A dead process is also marked interrupted.
 Cancelling a terminal job prints its status and exits **0** without changing
 it, including when the job finishes while cancellation is stopping the process.
 Cancellation also works immediately after `run --detach`, before the child
@@ -822,10 +823,28 @@ not been verified.
 Operator decisions use a typed LazyBridge `ApprovalQueue` in the projects Store. Set
 `LAZYTOOLS_PROJECTS_STORE_DB` to the same file used by the projects tools.
 The bridge also honors `LAZYCEO_CEO_STORE_DB` and defaults to
-`~/.lazytools/projects.sqlite` when neither is set. `pending`, `approve`
-and `reject` work across processes. Job logs and routing still use
-`LAZYTOOLS_CODE_BRIDGE_DB` or `--db`. Those commands can also answer tickets
-from workers launched before this migration.
+`~/.lazytools/projects.sqlite` when neither is set. Job logs and routing use
+`LAZYTOOLS_CODE_BRIDGE_DB` or `--db`.
+
+Run the following once from the operator's shell before deciding typed tickets.
+Use the same `--db` and `--registry-db` selections as the job if it uses a
+custom registry. The command is safe to repeat for the same registry.
+
+```console
+lazytools-code-bridge approver-credential init
+lazytools-code-bridge pending
+lazytools-code-bridge approve APPROVAL_ID
+```
+
+LazyBridge stores the credential's hash in the selected registry. The bridge
+stores the bearer secret in a current-user-only file under
+`~/.lazytools/approver-credentials/`, keyed by the resolved registry path.
+The CLI prints only initialization status. Run decisions under the account
+that initialized the credential. Keep the state directory outside job
+workspaces. The bridge keeps the credential out of job environments and
+blocks its directory and file names in the read allow-list. Typed decisions
+are recorded as `owner`. `--actor` applies to historical prompt-only tickets.
+Only a person should run credential initialization and operator decisions.
 
 ### Approval profiles
 
@@ -858,12 +877,30 @@ profile and network when specified. The bridge records the dispatch
 acknowledgement and local job ID. The MCP tool accepts the corresponding
 `profile`, `launch_mode`, `network`, `task_id`, and `claim_token` arguments.
 
+The governed Projects effect registry checks the deciding principal, project
+scope, required role, and exact request digest. Provision a LazyBridge
+credential for the configured `owner` or `operator` principal in the Projects
+registry. For the default orchestrator route, the `operator` credential needs
+both the LazyBridge `owner` role for that route and the Projects `orchestrator`
+role. Use the `owner` role for the default Projects owner route. Pass the
+credential through the trusted Python adapter or set
+`projects_approver_credential_file` on a dedicated Projects stdio host used by
+the human approver. Tool calls carry the request ID, digest, verdict, and
+reason. The credential stays in the host.
+
+Before enabling automatic Projects effects, the owner provisions the project's
+cards with `ProjectTaskApprovals.provision_automatic_cards(project_id,
+credential=...)` in the trusted host. The two cards cover `read` and
+`local_commit`. The effect policy, task claim, and target checks still apply.
+The Projects registry records the card use and retains the one-time effect
+consumption and outcome record.
+
 ### Routine auto-approval (R13)
 
 `BridgeGate` enables **routine-auto** for ungoverned legacy writers by default.
-Every match creates and consumes a typed ticket in the shared registry and
-records the rule ID and decision actor `routine-auto`. Shell callbacks and
-command escalations that miss the tier ask the operator.
+Every match writes a consumed approval record in the job Store, with the
+rule ID and decision actor `routine-auto`. Shell callbacks and command
+escalations that miss the tier ask the operator through the typed registry.
 
 ### Legacy Claude Bash read-only allow-list
 
@@ -1247,11 +1284,11 @@ claude = 2   # absent or 0 = unlimited
 - **Reclaim.** A slot whose pid died stops counting at once. The slot records
   its owner's Store path, and the next *successful* launch marks that job
   `interrupted` in the right Store (even a different `--db`) and closes its
-  pending tickets: they are rejected, or marked `expired` if their TTL has
-  already run out. Bookkeeping counts as complete only when the job has **no
-  pending tickets left**, and only then is the slot file deleted. If ticket
-  rejection fails after the status was saved, the next launch sees an
-  already-`interrupted` job and retries the rejection. A refused launch
+  pending tickets. Typed tickets are marked `expired`. Historical prompt-only
+  tickets are rejected while actionable. Bookkeeping counts as complete only
+  when the job has **no pending tickets left**, and only then is the slot file
+  deleted. If closing tickets fails after the status was saved, the next launch
+  sees an already-`interrupted` job and retries. A refused launch
   leaves stale slot files untouched, and an incomplete bookkeeping attempt
   keeps the file for a later launch, so the record of a dead job is never lost.
 
