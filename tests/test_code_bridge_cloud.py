@@ -1008,11 +1008,21 @@ def test_429_then_completed_retries_and_honours_retry_after(cloud, monkeypatch, 
         return answer
 
     sleeps = []
+    now = 100.0
+
+    def read_clock():
+        return now
+
+    def sleep(delay):
+        nonlocal now
+        sleeps.append(delay)
+        now += delay
+
     monkeypatch.setattr(_cloud.CodexCloud, "status", status)
     monkeypatch.setattr(_cloud.random, "uniform", lambda _a, _b: 0.0)
-    monkeypatch.setattr(_cloud.time, "sleep", sleeps.append)
+    monkeypatch.setattr(_cloud, "time", SimpleNamespace(time=read_clock, monotonic=read_clock, sleep=sleep))
     assert cli.main(["wait", job_id, "--db", str(cloud.db), "--timeout", "5", "--interval", "0.01"]) == 0
-    assert any(delay >= 1.9 for delay in sleeps)
+    assert sleeps == pytest.approx([2.0])
     job = _jobs.find_job(_store.build_store(cloud.db), _store.build_job_registry(_store.build_store(cloud.db)), job_id)
     assert job["status"] == "done"
 
