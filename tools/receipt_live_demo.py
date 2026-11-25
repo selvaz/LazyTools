@@ -161,10 +161,13 @@ def claim(
     return cast(dict[str, Any], service.claim(principal, task_id, revision, f"local-dispatch-{revision}")["claim"])
 
 
+EXHAUSTED_CONTINUATIONS = "automatic continuations exhausted after progress"
+
+
 def run_job(
     repo: Path, stores: dict[str, Path], engine: str, principal: TaskPrincipal, lease: dict[str, Any],
     prompt: str, *, review_of: str | None = None, model: str | None = None, effort: str | None = None,
-    session: str | None = None,
+    session: str | None = None, allow_exhausted_writer: bool = False,
 ) -> tuple[str, str]:
     argv = [
         "run", "--cwd", str(repo), "--root", str(repo), "--where", "local",
@@ -184,12 +187,19 @@ def run_job(
     with patch.dict(os.environ, {_task.PRINCIPAL_ENV: principal.model_dump_json()}):
         status, output, detail = bridge_output(argv)
     if status != 0 or not output:
-        error = None
+        result = {}
         if output:
             try:
-                error = json.loads(output.splitlines()[-1]).get("error")
-            except (ValueError, AttributeError):
+                payload = json.loads(output.splitlines()[-1])
+                if isinstance(payload, dict):
+                    result = payload
+            except ValueError:
                 pass
+        error = result.get("error")
+        if (allow_exhausted_writer and not review_of and result.get("status") == "partial"
+                and isinstance(error, str) and error.partition("\n")[0] == EXHAUSTED_CONTINUATIONS
+                and (job_id := result.get("job_id"))):
+            return job_id, EXHAUSTED_CONTINUATIONS
         raise DemoError(f"{engine} job failed: {error or detail or output or 'bridge returned no output'}")
     result = json.loads(output.splitlines()[-1])
     require(result.get("status") == "done", f"Unexpected job result: {result}")

@@ -20,7 +20,7 @@ from lazybridge import Store
 
 from _code_bridge_fakes import Script
 from _receipt_demo_fakes import install
-from lazytools.code_bridge import _cloud, _credentials, _routing, _store, cli
+from lazytools.code_bridge import _cloud, _credentials, _jobs, _progress, _routing, _store, cli
 from lazytools.projects.admission import TelemetryReading, WindowReading
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService
@@ -757,6 +757,59 @@ def test_governed_rework_from_published_ci_failure_republishes_same_draft(trial,
     assert pr["number"] == 1 and pr["isDraft"]
     assert _cloud._git(fake_state / "fake-remote.git", "rev-parse", f"refs/heads/{BRANCH}") == head
     assert all(receipt in comment for receipt, comment in zip((original, current), github["comments"], strict=True))
+
+
+@pytest.mark.parametrize("checks_pass", [True, False])
+def test_writer_with_commits_after_exhausted_continuations_can_be_reviewed(trial, monkeypatch, capsys, checks_pass):
+    start, invoke, setup, script, state, _, _ = trial
+    checkout = setup()
+    fake_run = lazybridge.Agent.run
+
+    async def timeout_after_writer_commit(agent, prompt):
+        result = await fake_run(agent, prompt)
+        if prompt.startswith("Review commit "):
+            return result
+        return lazybridge.Envelope.error_envelope(TimeoutError("Writer turn timed out"))
+
+    monkeypatch.setattr(lazybridge.Agent, "run", timeout_after_writer_commit)
+    gate = python_check("print('passed')" if checks_pass else "raise SystemExit(7)")
+    assert start(checkout, "--check", gate) == (0 if checks_pass else 1)
+    trace = capsys.readouterr()
+    note = "automatic continuations exhausted after progress"
+    assert note in trace.out
+    assert len(script.prompts) == (2 if checks_pass else 1)
+    if not checks_pass:
+        assert "Required checks failed" in trace.err
+        assert invoke("review", "--check", python_check("print('retry passed')")) == 0
+    service = ProjectTaskService(str(state / "projects.sqlite"))
+    publication = service.publication_review(f"{PROJECT}/writer")
+    head = _cloud._git(checkout, "rev-parse", "HEAD")
+    assert publication.writer.attempt == publication.reviewer.attempt == 1
+    assert publication.writer.evidence.artifact_ref == publication.reviewer.evidence.reviewed_sha == head
+    with Store(db=str(state / "bridge.sqlite")) as job_store:
+        job = _jobs.find_job(job_store, _store.build_job_registry(job_store), publication.writer.job_ref)
+    assert job["status"] == "partial" and job["error"].splitlines()[0] == note
+
+
+def test_writer_without_commits_after_exhausted_continuations_stops_before_checks(trial, monkeypatch, capsys):
+    start, _, setup, _, state, _, _ = trial
+    checkout = setup()
+    snapshot = _progress.snapshot
+    remote_heads = iter(("a" * 40, "b" * 40))
+
+    def snapshot_with_remote_progress(path, branch=None):
+        data = snapshot(path, branch)
+        return {**data, "pushed_refs": {data["branch"]: next(remote_heads)}}
+
+    async def timeout_without_local_progress(agent, prompt):
+        return lazybridge.Envelope.error_envelope(TimeoutError("Writer turn timed out"))
+
+    monkeypatch.setattr(_progress, "snapshot", snapshot_with_remote_progress)
+    monkeypatch.setattr(lazybridge.Agent, "run", timeout_without_local_progress)
+    assert start(checkout, "--check", python_check("print('unexpected check')")) == 1
+    assert "Writer must advance the assigned branch" in capsys.readouterr().err
+    assert not list(state.glob("checks-*"))
+    assert ProjectTaskService(str(state / "projects.sqlite")).publication_review(f"{PROJECT}/writer").writer is None
 
 
 def test_fresh_review_starts_a_new_conversation_and_then_continues_it(trial, capsys):

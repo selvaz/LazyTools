@@ -30,6 +30,7 @@ from lazybridge.engines.sessions import default_session_registry
 from lazybridge.ext.approval import DEFAULT_PREFIX, ApprovalTicket
 from lazybridge.ext.receipt import PublicationReceipt
 from receipt_live_demo import (
+    EXHAUSTED_CONTINUATIONS,
     DemoError,
     approval_command,
     bridge,
@@ -486,19 +487,20 @@ def run_writer(
     print(approval_command(stores, "approver-credential", "init"), flush=True)
     print(approval_command(stores, "pending"), flush=True)
     print(f"Replace TICKET with an ID from pending: {approval_command(stores, 'approve', 'TICKET')}", flush=True)
-    writer_job, _ = launch_job(
+    writer_job, result = launch_job(
         service, operator, repo, stores, engine, writer, writer_claim,
         f"Implement the brief on {branch} and commit your changes locally. "
         "The runner will run the required checks on the committed candidate. "
         "Leave the checkout clean. Do not push or open a pull request. Use English and omit AI attribution.\n\n"
         f"{brief}",
-        model=model, effort=effort,
+        model=model, effort=effort, allow_exhausted_writer=True,
     )
     candidate = stable_checkout(repo, branch)
     require(candidate != start and _cloud._git(repo, "merge-base", start, candidate) == start,
             "Writer must advance the assigned branch from its starting commit")
     evidence = finish_task(service, operator, writer, writer_claim, writer_job, candidate)
-    step(3, "Claim, run and complete writer", f"{writer_id}, {engine} job {writer_job}, A={candidate}, {evidence}")
+    note = f" ({result})" if result == EXHAUSTED_CONTINUATIONS else ""
+    step(3, "Claim, run and complete writer", f"{writer_id}, {engine} job {writer_job}, A={candidate}, {evidence}{note}")
 
 
 def review_session(
