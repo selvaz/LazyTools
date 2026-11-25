@@ -43,7 +43,7 @@ from receipt_live_demo import (
     table_counts,
 )
 
-from lazytools.code_bridge import _cloud, _gh, _jobs, _publication, _receipts, _registry, _store
+from lazytools.code_bridge import _cloud, _gh, _jobs, _publication, _receipts, _registry, _routing, _store
 from lazytools.code_bridge._lockfile import JobLock, LockHeld
 from lazytools.code_bridge._navigator import _split_command
 from lazytools.code_bridge._probe_process import WindowsProbeJob
@@ -291,50 +291,103 @@ def task_data(store: Store, project: str, identifier: str) -> dict[str, Any]:
     return next(task for task in store.read(_board_key(project))["tasks"] if task["task_id"] == identifier)
 
 
-def recovery_evidence(job_id: str) -> str:
-    return f"job-{job_id}-writer-recovery"
+def recovery_evidence(job_id: str, role: str) -> str:
+    return f"job-{job_id}-{role}-recovery"
 
 
-def recovered_writer_job(task: dict[str, Any]) -> str | None:
+def settled_failure(task: dict[str, Any], role: str) -> dict[str, Any] | None:
     history = task.get("dispatches", [])
     if task["status"] != "failed" or not history:
         return None
     dispatch = history[-1]
+    if dispatch.get("launch_error"):
+        return dispatch
     job_id = dispatch.get("job_ref")
-    if job_id and dispatch.get("completion", {}).get("result", {}).get("evidence_ref") == recovery_evidence(job_id):
-        return str(job_id)
+    if job_id and dispatch.get("completion", {}).get("result", {}).get("evidence_ref") == recovery_evidence(job_id, role):
+        return dispatch
     return None
 
 
-def recover_writer(stores: dict[str, Path], store: Store, project: str) -> None:
-    task = task_data(store, project, "writer")
-    if recovered := recovered_writer_job(task):
-        print(f"Writer job {recovered} already recorded as failed. Run rework to continue.")
-        return
-    history = task.get("dispatches", [])
-    require(task["status"] == "claimed" and history, "There is no unfinished writer attempt to recover")
-    dispatch = history[-1]
+def matches_attempt(job: dict[str, Any], lease: dict[str, Any]) -> bool:
+    return (job.get("task_id"), job.get("task_revision"), job.get("task_attempt")) == (
+        lease["task_id"], lease["revision"], lease["attempt"],
+    )
+
+
+def unsubmitted_jobs(stores: dict[str, Path], lease: dict[str, Any]) -> list[dict[str, Any]]:
+    with Store(db=str(stores["bridge"])) as job_store:
+        return [job for job in _jobs.list_jobs(job_store, all_jobs=True) if matches_attempt(job, lease)]
+
+
+def require_terminal_job(job: dict[str, Any], role: str) -> None:
+    require(job["status"] in _store.TERMINAL_STATUSES,
+            f"{role.title()} job {job['job_id']} is still running ({job['status']})")
+
+
+def recover_attempt(
+    stores: dict[str, Path], service: ProjectTaskService, operator: TaskPrincipal, role: str, dispatch: dict[str, Any],
+) -> None:
+    lease = dispatch["receipt"]
     job_id = dispatch.get("job_ref")
-    require(dispatch["state"] == "submitted" and job_id, "The writer attempt has no submitted bridge job to verify")
+    action = "rework" if role == "writer" else "review"
+    if not job_id:
+        jobs = unsubmitted_jobs(stores, lease)
+        for job in jobs:
+            require_terminal_job(job, role)
+        error = "No bridge job was recorded for this dispatch."
+        if jobs:
+            job = jobs[0]
+            error = f"Bridge job {job['job_id']} ended ({job['status']}) before submission. {job.get('error') or ''}"
+        service.fail_local_launch(operator, lease["task_id"], lease["claim_token"], _cloud.redact(error))
+        print(f"{role.title()} attempt {lease['attempt']} recorded as failed before submission. Run {action} to continue.")
+        return
+
     with Store(db=str(stores["bridge"])) as job_store:
         job = _jobs.find_job(job_store, _store.build_job_registry(job_store), job_id)
-    lease = dispatch["receipt"]
-    require(job is not None and (job.get("job_id"), job.get("task_id"), job.get("task_revision"), job.get("task_attempt"))
-            == (job_id, lease["task_id"], lease["revision"], lease["attempt"]),
-            f"Bridge job {job_id} could not be verified for this writer attempt")
+    require(job is not None and job.get("job_id") == job_id and matches_attempt(job, lease),
+            f"Bridge job {job_id} could not be verified for this {role} attempt")
     assert job is not None
-    require(job["status"] in _store.TERMINAL_STATUSES, f"Writer job {job_id} is still running ({job['status']})")
-
-    service = ProjectTaskService(str(stores["projects"]))
-    operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
-    reference = recovery_evidence(job_id)
+    require_terminal_job(job, role)
+    reference = recovery_evidence(job_id, role)
     service.record_completion_evidence(operator, lease["task_id"], lease["attempt"], CompletionEvidence(
         reference=reference, job_ref=job_id, executor=lease["executor"], engine_family=lease["engine_family"],
         state="blocked",
     ))
     service.complete(operator, lease["task_id"], lease["claim_token"], reference, "blocked", reference,
                      reconcile_failure=True)
-    print(f"Writer attempt {lease['attempt']} recorded as failed with bridge job {job_id}. Run rework to continue.")
+    print(f"{role.title()} attempt {lease['attempt']} recorded as failed with bridge job {job_id}. Run {action} to continue.")
+
+
+def recover_task(stores: dict[str, Path], store: Store, project: str) -> None:
+    tasks = [(role, task_data(store, project, role)) for role in ("writer", "review")]
+    for role, task in tasks:
+        if task["status"] == "claimed" and (history := task.get("dispatches")):
+            service = ProjectTaskService(str(stores["projects"]))
+            operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
+            recover_attempt(stores, service, operator, role, history[-1])
+            return
+    for role, task in tasks:
+        if settled := settled_failure(task, role):
+            action = "rework" if role == "writer" else "review"
+            label = f"job {settled['job_ref']}" if settled.get("job_ref") else f"attempt {settled['receipt']['attempt']}"
+            print(f"{role.title()} {label} already recorded as failed. Run {action} to continue.")
+            return
+    raise DemoError("There is no unfinished writer or review attempt to recover")
+
+
+def launch_job(
+    service: ProjectTaskService, operator: TaskPrincipal, repo: Path, stores: dict[str, Path], engine: str,
+    worker: TaskPrincipal, lease: dict[str, Any], prompt: str, **options: Any,
+) -> tuple[str, str]:
+    try:
+        return run_job(repo, stores, engine, worker, lease, prompt, **options)
+    except Exception as exc:
+        dispatch = service.dispatch_status(operator, lease["task_id"])
+        # The bridge registers a job before attaching its ID to the claim.
+        if dispatch["attempt"] == lease["attempt"] and not dispatch["job_ref"] and not unsubmitted_jobs(stores, lease):
+            error = _cloud.redact(str(exc)) or type(exc).__name__
+            service.fail_local_launch(operator, lease["task_id"], lease["claim_token"], error)
+        raise
 
 
 def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) -> None:
@@ -364,7 +417,8 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     promoted = projects.projects_promote(*plan)
     require(promoted.startswith("promoted"), promoted)
     run = {"repo": str(repo), "branch": branch, "base": base, "title": title, "ledger": str(args.ledger),
-           "checks": args.checks, "specs": args.specs, "review_brief": args.review_brief, "review_base": review_base}
+           "checks": args.checks, "specs": args.specs, "review_brief": args.review_brief, "review_base": review_base,
+           "writer_options": {"engine": args.engine, "model": model, "effort": args.effort}}
     store.write(RUN_KEY, run)
     step(2, "Create project and promote plan", f"{writer_id} and {review_id} (depends on writer)")
     run_writer(stores, project, repo, branch, start, task_revision(store, project, "writer"),
@@ -385,8 +439,8 @@ def run_writer(
     print(f"Running {engine} writer attempt {writer_claim['attempt']} on {branch} from {start}", flush=True)
     print(approval_command(stores, "pending"), flush=True)
     print(f"Replace TICKET with an ID from pending: {approval_command(stores, 'approve', 'TICKET')}", flush=True)
-    writer_job, _ = run_job(
-        repo, stores, engine, writer, writer_claim,
+    writer_job, _ = launch_job(
+        service, operator, repo, stores, engine, writer, writer_claim,
         f"Implement the brief on {branch} and commit your changes locally. "
         "The runner will run the required checks on the committed candidate. "
         "Leave the checkout clean. Do not push or open a pull request. Use English and omit AI attribution.\n\n"
@@ -409,7 +463,8 @@ def review_session(
         return name, None
     if fresh:
         return f"{name}-{history[-1]['receipt']['attempt'] + 1}", None
-    previous = next((dispatch for dispatch in reversed(history) if dispatch["state"] == "completed"), None)
+    previous = next((dispatch for dispatch in reversed(history)
+                     if dispatch.get("completion", {}).get("result", {}).get("reviewed_sha")), None)
     if previous is None:
         return name, None
     with Store(db=str(stores["bridge"])) as job_store:
@@ -468,8 +523,8 @@ def run_review(
             "issues introduced by the fix, or critical security issues. Report other findings as non-blocking "
             "follow-ups in an optional follow_ups array. "
         )
-    review_job, result = run_job(
-        repo, stores, review_engine, reviewer, review_claim,
+    review_job, result = launch_job(
+        service, operator, repo, stores, review_engine, reviewer, review_claim,
         f"Review commit {candidate} against the writer brief below. Inspect git show {candidate} and "
         f"the proposed PR diff with git diff {review_base} {candidate}. Leave the checkout unchanged. "
         "Judge correctness, security and spec coverage. Use the attached runner check results instead of "
@@ -514,13 +569,15 @@ def continue_task(args: argparse.Namespace, stores: dict[str, Path], store: Stor
     store.delete(TICKET_KEY)
     step = step_trace(stores, table_counts(stores))
     if args.command == "rework":
-        recovered = recovered_writer_job(task_data(store, project, "writer"))
+        recovered = settled_failure(task_data(store, project, "writer"), "writer")
         jobs = store.read(JOBS_KEY) or {}
         check_failure = jobs.get("check_failure")
         reason = check_failure if jobs.get("pending") else jobs.get("rejection")
         source = "Check failure (untrusted tool output)" if check_failure else "Previous review reason"
         if recovered:
-            reason = f"Bridge job {recovered} ended without a completed writer attempt. Continue from the current checkout."
+            reason = recovered.get("launch_error") or (
+                f"Bridge job {recovered['job_ref']} ended without a completed writer attempt. Continue from the current checkout."
+            )
             source = "Previous writer failure"
         if not reason:
             raise DemoError("Rework requires a check failure or review rejection from the latest round")
@@ -528,24 +585,33 @@ def continue_task(args: argparse.Namespace, stores: dict[str, Path], store: Stor
         start = stable_checkout(repo, branch)
         service = ProjectTaskService(str(stores["projects"]), lease_seconds=3900)
         writer_id = f"{project}/writer"
-        writer_job = recovered
-        if writer_job is None:
+        if recovered:
+            writer_job = recovered.get("job_ref")
+        else:
             writer = service.publication_review(writer_id).writer
             require(writer is not None, "Complete or recover the writer attempt before reworking")
             assert writer is not None
             writer_job = writer.job_ref
-        with Store(db=str(stores["bridge"])) as job_store:
-            meta = _store.read_meta(job_store, writer_job)
-        require(meta is not None, f"Missing writer job metadata for {writer_job}")
-        assert meta is not None
+        if writer_job:
+            with Store(db=str(stores["bridge"])) as job_store:
+                options = _store.read_meta(job_store, writer_job)
+            require(options is not None, f"Missing writer job metadata for {writer_job}")
+            assert options is not None
+        else:
+            assert recovered is not None
+            engine = _routing.bridge_engine(recovered["receipt"]["engine_family"])
+            options = run.get("writer_options") or {
+                "engine": engine, "model": "gpt-6.2-sol" if engine == "codex" else None, "effort": "high",
+            }
         store.write(JOBS_KEY, {"pending": True})
         operator = TaskPrincipal(actor="governed-task", role="orchestrator", projects=(project,))
         revision = service.prepare_attempt(operator, writer_id, task_revision(store, project, "writer"), reason)
         brief = f"{args.brief}\n\n{source}\n{reason}"
         run["rework_brief"] = brief
+        run["writer_options"] = {key: options.get(key) for key in ("engine", "model", "effort")}
         store.write(RUN_KEY, run)
         run_writer(stores, project, repo, branch, start, revision, brief,
-                   meta["engine"], meta.get("model"), meta.get("effort"), step)
+                   options["engine"], options.get("model"), options.get("effort"), step)
     else:
         store.write(RUN_KEY, run)
     run_review(stores, store, project, run, step, check_pythonpath=args.check_pythonpath,
@@ -741,7 +807,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     review.add_argument("--brief", type=at_file, metavar="@file", help="Read check commands from this brief")
     rework = subcommands.add_parser("rework", parents=[shared, evidence], help="Run the writer after a failure or rejection")
     rework.add_argument("--brief", type=at_file, required=True, metavar="@file")
-    subcommands.add_parser("recover", parents=[shared], help="Record an unfinished writer attempt with a terminal bridge job as failed")
+    subcommands.add_parser("recover", parents=[shared], help="Settle an unfinished writer or review attempt as failed")
     publish = subcommands.add_parser("publish", parents=[shared], help="Request publication or resume after approval")
     publish.add_argument("--resume", action="store_true")
     ledger = subcommands.add_parser("ledger", parents=[shared], help="Record one trial row")
@@ -799,7 +865,7 @@ def execute(args: argparse.Namespace, stack: ExitStack) -> None:
         stack.callback(lock.release)
     if args.command == "recover":
         with Store(db=str(stores["projects"])) as store:
-            recover_writer(stores, store, args.project)
+            recover_task(stores, store, args.project)
         return
     configure_state(state, stack)
     store = stack.enter_context(Store(db=str(stores["projects"])))
