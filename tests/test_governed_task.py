@@ -11,7 +11,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import lazybridge
@@ -21,8 +21,10 @@ from lazybridge import Store
 from _code_bridge_fakes import Script
 from _receipt_demo_fakes import install
 from lazytools.code_bridge import _cloud, _routing, _store, cli
+from lazytools.projects.admission import TelemetryReading, WindowReading
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService
+from lazytools.routing import live
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = "nc-7-subtraction"
@@ -34,7 +36,17 @@ def python_check(code):
 
 
 @pytest.fixture
-def trial(tmp_path, monkeypatch):
+def global_quota_cache(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    path = home / ".lazytools" / live.CACHE_FILENAME
+    path.parent.mkdir(parents=True)
+    return path
+
+
+@pytest.fixture
+def trial(tmp_path, monkeypatch, global_quota_cache):
     monkeypatch.syspath_prepend(str(ROOT / "tools"))
     runner = importlib.import_module("governed_task")
     monkeypatch.setenv("GIT_ALLOW_PROTOCOL", "file")
@@ -79,6 +91,85 @@ def trial(tmp_path, monkeypatch):
     with ExitStack() as stack:
         yield start, invoke, setup, script, state, ledger, fake_state
     assert not list(tmp_path.glob("ambient-*"))
+
+
+def quota_reading(engine, observed_at):
+    window_id = "codex/10080m" if engine == "codex" else "weekly/all models"
+    window = WindowReading(window_id, 10, 10080, observed_at + timedelta(days=7))
+    return TelemetryReading(engine, "test quota", observed_at, (window,))
+
+
+def write_quota_cache(path, *readings, version=1):
+    payload = {"version": version, "readings": {reading.engine: live.reading_record(reading) for reading in readings}}
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def test_governed_task_seeds_quota_before_each_launch(trial, global_quota_cache, monkeypatch, capsys):
+    start, _, setup, _, state, _, _ = trial
+    checkout = setup()
+    runner = importlib.import_module("governed_task")
+    cache = state / live.CACHE_FILENAME
+    state.mkdir(parents=True)
+    now = datetime.now(UTC)
+    codex = quota_reading("codex", now)
+    older_codex = quota_reading("codex", now - timedelta(seconds=30))
+    claude = quota_reading("claude_code", now - timedelta(seconds=15))
+    newer_claude = quota_reading("claude_code", now)
+    write_quota_cache(cache, codex)
+    write_quota_cache(global_quota_cache, older_codex, claude)
+    global_bytes = global_quota_cache.read_bytes()
+    run_job = runner.run_job
+    launches = []
+
+    def observe_launch(repo, stores, engine, *args, **kwargs):
+        nonlocal global_bytes
+        launches.append(engine)
+        expected = claude if engine == "codex" else newer_claude
+        readings = json.loads(cache.read_text(encoding="utf-8"))["readings"]
+        assert readings == {"codex": live.reading_record(codex), "claude_code": live.reading_record(expected)}
+        result = run_job(repo, stores, engine, *args, **kwargs)
+        if engine == "codex":
+            assert global_quota_cache.read_bytes() == global_bytes
+            write_quota_cache(global_quota_cache, older_codex, newer_claude)
+            global_bytes = global_quota_cache.read_bytes()
+        return result
+
+    def unexpected_probe(*args, **kwargs):
+        pytest.fail("Routed review should use the seeded quota cache")
+
+    monkeypatch.setattr(runner, "run_job", observe_launch)
+    monkeypatch.setattr(_routing, "read_readings", live.read_readings)
+    monkeypatch.setattr(live.quota_telemetry, "read_quota_sync", unexpected_probe)
+    assert start(checkout) == 0
+    assert launches == ["codex", "claude"]
+    assert capsys.readouterr().out.count("Seeded isolated quota cache") == 2
+    assert global_quota_cache.read_bytes() == global_bytes
+
+    assert start(checkout) == 1
+    assert "Trial state already exists" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("source", ["missing", "unreadable", "malformed", "wrong-version", "expired", "equal"])
+def test_governed_quota_seed_skips_unusable_global_cache(tmp_path, global_quota_cache, source):
+    cache = tmp_path / live.CACHE_FILENAME
+    now = datetime.now(UTC)
+    current = quota_reading("codex", now)
+    write_quota_cache(cache, current)
+    original = cache.read_bytes()
+    if source == "unreadable":
+        global_quota_cache.mkdir()
+    elif source == "malformed":
+        global_quota_cache.write_text("{", encoding="utf-8")
+    elif source == "wrong-version":
+        write_quota_cache(global_quota_cache, quota_reading("claude_code", now), version=2)
+    elif source == "expired":
+        expired = now - timedelta(seconds=live.CACHE_MAX_AGE_SECONDS + 1)
+        write_quota_cache(global_quota_cache, quota_reading("claude_code", expired))
+    elif source == "equal":
+        write_quota_cache(global_quota_cache, current)
+
+    assert not live.seed_cache_from_global(cache)
+    assert cache.read_bytes() == original
 
 
 def test_governed_task_publication_and_ledger(trial, capsys):

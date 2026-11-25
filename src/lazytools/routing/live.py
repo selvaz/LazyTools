@@ -25,11 +25,16 @@ from lazytools.routing.router import CapabilityRequirement, ContinuityHint, Rout
 CACHE_MAX_AGE_SECONDS = 120.0
 READ_TIMEOUT_SECONDS = 45.0
 CACHE_PATH_ENV = "LAZYTOOLS_QUOTA_CACHE"
+CACHE_FILENAME = "quota-cache.json"
+
+
+def _global_cache_path() -> Path:
+    return Path.home() / ".lazytools" / CACHE_FILENAME
 
 
 def default_cache_path() -> Path:
     override = os.environ.get(CACHE_PATH_ENV)
-    return Path(override).expanduser() if override else Path.home() / ".lazytools" / "quota-cache.json"
+    return Path(override).expanduser() if override else _global_cache_path()
 
 
 def reading_record(reading: TelemetryReading) -> dict[str, Any]:
@@ -97,7 +102,7 @@ def _cached_readings(path: Path, moment: datetime) -> dict[Engine, TelemetryRead
     return result
 
 
-def _write_cache(path: Path, readings: dict[Engine, TelemetryReading]) -> None:
+def _write_cache(path: Path, readings: dict[Engine, TelemetryReading]) -> bool:
     temporary: str | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -111,13 +116,28 @@ def _write_cache(path: Path, readings: dict[Engine, TelemetryReading]) -> None:
             os.fsync(out.fileno())
         os.replace(temporary, path)
     except (OSError, ValueError):
-        pass
+        return False
     finally:
         if temporary is not None:
             try:
                 Path(temporary).unlink(missing_ok=True)
             except OSError:
                 pass
+    return True
+
+
+def seed_cache_from_global(path: Path) -> bool:
+    """Merge newer, usable global readings into an isolated cache without probing."""
+    moment = datetime.now(UTC)
+    global_readings = _cached_readings(_global_cache_path(), moment)
+    if not global_readings:
+        return False
+    local_readings = _cached_readings(path, moment)
+    updates = {
+        engine: reading for engine, reading in global_readings.items()
+        if engine not in local_readings or reading.observed_at > local_readings[engine].observed_at
+    }
+    return bool(updates) and _write_cache(path, {**local_readings, **updates})
 
 
 def read_readings(
