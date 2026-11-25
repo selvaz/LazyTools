@@ -120,13 +120,18 @@ def step_trace(stores: dict[str, Path], previous: Counts) -> Callable[[int, str,
     return step
 
 
-def bridge(argv: list[str]) -> tuple[int, str]:
+def bridge_output(argv: list[str]) -> tuple[int, str, str]:
     stdout, stderr = StringIO(), StringIO()
     with redirect_stdout(stdout), redirect_stderr(stderr):
         status = cli.main(argv)
     if (detail := stderr.getvalue().strip()) and (status != 0 or argv[0] == "publish"):
         print(detail, file=sys.stderr)
-    return status, stdout.getvalue().strip()
+    return status, stdout.getvalue().strip(), detail
+
+
+def bridge(argv: list[str]) -> tuple[int, str]:
+    status, output, _ = bridge_output(argv)
+    return status, output
 
 
 def claim(
@@ -161,8 +166,15 @@ def run_job(
     if effort is not None:
         argv += ["--effort", effort]
     with patch.dict(os.environ, {_task.PRINCIPAL_ENV: principal.model_dump_json()}):
-        status, output = bridge(argv)
-    require(status == 0 and output, f"{engine} job failed: {output or 'see bridge error above'}")
+        status, output, detail = bridge_output(argv)
+    if status != 0 or not output:
+        error = None
+        if output:
+            try:
+                error = json.loads(output.splitlines()[-1]).get("error")
+            except (ValueError, AttributeError):
+                pass
+        raise DemoError(f"{engine} job failed: {error or detail or output or 'bridge returned no output'}")
     result = json.loads(output.splitlines()[-1])
     require(result.get("status") == "done", f"Unexpected job result: {result}")
     job_id = result["job_id"]

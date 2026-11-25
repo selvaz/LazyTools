@@ -164,13 +164,17 @@ entries in the caller's `PYTHONPATH` under the writer checkout are remapped to
 the check worktree. Use commands such as `python -m pytest` to test the
 candidate code.
 
-Run `recover` when a submitted writer job has reached a terminal state and
-its task attempt is still open. Recovery records the job ID as failure evidence,
-keeps the checkout as-is, and is safe to run again. Provide the next writer
-brief to `rework`, which starts from the current clean branch head.
+If the bridge refuses a launch before it creates a job, the runner records the
+launch error and releases the task claim. Use `recover` if a writer or review
+claim is still open after an interruption. Recovery handles claims with no job
+and claims with a verified terminal bridge job. It refuses while a job is
+active, preserves the checkout, and is safe to run again. Retry a review with
+`review`, or give `rework` a new writer brief to continue from the current clean
+branch head.
 
 ```console
 python -I tools/governed_task.py recover --project trial-example
+python -I tools/governed_task.py review --project trial-example
 python -I tools/governed_task.py rework --project trial-example --brief @fix.md
 ```
 
