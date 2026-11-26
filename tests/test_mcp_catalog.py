@@ -54,7 +54,7 @@ def test_every_provider_tool_gets_an_access_value(provider_id: str) -> None:
         ("projects", "projects_open_contract", "write"),
         ("fin", "portfolio_optimizer_run", "read"),
         ("fin", "portfolio_optimizer_backtest", "read"),
-        ("web", "web_search", "read"),
+        ("web", "web_crawl", "write"),
     ],
 )
 def test_tool_access_uses_existing_write_gates(provider_id: str, tool_name: str, access: str) -> None:

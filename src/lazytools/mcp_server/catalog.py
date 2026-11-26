@@ -157,10 +157,10 @@ def tool_metadata(provider_id: str, tool: str | NamedTool) -> ToolMetadata:
     )
     if name in _READ_ONLY_PATTERN_EXCEPTIONS:
         write = False
-    # web_* fetches may populate a disposable local page cache. That is an
-    # implementation detail, not a mutation of user or application state.
+    # With no interactive cache configured, web_* fetches persist pages and
+    # crawl sessions to the production news database.
     if provider_id == "web" and name.startswith("web_"):
-        write = False
+        write = True
     if provider_id == "studio" and name not in _STUDIO_READ_TOOLS:
         write = True
     return {
