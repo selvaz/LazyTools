@@ -555,3 +555,44 @@ def test_failed_cancel_is_retried_on_the_next_pass() -> None:
     dispatch.pass_once()
     dispatch.pass_once()
     assert attempts == ["job-A", "job-A"]
+
+
+def test_place_switches_engine_when_the_routed_one_is_full() -> None:
+    recorded: list[tuple[str, str]] = []
+
+    class PlacingService:
+        lease_seconds = 900
+
+        def record_placement(self, task_id: str, revision: str, evidence: Any) -> None:
+            recorded.append((task_id, evidence.engine_family))
+
+    def router(tier: str, engine_family: str | None = None) -> str | None:
+        return engine_family or "codex"
+
+    events: list[str] = []
+    tasks = [Task(f"p/{name}", "r1", "todo", {"tier": "thinking"}, None) for name in ("A", "B", "C")]
+    dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
+                          None, "p", emit=events.append, clock=lambda: 1000.0,  # type: ignore[arg-type]
+                          router=router, capacity=lambda family: 1 if family == "codex" else None,
+                          router_with_engine=True)
+    dispatch._place(tasks)
+    assert recorded == [("p/A", "codex"), ("p/B", "claude_code"), ("p/C", "claude_code")]
+
+
+def test_fallback_engine_needs_a_usable_recent_reading() -> None:
+    from datetime import UTC, datetime, timedelta
+    from types import SimpleNamespace
+
+    from lazytools.code_bridge._dispatch import usable_reading
+    now = datetime.now(UTC)
+
+    def reading(**changes: Any) -> Any:
+        base = {"error": None, "windows": ("w",), "observed_at": now}
+        base.update(changes)
+        return SimpleNamespace(**base, age_seconds=lambda *, now: (now - base["observed_at"]).total_seconds())
+
+    assert usable_reading(reading())
+    assert not usable_reading(None)
+    assert not usable_reading(reading(error="timed out"))
+    assert not usable_reading(reading(windows=()))
+    assert not usable_reading(reading(observed_at=now - timedelta(hours=1)))
