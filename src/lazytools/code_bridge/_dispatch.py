@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from lazytools.code_bridge import _jobs, _routing, _store
+from lazytools.code_bridge import _jobs, _registry, _routing, _store
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_fields import task_id as board_task_id
@@ -188,20 +188,15 @@ class BridgeLauncher:
         return candidates[-1]
 
     def pending(self) -> list[dict[str, Any]]:
-        """Pending approval tickets in the shared queue (same view as `pending --json`)."""
-        command = [sys.executable, "-m", "lazytools.code_bridge", "pending", "--json"]
-        if self.db:
-            command.extend(("--db", self.db))
-        if self.registry_db:
-            command.extend(("--registry-db", self.registry_db))
-        result = subprocess.run(command, text=True, capture_output=True, check=False)
-        if result.returncode:
-            return []
-        try:
-            data = json.loads(result.stdout or "[]")
-        except json.JSONDecodeError:
-            return []
-        return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+        """Pending approval tickets, read through the same function `wait-any` uses."""
+        from lazybridge.ext.approval import ticket_gist
+
+        from lazytools.code_bridge import cli  # deferred: cli imports this module
+
+        args = argparse.Namespace(db=self.db, registry_db=Path(self.registry_db) if self.registry_db else None)
+        return [{"approval_id": ticket.approval_id, "job_id": _registry.job_ref(ticket),
+                 "gist": ticket_gist(ticket.prompt), **cli._request_detail(ticket.prompt)}
+                for ticket in cli._pending_tickets(args, cli._ticket_job_store(args))]
 
     def cancel(self, job_ref: str) -> bool:
         command = [sys.executable, "-m", "lazytools.code_bridge", "cancel", job_ref]
@@ -312,7 +307,8 @@ class Dispatcher:
                  sleep: Callable[[float], None] = time.sleep,
                  task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks,
                  clock: Callable[[], float] = time.time, orphan_grace: float = 30.0,
-                 router: Callable[[str], str | None] | None = None, max_retries: int = 1):
+                 router: Callable[[str], str | None] | None = None, max_retries: int = 1,
+                 json_events: bool = False):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
         self.service, self.principal, self.launcher = service, principal, launcher
@@ -329,6 +325,16 @@ class Dispatcher:
         self.seen_tickets: set[str] = set()
         self.cancelled: set[str] = set()
         self.max_retries = max_retries
+        self.json_events = json_events
+
+    def _event(self, kind: str, task_id: str, detail: str = "", *, job_id: str | None = None) -> None:
+        """Emit one event: a text line, or with --json the same keys wait-any events carry."""
+        if self.json_events:
+            self.emit(json.dumps({"kind": kind, "job_id": job_id, "task_id": task_id, "detail": detail}))
+        elif kind == "launched":
+            self.emit(f"launched {job_id}")
+        else:
+            self.emit(f"{kind} {task_id} {detail}" if detail else f"{kind} {task_id}")
 
     def _surface_approvals(self, tasks: list[Task]) -> None:
         """Put every pending ticket of a running task into the event stream, once.
@@ -346,13 +352,14 @@ class Dispatcher:
             return
         for ticket in pending():
             approval_id = str(ticket.get("approval_id") or "")
-            task_id = by_job.get(str(ticket.get("job_id") or ""))
+            job_id = str(ticket.get("job_id") or "")
+            task_id = by_job.get(job_id)
             if not approval_id or task_id is None or approval_id in self.seen_tickets:
                 continue
             self.seen_tickets.add(approval_id)
             command = " ".join(str(ticket.get("command") or ticket.get("gist") or "").split())[:200]
             reason = " ".join(str(ticket.get("reason") or "").split())[:160]
-            self.emit(f"approval {task_id} {approval_id} {command} | {reason}")
+            self._event("approval", task_id, f"{approval_id} {command} | {reason}", job_id=job_id)
 
     def _place(self, tasks: list[Task]) -> None:
         """Record local placement evidence for todo tasks whose dependencies are done.
@@ -381,11 +388,11 @@ class Dispatcher:
                     picks[tier] = self.router(tier)
                 except Exception as exc:
                     picks[tier] = None
-                    self.emit(f"waiting {task.task_id} routing failed: {str(exc).replace(chr(10), ' ')}")
+                    self._event("waiting", task.task_id, f"routing failed: {str(exc).replace(chr(10), ' ')}")
             engine = picks[tier]
             if engine is None:
                 if task.task_id not in self.waiting:
-                    self.emit(f"waiting {task.task_id} no eligible engine for tier {tier}")
+                    self._event("waiting", task.task_id, f"no eligible engine for tier {tier}")
                     self.waiting.add(task.task_id)
                 continue
             self.waiting.discard(task.task_id)
@@ -394,14 +401,14 @@ class Dispatcher:
                 reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}",
                 expires_at=now + self.service.lease_seconds + 60, engine_family=engine,
             ))
-            self.emit(f"placed {task.task_id} local {engine} tier={tier}")
+            self._event("placed", task.task_id, f"local {engine} tier={tier}")
 
     def _blocked(self, tasks: list[Task]) -> None:
         failed = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "failed"}
         for task in tasks:
             if (task.status == "todo" and failed.intersection(task.data.get("dependency_ids", []))
                     and task.task_id not in self.reported_blocked):
-                self.emit(f"blocked {task.task_id}")
+                self._event("blocked", task.task_id)
                 self.reported_blocked.add(task.task_id)
 
     def _settle(self, task: Task) -> bool:
@@ -429,7 +436,8 @@ class Dispatcher:
                     evidence_ref=None if dispatch_state == "intent" else "dispatcher:no-job-after-grace",
                     job_ref=dispatch.get("job_ref"),
                 )
-                self.emit(f"failed {task.task_id} no job after dispatch grace period")
+                self._event("failed", task.task_id, "no job after dispatch grace period",
+                            job_id=dispatch.get("job_ref"))
                 return True
             return False
         if job.get("status") not in TERMINAL:
@@ -440,10 +448,12 @@ class Dispatcher:
                     stopped = bool(cancel(str(job_ref)))
                 except Exception as exc:
                     stopped = False
-                    self.emit(f"waiting {task.task_id} cancel failed: {str(exc).replace(chr(10), ' ')[:160]}")
+                    self._event("waiting", task.task_id, f"cancel failed: {str(exc).replace(chr(10), ' ')[:160]}",
+                                job_id=str(job_ref))
                 if stopped:  # a failed cancel stays retryable on the next pass
                     self.cancelled.add(task.task_id)
-                    self.emit(f"cancelled {task.task_id} claim lease expired; settling once the job has stopped")
+                    self._event("cancelled", task.task_id, "claim lease expired; settling once the job has stopped",
+                                job_id=str(job_ref))
             return False
         accepted = job.get("status") == "done"
         if accepted and job.get("cwd"):
@@ -452,7 +462,8 @@ class Dispatcher:
                 accepted = False
                 job = {**job, "error": workspace_error}
             elif merge_commit:
-                self.emit(f"committed {task.task_id} {merge_commit[:12]} (engine sandbox keeps .git read-only)")
+                self._event("committed", task.task_id, f"{merge_commit[:12]} (engine sandbox keeps .git read-only)",
+                            job_id=str(job_ref))
             if accepted and not workspace_error:
                 # The dispatcher's clone is written by nobody else once the job ended, so its
                 # HEAD is the task's artifact, also after a restart that lost an earlier commit.
@@ -487,7 +498,7 @@ class Dispatcher:
                 accepted = False
                 failure_reason = publish_error
             elif published:
-                self.emit(f"published {task.task_id} {published}")
+                self._event("published", task.task_id, published, job_id=str(job_ref))
         state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
         reference = f"bridge-job:{job_ref}:{job.get('status')}"
         evidence = CompletionEvidence(reference=reference, job_ref=str(job_ref), executor=receipt["executor"],
@@ -501,7 +512,7 @@ class Dispatcher:
         self.service.complete(self.principal, task.task_id, receipt["claim_token"], reference, state, reference,
                               "success" if accepted else "task_failure", **complete_options)
         if accepted:
-            self.emit(f"done {task.task_id}")
+            self._event("done", task.task_id, job_id=str(job_ref))
             return True
         if (self.retries.get(task.task_id, 0) < self.max_retries
                 and any(marker in failure_reason for marker in RETRYABLE_FAILURES)):
@@ -511,9 +522,9 @@ class Dispatcher:
                 self.service.prepare_attempt(self.principal, task.task_id, current.revision,
                                              f"retry after engine crash: {failure_reason[:200]}")
                 self.retries[task.task_id] = self.retries.get(task.task_id, 0) + 1
-                self.emit(f"retry {task.task_id} engine crash: {failure_reason[:120]}")
+                self._event("retry", task.task_id, f"engine crash: {failure_reason[:120]}", job_id=str(job_ref))
                 return True
-        self.emit(f"failed {task.task_id} {failure_reason}")
+        self._event("failed", task.task_id, failure_reason, job_id=str(job_ref))
         return True
 
     def pass_once(self) -> tuple[int, int]:
@@ -523,7 +534,8 @@ class Dispatcher:
                 try:
                     self._settle(task)
                 except Exception as exc:
-                    self.emit(f"failed {task.task_id} {str(exc).replace(chr(10), ' ')}")
+                    self._event("failed", task.task_id, str(exc).replace(chr(10), " "),
+                                job_id=(task.dispatch or {}).get("job_ref"))
         tasks = self.task_reader(self.service, self.project_id)
         self._surface_approvals(tasks)
         self._place(tasks)
@@ -541,23 +553,23 @@ class Dispatcher:
                 break
             board_task = by_id.get(summary["task_id"])
             if board_task is None:
-                self.emit(f"failed {summary['task_id']} task is missing from board")
+                self._event("failed", summary["task_id"], "task is missing from board")
                 continue
             data = board_task.data
-            self.emit(f"ready {summary['task_id']}")
+            self._event("ready", summary["task_id"])
             if summary.get("effective_placement") == "cloud":
                 reason = "cloud placement not supported by dispatch v1"
                 self.unsupported.add(summary["task_id"])
-                self.emit(f"failed {summary['task_id']} {reason}")
+                self._event("failed", summary["task_id"], reason)
                 continue
             if data.get("review_of") or data.get("contract_id"):
                 reason = "review/contract tasks not supported by dispatch v1"
                 self.unsupported.add(summary["task_id"])
-                self.emit(f"failed {summary['task_id']} {reason}")
+                self._event("failed", summary["task_id"], reason)
                 continue
             branch = data.get("assigned_branch")
             if branch and str(branch) in running_branches:
-                self.emit(f"failed {summary['task_id']} assigned branch already running")
+                self._event("failed", summary["task_id"], "assigned branch already running")
                 continue
             attempt = len(data.get("dispatches", [])) + 1
             try:
@@ -566,13 +578,13 @@ class Dispatcher:
                     f"dispatch:{summary['task_id']}:{summary['revision']}:{attempt}",
                 )
             except Exception as exc:
-                self.emit(f"failed {summary['task_id']} {str(exc).replace(chr(10), ' ')}")
+                self._event("failed", summary["task_id"], str(exc).replace(chr(10), " "))
                 continue
             if not result.get("claim_active", True):
-                self.emit(f"failed {summary['task_id']} claim is not active")
+                self._event("failed", summary["task_id"], "claim is not active")
                 continue
             claim = result["claim"]
-            self.emit(f"claimed {summary['task_id']}")
+            self._event("claimed", summary["task_id"])
             try:
                 job_ref = self.launcher.launch({**summary, **data}, claim)
             except Exception as exc:
@@ -583,9 +595,9 @@ class Dispatcher:
                     )
                 except Exception as release_exc:
                     reason = f"{reason}; claim release failed: {str(release_exc).replace(chr(10), ' ')}"
-                self.emit(f"failed {summary['task_id']} {reason}")
+                self._event("failed", summary["task_id"], reason)
             else:
-                self.emit(f"launched {job_ref}")
+                self._event("launched", summary["task_id"], job_id=job_ref)
                 running += 1
                 if branch:
                     running_branches.add(str(branch))
@@ -647,5 +659,5 @@ def dispatch(args: argparse.Namespace) -> int:
     def router(tier: str) -> str | None:
         return _routing.choose(tier, cwd=os.getcwd(), db_path=db_path).decision.provider
 
-    return Dispatcher(service, principal, launcher, args.project,
-                      parallel=args.parallel, router=router).run(once=args.once)
+    return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
+                      json_events=bool(getattr(args, "json", False))).run(once=args.once)

@@ -436,6 +436,41 @@ def test_pending_tickets_of_running_jobs_are_surfaced_once() -> None:
     assert approvals == ["approval p/A t-1 git add calc.py; git commit -m x | Git needs write access"]
 
 
+def test_json_events_carry_the_wait_any_keys() -> None:
+    import json
+
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    launcher = FakeLauncher(service)
+    launcher.pending = lambda: [{"approval_id": "t-1", "job_id": "job-A", "command": "git push",  # type: ignore[attr-defined]
+                                 "reason": "publish"}]
+    dispatch = runner(service, launcher, events)
+    dispatch.json_events = True
+    dispatch.pass_once()
+    dispatch.pass_once()  # A is running: its ticket is surfaced
+    launcher.finish("A", "failed")
+    dispatch.pass_once()
+    rows = [json.loads(line) for line in events]
+    assert all(set(row) == {"kind", "job_id", "task_id", "detail"} for row in rows)
+    assert {"kind": "launched", "job_id": "job-A", "task_id": "p/A", "detail": ""} in rows
+    assert {"kind": "approval", "job_id": "job-A", "task_id": "p/A", "detail": "t-1 git push | publish"} in rows
+    assert {"kind": "failed", "job_id": "job-A", "task_id": "p/A", "detail": "boom"} in rows
+
+
+def test_bridge_launcher_reads_tickets_like_wait_any(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge import _store
+
+    db = tmp_path / "jobs.sqlite"
+    store = _store.build_store(db)
+    _store.build_job_registry(store).write("job-A", "task", tool_name="codex", status="awaiting_approval")
+    ticket = _store.build_approval_queue(store).create_ticket(
+        task_id="job-A", prompt='agent asks\n  arguments: {"command":"git push","reason":"publish?"}')
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("pending must not shell out"))
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    rows = BridgeLauncher(str(db), principal, "p").pending()
+    assert [(row["approval_id"], row["job_id"], row["command"], row["reason"]) for row in rows] == [
+        (ticket.approval_id, "job-A", "git push", "publish?")]
+
+
 def _repo(path: Path) -> Any:
     path.mkdir(parents=True)
     def git(*argv: str, cwd: Path = path) -> str:

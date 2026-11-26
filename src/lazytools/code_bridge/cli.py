@@ -1378,12 +1378,24 @@ _WAIT_EVENTS = {"done", "failed", "approval", "landed", "interrupted"}
 
 
 def _wait_event(job: dict[str, Any], event: str, approval: dict[str, Any] | None = None) -> dict[str, Any]:
+    # kind/job_id/task_id/detail are shared with `dispatch --json` events.
+    if approval is not None:
+        command = " ".join(str(approval.get("command") or approval.get("summary") or "").split())[:200]
+        reason = " ".join(str(approval.get("reason") or "").split())[:160]
+        detail = f"{approval['approval_id']} {command} | {reason}"
+    elif event == "landed":
+        detail = str(job.get("pr_url") or "")
+    else:
+        detail = " ".join(str(job.get("error") or job.get("status") or "").split())
     return {
         "event": event,
         "job_id": str(job["job_id"]),
         "state": job.get("status"),
         "approval": approval,
         "pr_url": job.get("pr_url"),
+        "kind": event,
+        "task_id": job.get("task_id"),
+        "detail": detail,
     }
 
 
@@ -1408,9 +1420,11 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
 
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)
+    # With --loop, --all-active also follows jobs that start after the wait began.
+    follow_new = args.all_active and args.loop
     if args.all_active:
         watched = [str(job["job_id"]) for job in _jobs.list_jobs(store, all_jobs=False)]
-        if not watched:
+        if not watched and not follow_new:
             print("error: no active jobs", file=sys.stderr)
             return 2
     else:
@@ -1430,6 +1444,15 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
     while True:
         store = _store.build_store(db_path)
         registry = _store.build_job_registry(store)
+        if follow_new:
+            # Created-at catches a job that started and finished between two polls.
+            for job in _jobs.list_jobs(store, all_jobs=True):
+                job_id = str(job["job_id"])
+                if job_id not in watched and (
+                    job.get("status") in ("running", "checkpoint", "awaiting_approval")
+                    or float(job.get("created_at") or 0) >= started_at
+                ):
+                    watched.append(job_id)
         jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
 
         # A ticket is emitted once per invocation, even if it remains pending.
@@ -1504,7 +1527,7 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
                     _store.write_meta(store, str(job["job_id"]), meta)
                 if not args.loop:
                     return 0
-        if args.loop and len(terminal_seen) == len(watched):
+        if args.loop and watched and len(terminal_seen) == len(watched):
             return 0
         if deadline is not None and time.monotonic() >= deadline:
             return 3
@@ -2175,6 +2198,8 @@ def build_parser() -> argparse.ArgumentParser:
                             help="Claim lease per task; a job running longer is stopped (default 60).")
     dispatch_p.add_argument("--launch-mode", choices=("auto", "governed", "legacy"), default=None,
                             help="Passed to every task's run (default: the run default).")
+    dispatch_p.add_argument("--json", action="store_true",
+                            help="Print one JSON event per line with the keys wait-any events carry.")
     dispatch_p.set_defaults(func=_dispatch.dispatch)
 
     watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
@@ -2392,7 +2417,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     wait_any_p = sub.add_parser("wait-any", help="Block until an event occurs on any watched job.")
     wait_any_p.add_argument("job_ids", nargs="*", metavar="JOB_ID")
-    wait_any_p.add_argument("--all-active", action="store_true", help="Watch a snapshot of all currently active jobs.")
+    wait_any_p.add_argument("--all-active", action="store_true", help="Watch all active jobs (a snapshot; with --loop, also jobs started later).")
     wait_any_p.add_argument("--timeout", type=float, default=None, help="Give up after this many seconds (exit 3).")
     wait_any_p.add_argument(
         "--events", default="done,failed,approval,landed,interrupted", help="Comma-separated events to return."
