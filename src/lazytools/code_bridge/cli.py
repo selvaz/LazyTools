@@ -1159,6 +1159,9 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         if latest and latest.get("status") in _TERMINAL:
             print(f"job {job_id} already {latest['status']}")
             return 0
+        if args.stale_before is not None and not _dispatch._has_stale_heartbeat(latest or {}, args.stale_before):
+            print(f"job {job_id} no longer has a stale running heartbeat", file=sys.stderr)
+            return 1
         try:
             _kill_process_tree(pid, owns_group=bool(job.get("owns_process_group")))
         except (OSError, subprocess.SubprocessError) as exc:
@@ -2198,6 +2201,8 @@ def build_parser() -> argparse.ArgumentParser:
                             help="Store path for lessons from previous dispatches.")
     dispatch_p.add_argument("--lease-minutes", type=int, default=60, metavar="N",
                             help="Claim lease per task; a job running longer is stopped (default 60).")
+    dispatch_p.add_argument("--stale-minutes", type=int, default=_dispatch.DEFAULT_STALE_MINUTES, metavar="N",
+                            help="Stop running jobs with no engine activity for this many minutes (default 10).")
     dispatch_p.add_argument("--launch-mode", choices=("auto", "governed", "legacy"), default=None,
                             help="Passed to every task's run (default: the run default).")
     dispatch_p.add_argument("--json", action="store_true",
@@ -2456,6 +2461,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cancel_p.add_argument("job_id", help="Full job id or unique prefix.")
     cancel_p.add_argument("--reason", default="requested cancellation", help="Reason recorded with the interruption.")
+    cancel_p.add_argument("--stale-before", type=float, help=argparse.SUPPRESS)
     _add_registry_option(cancel_p)
     cancel_p.set_defaults(func=_cmd_cancel)
 

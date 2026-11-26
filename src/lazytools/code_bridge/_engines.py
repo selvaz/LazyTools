@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -45,11 +46,19 @@ CLAUDE_NO_ATTRIBUTION_SETTINGS: dict[str, Any] = {
 }
 
 
-def _claude_client(*, policy_release_report: Path | str | None = None) -> Any:
+def _claude_client(
+    *, policy_release_report: Path | str | None = None, on_activity: Callable[[], None] | None = None,
+) -> Any:
     """Agent SDK client which adds job-scoped no-attribution settings."""
     from lazybridge.engines.claude_code.sdk_client import AgentSdkClient
 
     class JobScopedSettingsClient(AgentSdkClient):
+        @staticmethod
+        def _report_session_id(options: Any, message: Any) -> None:
+            if on_activity is not None:
+                on_activity()
+            AgentSdkClient._report_session_id(options, message)
+
         @staticmethod
         def _sdk_options(options: Any) -> Any:
             sdk_options = AgentSdkClient._sdk_options(options)
@@ -116,6 +125,7 @@ def build_codex_engine(
     state_dir: Path,
     timeout: float = DEFAULT_TIMEOUT,
     temp_dir: str | None = None,
+    on_activity: Callable[[], None] | None = None,
 ) -> Any:
     """A ``CodexEngine`` for one foreground job: workspace-write, on-request escalations gated.
 
@@ -132,9 +142,31 @@ def build_codex_engine(
     from lazybridge.engines.codex.app_server import CodexAppServerClient
     from lazybridge.engines.coding import CodingAgentConfig
 
-    class RestrictedClient(CodexAppServerClient):
+    class JobClient(CodexAppServerClient):
         def _spawn_command(self, config_overrides: tuple[str, ...] = ()) -> tuple[str, ...]:
-            return super()._spawn_command((*config_overrides, "features.shell_tool=false"))
+            if launch.report is None and not shell:
+                config_overrides = (*config_overrides, "features.shell_tool=false")
+            return super()._spawn_command(config_overrides)
+
+        async def run(self, *, progress: dict[str, Any] | None = None, **kwargs: Any) -> Any:
+            if on_activity is None or progress is None:
+                return await super().run(progress=progress, **kwargs)
+            # The same transport activity also drives the engine's idle timeout.
+            engine_activity = progress.get("on_activity")
+
+            def report_activity() -> None:
+                if engine_activity is not None:
+                    engine_activity()
+                on_activity()
+
+            progress["on_activity"] = report_activity
+            try:
+                return await super().run(progress=progress, **kwargs)
+            finally:
+                if engine_activity is None:
+                    progress.pop("on_activity", None)
+                else:
+                    progress["on_activity"] = engine_activity
 
     native = launch.compiled["config_overrides"]
     shell = "shell" in launch.policy.tool_classes
@@ -154,13 +186,13 @@ def build_codex_engine(
 
         scoped = os.environ.get(MCP_POLICY_DIGEST_ENV)
         credential_id = os.environ.get(MCP_CODEX_ID_ENV) if scoped else None
-        client = CodexAppServerClient(
+        client = JobClient(
             policy_release_report=launch.report, policy_state_dir=state_dir,
             policy_api_key=os.environ.get(MCP_CODEX_KEY_ENV) if scoped else None,
             policy_credential_id=UUID(credential_id) if credential_id else None,
         )
     else:
-        client = CodexAppServerClient() if shell else RestrictedClient()
+        client = JobClient()
     return _make_codex_engine(
         model=model,
         cwd=cwd,
@@ -189,6 +221,7 @@ def build_claude_engine(
     launch: Launch,
     timeout: float = DEFAULT_TIMEOUT,
     temp_dir: str | None = None,
+    on_activity: Callable[[], None] | None = None,
 ) -> Any:
     """A ``ClaudeCodeEngine`` for one foreground job: Write/Edit/Bash, every call gated.
 
@@ -219,7 +252,7 @@ def build_claude_engine(
     # Never inherit attribution behaviour from the operator's global Claude
     # settings. The client injects both legacy and current keys into this
     # job's SDK options, including policy-release jobs.
-    kwargs["client"] = _claude_client(policy_release_report=launch.report)
+    kwargs["client"] = _claude_client(policy_release_report=launch.report, on_activity=on_activity)
     return _make_claude_engine(
         **kwargs,
         reasoning_effort=effort,
