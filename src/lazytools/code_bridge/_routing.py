@@ -275,10 +275,12 @@ def choose(
             independence = reviewer.independence
             available &= frozenset((provider(reviewer.engine),))
             if independence == "same-provider-fresh":
-                if session:
+                # Fresh means no shared conversation: a new session name is fine (governed
+                # reviews name their own), a session with history (the writer's) is not.
+                if session and continuity.engine is not None:
                     raise ValueError(
-                        "--session cannot be used for a same-provider-fresh review; "
-                        "drop --session so the reviewer starts a fresh conversation"
+                        f"--session {session!r} already has a conversation in this repository; a "
+                        "same-provider-fresh review needs a new session name or none"
                     )
                 writer = None  # the policy explicitly authorized the fresh same-provider fallback
         else:

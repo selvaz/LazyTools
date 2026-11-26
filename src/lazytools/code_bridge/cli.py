@@ -516,10 +516,12 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             review_meta = extra_meta["review"] = prep["review"]
             extra_meta["review_independence"] = review_meta["independence"]
             if args.session and review_meta["independence"] == "same-provider-fresh":
-                raise ValueError(
-                    "--session cannot be used for a same-provider-fresh review; "
-                    "drop --session so the reviewer starts a fresh conversation"
-                )
+                rows = _jobs.list_jobs(store, all_jobs=True)
+                if _routing.session_hint(rows, str(cwd), args.session).engine is not None:
+                    raise ValueError(
+                        f"--session {args.session!r} already has a conversation in this repository; a "
+                        "same-provider-fresh review needs a new session name or none"
+                    )
         if args.routine and args.engine != "claude":
             raise ValueError("--routine is only for --where cloud --engine claude")
     except (OSError, ValueError, _cloud.CloudError) as exc:

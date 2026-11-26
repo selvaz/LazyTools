@@ -44,7 +44,10 @@ def installed_engines(
         configured = os.environ.get(variable)
         if (configured and shutil.which(configured)) or (not configured and shutil.which(command)):
             found.add(engine)
-    return frozenset(found)
+    # Discovery that finds no engine is no evidence (CI runners, a PATH the bridge does not
+    # see): keep the both-engines behaviour. Only a positive single-engine finding, or an
+    # explicit config/override, switches review to the same-provider-fresh fallback.
+    return frozenset(found) or ENGINES
 
 
 def _validated(values: Iterable[str], source: str) -> frozenset[str]:

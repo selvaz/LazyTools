@@ -258,11 +258,20 @@ def test_review_falls_back_to_fresh_same_provider_when_only_engine_installed(
     assert review["review_independence"] == "same-provider-fresh"
 
 
-def test_same_provider_fresh_review_refuses_session(bridge, capsys, monkeypatch):
+def test_same_provider_fresh_review_refuses_a_session_with_history(bridge, capsys, monkeypatch):
     monkeypatch.setattr(_installed, "installed_engines", lambda override=None, **kwargs: frozenset({"codex"}))
-    seed(bridge, "writer")
-    assert cli.main(args(bridge, "run", "--review-of", "writer", "--session", "old")) == 2
-    assert "--session cannot be used for a same-provider-fresh review" in capsys.readouterr().err
+    seed(bridge, "writer", session="writer-session")
+    assert cli.main(args(bridge, "run", "--review-of", "writer", "--session", "writer-session")) == 2
+    assert "already has a conversation" in capsys.readouterr().err
+
+
+def test_same_provider_fresh_review_accepts_a_new_session_name(bridge, capsys, monkeypatch):
+    # governed_task names its reviewer session; a new name is still a fresh conversation (CI on #409).
+    monkeypatch.setattr(_installed, "installed_engines", lambda override=None, **kwargs: frozenset({"codex"}))
+    seed(bridge, "writer", session="writer-session")
+    assert cli.main(args(bridge, "route", "--tier", "writing", "--review-of", "writer",
+                         "--session", "reviewer-new", "--json")) == 0
+    assert "same-provider-fresh" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("extra", [[], ["--engine", "codex"], ["--needs", "images"], ["--session", "writer-session"]])
@@ -1007,3 +1016,15 @@ def test_tier_run_with_wait_for_slot_keeps_the_busy_engine_and_queues(bridge, mo
 def test_other_providers_tier_name_is_translated_not_rejected(bridge, capsys, extra, expected):
     assert cli.main(args(bridge, "run", *extra)) == 0
     assert bridge[0].engines[-1].kwargs["model"] == expected
+
+
+def test_discovery_without_any_engine_keeps_both_engines(monkeypatch, tmp_path):
+    # CI on #409: runners have neither CLI; finding nothing is no evidence of a single provider.
+    from lazytools.code_bridge import _installed as installed
+
+    monkeypatch.setattr(installed.shutil, "which", lambda name: None)
+    monkeypatch.delenv("CODEX_BIN", raising=False)
+    monkeypatch.delenv("CLAUDE_BIN", raising=False)
+    assert installed.installed_engines(config_path=tmp_path / "missing.toml") == installed.ENGINES
+    monkeypatch.setattr(installed.shutil, "which", lambda name: "x" if name == "codex" else None)
+    assert installed.installed_engines(config_path=tmp_path / "missing.toml") == frozenset({"codex"})
