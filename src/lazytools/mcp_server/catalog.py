@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Protocol, TypedDict
 
+from lazytools.connectors.web.cache import web_cache_requested
 from lazytools.mcp_server.server import is_unsafe_tool_name
 
 Access = Literal["read", "write"]
@@ -134,7 +135,9 @@ _READ_ONLY_PATTERN_EXCEPTIONS = frozenset(
 )
 
 
-def tool_metadata(provider_id: str, tool: str | NamedTool) -> ToolMetadata:
+def tool_metadata(
+    provider_id: str, tool: str | NamedTool, *, web_cache_db: str | None = None
+) -> ToolMetadata:
     """Return catalog metadata and effective access for ``tool``.
 
     Access follows the server's existing write knowledge: providers that only
@@ -157,10 +160,11 @@ def tool_metadata(provider_id: str, tool: str | NamedTool) -> ToolMetadata:
     )
     if name in _READ_ONLY_PATTERN_EXCEPTIONS:
         write = False
-    # web_* fetches may populate a disposable local page cache. That is an
-    # implementation detail, not a mutation of user or application state.
+    # With interactive isolation enabled, web_* fetches only populate a
+    # disposable local page cache. Unset, they retain LazyCrawler's production
+    # write path and must not be advertised as read-only.
     if provider_id == "web" and name.startswith("web_"):
-        write = False
+        write = not web_cache_requested(web_cache_db)
     if provider_id == "studio" and name not in _STUDIO_READ_TOOLS:
         write = True
     return {

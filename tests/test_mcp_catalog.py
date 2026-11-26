@@ -54,11 +54,16 @@ def test_every_provider_tool_gets_an_access_value(provider_id: str) -> None:
         ("projects", "projects_open_contract", "write"),
         ("fin", "portfolio_optimizer_run", "read"),
         ("fin", "portfolio_optimizer_backtest", "read"),
-        ("web", "web_search", "read"),
+        ("web", "web_search", "write"),
     ],
 )
 def test_tool_access_uses_existing_write_gates(provider_id: str, tool_name: str, access: str) -> None:
     assert tool_metadata(provider_id, tool_name)["access"] == access
+
+
+def test_web_fetch_access_tracks_interactive_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LAZYTOOLS_WEB_CACHE_DB", raising=False)
+    assert tool_metadata("web", "web_crawl", web_cache_db="none")["access"] == "read"
 
 
 def test_unknown_provider_is_rejected() -> None:
