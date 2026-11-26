@@ -1565,6 +1565,7 @@ def apply_job(
     job, diff_files = capture_report(store, registry, job, diff_files)
     _report, applied_files = report_from_diff(diff_files)
     skipped_artifacts = [name for name in summarize_diff(diff_files).files if is_bridge_artifact(name)]
+    _detach_recorded_branch_checkout(store, root, branch, exclude=worktree)
     _reconcile_apply_remnants(
         root, worktree, branch, base, set(applied_files), branch_checkout=not bool(job.get("pr_number"))
     )
@@ -1609,6 +1610,27 @@ def apply_job(
         "rebased_from": rebased_from,
         "base_branch": base_branch,
     }
+
+
+def _detach_recorded_branch_checkout(store: Any, root: Path, branch: str, *, exclude: Path) -> None:
+    """Release ``branch`` only when a bridge-recorded worktree holds it."""
+    registered = {
+        Path(line.removeprefix("worktree ")).resolve()
+        for line in _git(root, "worktree", "list", "--porcelain", check=False).splitlines()
+        if line.startswith("worktree ")
+    }
+    for _key, meta in store.items(prefix=_store.META_PREFIX):
+        if not isinstance(meta, dict):
+            continue
+        for worktree_field in ("applied_worktree", "apply_failed_worktree"):
+            value = meta.get(worktree_field)
+            if not value:
+                continue
+            path = Path(str(value)).expanduser().resolve()
+            if path == exclude or path not in registered or not path.is_dir():
+                continue
+            if _git(path, "symbolic-ref", "--quiet", "--short", "HEAD", check=False) == branch:
+                _git(path, "checkout", "--detach")
 
 
 def _reconcile_apply_remnants(root: Path, worktree: Path, branch: str, base: str, expected: set[str], *,
