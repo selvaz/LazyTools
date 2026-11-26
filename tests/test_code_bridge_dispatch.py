@@ -878,3 +878,43 @@ def test_fallback_engine_needs_a_usable_recent_reading() -> None:
     assert not usable_reading(reading(error="timed out"))
     assert not usable_reading(reading(windows=()))
     assert not usable_reading(reading(observed_at=now - timedelta(hours=1)))
+
+
+@pytest.mark.parametrize("change", ["edit", "commit"])
+def test_checks_that_change_the_checkout_reject_the_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str,
+) -> None:
+    source = tmp_path / "source"
+    source_git = _repo(source)
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    bridge = BridgeLauncher(None, principal, "p", repo_roots={"r": source}, worktree_root=tmp_path / "trees")
+    clone = bridge._checkout({"task_id": "p/A", "repo": "r"})
+    (clone / "work.txt").write_text("task work\n")
+    bridge._git(clone, "add", "work.txt")
+    bridge._git(clone, "commit", "-qm", "Task work")
+
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows["A"]["checks"] = ['"fixer" run']
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    launcher.finish("A")
+    launcher.jobs["job-A"]["cwd"] = str(clone)
+
+    real_run = subprocess.run
+
+    def fake_run(argv: list[str], **kwargs: Any) -> Any:
+        if argv[0] != "fixer":
+            return real_run(argv, **kwargs)
+        (clone / "work.txt").write_text("fixed by the check\n")
+        if change == "commit":
+            real_run(["git", "-C", str(clone), "commit", "-qam", "check fix"], check=True)
+        return subprocess.CompletedProcess(argv, 0, b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    dispatch.pass_once()
+
+    expected = "moved HEAD" if change == "commit" else "modified tracked files: work.txt"
+    assert any(expected in event for event in events), events
+    assert not any(event.startswith("done") for event in events), events
+    assert not source_git("branch", "--list", "dispatch/p/A")

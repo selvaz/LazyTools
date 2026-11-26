@@ -316,6 +316,21 @@ def _has_new_commit(cwd: Path) -> bool:
     return count.returncode != 0 or count.stdout.strip() != "0"
 
 
+def _checks_changed_checkout(cwd: Path, expected_head: Any) -> str | None:
+    """Why the acceptance checks invalidated the artifact (moved HEAD or edited tracked files), else None."""
+    def git(*argv: str) -> str:  # not stripped: porcelain lines start with a status column
+        return subprocess.run(["git", "-C", str(cwd), *argv], text=True, capture_output=True,
+                              check=False).stdout
+    head = git("rev-parse", "HEAD").strip()
+    if expected_head and head != expected_head:
+        return f"acceptance checks moved HEAD from {str(expected_head)[:12]} to {head[:12]}"
+    edited = [line[3:] for line in git("status", "--porcelain", "--untracked-files=no").splitlines()
+              if line.strip() and not _is_litter(line[3:])]
+    if edited:
+        return f"acceptance checks modified tracked files: {', '.join(edited[:5])}"
+    return None
+
+
 def _check_failure(command: str, cwd: Path | None) -> str | None:
     message = f"check failed: {command}"
     if cwd is None:
@@ -656,6 +671,10 @@ class Dispatcher:
         check_failure = recorded_failure
         if accepted and checks and not (needs_evidence or expired or recorded):
             check_failure = "\n".join(filter(None, (_check_failure(command, cwd) for command in checks))) or None
+            if not check_failure and cwd is not None:
+                # Evidence must describe the artifact that is published: a check that edits
+                # tracked files (e.g. `ruff --fix`) or commits would pass on unpublished content.
+                check_failure = _checks_changed_checkout(cwd, job.get("final_commit"))
             expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
         if check_failure:
             accepted = False
