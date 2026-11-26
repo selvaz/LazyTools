@@ -577,3 +577,22 @@ def test_place_switches_engine_when_the_routed_one_is_full() -> None:
                           router_with_engine=True)
     dispatch._place(tasks)
     assert recorded == [("p/A", "codex"), ("p/B", "claude_code"), ("p/C", "claude_code")]
+
+
+def test_fallback_engine_needs_a_usable_recent_reading() -> None:
+    from datetime import UTC, datetime, timedelta
+    from types import SimpleNamespace
+
+    from lazytools.code_bridge._dispatch import usable_reading
+    now = datetime.now(UTC)
+
+    def reading(**changes: Any) -> Any:
+        base = {"error": None, "windows": ("w",), "observed_at": now}
+        base.update(changes)
+        return SimpleNamespace(**base, age_seconds=lambda *, now: (now - base["observed_at"]).total_seconds())
+
+    assert usable_reading(reading())
+    assert not usable_reading(None)
+    assert not usable_reading(reading(error="timed out"))
+    assert not usable_reading(reading(windows=()))
+    assert not usable_reading(reading(observed_at=now - timedelta(hours=1)))

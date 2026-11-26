@@ -654,6 +654,17 @@ def _dry_run(service: ProjectTaskService, project_id: str, emit: Callable[[str],
     return 0
 
 
+def usable_reading(reading: Any, *, max_age_seconds: float = 600.0) -> bool:
+    """A quota reading the dispatcher may act on unattended: present, error-free, recent."""
+    if reading is None or getattr(reading, "error", None) or not getattr(reading, "windows", ()):
+        return False
+    observed = getattr(reading, "observed_at", None)
+    if observed is None:
+        return False
+    from datetime import datetime
+    return reading.age_seconds(now=datetime.now(observed.tzinfo)) <= max_age_seconds
+
+
 def dispatch(args: argparse.Namespace) -> int:
     store_db = _resolve_store_db(None)
     principal = TaskPrincipal(actor="code-bridge-dispatch", role="orchestrator", projects=(args.project,))
@@ -673,8 +684,15 @@ def dispatch(args: argparse.Namespace) -> int:
     db_path = Path(args.db) if args.db else None
 
     def router(tier: str, engine_family: str | None = None) -> str | None:
-        engine = None if engine_family is None else ("claude" if engine_family == "claude_code" else engine_family)
-        return _routing.choose(tier, cwd=os.getcwd(), db_path=db_path, engine=engine).decision.provider
+        if engine_family is None:
+            return _routing.choose(tier, cwd=os.getcwd(), db_path=db_path).decision.provider
+        # Fallback to the other engine: an explicit engine enables the router's operator
+        # override for unreadable telemetry, so require a usable, recent reading here.
+        engine = "claude" if engine_family == "claude_code" else engine_family
+        selection = _routing.choose(tier, cwd=os.getcwd(), db_path=db_path, engine=engine)
+        provider = selection.decision.provider
+        reading = selection.readings.get(provider) if provider else None
+        return provider if usable_reading(reading) else None
 
     limits = _concurrency.load_limits()
 
