@@ -59,9 +59,22 @@ Count: 7 capabilities already have MCP tools; 17 gaps; 1 deliberate exclusion.
 
 `dispatch` is long-running; an MCP call is bounded. The server exposes one-pass `dispatch_run(once=True)` and read tools; the continuous dispatcher runs as a supervised service (watchdog, restart on exit) outside the MCP process. Tickets from it reach the agent through `bridge_events`.
 
+## Autonomy modes (owner, 26/11)
+
+The CEO agent runs in one of two modes, chosen by the owner, never by the agent:
+
+| Mode | Who decides job tickets | Owner queue |
+|---|---|---|
+| `supervised` (default) | CEO decides the routine classes the owner delegated (in-checkout git add/commit, push to the job branch, gh pr create); everything else waits for the owner | yes |
+| `total` | CEO decides every ticket itself, with its reason recorded in the ticket and in the lessons | only for the hard floor below |
+
+- The mode is a setting stored outside the agent's writable area and changed only through an owner-credentialed command (`approver-credential` owner role). No MCP tool can switch it: the system may never widen its own authority (no-widen rule).
+- Every self-decision in `total` mode is logged with ticket, command, reason and outcome, and counted in the `autonomy` report, so the owner can audit and switch back.
+- Proposed hard floor (owner to confirm): even in `total`, production environments and scheduled tasks inside a production window, payments and external posts, and deleting data stay with the owner.
+
 ## Open questions (to the owner, with defaults)
 
-1. Self-approval: may the CEO agent approve routine in-repo tickets of jobs it launched (as the lead does now under the owner's delegation)? Default: yes for the routine classes the owner already delegated (in-checkout git add/commit, push to the job branch, gh pr create); everything else goes to the owner queue.
+1. Self-approval in `supervised` mode: routine classes as in the table above. Default: yes. Hard floor in `total` mode: as proposed above. Default: yes.
 2. Deprecation window for coding tools in `lazytools-mcp`: default one release.
 3. Event delivery: polling with a cursor (works in every MCP client) vs MCP notifications (not supported by all clients). Default: cursor polling.
 
