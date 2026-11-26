@@ -148,12 +148,19 @@ def _report_text(job: dict[str, Any]) -> str:
 
 
 def commit_message(job: dict[str, Any]) -> tuple[str, str]:
-    """``(subject, body)`` for the landing commit: no attribution, no trailers."""
+    """Build the landing commit message from the cloud agent's final report."""
+    report = _report_text(job)
+    if report:
+        first, _, rest = report.partition("\n")
+        subject = _short_title(first)
+        description = rest.strip() or first.strip()
+        return subject, f"{description}\n\nwriter: {job.get('engine')}"
+
     body = f"Cloud job {str(job.get('job_id', ''))[:8]} ({job.get('engine')})."
     summary = _summary(job)
     if summary:
         body += f"\n\n{summary}"
-    return job_title(job), body
+    return job_title(job), f"{body}\n\nwriter: {job.get('engine')}"
 
 
 def pr_body(job: dict[str, Any]) -> str:

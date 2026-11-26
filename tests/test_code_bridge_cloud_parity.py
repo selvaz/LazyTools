@@ -333,6 +333,21 @@ def test_landing_title_derivation(job, expected):
     assert _cloud_land.job_title(job) == expected
 
 
+def test_landing_commit_message_uses_final_report_instead_of_brief_or_ui_text():
+    job = {
+        "job_id": "1234567890abcdef",
+        "engine": "codex",
+        "objective": "Same branch (main), new commits.",
+        "result": "Cloud job 12345678 (codex). acme/widgets • 3m ago +85/-85 • 6 files",
+        "report": "Fix cloud landing commit summaries\nUse the final report for the commit message.",
+    }
+
+    assert _cloud_land.commit_message(job) == (
+        "Fix cloud landing commit summaries",
+        "Use the final report for the commit message.\n\nwriter: codex",
+    )
+
+
 def test_apply_land_commits_pushes_and_opens_a_pr(cloud, gh, capsys):
     payload = _submit_json(cloud, capsys, "--open-pr", task="Add retry logic to the fetcher\n\nDetails follow.")
     job_id = payload["job_id"]
