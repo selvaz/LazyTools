@@ -203,6 +203,12 @@ Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.jso
 | `projects` | see section 3 (core 10 read / 20 write tools; `full` 16 / 40) | Shared project registry | tests-only | projects.md#tool-profiles |
 | `registry` | `registry_status`, `artifact_search`, `artifact_get`; write: `artifact_register` | Inspect ecosystem DBs and the artifact catalog | tests-only | registry.md |
 | `pulse` | `pulse_list_backlog`, `pulse_list_pending_approvals`, `pulse_state_snapshot` | LazyCEO backlog and approvals (needs `lazyceo`) | tests-only | mcp-server.md |
+| `gmail` | Gmail read, draft; send when opted in | Gmail read / draft / send; opt-in, non-interactive, allow-listed recipients | tests-only | gmail.md |
+| `outlook` | Outlook read, draft; send when opted in | Outlook desktop (COM) read / draft / send; opt-in | tests-only | connectors.md |
+| `calendar_agent` | `macro-calendar-analyst` | Macro calendar specialist agent exposed as one MCP tool | tests-only | mcp-server.md |
+| `optimizer_agent` | `portfolio-optimizer-specialist` | LLM specialist over the `fin` tools, one MCP tool taking a task | tests-only | portfolio-optimization.md |
+| `report_agent` | `report-specialist` | LLM specialist over the `report` tools, one MCP tool | tests-only | report.md |
+| `stats_agents` | `stats-supervisor`, `regression-analyst`, `volatility-correlation-analyst`, `regime-analyst` | Statistical specialists and their supervisor as MCP tools | tests-only | skills-stats.md |
 
 ## 9. LazyBridge core (v1.10.0)
 
