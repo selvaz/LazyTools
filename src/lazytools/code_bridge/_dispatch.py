@@ -12,14 +12,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from lazytools.code_bridge import _jobs, _store
+from lazytools.code_bridge import _jobs, _routing, _store
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_fields import task_id as board_task_id
-from lazytools.projects.task_service import CompletionEvidence, ProjectTaskService, TaskPrincipal
+from lazytools.projects.task_service import CompletionEvidence, PlacementEvidence, ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import transaction
 
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted"})
+# Engine crashes (not task failures): retried once with a fresh attempt.
+RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409")
 
 
 @dataclass(frozen=True)
@@ -49,8 +51,12 @@ def _tasks(service: ProjectTaskService, project_id: str) -> list[Task]:
 class BridgeLauncher:
     """Launch the existing CLI and inspect its durable job records."""
     def __init__(self, db: str | None, principal: TaskPrincipal, project_id: str, *,
-                 repo_roots: dict[str, Path] | None = None, worktree_root: Path | None = None):
+                 repo_roots: dict[str, Path] | None = None, worktree_root: Path | None = None,
+                 registry_db: str | None = None, launch_mode: str | None = None):
         self.db = db
+        self.registry_db = registry_db
+        self.launch_mode = launch_mode
+        self.conflicts: dict[str, str] = {}
         self.principal = principal
         self.project_id = project_id
         self.repo_roots = repo_roots or {}
@@ -94,12 +100,17 @@ class BridgeLauncher:
                 self._git(checkout, "reset", "--hard", commits[0])
         else:
             self._git(repo, "worktree", "add", "-b", str(branch), str(checkout), str(base))
-        for commit in commits[1:]:
+        for index, commit in enumerate(commits[1:], start=1):
             result = subprocess.run(
                 ["git", "-C", str(checkout), "merge", "--no-edit", commit],
                 text=True, capture_output=True, check=False,
             )
             if result.returncode:
+                if index == len(commits) - 1:
+                    # Last dependency: leave the conflicted merge for the task's agent to
+                    # resolve and conclude with an ordinary commit.
+                    self.conflicts[str(task["task_id"])] = commit
+                    return checkout
                 subprocess.run(
                     ["git", "-C", str(checkout), "merge", "--abort"],
                     text=True, capture_output=True, check=False,
@@ -113,11 +124,19 @@ class BridgeLauncher:
 
     def launch(self, task: dict[str, Any], claim: dict[str, Any]) -> str:
         cwd = self._checkout({**task, "task_id": claim["task_id"]})
+        text = str(task["text"])
+        if conflict := self.conflicts.pop(str(claim["task_id"]), None):
+            text = (f"This checkout is in the middle of merging dependency commit {conflict} and has "
+                    "conflicts (see `git status`). First resolve every conflict so the changes of both "
+                    "sides are kept, run the tests, then `git add` the files and `git commit` to "
+                    "conclude the merge. Then do the task below.\n\n" + text)
         command = [sys.executable, "-m", "lazytools.code_bridge", "run", "--cwd", str(cwd),
                    "--root", str(cwd),
-                   "--task", task["text"], "--tier", task.get("tier") or "thinking",
+                   "--task", text, "--tier", task.get("tier") or "thinking",
                    "--where", claim["effective_placement"], "--task-id", claim["task_id"],
-                   "--claim-token", claim["claim_token"], "--detach", "--wait-for-slot"]
+                   "--claim-token", claim["claim_token"], "--detach", "--wait-for-slot",
+                   # Tasks come from a reviewed, promoted plan; the brief shape gate does not apply.
+                   "--no-brief-check"]
         # Pin the claimed engine so quota routing only picks a model within it;
         # another engine would fail the claim's engine check.
         engine_family = claim.get("engine_family")
@@ -125,6 +144,10 @@ class BridgeLauncher:
             command.extend(("--engine", "claude" if engine_family == "claude_code" else str(engine_family)))
         if self.db:
             command.extend(("--db", self.db))
+        if self.registry_db:
+            command.extend(("--registry-db", self.registry_db))
+        if self.launch_mode:
+            command.extend(("--launch-mode", self.launch_mode))
         if task.get("requested_profile"):
             command.extend(("--profile", task["requested_profile"]))
         if task.get("requested_network") is not None:
@@ -151,18 +174,67 @@ class BridgeLauncher:
 
 class Dispatcher:
     def __init__(self, service: ProjectTaskService, principal: TaskPrincipal, launcher: Launcher,
-                 project_id: str, *, parallel: int = 1, emit: Callable[[str], None] = print,
+                 project_id: str, *, parallel: int = 1, emit: Callable[[str], None] | None = None,
                  sleep: Callable[[float], None] = time.sleep,
                  task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks,
-                 clock: Callable[[], float] = time.time, orphan_grace: float = 30.0):
+                 clock: Callable[[], float] = time.time, orphan_grace: float = 30.0,
+                 router: Callable[[str], str | None] | None = None, max_retries: int = 1):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
         self.service, self.principal, self.launcher = service, principal, launcher
-        self.project_id, self.parallel, self.emit, self.sleep = project_id, parallel, emit, sleep
+        self.project_id, self.parallel, self.sleep = project_id, parallel, sleep
+        # Flush each event: the dispatcher is usually piped into a log or a watcher.
+        self.emit: Callable[[str], None] = emit or (lambda line: print(line, flush=True))
         self.task_reader = task_reader
         self.clock, self.orphan_grace = clock, orphan_grace
+        self.router = router
         self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
+        self.waiting: set[str] = set()
+        self.retries: dict[str, int] = {}
+        self.max_retries = max_retries
+
+    def _place(self, tasks: list[Task]) -> None:
+        """Record local placement evidence for todo tasks whose dependencies are done.
+
+        `next_ready` only returns tasks with fresh placement evidence; the quota router
+        picks the engine family for the task's tier here, and the launch later pins it.
+        """
+        if self.router is None:
+            return
+        status = {task.task_id.rsplit("/", 1)[1]: task.status for task in tasks}
+        now = self.clock()
+        picks: dict[str, str | None] = {}
+        for task in tasks:
+            data = task.data
+            if (task.status != "todo" or data.get("requested_placement", "local") != "local"
+                    or data.get("review_of") or data.get("acceptance_contract")
+                    or any(status.get(dep) != "done" for dep in data.get("dependency_ids", []))):
+                continue
+            record = data.get("placement_evidence", {}).get("local", {})
+            evidence = record.get("evidence", {})
+            if record.get("revision") == task.revision and evidence.get("expires_at", 0) > now + 60:
+                continue
+            tier = data.get("tier") or "thinking"
+            if tier not in picks:
+                try:
+                    picks[tier] = self.router(tier)
+                except Exception as exc:
+                    picks[tier] = None
+                    self.emit(f"waiting {task.task_id} routing failed: {str(exc).replace(chr(10), ' ')}")
+            engine = picks[tier]
+            if engine is None:
+                if task.task_id not in self.waiting:
+                    self.emit(f"waiting {task.task_id} no eligible engine for tier {tier}")
+                    self.waiting.add(task.task_id)
+                continue
+            self.waiting.discard(task.task_id)
+            self.service.record_placement(task.task_id, task.revision, PlacementEvidence(
+                placement="local", eligible=True, reason=f"quota router picked {engine} for tier {tier}",
+                reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}",
+                expires_at=now + self.service.lease_seconds + 60, engine_family=engine,
+            ))
+            self.emit(f"placed {task.task_id} local {engine} tier={tier}")
 
     def _blocked(self, tasks: list[Task]) -> None:
         failed = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "failed"}
@@ -230,8 +302,18 @@ class Dispatcher:
                               "success" if accepted else "task_failure", **complete_options)
         if accepted:
             self.emit(f"done {task.task_id}")
-        else:
-            self.emit(f"failed {task.task_id} {failure_reason}")
+            return True
+        if (self.retries.get(task.task_id, 0) < self.max_retries
+                and any(marker in failure_reason for marker in RETRYABLE_FAILURES)):
+            current = next((item for item in self.task_reader(self.service, self.project_id)
+                            if item.task_id == task.task_id), None)
+            if current is not None:
+                self.service.prepare_attempt(self.principal, task.task_id, current.revision,
+                                             f"retry after engine crash: {failure_reason[:200]}")
+                self.retries[task.task_id] = self.retries.get(task.task_id, 0) + 1
+                self.emit(f"retry {task.task_id} engine crash: {failure_reason[:120]}")
+                return True
+        self.emit(f"failed {task.task_id} {failure_reason}")
         return True
 
     def pass_once(self) -> tuple[int, int]:
@@ -242,6 +324,8 @@ class Dispatcher:
                     self._settle(task)
                 except Exception as exc:
                     self.emit(f"failed {task.task_id} {str(exc).replace(chr(10), ' ')}")
+        tasks = self.task_reader(self.service, self.project_id)
+        self._place(tasks)
         tasks = self.task_reader(self.service, self.project_id)
         running = sum(task.status == "claimed" for task in tasks)
         ready = self.service.next_ready(self.principal, self.project_id, limit=100)["tasks"]
@@ -314,7 +398,7 @@ class Dispatcher:
             ready = [task for task in self.service.next_ready(
                 self.principal, self.project_id, limit=100
             )["tasks"] if task["task_id"] not in self.unsupported]
-            if once or (not ready and not running):
+            if once or (not ready and not running and not self.waiting):
                 return 0
             self.sleep(15)
 
@@ -325,10 +409,13 @@ def _dry_run(service: ProjectTaskService, project_id: str, emit: Callable[[str],
     remaining = {task.task_id.rsplit("/", 1)[1]: set(task.data.get("dependency_ids", []))
                  for task in tasks if task.status == "todo"}
     done = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "done"}
+    number = 0
     while remaining:
         wave = [identifier for identifier, dependencies in remaining.items() if dependencies <= done]
         if not wave:
             break
+        number += 1
+        emit(f"wave {number}: {' '.join(wave)}")
         for identifier in wave:
             emit(f"ready {project_id}/{identifier}")
             done.add(identifier)
@@ -350,7 +437,14 @@ def dispatch(args: argparse.Namespace) -> int:
         if not separator or not slug or not path:
             raise ValueError("--repo-root must be SLUG=PATH")
         repo_roots[slug] = Path(path).resolve()
+    registry_db = str(args.registry_db) if getattr(args, "registry_db", None) else None
     launcher = BridgeLauncher(args.db, principal, args.project, repo_roots=repo_roots,
-                              worktree_root=Path(args.worktree_root).resolve() if args.worktree_root else None)
+                              worktree_root=Path(args.worktree_root).resolve() if args.worktree_root else None,
+                              registry_db=registry_db, launch_mode=getattr(args, "launch_mode", None))
+    db_path = Path(args.db) if args.db else None
+
+    def router(tier: str) -> str | None:
+        return _routing.choose(tier, cwd=os.getcwd(), db_path=db_path).decision.provider
+
     return Dispatcher(service, principal, launcher, args.project,
-                      parallel=args.parallel).run(once=args.once)
+                      parallel=args.parallel, router=router).run(once=args.once)

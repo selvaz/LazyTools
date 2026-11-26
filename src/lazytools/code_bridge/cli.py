@@ -2169,7 +2169,9 @@ def build_parser() -> argparse.ArgumentParser:
                             help="Map a task repository slug to its local checkout (repeatable).")
     dispatch_p.add_argument("--worktree-root", default=None, metavar="PATH",
                             help="Root for retained per-task git worktrees.")
-    _add_db_option(dispatch_p)
+    _add_registry_option(dispatch_p)
+    dispatch_p.add_argument("--launch-mode", choices=("auto", "governed", "legacy"), default=None,
+                            help="Passed to every task's run (default: the run default).")
     dispatch_p.set_defaults(func=_dispatch.dispatch)
 
     watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")

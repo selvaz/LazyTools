@@ -129,7 +129,7 @@ def test_restart_adopts_submitted_job_without_launching_again() -> None:
 def test_dry_run_prints_topological_waves_without_claiming() -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     _dry_run(service, "p", events.append, service.tasks)  # type: ignore[arg-type]
-    assert events == ["ready p/A", "ready p/B", "ready p/C", "ready p/D"]
+    assert events == ["wave 1: A", "ready p/A", "wave 2: B C", "ready p/B", "ready p/C", "wave 3: D", "ready p/D"]
     assert not service.claims
 
 
@@ -265,3 +265,106 @@ def test_dependency_artifacts_are_merged_into_descendant_worktree(tmp_path: Path
         "dependencies": [{"artifact_ref": commit} for commit in commits],
     })
     assert all((descendant / name).read_text() == f"{name}\n" for name in ("A", "B", "C"))
+
+
+def test_place_records_routed_local_evidence_only_for_unblocked_todo_tasks() -> None:
+    recorded: list[tuple[str, str, Any]] = []
+
+    class PlacingService:
+        lease_seconds = 900
+
+        def record_placement(self, task_id: str, revision: str, evidence: Any) -> None:
+            recorded.append((task_id, revision, evidence))
+
+    def task(identifier: str, status: str = "todo", deps: tuple[str, ...] = (), **extra: Any) -> Task:
+        return Task(f"p/{identifier}", "r1", status, {"dependency_ids": list(deps), "tier": "basic", **extra}, None)
+
+    tasks = [task("A", "done"), task("B", deps=("A",)), task("C", deps=("B",)),
+             task("R", deps=("A",), review_of="B"), task("K", deps=("A",), requested_placement="cloud")]
+    events: list[str] = []
+    dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
+                          None, "p", emit=events.append, clock=lambda: 1000.0,  # type: ignore[arg-type]
+                          router=lambda tier: "codex")
+    dispatch._place(tasks)
+    assert [(task_id, evidence.engine_family, evidence.placement) for task_id, _, evidence in recorded] == [
+        ("p/B", "codex", "local")]
+    assert events == ["placed p/B local codex tier=basic"]
+
+
+def test_place_reports_waiting_when_no_engine_is_eligible() -> None:
+    class PlacingService:
+        lease_seconds = 900
+
+        def record_placement(self, *args: Any) -> None:
+            raise AssertionError("must not record without an engine")
+
+    events: list[str] = []
+    dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
+                          None, "p", emit=events.append, router=lambda tier: None)  # type: ignore[arg-type]
+    dispatch._place([Task("p/A", "r1", "todo", {"tier": "writing"}, None)])
+    dispatch._place([Task("p/A", "r1", "todo", {"tier": "writing"}, None)])
+    assert events == ["waiting p/A no eligible engine for tier writing"]
+
+
+def test_last_dependency_conflict_is_left_for_the_agent(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    def git(*argv: str, cwd: Path = repo) -> str:
+        return subprocess.run(["git", *argv], cwd=cwd, text=True, capture_output=True, check=True).stdout.strip()
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "test@example.com")
+    git("config", "user.name", "Test")
+    (repo / "calc.py").write_text("base\n")
+    git("add", ".")
+    git("commit", "-qm", "base")
+    git("checkout", "-qb", "b")
+    (repo / "calc.py").write_text("from b\n")
+    git("commit", "-qam", "b")
+    b_commit = git("rev-parse", "HEAD")
+    git("checkout", "-q", "main")
+    (repo / "calc.py").write_text("from c\n")
+    git("commit", "-qam", "c")
+    c_commit = git("rev-parse", "HEAD")
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    launcher = BridgeLauncher(None, principal, "p", repo_roots={"r": repo}, worktree_root=tmp_path / "trees")
+    checkout = launcher._checkout({"task_id": "p/D", "repo": "r", "dependencies": [
+        {"artifact_ref": b_commit}, {"artifact_ref": c_commit}]})
+    assert launcher.conflicts == {"p/D": c_commit}
+    assert "<<<<<<<" in (checkout / "calc.py").read_text()
+    assert git("rev-parse", "-q", "--verify", "MERGE_HEAD", cwd=checkout) == c_commit
+
+
+def test_engine_crash_is_retried_once_then_fails() -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    attempts: list[str] = []
+
+    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str) -> str:
+        attempts.append(reason)
+        name = identifier.rsplit("/", 1)[1]
+        service.rows[name]["status"] = "todo"
+        service.claims.pop(name, None)
+        return "rev"
+
+    service.prepare_attempt = prepare_attempt  # type: ignore[attr-defined]
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    launcher.jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request")
+    dispatch.pass_once()
+    assert len(attempts) == 1 and any(event.startswith("retry p/A") for event in events)
+    assert launcher.launches == ["A", "A"]
+    launcher.jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request")
+    dispatch.pass_once()
+    assert len(attempts) == 1
+    assert any(event.startswith("failed p/A") for event in events)
+
+
+def test_task_failure_is_not_retried() -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    service.prepare_attempt = lambda *args: (_ for _ in ()).throw(AssertionError("no retry"))  # type: ignore[attr-defined]
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    launcher.finish("A", "failed")
+    dispatch.pass_once()
+    assert any(event.startswith("failed p/A boom") for event in events)
