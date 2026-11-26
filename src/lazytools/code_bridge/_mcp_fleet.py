@@ -58,6 +58,8 @@ class FleetTools(CodeBridgeTools):
                 "result": payload,
                 **({"stderr": err.strip()[:2000]} if err.strip() else {}),
             }
+        if code == 0 and not out.strip():
+            return []  # e.g. `jobs` prints nothing when no job matches: an empty fleet, not an error
         return {
             "ok": False,
             "exit_code": code,
@@ -141,3 +143,18 @@ class FleetTools(CodeBridgeTools):
             if len(cells) == 4:
                 rows.append(dict(zip(("section", "capability", "call", "status"), cells, strict=True)))
         return rows
+
+    def as_tools(self) -> list[Any]:
+        """Only the six read-only views; the inherited submit/status/result stay in ``code_bridge``."""
+        from pathlib import Path
+
+        from lazybridge import Tool
+
+        from lazytools.connectors.code_support._policy import code_tool
+
+        methods = (self.bridge_jobs, self.bridge_pending, self.bridge_route, self.bridge_autonomy,
+                   self.bridge_models, self.capabilities_search)
+        return [code_tool(Tool.wrap(method, name=method.__name__), root=Path(self._root)) for method in methods]
+
+
+__all__ = ["FleetTools"]

@@ -57,6 +57,12 @@ CODE_ACCESS = {
     "code_bridge_submit": "read",  # The requested job profile is checked at submission.
     "code_bridge_status": "read",
     "code_bridge_result": "read",
+    "bridge_jobs": "read",
+    "bridge_pending": "read",
+    "bridge_route": "read",
+    "bridge_autonomy": "read",
+    "bridge_models": "read",
+    "capabilities_search": "read",
 }
 
 

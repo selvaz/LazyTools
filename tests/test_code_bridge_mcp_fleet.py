@@ -85,3 +85,21 @@ def test_invalid_arguments_are_rejected(method: str, kwargs: dict[str, Any]) -> 
 def test_fleet_provider_is_registered_read_only() -> None:
     provider = PROVIDER_FACTORIES["fleet"](False, data_source={"code_root": "."})
     assert isinstance(provider, FleetTools)
+
+
+def test_fleet_exposes_exactly_its_six_read_tools_without_unsafe():
+    # Codex review on #408: FleetTools inherited CodeBridgeTools.as_tools and exposed nothing read-only.
+    from lazytools.mcp_server.providers import PROVIDER_FACTORIES
+    from lazytools.mcp_server.server import expand_tools
+
+    names = set(expand_tools([PROVIDER_FACTORIES["fleet"]()], read_only=True))
+    assert names == {"bridge_jobs", "bridge_pending", "bridge_route", "bridge_autonomy",
+                     "bridge_models", "capabilities_search"}
+
+
+def test_bridge_jobs_empty_output_is_an_empty_fleet(monkeypatch):
+    from lazytools.code_bridge._mcp_fleet import FleetTools
+
+    tools = FleetTools()
+    monkeypatch.setattr(tools, "_invoke", lambda argv, timeout: (0, "", ""))
+    assert tools.bridge_jobs() == []
