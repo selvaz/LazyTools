@@ -504,7 +504,8 @@ def run_writer(
         service, operator, repo, stores, engine, writer, writer_claim,
         f"Implement the brief on {branch} and commit your changes locally. "
         "The runner will run the required checks on the committed candidate. "
-        "Leave the checkout clean. Do not push or open a pull request. Use English and omit AI attribution.\n\n"
+        "Leave the checkout clean: keep scratch files and test temp dirs under TEMP (pytest's default), never inside the checkout, "
+        "so nothing needs deleting before the commit. Do not push or open a pull request. Use English and omit AI attribution.\n\n"
         f"{brief}",
         model=model, effort=effort, allow_exhausted_writer=True,
     )
