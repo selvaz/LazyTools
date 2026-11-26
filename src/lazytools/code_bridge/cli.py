@@ -37,6 +37,7 @@ from lazytools.code_bridge import (
     _coder,
     _concurrency,
     _credentials,
+    _dispatch,
     _engines,
     _freshness,
     _jobs,
@@ -2158,6 +2159,18 @@ def build_parser() -> argparse.ArgumentParser:
     from lazytools.code_bridge._navigator import add_navigate_parser
 
     add_navigate_parser(sub)
+
+    dispatch_p = sub.add_parser("dispatch", help="Dispatch every ready task in a project.")
+    dispatch_p.add_argument("--project", required=True, help="Projects board identifier.")
+    dispatch_p.add_argument("--parallel", type=int, default=1, metavar="N")
+    dispatch_p.add_argument("--once", action="store_true")
+    dispatch_p.add_argument("--dry-run", action="store_true")
+    dispatch_p.add_argument("--repo-root", action="append", default=[], metavar="SLUG=PATH",
+                            help="Map a task repository slug to its local checkout (repeatable).")
+    dispatch_p.add_argument("--worktree-root", default=None, metavar="PATH",
+                            help="Root for retained per-task git worktrees.")
+    _add_db_option(dispatch_p)
+    dispatch_p.set_defaults(func=_dispatch.dispatch)
 
     watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
     watch_p.add_argument("pulls", nargs="+", metavar="owner/repo#pr")

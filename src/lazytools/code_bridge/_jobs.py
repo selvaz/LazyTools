@@ -453,8 +453,21 @@ def run_job(
             _store.write_meta(store, job_id, meta)
             registry.write(job_id, task, tool_name=engine_name, status=status, result=result, error=error)
 
-        def _finish(status: str, text: str, error: str | None) -> RunResult:
+        def _finish(
+            status: str,
+            text: str,
+            error: str | None,
+            *,
+            final_snapshot: dict[str, Any] | None = None,
+        ) -> RunResult:
             approval_registry.revoke_coder_hand(job_id)
+            if status == "done":
+                final = final_snapshot if final_snapshot is not None else _progress.snapshot(lock.cwd)
+                meta = _store.read_meta(store, job_id) or {}
+                if final.get("head"):
+                    meta["final_commit"] = final["head"]
+                    meta["candidate_commit"] = final["head"]
+                    _store.write_meta(store, job_id, meta)
             if status != "done":
                 error = _with_workspace(
                     store,
@@ -731,7 +744,7 @@ def run_job(
                         meta["uncommitted"] = f"{uncommitted} path(s) left after commit recovery"
                         _store.write_meta(store, job_id, meta)
                         reports = [original_report or "", env.text(), f"warning: {warning}"]
-                        return _finish("done", "\n\n".join(report for report in reports if report), None)
+                        return _finish("done", "\n\n".join(report for report in reports if report), None, final_snapshot=after)
                 if env.ok:
                     uncommitted = await asyncio.to_thread(_uncommitted_count, lock.cwd)
                     if uncommitted and can_write:
@@ -741,7 +754,7 @@ def run_job(
                             meta["uncommitted"] = f"{uncommitted} path(s) left after commit recovery"
                             _store.write_meta(store, job_id, meta)
                             reports = [original_report or "", env.text(), f"warning: {warning}"]
-                            return _finish("done", "\n\n".join(report for report in reports if report), None)
+                            return _finish("done", "\n\n".join(report for report in reports if report), None, final_snapshot=after)
                         if not turns[-1]["thread_id"]:
                             return _finish(
                                 "partial", "", f"job ended with {uncommitted} uncommitted path(s); "
@@ -753,7 +766,7 @@ def run_job(
                         prompt = COMMIT_CONTINUATION_PROMPT
                         continue
                     reports = [original_report or "", env.text()] if commit_continuation else [env.text()]
-                    return _finish("done", "\n\n".join(report for report in reports if report), None)
+                    return _finish("done", "\n\n".join(report for report in reports if report), None, final_snapshot=after)
                 message = env.error.message if env.error else "unknown error"
                 if not timed_out:
                     return _finish("failed", "", message)
