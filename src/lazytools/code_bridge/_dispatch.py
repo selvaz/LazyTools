@@ -25,10 +25,17 @@ from lazytools.projects.task_service import CompletionEvidence, PlacementEvidenc
 from lazytools.projects.task_store import TaskServiceError, transaction
 
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted", "cancelled"})
+DEFAULT_STALE_MINUTES = 10
+STALE_HEARTBEAT = "engine heartbeat went stale"
 # Engine crashes (not task failures): retried once with a fresh attempt.
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
 RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
-                      "no new commit since the task started")
+                      "no new commit since the task started", STALE_HEARTBEAT)
+
+
+def _has_stale_heartbeat(job: dict[str, Any], cutoff: float) -> bool:
+    heartbeat = job.get("heartbeat_at")
+    return job.get("status") == "running" and isinstance(heartbeat, (int, float)) and heartbeat < cutoff
 
 
 @dataclass(frozen=True)
@@ -224,8 +231,10 @@ class BridgeLauncher:
             )
             return "\n".join(dict.fromkeys(reasons))
 
-    def cancel(self, job_ref: str) -> bool:
+    def cancel(self, job_ref: str, *, stale_before: float | None = None) -> bool:
         command = [sys.executable, "-m", "lazytools.code_bridge", "cancel", job_ref]
+        if stale_before is not None:
+            command.extend(("--stale-before", str(stale_before), "--reason", STALE_HEARTBEAT))
         if self.db:
             command.extend(("--db", self.db))
         if self.registry_db:
@@ -334,15 +343,19 @@ class Dispatcher:
                  task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks,
                  clock: Callable[[], float] = time.time, orphan_grace: float = 30.0,
                  router: Callable[[str], str | None] | None = None, max_retries: int = 1,
-                 json_events: bool = False, knowledge_store: Store | None = None):
+                 json_events: bool = False, knowledge_store: Store | None = None,
+                 stale_minutes: int = DEFAULT_STALE_MINUTES):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
+        if stale_minutes < 1:
+            raise ValueError("--stale-minutes must be at least 1")
         self.service, self.principal, self.launcher = service, principal, launcher
         self.project_id, self.parallel, self.sleep = project_id, parallel, sleep
         # Flush each event: the dispatcher is usually piped into a log or a watcher.
         self.emit: Callable[[str], None] = emit or (lambda line: print(line, flush=True))
         self.task_reader = task_reader
         self.clock, self.orphan_grace = clock, orphan_grace
+        self.stale_seconds = stale_minutes * 60
         self.router = router
         self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
@@ -529,20 +542,27 @@ class Dispatcher:
                 return True
             return False
         if job.get("status") not in TERMINAL:
+            now = self.clock()
             lease_end = float(receipt.get("lease_expires_at", float("inf")))
+            cutoff = now - self.stale_seconds
+            stale = _has_stale_heartbeat(job, cutoff)
             cancel = getattr(self.launcher, "cancel", None)
-            if lease_end <= self.clock() and cancel is not None and task.task_id not in self.cancelled:
-                try:
-                    stopped = bool(cancel(str(job_ref)))
-                except Exception as exc:
-                    stopped = False
-                    self._event("waiting", task.task_id, f"cancel failed: {str(exc).replace(chr(10), ' ')[:160]}",
-                                job_id=str(job_ref))
-                if stopped:  # a failed cancel stays retryable on the next pass
-                    self.cancelled.add(task.task_id)
-                    self._event("cancelled", task.task_id, "claim lease expired; settling once the job has stopped",
-                                job_id=str(job_ref))
-            return False
+            if (not stale and lease_end > now) or cancel is None or str(job_ref) in self.cancelled:
+                return False
+            try:
+                stopped = cancel(str(job_ref), stale_before=cutoff) if stale else cancel(str(job_ref))
+            except Exception as exc:
+                self._event("waiting", task.task_id, f"cancel failed: {str(exc).replace(chr(10), ' ')[:160]}",
+                            job_id=str(job_ref))
+                return False
+            if not stopped:
+                return False
+            self.cancelled.add(str(job_ref))
+            reason = STALE_HEARTBEAT if stale else "claim lease expired"
+            self._event("cancelled", task.task_id, f"{reason}; settling once the job has stopped", job_id=str(job_ref))
+            job = self.launcher.job(str(job_ref))
+            if not job or job.get("status") not in TERMINAL:
+                return False
         accepted = job.get("status") == "done"
         if accepted and job.get("cwd"):
             workspace_error, merge_commit = _conclude_workspace(Path(str(job["cwd"])), task.task_id)
@@ -571,14 +591,15 @@ class Dispatcher:
             or (task.data.get("contract_id") and not verification_id)
         )
         expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+        job_error = str(job.get("error") or job.get("status") or "job failed").replace("\n", " ")
         if needs_evidence:
             accepted = False
             failure_reason = "needs review evidence"
         elif expired:
             accepted = False
-            failure_reason = "claim lease expired"
+            failure_reason = job_error if STALE_HEARTBEAT in job_error else "claim lease expired"
         else:
-            failure_reason = str(job.get("error") or job.get("status") or "job failed").replace("\n", " ")
+            failure_reason = job_error
         # Publish only after the lease and evidence checks; a failed publish fails the task.
         if accepted and job.get("cwd"):
             published, publish_error = _publish(Path(str(job["cwd"])))
@@ -755,7 +776,8 @@ def dispatch(args: argparse.Namespace) -> int:
     try:
         return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
                           json_events=bool(getattr(args, "json", False)),
-                          knowledge_store=knowledge_store).run(once=args.once)
+                          knowledge_store=knowledge_store,
+                          stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)
     finally:
         if knowledge_store is not None:
             knowledge_store.close()

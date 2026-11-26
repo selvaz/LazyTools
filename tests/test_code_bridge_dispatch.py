@@ -11,7 +11,7 @@ from lazybridge.ext.approval import ApprovalQueue, ApprovalTarget, TypedApproval
 from lazybridge.ext.knowledge import DurableKnowledgeBase
 
 from lazytools.code_bridge import _store
-from lazytools.code_bridge._dispatch import BridgeLauncher, Dispatcher, Task, _dry_run
+from lazytools.code_bridge._dispatch import STALE_HEARTBEAT, BridgeLauncher, Dispatcher, Task, _dry_run
 from lazytools.code_bridge.cli import build_parser
 from lazytools.projects.task_service import TaskPrincipal
 
@@ -672,6 +672,66 @@ def test_expired_running_job_is_cancelled_once() -> None:
     dispatch.pass_once()
     assert cancelled == ["job-A"]
     assert any(event.startswith("cancelled p/A") for event in events)
+
+
+def test_stale_heartbeat_cancels_and_retries_the_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.clock = lambda: 2_000
+    dispatch.pass_once()
+    launcher.jobs["job-A"]["heartbeat_at"] = 2_000 - 601
+    cancellations: list[str] = []
+
+    def cancel(job_ref: str, *, stale_before: float) -> bool:
+        assert stale_before == 1_400
+        cancellations.append(job_ref)
+        if len(cancellations) == 1:
+            return False
+        launcher.jobs[job_ref].update(status="interrupted", error=f"cancelled by operator: {STALE_HEARTBEAT}")
+        return True
+
+    def prepare_attempt(_principal: Any, task_id: str, _revision: str, reason: str) -> None:
+        assert task_id == "p/A"
+        assert "retry after engine crash" in reason and "heartbeat" in reason
+        assert service.rows["A"]["status"] == "failed"
+        service.rows["A"]["status"] = "todo"
+
+    monkeypatch.setattr(launcher, "cancel", cancel, raising=False)
+    monkeypatch.setattr(service, "prepare_attempt", prepare_attempt, raising=False)
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "claimed"
+    dispatch.pass_once()
+    assert cancellations == ["job-A", "job-A"]
+    assert launcher.launches == ["A", "A"]
+    assert any(event.startswith("retry p/A engine crash") for event in events)
+
+
+@pytest.mark.parametrize("status,heartbeat", [("running", 1_400), ("running", None), ("awaiting_approval", 1_000)])
+def test_dispatch_leaves_jobs_without_a_stale_running_heartbeat(status: str, heartbeat: float | None) -> None:
+    service = FakeService()
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, [])
+    dispatch.clock = lambda: 2_000
+    dispatch.pass_once()
+    job = launcher.jobs["job-A"]
+    job["status"] = status
+    if heartbeat is not None:
+        job["heartbeat_at"] = heartbeat
+    cancelled: list[str] = []
+    launcher.cancel = lambda job_ref, **_: cancelled.append(job_ref) or True  # type: ignore[attr-defined]
+
+    dispatch.pass_once()
+
+    assert cancelled == []
+    assert service.rows["A"]["status"] == "claimed"
+
+
+def test_dispatch_accepts_a_stale_minutes_override() -> None:
+    parser = build_parser()
+    args = ["dispatch", "--project", "p"]
+    assert parser.parse_args(args).stale_minutes == 10
+    assert parser.parse_args([*args, "--stale-minutes", "4"]).stale_minutes == 4
 
 
 def test_litter_only_workspace_counts_as_clean(tmp_path: Path) -> None:
