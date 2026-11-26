@@ -1814,3 +1814,23 @@ What to hand back: the diff summary, the command output, anything undecided.
   `git log -p --all`, `git show <sha>` and `grep -r KEY .`. `Read`, `Glob` and
   `Grep` remain unconditional allow; Claude Code's own cwd boundary is the only
   limit on them.
+
+## Dispatching a project
+
+Run every ready task on an open Projects board with the graph dispatcher:
+
+```bash
+lazytools-code-bridge dispatch --project PROJECT_ID --parallel 2
+```
+
+The dispatcher claims ready work, launches bridge jobs using each task's tier and
+placement, and records terminal job evidence before completing or failing the task.
+Completing a task unlocks its dependents; failure blocks only the dependent branch.
+It polls every 15 seconds until no task is ready or running. Use `--once` for one
+launch/settlement pass, or `--dry-run` to print the topological launch order without
+claiming work. A repeated command adopts submitted jobs recorded on active claims
+rather than launching duplicates. `--parallel` is an additional project-wide ceiling;
+the bridge's configured per-engine local concurrency limits still apply.
+
+Events are line-oriented on stdout: `ready TASK`, `claimed TASK`, `launched JOB`,
+`done TASK`, `failed TASK REASON`, and `blocked TASK`.

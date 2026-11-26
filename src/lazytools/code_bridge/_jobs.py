@@ -438,8 +438,21 @@ def run_job(
             _store.write_meta(store, job_id, meta)
             registry.write(job_id, task, tool_name=engine_name, status=status, result=result, error=error)
 
-        def _finish(status: str, text: str, error: str | None) -> RunResult:
+        def _finish(
+            status: str,
+            text: str,
+            error: str | None,
+            *,
+            final_snapshot: dict[str, Any] | None = None,
+        ) -> RunResult:
             approval_registry.revoke_coder_hand(job_id)
+            if status == "done":
+                final = final_snapshot if final_snapshot is not None else _progress.snapshot(lock.cwd)
+                meta = _store.read_meta(store, job_id) or {}
+                if final.get("head"):
+                    meta["final_commit"] = final["head"]
+                    meta["candidate_commit"] = final["head"]
+                    _store.write_meta(store, job_id, meta)
             if status != "done":
                 error = _with_workspace(
                     store,
@@ -704,7 +717,7 @@ def run_job(
                 if cleanup.error:
                     return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", cleanup.error)
                 if env.ok:
-                    return _finish("done", env.text(), None)
+                    return _finish("done", env.text(), None, final_snapshot=after)
                 message = env.error.message if env.error else "unknown error"
                 if not timed_out:
                     return _finish("failed", "", message)
