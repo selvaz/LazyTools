@@ -230,3 +230,20 @@ def test_wait_any_follow_requires_all_active_and_loop(tmp_path, capsys):
     _job(db, "a-job", "running")
     assert main(["wait-any", "--all-active", "--follow", "--db", str(db)]) == 2
     assert "--follow needs --all-active and --loop" in capsys.readouterr().err
+
+
+def test_wait_any_follow_reports_a_job_that_finished_between_polls(tmp_path, capsys, monkeypatch):
+    db = tmp_path / "jobs.sqlite"
+    _job(db, "old-job", "done")  # history: not replayed
+    polls = {"n": 0}
+
+    def quick_job(_interval):
+        polls["n"] += 1
+        if polls["n"] == 1:
+            _job(db, "quick-job", "done")  # starts and ends before the next poll
+
+    monkeypatch.setattr(cli.time, "sleep", quick_job)
+    main(["wait-any", "--all-active", "--loop", "--follow", "--events", "done",
+          "--interval", "0", "--timeout", "0.5", "--db", str(db)])
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.strip()]
+    assert [(event["event"], event["job_id"]) for event in events] == [("done", "quick-job")]

@@ -1442,15 +1442,19 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
                 watched.append(job_id)
 
     deadline = None if args.timeout is None else time.monotonic() + args.timeout
+    # --follow: jobs already finished when the stream starts are history, not events.
+    history = {str(job["job_id"]) for job in _jobs.list_jobs(store, all_jobs=True)
+               if str(job["job_id"]) not in watched} if args.follow else set()
     emitted_approvals: set[str] = set()
     terminal_seen: set[str] = set()
     while True:
         store = _store.build_store(db_path)
         registry = _store.build_job_registry(store)
-        if args.follow:  # pick up jobs that started after this stream began
-            for job in _jobs.list_jobs(store, all_jobs=False):
-                if str(job["job_id"]) not in watched:
-                    watched.append(str(job["job_id"]))
+        if args.follow:  # pick up every job created after this stream began, even one already finished
+            for job in _jobs.list_jobs(store, all_jobs=True):
+                job_id = str(job["job_id"])
+                if job_id not in watched and job_id not in history:
+                    watched.append(job_id)
         jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
 
         # A ticket is emitted once per invocation, even if it remains pending.
