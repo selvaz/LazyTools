@@ -457,6 +457,11 @@ class Workspace:
         return (dest or cwd,)
 
     def classify(self, request: ApprovalRequest) -> str:
+        paths = [request.cwd]
+        if request.kind == "tool" and request.name in _EDIT_TOOLS:
+            paths.extend(request.arguments.get(key) for key in _EDIT_PATH_KEYS)
+        if any(isinstance(path, str) and _PRODUCTION_PATH.search(path.replace("\\", "/")) for path in paths):
+            return "production_task"
         command = request.arguments.get("command")
         if isinstance(command, str):
             return ticket_class(

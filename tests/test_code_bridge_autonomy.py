@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+import os
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from lazybridge.engines.coding import ApprovalRequest
+from lazybridge.ext.approval import CardApproval
 
-from lazytools.code_bridge import _coder, _coder_actions, _store, cli
+from lazytools.code_bridge import _coder, _coder_actions, _registry, _store, cli
+from test_code_bridge_coder_cards import request
+from test_code_bridge_continuations import git
 
 
 @pytest.mark.parametrize(("command", "kind"), [
@@ -78,6 +83,132 @@ def test_autonomy_mode_changes_require_owner_credential(tmp_path, provision_brid
     assert _coder.show(registry) == original
 
 
+def test_autonomy_refuses_registry_in_a_checkout(tmp_path, provision_bridge_approver, capsys):
+    git(tmp_path, "init")
+    registry = tmp_path / "registry.sqlite"
+    provision_bridge_approver(registry)
+    assert cli.main([
+        "approver-credential", "autonomy", "--registry-db", str(registry), "--mode", "total",
+    ]) == 1
+    assert "Owner approval state must be outside Git checkouts" in capsys.readouterr().err
+    assert not _coder.show(registry).cards
+
+
+@pytest.fixture
+def autonomy_registry(tmp_path, provision_bridge_approver):
+    cwd = tmp_path / "checkout"
+    cwd.mkdir()
+    git(cwd, "init")
+    git(cwd, "symbolic-ref", "HEAD", "refs/heads/feature/work")
+    git(cwd, "remote", "add", "origin", "https://github.com/example/autonomy.git")
+    git(cwd, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+    path = tmp_path / "registry.sqlite"
+    provision_bridge_approver(path)
+    store = _store.build_store(tmp_path / "jobs.sqlite")
+    return cwd, _registry.Registry(store, path)
+
+
+def configure(registry, mode, *flags):
+    return cli.main([
+        "approver-credential", "autonomy", "--registry-db", str(registry.path), "--mode", mode, *flags,
+    ])
+
+
+def channel_for(registry, cwd, job_id, *, network="on"):
+    expires = datetime.now(UTC) + timedelta(minutes=5)
+    hand = registry.copy_coder_hand(job_id, job_id, cwd, None, expires, network=network)
+    assert hand is not None
+    return _registry.ApprovalChannel(
+        registry, job_id, "revision", "digest", timedelta(minutes=5), 0.01,
+        lambda: None, lambda: None, lambda: None, actor="ceo", hand=hand,
+    )
+
+
+def test_mode_switch_revokes_cards_in_existing_hand(autonomy_registry):
+    cwd, registry = autonomy_registry
+    assert configure(registry, "total", "--preset", "with-production") == 0
+    total = channel_for(registry, cwd, "total-job")
+    push = request(cwd, "git push origin feature/work", provider="codex")
+    merge = request(cwd, "gh pr merge 17 --squash", provider="codex")
+    production = request(cwd, "schtasks /Run /TN Daily", provider="codex")
+    for req, kind in [(push, "git_push_job_branch"), (merge, "gh_pr_merge")]:
+        decision = total._submit(req, "Approve?")
+        assert isinstance(decision, CardApproval)
+        assert decision.actor == "ceo"
+        assert decision.action_class == kind
+    receipt = registry.card_audit(_store.read_meta(registry.job_store, total.job_id))[-1]
+    assert receipt["mode"] == "total" and receipt["ticket_class"] == "gh_pr_merge"
+    assert receipt["reason"] == "Matched an owner card for gh_pr_merge in the with-production preset"
+
+    held, _ = total._submit(production, "Approve?")
+    assert held.status == "pending"
+    assert held.request.payload["ticket_class"] == "production_task"
+    edit = ApprovalRequest(
+        provider="claude-code", kind="tool", name="Write", cwd=str(cwd), raw={},
+        arguments={"file_path": str(cwd / "production" / "settings.yml"), "content": "example"},
+    )
+    held, _ = total._submit(edit, "Approve?")
+    assert held.status == "pending"
+    assert held.request.payload["ticket_class"] == "production_task"
+    push_default = request(cwd, "git push origin trunk")
+    held, _ = total._submit(push_default, "Approve?")
+    assert held.status == "pending"
+    assert held.request.payload["ticket_class"] == "push_default_branch"
+
+    assert configure(registry, "supervised") == 0
+    held, _ = total._submit(merge, "Approve?")
+    assert held.status == "pending"
+    supervised = channel_for(registry, cwd, "supervised-job")
+    assert isinstance(supervised._submit(push, "Approve?"), CardApproval)
+    held, _ = supervised._submit(merge, "Approve?")
+    assert held.status == "pending"
+
+    assert configure(registry, "total") == 0
+    held, _ = total._submit(merge, "Approve?")
+    assert held.status == "pending"
+    assert isinstance(channel_for(registry, cwd, "next-total-job")._submit(merge, "Approve?"), CardApproval)
+
+
+def test_total_cards_respect_native_and_command_scope(autonomy_registry):
+    cwd, registry = autonomy_registry
+    assert configure(registry, "total", "--preset", "solo-dev") == 0
+    local = channel_for(registry, cwd, "local", network="off")
+    networked = channel_for(registry, cwd, "networked")
+    for channel, command in [
+        (local, "git push origin feature/work"),
+        (networked, "git push origin feature/work --force"),
+        (networked, "git push origin other/branch"),
+        (networked, "gh pr merge 17 --repo other/repo"),
+        (networked, "gh pr merge 17 --delete-branch"),
+        (networked, "gh issue comment 17 --body hello"),
+        (networked, "python -m pytest"),
+        (networked, "rm -rf ../outside"),
+        (networked, "lazytools-code-bridge approver-credential autonomy --mode total"),
+    ]:
+        ticket, _ = channel._submit(request(cwd, command), command)
+        assert ticket.status == "pending"
+
+
+def test_solo_total_accepts_scoped_commands_outside_supervised_classes(autonomy_registry):
+    cwd, registry = autonomy_registry
+    assert configure(registry, "total", "--preset", "solo-dev") == 0
+    (cwd / "old.txt").touch()
+    total = channel_for(registry, cwd, "solo-job")
+    commands = {
+        "rm -- old.txt": "delete_files",
+        "python -I -m pip install --isolated --no-cache-dir --only-binary=:all: --target deps example==1.0":
+            "package_install",
+        "git ls-remote origin": "network_other",
+        "gh pr create --fill --head feature/work": "gh_pr_create",
+    }
+    if os.name == "nt":
+        commands["schtasks /Run /TN Daily"] = "production_task"
+    for command, kind in commands.items():
+        decision = total._submit(request(cwd, command, provider="codex"), command)
+        assert isinstance(decision, CardApproval), command
+        assert decision.action_class == kind
+
+
 @pytest.fixture
 def autonomy_db(tmp_path):
     """A real SQLite Store shaped like one day of bridge job history."""
@@ -109,6 +240,7 @@ def test_autonomy_sample_day_matches_hand_count(autonomy_db, capsys):
         "target_percent": 90.0,
         "target_met": False,
         "intervention_causes": {"apply": 1, "resync": 1},
+        "card_approvals_by_class": {},
     }
 
 
@@ -118,6 +250,32 @@ def test_autonomy_week_and_human_output(autonomy_db, capsys):
     assert "Autonomy: 2/3 finished jobs (66.7%); target 90.0%" in output
     assert "apply: 1" in output
     assert "resync: 1" in output
+    assert "Card approvals by class:" in output
+
+
+def test_autonomy_report_counts_only_spent_cards_in_utc_range(autonomy_registry, capsys):
+    cwd, registry = autonomy_registry
+    assert configure(registry, "total", "--preset", "with-production") == 0
+    channel = channel_for(registry, cwd, "active")
+    _store.build_job_registry(registry.job_store).write("active", "Test autonomy", tool_name="codex", status="running")
+    for command in ("git push origin feature/work", "gh pr merge 17 --squash", "gh pr merge 19 --merge"):
+        assert isinstance(channel._submit(request(cwd, command), command), CardApproval)
+    ticket, _ = channel._submit(request(cwd, "schtasks /Run /TN Daily"), "Approve?")
+    assert ticket.status == "pending"
+    capsys.readouterr()
+
+    today = datetime.now(UTC).date()
+    db = registry.path.with_name("jobs.sqlite")
+    for since, until, expected in [
+        (today - timedelta(days=1), today, {}),
+        (today, today + timedelta(days=1), {"gh_pr_merge": 2, "git_push_job_branch": 1}),
+    ]:
+        assert cli.main([
+            "autonomy", "--since", since.isoformat(), "--until", until.isoformat(), "--json", "--db", str(db),
+        ]) == 0
+        report = json.loads(capsys.readouterr().out)
+        assert report["card_approvals_by_class"] == expected
+        assert report["finished_jobs"] == 0
 
 
 def test_manual_approval_records_reason(tmp_path):

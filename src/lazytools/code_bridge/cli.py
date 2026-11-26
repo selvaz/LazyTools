@@ -2121,6 +2121,11 @@ def _cmd_autonomy(args: argparse.Namespace) -> int:
             print("  none")
         for kind, count in payload["intervention_causes"].items():
             print(f"  {kind}: {count}")
+        print("Card approvals by class:")
+        if not payload["card_approvals_by_class"]:
+            print("  none")
+        for kind, count in payload["card_approvals_by_class"].items():
+            print(f"  {kind}: {count}")
     return 0
 
 
