@@ -1044,3 +1044,13 @@ def test_codex_app_install_counts_as_installed(monkeypatch, tmp_path):
 
     monkeypatch.setattr(app_server, "codex_executable", missing)
     assert not installed._codex_resolvable()
+
+
+def test_explicit_opposite_engine_is_honoured_when_discovery_misses_it(bridge, capsys, monkeypatch):
+    # CI on #409: governed reviews pass --engine claude on a runner where discovery found only the fake codex.
+    monkeypatch.setattr(_installed, "installed_engines", lambda override=None, **kwargs: frozenset({"codex"}))
+    seed(bridge, "writer")
+    assert cli.main(args(bridge, "route", "--tier", "writing", "--review-of", "writer",
+                         "--engine", "claude", "--json")) == 0
+    out = capsys.readouterr().out
+    assert "opposite-engine" in out and "same-provider-fresh" not in out

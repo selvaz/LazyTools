@@ -267,6 +267,10 @@ def choose(
         writer = provider(str(job.get("engine", job.get("kind"))))
         detected = _installed.installed_engines(installed)
         opposite = "claude" if writer == "codex" else "codex"
+        if explicit_engine is not None and bridge_engine(explicit_engine) == opposite:
+            # An explicit request for the opposite engine asserts it is available; discovery
+            # only decides automatic selection (governed reviews pass --engine).
+            detected = detected | {opposite}
         if opposite not in detected:
             try:
                 reviewer = select_reviewer(bridge_engine(writer), detected, mode="opposite-or-fresh")
