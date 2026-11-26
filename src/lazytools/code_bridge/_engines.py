@@ -15,6 +15,7 @@ of a one-shot CLI process instead.
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import replace
 from pathlib import Path
@@ -34,6 +35,29 @@ DEFAULT_TIMEOUT = 3600.0
 #: Claude Code's SDK default of 20 agentic turns ends a real objective
 #: before a single file is written; see ``_writer.py``'s own constant.
 DEFAULT_CLAUDE_MAX_TURNS = 60
+
+# Passed per invocation rather than written to ~/.claude/settings.json.  Keep
+# both forms: older Claude Code releases understand includeCoAuthoredBy while
+# current releases use the more precise commit/PR attribution fields.
+CLAUDE_NO_ATTRIBUTION_SETTINGS: dict[str, Any] = {
+    "includeCoAuthoredBy": False,
+    "attribution": {"commit": "", "pr": ""},
+}
+
+
+def _claude_client(*, policy_release_report: Path | str | None = None) -> Any:
+    """Agent SDK client which adds job-scoped no-attribution settings."""
+    from lazybridge.engines.claude_code.sdk_client import AgentSdkClient
+
+    class JobScopedSettingsClient(AgentSdkClient):
+        @staticmethod
+        def _sdk_options(options: Any) -> Any:
+            sdk_options = AgentSdkClient._sdk_options(options)
+            settings = json.loads(sdk_options.settings) if sdk_options.settings else {}
+            settings.update(CLAUDE_NO_ATTRIBUTION_SETTINGS)
+            return replace(sdk_options, settings=json.dumps(settings))
+
+    return JobScopedSettingsClient(policy_release_report=policy_release_report)
 
 def _make_codex_engine(**kwargs: Any) -> Any:
     """Build the ``CodexEngine`` for one job. Patched by tests (see ``_code_fakes.py``)."""
@@ -192,10 +216,10 @@ def build_claude_engine(
     kwargs: dict[str, Any] = {}
     if model:
         kwargs["model"] = model
-    if launch.report is not None:
-        from lazybridge.engines.claude_code.sdk_client import AgentSdkClient
-
-        kwargs["client"] = AgentSdkClient(policy_release_report=launch.report)
+    # Never inherit attribution behaviour from the operator's global Claude
+    # settings. The client injects both legacy and current keys into this
+    # job's SDK options, including policy-release jobs.
+    kwargs["client"] = _claude_client(policy_release_report=launch.report)
     return _make_claude_engine(
         **kwargs,
         reasoning_effort=effort,
@@ -232,6 +256,7 @@ def resolve_cwd(cwd: str, root: str | None) -> Path:
 __all__ = [
     "DEFAULT_CLAUDE_MAX_TURNS",
     "DEFAULT_TIMEOUT",
+    "CLAUDE_NO_ATTRIBUTION_SETTINGS",
     "build_claude_engine",
     "build_codex_engine",
     "claude_writer_instructions",

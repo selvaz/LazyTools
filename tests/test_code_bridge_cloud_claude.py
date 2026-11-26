@@ -13,12 +13,13 @@ import json
 import os
 import subprocess
 import textwrap
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
 from code_bridge_test_helpers import write_python_executable
-from lazytools.code_bridge import _cloud, _cloud_claude, _concurrency, _jobs, _store, cli
+from lazytools.code_bridge import _cloud, _cloud_claude, _concurrency, _engines, _jobs, _store, cli
 
 SESSION_URL = "https://claude.ai/code/session_abc123def"
 
@@ -144,6 +145,30 @@ def job_branch(payload: dict) -> str:
 def _config(text: str) -> None:
     path = Path(os.environ[_concurrency.CONFIG_ENV])
     path.write_text(path.read_text(encoding="utf-8") + text, encoding="utf-8")
+
+
+def test_claude_jobs_disable_attribution_in_sdk_options_and_cloud_command(cc, monkeypatch):
+    """Both bridge launch paths pass settings; neither edits global config."""
+    from lazybridge.engines.claude_code.sdk_client import AgentSdkClient
+
+    @dataclass(frozen=True)
+    class Options:
+        settings: str | None = json.dumps({"permissions": {"deny": ["WebFetch"]}})
+
+    monkeypatch.setattr(AgentSdkClient, "_sdk_options", staticmethod(lambda _: Options()))
+    sdk_options = _engines._claude_client()._sdk_options(None)
+    sdk_settings = json.loads(sdk_options.settings)
+    assert sdk_settings["permissions"] == {"deny": ["WebFetch"]}
+    assert sdk_settings["includeCoAuthoredBy"] is False
+    assert sdk_settings["attribution"] == {"commit": "", "pr": ""}
+
+    _cloud_claude.ClaudeCloud()._run_cli(cc.repo, "Do the work")
+    argv = cc.calls()[-1]["argv"]
+    cloud_settings = json.loads(argv[argv.index("--settings") + 1])
+    assert cloud_settings == {
+        "includeCoAuthoredBy": False,
+        "attribution": {"commit": "", "pr": ""},
+    }
 
 
 # --------------------------------------------------------------------------- #
