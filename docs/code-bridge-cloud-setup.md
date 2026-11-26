@@ -267,7 +267,6 @@ Use `Goal`, `Context`, `Constraints`, `Done when`, and `Report` headings in
 | `... is on a detached HEAD` | Check out a branch, or pass `--branch` |
 | `origin/<branch> has moved ...` on `apply` | Someone pushed since submit; re-run with `--rebase` after reviewing |
 | `--where cloud requires --allow-cloud` | Add `--allow-cloud` (an explicit acknowledgement) |
-| `the brief asks for gated action(s) push` | Remove the request from the brief, or add `--approve-cloud push` |
 | Task errors with no diff after `--branch main` | Query the real default branch with `gh repo view owner/repo --json defaultBranchRef`; submit with that branch |
 | `startup_script_timed_out` | Make the setup script non-interactive with `GIT_TERMINAL_PROMPT=0`, and wrap possibly private installs in `timeout 600 ...` fallbacks |
 | Codex GitHub app says to create an environment for this repo | Create a single-repository environment for that repository and add its `[cloud.codex.envs]` mapping |
@@ -537,8 +536,8 @@ apply), scope it to one repository, and prefer short-lived tokens.
 
 - `run` requires `--allow-cloud` for a cloud submit. `cloud-preflight probe`
   explicitly requests a Codex cloud job.
-- Briefs asking for push, PR creation, merge, delete, reset, commit or `git -C`
-  are refused unless approved up front with `--approve-cloud <action>`.
+- Cloud results reach the repository only through the local landing step
+  (`apply`, `land`, or `cloud-sync`), which keeps its own checks.
 - Provider output and the stored brief are redacted (tokens, keys, JWTs).
 - Cloud jobs share one limit, `[cloud] concurrency` (default 4), and never take
   a local engine slot. This one limit counts Codex and Claude jobs together.

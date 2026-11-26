@@ -535,7 +535,6 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             branch=branch,
             db_path=_db_path(args),
             job_id=job_id,
-            approvals=tuple(args.approve_cloud or ()),
             routine=args.routine,
             pr=args.pr,
             open_pr=args.open_pr,
@@ -674,7 +673,6 @@ def _cmd_run(args: argparse.Namespace) -> int:
     for name, flag in (
         ("branch", "--branch"),
         ("allow_cloud", "--allow-cloud"),
-        ("approve_cloud", "--approve-cloud"),
         ("routine", "--routine"),
         ("pr", "--pr"),
         ("open_pr", "--open-pr"),
@@ -2240,14 +2238,6 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("on", "off"),
         default=None,
         help="Requested task network access. Defaults to off for core profiles and cloud; the legacy writer defaults to on.",
-    )
-    run_p.add_argument(
-        "--approve-cloud",
-        action="append",
-        choices=sorted(_cloud.GATED_ACTIONS),
-        default=None,
-        help="--where cloud only: approve up front an action the brief asks for that the local approval gate "
-        "classifies as gated; repeatable. Without it such a brief is refused.",
     )
     _add_routing_options(run_p)
     run_p.add_argument("--cwd", required=True, help="Repository (or subdirectory) to work in.")

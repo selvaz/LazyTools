@@ -1331,15 +1331,6 @@ def test_review_comment_format_and_verdict_parsing():
     assert _cloud_land.opposite_engine("codex") == "claude" and _cloud_land.opposite_engine("claude") == "codex"
 
 
-def test_the_review_brief_asks_for_no_gated_action():
-    from lazytools.code_bridge import _cloud as c
-
-    for reviewer in ("claude", "codex"):
-        brief = _cloud_land.review_brief(branch="cloud/abc", head="f" * 40, base="main", author="x",
-                                         job_id="0123456789abcdef", reviewer=reviewer)
-        assert c.gated_actions(brief) == []
-
-
 # --------------------------------------------------------------------------- #
 # 5. placement
 # --------------------------------------------------------------------------- #

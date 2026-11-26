@@ -124,8 +124,6 @@ def test_documented_tier_and_cloud_choices_match_the_cli():
     assert "--where auto" in text and "--where cloud" in text
     assert set(actions["engine"].choices) == {"codex", "claude"}
     assert "--engine claude" in text and "--routine" in text  # Claude cloud sessions are documented
-    documented = re.search(r"--approve-cloud\s+([a-z|-]+)", text)[1].split("|")
-    assert set(documented) == set(actions["approve_cloud"].choices)
 
 
 def test_projects_python_snippets_run_against_a_real_store(tmp_path, monkeypatch):

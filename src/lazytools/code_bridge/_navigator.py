@@ -329,8 +329,9 @@ class ProductionBackend:
 
     def relaunch_fix(self, head: Head, brief: str) -> str:
         from lazytools.code_bridge import _cloud
-        job = _cloud.submit_job(engine=self.fix_engine, cwd=self.root, task=brief, pr=head.pr_number,
-                                land=True, db_path=self.db_path, approvals=("push",))
+        job = _cloud.submit_job(
+            engine=self.fix_engine, cwd=self.root, task=brief, pr=head.pr_number, land=True, db_path=self.db_path
+        )
         return str(job["job_id"])
 
     def run_check(self, command: str) -> CheckResult:

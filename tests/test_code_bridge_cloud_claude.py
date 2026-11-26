@@ -159,13 +159,10 @@ def test_submit_without_routine_fails_before_invoking_claude(cc, capsys):
     assert _store.all_job_records(_store.build_store(cc.db)) == []
 
 
-def test_claude_cloud_needs_allow_cloud_and_gated_approval(cc, capsys):
+def test_claude_cloud_needs_allow_cloud(cc, capsys):
     assert cli.main(["run", "--where", "cloud", "--engine", "claude", "--cwd", str(cc.repo), "--task", "x",
                      "--no-brief-check", "--db", str(cc.db)]) == 2
     assert "requires --allow-cloud" in capsys.readouterr().err
-    assert _run(cc, task="Fix it and merge it into main") == 2
-    assert "--approve-cloud merge" in capsys.readouterr().err
-    assert cc.calls() == []
 
 
 def test_routine_flag_is_claude_cloud_only(cc, capsys):

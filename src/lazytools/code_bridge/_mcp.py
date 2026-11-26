@@ -13,10 +13,9 @@ Two guard rails the CLI does not need but an MCP caller does:
 * a task may not start with ``@``: the CLI reads ``@path`` as "task text from
   that file", which would let a caller read any file the server can.
 
-Cloud jobs need ``allow_cloud=true`` (the CLI's ``--allow-cloud``). Approving a
-gated action up front (``--approve-cloud``) is deliberately not exposed: a
-brief that asks for a push, merge or delete is refused with the CLI's message,
-and a person decides.
+Cloud jobs need ``allow_cloud=true`` (the CLI's ``--allow-cloud``). Cloud
+results reach the repository only through the local landing step, whose checks
+are the same whether it is invoked by ``apply``, ``land`` or ``cloud-sync``.
 """
 
 from __future__ import annotations

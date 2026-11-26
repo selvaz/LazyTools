@@ -147,11 +147,9 @@ branch = "main"
 **Rules that always hold.**
 
 - `--allow-cloud` is mandatory: the agent's commands run on the provider's
-  machine, outside the local gate. A brief that mentions a gated action is
-  refused unless approved up front with `--approve-cloud
-  push|pr-create|merge|delete|reset|commit|git-option` (repeatable).
-  Detection is keyword-based and fail-closed, so a harmless mention also
-  needs the flag.
+  machine, outside the local gate. Cloud results reach the repository only
+  through the local landing step (`apply`, `land`, or `cloud-sync`), which
+  keeps its own checks.
 - `--where cloud` needs an explicit `--engine` and refuses `--session`,
   `--effort`, `--needs`, `--detach`, `--wait-for-slot` and `--max-wall`.
   Codex Cloud uses the model set on its environment

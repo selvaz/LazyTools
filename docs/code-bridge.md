@@ -1075,7 +1075,7 @@ through it.
 
 ```
 lazytools-code-bridge run --where cloud --allow-cloud --engine codex|claude --cwd <repo> --task @brief.md \
-    [--branch B] [--routine NAME] [--approve-cloud push|pr-create|merge|delete|reset|commit|git-option ...]
+    [--branch B] [--routine NAME]
 lazytools-code-bridge status <job>      # polls `codex cloud status <task>`
 lazytools-code-bridge wait <job>        # polls until the task is terminal
 lazytools-code-bridge resync <job>      # recover a legacy job failed by a poll error
@@ -1234,26 +1234,16 @@ deleted. The command stops before any
 commit or push and prints the push command: **pushing stays a separate,
 approved step**.
 
-### Approvals: where the gate is for cloud jobs
+### Safety boundary for cloud jobs
 
-A cloud agent's tool calls happen on the provider's machine,
-where no local gate can see them one by one. So the gate is applied **before
-submit** instead:
+A cloud agent's tool calls happen on the provider's machine, where no local
+command gate can see them one by one. `--where cloud` therefore requires the
+explicit operator flag **`--allow-cloud`**; without it nothing is submitted or
+recorded. Brief text is not scanned for English action keywords.
 
-- `--where cloud` requires an explicit operator flag, **`--allow-cloud`**;
-  without it nothing is submitted or recorded.
-- A brief that requests a listed gated action is **refused**
-  unless the operator approves each such action up front with
-  `--approve-cloud <action>` (repeatable). Commands in the brief are
-  classified by the cloud brief rules (`_policy.CODING_RULES`). Actions include
-  `push` (`git push origin main`, any push form), `pr-create` (`gh pr
-  create`), `merge` (`gh pr merge`), `delete` (`rm …`, `… delete …`), `reset`
-  (`git reset --hard`), `commit` (`git add`, `git commit`), `git-option`
-  (`git -C …`). Requests written in words ("push the branch", "open a PR",
-  "merge it into main", "delete the old branches", `git branch -D`) map to the
-  same actions. The approvals given are stored on the job as
-  `cloud_approvals`. Detection is deliberately conservative: a false positive
-  costs one flag, a miss is the risk to avoid.
+Cloud results reach the repository only through the local landing step
+(`apply`, `land`, or `cloud-sync`). That step keeps its own checks before it
+changes local or remote repository state.
 
 Beyond that, the approval boundary is the diff:
 
@@ -1352,9 +1342,9 @@ know when a session has finished. Instead:
   local branch**, never your checkout, never pushed. `--rebase` does not apply:
   the agent's branch already contains its base.
 
-The same safety rules apply as for Codex: `--allow-cloud`, `--approve-cloud`
-for gated actions, redaction, the shared `[cloud] concurrency` limit, and no
-local engine slot.
+The same safety rules apply as for Codex: `--allow-cloud`, redaction, the
+shared `[cloud] concurrency` limit, and no local engine slot. Results enter the
+repository only through the checked local landing step.
 
 ### Provider protocol
 
@@ -1436,11 +1426,6 @@ A review job is posted, never landed. Everything in this section is
   `--open-pr` are alternatives. All the options in this section are
   `--where cloud` only. `gh` (logged in, or `GH_TOKEN`) is needed for PR work;
   `GH_BIN` overrides its path.
-
-Before dispatch, gated-action detection is keyword-based and fail-closed: a
-gated action mentioned anywhere in the brief requires approval, including in
-quoted output, examples, and fenced blocks. Use the matching explicit
-`--approve-cloud <action>` flag when a keyword is a harmless false positive.
 
 ### Landing: `apply <job> --land`
 
