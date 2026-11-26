@@ -660,6 +660,21 @@ def test_land_updates_the_recorded_pr_by_pushing_its_head_branch(cloud, gh, caps
     assert outcome["pr_url"].endswith("/pull/7") and outcome["pr_number"] == 7
 
 
+def test_land_onto_existing_pr_requests_a_review_only_when_configured(cloud, gh, capsys, monkeypatch, tmp_path):
+    _push_feature(cloud)
+    gh.seed_pr(7, head="feature")
+    job_id = _submit_json(cloud, capsys, "--pr", "7")["job_id"]
+    cloud.set_status(READY)
+    config = tmp_path / "review.toml"
+    config.write_text('[cloud]\nrequest_review_comment = "@codex review"\n', encoding="utf-8")
+    real_load = _cloud.load_config
+    monkeypatch.setattr(_cloud, "load_config", lambda path=None: real_load(config))
+    assert _main(cloud, "apply", job_id, "--land") == 0
+    sha = _job(cloud, job_id)["pushed_sha"]
+    review = [c for c in gh.comments(7) if c.startswith("@codex review")]
+    assert len(review) == 1 and sha in review[0]
+
+
 def test_land_refuses_when_a_recorded_pr_changes_its_head_branch(cloud, gh, capsys):
     _push_feature(cloud)
     gh.seed_pr(7, head="feature")

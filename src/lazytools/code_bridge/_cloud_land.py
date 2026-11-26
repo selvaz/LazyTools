@@ -314,6 +314,7 @@ def _ensure_pr(store: Any, job: dict[str, Any], *, head: str, base: str, title: 
                              f"{head}, but there is no open PR to update")
         number = int(view["number"])
         _post_report_comment(job, number)
+        _request_review(job, number)
         return str(view["url"]), number
     existing = _gh.pr_for_branch(repo, head)
     if existing:
@@ -322,6 +323,17 @@ def _ensure_pr(store: Any, job: dict[str, Any], *, head: str, base: str, title: 
         return str(existing["url"]), number
     url = _gh.pr_create(repo, base=base, head=head, title=title, body=pr_body(job))
     return url, _gh.pr_number_from_url(url)
+
+
+def _request_review(job: dict[str, Any], number: int) -> None:
+    """Ask the review bot to look at the new head, once per pushed commit, when ``[cloud] request_review_comment`` is set."""
+    text = _cloud.load_config().request_review_comment
+    sha = str(job.get("pushed_sha") or "")
+    if not text or not sha:
+        return
+    marker = f"<!-- review-requested {sha} -->"
+    if not any(marker in comment for comment in _gh.pr_comments(str(job["repo"]), number)):
+        _gh.pr_comment(str(job["repo"]), number, f"{text}\n\n{marker}")
 
 
 def _post_report_comment(job: dict[str, Any], number: int) -> None:

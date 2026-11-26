@@ -264,6 +264,8 @@ class CloudConfig:
     min_submit_interval: float = DEFAULT_MIN_SUBMIT_INTERVAL
     #: extra attempts after a submit that errors immediately (0 = none)
     submit_retries: int = DEFAULT_SUBMIT_RETRIES
+    #: PR comment posted after landing onto an existing PR (e.g. "@codex review"); "" = off
+    request_review_comment: str = ""
 
 
 def load_config(path: Path | None = None) -> CloudConfig:
@@ -290,8 +292,13 @@ def load_config(path: Path | None = None) -> CloudConfig:
     models: dict[str, dict[str, str]] = {}
     min_interval = DEFAULT_MIN_SUBMIT_INTERVAL
     retries = DEFAULT_SUBMIT_RETRIES
+    review_comment = ""
     for key, value in table.items():
-        if key == "min_submit_interval":
+        if key == "request_review_comment":
+            if not isinstance(value, str):
+                raise ValueError(f"{path}: [cloud] request_review_comment must be a string, got {value!r}")
+            review_comment = value.strip()
+        elif key == "min_submit_interval":
             if type(value) not in (int, float) or value < 0:
                 raise ValueError(f"{path}: [cloud] min_submit_interval must be a number of seconds >= 0 "
                                  f"(0 = no spacing), got {value!r}")
@@ -371,13 +378,14 @@ def load_config(path: Path | None = None) -> CloudConfig:
         else:
             raise ValueError(
                 f"{path}: [cloud] names unknown key {key!r} (one of concurrency, default_where, unmapped, busy_windows, "
-                f"min_submit_interval, submit_retries, "
+                f"min_submit_interval, submit_retries, request_review_comment, "
                 f"{', '.join(sorted(PROVIDERS))})"
             )
     return CloudConfig(concurrency=concurrency, envs=envs, routines=routines, default_routine=default_routine,
                        path=path, default_where=default_where, unmapped=unmapped,
                        busy_windows=windows, provider_concurrency=provider_limits, models=models,
-                       min_submit_interval=min_interval, submit_retries=retries)
+                       min_submit_interval=min_interval, submit_retries=retries,
+                       request_review_comment=review_comment)
 
 
 def _load_models(table: Any, path: Path) -> dict[str, str]:
