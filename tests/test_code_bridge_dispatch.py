@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
+from lazybridge import Store
+from lazybridge.ext.approval import ApprovalQueue, ApprovalTarget, TypedApprovalRequest
+from lazybridge.ext.knowledge import DurableKnowledgeBase
 
+from lazytools.code_bridge import _store
 from lazytools.code_bridge._dispatch import BridgeLauncher, Dispatcher, Task, _dry_run
+from lazytools.code_bridge.cli import build_parser
 from lazytools.projects.task_service import TaskPrincipal
 
 
@@ -64,10 +70,12 @@ class FakeLauncher:
         self.service = service
         self.jobs: dict[str, dict[str, Any]] = {}
         self.launches: list[str] = []
+        self.prompts: list[str] = []
 
     def launch(self, task: dict[str, Any], claim: dict[str, Any]) -> str:
         name = claim["task_id"].rsplit("/", 1)[1]
         self.launches.append(name)
+        self.prompts.append(task["text"])
         job = f"job-{name}"
         self.jobs[job] = {"job_id": job, "status": "running"}
         return job
@@ -82,10 +90,48 @@ class FakeLauncher:
                                           error="boom" if status != "done" else None)
 
 
-def runner(service: FakeService, launcher: FakeLauncher, events: list[str]) -> Dispatcher:
+def runner(service: FakeService, launcher: FakeLauncher, events: list[str],
+           knowledge_store: Store | None = None) -> Dispatcher:
     principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
     return Dispatcher(service, principal, launcher, "p", parallel=2, emit=events.append,  # type: ignore[arg-type]
-                      task_reader=service.tasks)  # type: ignore[arg-type]
+                      task_reader=service.tasks, knowledge_store=knowledge_store)  # type: ignore[arg-type]
+
+
+@pytest.fixture
+def knowledge_store(tmp_path: Path) -> Iterator[Store]:
+    with Store(db=str(tmp_path / "knowledge.sqlite")) as store:
+        yield store
+
+
+def test_dispatch_prepends_the_three_closest_lessons(knowledge_store: Store) -> None:
+    knowledge = DurableKnowledgeBase(knowledge_store)
+    knowledge.save_lesson(topic="SQLite", what_worked="fourth match")
+    knowledge.save_lesson(topic="SQLite restore", what_worked="third match")
+    knowledge.save_lesson(topic="SQLite backup", what_worked="second match for SQLite")
+    knowledge.save_lesson(topic="SQLite restore backup", what_worked="first match", gotchas="check WAL")
+    service = FakeService()
+    service.rows["A"]["text"] = "Restore a SQLite backup"
+    service.rows["B"]["text"] = "Run formatter"
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, [], knowledge_store)
+    dispatch.pass_once()
+    assert launcher.prompts == [
+        "Known lessons\n"
+        "- SQLite restore backup | What worked — first match | Gotchas — check WAL\n"
+        "- SQLite backup | What worked — second match for SQLite\n"
+        "- SQLite restore | What worked — third match\n\n"
+        "Restore a SQLite backup"
+    ]
+    assert service.rows["A"]["text"] == "Restore a SQLite backup"
+    launcher.finish("A")
+    dispatch.pass_once()
+    assert launcher.prompts[1] == "Run formatter"
+
+
+def test_dispatch_accepts_a_knowledge_db_path(tmp_path: Path) -> None:
+    path = tmp_path / "lessons.sqlite"
+    args = build_parser().parse_args(["dispatch", "--project", "p", "--knowledge-db", str(path)])
+    assert args.knowledge_db == path
 
 
 def test_graph_runs_in_topological_parallel_waves() -> None:
@@ -334,8 +380,9 @@ def test_last_dependency_conflict_is_left_for_the_agent(tmp_path: Path) -> None:
     assert git("rev-parse", "-q", "--verify", "MERGE_HEAD", cwd=checkout) == c_commit
 
 
-def test_engine_crash_is_retried_once_then_fails() -> None:
+def test_engine_crash_is_retried_once_then_fails(knowledge_store: Store) -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows["A"].update(repo="org/repo", text="Update Codex App Server")
     attempts: list[str] = []
 
     def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str) -> str:
@@ -347,27 +394,53 @@ def test_engine_crash_is_retried_once_then_fails() -> None:
 
     service.prepare_attempt = prepare_attempt  # type: ignore[attr-defined]
     launcher = FakeLauncher(service)
-    dispatch = runner(service, launcher, events)
+    dispatch = runner(service, launcher, events, knowledge_store)
     dispatch.pass_once()
     launcher.jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request")
     dispatch.pass_once()
     assert len(attempts) == 1 and any(event.startswith("retry p/A") for event in events)
     assert launcher.launches == ["A", "A"]
-    launcher.jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request")
+    assert "Codex App Server exited before completing the request" in launcher.prompts[1]
+    assert launcher.prompts[1].count("Known lessons") == 1
+    launcher.jobs["job-A"].update(status="failed", error="Codex App Server exited again")
     dispatch.pass_once()
     assert len(attempts) == 1
     assert any(event.startswith("failed p/A") for event in events)
+    lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("engine crash")
+    assert lesson["topic"] == "org/repo: engine crash"
+    assert lesson["revision"] == 2
+    assert lesson["what_worked"] == ""
+    assert lesson["gotchas"] == "Codex App Server exited again"
 
 
-def test_task_failure_is_not_retried() -> None:
+def test_task_failure_is_not_retried(knowledge_store: Store) -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows["A"]["repo"] = "org/repo"
     service.prepare_attempt = lambda *args: (_ for _ in ()).throw(AssertionError("no retry"))  # type: ignore[attr-defined]
     launcher = FakeLauncher(service)
-    dispatch = runner(service, launcher, events)
+    dispatch = runner(service, launcher, events, knowledge_store)
     dispatch.pass_once()
     launcher.finish("A", "failed")
     dispatch.pass_once()
     assert any(event.startswith("failed p/A boom") for event in events)
+    lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("boom")
+    assert (lesson["topic"], lesson["what_worked"], lesson["gotchas"]) == ("org/repo: task failure", "", "boom")
+
+
+def test_launch_failure_records_a_lesson(knowledge_store: Store, monkeypatch: pytest.MonkeyPatch) -> None:
+    service = FakeService()
+    service.rows["A"]["repo"] = "org/repo"
+    launcher = FakeLauncher(service)
+
+    def fail_launch(*args: Any) -> str:
+        raise RuntimeError("checkout unavailable")
+
+    monkeypatch.setattr(launcher, "launch", fail_launch)
+    runner(service, launcher, [], knowledge_store).pass_once()
+    lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("checkout")
+    assert service.rows["A"]["status"] == "failed"
+    assert lesson["topic"] == "org/repo: launch failure"
+    assert lesson["gotchas"] == "checkout unavailable"
 
 
 def test_conclude_workspace_commits_a_resolved_merge_and_rejects_markers(tmp_path: Path) -> None:
@@ -457,8 +530,6 @@ def test_json_events_carry_the_wait_any_keys() -> None:
 
 
 def test_bridge_launcher_reads_tickets_like_wait_any(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from lazytools.code_bridge import _store
-
     db = tmp_path / "jobs.sqlite"
     store = _store.build_store(db)
     _store.build_job_registry(store).write("job-A", "task", tool_name="codex", status="awaiting_approval")
@@ -469,6 +540,53 @@ def test_bridge_launcher_reads_tickets_like_wait_any(tmp_path: Path, monkeypatch
     rows = BridgeLauncher(str(db), principal, "p").pending()
     assert [(row["approval_id"], row["job_id"], row["command"], row["reason"]) for row in rows] == [
         (ticket.approval_id, "job-A", "git push", "publish?")]
+
+
+@pytest.mark.parametrize("typed", [True, False])
+def test_terminal_job_records_ticket_rejection_even_if_task_succeeds(
+    tmp_path: Path, knowledge_store: Store, monkeypatch: pytest.MonkeyPatch, typed: bool,
+) -> None:
+    db = tmp_path / "jobs.sqlite"
+    registry_db = tmp_path / "approvals.sqlite"
+    reason = "Publish to the project branch"
+    with _store.build_store(db) as store:
+        _store.build_job_registry(store).write("job-A", "task", tool_name="codex", status="done")
+        if typed:
+            with Store(db=str(registry_db)) as approvals:
+                queue = ApprovalQueue(approvals, allow_credential_issuance=True)
+                request = TypedApprovalRequest.create(
+                    task_id="p/A", attempt=1, requested_by="dispatcher", action="native_shell",
+                    target=ApprovalTarget(path=str(tmp_path)), policy_revision="test",
+                    payload={"registry": "code-bridge", "job_ref": "job-A"},
+                )
+                ticket = queue.create_typed_ticket(request, operator_only=True)
+                credential = queue.issue_approver_credential("owner", {"owner"})
+                assert queue.decide_typed_ticket(
+                    ticket.approval_id, credential=credential, verdict="rejected", reason=reason,
+                )
+            _store.write_meta(store, "job-A", {
+                "registry_db": str(registry_db), "registry_ticket_ids": [ticket.approval_id],
+            })
+        else:
+            queue = _store.build_approval_queue(store)
+            cleanup = queue.create_ticket(task_id="job-A", prompt="unused")
+            assert queue.reject_ticket(cleanup.approval_id, actor="bridge-cleanup", channel="cli", reason="job ended")
+            ticket = queue.create_ticket(task_id="job-A", prompt="publish?")
+            assert queue.reject_ticket(ticket.approval_id, actor="owner", channel="cli", reason=reason)
+
+    service = FakeService()
+    service.rows = {"A": {"dependency_ids": [], "status": "todo", "repo": "org/repo"}}
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    launcher = BridgeLauncher(str(db), principal, "p")
+    monkeypatch.setattr(launcher, "launch", lambda task, claim: "job-A")
+    dispatch = Dispatcher(service, principal, launcher, "p", emit=lambda line: None,  # type: ignore[arg-type]
+                          task_reader=service.tasks, knowledge_store=knowledge_store)  # type: ignore[arg-type]
+    dispatch.pass_once()
+    dispatch.pass_once()
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "done"
+    lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("rejected ticket")
+    assert (lesson["topic"], lesson["gotchas"], lesson["revision"]) == ("org/repo: rejected ticket", reason, 1)
 
 
 def _repo(path: Path) -> Any:
