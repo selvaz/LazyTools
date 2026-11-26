@@ -561,6 +561,8 @@ def run_job(
                 "heartbeat_at": now,
                 "brief_hash": _store.brief_hash(task),
                 **({"routing": routing} if routing is not None else {}),
+                **({"review_independence": routing["independence"]}
+                   if routing is not None and routing.get("independence") else {}),
                 "temp_dir": str(temp_dir) if temp_dir is not None else None,
                 **({"temp_dir_refused": temp_refused} if temp_refused is not None else {}),
             },

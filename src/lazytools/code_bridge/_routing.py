@@ -7,7 +7,9 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _concurrency, _jobs, _lockfile, _store
+from lazybridge.policy import PolicyError, select_reviewer
+
+from lazytools.code_bridge import _concurrency, _installed, _jobs, _lockfile, _store
 from lazytools.projects.admission import (
     ENGINES,
     LONG_WINDOW_MINUTES,
@@ -133,6 +135,7 @@ class Selection:
     pinned_engine: Engine | None = None
     requested_engine: Engine | None = None
     ceiling_windows: dict[Engine, tuple[WindowReading, ...]] = field(default_factory=dict)
+    independence: str | None = None
 
     @property
     def rung(self) -> int | None:
@@ -142,7 +145,8 @@ class Selection:
         return int(reason.rsplit("_step", 1)[1]) + 1 if "_step" in reason else 1
 
     def record(self) -> dict[str, Any]:
-        return {**self.decision.as_record(), "override": self.override, "rung": self.rung, "operator_directed": self.operator_directed}
+        return {**self.decision.as_record(), "override": self.override, "rung": self.rung,
+                "operator_directed": self.operator_directed, "independence": self.independence}
 
     def forecast(self, engine: Engine, window: WindowReading) -> tuple[float, float] | None:
         """Projected usage including the same reservations used in the router's margins."""
@@ -225,6 +229,7 @@ def choose(
     session: str | None = None, needs: str | None = None, review_of: str | None = None,
     model: str | None = None, effort: str | None = None, tiers_path: Path | None = None,
     respect_slots: bool = True,
+    installed: frozenset[str] | None = None,
 ) -> Selection:
     """Pick an engine/model for ``tier``.
 
@@ -254,11 +259,36 @@ def choose(
     if continuity.engine is not None:
         available &= frozenset((continuity.engine,))
     writer: Engine | None = None
+    independence: str | None = None
     if review_of:
         job = _jobs.find_job(store, _store.build_job_registry(store), review_of)
         if job is None:
             raise ValueError(f"no job found matching {review_of!r}")
         writer = provider(str(job.get("engine", job.get("kind"))))
+        detected = _installed.installed_engines(installed)
+        opposite = "claude" if writer == "codex" else "codex"
+        if explicit_engine is not None and bridge_engine(explicit_engine) == opposite:
+            # An explicit request for the opposite engine asserts it is available; discovery
+            # only decides automatic selection (governed reviews pass --engine).
+            detected = detected | {opposite}
+        if opposite not in detected:
+            try:
+                reviewer = select_reviewer(bridge_engine(writer), detected, mode="opposite-or-fresh")
+            except PolicyError as exc:
+                raise ValueError(str(exc)) from exc
+            independence = reviewer.independence
+            available &= frozenset((provider(reviewer.engine),))
+            if independence == "same-provider-fresh":
+                # Fresh means no shared conversation: a new session name is fine (governed
+                # reviews name their own), a session with history (the writer's) is not.
+                if session and continuity.engine is not None:
+                    raise ValueError(
+                        f"--session {session!r} already has a conversation in this repository; a "
+                        "same-provider-fresh review needs a new session name or none"
+                    )
+                writer = None  # the policy explicitly authorized the fresh same-provider fallback
+        else:
+            independence = "opposite-engine"
     notice = None
     requested_for_session = requested or ("codex" if needs == "images" else None)
     if needs == "images" and continuity.engine != "codex":
@@ -433,6 +463,7 @@ def choose(
         override, notice, in_flight=in_flight, operator_directed=operator_directed, review_of=review_of,
         session=session, pinned_engine=continuity.engine,
         requested_engine=requested, ceiling_windows=ceiling_windows,
+        independence=independence,
     )
 
 

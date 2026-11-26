@@ -48,7 +48,10 @@ def _isolated_code_bridge_config(tmp_path_factory, monkeypatch):
     base = tmp_path_factory.mktemp("code-bridge-config")
     slots = base / "engine-slots"
     path = base / "code-bridge.toml"
-    path.write_text(f"[concurrency]\nslot_dir = '{slots}'\n", encoding="utf-8")
+    # Both engines are declared so routing never depends on which CLIs this machine has;
+    # single-provider tests override installed_engines explicitly.
+    path.write_text(f"[engines]\ninstalled = ['codex', 'claude']\n[concurrency]\nslot_dir = '{slots}'\n",
+                    encoding="utf-8")
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(path))
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(base / "jobs.sqlite"))
 

@@ -18,6 +18,6 @@ Tiers are `basic`, `writing`, `thinking`, and `critical`; `route` previews quota
 lazytools-code-bridge run --detach --tier writing --review-of <job-id> --cwd <repo> --task "Review the changes; report defects and do not edit." --session reviewer --json
 ```
 
-`--review-of` requires a tier and selects the opposite engine; if unavailable it requests human review rather than self-review. A bridge review is still write-capable; use the read-only MCP review tools `codex_code_review` or `claude_code_review` when permissions must prohibit edits.
+`--review-of` requires a tier and selects the opposite engine when installed. If only the writer engine is installed, it uses a new conversation, records `same-provider-fresh`, and refuses `--session`. An installed but ineligible opposite engine still requests human review. A bridge review is still write-capable; use the read-only MCP review tools `codex_code_review` or `claude_code_review` when permissions must prohibit edits.
 
 Give each job one deliverable. A durable brief should have headings Goal, Context, Constraints, Done when, and Report, with measurable checks. Ask for an early useful commit and incremental commits when appropriate: automatic continuation after a turn timeout requires observed committed progress. `run --timeout` limits a turn; `wait --timeout` only limits waiting. Inspect failure and workspace evidence before restarting work.
