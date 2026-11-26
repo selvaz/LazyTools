@@ -379,3 +379,19 @@ def test_ready_needs_confirmed_mergeability_and_accepts_status_only_ci(monkeypat
     _install_api(monkeypatch, status_only)
     events, _ = _watch.poll_pull(_watch.parse_pull("o/r#8"), Store())
     assert "ready" in {event.kind for event in events}
+
+
+def test_open_structured_state_beats_a_later_clean_receipt() -> None:
+    # LazyTools #406: the state said unresolved findings (raised on an earlier head) and a later
+    # receipt for the new head said "no major issues"; the watcher reported review=clean.
+    head = "abcdef1234567890"
+    bot = {"login": "chatgpt-codex-connector[bot]"}
+    state = ('<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":true,'
+             '"has_unresolved_findings":true,"status":"completed"}} -->')
+    comments = [{"user": bot, "body": state},
+                {"user": bot, "body": "Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `abcdef1234`"}]
+    inline = [{"user": bot, "commit_id": head, "path": "a.py", "line": 3,
+               "body": "**![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)  Revalidate the checkout**"}]
+    review = _watch._bot_review(comments, head, inline)
+    assert review is not None and review.verdict == "findings"
+    assert len(review.findings) == 1

@@ -246,6 +246,7 @@ def _bot_review(
     """Read the latest completed bot review and its current-head inline findings."""
     verdict: ReviewVerdict | None = None
     resolved = False
+    head_open: str | None = None  # latest structured state for this head, across comments
     for item in comments:
         if not _is_review_bot(_author(item)):
             continue  # anyone can paste the bot's text; only the bot's own comments count
@@ -255,6 +256,7 @@ def _bot_review(
             if head.startswith(match["sha"]) and match["status"] == "completed" and match["open"] != "null":
                 state_open = match["open"]
         if state_open is not None:
+            head_open = state_open
             resolved = state_open == "false"
             verdict = "clean" if resolved else "findings"
         elif (receipt := _BOT_RECEIPT_RE.search(body)) and head.startswith(receipt["sha"]):
@@ -262,10 +264,16 @@ def _bot_review(
             verdict = "clean" if _BOT_CLEAN_RE.search(body) else "findings"
     if verdict is None:
         return None
+    bot_inline = [item for item in inline_comments
+                  if not item.get("in_reply_to_id") and _is_review_bot(_author(item))]
+    if head_open == "true":
+        # A clean receipt on a new head covers only the new diff; the bot's state still
+        # reports unresolved findings (LazyTools #406 showed "review clean" over an open P2).
+        verdict, resolved = "findings", False
     # The structured state can confirm resolution of findings still visible in REST.
+    # GitHub moves an inline comment's commit_id to the new head while its line still exists.
     findings = () if resolved else tuple(
-        inline_finding(item) for item in inline_comments
-        if item.get("commit_id") == head and not item.get("in_reply_to_id") and _is_review_bot(_author(item))
+        inline_finding(item) for item in bot_inline if item.get("commit_id") == head
     )
     return Review(findings=findings, verdict=verdict, reviewed_sha=head, reviewer_engine="codex")
 
