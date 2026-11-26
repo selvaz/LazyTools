@@ -31,7 +31,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _cloud, _concurrency, _gh, _jobs, _store
+from lazybridge.policy import PolicyError, select_reviewer
+
+from lazytools.code_bridge import _cloud, _concurrency, _gh, _installed, _jobs, _store
 from lazytools.code_bridge._cloud import CloudError, redact
 
 REVIEW_MARKER = "<!-- independent-review v1 -->"
@@ -555,7 +557,8 @@ def review_brief(*, branch: str, head: str, base: str, author: str, job_id: str,
 
 
 def prepare_review(store: Any, registry: Any, reviewed_ref: str, *, job_id: str, repo: str | None = None,
-                   engine: str | None = None, extra: str = "", root: Path | None = None) -> dict[str, Any]:
+                   engine: str | None = None, extra: str = "", root: Path | None = None,
+                   installed: frozenset[str] | None = None) -> dict[str, Any]:
     """Everything ``run --where cloud --review-of`` needs: reviewer engine, branch to run on, brief, review meta."""
     reviewed = _jobs.find_job(store, registry, reviewed_ref)
     if reviewed is None:
@@ -568,7 +571,12 @@ def prepare_review(store: Any, registry: Any, reviewed_ref: str, *, job_id: str,
     if isinstance(reviewed.get("review"), dict):
         raise CloudError("a review is not itself reviewed: pass the job that wrote the code")
     author = str(reviewed["engine"])
-    reviewer = opposite_engine(author)
+    available = _installed.installed_engines(installed)
+    try:
+        selection = select_reviewer(author, available, mode="opposite-or-fresh")
+    except PolicyError as exc:
+        raise CloudError(str(exc)) from exc
+    reviewer = selection.engine
     if engine is not None and engine != reviewer:
         raise CloudError(f"an independent review of {author}'s work runs on {reviewer}, not {engine}: "
                          "drop --engine, or pass --engine " + reviewer)
@@ -593,6 +601,7 @@ def prepare_review(store: Any, registry: Any, reviewed_ref: str, *, job_id: str,
         "of": str(reviewed["job_id"]), "author": author, "reviewer": reviewer, "branch": str(branch),
         "head": str(head), "base": base, "pr_number": reviewed.get("pr_number"), "pr_url": reviewed.get("pr_url"),
         "file": REVIEW_FILE,
+        "independence": selection.independence,
     }
     return {"engine": reviewer, "branch": str(branch), "task": task, "review": review}
 
@@ -673,7 +682,11 @@ def post_review(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any
         if verdict is None:
             verdict = "blocking"
             body = f"(no `verdict:` line in {REVIEW_FILE}: treated as blocking)\n\n{body}"
-        _update_meta(store, job_id, {"review_verdict": verdict, "review_summary": redact(body)[:500]})
+        _update_meta(store, job_id, {
+            "review_verdict": verdict,
+            "review_summary": redact(body)[:500],
+            "review_independence": review.get("independence", "opposite-engine"),
+        })
         pr_number = review.get("pr_number")
         if not pr_number:
             note = "the reviewed job has no PR: the review is in this result only"

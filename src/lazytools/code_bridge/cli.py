@@ -514,6 +514,12 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
                 raise ValueError(f"--branch {branch!r} conflicts with the reviewed branch {prep['branch']!r}")
             args.engine, branch, task = prep["engine"], prep["branch"], prep["task"]
             review_meta = extra_meta["review"] = prep["review"]
+            extra_meta["review_independence"] = review_meta["independence"]
+            if args.session and review_meta["independence"] == "same-provider-fresh":
+                raise ValueError(
+                    "--session cannot be used for a same-provider-fresh review; "
+                    "drop --session so the reviewer starts a fresh conversation"
+                )
         if args.routine and args.engine != "claude":
             raise ValueError("--routine is only for --where cloud --engine claude")
     except (OSError, ValueError, _cloud.CloudError) as exc:
@@ -581,6 +587,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         payload.update(short_id=str(job["job_id"])[:8], cwd=str(cwd), task_url=job.get("cloud_url"))
         if review_meta:
             payload["review_of"] = review_meta["of"]
+            payload["independence"] = review_meta["independence"]
         if placement is not None and placement.requested == _cloud_place.WHERE_AUTO:
             payload["placement"] = placement.payload()
         _cloud_json(payload)
@@ -818,6 +825,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 "status": result.status,
                 "result_path": str(result.result_path) if result.result_path else None,
                 "error": result.error,
+                **({"independence": args.routing.get("independence")} if args.routing else {}),
                 **({"routing": args.routing} if args.routing else {}),
             }
         )

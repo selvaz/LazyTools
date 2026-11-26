@@ -27,6 +27,7 @@ from lazytools.code_bridge import (
     _cloud_place,
     _concurrency,
     _gh,
+    _installed,
     _jobs,
     _store,
     cli,
@@ -1249,6 +1250,17 @@ def test_review_uses_the_opposite_engine_and_posts_one_comment(cloud, claude, gh
     # Once only: syncing again posts nothing.
     assert _main(cloud, "cloud-sync") == 0
     assert len(gh.comments(100)) == 1 and len(gh.calls("pr", "comment")) == 1
+
+
+def test_cloud_review_falls_back_to_fresh_same_provider(cloud, gh, capsys, monkeypatch):
+    job_id, _ = _land_codex_job(cloud, capsys)
+    monkeypatch.setattr(_installed, "installed_engines", lambda override=None, **kwargs: frozenset({"codex"}))
+    assert _review(cloud, "--json", reviewed=job_id, engine="codex") == 0
+    payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert payload["engine"] == "codex" and payload["independence"] == "same-provider-fresh"
+    review_job = _job(cloud, payload["job_id"])
+    assert review_job["review_independence"] == "same-provider-fresh"
+    assert review_job["review"]["independence"] == "same-provider-fresh"
 
 
 def test_a_codex_review_of_claude_work_reads_review_md_from_the_diff(cloud, claude, gh, capsys, tmp_path, monkeypatch):

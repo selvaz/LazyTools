@@ -674,9 +674,13 @@ Engine-only and detached launches enforce the same session pin. A conflict
 names the session and its engine and suggests a new `--session`; it fails
 before reading quota or launching a process.
 
-`--review-of JOB` (full id or unique prefix) allows only the engine opposite
-the writer. If that reviewer is ineligible, the command fails with
-`human_review_required`. `--needs images` permits only Codex. Conflicting
+`--review-of JOB` (full id or unique prefix) uses the engine opposite the
+writer when that CLI is installed. If the writer's CLI is the only installed
+engine, it starts a new conversation and records `same-provider-fresh` in the
+route and job result; `--session` is refused. If the opposite CLI is installed
+but ineligible, the command still fails with `human_review_required`.
+Executables are resolved from `CODEX_BIN`/`CLAUDE_BIN` or `PATH`, with
+`[engines] installed = [...]` as a config override. `--needs images` permits only Codex. Conflicting
 engine, session, review and capability constraints cannot silently relax
 these rules. `--needs` and `--review-of` on `run` require a tier.
 
@@ -1528,9 +1532,11 @@ same code as `apply --land`:
 
 ### Cloud reviews: `run --where cloud --review-of <job>`
 
-`--review-of` picks the **opposite engine** of the reviewed job's author (Codex
-work is reviewed by Claude and vice versa, the same rule as the local router;
-`--engine` may only name that engine) and runs it as a cloud job on the
+`--review-of` prefers the **opposite engine** of the reviewed job's author (Codex
+work is reviewed by Claude and vice versa). If the author's CLI is the only
+installation, it instead uses a fresh same-provider cloud conversation and
+records `same-provider-fresh`; `--session` is refused. An installed opposite
+engine remains mandatory even when ineligible. The review runs on the
 reviewed job's **pushed branch**, so the job must be landed first (or, for
 Claude, have pushed its result branch). The reviewer is asked to write
 `REVIEW.md` (the only file it may create) ending with `verdict: blocking` or
