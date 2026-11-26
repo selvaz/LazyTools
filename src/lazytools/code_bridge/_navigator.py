@@ -14,13 +14,20 @@ import subprocess
 import sys
 import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol
 
+from lazytools.code_bridge._review import (
+    BLOCKING_SEVERITIES,
+    Finding,
+    Review,
+    independence_level,
+    inline_finding,
+    is_blocking_severity,
+)
+
 DEFAULT_MAX_ROUNDS = 3
-BLOCKING_SEVERITIES = frozenset({"P0", "P1"})
-KNOWN_SEVERITIES = frozenset({"P0", "P1", "P2", "P3"})
 REVIEW_MARKER = "<!-- independent-review v1 -->"
 DEFAULT_CHECKS = (
     "pytest tests -k code_bridge",
@@ -30,22 +37,10 @@ DEFAULT_CHECKS = (
 
 
 @dataclass(frozen=True)
-class Finding:
-    severity: str
-    message: str
-
-
-@dataclass(frozen=True)
 class Head:
     sha: str
     author_model: str
     pr_number: int
-
-
-@dataclass(frozen=True)
-class Review:
-    reviewer_model: str
-    findings: tuple[Finding, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -115,15 +110,15 @@ class Navigator:
             record.rounds += 1
             record.reviewed_heads.append(head.sha)
             record.updated_at = time.time()
-            author = head.author_model.strip().casefold()
-            reviewer = review.reviewer_model.strip().casefold()
-            if not author:
-                return self._fail(record, "author model is unknown; independence cannot be verified")
-            if reviewer == author:
+            if review.reviewed_sha is not None and review.reviewed_sha != head.sha:
+                return self._fail(record, f"review is for {review.reviewed_sha}, expected {head.sha}")
+            independence = independence_level(head.author_model, review.reviewer_model)
+            if independence == "unknown":
+                who = "reviewer" if head.author_model.strip() else "author"
+                return self._fail(record, f"{who} model is unknown; independence cannot be verified")
+            if independence == "same-model":
                 return self._fail(record, "independent review used the author model")
-            severe = [finding for finding in review.findings
-                      if finding.severity.upper() in BLOCKING_SEVERITIES
-                      or finding.severity.upper() not in KNOWN_SEVERITIES]
+            severe = [finding for finding in review.findings if is_blocking_severity(finding.severity)]
             if severe:
                 record.status = "escalated"
                 record.escalation = {
@@ -230,19 +225,25 @@ def run_reviewer_command(command: str, head: Head, *, cwd: Path) -> Review:
         raise RuntimeError(f"reviewer command exited {completed.returncode}: {detail}")
     try:
         payload = json.loads(completed.stdout)
-        model = str(payload["reviewer_model"]).strip()
+        model = str(payload["reviewer_model"] or "").strip()
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise ValueError("reviewer command did not emit the required JSON object") from exc
     if "findings" not in payload or not isinstance(payload["findings"], list):
         raise ValueError("reviewer output must contain a findings list")
     try:
-        findings = tuple(Finding(str(item["severity"]).upper(), str(item["message"]))
-                         for item in payload["findings"])
+        findings = tuple(
+            Finding(str(item["severity"]).upper(), str(item["message"]), file=item.get("file"), line=item.get("line"))
+            for item in payload["findings"]
+        )
     except (KeyError, TypeError) as exc:
         raise ValueError("reviewer command did not emit the required JSON object") from exc
     if not model:
         raise ValueError("reviewer_model cannot be empty")
-    return Review(model, findings)
+    return Review(
+        model, findings, verdict="findings" if findings else "clean",
+        reviewed_sha=payload.get("reviewed_sha", head.sha), reviewer_engine=payload.get("reviewer_engine"),
+        independence_level=independence_level(head.author_model, model),
+    )
 
 
 def resync_and_land_cloud_job(
@@ -322,10 +323,8 @@ class ProductionBackend:
             login = str((item.get("user") or {}).get("login") or "").casefold()
             if "codex" not in login:
                 continue
-            body = str(item.get("body") or "").strip()
-            severity = body.split(":", 1)[0].strip().upper()
-            findings.append(Finding(severity, body.split(":", 1)[-1].strip()))
-        return Review(review.reviewer_model, tuple(findings))
+            findings.append(inline_finding(item))
+        return replace(review, findings=tuple(findings), verdict="findings" if findings else "clean")
 
     def relaunch_fix(self, head: Head, brief: str) -> str:
         from lazytools.code_bridge import _cloud

@@ -9,6 +9,7 @@ import pytest
 
 import _code_bridge_fakes as fakes
 from lazytools.code_bridge import _jobs, _lockfile, _store, cli
+from lazytools.code_bridge._dispatch import STALE_HEARTBEAT
 
 
 def job_record(tmp_path, status="running", pid=4242):
@@ -31,6 +32,35 @@ def test_cancel_terminal_is_noop(tmp_path, monkeypatch, capsys, status):
     assert cli.main(["cancel", "cancel-this", "--db", str(db)]) == 0
     assert f"already {status}" in capsys.readouterr().out
     assert _jobs.find_job(store, registry, "cancel-this-job") == before
+
+
+@pytest.mark.parametrize("refreshed", [False, True])
+def test_cancel_rechecks_the_heartbeat_before_killing_a_worker(tmp_path, monkeypatch, refreshed):
+    db, _, store, registry = job_record(tmp_path)
+    job_id = "cancel-this-job"
+    meta = _store.read_meta(store, job_id)
+    _store.write_meta(store, job_id, {**meta, "heartbeat_at": 1_000})
+    alive = True
+
+    def identity(_pid):
+        if refreshed:
+            _store.write_meta(store, job_id, {**meta, "heartbeat_at": 2_000})
+        return True
+
+    def kill(_pid, **_):
+        nonlocal alive
+        assert not refreshed
+        alive = False
+
+    monkeypatch.setattr(_lockfile, "_pid_alive", lambda _pid: alive)
+    monkeypatch.setattr(cli, "_process_matches_bridge", identity)
+    monkeypatch.setattr(cli, "_kill_process_tree", kill)
+    assert cli.main(["cancel", job_id, "--db", str(db), "--stale-before", "1400",
+                     "--reason", STALE_HEARTBEAT]) == int(refreshed)
+    job = _jobs.find_job(store, registry, job_id)
+    assert job["status"] == ("running" if refreshed else "interrupted")
+    if not refreshed:
+        assert STALE_HEARTBEAT in job["error"]
 
 
 @pytest.mark.parametrize("status", ["done", "failed", "interrupted"])

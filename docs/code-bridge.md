@@ -78,6 +78,28 @@ waiter refreshes provider state, reports failures, and performs an owed
 Its output is always JSON lines; `--json` is accepted for consistency and does
 not change that default format.
 
+`wait-any` is the single event stream for coordinating multiple jobs: consume
+its JSON lines for completion, failures, approvals, landings, and interruptions
+instead of maintaining a separate poller per job. The dispatch command also
+supports `--json` to emit structured task events as JSON lines.
+
+## Dispatch task graphs
+
+`dispatch` runs a project task graph through bridge jobs. A shared review type
+defines the review task contract used across task creation and dispatch. Use
+`--knowledge-db PATH` to enable the lessons loop: matching lessons are supplied
+to tasks, and useful outcomes or rejected approval reasons can be saved back
+for later dispatches.
+
+To convert a finished bridge job into a LazyBridge replay session, run:
+
+```console
+python tools/bridge_job_to_session.py JOB_ID --db JOBS.sqlite --output REPLAY.sqlite
+```
+
+The converter rejects unfinished jobs and reports event types it could not
+normalize; the resulting session can be inspected with LazyBridge replay tools.
+
 Read each ticket's command and reason before deciding. An unanswered ticket
 expires as rejection after `LAZYTOOLS_CODE_BRIDGE_TICKET_TTL` seconds.
 Tickets and results use `~/.lazytools/code-bridge.sqlite` by default;

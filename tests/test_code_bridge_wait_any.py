@@ -56,6 +56,9 @@ def test_wait_any_reports_terminal_events(tmp_path, capsys, status, event):
         "state": status,
         "approval": None,
         "pr_url": None,
+        "kind": event,
+        "task_id": None,
+        "detail": status,
     }
 
 
@@ -122,6 +125,50 @@ def test_wait_any_all_active_and_event_filter(tmp_path, capsys):
     _job(db, "finished-job", "done")
     assert main(["wait-any", "finished-job", "--events", "approval", "--timeout", "0", "--db", str(db)]) == 3
     assert capsys.readouterr().out == ""
+
+
+def test_wait_any_all_active_loop_follows_jobs_started_later(tmp_path, capsys, monkeypatch):
+    db = tmp_path / "jobs.sqlite"
+    store = _job(db, "first-job", "running")
+    _job(db, "old-done-job", "done")  # finished before the wait began: not followed
+    polls = 0
+
+    def advance(_interval):
+        nonlocal polls
+        polls += 1
+        registry = _store.build_job_registry(store)
+        if polls == 1:
+            _job(db, "late-job", "running")
+            _store.build_approval_queue(store).create_ticket(task_id="late-job", prompt="late approval")
+        elif polls == 2:
+            registry.write("first-job", "task", tool_name="codex", status="done")
+        elif polls == 3:
+            # Started and finished between two polls: found by its creation time.
+            _job(db, "flash-job", "done")
+            _store.write_meta(store, "flash-job", {"job_id": "flash-job", "where": "local",
+                                                   "created_at": cli.time.time()})
+        elif polls == 4:
+            registry.write("late-job", "task", tool_name="codex", status="failed")
+
+    monkeypatch.setattr(cli.time, "sleep", advance)
+    # --follow keeps the stream open; it ends on the timeout (exit 3).
+    assert main(["wait-any", "--all-active", "--loop", "--follow", "--timeout", "1", "--db", str(db)]) == 3
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [(row["kind"], row["job_id"]) for row in rows] == [
+        ("approval", "late-job"), ("done", "first-job"), ("done", "flash-job"), ("failed", "late-job"),
+    ]
+    assert rows[0]["detail"].startswith(rows[0]["approval"]["approval_id"] + " ")
+
+
+def test_wait_any_all_active_loop_waits_for_a_first_job(tmp_path, capsys, monkeypatch):
+    db = tmp_path / "jobs.sqlite"
+    store = _job(db, "old-done-job", "done")
+    statuses = iter(["running", "done"])
+    monkeypatch.setattr(cli.time, "sleep", lambda _interval: _store.build_job_registry(store).write(
+        "new-job", "task", tool_name="codex", status=next(statuses, "done")))
+    assert main(["wait-any", "--all-active", "--loop", "--follow", "--timeout", "1", "--db", str(db)]) == 3
+    assert [json.loads(line)["job_id"] for line in capsys.readouterr().out.splitlines()] == ["new-job"]
+    assert main(["wait-any", "--all-active", "--db", str(db)]) == 2  # without --loop it is still a snapshot
 
 
 @pytest.mark.parametrize("action", ["land-failed", "review-failed"])

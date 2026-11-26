@@ -14,7 +14,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from lazytools.code_bridge import _concurrency, _jobs, _routing, _store
+from lazybridge import Store
+from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugify
+
+from lazytools.code_bridge import _cloud, _concurrency, _jobs, _registry, _routing, _store
+from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_fields import task_id as board_task_id
@@ -22,10 +26,17 @@ from lazytools.projects.task_service import CompletionEvidence, PlacementEvidenc
 from lazytools.projects.task_store import TaskServiceError, transaction
 
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted", "cancelled"})
+DEFAULT_STALE_MINUTES = 10
+STALE_HEARTBEAT = "engine heartbeat went stale"
 # Engine crashes (not task failures): retried once with a fresh attempt.
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
 RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
-                      "no new commit since the task started")
+                      "no new commit since the task started", STALE_HEARTBEAT)
+
+
+def _has_stale_heartbeat(job: dict[str, Any], cutoff: float) -> bool:
+    heartbeat = job.get("heartbeat_at")
+    return job.get("status") == "running" and isinstance(heartbeat, (int, float)) and heartbeat < cutoff
 
 
 @dataclass(frozen=True)
@@ -188,23 +199,43 @@ class BridgeLauncher:
         return candidates[-1]
 
     def pending(self) -> list[dict[str, Any]]:
-        """Pending approval tickets in the shared queue (same view as `pending --json`)."""
-        command = [sys.executable, "-m", "lazytools.code_bridge", "pending", "--json"]
-        if self.db:
-            command.extend(("--db", self.db))
-        if self.registry_db:
-            command.extend(("--registry-db", self.registry_db))
-        result = subprocess.run(command, text=True, capture_output=True, check=False)
-        if result.returncode:
-            return []
-        try:
-            data = json.loads(result.stdout or "[]")
-        except json.JSONDecodeError:
-            return []
-        return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+        """Pending approval tickets, read through the same function `wait-any` uses."""
+        from lazybridge.ext.approval import ticket_gist
 
-    def cancel(self, job_ref: str) -> bool:
+        from lazytools.code_bridge import cli  # deferred: cli imports this module
+
+        args = argparse.Namespace(db=self.db, registry_db=Path(self.registry_db) if self.registry_db else None)
+        return [{"approval_id": ticket.approval_id, "job_id": _registry.job_ref(ticket),
+                 "gist": ticket_gist(ticket.prompt), **cli._request_detail(ticket.prompt)}
+                for ticket in cli._pending_tickets(args, cli._ticket_job_store(args))]
+
+    def rejected_ticket_reason(self, job: dict[str, Any]) -> str:
+        """Read terminal ticket decisions even if the dispatcher never saw them pending."""
+        job_id = str(job["job_id"])
+        with _store.build_store(Path(self.db) if self.db else None) as store:
+            if ticket_ids := job.get("registry_ticket_ids"):
+                path = Path(self.registry_db).expanduser() if self.registry_db else None
+                registry = _registry.Registry.for_job(store, job_id, path)
+                tickets = [registry.inspect(ticket_id) for ticket_id in ticket_ids]
+            else:
+                queue = _store.build_approval_queue(store)
+                tickets = [
+                    queue.get_ticket(key.removeprefix(_store.APPROVAL_PREFIX))
+                    for key, raw in store.items(prefix=_store.APPROVAL_PREFIX)
+                    if isinstance(raw, dict) and raw.get("task_id") == job_id and raw.get("status") == "rejected"
+                ]
+            reasons = (
+                (ticket.decision.reason if ticket.decision else ticket.reason) or "ticket rejected without a reason"
+                for ticket in tickets
+                if ticket is not None and ticket.status == "rejected" and ticket.actor != "bridge-cleanup"
+                and _registry.job_ref(ticket) == job_id
+            )
+            return "\n".join(dict.fromkeys(reasons))
+
+    def cancel(self, job_ref: str, *, stale_before: float | None = None) -> bool:
         command = [sys.executable, "-m", "lazytools.code_bridge", "cancel", job_ref]
+        if stale_before is not None:
+            command.extend(("--stale-before", str(stale_before), "--reason", STALE_HEARTBEAT))
         if self.db:
             command.extend(("--db", self.db))
         if self.registry_db:
@@ -285,6 +316,46 @@ def _has_new_commit(cwd: Path) -> bool:
     return count.returncode != 0 or count.stdout.strip() != "0"
 
 
+def _checks_changed_checkout(cwd: Path, expected_head: Any) -> str | None:
+    """Why the acceptance checks invalidated the artifact (moved HEAD or edited tracked files), else None."""
+    def git(*argv: str) -> str:  # not stripped: porcelain lines start with a status column
+        return subprocess.run(["git", "-C", str(cwd), *argv], text=True, capture_output=True,
+                              check=False).stdout
+    head = git("rev-parse", "HEAD").strip()
+    if expected_head and head != expected_head:
+        return f"acceptance checks moved HEAD from {str(expected_head)[:12]} to {head[:12]}"
+    edited = [line[3:] for line in git("status", "--porcelain", "--untracked-files=no").splitlines()
+              if line.strip() and not _is_litter(line[3:])]
+    if edited:
+        return f"acceptance checks modified tracked files: {', '.join(edited[:5])}"
+    return None
+
+
+def _check_failure(command: str, cwd: Path | None) -> str | None:
+    message = f"check failed: {command}"
+    if cwd is None:
+        return f"{message} (missing task checkout)"
+    try:
+        argv = _split_command(command)  # Windows paths keep their backslashes
+        if not argv:
+            raise ValueError("empty command")
+        result = subprocess.run(
+            argv, cwd=cwd, env={**os.environ, "PYTHONPATH": "src"}, shell=False,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15 * 60, check=False,
+        )
+        if result.returncode == 0:
+            return None
+        message += f" (exit {result.returncode})"
+        output = result.stdout
+    except subprocess.TimeoutExpired as exc:
+        message += " (timed out after 15 minutes)"
+        output = exc.output or b""
+    except (OSError, ValueError) as exc:
+        return f"{message} (could not run)\n{exc}"
+    tail = _cloud.redact(output[-2000:].decode("utf-8", errors="replace")).strip()
+    return f"{message}\n{tail}" if tail else message
+
+
 def _publish(cwd: Path) -> tuple[str | None, str | None]:
     """Copy an accepted task's branch from its clone back into the source repository.
 
@@ -313,15 +384,20 @@ class Dispatcher:
                  task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks,
                  clock: Callable[[], float] = time.time, orphan_grace: float = 30.0,
                  router: Callable[..., str | None] | None = None, max_retries: int = 1,
+                 json_events: bool = False, knowledge_store: Store | None = None,
+                 stale_minutes: int = DEFAULT_STALE_MINUTES,
                  capacity: Callable[[str], int | None] | None = None, router_with_engine: bool = False):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
+        if stale_minutes < 1:
+            raise ValueError("--stale-minutes must be at least 1")
         self.service, self.principal, self.launcher = service, principal, launcher
         self.project_id, self.parallel, self.sleep = project_id, parallel, sleep
         # Flush each event: the dispatcher is usually piped into a log or a watcher.
         self.emit: Callable[[str], None] = emit or (lambda line: print(line, flush=True))
         self.task_reader = task_reader
         self.clock, self.orphan_grace = clock, orphan_grace
+        self.stale_seconds = stale_minutes * 60
         self.router = router
         self.capacity = capacity  # engine family -> local slot limit (None = unlimited)
         self.router_with_engine = router_with_engine  # router accepts (tier, engine_family)
@@ -332,6 +408,77 @@ class Dispatcher:
         self.seen_tickets: set[str] = set()
         self.cancelled: set[str] = set()
         self.max_retries = max_retries
+        self.json_events = json_events
+        self.knowledge_store = knowledge_store
+        self.knowledge = DurableKnowledgeBase(knowledge_store) if knowledge_store is not None else None
+
+    def _event(self, kind: str, task_id: str, detail: str = "", *, job_id: str | None = None) -> None:
+        """Emit one event: a text line, or with --json the same keys wait-any events carry."""
+        if self.json_events:
+            self.emit(json.dumps({"kind": kind, "job_id": job_id, "task_id": task_id, "detail": detail}))
+        elif kind == "launched":
+            self.emit(f"launched {job_id}")
+        else:
+            self.emit(f"{kind} {task_id} {detail}" if detail else f"{kind} {task_id}")
+
+    def _with_lessons(self, task: dict[str, Any]) -> dict[str, Any]:
+        if self.knowledge is None:
+            return task
+        try:
+            text = str(task["text"])
+            matches = self.knowledge.find_lessons(text, limit=3)
+            if matches:
+                lines = []
+                for lesson in matches:
+                    topic = " ".join(str(lesson.get("topic", "")).split())[:500]
+                    line = f"- {topic}"
+                    for field, label in (("what_worked", "What worked"), ("gotchas", "Gotchas")):
+                        value = " ".join(str(lesson.get(field, "")).split())[:500]
+                        if value:
+                            line += f" | {label} — {value}"
+                    lines.append(line)
+                return {**task, "text": "Known lessons\n" + "\n".join(lines) + "\n\n" + text}
+        except Exception as exc:
+            self._event("knowledge-error", task["task_id"], f"could not read lessons: {exc}")
+        return task
+
+    def _record_lesson(self, task: Task, kind: str, reason: str) -> None:
+        store = self.knowledge_store
+        if store is None:
+            return
+        try:
+            topic = f"{task.data.get('repo') or 'unknown repository'}: {kind}"
+            slug = slugify(topic)
+            key = DEFAULT_PREFIX + slug
+            now = self.clock()
+            gotchas = _cloud.redact(reason).strip()
+            # LazyBridge requires what_worked in its public write API. Record unresolved
+            # lessons with Store CAS so they stay searchable and can be revised once fixed.
+            for _ in range(20):
+                previous = store.read(key)
+                lesson = previous or {
+                    "topic": topic, "slug": slug, "what_worked": "", "status": "active",
+                    "correction_reason": "", "created_at": now, "verified_at": now,
+                }
+                updated = {**lesson, "gotchas": gotchas, "updated_at": now,
+                           "revision": lesson.get("revision", 0) + 1}
+                if store.compare_and_swap(key, previous, updated):
+                    return
+            raise RuntimeError("concurrent lesson updates did not settle")
+        except Exception as exc:
+            self._event("knowledge-error", task.task_id, f"could not save lesson: {exc}")
+
+    def _record_rejection(self, task: Task, job: dict[str, Any]) -> None:
+        rejected_ticket_reason = getattr(self.launcher, "rejected_ticket_reason", None)
+        if self.knowledge is None or rejected_ticket_reason is None:
+            return
+        try:
+            reason = rejected_ticket_reason(job)
+        except Exception as exc:
+            self._event("knowledge-error", task.task_id, f"could not read rejected tickets: {exc}")
+            return
+        if reason:
+            self._record_lesson(task, "rejected ticket", reason)
 
     def _surface_approvals(self, tasks: list[Task]) -> None:
         """Put every pending ticket of a running task into the event stream, once.
@@ -349,13 +496,14 @@ class Dispatcher:
             return
         for ticket in pending():
             approval_id = str(ticket.get("approval_id") or "")
-            task_id = by_job.get(str(ticket.get("job_id") or ""))
+            job_id = str(ticket.get("job_id") or "")
+            task_id = by_job.get(job_id)
             if not approval_id or task_id is None or approval_id in self.seen_tickets:
                 continue
             self.seen_tickets.add(approval_id)
             command = " ".join(str(ticket.get("command") or ticket.get("gist") or "").split())[:200]
             reason = " ".join(str(ticket.get("reason") or "").split())[:160]
-            self.emit(f"approval {task_id} {approval_id} {command} | {reason}")
+            self._event("approval", task_id, f"{approval_id} {command} | {reason}", job_id=job_id)
 
     def _place(self, tasks: list[Task]) -> None:
         """Record local placement evidence for todo tasks whose dependencies are done.
@@ -397,7 +545,7 @@ class Dispatcher:
                     picks[tier] = self.router(tier)
                 except Exception as exc:
                     picks[tier] = None
-                    self.emit(f"waiting {task.task_id} routing failed: {str(exc).replace(chr(10), ' ')}")
+                    self._event("waiting", task.task_id, f"routing failed: {str(exc).replace(chr(10), ' ')}")
             engine = picks[tier]
             limit = self.capacity(engine) if engine and self.capacity else None
             if engine and limit and in_use.get(engine, 0) >= limit:
@@ -412,7 +560,7 @@ class Dispatcher:
                     engine = alternative
             if engine is None:
                 if task.task_id not in self.waiting:
-                    self.emit(f"waiting {task.task_id} no eligible engine for tier {tier}")
+                    self._event("waiting", task.task_id, f"no eligible engine for tier {tier}")
                     self.waiting.add(task.task_id)
                 continue
             self.waiting.discard(task.task_id)
@@ -422,14 +570,14 @@ class Dispatcher:
                 expires_at=now + self.service.lease_seconds + 60, engine_family=engine,
             ))
             in_use[engine] = in_use.get(engine, 0) + 1
-            self.emit(f"placed {task.task_id} local {engine} tier={tier}")
+            self._event("placed", task.task_id, f"local {engine} tier={tier}")
 
     def _blocked(self, tasks: list[Task]) -> None:
         failed = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "failed"}
         for task in tasks:
             if (task.status == "todo" and failed.intersection(task.data.get("dependency_ids", []))
                     and task.task_id not in self.reported_blocked):
-                self.emit(f"blocked {task.task_id}")
+                self._event("blocked", task.task_id)
                 self.reported_blocked.add(task.task_id)
 
     def _settle(self, task: Task) -> bool:
@@ -457,37 +605,56 @@ class Dispatcher:
                     evidence_ref=None if dispatch_state == "intent" else "dispatcher:no-job-after-grace",
                     job_ref=dispatch.get("job_ref"),
                 )
-                self.emit(f"failed {task.task_id} no job after dispatch grace period")
+                reason = "no job after dispatch grace period"
+                self._record_lesson(task, "missing job", reason)
+                self._event("failed", task.task_id, reason, job_id=dispatch.get("job_ref"))
                 return True
             return False
         if job.get("status") not in TERMINAL:
+            now = self.clock()
             lease_end = float(receipt.get("lease_expires_at", float("inf")))
+            cutoff = now - self.stale_seconds
+            stale = _has_stale_heartbeat(job, cutoff)
             cancel = getattr(self.launcher, "cancel", None)
-            if lease_end <= self.clock() and cancel is not None and task.task_id not in self.cancelled:
-                try:
-                    stopped = bool(cancel(str(job_ref)))
-                except Exception as exc:
-                    stopped = False
-                    self.emit(f"waiting {task.task_id} cancel failed: {str(exc).replace(chr(10), ' ')[:160]}")
-                if stopped:  # a failed cancel stays retryable on the next pass
-                    self.cancelled.add(task.task_id)
-                    self.emit(f"cancelled {task.task_id} claim lease expired; settling once the job has stopped")
-            return False
-        accepted = job.get("status") == "done"
-        if accepted and job.get("cwd"):
-            workspace_error, merge_commit = _conclude_workspace(Path(str(job["cwd"])), task.task_id)
+            if (not stale and lease_end > now) or cancel is None or str(job_ref) in self.cancelled:
+                return False
+            try:
+                stopped = cancel(str(job_ref), stale_before=cutoff) if stale else cancel(str(job_ref))
+            except Exception as exc:
+                self._event("waiting", task.task_id, f"cancel failed: {str(exc).replace(chr(10), ' ')[:160]}",
+                            job_id=str(job_ref))
+                return False
+            if not stopped:
+                return False
+            self.cancelled.add(str(job_ref))
+            reason = STALE_HEARTBEAT if stale else "claim lease expired"
+            self._event("cancelled", task.task_id, f"{reason}; settling once the job has stopped", job_id=str(job_ref))
+            job = self.launcher.job(str(job_ref))
+            if not job or job.get("status") not in TERMINAL:
+                return False
+        checks = task.data.get("checks")
+        reference = f"bridge-job:{job_ref}:{job.get('status')}"
+        if checks:
+            reference += ":checks"  # evidence for this gate survives a restart between recording and completion
+        recorded = dispatch.get("evidence", {}).get(reference, {})
+        recorded_failure = recorded.get("failure_reason")
+        cwd = Path(str(job["cwd"])) if job.get("cwd") else None
+        accepted = job.get("status") == "done" and not recorded_failure
+        if accepted and cwd is not None:
+            workspace_error, merge_commit = _conclude_workspace(cwd, task.task_id)
             if workspace_error:
                 accepted = False
                 job = {**job, "error": workspace_error}
             elif merge_commit:
-                self.emit(f"committed {task.task_id} {merge_commit[:12]} (engine sandbox keeps .git read-only)")
+                self._event("committed", task.task_id, f"{merge_commit[:12]} (engine sandbox keeps .git read-only)",
+                            job_id=str(job_ref))
             if accepted and not workspace_error:
                 # The dispatcher's clone is written by nobody else once the job ended, so its
                 # HEAD is the task's artifact, also after a restart that lost an earlier commit.
-                head = _clone_head(Path(str(job["cwd"])))
+                head = _clone_head(cwd)
                 if head:
                     job = {**job, "final_commit": head}
-            if accepted and not _has_new_commit(Path(str(job["cwd"]))):
+            if accepted and not _has_new_commit(cwd):
                 accepted = False
                 job = {**job, "error": "no new commit since the task started"}
         verdict = job.get("review_verdict") or {}
@@ -500,48 +667,63 @@ class Dispatcher:
             or (task.data.get("contract_id") and not verification_id)
         )
         expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
-        if needs_evidence:
+        job_error = str(job.get("error") or job.get("status") or "job failed").replace("\n", " ")
+        check_failure = recorded_failure
+        if accepted and checks and not (needs_evidence or expired or recorded):
+            check_failure = "\n".join(filter(None, (_check_failure(command, cwd) for command in checks))) or None
+            if not check_failure and cwd is not None:
+                # Evidence must describe the artifact that is published: a check that edits
+                # tracked files (e.g. `ruff --fix`) or commits would pass on unpublished content.
+                check_failure = _checks_changed_checkout(cwd, job.get("final_commit"))
+            expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+        if check_failure:
+            accepted = False
+            failure_reason = check_failure
+        elif needs_evidence:
             accepted = False
             failure_reason = "needs review evidence"
         elif expired:
             accepted = False
-            failure_reason = "claim lease expired"
+            failure_reason = job_error if STALE_HEARTBEAT in job_error else "claim lease expired"
         else:
-            failure_reason = str(job.get("error") or job.get("status") or "job failed").replace("\n", " ")
+            failure_reason = job_error
         # Publish only after the lease and evidence checks; a failed publish fails the task.
-        if accepted and job.get("cwd"):
-            published, publish_error = _publish(Path(str(job["cwd"])))
+        if accepted and cwd is not None:
+            published, publish_error = _publish(cwd)
             if publish_error:
                 accepted = False
                 failure_reason = publish_error
             elif published:
-                self.emit(f"published {task.task_id} {published}")
+                self._event("published", task.task_id, published, job_id=str(job_ref))
         state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
-        reference = f"bridge-job:{job_ref}:{job.get('status')}"
         evidence = CompletionEvidence(reference=reference, job_ref=str(job_ref), executor=receipt["executor"],
             engine_family=receipt["engine_family"], state=state,
             artifact_ref=job.get("final_commit") or job.get("candidate_commit"),
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
             review_independence=review_independence,
-            outcome="success" if accepted else "task_failure")
-        self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
+            outcome="success" if accepted else "task_failure", failure_reason=check_failure)
+        if not recorded_failure:
+            self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
         complete_options = {"reconcile_failure": True} if expired else {}
         self.service.complete(self.principal, task.task_id, receipt["claim_token"], reference, state, reference,
                               "success" if accepted else "task_failure", **complete_options)
+        self._record_rejection(task, job)
         if accepted:
-            self.emit(f"done {task.task_id}")
+            self._event("done", task.task_id, job_id=str(job_ref))
             return True
-        if (self.retries.get(task.task_id, 0) < self.max_retries
-                and any(marker in failure_reason for marker in RETRYABLE_FAILURES)):
+        retryable = not check_failure and any(marker in failure_reason for marker in RETRYABLE_FAILURES)
+        self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
+        if retryable and self.retries.get(task.task_id, 0) < self.max_retries:
             current = next((item for item in self.task_reader(self.service, self.project_id)
                             if item.task_id == task.task_id), None)
             if current is not None:
                 self.service.prepare_attempt(self.principal, task.task_id, current.revision,
                                              f"retry after engine crash: {failure_reason[:200]}")
                 self.retries[task.task_id] = self.retries.get(task.task_id, 0) + 1
-                self.emit(f"retry {task.task_id} engine crash: {failure_reason[:120]}")
+                self._event("retry", task.task_id, f"engine crash: {failure_reason[:120]}", job_id=str(job_ref))
                 return True
-        self.emit(f"failed {task.task_id} {failure_reason}")
+        self._event("failed", task.task_id, check_failure.split("\n", 1)[0] if check_failure else failure_reason,
+                    job_id=str(job_ref))
         return True
 
     def pass_once(self) -> tuple[int, int]:
@@ -551,7 +733,8 @@ class Dispatcher:
                 try:
                     self._settle(task)
                 except Exception as exc:
-                    self.emit(f"failed {task.task_id} {str(exc).replace(chr(10), ' ')}")
+                    self._event("failed", task.task_id, str(exc).replace(chr(10), " "),
+                                job_id=(task.dispatch or {}).get("job_ref"))
         tasks = self.task_reader(self.service, self.project_id)
         self._surface_approvals(tasks)
         self._place(tasks)
@@ -569,23 +752,23 @@ class Dispatcher:
                 break
             board_task = by_id.get(summary["task_id"])
             if board_task is None:
-                self.emit(f"failed {summary['task_id']} task is missing from board")
+                self._event("failed", summary["task_id"], "task is missing from board")
                 continue
             data = board_task.data
-            self.emit(f"ready {summary['task_id']}")
+            self._event("ready", summary["task_id"])
             if summary.get("effective_placement") == "cloud":
                 reason = "cloud placement not supported by dispatch v1"
                 self.unsupported.add(summary["task_id"])
-                self.emit(f"failed {summary['task_id']} {reason}")
+                self._event("failed", summary["task_id"], reason)
                 continue
             if data.get("review_of") or data.get("contract_id"):
                 reason = "review/contract tasks not supported by dispatch v1"
                 self.unsupported.add(summary["task_id"])
-                self.emit(f"failed {summary['task_id']} {reason}")
+                self._event("failed", summary["task_id"], reason)
                 continue
             branch = data.get("assigned_branch")
             if branch and str(branch) in running_branches:
-                self.emit(f"failed {summary['task_id']} assigned branch already running")
+                self._event("failed", summary["task_id"], "assigned branch already running")
                 continue
             attempt = len(data.get("dispatches", [])) + 1
             try:
@@ -594,15 +777,15 @@ class Dispatcher:
                     f"dispatch:{summary['task_id']}:{summary['revision']}:{attempt}",
                 )
             except Exception as exc:
-                self.emit(f"failed {summary['task_id']} {str(exc).replace(chr(10), ' ')}")
+                self._event("failed", summary["task_id"], str(exc).replace(chr(10), " "))
                 continue
             if not result.get("claim_active", True):
-                self.emit(f"failed {summary['task_id']} claim is not active")
+                self._event("failed", summary["task_id"], "claim is not active")
                 continue
             claim = result["claim"]
-            self.emit(f"claimed {summary['task_id']}")
+            self._event("claimed", summary["task_id"])
             try:
-                job_ref = self.launcher.launch({**summary, **data}, claim)
+                job_ref = self.launcher.launch(self._with_lessons({**summary, **data}), claim)
             except Exception as exc:
                 reason = str(exc).replace("\n", " ")
                 try:
@@ -611,9 +794,10 @@ class Dispatcher:
                     )
                 except Exception as release_exc:
                     reason = f"{reason}; claim release failed: {str(release_exc).replace(chr(10), ' ')}"
-                self.emit(f"failed {summary['task_id']} {reason}")
+                self._record_lesson(board_task, "launch failure", reason)
+                self._event("failed", summary["task_id"], reason)
             else:
-                self.emit(f"launched {job_ref}")
+                self._event("launched", summary["task_id"], job_id=job_ref)
                 running += 1
                 if branch:
                     running_branches.add(str(branch))
@@ -699,6 +883,14 @@ def dispatch(args: argparse.Namespace) -> int:
     def capacity(engine_family: str) -> int | None:
         return limits.get("claude" if engine_family == "claude_code" else engine_family) or None
 
-    return Dispatcher(service, principal, launcher, args.project,
-                      parallel=args.parallel, router=router, capacity=capacity,
-                      router_with_engine=True).run(once=args.once)
+    knowledge_db = getattr(args, "knowledge_db", None)
+    knowledge_store = _store.build_store(Path(knowledge_db).expanduser()) if knowledge_db is not None else None
+    try:
+        return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
+                          capacity=capacity, router_with_engine=True,
+                          json_events=bool(getattr(args, "json", False)),
+                          knowledge_store=knowledge_store,
+                          stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)
+    finally:
+        if knowledge_store is not None:
+            knowledge_store.close()

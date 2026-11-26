@@ -445,6 +445,24 @@ def test_complete_replay_identity_and_expiry(queue):
     assert expired == ["stale", None]
 
 
+def test_plan_checks_and_blocked_failure_reason_are_stored(queue):
+    projects, service = queue
+    checks = ["pytest tests/test_result.py"]
+    admit(projects, [task("a", checks=checks), task("b", dependency_ids=["a"])])
+    placement(service, "a")
+    receipt = claim(service, "a")
+    job = submit(service, receipt)
+    reason = f"check failed: {checks[0]} (exit 1)\nAssertionError: expected result"
+    ref = evidence(service, receipt, job, state="blocked", failure_reason=reason)
+    complete(service, receipt, ref, state="blocked")
+
+    with Store(db=str(service.path)) as store:
+        row = store.read(_board_key(PROJECT))["tasks"][0]
+        assert row["checks"] == checks
+        assert row["status"] == "failed"
+        assert row["error"] == reason
+
+
 def test_completion_reuses_the_latest_contract_acceptance(queue):
     projects, service = queue
     admit(projects, [task("a", repo="team/repo"), task("b", dependency_ids=["a"])])

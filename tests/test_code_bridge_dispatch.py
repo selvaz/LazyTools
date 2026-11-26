@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
+from lazybridge import Store
+from lazybridge.ext.approval import ApprovalQueue, ApprovalTarget, TypedApprovalRequest
+from lazybridge.ext.knowledge import DurableKnowledgeBase
 
-from lazytools.code_bridge._dispatch import BridgeLauncher, Dispatcher, Task, _dry_run
+from lazytools.code_bridge import _store
+from lazytools.code_bridge._dispatch import STALE_HEARTBEAT, BridgeLauncher, Dispatcher, Task, _dry_run
+from lazytools.code_bridge.cli import build_parser
 from lazytools.projects.task_service import TaskPrincipal
 
 
@@ -64,10 +70,12 @@ class FakeLauncher:
         self.service = service
         self.jobs: dict[str, dict[str, Any]] = {}
         self.launches: list[str] = []
+        self.prompts: list[str] = []
 
     def launch(self, task: dict[str, Any], claim: dict[str, Any]) -> str:
         name = claim["task_id"].rsplit("/", 1)[1]
         self.launches.append(name)
+        self.prompts.append(task["text"])
         job = f"job-{name}"
         self.jobs[job] = {"job_id": job, "status": "running"}
         return job
@@ -82,10 +90,48 @@ class FakeLauncher:
                                           error="boom" if status != "done" else None)
 
 
-def runner(service: FakeService, launcher: FakeLauncher, events: list[str]) -> Dispatcher:
+def runner(service: FakeService, launcher: FakeLauncher, events: list[str],
+           knowledge_store: Store | None = None) -> Dispatcher:
     principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
     return Dispatcher(service, principal, launcher, "p", parallel=2, emit=events.append,  # type: ignore[arg-type]
-                      task_reader=service.tasks)  # type: ignore[arg-type]
+                      task_reader=service.tasks, knowledge_store=knowledge_store)  # type: ignore[arg-type]
+
+
+@pytest.fixture
+def knowledge_store(tmp_path: Path) -> Iterator[Store]:
+    with Store(db=str(tmp_path / "knowledge.sqlite")) as store:
+        yield store
+
+
+def test_dispatch_prepends_the_three_closest_lessons(knowledge_store: Store) -> None:
+    knowledge = DurableKnowledgeBase(knowledge_store)
+    knowledge.save_lesson(topic="SQLite", what_worked="fourth match")
+    knowledge.save_lesson(topic="SQLite restore", what_worked="third match")
+    knowledge.save_lesson(topic="SQLite backup", what_worked="second match for SQLite")
+    knowledge.save_lesson(topic="SQLite restore backup", what_worked="first match", gotchas="check WAL")
+    service = FakeService()
+    service.rows["A"]["text"] = "Restore a SQLite backup"
+    service.rows["B"]["text"] = "Run formatter"
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, [], knowledge_store)
+    dispatch.pass_once()
+    assert launcher.prompts == [
+        "Known lessons\n"
+        "- SQLite restore backup | What worked — first match | Gotchas — check WAL\n"
+        "- SQLite backup | What worked — second match for SQLite\n"
+        "- SQLite restore | What worked — third match\n\n"
+        "Restore a SQLite backup"
+    ]
+    assert service.rows["A"]["text"] == "Restore a SQLite backup"
+    launcher.finish("A")
+    dispatch.pass_once()
+    assert launcher.prompts[1] == "Run formatter"
+
+
+def test_dispatch_accepts_a_knowledge_db_path(tmp_path: Path) -> None:
+    path = tmp_path / "lessons.sqlite"
+    args = build_parser().parse_args(["dispatch", "--project", "p", "--knowledge-db", str(path)])
+    assert args.knowledge_db == path
 
 
 def test_graph_runs_in_topological_parallel_waves() -> None:
@@ -197,6 +243,75 @@ def test_accepted_artifact_uses_recorded_commit_not_checkout_head() -> None:
     service.record_completion_evidence = lambda *args: captured.append(args[-1])  # type: ignore[method-assign]
     dispatch.pass_once()
     assert captured[0].artifact_ref == "b" * 40
+
+
+@pytest.mark.parametrize("failure, detail", [
+    (None, ""), ("exit", "exit 7"), ("timeout", "timed out after 15 minutes"), ("missing", "could not run"),
+])
+def test_dispatch_runs_plan_checks_before_publishing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str | None, detail: str,
+) -> None:
+    source = tmp_path / "source"
+    source_git = _repo(source)
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    bridge = BridgeLauncher(None, principal, "p", repo_roots={"r": source}, worktree_root=tmp_path / "trees")
+    clone = bridge._checkout({"task_id": "p/A", "repo": "r"})
+    (clone / "work.txt").write_text("task work\n")
+    bridge._git(clone, "add", "work.txt")
+    bridge._git(clone, "commit", "-qm", "Task work")
+
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    commands = ['"test runner" first', '"test runner" "test with spaces.py"', '"test runner" last']
+    service.rows["A"]["checks"] = commands
+    captured: list[Any] = []
+    service.record_completion_evidence = lambda *args: captured.append(args[-1])  # type: ignore[method-assign]
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    launcher.finish("A")
+    launcher.jobs["job-A"]["cwd"] = str(clone)
+
+    calls: list[list[str]] = []
+    real_run = subprocess.run
+    output = b"output head\n" + b"." * 2200 + b"\nApp Server exited is test output\n"
+
+    def fake_run(argv: list[str], **kwargs: Any) -> Any:
+        if argv[0] != "test runner":
+            return real_run(argv, **kwargs)
+        assert kwargs["cwd"] == clone
+        assert kwargs["env"]["PYTHONPATH"] == "src"
+        assert kwargs["shell"] is False and kwargs["timeout"] == 900
+        assert kwargs["stdout"] == subprocess.PIPE and kwargs["stderr"] == subprocess.STDOUT
+        assert not source_git("branch", "--list", "dispatch/p/A")
+        calls.append(argv)
+        if argv[1] == "test with spaces.py":
+            if failure == "exit":
+                return subprocess.CompletedProcess(argv, 7, output)
+            if failure == "timeout":
+                raise subprocess.TimeoutExpired(argv, 900, output=output)
+            if failure == "missing":
+                raise FileNotFoundError("no test runner")
+        return subprocess.CompletedProcess(argv, 0, b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    dispatch.pass_once()
+
+    assert calls == [["test runner", "first"], ["test runner", "test with spaces.py"], ["test runner", "last"]]
+    if failure is None:
+        assert service.rows["A"]["status"] == "done"
+        assert source_git("rev-parse", "dispatch/p/A") == bridge._git(clone, "rev-parse", "HEAD")
+        assert launcher.launches == ["A", "B", "C"]
+        return
+    assert service.rows["A"]["status"] == "failed"
+    assert not source_git("branch", "--list", "dispatch/p/A")
+    assert launcher.launches == ["A"]
+    message = f"check failed: {commands[1]} ({detail})"
+    assert f"failed p/A {message}" in events
+    evidence, = captured
+    assert evidence.state == "blocked" and evidence.outcome == "task_failure"
+    assert evidence.failure_reason.startswith(f"{message}\n")
+    assert "output head" not in evidence.failure_reason
+    assert evidence.failure_reason.endswith("no test runner" if failure == "missing" else "App Server exited is test output")
 
 
 def test_two_tasks_get_separate_retained_worktrees(tmp_path: Path) -> None:
@@ -334,8 +449,9 @@ def test_last_dependency_conflict_is_left_for_the_agent(tmp_path: Path) -> None:
     assert git("rev-parse", "-q", "--verify", "MERGE_HEAD", cwd=checkout) == c_commit
 
 
-def test_engine_crash_is_retried_once_then_fails() -> None:
+def test_engine_crash_is_retried_once_then_fails(knowledge_store: Store) -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows["A"].update(repo="org/repo", text="Update Codex App Server")
     attempts: list[str] = []
 
     def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str) -> str:
@@ -347,27 +463,53 @@ def test_engine_crash_is_retried_once_then_fails() -> None:
 
     service.prepare_attempt = prepare_attempt  # type: ignore[attr-defined]
     launcher = FakeLauncher(service)
-    dispatch = runner(service, launcher, events)
+    dispatch = runner(service, launcher, events, knowledge_store)
     dispatch.pass_once()
     launcher.jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request")
     dispatch.pass_once()
     assert len(attempts) == 1 and any(event.startswith("retry p/A") for event in events)
     assert launcher.launches == ["A", "A"]
-    launcher.jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request")
+    assert "Codex App Server exited before completing the request" in launcher.prompts[1]
+    assert launcher.prompts[1].count("Known lessons") == 1
+    launcher.jobs["job-A"].update(status="failed", error="Codex App Server exited again")
     dispatch.pass_once()
     assert len(attempts) == 1
     assert any(event.startswith("failed p/A") for event in events)
+    lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("engine crash")
+    assert lesson["topic"] == "org/repo: engine crash"
+    assert lesson["revision"] == 2
+    assert lesson["what_worked"] == ""
+    assert lesson["gotchas"] == "Codex App Server exited again"
 
 
-def test_task_failure_is_not_retried() -> None:
+def test_task_failure_is_not_retried(knowledge_store: Store) -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows["A"]["repo"] = "org/repo"
     service.prepare_attempt = lambda *args: (_ for _ in ()).throw(AssertionError("no retry"))  # type: ignore[attr-defined]
     launcher = FakeLauncher(service)
-    dispatch = runner(service, launcher, events)
+    dispatch = runner(service, launcher, events, knowledge_store)
     dispatch.pass_once()
     launcher.finish("A", "failed")
     dispatch.pass_once()
     assert any(event.startswith("failed p/A boom") for event in events)
+    lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("boom")
+    assert (lesson["topic"], lesson["what_worked"], lesson["gotchas"]) == ("org/repo: task failure", "", "boom")
+
+
+def test_launch_failure_records_a_lesson(knowledge_store: Store, monkeypatch: pytest.MonkeyPatch) -> None:
+    service = FakeService()
+    service.rows["A"]["repo"] = "org/repo"
+    launcher = FakeLauncher(service)
+
+    def fail_launch(*args: Any) -> str:
+        raise RuntimeError("checkout unavailable")
+
+    monkeypatch.setattr(launcher, "launch", fail_launch)
+    runner(service, launcher, [], knowledge_store).pass_once()
+    lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("checkout")
+    assert service.rows["A"]["status"] == "failed"
+    assert lesson["topic"] == "org/repo: launch failure"
+    assert lesson["gotchas"] == "checkout unavailable"
 
 
 def test_conclude_workspace_commits_a_resolved_merge_and_rejects_markers(tmp_path: Path) -> None:
@@ -434,6 +576,86 @@ def test_pending_tickets_of_running_jobs_are_surfaced_once() -> None:
     dispatch.pass_once()
     approvals = [event for event in events if event.startswith("approval ")]
     assert approvals == ["approval p/A t-1 git add calc.py; git commit -m x | Git needs write access"]
+
+
+def test_json_events_carry_the_wait_any_keys() -> None:
+    import json
+
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    launcher = FakeLauncher(service)
+    launcher.pending = lambda: [{"approval_id": "t-1", "job_id": "job-A", "command": "git push",  # type: ignore[attr-defined]
+                                 "reason": "publish"}]
+    dispatch = runner(service, launcher, events)
+    dispatch.json_events = True
+    dispatch.pass_once()
+    dispatch.pass_once()  # A is running: its ticket is surfaced
+    launcher.finish("A", "failed")
+    dispatch.pass_once()
+    rows = [json.loads(line) for line in events]
+    assert all(set(row) == {"kind", "job_id", "task_id", "detail"} for row in rows)
+    assert {"kind": "launched", "job_id": "job-A", "task_id": "p/A", "detail": ""} in rows
+    assert {"kind": "approval", "job_id": "job-A", "task_id": "p/A", "detail": "t-1 git push | publish"} in rows
+    assert {"kind": "failed", "job_id": "job-A", "task_id": "p/A", "detail": "boom"} in rows
+
+
+def test_bridge_launcher_reads_tickets_like_wait_any(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db = tmp_path / "jobs.sqlite"
+    store = _store.build_store(db)
+    _store.build_job_registry(store).write("job-A", "task", tool_name="codex", status="awaiting_approval")
+    ticket = _store.build_approval_queue(store).create_ticket(
+        task_id="job-A", prompt='agent asks\n  arguments: {"command":"git push","reason":"publish?"}')
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("pending must not shell out"))
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    rows = BridgeLauncher(str(db), principal, "p").pending()
+    assert [(row["approval_id"], row["job_id"], row["command"], row["reason"]) for row in rows] == [
+        (ticket.approval_id, "job-A", "git push", "publish?")]
+
+
+@pytest.mark.parametrize("typed", [True, False])
+def test_terminal_job_records_ticket_rejection_even_if_task_succeeds(
+    tmp_path: Path, knowledge_store: Store, monkeypatch: pytest.MonkeyPatch, typed: bool,
+) -> None:
+    db = tmp_path / "jobs.sqlite"
+    registry_db = tmp_path / "approvals.sqlite"
+    reason = "Publish to the project branch"
+    with _store.build_store(db) as store:
+        _store.build_job_registry(store).write("job-A", "task", tool_name="codex", status="done")
+        if typed:
+            with Store(db=str(registry_db)) as approvals:
+                queue = ApprovalQueue(approvals, allow_credential_issuance=True)
+                request = TypedApprovalRequest.create(
+                    task_id="p/A", attempt=1, requested_by="dispatcher", action="native_shell",
+                    target=ApprovalTarget(path=str(tmp_path)), policy_revision="test",
+                    payload={"registry": "code-bridge", "job_ref": "job-A"},
+                )
+                ticket = queue.create_typed_ticket(request, operator_only=True)
+                credential = queue.issue_approver_credential("owner", {"owner"})
+                assert queue.decide_typed_ticket(
+                    ticket.approval_id, credential=credential, verdict="rejected", reason=reason,
+                )
+            _store.write_meta(store, "job-A", {
+                "registry_db": str(registry_db), "registry_ticket_ids": [ticket.approval_id],
+            })
+        else:
+            queue = _store.build_approval_queue(store)
+            cleanup = queue.create_ticket(task_id="job-A", prompt="unused")
+            assert queue.reject_ticket(cleanup.approval_id, actor="bridge-cleanup", channel="cli", reason="job ended")
+            ticket = queue.create_ticket(task_id="job-A", prompt="publish?")
+            assert queue.reject_ticket(ticket.approval_id, actor="owner", channel="cli", reason=reason)
+
+    service = FakeService()
+    service.rows = {"A": {"dependency_ids": [], "status": "todo", "repo": "org/repo"}}
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    launcher = BridgeLauncher(str(db), principal, "p")
+    monkeypatch.setattr(launcher, "launch", lambda task, claim: "job-A")
+    dispatch = Dispatcher(service, principal, launcher, "p", emit=lambda line: None,  # type: ignore[arg-type]
+                          task_reader=service.tasks, knowledge_store=knowledge_store)  # type: ignore[arg-type]
+    dispatch.pass_once()
+    dispatch.pass_once()
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "done"
+    lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("rejected ticket")
+    assert (lesson["topic"], lesson["gotchas"], lesson["revision"]) == ("org/repo: rejected ticket", reason, 1)
 
 
 def _repo(path: Path) -> Any:
@@ -521,6 +743,66 @@ def test_expired_running_job_is_cancelled_once() -> None:
     assert any(event.startswith("cancelled p/A") for event in events)
 
 
+def test_stale_heartbeat_cancels_and_retries_the_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.clock = lambda: 2_000
+    dispatch.pass_once()
+    launcher.jobs["job-A"]["heartbeat_at"] = 2_000 - 601
+    cancellations: list[str] = []
+
+    def cancel(job_ref: str, *, stale_before: float) -> bool:
+        assert stale_before == 1_400
+        cancellations.append(job_ref)
+        if len(cancellations) == 1:
+            return False
+        launcher.jobs[job_ref].update(status="interrupted", error=f"cancelled by operator: {STALE_HEARTBEAT}")
+        return True
+
+    def prepare_attempt(_principal: Any, task_id: str, _revision: str, reason: str) -> None:
+        assert task_id == "p/A"
+        assert "retry after engine crash" in reason and "heartbeat" in reason
+        assert service.rows["A"]["status"] == "failed"
+        service.rows["A"]["status"] = "todo"
+
+    monkeypatch.setattr(launcher, "cancel", cancel, raising=False)
+    monkeypatch.setattr(service, "prepare_attempt", prepare_attempt, raising=False)
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "claimed"
+    dispatch.pass_once()
+    assert cancellations == ["job-A", "job-A"]
+    assert launcher.launches == ["A", "A"]
+    assert any(event.startswith("retry p/A engine crash") for event in events)
+
+
+@pytest.mark.parametrize("status,heartbeat", [("running", 1_400), ("running", None), ("awaiting_approval", 1_000)])
+def test_dispatch_leaves_jobs_without_a_stale_running_heartbeat(status: str, heartbeat: float | None) -> None:
+    service = FakeService()
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, [])
+    dispatch.clock = lambda: 2_000
+    dispatch.pass_once()
+    job = launcher.jobs["job-A"]
+    job["status"] = status
+    if heartbeat is not None:
+        job["heartbeat_at"] = heartbeat
+    cancelled: list[str] = []
+    launcher.cancel = lambda job_ref, **_: cancelled.append(job_ref) or True  # type: ignore[attr-defined]
+
+    dispatch.pass_once()
+
+    assert cancelled == []
+    assert service.rows["A"]["status"] == "claimed"
+
+
+def test_dispatch_accepts_a_stale_minutes_override() -> None:
+    parser = build_parser()
+    args = ["dispatch", "--project", "p"]
+    assert parser.parse_args(args).stale_minutes == 10
+    assert parser.parse_args([*args, "--stale-minutes", "4"]).stale_minutes == 4
+
+
 def test_litter_only_workspace_counts_as_clean(tmp_path: Path) -> None:
     from lazytools.code_bridge._dispatch import _conclude_workspace
     _repo(tmp_path / "r")
@@ -596,3 +878,57 @@ def test_fallback_engine_needs_a_usable_recent_reading() -> None:
     assert not usable_reading(reading(error="timed out"))
     assert not usable_reading(reading(windows=()))
     assert not usable_reading(reading(observed_at=now - timedelta(hours=1)))
+
+
+@pytest.mark.parametrize("change", ["edit", "commit"])
+def test_checks_that_change_the_checkout_reject_the_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str,
+) -> None:
+    source = tmp_path / "source"
+    source_git = _repo(source)
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    bridge = BridgeLauncher(None, principal, "p", repo_roots={"r": source}, worktree_root=tmp_path / "trees")
+    clone = bridge._checkout({"task_id": "p/A", "repo": "r"})
+    (clone / "work.txt").write_text("task work\n")
+    bridge._git(clone, "add", "work.txt")
+    bridge._git(clone, "commit", "-qm", "Task work")
+
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows["A"]["checks"] = ['"fixer" run']
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    launcher.finish("A")
+    launcher.jobs["job-A"]["cwd"] = str(clone)
+
+    real_run = subprocess.run
+
+    def fake_run(argv: list[str], **kwargs: Any) -> Any:
+        if argv[0] != "fixer":
+            return real_run(argv, **kwargs)
+        (clone / "work.txt").write_text("fixed by the check\n")
+        if change == "commit":
+            real_run(["git", "-C", str(clone), "commit", "-qam", "check fix"], check=True)
+        return subprocess.CompletedProcess(argv, 0, b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    dispatch.pass_once()
+
+    expected = "moved HEAD" if change == "commit" else "modified tracked files: work.txt"
+    assert any(expected in event for event in events), events
+    assert not any(event.startswith("done") for event in events), events
+    assert not source_git("branch", "--list", "dispatch/p/A")
+
+
+def test_check_commands_keep_windows_backslashes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge import _dispatch, _navigator
+    monkeypatch.setattr(_navigator.os, "name", "nt")
+    seen: list[list[str]] = []
+
+    def fake_run(argv: list[str], **kwargs: Any) -> Any:
+        seen.append(argv)
+        return subprocess.CompletedProcess(argv, 0, b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert _dispatch._check_failure(r".venv\Scripts\python.exe -m pytest tests\test_api.py", tmp_path) is None
+    assert seen == [[r".venv\Scripts\python.exe", "-m", "pytest", r"tests\test_api.py"]]

@@ -1174,6 +1174,9 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         if latest and latest.get("status") in _TERMINAL:
             print(f"job {job_id} already {latest['status']}")
             return 0
+        if args.stale_before is not None and not _dispatch._has_stale_heartbeat(latest or {}, args.stale_before):
+            print(f"job {job_id} no longer has a stale running heartbeat", file=sys.stderr)
+            return 1
         try:
             _kill_process_tree(pid, owns_group=bool(job.get("owns_process_group")))
         except (OSError, subprocess.SubprocessError) as exc:
@@ -1393,12 +1396,24 @@ _WAIT_EVENTS = {"done", "failed", "approval", "landed", "interrupted"}
 
 
 def _wait_event(job: dict[str, Any], event: str, approval: dict[str, Any] | None = None) -> dict[str, Any]:
+    # kind/job_id/task_id/detail are shared with `dispatch --json` events.
+    if approval is not None:
+        command = " ".join(str(approval.get("command") or approval.get("summary") or "").split())[:200]
+        reason = " ".join(str(approval.get("reason") or "").split())[:160]
+        detail = f"{approval['approval_id']} {command} | {reason}"
+    elif event == "landed":
+        detail = str(job.get("pr_url") or "")
+    else:
+        detail = " ".join(str(job.get("error") or job.get("status") or "").split())
     return {
         "event": event,
         "job_id": str(job["job_id"]),
         "state": job.get("status"),
         "approval": approval,
         "pr_url": job.get("pr_url"),
+        "kind": event,
+        "task_id": job.get("task_id"),
+        "detail": detail,
     }
 
 
@@ -2200,10 +2215,16 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch_p.add_argument("--worktree-root", default=None, metavar="PATH",
                             help="Root for retained per-task git worktrees.")
     _add_registry_option(dispatch_p)
+    dispatch_p.add_argument("--knowledge-db", type=Path, metavar="PATH",
+                            help="Store path for lessons from previous dispatches.")
     dispatch_p.add_argument("--lease-minutes", type=int, default=60, metavar="N",
                             help="Claim lease per task; a job running longer is stopped (default 60).")
+    dispatch_p.add_argument("--stale-minutes", type=int, default=_dispatch.DEFAULT_STALE_MINUTES, metavar="N",
+                            help="Stop running jobs with no engine activity for this many minutes (default 10).")
     dispatch_p.add_argument("--launch-mode", choices=("auto", "governed", "legacy"), default=None,
                             help="Passed to every task's run (default: the run default).")
+    dispatch_p.add_argument("--json", action="store_true",
+                            help="Print one JSON event per line with the keys wait-any events carry.")
     dispatch_p.set_defaults(func=_dispatch.dispatch)
 
     watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
@@ -2427,7 +2448,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     wait_any_p = sub.add_parser("wait-any", help="Block until an event occurs on any watched job.")
     wait_any_p.add_argument("job_ids", nargs="*", metavar="JOB_ID")
-    wait_any_p.add_argument("--all-active", action="store_true", help="Watch a snapshot of all currently active jobs.")
+    wait_any_p.add_argument("--all-active", action="store_true", help="Watch all active jobs (a snapshot; with --loop, also jobs started later).")
     wait_any_p.add_argument("--timeout", type=float, default=None, help="Give up after this many seconds (exit 3).")
     wait_any_p.add_argument(
         "--events", default="done,failed,approval,landed,interrupted", help="Comma-separated events to return."
@@ -2469,6 +2490,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cancel_p.add_argument("job_id", help="Full job id or unique prefix.")
     cancel_p.add_argument("--reason", default="requested cancellation", help="Reason recorded with the interruption.")
+    cancel_p.add_argument("--stale-before", type=float, help=argparse.SUPPRESS)
     _add_registry_option(cancel_p)
     cancel_p.set_defaults(func=_cmd_cancel)
 

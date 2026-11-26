@@ -449,9 +449,17 @@ def run_job(
         def _set_status(status: str, *, result: str | None = None, error: str | None = None) -> None:
             meta = _store.read_meta(store, job_id) or {}
             meta["updated_at"] = time.time()
+            if status == "running":
+                meta["heartbeat_at"] = meta["updated_at"]
             _store.mark_completion(meta, status)
             _store.write_meta(store, job_id, meta)
             registry.write(job_id, task, tool_name=engine_name, status=status, result=result, error=error)
+
+        def record_heartbeat() -> None:
+            now = time.time()
+            meta = _store.read_meta(store, job_id) or {}
+            meta["heartbeat_at"] = now
+            _store.write_meta(store, job_id, meta)
 
         def _finish(
             status: str,
@@ -550,6 +558,7 @@ def run_job(
                 "owns_process_group": _owns_process_group(),
                 "created_at": now,
                 "updated_at": now,
+                "heartbeat_at": now,
                 "brief_hash": _store.brief_hash(task),
                 **({"routing": routing} if routing is not None else {}),
                 "temp_dir": str(temp_dir) if temp_dir is not None else None,
@@ -634,6 +643,7 @@ def run_job(
                 temp_dir=temp_arg,
                 launch=launch,
                 state_dir=store_path.parent / "codex-policy-state",
+                on_activity=record_heartbeat,
             )
             agent_name = "code-bridge-codex"
         else:
@@ -648,6 +658,7 @@ def run_job(
                 timeout=timeout,
                 temp_dir=temp_arg,
                 launch=launch,
+                on_activity=record_heartbeat,
             )
             agent_name = "code-bridge-claude"
 
@@ -733,6 +744,7 @@ def run_job(
                 })
                 meta = _store.read_meta(store, job_id) or {}
                 meta["turns"] = turns
+                meta["heartbeat_at"] = turns[-1]["ended_at"]
                 _store.write_meta(store, job_id, meta)
                 if cleanup.error:
                     return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", cleanup.error)

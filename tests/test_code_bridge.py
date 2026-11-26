@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
+from lazybridge import Envelope
+from lazybridge.engines.codex.app_server import CodexAppServerClient
 from lazybridge.ext.approval import ApprovalQueue
 
 import _code_bridge_fakes as fakes
@@ -64,6 +67,43 @@ def test_job_runs_to_done_and_persists_result(tmp_path, repo, monkeypatch):
     assert rows[0]["status"] == "done"
     assert rows[0]["engine"] == "codex"
     assert rows[0]["cwd"] == str(repo.resolve())
+    assert rows[0]["heartbeat_at"] == rows[0]["turns"][-1]["ended_at"]
+
+
+def test_codex_activity_refreshes_heartbeat_during_a_turn(tmp_path, repo, monkeypatch):
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    db_path = tmp_path / "store.sqlite"
+    job_id = "heartbeat-test"
+    now = time.time()
+    monkeypatch.setattr(_jobs, "time", SimpleNamespace(time=lambda: now, monotonic=time.monotonic))
+    engine_events = []
+
+    async def run_transport(_client, *, progress):
+        nonlocal now
+        with _store.build_store(db_path) as store:
+            assert _store.read_meta(store, job_id)["heartbeat_at"] == now
+            now += 300
+            progress["on_activity"]()
+            assert _store.read_meta(store, job_id)["heartbeat_at"] == now
+
+    async def run_agent(agent, _prompt):
+        def activity():
+            engine_events.append(now)
+
+        progress = {"on_activity": activity}
+        await agent.engine.kwargs["client"].run(progress=progress)
+        assert progress["on_activity"] is activity
+        return Envelope(payload="done")
+
+    monkeypatch.setattr(CodexAppServerClient, "run", run_transport)
+    monkeypatch.setattr(fakes.FakeAgent, "run", run_agent)
+
+    result = _jobs.run_job(engine_name="codex", cwd=str(repo), task="do a thing",
+                           root=str(tmp_path), db_path=db_path, job_id=job_id)
+
+    assert result.status == "done"
+    assert engine_events == [now]
 
 
 @pytest.mark.parametrize(("engine", "reported_model"), [
