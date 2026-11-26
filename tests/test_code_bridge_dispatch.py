@@ -245,6 +245,75 @@ def test_accepted_artifact_uses_recorded_commit_not_checkout_head() -> None:
     assert captured[0].artifact_ref == "b" * 40
 
 
+@pytest.mark.parametrize("failure, detail", [
+    (None, ""), ("exit", "exit 7"), ("timeout", "timed out after 15 minutes"), ("missing", "could not run"),
+])
+def test_dispatch_runs_plan_checks_before_publishing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str | None, detail: str,
+) -> None:
+    source = tmp_path / "source"
+    source_git = _repo(source)
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    bridge = BridgeLauncher(None, principal, "p", repo_roots={"r": source}, worktree_root=tmp_path / "trees")
+    clone = bridge._checkout({"task_id": "p/A", "repo": "r"})
+    (clone / "work.txt").write_text("task work\n")
+    bridge._git(clone, "add", "work.txt")
+    bridge._git(clone, "commit", "-qm", "Task work")
+
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    commands = ['"test runner" first', '"test runner" "test with spaces.py"', '"test runner" last']
+    service.rows["A"]["checks"] = commands
+    captured: list[Any] = []
+    service.record_completion_evidence = lambda *args: captured.append(args[-1])  # type: ignore[method-assign]
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    launcher.finish("A")
+    launcher.jobs["job-A"]["cwd"] = str(clone)
+
+    calls: list[list[str]] = []
+    real_run = subprocess.run
+    output = b"output head\n" + b"." * 2200 + b"\nApp Server exited is test output\n"
+
+    def fake_run(argv: list[str], **kwargs: Any) -> Any:
+        if argv[0] != "test runner":
+            return real_run(argv, **kwargs)
+        assert kwargs["cwd"] == clone
+        assert kwargs["env"]["PYTHONPATH"] == "src"
+        assert kwargs["shell"] is False and kwargs["timeout"] == 900
+        assert kwargs["stdout"] == subprocess.PIPE and kwargs["stderr"] == subprocess.STDOUT
+        assert not source_git("branch", "--list", "dispatch/p/A")
+        calls.append(argv)
+        if argv[1] == "test with spaces.py":
+            if failure == "exit":
+                return subprocess.CompletedProcess(argv, 7, output)
+            if failure == "timeout":
+                raise subprocess.TimeoutExpired(argv, 900, output=output)
+            if failure == "missing":
+                raise FileNotFoundError("no test runner")
+        return subprocess.CompletedProcess(argv, 0, b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    dispatch.pass_once()
+
+    assert calls == [["test runner", "first"], ["test runner", "test with spaces.py"], ["test runner", "last"]]
+    if failure is None:
+        assert service.rows["A"]["status"] == "done"
+        assert source_git("rev-parse", "dispatch/p/A") == bridge._git(clone, "rev-parse", "HEAD")
+        assert launcher.launches == ["A", "B", "C"]
+        return
+    assert service.rows["A"]["status"] == "failed"
+    assert not source_git("branch", "--list", "dispatch/p/A")
+    assert launcher.launches == ["A"]
+    message = f"check failed: {commands[1]} ({detail})"
+    assert f"failed p/A {message}" in events
+    evidence, = captured
+    assert evidence.state == "blocked" and evidence.outcome == "task_failure"
+    assert evidence.failure_reason.startswith(f"{message}\n")
+    assert "output head" not in evidence.failure_reason
+    assert evidence.failure_reason.endswith("no test runner" if failure == "missing" else "App Server exited is test output")
+
+
 def test_two_tasks_get_separate_retained_worktrees(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
