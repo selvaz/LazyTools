@@ -569,6 +569,24 @@ def test_land_retry_cleans_safe_unrecorded_branch_and_worktree(cloud, gh, capsys
     assert _git(cloud.repo, "show", f"{outcome['pushed_sha']}:cloud_change.txt") != "partial first attempt"
 
 
+def test_land_detaches_bridge_worktree_holding_requested_branch(cloud, gh, capsys, tmp_path):
+    first = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    old_worktree = tmp_path / "previous-apply"
+    assert _main(cloud, "apply", first, "--branch", "feature", "--worktree", str(old_worktree)) == 0
+    assert _git(old_worktree, "symbolic-ref", "--short", "HEAD") == "feature"
+
+    second = _submit_json(cloud, capsys, "--open-pr")["job_id"]
+    cloud.set_status(READY)
+    new_worktree = tmp_path / "new-apply"
+    assert _main(
+        cloud, "apply", second, "--branch", "feature", "--worktree", str(new_worktree), "--land"
+    ) == 0
+
+    assert _git(old_worktree, "rev-parse", "--abbrev-ref", "HEAD") == "HEAD"
+    assert (old_worktree / "cloud_change.txt").is_file()
+
+
 def test_land_retry_refuses_unexpected_work_in_unrecorded_worktree(cloud, gh, capsys):
     job_id = _submit_json(cloud, capsys, "--open-pr")["job_id"]
     cloud.set_status(READY)
