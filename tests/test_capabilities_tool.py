@@ -1,9 +1,8 @@
 import argparse
 from pathlib import Path
 
-from lazytools.code_bridge._capabilities import bridge_subcommands, catalog_entries
-
 from lazytools.code_bridge import cli
+from lazytools.code_bridge._capabilities import bridge_subcommands, catalog_entries
 
 CATALOG = Path(__file__).resolve().parents[1] / "docs" / "CAPABILITIES.md"
 
