@@ -121,6 +121,31 @@ def test_done_with_uncommitted_file_gets_one_commit_continuation(workspace, monk
     assert row(workspace, result)["continuations"] == 1
 
 
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"profile": "review"},
+        {"profile": "edit-and-run", "intentional_review": True, "launch_mode": "legacy"},
+    ],
+)
+def test_read_only_job_preserves_findings_with_dirty_checkout(workspace, monkeypatch, options):
+    calls = []
+
+    async def turn(engine, prompt, name, **kwargs):
+        engine.finish_turn()
+        calls.append(prompt)
+        (workspace / "dirty.txt").write_text("existing work", encoding="utf-8")
+        return Envelope(payload="review findings")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace, **options)
+
+    assert calls == ["Done-when: tests pass"]
+    assert result.status == "done"
+    assert row(workspace, result)["result"] == "review findings"
+    assert row(workspace, result)["continuations"] == 0
+
+
 @pytest.mark.parametrize("budget", [0, 2, 10])
 def test_progress_each_turn_exhausts_budget_as_partial(workspace, monkeypatch, budget):
     async def turn(engine, *args):

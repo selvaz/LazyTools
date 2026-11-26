@@ -723,7 +723,7 @@ def run_job(
                     return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", cleanup.error)
                 if env.ok:
                     uncommitted = await asyncio.to_thread(_uncommitted_count, lock.cwd)
-                    if uncommitted:
+                    if uncommitted and writer:
                         if commit_continuation:
                             return _finish(
                                 "partial", "", f"job ended with {uncommitted} uncommitted path(s) "
