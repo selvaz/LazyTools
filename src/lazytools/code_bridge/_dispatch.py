@@ -436,8 +436,13 @@ class Dispatcher:
             lease_end = float(receipt.get("lease_expires_at", float("inf")))
             cancel = getattr(self.launcher, "cancel", None)
             if lease_end <= self.clock() and cancel is not None and task.task_id not in self.cancelled:
-                self.cancelled.add(task.task_id)
-                if cancel(str(job_ref)):
+                try:
+                    stopped = bool(cancel(str(job_ref)))
+                except Exception as exc:
+                    stopped = False
+                    self.emit(f"waiting {task.task_id} cancel failed: {str(exc).replace(chr(10), ' ')[:160]}")
+                if stopped:  # a failed cancel stays retryable on the next pass
+                    self.cancelled.add(task.task_id)
                     self.emit(f"cancelled {task.task_id} claim lease expired; settling once the job has stopped")
             return False
         accepted = job.get("status") == "done"

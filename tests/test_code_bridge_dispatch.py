@@ -540,3 +540,18 @@ def test_without_dependencies_the_base_is_the_source_checkout_head(tmp_path: Pat
     checkout = launcher._checkout({"task_id": "p/A", "repo": "r"})
     assert subprocess.run(["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True,
                           capture_output=True, check=True).stdout.strip() == head
+
+
+def test_failed_cancel_is_retried_on_the_next_pass() -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    launcher = FakeLauncher(service)
+    results = iter([False, True])
+    attempts: list[str] = []
+    launcher.cancel = lambda job_ref: attempts.append(job_ref) or next(results)  # type: ignore[attr-defined]
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    service.claims["A"]["receipt"]["lease_expires_at"] = 0
+    dispatch.pass_once()
+    dispatch.pass_once()
+    dispatch.pass_once()
+    assert attempts == ["job-A", "job-A"]
