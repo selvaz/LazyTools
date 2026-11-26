@@ -319,6 +319,12 @@ The date for `--until` is always today in the local timezone; if that clock
 time has already passed, the watcher exits immediately rather than waiting
 until tomorrow.
 
+`ready` needs green CI, confirmed mergeability and a clean or non-blocking
+bot review (the bot's latest structured state wins over receipts). For a
+repository without CI by policy, pass `--no-ci`: `ready` then reports
+`checks=none` and needs only the review and mergeability; CI that does report
+must still be green.
+
 Progress is stored per PR in the same bridge Store selected by `--db` or
 `LAZYTOOLS_CODE_BRIDGE_DB`, so restarting the command does not repeat events.
 On the first poll with a fresh Store, comments and other matching events that

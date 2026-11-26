@@ -154,7 +154,9 @@ def _state_key(pull: PullRequest) -> str:
     return f"{WATCH_PREFIX}{pull.label}"
 
 
-def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, dict[str, Any]]:
+def _poll_pull(
+    pull: PullRequest, store: Any, *, no_ci: bool = False,
+) -> tuple[list[WatchEvent], bool, dict[str, Any]]:
     old = store.read(_state_key(pull), {})
     old = old if isinstance(old, dict) else {}
     seen = set(str(value) for value in old.get("seen", []))
@@ -215,15 +217,18 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
         str(item.get("conclusion") or "") in {"success", "skipped", "neutral"} for item in finished)
     statuses_ok = all(str(item.get("state") or "") == "success" for item in statuses)
     has_ci = bool(checks) or bool(statuses)  # some repositories publish only commit statuses
+    # A repository without CI by policy (private repos here) may opt in with no_ci; any CI that
+    # does report still has to be green.
+    ci_ok = has_ci or no_ci
     mergeable = pr.get("mergeable") is True  # null means GitHub has not computed it yet
     if (
-        has_ci and checks_ok and statuses_ok and mergeable and f"ready:{head}" not in seen
+        ci_ok and checks_ok and statuses_ok and mergeable and f"ready:{head}" not in seen
         and review is not None and (review.verdict == "clean" or review.findings)
         and not any(is_blocking_severity(finding.severity) for finding in review.findings)
     ):
         detail = "no-blocking" if review.findings else "clean"
         events.append(WatchEvent(_now_utc(), pull.label, "ready",
-                                 f"{head[:7]} checks={len(checks)} review={detail}"))
+                                 f"{head[:7]} checks={len(checks) if has_ci else 'none'} review={detail}"))
         fresh_seen.add(f"ready:{head}")
 
     merged = bool(pr.get("merged") or pr.get("merged_at"))
@@ -303,9 +308,9 @@ def _maybe_request_review(pull: PullRequest, state: dict[str, Any], text: str,
     return WatchEvent(_now_utc(), pull.label, "review-requested", f"{head[:7]} {text}")
 
 
-def poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool]:
+def poll_pull(pull: PullRequest, store: Any, *, no_ci: bool = False) -> tuple[list[WatchEvent], bool]:
     """Poll one PR, persist its observations, and return new events and terminal state."""
-    events, terminal, state = _poll_pull(pull, store)
+    events, terminal, state = _poll_pull(pull, store, no_ci=no_ci)
     store.write(_state_key(pull), state)
     return events, terminal
 
@@ -314,7 +319,7 @@ def run_watch(
     pulls: list[PullRequest], store: Any, *, interval: float, until: datetime | None,
     emit: Callable[[WatchEvent], None], sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], datetime] = lambda: datetime.now().astimezone(),
-    max_failures: int = DEFAULT_MAX_FAILURES, request_review: str | None = None,
+    max_failures: int = DEFAULT_MAX_FAILURES, request_review: str | None = None, no_ci: bool = False,
 ) -> int:
     delay = max(interval, minimum_interval())
     terminal = {
@@ -333,7 +338,7 @@ def run_watch(
             if pull.label in terminal:
                 continue
             try:
-                events, done, state = _poll_pull(pull, store)
+                events, done, state = _poll_pull(pull, store, no_ci=no_ci)
             except (OSError, ValueError, RuntimeError):
                 failures[pull.label] += 1
                 failed_attempts = failures[pull.label]

@@ -165,7 +165,7 @@ def test_watch_skips_terminal_pull_while_another_remains_open(monkeypatch: Any) 
     second = _watch.parse_pull("acme/gadgets#8")
     calls: list[str] = []
 
-    def poll(pull: _watch.PullRequest, _store: Store):
+    def poll(pull: _watch.PullRequest, _store: Store, **_: Any):
         calls.append(pull.label)
         done = pull == first or calls.count(second.label) == 2
         return [], done, {"head": "abc", "seen": [], "terminal": "closed" if done else None}
@@ -183,7 +183,7 @@ def test_watch_retries_transient_poll_failures_with_backoff(monkeypatch: Any) ->
     attempts = 0
     sleeps: list[float] = []
 
-    def poll(_pull: _watch.PullRequest, _store: Store):
+    def poll(_pull: _watch.PullRequest, _store: Store, **_: Any):
         nonlocal attempts
         attempts += 1
         if attempts < 3:
@@ -200,7 +200,7 @@ def test_watch_retries_transient_poll_failures_with_backoff(monkeypatch: Any) ->
 
 def test_watch_raises_after_three_consecutive_poll_failures(monkeypatch: Any) -> None:
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_WATCH_MIN_INTERVAL", "1")
-    monkeypatch.setattr(_watch, "_poll_pull", lambda pull, store: (_ for _ in ()).throw(RuntimeError("gh down")))
+    monkeypatch.setattr(_watch, "_poll_pull", lambda pull, store, **_: (_ for _ in ()).throw(RuntimeError("gh down")))
 
     try:
         _watch.run_watch([_watch.parse_pull("acme/widgets#7")], Store(), interval=1,
@@ -407,3 +407,18 @@ def test_resolved_structured_state_beats_a_later_receipt() -> None:
     inline = [{"user": bot, "commit_id": head, "path": "a.py", "line": 3, "body": "[P1] resolved blocker"}]
     review = _watch._bot_review(comments, head, inline)
     assert review is not None and review.verdict == "clean" and review.findings == ()
+
+
+def test_no_ci_repository_is_ready_on_review_and_mergeability(monkeypatch: Any) -> None:
+    # LazyCEO #174: a private repository without CI by policy never became ready.
+    head = "abcdef1234567890"
+    state = ('<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":false,'
+             '"has_unresolved_findings":false,"status":"completed"}} -->')
+    _install_api(monkeypatch, _bot_payload(head, [state], []))
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#9"), Store())
+    assert "ready" not in {event.kind for event in events}
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#10"), Store(), no_ci=True)
+    assert {event.kind: event.detail for event in events}["ready"] == "abcdef1 checks=none review=clean"
+    _install_api(monkeypatch, _bot_payload(head, [state], [("test", "failure")]))
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#11"), Store(), no_ci=True)
+    assert "ready" not in {event.kind for event in events}
