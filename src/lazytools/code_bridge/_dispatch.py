@@ -21,7 +21,7 @@ from lazytools.projects.task_fields import task_id as board_task_id
 from lazytools.projects.task_service import CompletionEvidence, PlacementEvidence, ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import TaskServiceError, transaction
 
-TERMINAL = frozenset({"done", "partial", "failed", "interrupted"})
+TERMINAL = frozenset({"done", "partial", "failed", "interrupted", "cancelled"})
 # Engine crashes (not task failures): retried once with a fresh attempt.
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
 RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
@@ -81,6 +81,9 @@ class BridgeLauncher:
         root = self.worktree_root or repo.parent / "_dispatch"
         checkout = root / safe_project / safe_task
         if checkout.exists():
+            # A new attempt in an existing checkout must add its own commits.
+            subprocess.run(["git", "-C", str(checkout), "tag", "-f", "dispatch-base", "HEAD"],
+                           text=True, capture_output=True, check=False)
             return checkout
         checkout.parent.mkdir(parents=True, exist_ok=True)
         dependencies = task.get("dependencies", [])
@@ -193,6 +196,14 @@ class BridgeLauncher:
             return []
         return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
 
+    def cancel(self, job_ref: str) -> bool:
+        command = [sys.executable, "-m", "lazytools.code_bridge", "cancel", job_ref]
+        if self.db:
+            command.extend(("--db", self.db))
+        if self.registry_db:
+            command.extend(("--registry-db", self.registry_db))
+        return subprocess.run(command, text=True, capture_output=True, check=False).returncode == 0
+
     def job(self, job_ref: str) -> dict[str, Any] | None:
         store = _store.build_store(Path(self.db) if self.db else None)
         job = _jobs.find_job(store, _store.build_job_registry(store), job_ref)
@@ -299,6 +310,7 @@ class Dispatcher:
         self.waiting: set[str] = set()
         self.retries: dict[str, int] = {}
         self.seen_tickets: set[str] = set()
+        self.cancelled: set[str] = set()
         self.max_retries = max_retries
 
     def _surface_approvals(self, tasks: list[Task]) -> None:
@@ -404,6 +416,12 @@ class Dispatcher:
                 return True
             return False
         if job.get("status") not in TERMINAL:
+            lease_end = float(receipt.get("lease_expires_at", float("inf")))
+            cancel = getattr(self.launcher, "cancel", None)
+            if lease_end <= self.clock() and cancel is not None and task.task_id not in self.cancelled:
+                self.cancelled.add(task.task_id)
+                if cancel(str(job_ref)):
+                    self.emit(f"cancelled {task.task_id} claim lease expired; settling once the job has stopped")
             return False
         accepted = job.get("status") == "done"
         if accepted and job.get("cwd"):

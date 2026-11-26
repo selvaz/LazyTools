@@ -284,3 +284,12 @@ def test_watch_ignores_review_text_not_posted_by_the_bot(monkeypatch: Any) -> No
     _install_api(monkeypatch, payload)
     events, _ = _watch.poll_pull(_watch.parse_pull("o/r#5"), Store())
     assert not [event for event in events if event.kind in {"review", "ready"}]
+
+
+def test_request_review_persists_intent_before_posting(monkeypatch: Any) -> None:
+    order: list[str] = []
+    monkeypatch.setattr(_watch._gh, "pr_comment", lambda repo, number, body: order.append("post") or "")
+    state: dict[str, Any] = {"head": "new", "first_head": "old", "unreviewed_polls": 2, "terminal": None}
+    _watch._maybe_request_review(_watch.parse_pull("o/r#6"), state, "@codex review",
+                                 persist=lambda current: order.append("persist:" + ",".join(current["review_requested_heads"])))
+    assert order == ["persist:new", "post"]

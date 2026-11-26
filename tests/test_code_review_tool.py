@@ -928,3 +928,21 @@ class TestHandleHygiene:
 
         with pytest.raises(ValueError, match=r"malformed|belongs to"):
             await tool.run(task="x", repo_path="repo", thread_id=bad)
+
+
+def test_extra_roots_widen_confinement_only_when_set(tmp_path, monkeypatch) -> None:
+    from lazytools.connectors.code_support._review import EXTRA_ROOTS_ENV, _resolve_repo
+    root, work, other = tmp_path / "root", tmp_path / "work", tmp_path / "other"
+    for path in (root, work / "repo", other):
+        path.mkdir(parents=True)
+    monkeypatch.delenv(EXTRA_ROOTS_ENV, raising=False)
+    import pytest
+    with pytest.raises(ValueError, match="outside the allowed root"):
+        _resolve_repo(str(work / "repo"), root)
+    monkeypatch.setenv(EXTRA_ROOTS_ENV, str(work))
+    assert _resolve_repo(str(work / "repo"), root) == (work / "repo").resolve()
+    with pytest.raises(ValueError, match="extra roots"):
+        _resolve_repo(str(other), root)
+    monkeypatch.setenv(EXTRA_ROOTS_ENV, "relative/path")
+    with pytest.raises(ValueError):
+        _resolve_repo(str(work / "repo"), root)

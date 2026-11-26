@@ -254,15 +254,20 @@ def _is_review_bot(login: str) -> bool:
     return login in {name.strip() for name in allowed.split(",") if name.strip()}
 
 
-def _maybe_request_review(pull: PullRequest, state: dict[str, Any], text: str) -> WatchEvent | None:
+def _maybe_request_review(pull: PullRequest, state: dict[str, Any], text: str,
+                          persist: Callable[[dict[str, Any]], None] | None = None) -> WatchEvent | None:
     """Ask the review bot once per new head that stayed unreviewed for two polls."""
     head = str(state.get("head") or "")
     requested = [str(sha) for sha in state.get("review_requested_heads", [])]
     if (not text or state.get("terminal") or head == state.get("first_head")
             or head in requested or int(state.get("unreviewed_polls", 0)) < 2):
         return None
-    _gh.pr_comment(pull.repo, pull.number, text)
+    # Record the intent before posting: a crash after GitHub accepts the comment must
+    # not lead to a second comment on restart.
     state["review_requested_heads"] = [*requested, head]
+    if persist is not None:
+        persist(state)
+    _gh.pr_comment(pull.repo, pull.number, text)
     return WatchEvent(_now_utc(), pull.label, "review-requested", f"{head[:7]} {text}")
 
 
@@ -304,8 +309,14 @@ def run_watch(
                     raise
                 break
             failures[pull.label] = 0
-            if request_review and (asked := _maybe_request_review(pull, state, request_review)):
-                events.append(asked)
+            if request_review:
+                key = _state_key(pull)
+
+                def persist(current: dict[str, Any], key: str = key) -> None:
+                    store.write(key, current)
+
+                if asked := _maybe_request_review(pull, state, request_review, persist=persist):
+                    events.append(asked)
             for event in events:
                 emit(event)
             store.write(_state_key(pull), state)

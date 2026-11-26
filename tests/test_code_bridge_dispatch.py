@@ -505,3 +505,17 @@ def test_base_is_set_after_dependency_merges(tmp_path: Path) -> None:
     checkout = launcher._checkout({"task_id": "p/D", "repo": "r", "dependencies": [
         {"artifact_ref": b_commit}, {"artifact_ref": c_commit}]})
     assert not _has_new_commit(checkout)  # the clean dependency merge is not the task's work
+
+
+def test_expired_running_job_is_cancelled_once() -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    launcher = FakeLauncher(service)
+    cancelled: list[str] = []
+    launcher.cancel = lambda job_ref: cancelled.append(job_ref) or True  # type: ignore[attr-defined]
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    service.claims["A"]["receipt"]["lease_expires_at"] = 0
+    dispatch.pass_once()
+    dispatch.pass_once()
+    assert cancelled == ["job-A"]
+    assert any(event.startswith("cancelled p/A") for event in events)
