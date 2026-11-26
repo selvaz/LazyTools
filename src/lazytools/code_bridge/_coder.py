@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from importlib.resources import files
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from lazybridge import Store
 from lazybridge.ext.approval import ApprovalQueue
 from lazybridge.policy import (
     ApprovalCard,
-    ApprovalTier,
     CardMatcher,
+    CardTier,
     EffectivePolicy,
     PolicyWidening,
     TaskGrant,
@@ -25,8 +27,83 @@ from lazytools.code_bridge import _coder_actions, _credentials
 from lazytools.projects.task_store import transaction
 
 ACTION = "code_bridge_local"
-TIERS: dict[str, ApprovalTier] = {ACTION: "routine"}
+MODES = ("supervised", "total")
+DEFAULT_PRESET = "with-production"
+TIERS: dict[str, CardTier] = {
+    ACTION: "routine",
+    **dict.fromkeys(("git_local", "git_push_job_branch", "gh_pr_create"), "routine"),
+    **dict.fromkeys(_coder_actions.TICKET_COMMANDS.keys() - _coder_actions.OWNER_CLASSES
+                    - {"git_local", "git_push_job_branch", "gh_pr_create"}, "sensitive"),
+}
 _HAND_KEY = "code-bridge:coder-hand"
+
+
+def delegated_classes(mode: str, preset: str) -> frozenset[str]:
+    if mode not in MODES:
+        raise ValueError(f"Unknown autonomy mode: {mode}")
+    presets = tomllib.loads(files(__package__).joinpath("autonomy_presets.toml").read_text(encoding="utf-8"))
+    if preset not in presets:
+        raise ValueError(f"Unknown autonomy preset: {preset}")
+    settings = presets[preset]
+    known = set(_coder_actions.TICKET_COMMANDS)
+    floor = frozenset(settings["floor"])
+    supervised = frozenset(settings["supervised"])
+    if not _coder_actions.OWNER_CLASSES <= floor <= known or not supervised <= known - floor:
+        raise ValueError(f"Invalid autonomy preset: {preset}")
+    return supervised if mode == "supervised" else frozenset(known - floor)
+
+
+@dataclass(frozen=True)
+class Selection:
+    mode: str = "supervised"
+    preset: str = DEFAULT_PRESET
+    cards: tuple[ApprovalCard, ...] = ()
+
+    @classmethod
+    def from_record(cls, raw: Any) -> Selection:
+        if not isinstance(raw, dict):
+            return cls(cards=tuple(ApprovalCard.model_validate(card) for card in raw or []))
+        return cls(
+            mode=raw["mode"], preset=raw["preset"],
+            cards=tuple(ApprovalCard.model_validate(card) for card in raw["cards"]),
+        )
+
+
+def configure(path: Path, mode: str, preset: str | None) -> Selection:
+    """Replace the registry's coder hand in the same transaction as its card changes."""
+    credential = _credentials.load(path)
+    _credentials.require_outside_checkout(path)
+    with transaction(path, write=True) as store:
+        queue = ApprovalQueue(cast(Store, store), action_tiers=TIERS)
+        queue._require_owner(credential)
+        raw = store.read(_HAND_KEY)
+        previous = Selection.from_record(raw)
+        preset = preset or previous.preset
+        classes = delegated_classes(mode, preset)
+        if isinstance(raw, dict) and (mode, preset) == (previous.mode, previous.preset):
+            return previous
+        cards = tuple(
+            queue.issue_card(
+                credential=credential, action_class=kind, tier=TIERS[kind], transferable=True,
+                matcher=CardMatcher(command=command, network="on" if kind in _coder_actions.NETWORK_CLASSES else "off"),
+            )
+            for kind in sorted(classes)
+            for command in _coder_actions.TICKET_COMMANDS[kind]
+        )
+        for card in previous.cards:
+            queue.revoke_card(card.card_id, credential=credential)
+        queue.set_card_template("coder", tuple(card.card_id for card in cards), credential=credential)
+        store.write(_HAND_KEY, {
+            "mode": mode, "preset": preset, "cards": [card.model_dump(mode="json") for card in cards],
+        })
+        return Selection(mode, preset, cards)
+
+
+def show(path: Path) -> Selection:
+    if not path.is_file():
+        return Selection()
+    with transaction(path) as store:
+        return Selection.from_record(store.read(_HAND_KEY))
 
 
 def provision(path: Path) -> bool:
@@ -60,14 +137,16 @@ def _policy(folder: Path, cards: tuple[ApprovalCard, ...]) -> EffectivePolicy:
 class Hand:
     workspace: _coder_actions.Workspace
     policies: dict[Path, EffectivePolicy]
+    selection: Selection | None
 
 
 def copy_for_job(
     store: Store, queue: ApprovalQueue, cwd: Path, temp: Path | None, task_id: str, expires: datetime,
     record: Callable[[str], None], *, network: str,
 ) -> Hand | None:
-    cards = (ApprovalCard.model_validate(raw) for raw in store.read(_HAND_KEY, []))
-    originals = tuple(card for card in cards if card.matcher.network == "off" or network == "on")
+    raw = store.read(_HAND_KEY)
+    selection = Selection.from_record(raw)
+    originals = tuple(card for card in selection.cards if card.matcher.network == "off" or network == "on")
     if not originals:
         return None
     workspace = _coder_actions.Workspace.capture(cwd, temp)
@@ -91,4 +170,4 @@ def copy_for_job(
                 record(copy.card_id)
                 copies.append(copy)
             policies[root] = _policy(root, tuple(copies))
-    return Hand(workspace, policies)
+    return Hand(workspace, policies, selection if isinstance(raw, dict) else None)

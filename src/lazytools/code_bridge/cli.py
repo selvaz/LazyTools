@@ -2071,6 +2071,27 @@ def _cmd_provision_coder(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_configure_autonomy(args: argparse.Namespace) -> int:
+    from lazytools.projects.task_store import TaskServiceError
+
+    if args.show and args.preset is not None:
+        print("--preset requires --mode", file=sys.stderr)
+        return 2
+    try:
+        path = _selected_registry_db(args) or _registry._registry_path()
+        if path is None:
+            raise ValueError("A persistent approval registry is required")
+        selection = _coder.show(path) if args.show else _coder.configure(path, args.mode, args.preset)
+    except (OSError, ValueError, TaskServiceError) as exc:
+        print(f"could not read or configure autonomy: {exc}", file=sys.stderr)
+        return 1
+    classes = sorted({card.action_class for card in selection.cards})
+    print(f"Mode: {selection.mode}")
+    print(f"Preset: {selection.preset}")
+    print(f"Delegated classes: {', '.join(classes) if classes else 'none'}")
+    return 0
+
+
 def _cmd_autonomy(args: argparse.Namespace) -> int:
     try:
         if args.week:
@@ -2667,6 +2688,14 @@ def build_parser() -> argparse.ArgumentParser:
     coder_cards = credential_sub.add_parser("provision-coder", help="Provision the owner's coder hand for this registry.")
     _add_registry_option(coder_cards)
     coder_cards.set_defaults(func=_cmd_provision_coder)
+
+    autonomy_config = credential_sub.add_parser("autonomy", help="Read or set the owner-delegated coder hand.")
+    autonomy_operation = autonomy_config.add_mutually_exclusive_group(required=True)
+    autonomy_operation.add_argument("--show", action="store_true")
+    autonomy_operation.add_argument("--mode", choices=_coder.MODES)
+    autonomy_config.add_argument("--preset", help="Setup preset. Defaults to the current preset or with-production.")
+    _add_registry_option(autonomy_config)
+    autonomy_config.set_defaults(func=_cmd_configure_autonomy)
 
     approve_p = sub.add_parser("approve", help="Approve a pending ticket.")
     approve_p.add_argument("ticket_id")

@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from lazytools.code_bridge import _coder_actions, _store, cli
+from lazytools.code_bridge import _coder, _coder_actions, _store, cli
 
 
 @pytest.mark.parametrize(("command", "kind"), [
@@ -46,6 +46,36 @@ def test_owner_can_select_autonomy_preset(tmp_path, provision_bridge_approver, c
     output = capsys.readouterr().out
     assert "total" in output and "with-production" in output and "gh_pr_merge" in output
     assert "production_task" not in output
+
+
+@pytest.mark.parametrize(("preset", "floor"), [
+    ("solo-dev", {"unknown", "payment_or_external_post"}),
+    ("with-production", {"production_task", "payment_or_external_post", "delete_files", "push_default_branch", "unknown"}),
+])
+def test_packaged_autonomy_presets(preset, floor):
+    assert _coder.delegated_classes("supervised", preset) == {"git_local", "git_push_job_branch", "gh_pr_create"}
+    assert _coder.delegated_classes("total", preset) == _coder_actions.TICKET_COMMANDS.keys() - floor
+
+
+def test_autonomy_mode_changes_require_owner_credential(tmp_path, provision_bridge_approver, capsys):
+    registry = tmp_path / "registry.sqlite"
+    other_registry = tmp_path / "other.sqlite"
+    command = ["approver-credential", "autonomy", "--registry-db", str(registry), "--mode"]
+    owner_file = provision_bridge_approver(registry)
+    assert cli.main([*command, "supervised"]) == 0
+    original = _coder.show(registry)
+
+    owner_file.unlink()
+    assert cli.main([*command, "total"]) == 1
+    assert "credential is missing" in capsys.readouterr().err
+    assert _coder.show(registry) == original
+
+    wrong_file = provision_bridge_approver(other_registry)
+    owner_file.write_bytes(wrong_file.read_bytes())
+    for mode in ("supervised", "total"):
+        assert cli.main([*command, mode]) == 1
+        assert "requires an owner credential" in capsys.readouterr().err
+    assert _coder.show(registry) == original
 
 
 @pytest.fixture
