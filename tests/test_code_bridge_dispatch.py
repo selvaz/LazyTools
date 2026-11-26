@@ -482,6 +482,28 @@ def test_engine_crash_is_retried_once_then_fails(knowledge_store: Store) -> None
     assert lesson["gotchas"] == "Codex App Server exited again"
 
 
+def test_database_locked_failure_is_retried_once(knowledge_store: Store) -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows["A"].update(repo="org/repo", text="Update Codex App Server")
+    attempts: list[str] = []
+
+    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str) -> str:
+        attempts.append(reason)
+        name = identifier.rsplit("/", 1)[1]
+        service.rows[name]["status"] = "todo"
+        service.claims.pop(name, None)
+        return "rev"
+
+    service.prepare_attempt = prepare_attempt  # type: ignore[attr-defined]
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events, knowledge_store)
+    dispatch.pass_once()
+    launcher.jobs["job-A"].update(status="failed", error="error: database is locked")
+    dispatch.pass_once()
+    assert len(attempts) == 1 and any(event.startswith("retry p/A") for event in events)
+    assert launcher.launches == ["A", "A"]
+
+
 def test_task_failure_is_not_retried(knowledge_store: Store) -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     service.rows["A"]["repo"] = "org/repo"
