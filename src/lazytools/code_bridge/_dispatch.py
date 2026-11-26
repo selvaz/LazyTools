@@ -17,7 +17,7 @@ from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_fields import task_id as board_task_id
 from lazytools.projects.task_service import CompletionEvidence, PlacementEvidence, ProjectTaskService, TaskPrincipal
-from lazytools.projects.task_store import transaction
+from lazytools.projects.task_store import TaskServiceError, transaction
 
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted"})
 # Engine crashes (not task failures): retried once with a fresh attempt.
@@ -172,6 +172,34 @@ class BridgeLauncher:
                      if job.get("task_id") == task_id and job.get("task_attempt") == attempt), None)
 
 
+def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None]:
+    """Make a finished job's checkout committed, or say why it is not.
+
+    A sandboxed agent cannot write a linked worktree's merge metadata, so a merge the
+    dispatcher left for it to resolve stays open even when every conflict is fixed. If
+    no conflict markers remain, conclude that merge here (the dispatcher runs outside
+    the sandbox). Any other uncommitted change means the task is not done.
+    """
+    def git(*argv: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(["git", "-C", str(cwd), *argv], text=True, capture_output=True, check=False)
+
+    if not cwd.is_dir():
+        return None, None
+    dirty = [line[3:] for line in git("status", "--porcelain").stdout.splitlines() if line.strip()]
+    if not dirty:
+        return None, None
+    if git("rev-parse", "-q", "--verify", "MERGE_HEAD").returncode != 0:
+        return f"job ended with {len(dirty)} uncommitted path(s)", None
+    markers = git("grep", "-l", "-E", "^(<<<<<<<|>>>>>>>) ", "--", ".").stdout.split()
+    if markers:
+        return f"unresolved conflict markers in {', '.join(markers[:5])}", None
+    git("add", "-u")
+    commit = git("commit", "--no-edit", "-q")
+    if commit.returncode:
+        return f"could not conclude the dependency merge: {(commit.stderr or commit.stdout).strip()[:200]}", None
+    return None, git("rev-parse", "HEAD").stdout.strip() or None
+
+
 class Dispatcher:
     def __init__(self, service: ProjectTaskService, principal: TaskPrincipal, launcher: Launcher,
                  project_id: str, *, parallel: int = 1, emit: Callable[[str], None] | None = None,
@@ -250,8 +278,13 @@ class Dispatcher:
         job_ref = dispatch.get("job_ref")
         job = self.launcher.job(job_ref) if job_ref else self.launcher.find(task.task_id, receipt.get("attempt", 0))
         if job and not job_ref:
-            self.service.reconcile_dispatch(self.principal, task.task_id, receipt["attempt"], "submitted",
-                                            evidence_ref=f"bridge-job:{job['job_id']}", job_ref=job["job_id"])
+            try:
+                self.service.reconcile_dispatch(self.principal, task.task_id, receipt["attempt"], "submitted",
+                                                evidence_ref=f"bridge-job:{job['job_id']}", job_ref=job["job_id"])
+            except TaskServiceError as exc:
+                if "provider boundary" in str(exc):
+                    return False  # the child is still waiting for an engine slot
+                raise
             job_ref = str(job["job_id"])
         if not job:
             created = float(dispatch.get("created_at", 0))
@@ -270,6 +303,14 @@ class Dispatcher:
         if job.get("status") not in TERMINAL:
             return False
         accepted = job.get("status") == "done"
+        if accepted and job.get("cwd"):
+            workspace_error, merge_commit = _conclude_workspace(Path(str(job["cwd"])), task.task_id)
+            if workspace_error:
+                accepted = False
+                job = {**job, "error": workspace_error}
+            elif merge_commit:
+                job = {**job, "final_commit": merge_commit}
+                self.emit(f"merged {task.task_id} concluded the resolved dependency merge {merge_commit[:12]}")
         verdict = job.get("review_verdict") or {}
         reviewed_sha = job.get("reviewed_sha") or verdict.get("reviewed_sha")
         review_passed = bool(job.get("review_passed", verdict.get("passed", False)))

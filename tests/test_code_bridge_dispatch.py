@@ -368,3 +368,32 @@ def test_task_failure_is_not_retried() -> None:
     launcher.finish("A", "failed")
     dispatch.pass_once()
     assert any(event.startswith("failed p/A boom") for event in events)
+
+
+def test_conclude_workspace_commits_a_resolved_merge_and_rejects_markers(tmp_path: Path) -> None:
+    from lazytools.code_bridge._dispatch import _conclude_workspace
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    def git(*argv: str) -> str:
+        return subprocess.run(["git", *argv], cwd=repo, text=True, capture_output=True, check=False).stdout.strip()
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "T")
+    (repo / "f.txt").write_text("base\n")
+    git("add", ".")
+    git("commit", "-qm", "base")
+    git("checkout", "-qb", "side")
+    (repo / "f.txt").write_text("side\n")
+    git("commit", "-qam", "side")
+    git("checkout", "-q", "main")
+    (repo / "f.txt").write_text("main\n")
+    git("commit", "-qam", "main")
+    git("merge", "--no-edit", "side")
+    assert _conclude_workspace(repo, "p/D")[0].startswith("unresolved conflict markers")
+    (repo / "f.txt").write_text("main and side\n")
+    error, commit = _conclude_workspace(repo, "p/D")
+    assert error is None and commit == git("rev-parse", "HEAD")
+    assert git("status", "--porcelain") == ""
+    (repo / "g.txt").write_text("stray\n")
+    git("add", "g.txt")
+    assert _conclude_workspace(repo, "p/D") == ("job ended with 1 uncommitted path(s)", None)
