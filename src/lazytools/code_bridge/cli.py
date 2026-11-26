@@ -1415,6 +1415,8 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
             raise ValueError("--events must contain at least one event")
         if args.all_active == bool(args.job_ids):
             raise ValueError("provide JOB_ID(s) or --all-active, but not both")
+        if args.follow and not (args.all_active and args.loop):
+            raise ValueError("--follow needs --all-active and --loop")
         if args.timeout is not None and (not math.isfinite(args.timeout) or args.timeout < 0):
             raise ValueError("--timeout must be a finite non-negative number")
     except ValueError as exc:
@@ -1425,7 +1427,7 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
     registry = _store.build_job_registry(store)
     if args.all_active:
         watched = [str(job["job_id"]) for job in _jobs.list_jobs(store, all_jobs=False)]
-        if not watched:
+        if not watched and not args.follow:
             print("error: no active jobs", file=sys.stderr)
             return 2
     else:
@@ -1445,6 +1447,10 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
     while True:
         store = _store.build_store(db_path)
         registry = _store.build_job_registry(store)
+        if args.follow:  # pick up jobs that started after this stream began
+            for job in _jobs.list_jobs(store, all_jobs=False):
+                if str(job["job_id"]) not in watched:
+                    watched.append(str(job["job_id"]))
         jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
 
         # A ticket is emitted once per invocation, even if it remains pending.
@@ -1519,7 +1525,7 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
                     _store.write_meta(store, str(job["job_id"]), meta)
                 if not args.loop:
                     return 0
-        if args.loop and len(terminal_seen) == len(watched):
+        if args.loop and not args.follow and len(terminal_seen) == len(watched):
             return 0
         if deadline is not None and time.monotonic() >= deadline:
             return 3
@@ -2419,6 +2425,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--events", default="done,failed,approval,landed,interrupted", help="Comma-separated events to return."
     )
     wait_any_p.add_argument("--loop", action="store_true", help="Print events until every watched job is terminal.")
+    wait_any_p.add_argument(
+        "--follow", action="store_true",
+        help="With --all-active and --loop: also watch jobs that start later and keep running when the current "
+             "jobs end (the orchestrator's single event stream; stop with --timeout or Ctrl-C).",
+    )
     wait_any_p.add_argument(
         "--json", action="store_true", help="Emit the event as one JSON object (the default format)."
     )

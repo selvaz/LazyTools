@@ -202,3 +202,31 @@ def test_jobs_json_and_encoding_safe_human_output(tmp_path, capsys, monkeypatch)
     monkeypatch.setattr("builtins.print", lambda value, **kwargs: printed.append(value))
     cli._safe_print("snowman ☃")
     assert printed == [r"snowman \u2603"]
+
+
+def test_wait_any_follow_picks_up_jobs_started_later(tmp_path, capsys, monkeypatch):
+    db = tmp_path / "jobs.sqlite"
+    _store.build_store(db)  # empty store: --follow may start with no active job
+    polls = {"n": 0}
+
+    def later(_interval):
+        polls["n"] += 1
+        if polls["n"] == 1:
+            store = _job(db, "late-job", "awaiting_approval")
+            _store.build_approval_queue(store).create_ticket(task_id="late-job", prompt="Allow git add?")
+        elif polls["n"] == 2:
+            _store.build_job_registry(_store.build_store(db)).write("late-job", "task", tool_name="codex", status="done")
+
+    monkeypatch.setattr(cli.time, "sleep", later)
+    code = main(["wait-any", "--all-active", "--loop", "--follow", "--events", "approval,done",
+                 "--interval", "0", "--timeout", "0.5", "--db", str(db)])
+    events = [json.loads(line)["event"] for line in capsys.readouterr().out.splitlines() if line.strip()]
+    assert code == 3  # --follow only stops on the timeout
+    assert events == ["approval", "done"]
+
+
+def test_wait_any_follow_requires_all_active_and_loop(tmp_path, capsys):
+    db = tmp_path / "jobs.sqlite"
+    _job(db, "a-job", "running")
+    assert main(["wait-any", "--all-active", "--follow", "--db", str(db)]) == 2
+    assert "--follow needs --all-active and --loop" in capsys.readouterr().err
