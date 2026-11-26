@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pytest
 from lazybridge import Store
 
 from lazytools.code_bridge import _watch
@@ -243,14 +244,64 @@ def test_watch_reports_bot_verdict_and_ready_for_the_current_head(monkeypatch: A
     assert kinds["ready"] == "abcdef1 checks=2 review=clean"
 
 
-def test_watch_findings_or_red_checks_are_not_ready_and_receipt_is_parsed(monkeypatch: Any) -> None:
+def test_watch_red_checks_are_not_ready_and_receipt_is_parsed(monkeypatch: Any) -> None:
     head = "1234567abcdef"
-    receipt = "Codex Review: here are some suggestions.\n\n**Reviewed commit:** `1234567abc`"
+    receipt = "Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `1234567abc`"
     _install_api(monkeypatch, _bot_payload(head, [receipt], [("test", "failure")]))
     events, _ = _watch.poll_pull(_watch.parse_pull("o/r#2"), Store())
     kinds = {event.kind: event.detail for event in events}
-    assert kinds["review"] == "1234567 findings"
+    assert kinds["review"] == "1234567 clean"
     assert "ready" not in kinds
+
+
+@pytest.mark.parametrize(("body", "ready"), [
+    ("P0: fix urgently", False),
+    ("[P1] fix this", False),
+    ("**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow)</sub></sub> Add a test**", True),
+    ("[p3] simplify this", True),
+    ("Unknown severity: this could be more urgent than P2", False),
+    (None, False),
+])
+def test_watch_ready_uses_current_head_inline_severity(monkeypatch: Any, body: str | None, ready: bool) -> None:
+    head = "1234567abcdef"
+    state = ('<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":true,'
+             '"has_unresolved_findings":true,"status":"completed"}} -->')
+    payload = _bot_payload(head, [state], [("test", "success")])
+    bot = payload["issue_comments"][0]["user"]
+    payload["inline_comments"] = [{"id": 1, "commit_id": "abcdef1234567", "body": "P0: old finding", "user": bot}]
+    if body is not None:
+        payload["inline_comments"].append({"id": 2, "commit_id": head, "body": body, "user": bot})
+    _install_api(monkeypatch, payload)
+    store = Store()
+    pull = _watch.parse_pull("o/r#2")
+
+    events, _ = _watch.poll_pull(pull, store)
+
+    kinds = {event.kind: event.detail for event in events}
+    assert kinds["review"] == "1234567 findings"
+    assert kinds.get("ready") == ("1234567 checks=1 review=no-blocking" if ready else None)
+    assert _watch.poll_pull(pull, store) == ([], False)
+
+
+def test_watch_resolved_blocker_allows_ready(monkeypatch: Any) -> None:
+    head = "abcdef1234567890"
+    receipt = "Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `abcdef1234`"
+    payload = _bot_payload(head, [receipt], [("test", "success")])
+    bot = payload["issue_comments"][0]["user"]
+    payload["inline_comments"] = [{"id": 1, "commit_id": head, "body": "P1: fix this", "user": bot}]
+    _install_api(monkeypatch, payload)
+    store = Store()
+    pull = _watch.parse_pull("o/r#2")
+
+    events, _ = _watch.poll_pull(pull, store)
+    assert "ready" not in {event.kind for event in events}
+
+    payload["issue_comments"][0]["body"] = (
+        '<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":true,'
+        '"has_unresolved_findings":false,"status":"completed"}} -->'
+    )
+    events, _ = _watch.poll_pull(pull, store)
+    assert [event.kind for event in events] == ["ready"]
 
 
 def test_watch_reports_conflict_once(monkeypatch: Any) -> None:
@@ -300,7 +351,8 @@ def test_later_findings_receipt_replaces_an_earlier_clean_one() -> None:
     bot = {"login": "chatgpt-codex-connector[bot]"}
     comments = [{"user": bot, "body": "Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `abcdef1234`"},
                 {"user": bot, "body": "Codex Review: here are some suggestions.\n\n**Reviewed commit:** `abcdef1234`"}]
-    assert _watch._bot_review(comments, head) == "findings"
+    review = _watch._bot_review(comments, head)
+    assert review is not None and review.verdict == "findings"
 
 
 def test_structured_state_wins_over_the_receipt_in_the_same_comment() -> None:
@@ -308,7 +360,8 @@ def test_structured_state_wins_over_the_receipt_in_the_same_comment() -> None:
     body = ('<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":true,'
             '"has_unresolved_findings":false,"status":"completed"}} -->\n'
             "Codex Review: here are some suggestions.\n\n**Reviewed commit:** `abcdef1234`")
-    assert _watch._bot_review([{"user": {"login": "chatgpt-codex-connector[bot]"}, "body": body}], head) == "clean"
+    review = _watch._bot_review([{"user": {"login": "chatgpt-codex-connector[bot]"}, "body": body}], head)
+    assert review is not None and review.verdict == "clean"
 
 
 def test_ready_needs_confirmed_mergeability_and_accepts_status_only_ci(monkeypatch: Any) -> None:

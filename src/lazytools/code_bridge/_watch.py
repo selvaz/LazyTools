@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from lazytools.code_bridge import _gh
+from lazytools.code_bridge._review import Review, ReviewVerdict, inline_finding, is_blocking_severity
 
 WATCH_PREFIX = "code-bridge:watch:"
 DEFAULT_MIN_INTERVAL = 60.0
@@ -19,7 +20,6 @@ DEFAULT_MAX_FAILURES = 3
 _PR_RE = re.compile(r"^(?P<repo>[^/\s]+/[^/#\s]+)#(?P<number>[1-9]\d*)$")
 _VERDICT_RE = re.compile(r"(?im)^\s*verdict:\s*(.+?)\s*$")
 _HEAD_RE = re.compile(r"(?im)^\s*head:\s*([0-9a-f]+)\s*$")
-_BADGE_RE = re.compile(r"(?i)(?:\b|\[)(P[0-3])(?:\b|\])")
 
 
 # Codex review bot: hidden state JSON and the visible receipt.
@@ -106,9 +106,11 @@ def _author(item: dict[str, Any]) -> str:
 
 def _comment_detail(item: dict[str, Any]) -> str:
     author = _author(item)
-    body = str(item.get("body") or "")
-    badge = _BADGE_RE.search(body) if "codex" in author.casefold() else None
-    return f"{author}{f' {badge.group(1).upper()}' if badge else ''}"
+    if "codex" in author.casefold() or _is_review_bot(author):
+        severity = inline_finding(item).severity
+        if severity != "unknown":
+            return f"{author} {severity}"
+    return author
 
 
 def _now_utc() -> str:
@@ -168,11 +170,10 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
         events.append(WatchEvent(_now_utc(), pull.label, "head",
                                  f"{previous_head[:7]} -> {head[:7]}"))
 
-    sources: Iterable[tuple[str, list[dict[str, Any]]]] = (
-        ("comment", _paged_items(f"{base}/issues/{pull.number}/comments")),
-        ("comment", _paged_items(f"{base}/pulls/{pull.number}/reviews")),
-        ("inline", _paged_items(f"{base}/pulls/{pull.number}/comments")),
-    )
+    issue_comments = _paged_items(f"{base}/issues/{pull.number}/comments")
+    reviews = _paged_items(f"{base}/pulls/{pull.number}/reviews")
+    inline_comments = _paged_items(f"{base}/pulls/{pull.number}/comments")
+    sources = (("comment", issue_comments), ("comment", reviews), ("inline", inline_comments))
     for kind, items in sources:
         for item in items:
             identity = f"{kind}:{item.get('id')}"
@@ -200,11 +201,12 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
         if result in {"success", "failure"}:
             fresh_seen.add(identity)
 
-    review = _bot_review(_paged_items(f"{base}/issues/{pull.number}/comments"), head)
-    if review is not None and f"review:{head}:{review}" not in seen:
-        events.append(WatchEvent(_now_utc(), pull.label, "review", f"{head[:7]} {review}"))
+    review = _bot_review(issue_comments, head, inline_comments)
     if review is not None:
-        fresh_seen.add(f"review:{head}:{review}")
+        identity = f"review:{head}:{review.verdict}"
+        if identity not in seen:
+            events.append(WatchEvent(_now_utc(), pull.label, "review", f"{head[:7]} {review.verdict}"))
+        fresh_seen.add(identity)
     if (pr.get("mergeable") is False or str(pr.get("mergeable_state") or "") == "dirty")             and f"conflict:{head}" not in seen:
         events.append(WatchEvent(_now_utc(), pull.label, "conflict", f"{head[:7]} conflicts with the base branch"))
         fresh_seen.add(f"conflict:{head}")
@@ -214,9 +216,14 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
     statuses_ok = all(str(item.get("state") or "") == "success" for item in statuses)
     has_ci = bool(checks) or bool(statuses)  # some repositories publish only commit statuses
     mergeable = pr.get("mergeable") is True  # null means GitHub has not computed it yet
-    if has_ci and checks_ok and statuses_ok and mergeable and review == "clean" and f"ready:{head}" not in seen:
+    if (
+        has_ci and checks_ok and statuses_ok and mergeable and f"ready:{head}" not in seen
+        and review is not None and (review.verdict == "clean" or review.findings)
+        and not any(is_blocking_severity(finding.severity) for finding in review.findings)
+    ):
+        detail = "no-blocking" if review.findings else "clean"
         events.append(WatchEvent(_now_utc(), pull.label, "ready",
-                                 f"{head[:7]} checks={len(checks)} review=clean"))
+                                 f"{head[:7]} checks={len(checks)} review={detail}"))
         fresh_seen.add(f"ready:{head}")
 
     merged = bool(pr.get("merged") or pr.get("merged_at"))
@@ -233,25 +240,34 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
     return sorted(events, key=lambda event: _time_key(event.time)), terminal, state
 
 
-def _bot_review(comments: list[dict[str, Any]], head: str) -> str | None:
-    """The Codex review bot's verdict for ``head``: "clean", "findings", or None."""
-    verdict = None
+def _bot_review(
+    comments: list[dict[str, Any]], head: str, inline_comments: Iterable[dict[str, Any]] = (),
+) -> Review | None:
+    """Read the latest completed bot review and its current-head inline findings."""
+    verdict: ReviewVerdict | None = None
+    resolved = False
     for item in comments:
-        login = str((item.get("user") or {}).get("login") or "")
-        if not _is_review_bot(login):
+        if not _is_review_bot(_author(item)):
             continue  # anyone can paste the bot's text; only the bot's own comments count
         body = str(item.get("body") or "")
-        current = None
+        state_open = None
         for match in _BOT_STATE_RE.finditer(body):
             if head.startswith(match["sha"]) and match["status"] == "completed" and match["open"] != "null":
-                current = "findings" if match["open"] == "true" else "clean"
-        receipt = _BOT_RECEIPT_RE.search(body)
-        if current is None and receipt and head.startswith(receipt["sha"]):
-            # The structured state wins within a comment; a receipt alone is a full verdict.
-            current = "clean" if _BOT_CLEAN_RE.search(body) else "findings"
-        if current is not None:
-            verdict = current  # a later comment replaces an earlier verdict
-    return verdict
+                state_open = match["open"]
+        if state_open is not None:
+            resolved = state_open == "false"
+            verdict = "clean" if resolved else "findings"
+        elif (receipt := _BOT_RECEIPT_RE.search(body)) and head.startswith(receipt["sha"]):
+            resolved = False
+            verdict = "clean" if _BOT_CLEAN_RE.search(body) else "findings"
+    if verdict is None:
+        return None
+    # The structured state can confirm resolution of findings still visible in REST.
+    findings = () if resolved else tuple(
+        inline_finding(item) for item in inline_comments
+        if item.get("commit_id") == head and not item.get("in_reply_to_id") and _is_review_bot(_author(item))
+    )
+    return Review(findings=findings, verdict=verdict, reviewed_sha=head, reviewer_engine="codex")
 
 
 def _is_review_bot(login: str) -> bool:

@@ -8,14 +8,13 @@ import pytest
 
 from lazytools.code_bridge._navigator import (
     CheckResult,
-    Finding,
     Head,
     Navigator,
-    Review,
     exit_status,
     resync_and_land_cloud_job,
     run_reviewer_command,
 )
+from lazytools.code_bridge._review import Finding, Review
 
 
 class FakeBackend:
@@ -114,13 +113,23 @@ def test_configured_reviewer_command_receives_every_head(tmp_path):
     script = tmp_path / "reviewer.py"
     script.write_text(
         "import json, os\n"
-        "print(json.dumps({'reviewer_model': 'claude', 'findings': "
-        "[{'severity': 'P2', 'message': os.environ['LAZYTOOLS_REVIEW_HEAD']}]}))\n",
+        "print(json.dumps({'reviewer_engine': 'claude', 'reviewer_model': 'sonnet', 'findings': "
+        "[{'severity': 'P2', 'message': os.environ['LAZYTOOLS_REVIEW_HEAD'], 'file': 'example.py', 'line': 12}]}))\n",
         encoding="utf-8",
     )
     review = run_reviewer_command(f'"{sys.executable}" "{script}"', Head("deadbeef", "codex", 12), cwd=tmp_path)
-    assert json.loads(json.dumps(review.findings[0].message)) == "deadbeef"
-    assert review.reviewer_model == "claude"
+    assert review == Review(
+        reviewer_model="sonnet", reviewer_engine="claude", reviewed_sha="deadbeef",
+        findings=(Finding("P2", "deadbeef", "example.py", 12),),
+        verdict="findings", independence_level="different-model",
+    )
+
+
+def test_review_for_a_different_head_is_rejected():
+    backend = FakeBackend([Head("new", "codex", 1)], [Review("claude", reviewed_sha="old")])
+    result = Navigator(backend, checks=("check",)).run("job")
+    assert result.status == "failed"
+    assert result.error == "review is for old, expected new"
 
 
 def test_cloud_transition_resyncs_legacy_poll_failure_then_lands(monkeypatch):
