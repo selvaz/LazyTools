@@ -394,6 +394,9 @@ def test_conclude_workspace_commits_a_resolved_merge_and_rejects_markers(tmp_pat
     error, commit = _conclude_workspace(repo, "p/D")
     assert error is None and commit == git("rev-parse", "HEAD")
     assert git("status", "--porcelain") == ""
-    (repo / "g.txt").write_text("stray\n")
-    git("add", "g.txt")
-    assert _conclude_workspace(repo, "p/D") == ("job ended with 1 uncommitted path(s)", None)
+    (repo / "g.txt").write_text("work\n")
+    (repo / "error.log").write_text("account_id=secret\n")
+    error, commit = _conclude_workspace(repo, "p/D")
+    assert error is None and commit == git("rev-parse", "HEAD")
+    assert git("show", "--name-only", "--format=", "HEAD") == "g.txt"
+    assert "error.log" in git("status", "--porcelain")

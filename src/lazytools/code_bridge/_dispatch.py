@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -21,6 +22,7 @@ from lazytools.projects.task_store import TaskServiceError, transaction
 
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted"})
 # Engine crashes (not task failures): retried once with a fresh attempt.
+COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
 RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409")
 
 
@@ -87,19 +89,26 @@ class BridgeLauncher:
             ["git", "-C", str(repo), "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
             check=False,
         ).returncode == 0
-        base = commits[0] if commits else (branch if branch_exists else None)
+        base = commits[0] if commits else (f"origin/{branch}" if branch_exists else None)
         if not base:
             symbolic = subprocess.run(
                 ["git", "-C", str(repo), "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
                 text=True, capture_output=True, check=False,
             ).stdout.strip()
             base = symbolic.removeprefix("refs/remotes/") if symbolic else "HEAD"
-        if assigned and branch_exists:
-            self._git(repo, "worktree", "add", str(checkout), str(branch))
-            if commits:
-                self._git(checkout, "reset", "--hard", commits[0])
-        else:
-            self._git(repo, "worktree", "add", "-b", str(branch), str(checkout), str(base))
+        # A local clone, not a linked worktree: its .git lives inside the checkout, so a
+        # sandboxed agent can commit there (a linked worktree keeps its index and merge
+        # state under the main repository, outside the sandbox).
+        self._git(repo, "clone", "--quiet", "--local", "--no-checkout", str(repo), str(checkout))
+        origin = subprocess.run(["git", "-C", str(repo), "remote", "get-url", "origin"],
+                                text=True, capture_output=True, check=False).stdout.strip()
+        if origin:
+            self._git(checkout, "remote", "set-url", "origin", origin)  # the claim checks the repo slug
+        self._git(checkout, "remote", "add", "dispatch-source", str(repo))
+        for sibling in sorted(path for path in checkout.parent.iterdir() if path != checkout and (path / ".git").is_dir()):
+            subprocess.run(["git", "-C", str(checkout), "fetch", "--quiet", str(sibling), "+HEAD:refs/dispatch/" + sibling.name],
+                           text=True, capture_output=True, check=False)
+        self._git(checkout, "checkout", "--quiet", "-B", str(branch), str(base))
         for index, commit in enumerate(commits[1:], start=1):
             result = subprocess.run(
                 ["git", "-C", str(checkout), "merge", "--no-edit", commit],
@@ -115,10 +124,7 @@ class BridgeLauncher:
                     ["git", "-C", str(checkout), "merge", "--abort"],
                     text=True, capture_output=True, check=False,
                 )
-                subprocess.run(
-                    ["git", "-C", str(repo), "worktree", "remove", "--force", str(checkout)],
-                    text=True, capture_output=True, check=False,
-                )
+                shutil.rmtree(checkout, ignore_errors=True)
                 raise RuntimeError("dependency merge conflict")
         return checkout
 
@@ -188,16 +194,34 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
     dirty = [line[3:] for line in git("status", "--porcelain").stdout.splitlines() if line.strip()]
     if not dirty:
         return None, None
-    if git("rev-parse", "-q", "--verify", "MERGE_HEAD").returncode != 0:
-        return f"job ended with {len(dirty)} uncommitted path(s)", None
     markers = git("grep", "-l", "-E", "^(<<<<<<<|>>>>>>>) ", "--", ".").stdout.split()
     if markers:
         return f"unresolved conflict markers in {', '.join(markers[:5])}", None
-    git("add", "-u")
-    commit = git("commit", "--no-edit", "-q")
+    merging = git("rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0
+    # Never stage tool litter (the Codex CLI writes error.log with account details).
+    git("add", "-A", "--", ".", *(f":(exclude){pattern}" for pattern in COMMIT_EXCLUDES))
+    if not git("diff", "--cached", "--name-only").stdout.strip() and not merging:
+        return f"job ended with {len(dirty)} uncommitted path(s), all excluded as tool litter", None
+    message = ["commit", "-q", "--no-edit"] if merging else [
+        "commit", "-q", "-m", f"{task_id.rsplit('/', 1)[-1]}: changes from the finished task",
+        "-m", "Committed by the dispatcher: the engine sandbox keeps .git read-only."]
+    commit = git(*message)
     if commit.returncode:
-        return f"could not conclude the dependency merge: {(commit.stderr or commit.stdout).strip()[:200]}", None
+        return f"could not commit the finished task: {(commit.stderr or commit.stdout).strip()[:200]}", None
     return None, git("rev-parse", "HEAD").stdout.strip() or None
+
+
+def _publish(cwd: Path) -> str | None:
+    """Copy an accepted task's branch from its clone back into the source repository."""
+    branch = subprocess.run(["git", "-C", str(cwd), "branch", "--show-current"],
+                            text=True, capture_output=True, check=False).stdout.strip()
+    has_source = subprocess.run(["git", "-C", str(cwd), "remote", "get-url", "dispatch-source"],
+                                text=True, capture_output=True, check=False).returncode == 0
+    if not branch or not has_source:
+        return None
+    pushed = subprocess.run(["git", "-C", str(cwd), "push", "--quiet", "--force", "dispatch-source",
+                             f"HEAD:refs/heads/{branch}"], text=True, capture_output=True, check=False)
+    return branch if pushed.returncode == 0 else None
 
 
 class Dispatcher:
@@ -310,7 +334,11 @@ class Dispatcher:
                 job = {**job, "error": workspace_error}
             elif merge_commit:
                 job = {**job, "final_commit": merge_commit}
-                self.emit(f"merged {task.task_id} concluded the resolved dependency merge {merge_commit[:12]}")
+                self.emit(f"committed {task.task_id} {merge_commit[:12]} (engine sandbox keeps .git read-only)")
+            if accepted:
+                published = _publish(Path(str(job["cwd"])))
+                if published:
+                    self.emit(f"published {task.task_id} {published}")
         verdict = job.get("review_verdict") or {}
         reviewed_sha = job.get("reviewed_sha") or verdict.get("reviewed_sha")
         review_passed = bool(job.get("review_passed", verdict.get("passed", False)))
