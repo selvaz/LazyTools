@@ -70,13 +70,13 @@ The CEO agent runs in one of two modes, chosen by the owner, never by the agent:
 
 - The mode is a setting stored outside the agent's writable area and changed only through an owner-credentialed command (`approver-credential` owner role). No MCP tool can switch it: the system may never widen its own authority (no-widen rule).
 - Every self-decision in `total` mode is logged with ticket, command, reason and outcome, and counted in the `autonomy` report, so the owner can audit and switch back.
-- Proposed hard floor (owner to confirm): even in `total`, production environments and scheduled tasks inside a production window, payments and external posts, and deleting data stay with the owner.
+- The delegated classes (supervised) and the floor (total) are not hard-coded: they depend on context and are chosen at setup (owner, 26/11). Setup writes an autonomy policy (ticket classes mapped to `ceo` or `owner`, per mode) that the owner owns; the installer offers presets (for example "solo developer, no production" with an empty floor, and "machine with production jobs" with production, payments, external posts and data deletion on the owner). The policy follows the same rule as the mode: owner-credentialed change only.
 
-## Open questions (to the owner, with defaults)
+## Decisions (owner, 26/11)
 
-1. Self-approval in `supervised` mode: routine classes as in the table above. Default: yes. Hard floor in `total` mode: as proposed above. Default: yes.
-2. Deprecation window for coding tools in `lazytools-mcp`: default one release.
-3. Event delivery: polling with a cursor (works in every MCP client) vs MCP notifications (not supported by all clients). Default: cursor polling.
+1. Self-approval and floor: per setup, through the autonomy policy above.
+2. Deprecation window for coding tools in `lazytools-mcp`: one release (default, not contested).
+3. Event delivery: both. MCP notifications where the client supports them, plus periodic cursor polling (`bridge_events(since)`) that catches anything a notification missed. Tickets are idempotent by id, so a duplicate from the two channels is harmless.
 
 ## Next steps
 
