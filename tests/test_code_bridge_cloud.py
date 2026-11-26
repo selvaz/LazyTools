@@ -454,9 +454,14 @@ def test_submit_failure_is_recorded_failed(cloud, monkeypatch, capsys):
     assert _cloud.active_jobs(store) == []  # a failed submit frees its place
 
 
-def test_cloud_rejects_local_only_flags(cloud, capsys):
-    assert _run_cloud(cloud, "--session", "s1") == 2
-    assert "--where cloud does not take --session" in capsys.readouterr().err
+def test_cloud_ignores_session_and_detach(cloud, capsys):
+    assert _run_cloud(cloud, "--session", "s1", "--detach") == 0
+    warnings = [line for line in capsys.readouterr().err.splitlines() if line.startswith("warning:")]
+    assert warnings == ["warning: --session and --detach are ignored for cloud jobs"]
+    assert len(cloud.calls()) == 1
+
+
+def test_cloud_still_requires_explicit_engine(cloud, capsys):
     assert cli.main(["run", "--where", "cloud", "--allow-cloud", "--tier", "basic", "--cwd", str(cloud.repo),
                      "--task", "x"]) == 2
     assert "requires an explicit --engine" in capsys.readouterr().err

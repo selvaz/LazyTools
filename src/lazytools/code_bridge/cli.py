@@ -454,10 +454,8 @@ def _check_freshness_before_launch(args: argparse.Namespace) -> int | None:
 
 _CLOUD_INCOMPATIBLE = (
     ("needs", "--needs"),
-    ("session", "--session"),
     ("effort", "--effort"),
     ("max_wall", "--max-wall"),
-    ("detach", "--detach"),
     ("wait_for_slot", "--wait-for-slot"),
 )
 
@@ -486,6 +484,8 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         used = [flag for name, flag in _CLOUD_INCOMPATIBLE if getattr(args, name, None) not in (None, False)]
         if used:
             raise ValueError(f"--where cloud does not take {', '.join(used)}")
+        if args.session or args.detach:
+            print("warning: --session and --detach are ignored for cloud jobs", file=sys.stderr)
         if args.review_of and (args.land or args.pr is not None or args.open_pr):
             raise ValueError(
                 "--review-of posts a comment on the reviewed job's PR; it does not take --land, --pr or --open-pr"
