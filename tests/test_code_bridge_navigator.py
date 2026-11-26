@@ -51,6 +51,7 @@ def test_poll_failed_job_is_resynced_landed_reviewed_and_checked_by_fake_provide
     assert result.status == "merge-ready" and exit_status(result) == 0
     assert backend.landed == ["poll-failed-job"]
     assert result.reviewed_heads == ["abc"]
+    assert backend.saved[-1].review_independence == "different-model"
     assert [check.command for check in result.checks] == ["pytest contract"]
 
 
@@ -64,18 +65,21 @@ def test_review_fix_review_stops_at_round_cap_and_records_escalation():
     assert result.status == "round-cap" and exit_status(result) == 3
     assert result.rounds == 3 and len(backend.fixed) == 2
     assert result.escalation and result.escalation["reason"] == "review round cap reached (3)"
+    assert result.escalation["review_independence"] == "different-model"
     assert all("same PR" in brief for _, brief in backend.fixed)
 
 
 def test_p0_or_p1_escalates_to_owner_without_relaunching():
     backend = FakeBackend(
         [Head("abc", "claude", 9)],
-        [Review("codex", (Finding("P1", "credentials exposed"), Finding("P2", "rename")))],
+        [Review("claude", (Finding("P1", "credentials exposed"), Finding("P2", "rename")),
+                independence_level="same-provider-fresh")],
     )
     result = Navigator(backend, checks=("check",)).run("job")
 
     assert result.status == "escalated" and result.escalation
     assert result.escalation["findings"] == ["P1: credentials exposed"]
+    assert result.escalation["review_independence"] == "same-provider-fresh"
     assert not backend.fixed
 
 
@@ -92,11 +96,22 @@ def test_each_new_head_gets_opposite_model_review_and_checks_gate_close():
     assert [c.command for c in result.checks] == ["unit", "lint"]
 
 
-def test_same_model_review_is_rejected():
-    backend = FakeBackend([Head("abc", "codex", 1)], [Review("codex")])
+@pytest.mark.parametrize("reported_level", ["unknown", "same-model", "different-model"])
+def test_same_model_review_is_rejected_without_routing_evidence(reported_level):
+    backend = FakeBackend([Head("abc", "codex", 1)], [Review("codex", independence_level=reported_level)])
     result = Navigator(backend, checks=("check",)).run("job")
     assert result.status == "failed"
     assert result.error == "independent review used the author model"
+    assert backend.saved[-1].review_independence == "same-model"
+    assert not result.checks
+
+
+@pytest.mark.parametrize("reported_level", ["opposite-engine", "same-provider-fresh"])
+def test_routing_independence_is_accepted_with_matching_model_names(reported_level):
+    backend = FakeBackend([Head("abc", "codex", 1)], [Review("codex", independence_level=reported_level)])
+    result = Navigator(backend, checks=("check",)).run("job")
+    assert result.status == "merge-ready"
+    assert backend.saved[-1].review_independence == reported_level
 
 
 def test_fix_must_land_on_same_pr():
@@ -109,19 +124,27 @@ def test_fix_must_land_on_same_pr():
     assert result.error == "fix moved from PR #1 to PR #2"
 
 
-def test_configured_reviewer_command_receives_every_head(tmp_path):
+@pytest.mark.parametrize("job_metadata, author_model, expected_level", [
+    ({}, "codex", "different-model"),
+    ({"review_independence": "opposite-engine"}, "sonnet", "opposite-engine"),
+    ({"review_independence": "same-provider-fresh"}, "sonnet", "same-provider-fresh"),
+    ({"review_independence": "invalid"}, "sonnet", "same-model"),
+])
+def test_configured_reviewer_command_passes_head_and_routing_evidence(tmp_path, job_metadata, author_model, expected_level):
     script = tmp_path / "reviewer.py"
     script.write_text(
         "import json, os\n"
+        f"job_metadata = {job_metadata!r}\n"
         "print(json.dumps({'reviewer_engine': 'claude', 'reviewer_model': 'sonnet', 'findings': "
-        "[{'severity': 'P2', 'message': os.environ['LAZYTOOLS_REVIEW_HEAD'], 'file': 'example.py', 'line': 12}]}))\n",
+        "[{'severity': 'P2', 'message': os.environ['LAZYTOOLS_REVIEW_HEAD'], 'file': 'example.py', 'line': 12}], "
+        "**job_metadata}))\n",
         encoding="utf-8",
     )
-    review = run_reviewer_command(f'"{sys.executable}" "{script}"', Head("deadbeef", "codex", 12), cwd=tmp_path)
+    review = run_reviewer_command(f'"{sys.executable}" "{script}"', Head("deadbeef", author_model, 12), cwd=tmp_path)
     assert review == Review(
         reviewer_model="sonnet", reviewer_engine="claude", reviewed_sha="deadbeef",
         findings=(Finding("P2", "deadbeef", "example.py", 12),),
-        verdict="findings", independence_level="different-model",
+        verdict="findings", independence_level=expected_level,
     )
 
 
@@ -170,6 +193,7 @@ def test_model_comparison_is_normalised_and_unknown_author_fails_closed():
     unknown = FakeBackend([Head("abc", "", 1)], [Review("claude")])
     result = Navigator(unknown, checks=("check",)).run("job")
     assert result.status == "failed" and "unknown" in result.error
+    assert result.review_independence == "unknown"
 
 
 def test_unrecognised_severity_escalates():

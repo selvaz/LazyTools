@@ -20,7 +20,9 @@ from typing import Any, Protocol
 
 from lazytools.code_bridge._review import (
     BLOCKING_SEVERITIES,
+    INDEPENDENT_LEVELS,
     Finding,
+    IndependenceLevel,
     Review,
     independence_level,
     inline_finding,
@@ -60,6 +62,7 @@ class NavigatorRecord:
     escalation: dict[str, object] | None = None
     error: str | None = None
     updated_at: float = field(default_factory=time.time)
+    review_independence: IndependenceLevel | None = None
 
 
 class Backend(Protocol):
@@ -112,11 +115,12 @@ class Navigator:
             record.updated_at = time.time()
             if review.reviewed_sha is not None and review.reviewed_sha != head.sha:
                 return self._fail(record, f"review is for {review.reviewed_sha}, expected {head.sha}")
-            independence = independence_level(head.author_model, review.reviewer_model)
+            independence = independence_level(head.author_model, review.reviewer_model, review.independence_level)
+            record.review_independence = independence
             if independence == "unknown":
                 who = "reviewer" if head.author_model.strip() else "author"
                 return self._fail(record, f"{who} model is unknown; independence cannot be verified")
-            if independence == "same-model":
+            if independence not in INDEPENDENT_LEVELS:
                 return self._fail(record, "independent review used the author model")
             severe = [finding for finding in review.findings if is_blocking_severity(finding.severity)]
             if severe:
@@ -125,6 +129,7 @@ class Navigator:
                     "reason": "blocking or unrecognised review severity",
                     "head": head.sha,
                     "pr_number": head.pr_number,
+                    "review_independence": independence,
                     "findings": [f"{f.severity.upper()}: {f.message}" for f in severe],
                 }
                 record.updated_at = time.time()
@@ -138,6 +143,7 @@ class Navigator:
                     "reason": f"review round cap reached ({self.max_rounds})",
                     "head": head.sha,
                     "pr_number": head.pr_number,
+                    "review_independence": independence,
                     "findings": [f"{f.severity}: {f.message}" for f in review.findings],
                 }
                 record.updated_at = time.time()
@@ -205,8 +211,8 @@ def run_reviewer_command(command: str, head: Head, *, cwd: Path) -> Review:
 
     The command receives the immutable review target through environment
     variables and must print one JSON object containing ``reviewer_model`` and
-    a ``findings`` list.  This boundary is also convenient for local wrappers
-    around hosted review services.
+    a ``findings`` list. Wrappers should include the reviewer job's
+    ``review_independence`` when available.
     """
     argv = _split_command(command)
     if not argv:
@@ -242,7 +248,7 @@ def run_reviewer_command(command: str, head: Head, *, cwd: Path) -> Review:
     return Review(
         model, findings, verdict="findings" if findings else "clean",
         reviewed_sha=payload.get("reviewed_sha", head.sha), reviewer_engine=payload.get("reviewer_engine"),
-        independence_level=independence_level(head.author_model, model),
+        independence_level=independence_level(head.author_model, model, payload.get("review_independence")),
     )
 
 
