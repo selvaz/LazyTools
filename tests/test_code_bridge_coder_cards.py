@@ -114,7 +114,13 @@ def test_writer_commits_and_cleans_up_with_audited_cards(writer, monkeypatch, ca
         ]
         for command, argv in cases:
             assert (await gate(request(worktree, command, provider="codex"))).action == "allow", command
-            subprocess.run(argv, cwd=worktree, check=True, capture_output=True)
+            subprocess.run(
+                argv,
+                cwd=worktree,
+                check=True,
+                capture_output=True,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+            )
         assert (temp / "venv" / "pyvenv.cfg").is_file()
         for target in (worktree / "scratch", temp / "probe.txt"):
             shell = (
@@ -284,6 +290,10 @@ def test_external_and_unconfined_requests_file_one_use_tickets(writer, monkeypat
             arguments={"file_path": str(outside / "escape.txt"), "content": "outside"}, cwd=str(repo),
         )
         assert (await gate(edit)).action == "deny"
+        junction.unlink()
+        for name in ("creds.pem", "id_deploy/note.txt", "release.JKS", "service-credentials.json"):
+            (repo / name).unlink()
+        (repo / "id_deploy").rmdir()
         return Envelope(payload="done")
 
     result = run(writer, monkeypatch, turn)

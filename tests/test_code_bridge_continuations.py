@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -99,6 +100,106 @@ def test_timeout_without_commit_fails_no_progress(workspace, monkeypatch):
     result = run(workspace)
     assert result.status == "failed"
     assert result.error.startswith("no progress:")
+    assert row(workspace, result)["continuations"] == 0
+
+
+def test_done_with_uncommitted_file_gets_one_commit_continuation(workspace, monkeypatch):
+    calls = []
+
+    async def turn(engine, prompt, name):
+        engine.finish_turn()
+        calls.append(prompt)
+        (workspace / "dirty.txt").write_text("still uncommitted", encoding="utf-8")
+        return Envelope(payload=f"report {len(calls)}")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace, max_continuations=0)
+
+    assert calls == ["Done-when: tests pass", _jobs.COMMIT_CONTINUATION_PROMPT]
+    assert result.status == "done"
+    assert result.error is None
+    warning = "uncommitted: 1 path(s) left after commit recovery"
+    assert result.result_path.read_text(encoding="utf-8").startswith(
+        f"report 1\n\nreport 2\n\nwarning: {warning}\n\nturn 0"
+    )
+    record = row(workspace, result)
+    assert record["result"] == f"report 1\n\nreport 2\n\nwarning: {warning}"
+    assert record["uncommitted"] == "1 path(s) left after commit recovery"
+    assert record["continuations"] == 1
+
+
+def test_governed_edit_job_gets_commit_continuation(workspace, monkeypatch):
+    calls = []
+    resolve_launch = _jobs._launch.resolve_launch
+
+    def governed_launch(*args, **kwargs):
+        args = (*args[:4], "legacy", *args[5:])
+        return replace(resolve_launch(*args, **kwargs), mode="governed")
+
+    async def turn(engine, prompt, name):
+        engine.finish_turn()
+        calls.append(prompt)
+        (workspace / "dirty.txt").write_text("still uncommitted", encoding="utf-8")
+        return Envelope(payload=f"report {len(calls)}")
+
+    monkeypatch.setattr(_jobs._launch, "resolve_launch", governed_launch)
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace, profile="edit", launch_mode="governed", max_continuations=0)
+
+    assert calls == ["Done-when: tests pass", _jobs.COMMIT_CONTINUATION_PROMPT]
+    assert result.status == "done"
+    assert result.error is None
+    warning = "uncommitted: 1 path(s) left after commit recovery"
+    assert result.result_path.read_text(encoding="utf-8").startswith(
+        f"report 1\n\nreport 2\n\nwarning: {warning}\n\nturn 0"
+    )
+    record = row(workspace, result)
+    assert record["uncommitted"] == "1 path(s) left after commit recovery"
+    assert record["continuations"] == 1
+
+
+def test_failed_commit_continuation_preserves_original_done_report(workspace, monkeypatch):
+    calls = []
+
+    async def turn(engine, prompt, name):
+        engine.finish_turn()
+        calls.append(prompt)
+        (workspace / "dirty.txt").write_text("still uncommitted", encoding="utf-8")
+        if len(calls) == 2:
+            return Envelope.error_envelope(RuntimeError("commit failed"))
+        return Envelope(payload="original report")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace, max_continuations=0)
+
+    warning = "uncommitted: 1 path(s) left after commit recovery"
+    assert result.status == "done"
+    assert result.error is None
+    assert row(workspace, result)["result"] == f"original report\n\nwarning: {warning}"
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"profile": "review"},
+        {"profile": "edit-and-run", "intentional_review": True, "launch_mode": "legacy"},
+    ],
+)
+def test_read_only_job_preserves_findings_with_dirty_checkout(workspace, monkeypatch, options):
+    calls = []
+
+    async def turn(engine, prompt, name, **kwargs):
+        engine.finish_turn()
+        calls.append(prompt)
+        (workspace / "dirty.txt").write_text("existing work", encoding="utf-8")
+        return Envelope(payload="review findings")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace, **options)
+
+    assert calls == ["Done-when: tests pass"]
+    assert result.status == "done"
+    assert row(workspace, result)["result"] == "review findings"
     assert row(workspace, result)["continuations"] == 0
 
 
