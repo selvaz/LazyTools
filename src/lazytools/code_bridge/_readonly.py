@@ -14,11 +14,11 @@ from pathlib import Path
 from lazytools.code_bridge._allowlist import load_rules
 
 
-def pipeline(command: str) -> list[str] | None:
+def _pipeline(command: str) -> list[tuple[str, bool]] | None:
     # Refuse expansion, escapes, comments and control/non-ASCII text everywhere.
     if not command or re.search(r"[\\$`#]|[^\x20-\x7e]", command):
         return None
-    stages: list[str] = []
+    stages: list[tuple[str, bool]] = []
     buf = ""
     quote = ""
     i = 0
@@ -35,14 +35,14 @@ def pipeline(command: str) -> list[str] | None:
         elif ch in "<>&|;()" or (ch in "012" and (not buf or buf.endswith(" "))):
             # Consume only complete, unquoted redirects at word boundaries.
             # No arbitrary file targets, input redirects, append or clobber.
-            redirect = re.match(r"(?:[012]?> */dev/null|[012]>&[012])(?= |$)", command[i:])
+            redirect = re.match(r"(?:2>/dev/null|2>&1)(?= |$)", command[i:])
             if redirect and (not buf or buf.endswith(" ")):
                 i += len(redirect[0])
                 continue
             if ch == "|" and command[i:i + 2] != "||" and command[i - 1:i] != "|":
                 if not buf.strip():
                     return None
-                stages.append(buf.strip())
+                stages.append((buf.strip(), True))
                 buf = ""
                 i += 1
                 continue
@@ -52,8 +52,14 @@ def pipeline(command: str) -> list[str] | None:
         i += 1
     if quote or not buf.strip():
         return None
-    stages.append(buf.strip())
+    stages.append((buf.strip(), False))
     return stages
+
+
+def pipeline(command: str) -> list[str] | None:
+    """Split a safe command sequence, retaining the historic public shape."""
+    stages = _pipeline(command)
+    return None if stages is None else [stage for stage, _ in stages]
 
 
 #: Names (path segments, compared case-insensitively) a Bash read never touches:
@@ -164,7 +170,9 @@ class ReadRule:
                 if arg == "--list":
                     list_mode = True
                 flag, sep, value = arg.partition("=")
-                if flag in self.values:
+                if self.command[0] in {"head", "tail"} and re.fullmatch(r"-[0-9]+", arg):
+                    seen.add("-n")
+                elif flag in self.values:
                     if not sep:
                         i += 1
                         if i == len(rest):
@@ -190,8 +198,14 @@ class ReadRule:
             from lazytools.code_bridge._approvals import _api_endpoint_ok
 
             return len(positionals) == 1 and _api_endpoint_ok(positionals[0])
+        if self.validator == "sed-print" and (
+            len(positionals) != 2 or re.fullmatch(r"[0-9]+(?:,[0-9]+)?p", positionals[0]) is None
+        ):
+            return False
         if self.operands != "none":
             operands = positionals
+            if self.validator == "sed-print":
+                operands = positionals[1:]
             if self.operands == "pattern-paths" and not seen & {"-e", "--regexp", "--files"}:
                 operands = positionals[1:]  # the first positional is the search pattern, not a path
             git = self.command[0] == "git"
@@ -217,7 +231,8 @@ def load_policy(source: Path | None = None) -> tuple[ReadRule, ...]:
         operands, stdin = raw.get("operands", "paths"), raw.get("stdin", False)
         if (
             not raw["command"] or type(count) is not int or count < 0
-            or not isinstance(validator, str) or validator not in {"options", "branch", "api", "find", "git-log"}
+            or not isinstance(validator, str)
+            or validator not in {"options", "branch", "api", "find", "git-log", "sed-print"}
             or operands not in {"paths", "pattern-paths", "none"} or type(stdin) is not bool
             or not set(raw.get("globs", [])) <= set(raw.get("values", []))
         ):
@@ -234,20 +249,24 @@ def packaged_policy() -> tuple[ReadRule, ...]:
     return load_policy()
 
 
-def match(command: str) -> str | None:
+def match(command: str, *, checkout: bool = False) -> str | None:
     from lazytools.code_bridge._approvals import _tokenize
 
-    stages = pipeline(command)
+    stages = _pipeline(command)
     if stages is None:
         return None
     ids = []
-    for index, stage in enumerate(stages):
+    piped = False
+    for stage, pipes_to_next in stages:
         words = _tokenize(stage)
         if not words or words[0].quoted:
             return None
         args = [word.text for word in words]
-        rule = next((rule for rule in packaged_policy() if rule.matches(args, piped=index > 0)), None)
+        if piped and args[0] not in {"head", "tail", "grep"}:
+            return None
+        rule = next((rule for rule in packaged_policy() if rule.matches(args, piped=piped)), None)
         if rule is None:
             return None
         ids.append(rule.id)
+        piped = pipes_to_next
     return " | ".join(ids)

@@ -37,8 +37,9 @@ READS = [
     "gh pr view 1 --json state", "gh pr list --state open", "gh pr checks 1", "gh pr diff 1 --name-only",
     "gh run view 1 --log-failed", "gh run list --limit 5", "gh issue view 1", "gh issue list",
     "gh api repos/a/b/pulls/1/comments --paginate",
-    "git log --oneline | head -n 5", "cat README.md | grep text | wc -l",
-    "git status 2>&1", "git status >/dev/null", "git status 2> /dev/null",
+    "grep -n x file 2>&1 | head -5", "sed -n 1,20p file 2>/dev/null | tail -3",
+    "git log --oneline | head -3", "ls src | grep code",
+    "git status 2>&1", "git status 2>/dev/null",
     "gh pr view 1 --json reviews",
 ]
 
@@ -49,10 +50,28 @@ def test_readonly_capabilities(command):
     assert tier(command) == "allow"
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git add $(touch proof) && git commit -m message",
+        "git commit -m \"$(cat <<'EOF'\nmessage\nEOF\ntouch proof\nEOF\n)\"",
+        "cat payload.py | py",
+        'cat "$PWD_FILE"',
+        "ruff check src",
+        "ruff check src --config pyproject.toml",
+        "ruff format --check --cache-dir=/outside src",
+        "pytest tests; rm -rf x",
+    ],
+)
+def test_reported_gate_bypasses_raise_a_ticket(command):
+    assert tier(command) == "ask"
+
+
 BYPASSES = [
     r'git status \" > output', 'git status >"output"', "git status >& output", "git status <> output",
     "git status >> output", "git status >| output", "git status &> output", "git status 2>&3",
     "git status 2>&1 > output", "git status > /dev/null/../output", "git status 3>/dev/null",
+    "git status >/dev/null", "git status 2> /dev/null", "git status 1>&2", "git status 0>/dev/null",
     "gh -R a/b pr close 1", "gh --repo=a/b pr close 1", "git checkout HEAD file", "git checkout file",
     "git status # ; git restore .", "git status#ignored", "powershell -Com 'git restore .'",
     "pwsh -c 'git status'", r"g\it restore .", "node -p 'fs.unlinkSync(x)'", "node -pe code",
@@ -61,8 +80,8 @@ BYPASSES = [
     "env git status", "env X=1 git status", "X=1 git status", "nohup git status", "sudo git status",
     "xargs git status", "eval 'git status'", "exec git status", "source x.sh",
     "find . -exec echo x ';'", "find . -delete", "find . -fprint output", "find . -fprintf output x",
-    "git status; cat README.md", "git status && cat README.md", "git status || cat README.md",
-    "git status | sh", "git status | git add -A", "git status |", "| git status", "git status |& cat",
+    "git status; cat README.md", "git status; rm -rf x", "git status && cat README.md", "git status || cat README.md",
+    "git status | sh", "git status | wc -l", "git status | git add -A", "git status |", "| git status", "git status |& cat",
     "git status $(echo x)", "git status `echo x`", "cat <(git status)", "cat >(git status)",
     "git status\ncat README.md", "git status\t--short", "git status 'unterminated", 'git status ""',
     "git diff --output=output", "git log --output output", "git show --ext-diff", "git diff --textconv",
