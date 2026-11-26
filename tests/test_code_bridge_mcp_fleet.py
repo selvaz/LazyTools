@@ -212,10 +212,18 @@ def test_bridge_events_times_out_empty(events_tool, monkeypatch):
     from lazytools.code_bridge import _mcp_fleet
 
     _db, tool = events_tool
-    clock = iter([0.0, 0.0, 0.6, 1.2])
-    monkeypatch.setattr(_mcp_fleet.time, "monotonic", lambda: next(clock))
-    monkeypatch.setattr(_mcp_fleet.time, "sleep", lambda seconds: None)
-    assert tool.run_sync(timeout_s=1)["events"] == []
+    now = [0.0]
+    sleeps = []
+    monkeypatch.setattr(_mcp_fleet.time, "monotonic", lambda: now[0])
+
+    def sleep(seconds):
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(_mcp_fleet.time, "sleep", sleep)
+    result = tool.run_sync(timeout_s=1)
+    assert result["events"] == [] and result["cursor"]
+    assert sleeps == [0.5, 0.5]
 
 
 @pytest.mark.parametrize("kwargs", [
@@ -230,8 +238,10 @@ def test_bridge_events_refuses_malformed_input(events_tool, kwargs):
     _db, tool = events_tool
     with pytest.raises(ValueError):
         FleetTools().bridge_events(**kwargs)
-    result = tool.run_sync(**kwargs)
-    assert not isinstance(result, dict) or "cursor" not in result
+    if kwargs.get("timeout_s") is True:
+        return  # the server's argument schema coerces a JSON true to 1 before the call
+    with pytest.raises(ValueError):  # the server refuses too, rather than resetting the cursor
+        tool.run_sync(**kwargs)
 
 
 def test_bridge_events_is_hidden_and_refused_in_a_task_scope(events_tool):
@@ -244,9 +254,7 @@ def test_bridge_events_is_hidden_and_refused_in_a_task_scope(events_tool):
     assert "bridge_events" not in _scoped_tools(tool_map)
     token = _policy._task.set(object())  # type: ignore[arg-type]
     try:
-        result = tool.run_sync()
-    except PermissionError:
-        result = None
+        with pytest.raises(PermissionError):
+            tool.run_sync()
     finally:
         _policy._task.reset(token)
-    assert not isinstance(result, dict) or "cursor" not in result
