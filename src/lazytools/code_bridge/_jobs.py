@@ -650,6 +650,7 @@ def run_job(
             prompt = task
             turns: list[dict[str, Any]] = []
             commit_continuation = False
+            original_report: str | None = None
             before = await asyncio.to_thread(_progress.snapshot, lock.cwd)
             job_branch = before.get("branch")
             for turn in range(max_continuations + 2):
@@ -722,24 +723,37 @@ def run_job(
                 _store.write_meta(store, job_id, meta)
                 if cleanup.error:
                     return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", cleanup.error)
+                if not env.ok and commit_continuation:
+                    uncommitted = await asyncio.to_thread(_uncommitted_count, lock.cwd)
+                    if uncommitted:
+                        warning = f"uncommitted: {uncommitted} path(s) left after commit recovery"
+                        meta = _store.read_meta(store, job_id) or {}
+                        meta["uncommitted"] = f"{uncommitted} path(s) left after commit recovery"
+                        _store.write_meta(store, job_id, meta)
+                        reports = [original_report or "", env.text(), f"warning: {warning}"]
+                        return _finish("done", "\n\n".join(report for report in reports if report), None)
                 if env.ok:
                     uncommitted = await asyncio.to_thread(_uncommitted_count, lock.cwd)
                     if uncommitted and can_write:
                         if commit_continuation:
-                            return _finish(
-                                "partial", "", f"job ended with {uncommitted} uncommitted path(s) "
-                                "after the commit continuation",
-                            )
+                            warning = f"uncommitted: {uncommitted} path(s) left after commit recovery"
+                            meta = _store.read_meta(store, job_id) or {}
+                            meta["uncommitted"] = f"{uncommitted} path(s) left after commit recovery"
+                            _store.write_meta(store, job_id, meta)
+                            reports = [original_report or "", env.text(), f"warning: {warning}"]
+                            return _finish("done", "\n\n".join(report for report in reports if report), None)
                         if not turns[-1]["thread_id"]:
                             return _finish(
                                 "partial", "", f"job ended with {uncommitted} uncommitted path(s); "
                                 "no durable thread is available for the commit continuation",
                             )
+                        original_report = env.text()
                         commit_continuation = True
                         _set_status("checkpoint")
                         prompt = COMMIT_CONTINUATION_PROMPT
                         continue
-                    return _finish("done", env.text(), None)
+                    reports = [original_report or "", env.text()] if commit_continuation else [env.text()]
+                    return _finish("done", "\n\n".join(report for report in reports if report), None)
                 message = env.error.message if env.error else "unknown error"
                 if not timed_out:
                     return _finish("failed", "", message)

@@ -110,16 +110,22 @@ def test_done_with_uncommitted_file_gets_one_commit_continuation(workspace, monk
         engine.finish_turn()
         calls.append(prompt)
         (workspace / "dirty.txt").write_text("still uncommitted", encoding="utf-8")
-        return Envelope(payload="finished")
+        return Envelope(payload=f"report {len(calls)}")
 
     monkeypatch.setattr(_jobs, "_run_agent", turn)
     result = run(workspace, max_continuations=0)
 
     assert calls == ["Done-when: tests pass", _jobs.COMMIT_CONTINUATION_PROMPT]
-    assert result.status == "partial"
-    assert result.error.startswith("job ended with 1 uncommitted path(s) after the commit continuation")
-    assert "1 uncommitted path(s)" in result.result_path.read_text(encoding="utf-8")
-    assert row(workspace, result)["continuations"] == 1
+    assert result.status == "done"
+    assert result.error is None
+    warning = "uncommitted: 1 path(s) left after commit recovery"
+    assert result.result_path.read_text(encoding="utf-8").startswith(
+        f"report 1\n\nreport 2\n\nwarning: {warning}\n\nturn 0"
+    )
+    record = row(workspace, result)
+    assert record["result"] == f"report 1\n\nreport 2\n\nwarning: {warning}"
+    assert record["uncommitted"] == "1 path(s) left after commit recovery"
+    assert record["continuations"] == 1
 
 
 def test_governed_edit_job_gets_commit_continuation(workspace, monkeypatch):
@@ -134,16 +140,42 @@ def test_governed_edit_job_gets_commit_continuation(workspace, monkeypatch):
         engine.finish_turn()
         calls.append(prompt)
         (workspace / "dirty.txt").write_text("still uncommitted", encoding="utf-8")
-        return Envelope(payload="finished")
+        return Envelope(payload=f"report {len(calls)}")
 
     monkeypatch.setattr(_jobs._launch, "resolve_launch", governed_launch)
     monkeypatch.setattr(_jobs, "_run_agent", turn)
     result = run(workspace, profile="edit", launch_mode="governed", max_continuations=0)
 
     assert calls == ["Done-when: tests pass", _jobs.COMMIT_CONTINUATION_PROMPT]
-    assert result.status == "partial"
-    assert result.error.startswith("job ended with 1 uncommitted path(s) after the commit continuation")
-    assert row(workspace, result)["continuations"] == 1
+    assert result.status == "done"
+    assert result.error is None
+    warning = "uncommitted: 1 path(s) left after commit recovery"
+    assert result.result_path.read_text(encoding="utf-8").startswith(
+        f"report 1\n\nreport 2\n\nwarning: {warning}\n\nturn 0"
+    )
+    record = row(workspace, result)
+    assert record["uncommitted"] == "1 path(s) left after commit recovery"
+    assert record["continuations"] == 1
+
+
+def test_failed_commit_continuation_preserves_original_done_report(workspace, monkeypatch):
+    calls = []
+
+    async def turn(engine, prompt, name):
+        engine.finish_turn()
+        calls.append(prompt)
+        (workspace / "dirty.txt").write_text("still uncommitted", encoding="utf-8")
+        if len(calls) == 2:
+            return Envelope.error_envelope(RuntimeError("commit failed"))
+        return Envelope(payload="original report")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace, max_continuations=0)
+
+    warning = "uncommitted: 1 path(s) left after commit recovery"
+    assert result.status == "done"
+    assert result.error is None
+    assert row(workspace, result)["result"] == f"original report\n\nwarning: {warning}"
 
 
 @pytest.mark.parametrize(
