@@ -14,7 +14,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from lazytools.code_bridge import _jobs, _registry, _routing, _store
+from lazybridge import Store
+from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugify
+
+from lazytools.code_bridge import _cloud, _jobs, _registry, _routing, _store
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_fields import task_id as board_task_id
@@ -198,6 +201,29 @@ class BridgeLauncher:
                  "gist": ticket_gist(ticket.prompt), **cli._request_detail(ticket.prompt)}
                 for ticket in cli._pending_tickets(args, cli._ticket_job_store(args))]
 
+    def rejected_ticket_reason(self, job: dict[str, Any]) -> str:
+        """Read terminal ticket decisions even if the dispatcher never saw them pending."""
+        job_id = str(job["job_id"])
+        with _store.build_store(Path(self.db) if self.db else None) as store:
+            if ticket_ids := job.get("registry_ticket_ids"):
+                path = Path(self.registry_db).expanduser() if self.registry_db else None
+                registry = _registry.Registry.for_job(store, job_id, path)
+                tickets = [registry.inspect(ticket_id) for ticket_id in ticket_ids]
+            else:
+                queue = _store.build_approval_queue(store)
+                tickets = [
+                    queue.get_ticket(key.removeprefix(_store.APPROVAL_PREFIX))
+                    for key, raw in store.items(prefix=_store.APPROVAL_PREFIX)
+                    if isinstance(raw, dict) and raw.get("task_id") == job_id and raw.get("status") == "rejected"
+                ]
+            reasons = (
+                (ticket.decision.reason if ticket.decision else ticket.reason) or "ticket rejected without a reason"
+                for ticket in tickets
+                if ticket is not None and ticket.status == "rejected" and ticket.actor != "bridge-cleanup"
+                and _registry.job_ref(ticket) == job_id
+            )
+            return "\n".join(dict.fromkeys(reasons))
+
     def cancel(self, job_ref: str) -> bool:
         command = [sys.executable, "-m", "lazytools.code_bridge", "cancel", job_ref]
         if self.db:
@@ -308,7 +334,7 @@ class Dispatcher:
                  task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks,
                  clock: Callable[[], float] = time.time, orphan_grace: float = 30.0,
                  router: Callable[[str], str | None] | None = None, max_retries: int = 1,
-                 json_events: bool = False):
+                 json_events: bool = False, knowledge_store: Store | None = None):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
         self.service, self.principal, self.launcher = service, principal, launcher
@@ -326,6 +352,8 @@ class Dispatcher:
         self.cancelled: set[str] = set()
         self.max_retries = max_retries
         self.json_events = json_events
+        self.knowledge_store = knowledge_store
+        self.knowledge = DurableKnowledgeBase(knowledge_store) if knowledge_store is not None else None
 
     def _event(self, kind: str, task_id: str, detail: str = "", *, job_id: str | None = None) -> None:
         """Emit one event: a text line, or with --json the same keys wait-any events carry."""
@@ -335,6 +363,65 @@ class Dispatcher:
             self.emit(f"launched {job_id}")
         else:
             self.emit(f"{kind} {task_id} {detail}" if detail else f"{kind} {task_id}")
+
+    def _with_lessons(self, task: dict[str, Any]) -> dict[str, Any]:
+        if self.knowledge is None:
+            return task
+        try:
+            text = str(task["text"])
+            matches = self.knowledge.find_lessons(text, limit=3)
+            if matches:
+                lines = []
+                for lesson in matches:
+                    topic = " ".join(str(lesson.get("topic", "")).split())[:500]
+                    line = f"- {topic}"
+                    for field, label in (("what_worked", "What worked"), ("gotchas", "Gotchas")):
+                        value = " ".join(str(lesson.get(field, "")).split())[:500]
+                        if value:
+                            line += f" | {label} — {value}"
+                    lines.append(line)
+                return {**task, "text": "Known lessons\n" + "\n".join(lines) + "\n\n" + text}
+        except Exception as exc:
+            self._event("knowledge-error", task["task_id"], f"could not read lessons: {exc}")
+        return task
+
+    def _record_lesson(self, task: Task, kind: str, reason: str) -> None:
+        store = self.knowledge_store
+        if store is None:
+            return
+        try:
+            topic = f"{task.data.get('repo') or 'unknown repository'}: {kind}"
+            slug = slugify(topic)
+            key = DEFAULT_PREFIX + slug
+            now = self.clock()
+            gotchas = _cloud.redact(reason).strip()
+            # LazyBridge requires what_worked in its public write API. Record unresolved
+            # lessons with Store CAS so they stay searchable and can be revised once fixed.
+            for _ in range(20):
+                previous = store.read(key)
+                lesson = previous or {
+                    "topic": topic, "slug": slug, "what_worked": "", "status": "active",
+                    "correction_reason": "", "created_at": now, "verified_at": now,
+                }
+                updated = {**lesson, "gotchas": gotchas, "updated_at": now,
+                           "revision": lesson.get("revision", 0) + 1}
+                if store.compare_and_swap(key, previous, updated):
+                    return
+            raise RuntimeError("concurrent lesson updates did not settle")
+        except Exception as exc:
+            self._event("knowledge-error", task.task_id, f"could not save lesson: {exc}")
+
+    def _record_rejection(self, task: Task, job: dict[str, Any]) -> None:
+        rejected_ticket_reason = getattr(self.launcher, "rejected_ticket_reason", None)
+        if self.knowledge is None or rejected_ticket_reason is None:
+            return
+        try:
+            reason = rejected_ticket_reason(job)
+        except Exception as exc:
+            self._event("knowledge-error", task.task_id, f"could not read rejected tickets: {exc}")
+            return
+        if reason:
+            self._record_lesson(task, "rejected ticket", reason)
 
     def _surface_approvals(self, tasks: list[Task]) -> None:
         """Put every pending ticket of a running task into the event stream, once.
@@ -436,8 +523,9 @@ class Dispatcher:
                     evidence_ref=None if dispatch_state == "intent" else "dispatcher:no-job-after-grace",
                     job_ref=dispatch.get("job_ref"),
                 )
-                self._event("failed", task.task_id, "no job after dispatch grace period",
-                            job_id=dispatch.get("job_ref"))
+                reason = "no job after dispatch grace period"
+                self._record_lesson(task, "missing job", reason)
+                self._event("failed", task.task_id, reason, job_id=dispatch.get("job_ref"))
                 return True
             return False
         if job.get("status") not in TERMINAL:
@@ -511,11 +599,13 @@ class Dispatcher:
         complete_options = {"reconcile_failure": True} if expired else {}
         self.service.complete(self.principal, task.task_id, receipt["claim_token"], reference, state, reference,
                               "success" if accepted else "task_failure", **complete_options)
+        self._record_rejection(task, job)
         if accepted:
             self._event("done", task.task_id, job_id=str(job_ref))
             return True
-        if (self.retries.get(task.task_id, 0) < self.max_retries
-                and any(marker in failure_reason for marker in RETRYABLE_FAILURES)):
+        retryable = any(marker in failure_reason for marker in RETRYABLE_FAILURES)
+        self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
+        if retryable and self.retries.get(task.task_id, 0) < self.max_retries:
             current = next((item for item in self.task_reader(self.service, self.project_id)
                             if item.task_id == task.task_id), None)
             if current is not None:
@@ -586,7 +676,7 @@ class Dispatcher:
             claim = result["claim"]
             self._event("claimed", summary["task_id"])
             try:
-                job_ref = self.launcher.launch({**summary, **data}, claim)
+                job_ref = self.launcher.launch(self._with_lessons({**summary, **data}), claim)
             except Exception as exc:
                 reason = str(exc).replace("\n", " ")
                 try:
@@ -595,6 +685,7 @@ class Dispatcher:
                     )
                 except Exception as release_exc:
                     reason = f"{reason}; claim release failed: {str(release_exc).replace(chr(10), ' ')}"
+                self._record_lesson(board_task, "launch failure", reason)
                 self._event("failed", summary["task_id"], reason)
             else:
                 self._event("launched", summary["task_id"], job_id=job_ref)
@@ -659,5 +750,12 @@ def dispatch(args: argparse.Namespace) -> int:
     def router(tier: str) -> str | None:
         return _routing.choose(tier, cwd=os.getcwd(), db_path=db_path).decision.provider
 
-    return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
-                      json_events=bool(getattr(args, "json", False))).run(once=args.once)
+    knowledge_db = getattr(args, "knowledge_db", None)
+    knowledge_store = _store.build_store(Path(knowledge_db).expanduser()) if knowledge_db is not None else None
+    try:
+        return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
+                          json_events=bool(getattr(args, "json", False)),
+                          knowledge_store=knowledge_store).run(once=args.once)
+    finally:
+        if knowledge_store is not None:
+            knowledge_store.close()
