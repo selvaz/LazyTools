@@ -149,7 +149,8 @@ def copy_for_job(
     originals = tuple(card for card in selection.cards if card.matcher.network == "off" or network == "on")
     if not originals:
         return None
-    workspace = _coder_actions.Workspace.capture(cwd, temp)
+    configured = isinstance(raw, dict)
+    workspace = _coder_actions.Workspace.capture(cwd, temp, autonomy=configured)
     policies = {}
     # The 1.10 template-copy helper preserves the original matcher. Copy
     # individually to bind the path, task, expiry and nontransferability.
@@ -158,10 +159,15 @@ def copy_for_job(
         for root in workspace.roots:
             copies = []
             for original in originals:
+                if original.action_class == "git_push_job_branch" and (root != cwd or workspace.branch is None):
+                    continue
+                restrictions: dict[str, Any] = {"path_prefix": root}
+                if original.action_class == "git_push_job_branch":
+                    restrictions["branch"] = workspace.branch
                 try:
                     copy = queue.copy_card(
                         original.card_id, holder=holder,
-                        matcher=original.matcher.model_copy(update={"path_prefix": root}),
+                        matcher=original.matcher.model_copy(update=restrictions),
                         task_id=task_id, expires_at=expires,
                     )
                 except PolicyWidening:
@@ -170,4 +176,4 @@ def copy_for_job(
                 record(copy.card_id)
                 copies.append(copy)
             policies[root] = _policy(root, tuple(copies))
-    return Hand(workspace, policies, selection if isinstance(raw, dict) else None)
+    return Hand(workspace, policies, selection if configured else None)

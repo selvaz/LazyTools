@@ -179,11 +179,12 @@ class Registry:
 
     def card_audit(self, job: dict[str, Any]) -> list[dict[str, Any]]:
         ids = set(job.get("coder_card_ids", []))
-        if not ids:
+        store = self._existing_store() if ids else None
+        if store is None:
             return []
         return [
             {**self.job_store.read(_CARD_AUDIT + receipt.request_digest, {}), **receipt.model_dump(mode="json")}
-            for receipt in self.queue.list_card_approvals() if receipt.card_id in ids
+            for receipt in ApprovalQueue(store).list_card_approvals() if receipt.card_id in ids
         ]
 
     def open_for_job(self, job_id: str) -> list[ApprovalTicket]:
@@ -239,28 +240,40 @@ class ApprovalChannel:
 
     def _submit(self, request: ApprovalRequest, prompt: str) -> tuple[ApprovalTicket, ExecutorContext] | CardApproval:
         self.validate()
-        action = self.hand.workspace.action(request) if self.hand is not None else None
+        hand = self.hand
+        selection = hand.selection if hand else None
+        kind = hand.workspace.classify(request) if hand else "unknown"
+        card_class = kind if selection else _coder.ACTION
+        action = None
+        if hand and (selection is None or any(card.action_class == kind for card in selection.cards)):
+            action = hand.workspace.action(request, ticket_kind=kind if selection else None)
         target = ApprovalTarget(path=request.cwd if action is None else None)
         typed = TypedApprovalRequest.create(
             task_id=self.task_id or self.job_id, attempt=self.attempt, requested_by=self.actor,
             action="native_" + request.kind, target=target, policy_revision=self.policy_revision,
-            tier="routine" if action else None, action_class=_coder.ACTION if action else None,
+            tier=_coder.TIERS[card_class] if action else None, action_class=card_class if action else None,
             card_action=action[1] if action else None,
             payload={
                 "registry": _SOURCE, "job_ref": self.job_id, "invocation_id": uuid4().hex,
                 "policy_digest": self.policy_digest, "provider": request.provider, "tool": request.name,
-                "arguments": dict(request.arguments), "rule_id": None,
+                "arguments": dict(request.arguments), "rule_id": None, "ticket_class": kind,
             },
         )
-        if action is not None and self.hand is not None:
+        if action is not None and hand is not None:
             root, card_action = action
+            mode = selection.mode if selection else "supervised"
+            reason = (
+                f"Matched an owner card for {kind} in the {selection.preset} preset"
+                if selection else "Matched an owner card in the coder hand"
+            )
             self.registry.job_store.write(_CARD_AUDIT + typed.digest, redact_approval_payload({
                 "tool": request.name, "command": request.arguments.get("command"),
                 "cwd": request.cwd, "paths": [str(path) for path in card_action.paths],
+                "mode": mode, "ticket_class": kind, "reason": reason,
             }))
             with (
                 self.fenced_queue() if self.fenced_queue else nullcontext(self.registry.queue) as queue,
-                policy_scope(self.hand.policies[root], approval_actor=self.actor) as requester,
+                policy_scope(hand.policies[root], approval_actor=self.actor) as requester,
             ):
                 assert requester is not None
                 decision = queue.submit_typed_request(typed, requester=requester, prompt=prompt, ttl=self.ttl)

@@ -21,7 +21,10 @@ from lazytools.code_bridge._approvals import (
     _EDIT_TOOLS,
     _tokenize,
     is_simple_git_add,
+    pr_create_grantable,
     protected_write_path,
+    push_grantable,
+    short_branch,
 )
 
 _GH_READS = {
@@ -72,17 +75,25 @@ TICKET_COMMANDS: dict[str, tuple[tuple[str, ...], ...]] = {
     "gh_pr_merge": (("gh", "pr", "merge"),),
     "push_default_branch": (("git", "push"),),
     "delete_files": (("rm",), ("remove-item",), ("git", "rm")),
-    "package_install": (("pip", "install"), ("python", "-m", "pip", "install"), ("npm", "install")),
-    "network_other": (("git", "ls-remote"), ("git", "fetch"), ("git", "clone"), *_GH_READS, ("curl",)),
+    "package_install": (
+        ("pip", "install"), ("python", "-m", "pip", "install"), ("python", "-I", "-m", "pip", "install"),
+        ("npm", "install"),
+    ),
+    "network_other": (
+        ("git", "ls-remote"), ("git", "fetch"), ("git", "clone"), *sorted(_GH_READS), ("curl",),
+    ),
     "production_task": (("schtasks",), ("start-scheduledtask",)),
     "payment_or_external_post": (("gh", "pr", "comment"), ("gh", "issue", "comment"), ("gh", "issue", "create")),
+    "workspace_tools": tuple(command for command in COMMANDS if command[0] not in {"gh", "python"} and command not in {
+        ("git", "add"), ("git", "commit"), ("rm",), ("remove-item",),
+    }),
     "unknown": (),
 }
 NETWORK_CLASSES = {"git_push_job_branch", "gh_pr_create", "gh_pr_merge", "push_default_branch",
                    "package_install", "network_other", "payment_or_external_post"}
 OWNER_CLASSES = {"unknown", "payment_or_external_post"}
 _PRODUCTION_PATH = re.compile(
-    r"(?:^[A-Za-z]:/ProgramData(?:/|$)|(?:^|[/=])(?:production|prod)(?:[/.-]|$)|(?:^|/)\.env\.production$)",
+    r"(?:(?:^|=)[A-Za-z]:/ProgramData(?:/|$)|(?:^|[/=])(?:production|prod)(?:[/.-]|$)|(?:^|/)\.env\.production$)",
     re.IGNORECASE,
 )
 
@@ -108,14 +119,14 @@ def _ticket_class(argv: list[str], job_branch: str | None, default_branch: str |
         if len(words) != 4 or words[2] != "origin":
             return "unknown"
         branch = words[3].removeprefix("refs/heads/")
-        if branch.lower() in {"main", "master"} or (default_branch is not None and branch == default_branch):
+        if branch.lower() in {"main", "master"} or branch == default_branch:
             return "push_default_branch"
         return "git_push_job_branch" if branch == job_branch else "unknown"
     if words[:2] == ("gh", "api") and not any(
         rule.command == ("gh", "api") and rule.matches(list(words)) for rule in _readonly.packaged_policy()
     ):
         return "payment_or_external_post"
-    if binary == "curl" and any(word.startswith("-") for word in words[1:]):
+    if binary == "curl" and any(word.startswith("-") for word in words[1:] if word != "-q"):
         return "payment_or_external_post"
     if binary in {"stripe", "paypal", "send-mailmessage"}:
         return "payment_or_external_post"
@@ -254,16 +265,42 @@ def _git_execution_is_local(cwd: Path, common_dir: Path, *, writes: bool) -> boo
     )
 
 
+def _git_value(cwd: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5, check=False,
+    )
+    return "" if result.returncode else result.stdout.strip()
+
+
+_GITHUB_REMOTE = re.compile(r"(?:https://github\.com/|git@github\.com:)[\w.-]+/[\w.-]+")
+_PACKAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*(?:==[A-Za-z0-9][A-Za-z0-9_.+-]*)?")
+
+
 @dataclass(frozen=True)
 class Workspace:
     cwd: Path
     temp: Path | None
     initial: frozenset[Path]
     git_metadata: tuple[Path, Path] | None
+    branch: str | None = None
+    default_branch: str | None = None
 
     @classmethod
-    def capture(cls, cwd: Path, temp: Path | None) -> Workspace:
-        return cls(cwd, temp, frozenset(path for path, _ in _entries(cwd)), _git_metadata(cwd))
+    def capture(cls, cwd: Path, temp: Path | None, *, autonomy: bool = False) -> Workspace:
+        metadata = _git_metadata(cwd)
+        branch = None
+        default = None
+        if metadata is not None and autonomy:
+            branch = short_branch(_git_value(cwd, "symbolic-ref", "--quiet", "HEAD"))
+            default = cls._default_branch(cwd)
+        return cls(cwd, temp, frozenset(path for path, _ in _entries(cwd)), metadata, branch, default)
+
+    @staticmethod
+    def _default_branch(cwd: Path) -> str | None:
+        ref = _git_value(cwd, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
+        if ref.startswith("refs/remotes/origin/"):
+            return short_branch("refs/heads/" + ref.removeprefix("refs/remotes/origin/"))
+        return None
 
     @property
     def roots(self) -> tuple[Path, ...]:
@@ -280,16 +317,17 @@ class Workspace:
             return None
         return target
 
-    def _cleanup(self, raw: str, cwd: Path) -> Path | None:
+    def _cleanup(self, raw: str, cwd: Path, *, include_initial: bool = False) -> Path | None:
         target = self._write(raw, cwd)
-        if target is None or target in self.initial:
+        if target is None or (target in self.initial and not include_initial):
             return None
         if target.is_dir():
             if os.path.ismount(target):
                 return None
             device = target.stat().st_dev
             if any(
-                child in self.initial or _linked(info) or not _same_device(info, device) or self._write(str(child), cwd) is None
+                (child in self.initial and not include_initial)
+                or _linked(info) or not _same_device(info, device) or self._write(str(child), cwd) is None
                 for child, info in _entries(target)
             ):
                 return None
@@ -418,13 +456,21 @@ class Workspace:
                 return None
         return (dest or cwd,)
 
-    def action(self, request: ApprovalRequest) -> tuple[Path, CardAction] | None:
+    def classify(self, request: ApprovalRequest) -> str:
+        command = request.arguments.get("command")
+        if isinstance(command, str):
+            return ticket_class(
+                command, job_branch=self.branch, default_branch=self.default_branch, powershell=request.provider == "codex",
+            )
+        return "workspace_tools" if request.kind == "tool" and request.name in _EDIT_TOOLS else "unknown"
+
+    def action(self, request: ApprovalRequest, *, ticket_kind: str | None = None) -> tuple[Path, CardAction] | None:
         try:
-            return self._action(request)
-        except (OSError, RecursionError):
+            return self._action(request, ticket_kind)
+        except (OSError, subprocess.SubprocessError, UnicodeError, RecursionError):
             return None
 
-    def _action(self, request: ApprovalRequest) -> tuple[Path, CardAction] | None:
+    def _action(self, request: ApprovalRequest, kind: str | None) -> tuple[Path, CardAction] | None:
         cwd = _scope(request.cwd or str(self.cwd), self.cwd, self.roots)
         if cwd is None or not cwd.is_dir():
             return None
@@ -449,7 +495,9 @@ class Workspace:
             if args is None:
                 return None
             argv = args
-            paths = self._shell(argv, cwd) or ()
+            paths = self._shell(argv, cwd, autonomy=kind is not None) or ()
+            if kind is not None and not paths:
+                paths = self._autonomy_paths(kind, argv, cwd) or ()
         if not paths or any(path is None for path in paths):
             return None
         affected = tuple(path for path in paths if path is not None)
@@ -458,11 +506,84 @@ class Workspace:
                 # Temp cards cover effects inside the separately scoped job
                 # temp directory. The native cwd and operands were checked above.
                 return root, CardAction(
-                    argv=tuple(argv), cwd=root, paths=affected, network="on" if argv[0] == "gh" else "off",
+                    argv=tuple(argv), cwd=root, paths=affected,
+                    branch=self.branch if kind == "git_push_job_branch" else None,
+                    network="on" if kind in NETWORK_CLASSES or argv[0] == "gh" else "off",
                 )
         return None
 
-    def _shell(self, argv: list[str], cwd: Path) -> tuple[Path | None, ...] | None:
+    def _autonomy_paths(self, kind: str, argv: list[str], cwd: Path) -> tuple[Path, ...] | None:
+        if kind in {"git_push_job_branch", "push_default_branch", "gh_pr_create", "gh_pr_merge", "network_other"}:
+            return (cwd,) if self._network_action(kind, argv, cwd) else None
+        if (
+            kind == "production_task" and os.name == "nt"
+            and argv[0].lower() in {"schtasks", "schtasks.exe"} and len(argv) == 4
+            and [value.lower() for value in argv[1:3]] == ["/run", "/tn"]
+            and re.fullmatch(r"[\w /.-]+", argv[3]) and not argv[3].startswith(("/", "-"))
+        ):
+            argv[0] = "schtasks"
+            return (cwd,)
+        if kind == "package_install":
+            return self._pip_install(argv, cwd)
+        return None
+
+    def _network_action(self, kind: str, argv: list[str], cwd: Path) -> bool:
+        if kind == "network_other" and argv[:2] == ["curl", "-q"]:
+            return len(argv) == 3 and re.fullmatch(r"https://[A-Za-z0-9.-]+(?:/[A-Za-z0-9_./-]*)?", argv[2]) is not None
+        if cwd != self.cwd or self.git_metadata is None or _git_metadata(cwd) != self.git_metadata:
+            return False
+        if argv[0] == "git" and argv[1:2] == ["push"]:
+            current_default = self._default_branch(cwd)
+            if current_default is None or current_default != self.default_branch or self.branch is None:
+                return False
+            if not self._clean_push_origin(cwd):
+                return False
+            words = _tokenize(_quoted(argv))
+            if kind == "git_push_job_branch":
+                return words is not None and push_grantable(words, self.branch)
+            return argv[3] == current_default and short_branch(_git_value(cwd, "symbolic-ref", "--quiet", "HEAD")) == current_default
+        if argv[:3] == ["git", "ls-remote", "origin"]:
+            return len(argv) == 3 and _GITHUB_REMOTE.fullmatch(_git_value(cwd, "remote", "get-url", "origin")) is not None
+        if argv[0] != "gh" or not _GITHUB_REMOTE.fullmatch(_git_value(cwd, "remote", "get-url", "origin")):
+            return False
+        if kind == "gh_pr_merge":
+            args = argv[3:]
+            if args and re.fullmatch(r"[1-9][0-9]*", args[0]):
+                args = args[1:]
+            return argv[1:3] == ["pr", "merge"] and (not args or args in [["--merge"], ["--squash"], ["--rebase"]])
+        if kind == "gh_pr_create" and self.branch and self.branch not in {"main", "master", self.default_branch}:
+            words = _tokenize(_quoted(argv))
+            return (
+                words is not None and pr_create_grantable(words, self.branch)
+                and short_branch(_git_value(cwd, "symbolic-ref", "--quiet", "HEAD")) == self.branch
+            )
+        return False
+
+    def _clean_push_origin(self, cwd: Path) -> bool:
+        assert self.git_metadata is not None
+        remote = _git_value(cwd, "remote", "get-url", "--push", "--all", "origin")
+        return (
+            _GITHUB_REMOTE.fullmatch(remote) is not None
+            and remote == _git_value(cwd, "remote", "get-url", "origin")
+            and _git_execution_is_local(cwd, self.git_metadata[1], writes=True)
+            and not os.path.lexists(self.git_metadata[1] / "hooks" / "pre-push")
+            and not any(_git_value(cwd, "config", "--get", key) for key in (
+                "core.sshCommand", "remote.origin.mirror", "push.followTags", "push.recurseSubmodules",
+            ))
+        )
+
+    def _pip_install(self, argv: list[str], cwd: Path) -> tuple[Path, ...] | None:
+        if argv[:4] != ["python", "-I", "-m", "pip"]:
+            return None
+        args = argv[4:]
+        if args[:5] != ["install", "--isolated", "--no-cache-dir", "--only-binary=:all:", "--target"] or len(args) < 7:
+            return None
+        target = self._write(args[5], cwd)
+        if target is not None and not target.exists() and all(_PACKAGE.fullmatch(name) for name in args[6:]):
+            return (target,)
+        return None
+
+    def _shell(self, argv: list[str], cwd: Path, *, autonomy: bool = False) -> tuple[Path | None, ...] | None:
         executable = argv[0]
         if executable == "git":
             return self._git(argv, cwd)
@@ -481,14 +602,14 @@ class Workspace:
                 args = args[1:]
             if any(arg.startswith("-") or (os.name == "nt" and "," in arg) for arg in args):
                 return None
-            return tuple(self._cleanup(arg, cwd) for arg in args)
+            return tuple(self._cleanup(arg, cwd, include_initial=autonomy) for arg in args)
         if executable.casefold() == "remove-item" and os.name == "nt":
             argv[0] = "remove-item"
             args = argv[1:]
             if len(args) >= 2 and args[0].casefold() == "-literalpath" and "," not in args[1] and all(
                 arg.casefold() in {"-force", "-recurse"} for arg in args[2:]
             ):
-                return (self._cleanup(args[1], cwd),)
+                return (self._cleanup(args[1], cwd, include_initial=autonomy),)
             return None
         if executable == "mkdir" and len(argv) == 2 and not argv[1].startswith("-") and "," not in argv[1]:
             return (self._write(argv[1], cwd),)
