@@ -111,6 +111,36 @@ Providers whose optional extra is missing are simply skipped, a bare
 `datahub` and `statistical` additionally need the separately installed hub; install
 `lazystats[regimes]` / the `[web]` extra to light up `regimes` / `web`.
 
+## Orchestration server
+
+`lazytools-orchestration-mcp` runs the same server with only the orchestration
+providers: `code_bridge`, `code_review`, `claude_review`, `code_sessions`,
+`codemap`, `projects` and `fleet`. `code_write` and the data providers are never
+mounted. See the [design spec](design/orchestration-mcp/SPEC.md).
+
+```sh
+lazytools-orchestration-mcp --list-tools
+lazytools-orchestration-mcp --allow-unsafe --config lazytools.json
+```
+
+It takes the same flags and environment variables as `lazytools-mcp`. Positional
+ids (or `LAZYTOOLS_MCP_PROVIDERS`) narrow the selection; an id outside the list
+above is an error and the server does not start.
+
+Without `--allow-unsafe` it serves the `codemap`, `fleet` and read-only
+`projects` tools. With it, bridge jobs, reviews, named sessions and project
+writes are added. It starts with one coding CLI installed or none: the review
+provider of a missing CLI is skipped with a warning (Codex is also found through
+`CODEX_BIN` or the desktop app), and no engine SDK is imported at start.
+
+On either server, `--list-tools` prints the names of the tools the same flags
+would serve, one per line, and exits without starting a transport.
+
+**Deprecation.** `lazytools-mcp` keeps the coding providers (`code_bridge`,
+`code_review`, `claude_review`, `code_sessions`, `codemap`, `fleet`) for one
+release and logs a note to stderr when it mounts any of them. Move those entries
+of your host configuration to `lazytools-orchestration-mcp`.
+
 ## Providers
 
 `lazytools-mcp` serves the available read-only providers by default. Coding

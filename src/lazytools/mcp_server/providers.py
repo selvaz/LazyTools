@@ -46,6 +46,18 @@ def _data_home() -> str:
 PROVIDER_FACTORIES: dict[str, Callable[..., Any]] = {}
 
 
+#: The only providers ``lazytools-orchestration-mcp`` mounts, in listing order.
+ORCHESTRATION_PROVIDERS: tuple[str, ...] = (
+    "code_bridge",
+    "code_review",
+    "claude_review",
+    "code_sessions",
+    "codemap",
+    "projects",
+    "fleet",
+)
+
+
 def _register(provider_id: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def deco(factory: Callable[..., Any]) -> Callable[..., Any]:
         PROVIDER_FACTORIES[provider_id] = factory

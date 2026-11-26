@@ -8,7 +8,7 @@
 4. Status: `live-tested` = run for real on 25-26/11/2026; `tests-only` = unit/integration tests exist, no real run recorded; `unknown` = could not tell from the code.
 5. Not a user manual: each row links to the doc that is. Commands below are exact; add `--db PATH` / `--registry-db PATH` to use a non-default Store.
 
-Entry points (LazyTools `[project.scripts]`): `lazytools-mcp`, `lazytools-code-bridge`, `lazytools-ecosystem-sync`, `lazytools-projects`. Also `python -I tools/governed_task.py` (repo script, not installed).
+Entry points (LazyTools `[project.scripts]`): `lazytools-mcp`, `lazytools-orchestration-mcp`, `lazytools-code-bridge`, `lazytools-ecosystem-sync`, `lazytools-projects`. Also `python -I tools/governed_task.py` (repo script, not installed).
 
 Quick map of "things we keep rebuilding" to what already exists:
 
@@ -171,7 +171,7 @@ Cloud rows are in sections 1 and 2 (`run --where cloud`, `apply`, `cloud-sync`, 
 
 ## 8. MCP tools by provider (`lazytools-mcp`)
 
-Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.json] [--http --port N]`. Default: all providers, read-only. Write tools need `--allow-unsafe`. Docs: [mcp-server.md](mcp-server.md), [connectors.md](connectors.md). Coding providers must be named explicitly. Tool names listed from the code (`default_providers` + `expand_tools`) and the installed server; providers whose optional package was missing here (web, fin, regimes, pulse, telegram, code_bridge, code_sessions, gmail, outlook, studio) are listed from source or the live tool list. Status for all providers: tests-only unless noted.
+Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.json] [--http --port N] [--list-tools]`. Default: all providers, read-only. The coding providers (`code_bridge`, `code_review`, `claude_review`, `code_sessions`, `codemap`, `fleet`) stay here for one release; mounting one logs a deprecation note (see section 8a). Write tools need `--allow-unsafe`. Docs: [mcp-server.md](mcp-server.md), [connectors.md](connectors.md). Coding providers must be named explicitly. Tool names listed from the code (`default_providers` + `expand_tools`) and the installed server; providers whose optional package was missing here (web, fin, regimes, pulse, telegram, code_bridge, code_sessions, gmail, outlook, studio) are listed from source or the live tool list. Status for all providers: tests-only unless noted.
 
 | Provider id | Tools | What it does | Status | Docs |
 | --- | --- | --- | --- | --- |
@@ -210,6 +210,12 @@ Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.jso
 | `optimizer_agent` | `portfolio-optimizer-specialist` | LLM specialist over the `fin` tools, one MCP tool taking a task | tests-only | portfolio-optimization.md |
 | `report_agent` | `report-specialist` | LLM specialist over the `report` tools, one MCP tool | tests-only | report.md |
 | `stats_agents` | `stats-supervisor`, `regression-analyst`, `volatility-correlation-analyst`, `regime-analyst` | Statistical specialists and their supervisor as MCP tools | tests-only | skills-stats.md |
+
+## 8a. Orchestration MCP server (`lazytools-orchestration-mcp`)
+
+| Capability | How to call | What it does | Status | Docs |
+| --- | --- | --- | --- | --- |
+| Orchestration-only MCP server | `lazytools-orchestration-mcp [provider ids...] [--allow-unsafe] [--config lazytools.json] [--http --port N] [--list-tools]` | Mounts only `code_bridge`, `code_review`, `claude_review`, `code_sessions`, `codemap`, `projects`, `fleet` (tools in section 8); refuses other ids; starts with one coding CLI or none | tests-only | mcp-server.md#orchestration-server |
 
 ## 9. LazyBridge core (v1.10.0)
 
