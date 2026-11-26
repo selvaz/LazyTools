@@ -63,10 +63,71 @@ _GIT_HOOKS = {
 }
 _SENSITIVE_ADD_NAMES = ("*.jks", "id_*", "*credential*")
 
+# The command prefixes describe candidate effects. Workspace checks still
+# have to establish the actual paths, branch and argument restrictions.
+TICKET_COMMANDS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "git_local": (("git", "add"), ("git", "commit")),
+    "git_push_job_branch": (("git", "push"),),
+    "gh_pr_create": (("gh", "pr", "create"),),
+    "gh_pr_merge": (("gh", "pr", "merge"),),
+    "push_default_branch": (("git", "push"),),
+    "delete_files": (("rm",), ("remove-item",), ("git", "rm")),
+    "package_install": (("pip", "install"), ("python", "-m", "pip", "install"), ("npm", "install")),
+    "network_other": (("git", "ls-remote"), ("git", "fetch"), ("git", "clone"), *_GH_READS, ("curl",)),
+    "production_task": (("schtasks",), ("start-scheduledtask",)),
+    "payment_or_external_post": (("gh", "pr", "comment"), ("gh", "issue", "comment"), ("gh", "issue", "create")),
+    "unknown": (),
+}
+NETWORK_CLASSES = {"git_push_job_branch", "gh_pr_create", "gh_pr_merge", "push_default_branch",
+                   "package_install", "network_other", "payment_or_external_post"}
+OWNER_CLASSES = {"unknown", "payment_or_external_post"}
+_PRODUCTION_PATH = re.compile(
+    r"(?:^[A-Za-z]:/ProgramData(?:/|$)|(?:^|[/=])(?:production|prod)(?:[/.-]|$)|(?:^|/)\.env\.production$)",
+    re.IGNORECASE,
+)
 
-def _args(command: str, *, powershell: bool) -> list[str] | None:
+
+def ticket_class(
+    command: str, *, job_branch: str | None = None, default_branch: str | None = None, powershell: bool = False,
+) -> str:
+    """Classify one direct command. Unrecognized syntax stays with the owner."""
+    argv = _args(command, powershell=powershell, normalize_windows_paths=True)
+    if argv is None:
+        return "unknown"
+    return _ticket_class(argv, job_branch, default_branch)
+
+
+def _ticket_class(argv: list[str], job_branch: str | None, default_branch: str | None) -> str:
+    binary = argv[0].replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".exe")
+    if binary == "python3":
+        binary = "python"
+    words = (binary, *argv[1:])
+    if any(_PRODUCTION_PATH.search(word.replace("\\", "/")) for word in argv):
+        return "production_task"
+    if words[:2] == ("git", "push"):
+        if len(words) != 4 or words[2] != "origin":
+            return "unknown"
+        branch = words[3].removeprefix("refs/heads/")
+        if branch.lower() in {"main", "master"} or (default_branch is not None and branch == default_branch):
+            return "push_default_branch"
+        return "git_push_job_branch" if branch == job_branch else "unknown"
+    if words[:2] == ("gh", "api") and not any(
+        rule.command == ("gh", "api") and rule.matches(list(words)) for rule in _readonly.packaged_policy()
+    ):
+        return "payment_or_external_post"
+    if binary == "curl" and any(word.startswith("-") for word in words[1:]):
+        return "payment_or_external_post"
+    if binary in {"stripe", "paypal", "send-mailmessage"}:
+        return "payment_or_external_post"
+    for kind, prefixes in TICKET_COMMANDS.items():
+        if any(words[:len(prefix)] == prefix for prefix in prefixes):
+            return kind
+    return "unknown"
+
+
+def _args(command: str, *, powershell: bool, normalize_windows_paths: bool = False) -> list[str] | None:
     # A backslash is a path separator in PowerShell and an escape in Bash.
-    if powershell and os.name == "nt":
+    if powershell and (os.name == "nt" or normalize_windows_paths):
         command = command.replace("\\", "/")
         wrapper = _POWERSHELL.fullmatch(command.strip())
         if wrapper:

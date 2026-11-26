@@ -5,7 +5,47 @@ from datetime import UTC, datetime
 
 import pytest
 
-from lazytools.code_bridge import _store, cli
+from lazytools.code_bridge import _coder_actions, _store, cli
+
+
+@pytest.mark.parametrize(("command", "kind"), [
+    ("git add -- src/file.py", "git_local"),
+    ('git commit -m "Record changes"', "git_local"),
+    ("git push origin feature/work", "git_push_job_branch"),
+    ("git push origin another-branch", "unknown"),
+    ("git push origin trunk", "push_default_branch"),
+    ("git push origin main", "push_default_branch"),
+    ("gh pr create --fill", "gh_pr_create"),
+    ("gh pr merge 17 --squash", "gh_pr_merge"),
+    ("rm -rf -- scratch", "delete_files"),
+    ("python -m pip install example", "package_install"),
+    ("git ls-remote origin", "network_other"),
+    ("schtasks /Run /TN Daily", "production_task"),
+    (r'Remove-Item -LiteralPath "C:\ProgramData\service\cache"', "production_task"),
+    ("npm install --prefix=/srv/production", "production_task"),
+    ("gh issue comment 17 --body approved", "payment_or_external_post"),
+    ("gh api repos/example/name/issues/17/comments -f body=hello", "payment_or_external_post"),
+    ("stripe payment_intents create", "payment_or_external_post"),
+    ("git status && gh pr merge 17", "unknown"),
+    ("arbitrary-command", "unknown"),
+])
+def test_ticket_classification(command, kind):
+    assert _coder_actions.ticket_class(
+        command, job_branch="feature/work", default_branch="trunk", powershell=True,
+    ) == kind
+
+
+def test_owner_can_select_autonomy_preset(tmp_path, provision_bridge_approver, capsys):
+    registry = tmp_path / "registry.sqlite"
+    provision_bridge_approver(registry)
+    command = ["approver-credential", "autonomy", "--registry-db", str(registry)]
+
+    assert cli.main([*command, "--mode", "total", "--preset", "with-production"]) == 0
+    capsys.readouterr()
+    assert cli.main([*command, "--show"]) == 0
+    output = capsys.readouterr().out
+    assert "total" in output and "with-production" in output and "gh_pr_merge" in output
+    assert "production_task" not in output
 
 
 @pytest.fixture
