@@ -1,4 +1,4 @@
-﻿"""Install a tagged LazyTools release into idle InvestmentCommittee job environments."""
+"""Install a tagged LazyTools release into idle InvestmentCommittee job environments."""
 
 import argparse
 import json
@@ -17,29 +17,24 @@ def normalize_path(path):
 
 
 def in_use(python, executable_paths):
+    """True when the env's python runs, or when a Python process has an unreadable path.
+
+    An unreadable path cannot prove the environment is idle, so it counts as in use.
+    """
     target = normalize_path(str(python))
-    return any(path and normalize_path(path) == target for path in executable_paths)
+    return any(not path or normalize_path(path) == target for path in executable_paths)
 
 
 def running_executables():
-    try:
-        import psutil
-    except ImportError:
-        psutil = None
-    if psutil is not None:
-        try:
-            return [p.exe() for p in psutil.process_iter()]
-        except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
-            # An incomplete list cannot establish that an environment is idle.
-            pass
+    """Executable paths of running Python processes; None where the path is unreadable."""
     result = subprocess.run(
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-         "Get-CimInstance Win32_Process -ErrorAction Stop | "
-         "Select-Object -ExpandProperty ExecutablePath | ConvertTo-Json -Compress"],
+         "@(Get-CimInstance Win32_Process -Filter \"Name LIKE 'python%'\" -ErrorAction Stop | "
+         "ForEach-Object { $_.ExecutablePath }) | ConvertTo-Json -Compress"],
         check=True, capture_output=True, text=True,
     )
     paths = json.loads(result.stdout or "[]")
-    return [paths] if isinstance(paths, str) else paths or []
+    return [paths] if isinstance(paths, str) or paths is None else paths
 
 
 def main(argv=None):
@@ -57,7 +52,7 @@ def main(argv=None):
         python = ROOT / "envs" / env / "Scripts" / "python.exe"
         try:
             if in_use(python, running_executables()):
-                print(f"{env}: skipped (Python process running)")
+                print(f"{env}: skipped (its Python is running, or a Python process path is unreadable)")
                 skipped = True
                 continue
             backup = ROOT / "backups"
