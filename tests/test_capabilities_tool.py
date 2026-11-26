@@ -48,10 +48,31 @@ def test_catalog_entries_skips_other_tables_and_accepts_alignment_markers(tmp_pa
     ]
 
 
+def test_capabilities_command_lists_and_filters_catalog(monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)
+    entries = catalog_entries(CATALOG)
+    expected = [
+        "\t".join(entry[key] for key in ("section", "capability", "call", "status"))
+        for entry in entries
+    ]
+
+    assert cli.main(["capabilities"]) == 0
+    assert capsys.readouterr().out.splitlines() == expected
+
+    assert cli.main(["capabilities", "a LOCAL coding JOB"]) == 0
+    assert capsys.readouterr().out.splitlines() == [row for row in expected if "\tRun a local coding job\t" in row]
+
+    assert cli.main(["capabilities", "--", "--PROBE-CLAUDE"]) == 0
+    assert capsys.readouterr().out.splitlines() == [row for row in expected if "\tModel catalogue audit\t" in row]
+
+    assert cli.main(["capabilities", "LIVE-TESTED"]) == 0
+    assert capsys.readouterr().out == ""
+
+
 def test_bridge_subcommands_lists_top_level_commands():
     commands = bridge_subcommands()
     assert commands == sorted(set(commands))
-    assert {"cloud-preflight", "dispatch", "navigate", "run", "watch"} <= set(commands)
+    assert {"capabilities", "cloud-preflight", "dispatch", "navigate", "run", "watch"} <= set(commands)
     assert "probe" not in commands
 
 
