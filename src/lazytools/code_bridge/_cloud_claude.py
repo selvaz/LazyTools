@@ -56,6 +56,13 @@ _SESSION_URL = re.compile(r"https://claude\.ai/code/[A-Za-z0-9_./?=&-]+")
 _SESSION_ID = re.compile(r"\b(session_[A-Za-z0-9_-]{6,})\b")
 NO_STATUS_API = "submitted (no status API): open {url}"
 
+# Per-submit settings: do not mutate or depend on the operator's global
+# Claude configuration. Both keys cover old and new Claude Code releases.
+NO_ATTRIBUTION_SETTINGS = json.dumps({
+    "includeCoAuthoredBy": False,
+    "attribution": {"commit": "", "pr": ""},
+}, separators=(",", ":"))
+
 
 def _claude_argv() -> list[str]:
     """The command prefix that runs the Claude Code CLI with no shell in between.
@@ -272,7 +279,8 @@ class ClaudeCloud:
         for extra in (["--output-format", "json"], []):
             try:
                 proc = subprocess.run(
-                    [*argv, "--cloud", prompt, *model_args, *extra], cwd=str(cwd), capture_output=True, text=True,
+                    [*argv, "--cloud", prompt, "--settings", NO_ATTRIBUTION_SETTINGS, *model_args, *extra],
+                    cwd=str(cwd), capture_output=True, text=True,
                     encoding="utf-8", errors="replace", timeout=CLI_TIMEOUT, stdin=subprocess.DEVNULL,
                 )
             except subprocess.TimeoutExpired as exc:
