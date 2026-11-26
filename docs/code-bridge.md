@@ -678,7 +678,30 @@ before reading quota or launching a process.
 the writer. If that reviewer is ineligible, the command fails with
 `human_review_required`. `--needs images` permits only Codex. Conflicting
 engine, session, review and capability constraints cannot silently relax
-these rules. `--needs` and `--review-of` on `run` require a tier.
+these rules. `--needs` on `run` requires a tier. `--review-of` without a tier
+keeps the explicit `--engine` and does not apply the opposite-engine rule.
+
+### Native conversation ids and independence
+
+A local job records `native_id`, the Claude Code session id or Codex thread id
+of its conversation, and `result JOB --json` shows it. It is written when a turn
+ends, or before the engine starts when a `--session` alias resumes a
+conversation. It is `null` for a job stopped during its first new turn, or when
+the engine reported none, for example a Claude job without `--session` whose
+turn failed. A `--review-of` job also records `review_of` (the writer's full job
+id) and `writer_native_id`.
+
+A review whose `native_id` equals `writer_native_id` fails as
+`review refused as not independent`. When a `--session` alias resumes the
+writer's conversation, it is refused before the engine starts; if the engine
+only reports the id after a turn, the review fails then and its text is not
+returned as a result. Use a new `--session` alias for the reviewer.
+
+The check needs both ids: with `writer_native_id: null`, it proves nothing. It
+compares the writer job's latest id exactly, so it does not detect an earlier or
+later id of the same conversation. It applies to local jobs launched with
+`--review-of`, with or without a tier. A task-claim review launched without
+`--review-of` (as `dispatch` does) records no writer id and is not checked.
 
 Running bridge jobs with a recorded, live PID are counted per engine across the Store and reserve
 quota in the score. Missing, unreadable or stale weekly quota excludes the
