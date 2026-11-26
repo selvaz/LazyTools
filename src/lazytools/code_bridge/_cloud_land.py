@@ -197,11 +197,6 @@ def _release(store: Any, job_id: str, key: str) -> None:
     _update_meta(store, job_id, {}, drop=(f"{key}_claimed_at",))
 
 
-def _check_branch_name(root: Path, branch: str) -> None:
-    if branch.startswith("-") or _cloud._git(root, "check-ref-format", "--branch", branch, check=False) != branch:
-        raise CloudError(f"{branch!r} is not a valid branch name")
-
-
 def _push(cwd: Path, source: str, branch: str) -> None:
     """Push ``source`` (a sha or HEAD) to ``refs/heads/<branch>`` on origin. Fast-forward only, always."""
     refspec = f"{source}:refs/heads/{branch}"
@@ -340,7 +335,7 @@ def _land_diff(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path 
     pr_number = job.get("pr_number")
     remote_branch = str(job["pr_head"]) if pr_number else (branch or f"cloud/{id8}")
     pr_base = str(job.get("pr_base") or base_branch) if pr_number else base_branch
-    _check_branch_name(root, remote_branch)
+    _cloud._check_branch_name(root, remote_branch)
     local_branch = branch or f"cloud/{id8}"
 
     created = False
@@ -743,6 +738,8 @@ def process_job(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path
             else:
                 outcome = land_job(store, registry, job, db_path=db_path)
                 row.update(action="landed", detail=str(outcome.get("pr_url") or outcome.get("note") or outcome["branch"]))
+        except _cloud.CheckoutMissingError as exc:
+            row.update(action="skipped", detail=redact(str(exc)))
         except CloudError as exc:
             kind = "review-failed" if isinstance(job.get("review"), dict) else "land-failed"
             row.update(action=kind, detail=redact(str(exc)))
