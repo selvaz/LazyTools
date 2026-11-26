@@ -17,7 +17,8 @@ from typing import Any, Literal, Protocol
 from lazybridge import Store
 from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugify
 
-from lazytools.code_bridge import _cloud, _concurrency, _jobs, _registry, _routing, _store
+from lazytools.code_bridge import _cloud, _cloud_land, _concurrency, _gh, _jobs, _registry, _routing, _store
+from lazytools.code_bridge._cloud import CloudError
 from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
@@ -377,6 +378,34 @@ def _publish(cwd: Path) -> tuple[str | None, str | None]:
     return expected, None
 
 
+def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
+          checks: list[str]) -> tuple[str | None, str | None]:
+    """Push a published branch to the clone's origin and open its PR (or reuse an open one).
+
+    Returns (pr_url, error). The push is fast-forward only and never targets the default branch.
+    """
+    try:
+        repo = _cloud.repo_slug(cwd)
+        base = _gh.default_branch(repo)
+        if branch == base:
+            return None, f"refusing to land on the default branch {base}"
+        _cloud_land._push(cwd, branch, branch)
+        existing = _gh.pr_for_branch(repo, branch)
+        if existing and existing.get("url"):
+            return str(existing["url"]), None  # a revision of the branch updates its PR
+        text_lines = str(data.get("text") or "").strip().splitlines()
+        title = str(data.get("title") or (text_lines[0] if text_lines else task_id)).strip()[:200] or task_id
+        criteria = data.get("acceptance_criteria") or []
+        body = "\n".join([
+            f"Task: `{task_id}`", "", "Acceptance criteria:",
+            *([f"- {item}" for item in criteria] or ["- none recorded"]), "",
+            "Checks that passed:", *([f"- `{command}`" for command in checks] or ["- none configured"]),
+        ]) + "\n"
+        return _gh.pr_create(repo, base=base, head=branch, title=title, body=body), None
+    except CloudError as exc:
+        return None, (" ".join(_cloud.redact(str(exc)).split())[:500] or "landing failed")
+
+
 class Dispatcher:
     def __init__(self, service: ProjectTaskService, principal: TaskPrincipal, launcher: Launcher,
                  project_id: str, *, parallel: int = 1, emit: Callable[[str], None] | None = None,
@@ -386,7 +415,8 @@ class Dispatcher:
                  router: Callable[..., str | None] | None = None, max_retries: int = 1,
                  json_events: bool = False, knowledge_store: Store | None = None,
                  stale_minutes: int = DEFAULT_STALE_MINUTES,
-                 capacity: Callable[[str], int | None] | None = None, router_with_engine: bool = False):
+                 capacity: Callable[[str], int | None] | None = None, router_with_engine: bool = False,
+                 land: bool = False):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
         if stale_minutes < 1:
@@ -401,6 +431,7 @@ class Dispatcher:
         self.router = router
         self.capacity = capacity  # engine family -> local slot limit (None = unlimited)
         self.router_with_engine = router_with_engine  # router accepts (tier, engine_family)
+        self.land = land  # push each published branch to origin and open its PR
         self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
         self.waiting: set[str] = set()
@@ -688,6 +719,7 @@ class Dispatcher:
         else:
             failure_reason = job_error
         # Publish only after the lease and evidence checks; a failed publish fails the task.
+        published: str | None = None
         if accepted and cwd is not None:
             published, publish_error = _publish(cwd)
             if publish_error:
@@ -695,13 +727,22 @@ class Dispatcher:
                 failure_reason = publish_error
             elif published:
                 self._event("published", task.task_id, published, job_id=str(job_ref))
+        pr_url, land_failure = recorded.get("pr_url"), recorded.get("land_failure")
+        if accepted and published and self.land and cwd is not None and not recorded:
+            # The work is safe in the local branch: a failed push or PR leaves the task accepted.
+            pr_url, land_failure = _land(cwd, published, task.task_id, task.data, list(checks or []))
+        if accepted and pr_url:
+            self._event("landed", task.task_id, str(pr_url), job_id=str(job_ref))
+        elif accepted and land_failure:
+            self._event("land-failed", task.task_id, str(land_failure), job_id=str(job_ref))
         state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
         evidence = CompletionEvidence(reference=reference, job_ref=str(job_ref), executor=receipt["executor"],
             engine_family=receipt["engine_family"], state=state,
             artifact_ref=job.get("final_commit") or job.get("candidate_commit"),
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
             review_independence=review_independence,
-            outcome="success" if accepted else "task_failure", failure_reason=check_failure)
+            outcome="success" if accepted else "task_failure", failure_reason=check_failure,
+            pr_url=pr_url, land_failure=land_failure)
         if not recorded_failure:
             self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
         complete_options = {"reconcile_failure": True} if expired else {}
@@ -889,7 +930,7 @@ def dispatch(args: argparse.Namespace) -> int:
         return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
                           capacity=capacity, router_with_engine=True,
                           json_events=bool(getattr(args, "json", False)),
-                          knowledge_store=knowledge_store,
+                          knowledge_store=knowledge_store, land=bool(getattr(args, "land", False)),
                           stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)
     finally:
         if knowledge_store is not None:
