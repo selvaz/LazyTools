@@ -26,7 +26,7 @@ def _manifest(path: Path, *, revision: str = "m1", environment_revision: str = "
 def _check(tmp_path: Path, brief: str, manifest: Path | None = None, *, network: bool = False):
     return _cloud_preflight.check(
         repo="owner/project", env_id="env_test", brief=brief, root=tmp_path,
-        manifest_path=manifest or tmp_path / "manifest.json", cache_path=tmp_path / "cache.json", network=network,
+        manifest_path=manifest or tmp_path / "manifest.json", network=network,
     )
 
 
@@ -69,69 +69,23 @@ def test_requested_network_must_match_manifest(tmp_path: Path) -> None:
     assert _check(tmp_path, "ordinary task", manifest, network=True).eligible
 
 
-def test_eligible_requirements_pass_and_are_cached(tmp_path: Path) -> None:
+def test_eligible_requirements_pass_without_writing_cache(tmp_path: Path) -> None:
     manifest = _manifest(tmp_path / "manifest.json")
-    assert _check(tmp_path, "Required imports: pytest_asyncio\nRequired repositories: owner/public", manifest).eligible
-    result = _check(tmp_path, "Required imports: pytest_asyncio\nRequired repositories: owner/public", manifest)
-    assert result.eligible
-    assert result.cache_hit
-
-
-def test_cache_invalidates_when_each_key_component_changes(tmp_path: Path) -> None:
-    manifest = _manifest(tmp_path / "manifest.json")
-    brief = "Required imports: pytest"
-    assert not _check(tmp_path, brief, manifest).cache_hit
-    assert _check(tmp_path, brief, manifest).cache_hit
-
-    for kwargs in (
-        {"environment_revision": "e2"},
-        {"revision": "m2", "environment_revision": "e2"},
-        {"revision": "m2", "environment_revision": "e2", "network": True},
-    ):
-        _manifest(manifest, **kwargs)
-        assert not _check(tmp_path, brief, manifest).cache_hit
-
-    other = _cloud_preflight.check(
-        repo="owner/other", env_id="env_test", brief=brief, root=tmp_path,
-        manifest_path=manifest, cache_path=tmp_path / "cache.json",
+    result = _check(
+        tmp_path, "Required imports: pytest_asyncio\nRequired repositories: owner/public", manifest,
     )
-    assert not other.cache_hit
+    assert result.eligible
+    assert not (tmp_path / "cache.json").exists()
 
 
-def test_cache_invalidates_when_manifest_dependencies_change_without_revision_bump(tmp_path: Path) -> None:
+def test_manifest_changes_are_observed_without_a_cache(tmp_path: Path) -> None:
     manifest = _manifest(tmp_path / "manifest.json")
     assert _check(tmp_path, "Required imports: pytest", manifest).eligible
-    assert _check(tmp_path, "Required imports: pytest", manifest).cache_hit
-
     data = json.loads(manifest.read_text(encoding="utf-8"))
     data["environments"]["env_test"]["imports"] = []
     manifest.write_text(json.dumps(data), encoding="utf-8")
     result = _check(tmp_path, "Required imports: pytest", manifest)
-    assert not result.cache_hit
     assert not result.eligible
-
-    assert _check(tmp_path, "ordinary task", manifest).eligible
-    assert _check(tmp_path, "ordinary task", manifest).cache_hit
-    data["environments"]["env_test"]["repositories"] = ["owner/another"]
-    manifest.write_text(json.dumps(data), encoding="utf-8")
-    assert not _check(tmp_path, "ordinary task", manifest).cache_hit
-
-
-def test_cache_invalidates_when_selected_environment_changes(tmp_path: Path) -> None:
-    manifest = _manifest(tmp_path / "manifest.json")
-    data = json.loads(manifest.read_text(encoding="utf-8"))
-    data["environments"]["env_other"] = dict(data["environments"]["env_test"])
-    manifest.write_text(json.dumps(data), encoding="utf-8")
-    brief = "Required imports: pytest"
-
-    assert _check(tmp_path, brief, manifest).eligible
-    result = _cloud_preflight.check(
-        repo="owner/project", env_id="env_other", brief=brief, root=tmp_path,
-        manifest_path=manifest, cache_path=tmp_path / "cache.json",
-    )
-    assert result.eligible
-    assert not result.cache_hit
-
 
 @pytest.mark.parametrize("field,value", [
     ("repositories", None),
@@ -230,7 +184,7 @@ def test_cloud_probe_manifest_replaces_evidence_and_keeps_other_environments(tmp
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["environments"]["env_test"]["imports"] == ["pytest", "pytest_asyncio"]
     assert data["environments"]["env_new"] == {
-        "revision": "probe:abc123", "attested_by": "probe:abc123", "attested_on": "2026-11-25",
+        "revision": "probe:abc123", "reported_by": "probe:abc123", "attested_on": "2026-11-25",
         "network": False, "python_version": "3.12.4", "imports": ["httpx"], "repositories": ["acme/present"],
     }
 
@@ -239,20 +193,18 @@ def test_cloud_probe_manifest_replaces_evidence_and_keeps_other_environments(tmp
         evidence=_cloud_preflight.ProbeEvidence(False, "3.12.4", {"httpx": False}, {"acme/present": False}),
     )
     refreshed = json.loads(path.read_text(encoding="utf-8"))["environments"]["env_new"]
-    assert refreshed["attested_by"] == "probe:abc124"
+    assert refreshed["reported_by"] == "probe:abc124"
     assert refreshed["imports"] == refreshed["repositories"] == []
 
 
-def test_cloud_preflight_age_expires_even_with_cached_verdict(tmp_path: Path, monkeypatch) -> None:
+def test_cloud_preflight_age_expires(tmp_path: Path, monkeypatch) -> None:
     manifest = _manifest(tmp_path / "manifest.json")
     today = datetime.now(UTC).date()
     monkeypatch.setattr(_cloud_preflight, "_today", lambda: today + timedelta(days=_cloud_preflight.MAX_AGE_DAYS))
     assert _check(tmp_path, "ordinary task", manifest).eligible
-    assert _check(tmp_path, "ordinary task", manifest).cache_hit
     today += timedelta(days=1)
     result = _check(tmp_path, "ordinary task", manifest)
     assert not result.eligible
-    assert not result.cache_hit
     assert "cloud-preflight probe" in result.reason
 
 

@@ -73,12 +73,21 @@ def _restrict_windows_file(path: Path) -> None:
     )
 
 
-def initialize(registry: Path, queue: ApprovalQueue) -> bool:
+def initialize(registry: Path, queue: ApprovalQueue, *, replace: bool = False) -> bool:
     """Publish a private credential file atomically, once per registry."""
     path = _path(registry)
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     with _guard(path.parent):
-        if path.exists() or path.is_symlink():
+        if (path.exists() or path.is_symlink()) and not replace:
+            try:
+                credential = load(registry)
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise ValueError(
+                    f"Existing owner approver credential is invalid: {exc}; use init --replace"
+                ) from exc
+            approver = queue._authenticated_approver(credential)
+            if approver is None or approver.actor != "owner" or "owner" not in approver.roles:
+                raise ValueError("Existing owner approver credential is invalid for this registry; use init --replace")
             return False
         fd, name = tempfile.mkstemp(dir=path.parent)
         temporary = Path(name)
@@ -86,6 +95,11 @@ def initialize(registry: Path, queue: ApprovalQueue) -> bool:
             with os.fdopen(fd, "w", encoding="ascii") as file:
                 if os.name == "nt":
                     _restrict_windows_file(temporary)
+                if replace:
+                    with queue._anchored() as store:
+                        for key, record in store.items(prefix=queue._credential_prefix):
+                            if isinstance(record, dict) and record.get("principal") == "owner":
+                                store.delete(key)
                 file.write(queue.issue_approver_credential("owner", ("owner",)))
                 file.flush()
                 os.fsync(file.fileno())
