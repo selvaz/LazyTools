@@ -46,6 +46,7 @@ class Task:
     status: str
     data: dict[str, Any]
     dispatch: dict[str, Any] | None
+    hold_reason: str | None = None  # reason recorded with the task's current start_hold
 
 
 class Launcher(Protocol):
@@ -57,9 +58,14 @@ class Launcher(Protocol):
 def _tasks(service: ProjectTaskService, project_id: str) -> list[Task]:
     with transaction(service.path) as store:
         board = store.read(_board_key(project_id), {"tasks": []})
+        holds: dict[int, str] = {}
+        for event in board.get("schedule_events", []):
+            if event.get("hold") and event.get("reason") and "task_index" in event:
+                holds[event["task_index"]] = str(event["reason"])  # later events win
         return [Task(f"{project_id}/{board_task_id(data, index)}", data.get("revision", "0"),
                      data.get("status", "todo"), data,
-                     data.get("dispatches", [None])[-1] if data.get("dispatches") else None)
+                     data.get("dispatches", [None])[-1] if data.get("dispatches") else None,
+                     hold_reason=holds.get(index))
                 for index, data in enumerate(board["tasks"])]
 
 
@@ -819,8 +825,14 @@ class Dispatcher:
 def _dry_run(service: ProjectTaskService, project_id: str, emit: Callable[[str], None] = print,
              task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks) -> int:
     tasks = task_reader(service, project_id)
+    # Same gate as ProjectTaskService.next_ready: a start_hold task is never dispatched,
+    # so it stays out of the waves and its dependants can never become ready.
+    held = {task.task_id.rsplit("/", 1)[1]: task for task in tasks
+            if task.status == "todo" and task.data.get("start_hold")}
+    for identifier, task in held.items():
+        emit(f"held {project_id}/{identifier}" + (f" ({task.hold_reason})" if task.hold_reason else ""))
     remaining = {task.task_id.rsplit("/", 1)[1]: set(task.data.get("dependency_ids", []))
-                 for task in tasks if task.status == "todo"}
+                 for task in tasks if task.status == "todo" and task.task_id.rsplit("/", 1)[1] not in held}
     done = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "done"}
     number = 0
     while remaining:

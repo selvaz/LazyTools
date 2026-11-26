@@ -179,6 +179,20 @@ def test_dry_run_prints_topological_waves_without_claiming() -> None:
     assert not service.claims
 
 
+def test_dry_run_holds_start_held_task_and_blocks_its_dependants() -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows["A"].update(start_hold=True, hold_reason="waiting on data release")
+
+    def reader(_service: Any, project: str) -> list[Task]:
+        return [Task(f"{project}/{name}", "rev", row["status"], row, None,
+                     hold_reason=row.get("hold_reason"))
+                for name, row in service.rows.items()]
+
+    _dry_run(service, "p", events.append, reader)  # type: ignore[arg-type]
+    assert events == ["held p/A (waiting on data release)", "blocked p/B", "blocked p/C", "blocked p/D"]
+    assert not service.claims
+
+
 def test_cloud_task_is_skipped_without_claim_or_launch() -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     launcher = FakeLauncher(service)
