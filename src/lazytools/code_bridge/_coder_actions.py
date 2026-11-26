@@ -272,7 +272,7 @@ def _git_value(cwd: Path, *args: str) -> str:
     return "" if result.returncode else result.stdout.strip()
 
 
-_GITHUB_REMOTE = re.compile(r"(?:https://github\.com/|git@github\.com:)[\w.-]+/[\w.-]+")
+_GITHUB_REMOTE = re.compile(r"(?:https://github\.com/|git@github\.com:)([\w.-]+/[\w.-]+)")
 _PACKAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*(?:==[A-Za-z0-9][A-Za-z0-9_.+-]*)?")
 
 
@@ -500,6 +500,8 @@ class Workspace:
             if args is None:
                 return None
             argv = args
+            if argv[0] in {"gh", "gh.exe"} and not self._github_overrides_match_origin(argv, cwd):
+                return None
             paths = self._shell(argv, cwd, autonomy=kind is not None) or ()
             if kind is not None and not paths:
                 paths = self._autonomy_paths(kind, argv, cwd) or ()
@@ -559,10 +561,36 @@ class Workspace:
         if kind == "gh_pr_create" and self.branch and self.branch not in {"main", "master", self.default_branch}:
             words = _tokenize(_quoted(argv))
             return (
-                words is not None and pr_create_grantable(words, self.branch)
+                words is not None and pr_create_grantable(words, self.branch, require_head=True)
                 and short_branch(_git_value(cwd, "symbolic-ref", "--quiet", "HEAD")) == self.branch
             )
         return False
+
+    def _github_overrides_match_origin(self, argv: list[str], cwd: Path) -> bool:
+        host = os.environ.get("GH_HOST", "").lower()
+        if host and host != "github.com":
+            return False
+        overrides = [repo] if (repo := os.environ.get("GH_REPO")) else []
+        args = iter(argv[1:])
+        for arg in args:
+            if arg == "--":
+                break
+            flag, sep, value = arg.partition("=")
+            if flag in {"--repo", "-R"}:
+                overrides.append(value if sep else next(args, ""))
+        if not overrides:
+            return True
+        if cwd != self.cwd or self.git_metadata is None or _git_metadata(cwd) != self.git_metadata:
+            return False
+        remote = _GITHUB_REMOTE.fullmatch(_git_value(cwd, "remote", "get-url", "origin"))
+        if remote is None:
+            return False
+        origin = remote[1].removesuffix(".git").casefold()
+        # A hostless repo override uses gh's configured default host when GH_HOST is unset.
+        allowed = {f"github.com/{origin}"}
+        if host:
+            allowed.add(origin)
+        return all(override.casefold() in allowed for override in overrides)
 
     def _clean_push_origin(self, cwd: Path) -> bool:
         assert self.git_metadata is not None
