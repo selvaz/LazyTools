@@ -8,6 +8,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.2] — 2026-11-25
+
+### Fixed
+- `cloud-preflight probe` maps distribution names to import names (python-docx, pywin32, google-api-python-client) instead of reporting them unavailable (#381).
+- `cloud-sync` reports a missing checkout folder instead of "not a valid branch name" for old cloud jobs (#382).
+- Governed runner provisions the coder hand in its isolated registry, so routine writer steps no longer stall on hand tickets (#378); the writer prompt keeps scratch files outside the checkout (#380).
+
+### Added
+- `tools/install_job_envs.py`: install a release tag only into idle InvestmentCommittee job envs, fail-closed on unreadable process paths, with a `pip freeze` backup, `pip check` and import smoke (#379).
+
 ## [0.14.1] — 2026-11-25
 
 ### Changed
