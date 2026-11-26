@@ -137,11 +137,13 @@ class Registry:
             return bool(self.legacy.approve_ticket(ticket.approval_id, actor=actor, channel="cli"))
         return bool(self.legacy.reject_ticket(ticket.approval_id, actor=actor, channel="cli", reason=reason or "rejected"))
 
-    def initialize_credential(self) -> bool:
+    def initialize_credential(self, *, replace: bool = False) -> bool:
         if self.path is None:
             raise ValueError("The bridge approval registry must be persistent")
         with registry_store(self.path) as store:
-            return _credentials.initialize(self.path, ApprovalQueue(store, allow_credential_issuance=True))
+            return _credentials.initialize(
+                self.path, ApprovalQueue(store, allow_credential_issuance=True), replace=replace,
+            )
 
     def copy_coder_hand(
         self, job_id: str, task_id: str, cwd: Path, temp: Path | None, expires: datetime, *, network: str,

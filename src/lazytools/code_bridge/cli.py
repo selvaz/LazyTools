@@ -1983,7 +1983,7 @@ def _cmd_reject(args: argparse.Namespace) -> int:
 def _cmd_init_approver_credential(args: argparse.Namespace) -> int:
     registry = _registry.Registry(_ticket_job_store(args), _selected_registry_db(args))
     try:
-        created = registry.initialize_credential()
+        created = registry.initialize_credential(replace=args.replace)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"could not initialize owner approver credential: {exc}", file=sys.stderr)
         return 1
@@ -2547,7 +2547,7 @@ def build_parser() -> argparse.ArgumentParser:
     publish_ticket.add_argument("--ticket", metavar="ID", help="Use this typed publication ticket.")
     publish_ticket.add_argument(
         "--retry-ticket", metavar="ID",
-        help="Request fresh approval after pr_create_failed, pr_head_mismatch, or pr_head_unavailable.",
+        help="Request fresh approval after push_failed, pr_create_failed, pr_head_mismatch, or pr_head_unavailable.",
     )
     publish_p.add_argument("--request-only", action="store_true", help="File or inspect the ticket without publishing.")
     _add_registry_option(publish_p)
@@ -2567,6 +2567,7 @@ def build_parser() -> argparse.ArgumentParser:
     credential_p = sub.add_parser("approver-credential", help="Manage the local owner approver credential.")
     credential_sub = credential_p.add_subparsers(dest="credential_command", required=True)
     credential_init = credential_sub.add_parser("init", help="Initialize the owner credential for a registry.")
+    credential_init.add_argument("--replace", action="store_true", help="Replace an invalid or obsolete credential.")
     _add_registry_option(credential_init)
     credential_init.set_defaults(func=_cmd_init_approver_credential)
 

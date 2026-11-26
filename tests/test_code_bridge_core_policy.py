@@ -232,6 +232,24 @@ def test_typed_bridge_credentials_are_required_and_bound_to_the_registry(tmp_pat
     assert registry.queue.get_ticket(ticket.approval_id).status == "pending"
 
 
+def test_credential_init_rejects_invalid_existing_file_and_replace_rotates(tmp_path, capsys):
+    path = tmp_path / "approvals.sqlite"
+    registry = _registry.Registry(_store.build_store(), path)
+    flags = ["--registry-db", str(path)]
+    credential_path = _credentials._path(path)
+    credential_path.parent.mkdir(parents=True)
+    credential_path.write_text("not-a-credential", encoding="ascii")
+
+    assert cli.main(["approver-credential", "init", *flags]) == 1
+    assert "credential is invalid" in capsys.readouterr().err
+    assert credential_path.read_text(encoding="ascii") == "not-a-credential"
+
+    assert cli.main(["approver-credential", "init", "--replace", *flags]) == 0
+    assert _credentials.load(path) != "not-a-credential"
+    approver = registry.queue._authenticated_approver(_credentials.load(path))
+    assert approver is not None and approver.actor == "owner" and "owner" in approver.roles
+
+
 def test_job_environment_scrubs_owner_credential(tmp_path, monkeypatch):
     fakes.install(monkeypatch)
     monkeypatch.setenv(_credentials.CREDENTIAL_ENV, "worker-must-not-inherit-this")

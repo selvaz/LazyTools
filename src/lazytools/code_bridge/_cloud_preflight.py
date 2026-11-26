@@ -7,7 +7,6 @@ to verify over the network while launching a job.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import tomllib
@@ -18,8 +17,6 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 MANIFEST = ".bridge/cloud-preflight.json"
-CACHE = ".bridge/cloud-preflight-cache.json"
-SCHEMA_REVISION = 1
 MAX_AGE_DAYS = 14
 
 _LOCAL_PATH = re.compile(
@@ -38,7 +35,6 @@ _PYTHON_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:a[0-9]+|b[0-9]+|rc[0-9]+
 class Result:
     eligible: bool
     reason: str
-    cache_hit: bool = False
 
 
 @dataclass(frozen=True)
@@ -215,7 +211,7 @@ def write_probe_manifest(*, root: Path, env_id: str, job_id: str, evidence: Prob
                 environments = existing["environments"]
     environments[env_id] = {
         "revision": f"probe:{job_id}",
-        "attested_by": f"probe:{job_id}",
+        "reported_by": f"probe:{job_id}",
         "attested_on": _today().isoformat(),
         "network": evidence.network,
         "python_version": evidence.python_version,
@@ -233,16 +229,10 @@ def write_probe_manifest(*, root: Path, env_id: str, job_id: str, evidence: Prob
 
 def check(
     *, repo: str, env_id: str, brief: str, root: Path, network: bool = False,
-    manifest_path: Path | None = None, cache_path: Path | None = None,
+    manifest_path: Path | None = None,
 ) -> Result:
-    """Return cloud eligibility without making network calls.
-
-    Cache identity contains the repository, environment revision, manifest
-    revision, network setting, and brief requirements.  Thus changing any
-    eligibility input makes an old verdict unreachable.
-    """
+    """Report likely cloud eligibility without making network calls."""
     manifest_path = manifest_path or root / MANIFEST
-    cache_path = cache_path or root / CACHE
     refresh = f"run cloud-preflight probe --repo <path> for environment {env_id!r}"
     if not manifest_path.is_file():
         return Result(False, f"cloud preflight manifest is missing: {manifest_path}; {refresh}")
@@ -293,17 +283,6 @@ def check(
         "repositories": sorted(entry.get("repositories", [])),
         "imports": sorted(entry.get("imports", [])),
     }
-    key_data = [
-        repo, env_id, environment_revision, revision, manifest_network, entry_dependencies, requirements, SCHEMA_REVISION,
-    ]
-    key = hashlib.sha256(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
-    try:
-        cached = _read_json(cache_path).get(key)
-        if isinstance(cached, dict) and isinstance(cached.get("eligible"), bool) and isinstance(cached.get("reason"), str):
-            return Result(cached["eligible"], cached["reason"], True)
-    except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
-        pass
-
     available_repos = set(entry_dependencies["repositories"])
     available_imports = set(entry_dependencies["imports"])
     if requirements["paths"]:
@@ -315,11 +294,4 @@ def check(
     else:
         result = Result(True, "cloud preflight passed")
 
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        cache = _read_json(cache_path) if cache_path.is_file() else {}
-    except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
-        cache = {}
-    cache[key] = {"eligible": result.eligible, "reason": result.reason}
-    cache_path.write_text(json.dumps(cache, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return result

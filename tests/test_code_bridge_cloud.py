@@ -248,17 +248,17 @@ def _set_cloud_config(text: str) -> None:
     path.write_text(path.read_text(encoding="utf-8") + text, encoding="utf-8")
 
 
-def test_run_refuses_before_provider_launch_when_preflight_manifest_is_missing(cloud, capsys):
+def test_run_warns_and_launches_when_preflight_manifest_is_missing(cloud, capsys):
     (cloud.repo / ".bridge/cloud-preflight.json").unlink()
-    assert _run_cloud(cloud) == 2
-    assert "cloud preflight refused launch" in capsys.readouterr().err
-    assert cloud.calls() == []
+    assert _run_cloud(cloud) == 0
+    assert "warning: cloud preflight advisory" in capsys.readouterr().err
+    assert len(cloud.calls()) == 1
 
 
-def test_run_refuses_when_requested_network_mismatches_manifest(cloud, capsys):
-    assert _run_cloud(cloud, "--network", "on") == 2
+def test_run_warns_when_requested_network_mismatches_manifest(cloud, capsys):
+    assert _run_cloud(cloud, "--network", "on") == 0
     assert "requested network on" in capsys.readouterr().err
-    assert cloud.calls() == []
+    assert len(cloud.calls()) == 1
 
 
 def _probe_block(*, imports=None, repositories=None):
@@ -294,7 +294,7 @@ def test_cloud_preflight_probe_bootstraps_from_report_diff(cloud, tmp_path, monk
     entry = json.loads(path.read_text(encoding="utf-8"))["environments"]["env_widgets"]
     assert entry["network"] is False
     assert entry["imports"] == ["httpx"] and entry["repositories"] == []
-    job_id = entry["attested_by"].removeprefix("probe:")
+    job_id = entry["reported_by"].removeprefix("probe:")
     assert f"waiting for probe {job_id}" in out
     assert not (cloud.repo / ".bridge/report.md").exists()
     submit, status, fetch = cloud.calls()
@@ -332,7 +332,7 @@ def test_cloud_preflight_probe_all_waits_for_each_mapping(cloud, tmp_path, monke
     assert capsys.readouterr().out.count("wrote") == 2
     for repo, env_id in [(second, "env_other"), (cloud.repo, "env_widgets")]:
         data = json.loads((repo / _cloud_preflight.MANIFEST).read_text(encoding="utf-8"))
-        assert data["environments"][env_id]["attested_by"].startswith("probe:")
+        assert data["environments"][env_id]["reported_by"].startswith("probe:")
 
 
 # --------------------------------------------------------------------------- #

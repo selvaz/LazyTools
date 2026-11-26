@@ -1246,12 +1246,11 @@ def submit_job(
     if not _ENV_ID_RE.fullmatch(env_id):
         raise CloudError(f"env id {env_id!r} for {repo} has unexpected characters")
     if engine == "codex" and not probe:
-        cache_path = (Path(db_path).parent / "cloud-preflight-cache.json") if db_path else None
         preflight = _cloud_preflight.check(
-            repo=repo, env_id=env_id, brief=brief, root=root, network=network, cache_path=cache_path,
+            repo=repo, env_id=env_id, brief=brief, root=root, network=network,
         )
         if not preflight.eligible:
-            raise CloudError(f"cloud preflight refused launch: {preflight.reason}")
+            print(f"warning: cloud preflight advisory: {preflight.reason}; submitting anyway", file=sys.stderr)
     chosen_model, model_note = model_for(engine, config, tier=tier, explicit=model, routine=routine)
     pr_info: dict[str, Any] = {}
     if pr is not None:

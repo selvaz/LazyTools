@@ -327,9 +327,17 @@ def _read_back(attempt: PublicationAttempt, outcome: PublicationOutcome) -> Publ
         try:
             pr = _gh.pr_view(repo, outcome.pr_number, publication=True, timeout=remaining)
         except _GIT_ERRORS:
-            if last_observed_head and monotonic() >= deadline:
-                return replace(outcome, reason="pr_head_mismatch", observed_head=last_observed_head)
-            return replace(outcome, reason="pr_head_unavailable")
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                reason = "pr_head_mismatch" if last_observed_head else "pr_head_unavailable"
+                return replace(outcome, reason=reason, observed_head=last_observed_head or None)
+            sleep(min(delay, remaining))
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                reason = "pr_head_mismatch" if last_observed_head else "pr_head_unavailable"
+                return replace(outcome, reason=reason, observed_head=last_observed_head or None)
+            delay = min(delay * 2, 2.0)
+            continue
         pr_head = pr.get("headRefOid")
         observed_head = pr_head if isinstance(pr_head, str) and _SHA.fullmatch(pr_head) else ""
         if (
@@ -386,7 +394,7 @@ def run(
             retry_pr = _gh.pr_number_from_url(url or "")
             if not retry_pr or url is None or url.casefold() != f"https://github.com/{attempt.repository}/pull/{retry_pr}":
                 return PublicationOutcome("publication_retry_unavailable", ticket=previous)
-        elif refused.outcome.refusal_reason != "pr_create_failed":
+        elif refused.outcome.refusal_reason not in {"pr_create_failed", "push_failed"}:
             return PublicationOutcome("publication_retry_unavailable", ticket=previous)
         retry_id = previous.approval_id
     ticket = _find_ticket(registry, request, ticket_id, retry_id, retry_pr)
