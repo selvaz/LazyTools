@@ -1023,8 +1023,24 @@ def test_discovery_without_any_engine_keeps_both_engines(monkeypatch, tmp_path):
     from lazytools.code_bridge import _installed as installed
 
     monkeypatch.setattr(installed.shutil, "which", lambda name: None)
-    monkeypatch.delenv("CODEX_BIN", raising=False)
     monkeypatch.delenv("CLAUDE_BIN", raising=False)
+    monkeypatch.setattr(installed, "_codex_resolvable", lambda: False)
     assert installed.installed_engines(config_path=tmp_path / "missing.toml") == installed.ENGINES
-    monkeypatch.setattr(installed.shutil, "which", lambda name: "x" if name == "codex" else None)
+    monkeypatch.setattr(installed, "_codex_resolvable", lambda: True)
     assert installed.installed_engines(config_path=tmp_path / "missing.toml") == frozenset({"codex"})
+
+
+def test_codex_app_install_counts_as_installed(monkeypatch, tmp_path):
+    # Codex desktop installs are not on PATH; the engine still launches them via codex_executable().
+    from lazybridge.engines.codex import app_server
+
+    from lazytools.code_bridge import _installed as installed
+
+    monkeypatch.setattr(app_server, "codex_executable", lambda: "C:/app/codex.exe")
+    assert installed._codex_resolvable()
+
+    def missing() -> str:
+        raise FileNotFoundError("no codex")
+
+    monkeypatch.setattr(app_server, "codex_executable", missing)
+    assert not installed._codex_resolvable()

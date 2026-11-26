@@ -37,17 +37,30 @@ def installed_engines(
                 raise ValueError(f"{path}: [engines] installed must be a list of engine names")
             return _validated(installed, f"{path}: [engines] installed")
     found = set()
-    for engine, variable, command in (
-        ("codex", "CODEX_BIN", "codex"),
-        ("claude", "CLAUDE_BIN", "claude"),
+    if _codex_resolvable():
+        found.add("codex")
+    configured = os.environ.get("CLAUDE_BIN")
+    if (configured and (shutil.which(configured) or Path(configured).is_file())) or (
+        not configured and shutil.which("claude")
     ):
-        configured = os.environ.get(variable)
-        if (configured and shutil.which(configured)) or (not configured and shutil.which(command)):
-            found.add(engine)
+        found.add("claude")
     # Discovery that finds no engine is no evidence (CI runners, a PATH the bridge does not
     # see): keep the both-engines behaviour. Only a positive single-engine finding, or an
     # explicit config/override, switches review to the same-provider-fresh fallback.
     return frozenset(found) or ENGINES
+
+
+def _codex_resolvable() -> bool:
+    """Use the resolver the engine launches with: CODEX_BIN, PATH, then the Codex app install directory."""
+    try:
+        from lazybridge.engines.codex.app_server import codex_executable
+    except ImportError:  # pragma: no cover - lazybridge without the codex engine
+        return bool(os.environ.get("CODEX_BIN") or shutil.which("codex"))
+    try:
+        codex_executable()
+    except FileNotFoundError:
+        return False
+    return True
 
 
 def _validated(values: Iterable[str], source: str) -> frozenset[str]:
