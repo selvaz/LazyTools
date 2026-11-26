@@ -47,6 +47,10 @@ ENGINES: tuple[str, ...] = ("codex", "claude")
 DEFAULT_MAX_CONTINUATIONS = 3
 MAX_CONTINUATIONS = 10
 CONTINUATION_PROMPT = "continue from the last commit; re-read the brief's Done-when; do not redo committed steps"
+COMMIT_CONTINUATION_PROMPT = (
+    "The checkout still has uncommitted changes. Commit the completed work now. "
+    "Respect any rejection reason you received for an earlier commit request, and do not add AI attribution lines."
+)
 
 #: Longer than lazybridge's own 2h ApprovalQueue default: a ticket filed
 #: overnight should still be answerable in the morning without extra
@@ -184,6 +188,16 @@ def _git_head(path: Path) -> str | None:
         return None
     result.check_returncode()
     return result.stdout.strip() or None
+
+
+def _uncommitted_count(path: Path) -> int | None:
+    """Return the number of dirty paths, or ``None`` when git cannot say."""
+    try:
+        result = _git(_git_repo_root(path), "status", "--porcelain=v1", "-uall")
+        result.check_returncode()
+        return len(result.stdout.splitlines())
+    except Exception:
+        return None
 
 
 def _head_at_start(path: Path) -> tuple[str | None, str | None]:
@@ -548,7 +562,10 @@ def run_job(
         )
         hand = None
         if writer:
-            lifetime = min(max_wall or math.inf, timeout * (max_continuations + 1))
+            # A successful final turn may receive one additional turn to
+            # commit a dirty checkout, independently of the timeout recovery
+            # budget configured by --max-continuations.
+            lifetime = min(max_wall or math.inf, timeout * (max_continuations + 2))
             # An expiry also covers a worker that dies before it can revoke.
             expires = datetime.now(UTC) + timedelta(seconds=min(lifetime + 60, 7 * 24 * 3600))
             hand = approval_registry.copy_coder_hand(
@@ -631,9 +648,10 @@ def run_job(
 
             prompt = task
             turns: list[dict[str, Any]] = []
+            commit_continuation = False
             before = await asyncio.to_thread(_progress.snapshot, lock.cwd)
             job_branch = before.get("branch")
-            for turn in range(max_continuations + 1):
+            for turn in range(max_continuations + 2):
                 validate_policy()
                 if turn:
                     before = await asyncio.to_thread(_progress.snapshot, lock.cwd, job_branch)
@@ -704,6 +722,22 @@ def run_job(
                 if cleanup.error:
                     return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", cleanup.error)
                 if env.ok:
+                    uncommitted = await asyncio.to_thread(_uncommitted_count, lock.cwd)
+                    if uncommitted:
+                        if commit_continuation:
+                            return _finish(
+                                "partial", "", f"job ended with {uncommitted} uncommitted path(s) "
+                                "after the commit continuation",
+                            )
+                        if not turns[-1]["thread_id"]:
+                            return _finish(
+                                "partial", "", f"job ended with {uncommitted} uncommitted path(s); "
+                                "no durable thread is available for the commit continuation",
+                            )
+                        commit_continuation = True
+                        _set_status("checkpoint")
+                        prompt = COMMIT_CONTINUATION_PROMPT
+                        continue
                     return _finish("done", env.text(), None)
                 message = env.error.message if env.error else "unknown error"
                 if not timed_out:
@@ -714,6 +748,10 @@ def run_job(
                                    "max wall reached after progress" if progressed else "no progress: max wall reached")
                 if not evidence["progress"]:
                     return _finish("failed", "", f"no progress: {message or 'turn timed out'}")
+                if commit_continuation:
+                    uncommitted = await asyncio.to_thread(_uncommitted_count, lock.cwd)
+                    detail = f"; {uncommitted} uncommitted path(s) remain" if uncommitted is not None else ""
+                    return _finish("partial", "", f"commit continuation timed out{detail}")
                 _set_status("checkpoint")
                 if turn == max_continuations:
                     return _finish("partial", "", "automatic continuations exhausted after progress")

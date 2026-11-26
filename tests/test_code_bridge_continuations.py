@@ -102,6 +102,25 @@ def test_timeout_without_commit_fails_no_progress(workspace, monkeypatch):
     assert row(workspace, result)["continuations"] == 0
 
 
+def test_done_with_uncommitted_file_gets_one_commit_continuation(workspace, monkeypatch):
+    calls = []
+
+    async def turn(engine, prompt, name):
+        engine.finish_turn()
+        calls.append(prompt)
+        (workspace / "dirty.txt").write_text("still uncommitted", encoding="utf-8")
+        return Envelope(payload="finished")
+
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace, max_continuations=0)
+
+    assert calls == ["Done-when: tests pass", _jobs.COMMIT_CONTINUATION_PROMPT]
+    assert result.status == "partial"
+    assert result.error.startswith("job ended with 1 uncommitted path(s) after the commit continuation")
+    assert "1 uncommitted path(s)" in result.result_path.read_text(encoding="utf-8")
+    assert row(workspace, result)["continuations"] == 1
+
+
 @pytest.mark.parametrize("budget", [0, 2, 10])
 def test_progress_each_turn_exhausts_budget_as_partial(workspace, monkeypatch, budget):
     async def turn(engine, *args):
