@@ -1376,158 +1376,20 @@ def test_cloud_requires_allow_cloud(cloud, capsys):
     assert _store.all_job_records(_store.build_store(cloud.db)) == []
 
 
-def test_allow_and_approve_cloud_are_cloud_only(cloud, capsys):
+def test_allow_cloud_is_cloud_only(cloud, capsys):
     assert cli.main(["run", "--engine", "codex", "--cwd", str(cloud.repo), "--task", "x", "--allow-cloud"]) == 2
     assert "--allow-cloud is only for --where cloud" in capsys.readouterr().err
-    assert cli.main(["run", "--engine", "codex", "--cwd", str(cloud.repo), "--task", "x",
-                     "--approve-cloud", "push"]) == 2
-    assert "--approve-cloud is only for --where cloud" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize(
-    ("brief", "actions"),
-    [
-        ("Fix the bug, then git push origin main", ["push"]),
-        ("Fix the bug and push the branch when done", ["push"]),
-        ("Open a PR and merge it into main", ["pr-create", "merge"]),
-        ("Run gh pr merge 12 --squash", ["merge"]),
-        ("Clean up: delete the stale release branches", ["delete"]),
-        ("Remove old data with rm -rf build/", ["delete"]),
-        ("Rebase, force-push, then delete the old branch", ["push", "delete"]),
-    ],
-)
-def test_brief_asking_for_gated_action_is_refused(cloud, brief, actions, capsys):
+def test_cloud_brief_wording_is_not_scanned(cloud, capsys):
     code = cli.main(
         ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(cloud.repo), "--root", str(cloud.root),
-         "--task", brief, "--no-brief-check", "--db", str(cloud.db), "--allow-cloud"]
+         "--task", "Fix the bug, push the branch, then delete the old branch", "--no-brief-check",
+         "--db", str(cloud.db), "--allow-cloud", "--json"]
     )
-    assert code == 2
-    err = capsys.readouterr().err
-    assert f"gated action(s) {', '.join(actions)}" in err
-    for action in actions:
-        assert f"--approve-cloud {action}" in err
-    assert cloud.calls() == []
-    assert _store.all_job_records(_store.build_store(cloud.db)) == []
-
-
-def test_gated_action_runs_with_matching_approval(cloud, capsys):
-    base = ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(cloud.repo), "--root", str(cloud.root),
-            "--task", "Fix the bug, push the branch, then delete the old branch", "--no-brief-check",
-            "--db", str(cloud.db), "--allow-cloud"]
-    assert cli.main([*base, "--approve-cloud", "push"]) == 2  # delete still unapproved
-    assert "gated action(s) delete" in capsys.readouterr().err
-    assert cli.main([*base, "--approve-cloud", "push", "--approve-cloud", "delete", "--json"]) == 0
-    job_id = json.loads(capsys.readouterr().out.strip().splitlines()[-1])["job_id"]
-    store = _store.build_store(cloud.db)
-    assert _jobs.find_job(store, _store.build_job_registry(store), job_id)["cloud_approvals"] == ["delete", "push"]
-
-
-@pytest.mark.parametrize("brief", ["Add a feature", "Fix error handling in the parser", "Write tests for the merge sort"])
-def test_plain_briefs_need_no_approval(brief):
-    assert _cloud.gated_actions(brief) == []
-
-
-@pytest.mark.parametrize(
-    ("brief", "action"),
-    [("Merge the PR", "merge"), ("git push --force", "push"), ("Delete the branch", "delete")],
-)
-def test_gated_action_real_request_corpus(brief, action):
-    assert action in _cloud.gated_actions(brief)
-
-
-@pytest.mark.parametrize(
-    "brief",
-    [
-        "Do not modify the tests\n\nThen git push origin main.",
-        "Do not modify the tests; then git push origin main.",
-        "- Do not modify the tests\n- Then git push origin main.",
-    ],
-)
-def test_negated_instruction_does_not_hide_later_push(brief):
-    assert _cloud.gated_actions(brief) == ["push"]
-
-
-@pytest.mark.parametrize(
-    ("brief", "action"),
-    [
-        ("# Work\nMerge the PR", "merge"),
-        ("Tasks:\n- push the branch", "push"),
-        ("```sh\ngit push origin main\n```", "push"),
-        ("You must push to main", "push"),
-        ("Do not edit tests, push the branch", "push"),
-        ("> Merge the PR", "merge"),
-        ("Per favore, fai push del branch", "push"),
-        ("git branch -D obsolete", "delete"),
-        ("git clean -fdx", "delete"),
-        ('The output says "push\nthe branch".', "push"),
-    ],
-)
-def test_fail_closed_gate_catches_review_regressions(brief, action):
-    assert action in _cloud.gated_actions(brief)
-
-
-# --------------------------------------------------------------------------- #
-# the cloud gate reuses the local rule table (_policy.CODING_RULES)
-# --------------------------------------------------------------------------- #
-
-
-def test_every_gating_rule_of_the_local_table_has_a_cloud_action():
-    from lazytools.code_bridge._approvals import ClassifiedRule
-    from lazytools.code_bridge._policy import CLOUD_RULE_ACTIONS, CODING_RULES
-
-    gating = [
-        rule.arg_pattern for rule in CODING_RULES
-        if rule.name_pattern == "Bash" and not isinstance(rule, ClassifiedRule)
-        and rule.tier in ("ask", "session") and rule.arg_pattern is not None
-    ]
-    assert gating and set(gating) == set(CLOUD_RULE_ACTIONS)
-    assert set(CLOUD_RULE_ACTIONS.values()) <= set(_cloud.GATED_ACTIONS)
-
-
-@pytest.mark.parametrize(
-    ("brief", "action"),
-    [
-        ("Fix the flaky test, then run `gh pr create --fill --base main`", "pr-create"),
-        ("When CI is green run gh pr create --title fix --body done", "pr-create"),
-        ("Finish with: gh pr merge 42 --squash --delete-branch", "merge"),
-        ("Fix the bug, then git push origin main", "push"),
-        ("git push origin feat/x", "push"),
-        ("Tidy up with git reset --hard origin/main", "reset"),
-        ("git commit -am 'wip'", "commit"),
-        ("git -C ../other status", "git-option"),
-    ],
-)
-def test_brief_command_gated_by_local_rule_table_needs_matching_approval(cloud, brief, action, capsys):
-    base = ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(cloud.repo), "--root", str(cloud.root),
-            "--task", brief, "--no-brief-check", "--db", str(cloud.db), "--allow-cloud"]
-    assert action in _cloud.gated_actions(brief)
-    assert cli.main(base) == 2
-    err = capsys.readouterr().err
-    assert f"--approve-cloud {action}" in err
-    assert cloud.calls() == []
-    assert _store.all_job_records(_store.build_store(cloud.db)) == []
-    approvals = [flag for name in _cloud.gated_actions(brief) for flag in ("--approve-cloud", name)]
-    assert cli.main([*base, *approvals, "--json"]) == 0
-    capsys.readouterr()
-    assert [c["argv"][1] for c in cloud.calls()] == ["exec"]
-
-
-def test_gh_pr_create_is_not_covered_by_other_approvals(cloud, capsys):
-    assert cli.main(
-        ["run", "--where", "cloud", "--engine", "codex", "--cwd", str(cloud.repo), "--root", str(cloud.root),
-         "--task", "gh pr create --fill", "--no-brief-check", "--db", str(cloud.db), "--allow-cloud",
-         "--approve-cloud", "push", "--approve-cloud", "merge"]
-    ) == 2
-    assert "gated action(s) pr-create" in capsys.readouterr().err
-    assert cloud.calls() == []
-
-
-def test_rule_table_word_anchoring_avoids_prose_false_positives():
-    from lazytools.code_bridge._policy import cloud_rule_actions
-
-    assert cloud_rule_actions("Confirm the parser handles it and inform the user") == set()
-    assert cloud_rule_actions("clean with rm -rf build/") == {"delete"}
-    assert cloud_rule_actions("GIT PUSH origin MAIN") == {"push"}
+    assert code == 0
+    assert json.loads(capsys.readouterr().out.strip().splitlines()[-1])["job_id"]
+    assert [call["argv"][1] for call in cloud.calls()] == ["exec"]
 
 
 # --------------------------------------------------------------------------- #

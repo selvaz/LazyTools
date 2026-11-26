@@ -170,3 +170,9 @@ gate.consume("customer@x.com", scope="task-C")    # -> True
 - [Gmail](gmail.md) and [Telegram](telegram.md) — the connectors that compose
   these primitives for guarded outbound sends.
 - [Tools overview](connectors.md) — every connector at a glance.
+
+## Cloud code-bridge landing boundary
+
+Cloud briefs are not scanned for gated-action words. A cloud result reaches a
+repository only through the local landing step (`apply`, `land`, or
+`cloud-sync`), which retains its own checks before changing repository state.

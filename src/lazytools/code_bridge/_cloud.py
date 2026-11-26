@@ -127,32 +127,6 @@ _TRANSIENT_TRANSPORT_RE = re.compile(
     r"(?im)^\s*(?:(?:cloud task[ \t]+)?(?:http[ \t]+)?error:[ \t]*)*get_task_details failed:[ \t]*[^\r\n]*"
     r"(?:\b(?:HTTP(?:/\d(?:\.\d)?)?[ \t]+)?(?:429|5\d\d)\b|\b(?:timed?[ \t]+out|timeout)\b)"
 )
-#: Actions a local job's BridgeGate would hold for a human ticket, as
-#: ``--approve-cloud`` names. A cloud agent's commands cannot be gated one by
-#: one, so a brief that asks for one is refused unless the operator approves
-#: that action up front. Commands in the brief are classified by the SAME rule
-#: table the local gate uses (``_policy.CODING_RULES``, via
-#: ``_policy.cloud_rule_actions``); :data:`_PROSE_INTENTS` only adds requests
-#: written in words ("push the branch", "open a PR") that no command pattern can see.
-GATED_ACTIONS: tuple[str, ...] = ("push", "pr-create", "merge", "delete", "reset", "commit", "git-option")
-#: Natural-language requests for a gated action, plus commands the local gate
-#: asks for only through its catch-all (``git merge``, ``git branch -D``,
-#: ``git clean``), which have no named rule of their own.
-_PROSE_INTENTS: dict[str, re.Pattern[str]] = {
-    "push": re.compile(r"(?i)\b(?:force[- ]?)?push(?:es|ed|ing)?\b"),
-    "pr-create": re.compile(
-        r"(?i)\b(?:open|create|file|raise|submit|send)(?:s|ed|ing)?\s+(?:a\s+|an\s+|the\s+|new\s+)*"
-        r"(?:draft\s+)?(?:pr|pull[- ]request)s?\b"
-    ),
-    "merge": re.compile(
-        r"(?i)\bgit\s+merge\b|\bmerge\s+(?:it|this|that)\b"
-        r"|\bmerg(?:e|es|ed|ing)\b[^.\n]{0,40}\b(?:pr|pull\s+request|branch|into|main|master|trunk)\b"
-    ),
-    "delete": re.compile(
-        r"(?i)\bgit\s+branch\s+-[dD]\b|\bgit\s+clean\b"
-        r"|\b(?:delet|remov)(?:e|es|ed|ing)\b[^.\n]{0,40}\b(?:branch(?:es)?|tags?|repo(?:sitory)?|releases?|remote)\b"
-    ),
-}
 _ENV_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 _ROUTINE_NAME_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 _ROUTINE_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
@@ -201,20 +175,6 @@ def redact_obj(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [redact_obj(item) for item in value]
     return value
-
-
-def gated_actions(text: str) -> list[str]:
-    """The :data:`GATED_ACTIONS` a brief asks for, in a stable order.
-
-    Every command the local gate's rule table would ask for (or session-ask
-    for on first use) counts, plus the natural-language requests in
-    :data:`_PROSE_INTENTS`.
-    """
-    from lazytools.code_bridge._policy import cloud_rule_actions
-
-    found = cloud_rule_actions(text)
-    found.update(name for name, pattern in _PROSE_INTENTS.items() if pattern.search(text))
-    return [name for name in GATED_ACTIONS if name in found]
 
 
 def _inside(path: Path, container: Path) -> bool:
@@ -1232,7 +1192,6 @@ def submit_job(
     db_path: Path | None = None,
     job_id: str | None = None,
     config: CloudConfig | None = None,
-    approvals: tuple[str, ...] | list[str] = (),
     routine: str | None = None,
     pr: int | None = None,
     open_pr: bool = False,
@@ -1256,10 +1215,8 @@ def submit_job(
     merged into the record (used by cloud reviews).
 
     Raises :class:`CloudError` (no job recorded) for a missing env mapping,
-    a repository without a usable remote, the cloud limit, or a brief that
-    asks for a gated action (:data:`GATED_ACTIONS`) not listed in
-    ``approvals``; a failure of the submit call itself is recorded as a
-    failed job and re-raised.
+    a repository without a usable remote or the cloud limit; a failure of the
+    submit call itself is recorded as a failed job and re-raised.
     """
     import uuid
 
@@ -1269,17 +1226,6 @@ def submit_job(
     brief = task if isinstance(task, str) else task.brief()
     if job_id is not None and not JOB_ID_RE.fullmatch(job_id):
         raise CloudError(f"job id must be 8-32 lowercase hex digits or a UUID, got {redact(job_id)[:80]!r}")
-    unknown = sorted(set(approvals) - set(GATED_ACTIONS))
-    if unknown:
-        raise CloudError(f"unknown cloud approval(s) {unknown}: one of {', '.join(GATED_ACTIONS)}")
-    missing = [action for action in gated_actions(brief) if action not in approvals]
-    if missing:
-        flags = " ".join(f"--approve-cloud {action}" for action in missing)
-        raise CloudError(
-            f"the brief asks for gated action(s) {', '.join(missing)}, which a local job's BridgeGate would hold for "
-            f"approval; a cloud agent's commands cannot be gated one by one. Run it as a local job, remove the "
-            f"request from the brief, or approve up front with {flags}"
-        )
     config = config or load_config()
     if engine == "claude" and routine is None:
         routine = select_routine(config, routine=None, model=model)
@@ -1351,7 +1297,6 @@ def submit_job(
         "objective": redact(brief),
         "brief_hash": _store.brief_hash(brief),
         "title": redact(title.strip()) if title and title.strip() else None,
-        "cloud_approvals": sorted(set(approvals)),
         "created_at": time.time(),
         "cloud_handle": None,
         "open_pr": bool(open_pr),
@@ -1849,7 +1794,6 @@ def _wait_for_poll_turn(
 __all__ = [
     "ACTIVE_STATUSES",
     "DEFAULT_CLOUD_WAIT_TIMEOUT",
-    "GATED_ACTIONS",
     "JOB_ID_RE",
     "MAX_CONSECUTIVE_POLL_ERRORS",
     "CLOUD_PREAMBLE",
@@ -1877,7 +1821,6 @@ __all__ = [
     "redact_obj",
     "refresh",
     "repo_slug",
-    "gated_actions",
     "result_text",
     "submit_job",
     "summarize_diff",

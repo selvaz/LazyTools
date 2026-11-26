@@ -414,9 +414,9 @@ default_where`) places the job; `land=true` lands a finished cloud job (commit,
 push, PR) without anyone running `apply`; `review_of=<job>` runs the opposite
 engine and posts an independent-review comment on that job's PR. `cwd` is
 confined to the code root, a task may not start with `@`, and a cloud job needs
-`allow_cloud=true` on each call. Approving a gated action up front
-(`--approve-cloud`) is not exposed: a brief that asks for a push or merge is
-refused, and a person decides. Only served with `--allow-unsafe`.
+`allow_cloud=true` on each call. Cloud results reach the repository only through the local landing step
+(`apply`, `land`, or `cloud-sync`), which keeps its own checks. Only served
+with `--allow-unsafe`.
 
 ### Scoped code tasks
 
