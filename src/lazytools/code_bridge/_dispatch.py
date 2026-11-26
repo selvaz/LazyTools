@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -19,6 +18,7 @@ from lazybridge import Store
 from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugify
 
 from lazytools.code_bridge import _cloud, _concurrency, _jobs, _registry, _routing, _store
+from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_fields import task_id as board_task_id
@@ -336,7 +336,7 @@ def _check_failure(command: str, cwd: Path | None) -> str | None:
     if cwd is None:
         return f"{message} (missing task checkout)"
     try:
-        argv = shlex.split(command)
+        argv = _split_command(command)  # Windows paths keep their backslashes
         if not argv:
             raise ValueError("empty command")
         result = subprocess.run(

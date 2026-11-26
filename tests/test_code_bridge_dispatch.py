@@ -918,3 +918,17 @@ def test_checks_that_change_the_checkout_reject_the_task(
     assert any(expected in event for event in events), events
     assert not any(event.startswith("done") for event in events), events
     assert not source_git("branch", "--list", "dispatch/p/A")
+
+
+def test_check_commands_keep_windows_backslashes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge import _dispatch, _navigator
+    monkeypatch.setattr(_navigator.os, "name", "nt")
+    seen: list[list[str]] = []
+
+    def fake_run(argv: list[str], **kwargs: Any) -> Any:
+        seen.append(argv)
+        return subprocess.CompletedProcess(argv, 0, b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert _dispatch._check_failure(r".venv\Scripts\python.exe -m pytest tests\test_api.py", tmp_path) is None
+    assert seen == [[r".venv\Scripts\python.exe", "-m", "pytest", r"tests\test_api.py"]]
