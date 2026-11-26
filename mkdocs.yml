@@ -10,6 +10,7 @@ docs_dir: docs
 strict: true
 not_in_nav: |
   /_audit-2026-10.md
+  /design/orchestration-mcp/*.md
 
 theme:
   name: material

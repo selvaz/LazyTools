@@ -129,7 +129,7 @@ from lazytools.workspace import WorkspaceTools
 | `statistical_analysis/` | `StatisticalAnalysisTools` | read-only volatility, return-correlation and z-score-outlier analysis backed only by market-data-hub |
 | `documents/` | `read_docs` | read documents from a folder/file for LLM consumption |
 | `report/` | `models`, `render`, `artifacts`, `resolvers`, `charts`, `tools`, `files` | deterministic memo/report rendering (Markdown/HTML) with embedded figures (charts/images) — "LazyReport" |
-| `mcp_server/` | `server`, `providers` | expose LazyTools' read-only providers over MCP (the `lazytools-mcp` command) — mirror of the `connectors/mcp` client |
+| `mcp_server/` | `server`, `providers` | expose LazyTools' read-only providers over MCP (the `lazytools-mcp` and `lazytools-orchestration-mcp` commands) — mirror of the `connectors/mcp` client |
 | `code_bridge/` | `cli`, `_jobs`, `_policy`, `_lockfile`, `_cloud` | async alternative to `codex_write`/`claude_code_write` (the `lazytools-code-bridge` command): runs a coding-engine job in a background OS process instead of a blocking MCP call, with approvals filed to a durable ticket queue, or dispatches it to Codex Cloud with `--where cloud` — see [Async Code Bridge](docs/code-bridge.md) |
 | `skills/` | `doc_skills`, `agent_operations` | build/query portable local-documentation skills; the bundled `agent-operations` assistant skill |
 | `safety/` | `allowlist`, `gates`, `urls` | reusable allow-list, one-shot confirmation gate, and SSRF URL guard |
@@ -330,6 +330,11 @@ from lazytools.mcp_server import build_server, serve_stdio, default_providers
 
 server = build_server(default_providers())   # read-only by default
 ```
+
+`lazytools-orchestration-mcp` is the same server with only the
+[orchestration providers](docs/mcp-server.md#orchestration-server) (coding
+jobs, review, sessions, code maps, projects, fleet). `lazytools-mcp` keeps the
+coding providers for one release.
 
 See [MCP server](docs/mcp-server.md).
 

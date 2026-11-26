@@ -335,22 +335,8 @@ def build_server(
 
     listed = _mcp_tool_models(types, tool_map)
 
-    def visible(request: Any) -> dict[str, Tool]:
-        if code_task_resolver is None:
-            if current_policy_context() is None:
-                return tool_map
-            return _scoped_tools(tool_map)
-        task = code_task_resolver(request)
-        if task is None:
-            return {}
-        try:
-            with task_scope(task):
-                return _scoped_tools(tool_map)
-        except PolicyError:
-            return {}
-
     def list_tools(request: Any) -> list[Any]:
-        allowed = visible(request)
+        allowed = visible_tools(tool_map, code_task_resolver, request)
         return [tool for tool in listed if tool.name in allowed]
 
     async def call_tool(request: Any, tool_name: str, arguments: dict[str, Any] | None) -> list[Any]:
@@ -475,6 +461,26 @@ def _mcp_tool_models(types: Any, tool_map: dict[str, Tool]) -> list[Any]:
             )
         )
     return listed
+
+
+def visible_tools(
+    tool_map: dict[str, Tool],
+    code_task_resolver: CodeTaskResolver | None = None,
+    request: Any = None,
+) -> dict[str, Tool]:
+    """The subset of ``tool_map`` that ``tools/list`` serves to ``request``."""
+    if code_task_resolver is None:
+        if current_policy_context() is None:
+            return tool_map
+        return _scoped_tools(tool_map)
+    task = code_task_resolver(request)
+    if task is None:
+        return {}
+    try:
+        with task_scope(task):
+            return _scoped_tools(tool_map)
+    except PolicyError:
+        return {}
 
 
 def _scoped_tools(tool_map: dict[str, Tool]) -> dict[str, Tool]:
