@@ -266,7 +266,7 @@ def test_request_review_once_per_new_unreviewed_head(monkeypatch: Any) -> None:
     posted: list[tuple[str, int, str]] = []
     monkeypatch.setattr(_watch._gh, "pr_comment", lambda repo, number, body: posted.append((repo, number, body)) or "")
     pull = _watch.parse_pull("o/r#4")
-    state = {"head": "new", "first_head": "old", "unreviewed_polls": 2, "terminal": None}
+    state: dict[str, Any] = {"head": "new", "first_head": "old", "unreviewed_polls": 2, "terminal": None}
     assert _watch._maybe_request_review(pull, state, "@codex review") is not None
     assert posted == [("o/r", 4, "@codex review")]
     assert _watch._maybe_request_review(pull, state, "@codex review") is None
@@ -274,3 +274,13 @@ def test_request_review_once_per_new_unreviewed_head(monkeypatch: Any) -> None:
                                         "@codex review") is None
     assert _watch._maybe_request_review(pull, {"head": "x", "first_head": "old", "unreviewed_polls": 1},
                                         "@codex review") is None
+
+
+def test_watch_ignores_review_text_not_posted_by_the_bot(monkeypatch: Any) -> None:
+    head = "abcdef1234567890"
+    payload = _bot_payload(head, ["Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `abcdef1234`"],
+                           [("test", "success")])
+    payload["issue_comments"][0]["user"]["login"] = "someone"
+    _install_api(monkeypatch, payload)
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#5"), Store())
+    assert not [event for event in events if event.kind in {"review", "ready"}]

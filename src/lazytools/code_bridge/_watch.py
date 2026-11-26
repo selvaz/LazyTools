@@ -211,7 +211,9 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
     finished = [item for item in checks if item.get("status") == "completed"]
     green = bool(checks) and len(finished) == len(checks) and all(
         str(item.get("conclusion") or "") in {"success", "skipped", "neutral"} for item in finished)
-    if green and review == "clean" and f"ready:{head}" not in seen:
+    statuses_ok = all(str(item.get("state") or "") == "success" for item in statuses)
+    mergeable = pr.get("mergeable") is not False and str(pr.get("mergeable_state") or "") != "dirty"
+    if green and statuses_ok and mergeable and review == "clean" and f"ready:{head}" not in seen:
         events.append(WatchEvent(_now_utc(), pull.label, "ready",
                                  f"{head[:7]} checks={len(checks)} review=clean"))
         fresh_seen.add(f"ready:{head}")
@@ -226,7 +228,7 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
     first_head = str(old.get("first_head") or head)
     state = {"head": head, "seen": sorted(fresh_seen), "terminal": terminal_kind if terminal else None,
              "first_head": first_head, "unreviewed_polls": unreviewed,
-             "review_requested": old.get("review_requested")}
+             "review_requested_heads": list(old.get("review_requested_heads", []))}
     return sorted(events, key=lambda event: _time_key(event.time)), terminal, state
 
 
@@ -234,6 +236,9 @@ def _bot_review(comments: list[dict[str, Any]], head: str) -> str | None:
     """The Codex review bot's verdict for ``head``: "clean", "findings", or None."""
     verdict = None
     for item in comments:
+        login = str((item.get("user") or {}).get("login") or "")
+        if not _is_review_bot(login):
+            continue  # anyone can paste the bot's text; only the bot's own comments count
         body = str(item.get("body") or "")
         for match in _BOT_STATE_RE.finditer(body):
             if head.startswith(match["sha"]) and match["status"] == "completed" and match["open"] != "null":
@@ -244,14 +249,20 @@ def _bot_review(comments: list[dict[str, Any]], head: str) -> str | None:
     return verdict
 
 
+def _is_review_bot(login: str) -> bool:
+    allowed = os.environ.get("LAZYTOOLS_CODE_BRIDGE_REVIEW_BOTS", "chatgpt-codex-connector[bot],chatgpt-codex-connector")
+    return login in {name.strip() for name in allowed.split(",") if name.strip()}
+
+
 def _maybe_request_review(pull: PullRequest, state: dict[str, Any], text: str) -> WatchEvent | None:
     """Ask the review bot once per new head that stayed unreviewed for two polls."""
     head = str(state.get("head") or "")
+    requested = [str(sha) for sha in state.get("review_requested_heads", [])]
     if (not text or state.get("terminal") or head == state.get("first_head")
-            or state.get("review_requested") == head or int(state.get("unreviewed_polls", 0)) < 2):
+            or head in requested or int(state.get("unreviewed_polls", 0)) < 2):
         return None
     _gh.pr_comment(pull.repo, pull.number, text)
-    state["review_requested"] = head
+    state["review_requested_heads"] = [*requested, head]
     return WatchEvent(_now_utc(), pull.label, "review-requested", f"{head[:7]} {text}")
 
 
