@@ -2170,6 +2170,8 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch_p.add_argument("--worktree-root", default=None, metavar="PATH",
                             help="Root for retained per-task git worktrees.")
     _add_registry_option(dispatch_p)
+    dispatch_p.add_argument("--lease-minutes", type=int, default=60, metavar="N",
+                            help="Claim lease per task; a job running longer is stopped (default 60).")
     dispatch_p.add_argument("--launch-mode", choices=("auto", "governed", "legacy"), default=None,
                             help="Passed to every task's run (default: the run default).")
     dispatch_p.set_defaults(func=_dispatch.dispatch)

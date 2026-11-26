@@ -23,7 +23,8 @@ from lazytools.projects.task_store import TaskServiceError, transaction
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted"})
 # Engine crashes (not task failures): retried once with a fresh attempt.
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
-RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409")
+RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
+                      "no new commit since the task started")
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,7 @@ class BridgeLauncher:
             subprocess.run(["git", "-C", str(checkout), "fetch", "--quiet", str(sibling), "+HEAD:refs/dispatch/" + sibling.name],
                            text=True, capture_output=True, check=False)
         self._git(checkout, "checkout", "--quiet", "-B", str(branch), str(base))
+        self._git(checkout, "tag", "-f", "dispatch-base")  # a finished task must add commits on top
         for index, commit in enumerate(commits[1:], start=1):
             result = subprocess.run(
                 ["git", "-C", str(checkout), "merge", "--no-edit", commit],
@@ -209,6 +211,13 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
     if commit.returncode:
         return f"could not commit the finished task: {(commit.stderr or commit.stdout).strip()[:200]}", None
     return None, git("rev-parse", "HEAD").stdout.strip() or None
+
+
+def _has_new_commit(cwd: Path) -> bool:
+    """True when the checkout has commits after its `dispatch-base` tag (or has no tag)."""
+    count = subprocess.run(["git", "-C", str(cwd), "rev-list", "--count", "dispatch-base..HEAD"],
+                           text=True, capture_output=True, check=False)
+    return count.returncode != 0 or count.stdout.strip() != "0"
 
 
 def _publish(cwd: Path) -> str | None:
@@ -335,6 +344,9 @@ class Dispatcher:
             elif merge_commit:
                 job = {**job, "final_commit": merge_commit}
                 self.emit(f"committed {task.task_id} {merge_commit[:12]} (engine sandbox keeps .git read-only)")
+            if accepted and not _has_new_commit(Path(str(job["cwd"]))):
+                accepted = False
+                job = {**job, "error": "no new commit since the task started"}
             if accepted:
                 published = _publish(Path(str(job["cwd"])))
                 if published:
@@ -497,7 +509,7 @@ def _dry_run(service: ProjectTaskService, project_id: str, emit: Callable[[str],
 def dispatch(args: argparse.Namespace) -> int:
     store_db = _resolve_store_db(None)
     principal = TaskPrincipal(actor="code-bridge-dispatch", role="orchestrator", projects=(args.project,))
-    service = ProjectTaskService(store_db)
+    service = ProjectTaskService(store_db, lease_seconds=max(1, int(getattr(args, "lease_minutes", 60))) * 60)
     if args.dry_run:
         return _dry_run(service, args.project)
     repo_roots: dict[str, Path] = {}

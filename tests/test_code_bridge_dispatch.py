@@ -400,3 +400,22 @@ def test_conclude_workspace_commits_a_resolved_merge_and_rejects_markers(tmp_pat
     assert error is None and commit == git("rev-parse", "HEAD")
     assert git("show", "--name-only", "--format=", "HEAD") == "g.txt"
     assert "error.log" in git("status", "--porcelain")
+
+
+def test_has_new_commit_requires_work_after_the_base_tag(tmp_path: Path) -> None:
+    from lazytools.code_bridge._dispatch import _has_new_commit
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    def git(*argv: str) -> None:
+        subprocess.run(["git", *argv], cwd=repo, text=True, capture_output=True, check=True)
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "T")
+    (repo / "f").write_text("1\n")
+    git("add", ".")
+    git("commit", "-qm", "base")
+    git("tag", "dispatch-base")
+    assert not _has_new_commit(repo)
+    (repo / "f").write_text("2\n")
+    git("commit", "-qam", "work")
+    assert _has_new_commit(repo)
