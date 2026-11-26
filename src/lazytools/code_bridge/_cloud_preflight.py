@@ -19,6 +19,15 @@ from typing import Any
 MANIFEST = ".bridge/cloud-preflight.json"
 MAX_AGE_DAYS = 14
 
+_IMPORT_NAMES = {
+    "python-docx": "docx",
+    "pywin32": "win32api",
+    "google-api-python-client": "googleapiclient",
+    "google-auth": "google.auth",
+    "beautifulsoup4": "bs4",
+    "pyyaml": "yaml",
+}
+
 _LOCAL_PATH = re.compile(
     r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/][^\s`'\"]+|\\\\[^\s`'\"]+|file://[^\s`'\"]+|/(?:Users|home|mnt|media|Volumes)/[^\s`'\"]+)",
     re.IGNORECASE,
@@ -131,7 +140,8 @@ def project_requirements(root: Path, *, allow_missing: bool = False) -> Requirem
             raise ValueError(f"{pyproject_path}: project dependency groups must be lists of strings")
         requirements.extend(group)
 
-    imports = sorted({match.group(1).replace("-", "_") for item in requirements
+    imports = sorted({_IMPORT_NAMES.get(re.sub(r"[-_.]+", "-", match.group(1)).lower(),
+                                        match.group(1).replace("-", "_")) for item in requirements
                       if (match := _DEPENDENCY_NAME.match(item))})
     repositories = sorted({match.group(1) for item in requirements
                            if (match := _GITHUB_REPOSITORY.search(item))})
