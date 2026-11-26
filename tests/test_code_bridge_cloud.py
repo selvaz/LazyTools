@@ -1559,3 +1559,13 @@ def test_resync_recovers_job_failed_with_real_cli_429_text(cloud, capsys):
 
     assert cli.main(["resync", job_id, "--db", str(cloud.db), "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "done"
+
+
+def test_branch_check_reports_missing_checkout(tmp_path):
+    from lazytools.code_bridge import _cloud
+
+    with pytest.raises(_cloud.CheckoutMissingError, match="checkout folder missing"):
+        _cloud._check_branch_name(tmp_path / "gone", "cloud/12345678")
+    _cloud._check_branch_name(tmp_path, "cloud/12345678")
+    with pytest.raises(_cloud.CloudError, match="not a valid branch name"):
+        _cloud._check_branch_name(tmp_path, "bad branch")

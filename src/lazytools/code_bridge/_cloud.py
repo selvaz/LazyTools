@@ -499,6 +499,20 @@ def select_routine(config: CloudConfig, *, routine: str | None, model: str | Non
 # --------------------------------------------------------------------------- #
 
 
+class CheckoutMissingError(CloudError):
+    """The job's checkout is no longer available."""
+
+
+def _check_branch_name(root: Path, branch: str) -> None:
+    if not root.is_dir():
+        raise CheckoutMissingError(f"checkout folder missing: {root}")
+    result = subprocess.run(
+        ["git", "check-ref-format", "--branch", branch], capture_output=True, text=True
+    ) if not branch.startswith("-") else None
+    if result is None or result.returncode or result.stdout.strip() != branch:
+        raise CloudError(f"{branch!r} is not a valid branch name")
+
+
 def _git(cwd: Path, *args: str, check: bool = True, timeout: float = 60, input_text: str | None = None) -> str:
     proc = subprocess.run(
         ["git", "-C", str(cwd), *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -510,6 +524,8 @@ def _git(cwd: Path, *args: str, check: bool = True, timeout: float = 60, input_t
 
 
 def repo_root(cwd: Path) -> Path:
+    if not cwd.is_dir():
+        raise CheckoutMissingError(f"checkout folder missing: {cwd}")
     return Path(_git(cwd, "rev-parse", "--show-toplevel"))
 
 
@@ -1269,8 +1285,7 @@ def submit_job(
         pr_info = {"pr_number": int(view.get("number") or pr), "pr_url": view.get("url"), "pr_head": head_ref,
                    "pr_base": view.get("baseRefName"), "pr_head_sha_at_submit": view.get("headRefOid")}
     branch = branch or (_probe_branch(root) if probe else current_branch(root))
-    if branch.startswith("-") or _git(root, "check-ref-format", "--branch", branch, check=False) != branch:
-        raise CloudError(f"{branch!r} is not a valid branch name")
+    _check_branch_name(root, branch)
     _require_remote_branch(root, branch)
     job_id = job_id or uuid.uuid4().hex
     store = _store.build_store(db_path)
@@ -1499,8 +1514,7 @@ def apply_job(
         raise CloudError(f"job id {redact(job_id)[:80]!r} is not hex or a UUID; refusing to derive paths from it")
     root = Path(str(job.get("repo_root") or repo_root(Path(str(job["cwd"])))))
     branch = branch or f"cloud/{job_id[:8]}"
-    if branch.startswith("-") or _git(root, "check-ref-format", "--branch", branch, check=False) != branch:
-        raise CloudError(f"{branch!r} is not a valid branch name")
+    _check_branch_name(root, branch)
     if worktree is None:
         container = worktrees_dir(db_path).expanduser().resolve()
         worktree = (container / job_id).resolve()
