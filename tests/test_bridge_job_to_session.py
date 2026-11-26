@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from lazybridge.ext.viz.replay import list_sessions, load_session_events, reconstruct_graph
-from tools import bridge_job_to_session as bridge
 
 from lazytools.code_bridge import _store
+
+ROOT = Path(__file__).resolve().parents[1]
+_spec = importlib.util.spec_from_file_location("bridge_job_to_session", ROOT / "tools" / "bridge_job_to_session.py")
+assert _spec is not None and _spec.loader is not None
+bridge = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(bridge)
 
 
 def test_export_finished_job_for_replay(tmp_path):
@@ -25,7 +32,7 @@ def test_export_finished_job_for_replay(tmp_path):
     store.close()
 
     result = subprocess.run(
-        [sys.executable, "tools/bridge_job_to_session.py", "job123", "--db", str(db), "--output", str(output)],
+        [sys.executable, str(ROOT / "tools" / "bridge_job_to_session.py"), "job123", "--db", str(db), "--output", str(output)],
         check=True, capture_output=True, text=True,
     )
     assert "Rejected event types: {}" in result.stdout
