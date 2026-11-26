@@ -66,6 +66,41 @@ def test_job_runs_to_done_and_persists_result(tmp_path, repo, monkeypatch):
     assert rows[0]["cwd"] == str(repo.resolve())
 
 
+@pytest.mark.parametrize(("engine", "reported_model"), [
+    ("codex", "gpt-reported-by-app-server"),
+    ("claude", "claude-reported-by-sdk"),
+])
+def test_job_persists_engine_reported_model_when_none_was_requested(
+    tmp_path, repo, monkeypatch, engine, reported_model
+):
+    _env(monkeypatch, tmp_path)
+    script = fakes.install(monkeypatch)
+    script.reported_model = reported_model
+    db_path = tmp_path / "store.sqlite"
+
+    result = _jobs.run_job(
+        engine_name=engine, cwd=str(repo), task="do a thing", root=str(tmp_path), db_path=db_path
+    )
+
+    meta = _store.read_meta(_store.build_store(db_path), result.job_id)
+    assert meta["model"] == reported_model
+
+
+def test_job_keeps_explicit_model_when_engine_reports_a_different_model(tmp_path, repo, monkeypatch):
+    _env(monkeypatch, tmp_path)
+    script = fakes.install(monkeypatch)
+    script.reported_model = "engine-reported-model"
+    db_path = tmp_path / "store.sqlite"
+
+    result = _jobs.run_job(
+        engine_name="codex", cwd=str(repo), task="do a thing", root=str(tmp_path), db_path=db_path,
+        model="explicit-model",
+    )
+
+    meta = _store.read_meta(_store.build_store(db_path), result.job_id)
+    assert meta["model"] == "explicit-model"
+
+
 def test_job_failure_is_recorded_not_raised(tmp_path, repo, monkeypatch):
     _env(monkeypatch, tmp_path)
     script = fakes.install(monkeypatch)

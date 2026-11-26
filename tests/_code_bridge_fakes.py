@@ -32,6 +32,7 @@ class Script:
     def __init__(self) -> None:
         self.mode = "ok"  # "ok" | "error" | "raise"
         self.text = "done"
+        self.reported_model: str | None = None
         #: Exception type/message "raise" mode uses -- lets a test simulate
         #: Ctrl+C / task cancellation, not just an ordinary engine error.
         self.exception_cls: type[BaseException] = RuntimeError
@@ -132,7 +133,8 @@ class FakeAgent:
             raise script.exception_cls(script.exception_message)
         if script.mode == "error":
             return Envelope.error_envelope(RuntimeError("turn failed"))
-        return Envelope(task=prompt, payload=script.text)
+        metadata = {"model": script.reported_model, "model_resolved": bool(script.reported_model)}
+        return Envelope(task=prompt, payload=script.text, metadata=metadata)
 
 
 def install(monkeypatch: pytest.MonkeyPatch) -> Script:

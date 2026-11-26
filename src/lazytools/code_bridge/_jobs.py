@@ -672,6 +672,12 @@ def run_job(
                     finally:
                         gate.accepting = channel.accepting = False
                         close_pending_tickets(store, job_id, "turn ended; approval no longer actionable")
+                reported_model = env.metadata.model if env.metadata.model_resolved else None
+                if reported_model:
+                    meta = _store.read_meta(store, job_id) or {}
+                    if meta.get("model") is None:
+                        meta["model"] = reported_model
+                        _store.write_meta(store, job_id, meta)
                 # A cancellation callback may have filed a ticket after the
                 # first sweep. All producers are now quiescent: sweep again.
                 close_pending_tickets(store, job_id, "turn cleanup completed; approval no longer actionable")
