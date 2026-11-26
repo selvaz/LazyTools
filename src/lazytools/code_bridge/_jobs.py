@@ -383,7 +383,8 @@ def run_job(
     resolver = claim.launch if claim else _launch.resolve_launch
     launch = resolver(engine_name, resolved_cwd, profile, network, launch_mode, review=intentional_review)
     legacy = launch.mode == "ungoverned-legacy"
-    writer = legacy and bool(launch.policy.tool_classes & {"edit", "shell"})
+    can_write = bool(launch.policy.tool_classes & {"edit", "shell"})
+    writer = legacy and can_write
 
     # A detached launch (`run --detach`) picks the id in the parent so it can
     # report it before the child exists; every other caller gets a fresh one.
@@ -723,7 +724,7 @@ def run_job(
                     return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", cleanup.error)
                 if env.ok:
                     uncommitted = await asyncio.to_thread(_uncommitted_count, lock.cwd)
-                    if uncommitted and writer:
+                    if uncommitted and can_write:
                         if commit_continuation:
                             return _finish(
                                 "partial", "", f"job ended with {uncommitted} uncommitted path(s) "

@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -118,6 +119,30 @@ def test_done_with_uncommitted_file_gets_one_commit_continuation(workspace, monk
     assert result.status == "partial"
     assert result.error.startswith("job ended with 1 uncommitted path(s) after the commit continuation")
     assert "1 uncommitted path(s)" in result.result_path.read_text(encoding="utf-8")
+    assert row(workspace, result)["continuations"] == 1
+
+
+def test_governed_edit_job_gets_commit_continuation(workspace, monkeypatch):
+    calls = []
+    resolve_launch = _jobs._launch.resolve_launch
+
+    def governed_launch(*args, **kwargs):
+        args = (*args[:4], "legacy", *args[5:])
+        return replace(resolve_launch(*args, **kwargs), mode="governed")
+
+    async def turn(engine, prompt, name):
+        engine.finish_turn()
+        calls.append(prompt)
+        (workspace / "dirty.txt").write_text("still uncommitted", encoding="utf-8")
+        return Envelope(payload="finished")
+
+    monkeypatch.setattr(_jobs._launch, "resolve_launch", governed_launch)
+    monkeypatch.setattr(_jobs, "_run_agent", turn)
+    result = run(workspace, profile="edit", launch_mode="governed", max_continuations=0)
+
+    assert calls == ["Done-when: tests pass", _jobs.COMMIT_CONTINUATION_PROMPT]
+    assert result.status == "partial"
+    assert result.error.startswith("job ended with 1 uncommitted path(s) after the commit continuation")
     assert row(workspace, result)["continuations"] == 1
 
 
