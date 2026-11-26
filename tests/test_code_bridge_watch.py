@@ -395,3 +395,15 @@ def test_open_structured_state_beats_a_later_clean_receipt() -> None:
     review = _watch._bot_review(comments, head, inline)
     assert review is not None and review.verdict == "findings"
     assert len(review.findings) == 1
+
+
+def test_resolved_structured_state_beats_a_later_receipt() -> None:
+    head = "abcdef1234567890"
+    bot = {"login": "chatgpt-codex-connector[bot]"}
+    state = ('<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":true,'
+             '"has_unresolved_findings":false,"status":"completed"}} -->')
+    comments = [{"user": bot, "body": state},
+                {"user": bot, "body": "Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `abcdef1234`"}]
+    inline = [{"user": bot, "commit_id": head, "path": "a.py", "line": 3, "body": "[P1] resolved blocker"}]
+    review = _watch._bot_review(comments, head, inline)
+    assert review is not None and review.verdict == "clean" and review.findings == ()

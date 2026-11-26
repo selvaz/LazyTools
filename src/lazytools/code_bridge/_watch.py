@@ -266,10 +266,13 @@ def _bot_review(
         return None
     bot_inline = [item for item in inline_comments
                   if not item.get("in_reply_to_id") and _is_review_bot(_author(item))]
-    if head_open == "true":
-        # A clean receipt on a new head covers only the new diff; the bot's state still
-        # reports unresolved findings (LazyTools #406 showed "review clean" over an open P2).
-        verdict, resolved = "findings", False
+    if head_open is not None:
+        # The bot keeps one summary comment whose state it rewrites, so the latest state for
+        # this head is authoritative over receipts in either direction: a clean receipt covers
+        # only the new diff (#406 showed "review clean" over an open P2), and a later receipt
+        # must not resurrect findings the state marks resolved.
+        resolved = head_open == "false"
+        verdict = "clean" if resolved else "findings"
     # The structured state can confirm resolution of findings still visible in REST.
     # GitHub moves an inline comment's commit_id to the new head while its line still exists.
     findings = () if resolved else tuple(
