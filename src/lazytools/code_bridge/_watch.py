@@ -240,13 +240,16 @@ def _bot_review(comments: list[dict[str, Any]], head: str) -> str | None:
         if not _is_review_bot(login):
             continue  # anyone can paste the bot's text; only the bot's own comments count
         body = str(item.get("body") or "")
+        current = None
         for match in _BOT_STATE_RE.finditer(body):
             if head.startswith(match["sha"]) and match["status"] == "completed" and match["open"] != "null":
-                verdict = "findings" if match["open"] == "true" else "clean"
+                current = "findings" if match["open"] == "true" else "clean"
         receipt = _BOT_RECEIPT_RE.search(body)
-        if receipt and head.startswith(receipt["sha"]):
-            # Each receipt is a full verdict for the head; a later one replaces an earlier one.
-            verdict = "clean" if _BOT_CLEAN_RE.search(body) else "findings"
+        if current is None and receipt and head.startswith(receipt["sha"]):
+            # The structured state wins within a comment; a receipt alone is a full verdict.
+            current = "clean" if _BOT_CLEAN_RE.search(body) else "findings"
+        if current is not None:
+            verdict = current  # a later comment replaces an earlier verdict
     return verdict
 
 

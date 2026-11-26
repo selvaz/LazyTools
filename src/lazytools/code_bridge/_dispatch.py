@@ -96,11 +96,10 @@ class BridgeLauncher:
         ).returncode == 0
         base = commits[0] if commits else (f"origin/{branch}" if branch_exists else None)
         if not base:
-            symbolic = subprocess.run(
-                ["git", "-C", str(repo), "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
-                text=True, capture_output=True, check=False,
-            ).stdout.strip()
-            base = symbolic.removeprefix("refs/remotes/") if symbolic else "HEAD"
+            # No dependency and no assigned branch: start from the commit the source
+            # checkout is on (the branch the operator pointed the dispatcher at). A
+            # remote-tracking ref of the source does not exist in the clone.
+            base = self._git(repo, "rev-parse", "HEAD")
         # A local clone, not a linked worktree: its .git lives inside the checkout, so a
         # sandboxed agent can commit there (a linked worktree keeps its index and merge
         # state under the main repository, outside the sandbox).
@@ -269,6 +268,14 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
 def _is_litter(path: str) -> bool:
     parts = path.strip().strip('"').replace("\\", "/").split("/")
     return (parts[-1].endswith(".log") or "__pycache__" in parts or ".pytest_cache" in parts)
+
+
+def _clone_head(cwd: Path) -> str | None:
+    """HEAD of a dispatcher-created clone (marked by `dispatch.branch`), else None."""
+    def git(*argv: str) -> str:
+        return subprocess.run(["git", "-C", str(cwd), *argv], text=True, capture_output=True,
+                              check=False).stdout.strip()
+    return git("rev-parse", "HEAD") or None if git("config", "--get", "dispatch.branch") else None
 
 
 def _has_new_commit(cwd: Path) -> bool:
@@ -440,8 +447,13 @@ class Dispatcher:
                 accepted = False
                 job = {**job, "error": workspace_error}
             elif merge_commit:
-                job = {**job, "final_commit": merge_commit}
                 self.emit(f"committed {task.task_id} {merge_commit[:12]} (engine sandbox keeps .git read-only)")
+            if accepted and not workspace_error:
+                # The dispatcher's clone is written by nobody else once the job ended, so its
+                # HEAD is the task's artifact, also after a restart that lost an earlier commit.
+                head = _clone_head(Path(str(job["cwd"])))
+                if head:
+                    job = {**job, "final_commit": head}
             if accepted and not _has_new_commit(Path(str(job["cwd"]))):
                 accepted = False
                 job = {**job, "error": "no new commit since the task started"}

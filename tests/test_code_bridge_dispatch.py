@@ -526,3 +526,17 @@ def test_litter_only_workspace_counts_as_clean(tmp_path: Path) -> None:
     _repo(tmp_path / "r")
     (tmp_path / "r" / "error.log").write_text("noise\n")
     assert _conclude_workspace(tmp_path / "r", "p/A") == (None, None)
+
+
+def test_without_dependencies_the_base_is_the_source_checkout_head(tmp_path: Path) -> None:
+    git = _repo(tmp_path / "repo")
+    git("checkout", "-qb", "feature")
+    (tmp_path / "repo" / "feature.txt").write_text("x\n")
+    git("add", "feature.txt")
+    git("commit", "-qm", "feature")
+    head = git("rev-parse", "HEAD")
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    launcher = BridgeLauncher(None, principal, "p", repo_roots={"r": tmp_path / "repo"}, worktree_root=tmp_path / "trees")
+    checkout = launcher._checkout({"task_id": "p/A", "repo": "r"})
+    assert subprocess.run(["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True,
+                          capture_output=True, check=True).stdout.strip() == head

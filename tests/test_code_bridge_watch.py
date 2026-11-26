@@ -301,3 +301,11 @@ def test_later_findings_receipt_replaces_an_earlier_clean_one() -> None:
     comments = [{"user": bot, "body": "Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `abcdef1234`"},
                 {"user": bot, "body": "Codex Review: here are some suggestions.\n\n**Reviewed commit:** `abcdef1234`"}]
     assert _watch._bot_review(comments, head) == "findings"
+
+
+def test_structured_state_wins_over_the_receipt_in_the_same_comment() -> None:
+    head = "abcdef1234567890"
+    body = ('<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":true,'
+            '"has_unresolved_findings":false,"status":"completed"}} -->\n'
+            "Codex Review: here are some suggestions.\n\n**Reviewed commit:** `abcdef1234`")
+    assert _watch._bot_review([{"user": {"login": "chatgpt-codex-connector[bot]"}, "body": body}], head) == "clean"
