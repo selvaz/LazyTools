@@ -1975,3 +1975,14 @@ def test_unusable_remote_never_exposes_credentials(cloud, capsys, monkeypatch, c
     captured = capsys.readouterr()
     assert "cloud repository metadata is unavailable" in captured.err
     assert secret not in str((captured, caplog.text))
+
+
+def test_closes_lines_end_the_opened_pr_body(cloud, gh, capsys):
+    payload = _submit_json(cloud, capsys, "--open-pr", "--closes", "7", "--closes", "9")
+    job_id = payload["job_id"]
+    assert _job(cloud, job_id)["closes"] == [7, 9]
+    cloud.set_status("status: ready\nDone.\n")
+    assert _main(cloud, "apply", job_id, "--land", "--json") == 0
+    (create,) = gh.calls("pr", "create")
+    assert create["stdin"].rstrip().splitlines()[-2:] == ["Closes #7", "Closes #9"]
+    assert _run_cloud(cloud, "--closes", "7") == 2  # needs --open-pr or --land

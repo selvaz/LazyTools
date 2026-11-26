@@ -177,6 +177,7 @@ def pr_body(job: dict[str, Any]) -> str:
     report = _report_text(job)
     if report:
         lines += [REPORT_MARKER, "", "Cloud task report:", "", report, ""]
+    lines += [f"Closes #{n}" for n in job.get("closes") or []]
     return "\n".join(lines).rstrip() + "\n"
 
 

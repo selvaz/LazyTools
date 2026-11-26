@@ -496,6 +496,10 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         cwd = _engines.resolve_cwd(args.cwd, args.root)
         branch = args.branch
         extra_meta: dict[str, Any] = {}
+        if args.closes:
+            if not (args.open_pr or args.land) or args.pr is not None:
+                raise ValueError("--closes needs --open-pr or --land without --pr")
+            extra_meta["closes"] = list(dict.fromkeys(args.closes))
         if args.review_of:
             store = _store.build_store(_db_path(args))
             prep = _cloud_land.prepare_review(
@@ -677,6 +681,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         ("pr", "--pr"),
         ("open_pr", "--open-pr"),
         ("land", "--land"),
+        ("closes", "--closes"),
         ("title", "--title"),
         ("rebase_ok", "--rebase-ok"),
     ):
@@ -2196,6 +2201,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--open-pr",
         action="store_true",
         help="--where cloud only: when landed, push a new branch and open a PR against --branch.",
+    )
+    run_p.add_argument(
+        "--closes",
+        type=int,
+        action="append",
+        default=[],
+        metavar="N",
+        help="--where cloud only, with --open-pr/--land: end the opened PR body with `Closes #N` (repeatable).",
     )
     run_p.add_argument(
         "--title",
