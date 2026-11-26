@@ -741,7 +741,8 @@ class BridgeGate(TieredGate):
                 if rule.arg_pattern == "gh pr create*" and not pr_create_grantable(words, self.job_branch):
                     continue
             if rule.tier == "ask" and rule.arg_pattern is None:
-                rule_id = _readonly.match(command)
+                checkout = bool(self.cwd and request.cwd and Path(self.cwd).resolve() == Path(request.cwd).resolve())
+                rule_id = _readonly.match(command, checkout=checkout)
                 if rule_id:
                     return Rule("allow", "Bash", arg_pattern=f"readonly:{rule_id}")
             return rule

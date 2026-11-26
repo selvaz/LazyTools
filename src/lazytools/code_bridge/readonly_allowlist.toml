@@ -7,12 +7,31 @@
 [[rules]]
 id = "ls"
 command = ["ls"]
-flags = ["-a", "-l", "-h", "-la", "-al", "-lh", "-lah", "-R", "--all", "--long", "--human-readable"]
+flags = ["-a", "-l", "-h", "-la", "-al", "-lh", "-lah", "-R", "-d", "--all", "--long", "--human-readable"]
 
 [[rules]]
 id = "pwd"
 command = ["pwd"]
 flags = ["-L", "-P"]
+max_positionals = 0
+
+[[rules]]
+id = "where"
+command = ["where"]
+max_positionals = 20
+operands = "none"
+
+[[rules]]
+id = "sed-print"
+command = ["sed"]
+flags = ["-n"]
+max_positionals = 2
+validator = "sed-print"
+
+[[rules]]
+id = "py-versions"
+command = ["py"]
+flags = ["-0"]
 max_positionals = 0
 
 [[rules]]
