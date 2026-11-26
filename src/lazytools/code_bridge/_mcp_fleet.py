@@ -105,7 +105,8 @@ class FleetTools(CodeBridgeTools):
         tier = self._safe_text("tier", tier)
         if tier not in choices:
             raise ValueError(f"tier must be one of: {', '.join(sorted(choices))}")
-        argv = ["route", "--tier", tier]
+        # Describe the configured repository, not the server process's working directory.
+        argv = ["route", "--tier", tier, "--cwd", self._root, "--root", self._root]
         for name, value, allowed in (
             ("engine", engine, set(_jobs.ENGINES)),
             ("where", where, set(_cloud_place.WHERE_CHOICES)),

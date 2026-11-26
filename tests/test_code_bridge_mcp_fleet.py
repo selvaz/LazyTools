@@ -35,8 +35,8 @@ def test_route_builds_cli_argv_and_returns_json() -> None:
     tools = FleetTools()
     calls = _fake(tools)
     assert tools.bridge_route("thinking", engine="codex", where="local", needs="images") == {"value": 1}
-    assert calls == [["route", "--tier", "thinking", "--engine", "codex", "--where", "local",
-                      "--needs", "images", "--json"]]
+    assert calls == [["route", "--tier", "thinking", "--cwd", tools._root, "--root", tools._root,
+                      "--engine", "codex", "--where", "local", "--needs", "images", "--json"]]
 
 
 def test_autonomy_builds_each_supported_range() -> None:
@@ -127,3 +127,15 @@ def test_fleet_tools_are_never_exposed_or_callable_in_a_task_scope(monkeypatch):
     finally:
         _policy._task.reset(token)
     assert call() == []
+
+
+def test_bridge_route_describes_the_configured_root(monkeypatch, tmp_path):
+    from lazytools.code_bridge._mcp_fleet import FleetTools
+
+    seen = []
+    tools = FleetTools(root=str(tmp_path))
+    monkeypatch.setattr(tools, "_invoke", lambda argv, timeout: seen.append(argv) or (0, "{}", ""))
+    tools.bridge_route("writing", engine="codex", where="cloud")
+    argv = seen[0]
+    assert argv[argv.index("--cwd") + 1] == str(tmp_path.resolve())
+    assert argv[argv.index("--root") + 1] == str(tmp_path.resolve())
