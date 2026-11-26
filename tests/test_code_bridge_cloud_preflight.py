@@ -177,6 +177,18 @@ def test_cloud_preflight_init_uses_pyproject_and_configured_environment(tmp_path
     }
 
 
+def test_project_requirements_maps_distribution_names(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\ndependencies = ["python-docx>=1", "pywin32", "google-api-python-client", '
+        '"Google_Auth", "beautifulsoup4", "PyYAML", "ordinary-package"]\n'
+        '[project.optional-dependencies]\ntest = ["python-docx", "pytest-asyncio"]\n',
+        encoding="utf-8",
+    )
+    assert _cloud_preflight.project_requirements(tmp_path).imports == [
+        "bs4", "docx", "google.auth", "googleapiclient", "ordinary_package", "pytest_asyncio", "win32api", "yaml",
+    ]
+
+
 PROBE_REQUIREMENTS = _cloud_preflight.Requirements(["httpx", "private_lib"], ["acme/private-lib"])
 PROBE_RESULTS = {
     "network": True,
