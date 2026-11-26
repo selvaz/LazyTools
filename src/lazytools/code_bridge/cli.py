@@ -639,7 +639,7 @@ def _resolve_placement(args: argparse.Namespace) -> int | None:
             print(f"error: {exc}", file=sys.stderr)
         return 2
     except (ValueError, _cloud.CloudError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     if placement.requested == _cloud_place.WHERE_AUTO or placement.requested != placement.where:
         print(placement.line(), file=sys.stderr)  # stderr: stdout's first line is the job id
@@ -902,7 +902,7 @@ def _cmd_route(args: argparse.Namespace) -> int:
             print(f"would fail: unmapped: {exc}", file=sys.stderr)
         return 2
     except (OSError, ValueError, _cloud.CloudError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_root_error(args, exc)}", file=sys.stderr)
         return 2
     if args.json:
         payload = selection.payload()

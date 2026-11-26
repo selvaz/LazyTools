@@ -586,3 +586,17 @@ def test_detach_hint_keeps_the_selected_database(tmp_path, monkeypatch, capsys):
     db = tmp_path / "custom.sqlite"
     assert main(["run", "--detach", "--engine", "codex", "--cwd", str(repo), "--task", "x", "--root", str(tmp_path), "--db", str(db)]) == 0
     assert f'--db "{db}"' in capsys.readouterr().out
+
+
+def test_root_error_hint_on_auto_placement_path(tmp_path, monkeypatch, capsys):
+    root = tmp_path / "root"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_CONFIG", str(tmp_path / "code-bridge.toml"))
+
+    assert main(["run", "--engine", "codex", "--where", "auto", "--cwd", str(outside), "--root", str(root), "--task", "x"]) == 2
+    err = capsys.readouterr().err
+    assert "is outside the allowed root" in err
+    assert "pass --root PATH or set root in" in err
+    assert "code-bridge.toml" in err
