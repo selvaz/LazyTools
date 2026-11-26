@@ -18,7 +18,7 @@ from typing import Any, Literal, Protocol
 from lazybridge import Store
 from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugify
 
-from lazytools.code_bridge import _cloud, _jobs, _registry, _routing, _store
+from lazytools.code_bridge import _cloud, _concurrency, _jobs, _registry, _routing, _store
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_fields import task_id as board_task_id
@@ -368,9 +368,10 @@ class Dispatcher:
                  sleep: Callable[[float], None] = time.sleep,
                  task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks,
                  clock: Callable[[], float] = time.time, orphan_grace: float = 30.0,
-                 router: Callable[[str], str | None] | None = None, max_retries: int = 1,
+                 router: Callable[..., str | None] | None = None, max_retries: int = 1,
                  json_events: bool = False, knowledge_store: Store | None = None,
-                 stale_minutes: int = DEFAULT_STALE_MINUTES):
+                 stale_minutes: int = DEFAULT_STALE_MINUTES,
+                 capacity: Callable[[str], int | None] | None = None, router_with_engine: bool = False):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
         if stale_minutes < 1:
@@ -383,6 +384,8 @@ class Dispatcher:
         self.clock, self.orphan_grace = clock, orphan_grace
         self.stale_seconds = stale_minutes * 60
         self.router = router
+        self.capacity = capacity  # engine family -> local slot limit (None = unlimited)
+        self.router_with_engine = router_with_engine  # router accepts (tier, engine_family)
         self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
         self.waiting: set[str] = set()
@@ -498,6 +501,19 @@ class Dispatcher:
         status = {task.task_id.rsplit("/", 1)[1]: task.status for task in tasks}
         now = self.clock()
         picks: dict[str, str | None] = {}
+        # Engine families already busy: claimed tasks plus tasks placed and not yet claimed.
+        in_use: dict[str, int] = {}
+        for task in tasks:
+            if task.status == "claimed":
+                family = str(((task.dispatch or {}).get("receipt") or {}).get("engine_family") or "")
+            elif task.status == "todo":
+                evidence = task.data.get("placement_evidence", {}).get("local", {})
+                fresh = evidence.get("revision") == task.revision and                     evidence.get("evidence", {}).get("expires_at", 0) > now + 60
+                family = str(evidence.get("evidence", {}).get("engine_family") or "") if fresh else ""
+            else:
+                family = ""
+            if family:
+                in_use[family] = in_use.get(family, 0) + 1
         for task in tasks:
             data = task.data
             if (task.status != "todo" or data.get("requested_placement", "local") != "local"
@@ -516,6 +532,17 @@ class Dispatcher:
                     picks[tier] = None
                     self._event("waiting", task.task_id, f"routing failed: {str(exc).replace(chr(10), ' ')}")
             engine = picks[tier]
+            limit = self.capacity(engine) if engine and self.capacity else None
+            if engine and limit and in_use.get(engine, 0) >= limit:
+                # The routed engine is full: ask for the other one instead of queueing for a slot.
+                other = "claude_code" if engine == "codex" else "codex"
+                try:
+                    alternative = self.router(tier, other) if self.router_with_engine else None
+                except Exception:
+                    alternative = None
+                other_limit = self.capacity(other) if alternative and self.capacity else None
+                if alternative and not (other_limit and in_use.get(alternative, 0) >= other_limit):
+                    engine = alternative
             if engine is None:
                 if task.task_id not in self.waiting:
                     self._event("waiting", task.task_id, f"no eligible engine for tier {tier}")
@@ -527,6 +554,7 @@ class Dispatcher:
                 reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}",
                 expires_at=now + self.service.lease_seconds + 60, engine_family=engine,
             ))
+            in_use[engine] = in_use.get(engine, 0) + 1
             self._event("placed", task.task_id, f"local {engine} tier={tier}")
 
     def _blocked(self, tasks: list[Task]) -> None:
@@ -791,6 +819,17 @@ def _dry_run(service: ProjectTaskService, project_id: str, emit: Callable[[str],
     return 0
 
 
+def usable_reading(reading: Any, *, max_age_seconds: float = 600.0) -> bool:
+    """A quota reading the dispatcher may act on unattended: present, error-free, recent."""
+    if reading is None or getattr(reading, "error", None) or not getattr(reading, "windows", ()):
+        return False
+    observed = getattr(reading, "observed_at", None)
+    if observed is None:
+        return False
+    from datetime import datetime
+    return reading.age_seconds(now=datetime.now(observed.tzinfo)) <= max_age_seconds
+
+
 def dispatch(args: argparse.Namespace) -> int:
     store_db = _resolve_store_db(None)
     principal = TaskPrincipal(actor="code-bridge-dispatch", role="orchestrator", projects=(args.project,))
@@ -809,13 +848,27 @@ def dispatch(args: argparse.Namespace) -> int:
                               registry_db=registry_db, launch_mode=getattr(args, "launch_mode", None))
     db_path = Path(args.db) if args.db else None
 
-    def router(tier: str) -> str | None:
-        return _routing.choose(tier, cwd=os.getcwd(), db_path=db_path).decision.provider
+    def router(tier: str, engine_family: str | None = None) -> str | None:
+        if engine_family is None:
+            return _routing.choose(tier, cwd=os.getcwd(), db_path=db_path).decision.provider
+        # Fallback to the other engine: an explicit engine enables the router's operator
+        # override for unreadable telemetry, so require a usable, recent reading here.
+        engine = "claude" if engine_family == "claude_code" else engine_family
+        selection = _routing.choose(tier, cwd=os.getcwd(), db_path=db_path, engine=engine)
+        provider = selection.decision.provider
+        reading = selection.readings.get(provider) if provider else None
+        return provider if usable_reading(reading) else None
+
+    limits = _concurrency.load_limits()
+
+    def capacity(engine_family: str) -> int | None:
+        return limits.get("claude" if engine_family == "claude_code" else engine_family) or None
 
     knowledge_db = getattr(args, "knowledge_db", None)
     knowledge_store = _store.build_store(Path(knowledge_db).expanduser()) if knowledge_db is not None else None
     try:
         return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
+                          capacity=capacity, router_with_engine=True,
                           json_events=bool(getattr(args, "json", False)),
                           knowledge_store=knowledge_store,
                           stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)

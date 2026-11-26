@@ -157,6 +157,7 @@ nav:
           - Codex: code-support/codex.md
           - Collaboration: code-support/collaboration.md
       - Async Code Bridge (CLI): code-bridge.md
+      - Capabilities catalog: CAPABILITIES.md
       - Code bridge cloud setup: code-bridge-cloud-setup.md
       - Projects: projects.md
       - External tool gateway: gateway.md

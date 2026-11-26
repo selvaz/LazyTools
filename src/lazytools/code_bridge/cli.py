@@ -29,6 +29,7 @@ from lazybridge.ext.approval import ApprovalTicket
 from lazytools.code_bridge import (
     _autonomy,
     _brief,
+    _capabilities,
     _cloud,
     _cloud_envs,
     _cloud_land,
@@ -942,6 +943,20 @@ def _cmd_models(args: argparse.Namespace) -> int:
     return 2 if report["mismatches"] or report["errors"] else 0
 
 
+def _cmd_capabilities(args: argparse.Namespace) -> int:
+    try:
+        entries = _capabilities.load_catalog()
+    except OSError as exc:
+        print(f"error: could not read the capabilities catalog: {exc}", file=sys.stderr)
+        return 1
+
+    query = args.query.casefold()
+    for entry in entries:
+        if query in entry["capability"].casefold() or query in entry["call"].casefold():
+            print(entry["section"], entry["capability"], entry["call"], entry["status"], sep="\t")
+    return 0
+
+
 def _cmd_jobs(args: argparse.Namespace) -> int:
     store = _store.build_store(_db_path(args))
     rows = _jobs.list_jobs(store, all_jobs=args.all)
@@ -1415,6 +1430,8 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
             raise ValueError("--events must contain at least one event")
         if args.all_active == bool(args.job_ids):
             raise ValueError("provide JOB_ID(s) or --all-active, but not both")
+        if args.follow and not (args.all_active and args.loop):
+            raise ValueError("--follow needs --all-active and --loop")
         if args.timeout is not None and (not math.isfinite(args.timeout) or args.timeout < 0):
             raise ValueError("--timeout must be a finite non-negative number")
     except ValueError as exc:
@@ -1423,11 +1440,16 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
 
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)
-    # With --loop, --all-active also follows jobs that start after the wait began.
-    follow_new = args.all_active and args.loop
-    if args.all_active:
+    history: set[str] = set()
+    if args.all_active and args.follow:
+        # One snapshot: finished jobs are history, everything else is watched, so a job
+        # launched while the stream starts cannot fall between two listings.
+        snapshot = _jobs.list_jobs(store, all_jobs=True)
+        history = {str(job["job_id"]) for job in snapshot if str(job.get("status") or "") in _TERMINAL}
+        watched = [str(job["job_id"]) for job in snapshot if str(job["job_id"]) not in history]
+    elif args.all_active:
         watched = [str(job["job_id"]) for job in _jobs.list_jobs(store, all_jobs=False)]
-        if not watched and not follow_new:
+        if not watched:
             print("error: no active jobs", file=sys.stderr)
             return 2
     else:
@@ -1447,14 +1469,10 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
     while True:
         store = _store.build_store(db_path)
         registry = _store.build_job_registry(store)
-        if follow_new:
-            # Created-at catches a job that started and finished between two polls.
+        if args.follow:  # pick up every job created after this stream began, even one already finished
             for job in _jobs.list_jobs(store, all_jobs=True):
                 job_id = str(job["job_id"])
-                if job_id not in watched and (
-                    job.get("status") in ("running", "checkpoint", "awaiting_approval")
-                    or float(job.get("created_at") or 0) >= started_at
-                ):
+                if job_id not in watched and job_id not in history:
                     watched.append(job_id)
         jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
 
@@ -1530,7 +1548,7 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
                     _store.write_meta(store, str(job["job_id"]), meta)
                 if not args.loop:
                     return 0
-        if args.loop and watched and len(terminal_seen) == len(watched):
+        if args.loop and not args.follow and len(terminal_seen) == len(watched):
             return 0
         if deadline is not None and time.monotonic() >= deadline:
             return 3
@@ -2409,6 +2427,12 @@ def build_parser() -> argparse.ArgumentParser:
     models_p.add_argument("--json", action="store_true")
     models_p.set_defaults(func=_cmd_models)
 
+    capabilities_p = sub.add_parser("capabilities", help="List or search the capabilities catalog.")
+    capabilities_p.add_argument(
+        "query", nargs="?", default="", metavar="QUERY", help="Case-insensitive substring of a capability or call."
+    )
+    capabilities_p.set_defaults(func=_cmd_capabilities)
+
     wait_p = sub.add_parser("wait", help="Block until a job ends (or its process dies), then print its outcome.")
     wait_p.add_argument("job_id")
     wait_p.add_argument(
@@ -2430,6 +2454,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--events", default="done,failed,approval,landed,interrupted", help="Comma-separated events to return."
     )
     wait_any_p.add_argument("--loop", action="store_true", help="Print events until every watched job is terminal.")
+    wait_any_p.add_argument(
+        "--follow", action="store_true",
+        help="With --all-active and --loop: also watch jobs that start later and keep running when the current "
+             "jobs end (the orchestrator's single event stream; stop with --timeout or Ctrl-C).",
+    )
     wait_any_p.add_argument(
         "--json", action="store_true", help="Emit the event as one JSON object (the default format)."
     )

@@ -8,6 +8,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-11-26
+
+### Added
+- `lazytools-code-bridge dispatch --project ID`: runs a projects task graph. The quota router places each task (switching engine when the routed one is at its slot limit), every task works in its own local clone started from its dependencies' accepted commits, the dispatcher commits finished work outside the engine's read-only `.git` sandbox (never staging tool litter), accepts a task only with a new commit and a clean checkout, publishes the branch back to the source repository as a fast-forward, retries engine crashes once, cancels jobs past `--lease-minutes`, and surfaces pending approval tickets as `approval <task> <ticket>` events (#398, #400, #403).
+- `lazytools-code-bridge wait-any --all-active --loop --follow`: one event stream for the orchestrator, including jobs started later (#402).
+- `lazytools-code-bridge watch`: `review <head> clean|findings` (only from the review bot), `conflict`, `ready` (bot clean, checks and statuses green, mergeable) and optional `--request-review TEXT` (#400).
+- `lazytools-code-bridge capabilities [QUERY]` and `docs/CAPABILITIES.md`, a catalog of every capability derived from code, guarded by tests for code-bridge subcommands and MCP providers (#401).
+- `LAZYTOOLS_CODE_EXTRA_ROOTS`: extra confinement roots for the code tools and the bridge `--root` check (#400).
+
+### Changed
+- `web_*` MCP tools are classified as writes when they use the production cache, honouring the configured `web_cache_db` override (#394).
+- Claude Code jobs launched by the bridge never add AI attribution to commits or PRs (#396).
+- A local job that ends with uncommitted work gets one continuation turn to commit; if work remains it ends `done` with a visible warning, keeping its report (#397).
+
+### Fixed
+- `apply --land` accepts a job already applied in a previous worktree (#390).
+- Cloud landing commits carry the report summary or the explicit `--title` instead of UI text (#392).
+
 ## [0.14.3] — 2026-11-25
 
 ### Fixed
