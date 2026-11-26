@@ -8,6 +8,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.3] — 2026-11-25
+
+### Fixed
+- Job metadata (and so publication receipts) record the model the engine reports when the job was launched without `--model`; an explicit `--model` is kept (#385).
+- `run --where cloud` accepts `--session` and `--detach` with a warning instead of refusing the launch (#386).
+
 ## [0.14.2] — 2026-11-25
 
 ### Fixed
