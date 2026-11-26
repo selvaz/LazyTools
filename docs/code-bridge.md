@@ -1,5 +1,7 @@
 # Async Code Bridge
 
+Search before you build: check the [capabilities catalog](CAPABILITIES.md) for existing commands and tools before implementing a new one.
+
 `lazytools-code-bridge` (`lazytools.code_bridge`, also runnable as
 `python -m lazytools.code_bridge`) is an **asynchronous** path to the same
 Codex / Claude Code write access that `codex_write` / `claude_code_write`
