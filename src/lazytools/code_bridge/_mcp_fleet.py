@@ -145,16 +145,31 @@ class FleetTools(CodeBridgeTools):
         return rows
 
     def as_tools(self) -> list[Any]:
-        """Only the six read-only views; the inherited submit/status/result stay in ``code_bridge``."""
-        from pathlib import Path
+        """Only the six read-only views; the inherited submit/status/result stay in ``code_bridge``.
 
+        These are fleet-wide (every job and ticket in the shared store), so they carry no
+        ``CODE_ACCESS`` grant: a task-scoped server (``_scoped_tools``) never exposes them, and
+        each call refuses inside an authenticated task context as a second guard.
+        """
         from lazybridge import Tool
-
-        from lazytools.connectors.code_support._policy import code_tool
 
         methods = (self.bridge_jobs, self.bridge_pending, self.bridge_route, self.bridge_autonomy,
                    self.bridge_models, self.capabilities_search)
-        return [code_tool(Tool.wrap(method, name=method.__name__), root=Path(self._root)) for method in methods]
+        return [Tool.wrap(_unscoped(method), name=method.__name__) for method in methods]
+
+
+def _unscoped(method: Any) -> Any:
+    from functools import wraps
+
+    from lazytools.connectors.code_support._policy import current_task
+
+    @wraps(method)
+    def call(*args: Any, **kwargs: Any) -> Any:
+        if current_task() is not None:
+            raise PermissionError("fleet-wide views are not available inside a task-scoped context")
+        return method(*args, **kwargs)
+
+    return call
 
 
 __all__ = ["FleetTools"]

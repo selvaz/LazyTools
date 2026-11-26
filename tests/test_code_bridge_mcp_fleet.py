@@ -103,3 +103,27 @@ def test_bridge_jobs_empty_output_is_an_empty_fleet(monkeypatch):
     tools = FleetTools()
     monkeypatch.setattr(tools, "_invoke", lambda argv, timeout: (0, "", ""))
     assert tools.bridge_jobs() == []
+
+
+def test_fleet_tools_are_never_exposed_or_callable_in_a_task_scope(monkeypatch):
+    # Codex review on #408: fleet-wide job and ticket views must not leak across task scopes.
+    import pytest
+
+    from lazytools.code_bridge import _mcp_fleet
+    from lazytools.connectors.code_support import _policy
+    from lazytools.mcp_server.providers import PROVIDER_FACTORIES
+    from lazytools.mcp_server.server import _scoped_tools, expand_tools
+
+    tool_map = expand_tools([PROVIDER_FACTORIES["fleet"]()], read_only=True)
+    assert _scoped_tools(tool_map) == {}
+
+    tools = _mcp_fleet.FleetTools()
+    monkeypatch.setattr(tools, "_invoke", lambda argv, timeout: (0, "", ""))
+    call = _mcp_fleet._unscoped(tools.bridge_jobs)
+    token = _policy._task.set(object())  # type: ignore[arg-type]
+    try:
+        with pytest.raises(PermissionError):
+            call()
+    finally:
+        _policy._task.reset(token)
+    assert call() == []
