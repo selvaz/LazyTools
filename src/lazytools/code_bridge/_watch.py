@@ -22,6 +22,15 @@ _HEAD_RE = re.compile(r"(?im)^\s*head:\s*([0-9a-f]+)\s*$")
 _BADGE_RE = re.compile(r"(?i)(?:\b|\[)(P[0-3])(?:\b|\])")
 
 
+# Codex review bot: hidden state JSON and the visible receipt.
+_BOT_STATE_RE = re.compile(
+    r'"code_review":\{"commit_sha":"(?P<sha>[0-9a-f]{7,40})"[^}]*?"has_unresolved_findings":(?P<open>true|false|null)'
+    r'[^}]*?"status":"(?P<status>[a-z_]+)"'
+)
+_BOT_RECEIPT_RE = re.compile(r"Reviewed commit:\*\*\s*`(?P<sha>[0-9a-f]{7,40})`")
+_BOT_CLEAN_RE = re.compile(r"(?i)didn.t find any major issues")
+
+
 @dataclass(frozen=True)
 class PullRequest:
     repo: str
@@ -191,14 +200,59 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
         if result in {"success", "failure"}:
             fresh_seen.add(identity)
 
+    review = _bot_review(_paged_items(f"{base}/issues/{pull.number}/comments"), head)
+    if review is not None and f"review:{head}:{review}" not in seen:
+        events.append(WatchEvent(_now_utc(), pull.label, "review", f"{head[:7]} {review}"))
+    if review is not None:
+        fresh_seen.add(f"review:{head}:{review}")
+    if (pr.get("mergeable") is False or str(pr.get("mergeable_state") or "") == "dirty")             and f"conflict:{head}" not in seen:
+        events.append(WatchEvent(_now_utc(), pull.label, "conflict", f"{head[:7]} conflicts with the base branch"))
+        fresh_seen.add(f"conflict:{head}")
+    finished = [item for item in checks if item.get("status") == "completed"]
+    green = bool(checks) and len(finished) == len(checks) and all(
+        str(item.get("conclusion") or "") in {"success", "skipped", "neutral"} for item in finished)
+    if green and review == "clean" and f"ready:{head}" not in seen:
+        events.append(WatchEvent(_now_utc(), pull.label, "ready",
+                                 f"{head[:7]} checks={len(checks)} review=clean"))
+        fresh_seen.add(f"ready:{head}")
+
     merged = bool(pr.get("merged") or pr.get("merged_at"))
     terminal = merged or str(pr.get("state") or "").casefold() == "closed"
     terminal_kind = "merged" if merged else "closed"
     if terminal and not old.get("terminal"):
         events.append(WatchEvent(_event_time(pr, "merged_at", "closed_at", "updated_at"), pull.label,
                                  terminal_kind, str(pr.get("title") or terminal_kind)))
-    state = {"head": head, "seen": sorted(fresh_seen), "terminal": terminal_kind if terminal else None}
+    unreviewed = int(old.get("unreviewed_polls", 0)) + 1 if review is None and old.get("head") == head else 0
+    first_head = str(old.get("first_head") or head)
+    state = {"head": head, "seen": sorted(fresh_seen), "terminal": terminal_kind if terminal else None,
+             "first_head": first_head, "unreviewed_polls": unreviewed,
+             "review_requested": old.get("review_requested")}
     return sorted(events, key=lambda event: _time_key(event.time)), terminal, state
+
+
+def _bot_review(comments: list[dict[str, Any]], head: str) -> str | None:
+    """The Codex review bot's verdict for ``head``: "clean", "findings", or None."""
+    verdict = None
+    for item in comments:
+        body = str(item.get("body") or "")
+        for match in _BOT_STATE_RE.finditer(body):
+            if head.startswith(match["sha"]) and match["status"] == "completed" and match["open"] != "null":
+                verdict = "findings" if match["open"] == "true" else "clean"
+        receipt = _BOT_RECEIPT_RE.search(body)
+        if receipt and head.startswith(receipt["sha"]):
+            verdict = "clean" if _BOT_CLEAN_RE.search(body) else (verdict or "findings")
+    return verdict
+
+
+def _maybe_request_review(pull: PullRequest, state: dict[str, Any], text: str) -> WatchEvent | None:
+    """Ask the review bot once per new head that stayed unreviewed for two polls."""
+    head = str(state.get("head") or "")
+    if (not text or state.get("terminal") or head == state.get("first_head")
+            or state.get("review_requested") == head or int(state.get("unreviewed_polls", 0)) < 2):
+        return None
+    _gh.pr_comment(pull.repo, pull.number, text)
+    state["review_requested"] = head
+    return WatchEvent(_now_utc(), pull.label, "review-requested", f"{head[:7]} {text}")
 
 
 def poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool]:
@@ -212,7 +266,7 @@ def run_watch(
     pulls: list[PullRequest], store: Any, *, interval: float, until: datetime | None,
     emit: Callable[[WatchEvent], None], sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], datetime] = lambda: datetime.now().astimezone(),
-    max_failures: int = DEFAULT_MAX_FAILURES,
+    max_failures: int = DEFAULT_MAX_FAILURES, request_review: str | None = None,
 ) -> int:
     delay = max(interval, minimum_interval())
     terminal = {
@@ -239,6 +293,8 @@ def run_watch(
                     raise
                 break
             failures[pull.label] = 0
+            if request_review and (asked := _maybe_request_review(pull, state, request_review)):
+                events.append(asked)
             for event in events:
                 emit(event)
             store.write(_state_key(pull), state)
