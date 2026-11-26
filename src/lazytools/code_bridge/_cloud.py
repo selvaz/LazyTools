@@ -1622,8 +1622,8 @@ def _detach_recorded_branch_checkout(store: Any, root: Path, branch: str, *, exc
     for _key, meta in store.items(prefix=_store.META_PREFIX):
         if not isinstance(meta, dict):
             continue
-        for field in ("applied_worktree", "apply_failed_worktree"):
-            value = meta.get(field)
+        for worktree_field in ("applied_worktree", "apply_failed_worktree"):
+            value = meta.get(worktree_field)
             if not value:
                 continue
             path = Path(str(value)).expanduser().resolve()

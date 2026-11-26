@@ -570,6 +570,7 @@ def test_land_retry_cleans_safe_unrecorded_branch_and_worktree(cloud, gh, capsys
 
 
 def test_land_detaches_bridge_worktree_holding_requested_branch(cloud, gh, capsys, tmp_path):
+    assert "field" not in _cloud._detach_recorded_branch_checkout.__code__.co_varnames
     first = _submit_json(cloud, capsys, "--open-pr")["job_id"]
     cloud.set_status(READY)
     old_worktree = tmp_path / "previous-apply"
