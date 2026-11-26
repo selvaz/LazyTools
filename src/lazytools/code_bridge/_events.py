@@ -92,7 +92,7 @@ def _decided_tickets(
     from lazybridge.ext.approval import ApprovalTicket
 
     job_id = str(job["job_id"])
-    tickets = []
+    tickets: list[ApprovalTicket] = []
     ids = [str(ticket_id) for ticket_id in job.get("registry_ticket_ids") or [] if str(ticket_id) not in skip]
     if ids:
         registry = _registry.Registry.for_job(store, job_id, fallback_registry)
@@ -150,9 +150,9 @@ def iter_events(
     if include_decided:
         legacy = _legacy_tickets(store)
         fallback = cli._selected_registry_db(ticket_args)
-        for job in jobs.values():
-            if job is not None:
-                tickets.extend(_decided_tickets(store, job, state.seen_tickets, fallback, legacy))
+        for found in jobs.values():
+            if found is not None:
+                tickets.extend(_decided_tickets(store, found, state.seen_tickets, fallback, legacy))
         tickets = sorted({ticket.approval_id: ticket for ticket in tickets}.values(), key=lambda t: t.created_at)
     for ticket in tickets:
         job_ref = _registry.job_ref(ticket)

@@ -94,7 +94,7 @@ def test_fleet_exposes_exactly_its_six_read_tools_without_unsafe():
 
     names = set(expand_tools([PROVIDER_FACTORIES["fleet"]()], read_only=True))
     assert names == {"bridge_jobs", "bridge_pending", "bridge_route", "bridge_autonomy",
-                     "bridge_models", "capabilities_search"}
+                     "bridge_models", "capabilities_search", "bridge_events"}
 
 
 def test_bridge_jobs_empty_output_is_an_empty_fleet(monkeypatch):
@@ -139,3 +139,114 @@ def test_bridge_route_describes_the_configured_root(monkeypatch, tmp_path):
     argv = seen[0]
     assert argv[argv.index("--cwd") + 1] == str(tmp_path.resolve())
     assert argv[argv.index("--root") + 1] == str(tmp_path.resolve())
+
+
+@pytest.fixture
+def events_tool(tmp_path, monkeypatch):
+    """``bridge_events`` as the MCP server exposes it, on a temporary job store."""
+    from lazytools.mcp_server.server import expand_tools
+
+    db = tmp_path / "jobs.sqlite"
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(db))
+    monkeypatch.setenv("LAZYTOOLS_PROJECTS_STORE_DB", str(tmp_path / "projects.sqlite"))
+    tool = expand_tools([PROVIDER_FACTORIES["fleet"]()], read_only=True)["bridge_events"]
+    return db, tool
+
+
+def _bridge_job(db, job_id: str, status: str):
+    from lazytools.code_bridge import _store
+
+    store = _store.build_store(db)
+    _store.build_job_registry(store).write(job_id, "task", tool_name="codex", status=status)
+    _store.write_meta(store, job_id, {"job_id": job_id, "engine": "codex", "where": "local", "cwd": "."})
+    return store
+
+
+def test_bridge_events_starts_from_now_and_keeps_events_between_calls(events_tool):
+    db, tool = events_tool
+    _bridge_job(db, "old-job", "done")
+    first = tool.run_sync()
+    assert first["events"] == [] and isinstance(first["cursor"], str)
+
+    _bridge_job(db, "quick-job", "done")  # starts and finishes between two calls
+    second = tool.run_sync(cursor=first["cursor"])
+    assert [(e["kind"], e["job_id"]) for e in second["events"]] == [("done", "quick-job")]
+    assert set(second["events"][0]) >= {"kind", "job_id", "task_id", "detail"}
+    assert tool.run_sync(cursor=second["cursor"])["events"] == []
+
+
+def test_bridge_events_reports_ticket_created_and_decided_between_calls(events_tool):
+    from lazytools.code_bridge import _store
+
+    db, tool = events_tool
+    store = _bridge_job(db, "running-job", "running")
+    cursor = tool.run_sync()["cursor"]
+    queue = _store.build_approval_queue(store)
+    ticket = queue.create_ticket(task_id="running-job", prompt="Allow git push?")
+    queue.approve_ticket(ticket.approval_id, actor="owner", channel="cli")
+
+    events = tool.run_sync(cursor=cursor)["events"]
+    assert [(e["kind"], e["approval"]["approval_id"], e["approval"]["status"]) for e in events] == [
+        ("approval", ticket.approval_id, "approved")
+    ]
+
+
+def test_bridge_events_waits_for_an_event(events_tool, monkeypatch):
+    from lazytools.code_bridge import _mcp_fleet
+
+    db, tool = events_tool
+    cursor = tool.run_sync()["cursor"]
+    sleeps = []
+
+    def finish_job(seconds):
+        sleeps.append(seconds)
+        _bridge_job(db, "late-job", "failed")
+
+    monkeypatch.setattr(_mcp_fleet.time, "sleep", finish_job)
+    result = tool.run_sync(cursor=cursor, timeout_s=5)
+    assert [(e["kind"], e["job_id"]) for e in result["events"]] == [("failed", "late-job")]
+    assert len(sleeps) == 1
+
+
+def test_bridge_events_times_out_empty(events_tool, monkeypatch):
+    from lazytools.code_bridge import _mcp_fleet
+
+    _db, tool = events_tool
+    clock = iter([0.0, 0.0, 0.6, 1.2])
+    monkeypatch.setattr(_mcp_fleet.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(_mcp_fleet.time, "sleep", lambda seconds: None)
+    assert tool.run_sync(timeout_s=1)["events"] == []
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"cursor": "not-a-cursor"},
+    {"cursor": "ev1.eJyrrgUAAXUA-Q.AAAAAAAAAAAAAAAA"},
+    {"timeout_s": 61},
+    {"timeout_s": -1},
+    {"timeout_s": True},
+    {"timeout_s": 1.5},
+])
+def test_bridge_events_refuses_malformed_input(events_tool, kwargs):
+    _db, tool = events_tool
+    with pytest.raises(ValueError):
+        FleetTools().bridge_events(**kwargs)
+    result = tool.run_sync(**kwargs)
+    assert not isinstance(result, dict) or "cursor" not in result
+
+
+def test_bridge_events_is_hidden_and_refused_in_a_task_scope(events_tool):
+    from lazytools.connectors.code_support import _policy
+    from lazytools.mcp_server.server import _scoped_tools, expand_tools
+
+    _db, tool = events_tool
+    tool_map = expand_tools([PROVIDER_FACTORIES["fleet"]()], read_only=True)
+    assert "bridge_events" in tool_map
+    assert "bridge_events" not in _scoped_tools(tool_map)
+    token = _policy._task.set(object())  # type: ignore[arg-type]
+    try:
+        result = tool.run_sync()
+    except PermissionError:
+        result = None
+    finally:
+        _policy._task.reset(token)
+    assert not isinstance(result, dict) or "cursor" not in result
