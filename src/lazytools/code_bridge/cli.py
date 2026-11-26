@@ -29,6 +29,7 @@ from lazybridge.ext.approval import ApprovalTicket
 from lazytools.code_bridge import (
     _autonomy,
     _brief,
+    _capabilities,
     _cloud,
     _cloud_envs,
     _cloud_land,
@@ -940,6 +941,20 @@ def _cmd_models(args: argparse.Namespace) -> int:
     else:
         _models.print_report(report)
     return 2 if report["mismatches"] or report["errors"] else 0
+
+
+def _cmd_capabilities(args: argparse.Namespace) -> int:
+    try:
+        entries = _capabilities.load_catalog()
+    except OSError as exc:
+        print(f"error: could not read the capabilities catalog: {exc}", file=sys.stderr)
+        return 1
+
+    query = args.query.casefold()
+    for entry in entries:
+        if query in entry["capability"].casefold() or query in entry["call"].casefold():
+            print(entry["section"], entry["capability"], entry["call"], entry["status"], sep="\t")
+    return 0
 
 
 def _cmd_jobs(args: argparse.Namespace) -> int:
@@ -2368,6 +2383,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     models_p.add_argument("--json", action="store_true")
     models_p.set_defaults(func=_cmd_models)
+
+    capabilities_p = sub.add_parser("capabilities", help="List or search the capabilities catalog.")
+    capabilities_p.add_argument(
+        "query", nargs="?", default="", metavar="QUERY", help="Case-insensitive substring of a capability or call."
+    )
+    capabilities_p.set_defaults(func=_cmd_capabilities)
 
     wait_p = sub.add_parser("wait", help="Block until a job ends (or its process dies), then print its outcome.")
     wait_p.add_argument("job_id")
