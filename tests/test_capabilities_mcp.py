@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from tools.capabilities import catalog_entries
+from lazytools.code_bridge._capabilities import catalog_entries
 
 ROOT = Path(__file__).resolve().parents[1]
 PROVIDERS = ROOT / "src" / "lazytools" / "mcp_server" / "providers.py"

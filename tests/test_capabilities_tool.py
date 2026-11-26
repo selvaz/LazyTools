@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from tools.capabilities import bridge_subcommands, catalog_entries
+from lazytools.code_bridge._capabilities import bridge_subcommands, catalog_entries
 
 from lazytools.code_bridge import cli
 
