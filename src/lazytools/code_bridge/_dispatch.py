@@ -31,7 +31,7 @@ STALE_HEARTBEAT = "engine heartbeat went stale"
 # Engine crashes (not task failures): retried once with a fresh attempt.
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
 RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
-                      "no new commit since the task started", STALE_HEARTBEAT)
+                      "no new commit since the task started", STALE_HEARTBEAT, "database is locked")
 
 
 def _has_stale_heartbeat(job: dict[str, Any], cutoff: float) -> bool:
