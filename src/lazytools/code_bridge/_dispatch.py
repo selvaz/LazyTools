@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -315,6 +316,31 @@ def _has_new_commit(cwd: Path) -> bool:
     return count.returncode != 0 or count.stdout.strip() != "0"
 
 
+def _check_failure(command: str, cwd: Path | None) -> str | None:
+    message = f"check failed: {command}"
+    if cwd is None:
+        return f"{message} (missing task checkout)"
+    try:
+        argv = shlex.split(command)
+        if not argv:
+            raise ValueError("empty command")
+        result = subprocess.run(
+            argv, cwd=cwd, env={**os.environ, "PYTHONPATH": "src"}, shell=False,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15 * 60, check=False,
+        )
+        if result.returncode == 0:
+            return None
+        message += f" (exit {result.returncode})"
+        output = result.stdout
+    except subprocess.TimeoutExpired as exc:
+        message += " (timed out after 15 minutes)"
+        output = exc.output or b""
+    except (OSError, ValueError) as exc:
+        return f"{message} (could not run)\n{exc}"
+    tail = _cloud.redact(output[-2000:].decode("utf-8", errors="replace")).strip()
+    return f"{message}\n{tail}" if tail else message
+
+
 def _publish(cwd: Path) -> tuple[str | None, str | None]:
     """Copy an accepted task's branch from its clone back into the source repository.
 
@@ -563,9 +589,16 @@ class Dispatcher:
             job = self.launcher.job(str(job_ref))
             if not job or job.get("status") not in TERMINAL:
                 return False
-        accepted = job.get("status") == "done"
-        if accepted and job.get("cwd"):
-            workspace_error, merge_commit = _conclude_workspace(Path(str(job["cwd"])), task.task_id)
+        checks = task.data.get("checks")
+        reference = f"bridge-job:{job_ref}:{job.get('status')}"
+        if checks:
+            reference += ":checks"  # evidence for this gate survives a restart between recording and completion
+        recorded = dispatch.get("evidence", {}).get(reference, {})
+        recorded_failure = recorded.get("failure_reason")
+        cwd = Path(str(job["cwd"])) if job.get("cwd") else None
+        accepted = job.get("status") == "done" and not recorded_failure
+        if accepted and cwd is not None:
+            workspace_error, merge_commit = _conclude_workspace(cwd, task.task_id)
             if workspace_error:
                 accepted = False
                 job = {**job, "error": workspace_error}
@@ -575,10 +608,10 @@ class Dispatcher:
             if accepted and not workspace_error:
                 # The dispatcher's clone is written by nobody else once the job ended, so its
                 # HEAD is the task's artifact, also after a restart that lost an earlier commit.
-                head = _clone_head(Path(str(job["cwd"])))
+                head = _clone_head(cwd)
                 if head:
                     job = {**job, "final_commit": head}
-            if accepted and not _has_new_commit(Path(str(job["cwd"]))):
+            if accepted and not _has_new_commit(cwd):
                 accepted = False
                 job = {**job, "error": "no new commit since the task started"}
         verdict = job.get("review_verdict") or {}
@@ -592,7 +625,14 @@ class Dispatcher:
         )
         expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
         job_error = str(job.get("error") or job.get("status") or "job failed").replace("\n", " ")
-        if needs_evidence:
+        check_failure = recorded_failure
+        if accepted and checks and not (needs_evidence or expired or recorded):
+            check_failure = "\n".join(filter(None, (_check_failure(command, cwd) for command in checks))) or None
+            expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+        if check_failure:
+            accepted = False
+            failure_reason = check_failure
+        elif needs_evidence:
             accepted = False
             failure_reason = "needs review evidence"
         elif expired:
@@ -601,22 +641,22 @@ class Dispatcher:
         else:
             failure_reason = job_error
         # Publish only after the lease and evidence checks; a failed publish fails the task.
-        if accepted and job.get("cwd"):
-            published, publish_error = _publish(Path(str(job["cwd"])))
+        if accepted and cwd is not None:
+            published, publish_error = _publish(cwd)
             if publish_error:
                 accepted = False
                 failure_reason = publish_error
             elif published:
                 self._event("published", task.task_id, published, job_id=str(job_ref))
         state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
-        reference = f"bridge-job:{job_ref}:{job.get('status')}"
         evidence = CompletionEvidence(reference=reference, job_ref=str(job_ref), executor=receipt["executor"],
             engine_family=receipt["engine_family"], state=state,
             artifact_ref=job.get("final_commit") or job.get("candidate_commit"),
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
             review_independence=review_independence,
-            outcome="success" if accepted else "task_failure")
-        self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
+            outcome="success" if accepted else "task_failure", failure_reason=check_failure)
+        if not recorded_failure:
+            self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
         complete_options = {"reconcile_failure": True} if expired else {}
         self.service.complete(self.principal, task.task_id, receipt["claim_token"], reference, state, reference,
                               "success" if accepted else "task_failure", **complete_options)
@@ -624,7 +664,7 @@ class Dispatcher:
         if accepted:
             self._event("done", task.task_id, job_id=str(job_ref))
             return True
-        retryable = any(marker in failure_reason for marker in RETRYABLE_FAILURES)
+        retryable = not check_failure and any(marker in failure_reason for marker in RETRYABLE_FAILURES)
         self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
         if retryable and self.retries.get(task.task_id, 0) < self.max_retries:
             current = next((item for item in self.task_reader(self.service, self.project_id)
@@ -635,7 +675,8 @@ class Dispatcher:
                 self.retries[task.task_id] = self.retries.get(task.task_id, 0) + 1
                 self._event("retry", task.task_id, f"engine crash: {failure_reason[:120]}", job_id=str(job_ref))
                 return True
-        self._event("failed", task.task_id, failure_reason, job_id=str(job_ref))
+        self._event("failed", task.task_id, check_failure.split("\n", 1)[0] if check_failure else failure_reason,
+                    job_id=str(job_ref))
         return True
 
     def pass_once(self) -> tuple[int, int]:

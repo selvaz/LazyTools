@@ -74,6 +74,7 @@ class CompletionEvidence(BaseModel):
     review_passed: bool = False
     review_independence: ReviewIndependence | None = None
     outcome: Outcome | None = None
+    failure_reason: Nonempty | None = None
 
 
 def _route_key(repo: str, placement: str, environment_id: str) -> str:
@@ -874,6 +875,8 @@ class ProjectTaskService:
             ):
                 raise TaskServiceError("stale", "Evidence does not match the submitted job, executor and engine")
             record = evidence.model_dump(mode="json")
+            if evidence.failure_reason is None:
+                record.pop("failure_reason")  # keep existing evidence replays compatible
             records = dispatch.setdefault("evidence", {})
             if evidence.reference in records:
                 if records[evidence.reference] != record:
@@ -987,7 +990,7 @@ class ProjectTaskService:
                 task.data.update(status="done", completed_at=now, result=evidence_ref, error="")
                 touch_project_progress(store, task.project_id)
             elif result_state == "blocked":
-                task.data.update(status="failed", completed_at=now, error=evidence_ref)
+                task.data.update(status="failed", completed_at=now, error=evidence.failure_reason or evidence_ref)
             else:
                 task.data.update(completed_at=None, error=evidence_ref)
             task.save(store, now)
