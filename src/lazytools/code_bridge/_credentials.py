@@ -95,6 +95,11 @@ def initialize(registry: Path, queue: ApprovalQueue, *, replace: bool = False) -
             with os.fdopen(fd, "w", encoding="ascii") as file:
                 if os.name == "nt":
                     _restrict_windows_file(temporary)
+                if replace:
+                    with queue._anchored() as store:
+                        for key, record in store.items(prefix=queue._credential_prefix):
+                            if isinstance(record, dict) and record.get("principal") == "owner":
+                                store.delete(key)
                 file.write(queue.issue_approver_credential("owner", ("owner",)))
                 file.flush()
                 os.fsync(file.fileno())

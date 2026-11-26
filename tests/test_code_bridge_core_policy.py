@@ -250,6 +250,31 @@ def test_credential_init_rejects_invalid_existing_file_and_replace_rotates(tmp_p
     assert approver is not None and approver.actor == "owner" and "owner" in approver.roles
 
 
+def test_credential_replace_revokes_old_owner_and_new_owner_can_decide(tmp_path):
+    path = tmp_path / "approvals.sqlite"
+    registry = _registry.Registry(_store.build_store(), path)
+    flags = ["--registry-db", str(path)]
+    assert cli.main(["approver-credential", "init", *flags]) == 0
+    old_secret = _credentials.load(path)
+
+    ticket = registry.queue.create_typed_ticket(TypedApprovalRequest.create(
+        task_id="job", attempt=1, action="native_command", target=ApprovalTarget(),
+        requested_by="worker", policy_revision="test", payload={"registry": "code-bridge"},
+    ), operator_only=True)
+    assert cli.main(["approver-credential", "init", "--replace", *flags]) == 0
+    new_secret = _credentials.load(path)
+
+    assert new_secret != old_secret
+    assert registry.queue._authenticated_approver(old_secret) is None
+    assert not registry.queue.decide_typed_ticket(
+        ticket.approval_id, credential=old_secret, verdict="approved",
+    )
+    assert registry.queue.decide_typed_ticket(
+        ticket.approval_id, credential=new_secret, verdict="approved",
+    )
+    assert registry.queue.get_ticket(ticket.approval_id).status == "approved"
+
+
 def test_job_environment_scrubs_owner_credential(tmp_path, monkeypatch):
     fakes.install(monkeypatch)
     monkeypatch.setenv(_credentials.CREDENTIAL_ENV, "worker-must-not-inherit-this")
