@@ -1,4 +1,8 @@
-from tools.install_job_envs import in_use
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+from install_job_envs import in_use
 
 
 def test_matches_windows_paths_case_insensitively():
@@ -16,3 +20,8 @@ def test_unreadable_python_path_counts_as_in_use():
     target = r"C:\ProgramData\InvestmentCommittee\envs\marketdata\Scripts\python.exe"
     assert in_use(target, [None])
     assert in_use(target, [""])
+
+
+def test_windowless_interpreter_of_the_env_counts_as_in_use():
+    target = r"C:\ProgramData\InvestmentCommittee\envs\marketdata\Scripts\python.exe"
+    assert in_use(target, [r"C:\ProgramData\InvestmentCommittee\envs\marketdata\Scripts\pythonw.exe"])

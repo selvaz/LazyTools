@@ -21,8 +21,9 @@ def in_use(python, executable_paths):
 
     An unreadable path cannot prove the environment is idle, so it counts as in use.
     """
-    target = normalize_path(str(python))
-    return any(not path or normalize_path(path) == target for path in executable_paths)
+    # Any interpreter of the env counts (python.exe, pythonw.exe), not only the one we install with.
+    scripts = ntpath.dirname(normalize_path(str(python)))
+    return any(not path or ntpath.dirname(normalize_path(path)) == scripts for path in executable_paths)
 
 
 def running_executables():
