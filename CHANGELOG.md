@@ -8,6 +8,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.1] — 2026-11-25
+
+### Changed
+- Cloud brief text gate removed: briefs are no longer scanned for gated words (English-only regexes that blocked harmless wording and missed other languages); cloud results reach the repository only through local landing, which keeps its checks. `--approve-cloud` removed (#375).
+- Cloud preflight is advisory: a missing or stale manifest warns and the submit proceeds; probe results are recorded as `reported_by`, and the preflight cache is gone (#376).
+
+### Fixed
+- Publication: `push_failed` can be retried with `--retry-ticket`; PR read-back retries transient `gh pr view` errors within its 30 s window (#376).
+- `approver-credential init` validates an existing credential; `init --replace` rotates it and revokes every superseded owner credential (#376).
+
 ## [0.14.0] — 2026-11-25
 
 ### Changed (breaking)
