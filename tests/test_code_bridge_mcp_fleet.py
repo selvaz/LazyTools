@@ -1,0 +1,87 @@
+from __future__ import annotations
+
+import json
+from typing import Any
+
+import pytest
+
+from lazytools.code_bridge._mcp import QUERY_TIMEOUT
+from lazytools.code_bridge._mcp_fleet import FleetTools
+from lazytools.mcp_server.providers import PROVIDER_FACTORIES
+
+
+def _fake(tools: FleetTools, payload: Any = None) -> list[list[str]]:
+    calls: list[list[str]] = []
+
+    def invoke(argv: list[str], timeout: float) -> tuple[int, str, str]:
+        assert timeout == QUERY_TIMEOUT
+        calls.append(argv)
+        return 0, json.dumps({"value": 1} if payload is None else payload) + "\n", ""
+
+    tools._invoke = invoke  # type: ignore[method-assign]
+    return calls
+
+
+def test_jobs_and_pending_build_cli_argv_and_return_json() -> None:
+    tools = FleetTools()
+    calls = _fake(tools, [{"job_id": "job-1"}])
+    assert tools.bridge_jobs() == [{"job_id": "job-1"}]
+    assert tools.bridge_jobs(all=True) == [{"job_id": "job-1"}]
+    assert tools.bridge_pending() == [{"job_id": "job-1"}]
+    assert calls == [["jobs", "--json"], ["jobs", "--all", "--json"], ["pending", "--json"]]
+
+
+def test_route_builds_cli_argv_and_returns_json() -> None:
+    tools = FleetTools()
+    calls = _fake(tools)
+    assert tools.bridge_route("thinking", engine="codex", where="local", needs="images") == {"value": 1}
+    assert calls == [["route", "--tier", "thinking", "--engine", "codex", "--where", "local",
+                      "--needs", "images", "--json"]]
+
+
+def test_autonomy_builds_each_supported_range() -> None:
+    tools = FleetTools()
+    calls = _fake(tools)
+    tools.bridge_autonomy(week="2026-W09")
+    tools.bridge_autonomy(since="2026-01-01", until="2026-02-01")
+    assert calls == [["autonomy", "--week", "2026-W09", "--json"],
+                     ["autonomy", "--since", "2026-01-01", "--until", "2026-02-01", "--json"]]
+
+
+def test_models_never_enables_claude_probe() -> None:
+    tools = FleetTools()
+    calls = _fake(tools)
+    assert tools.bridge_models() == {"value": 1}
+    assert calls == [["models", "--json"]]
+
+
+def test_capabilities_parses_cli_rows() -> None:
+    tools = FleetTools()
+    calls: list[list[str]] = []
+    tools._invoke = lambda argv, timeout: (calls.append(argv) or 0,  # type: ignore[method-assign]
+                                           "Section\tCapability\tcommand --flag\ttests-only\n", "")
+    assert tools.capabilities_search("Capability") == [{
+        "section": "Section", "capability": "Capability", "call": "command --flag", "status": "tests-only",
+    }]
+    assert calls == [["capabilities", "Capability"]]
+
+
+@pytest.mark.parametrize(("method", "kwargs"), [
+    ("bridge_jobs", {"all": "yes"}),
+    ("bridge_route", {"tier": "unknown"}),
+    ("bridge_route", {"tier": "basic", "engine": "unknown"}),
+    ("bridge_route", {"tier": "basic", "where": "unknown"}),
+    ("bridge_route", {"tier": "basic", "needs": "text"}),
+    ("bridge_autonomy", {"week": "2026-W54"}),
+    ("bridge_autonomy", {"since": "2026-1-01"}),
+    ("bridge_autonomy", {"week": "2026-W01", "until": "2026-01-02"}),
+    ("capabilities_search", {"query": "--help"}),
+])
+def test_invalid_arguments_are_rejected(method: str, kwargs: dict[str, Any]) -> None:
+    with pytest.raises(ValueError):
+        getattr(FleetTools(), method)(**kwargs)
+
+
+def test_fleet_provider_is_registered_read_only() -> None:
+    provider = PROVIDER_FACTORIES["fleet"](False, data_source={"code_root": "."})
+    assert isinstance(provider, FleetTools)

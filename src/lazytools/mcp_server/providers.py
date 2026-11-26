@@ -940,6 +940,15 @@ def _code_bridge(allow_write: bool = False, *, data_source: dict[str, Any] | Non
     )
 
 
+@_register("fleet")
+def _fleet(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Read-only code-bridge fleet, routing, model, and capability views."""
+    from lazytools.code_bridge._mcp_fleet import FleetTools
+
+    config = data_source or {}
+    return FleetTools(root=config.get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"))
+
+
 @_register("telegram")
 def _telegram(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
     """Telegram send (message + document), bounded to an allow-listed chat.

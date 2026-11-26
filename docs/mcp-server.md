@@ -131,6 +131,7 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `code_write` | `CodeWriteTools(...)` | `codex_write`, `claude_code_write` | `--allow-unsafe`, local runtimes; Claude needs `[engines]` |
 | `code_sessions` | `CodeSessionTools(...)` | list/bind/rename/forget native aliases | explicit opt-in with `--allow-unsafe` |
 | `code_bridge` | `CodeBridgeTools(...)` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` — local and cloud coding jobs through `lazytools-code-bridge` | `--allow-unsafe`; cloud jobs also need `allow_cloud=true` per call |
+| `fleet` | `FleetTools(...)` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search` | none; always read-only |
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
 | `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — Tools that delegate through `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
 | `studio` | Published agents and pipelines discovered from LazyStudio | each published `studio_<slug>` tool, `studio_run_status`; `studio_status` when disconnected | LazyStudio operator token; published calls need `--allow-unsafe` |
@@ -417,6 +418,25 @@ confined to the code root, a task may not start with `@`, and a cloud job needs
 `allow_cloud=true` on each call. Cloud results reach the repository only through the local landing step
 (`apply`, `land`, or `cloud-sync`), which keeps its own checks. Only served
 with `--allow-unsafe`.
+
+### `fleet` — read-only code-bridge views
+
+```text
+bridge_jobs(all=False) -> JSON
+bridge_pending() -> JSON
+bridge_route(tier, engine=None, where=None, needs=None) -> JSON
+bridge_autonomy(week=None, since=None, until=None) -> JSON
+bridge_models() -> JSON
+capabilities_search(query="") -> rows
+```
+
+The `fleet` provider mirrors the corresponding `lazytools-code-bridge` CLI
+commands in child processes. It is available in the default read-only provider
+set without `--allow-unsafe`. The model view never opts into the quota-consuming
+Claude probe. Routing choices and ISO dates are validated before invocation;
+caller-provided values beginning with `-` are rejected rather than passed as
+options. `bridge_pending` reports bridge job approval tickets and is separate
+from the projects provider's pending approvals.
 
 ### Scoped code tasks
 
