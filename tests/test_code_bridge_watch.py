@@ -309,3 +309,20 @@ def test_structured_state_wins_over_the_receipt_in_the_same_comment() -> None:
             '"has_unresolved_findings":false,"status":"completed"}} -->\n'
             "Codex Review: here are some suggestions.\n\n**Reviewed commit:** `abcdef1234`")
     assert _watch._bot_review([{"user": {"login": "chatgpt-codex-connector[bot]"}, "body": body}], head) == "clean"
+
+
+def test_ready_needs_confirmed_mergeability_and_accepts_status_only_ci(monkeypatch: Any) -> None:
+    head = "abcdef1234567890"
+    state = ('<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":false,'
+             '"has_unresolved_findings":false,"status":"completed"}} -->')
+    unknown = _bot_payload(head, [state], [("test", "success")], mergeable=None)
+    unknown["pr"]["mergeable_state"] = "unknown"
+    _install_api(monkeypatch, unknown)
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#7"), Store())
+    assert "ready" not in {event.kind for event in events}
+    status_only = _bot_payload(head, [state], [])
+    status_only["statuses"] = {"statuses": [{"id": 1, "context": "ci", "state": "success",
+                                             "updated_at": "2026-11-26T10:00:00Z"}]}
+    _install_api(monkeypatch, status_only)
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#8"), Store())
+    assert "ready" in {event.kind for event in events}

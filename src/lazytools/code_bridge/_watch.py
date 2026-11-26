@@ -209,11 +209,12 @@ def _poll_pull(pull: PullRequest, store: Any) -> tuple[list[WatchEvent], bool, d
         events.append(WatchEvent(_now_utc(), pull.label, "conflict", f"{head[:7]} conflicts with the base branch"))
         fresh_seen.add(f"conflict:{head}")
     finished = [item for item in checks if item.get("status") == "completed"]
-    green = bool(checks) and len(finished) == len(checks) and all(
+    checks_ok = len(finished) == len(checks) and all(
         str(item.get("conclusion") or "") in {"success", "skipped", "neutral"} for item in finished)
     statuses_ok = all(str(item.get("state") or "") == "success" for item in statuses)
-    mergeable = pr.get("mergeable") is not False and str(pr.get("mergeable_state") or "") != "dirty"
-    if green and statuses_ok and mergeable and review == "clean" and f"ready:{head}" not in seen:
+    has_ci = bool(checks) or bool(statuses)  # some repositories publish only commit statuses
+    mergeable = pr.get("mergeable") is True  # null means GitHub has not computed it yet
+    if has_ci and checks_ok and statuses_ok and mergeable and review == "clean" and f"ready:{head}" not in seen:
         events.append(WatchEvent(_now_utc(), pull.label, "ready",
                                  f"{head[:7]} checks={len(checks)} review=clean"))
         fresh_seen.add(f"ready:{head}")
