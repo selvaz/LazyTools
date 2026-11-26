@@ -83,6 +83,12 @@ its JSON lines for completion, failures, approvals, landings, and interruptions
 instead of maintaining a separate poller per job. The dispatch command also
 supports `--json` to emit structured task events as JSON lines.
 
+The event computation lives in `lazytools.code_bridge._events.iter_events`.
+`wait-any` calls it in its polling loop. The `bridge_events` MCP tool calls the
+same function through `_events.poll(cursor)`, which keeps the stream state in a
+cursor between calls (see [mcp-server.md](mcp-server.md#fleet--read-only-code-bridge-views)).
+There is one implementation, so both channels report the same events.
+
 ## Dispatch task graphs
 
 `dispatch` runs a project task graph through bridge jobs. A shared review type
