@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -169,6 +170,22 @@ class BridgeLauncher:
             raise RuntimeError("bridge did not return a job id")
         return candidates[-1]
 
+    def pending(self) -> list[dict[str, Any]]:
+        """Pending approval tickets in the shared queue (same view as `pending --json`)."""
+        command = [sys.executable, "-m", "lazytools.code_bridge", "pending", "--json"]
+        if self.db:
+            command.extend(("--db", self.db))
+        if self.registry_db:
+            command.extend(("--registry-db", self.registry_db))
+        result = subprocess.run(command, text=True, capture_output=True, check=False)
+        if result.returncode:
+            return []
+        try:
+            data = json.loads(result.stdout or "[]")
+        except json.JSONDecodeError:
+            return []
+        return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+
     def job(self, job_ref: str) -> dict[str, Any] | None:
         store = _store.build_store(Path(self.db) if self.db else None)
         job = _jobs.find_job(store, _store.build_job_registry(store), job_ref)
@@ -253,7 +270,32 @@ class Dispatcher:
         self.unsupported: set[str] = set()
         self.waiting: set[str] = set()
         self.retries: dict[str, int] = {}
+        self.seen_tickets: set[str] = set()
         self.max_retries = max_retries
+
+    def _surface_approvals(self, tasks: list[Task]) -> None:
+        """Put every pending ticket of a running task into the event stream, once.
+
+        The dispatcher does not decide tickets; it makes them visible to whoever
+        orchestrates (`lazytools-code-bridge approve|reject <id>`), so a job never
+        waits on a ticket nobody has seen.
+        """
+        pending = getattr(self.launcher, "pending", None)
+        if pending is None:
+            return
+        by_job = {str((task.dispatch or {}).get("job_ref")): task.task_id
+                  for task in tasks if task.status == "claimed" and (task.dispatch or {}).get("job_ref")}
+        if not by_job:
+            return
+        for ticket in pending():
+            approval_id = str(ticket.get("approval_id") or "")
+            task_id = by_job.get(str(ticket.get("job_id") or ""))
+            if not approval_id or task_id is None or approval_id in self.seen_tickets:
+                continue
+            self.seen_tickets.add(approval_id)
+            command = " ".join(str(ticket.get("command") or ticket.get("gist") or "").split())[:200]
+            reason = " ".join(str(ticket.get("reason") or "").split())[:160]
+            self.emit(f"approval {task_id} {approval_id} {command} | {reason}")
 
     def _place(self, tasks: list[Task]) -> None:
         """Record local placement evidence for todo tasks whose dependencies are done.
@@ -406,6 +448,7 @@ class Dispatcher:
                 except Exception as exc:
                     self.emit(f"failed {task.task_id} {str(exc).replace(chr(10), ' ')}")
         tasks = self.task_reader(self.service, self.project_id)
+        self._surface_approvals(tasks)
         self._place(tasks)
         tasks = self.task_reader(self.service, self.project_id)
         running = sum(task.status == "claimed" for task in tasks)

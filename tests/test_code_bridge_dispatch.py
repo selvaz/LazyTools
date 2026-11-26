@@ -419,3 +419,18 @@ def test_has_new_commit_requires_work_after_the_base_tag(tmp_path: Path) -> None
     (repo / "f").write_text("2\n")
     git("commit", "-qam", "work")
     assert _has_new_commit(repo)
+
+
+def test_pending_tickets_of_running_jobs_are_surfaced_once() -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    launcher = FakeLauncher(service)
+    tickets = [{"approval_id": "t-1", "job_id": "job-A", "command": "git add calc.py; git commit -m x",
+                "reason": "Git needs write access"},
+               {"approval_id": "t-2", "job_id": "other-job", "command": "rm -rf /", "reason": "not ours"}]
+    launcher.pending = lambda: tickets  # type: ignore[attr-defined]
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    dispatch.pass_once()
+    dispatch.pass_once()
+    approvals = [event for event in events if event.startswith("approval ")]
+    assert approvals == ["approval p/A t-1 git add calc.py; git commit -m x | Git needs write access"]
