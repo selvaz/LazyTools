@@ -4,6 +4,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from lazytools.code_bridge._dispatch import BridgeLauncher, Dispatcher, Task, _dry_run
 from lazytools.projects.task_service import TaskPrincipal
 
@@ -215,6 +217,22 @@ def test_two_tasks_get_separate_retained_worktrees(tmp_path: Path) -> None:
     assert (first / ".git").exists() and (second / ".git").exists()
     assert subprocess.run(["git", "branch", "--show-current"], cwd=first, text=True,
                           capture_output=True, check=True).stdout.strip() == "task-a"
+
+
+def test_launch_pins_the_claimed_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    launcher = BridgeLauncher(None, principal, "p", worktree_root=tmp_path / "trees")
+    monkeypatch.setattr(launcher, "_checkout", lambda task: tmp_path)
+    seen: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 0, "a" * 32 + "\n", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    claim = {"task_id": "p/A", "claim_token": "t", "effective_placement": "local", "engine_family": "claude_code"}
+    launcher.launch({"text": "do it", "tier": "writing"}, claim)
+    assert seen[0][seen[0].index("--engine") + 1] == "claude"
 
 
 def test_dependency_artifacts_are_merged_into_descendant_worktree(tmp_path: Path) -> None:

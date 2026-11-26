@@ -118,6 +118,11 @@ class BridgeLauncher:
                    "--task", task["text"], "--tier", task.get("tier") or "thinking",
                    "--where", claim["effective_placement"], "--task-id", claim["task_id"],
                    "--claim-token", claim["claim_token"], "--detach", "--wait-for-slot"]
+        # Pin the claimed engine so quota routing only picks a model within it;
+        # another engine would fail the claim's engine check.
+        engine_family = claim.get("engine_family")
+        if engine_family:
+            command.extend(("--engine", "claude" if engine_family == "claude_code" else str(engine_family)))
         if self.db:
             command.extend(("--db", self.db))
         if task.get("requested_profile"):
