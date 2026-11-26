@@ -28,7 +28,9 @@ class FakeService:
             if row["status"] == "todo" and all(self.rows[dep]["status"] == "done"
                                                   for dep in row["dependency_ids"]):
                 ready.append({"task_id": f"{project}/{name}", "revision": "rev", "text": name,
-                              "tier": "basic", "requested_profile": None, "requested_network": None})
+                              "tier": "basic", "requested_profile": None, "requested_network": None,
+                              "effective_placement": row.get("effective_placement", "local"),
+                              "dependencies": row.get("dependencies", [])})
         return {"tasks": ready[:limit]}
 
     def claim(self, principal: Any, identifier: str, revision: str, key: str) -> dict[str, Any]:
@@ -38,7 +40,7 @@ class FakeService:
                    "effective_placement": "local", "lease_expires_at": 9999999999}
         self.rows[name]["status"] = "claimed"
         self.claims[name] = {"state": "submitted", "job_ref": f"job-{name}", "receipt": receipt}
-        return {"claim": receipt}
+        return {"claim": receipt, "claim_active": True}
 
     def record_completion_evidence(self, *args: Any) -> None: pass
 
@@ -129,21 +131,15 @@ def test_dry_run_prints_topological_waves_without_claiming() -> None:
     assert not service.claims
 
 
-def test_cloud_claim_is_released_without_launch() -> None:
+def test_cloud_task_is_skipped_without_claim_or_launch() -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     launcher = FakeLauncher(service)
-    original = service.claim
-
-    def cloud(*args: Any) -> dict[str, Any]:
-        result = original(*args)
-        result["claim"]["effective_placement"] = "cloud"
-        return result
-
-    service.claim = cloud  # type: ignore[assignment]
+    service.rows["A"]["effective_placement"] = "cloud"
     runner(service, launcher, events).pass_once()
     assert not launcher.launches
     assert service.rows["A"]["status"] == "todo"
-    assert "failed p/A cloud placement not supported by dispatch yet" in events
+    assert not service.claims
+    assert "failed p/A cloud placement not supported by dispatch v1" in events
 
 
 def test_expired_orphan_is_reconciled_and_released() -> None:
@@ -177,16 +173,15 @@ def test_settlement_failure_does_not_stop_other_tasks() -> None:
     assert "failed p/A Claim lease has expired" in events
 
 
-def test_review_without_verdict_is_failed_with_clear_event() -> None:
+def test_review_task_is_skipped_without_claim() -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     service.rows["A"]["review_of"] = "writer"
     launcher = FakeLauncher(service)
     dispatch = runner(service, launcher, events)
     dispatch.pass_once()
-    launcher.finish("A")
-    dispatch.pass_once()
-    assert service.rows["A"]["status"] == "failed"
-    assert "failed p/A needs review evidence" in events
+    assert service.rows["A"]["status"] == "todo"
+    assert not launcher.launches and not service.claims
+    assert "failed p/A review/contract tasks not supported by dispatch v1" in events
 
 
 def test_accepted_artifact_uses_recorded_commit_not_checkout_head() -> None:
@@ -214,7 +209,41 @@ def test_two_tasks_get_separate_retained_worktrees(tmp_path: Path) -> None:
     principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
     launcher = BridgeLauncher(None, principal, "p", repo_roots={"org/repo": repo},
                               worktree_root=tmp_path / "trees")
-    first = launcher._checkout({"task_id": "p/A", "repo": "org/repo", "assigned_branch": "main"})
-    second = launcher._checkout({"task_id": "p/B", "repo": "org/repo", "assigned_branch": "main"})
+    first = launcher._checkout({"task_id": "p/A", "repo": "org/repo", "assigned_branch": "task-a"})
+    second = launcher._checkout({"task_id": "p/B", "repo": "org/repo", "assigned_branch": "task-b"})
     assert first != second
     assert (first / ".git").exists() and (second / ".git").exists()
+    assert subprocess.run(["git", "branch", "--show-current"], cwd=first, text=True,
+                          capture_output=True, check=True).stdout.strip() == "task-a"
+
+
+def test_dependency_artifacts_are_merged_into_descendant_worktree(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    (repo / "A").write_text("A\n")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "A"], cwd=repo, check=True)
+    a_commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, text=True,
+                              capture_output=True, check=True).stdout.strip()
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    launcher = BridgeLauncher(None, principal, "p", repo_roots={"r": repo},
+                              worktree_root=tmp_path / "trees")
+
+    commits = []
+    for name in ("B", "C"):
+        tree = launcher._checkout({"task_id": f"p/{name}", "repo": "r",
+                                   "dependencies": [{"artifact_ref": a_commit}]})
+        (tree / name).write_text(f"{name}\n")
+        subprocess.run(["git", "add", "."], cwd=tree, check=True)
+        subprocess.run(["git", "commit", "-qm", name], cwd=tree, check=True)
+        commits.append(subprocess.run(["git", "rev-parse", "HEAD"], cwd=tree, text=True,
+                                      capture_output=True, check=True).stdout.strip())
+
+    descendant = launcher._checkout({
+        "task_id": "p/D", "repo": "r",
+        "dependencies": [{"artifact_ref": commit} for commit in commits],
+    })
+    assert all((descendant / name).read_text() == f"{name}\n" for name in ("A", "B", "C"))

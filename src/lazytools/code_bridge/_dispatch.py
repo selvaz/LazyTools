@@ -73,20 +73,48 @@ class BridgeLauncher:
         if checkout.exists():
             return checkout
         checkout.parent.mkdir(parents=True, exist_ok=True)
-        base = task.get("assigned_branch")
+        dependencies = task.get("dependencies", [])
+        commits = [str(item["artifact_ref"]) for item in dependencies if item.get("artifact_ref")]
+        assigned = task.get("assigned_branch")
+        branch = assigned or f"dispatch/{safe_project}/{safe_task}"
+        branch_exists = subprocess.run(
+            ["git", "-C", str(repo), "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
+            check=False,
+        ).returncode == 0
+        base = commits[0] if commits else (branch if branch_exists else None)
         if not base:
             symbolic = subprocess.run(
                 ["git", "-C", str(repo), "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
                 text=True, capture_output=True, check=False,
             ).stdout.strip()
             base = symbolic.removeprefix("refs/remotes/") if symbolic else "HEAD"
-        branch = f"dispatch/{safe_project}/{safe_task}"
-        self._git(repo, "worktree", "add", "-b", branch, str(checkout), str(base))
+        if assigned and branch_exists:
+            self._git(repo, "worktree", "add", str(checkout), str(branch))
+            if commits:
+                self._git(checkout, "reset", "--hard", commits[0])
+        else:
+            self._git(repo, "worktree", "add", "-b", str(branch), str(checkout), str(base))
+        for commit in commits[1:]:
+            result = subprocess.run(
+                ["git", "-C", str(checkout), "merge", "--no-edit", commit],
+                text=True, capture_output=True, check=False,
+            )
+            if result.returncode:
+                subprocess.run(
+                    ["git", "-C", str(checkout), "merge", "--abort"],
+                    text=True, capture_output=True, check=False,
+                )
+                subprocess.run(
+                    ["git", "-C", str(repo), "worktree", "remove", "--force", str(checkout)],
+                    text=True, capture_output=True, check=False,
+                )
+                raise RuntimeError("dependency merge conflict")
         return checkout
 
     def launch(self, task: dict[str, Any], claim: dict[str, Any]) -> str:
         cwd = self._checkout({**task, "task_id": claim["task_id"]})
         command = [sys.executable, "-m", "lazytools.code_bridge", "run", "--cwd", str(cwd),
+                   "--root", str(cwd),
                    "--task", task["text"], "--tier", task.get("tier") or "thinking",
                    "--where", claim["effective_placement"], "--task-id", claim["task_id"],
                    "--claim-token", claim["claim_token"], "--detach", "--wait-for-slot"]
@@ -129,6 +157,7 @@ class Dispatcher:
         self.task_reader = task_reader
         self.clock, self.orphan_grace = clock, orphan_grace
         self.reported_blocked: set[str] = set()
+        self.unsupported: set[str] = set()
 
     def _blocked(self, tasks: list[Task]) -> None:
         failed = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "failed"}
@@ -211,27 +240,65 @@ class Dispatcher:
         tasks = self.task_reader(self.service, self.project_id)
         running = sum(task.status == "claimed" for task in tasks)
         ready = self.service.next_ready(self.principal, self.project_id, limit=100)["tasks"]
-        for summary in ready[:max(0, self.parallel - running)]:
+        by_id = {task.task_id: task for task in tasks}
+        running_branches = {
+            str(task.data["assigned_branch"])
+            for task in tasks
+            if task.status == "claimed" and task.data.get("assigned_branch")
+        }
+        for summary in ready:
+            if running >= self.parallel:
+                break
+            board_task = by_id.get(summary["task_id"])
+            if board_task is None:
+                self.emit(f"failed {summary['task_id']} task is missing from board")
+                continue
+            data = board_task.data
             self.emit(f"ready {summary['task_id']}")
-            result = self.service.claim(self.principal, summary["task_id"], summary["revision"],
-                                        f"dispatch:{summary['task_id']}:{summary['revision']}")
-            claim = result["claim"]
-            self.emit(f"claimed {summary['task_id']}")
-            if claim["effective_placement"] == "cloud":
-                reason = "cloud placement not supported by dispatch yet"
-                self.service.fail_dispatch_launch(
-                    self.principal, summary["task_id"], claim["claim_token"], reason,
-                )
+            if summary.get("effective_placement") == "cloud":
+                reason = "cloud placement not supported by dispatch v1"
+                self.unsupported.add(summary["task_id"])
                 self.emit(f"failed {summary['task_id']} {reason}")
                 continue
+            if data.get("review_of") or data.get("contract_id"):
+                reason = "review/contract tasks not supported by dispatch v1"
+                self.unsupported.add(summary["task_id"])
+                self.emit(f"failed {summary['task_id']} {reason}")
+                continue
+            branch = data.get("assigned_branch")
+            if branch and str(branch) in running_branches:
+                self.emit(f"failed {summary['task_id']} assigned branch already running")
+                continue
+            attempt = len(data.get("dispatches", [])) + 1
             try:
-                job_ref = self.launcher.launch(summary, claim)
+                result = self.service.claim(
+                    self.principal, summary["task_id"], summary["revision"],
+                    f"dispatch:{summary['task_id']}:{summary['revision']}:{attempt}",
+                )
+            except Exception as exc:
+                self.emit(f"failed {summary['task_id']} {str(exc).replace(chr(10), ' ')}")
+                continue
+            if not result.get("claim_active", True):
+                self.emit(f"failed {summary['task_id']} claim is not active")
+                continue
+            claim = result["claim"]
+            self.emit(f"claimed {summary['task_id']}")
+            try:
+                job_ref = self.launcher.launch({**summary, **data}, claim)
             except Exception as exc:
                 reason = str(exc).replace("\n", " ")
-                self.service.fail_local_launch(self.principal, summary["task_id"], claim["claim_token"], reason)
+                try:
+                    self.service.fail_local_launch(
+                        self.principal, summary["task_id"], claim["claim_token"], reason,
+                    )
+                except Exception as release_exc:
+                    reason = f"{reason}; claim release failed: {str(release_exc).replace(chr(10), ' ')}"
                 self.emit(f"failed {summary['task_id']} {reason}")
             else:
                 self.emit(f"launched {job_ref}")
+                running += 1
+                if branch:
+                    running_branches.add(str(branch))
         tasks = self.task_reader(self.service, self.project_id)
         self._blocked(tasks)
         return sum(task.status == "todo" for task in tasks), sum(task.status == "claimed" for task in tasks)
@@ -239,7 +306,9 @@ class Dispatcher:
     def run(self, *, once: bool = False) -> int:
         while True:
             _, running = self.pass_once()
-            ready = self.service.next_ready(self.principal, self.project_id, limit=1)["tasks"]
+            ready = [task for task in self.service.next_ready(
+                self.principal, self.project_id, limit=100
+            )["tasks"] if task["task_id"] not in self.unsupported]
             if once or (not ready and not running):
                 return 0
             self.sleep(15)
