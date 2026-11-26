@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 import time
@@ -47,12 +48,45 @@ def _tasks(service: ProjectTaskService, project_id: str) -> list[Task]:
 
 class BridgeLauncher:
     """Launch the existing CLI and inspect its durable job records."""
-    def __init__(self, db: str | None, principal: TaskPrincipal):
+    def __init__(self, db: str | None, principal: TaskPrincipal, project_id: str, *,
+                 repo_roots: dict[str, Path] | None = None, worktree_root: Path | None = None):
         self.db = db
         self.principal = principal
+        self.project_id = project_id
+        self.repo_roots = repo_roots or {}
+        self.worktree_root = worktree_root
+
+    @staticmethod
+    def _git(repo: Path, *args: str) -> str:
+        result = subprocess.run(["git", "-C", str(repo), *args], text=True, capture_output=True, check=False)
+        if result.returncode:
+            raise RuntimeError(result.stderr.strip() or f"git {' '.join(args)} failed")
+        return result.stdout.strip()
+
+    def _checkout(self, task: dict[str, Any]) -> Path:
+        repo = self.repo_roots.get(str(task.get("repo"))) or Path.cwd()
+        task_name = str(task["task_id"]).rsplit("/", 1)[-1]
+        safe_project = re.sub(r"[^A-Za-z0-9_.-]+", "-", self.project_id)
+        safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task_name)
+        root = self.worktree_root or repo.parent / "_dispatch"
+        checkout = root / safe_project / safe_task
+        if checkout.exists():
+            return checkout
+        checkout.parent.mkdir(parents=True, exist_ok=True)
+        base = task.get("assigned_branch")
+        if not base:
+            symbolic = subprocess.run(
+                ["git", "-C", str(repo), "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+                text=True, capture_output=True, check=False,
+            ).stdout.strip()
+            base = symbolic.removeprefix("refs/remotes/") if symbolic else "HEAD"
+        branch = f"dispatch/{safe_project}/{safe_task}"
+        self._git(repo, "worktree", "add", "-b", branch, str(checkout), str(base))
+        return checkout
 
     def launch(self, task: dict[str, Any], claim: dict[str, Any]) -> str:
-        command = [sys.executable, "-m", "lazytools.code_bridge", "run", "--cwd", os.getcwd(),
+        cwd = self._checkout({**task, "task_id": claim["task_id"]})
+        command = [sys.executable, "-m", "lazytools.code_bridge", "run", "--cwd", str(cwd),
                    "--task", task["text"], "--tier", task.get("tier") or "thinking",
                    "--where", claim["effective_placement"], "--task-id", claim["task_id"],
                    "--claim-token", claim["claim_token"], "--detach", "--wait-for-slot"]
@@ -74,13 +108,6 @@ class BridgeLauncher:
     def job(self, job_ref: str) -> dict[str, Any] | None:
         store = _store.build_store(Path(self.db) if self.db else None)
         job = _jobs.find_job(store, _store.build_job_registry(store), job_ref)
-        if job and job.get("status") == "done" and not job.get("artifact_ref"):
-            commit = subprocess.run(
-                ["git", "-C", str(job.get("cwd") or os.getcwd()), "rev-parse", "HEAD"],
-                text=True, capture_output=True, check=False,
-            )
-            if commit.returncode == 0:
-                job["artifact_ref"] = commit.stdout.strip()
         return job
 
     def find(self, task_id: str, attempt: int) -> dict[str, Any] | None:
@@ -93,12 +120,14 @@ class Dispatcher:
     def __init__(self, service: ProjectTaskService, principal: TaskPrincipal, launcher: Launcher,
                  project_id: str, *, parallel: int = 1, emit: Callable[[str], None] = print,
                  sleep: Callable[[float], None] = time.sleep,
-                 task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks):
+                 task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks,
+                 clock: Callable[[], float] = time.time, orphan_grace: float = 30.0):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
         self.service, self.principal, self.launcher = service, principal, launcher
         self.project_id, self.parallel, self.emit, self.sleep = project_id, parallel, emit, sleep
         self.task_reader = task_reader
+        self.clock, self.orphan_grace = clock, orphan_grace
         self.reported_blocked: set[str] = set()
 
     def _blocked(self, tasks: list[Task]) -> None:
@@ -118,31 +147,67 @@ class Dispatcher:
             self.service.reconcile_dispatch(self.principal, task.task_id, receipt["attempt"], "submitted",
                                             evidence_ref=f"bridge-job:{job['job_id']}", job_ref=job["job_id"])
             job_ref = str(job["job_id"])
-        if not job or job.get("status") not in TERMINAL:
+        if not job:
+            created = float(dispatch.get("created_at", 0))
+            expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+            if expired and self.clock() - created >= self.orphan_grace:
+                dispatch_state = dispatch.get("state", "intent")
+                observation: Literal["absent", "terminated"] = "terminated" if dispatch.get("job_ref") else "absent"
+                self.service.reconcile_dispatch(
+                    self.principal, task.task_id, receipt["attempt"], observation,
+                    evidence_ref=None if dispatch_state == "intent" else "dispatcher:no-job-after-grace",
+                    job_ref=dispatch.get("job_ref"),
+                )
+                self.emit(f"failed {task.task_id} no job after dispatch grace period")
+                return True
+            return False
+        if job.get("status") not in TERMINAL:
             return False
         accepted = job.get("status") == "done"
+        verdict = job.get("review_verdict") or {}
+        reviewed_sha = job.get("reviewed_sha") or verdict.get("reviewed_sha")
+        review_passed = bool(job.get("review_passed", verdict.get("passed", False)))
+        review_independence = job.get("review_independence") or verdict.get("independence")
+        verification_id = job.get("verification_id")
+        needs_evidence = accepted and (
+            (task.data.get("review_of") and (not reviewed_sha or not review_passed))
+            or (task.data.get("contract_id") and not verification_id)
+        )
+        expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+        if needs_evidence:
+            accepted = False
+            failure_reason = "needs review evidence"
+        elif expired:
+            accepted = False
+            failure_reason = "claim lease expired"
+        else:
+            failure_reason = str(job.get("error") or job.get("status") or "job failed").replace("\n", " ")
         state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
         reference = f"bridge-job:{job_ref}:{job.get('status')}"
         evidence = CompletionEvidence(reference=reference, job_ref=str(job_ref), executor=receipt["executor"],
             engine_family=receipt["engine_family"], state=state,
-            artifact_ref=job.get("artifact_ref") or job.get("candidate_commit") or
-                         (receipt.get("revision") if accepted else None),
+            artifact_ref=job.get("final_commit") or job.get("candidate_commit"),
+            verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
+            review_independence=review_independence,
             outcome="success" if accepted else "task_failure")
         self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
+        complete_options = {"reconcile_failure": True} if expired else {}
         self.service.complete(self.principal, task.task_id, receipt["claim_token"], reference, state, reference,
-                              "success" if accepted else "task_failure")
+                              "success" if accepted else "task_failure", **complete_options)
         if accepted:
             self.emit(f"done {task.task_id}")
         else:
-            reason = str(job.get("error") or job.get("status") or "job failed").replace("\n", " ")
-            self.emit(f"failed {task.task_id} {reason}")
+            self.emit(f"failed {task.task_id} {failure_reason}")
         return True
 
     def pass_once(self) -> tuple[int, int]:
         tasks = self.task_reader(self.service, self.project_id)
         for task in tasks:
             if task.status == "claimed":
-                self._settle(task)
+                try:
+                    self._settle(task)
+                except Exception as exc:
+                    self.emit(f"failed {task.task_id} {str(exc).replace(chr(10), ' ')}")
         tasks = self.task_reader(self.service, self.project_id)
         running = sum(task.status == "claimed" for task in tasks)
         ready = self.service.next_ready(self.principal, self.project_id, limit=100)["tasks"]
@@ -152,6 +217,13 @@ class Dispatcher:
                                         f"dispatch:{summary['task_id']}:{summary['revision']}")
             claim = result["claim"]
             self.emit(f"claimed {summary['task_id']}")
+            if claim["effective_placement"] == "cloud":
+                reason = "cloud placement not supported by dispatch yet"
+                self.service.fail_dispatch_launch(
+                    self.principal, summary["task_id"], claim["claim_token"], reason,
+                )
+                self.emit(f"failed {summary['task_id']} {reason}")
+                continue
             try:
                 job_ref = self.launcher.launch(summary, claim)
             except Exception as exc:
@@ -198,5 +270,13 @@ def dispatch(args: argparse.Namespace) -> int:
     service = ProjectTaskService(store_db)
     if args.dry_run:
         return _dry_run(service, args.project)
-    return Dispatcher(service, principal, BridgeLauncher(args.db, principal), args.project,
+    repo_roots: dict[str, Path] = {}
+    for mapping in args.repo_root:
+        slug, separator, path = mapping.partition("=")
+        if not separator or not slug or not path:
+            raise ValueError("--repo-root must be SLUG=PATH")
+        repo_roots[slug] = Path(path).resolve()
+    launcher = BridgeLauncher(args.db, principal, args.project, repo_roots=repo_roots,
+                              worktree_root=Path(args.worktree_root).resolve() if args.worktree_root else None)
+    return Dispatcher(service, principal, launcher, args.project,
                       parallel=args.parallel).run(once=args.once)

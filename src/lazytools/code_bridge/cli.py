@@ -2165,6 +2165,10 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch_p.add_argument("--parallel", type=int, default=1, metavar="N")
     dispatch_p.add_argument("--once", action="store_true")
     dispatch_p.add_argument("--dry-run", action="store_true")
+    dispatch_p.add_argument("--repo-root", action="append", default=[], metavar="SLUG=PATH",
+                            help="Map a task repository slug to its local checkout (repeatable).")
+    dispatch_p.add_argument("--worktree-root", default=None, metavar="PATH",
+                            help="Root for retained per-task git worktrees.")
     _add_db_option(dispatch_p)
     dispatch_p.set_defaults(func=_dispatch.dispatch)
 

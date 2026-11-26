@@ -797,6 +797,22 @@ class ProjectTaskService:
             task.data.update(status="failed", completed_at=now, queue_released_at=now, error=dispatch["launch_error"])
             task.save(store, now)
 
+    def fail_dispatch_launch(self, principal: TaskPrincipal, task_id: str, claim_token: str, error: str) -> None:
+        """Release an intent that the dispatcher deliberately did not submit."""
+        principal.require_role("orchestrator")
+        if not error.strip():
+            raise TaskServiceError("invalid", "Launch failure evidence is required")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, task_id)
+            dispatch = _active_dispatch(task)
+            if dispatch["receipt"]["claim_token"] != claim_token or dispatch["state"] != "intent":
+                raise TaskServiceError("stale", "Only the current unsubmitted dispatch can be released")
+            now = self.clock()
+            dispatch.update(state="absent", launch_error=error.strip(), reconciled_at=now)
+            _release(task)
+            task.data["queue_released_at"] = now
+            task.save(store, now)
+
     def reconcile_dispatch(
         self,
         principal: TaskPrincipal,

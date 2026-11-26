@@ -440,6 +440,13 @@ def run_job(
 
         def _finish(status: str, text: str, error: str | None) -> RunResult:
             approval_registry.revoke_coder_hand(job_id)
+            if status == "done":
+                final = _progress.snapshot(lock.cwd)
+                meta = _store.read_meta(store, job_id) or {}
+                if final.get("head"):
+                    meta["final_commit"] = final["head"]
+                    meta["candidate_commit"] = final["head"]
+                    _store.write_meta(store, job_id, meta)
             if status != "done":
                 error = _with_workspace(
                     store,
