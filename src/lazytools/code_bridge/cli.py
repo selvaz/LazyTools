@@ -1425,9 +1425,16 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
 
     store = _store.build_store(db_path)
     registry = _store.build_job_registry(store)
-    if args.all_active:
+    history: set[str] = set()
+    if args.all_active and args.follow:
+        # One snapshot: finished jobs are history, everything else is watched, so a job
+        # launched while the stream starts cannot fall between two listings.
+        snapshot = _jobs.list_jobs(store, all_jobs=True)
+        history = {str(job["job_id"]) for job in snapshot if str(job.get("status") or "") in _TERMINAL}
+        watched = [str(job["job_id"]) for job in snapshot if str(job["job_id"]) not in history]
+    elif args.all_active:
         watched = [str(job["job_id"]) for job in _jobs.list_jobs(store, all_jobs=False)]
-        if not watched and not args.follow:
+        if not watched:
             print("error: no active jobs", file=sys.stderr)
             return 2
     else:
@@ -1442,9 +1449,6 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
                 watched.append(job_id)
 
     deadline = None if args.timeout is None else time.monotonic() + args.timeout
-    # --follow: jobs already finished when the stream starts are history, not events.
-    history = {str(job["job_id"]) for job in _jobs.list_jobs(store, all_jobs=True)
-               if str(job["job_id"]) not in watched} if args.follow else set()
     emitted_approvals: set[str] = set()
     terminal_seen: set[str] = set()
     while True:
