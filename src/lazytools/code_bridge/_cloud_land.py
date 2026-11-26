@@ -60,7 +60,7 @@ def opposite_engine(engine: str) -> str:
 def job_title(job: dict[str, Any]) -> str:
     """Derive the landing/PR/squash subject from an explicit title or the brief."""
     explicit = str(job.get("title") or "").strip()
-    if explicit and not _is_heading(explicit):
+    if explicit:
         return _short_title(explicit)
     brief = str(job.get("objective") or "")
     lines = brief.splitlines()
@@ -81,7 +81,7 @@ def job_title(job: dict[str, Any]) -> str:
     return f"Cloud job {str(job.get('job_id', ''))[:8]}"
 
 
-_HEADINGS = {"goal", "context", "constraints", "done when", "report"}
+_HEADINGS = {"goal", "context", "constraints", "done when", "report", "final report", "summary"}
 
 
 def _fence(value: str) -> bool:
@@ -148,12 +148,22 @@ def _report_text(job: dict[str, Any]) -> str:
 
 
 def commit_message(job: dict[str, Any]) -> tuple[str, str]:
-    """``(subject, body)`` for the landing commit: no attribution, no trailers."""
+    """Build the landing commit message from the cloud agent's final report."""
+    report = _report_text(job)
+    if report:
+        first, _, rest = report.partition("\n")
+        explicit = str(job.get("title") or "").strip()
+        report_subject = next((line.strip() for line in report.splitlines()
+                               if line.strip() and not _fence(line) and not _is_heading(line)), "")
+        subject = _short_title(explicit or report_subject) if explicit or report_subject else job_title(job)
+        description = rest.strip() or first.strip()
+        return subject, f"{description}\n\nwriter: {job.get('engine')}"
+
     body = f"Cloud job {str(job.get('job_id', ''))[:8]} ({job.get('engine')})."
     summary = _summary(job)
     if summary:
         body += f"\n\n{summary}"
-    return job_title(job), body
+    return job_title(job), f"{body}\n\nwriter: {job.get('engine')}"
 
 
 def pr_body(job: dict[str, Any]) -> str:

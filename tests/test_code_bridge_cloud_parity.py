@@ -316,8 +316,7 @@ def test_a_repo_without_an_environment_fails_early_with_the_setup_pointer(cloud,
         ({"objective": "```text\n```\nGoal:\nFix colon headings"}, "Fix colon headings"),
         ({"objective": "**Goal**\nFix bold headings"}, "Fix bold headings"),
         ({"objective": "Goal\nFix plain headings"}, "Fix plain headings"),
-        ({"objective": "Goal. This objective has useful detail.", "title": "Goal"},
-         "This objective has useful detail."),
+        ({"objective": "Goal. This objective has useful detail.", "title": "Goal"}, "Goal"),
         ({"objective": "# Goal\nContext\nThe useful sentence follows."}, "The useful sentence follows."),
         ({"objective": "# Goal\n\n**Fix [useful PR titles](https://example.test/issue)**\n\n# Context\nMore"},
          "Fix useful PR titles"),
@@ -331,6 +330,24 @@ def test_a_repo_without_an_environment_fails_early_with_the_setup_pointer(cloud,
 )
 def test_landing_title_derivation(job, expected):
     assert _cloud_land.job_title(job) == expected
+
+
+def test_landing_commit_message_prefers_explicit_title_and_skips_report_headings():
+    job = {
+        "job_id": "1234567890abcdef",
+        "engine": "codex",
+        "objective": "Same branch (main), new commits.",
+        "title": "Fix the requested landing behavior",
+        "result": "Cloud job 12345678 (codex). acme/widgets • 3m ago +85/-85 • 6 files",
+        "report": "# Final report\n# Summary\nFix cloud landing commit summaries\nAll tests pass.",
+    }
+
+    assert _cloud_land.commit_message(job) == (
+        "Fix the requested landing behavior",
+        "# Summary\nFix cloud landing commit summaries\nAll tests pass.\n\nwriter: codex",
+    )
+    job.pop("title")
+    assert _cloud_land.commit_message(job)[0] == "Fix cloud landing commit summaries"
 
 
 def test_apply_land_commits_pushes_and_opens_a_pr(cloud, gh, capsys):
