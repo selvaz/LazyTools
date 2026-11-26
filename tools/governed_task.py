@@ -436,6 +436,18 @@ def launch_job(
         raise
 
 
+def provision_coder_hand(stores: dict[str, Path]) -> None:
+    """Give the isolated registry the owner's coder hand, as the global registry has.
+
+    Without it every routine writer step (a commit, deleting a test temp dir)
+    becomes a hand ticket that nobody can approve in the isolated state (F42).
+    """
+    for argv in (["approver-credential", "init"], ["approver-credential", "provision-coder"]):
+        status, _ = bridge([*argv, *db_options(stores)])
+        require(status == 0, f"Could not run {' '.join(argv)} on the isolated registry")
+    print("Coder hand provisioned in the isolated registry", flush=True)
+
+
 def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) -> None:
     repo, branch, base, project = args.repo, args.branch, args.base, args.project
     title = args.brief.splitlines()[0].lstrip("# ").removeprefix("Brief:").strip() or project
@@ -445,6 +457,7 @@ def start_task(args: argparse.Namespace, stores: dict[str, Path], store: Store) 
     step = step_trace(stores, table_counts(stores))
     issuer = _receipts.load_issuer()
     step(1, "Isolate state", f"{stores['projects'].parent} with three SQLite stores and issuer {issuer.fingerprint()}")
+    provision_coder_hand(stores)
     start, review_base = checkout_base(repo, branch, base)
     projects = ProjectsTools(store_db=str(stores["projects"]), allow_write=True)
     require(" AS A DRAFT" in projects.projects_create(project, title, args.brief), f"Could not create {project}")
