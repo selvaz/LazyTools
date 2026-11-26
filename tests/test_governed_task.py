@@ -496,7 +496,7 @@ def test_candidate_pythonpath_is_used_by_checks_and_removed_for_bridge(trial, mo
     assert start(checkout, "--check", python_check("import lazybridge")) == 0
     log, = state.glob("checks-*/*.log")
     assert Path(log.read_text(encoding="utf-8").strip()) == log.parent / "tree" / "src" / "lazybridge" / "__init__.py"
-    assert bridge_calls == ["run", "result", "run", "result"]
+    assert bridge_calls == ["approver-credential", "approver-credential", "run", "result", "run", "result"]
     assert os.environ["PYTHONPATH"] == str(package.parent)
 
 
@@ -943,7 +943,11 @@ def test_writer_launch_refusal_records_stderr_and_rework_keeps_launch_options(tr
     start, invoke, setup, script, state, _, _ = trial
     checkout = setup()
 
+    real_main = cli.main
+
     def refuse(argv):
+        if argv[0] == "approver-credential":
+            return real_main(argv)
         assert argv[0] == "run"
         print("error: writer launch slot unavailable", file=sys.stderr)
         return 2
@@ -1152,3 +1156,13 @@ def test_ledger_counts_and_times_all_continuation_attempts(trial):
         seconds = sum(turn["ended_at"] - turn["started_at"]
                       for job in jobs for turn in _store.read_meta(job_store, job)["turns"])
     assert row["agent_minutes"] == round(seconds / 60, 4)
+
+
+def test_governed_task_provisions_coder_hand_in_isolated_registry(trial, capsys):
+    from lazytools.code_bridge import _coder
+
+    start, _, setup, _, state, _, _ = trial
+    assert start(setup()) == 0
+    assert "Coder hand provisioned in the isolated registry" in capsys.readouterr().out
+    registry = Store(db=str(state / "registry.sqlite"))
+    assert registry.read(_coder._HAND_KEY)
