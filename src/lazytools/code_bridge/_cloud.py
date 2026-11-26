@@ -75,7 +75,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from lazytools.code_bridge import _cloud_place, _cloud_preflight, _concurrency, _store
+from lazytools.code_bridge import _cloud_place, _cloud_preflight, _concurrency, _jobs, _store
 
 WHERE_LOCAL = "local"
 WHERE_CLOUD = "cloud"
@@ -1566,7 +1566,7 @@ def apply_job(
     _report, applied_files = report_from_diff(diff_files)
     skipped_artifacts = [name for name in summarize_diff(diff_files).files if is_bridge_artifact(name)]
     _reconcile_apply_remnants(
-        root, worktree, branch, base, set(applied_files), branch_checkout=not bool(job.get("pr_number"))
+        store, root, worktree, branch, base, set(applied_files), branch_checkout=not bool(job.get("pr_number"))
     )
     worktree.parent.mkdir(parents=True, exist_ok=True)
     # A PR head branch may already be checked out in another worktree.  PR
@@ -1611,7 +1611,7 @@ def apply_job(
     }
 
 
-def _reconcile_apply_remnants(root: Path, worktree: Path, branch: str, base: str, expected: set[str], *,
+def _reconcile_apply_remnants(store: Any, root: Path, worktree: Path, branch: str, base: str, expected: set[str], *,
                               branch_checkout: bool) -> None:
     """Remove safe remnants of an interrupted apply, or refuse to lose work.
 
@@ -1662,6 +1662,18 @@ def _reconcile_apply_remnants(root: Path, worktree: Path, branch: str, base: str
     if worktree.exists():
         _git(root, "worktree", "remove", "--force", str(worktree))
     if branch_tip:
+        # A prior apply of another recorded job may still have this branch
+        # checked out.  Free only a worktree the bridge can identify from its
+        # own records; an operator-owned checkout must remain untouched.
+        for recorded in _jobs.list_jobs(store, all_jobs=True):
+            old_worktree = recorded.get("applied_worktree")
+            if (recorded.get("applied_branch") != branch or not old_worktree
+                    or Path(str(recorded.get("repo_root") or "")).resolve() != root.resolve()):
+                continue
+            old = Path(str(old_worktree)).expanduser().resolve()
+            if old != worktree and old.is_dir() and _git(
+                    old, "symbolic-ref", "--quiet", "--short", "HEAD", check=False) == branch:
+                _git(old, "checkout", "--detach")
         _git(root, "branch", "-D", branch)
 
 
