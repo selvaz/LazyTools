@@ -137,6 +137,19 @@ class RunResult:
     result_path: Path | None
 
 
+def _native_id(job: dict[str, Any]) -> str | None:
+    """The job's native conversation id; older records kept it only per turn."""
+    turns = reversed(job.get("turns") or [])
+    return job.get("native_id") or next((t["thread_id"] for t in turns if t.get("thread_id")), None)
+
+
+def _not_independent(native_id: str, writer_job_id: str) -> str:
+    return (
+        f"review refused as not independent: native conversation id {native_id} is the one used by "
+        f"writer job {writer_job_id}; use a new --session alias"
+    )
+
+
 def _write_result(db_path: Path | None, job_id: str, text: str) -> Path:
     path = _store.results_dir(db_path) / f"{job_id}.txt"
     path.write_text(text, encoding="utf-8")
@@ -351,12 +364,14 @@ def run_job(
     network: str | None = None,
     launch_mode: str = "auto",
     intentional_review: bool = False,
+    review_of: str | None = None,
     detached_binding: bool = False,
     task_id: str | None = None,
     claim_token: str | None = None,
 ) -> RunResult:
     """Run one job to completion. Raises before any job is recorded for a
-    bad engine name or a ``cwd`` outside the confinement root; raises
+    bad engine name, an unknown ``review_of`` job or a ``cwd`` outside the
+    confinement root; raises
     :class:`~lazytools.code_bridge._lockfile.LockHeld` if another live
     process already owns this ``cwd``, and
     :class:`~lazytools.code_bridge._concurrency.EngineBusy` if the engine is
@@ -407,6 +422,10 @@ def run_job(
     # silently replace an earlier job's history.
     if _store.read_meta(store, job_id) is not None:
         raise ValueError(f"job id {job_id!r} already exists -- refusing to overwrite its record")
+    writer_job = find_job(store, registry, review_of) if review_of else None
+    if review_of and writer_job is None:
+        raise ValueError(f"no job found matching {review_of!r}")
+    writer_native_id = _native_id(writer_job) if writer_job else None
 
     lock = JobLock(_store.locks_dir(db_path), _git_repo_root(resolved_cwd))
     stale_job_id = lock.acquire(job_id)  # raises LockHeld -- job_id was reported but nothing else is recorded
@@ -540,6 +559,8 @@ def run_job(
                 "engine": engine_name,
                 "cwd": str(resolved_cwd),
                 "session_name": session_name,
+                "native_id": None,
+                **({"review_of": writer_job["job_id"], "writer_native_id": writer_native_id} if writer_job else {}),
                 "model": model,
                 "effort": effort,
                 "timeout": timeout,
@@ -628,6 +649,13 @@ def run_job(
                                       task_branch=claim.receipt["assigned_branch"])
             else:
                 native_binding.update(claim.binding())
+        if native_id:
+            meta = _store.read_meta(store, job_id) or {}
+            meta["native_id"] = native_id
+            _store.write_meta(store, job_id, meta)
+            # Checked before check_resume, whose policy-binding refusal would hide the reason.
+            if writer_job and native_id == writer_native_id:
+                raise PolicyError(_not_independent(native_id, writer_job["job_id"]))
         _launch.check_resume(store, engine_name, native_id, native_binding)
         if native_id and engine_name == "claude" and launch.mode == "governed":
             raise PolicyError("Governed Claude resume requires the original SDK client; use a new session alias")
@@ -735,7 +763,9 @@ def run_job(
                     env.error.type == "TimeoutError" or "Turn timed out on durable thread" in env.error.message
                 )
                 handle = getattr(engine, "thread_id", None) or getattr(engine, "session_id", None)
-                if handle:
+                same_as_writer = bool(handle) and handle == writer_native_id
+                # The writer's conversation keeps its own policy binding.
+                if handle and not same_as_writer:
                     _launch.bind_native(store, engine_name, handle, native_binding)
                 turns.append({
                     "turn": turn, "started_at": started, "ended_at": time.time(),
@@ -747,7 +777,12 @@ def run_job(
                 meta = _store.read_meta(store, job_id) or {}
                 meta["turns"] = turns
                 meta["heartbeat_at"] = turns[-1]["ended_at"]
+                if handle:
+                    meta["native_id"] = handle
                 _store.write_meta(store, job_id, meta)
+                if same_as_writer:
+                    assert handle and writer_job
+                    return _finish("failed", "", _not_independent(handle, writer_job["job_id"]))
                 if cleanup.error:
                     return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", cleanup.error)
                 if not env.ok and commit_continuation:

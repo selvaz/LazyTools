@@ -272,6 +272,8 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
             argv += [flag, value]
     if args.review_of or args.intentional_review:
         argv += ["--intentional-review"]
+    if args.review_of:
+        argv += ["--review-of", args.review_of]
     if args.task_id:
         argv += ["--task-id", args.task_id, "--claim-token", args.claim_token]
     argv += ["--detached-binding"]
@@ -804,6 +806,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             network=args.network,
             launch_mode=args.launch_mode,
             intentional_review=bool(args.review_of or args.intentional_review),
+            review_of=args.review_of,
             detached_binding=args.detached_binding,
             task_id=args.task_id,
             claim_token=args.claim_token,
