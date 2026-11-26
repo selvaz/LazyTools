@@ -110,6 +110,14 @@ class BridgeLauncher:
         if origin:
             self._git(checkout, "remote", "set-url", "origin", origin)  # the claim checks the repo slug
         self._git(checkout, "remote", "add", "dispatch-source", str(repo))
+        # A clone does not inherit the source's local identity; dependency merges and
+        # dispatcher commits need one (CI runners have no global identity).
+        for key, fallback in (("user.name", "lazytools-dispatch"), ("user.email", "dispatch@lazytools.invalid")):
+            value = subprocess.run(["git", "-C", str(repo), "config", "--get", key],
+                                   text=True, capture_output=True, check=False).stdout.strip()
+            if value or not subprocess.run(["git", "-C", str(checkout), "config", "--get", key],
+                                           text=True, capture_output=True, check=False).stdout.strip():
+                self._git(checkout, "config", key, value or fallback)
         for sibling in sorted(path for path in checkout.parent.iterdir() if path != checkout and (path / ".git").is_dir()):
             subprocess.run(["git", "-C", str(checkout), "fetch", "--quiet", str(sibling), "+HEAD:refs/dispatch/" + sibling.name],
                            text=True, capture_output=True, check=False)
@@ -228,7 +236,9 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
 
     if not cwd.is_dir():
         return None, None
-    dirty = [line[3:] for line in git("status", "--porcelain").stdout.splitlines() if line.strip()]
+    # Tool litter alone (error.log, __pycache__) is not unfinished work.
+    dirty = [line[3:] for line in git("status", "--porcelain").stdout.splitlines()
+             if line.strip() and not _is_litter(line[3:])]
     if not dirty:
         return None, None
     markers = git("grep", "-l", "-E", "^(<<<<<<<|>>>>>>>) ", "--", ".").stdout.split()

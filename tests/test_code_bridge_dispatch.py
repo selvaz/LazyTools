@@ -519,3 +519,10 @@ def test_expired_running_job_is_cancelled_once() -> None:
     dispatch.pass_once()
     assert cancelled == ["job-A"]
     assert any(event.startswith("cancelled p/A") for event in events)
+
+
+def test_litter_only_workspace_counts_as_clean(tmp_path: Path) -> None:
+    from lazytools.code_bridge._dispatch import _conclude_workspace
+    _repo(tmp_path / "r")
+    (tmp_path / "r" / "error.log").write_text("noise\n")
+    assert _conclude_workspace(tmp_path / "r", "p/A") == (None, None)

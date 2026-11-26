@@ -293,3 +293,11 @@ def test_request_review_persists_intent_before_posting(monkeypatch: Any) -> None
     _watch._maybe_request_review(_watch.parse_pull("o/r#6"), state, "@codex review",
                                  persist=lambda current: order.append("persist:" + ",".join(current["review_requested_heads"])))
     assert order == ["persist:new", "post"]
+
+
+def test_later_findings_receipt_replaces_an_earlier_clean_one() -> None:
+    head = "abcdef1234567890"
+    bot = {"login": "chatgpt-codex-connector[bot]"}
+    comments = [{"user": bot, "body": "Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `abcdef1234`"},
+                {"user": bot, "body": "Codex Review: here are some suggestions.\n\n**Reviewed commit:** `abcdef1234`"}]
+    assert _watch._bot_review(comments, head) == "findings"

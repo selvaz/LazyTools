@@ -245,7 +245,8 @@ def _bot_review(comments: list[dict[str, Any]], head: str) -> str | None:
                 verdict = "findings" if match["open"] == "true" else "clean"
         receipt = _BOT_RECEIPT_RE.search(body)
         if receipt and head.startswith(receipt["sha"]):
-            verdict = "clean" if _BOT_CLEAN_RE.search(body) else (verdict or "findings")
+            # Each receipt is a full verdict for the head; a later one replaces an earlier one.
+            verdict = "clean" if _BOT_CLEAN_RE.search(body) else "findings"
     return verdict
 
 
