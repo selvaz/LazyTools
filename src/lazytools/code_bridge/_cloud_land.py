@@ -148,12 +148,23 @@ def _report_text(job: dict[str, Any]) -> str:
 
 
 def commit_message(job: dict[str, Any]) -> tuple[str, str]:
-    """``(subject, body)`` for the landing commit: no attribution, no trailers."""
-    body = f"Cloud job {str(job.get('job_id', ''))[:8]} ({job.get('engine')})."
-    summary = _summary(job)
-    if summary:
-        body += f"\n\n{summary}"
-    return job_title(job), body
+    """Build a landing commit message from the agent's final report."""
+    report = _report_text(job)
+    lines = report.splitlines()
+    first = next((index for index, line in enumerate(lines) if line.strip()), None)
+    subject = lines[first].strip() if first is not None else ""
+    if not subject:
+        # Compatibility for jobs submitted before final reports became part of
+        # the cloud contract. New jobs always take the report path above.
+        body = f"Cloud job {str(job.get('job_id', ''))[:8]} ({job.get('engine')})."
+        summary = _summary(job)
+        if summary:
+            body += f"\n\n{summary}"
+        return job_title(job), body
+    description = "\n".join(lines[first + 1:]).strip()
+    body = f"{description}\n\n" if description else ""
+    body += f"writer: {job.get('engine')}"
+    return _short_title(subject), body
 
 
 def pr_body(job: dict[str, Any]) -> str:

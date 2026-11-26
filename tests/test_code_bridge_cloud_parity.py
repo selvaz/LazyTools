@@ -333,10 +333,19 @@ def test_landing_title_derivation(job, expected):
     assert _cloud_land.job_title(job) == expected
 
 
-def test_apply_land_commits_pushes_and_opens_a_pr(cloud, gh, capsys):
+def test_apply_land_commits_pushes_and_opens_a_pr(cloud, gh, capsys, monkeypatch):
     payload = _submit_json(cloud, capsys, "--open-pr", task="Add retry logic to the fetcher\n\nDetails follow.")
     job_id = payload["job_id"]
     cloud.set_status("status: ready\nAdded retries and tests.\n")
+    _set_diff(
+        cloud,
+        monkeypatch,
+        text="diff --git a/.bridge/report.md b/.bridge/report.md\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.bridge/report.md\n@@ -0,0 +1,3 @@\n"
+        "+Add retries to the fetcher\n+\n+Handles transient failures and adds regression coverage.\n"
+        "diff --git a/cloud_change.txt b/cloud_change.txt\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/cloud_change.txt\n@@ -0,0 +1 @@\n+applied by cloud\n",
+    )
     assert _main(cloud, "apply", job_id, "--land", "--json") == 0
     outcome = json.loads(capsys.readouterr().out)
     branch = f"cloud/{job_id[:8]}"
@@ -345,8 +354,10 @@ def test_apply_land_commits_pushes_and_opens_a_pr(cloud, gh, capsys):
     assert outcome["pr_url"].endswith("/pull/100") and outcome["worktree_removed"] is True
 
     message = _git(cloud.repo, "log", "-1", "--format=%B", sha)
-    assert message.splitlines()[0] == "Add retry logic to the fetcher"
-    assert f"Cloud job {job_id[:8]} (codex)." in message and "Added retries and tests." in message
+    assert message.splitlines()[0] == "Add retries to the fetcher"
+    assert "Handles transient failures and adds regression coverage." in message
+    assert message.rstrip().endswith("writer: codex")
+    assert "Added retries and tests." not in message
     for banned in ("Co-Authored-By", "Generated", "claude.ai", "session_"):
         assert banned not in message
     assert _git(cloud.repo, "rev-parse", f"{sha}^") == _job(cloud, job_id)["base_commit"]
