@@ -284,7 +284,7 @@ Branch `dispatch-placement` (not read; listed from the owner's brief). Status fo
 | Capability | How to call | What it does | Status | Docs |
 | --- | --- | --- | --- | --- |
 | `dispatch` upgrades | `lazytools-code-bridge dispatch --project ID ...` | Quota-router placement; per-task local clones; commits finished work outside the read-only `.git` sandbox; rejects done-without-commit; engine-crash retry; 60-minute lease; approval tickets surfaced as `approval <task> <ticket>` events | live-tested (on branch) | branch dispatch-placement |
-| `watch` upgrades | `lazytools-code-bridge watch owner/repo#N ... [--request-review TEXT]` | New events `review <head> clean\|findings`, `conflict`, `ready`; optional `--request-review TEXT` | live-tested (on branch) | branch dispatch-placement |
+| `watch` upgrades | `lazytools-code-bridge watch owner/repo#N ... [--request-review TEXT] [--no-ci]` | New events `review <head> clean\|findings`, `conflict`, `ready`; optional `--request-review TEXT`; `--no-ci` for repositories without CI by policy | live-tested (on branch); `--no-ci` unit-tested | branch dispatch-placement; docs/code-bridge.md |
 
 ---
 

@@ -2178,7 +2178,7 @@ def _cmd_watch(args: argparse.Namespace) -> int:
                 print(event.time, event.pull, event.kind, event.detail, flush=True)
 
         return _watch.run_watch(pulls, store, interval=args.interval, until=until, emit=emit,
-                                request_review=args.request_review)
+                                request_review=args.request_review, no_ci=args.no_ci)
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -2242,6 +2242,9 @@ def build_parser() -> argparse.ArgumentParser:
     watch_p.add_argument("--request-review", default=None, metavar="TEXT",
                          help="Post TEXT (e.g. '@codex review') once per new head the review bot left unreviewed "
                               "for two polls. Off by default; the only write the watcher makes.")
+    watch_p.add_argument("--no-ci", action="store_true",
+                         help="The repository has no CI by policy: emit `ready` on a clean or non-blocking review "
+                              "and confirmed mergeability alone. CI that does report must still be green.")
     _add_db_option(watch_p)
     watch_p.set_defaults(func=_cmd_watch)
 
