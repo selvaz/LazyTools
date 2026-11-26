@@ -62,8 +62,8 @@ def test_tool_access_uses_existing_write_gates(provider_id: str, tool_name: str,
 
 
 def test_web_fetch_access_tracks_interactive_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LAZYTOOLS_WEB_CACHE_DB", "none")
-    assert tool_metadata("web", "web_crawl")["access"] == "read"
+    monkeypatch.delenv("LAZYTOOLS_WEB_CACHE_DB", raising=False)
+    assert tool_metadata("web", "web_crawl", web_cache_db="none")["access"] == "read"
 
 
 def test_unknown_provider_is_rejected() -> None:

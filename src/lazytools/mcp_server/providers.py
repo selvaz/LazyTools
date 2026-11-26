@@ -1157,5 +1157,7 @@ def default_providers(
             # several providers), while the MCP server needs this id to turn
             # tool_metadata access into protocol annotations.
             provider._lazytools_mcp_provider_id = provider_id
+            if provider_id == "web":
+                provider._lazytools_web_cache_db = (data_source or {}).get("web_cache_db")
         providers.extend(expanded)
     return providers

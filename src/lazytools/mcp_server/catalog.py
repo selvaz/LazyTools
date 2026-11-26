@@ -135,7 +135,9 @@ _READ_ONLY_PATTERN_EXCEPTIONS = frozenset(
 )
 
 
-def tool_metadata(provider_id: str, tool: str | NamedTool) -> ToolMetadata:
+def tool_metadata(
+    provider_id: str, tool: str | NamedTool, *, web_cache_db: str | None = None
+) -> ToolMetadata:
     """Return catalog metadata and effective access for ``tool``.
 
     Access follows the server's existing write knowledge: providers that only
@@ -162,7 +164,7 @@ def tool_metadata(provider_id: str, tool: str | NamedTool) -> ToolMetadata:
     # disposable local page cache. Unset, they retain LazyCrawler's production
     # write path and must not be advertised as read-only.
     if provider_id == "web" and name.startswith("web_"):
-        write = not web_cache_requested()
+        write = not web_cache_requested(web_cache_db)
     if provider_id == "studio" and name not in _STUDIO_READ_TOOLS:
         write = True
     return {

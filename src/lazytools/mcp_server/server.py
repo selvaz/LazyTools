@@ -68,6 +68,7 @@ class _ExpandedTools(dict[str, Tool]):
     def __init__(self) -> None:
         super().__init__()
         self.provider_ids: dict[str, str] = {}
+        self.web_cache_dbs: dict[str, Any] = {}
 
 #: Substrings that mark a tool as mutating / side-effecting. When
 #: ``read_only=True`` (the default) any tool whose name contains one of
@@ -195,6 +196,8 @@ def expand_tools(
             provider_id = getattr(provider, "_lazytools_mcp_provider_id", None)
             if isinstance(provider_id, str):
                 result.provider_ids[tool.name] = provider_id
+                if provider_id == "web":
+                    result.web_cache_dbs[tool.name] = getattr(provider, "_lazytools_web_cache_db", None)
             else:
                 result.provider_ids.pop(tool.name, None)
     return result
@@ -430,6 +433,7 @@ def _mcp_tool_models(types: Any, tool_map: dict[str, Tool]) -> list[Any]:
     """
     listed: list[Any] = []
     provider_ids = getattr(tool_map, "provider_ids", {})
+    web_cache_dbs = getattr(tool_map, "web_cache_dbs", {})
     for tool in tool_map.values():
         definition = tool.definition()
         provider_id = provider_ids.get(tool.name)
@@ -447,7 +451,10 @@ def _mcp_tool_models(types: Any, tool_map: dict[str, Tool]) -> list[Any]:
             # catalog uses is_unsafe_tool_name as its shared write rule.
             from lazytools.mcp_server.catalog import tool_metadata
 
-            read_only = tool_metadata(provider_id, tool)["access"] == "read"
+            read_only = (
+                tool_metadata(provider_id, tool, web_cache_db=web_cache_dbs.get(tool.name))["access"]
+                == "read"
+            )
         else:
             # Providers handed directly to build_server have no catalog
             # identity, so their effects are unknown: never claim read-only.
