@@ -194,6 +194,17 @@ class ReviewNotPerformed(RuntimeError):
         super().__init__(f"[{label}] failed in {cwd} ({handle_kind}={handle}{named}): {reason}")
 
 
+#: Extra confinement roots (os.pathsep-separated absolute paths), e.g. a work drive
+#: holding worktrees next to the main code root. Unset means the single root only.
+EXTRA_ROOTS_ENV = "LAZYTOOLS_CODE_EXTRA_ROOTS"
+
+
+def extra_roots() -> list[Path]:
+    raw = os.environ.get(EXTRA_ROOTS_ENV, "")
+    return [Path(item).expanduser().resolve() for item in raw.split(os.pathsep)
+            if item.strip() and Path(item).expanduser().is_absolute()]
+
+
 def _resolve_repo(repo_path: str | None, root: Path) -> Path:
     """Resolve ``repo_path`` against ``root`` and refuse to leave it.
 
@@ -207,8 +218,10 @@ def _resolve_repo(repo_path: str | None, root: Path) -> Path:
         candidate = root / candidate
     resolved = candidate.resolve()
     root_resolved = root.resolve()
-    if resolved != root_resolved and root_resolved not in resolved.parents:
-        raise ValueError(f"repo_path {str(resolved)!r} is outside the allowed root {str(root_resolved)!r}")
+    allowed = [root_resolved, *extra_roots()]
+    if not any(resolved == base or base in resolved.parents for base in allowed):
+        raise ValueError(f"repo_path {str(resolved)!r} is outside the allowed root {str(root_resolved)!r}"
+                         + (f" and the extra roots in {EXTRA_ROOTS_ENV}" if len(allowed) > 1 else ""))
     if not resolved.is_dir():
         raise ValueError(f"repo_path {str(resolved)!r} is not an existing directory")
     return resolved

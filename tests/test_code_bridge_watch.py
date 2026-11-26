@@ -216,3 +216,113 @@ def test_event_order_uses_real_time_not_text_across_offsets() -> None:
     earlier_utc = "2026-11-14T10:10:00Z"
     ordered = sorted([later_local, earlier_utc], key=_watch._time_key)
     assert ordered == [earlier_utc, later_local]
+
+
+def _bot_payload(head: str, comments: list[str], checks: list[tuple[str, str]],
+                 mergeable: bool | None = True) -> dict[str, Any]:
+    return {
+        "pr": {"head": {"sha": head}, "state": "open", "merged": False, "mergeable": mergeable,
+               "mergeable_state": "clean" if mergeable else "dirty", "title": "t"},
+        "issue_comments": [{"id": i, "body": body, "created_at": "2026-11-26T10:00:00Z",
+                            "user": {"login": "chatgpt-codex-connector[bot]"}} for i, body in enumerate(comments)],
+        "reviews": [], "inline_comments": [],
+        "check_runs": {"check_runs": [{"id": i, "name": n, "status": "completed", "conclusion": c,
+                                       "completed_at": "2026-11-26T10:00:00Z"} for i, (n, c) in enumerate(checks)]},
+        "statuses": {"statuses": []},
+    }
+
+
+def test_watch_reports_bot_verdict_and_ready_for_the_current_head(monkeypatch: Any) -> None:
+    head = "abcdef1234567890"
+    state = ('<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":false,'
+             '"has_unresolved_findings":false,"status":"completed"}} -->')
+    _install_api(monkeypatch, _bot_payload(head, [state], [("test", "success"), ("lint", "success")]))
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#1"), Store())
+    kinds = {event.kind: event.detail for event in events}
+    assert kinds["review"] == "abcdef1 clean"
+    assert kinds["ready"] == "abcdef1 checks=2 review=clean"
+
+
+def test_watch_findings_or_red_checks_are_not_ready_and_receipt_is_parsed(monkeypatch: Any) -> None:
+    head = "1234567abcdef"
+    receipt = "Codex Review: here are some suggestions.\n\n**Reviewed commit:** `1234567abc`"
+    _install_api(monkeypatch, _bot_payload(head, [receipt], [("test", "failure")]))
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#2"), Store())
+    kinds = {event.kind: event.detail for event in events}
+    assert kinds["review"] == "1234567 findings"
+    assert "ready" not in kinds
+
+
+def test_watch_reports_conflict_once(monkeypatch: Any) -> None:
+    store = Store()
+    _install_api(monkeypatch, _bot_payload("ffff000", [], [], mergeable=False))
+    first, _ = _watch.poll_pull(_watch.parse_pull("o/r#3"), store)
+    second, _ = _watch.poll_pull(_watch.parse_pull("o/r#3"), store)
+    assert [e.kind for e in first].count("conflict") == 1
+    assert [e.kind for e in second].count("conflict") == 0
+
+
+def test_request_review_once_per_new_unreviewed_head(monkeypatch: Any) -> None:
+    posted: list[tuple[str, int, str]] = []
+    monkeypatch.setattr(_watch._gh, "pr_comment", lambda repo, number, body: posted.append((repo, number, body)) or "")
+    pull = _watch.parse_pull("o/r#4")
+    state: dict[str, Any] = {"head": "new", "first_head": "old", "unreviewed_polls": 2, "terminal": None}
+    assert _watch._maybe_request_review(pull, state, "@codex review") is not None
+    assert posted == [("o/r", 4, "@codex review")]
+    assert _watch._maybe_request_review(pull, state, "@codex review") is None
+    assert _watch._maybe_request_review(pull, {"head": "old", "first_head": "old", "unreviewed_polls": 5},
+                                        "@codex review") is None
+    assert _watch._maybe_request_review(pull, {"head": "x", "first_head": "old", "unreviewed_polls": 1},
+                                        "@codex review") is None
+
+
+def test_watch_ignores_review_text_not_posted_by_the_bot(monkeypatch: Any) -> None:
+    head = "abcdef1234567890"
+    payload = _bot_payload(head, ["Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `abcdef1234`"],
+                           [("test", "success")])
+    payload["issue_comments"][0]["user"]["login"] = "someone"
+    _install_api(monkeypatch, payload)
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#5"), Store())
+    assert not [event for event in events if event.kind in {"review", "ready"}]
+
+
+def test_request_review_persists_intent_before_posting(monkeypatch: Any) -> None:
+    order: list[str] = []
+    monkeypatch.setattr(_watch._gh, "pr_comment", lambda repo, number, body: order.append("post") or "")
+    state: dict[str, Any] = {"head": "new", "first_head": "old", "unreviewed_polls": 2, "terminal": None}
+    _watch._maybe_request_review(_watch.parse_pull("o/r#6"), state, "@codex review",
+                                 persist=lambda current: order.append("persist:" + ",".join(current["review_requested_heads"])))
+    assert order == ["persist:new", "post"]
+
+
+def test_later_findings_receipt_replaces_an_earlier_clean_one() -> None:
+    head = "abcdef1234567890"
+    bot = {"login": "chatgpt-codex-connector[bot]"}
+    comments = [{"user": bot, "body": "Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `abcdef1234`"},
+                {"user": bot, "body": "Codex Review: here are some suggestions.\n\n**Reviewed commit:** `abcdef1234`"}]
+    assert _watch._bot_review(comments, head) == "findings"
+
+
+def test_structured_state_wins_over_the_receipt_in_the_same_comment() -> None:
+    head = "abcdef1234567890"
+    body = ('<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":true,'
+            '"has_unresolved_findings":false,"status":"completed"}} -->\n'
+            "Codex Review: here are some suggestions.\n\n**Reviewed commit:** `abcdef1234`")
+    assert _watch._bot_review([{"user": {"login": "chatgpt-codex-connector[bot]"}, "body": body}], head) == "clean"
+
+
+def test_ready_needs_confirmed_mergeability_and_accepts_status_only_ci(monkeypatch: Any) -> None:
+    head = "abcdef1234567890"
+    state = ('<!-- codex-review-state:v1 {"code_review":{"commit_sha":"' + head + '","has_any_findings":false,'
+             '"has_unresolved_findings":false,"status":"completed"}} -->')
+    unknown = _bot_payload(head, [state], [("test", "success")], mergeable=None)
+    unknown["pr"]["mergeable_state"] = "unknown"
+    _install_api(monkeypatch, unknown)
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#7"), Store())
+    assert "ready" not in {event.kind for event in events}
+    status_only = _bot_payload(head, [state], [])
+    status_only["statuses"] = {"statuses": [{"id": 1, "context": "ci", "state": "success",
+                                             "updated_at": "2026-11-26T10:00:00Z"}]}
+    _install_api(monkeypatch, status_only)
+    events, _ = _watch.poll_pull(_watch.parse_pull("o/r#8"), Store())
+    assert "ready" in {event.kind for event in events}

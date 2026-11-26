@@ -2133,7 +2133,8 @@ def _cmd_watch(args: argparse.Namespace) -> int:
             else:
                 print(event.time, event.pull, event.kind, event.detail, flush=True)
 
-        return _watch.run_watch(pulls, store, interval=args.interval, until=until, emit=emit)
+        return _watch.run_watch(pulls, store, interval=args.interval, until=until, emit=emit,
+                                request_review=args.request_review)
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -2169,7 +2170,11 @@ def build_parser() -> argparse.ArgumentParser:
                             help="Map a task repository slug to its local checkout (repeatable).")
     dispatch_p.add_argument("--worktree-root", default=None, metavar="PATH",
                             help="Root for retained per-task git worktrees.")
-    _add_db_option(dispatch_p)
+    _add_registry_option(dispatch_p)
+    dispatch_p.add_argument("--lease-minutes", type=int, default=60, metavar="N",
+                            help="Claim lease per task; a job running longer is stopped (default 60).")
+    dispatch_p.add_argument("--launch-mode", choices=("auto", "governed", "legacy"), default=None,
+                            help="Passed to every task's run (default: the run default).")
     dispatch_p.set_defaults(func=_dispatch.dispatch)
 
     watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
@@ -2184,6 +2189,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Polling interval in seconds (default 60; clamped to the configured minimum).",
     )
     watch_p.add_argument("--json", action="store_true", help="Print one JSON object per event.")
+    watch_p.add_argument("--request-review", default=None, metavar="TEXT",
+                         help="Post TEXT (e.g. '@codex review') once per new head the review bot left unreviewed "
+                              "for two polls. Off by default; the only write the watcher makes.")
     _add_db_option(watch_p)
     watch_p.set_defaults(func=_cmd_watch)
 
