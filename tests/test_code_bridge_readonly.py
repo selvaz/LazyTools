@@ -23,16 +23,6 @@ def tier(command, job_branch="topic"):
     return rule.tier
 
 
-def checkout_tier(command, tmp_path):
-    approval = ApprovalRequest(
-        provider="claude-code", kind="tool", name="Bash", arguments={"command": command}, cwd=str(tmp_path),
-    )
-    gate = BridgeGate(channel=UnusedChannel(), rules=CODING_RULES, cwd=str(tmp_path), job_branch="topic")
-    rule = gate._match(approval)
-    assert rule is not None
-    return rule.tier
-
-
 class UnusedChannel:
     async def ask(self, prompt: str) -> bool:
         raise AssertionError("_match must not ask")
@@ -47,8 +37,9 @@ READS = [
     "gh pr view 1 --json state", "gh pr list --state open", "gh pr checks 1", "gh pr diff 1 --name-only",
     "gh run view 1 --log-failed", "gh run list --limit 5", "gh issue view 1", "gh issue list",
     "gh api repos/a/b/pulls/1/comments --paginate",
-    "git log --oneline | head -n 5", "cat README.md | grep text | wc -l",
-    "git status 2>&1", "git status >/dev/null", "git status 2> /dev/null",
+    "grep -n x file 2>&1 | head -5", "sed -n 1,20p file 2>/dev/null | tail -3",
+    "git log --oneline | head -3", "ls src | grep code",
+    "git status 2>&1", "git status 2>/dev/null",
     "gh pr view 1 --json reviews",
 ]
 
@@ -62,54 +53,25 @@ def test_readonly_capabilities(command):
 @pytest.mark.parametrize(
     "command",
     [
-        "python -m pytest -q tests/test_code_bridge_readonly.py 2>&1 | tail -5",
-        "ruff check src tests 2>/dev/null | head -20",
-        "ruff format --check src tests 2>&1 | grep -n unchanged",
-        "ruff format --diff src tests",
-    ],
-)
-def test_checkout_verification_commands_are_allowed(command, tmp_path):
-    assert checkout_tier(command, tmp_path) == "allow"
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
         "git add $(touch proof) && git commit -m message",
         "git commit -m \"$(cat <<'EOF'\nmessage\nEOF\ntouch proof\nEOF\n)\"",
         "cat payload.py | py",
         'cat "$PWD_FILE"',
-        "python -m pytest -q | wc -l",
-        "cat README.md | python -m pytest -q",
-        "ruff check src > result.txt",
-        "ruff check src; rm -rf proof",
-    ],
-)
-def test_reported_gate_bypasses_raise_a_ticket(command, tmp_path):
-    assert checkout_tier(command, tmp_path) == "ask"
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        "python -m pytest -q tests/test_code_bridge_readonly.py",
         "ruff check src",
-        "ruff format --check src",
+        "ruff check src --config pyproject.toml",
+        "ruff format --check --cache-dir=/outside src",
+        "pytest tests; rm -rf x",
     ],
 )
-def test_verification_commands_outside_checkout_raise_a_ticket(command, tmp_path):
-    approval = ApprovalRequest(
-        provider="claude-code", kind="tool", name="Bash", arguments={"command": command}, cwd=str(tmp_path / "other"),
-    )
-    gate = BridgeGate(channel=UnusedChannel(), rules=CODING_RULES, cwd=str(tmp_path), job_branch="topic")
-    rule = gate._match(approval)
-    assert rule is not None and rule.tier == "ask"
+def test_reported_gate_bypasses_raise_a_ticket(command):
+    assert tier(command) == "ask"
 
 
 BYPASSES = [
     r'git status \" > output', 'git status >"output"', "git status >& output", "git status <> output",
     "git status >> output", "git status >| output", "git status &> output", "git status 2>&3",
     "git status 2>&1 > output", "git status > /dev/null/../output", "git status 3>/dev/null",
+    "git status >/dev/null", "git status 2> /dev/null", "git status 1>&2", "git status 0>/dev/null",
     "gh -R a/b pr close 1", "gh --repo=a/b pr close 1", "git checkout HEAD file", "git checkout file",
     "git status # ; git restore .", "git status#ignored", "powershell -Com 'git restore .'",
     "pwsh -c 'git status'", r"g\it restore .", "node -p 'fs.unlinkSync(x)'", "node -pe code",
@@ -119,7 +81,7 @@ BYPASSES = [
     "xargs git status", "eval 'git status'", "exec git status", "source x.sh",
     "find . -exec echo x ';'", "find . -delete", "find . -fprint output", "find . -fprintf output x",
     "git status; cat README.md", "git status; rm -rf x", "git status && cat README.md", "git status || cat README.md",
-    "git status | sh", "git status | git add -A", "git status |", "| git status", "git status |& cat",
+    "git status | sh", "git status | wc -l", "git status | git add -A", "git status |", "| git status", "git status |& cat",
     "git status $(echo x)", "git status `echo x`", "cat <(git status)", "cat >(git status)",
     "git status\ncat README.md", "git status\t--short", "git status 'unterminated", 'git status ""',
     "git diff --output=output", "git log --output output", "git show --ext-diff", "git diff --textconv",

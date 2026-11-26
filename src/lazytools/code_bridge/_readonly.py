@@ -35,7 +35,7 @@ def _pipeline(command: str) -> list[tuple[str, bool]] | None:
         elif ch in "<>&|;()" or (ch in "012" and (not buf or buf.endswith(" "))):
             # Consume only complete, unquoted redirects at word boundaries.
             # No arbitrary file targets, input redirects, append or clobber.
-            redirect = re.match(r"(?:[012]?> */dev/null|[012]>&[012])(?= |$)", command[i:])
+            redirect = re.match(r"(?:2>/dev/null|2>&1)(?= |$)", command[i:])
             if redirect and (not buf or buf.endswith(" ")):
                 i += len(redirect[0])
                 continue
@@ -198,8 +198,14 @@ class ReadRule:
             from lazytools.code_bridge._approvals import _api_endpoint_ok
 
             return len(positionals) == 1 and _api_endpoint_ok(positionals[0])
+        if self.validator == "sed-print" and (
+            len(positionals) != 2 or re.fullmatch(r"[0-9]+(?:,[0-9]+)?p", positionals[0]) is None
+        ):
+            return False
         if self.operands != "none":
             operands = positionals
+            if self.validator == "sed-print":
+                operands = positionals[1:]
             if self.operands == "pattern-paths" and not seen & {"-e", "--regexp", "--files"}:
                 operands = positionals[1:]  # the first positional is the search pattern, not a path
             git = self.command[0] == "git"
@@ -225,7 +231,8 @@ def load_policy(source: Path | None = None) -> tuple[ReadRule, ...]:
         operands, stdin = raw.get("operands", "paths"), raw.get("stdin", False)
         if (
             not raw["command"] or type(count) is not int or count < 0
-            or not isinstance(validator, str) or validator not in {"options", "branch", "api", "find", "git-log"}
+            or not isinstance(validator, str)
+            or validator not in {"options", "branch", "api", "find", "git-log", "sed-print"}
             or operands not in {"paths", "pattern-paths", "none"} or type(stdin) is not bool
             or not set(raw.get("globs", [])) <= set(raw.get("values", []))
         ):
@@ -242,24 +249,6 @@ def packaged_policy() -> tuple[ReadRule, ...]:
     return load_policy()
 
 
-def _verification(args: list[str], *, checkout: bool) -> str | None:
-    """Recognise the small set of non-mutating checkout verification commands."""
-    if not checkout:
-        return None
-    if args[:2] == ["ruff", "check"] and len(args) > 2:
-        return "ruff-check" if all(
-            arg == "--quiet" or (not arg.startswith("-") and operand_ok(arg, git=False)) for arg in args[2:]
-        ) else None
-    if args[:2] == ["ruff", "format"] and len(args) > 3 and args[2] in {"--check", "--diff"}:
-        return "ruff-format-read" if all(operand_ok(arg, git=False) for arg in args[3:]) else None
-    if len(args) >= 3 and args[:3] == ["python", "-m", "pytest"]:
-        allowed = {"-q", "-v", "-x", "--quiet", "--verbose", "--disable-warnings"}
-        return "pytest" if all(
-            arg in allowed or (not arg.startswith("-") and operand_ok(arg, git=False)) for arg in args[3:]
-        ) else None
-    return None
-
-
 def match(command: str, *, checkout: bool = False) -> str | None:
     from lazytools.code_bridge._approvals import _tokenize
 
@@ -268,24 +257,16 @@ def match(command: str, *, checkout: bool = False) -> str | None:
         return None
     ids = []
     piped = False
-    verification_pipe = False
     for stage, pipes_to_next in stages:
         words = _tokenize(stage)
         if not words or words[0].quoted:
             return None
         args = [word.text for word in words]
-        if verification_pipe and args[0] not in {"head", "tail", "grep"}:
+        if piped and args[0] not in {"head", "tail", "grep"}:
             return None
-        verification = _verification(args, checkout=checkout and not piped)
         rule = next((rule for rule in packaged_policy() if rule.matches(args, piped=piped)), None)
-        if verification:
-            ids.append(verification)
-            piped = pipes_to_next
-            verification_pipe = pipes_to_next
-            continue
         if rule is None:
             return None
         ids.append(rule.id)
         piped = pipes_to_next
-        verification_pipe = False
     return " | ".join(ids)
