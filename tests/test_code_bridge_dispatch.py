@@ -434,3 +434,74 @@ def test_pending_tickets_of_running_jobs_are_surfaced_once() -> None:
     dispatch.pass_once()
     approvals = [event for event in events if event.startswith("approval ")]
     assert approvals == ["approval p/A t-1 git add calc.py; git commit -m x | Git needs write access"]
+
+
+def _repo(path: Path) -> Any:
+    path.mkdir(parents=True)
+    def git(*argv: str, cwd: Path = path) -> str:
+        return subprocess.run(["git", *argv], cwd=cwd, text=True, capture_output=True, check=True).stdout.strip()
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "T")
+    (path / "f.txt").write_text("base\n")
+    git("add", ".")
+    git("commit", "-qm", "base")
+    return git
+
+
+def test_staged_litter_is_never_committed(tmp_path: Path) -> None:
+    from lazytools.code_bridge._dispatch import _conclude_workspace
+    git = _repo(tmp_path / "r")
+    (tmp_path / "r" / "work.txt").write_text("work\n")
+    (tmp_path / "r" / "error.log").write_text("account_id=secret\n")
+    git("add", "error.log")
+    error, commit = _conclude_workspace(tmp_path / "r", "p/A")
+    assert error is None and commit
+    assert git("show", "--name-only", "--format=", "HEAD") == "work.txt"
+
+
+def test_publish_checks_branch_and_never_overwrites(tmp_path: Path) -> None:
+    from lazytools.code_bridge._dispatch import _publish
+    source_git = _repo(tmp_path / "source")
+    clone = tmp_path / "clone"
+    subprocess.run(["git", "clone", "-q", "--local", str(tmp_path / "source"), str(clone)], check=True)
+    def git(*argv: str) -> str:
+        return subprocess.run(["git", "-C", str(clone), *argv], text=True, capture_output=True, check=True).stdout.strip()
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "T")
+    git("remote", "add", "dispatch-source", str(tmp_path / "source"))
+    git("checkout", "-qb", "dispatch/p/A")
+    git("config", "dispatch.branch", "dispatch/p/A")
+    (clone / "a.txt").write_text("a\n")
+    git("add", "a.txt")
+    git("commit", "-qm", "a")
+    assert _publish(clone) == ("dispatch/p/A", None)
+    source_git("branch", "-f", "dispatch/p/A", "main")  # someone moved the published branch elsewhere
+    (tmp_path / "source" / "f.txt").write_text("other\n")
+    source_git("checkout", "-q", "dispatch/p/A")
+    source_git("commit", "-qam", "other")
+    source_git("checkout", "-q", "main")
+    branch, error = _publish(clone)
+    assert branch is None and error and error.startswith("publish failed")
+    git("checkout", "-qb", "elsewhere")
+    assert _publish(clone)[1] == "checkout is on elsewhere, expected dispatch/p/A"
+
+
+def test_base_is_set_after_dependency_merges(tmp_path: Path) -> None:
+    from lazytools.code_bridge._dispatch import _has_new_commit
+    git = _repo(tmp_path / "repo")
+    git("checkout", "-qb", "b")
+    (tmp_path / "repo" / "b.txt").write_text("b\n")
+    git("add", "b.txt")
+    git("commit", "-qm", "b")
+    b_commit = git("rev-parse", "HEAD")
+    git("checkout", "-q", "main")
+    (tmp_path / "repo" / "c.txt").write_text("c\n")
+    git("add", "c.txt")
+    git("commit", "-qm", "c")
+    c_commit = git("rev-parse", "HEAD")
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    launcher = BridgeLauncher(None, principal, "p", repo_roots={"r": tmp_path / "repo"}, worktree_root=tmp_path / "trees")
+    checkout = launcher._checkout({"task_id": "p/D", "repo": "r", "dependencies": [
+        {"artifact_ref": b_commit}, {"artifact_ref": c_commit}]})
+    assert not _has_new_commit(checkout)  # the clean dependency merge is not the task's work

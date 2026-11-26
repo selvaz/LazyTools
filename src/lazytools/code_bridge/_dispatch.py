@@ -111,16 +111,19 @@ class BridgeLauncher:
             subprocess.run(["git", "-C", str(checkout), "fetch", "--quiet", str(sibling), "+HEAD:refs/dispatch/" + sibling.name],
                            text=True, capture_output=True, check=False)
         self._git(checkout, "checkout", "--quiet", "-B", str(branch), str(base))
-        self._git(checkout, "tag", "-f", "dispatch-base")  # a finished task must add commits on top
+        self._git(checkout, "config", "dispatch.branch", str(branch))  # publication checks it
         for index, commit in enumerate(commits[1:], start=1):
             result = subprocess.run(
                 ["git", "-C", str(checkout), "merge", "--no-edit", commit],
                 text=True, capture_output=True, check=False,
             )
             if result.returncode:
-                if index == len(commits) - 1:
+                unmerged = self._git(checkout, "diff", "--name-only", "--diff-filter=U")
+                if index == len(commits) - 1 and unmerged:
                     # Last dependency: leave the conflicted merge for the task's agent to
-                    # resolve and conclude with an ordinary commit.
+                    # resolve and conclude with an ordinary commit (that resolution is the
+                    # task's first piece of work, so the base is set before the merge).
+                    self._git(checkout, "tag", "-f", "dispatch-base", "HEAD")
                     self.conflicts[str(task["task_id"])] = commit
                     return checkout
                 subprocess.run(
@@ -128,7 +131,11 @@ class BridgeLauncher:
                     text=True, capture_output=True, check=False,
                 )
                 shutil.rmtree(checkout, ignore_errors=True)
-                raise RuntimeError("dependency merge conflict")
+                detail = (result.stderr or result.stdout).strip().splitlines()
+                raise RuntimeError("dependency merge conflict" if unmerged else
+                                   f"dependency merge failed: {detail[-1] if detail else 'git merge error'}")
+        # Set after dependency merges: the task must add its own commits on top.
+        self._git(checkout, "tag", "-f", "dispatch-base", "HEAD")
         return checkout
 
     def launch(self, task: dict[str, Any], claim: dict[str, Any]) -> str:
@@ -217,8 +224,12 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
     if markers:
         return f"unresolved conflict markers in {', '.join(markers[:5])}", None
     merging = git("rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0
-    # Never stage tool litter (the Codex CLI writes error.log with account details).
+    # Never stage tool litter (the Codex CLI writes error.log with account details),
+    # and unstage any the agent already staged.
     git("add", "-A", "--", ".", *(f":(exclude){pattern}" for pattern in COMMIT_EXCLUDES))
+    staged_litter = [path for path in git("diff", "--cached", "--name-only").stdout.splitlines() if _is_litter(path)]
+    if staged_litter:
+        git("reset", "-q", "--", *staged_litter)
     if not git("diff", "--cached", "--name-only").stdout.strip() and not merging:
         return f"job ended with {len(dirty)} uncommitted path(s), all excluded as tool litter", None
     message = ["commit", "-q", "--no-edit"] if merging else [
@@ -227,7 +238,16 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
     commit = git(*message)
     if commit.returncode:
         return f"could not commit the finished task: {(commit.stderr or commit.stdout).strip()[:200]}", None
+    left = [line[3:] for line in git("status", "--porcelain").stdout.splitlines()
+            if line.strip() and not _is_litter(line[3:])]
+    if left:
+        return f"checkout still dirty after the commit: {', '.join(left[:5])}", None
     return None, git("rev-parse", "HEAD").stdout.strip() or None
+
+
+def _is_litter(path: str) -> bool:
+    parts = path.strip().strip('"').replace("\\", "/").split("/")
+    return (parts[-1].endswith(".log") or "__pycache__" in parts or ".pytest_cache" in parts)
 
 
 def _has_new_commit(cwd: Path) -> bool:
@@ -237,17 +257,25 @@ def _has_new_commit(cwd: Path) -> bool:
     return count.returncode != 0 or count.stdout.strip() != "0"
 
 
-def _publish(cwd: Path) -> str | None:
-    """Copy an accepted task's branch from its clone back into the source repository."""
-    branch = subprocess.run(["git", "-C", str(cwd), "branch", "--show-current"],
-                            text=True, capture_output=True, check=False).stdout.strip()
-    has_source = subprocess.run(["git", "-C", str(cwd), "remote", "get-url", "dispatch-source"],
-                                text=True, capture_output=True, check=False).returncode == 0
-    if not branch or not has_source:
-        return None
-    pushed = subprocess.run(["git", "-C", str(cwd), "push", "--quiet", "--force", "dispatch-source",
-                             f"HEAD:refs/heads/{branch}"], text=True, capture_output=True, check=False)
-    return branch if pushed.returncode == 0 else None
+def _publish(cwd: Path) -> tuple[str | None, str | None]:
+    """Copy an accepted task's branch from its clone back into the source repository.
+
+    Returns (branch, error). Only the branch the dispatcher created is published, and
+    only as a fast-forward: a push never overwrites commits made elsewhere.
+    """
+    def git(*argv: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(["git", "-C", str(cwd), *argv], text=True, capture_output=True, check=False)
+
+    expected = git("config", "--get", "dispatch.branch").stdout.strip()
+    if git("remote", "get-url", "dispatch-source").returncode != 0 or not expected:
+        return None, None  # not a dispatcher clone (e.g. an assigned external checkout)
+    current = git("branch", "--show-current").stdout.strip()
+    if current != expected:
+        return None, f"checkout is on {current or 'a detached HEAD'}, expected {expected}"
+    pushed = git("push", "--quiet", "dispatch-source", f"HEAD:refs/heads/{expected}")
+    if pushed.returncode:
+        return None, f"publish failed: {(pushed.stderr or pushed.stdout).strip()[:200]}"
+    return expected, None
 
 
 class Dispatcher:
@@ -389,10 +417,6 @@ class Dispatcher:
             if accepted and not _has_new_commit(Path(str(job["cwd"]))):
                 accepted = False
                 job = {**job, "error": "no new commit since the task started"}
-            if accepted:
-                published = _publish(Path(str(job["cwd"])))
-                if published:
-                    self.emit(f"published {task.task_id} {published}")
         verdict = job.get("review_verdict") or {}
         reviewed_sha = job.get("reviewed_sha") or verdict.get("reviewed_sha")
         review_passed = bool(job.get("review_passed", verdict.get("passed", False)))
@@ -411,6 +435,14 @@ class Dispatcher:
             failure_reason = "claim lease expired"
         else:
             failure_reason = str(job.get("error") or job.get("status") or "job failed").replace("\n", " ")
+        # Publish only after the lease and evidence checks; a failed publish fails the task.
+        if accepted and job.get("cwd"):
+            published, publish_error = _publish(Path(str(job["cwd"])))
+            if publish_error:
+                accepted = False
+                failure_reason = publish_error
+            elif published:
+                self.emit(f"published {task.task_id} {published}")
         state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
         reference = f"bridge-job:{job_ref}:{job.get('status')}"
         evidence = CompletionEvidence(reference=reference, job_ref=str(job_ref), executor=receipt["executor"],
