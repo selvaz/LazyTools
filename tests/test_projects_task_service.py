@@ -339,6 +339,35 @@ def test_dependencies_all_tiers_and_placement_revalidation(queue):
     assert ready(service)[0]["effective_placement"] == "cloud"
 
 
+def test_submitted_local_dispatch_outlives_placement_expiry_but_not_changes(queue):
+    projects, service = queue
+    admit(projects, [task("a"), task("b")])
+    placement(service, "a", ttl=10)
+    placement(service, "b", ttl=10)
+    a, b = claim(service, "a", "a"), claim(service, "b", "b")
+    jobs = {receipt["task_id"]: submit(service, receipt) for receipt in (a, b)}
+    service.clock.now += 30  # placement evidence expired, claim lease (60 s) still live
+
+    def fence(receipt):
+        return service.local_claim(
+            WORKER, receipt["task_id"], receipt["claim_token"], state="submitted", job_ref=jobs[receipt["task_id"]]
+        )
+
+    assert fence(a)["preflight_ref"] == "preflight-a-local"
+    assert fence(b)["preflight_ref"] == "preflight-b-local"
+
+    service.record_placement(f"{PROJECT}/a", revision(service, "a"), PlacementEvidence(
+        placement="local", eligible=True, reason="Rerouted", reference="another-preflight",
+        expires_at=service.clock() + 1000, engine_family="codex",
+    ))
+    with pytest.raises(TaskServiceError, match="Local placement evidence"):
+        fence(a)
+
+    assert "REJECTED" not in projects.projects_schedule_task(PROJECT, 1, "Produce b", "Waiting on vendor", hold=True)
+    with pytest.raises(TaskServiceError, match="Local placement evidence"):
+        fence(b)
+
+
 def test_race_claims_replay_and_reclaim_before_submit(queue):
     projects, service = queue
     admit(projects, [task("a"), task("b")])
