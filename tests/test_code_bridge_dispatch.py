@@ -911,6 +911,82 @@ def test_land_can_outlast_the_claim_lease(tmp_path: Path, monkeypatch: pytest.Mo
     assert evidence["state"] == "accepted" and "pr_url" not in evidence and "land_failure" not in evidence
 
 
+def test_slow_landing_does_not_consume_another_tasks_lease(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lazytools.code_bridge import _gh
+    from lazytools.code_bridge._dispatch import _tasks
+    from lazytools.connectors.projects import ProjectsTools
+    from lazytools.projects.task_service import PlacementEvidence, ProjectTaskService
+
+    gh = FakeGh()
+    clone_a, remote, bridge, remote_git = _landing_setup(tmp_path, monkeypatch, gh, task_id="landing/A")
+    clone_b = bridge._checkout({"task_id": "landing/B", "repo": "o/r"})
+    bridge._git(clone_b, "config", f"url.{remote.as_uri()}.pushInsteadOf", "https://github.com/o/r.git")
+    (clone_b / "other.txt").write_text("task B work\n")
+    bridge._git(clone_b, "add", "other.txt")
+    bridge._git(clone_b, "commit", "-qm", "Task B work")
+    path = str(tmp_path / "projects.sqlite")
+    projects = ProjectsTools(store_db=path, allow_write=True)
+    assert "AS A DRAFT" in projects.projects_create("landing", "Landing", "Test independent landings")
+    plan = [
+        {"task_id": "A", "text": "Publish A", "acceptance_criteria": ["A is published"]},
+        {"task_id": "B", "text": "Publish B", "acceptance_criteria": ["B is published"]},
+    ]
+    args = ("landing", "Publish A and B", "2027-01-01T00:00:00Z", plan)
+    verdict = projects.projects_review_plan(*args)
+    assert verdict["ok"], verdict
+    assert projects.projects_promote(*args).startswith("promoted")
+
+    now = 1000.0
+
+    def clock() -> float:
+        return now
+
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("landing",))
+    service = ProjectTaskService(path, lease_seconds=60, clock=clock)
+    for task in _tasks(service, "landing"):
+        service.record_placement(task.task_id, task.revision, PlacementEvidence(
+            placement="local", eligible=True, reason="test runner", reference="test-placement",
+            expires_at=2000, engine_family="codex",
+        ))
+    launcher = FakeLauncher(FakeService())
+    events: list[str] = []
+    dispatch = Dispatcher(service, principal, launcher, "landing", parallel=2, clock=clock,
+                          emit=events.append, land=True)
+    dispatch.pass_once()
+    assert sorted(launcher.launches) == ["A", "B"], events
+    leases = []
+    for task in _tasks(service, "landing"):
+        assert task.dispatch is not None, events
+        receipt = task.dispatch["receipt"]
+        service.begin_submit(principal, task.task_id, receipt["claim_token"])
+        service.record_submit(principal, task.task_id, receipt["claim_token"], f"job-{task.task_id[-1]}")
+        leases.append(receipt["lease_expires_at"])
+    for name, clone in (("A", clone_a), ("B", clone_b)):
+        launcher.finish(name)
+        launcher.jobs[f"job-{name}"]["cwd"] = str(clone)
+    now = min(leases) - 1
+
+    def slow_gh(*args: str, **kwargs: Any) -> str:
+        nonlocal now
+        if args[:2] == ("repo", "view"):
+            now += 2  # each landing outlasts every remaining lease
+        return gh(*args, **kwargs)
+
+    monkeypatch.setattr(_gh, "run_gh", slow_gh)
+    dispatch.pass_once()
+
+    assert now > max(leases)
+    for task in _tasks(service, "landing"):
+        assert task.status == "done", events
+        assert task.data["dispatches"][-1]["completion"]["result"]["state"] == "accepted"
+    assert events.index("done landing/A") < events.index("landed landing/A https://github.com/o/r/pull/7")
+    assert events.index("done landing/B") < events.index("landed landing/A https://github.com/o/r/pull/7")
+    assert not [line for line in events if line.startswith(("failed", "land-failed"))], events
+    assert remote_git("rev-parse", "refs/heads/dispatch/landing/B") == bridge._git(clone_b, "rev-parse", "HEAD")
+
+
 @pytest.mark.parametrize("failure", ["push", "gh", "push-timeout"])
 def test_land_failure_keeps_the_task_accepted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,

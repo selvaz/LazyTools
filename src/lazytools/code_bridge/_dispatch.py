@@ -545,6 +545,8 @@ class Dispatcher:
         self.capacity = capacity  # engine family -> local slot limit (None = unlimited)
         self.router_with_engine = router_with_engine  # router accepts (tier, engine_family)
         self.land = land  # push each published branch to origin and open its PR
+        # Accepted, published tasks awaiting landing; drained after every claimed task is settled.
+        self.landings: list[tuple[Task, Path, str, str, list[str]]] = []
         self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
         self.waiting: set[str] = set()
@@ -931,12 +933,9 @@ class Dispatcher:
         if accepted:
             self._event("done", task.task_id, job_id=str(job_ref))
             if self.land and published and cwd is not None:
-                # The local artifact is accepted before contacting origin or GitHub.
-                pr_url, land_failure = _land(cwd, published, task.task_id, task.data, list(checks or []))
-                if pr_url:
-                    self._event("landed", task.task_id, pr_url, job_id=str(job_ref))
-                elif land_failure:
-                    self._event("land-failed", task.task_id, land_failure, job_id=str(job_ref))
+                # Landed by pass_once only after every claimed task is settled, so network
+                # latency here never consumes another task's lease.
+                self.landings.append((task, cwd, published, str(job_ref), list(checks or [])))
             return True
         if not resume_failed:
             self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
@@ -962,6 +961,19 @@ class Dispatcher:
                     job_id=str(job_ref))
         return True
 
+    def _land_settled(self) -> None:
+        """Land the tasks accepted in this pass; outcomes are follow-up events only."""
+        landings, self.landings = self.landings, []
+        for task, cwd, branch, job_ref, checks in landings:
+            try:
+                pr_url, land_failure = _land(cwd, branch, task.task_id, task.data, checks)
+            except Exception as exc:
+                pr_url, land_failure = None, " ".join(_cloud.redact(str(exc)).split())[:500] or "landing failed"
+            if pr_url:
+                self._event("landed", task.task_id, pr_url, job_id=job_ref)
+            elif land_failure:
+                self._event("land-failed", task.task_id, land_failure, job_id=job_ref)
+
     def pass_once(self) -> tuple[int, int]:
         tasks = self.task_reader(self.service, self.project_id)
         for task in tasks:
@@ -971,6 +983,7 @@ class Dispatcher:
                 except Exception as exc:
                     self._event("failed", task.task_id, str(exc).replace(chr(10), " "),
                                 job_id=(task.dispatch or {}).get("job_ref"))
+        self._land_settled()
         tasks = self.task_reader(self.service, self.project_id)
         self._surface_approvals(tasks)
         self._place(tasks)
