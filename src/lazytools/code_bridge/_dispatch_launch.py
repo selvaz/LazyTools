@@ -289,7 +289,16 @@ class BridgeLauncher:
         if task.get("requested_network") is not None:
             command.extend(("--network", "on" if task["requested_network"] else "off"))
         env = {**os.environ, "LAZYTOOLS_CODE_BRIDGE_TASK_PRINCIPAL": self.principal.model_dump_json()}
-        result = subprocess.run(command, text=True, capture_output=True, check=False, env=env)
+        if (task.get("attempt_continuation") or {}).get("check_failures"):
+            # Even 60 lines of test output can exceed Windows' command-line limit.
+            # The detached launcher snapshots an @brief before starting the child.
+            with tempfile.TemporaryDirectory(prefix="dispatch-check-") as directory:
+                brief = Path(directory) / "repair.md"
+                brief.write_text(text, encoding="utf-8")
+                command[command.index("--task") + 1] = f"@{brief}"
+                result = subprocess.run(command, text=True, capture_output=True, check=False, env=env)
+        else:
+            result = subprocess.run(command, text=True, capture_output=True, check=False, env=env)
         if result.returncode:
             raise RuntimeError((result.stderr or result.stdout).strip() or f"bridge exited {result.returncode}")
         candidates = [line.strip() for line in result.stdout.splitlines() if len(line.strip()) == 32]

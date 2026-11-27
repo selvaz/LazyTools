@@ -45,6 +45,7 @@ from lazybridge import Tool
 from lazybridge.policy import PolicyDenied, PolicyError, current_policy_context
 
 from lazytools.connectors.code_support._policy import CODE_ACCESS, authorize, local_launch, task_scope
+from lazytools.mcp_server import _approval_notifications
 from lazytools.mcp_server._code_scope import CodeTaskResolver
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -319,6 +320,7 @@ def build_server(
     unsafe_patterns: Iterable[str] = UNSAFE_TOOL_PATTERNS,
     instructions: str | None = None,
     code_task_resolver: CodeTaskResolver | None = None,
+    notify_approvals: bool = False,
 ) -> Server:
     """Build a low-level MCP :class:`~mcp.server.lowlevel.Server` for ``providers``.
 
@@ -329,6 +331,10 @@ def build_server(
     * ``call_tool`` → ``await tool.run(**arguments)``, the return value
       serialized via :func:`result_to_text`. Tool errors are returned as
       MCP error results (``isError=True``) instead of crashing the session.
+
+    With ``notify_approvals``, each client session is also sent new approval
+    tickets as notifications, when the server serves ``bridge_events``, is not
+    read-only and is not task-scoped.
 
     Requires the ``mcp`` extra (``pip install "lazytoolkit[mcp] @ git+https://github.com/selvaz/LazyTools.git"``).
     """
@@ -365,10 +371,16 @@ def build_server(
         if current_policy_context() is not None:
             check_visible()
         return await _call_tool_content(types, tool_map, tool_name, arguments)
+
+    # Tickets are a fleet-wide view: never pushed to a read-only or task-scoped server's clients.
+    events_tool = tool_map.get("bridge_events")
+    if not notify_approvals or read_only or code_task_resolver is not None or current_policy_context() is not None:
+        events_tool = None
+
     # SDK 2 dropped the decorator registration API. ``getattr`` keeps the
     # SDK 1 branch from being type-checked against a SDK 2 ``Server``.
     if _mcp_is_v2():
-        return _build_server_v2(
+        server_v2 = _build_server_v2(
             Server,
             types,
             name=name,
@@ -377,6 +389,9 @@ def build_server(
             list_tools=list_tools,
             call_tool=call_tool,
         )
+        if events_tool is not None:
+            _approval_notifications.register(server_v2, events_tool, sdk2=True)
+        return server_v2
 
     # SDK 1 treats a missing version as "use the mcp package version".
     # ``""`` is falsy there, and it is the type SDK 2's constructor requires,
@@ -401,6 +416,8 @@ def build_server(
     # whose ``Server`` no longer has these decorator methods.
     _decorate(server, "list_tools", _list_tools)
     _decorate(server, "call_tool", _call_tool)
+    if events_tool is not None:
+        _approval_notifications.register(server, events_tool, sdk2=False)
     return server
 
 

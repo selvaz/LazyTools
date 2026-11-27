@@ -45,6 +45,7 @@ from lazytools.routing.router import Fallback, RoutingDecision
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted", "cancelled"})
 DEFAULT_STALE_MINUTES = 10
 DEFAULT_TOOL_STALE_MINUTES = 60  # one tool call running longer than this is stale
+DEFAULT_MAX_CHECK_RETRIES = 2
 STALE_HEARTBEAT = "engine heartbeat went stale"
 # Engine crashes (not task failures): retried once with a fresh attempt.
 RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
@@ -117,7 +118,7 @@ def _placement_detail(decision: RoutingDecision) -> str:
     return " | ".join(parts)
 
 
-LocalRouter = Callable[[str, dict[Engine, str], tuple[Engine, ...], Fallback], RoutingDecision]
+LocalRouter = Callable[[str, dict[Engine, str], tuple[Engine, ...], Fallback, Engine | None], RoutingDecision]
 CloudPlacer = Callable[[dict[str, Any], str], tuple[RoutingDecision, str]]
 
 
@@ -199,6 +200,10 @@ class Dispatcher:
         resume = task.get("attempt_continuation")
         if not resume:
             return self._with_lessons(task)
+        resumes = _dispatch_launch._resumes(resume, claim.get("engine_family"))
+        check_failures = resume.get("check_failures")
+        if check_failures and not resumes:
+            raise ValueError("Check repair requires the original engine conversation")
         branch = resume.get("preserved_branch")
         if branch:
             task = {**task, "preserved_branch": branch, "preserved_commit": resume.get("preserved_commit"),
@@ -209,8 +214,13 @@ class Dispatcher:
                    + ", ".join(unresolved[:20]) + (" ..." if len(unresolved) > 20 else "")
                    + ". Resolve every conflict first so the changes of both sides are kept, then commit;"
                    " the task is rejected while any marker remains.")
-        if _dispatch_launch._resumes(resume, claim.get("engine_family")):
-            return {**task, "text": _dispatch_launch.RESUME_PROMPT + warning, "resume_session": resume.get("session"),
+        if resumes:
+            if check_failures:
+                prompt = ("An acceptance check failed after your last turn. Fix the cause in this checkout, "
+                          "rerun the failing checks and commit the fix." + warning + "\n\n" + check_failures[-1])
+            else:
+                prompt = _dispatch_launch.RESUME_PROMPT + warning
+            return {**task, "text": prompt, "resume_session": resume.get("session"),
                     "resume_native_id": resume["native_id"]}
         task = self._with_lessons(task)
         if branch:
@@ -229,7 +239,7 @@ class Dispatcher:
         """Prepare the next attempt with its continuation stored durably in the task record."""
         current = next((item for item in self.task_reader(self.service, self.project_id)
                         if item.task_id == task.task_id), None)
-        if current is None:
+        if current is None or current.revision != task.revision:
             return False
         reason = f"retry after {cause}: {failure_reason[:200]}"
         if continuation.get("preserved_branch"):
@@ -245,6 +255,9 @@ class Dispatcher:
         reason = str(job.get("error") or "resume refused").replace("\n", " ")
         self.service.fail_local_launch(self.principal, task.task_id, receipt["claim_token"],
                                        f"resume refused before submit: {reason}")
+        if continuation.get("check_failures"):
+            self._event("failed", task.task_id, f"resume refused before submit: {reason}", job_id=job.get("job_id"))
+            return True
         # The refused job never ran: the checkout still holds the preserved work.
         return self._retry(task, "resume failed", reason, {**continuation, "native_id": None, "fresh": True},
                            str(job.get("job_id")))
@@ -334,7 +347,7 @@ class Dispatcher:
             return
         status = {task.task_id.rsplit("/", 1)[1]: task.status for task in tasks}
         now = self.clock()
-        picks: dict[tuple[str, tuple[Engine, ...], Fallback, tuple[tuple[Engine, str], ...]], RoutingDecision] = {}
+        picks: dict[tuple[str, tuple[Engine, ...], Fallback, tuple[tuple[Engine, str], ...], Engine | None], RoutingDecision] = {}
         self.waiting = {task.task_id: self.waiting[task.task_id] for task in tasks
                         if task.status == "todo" and not task.data.get("start_hold") and task.task_id in self.waiting}
         # Engine families already busy: claimed tasks plus tasks placed and not yet claimed.
@@ -366,7 +379,13 @@ class Dispatcher:
                 continue
             record = data.get("placement_evidence", {}).get(requested, {})
             evidence = record.get("evidence", {})
-            if record.get("revision") == task.revision and evidence.get("expires_at", 0) > now + 60:
+            continuation = data.get("attempt_continuation") or {}
+            required_engine = None
+            if continuation.get("check_failures"):
+                engine = continuation["engine"]
+                required_engine = _routing.provider(engine)
+            if (record.get("revision") == task.revision and evidence.get("expires_at", 0) > now + 60
+                    and (not required_engine or evidence.get("engine_family") == required_engine)):
                 continue
             tier = data.get("tier") or "thinking"
             if requested == "cloud":
@@ -381,16 +400,16 @@ class Dispatcher:
                     busy[family] = f"engine_at_concurrency_limit: {_routing.bridge_engine(family)} {count}/{limit} in dispatch"
             try:
                 preference, fallback = _routing_options(data)
-                key = (tier, preference, fallback, tuple(busy.items()))
+                key = (tier, preference, fallback, tuple(busy.items()), required_engine)
                 if key not in picks:
-                    picks[key] = self.router(tier, busy, preference, fallback)
+                    picks[key] = self.router(tier, busy, preference, fallback, required_engine)
                 decision = picks[key]
             except Exception as exc:
                 self._wait(task.task_id, f"routing failed: {str(exc).replace(chr(10), ' ')}")
                 continue
             detail = _placement_detail(decision)
             engine = decision.provider
-            if engine is None:
+            if engine is None or (required_engine and engine != required_engine):
                 self._wait(task.task_id, f"local tier={tier} | {detail}")
                 continue
             self.waiting.pop(task.task_id, None)
@@ -751,7 +770,8 @@ class Dispatcher:
         check_failure = recorded_failure
         if accepted and checks and not (needs_evidence or expired or recorded):
             check_failure = (
-                "\n".join(filter(None, (_dispatch_workspace._check_failure(command, cwd) for command in checks))) or None
+                "\n".join(filter(None, (_dispatch_workspace._check_failure(command, cwd, tail_lines=60)
+                                        for command in checks))) or None
             )
             if not check_failure and cwd is not None:
                 # Evidence must describe the artifact that is published: a check that edits
@@ -782,19 +802,30 @@ class Dispatcher:
         retryable = failed_cleanly and any(marker in failure_reason for marker in RETRYABLE_FAILURES)
         resume_failed = (failed_cleanly and resumed
                          and any(marker in failure_reason for marker in _dispatch_launch.RESUME_FAILURES))
+        check_failures = list((continuation or {}).get("check_failures", []))
+        native_id = None if resume_failed or task.data.get("review_of") else _jobs._native_id(job)
+        retry_check = bool(
+            check_failure and check_failure.startswith("check failed: ") and cwd is not None and not expired
+            and native_id and job.get("engine") and len(check_failures) < task.data.get(
+                "max_check_retries", DEFAULT_MAX_CHECK_RETRIES)
+        )
         preserved = None
-        if (retryable or resume_failed) and cwd is not None:
-            # A retry must not lose the work of an attempt the system stopped.
-            preserved, preserve_error = _dispatch_workspace._preserve_attempt(cwd, task.task_id, int(receipt["attempt"]))
+        if (retryable or (resume_failed and not check_failures) or retry_check) and cwd is not None:
+            # Keep the engine's work, without committing files the failed checks may have edited.
+            preserved, preserve_error = _dispatch_workspace._preserve_attempt(
+                cwd, task.task_id, int(receipt["attempt"]), commit_uncommitted=not retry_check)
             if preserve_error:
                 self._event("preserve-failed", task.task_id, preserve_error, job_id=str(job_ref))
             elif preserved:
                 self._event("preserved", task.task_id, preserved.branch, job_id=str(job_ref))
+        evidence_failure = check_failure
+        if check_failure and check_failures and not retry_check and not recorded:
+            evidence_failure = check_failure + "\n\nPrevious check failures\n" + "\n\n".join(check_failures)
         settled = self._conclude(
             task, reference=reference, job_ref=str(job_ref), accepted=accepted, expired=expired,
             artifact_ref=job.get("final_commit") or job.get("candidate_commit"),
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
-            review_independence=review_independence, failure_reason=check_failure,
+            review_independence=review_independence, failure_reason=evidence_failure,
             preserved_branch=preserved.branch if preserved else None,
         )
         self._record_rejection(task, job)
@@ -805,12 +836,11 @@ class Dispatcher:
                 # latency here never consumes another task's lease.
                 self.landings.append((task, cwd, published, str(job_ref), list(checks or [])))
             return True
-        if not resume_failed:
+        if not (resume_failed or retry_check):
             self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
         # A failed resume is retried once more in a fresh conversation, outside the retry budget.
-        if resume_failed or (retryable and self.retries.get(task.task_id, 0) < self.max_retries):
-            # Wake the same agent, except after a failed resume. A reviewer never resumes a writer.
-            native_id = None if resume_failed or task.data.get("review_of") else _jobs._native_id(job)
+        if retry_check or (resume_failed and not check_failures) or (
+                retryable and not resume_failed and self.retries.get(task.task_id, 0) < self.max_retries):
             kept: dict[str, Any] = {
                 "preserved_branch": preserved.branch, "preserved_commit": preserved.commit,
                 "preserved_base": preserved.base,
@@ -820,12 +850,16 @@ class Dispatcher:
                 "preserved_branch", "preserved_commit", "preserved_base", "preserved_files", "preserved_message",
                 "preserved_unresolved",
             ) if resume_failed and (continuation or {}).get(key)}
-            cause = "resume failed" if resume_failed else "engine crash"
+            if retry_check:
+                check_failures.append(failure_reason)
+                cause = "check failed"
+            else:
+                cause = "resume failed" if resume_failed else "engine crash"
             if self._retry(task, cause, failure_reason, {
                 **kept, "session": job.get("session_name"), "native_id": native_id,
-                "engine": job.get("engine"), "fresh": resume_failed,
+                "engine": job.get("engine"), "fresh": resume_failed, "check_failures": check_failures,
             }, str(job_ref)):
-                if not resume_failed:
+                if not (resume_failed or retry_check):
                     self.retries[task.task_id] = self.retries.get(task.task_id, 0) + 1
                 return True
         self._event("failed", task.task_id, check_failure.split("\n", 1)[0] if check_failure else failure_reason,
@@ -1032,9 +1066,11 @@ def _routers(
 ) -> tuple[LocalRouter, CloudPlacer]:
     """The local quota router and the cloud placer used by `dispatch`."""
 
-    def router(tier: str, busy: dict[Engine, str], preference: tuple[Engine, ...], fallback: Fallback) -> RoutingDecision:
+    def router(tier: str, busy: dict[Engine, str], preference: tuple[Engine, ...], fallback: Fallback,
+               required_engine: Engine | None = None) -> RoutingDecision:
         return _routing.choose(
             tier, cwd=os.getcwd(), db_path=db_path, occupied_slots=busy,
+            engine=_routing.bridge_engine(required_engine) if required_engine else None,
             engine_preference=preference, fallback=fallback, fallback_max_age_seconds=600.0,
         ).decision
 

@@ -83,7 +83,7 @@ class CompletionEvidence(BaseModel):
 
 
 class AttemptContinuation(BaseModel):
-    """How a retry continues the attempt the system stopped, stored with the attempt it prepares."""
+    """How a retry continues its predecessor, stored with the attempt it prepares."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     preserved_branch: Nonempty | None = None
@@ -96,6 +96,7 @@ class AttemptContinuation(BaseModel):
     native_id: Nonempty | None = None  # its engine conversation; None starts a fresh one
     engine: Nonempty | None = None
     fresh: bool = False  # the resume was refused: this attempt starts a fresh conversation
+    check_failures: tuple[str, ...] = ()  # one diagnostic per verification retry already prepared
 
 
 def _route_key(repo: str, placement: str, environment_id: str) -> str:
