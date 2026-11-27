@@ -37,7 +37,7 @@ from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.admission import ENGINES, Engine
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import _key as project_key
-from lazytools.projects.task_fields import routing_fields
+from lazytools.projects.task_fields import routing_fields, touches_overlap
 from lazytools.projects.task_fields import task_id as board_task_id
 from lazytools.projects.task_service import (
     AttemptContinuation,
@@ -567,6 +567,13 @@ class Dispatcher:
                     or data.get("review_of") or data.get("acceptance_contract")
                     or any(status.get(dep) != "done" for dep in data.get("dependency_ids", []))):
                 continue
+            overlap = next((other for other in tasks if other.status in ("claimed", "running")
+                            and touches_overlap(data, other.data)), None)
+            if overlap:
+                self._wait(task.task_id, f"touches overlap with {overlap.task_id}")
+                continue
+            if self.waiting.get(task.task_id, "").startswith("touches overlap with "):
+                self.waiting.pop(task.task_id)
             record = data.get("placement_evidence", {}).get(requested, {})
             evidence = record.get("evidence", {})
             if (continuation.get("not_before") or 0) > now:
@@ -1234,6 +1241,7 @@ class Dispatcher:
         running = sum(task.status == "claimed" for task in tasks)
         ready = self.service.next_ready(self.principal, self.project_id, limit=100)["tasks"]
         by_id = {task.task_id: task for task in tasks}
+        active = [task for task in tasks if task.status in ("claimed", "running")]
         running_branches = {
             str(task.data["assigned_branch"])
             for task in tasks
@@ -1241,13 +1249,19 @@ class Dispatcher:
             and (task.status == "claimed" or (task.dispatch or {}).get("pending_landing"))
         }
         for summary in ready:
-            if running >= self.parallel:
-                break
             board_task = by_id.get(summary["task_id"])
             if board_task is None:
                 self._event("failed", summary["task_id"], "task is missing from board")
                 continue
             data = board_task.data
+            overlap = next((other for other in active if touches_overlap(data, other.data)), None)
+            if overlap:
+                self._wait(summary["task_id"], f"touches overlap with {overlap.task_id}")
+                continue
+            if self.waiting.get(summary["task_id"], "").startswith("touches overlap with "):
+                self.waiting.pop(summary["task_id"])
+            if running >= self.parallel:
+                continue
             if ((data.get("attempt_continuation") or {}).get("not_before") or 0) > self.clock():
                 continue
             self._event("ready", summary["task_id"])
@@ -1291,6 +1305,7 @@ class Dispatcher:
             if "dispatch_state" in result:
                 continue  # a claim replay never starts another launcher
             claim = result["claim"]
+            active.append(board_task)
             self._event("claimed", summary["task_id"])
             if cloud:
                 if self._launch_cloud(board_task, summary, claim):

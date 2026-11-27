@@ -132,6 +132,40 @@ def test_projects_brake_status_agrees_with_shadow_mode(tmp_path, monkeypatch) ->
     assert status["shadow"] is True
 
 
+@pytest.mark.parametrize("left,right,expected", [
+    ("src/**/*.py", "src/file.py", True),
+    ("src/**/a?.py", "src/x/a[0-9].py", True),
+    ("src/[a-c]*.py", "src/[d-f]*.py", False),
+    ("src/*.py", "src/nested/file.py", False),
+    ("src/a*.py", "src/b*.py", False),
+])
+def test_touch_glob_intersection(left: str, right: str, expected: bool) -> None:
+    from lazytools.projects.task_fields import touches_overlap
+
+    assert touches_overlap({"repo": "r", "touches": [left]}, {"repo": "r", "touches": [right]}) is expected
+
+
+def test_review_warns_about_unordered_overlapping_touches(tmp_path) -> None:
+    pt = _rw(tmp_path)
+    pt.projects_create("alpha", "Alpha", "x")
+    tasks = [
+        {"task_id": "A", "text": "a", "acceptance_criteria": ["a passes"],
+         "repo": "r", "touches": ["src/**/*.py"]},
+        {"task_id": "B", "text": "b", "acceptance_criteria": ["b passes"],
+         "repo": "r", "touches": ["src/a*.py"]},
+        {"task_id": "C", "text": "c", "acceptance_criteria": ["c passes"],
+         "repo": "r", "touches": ["src/abc.py"], "dependency_ids": ["B"]},
+        {"task_id": "D", "text": "d", "acceptance_criteria": ["d passes"],
+         "repo": "other", "touches": ["src/abc.py"]},
+    ]
+    result = pt.projects_review_plan("alpha", "obs", "2026-12-01T00:00:00+00:00", tasks)
+    assert result["ok"]
+    assert result["warnings"] == ["touches overlap between A and B without a dependency path",
+                                  "touches overlap between A and C without a dependency path"]
+    assert "promoted" in pt.projects_promote("alpha", "obs", "2026-12-01T00:00:00+00:00", tasks)
+    assert pt._store.read("blackboard:project:alpha")["tasks"][0]["touches"] == ["src/**/*.py"]
+
+
 def test_projects_pause_resume_close_lifecycle(tmp_path) -> None:
     pt = _rw(tmp_path)
     pt.projects_create("alpha", "Alpha", "x")
@@ -412,3 +446,20 @@ def test_mcp_promote_refuses_a_naive_deadline_reviewed_before_offsets_were_requi
     message = pt.projects_promote("legacy", "obs", naive, subtasks)
     assert message == "REJECTED: deadline needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00"
     assert pt.projects_get("legacy") == before
+
+
+def test_touches_overlap_compares_repository_names_case_insensitively() -> None:
+    """Review P2 on #461: Owner/Repo and owner/repo are the same checkout."""
+    from lazytools.projects.task_fields import touches_overlap
+
+    left = {"repo": "Owner/Repo", "touches": ["src/a/*.py"]}
+    assert touches_overlap(left, {"repo": "owner/repo", "touches": ["src/a/x.py"]})
+    assert not touches_overlap(left, {"repo": "owner/other", "touches": ["src/a/x.py"]})
+
+
+def test_touches_overlap_treats_missing_repos_as_the_same_default_checkout() -> None:
+    """Review P2 on #461: tasks without `repo` run in the default checkout, so they can overlap."""
+    from lazytools.projects.task_fields import touches_overlap
+
+    assert touches_overlap({"touches": ["src/a.py"]}, {"touches": ["src/*.py"]})
+    assert not touches_overlap({"touches": ["src/a.py"]}, {"repo": "owner/repo", "touches": ["src/a.py"]})

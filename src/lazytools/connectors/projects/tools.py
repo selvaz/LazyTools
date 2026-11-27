@@ -435,7 +435,8 @@ class ProjectsTools:
 
         ``subtasks`` is ``[{"text": ..., "acceptance_criteria": [...]}, ...]``.
         Subtasks can also set title, task_id, dependency_ids, tier, requested_profile,
-        requested_network, requested_placement, effective_placement and placement_reason.
+        requested_network, requested_placement, effective_placement, placement_reason,
+        repo and touches (repo-relative paths or globs).
         ``deadline`` needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00;
         date-only values are refused (they do not represent a whole day).
         Judging whether each criterion could actually FAIL is the caller's
@@ -463,7 +464,10 @@ class ProjectsTools:
             objective=project.objective, observable_result=observable_result, deadline=deadline, subtasks=subtasks
         )
         recorded = _intake.record_project_review(self._store, project_id, reviewed_digest=digest)
-        return {"ok": True, "findings": [], "digest": digest, "recorded": recorded}
+        from lazytools.projects.task_fields import plan_fields, touches_warnings
+
+        return {"ok": True, "findings": [], "warnings": touches_warnings([plan_fields(task) for task in subtasks]),
+                "digest": digest, "recorded": recorded}
 
     def projects_promote(
         self, project_id: str, observable_result: str, deadline: str, subtasks: list[dict[str, Any]]
