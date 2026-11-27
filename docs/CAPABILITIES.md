@@ -198,7 +198,8 @@ Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.jso
 | `code_write` | `codex_write`, `claude_code_write` | Synchronous write access; DENIED in this machine's settings (use the bridge) | tests-only | code-support/index.md |
 | `code_sessions` | `code_sessions_list`, `_bind`, `_rename`, `_forget` | Inspect/curate named coding sessions | tests-only | code-bridge.md#session-reuse |
 | `code_bridge` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` | Same bridge as the CLI, for other agents; accepts `profile`, `launch_mode`, `network`, `task_id`, `claim_token` | tests-only | code-bridge.md#for-other-agents-mcp |
-| `fleet` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search` | Read-only bridge fleet, approval, routing, model, autonomy, and capability views | tests-only | mcp-server.md#fleet-read-only-code-bridge-views |
+| `fleet` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search`, `bridge_events` | Read-only bridge fleet, approval, routing, model, autonomy, and capability views; `bridge_events` is the cursor-based job/ticket event channel shared with `wait-any` | tests-only | mcp-server.md#fleet-read-only-code-bridge-views |
+| `knowledge` | `lessons_search`; write: `lessons_record` | The lessons store of `dispatch --knowledge-db` (config `knowledge_db`, `LAZYTOOLS_KNOWLEDGE_DB`, default `~/.lazytools/knowledge.sqlite`) | tests-only | mcp-server.md#knowledge-shared-lessons |
 | `pr` | `pr_watch_poll`; write: `pr_navigate`, `bridge_publish`, `bridge_apply` | One watcher poll per PR (shares state with `watch`); navigate, publish and apply through the CLI, only with `--allow-unsafe`; never in task-scoped servers | tests-only | mcp-server.md#pr-pull-request-tools |
 | `telegram` | `telegram_send_message`, `telegram_send_document` | Allow-listed sends (needs credentials) | tests-only | telegram.md |
 | `gmail` / `outlook` | `gmail_{list_emails,get_email,create_draft,send}`, `outlook_{list_emails,get_email,create_draft,send}` | Read/draft/send; only with credentials / `LAZYTOOLS_ENABLE_OUTLOOK=1` | tests-only | gmail.md |
@@ -216,7 +217,7 @@ Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.jso
 
 | Capability | How to call | What it does | Status | Docs |
 | --- | --- | --- | --- | --- |
-| Orchestration-only MCP server | `lazytools-orchestration-mcp [provider ids...] [--allow-unsafe] [--config lazytools.json] [--http --port N] [--list-tools]` | Mounts only `code_bridge`, `code_review`, `claude_review`, `code_sessions`, `codemap`, `projects`, `fleet`, `pr` (tools in section 8); refuses other ids; starts with one coding CLI or none | tests-only | mcp-server.md#orchestration-server |
+| Orchestration-only MCP server | `lazytools-orchestration-mcp [provider ids...] [--allow-unsafe] [--config lazytools.json] [--http --port N] [--list-tools]` | Mounts only `code_bridge`, `code_review`, `claude_review`, `code_sessions`, `codemap`, `projects`, `fleet`, `knowledge`, `pr` (tools in section 8); refuses other ids; starts with one coding CLI or none | tests-only | mcp-server.md#orchestration-server |
 
 ## 9. LazyBridge core (v1.10.0)
 

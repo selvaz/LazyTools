@@ -115,7 +115,7 @@ Providers whose optional extra is missing are simply skipped, a bare
 
 `lazytools-orchestration-mcp` runs the same server with only the orchestration
 providers: `code_bridge`, `code_review`, `claude_review`, `code_sessions`,
-`codemap`, `projects`, `fleet` and `pr`. `code_write` and the data providers are never
+`codemap`, `projects`, `fleet`, `knowledge` and `pr`. `code_write` and the data providers are never
 mounted. See the [design spec](design/orchestration-mcp/SPEC.md).
 
 ```sh
@@ -127,9 +127,9 @@ It takes the same flags and environment variables as `lazytools-mcp`. Positional
 ids (or `LAZYTOOLS_MCP_PROVIDERS`) narrow the selection; an id outside the list
 above is an error and the server does not start.
 
-Without `--allow-unsafe` it serves the `codemap`, `fleet`, `pr_watch_poll` and
-read-only `projects` tools. With it, bridge jobs, pull-request work, reviews,
-named sessions and project writes are added. It starts with one coding CLI installed or none: the review
+Without `--allow-unsafe` it serves the `codemap`, `fleet`, `lessons_search`,
+`pr_watch_poll` and read-only `projects` tools. With it, bridge jobs, pull-request
+work, reviews, named sessions, project writes and `lessons_record` are added. It starts with one coding CLI installed or none: the review
 provider of a missing CLI is skipped with a warning (Codex is also found through
 `CODEX_BIN` or the desktop app), and no engine SDK is imported at start.
 
@@ -161,7 +161,8 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `code_write` | `CodeWriteTools(...)` | `codex_write`, `claude_code_write` | `--allow-unsafe`, local runtimes; Claude needs `[engines]` |
 | `code_sessions` | `CodeSessionTools(...)` | list/bind/rename/forget native aliases | explicit opt-in with `--allow-unsafe` |
 | `code_bridge` | `CodeBridgeTools(...)` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` — local and cloud coding jobs through `lazytools-code-bridge` | `--allow-unsafe`; cloud jobs also need `allow_cloud=true` per call |
-| `fleet` | `FleetTools(...)` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search` | none; always read-only |
+| `fleet` | `FleetTools(...)` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search`, `bridge_events` | none; always read-only |
+| `knowledge` | `KnowledgeTools(...)` | `lessons_search` (+ `lessons_record` with `--allow-unsafe`) — the dispatcher's lessons store | none (core) |
 | `pr` | `PrTools(...)` | `pr_watch_poll` (+ `pr_navigate`, `bridge_publish`, `bridge_apply` with `--allow-unsafe`) | `gh` CLI, authenticated |
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
 | `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — Tools that delegate through `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
@@ -459,6 +460,7 @@ bridge_route(tier, engine=None, where=None, needs=None) -> JSON
 bridge_autonomy(week=None, since=None, until=None) -> JSON
 bridge_models() -> JSON
 capabilities_search(query="") -> rows
+bridge_events(cursor="", timeout_s=0) -> {"events": [...], "cursor": "..."}
 ```
 
 The `fleet` provider mirrors the corresponding `lazytools-code-bridge` CLI
@@ -468,6 +470,60 @@ Claude probe. Routing choices and ISO dates are validated before invocation;
 caller-provided values beginning with `-` are rejected rather than passed as
 options. `bridge_pending` reports bridge job approval tickets and is separate
 from the projects provider's pending approvals.
+
+`bridge_events` is the orchestrator's single job and ticket event channel over
+MCP. MCP calls are bounded, so it returns a cursor instead of streaming. Pass
+the returned `cursor` to the next call:
+
+- An empty cursor means "from now", like the startup snapshot of
+  `wait-any --all-active --loop --follow`. Jobs that already finished and
+  tickets that were already decided are not replayed. Tickets that are still
+  open are reported.
+- An event that happens between two calls is returned by the next call that
+  passes the previous cursor. This covers a job that starts and finishes, and a
+  ticket that is created and decided, between the two calls.
+- With `timeout_s` greater than 0 (at most 60), the call waits that long for at
+  least one new event. Otherwise it returns at once, possibly with no events.
+- Event kinds are `approval`, `done`, `failed` (also `partial` and failed cloud
+  landing or review), `interrupted`, `cancelled` (an interrupted job that an
+  operator cancelled or stopped), and `landed`. Each event carries `kind`,
+  `job_id`, `task_id` and `detail` (as `dispatch --json` events do), plus
+  `state`, `pr_url` and `approval`. `approval.status` gives the ticket's state
+  when it was read (`pending`, `approved`, `rejected`, `expired`).
+- The cursor is opaque: `ev1.<compressed state>.<checksum>`. The state lists
+  the jobs already reported or finished before the cursor started (job id
+  with its status or reported event) and the ticket ids already reported. A
+  cursor that fails validation (wrong format, checksum or schema) is refused
+  with an error. It is never silently reset. The cursor is checked for
+  integrity but not signed with a secret. Its size grows with the number of
+  finished jobs kept in the store, and ids of pruned jobs are dropped.
+- The tool only reads. Unlike `wait-any`, it does not finish cloud jobs (refresh
+  provider state, land, review). A cloud job's `landed` event shows up once a
+  `wait`, `wait-any` or `land` caller has recorded the landing, even if `done`
+  was already reported for that job.
+
+The event computation is shared with `wait-any`
+(`lazytools.code_bridge._events`). MCP notifications for events (SPEC R4.2)
+are not implemented yet. They are a separate task after the server split.
+
+### `knowledge` — shared lessons
+
+```text
+lessons_search(query, limit=5) -> list of lesson records
+lessons_record(topic, what_worked, gotchas="") -> text     # --allow-unsafe only
+```
+
+The store is the `knowledge_db` key of the `--config` file, else
+`LAZYTOOLS_KNOWLEDGE_DB`, else `~/.lazytools/knowledge.sqlite`. The dispatcher
+has no default store: to share lessons, start it with `--knowledge-db` pointing
+at the same file.
+
+Topics follow the dispatcher's form, `<repository>: <subject>`. Recording an
+existing topic revises that lesson; empty `gotchas` keeps the stored ones.
+`topic` is limited to 200 characters and each text to 4000, and
+credential-looking substrings are redacted. A new topic is also subject to
+LazyBridge's 60-character slug limit; a refusal is returned as `REJECTED: ...`.
+Searching never creates the database.
 
 ### `pr` — pull-request tools
 

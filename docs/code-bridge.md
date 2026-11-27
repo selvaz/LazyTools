@@ -83,6 +83,12 @@ its JSON lines for completion, failures, approvals, landings, and interruptions
 instead of maintaining a separate poller per job. The dispatch command also
 supports `--json` to emit structured task events as JSON lines.
 
+The event computation lives in `lazytools.code_bridge._events.iter_events`.
+`wait-any` calls it in its polling loop. The `bridge_events` MCP tool calls the
+same function through `_events.poll(cursor)`, which keeps the stream state in a
+cursor between calls (see [mcp-server.md](mcp-server.md#fleet--read-only-code-bridge-views)).
+There is one implementation, so both channels report the same events.
+
 ## Dispatch task graphs
 
 `dispatch` runs a project task graph through bridge jobs. A shared review type
@@ -688,6 +694,28 @@ Executables are resolved from `CODEX_BIN`/`CLAUDE_BIN` or `PATH`, with
 engine, session, review and capability constraints cannot silently relax
 these rules. `--needs` on `run` requires a tier. `--review-of` without a tier
 keeps the explicit `--engine` and does not apply the opposite-engine rule.
+
+#### Reviewer decision table
+
+One function, `_review_choice.choose_reviewer`, decides the reviewer for local
+routing (`route`, `run --tier`), cloud reviews and the job launcher. The first
+matching row wins:
+
+| row | condition | outcome |
+| --- | --- | --- |
+| 1 | the reviewer's native conversation id equals the writer's | refused: not independent |
+| 2 | the opposite engine is installed, or `--engine` names it | opposite engine, `opposite-engine` |
+| 3 | the writer's engine is the only one installed | writer's engine, `same-provider-fresh` |
+| 4 | neither 2 nor 3 | refused: opposite engine unavailable |
+| 5 | row 2 or 3 chose, but `--engine` names the other engine | refused: the review runs on the chosen engine |
+| 6 | row 3 chose and `--session` already has a conversation | refused: needs a new session name or none |
+
+An explicit `--engine` naming the opposite engine counts as installed: discovery
+only decides automatic selection. A local refusal is reported as
+`human_review_required`; a cloud refusal is an error. The launcher's engine is
+already fixed, so for it only row 1 can refuse (which is why `--review-of`
+without a tier keeps its `--engine`). After a reviewer is chosen, local routing
+can still end in `human_review_required` when that engine is ineligible.
 
 ### Native conversation ids and independence
 

@@ -66,6 +66,7 @@ EXPECTED_PROVIDER_IDS = {
     "registry",
     "pulse",
     "projects",
+    "knowledge",
 }
 
 

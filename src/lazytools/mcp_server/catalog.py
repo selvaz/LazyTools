@@ -81,6 +81,7 @@ PROVIDER_GROUPS: dict[str, ProviderCatalogEntry] = {
     "outlook": _entry("Messaging", 7, "Outlook", "LazyTools", "Read, draft, and send Outlook messages."),
     "projects": _entry("Operations", 8, "Projects", "LazyTools", "Inspect and maintain the shared project registry."),
     "registry": _entry("Operations", 8, "Registry", "LazyTools", "Inspect ecosystem databases and artifacts."),
+    "knowledge": _entry("Operations", 8, "Knowledge", "LazyTools", "Search and record the lessons shared with the dispatcher."),
     "pulse": _entry("Operations", 8, "LazyCEO backlog and approvals", "LazyCEO", "Inspect LazyCEO backlog items and approval tickets."),
     "studio": _entry("Operations", 8, "Studio", "LazyStudio", "Discover and invoke agents published by LazyStudio."),
 }

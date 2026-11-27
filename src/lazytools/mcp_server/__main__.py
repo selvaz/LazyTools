@@ -74,11 +74,11 @@ _ORCHESTRATION_SERVER = _ServerSpec(
     instructions=(
         "LazyTools orchestration tools: project registry (projects_*), code-bridge fleet, "
         "routing and model views (bridge_*, capabilities_search), pull-request polling "
-        "(pr_watch_poll) and repository maps (codemap_*). Read-only unless started with "
-        "--allow-unsafe, which adds coding jobs (code_bridge_*), pull-request work "
-        "(pr_navigate, bridge_publish, bridge_apply), read-only Codex and Claude Code review "
-        "and questions (codex_*, claude_*; each needs its local CLI) and named sessions "
-        "(code_sessions_*)."
+        "(pr_watch_poll), repository maps (codemap_*) and recorded lessons (lessons_search). "
+        "Read-only unless started with --allow-unsafe, which adds coding jobs (code_bridge_*), "
+        "pull-request work (pr_navigate, bridge_publish, bridge_apply), read-only Codex and "
+        "Claude Code review and questions (codex_*, claude_*; each needs its local CLI), named "
+        "sessions (code_sessions_*) and lesson recording (lessons_record)."
     ),
     providers=ORCHESTRATION_PROVIDERS,
 )
