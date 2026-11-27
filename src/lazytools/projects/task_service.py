@@ -1133,7 +1133,7 @@ class ProjectTaskService:
         failure_class: FailureClass | None = None,
         continuation: AttemptContinuation | None = None,
     ) -> None:
-        """Record trusted provider evidence. A failure reason stops retries on release."""
+        """Record trusted provider evidence and queue a continuation or settle the claim."""
         principal.require_role("orchestrator")
         with transaction(self.path, write=True) as store:
             task = _scoped_task(store, principal, task_id)
@@ -1169,7 +1169,13 @@ class ProjectTaskService:
                 if failure_class:
                     dispatch["failure_class"] = failure_class
                 if continuation is not None:
+                    # An unsubmitted infra retry can keep its preflight until the original expiry.
+                    placement = None
+                    if observation == "absent" and failure_class == "infra":
+                        placement, _ = _check_placement(task, receipt["effective_placement"], now)
                     _queue_continuation(task, continuation, failure_reason or "dispatch released")
+                    if placement is not None and placement.engine_family == receipt["engine_family"]:
+                        task.data["placement_evidence"][placement.placement]["revision"] = task.revision
                 elif failure_reason:
                     task.data.update(status="failed", completed_at=now, error=failure_reason)
             if job_ref:
