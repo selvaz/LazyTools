@@ -686,6 +686,18 @@ class ProjectTaskService:
             task.save(store, now)
             return {"claim": receipt}
 
+    def record_base_commit(self, principal: TaskPrincipal, task_id: str, claim_token: str, base_commit: str) -> None:
+        """Add the commit the task's checkout started from to that claim's receipt."""
+        principal.require_role("orchestrator")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, task_id)
+            for dispatch in task.data.get("dispatches", []):
+                if dispatch["receipt"]["claim_token"] == claim_token:
+                    dispatch["receipt"]["base_commit"] = base_commit
+                    task.save(store, self.clock())
+                    return
+            raise TaskServiceError("stale", "No dispatch holds this claim token")
+
     def begin_submit(self, principal: TaskPrincipal, task_id: str, claim_token: str) -> None:
         """Reserve the provider call. The adapter may call submit only after this succeeds."""
         with transaction(self.path, write=True) as store:

@@ -120,6 +120,9 @@ class BridgeLauncher:
         self.registry_db = registry_db
         self.launch_mode = launch_mode
         self.conflicts: dict[str, str] = {}
+        self.base_commits: dict[str, str] = {}  # task -> commit its checkout started from
+        self.stale_bases: dict[str, str] = {}  # task -> why its source could not be brought up to date
+        self._stale_sources: dict[Path, str] = {}  # reported once until the reason changes
         self.principal = principal
         self.project_id = project_id
         self.repo_roots = repo_roots or {}
@@ -131,6 +134,49 @@ class BridgeLauncher:
         if result.returncode:
             raise RuntimeError(result.stderr.strip() or f"git {' '.join(args)} failed")
         return result.stdout.strip()
+
+    @staticmethod
+    def _refresh_source(repo: Path) -> str | None:
+        """Fetch the source's origin and fast-forward its base branch (origin's default branch).
+
+        Returns why the source stays behind origin, or None when it is current or has no origin.
+        The source is only written when it is clean and on that branch, and only fast-forward.
+        """
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never"}  # never prompt
+
+        def git(*argv: str) -> subprocess.CompletedProcess[str]:
+            try:
+                return subprocess.run(["git", "-C", str(repo), *argv], text=True, capture_output=True,
+                                      check=False, env=env, timeout=120)
+            except subprocess.TimeoutExpired:
+                return subprocess.CompletedProcess(argv, 1, "", "timed out")
+
+        def failed(action: str, result: subprocess.CompletedProcess[str]) -> str:
+            return f"{action} failed: {' '.join(_cloud.redact(result.stderr).split())[:200]}"
+
+        if git("remote", "get-url", "origin").returncode:
+            return None
+        fetched = git("fetch", "--quiet", "origin")
+        if fetched.returncode:
+            return failed("fetch from origin", fetched)
+        head = git("ls-remote", "--symref", "origin", "HEAD")
+        match = re.search(r"^ref: refs/heads/(\S+)\s+HEAD$", head.stdout, re.MULTILINE)
+        if match is None:
+            return failed("reading origin's default branch", head)
+        base = match.group(1)
+        target = f"refs/remotes/origin/{base}"
+        if git("merge-base", "--is-ancestor", target, "HEAD").returncode == 0:
+            return None  # the commit tasks start from already has everything on origin
+        current = git("branch", "--show-current").stdout.strip()
+        if current != base:
+            return f"source is on {current or 'a detached HEAD'}, not {base}"
+        status = git("status", "--porcelain")
+        if status.returncode or status.stdout.strip():
+            return "source checkout is dirty"
+        if git("merge-base", "--is-ancestor", "HEAD", target).returncode:
+            return f"source {base} has diverged from origin/{base}"
+        merged = git("merge", "--ff-only", "--quiet", target)
+        return failed("fast-forward", merged) if merged.returncode else None
 
     def _checkout(self, task: dict[str, Any]) -> Path:
         repo = self.repo_roots.get(str(task.get("repo"))) or Path.cwd()
@@ -145,11 +191,20 @@ class BridgeLauncher:
                 # Continue from the failed attempt's work; it stays the task's own (base unchanged).
                 current = self._git(checkout, "config", "--get", "dispatch.branch")
                 self._git(checkout, "checkout", "--quiet", "-B", current, str(preserved))
-                return checkout
-            # A new attempt in an existing checkout must add its own commits.
-            subprocess.run(["git", "-C", str(checkout), "tag", "-f", "dispatch-base", "HEAD"],
-                           text=True, capture_output=True, check=False)
+            else:
+                # A new attempt in an existing checkout must add its own commits.
+                subprocess.run(["git", "-C", str(checkout), "tag", "-f", "dispatch-base", "HEAD"],
+                               text=True, capture_output=True, check=False)
+            base_tag = subprocess.run(["git", "-C", str(checkout), "rev-parse", "-q", "--verify",
+                                       "dispatch-base^{commit}"], text=True, capture_output=True, check=False)
+            if base_tag.returncode == 0:
+                self.base_commits[str(task["task_id"])] = base_tag.stdout.strip()
             return checkout
+        why = self._refresh_source(repo)
+        if why is None:
+            self._stale_sources.pop(repo, None)
+        elif self._stale_sources.get(repo) != why:
+            self._stale_sources[repo] = self.stale_bases[str(task["task_id"])] = why
         checkout.parent.mkdir(parents=True, exist_ok=True)
         dependencies = task.get("dependencies", [])
         commits = [str(item["artifact_ref"]) for item in dependencies if item.get("artifact_ref")]
@@ -187,6 +242,7 @@ class BridgeLauncher:
                            text=True, capture_output=True, check=False)
         self._git(checkout, "checkout", "--quiet", "-B", str(branch), str(base))
         self._git(checkout, "config", "dispatch.branch", str(branch))  # publication checks it
+        self.base_commits[str(task["task_id"])] = self._git(checkout, "rev-parse", "HEAD")
         for index, commit in enumerate(commits[1:], start=1):
             result = subprocess.run(
                 ["git", "-C", str(checkout), "merge", "--no-edit", commit],
@@ -637,6 +693,18 @@ class Dispatcher:
         return self._retry(task, "resume failed", reason, {**continuation, "native_id": None, "fresh": True},
                            str(job.get("job_id")))
 
+    def _record_base(self, task_id: str, claim: dict[str, Any]) -> None:
+        """Report a source that stayed stale and keep the checkout's base commit in the receipt."""
+        why = getattr(self.launcher, "stale_bases", {}).pop(task_id, None)
+        if why:
+            self._event("waiting", task_id, f"source base is stale: {why}")
+        base = getattr(self.launcher, "base_commits", {}).pop(task_id, None)
+        if base:
+            try:
+                self.service.record_base_commit(self.principal, task_id, claim["claim_token"], base)
+            except Exception as exc:
+                self._event("receipt-error", task_id, f"could not record base commit: {exc}")
+
     def _record_lesson(self, task: Task, kind: str, reason: str) -> None:
         store = self.knowledge_store
         if store is None:
@@ -1023,6 +1091,7 @@ class Dispatcher:
             try:
                 job_ref = self.launcher.launch(self._launch_input({**summary, **data}, claim), claim)
             except Exception as exc:
+                self._record_base(summary["task_id"], claim)
                 reason = str(exc).replace("\n", " ")
                 try:
                     self.service.fail_local_launch(
@@ -1033,6 +1102,7 @@ class Dispatcher:
                 self._record_lesson(board_task, "launch failure", reason)
                 self._event("failed", summary["task_id"], reason)
             else:
+                self._record_base(summary["task_id"], claim)
                 self._event("launched", summary["task_id"], job_id=job_ref)
                 running += 1
                 if branch:
