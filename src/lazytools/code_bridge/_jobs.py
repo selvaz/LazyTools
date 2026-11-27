@@ -666,6 +666,11 @@ def run_job(
                 native_binding.update(task_id=claim.task_id, task_executor=claim.principal.actor,
                                       task_review_of=claim.receipt["review_of"],
                                       task_branch=claim.receipt["assigned_branch"])
+            elif session_name and not intentional_review and not claim.receipt["review_of"]:
+                # A writer's transcript spans the attempts of its task: a dispatch retry resumes it.
+                # The new claim still fences the job and every tool call.
+                native_binding.update(task_id=claim.task_id, task_executor=claim.principal.actor,
+                                      task_branch=claim.receipt["assigned_branch"])
             else:
                 native_binding.update(claim.binding())
         if native_id:

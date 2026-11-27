@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 from lazybridge import Envelope
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _jobs, _store, cli
+from lazytools.code_bridge import _jobs, _store, _task, cli
 
 
 @pytest.fixture
@@ -95,6 +96,39 @@ def test_writer_record_without_native_id_falls_back_to_its_turns(bridge, capsys)
     _store.write_meta(store, writer.job_id, meta)
     review = run(bridge, session_name="writer", review_of=writer.job_id, intentional_review=True)
     assert review.status == "failed" and "not independent" in review.error
+
+
+def test_a_retry_attempt_resumes_the_writer_conversation_of_its_task(bridge, monkeypatch):
+    from lazytools.connectors.projects import ProjectsTools
+    from lazytools.projects.task_service import CompletionEvidence, ProjectTaskService
+    from test_projects_task_service import OPERATOR, PROJECT, admit, claim, placement, revision, task
+
+    path = os.environ["LAZYTOOLS_PROJECTS_STORE_DB"]
+    projects = ProjectsTools(store_db=path, allow_write=True)
+    projects.projects_create(PROJECT, "Bridge test", "Resume a writer across attempts")
+    admit(projects, [task("local"), task("other")])
+    service = ProjectTaskService(path)
+    monkeypatch.setenv(_task.PRINCIPAL_ENV, OPERATOR.model_dump_json())
+    bridge[0].mode = "error"  # each attempt's engine fails, as a crash would
+    results = []
+    for number in (1, 2):
+        placement(service, "local")
+        receipt = claim(service, "local", key=f"dispatch-{number}", principal=OPERATOR)
+        assert receipt["attempt"] == number
+        result = run(bridge, "codex", session_name="dispatch-attempt-1", task_id=receipt["task_id"],
+                     claim_token=receipt["claim_token"], launch_mode="legacy")
+        results.append(result)
+        reference = f"evidence-{result.job_id}"
+        service.record_completion_evidence(OPERATOR, receipt["task_id"], number, CompletionEvidence(
+            reference=reference, job_ref=result.job_id, executor=receipt["executor"],
+            engine_family=receipt["engine_family"], state="blocked", outcome="task_failure"))
+        service.complete(OPERATOR, receipt["task_id"], receipt["claim_token"], reference, "blocked", reference,
+                         "task_failure")
+        service.prepare_attempt(OPERATOR, receipt["task_id"], revision(service, "local"), "retry after engine crash")
+    assert [result.error.splitlines()[0] for result in results] == ["turn failed"] * 2  # no binding refusal
+    store = _store.build_store(bridge[3])
+    assert [_store.read_meta(store, result.job_id)["native_id"] for result in results] == ["codex-id-1"] * 2
+    assert bridge[0].engines[1].kwargs["thread_id"] == "codex-id-1"
 
 
 def test_unknown_writer_job_is_refused_without_a_record(bridge):
