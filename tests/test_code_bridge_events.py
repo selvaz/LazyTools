@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from lazytools.code_bridge import _events, _store
+from lazytools.code_bridge import _cloud, _cloud_land, _events, _store
+from lazytools.code_bridge.cli import main
 
 
 def _job(db, job_id: str, status: str, **meta):
@@ -113,6 +116,68 @@ def test_cloud_landing_after_done_is_reported_once(tmp_path):
     assert "landed_event_reported_at" not in (_store.read_meta(store, "cloud-job") or {})
     events, _cursor = _events.poll(cursor, db_path=db)
     assert events == []
+
+
+def test_landing_failure_after_done_is_reported_once(tmp_path, capsys):
+    db = tmp_path / "jobs.sqlite"
+    store = _job(db, "cloud-job", "running", where="cloud", land=True)
+    _events_list, cursor = _events.poll("", db_path=db)
+    _store.build_job_registry(store).write("cloud-job", "task", tool_name="codex", status="done")
+    events, cursor = _events.poll(cursor, db_path=db)
+    assert _kinds(events) == [("done", "cloud-job")]
+
+    meta = _store.read_meta(store, "cloud-job") or {}
+    _store.write_meta(store, "cloud-job", {**meta, "land_error": "push rejected", "land_failed_at": 4e9})
+    events, cursor = _events.poll(cursor, db_path=db)
+    assert _kinds(events) == [("failed", "cloud-job")]
+    assert events[0]["state"] == "done" and events[0]["detail"] == "push rejected"
+    events, cursor = _events.poll(cursor, db_path=db)
+    assert events == []
+    # A scheduler retrying the same landing is not a new outcome.
+    _store.write_meta(store, "cloud-job", {**meta, "land_error": "push rejected", "land_failed_at": 4e9 + 60})
+    events, cursor = _events.poll(cursor, db_path=db)
+    assert events == []
+
+    _store.write_meta(store, "cloud-job", {**meta, "land_error": None, "landed_at": 4e9 + 120})
+    events, _cursor = _events.poll(cursor, db_path=db)
+    assert _kinds(events) == [("landed", "cloud-job")]
+
+
+def test_wait_any_and_poll_report_the_same_stored_landing_failure(tmp_path, capsys):
+    db = tmp_path / "jobs.sqlite"
+    _store.build_store(db)
+    _events_list, cursor = _events.poll("", db_path=db)
+    # No owed landing (submitted without --land): neither reader runs the finisher.
+    _job(db, "cloud-job", "done", where="cloud", land_error="push rejected", land_failed_at=100)
+    polled, _cursor = _events.poll(cursor, db_path=db)
+    assert main(["wait-any", "cloud-job", "--db", str(db)]) == 0
+    assert json.loads(capsys.readouterr().out) == polled[0]
+    assert polled[0]["kind"] == "failed"
+
+
+def test_landing_failure_before_the_cursor_is_history(tmp_path):
+    db = tmp_path / "jobs.sqlite"
+    _job(db, "old-failure", "done", where="cloud", land=True, land_error="push rejected", land_failed_at=100)
+    events, cursor = _events.poll("", db_path=db)
+    assert events == []
+    assert _events.poll(cursor, db_path=db)[0] == []
+
+
+def test_review_posting_failure_is_persisted_and_reported(tmp_path, monkeypatch):
+    db = tmp_path / "jobs.sqlite"
+    store = _job(db, "review-job", "running", where="cloud", review={"of": "other"})
+    _events_list, cursor = _events.poll("", db_path=db)
+    registry = _store.build_job_registry(store)
+    registry.write("review-job", "task", tool_name="codex", status="done")
+    events, cursor = _events.poll(cursor, db_path=db)
+    assert _kinds(events) == [("done", "review-job")]
+
+    monkeypatch.setattr(_cloud_land, "review_text", lambda job: "")
+    with pytest.raises(_cloud.CloudError):
+        _cloud_land.post_review(store, registry, {"job_id": "review-job"})
+    events, cursor = _events.poll(cursor, db_path=db)
+    assert _kinds(events) == [("failed", "review-job")] and "REVIEW.md" in events[0]["detail"]
+    assert _events.poll(cursor, db_path=db)[0] == []
 
 
 def test_landing_before_the_cursor_is_history(tmp_path):

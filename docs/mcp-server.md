@@ -498,9 +498,13 @@ the returned `cursor` to the next call:
   integrity but not signed with a secret. Its size grows with the number of
   finished jobs kept in the store, and ids of pruned jobs are dropped.
 - The tool only reads. Unlike `wait-any`, it does not finish cloud jobs (refresh
-  provider state, land, review). A cloud job's `landed` event shows up once a
-  `wait`, `wait-any` or `land` caller has recorded the landing, even if `done`
-  was already reported for that job.
+  provider state, land, review). A cloud job's `landed` event, or its `failed`
+  event for a landing or review posting that failed, shows up once a `wait`,
+  `wait-any`, `cloud-sync` or `apply --land` caller has recorded the outcome,
+  even if `done` was already reported for that job. Each outcome is reported
+  once; a retry that fails again is not a new event.
+- Event kinds come only from the stored job record (status and landing
+  metadata), so `wait-any` and `bridge_events` read the same record alike.
 
 The event computation is shared with `wait-any`
 (`lazytools.code_bridge._events`). MCP notifications for events (SPEC R4.2)
