@@ -3,12 +3,24 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import sqlite3
 import time
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any, Protocol
+
+_log = logging.getLogger(__name__)
+
+
+def _env_seconds(name: str, default: float) -> float:
+    try:
+        value = float(os.environ.get(name, ""))
+    except ValueError:
+        return default
+    return value if value > 0 else default
 
 PUBLICATION_RECEIPTS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS publication_receipts (
@@ -78,10 +90,22 @@ def transaction(path: Path | None, *, write: bool = False) -> Iterator[Transacti
     if path is None:
         raise TaskServiceError("unavailable", "A persistent projects store is required")
     try:
-        with closing(sqlite3.connect(path.as_uri() + "?mode=rw", uri=True, timeout=5)) as connection, connection:
-            connection.execute("BEGIN IMMEDIATE" if write else "BEGIN")
+        timeout = _env_seconds("LAZYBRIDGE_STORE_BUSY_TIMEOUT", 30.0)
+        with closing(sqlite3.connect(path.as_uri() + "?mode=rw", uri=True, timeout=timeout)) as connection, connection:
+            started = time.monotonic()
+            try:
+                connection.execute("BEGIN IMMEDIATE" if write else "BEGIN")
+            finally:
+                elapsed = time.monotonic() - started
+                if write and elapsed >= _env_seconds("LAZYBRIDGE_STORE_SLOW_WRITE", 1.0):
+                    _log.warning("slow projects Store lock wait: %.2fs in %s", elapsed, path)
             yield TransactionStore(connection)
-    except (sqlite3.Error, json.JSONDecodeError) as exc:
+    except sqlite3.Error as exc:
+        code = getattr(exc, "sqlite_errorcode", None)
+        if code is not None and code & 0xFF in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            raise TaskServiceError("busy", "The projects store is busy") from exc
+        raise TaskServiceError("unavailable", "The projects store is unavailable") from exc
+    except json.JSONDecodeError as exc:
         raise TaskServiceError("unavailable", "The projects store is unavailable") from exc
 
 
