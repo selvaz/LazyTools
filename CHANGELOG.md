@@ -9,6 +9,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- `dispatch --land` titles the PR with the task's `title` (plans now keep that field) or the first sentence of its first line, at most 72 characters, and hides absolute local paths in the published check list.
 - `dispatch` fetches the source repository's origin and fast-forwards its clean base branch before creating a task clone, so later tasks include PRs merged meanwhile; a source it cannot update is reported as `waiting <task> source base is stale: <why>`, and the dispatch receipt records `base_commit`.
 
 ## [0.15.0] — 2026-11-26

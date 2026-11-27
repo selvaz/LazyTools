@@ -109,7 +109,8 @@ Routes without repo or environment identity cannot be quarantined.
 Cloud placement evidence without an environment ID is ineligible, even if its
 probe reports green; an independently eligible local fallback can still run.
 
-Structured plan objects can provide a project-local `task_id`, `dependency_ids`,
+Structured plan objects can provide a `title` (used as the title of the pull
+request opened by `dispatch --land`), a project-local `task_id`, `dependency_ids`,
 `tier` (`basic`, `writing`, `thinking`, or `critical`), `requested_profile`,
 `requested_network`, `requested_placement`, `effective_placement` and
 `placement_reason`. The queue exposes IDs such as `deployment/build` and

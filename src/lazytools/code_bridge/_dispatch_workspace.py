@@ -5,7 +5,7 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from lazytools.code_bridge import _cloud, _cloud_land, _gh
@@ -237,8 +237,9 @@ def _sanitize_check(command: str) -> str:
     parts = _split_command(command)
     if not parts:
         return command
-    parts[0] = Path(parts[0]).name
-    return re.sub(r"(?i)(?:[A-Z]:[\\/]|/)(?:[^\s`]+[\\/])*[^\s`]+", "<local>", " ".join(parts))
+    parts[0] = PureWindowsPath(parts[0]).name  # splits on both separators on every platform
+    # Only a path that starts a word or an option value is absolute: `tests/x.py` stays.
+    return re.sub(r"""(?i)(?<![^\s="'])(?:[A-Z]:[\\/]|/)[^\s`"']+""", "<local>", " ".join(parts))
 
 
 def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
@@ -256,13 +257,11 @@ def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
         existing = _gh.pr_for_branch(repo, branch)
         if existing and existing.get("url"):
             return str(existing["url"]), None  # a revision of the branch updates its PR
-        text_lines = str(data.get("text") or "").strip().splitlines()
-        title = str(data.get("title") or "").strip()
+        title = str(data.get("title") or "").strip()[:200]
         if not title:
-            sentence = str(data.get("text") or task_id).strip().split(".", 1)[0].strip()
-            title = re.sub(r"\s+", " ", sentence)
-            if len(title) > 72:
-                title = title[:72].rsplit(" ", 1)[0] or title[:72]
+            lines = str(data.get("text") or "").strip().splitlines()
+            sentence = re.split(r"(?<=[.!?])\s+", lines[0], maxsplit=1)[0].rstrip(".") if lines else ""
+            title = _cloud_land._short_title(sentence) or task_id
         criteria = data.get("acceptance_criteria") or []
         body = "\n".join([
             f"Task: `{task_id}`", "", "Acceptance criteria:",
