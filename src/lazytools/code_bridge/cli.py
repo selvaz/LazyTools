@@ -502,6 +502,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         extra_meta: dict[str, Any] = {}
         if args.review_of:
             store = _store.build_store(_db_path(args))
+            rows = _jobs.list_jobs(store, all_jobs=True) if args.session else []
             prep = _cloud_land.prepare_review(
                 store,
                 _store.build_job_registry(store),
@@ -511,19 +512,14 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
                 engine=args.engine,
                 extra=task,
                 root=_cloud.repo_root(cwd),
+                session_history=bool(args.session)
+                and _routing.session_hint(rows, str(cwd), args.session).engine is not None,
             )
             if branch and branch != prep["branch"]:
                 raise ValueError(f"--branch {branch!r} conflicts with the reviewed branch {prep['branch']!r}")
             args.engine, branch, task = prep["engine"], prep["branch"], prep["task"]
             review_meta = extra_meta["review"] = prep["review"]
             extra_meta["review_independence"] = review_meta["independence"]
-            if args.session and review_meta["independence"] == "same-provider-fresh":
-                rows = _jobs.list_jobs(store, all_jobs=True)
-                if _routing.session_hint(rows, str(cwd), args.session).engine is not None:
-                    raise ValueError(
-                        f"--session {args.session!r} already has a conversation in this repository; a "
-                        "same-provider-fresh review needs a new session name or none"
-                    )
         if args.routine and args.engine != "claude":
             raise ValueError("--routine is only for --where cloud --engine claude")
     except (OSError, ValueError, _cloud.CloudError) as exc:
