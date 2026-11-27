@@ -15,6 +15,8 @@ import contextlib
 import hashlib
 import json
 import os
+import subprocess
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -55,6 +57,8 @@ def _windows_kernel32() -> Any:
     kernel32.OpenProcess.restype = wintypes.HANDLE
     kernel32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, wintypes.LPDWORD)
     kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+    kernel32.GetProcessTimes.argtypes = (wintypes.HANDLE, *(ctypes.POINTER(wintypes.FILETIME),) * 4)
+    kernel32.GetProcessTimes.restype = wintypes.BOOL
     kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
     kernel32.CloseHandle.restype = wintypes.BOOL
     return kernel32
@@ -103,6 +107,59 @@ def _pid_alive(pid: int) -> bool:
     except PermissionError:
         return True  # exists, just owned by someone else
     return True
+
+
+def process_start_time(pid: int) -> str | None:
+    """Read the OS process identity. Raise for a gone process, return None if unknown."""
+    if sys.platform == "win32":  # sys.platform lets type checkers skip Windows-only ctypes on other OSes
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = _KERNEL32
+        assert kernel32 is not None
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            if ctypes.get_last_error() == 87:  # ERROR_INVALID_PARAMETER: no such PID
+                raise ProcessLookupError(pid)
+            return None
+        try:
+            exit_code = wintypes.DWORD()
+            if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)) and exit_code.value != 259:
+                raise ProcessLookupError(pid)
+            times = [wintypes.FILETIME() for _ in range(4)]
+            if kernel32.GetProcessTimes(handle, *(ctypes.byref(value) for value in times)):
+                return str((times[0].dwHighDateTime << 32) | times[0].dwLowDateTime)
+            return None
+        finally:
+            kernel32.CloseHandle(handle)
+    if not _pid_alive(pid):
+        raise ProcessLookupError(pid)
+    try:
+        if sys.platform.startswith("linux"):
+            fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+            if fields[0] in ("Z", "X"):
+                raise ProcessLookupError(pid)
+            return fields[19]  # starttime, field 22 in /proc/<pid>/stat
+        result = subprocess.run(
+            ["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True,
+            env={**os.environ, "LC_ALL": "C"}, timeout=2, check=False,
+        )
+        return result.stdout.strip() or None
+    except FileNotFoundError:
+        if not _pid_alive(pid):
+            raise ProcessLookupError(pid) from None
+        return None
+    except (PermissionError, subprocess.TimeoutExpired):
+        return None
+
+
+def process_has_exited(pid: int, started_at: str | None) -> bool:
+    """Recognize both an absent process and a PID reused by a different process."""
+    try:
+        current = process_start_time(pid)
+    except ProcessLookupError:
+        return True
+    return current is not None and started_at is not None and current != started_at
 
 
 def _lock_key(cwd: Path) -> str:

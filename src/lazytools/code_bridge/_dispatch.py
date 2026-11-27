@@ -4,11 +4,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
+import socket
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
+from threading import Event, Thread, current_thread, main_thread
 from typing import Any, Literal
+from uuid import uuid4
 
 from lazybridge import Store
 from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugify
@@ -21,6 +25,7 @@ from lazytools.code_bridge import (
     _dispatch_launch,
     _dispatch_workspace,
     _jobs,
+    _lockfile,
     _routing,
     _store,
 )
@@ -35,6 +40,8 @@ from lazytools.projects.task_fields import task_id as board_task_id
 from lazytools.projects.task_service import (
     AttemptContinuation,
     CompletionEvidence,
+    DispatcherOwner,
+    DispatchLanding,
     PlacementEvidence,
     ProjectTaskService,
     TaskPrincipal,
@@ -46,10 +53,13 @@ TERMINAL = frozenset({"done", "partial", "failed", "interrupted", "cancelled"})
 DEFAULT_STALE_MINUTES = 10
 DEFAULT_TOOL_STALE_MINUTES = 60  # one tool call running longer than this is stale
 DEFAULT_MAX_CHECK_RETRIES = 2
+PLACEMENT_SECONDS = 3660  # placement stays valid while a detached job waits for its engine slot
 STALE_HEARTBEAT = "engine heartbeat went stale"
 # Engine crashes (not task failures): retried once with a fresh attempt.
 RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
                       "no new commit since the task started", STALE_HEARTBEAT, "database is locked")
+ORPHAN_EVIDENCE = ("dispatcher:cloud-submission-absent", "dispatcher:no-job-after-grace",
+                   "dispatcher:abandoned-claim")
 
 
 def _tool_call_in_progress(job: dict[str, Any], now: float, bound: float) -> bool:
@@ -144,6 +154,9 @@ class Dispatcher:
         self.emit: Callable[[str], None] = emit or (lambda line: print(line, flush=True))
         self.task_reader = task_reader
         self.clock, self.orphan_grace = clock, orphan_grace
+        pid = os.getpid()
+        self.owner = DispatcherOwner(instance_id=uuid4().hex, host=socket.gethostname().casefold(),
+                                     pid=pid, started_at=_lockfile.process_start_time(pid))
         self.stale_seconds = stale_minutes * 60
         self.router = router
         self.capacity = capacity  # engine family -> local slot limit (None = unlimited)
@@ -254,7 +267,8 @@ class Dispatcher:
         receipt = (task.dispatch or {})["receipt"]
         reason = str(job.get("error") or "resume refused").replace("\n", " ")
         self.service.fail_local_launch(self.principal, task.task_id, receipt["claim_token"],
-                                       f"resume refused before submit: {reason}")
+                                       f"resume refused before submit: {reason}",
+                                       dispatcher_owner=receipt.get("dispatcher_owner"))
         if continuation.get("check_failures"):
             self._event("failed", task.task_id, f"resume refused before submit: {reason}", job_id=job.get("job_id"))
             return True
@@ -416,7 +430,7 @@ class Dispatcher:
             self.service.record_placement(task.task_id, task.revision, PlacementEvidence(
                 placement="local", eligible=True, reason=detail,
                 reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}",
-                expires_at=now + self.service.lease_seconds + 60, engine_family=engine,
+                expires_at=now + PLACEMENT_SECONDS, engine_family=engine,
                 model=decision.model, effort=decision.effort,
             ))
             in_use[engine] = in_use.get(engine, 0) + 1
@@ -450,7 +464,7 @@ class Dispatcher:
             placement="cloud", eligible=True,
             reason=detail,
             reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}-cloud",
-            expires_at=now + self.service.lease_seconds + 60, engine_family=engine, environment_id=environment,
+            expires_at=now + PLACEMENT_SECONDS, engine_family=engine, environment_id=environment,
         ))
         self._event("placed", task.task_id, f"cloud {engine} env={environment} tier={tier} | {detail}")
 
@@ -462,29 +476,55 @@ class Dispatcher:
                 self._event("blocked", task.task_id)
                 self.reported_blocked.add(task.task_id)
 
+    def _owner_is_dead(self, owner: DispatcherOwner) -> bool:
+        return owner["host"] == self.owner["host"] and _lockfile.process_has_exited(owner["pid"], owner["started_at"])
+
+    def _refresh_claims(self, tasks: list[Task]) -> bool:
+        owners = {
+            owner["instance_id"]: owner
+            for task in tasks
+            if task.status == "claimed" or (task.dispatch or {}).get("pending_landing")
+            if (owner := (task.dispatch or {}).get("receipt", {}).get("dispatcher_owner")) is not None
+        }
+        if owners:
+            dead = {key for key, owner in owners.items() if owner != self.owner and self._owner_is_dead(owner)}
+            self.service.renew_dispatcher_claims(self.principal, self.project_id, self.owner, dead_instances=dead)
+        return bool(owners)
+
+    def _expired(self, receipt: dict[str, Any]) -> bool:
+        # The snapshot can predate several heartbeats during a slow check. The
+        # service checks the current owner and lease when committing settlement.
+        return not receipt.get("dispatcher_owner") and receipt.get("lease_expires_at", float("inf")) <= self.clock()
+
     def _orphan_expired(self, dispatch: dict[str, Any], receipt: dict[str, Any]) -> bool:
         now = self.clock()
         created = float(dispatch.get("created_at", 0))
-        return float(receipt.get("lease_expires_at", float("inf"))) <= now and now - created >= self.orphan_grace
+        if dispatch.get("dispatcher_recovered"):
+            return True
+        return self._expired(receipt) and now - created >= self.orphan_grace
 
     def _settle_missing(self, task: Task, dispatch: dict[str, Any], receipt: dict[str, Any], *,
                         cloud_absent: bool = False) -> bool:
-        """Release an expired claim after its job has been ruled out."""
-        if not self._orphan_expired(dispatch, receipt):
+        """Release an abandoned claim after its job has been ruled out."""
+        owned = receipt.get("dispatcher_owner") == self.owner
+        past_startup = owned and self.clock() - dispatch["created_at"] >= self.orphan_grace
+        if not ((cloud_absent and owned) or self._orphan_expired(dispatch, receipt) or past_startup):
             return False
         job_ref = dispatch.get("job_ref")
         observation: Literal["absent", "terminated"] = "terminated" if job_ref and not cloud_absent else "absent"
-        evidence_ref = "dispatcher:cloud-submission-absent" if cloud_absent else "dispatcher:no-job-after-grace"
+        evidence_ref = ORPHAN_EVIDENCE[0] if cloud_absent else ORPHAN_EVIDENCE[2 if owned else 1]
         previous_orphans = sum(
-            old.get("reconciliation_ref") in ("dispatcher:cloud-submission-absent", "dispatcher:no-job-after-grace")
+            old.get("reconciliation_ref") in ORPHAN_EVIDENCE
             and old["receipt"]["revision"] == receipt.get("revision")
             for old in task.data.get("dispatches", [])[:-1]
         )
-        reason = "provider has no matching dispatch" if cloud_absent else "no job after dispatch grace period"
+        reason = "provider has no matching dispatch" if cloud_absent else (
+            "abandoned claim has no bridge job" if owned else "no job after dispatch grace period")
         retry = previous_orphans + self.retries.get(task.task_id, 0) < self.max_retries
         self.service.reconcile_dispatch(
             self.principal, task.task_id, receipt["attempt"], observation, evidence_ref=evidence_ref,
             job_ref=job_ref, failure_reason=None if retry else reason,
+            dispatcher_owner=self.owner if owned else None,
         )
         self._event("reconciled", task.task_id, observation, job_id=job_ref)
         self._record_lesson(task, "missing job", reason)
@@ -497,6 +537,7 @@ class Dispatcher:
         verification_id: str | None = None, reviewed_sha: str | None = None,
         review_passed: bool = False, review_independence: Any = None,
         preserved_branch: str | None = None, pr_url: str | None = None, land_failure: str | None = None,
+        landing: DispatchLanding | None = None,
     ) -> CompletionEvidence:
         """Record completion evidence and complete the claim; return the evidence the task settled on.
 
@@ -528,9 +569,14 @@ class Dispatcher:
                 "failure_reason": "claim lease expired",
             }))
         if not recorded:
-            self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
+            owner_options: dict[str, Any] = {"dispatcher_owner": self.owner} if receipt.get("dispatcher_owner") else {}
+            self.service.record_completion_evidence(
+                self.principal, task.task_id, receipt["attempt"], evidence, **owner_options,
+            )
         accepted = evidence.state == "accepted"
-        complete_options = {"reconcile_failure": True} if expired else {}
+        complete_options: dict[str, Any] = {"reconcile_failure": True} if expired else {}
+        if receipt.get("dispatcher_owner"):
+            complete_options.update(dispatcher_owner=self.owner, landing=landing if accepted else None)
         self.service.complete(self.principal, task.task_id, receipt["claim_token"], evidence.reference,
                               evidence.state, evidence.reference, "success" if accepted else "task_failure",
                               **complete_options)
@@ -551,11 +597,12 @@ class Dispatcher:
             # Still `intent` with no job: begin_submit never succeeded (the store was busy, or the
             # dispatcher stopped first), so nothing reached the provider and the submit is still owed.
             if (dispatch.get("state") == "intent" and not dispatch.get("job_ref")
+                    and not dispatch.get("dispatcher_recovered")
                     and receipt.get("executor") == self.principal.actor):
                 return self._launch_cloud(task, receipt, receipt)
             return self._settle_missing(task, dispatch, receipt)
         if job.get("status") == "submitting" and not job.get("cloud_handle"):
-            if not self._orphan_expired(dispatch, receipt):
+            if not (receipt.get("dispatcher_owner") == self.owner or self._orphan_expired(dispatch, receipt)):
                 return False
             try:
                 job = self.launcher.reconcile_cloud_submission(  # type: ignore[attr-defined]
@@ -578,7 +625,7 @@ class Dispatcher:
             self.service.record_submit(self.principal, task.task_id, token, job_ref)
             self._event("reconciled", task.task_id, "adopted", job_id=job_ref)
         status = job.get("status")
-        expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+        expired = self._expired(receipt)
         landing_owed = status == "done" and _cloud_land.needs_finishing(job) and not job.get("land_failure")
         if status not in TERMINAL or landing_owed:
             cancel = getattr(self.launcher, "cancel", None)
@@ -620,7 +667,7 @@ class Dispatcher:
                     remove = getattr(self.launcher, "remove_cloud_checkout", None)
                     if remove is not None:
                         remove(cwd)
-            expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+            expired = self._expired(receipt)
             failure = failure or ("claim lease expired" if expired else None)
         else:
             failure = None
@@ -646,14 +693,19 @@ class Dispatcher:
         """
         task_id, token = summary["task_id"], claim["claim_token"]
         job_id = _dispatch_launch.cloud_job_id(token)
+        owner = self.owner if claim.get("dispatcher_owner") else None
         try:
-            self.service.begin_submit(self.principal, task_id, token)
+            self.service.begin_submit(self.principal, task_id, token, dispatcher_owner=owner)
         except Exception as exc:
             if isinstance(exc, TaskServiceError) and exc.code == "busy":
                 self._event("deferred", task_id, str(exc))  # the claim stays `intent`: see _settle_cloud
                 return True
             reason = str(exc).replace("\n", " ")
-            self.service.fail_dispatch_launch(self.principal, task_id, token, reason)  # back to todo
+            try:
+                self.service.fail_dispatch_launch(self.principal, task_id, token, reason, dispatcher_owner=owner)
+            except TaskServiceError as release_exc:
+                self._event("deferred", task_id, str(release_exc))
+                return True
             self._event("failed", task_id, reason)
             return False
         try:
@@ -664,7 +716,7 @@ class Dispatcher:
             job = self.launcher.job(job_id)
             if job is None:  # nothing reached the provider
                 try:
-                    self.service.fail_local_launch(self.principal, task_id, token, reason)
+                    self.service.fail_local_launch(self.principal, task_id, token, reason, dispatcher_owner=owner)
                 except Exception as release_exc:
                     reason = f"{reason}; claim release failed: {str(release_exc).replace(chr(10), ' ')}"
                 self._record_lesson(task, "launch failure", reason)
@@ -683,7 +735,7 @@ class Dispatcher:
         if receipt.get("effective_placement") == "cloud":
             return self._settle_cloud(task)
         job_ref = dispatch.get("job_ref")
-        job = self.launcher.job(job_ref) if job_ref else self.launcher.find(task.task_id, receipt.get("attempt", 0))
+        job = self._local_job(task)
         continuation = task.data.get("attempt_continuation")
         resumed = _dispatch_launch._resumes(continuation, receipt.get("engine_family"))
         if (job and not job_ref and resumed and continuation and dispatch.get("state") == "intent"
@@ -693,14 +745,25 @@ class Dispatcher:
             # reaches the provider boundary, so reconciliation below could never settle it.
             self._refused_resume(task, job, continuation)
             return True
+        pid = job.get("pid") if job else None
+        worker_gone = isinstance(pid, int) and not _pid_alive(pid)
+        if job and job.get("status") not in TERMINAL and worker_gone:
+            cancel = getattr(self.launcher, "cancel", None)
+            if cancel is None or not cancel(str(job["job_id"])):
+                return False
+            job = self.launcher.job(str(job["job_id"]))
+            if not job or job.get("status") not in TERMINAL:
+                return False
         if job and not job_ref and dispatch.get("state") == "intent":
-            pid = job.get("pid")
-            if job.get("status") in TERMINAL or (isinstance(pid, int) and not _pid_alive(pid)):
+            if job.get("status") not in TERMINAL:
+                return False  # the child is still waiting for its engine slot
+            if not receipt.get("dispatcher_owner"):
                 return self._settle_missing(task, dispatch, receipt)
         if job and not job_ref:
             try:
                 self.service.reconcile_dispatch(self.principal, task.task_id, receipt["attempt"], "submitted",
-                                                evidence_ref=f"bridge-job:{job['job_id']}", job_ref=job["job_id"])
+                                                evidence_ref=f"bridge-job:{job['job_id']}", job_ref=job["job_id"],
+                                                dispatcher_owner=self.owner if receipt.get("dispatcher_owner") else None)
             except TaskServiceError as exc:
                 if "provider boundary" in str(exc):
                     return False  # the child is still waiting for an engine slot
@@ -711,11 +774,10 @@ class Dispatcher:
             return self._settle_missing(task, dispatch, receipt)
         if job.get("status") not in TERMINAL:
             now = self.clock()
-            lease_end = float(receipt.get("lease_expires_at", float("inf")))
             cutoff = now - self.stale_seconds
             stale = _has_stale_heartbeat(job, cutoff, now=now)
             cancel = getattr(self.launcher, "cancel", None)
-            if (not stale and lease_end > now) or cancel is None or str(job_ref) in self.cancelled:
+            if (not stale and not self._expired(receipt)) or cancel is None or str(job_ref) in self.cancelled:
                 return False
             try:
                 stopped = cancel(str(job_ref), stale_before=cutoff) if stale else cancel(str(job_ref))
@@ -765,7 +827,7 @@ class Dispatcher:
             (task.data.get("review_of") and (not reviewed_sha or not review_passed))
             or (task.data.get("contract_id") and not verification_id)
         )
-        expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+        expired = self._expired(receipt)
         job_error = str(job.get("error") or job.get("status") or "job failed").replace("\n", " ")
         check_failure = recorded_failure
         if accepted and checks and not (needs_evidence or expired or recorded):
@@ -777,7 +839,7 @@ class Dispatcher:
                 # Evidence must describe the artifact that is published: a check that edits
                 # tracked files (e.g. `ruff --fix`) or commits would pass on unpublished content.
                 check_failure = _dispatch_workspace._checks_changed_checkout(cwd, job.get("final_commit"))
-            expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+            expired = self._expired(receipt)
         if check_failure:
             accepted = False
             failure_reason = check_failure
@@ -799,7 +861,10 @@ class Dispatcher:
             elif published:
                 self._event("published", task.task_id, published, job_id=str(job_ref))
         failed_cleanly = not accepted and not check_failure
-        retryable = failed_cleanly and any(marker in failure_reason for marker in RETRYABLE_FAILURES)
+        retryable = failed_cleanly and (
+            job.get("status") in ("interrupted", "cancelled")
+            or any(marker in failure_reason for marker in RETRYABLE_FAILURES)
+        )
         resume_failed = (failed_cleanly and resumed
                          and any(marker in failure_reason for marker in _dispatch_launch.RESUME_FAILURES))
         check_failures = list((continuation or {}).get("check_failures", []))
@@ -821,20 +886,20 @@ class Dispatcher:
         evidence_failure = check_failure
         if check_failure and check_failures and not retry_check and not recorded:
             evidence_failure = check_failure + "\n\nPrevious check failures\n" + "\n\n".join(check_failures)
+        landing = (DispatchLanding(cwd=str(cwd), branch=published, checks=tuple(checks or ()))
+                   if self.land and published and cwd is not None else None)
         settled = self._conclude(
             task, reference=reference, job_ref=str(job_ref), accepted=accepted, expired=expired,
             artifact_ref=job.get("final_commit") or job.get("candidate_commit"),
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
             review_independence=review_independence, failure_reason=evidence_failure,
-            preserved_branch=preserved.branch if preserved else None,
+            preserved_branch=preserved.branch if preserved else None, landing=landing,
         )
         self._record_rejection(task, job)
         if settled.state == "accepted":
             self._event("done", task.task_id, job_id=str(job_ref))
-            if self.land and published and cwd is not None:
-                # Landed by pass_once only after every claimed task is settled, so network
-                # latency here never consumes another task's lease.
-                self.landings.append((task, cwd, published, str(job_ref), list(checks or [])))
+            if landing is not None and not receipt.get("dispatcher_owner"):
+                self.landings.append((task, Path(landing.cwd), landing.branch, str(job_ref), list(landing.checks)))
             return True
         if not (resume_failed or retry_check):
             self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
@@ -866,14 +931,34 @@ class Dispatcher:
                     job_id=str(job_ref))
         return True
 
+    def _local_job(self, task: Task) -> dict[str, Any] | None:
+        dispatch = task.dispatch or {}
+        receipt = dispatch["receipt"]
+        if job_ref := dispatch.get("job_ref"):
+            return self.launcher.job(job_ref)
+        if receipt.get("dispatcher_owner"):
+            return self.launcher.job(_dispatch_launch.local_job_id(receipt["claim_token"]))
+        return self.launcher.find(task.task_id, receipt["attempt"])
+
     def _land_settled(self) -> None:
-        """Land the tasks accepted in this pass; outcomes are follow-up events only."""
+        """Land accepted tasks, including publication left pending by a previous process."""
         landings, self.landings = self.landings, []
+        for task in self.task_reader(self.service, self.project_id):
+            dispatch = task.dispatch or {}
+            if (pending := dispatch.get("pending_landing")) and dispatch["receipt"].get("dispatcher_owner") == self.owner:
+                landing = DispatchLanding.model_validate(pending)
+                landings.append((task, Path(landing.cwd), landing.branch, dispatch["job_ref"], list(landing.checks)))
         for task, cwd, branch, job_ref, checks in landings:
             try:
                 pr_url, land_failure = _dispatch_workspace._land(cwd, branch, task.task_id, task.data, checks)
             except Exception as exc:
                 pr_url, land_failure = None, " ".join(_cloud.redact(str(exc)).split())[:500] or "landing failed"
+            dispatch = task.dispatch or {}
+            if dispatch.get("pending_landing"):
+                self.service.finish_dispatch_landing(
+                    self.principal, task.task_id, dispatch["receipt"]["attempt"], self.owner,
+                    pr_url=pr_url, error=land_failure,
+                )
             if pr_url:
                 self._event("landed", task.task_id, pr_url, job_id=job_ref)
             elif land_failure:
@@ -881,8 +966,11 @@ class Dispatcher:
 
     def pass_once(self) -> tuple[int, int]:
         tasks = self.task_reader(self.service, self.project_id)
+        if self._refresh_claims(tasks):
+            tasks = self.task_reader(self.service, self.project_id)
         for task in tasks:
-            if task.status == "claimed":
+            owner = (task.dispatch or {}).get("receipt", {}).get("dispatcher_owner")
+            if task.status == "claimed" and task.dispatch and owner in (None, self.owner):
                 try:
                     self._settle(task)
                 except Exception as exc:
@@ -900,7 +988,8 @@ class Dispatcher:
         running_branches = {
             str(task.data["assigned_branch"])
             for task in tasks
-            if task.status == "claimed" and task.data.get("assigned_branch")
+            if task.data.get("assigned_branch")
+            and (task.status == "claimed" or (task.dispatch or {}).get("pending_landing"))
         }
         for summary in ready:
             if running >= self.parallel:
@@ -939,6 +1028,7 @@ class Dispatcher:
                 result = self.service.claim(
                     self.principal, summary["task_id"], summary["revision"],
                     f"dispatch:{summary['task_id']}:{summary['revision']}:{attempt}",
+                    dispatcher_owner=self.owner,
                 )
             except Exception as exc:
                 kind = "deferred" if isinstance(exc, TaskServiceError) and exc.code == "busy" else "failed"
@@ -947,6 +1037,8 @@ class Dispatcher:
             if not result.get("claim_active", True):
                 self._event("failed", summary["task_id"], "claim is not active")
                 continue
+            if "dispatch_state" in result:
+                continue  # a claim replay never starts another launcher
             claim = result["claim"]
             self._event("claimed", summary["task_id"])
             if cloud:
@@ -958,9 +1050,17 @@ class Dispatcher:
             except Exception as exc:
                 self._record_base(summary["task_id"], claim)
                 reason = str(exc).replace("\n", " ")
+                job_id = _dispatch_launch.local_job_id(claim["claim_token"])
+                if self.launcher.job(job_id) is not None:
+                    self._event("deferred", summary["task_id"], reason, job_id=job_id)
+                    running += 1
+                    if branch:
+                        running_branches.add(str(branch))
+                    continue
                 try:
                     self.service.fail_local_launch(
                         self.principal, summary["task_id"], claim["claim_token"], reason,
+                        dispatcher_owner=claim.get("dispatcher_owner"),
                     )
                 except Exception as release_exc:
                     reason = f"{reason}; claim release failed: {str(release_exc).replace(chr(10), ' ')}"
@@ -974,11 +1074,46 @@ class Dispatcher:
                     running_branches.add(str(branch))
         tasks = self.task_reader(self.service, self.project_id)
         self._blocked(tasks)
-        return sum(task.status == "todo" for task in tasks), sum(task.status == "claimed" for task in tasks)
+        return sum(task.status == "todo" for task in tasks), sum(
+            task.status == "claimed" or bool((task.dispatch or {}).get("pending_landing")) for task in tasks
+        )
 
-    def run(self, *, once: bool = False) -> int:
-        while True:
+    def shutdown(self) -> None:
+        """Release owned claims which have no bridge job to continue."""
+        for task in self.task_reader(self.service, self.project_id):
+            dispatch = task.dispatch or {}
+            receipt = dispatch.get("receipt", {})
+            if task.status != "claimed" or receipt.get("dispatcher_owner") != self.owner or dispatch.get("job_ref"):
+                continue
             try:
+                if receipt["effective_placement"] == "cloud":
+                    job = self.launcher.job(_dispatch_launch.cloud_job_id(receipt["claim_token"]))
+                else:
+                    job = self._local_job(task)
+                if job is None:
+                    self.service.reconcile_dispatch(
+                        self.principal, task.task_id, receipt["attempt"], "absent",
+                        evidence_ref="dispatcher:shutdown", dispatcher_owner=self.owner,
+                    )
+                    self._event("reconciled", task.task_id, "released on shutdown")
+            except Exception as exc:
+                self._event("deferred", task.task_id, str(exc).replace(chr(10), " "))
+
+    def _keep_leases(self, stop: Event, interval: float) -> None:
+        # Checks, provider calls and Git operations may occupy the main thread
+        # for several ticks. Keep its claims alive while those calls run.
+        while not stop.wait(interval):
+            try:
+                self.service.renew_dispatcher_claims(self.principal, self.project_id, self.owner)
+            except TaskServiceError as exc:
+                self._event("deferred", self.project_id, str(exc))
+
+    def _run(self, once: bool, interval: float) -> int:
+        while True:
+            stop = Event()
+            heartbeat = Thread(target=self._keep_leases, args=(stop, interval), daemon=True)
+            try:
+                heartbeat.start()
                 _, running = self.pass_once()
                 ready = [task for task in self.service.next_ready(
                     self.principal, self.project_id, limit=100
@@ -989,11 +1124,35 @@ class Dispatcher:
                 self._event("deferred", self.project_id, str(exc))
                 if once:
                     return 0
-                self.sleep(15)
-                continue
-            if once or (not ready and not running and not self.waiting):
-                return 0
-            self.sleep(15)
+            else:
+                if once or (not ready and not running and not self.waiting):
+                    return 0
+            finally:
+                stop.set()
+                if heartbeat.ident is not None:
+                    heartbeat.join()
+            self.sleep(interval)
+
+    def run(self, *, once: bool = False) -> int:
+        signum = signal.SIGINT
+
+        def terminate(received: int, _frame: Any) -> None:
+            nonlocal signum
+            signum = signal.Signals(received)
+            raise KeyboardInterrupt
+
+        previous = signal.signal(signal.SIGTERM, terminate) if current_thread() is main_thread() else None
+        try:
+            return self._run(once, min(15.0, self.service.lease_seconds / 3))
+        except KeyboardInterrupt:
+            try:
+                self.shutdown()
+            except TaskServiceError as exc:
+                self._event("deferred", self.project_id, str(exc))
+            return 128 + int(signum)
+        finally:
+            if previous is not None:
+                signal.signal(signal.SIGTERM, previous)
 
 
 def _dry_run(service: ProjectTaskService, project_id: str, emit: Callable[[str], None] = print,
@@ -1038,7 +1197,12 @@ def usable_reading(reading: Any, *, max_age_seconds: float = 600.0) -> bool:
 def dispatch(args: argparse.Namespace) -> int:
     store_db = _resolve_store_db(None)
     principal = TaskPrincipal(actor="code-bridge-dispatch", role="orchestrator", projects=(args.project,))
-    service = ProjectTaskService(store_db, lease_seconds=max(1, int(getattr(args, "lease_minutes", 60))) * 60)
+    lease_minutes = getattr(args, "lease_minutes", None)
+    lease_seconds = getattr(args, "lease_seconds", None)
+    if lease_minutes is not None:
+        lease_seconds = lease_minutes * 60
+    service = (ProjectTaskService(store_db) if lease_seconds is None
+               else ProjectTaskService(store_db, lease_seconds=lease_seconds))
     if args.dry_run:
         return _dry_run(service, args.project)
     repo_roots: dict[str, Path] = {}

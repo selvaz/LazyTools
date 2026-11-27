@@ -26,12 +26,13 @@ from __future__ import annotations
 
 import os
 import re
+import socket
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _cloud, _concurrency, _gh, _installed, _jobs, _store
+from lazytools.code_bridge import _cloud, _concurrency, _gh, _installed, _jobs, _lockfile, _store
 from lazytools.code_bridge._cloud import CloudError, redact
 from lazytools.code_bridge._review_choice import choose_reviewer, opposite_engine
 
@@ -43,6 +44,10 @@ CLAIM_STALE_SECONDS = 900.0
 MAX_REVIEW_ATTEMPTS = 3
 _MAX_COMMENT_BODY = 60000
 FORBIDDEN_PUSH_ARGS = frozenset({"--force", "-f", "--force-with-lease", "--mirror", "--delete", "-d", "--prune"})
+
+
+class _LandingInProgress(CloudError):
+    """Another live process is landing this job."""
 
 
 # --------------------------------------------------------------------------- #
@@ -186,18 +191,25 @@ def _update_meta(store: Any, job_id: str, updates: dict[str, Any], drop: tuple[s
 
 def _claim(store: Any, job_id: str, key: str) -> bool:
     """Take the ``key`` claim on a job unless a live one exists. Atomic under the machine-wide guard."""
+    host, pid = socket.gethostname().casefold(), os.getpid()
     with _concurrency._guard(_concurrency.load_config().slot_dir):
         meta = _store.read_meta(store, job_id) or {}
         started = meta.get(f"{key}_claimed_at")
-        if started and time.time() - float(started) < CLAIM_STALE_SECONDS:
-            return False
+        owner = meta.get(f"{key}_owner")
+        if started:
+            if owner and owner["host"] == host:
+                if not _lockfile.process_has_exited(owner["pid"], owner["started_at"]):
+                    return False
+            elif time.time() - float(started) < CLAIM_STALE_SECONDS:
+                return False
         meta[f"{key}_claimed_at"] = time.time()
+        meta[f"{key}_owner"] = {"host": host, "pid": pid, "started_at": _lockfile.process_start_time(pid)}
         _store.write_meta(store, job_id, meta)
     return True
 
 
 def _release(store: Any, job_id: str, key: str) -> None:
-    _update_meta(store, job_id, {}, drop=(f"{key}_claimed_at",))
+    _update_meta(store, job_id, {}, drop=(f"{key}_claimed_at", f"{key}_owner"))
 
 
 def _push(cwd: Path, source: str, branch: str) -> None:
@@ -253,7 +265,7 @@ def land_job(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path | 
         raise CloudError(f"job {job_id[:8]} is {job.get('status')}, not done: only a finished task can be landed")
     allow_rebase = bool(job.get("rebase_ok")) if rebase_ok is None else bool(rebase_ok)
     if not _claim(store, job_id, "land"):
-        raise CloudError(f"job {job_id[:8]} is being landed by another process right now; retry in a minute")
+        raise _LandingInProgress(f"job {job_id[:8]} is being landed by another process right now; retry in a minute")
     try:
         prov = _cloud.provider(str(job["engine"]))
         if hasattr(prov, "apply_job"):
@@ -756,6 +768,8 @@ def process_job(store: Any, registry: Any, job: dict[str, Any], *, db_path: Path
                 row.update(action="landed", detail=str(outcome.get("pr_url") or outcome.get("note") or outcome["branch"]))
         except _cloud.CheckoutMissingError as exc:
             row.update(action="skipped", detail=redact(str(exc)))
+        except _LandingInProgress as exc:
+            row.update(action="waiting", detail=redact(str(exc)))
         except CloudError as exc:
             kind = "review-failed" if isinstance(job.get("review"), dict) else "land-failed"
             row.update(action=kind, detail=redact(str(exc)))
