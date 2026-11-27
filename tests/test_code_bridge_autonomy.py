@@ -198,6 +198,64 @@ def test_mode_switch_revokes_cards_in_existing_hand(autonomy_registry):
     assert isinstance(channel_for(registry, cwd, "next-total-job")._submit(merge, "Approve?"), CardApproval)
 
 
+@pytest.fixture
+def old_definitions():
+    """The ticket classes before checks_in_checkout: reads were workspace_tools."""
+    monkeypatch = pytest.MonkeyPatch()
+    commands = dict(_coder_actions.TICKET_COMMANDS)
+    del commands["checks_in_checkout"]
+    commands["workspace_tools"] = tuple(command for command in _coder_actions.COMMANDS if command[0] not in {
+        "gh", "python"} and command not in {("git", "add"), ("git", "commit"), ("rm",), ("remove-item",)})
+    delegated = {
+        (mode, preset): _coder.delegated_classes(mode, preset) - {"checks_in_checkout"}
+        for mode in _coder.MODES for preset in ("solo-dev", "with-production")
+    }
+    monkeypatch.setattr(_coder_actions, "TICKET_COMMANDS", commands)
+    monkeypatch.setattr(_coder, "delegated_classes", lambda mode, preset: delegated[mode, preset])
+    yield monkeypatch.undo
+    monkeypatch.undo()
+
+
+def card_classes(registry):
+    return {card.action_class for card in _coder.show(registry.path).cards}
+
+
+def test_configure_reissues_hand_from_old_definitions(autonomy_registry, old_definitions):
+    cwd, registry = autonomy_registry
+    assert configure(registry, "supervised") == 0
+    stale = _coder.show(registry.path).cards
+    assert "checks_in_checkout" not in card_classes(registry)
+    old_definitions()
+
+    assert configure(registry, "supervised") == 0
+    assert "checks_in_checkout" in card_classes(registry)
+    assert not {card.card_id for card in stale} & {card.card_id for card in _coder.show(registry.path).cards}
+    command = "python -m pytest -q"
+    decision = channel_for(registry, cwd, "refreshed")._submit(request(cwd, command), command)
+    assert isinstance(decision, CardApproval) and decision.action_class == "checks_in_checkout"
+
+
+def test_total_hand_keeps_read_approval_after_reclassification(autonomy_registry, old_definitions):
+    cwd, registry = autonomy_registry
+    command = "git status --short"
+    assert configure(registry, "total") == 0
+    old_definitions()
+    held, _ = channel_for(registry, cwd, "stale")._submit(request(cwd, command), command)
+    assert held.status == "pending" and held.request.payload["ticket_class"] == "checks_in_checkout"
+
+    assert configure(registry, "total") == 0
+    decision = channel_for(registry, cwd, "refreshed")._submit(request(cwd, command), command)
+    assert isinstance(decision, CardApproval) and decision.action_class == "checks_in_checkout"
+
+
+def test_configure_with_same_definitions_keeps_the_hand(autonomy_registry):
+    _, registry = autonomy_registry
+    assert configure(registry, "supervised") == 0
+    original = _coder.show(registry.path)
+    assert configure(registry, "supervised") == 0
+    assert _coder.show(registry.path) == original
+
+
 def test_total_cards_respect_native_and_command_scope(autonomy_registry):
     cwd, registry = autonomy_registry
     assert configure(registry, "total", "--preset", "solo-dev") == 0
