@@ -107,6 +107,45 @@ def ready(service):
     return service.next_ready(OPERATOR, PROJECT)["tasks"]
 
 
+def test_edit_todo_preserves_dependents_and_records_history(queue):
+    projects, service = queue
+    admit(projects, [task("a"), task("b", dependency_ids=["a"])])
+    old_revision = revision(service, "a")
+    placement(service, "a")
+    changes = {"text": "Updated work", "title": "New title", "checks": ["pytest"],
+               "acceptance_criteria": ["Works"], "tier": "thinking", "dependency_ids": [],
+               "touches": ["src/file.py"], "engine_preference": ["claude_code"]}
+    result = projects.projects_edit_task(PROJECT, "a", old_revision, changes, "Scope changed")
+    assert result["ok"] and result["revision"] != old_revision
+    with Store(db=str(service.path)) as store:
+        first, dependent = store.read(_board_key(PROJECT))["tasks"]
+    assert first["task_id"] == "a" and dependent["dependency_ids"] == ["a"]
+    assert first["text"] == "Updated work" and first["touches"] == ["src/file.py"]
+    assert first["engine_preference"] == ["claude"]
+    assert first["edit_history"][-1]["reason"] == "Scope changed"
+    assert first["edit_history"][-1]["previous_values"]["text"] == "Produce a"
+    assert ready(service) == []  # old placement evidence is tied to the previous revision
+    assert projects.projects_edit_task(PROJECT, "a", old_revision, {"text": "stale"}, "retry")["error"]["code"] == "stale"
+
+
+def test_edit_claimed_task_is_refused(queue):
+    projects, service = queue
+    admit(projects, [task("a"), task("b")])
+    placement(service, "a")
+    receipt = claim(service, "a")
+    result = projects.projects_edit_task(PROJECT, "a", receipt["revision"], {"text": "changed"}, "reason")
+    assert result["error"]["code"] == "conflict"
+
+
+def test_edit_rejects_invalid_dependencies_and_fields(queue):
+    projects, service = queue
+    admit(projects, [task("a"), task("b", dependency_ids=["a"])])
+    old_revision = revision(service, "a")
+    for changes in ({"dependency_ids": ["b"]}, {"status": "done"}, {"tier": None}):
+        assert projects.projects_edit_task(PROJECT, "a", old_revision, changes, "reason")["error"]["code"] == "invalid"
+    assert revision(service, "a") == old_revision
+
+
 def test_queue_metrics_groups_and_blocked_reasons(queue):
     projects, service = queue
     admit(projects, [task("a"), task("b", "writing", requested_placement="cloud"),
@@ -567,7 +606,7 @@ async def test_mcp_lists_all_five_and_rejects_identity_in_arguments(queue):
     admit(projects, [task("a"), task("b")])
     placement(service, "a")
     config = {"projects_store_db": str(service.path), "projects_task_principal": OPERATOR.model_dump(mode="json")}
-    expected = {"tasks_next_ready", "tasks_queue_metrics", "tasks_claim", "tasks_complete", "tasks_route_clear",
+    expected = {"tasks_next_ready", "tasks_queue_metrics", "tasks_claim", "tasks_complete", "tasks_route_clear", "projects_edit_task",
                 "approvals_pending", "approvals_decide"}
     providers = default_providers(["projects"], allow_write=True, data_source=config)
     async with connected_client(build_server(providers, read_only=False)) as client:
@@ -581,6 +620,11 @@ async def test_mcp_lists_all_five_and_rejects_identity_in_arguments(queue):
         })
         assert protocol_field(result, "is_error", "isError") or not json.loads(result.content[0].text)["ok"]
         assert ready(service)
+        result = await client.call_tool("projects_edit_task", {
+            "project": PROJECT, "task_id": "a", "expected_revision": revision(service, "a"),
+            "changes": {"text": "Updated through MCP"}, "reason": "Clarify the work",
+        })
+        assert json.loads(result.content[0].text)["ok"]
     async with connected_client(build_server(providers, read_only=True)) as client:
         tools = {tool.name for tool in (await client.list_tools()).tools}
         assert tools & expected == {"tasks_next_ready", "tasks_queue_metrics", "approvals_pending"}
