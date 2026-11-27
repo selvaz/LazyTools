@@ -500,6 +500,61 @@ def test_place_records_routed_local_evidence_only_for_unblocked_todo_tasks() -> 
     ]
 
 
+@pytest.mark.parametrize("continuation", [
+    {"infra_retries": 1},
+    {"engine": "claude", "wait_for_budget": True},
+    {"engine": "claude", "native_id": "old", "fresh": True, "check_failures": ["failed"]},
+    {"engine": "claude", "fresh": True, "escalation_tier": "critical"},
+])
+def test_retry_without_native_resume_is_rerouted(continuation: dict[str, Any]) -> None:
+    recorded: list[Any] = []
+    required: list[Any] = []
+    events: list[str] = []
+
+    class PlacingService:
+        lease_seconds = 900
+
+        def record_placement(self, task_id: str, revision: str, evidence: Any) -> None:
+            recorded.append(evidence)
+
+    def route(tier: str, busy: Any, preference: Any, fallback: Any, engine: Any) -> RoutingDecision:
+        required.append(engine)
+        return RoutingDecision(tier, "codex", None, None, "weekly_margin", True)
+
+    dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
+                          None, "p", emit=events.append, clock=lambda: 1000.0, router=route)  # type: ignore[arg-type]
+    retry = Task("p/A", "r2", "todo", {"attempt_continuation": continuation},
+                 {"receipt": {"engine_family": "claude_code"}})
+    dispatch._place([retry])
+    assert required == [None] and recorded[0].engine_family == "codex"
+    assert events[0].startswith("rerouted p/A local claude_code -> codex ")
+
+
+@pytest.mark.parametrize("escalation_tier", [None, "critical"])
+def test_retry_with_native_resume_keeps_engine(escalation_tier: str | None) -> None:
+    required: list[Any] = []
+    events: list[str] = []
+
+    class PlacingService:
+        lease_seconds = 900
+
+        def record_placement(self, task_id: str, revision: str, evidence: Any) -> None:
+            assert evidence.engine_family == "codex"
+
+    def route(tier: str, busy: Any, preference: Any, fallback: Any, engine: Any) -> RoutingDecision:
+        required.append(engine)
+        return RoutingDecision(tier, "codex", None, None, "weekly_margin", True)
+
+    dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
+                          None, "p", emit=events.append, clock=lambda: 1000.0, router=route)  # type: ignore[arg-type]
+    retry = Task("p/A", "r2", "todo", {"attempt_continuation": {"engine": "codex", "native_id": "thread",
+                                                                 "escalation_tier": escalation_tier}},
+                 {"receipt": {"engine_family": "codex"}})
+    dispatch._place([retry])
+    assert required == ["codex"]
+    assert events[0].startswith("placed p/A local codex ")
+
+
 def test_place_reports_waiting_when_no_engine_is_eligible() -> None:
     class PlacingService:
         lease_seconds = 900
@@ -964,6 +1019,18 @@ def test_land_uses_task_title_and_sanitizes_check_paths(tmp_path: Path, monkeypa
     assert "pytest --rootdir=<local> tests/test_x.py" in body
 
 
+def test_land_shortens_explicit_title_at_word_boundary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge._dispatch_workspace import _land
+
+    gh = FakeGh()
+    clone, _remote, _bridge, _remote_git = _landing_setup(tmp_path, monkeypatch, gh)
+    assert _land(clone, "dispatch/p/A", "p/A", {"title": "word " * 20}, [])[1] is None
+    (args, _body), = gh.created()
+    title = args[args.index("--title") + 1]
+    assert len(title) <= 72
+    assert title == "word " * 13 + "word"
+
+
 @pytest.mark.parametrize(("text", "expected"), [
     ("A concise first sentence. More details follow.", "A concise first sentence"),
     ("word " * 20, "word " * 13 + "word"),
@@ -1399,7 +1466,8 @@ def test_check_repair_waits_for_its_original_engine_slot(tmp_path: Path, monkeyp
 
     events: list[str] = []
     task = Task("p/A", "r1", "todo", {"tier": "thinking", "fallback": "allow",
-                "attempt_continuation": {"engine": "codex", "check_failures": ["failed"]}}, None)
+                "attempt_continuation": {"engine": "codex", "native_id": "thread",
+                                         "check_failures": ["failed"]}}, None)
     dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
                           None, "p", router=router, capacity=lambda _: 1, emit=events.append,  # type: ignore[arg-type]
                           clock=lambda: 1000.0)

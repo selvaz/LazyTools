@@ -573,8 +573,9 @@ class Dispatcher:
                 self._wait(task.task_id, "waiting for the quota window [budget]")
                 continue
             required_engine = None
-            if ((continuation.get("check_failures") and not continuation.get("escalation_tier"))
-                    or continuation.get("wait_for_budget")) and continuation.get("engine"):
+            if (continuation.get("engine")
+                    and _dispatch_launch._resumes(continuation, _routing.provider(continuation["engine"]))
+                    and _dispatch_launch.resumable(continuation, getattr(self.launcher, "launch_mode", None))):
                 engine = continuation["engine"]
                 required_engine = _routing.provider(engine)
             if (record.get("revision") == task.revision and evidence.get("expires_at", 0) > now + 60
@@ -613,7 +614,11 @@ class Dispatcher:
                 model=decision.model, effort=decision.effort,
             ))
             in_use[engine] = in_use.get(engine, 0) + 1
-            self._event("placed", task.task_id, f"local {engine} tier={tier} | {detail}")
+            previous = ((task.dispatch or {}).get("receipt") or {}).get("engine_family")
+            if previous and not required_engine:
+                self._event("rerouted", task.task_id, f"local {previous} -> {engine} tier={tier} | {detail}")
+            else:
+                self._event("placed", task.task_id, f"local {engine} tier={tier} | {detail}")
 
     def _wait(self, task_id: str, detail: str) -> None:
         if self.waiting.get(task_id) != detail:
