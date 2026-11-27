@@ -111,7 +111,7 @@ def _pid_alive(pid: int) -> bool:
 
 def process_start_time(pid: int) -> str | None:
     """Read the OS process identity. Raise for a gone process, return None if unknown."""
-    if os.name == "nt":
+    if sys.platform == "win32":  # sys.platform lets type checkers skip Windows-only ctypes on other OSes
         import ctypes
         from ctypes import wintypes
 
