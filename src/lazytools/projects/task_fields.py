@@ -166,7 +166,9 @@ def _glob_intersects(left: str, right: str) -> bool:
 
 
 def touches_overlap(left: dict[str, Any], right: dict[str, Any]) -> bool:
-    return bool(left.get("repo") and left.get("repo") == right.get("repo") and any(
+    # GitHub repository names are case-insensitive: Owner/Repo and owner/repo are the same checkout.
+    repo = str(left.get("repo") or "").casefold()
+    return bool(repo and repo == str(right.get("repo") or "").casefold() and any(
         _glob_intersects(a, b) for a in left.get("touches", []) for b in right.get("touches", [])
     ))
 
