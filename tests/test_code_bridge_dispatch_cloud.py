@@ -1,6 +1,7 @@
 """Cloud placement in `dispatch`: a fake cloud launcher against the real task service."""
 from __future__ import annotations
 
+import sqlite3
 import subprocess
 import sys
 import time
@@ -207,6 +208,78 @@ def test_restart_between_submit_and_its_acknowledgement_adopts_the_job(
     data = board_task(service)
     assert data["status"] == "done", events
     assert data["dispatches"][-1]["job_ref"] == job_id
+
+
+def test_a_submit_deferred_by_a_busy_store_survives_a_restart(
+    service: ProjectTaskService, landed: tuple[Path, str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    admit(service, None)
+    launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
+    begin_submit = service.begin_submit
+
+    def begin_while_locked(*args: Any) -> None:
+        lock = sqlite3.connect(str(service.path))
+        try:
+            lock.execute("BEGIN IMMEDIATE")
+            with monkeypatch.context() as patch:
+                patch.setenv("LAZYBRIDGE_STORE_BUSY_TIMEOUT", "0.01")
+                begin_submit(*args)
+        finally:
+            lock.close()
+
+    monkeypatch.setattr(service, "begin_submit", begin_while_locked)
+    first = dispatcher(service, launcher, events)
+    first.pass_once()
+    first.pass_once()  # still busy on the next tick: deferred again, the claim is kept
+    assert events.count(f"deferred {PROJECT}/A The projects store is busy") == 2, events
+    assert board_task(service)["dispatches"][-1]["state"] == "intent"
+    assert not launcher.launches
+
+    monkeypatch.setattr(service, "begin_submit", begin_submit)  # the store is free again
+    restarted = dispatcher(service, launcher, events)  # a new process: no in-memory state
+    restarted.pass_once()
+    restarted.pass_once()
+    data = board_task(service)
+    assert len(launcher.launches) == 1, events
+    assert len(data["dispatches"]) == 1
+    assert data["dispatches"][-1]["state"] == "submitted"
+    assert data["dispatches"][-1]["job_ref"] == launcher.launches[0][2]
+    assert not [line for line in events if line.startswith("failed")], events
+
+
+def test_another_executors_unsubmitted_cloud_claim_is_left_alone(
+    service: ProjectTaskService, landed: tuple[Path, str],
+) -> None:
+    admit(service, None)
+    launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
+    dispatch = dispatcher(service, launcher, events)
+    dispatch._place(_dispatch._tasks(service, PROJECT))
+    summary = service.next_ready(PRINCIPAL, PROJECT)["tasks"][0]
+    other = PRINCIPAL.model_copy(update={"actor": "other-worker"})
+    service.claim(other, summary["task_id"], summary["revision"], "other:A:1")
+    dispatch.pass_once()
+    data = board_task(service)
+    assert data["status"] == "claimed" and data["owner"] == "other-worker", events
+    assert data["dispatches"][-1]["state"] == "intent"
+    assert not launcher.launches
+
+
+def test_intent_with_a_job_reference_is_not_resubmitted(
+    service: ProjectTaskService, landed: tuple[Path, str],
+) -> None:
+    admit(service, None)
+    launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
+    dispatch = dispatcher(service, launcher, events)
+    dispatch._place(_dispatch._tasks(service, PROJECT))
+    summary = service.next_ready(PRINCIPAL, PROJECT)["tasks"][0]
+    service.claim(PRINCIPAL, summary["task_id"], summary["revision"], "dispatch:A:1")
+    task = _dispatch._tasks(service, PROJECT)[0]
+    assert task.dispatch is not None
+    task.dispatch["job_ref"] = "known-job"
+    dispatch._settle_cloud(task)
+    assert not launcher.launches
+    assert board_task(service)["dispatches"][-1]["state"] == "intent"
+    assert not [line for line in events if line.startswith("failed")]
 
 
 def test_restart_after_lease_expiry_settles_recorded_accepted_evidence(

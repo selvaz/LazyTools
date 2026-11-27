@@ -133,7 +133,6 @@ class Dispatcher:
         self.retries: dict[str, int] = {}
         self.seen_tickets: set[str] = set()
         self.cancelled: set[str] = set()
-        self.pending_cloud: dict[str, tuple[Task, dict[str, Any], dict[str, Any]]] = {}
         self.max_retries = max_retries
         self.json_events = json_events
         self.knowledge_store = knowledge_store
@@ -498,6 +497,11 @@ class Dispatcher:
         job_ref = str(dispatch.get("job_ref") or _dispatch_launch.cloud_job_id(token))
         job = self.launcher.cloud_job(job_ref)  # type: ignore[attr-defined]
         if job is None:
+            # Still `intent` with no job: begin_submit never succeeded (the store was busy, or the
+            # dispatcher stopped first), so nothing reached the provider and the submit is still owed.
+            if (dispatch.get("state") == "intent" and not dispatch.get("job_ref")
+                    and receipt.get("executor") == self.principal.actor):
+                return self._launch_cloud(task, receipt, receipt)
             return self._settle_missing(task, dispatch, receipt)
         if job.get("status") == "submitting" and not job.get("cloud_handle"):
             if not self._orphan_expired(dispatch, receipt):
@@ -585,16 +589,18 @@ class Dispatcher:
         return True
 
     def _launch_cloud(self, task: Task, summary: dict[str, Any], claim: dict[str, Any]) -> bool:
-        """Submit a claimed cloud task through `run --where cloud`; record its job; True when launched."""
+        """Submit a claimed cloud task through `run --where cloud`; record its job.
+
+        True while the claim stays held: launched, or the submit is deferred to a later pass.
+        """
         task_id, token = summary["task_id"], claim["claim_token"]
         job_id = _dispatch_launch.cloud_job_id(token)
         try:
             self.service.begin_submit(self.principal, task_id, token)
         except Exception as exc:
             if isinstance(exc, TaskServiceError) and exc.code == "busy":
-                self.pending_cloud[task_id] = (task, summary, claim)
-                self._event("deferred", task_id, str(exc))
-                return False
+                self._event("deferred", task_id, str(exc))  # the claim stays `intent`: see _settle_cloud
+                return True
             reason = str(exc).replace("\n", " ")
             self.service.fail_dispatch_launch(self.principal, task_id, token, reason)  # back to todo
             self._event("failed", task_id, reason)
@@ -812,11 +818,7 @@ class Dispatcher:
         for task in tasks:
             if task.status == "claimed":
                 try:
-                    pending = self.pending_cloud.pop(task.task_id, None)
-                    if pending is not None:
-                        self._launch_cloud(*pending)
-                    else:
-                        self._settle(task)
+                    self._settle(task)
                 except Exception as exc:
                     kind = "deferred" if isinstance(exc, TaskServiceError) and exc.code == "busy" else "failed"
                     self._event(kind, task.task_id, str(exc).replace(chr(10), " "),
@@ -884,8 +886,6 @@ class Dispatcher:
             if cloud:
                 if self._launch_cloud(board_task, summary, claim):
                     running += 1
-                else:
-                    running += int(summary["task_id"] in self.pending_cloud)
                 continue
             try:
                 job_ref = self.launcher.launch(self._launch_input({**summary, **data}, claim), claim)
