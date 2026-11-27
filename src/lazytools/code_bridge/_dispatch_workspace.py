@@ -263,7 +263,7 @@ def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
         existing = _gh.pr_for_branch(repo, branch)
         if existing and existing.get("url"):
             return str(existing["url"]), None  # a revision of the branch updates its PR
-        title = str(data.get("title") or "").strip()[:200]
+        title = _cloud_land._short_title(str(data.get("title") or ""))
         if not title:
             lines = str(data.get("text") or "").strip().splitlines()
             sentence = re.split(r"(?<=[.!?])\s+", lines[0], maxsplit=1)[0].rstrip(".") if lines else ""

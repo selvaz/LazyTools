@@ -964,6 +964,18 @@ def test_land_uses_task_title_and_sanitizes_check_paths(tmp_path: Path, monkeypa
     assert "pytest --rootdir=<local> tests/test_x.py" in body
 
 
+def test_land_shortens_explicit_title_at_word_boundary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge._dispatch_workspace import _land
+
+    gh = FakeGh()
+    clone, _remote, _bridge, _remote_git = _landing_setup(tmp_path, monkeypatch, gh)
+    assert _land(clone, "dispatch/p/A", "p/A", {"title": "word " * 20}, [])[1] is None
+    (args, _body), = gh.created()
+    title = args[args.index("--title") + 1]
+    assert len(title) <= 72
+    assert title == "word " * 13 + "word"
+
+
 @pytest.mark.parametrize(("text", "expected"), [
     ("A concise first sentence. More details follow.", "A concise first sentence"),
     ("word " * 20, "word " * 13 + "word"),
