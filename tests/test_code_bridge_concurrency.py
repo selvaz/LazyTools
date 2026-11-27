@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import subprocess
@@ -10,13 +11,18 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from lazybridge import Envelope
 from lazybridge.ext.approval import ApprovalQueue
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _concurrency, _jobs, _lockfile, _registry, _store, _tempdir, cli
+from lazytools.code_bridge import _concurrency, _jobs, _lockfile, _registry, _store, _task, _tempdir, cli
 from lazytools.code_bridge._concurrency import EngineBusy, EngineSlot
+from lazytools.connectors.projects import ProjectsTools
+from lazytools.projects.task_service import ProjectTaskService
+from test_projects_task_service import OPERATOR, PROJECT, Clock, admit, placement, revision, task
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -129,6 +135,89 @@ def test_wait_for_slot_queues_until_the_running_job_ends(env):
     thread.join(10)
     assert not thread.is_alive()
     assert box["result"].status == "done"
+
+
+@pytest.fixture
+def local_claim(monkeypatch):
+    path = os.environ["LAZYTOOLS_PROJECTS_STORE_DB"]
+    clock = Clock()
+    service = ProjectTaskService(path, lease_seconds=10, clock=clock)
+    projects = ProjectsTools(store_db=path, allow_write=True)
+    projects.projects_create(PROJECT, "Lease tests", "Exercise local claim renewal")
+    admit(projects, [task("local", requested_profile="read"), task("other")])
+    placement(service, "local")
+    owner = {"instance_id": "dispatcher", "pid": os.getpid(), "host": "test-host", "started_at": "test-start"}
+    receipt = service.claim(
+        OPERATOR, f"{PROJECT}/local", revision(service, "local"), "dispatch", dispatcher_owner=owner,
+    )["claim"]
+    monkeypatch.setenv(_task.PRINCIPAL_ENV, OPERATOR.model_dump_json())
+    monkeypatch.setattr(_task, "ProjectTaskService", lambda _path: service)
+    monkeypatch.setattr(_jobs, "time", SimpleNamespace(time=clock, monotonic=time.monotonic))
+    monkeypatch.setattr(_jobs, "CLAIM_POLL_SECONDS", 0.01)
+    return service, clock, owner, receipt
+
+
+@pytest.mark.parametrize("renewal_stops", [False, True])
+def test_running_turn_observes_claim_renewal(env, local_claim, monkeypatch, renewal_stops):
+    _, (repo, _), db = env
+    service, clock, owner, receipt = local_claim
+    initial_expiry = receipt["lease_expires_at"]
+    clock.now = initial_expiry - 0.05
+    survived_initial_expiry = False
+    cancelled = False
+
+    async def run_turn(*_args, **_kwargs):
+        nonlocal survived_initial_expiry, cancelled
+        service.renew_dispatcher_claims(OPERATOR, PROJECT, owner)
+        renewed_expiry = clock.now + service.lease_seconds
+        clock.now = initial_expiry + 1
+        await asyncio.sleep(0.1)
+        survived_initial_expiry = True
+        if renewal_stops:
+            clock.now = renewed_expiry
+            try:
+                await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                cancelled = True
+                raise
+        return Envelope(task="t", payload="done")
+
+    monkeypatch.setattr(_jobs, "_run_agent", run_turn)
+    result = run(repo, db, task_id=receipt["task_id"], claim_token=receipt["claim_token"], launch_mode="legacy")
+    assert survived_initial_expiry
+    if renewal_stops:
+        assert cancelled
+        assert result.status == "failed"
+        assert "Claim lease has expired" in result.error
+    else:
+        assert result.status == "done", result.error
+
+
+def test_wait_for_slot_uses_the_renewed_claim_when_turn_starts(env, local_claim, monkeypatch):
+    _, (repo, _), db = env
+    service, clock, owner, receipt = local_claim
+    holder = hold("codex", "job-ahead")
+    waits = []
+
+    def wait_for_slot(_busy):
+        waits.append(True)
+        clock.now = receipt["lease_expires_at"] - 1
+        service.renew_dispatcher_claims(OPERATOR, PROJECT, owner)
+        clock.now += 2
+        holder.release()
+
+    async def run_turn(*_args, **_kwargs):
+        await asyncio.sleep(0)
+        return Envelope(task="t", payload="done")
+
+    monkeypatch.setattr(_jobs, "_run_agent", run_turn)
+    try:
+        result = run(repo, db, task_id=receipt["task_id"], claim_token=receipt["claim_token"], launch_mode="legacy",
+                     wait_for_slot=True, on_slot_wait=wait_for_slot)
+    finally:
+        holder.release()
+    assert waits == [True]
+    assert result.status == "done", result.error
 
 
 def test_slot_is_released_after_a_failed_job(env):

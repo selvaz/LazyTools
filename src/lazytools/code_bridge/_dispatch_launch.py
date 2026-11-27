@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -17,6 +18,7 @@ from lazytools.code_bridge import _cloud, _cloud_land, _jobs, _registry, _store,
 from lazytools.projects.task_service import TaskPrincipal
 
 CLOUD_POLL_SECONDS = 30.0  # minimum spacing of provider status polls for one cloud job
+CLOUD_CLAIM_ENV = "LAZYTOOLS_CODE_BRIDGE_CLOUD_CLAIM"
 # A retry that could not load the failed attempt's conversation: start a fresh one instead.
 RESUME_FAILURES = ("use a new session alias", "Local launch binding changed", "Governed Claude resume requires",
                    "No conversation found", "thread not found", "no rollout found")
@@ -353,9 +355,17 @@ class BridgeLauncher:
         return subprocess.run(command, text=True, capture_output=True, check=False).returncode == 0
 
     def job(self, job_ref: str) -> dict[str, Any] | None:
-        store = _store.build_store(Path(self.db) if self.db else None)
-        job = _jobs.find_job(store, _store.build_job_registry(store), job_ref)
-        return job
+        from lazytools.code_bridge import cli
+
+        db_path = Path(self.db) if self.db else None
+        with _store.build_store(db_path) as store:
+            job = _jobs.find_job(store, _store.build_job_registry(store), job_ref)
+        if job is not None:
+            return job
+        pid = cli._detached_pid(db_path, job_ref)
+        if pid is not None:
+            return {"job_id": job_ref, "pid": pid, "status": "starting"}
+        return None
 
     def find(self, task_id: str, attempt: int) -> dict[str, Any] | None:
         store = _store.build_store(Path(self.db) if self.db else None)
@@ -390,7 +400,11 @@ class BridgeLauncher:
             command.extend(("--db", self.db))
         if task.get("requested_network") is not None:
             command.extend(("--network", "on" if task["requested_network"] else "off"))
-        result = subprocess.run(command, text=True, capture_output=True, check=False)
+        env = os.environ.copy()
+        if owner := claim.get("dispatcher_owner"):
+            env[_task.PRINCIPAL_ENV] = self.principal.model_dump_json()
+            env[CLOUD_CLAIM_ENV] = json.dumps([claim["claim_token"], owner["instance_id"]])
+        result = subprocess.run(command, text=True, capture_output=True, check=False, env=env)
         if result.returncode:
             raise RuntimeError((result.stderr or result.stdout).strip() or f"bridge exited {result.returncode}")
         return job_id
@@ -451,3 +465,8 @@ class BridgeLauncher:
 def cloud_job_id(claim_token: str) -> str:
     """The cloud job id of a claim: known before the submit, so a restart can find the job."""
     return hashlib.sha256(f"dispatch-cloud:{claim_token}".encode()).hexdigest()[:32]
+
+
+def local_job_id(claim_token: str) -> str:
+    """The detached job id is known even before its worker registers."""
+    return hashlib.sha256(f"dispatch-local:{claim_token}".encode()).hexdigest()[:32]

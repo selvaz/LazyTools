@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TypedDict
 from uuid import uuid4
 
 from lazybridge.policy.review import ReviewIndependence
@@ -27,6 +27,23 @@ Nonempty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)
 ResultState = Literal["accepted", "blocked", "rework"]
 Outcome = Literal["success", "task_failure", "infrastructure_failure"]
 _COMMIT_SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
+DEFAULT_LEASE_SECONDS = 180
+
+
+class DispatcherOwner(TypedDict):
+    instance_id: str
+    host: str
+    pid: int
+    started_at: str | None
+
+
+class DispatchLanding(BaseModel):
+    """The local publication still owed after accepting a task."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    cwd: Nonempty
+    branch: Nonempty
+    checks: tuple[str, ...]
 
 
 class TaskPrincipal(BaseModel):
@@ -318,6 +335,11 @@ def _fenced_dispatch(
     return dispatch
 
 
+def _require_dispatcher_owner(receipt: dict[str, Any], owner: DispatcherOwner | None) -> None:
+    if owner is not None and receipt.get("dispatcher_owner") != owner:
+        raise TaskServiceError("stale", "Dispatch is no longer owned by this dispatcher")
+
+
 def _release(task: BoardTask) -> None:
     task.data.update(active_queue_claim=False, status="todo", owner=None, claimed_at=None)
 
@@ -327,7 +349,7 @@ class ProjectTaskService:
         self,
         store_db: str | None,
         *,
-        lease_seconds: int = 900,
+        lease_seconds: int = DEFAULT_LEASE_SECONDS,
         quarantine_threshold: int = 3,
         clock: Callable[[], float] = time.time,
     ):
@@ -633,9 +655,12 @@ class ProjectTaskService:
             return task.revision
 
     def claim(
-        self, principal: TaskPrincipal, task_id: str, expected_revision: str, idempotency_key: str
+        self, principal: TaskPrincipal, task_id: str, expected_revision: str, idempotency_key: str,
+        *, dispatcher_owner: DispatcherOwner | None = None,
     ) -> dict[str, Any]:
         principal.require_role("worker", "orchestrator")
+        if dispatcher_owner is not None:
+            principal.require_role("orchestrator")
         if not idempotency_key.strip():
             raise TaskServiceError("invalid", "A dispatch idempotency key is required")
         with transaction(self.path, write=True) as store:
@@ -646,6 +671,8 @@ class ProjectTaskService:
                 if receipt["idempotency_key"] == idempotency_key:
                     if receipt["executor"] != principal.actor or receipt["revision"] != expected_revision:
                         raise TaskServiceError("conflict", "Dispatch idempotency key has already been used")
+                    if receipt.get("dispatcher_owner") != dispatcher_owner:
+                        raise TaskServiceError("conflict", "Claim belongs to a different dispatcher instance")
                     active = (
                         task.data.get("active_queue_claim") is True
                         and task.data.get("status") == "claimed"
@@ -679,6 +706,8 @@ class ProjectTaskService:
                 receipt["model"] = placement.model
             if placement.effort is not None:
                 receipt["effort"] = placement.effort
+            if dispatcher_owner is not None:
+                receipt["dispatcher_owner"] = dispatcher_owner
             # A null claimed_at keeps the legacy board's lease timer from
             # independently recycling this claim. This receipt owns the lease.
             task.data.update(
@@ -695,6 +724,61 @@ class ProjectTaskService:
             task.save(store, now)
             return {"claim": receipt}
 
+    def renew_dispatcher_claims(
+        self, principal: TaskPrincipal, project_id: str, owner: DispatcherOwner,
+        *, dead_instances: set[str] | None = None,
+    ) -> None:
+        """Renew a dispatcher's claims and take over abandoned work in one board write."""
+        principal.require_role("orchestrator")
+        principal.require_project(project_id)
+        with transaction(self.path, write=True) as store:
+            key = _board_key(project_id)
+            board = store.read(key, {"tasks": []})
+            now = self.clock()
+            changed = False
+            for data in board["tasks"]:
+                history = data.get("dispatches")
+                if not history:
+                    continue
+                dispatch = history[-1]
+                if not (data.get("active_queue_claim") or dispatch.get("pending_landing")):
+                    continue
+                receipt = dispatch["receipt"]
+                previous = receipt.get("dispatcher_owner")
+                if previous is None or receipt["executor"] != principal.actor:
+                    continue
+                if previous != owner:
+                    if dead_instances is None or (
+                        previous["instance_id"] not in dead_instances and receipt["lease_expires_at"] > now
+                    ):
+                        continue
+                    receipt["dispatcher_owner"] = owner
+                    dispatch["dispatcher_recovered"] = True
+                    changed = True
+                expires = now + self.lease_seconds
+                if receipt["lease_expires_at"] != expires:
+                    receipt["lease_expires_at"] = expires
+                    changed = True
+            if changed:
+                board["updated_at"] = now
+                store.write(key, board)
+
+    def finish_dispatch_landing(
+        self, principal: TaskPrincipal, task_id: str, attempt: int, owner: DispatcherOwner,
+        *, pr_url: str | None, error: str | None,
+    ) -> None:
+        principal.require_role("orchestrator")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, task_id)
+            dispatch = task.data["dispatches"][-1]
+            receipt = dispatch["receipt"]
+            if (receipt["attempt"] != attempt or receipt["executor"] != principal.actor
+                    or receipt.get("dispatcher_owner") != owner or not dispatch.get("pending_landing")):
+                raise TaskServiceError("stale", "Landing is no longer owned by this dispatcher")
+            dispatch.pop("pending_landing")
+            dispatch["landing_result"] = {"pr_url": pr_url, "error": error}
+            task.save(store, self.clock())
+
     def record_base_commit(self, principal: TaskPrincipal, task_id: str, claim_token: str, base_commit: str) -> None:
         """Add the commit the task's checkout started from to that claim's receipt."""
         principal.require_role("orchestrator")
@@ -707,7 +791,10 @@ class ProjectTaskService:
                     return
             raise TaskServiceError("stale", "No dispatch holds this claim token")
 
-    def begin_submit(self, principal: TaskPrincipal, task_id: str, claim_token: str) -> None:
+    def begin_submit(
+        self, principal: TaskPrincipal, task_id: str, claim_token: str,
+        *, dispatcher_owner: DispatcherOwner | None = None,
+    ) -> None:
         """Reserve the provider call. The adapter may call submit only after this succeeds."""
         with transaction(self.path, write=True) as store:
             task = _scoped_task(store, principal, task_id)
@@ -718,6 +805,7 @@ class ProjectTaskService:
                 raise TaskServiceError("conflict", "Dispatch already started and must be reconciled")
             placement, _ = _placement(task, now)
             receipt = dispatch["receipt"]
+            _require_dispatcher_owner(receipt, dispatcher_owner)
             current_route = _route(task, placement) if placement is not None else None
             if (
                 placement is None
@@ -731,6 +819,19 @@ class ProjectTaskService:
                 raise TaskServiceError("stale", "Dispatch prerequisites changed after the claim")
             dispatch.update(state="submitting", submit_started_at=now)
             task.save(store, now)
+
+    def check_cloud_submit(
+        self, principal: TaskPrincipal, task_id: str, claim_token: str, instance_id: str,
+    ) -> None:
+        """Fence a cloud launcher that reaches the provider after its dispatcher was replaced."""
+        principal.require_role("orchestrator")
+        with transaction(self.path) as store:
+            task = _scoped_task(store, principal, task_id)
+            dispatch = _fenced_dispatch(task, principal, claim_token, self.clock())
+            receipt = dispatch["receipt"]
+            if (dispatch["state"] != "submitting" or receipt["effective_placement"] != "cloud"
+                    or (receipt.get("dispatcher_owner") or {}).get("instance_id") != instance_id):
+                raise TaskServiceError("stale", "Cloud submit no longer belongs to this dispatcher")
 
     def local_claim(
         self,
@@ -766,8 +867,8 @@ class ProjectTaskService:
             if dispatch["state"] != state or (job_ref is not None and dispatch.get("job_ref") != job_ref):
                 raise TaskServiceError("stale", "The dispatch no longer belongs to this local launch")
             # Placement evidence admits the launch. Once the job is submitted, its expiry
-            # no longer matters: the evidence must stay unchanged, and the claim lease
-            # bounds how long the job may run.
+            # no longer matters: the evidence must stay unchanged, and the claim
+            # lease must still be current.
             if state == "submitted":
                 placement, _ = _check_placement(task, "local", now, check_expiry=False)
             else:
@@ -822,7 +923,10 @@ class ProjectTaskService:
                 "job_ref": dispatch.get("job_ref"),
             }
 
-    def fail_local_launch(self, principal: TaskPrincipal, task_id: str, claim_token: str, error: str) -> None:
+    def fail_local_launch(
+        self, principal: TaskPrincipal, task_id: str, claim_token: str, error: str,
+        *, dispatcher_owner: DispatcherOwner | None = None,
+    ) -> None:
         """Settle a local or cloud dispatch after the reconciler rules out a submitted job."""
         principal.require_role("orchestrator")
         if not error.strip():
@@ -834,6 +938,7 @@ class ProjectTaskService:
             receipt = dispatch["receipt"]
             if receipt["claim_token"] != claim_token:
                 raise TaskServiceError("stale", "Claim token has been superseded")
+            _require_dispatcher_owner(receipt, dispatcher_owner)
             if (
                 receipt["effective_placement"] not in ("local", "cloud")
                 or dispatch["state"] not in ("intent", "submitting")
@@ -848,7 +953,10 @@ class ProjectTaskService:
             task.data.update(status="failed", completed_at=now, queue_released_at=now, error=dispatch["launch_error"])
             task.save(store, now)
 
-    def fail_dispatch_launch(self, principal: TaskPrincipal, task_id: str, claim_token: str, error: str) -> None:
+    def fail_dispatch_launch(
+        self, principal: TaskPrincipal, task_id: str, claim_token: str, error: str,
+        *, dispatcher_owner: DispatcherOwner | None = None,
+    ) -> None:
         """Release an intent that the dispatcher deliberately did not submit."""
         principal.require_role("orchestrator")
         if not error.strip():
@@ -858,6 +966,7 @@ class ProjectTaskService:
             dispatch = _active_dispatch(task)
             if dispatch["receipt"]["claim_token"] != claim_token or dispatch["state"] != "intent":
                 raise TaskServiceError("stale", "Only the current unsubmitted dispatch can be released")
+            _require_dispatcher_owner(dispatch["receipt"], dispatcher_owner)
             now = self.clock()
             dispatch.update(state="absent", launch_error=error.strip(), reconciled_at=now)
             _release(task)
@@ -874,6 +983,7 @@ class ProjectTaskService:
         evidence_ref: str | None = None,
         job_ref: str | None = None,
         failure_reason: str | None = None,
+        dispatcher_owner: DispatcherOwner | None = None,
     ) -> None:
         """Record trusted provider evidence. A failure reason stops retries on release."""
         principal.require_role("orchestrator")
@@ -883,10 +993,13 @@ class ProjectTaskService:
             receipt = dispatch["receipt"]
             if receipt["attempt"] != attempt:
                 raise TaskServiceError("stale", "Dispatch attempt has been superseded")
+            _require_dispatcher_owner(receipt, dispatcher_owner)
             now = self.clock()
             if observation not in ("absent", "submitted", "ambiguous", "terminated"):
                 raise TaskServiceError("invalid", "Unknown provider observation")
-            if dispatch["state"] == "intent" and observation != "absent":
+            if (dispatch["state"] == "intent" and observation != "absent"
+                    and not (dispatcher_owner is not None and observation == "submitted"
+                             and receipt["effective_placement"] == "local")):
                 raise TaskServiceError("conflict", "Dispatch has not reached the provider boundary")
             if dispatch["state"] != "intent" and not (evidence_ref or "").strip():
                 raise TaskServiceError("invalid", "Provider reconciliation evidence is required")
@@ -899,7 +1012,7 @@ class ProjectTaskService:
             if observation in ("submitted", "terminated") and not (job_ref or "").strip():
                 raise TaskServiceError("invalid", "Provider job reference is required")
             if observation in ("absent", "terminated"):
-                if receipt["lease_expires_at"] > now:
+                if dispatcher_owner is None and receipt["lease_expires_at"] > now:
                     raise TaskServiceError("conflict", "The active lease has not expired")
                 if dispatch.get("unresolved_effects"):
                     raise TaskServiceError("unresolved", "Reconcile outstanding effects before releasing the claim")
@@ -913,7 +1026,8 @@ class ProjectTaskService:
             task.save(store, now)
 
     def record_completion_evidence(
-        self, principal: TaskPrincipal, task_id: str, attempt: int, evidence: CompletionEvidence
+        self, principal: TaskPrincipal, task_id: str, attempt: int, evidence: CompletionEvidence,
+        *, dispatcher_owner: DispatcherOwner | None = None,
     ) -> None:
         """Attach a trusted reconciler's immutable result to the matching provider job."""
         principal.require_role("orchestrator")
@@ -923,6 +1037,7 @@ class ProjectTaskService:
             receipt = dispatch["receipt"]
             if receipt["attempt"] != attempt:
                 raise TaskServiceError("stale", "Dispatch attempt has been superseded")
+            _require_dispatcher_owner(receipt, dispatcher_owner)
             if (
                 dispatch["state"] != "submitted"
                 or evidence.job_ref != dispatch["job_ref"]
@@ -954,9 +1069,15 @@ class ProjectTaskService:
         outcome: Outcome | None = None,
         *,
         reconcile_failure: bool = False,
+        dispatcher_owner: DispatcherOwner | None = None,
+        landing: DispatchLanding | None = None,
     ) -> dict[str, Any]:
         """Complete a claim, or let a trusted reconciler close it with blocked evidence after lease expiry."""
         principal.require_role("worker", "orchestrator")
+        if dispatcher_owner is not None or landing is not None:
+            principal.require_role("orchestrator")
+        if landing is not None and (dispatcher_owner is None or result_state != "accepted"):
+            raise TaskServiceError("invalid", "Landing requires an accepted dispatcher claim")
         if reconcile_failure:
             principal.require_role("orchestrator")
             if result_state != "blocked":
@@ -985,6 +1106,7 @@ class ProjectTaskService:
                     raise TaskServiceError("stale", "Claim token has been superseded")
             else:
                 dispatch = _fenced_dispatch(task, principal, claim_token, now)
+            _require_dispatcher_owner(dispatch["receipt"], dispatcher_owner)
             _require_open(store, task.project_id)
             if dispatch.get("unresolved_effects"):
                 raise TaskServiceError("unresolved", "Reconcile outstanding effects before completing the task")
@@ -1041,6 +1163,8 @@ class ProjectTaskService:
                 state="completed",
                 completion={"idempotency_key": idempotency_key, "binding": replay_binding, "result": result},
             )
+            if landing is not None:
+                dispatch["pending_landing"] = landing.model_dump(mode="json")
             _release(task)
             task.data["queue_released_at"] = now
             if result_state == "accepted":

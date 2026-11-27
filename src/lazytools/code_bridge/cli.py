@@ -40,6 +40,7 @@ from lazytools.code_bridge import (
     _concurrency,
     _credentials,
     _dispatch,
+    _dispatch_launch,
     _engines,
     _events,
     _freshness,
@@ -344,7 +345,7 @@ def _cmd_run_detached(args: argparse.Namespace, task: str, registry_db: Path | N
     # Hand the child absolute paths, so nothing depends on its working directory.
     args.root = str(root)
     args.cwd = str(resolved_cwd)
-    job_id = _jobs.new_job_id()
+    job_id = _dispatch_launch.local_job_id(args.claim_token) if args.claim_token else _jobs.new_job_id()
     out_dir = _store.results_dir(_db_path(args))
     if args.task.startswith("@"):
         # The brief was read (and checked) once, by the caller. The child gets that
@@ -537,6 +538,22 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             "agent receives the brief as written -- rotate the secret if it is real",
             file=sys.stderr,
         )
+    cloud_claim = os.environ.get(_dispatch_launch.CLOUD_CLAIM_ENV)
+
+    def check_claim() -> None:
+        from lazytools.connectors.projects.tools import _resolve_store_db
+        from lazytools.projects.task_service import ProjectTaskService
+        from lazytools.projects.task_store import TaskServiceError
+
+        assert cloud_claim is not None
+        token, owner = json.loads(cloud_claim)
+        if not args.task_id or job_id != _dispatch_launch.cloud_job_id(token):
+            raise ValueError("Cloud job does not match its dispatch claim")
+        try:
+            ProjectTaskService(_resolve_store_db(None)).check_cloud_submit(_task.principal(), args.task_id, token, owner)
+        except TaskServiceError as exc:
+            raise ValueError(str(exc)) from exc
+
     try:
         job = _cloud.submit_job(
             engine=args.engine,
@@ -555,6 +572,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             title=args.title,
             network=args.network == "on",
             extra_meta=extra_meta,
+            submit_guard=check_claim if cloud_claim else None,
         )
     except _cloud.CloudEnvUnmapped as exc:
         if args.json:
@@ -2214,8 +2232,10 @@ def build_parser() -> argparse.ArgumentParser:
     _add_registry_option(dispatch_p)
     dispatch_p.add_argument("--knowledge-db", type=Path, metavar="PATH",
                             help="Store path for lessons from previous dispatches.")
-    dispatch_p.add_argument("--lease-minutes", type=int, default=60, metavar="N",
-                            help="Claim lease per task; a job running longer is stopped (default 60).")
+    lease = dispatch_p.add_mutually_exclusive_group()
+    lease.add_argument("--lease-seconds", type=int, metavar="N",
+                       help="Renewed claim lease (default 180 seconds).")
+    lease.add_argument("--lease-minutes", type=int, metavar="N", help="Set the renewed lease in minutes.")
     dispatch_p.add_argument("--stale-minutes", type=int, default=_dispatch.DEFAULT_STALE_MINUTES, metavar="N",
                             help="Stop running jobs with no engine activity for this many minutes (default 10).")
     dispatch_p.add_argument("--launch-mode", choices=("auto", "governed", "legacy"), default=None,

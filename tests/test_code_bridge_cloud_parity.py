@@ -1182,10 +1182,11 @@ def test_two_syncs_cannot_land_the_same_job_at_once(cloud, gh, capsys):
     job_id = _submit_json(cloud, capsys, "--land")["job_id"]
     cloud.set_status(READY)
     store = _store.build_store(cloud.db)
-    assert _cloud_land._claim(store, job_id, "land")  # another process holds the claim
-    assert _main(cloud, "cloud-sync", "--json") == 1
+    assert _cloud_land._claim(store, job_id, "land")  # another live process holds the claim
+    # A landing in progress elsewhere is a wait, not a failure: the sync exits cleanly and lands nothing.
+    assert _main(cloud, "cloud-sync", "--json") == 0
     (row,) = json.loads(capsys.readouterr().out)["jobs"]
-    assert row["action"] == "land-failed" and "another process" in row["detail"]
+    assert row["action"] == "waiting" and "another process" in row["detail"]
     assert gh.calls("pr", "create") == []
     _cloud_land._release(store, job_id, "land")
     assert _main(cloud, "cloud-sync") == 0
