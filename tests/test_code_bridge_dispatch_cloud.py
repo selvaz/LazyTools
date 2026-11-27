@@ -264,6 +264,24 @@ def test_another_executors_unsubmitted_cloud_claim_is_left_alone(
     assert not launcher.launches
 
 
+def test_intent_with_a_job_reference_is_not_resubmitted(
+    service: ProjectTaskService, landed: tuple[Path, str],
+) -> None:
+    admit(service, None)
+    launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
+    dispatch = dispatcher(service, launcher, events)
+    dispatch._place(_dispatch._tasks(service, PROJECT))
+    summary = service.next_ready(PRINCIPAL, PROJECT)["tasks"][0]
+    service.claim(PRINCIPAL, summary["task_id"], summary["revision"], "dispatch:A:1")
+    task = _dispatch._tasks(service, PROJECT)[0]
+    assert task.dispatch is not None
+    task.dispatch["job_ref"] = "known-job"
+    dispatch._settle_cloud(task)
+    assert not launcher.launches
+    assert board_task(service)["dispatches"][-1]["state"] == "intent"
+    assert not [line for line in events if line.startswith("failed")]
+
+
 def test_restart_after_lease_expiry_settles_recorded_accepted_evidence(
     service: ProjectTaskService, landed: tuple[Path, str], monkeypatch: pytest.MonkeyPatch,
 ) -> None:

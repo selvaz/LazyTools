@@ -499,7 +499,8 @@ class Dispatcher:
         if job is None:
             # Still `intent` with no job: begin_submit never succeeded (the store was busy, or the
             # dispatcher stopped first), so nothing reached the provider and the submit is still owed.
-            if dispatch.get("state") == "intent" and receipt.get("executor") == self.principal.actor:
+            if (dispatch.get("state") == "intent" and not dispatch.get("job_ref")
+                    and receipt.get("executor") == self.principal.actor):
                 return self._launch_cloud(task, receipt, receipt)
             return self._settle_missing(task, dispatch, receipt)
         if job.get("status") == "submitting" and not job.get("cloud_handle"):
