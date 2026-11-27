@@ -18,6 +18,7 @@ from lazytools.code_bridge._dispatch_launch import BridgeLauncher, local_job_id
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import TransactionStore
+from lazytools.routing import RoutingDecision
 from test_code_bridge_dispatch import _repo
 from test_projects_task_service import PROJECT, Clock, admit, task
 
@@ -103,7 +104,8 @@ class Queue:
               parallel: int = 1, land: bool = False) -> Dispatcher:
         instance = Dispatcher(
             self.service, PRINCIPAL, self.launcher, PROJECT, emit=emit or self.events.append,
-            clock=self.clock, router=lambda _tier: "codex", land=land, parallel=parallel,
+            clock=self.clock, land=land, parallel=parallel,
+            router=lambda tier, *_: RoutingDecision(tier, "codex", None, None, "weekly_margin", True),
         )
         pid = next(self.pids)
         if pid == os.getpid():

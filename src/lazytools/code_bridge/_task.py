@@ -84,8 +84,9 @@ class Claim:
             raise ValueError("The launch no longer matches the MCP task's policy digest")
         return launch
 
-    def recheck(self, job_id: str) -> None:
-        self.service.local_claim(self.principal, self.task_id, self.token, state="submitted", job_ref=job_id)
+    def recheck(self, job_id: str) -> float:
+        receipt = self.service.local_claim(self.principal, self.task_id, self.token, state="submitted", job_ref=job_id)
+        return float(receipt["lease_expires_at"])
 
     def consume_approval(
         self, job_id: str, approval_id: str, executor: ExecutorContext, *, registry: _registry.Registry | None = None,

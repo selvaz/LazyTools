@@ -17,7 +17,8 @@ import subprocess
 import sys
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import partial
@@ -43,10 +44,12 @@ from lazytools.code_bridge._policy import NATIVE_READ_RULES
 from lazytools.code_bridge._review_choice import choose_reviewer
 from lazytools.code_bridge._review_tools import review_tools
 from lazytools.code_bridge._turn_cleanup import TurnCleanup
+from lazytools.projects.task_store import TaskServiceError
 
 ENGINES: tuple[str, ...] = ("codex", "claude")
 DEFAULT_MAX_CONTINUATIONS = 3
 MAX_CONTINUATIONS = 10
+CLAIM_POLL_SECONDS = 2.0
 CONTINUATION_PROMPT = "continue from the last commit; re-read the brief's Done-when; do not redo committed steps"
 COMMIT_CONTINUATION_PROMPT = (
     "The checkout still has uncommitted changes. Commit the completed work now. "
@@ -332,6 +335,50 @@ async def _run_agent(
     from lazybridge import Agent
 
     return await Agent(engine, name=agent_name, tools=list(tools) if tools else None).run(task)
+
+
+@asynccontextmanager
+async def _watch_claim(claim: _task.Claim | None, job_id: str) -> AsyncIterator[None]:
+    if claim is None:
+        yield
+        return
+
+    deadline = asyncio.timeout(None)
+    failure: Exception | None = None
+
+    async def poll() -> None:
+        nonlocal failure
+        try:
+            while True:
+                delay = CLAIM_POLL_SECONDS
+                try:
+                    expires = await asyncio.to_thread(claim.recheck, job_id)
+                except TaskServiceError as exc:
+                    if exc.code not in {"busy", "unavailable"}:
+                        raise
+                    # A failed store read cannot establish that the claim was lost.
+                else:
+                    # At the last observed expiry, read again. A renewal may
+                    # have landed since the previous poll.
+                    delay = min(delay, max(0.0, expires - claim.service.clock()))
+                await asyncio.sleep(delay)
+        except Exception as exc:
+            failure = exc
+            deadline.reschedule(asyncio.get_running_loop().time())
+
+    try:
+        async with deadline:
+            watcher = asyncio.create_task(poll())
+            try:
+                yield
+            finally:
+                watcher.cancel()
+                await asyncio.gather(watcher, return_exceptions=True)
+    except TimeoutError:
+        if not deadline.expired():
+            raise
+    if failure is not None:
+        raise PolicyError(f"Task claim check failed during the turn: {failure}") from failure
 
 
 @_credentials.scrub_job_environment()
@@ -749,12 +796,11 @@ def run_job(
                 started = time.time()
                 wall_expired = False
                 turn_limit = min(timeout, remaining) if remaining is not None else timeout
-                lease_left = claim.receipt["lease_expires_at"] - time.time() if claim else math.inf
-                deadline = asyncio.timeout(min(turn_limit, lease_left))
+                deadline = asyncio.timeout(turn_limit)
                 gate.accepting = channel.accepting = True
                 async with TurnCleanup() as cleanup:
                     try:
-                        async with deadline:
+                        async with deadline, _watch_claim(claim, job_id):
                             with policy_scope(launch.policy if launch.mode == "governed" else None):
                                 if scoped_reads:
                                     env = await _run_agent(engine, prompt, agent_name, tools=scoped_reads)
@@ -762,10 +808,7 @@ def run_job(
                                     env = await _run_agent(engine, prompt, agent_name)
                     except TimeoutError as exc:
                         wall_expired = deadline.expired() and remaining is not None and remaining <= timeout
-                        if deadline.expired() and lease_left <= turn_limit:
-                            env = Envelope.error_envelope(PolicyError("Task claim lease expired during the turn"))
-                        else:
-                            env = Envelope.error_envelope(exc)
+                        env = Envelope.error_envelope(exc)
                     except Exception as exc:
                         env = Envelope.error_envelope(exc)
                     finally:
