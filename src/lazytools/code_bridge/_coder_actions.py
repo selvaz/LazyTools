@@ -66,8 +66,9 @@ _GIT_EXEC_CONFIG = (
     r"filter\..+\.(clean|smudge|process)|lfs\.storage|commit\.gpgsign|maintenance\.prefetch\.enabled)$"
 )
 _GIT_MERGE_CONFIG = (
+    # pull.twohead / pull.octopus set the default merge strategy, which can run an external git-merge-<name>.
     r"^(merge\.(.+\.driver|autostash|renormalize|verifysignatures)|branch\..+\.mergeoptions|"
-    r"core\.editor|submodule\.recurse|extensions\.partialclone|remote\..+\.promisor)$"
+    r"pull\.(twohead|octopus)|core\.editor|submodule\.recurse|extensions\.partialclone|remote\..+\.promisor)$"
 )
 _GIT_MERGE_HOOKS = {"pre-merge-commit", "post-merge"}
 # Git LFS installs these same filters at system or global scope on any OS.

@@ -383,6 +383,17 @@ def test_merge_card_rejects_hooks_and_merge_drivers(checks_channel):
     hook.unlink()
     git(cwd, "config", "merge.custom.driver", "external-merge")
     assert channel._submit(req, command)[0].status == "pending"
+    git(cwd, "config", "--unset", "merge.custom.driver")
+
+
+@pytest.mark.parametrize("key", ["pull.twohead", "pull.octopus"])
+def test_merge_card_rejects_a_configured_default_strategy(checks_channel, key):
+    """Review P1 on #452: a configured default strategy can run an external git-merge-<name> program."""
+    cwd, _, channel = checks_channel
+    git(cwd, "update-ref", "refs/remotes/origin/main", "HEAD")
+    command = "powershell.exe -Command 'git merge origin/main'"
+    git(cwd, "config", key, "custom")
+    assert channel._submit(request(cwd, command, provider="codex"), command)[0].status == "pending"
 
 
 def test_merge_card_checks_the_job_branch_and_changed_paths(checks_channel):
