@@ -115,7 +115,7 @@ Providers whose optional extra is missing are simply skipped, a bare
 
 `lazytools-orchestration-mcp` runs the same server with only the orchestration
 providers: `code_bridge`, `code_review`, `claude_review`, `code_sessions`,
-`codemap`, `projects` and `fleet`. `code_write` and the data providers are never
+`codemap`, `projects`, `fleet` and `pr`. `code_write` and the data providers are never
 mounted. See the [design spec](design/orchestration-mcp/SPEC.md).
 
 ```sh
@@ -127,9 +127,9 @@ It takes the same flags and environment variables as `lazytools-mcp`. Positional
 ids (or `LAZYTOOLS_MCP_PROVIDERS`) narrow the selection; an id outside the list
 above is an error and the server does not start.
 
-Without `--allow-unsafe` it serves the `codemap`, `fleet` and read-only
-`projects` tools. With it, bridge jobs, reviews, named sessions and project
-writes are added. It starts with one coding CLI installed or none: the review
+Without `--allow-unsafe` it serves the `codemap`, `fleet`, `pr_watch_poll` and
+read-only `projects` tools. With it, bridge jobs, pull-request work, reviews,
+named sessions and project writes are added. It starts with one coding CLI installed or none: the review
 provider of a missing CLI is skipped with a warning (Codex is also found through
 `CODEX_BIN` or the desktop app), and no engine SDK is imported at start.
 
@@ -137,7 +137,7 @@ On either server, `--list-tools` prints the names of the tools the same flags
 would serve, one per line, and exits without starting a transport.
 
 **Deprecation.** `lazytools-mcp` keeps the coding providers (`code_bridge`,
-`code_review`, `claude_review`, `code_sessions`, `codemap`, `fleet`) for one
+`code_review`, `claude_review`, `code_sessions`, `codemap`, `fleet`, `pr`) for one
 release and logs a note to stderr when it mounts any of them. Move those entries
 of your host configuration to `lazytools-orchestration-mcp`.
 
@@ -162,6 +162,7 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `code_sessions` | `CodeSessionTools(...)` | list/bind/rename/forget native aliases | explicit opt-in with `--allow-unsafe` |
 | `code_bridge` | `CodeBridgeTools(...)` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` — local and cloud coding jobs through `lazytools-code-bridge` | `--allow-unsafe`; cloud jobs also need `allow_cloud=true` per call |
 | `fleet` | `FleetTools(...)` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search` | none; always read-only |
+| `pr` | `PrTools(...)` | `pr_watch_poll` (+ `pr_navigate`, `bridge_publish`, `bridge_apply` with `--allow-unsafe`) | `gh` CLI, authenticated |
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
 | `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — Tools that delegate through `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
 | `studio` | Published agents and pipelines discovered from LazyStudio | each published `studio_<slug>` tool, `studio_run_status`; `studio_status` when disconnected | LazyStudio operator token; published calls need `--allow-unsafe` |
@@ -467,6 +468,30 @@ Claude probe. Routing choices and ISO dates are validated before invocation;
 caller-provided values beginning with `-` are rejected rather than passed as
 options. `bridge_pending` reports bridge job approval tickets and is separate
 from the projects provider's pending approvals.
+
+### `pr` — pull-request tools
+
+```text
+pr_watch_poll(pulls, no_ci=False) -> {ok, events, terminal, errors}
+pr_navigate(repo, pr, reviewer_cmd, checks, max_rounds=3) -> dict   # --allow-unsafe
+bridge_publish(task, repo, branch, base="main") -> dict              # --allow-unsafe
+bridge_apply(job, land=False) -> dict                                # --allow-unsafe
+```
+
+`pr_watch_poll` polls each `owner/repo#number` once with the code of
+`lazytools-code-bridge watch` and returns only events not reported before. The
+state lives in the bridge Store and is shared with a CLI watcher on the same
+Store, so each event goes to whichever of the two polls first. It changes nothing
+on GitHub and does not request reviews. A pull request that fails to poll is
+listed under `errors`; the others are still returned.
+
+The other three run `navigate`, `publish` and `apply` in a child process, so
+approvals and landing checks are those of the CLI. `pr_navigate` waits for the
+whole loop (`max_rounds` 1-10), and `reviewer_cmd` and `checks` are commands
+executed on the server's machine. `bridge_publish` returns the command's text in
+`output`, including the approval ticket. `bridge_publish`'s `repo` and the job of
+`bridge_apply` must be under the code root. None of the four tools is served to,
+or callable from, a scoped code task.
 
 ### Scoped code tasks
 
