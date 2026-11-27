@@ -210,8 +210,13 @@ def test_cancel_revokes_writer_copies(writer, monkeypatch):
 
 
 @pytest.mark.parametrize("network", ["on", "off"])
-def test_github_reads_spend_cards_only_with_network_access(writer, monkeypatch, network):
+def test_github_reads_spend_cards_only_with_network_access(writer, tmp_path, monkeypatch, network):
     repo, db, registry_db, _ = writer
+    # Cards approve gh only when the repository gh resolves is the checkout's origin.
+    monkeypatch.delenv("GH_REPO", raising=False)
+    monkeypatch.delenv("GH_HOST", raising=False)
+    fakes.install_fake_gh(tmp_path / "bin", monkeypatch)
+    git(repo, "remote", "add", "origin", "https://github.com/example/repo.git")
     reads = [
         "gh pr view 42 --json title",
         "gh pr list --head topic",

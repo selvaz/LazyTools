@@ -76,6 +76,8 @@ class CompletionEvidence(BaseModel):
     outcome: Outcome | None = None
     failure_reason: Nonempty | None = None
     preserved_branch: Nonempty | None = None  # work of a failed attempt, kept for the retry
+    pr_url: Nonempty | None = None  # `dispatch --land`: the PR the accepted branch was pushed to
+    land_failure: Nonempty | None = None  # `dispatch --land`: why push or PR failed (the task stays accepted)
 
 
 class AttemptContinuation(BaseModel):
@@ -902,7 +904,7 @@ class ProjectTaskService:
             ):
                 raise TaskServiceError("stale", "Evidence does not match the submitted job, executor and engine")
             record = evidence.model_dump(mode="json")
-            for optional in ("failure_reason", "preserved_branch"):
+            for optional in ("failure_reason", "preserved_branch", "pr_url", "land_failure"):
                 if record[optional] is None:
                     record.pop(optional)  # keep existing evidence replays compatible
             records = dispatch.setdefault("evidence", {})

@@ -17,7 +17,9 @@ from typing import Any, Literal, Protocol
 from lazybridge import Store
 from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugify
 
-from lazytools.code_bridge import _cloud, _concurrency, _jobs, _registry, _routing, _store
+from lazytools.code_bridge import _cloud, _cloud_land, _concurrency, _gh, _jobs, _registry, _routing, _store
+from lazytools.code_bridge._cloud import CloudError
+from lazytools.code_bridge._lockfile import _pid_alive
 from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
@@ -33,6 +35,7 @@ from lazytools.projects.task_store import TaskServiceError, transaction
 
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted", "cancelled"})
 DEFAULT_STALE_MINUTES = 10
+DEFAULT_TOOL_STALE_MINUTES = 60  # one tool call running longer than this is stale
 STALE_HEARTBEAT = "engine heartbeat went stale"
 # Engine crashes (not task failures): retried once with a fresh attempt.
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
@@ -53,9 +56,29 @@ def _resumes(continuation: dict[str, Any] | None, engine_family: Any) -> bool:
     return continuation.get("engine") == ("claude" if engine_family == "claude_code" else engine_family)
 
 
-def _has_stale_heartbeat(job: dict[str, Any], cutoff: float) -> bool:
+def _tool_call_in_progress(job: dict[str, Any], now: float, bound: float) -> bool:
+    """A tool call is running in a live job process and within its own bound.
+
+    The engine emits no events while a tool (a long shell command) runs, so
+    the event heartbeat alone would cancel healthy jobs. The engine is driven by
+    the job's worker process (``pid``): when the engine exits, the worker ends
+    the turn and clears its tool calls; when the worker dies, nothing is left
+    to finish them.
+    """
+    calls = job.get("tool_calls")
+    pid = job.get("pid")
+    if not isinstance(calls, dict) or not calls or not isinstance(pid, int) or not _pid_alive(pid):
+        return False
+    starts = [call.get("started_at") if isinstance(call, dict) else None for call in calls.values()]
+    return all(isinstance(start, (int, float)) and now - start < bound for start in starts)
+
+
+def _has_stale_heartbeat(job: dict[str, Any], cutoff: float, *, now: float | None = None,
+                         tool_bound: float = DEFAULT_TOOL_STALE_MINUTES * 60) -> bool:
     heartbeat = job.get("heartbeat_at")
-    return job.get("status") == "running" and isinstance(heartbeat, (int, float)) and heartbeat < cutoff
+    if job.get("status") != "running" or not isinstance(heartbeat, (int, float)) or heartbeat >= cutoff:
+        return False
+    return not _tool_call_in_progress(job, time.time() if now is None else now, tool_bound)
 
 
 @dataclass(frozen=True)
@@ -468,6 +491,34 @@ def _publish(cwd: Path) -> tuple[str | None, str | None]:
     return expected, None
 
 
+def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
+          checks: list[str]) -> tuple[str | None, str | None]:
+    """Push a published branch to the clone's origin and open its PR (or reuse an open one).
+
+    Returns (pr_url, error). The push is fast-forward only and never targets the default branch.
+    """
+    try:
+        repo = _cloud.repo_slug(cwd)
+        base = _gh.default_branch(repo)
+        if branch == base:
+            return None, f"refusing to land on the default branch {base}"
+        _cloud_land._push(cwd, branch, branch)
+        existing = _gh.pr_for_branch(repo, branch)
+        if existing and existing.get("url"):
+            return str(existing["url"]), None  # a revision of the branch updates its PR
+        text_lines = str(data.get("text") or "").strip().splitlines()
+        title = str(data.get("title") or (text_lines[0] if text_lines else task_id)).strip()[:200] or task_id
+        criteria = data.get("acceptance_criteria") or []
+        body = "\n".join([
+            f"Task: `{task_id}`", "", "Acceptance criteria:",
+            *([f"- {item}" for item in criteria] or ["- none recorded"]), "",
+            "Checks that passed:", *([f"- `{command}`" for command in checks] or ["- none configured"]),
+        ]) + "\n"
+        return _gh.pr_create(repo, base=base, head=branch, title=title, body=body), None
+    except (CloudError, subprocess.TimeoutExpired) as exc:
+        return None, (" ".join(_cloud.redact(str(exc)).split())[:500] or "landing failed")
+
+
 class Dispatcher:
     def __init__(self, service: ProjectTaskService, principal: TaskPrincipal, launcher: Launcher,
                  project_id: str, *, parallel: int = 1, emit: Callable[[str], None] | None = None,
@@ -477,7 +528,8 @@ class Dispatcher:
                  router: Callable[..., str | None] | None = None, max_retries: int = 1,
                  json_events: bool = False, knowledge_store: Store | None = None,
                  stale_minutes: int = DEFAULT_STALE_MINUTES,
-                 capacity: Callable[[str], int | None] | None = None, router_with_engine: bool = False):
+                 capacity: Callable[[str], int | None] | None = None, router_with_engine: bool = False,
+                 land: bool = False):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
         if stale_minutes < 1:
@@ -492,6 +544,7 @@ class Dispatcher:
         self.router = router
         self.capacity = capacity  # engine family -> local slot limit (None = unlimited)
         self.router_with_engine = router_with_engine  # router accepts (tier, engine_family)
+        self.land = land  # push each published branch to origin and open its PR
         self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
         self.waiting: set[str] = set()
@@ -765,7 +818,7 @@ class Dispatcher:
             now = self.clock()
             lease_end = float(receipt.get("lease_expires_at", float("inf")))
             cutoff = now - self.stale_seconds
-            stale = _has_stale_heartbeat(job, cutoff)
+            stale = _has_stale_heartbeat(job, cutoff, now=now)
             cancel = getattr(self.launcher, "cancel", None)
             if (not stale and lease_end > now) or cancel is None or str(job_ref) in self.cancelled:
                 return False
@@ -839,6 +892,7 @@ class Dispatcher:
         else:
             failure_reason = job_error
         # Publish only after the lease and evidence checks; a failed publish fails the task.
+        published: str | None = None
         if accepted and cwd is not None:
             published, publish_error = _publish(cwd)
             if publish_error:
@@ -865,7 +919,9 @@ class Dispatcher:
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
             review_independence=review_independence,
             outcome="success" if accepted else "task_failure", failure_reason=check_failure,
-            preserved_branch=preserved.branch if preserved else None)
+            preserved_branch=preserved.branch if preserved else None,
+            # Preserve landing fields only when replaying evidence from an older dispatcher.
+            pr_url=recorded.get("pr_url"), land_failure=recorded.get("land_failure"))
         if not recorded_failure:
             self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
         complete_options = {"reconcile_failure": True} if expired else {}
@@ -874,6 +930,13 @@ class Dispatcher:
         self._record_rejection(task, job)
         if accepted:
             self._event("done", task.task_id, job_id=str(job_ref))
+            if self.land and published and cwd is not None:
+                # The local artifact is accepted before contacting origin or GitHub.
+                pr_url, land_failure = _land(cwd, published, task.task_id, task.data, list(checks or []))
+                if pr_url:
+                    self._event("landed", task.task_id, pr_url, job_id=str(job_ref))
+                elif land_failure:
+                    self._event("land-failed", task.task_id, land_failure, job_id=str(job_ref))
             return True
         if not resume_failed:
             self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
@@ -1068,7 +1131,7 @@ def dispatch(args: argparse.Namespace) -> int:
         return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
                           capacity=capacity, router_with_engine=True,
                           json_events=bool(getattr(args, "json", False)),
-                          knowledge_store=knowledge_store,
+                          knowledge_store=knowledge_store, land=bool(getattr(args, "land", False)),
                           stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)
     finally:
         if knowledge_store is not None:

@@ -7,9 +7,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from lazybridge.policy import PolicyError, select_reviewer
-
 from lazytools.code_bridge import _concurrency, _installed, _jobs, _lockfile, _store
+from lazytools.code_bridge._review_choice import choose_reviewer
 from lazytools.projects.admission import (
     ENGINES,
     LONG_WINDOW_MINUTES,
@@ -265,30 +264,23 @@ def choose(
         if job is None:
             raise ValueError(f"no job found matching {review_of!r}")
         writer = provider(str(job.get("engine", job.get("kind"))))
-        detected = _installed.installed_engines(installed)
-        opposite = "claude" if writer == "codex" else "codex"
-        if explicit_engine is not None and bridge_engine(explicit_engine) == opposite:
-            # An explicit request for the opposite engine asserts it is available; discovery
-            # only decides automatic selection (governed reviews pass --engine).
-            detected = detected | {opposite}
-        if opposite not in detected:
-            try:
-                reviewer = select_reviewer(bridge_engine(writer), detected, mode="opposite-or-fresh")
-            except PolicyError as exc:
-                raise ValueError(str(exc)) from exc
-            independence = reviewer.independence
-            available &= frozenset((provider(reviewer.engine),))
-            if independence == "same-provider-fresh":
-                # Fresh means no shared conversation: a new session name is fine (governed
-                # reviews name their own), a session with history (the writer's) is not.
-                if session and continuity.engine is not None:
-                    raise ValueError(
-                        f"--session {session!r} already has a conversation in this repository; a "
-                        "same-provider-fresh review needs a new session name or none"
-                    )
-                writer = None  # the policy explicitly authorized the fresh same-provider fallback
-        else:
-            independence = "opposite-engine"
+        choice = choose_reviewer(
+            bridge_engine(writer), _installed.installed_engines(installed),
+            bridge_engine(explicit_engine) if explicit_engine else None,
+            session_history=bool(session) and continuity.engine is not None,
+        )
+        if choice.refusal_reason is not None:
+            return Selection(
+                RoutingDecision(tier, None, None, None, "human_review_required", False,
+                                ineligible={"reviewer": choice.refusal_reason}),
+                {}, None, None, review_of=review_of,
+            )
+        assert choice.engine is not None
+        independence = choice.independence
+        if independence == "same-provider-fresh":
+            # The router excludes the writer's provider; this choice authorizes it, fresh.
+            available &= frozenset((provider(choice.engine),))
+            writer = None
     notice = None
     requested_for_session = requested or ("codex" if needs == "images" else None)
     if needs == "images" and continuity.engine != "codex":
