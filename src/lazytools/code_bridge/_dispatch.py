@@ -19,6 +19,7 @@ from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugi
 
 from lazytools.code_bridge import _cloud, _cloud_land, _concurrency, _gh, _jobs, _registry, _routing, _store
 from lazytools.code_bridge._cloud import CloudError
+from lazytools.code_bridge._lockfile import _pid_alive
 from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
@@ -28,6 +29,7 @@ from lazytools.projects.task_store import TaskServiceError, transaction
 
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted", "cancelled"})
 DEFAULT_STALE_MINUTES = 10
+DEFAULT_TOOL_STALE_MINUTES = 60  # one tool call running longer than this is stale
 STALE_HEARTBEAT = "engine heartbeat went stale"
 # Engine crashes (not task failures): retried once with a fresh attempt.
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
@@ -35,9 +37,29 @@ RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "
                       "no new commit since the task started", STALE_HEARTBEAT, "database is locked")
 
 
-def _has_stale_heartbeat(job: dict[str, Any], cutoff: float) -> bool:
+def _tool_call_in_progress(job: dict[str, Any], now: float, bound: float) -> bool:
+    """A tool call is running in a live job process and within its own bound.
+
+    The engine emits no events while a tool (a long shell command) runs, so
+    the event heartbeat alone would cancel healthy jobs. The engine is driven by
+    the job's worker process (``pid``): when the engine exits, the worker ends
+    the turn and clears its tool calls; when the worker dies, nothing is left
+    to finish them.
+    """
+    calls = job.get("tool_calls")
+    pid = job.get("pid")
+    if not isinstance(calls, dict) or not calls or not isinstance(pid, int) or not _pid_alive(pid):
+        return False
+    starts = [call.get("started_at") if isinstance(call, dict) else None for call in calls.values()]
+    return all(isinstance(start, (int, float)) and now - start < bound for start in starts)
+
+
+def _has_stale_heartbeat(job: dict[str, Any], cutoff: float, *, now: float | None = None,
+                         tool_bound: float = DEFAULT_TOOL_STALE_MINUTES * 60) -> bool:
     heartbeat = job.get("heartbeat_at")
-    return job.get("status") == "running" and isinstance(heartbeat, (int, float)) and heartbeat < cutoff
+    if job.get("status") != "running" or not isinstance(heartbeat, (int, float)) or heartbeat >= cutoff:
+        return False
+    return not _tool_call_in_progress(job, time.time() if now is None else now, tool_bound)
 
 
 @dataclass(frozen=True)
@@ -47,6 +69,7 @@ class Task:
     status: str
     data: dict[str, Any]
     dispatch: dict[str, Any] | None
+    hold_reason: str | None = None  # reason recorded with the task's current start_hold
 
 
 class Launcher(Protocol):
@@ -58,9 +81,14 @@ class Launcher(Protocol):
 def _tasks(service: ProjectTaskService, project_id: str) -> list[Task]:
     with transaction(service.path) as store:
         board = store.read(_board_key(project_id), {"tasks": []})
+        holds: dict[int, str] = {}
+        for event in board.get("schedule_events", []):
+            if event.get("hold") and event.get("reason") and "task_index" in event:
+                holds[event["task_index"]] = str(event["reason"])  # later events win
         return [Task(f"{project_id}/{board_task_id(data, index)}", data.get("revision", "0"),
                      data.get("status", "todo"), data,
-                     data.get("dispatches", [None])[-1] if data.get("dispatches") else None)
+                     data.get("dispatches", [None])[-1] if data.get("dispatches") else None,
+                     hold_reason=holds.get(index))
                 for index, data in enumerate(board["tasks"])]
 
 
@@ -645,7 +673,7 @@ class Dispatcher:
             now = self.clock()
             lease_end = float(receipt.get("lease_expires_at", float("inf")))
             cutoff = now - self.stale_seconds
-            stale = _has_stale_heartbeat(job, cutoff)
+            stale = _has_stale_heartbeat(job, cutoff, now=now)
             cancel = getattr(self.launcher, "cancel", None)
             if (not stale and lease_end > now) or cancel is None or str(job_ref) in self.cancelled:
                 return False
@@ -860,8 +888,14 @@ class Dispatcher:
 def _dry_run(service: ProjectTaskService, project_id: str, emit: Callable[[str], None] = print,
              task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks) -> int:
     tasks = task_reader(service, project_id)
+    # Same gate as ProjectTaskService.next_ready: a start_hold task is never dispatched,
+    # so it stays out of the waves and its dependants can never become ready.
+    held = {task.task_id.rsplit("/", 1)[1]: task for task in tasks
+            if task.status == "todo" and task.data.get("start_hold")}
+    for identifier, task in held.items():
+        emit(f"held {project_id}/{identifier}" + (f" ({task.hold_reason})" if task.hold_reason else ""))
     remaining = {task.task_id.rsplit("/", 1)[1]: set(task.data.get("dependency_ids", []))
-                 for task in tasks if task.status == "todo"}
+                 for task in tasks if task.status == "todo" and task.task_id.rsplit("/", 1)[1] not in held}
     done = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "done"}
     number = 0
     while remaining:

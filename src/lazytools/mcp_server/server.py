@@ -117,6 +117,10 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     # Starts local or cloud coding agents that write code, and polls/lands cloud
     # jobs: status and result included, since a cloud poll can land a finished job.
     "code_bridge_",
+    # The writers of the ``pr`` provider: fix jobs, publication, applying and landing.
+    "pr_navigate",
+    "bridge_publish",
+    "bridge_apply",
     # Session-name curation: changes what a name resumes (and so which
     # conversation a later call continues). ``code_sessions_list`` is a reader.
     "code_sessions_bind",
@@ -130,6 +134,8 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "tasks_complete",
     "tasks_route_clear",
     "approvals_decide",
+    # Writes the lessons store the dispatcher feeds into later task prompts.
+    "lessons_record",
 )
 
 
@@ -335,22 +341,8 @@ def build_server(
 
     listed = _mcp_tool_models(types, tool_map)
 
-    def visible(request: Any) -> dict[str, Tool]:
-        if code_task_resolver is None:
-            if current_policy_context() is None:
-                return tool_map
-            return _scoped_tools(tool_map)
-        task = code_task_resolver(request)
-        if task is None:
-            return {}
-        try:
-            with task_scope(task):
-                return _scoped_tools(tool_map)
-        except PolicyError:
-            return {}
-
     def list_tools(request: Any) -> list[Any]:
-        allowed = visible(request)
+        allowed = visible_tools(tool_map, code_task_resolver, request)
         return [tool for tool in listed if tool.name in allowed]
 
     async def call_tool(request: Any, tool_name: str, arguments: dict[str, Any] | None) -> list[Any]:
@@ -475,6 +467,26 @@ def _mcp_tool_models(types: Any, tool_map: dict[str, Tool]) -> list[Any]:
             )
         )
     return listed
+
+
+def visible_tools(
+    tool_map: dict[str, Tool],
+    code_task_resolver: CodeTaskResolver | None = None,
+    request: Any = None,
+) -> dict[str, Tool]:
+    """The subset of ``tool_map`` that ``tools/list`` serves to ``request``."""
+    if code_task_resolver is None:
+        if current_policy_context() is None:
+            return tool_map
+        return _scoped_tools(tool_map)
+    task = code_task_resolver(request)
+    if task is None:
+        return {}
+    try:
+        with task_scope(task):
+            return _scoped_tools(tool_map)
+    except PolicyError:
+        return {}
 
 
 def _scoped_tools(tool_map: dict[str, Tool]) -> dict[str, Tool]:

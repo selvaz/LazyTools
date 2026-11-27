@@ -46,6 +46,20 @@ def _data_home() -> str:
 PROVIDER_FACTORIES: dict[str, Callable[..., Any]] = {}
 
 
+#: The only providers ``lazytools-orchestration-mcp`` mounts, in listing order.
+ORCHESTRATION_PROVIDERS: tuple[str, ...] = (
+    "code_bridge",
+    "code_review",
+    "claude_review",
+    "code_sessions",
+    "codemap",
+    "projects",
+    "fleet",
+    "knowledge",
+    "pr",
+)
+
+
 def _register(provider_id: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def deco(factory: Callable[..., Any]) -> Callable[..., Any]:
         PROVIDER_FACTORIES[provider_id] = factory
@@ -937,6 +951,40 @@ def _code_bridge(allow_write: bool = False, *, data_source: dict[str, Any] | Non
         root=config.get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
         task_principal=TaskPrincipal.model_validate(principal).model_dump_json() if principal is not None else None,
         projects_db=config.get("projects_store_db"),
+    )
+
+
+@_register("fleet")
+def _fleet(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Read-only code-bridge fleet, routing, model, and capability views."""
+    from lazytools.code_bridge._mcp_fleet import FleetTools
+
+    config = data_source or {}
+    return FleetTools(root=config.get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"))
+
+
+@_register("knowledge")
+def _knowledge(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """The dispatcher's lessons store: ``lessons_search``; ``lessons_record`` only with ``allow_write``.
+
+    ``data_source`` key: ``knowledge_db`` (else ``LAZYTOOLS_KNOWLEDGE_DB``, else
+    ``~/.lazytools/knowledge.sqlite``).
+    """
+    from lazytools.code_bridge._mcp_knowledge import KnowledgeTools
+
+    return KnowledgeTools((data_source or {}).get("knowledge_db"), allow_write=allow_write)
+
+
+@_register("pr")
+def _pr(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Pull-request tools: ``pr_watch_poll`` always; navigate / publish / apply with ``allow_write``."""
+    from lazytools.code_bridge._mcp_pr import PrTools
+
+    config = data_source or {}
+    return PrTools(
+        root=config.get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
+        projects_db=config.get("projects_store_db"),
+        allow_write=allow_write,
     )
 
 

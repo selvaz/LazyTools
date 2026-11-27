@@ -54,14 +54,16 @@ lazytools-code-bridge route --tier writing --review-of WRITER_JOB_ID --cwd REPO 
 lazytools-code-bridge run --detach --tier writing --review-of WRITER_JOB_ID --cwd REPO --task @review.md --json
 ```
 
-- `--review-of JOB` (full id or unique prefix) allows only the engine that
-  did **not** write that job. It requires `--tier`.
-- If the opposite engine is ineligible (quota, ceiling, session pin), the
+- `--review-of JOB` (full id or unique prefix) uses the engine that did **not**
+  write that job when both CLIs are installed. If the writer's CLI is the only
+  installed engine, it starts a new same-provider conversation and records
+  `same-provider-fresh`; `--session` is refused. It requires `--tier`.
+- If the installed opposite engine is ineligible (quota, ceiling, session pin), the
   command fails with `human_review_required`. Do not substitute a
   self-review: wait for quota, or get a human review.
 - Launch local reviewer jobs with `--profile review`, which auto-approves
   only read-only commands. For cloud work, `run --where cloud --allow-cloud
-  --cwd REPO --review-of JOB_ID` posts the opposite engine's verdict on the PR.
+  --cwd REPO --review-of JOB_ID` applies the same installed-engine rule and posts the verdict on the PR.
 - The bridge review job is still write-capable; "do not edit" is only an
   instruction. When the review must be strictly read-only — or when the
   runner would time out because a review makes no commits — use a

@@ -83,6 +83,12 @@ its JSON lines for completion, failures, approvals, landings, and interruptions
 instead of maintaining a separate poller per job. The dispatch command also
 supports `--json` to emit structured task events as JSON lines.
 
+The event computation lives in `lazytools.code_bridge._events.iter_events`.
+`wait-any` calls it in its polling loop. The `bridge_events` MCP tool calls the
+same function through `_events.poll(cursor)`, which keeps the stream state in a
+cursor between calls (see [mcp-server.md](mcp-server.md#fleet--read-only-code-bridge-views)).
+There is one implementation, so both channels report the same events.
+
 ## Dispatch task graphs
 
 `dispatch` runs a project task graph through bridge jobs. A shared review type
@@ -267,22 +273,26 @@ never pushes the default branch.
 machine for taking a delegated cloud job to **merge-ready**. A backend first
 resyncs a legacy poll-failed job from provider truth and lands it on its pull
 request. The navigator then requests an independent review of the exact pushed
-head. Every new head is reviewed once, and the reported reviewer model must be
-different from the author model. A backend may use `run_reviewer_command` for a
-configured reviewer executable; the command receives `LAZYTOOLS_REVIEW_HEAD`,
+head. Every new head is reviewed once. The navigator accepts `different-model`,
+`opposite-engine`, and `same-provider-fresh` and records `review_independence`
+in its state and any escalation. A backend may use `run_reviewer_command` for a
+configured reviewer executable. The command receives `LAZYTOOLS_REVIEW_HEAD`,
 `LAZYTOOLS_REVIEW_PR`, and `LAZYTOOLS_AUTHOR_MODEL` and returns JSON such as:
 
 ```json
 {"reviewer_model":"claude","findings":[{"severity":"P2","message":"add a boundary test"}]}
 ```
 
+Include the reviewer job's `review_independence` field when available. Without
+routing evidence, the navigator compares the reviewer and author model names.
+
 Non-critical findings produce a focused fix brief and a relaunch on the same
 PR, followed by a review of the new head. The default cap is three review
 rounds. Reaching it creates an explicit `round-cap` escalation record and exits
 nonzero. A P0, P1, or unrecognised-severity finding immediately creates an `escalated` owner record and
 exits nonzero; it is never silently sent through another autonomous fix round.
-Changing PRs, reusing a reviewed head, an unknown author model, or using the author's model for review
-also fails closed.
+Changing PRs, reusing a reviewed head, or failing to establish reviewer
+independence also fails closed.
 
 A clean review is not enough to close the task. The backend runs all contract
 checks, recording every result. Navigator R1's standard checks are
@@ -674,11 +684,60 @@ Engine-only and detached launches enforce the same session pin. A conflict
 names the session and its engine and suggests a new `--session`; it fails
 before reading quota or launching a process.
 
-`--review-of JOB` (full id or unique prefix) allows only the engine opposite
-the writer. If that reviewer is ineligible, the command fails with
-`human_review_required`. `--needs images` permits only Codex. Conflicting
+`--review-of JOB` (full id or unique prefix) uses the engine opposite the
+writer when that CLI is installed. If the writer's CLI is the only installed
+engine, it starts a new conversation and records `same-provider-fresh` in the
+route and job result; `--session` is refused. If the opposite CLI is installed
+but ineligible, the command still fails with `human_review_required`.
+Executables are resolved from `CODEX_BIN`/`CLAUDE_BIN` or `PATH`, with
+`[engines] installed = [...]` as a config override. `--needs images` permits only Codex. Conflicting
 engine, session, review and capability constraints cannot silently relax
-these rules. `--needs` and `--review-of` on `run` require a tier.
+these rules. `--needs` on `run` requires a tier. `--review-of` without a tier
+keeps the explicit `--engine` and does not apply the opposite-engine rule.
+
+#### Reviewer decision table
+
+One function, `_review_choice.choose_reviewer`, decides the reviewer for local
+routing (`route`, `run --tier`), cloud reviews and the job launcher. The first
+matching row wins:
+
+| row | condition | outcome |
+| --- | --- | --- |
+| 1 | the reviewer's native conversation id equals the writer's | refused: not independent |
+| 2 | the opposite engine is installed, or `--engine` names it | opposite engine, `opposite-engine` |
+| 3 | the writer's engine is the only one installed | writer's engine, `same-provider-fresh` |
+| 4 | neither 2 nor 3 | refused: opposite engine unavailable |
+| 5 | row 2 or 3 chose, but `--engine` names the other engine | refused: the review runs on the chosen engine |
+| 6 | row 3 chose and `--session` already has a conversation | refused: needs a new session name or none |
+
+An explicit `--engine` naming the opposite engine counts as installed: discovery
+only decides automatic selection. A local refusal is reported as
+`human_review_required`; a cloud refusal is an error. The launcher's engine is
+already fixed, so for it only row 1 can refuse (which is why `--review-of`
+without a tier keeps its `--engine`). After a reviewer is chosen, local routing
+can still end in `human_review_required` when that engine is ineligible.
+
+### Native conversation ids and independence
+
+A local job records `native_id`, the Claude Code session id or Codex thread id
+of its conversation, and `result JOB --json` shows it. It is written when a turn
+ends, or before the engine starts when a `--session` alias resumes a
+conversation. It is `null` for a job stopped during its first new turn, or when
+the engine reported none, for example a Claude job without `--session` whose
+turn failed. A `--review-of` job also records `review_of` (the writer's full job
+id) and `writer_native_id`.
+
+A review whose `native_id` equals `writer_native_id` fails as
+`review refused as not independent`. When a `--session` alias resumes the
+writer's conversation, it is refused before the engine starts; if the engine
+only reports the id after a turn, the review fails then and its text is not
+returned as a result. Use a new `--session` alias for the reviewer.
+
+The check needs both ids: with `writer_native_id: null`, it proves nothing. It
+compares the writer job's latest id exactly, so it does not detect an earlier or
+later id of the same conversation. It applies to local jobs launched with
+`--review-of`, with or without a tier. A task-claim review launched without
+`--review-of` (as `dispatch` does) records no writer id and is not checked.
 
 Running bridge jobs with a recorded, live PID are counted per engine across the Store and reserve
 quota in the score. Missing, unreadable or stale weekly quota excludes the
@@ -1528,9 +1587,11 @@ same code as `apply --land`:
 
 ### Cloud reviews: `run --where cloud --review-of <job>`
 
-`--review-of` picks the **opposite engine** of the reviewed job's author (Codex
-work is reviewed by Claude and vice versa, the same rule as the local router;
-`--engine` may only name that engine) and runs it as a cloud job on the
+`--review-of` prefers the **opposite engine** of the reviewed job's author (Codex
+work is reviewed by Claude and vice versa). If the author's CLI is the only
+installation, it instead uses a fresh same-provider cloud conversation and
+records `same-provider-fresh`; `--session` is refused. An installed opposite
+engine remains mandatory even when ineligible. The review runs on the
 reviewed job's **pushed branch**, so the job must be landed first (or, for
 Claude, have pushed its result branch). The reviewer is asked to write
 `REVIEW.md` (the only file it may create) ending with `verdict: blocking` or

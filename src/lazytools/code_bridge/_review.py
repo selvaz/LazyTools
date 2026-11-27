@@ -11,7 +11,8 @@ _KNOWN_SEVERITIES = BLOCKING_SEVERITIES | {"P2", "P3"}
 _BADGE_RE = re.compile(r"(?i)^(?:\s|\*\*|<sub>)*(?:!\[|\[)?(P[0-3])\b")
 
 ReviewVerdict = Literal["clean", "findings"]
-IndependenceLevel = Literal["unknown", "same-model", "different-model"]
+IndependenceLevel = Literal["unknown", "same-model", "different-model", "opposite-engine", "same-provider-fresh"]
+INDEPENDENT_LEVELS = frozenset({"different-model", "opposite-engine", "same-provider-fresh"})
 
 
 @dataclass(frozen=True)
@@ -32,7 +33,15 @@ class Review:
     independence_level: IndependenceLevel = "unknown"
 
 
-def independence_level(author_model: str, reviewer_model: str | None) -> IndependenceLevel:
+def independence_level(
+    author_model: str,
+    reviewer_model: str | None,
+    review_independence: str | None = None,
+) -> IndependenceLevel:
+    """Use the review job's routing evidence when available, then compare model names."""
+    match review_independence:
+        case "opposite-engine" | "same-provider-fresh" | "same-model":
+            return review_independence
     author = author_model.strip().casefold()
     reviewer = (reviewer_model or "").strip().casefold()
     if not author or not reviewer:

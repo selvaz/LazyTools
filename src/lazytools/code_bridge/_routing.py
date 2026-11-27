@@ -7,7 +7,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _concurrency, _jobs, _lockfile, _store
+from lazytools.code_bridge import _concurrency, _installed, _jobs, _lockfile, _store
+from lazytools.code_bridge._review_choice import choose_reviewer
 from lazytools.projects.admission import (
     ENGINES,
     LONG_WINDOW_MINUTES,
@@ -133,6 +134,7 @@ class Selection:
     pinned_engine: Engine | None = None
     requested_engine: Engine | None = None
     ceiling_windows: dict[Engine, tuple[WindowReading, ...]] = field(default_factory=dict)
+    independence: str | None = None
 
     @property
     def rung(self) -> int | None:
@@ -142,7 +144,8 @@ class Selection:
         return int(reason.rsplit("_step", 1)[1]) + 1 if "_step" in reason else 1
 
     def record(self) -> dict[str, Any]:
-        return {**self.decision.as_record(), "override": self.override, "rung": self.rung, "operator_directed": self.operator_directed}
+        return {**self.decision.as_record(), "override": self.override, "rung": self.rung,
+                "operator_directed": self.operator_directed, "independence": self.independence}
 
     def forecast(self, engine: Engine, window: WindowReading) -> tuple[float, float] | None:
         """Projected usage including the same reservations used in the router's margins."""
@@ -225,6 +228,7 @@ def choose(
     session: str | None = None, needs: str | None = None, review_of: str | None = None,
     model: str | None = None, effort: str | None = None, tiers_path: Path | None = None,
     respect_slots: bool = True,
+    installed: frozenset[str] | None = None,
 ) -> Selection:
     """Pick an engine/model for ``tier``.
 
@@ -254,11 +258,29 @@ def choose(
     if continuity.engine is not None:
         available &= frozenset((continuity.engine,))
     writer: Engine | None = None
+    independence: str | None = None
     if review_of:
         job = _jobs.find_job(store, _store.build_job_registry(store), review_of)
         if job is None:
             raise ValueError(f"no job found matching {review_of!r}")
         writer = provider(str(job.get("engine", job.get("kind"))))
+        choice = choose_reviewer(
+            bridge_engine(writer), _installed.installed_engines(installed),
+            bridge_engine(explicit_engine) if explicit_engine else None,
+            session_history=bool(session) and continuity.engine is not None,
+        )
+        if choice.refusal_reason is not None:
+            return Selection(
+                RoutingDecision(tier, None, None, None, "human_review_required", False,
+                                ineligible={"reviewer": choice.refusal_reason}),
+                {}, None, None, review_of=review_of,
+            )
+        assert choice.engine is not None
+        independence = choice.independence
+        if independence == "same-provider-fresh":
+            # The router excludes the writer's provider; this choice authorizes it, fresh.
+            available &= frozenset((provider(choice.engine),))
+            writer = None
     notice = None
     requested_for_session = requested or ("codex" if needs == "images" else None)
     if needs == "images" and continuity.engine != "codex":
@@ -433,6 +455,7 @@ def choose(
         override, notice, in_flight=in_flight, operator_directed=operator_directed, review_of=review_of,
         session=session, pinned_engine=continuity.engine,
         requested_engine=requested, ceiling_windows=ceiling_windows,
+        independence=independence,
     )
 
 

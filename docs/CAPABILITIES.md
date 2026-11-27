@@ -8,7 +8,7 @@
 4. Status: `live-tested` = run for real on 25-26/11/2026; `tests-only` = unit/integration tests exist, no real run recorded; `unknown` = could not tell from the code.
 5. Not a user manual: each row links to the doc that is. Commands below are exact; add `--db PATH` / `--registry-db PATH` to use a non-default Store.
 
-Entry points (LazyTools `[project.scripts]`): `lazytools-mcp`, `lazytools-code-bridge`, `lazytools-ecosystem-sync`, `lazytools-projects`. Also `python -I tools/governed_task.py` (repo script, not installed).
+Entry points (LazyTools `[project.scripts]`): `lazytools-mcp`, `lazytools-orchestration-mcp`, `lazytools-code-bridge`, `lazytools-ecosystem-sync`, `lazytools-projects`. Also `python -I tools/governed_task.py` (repo script, not installed).
 
 Quick map of "things we keep rebuilding" to what already exists:
 
@@ -42,8 +42,8 @@ Docs: [code-bridge.md](code-bridge.md), [code-bridge-cloud-setup.md](code-bridge
 | Apply and land | `apply JOB --land [--rebase-ok]` | Apply, commit, push, update/open PR via `gh`; refuses a moved base; never force-pushes | live-tested | code-bridge.md#landing-apply-job---land |
 | Reconcile all cloud jobs | `lazytools-code-bridge cloud-sync [--scheduled\|--manual]` | Polls providers, lands `--land` jobs, posts finished reviews, records failures; safe from a scheduler | tests-only | code-bridge.md#automatic-landing---land-wait-cloud-sync |
 | Resync a poll-failed cloud job | `lazytools-code-bridge resync JOB` | Re-checks a cloud job an older bridge failed after a poll error | tests-only | code-bridge.md#cloud-jobs-run---where-cloud |
-| Cloud review (opposite engine) | `run --where cloud --review-of JOB` | Independent cloud review of a job; verdict lands on the PR as one comment | tests-only | code-bridge.md#cloud-reviews-run---where-cloud---review-of-job |
-| Review profile (read-only job) | `run --profile review\|read --review-of JOB` | Read-only review job with repo reads only; `--review-of` picks the opposite engine | tests-only | code-bridge.md#approval-profiles |
+| Cloud review (opposite or fresh same-provider) | `run --where cloud --review-of JOB` | Uses the opposite installed engine, or the sole installed writer engine in a fresh conversation; records independence and lands the verdict on the PR | tests-only | code-bridge.md#cloud-reviews-run---where-cloud---review-of-job |
+| Review profile (read-only job) | `run --profile review\|read --review-of JOB` | Read-only review job; prefers the opposite engine and falls back fresh only when the writer engine is the sole installation | tests-only | code-bridge.md#approval-profiles |
 | List cloud environments | `lazytools-code-bridge cloud-envs [--cwd REPO] [--no-probe]` | Lists Codex Cloud environments and the repo each serves, plus Claude cloud env(s) | tests-only | code-bridge.md#environments-cloud-envs |
 | Cloud eligibility probe | `lazytools-code-bridge cloud-preflight probe --repo R \| --all [--network on\|off]` | Measures Codex cloud capabilities and writes repo-owned eligibility evidence | live-tested | code-bridge-cloud-setup.md |
 | Starter preflight manifest | `lazytools-code-bridge cloud-preflight init --repo R` | Writes a starter manifest from pyproject dependencies | tests-only | code-bridge-cloud-setup.md |
@@ -171,7 +171,7 @@ Cloud rows are in sections 1 and 2 (`run --where cloud`, `apply`, `cloud-sync`, 
 
 ## 8. MCP tools by provider (`lazytools-mcp`)
 
-Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.json] [--http --port N]`. Default: all providers, read-only. Write tools need `--allow-unsafe`. Docs: [mcp-server.md](mcp-server.md), [connectors.md](connectors.md). Coding providers must be named explicitly. Tool names listed from the code (`default_providers` + `expand_tools`) and the installed server; providers whose optional package was missing here (web, fin, regimes, pulse, telegram, code_bridge, code_sessions, gmail, outlook, studio) are listed from source or the live tool list. Status for all providers: tests-only unless noted.
+Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.json] [--http --port N] [--list-tools]`. Default: all providers, read-only. The coding providers (`code_bridge`, `code_review`, `claude_review`, `code_sessions`, `codemap`, `fleet`) stay here for one release; mounting one logs a deprecation note (see section 8a). Write tools need `--allow-unsafe`. Docs: [mcp-server.md](mcp-server.md), [connectors.md](connectors.md). Coding providers must be named explicitly. Tool names listed from the code (`default_providers` + `expand_tools`) and the installed server; providers whose optional package was missing here (web, fin, regimes, pulse, telegram, code_bridge, code_sessions, gmail, outlook, studio) are listed from source or the live tool list. Status for all providers: tests-only unless noted.
 
 | Provider id | Tools | What it does | Status | Docs |
 | --- | --- | --- | --- | --- |
@@ -198,6 +198,9 @@ Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.jso
 | `code_write` | `codex_write`, `claude_code_write` | Synchronous write access; DENIED in this machine's settings (use the bridge) | tests-only | code-support/index.md |
 | `code_sessions` | `code_sessions_list`, `_bind`, `_rename`, `_forget` | Inspect/curate named coding sessions | tests-only | code-bridge.md#session-reuse |
 | `code_bridge` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` | Same bridge as the CLI, for other agents; accepts `profile`, `launch_mode`, `network`, `task_id`, `claim_token` | tests-only | code-bridge.md#for-other-agents-mcp |
+| `fleet` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search`, `bridge_events` | Read-only bridge fleet, approval, routing, model, autonomy, and capability views; `bridge_events` is the cursor-based job/ticket event channel shared with `wait-any` | tests-only | mcp-server.md#fleet-read-only-code-bridge-views |
+| `knowledge` | `lessons_search`; write: `lessons_record` | The lessons store of `dispatch --knowledge-db` (config `knowledge_db`, `LAZYTOOLS_KNOWLEDGE_DB`, default `~/.lazytools/knowledge.sqlite`) | tests-only | mcp-server.md#knowledge-shared-lessons |
+| `pr` | `pr_watch_poll`; write: `pr_navigate`, `bridge_publish`, `bridge_apply` | One watcher poll per PR (shares state with `watch`); navigate, publish and apply through the CLI, only with `--allow-unsafe`; never in task-scoped servers | tests-only | mcp-server.md#pr-pull-request-tools |
 | `telegram` | `telegram_send_message`, `telegram_send_document` | Allow-listed sends (needs credentials) | tests-only | telegram.md |
 | `gmail` / `outlook` | `gmail_{list_emails,get_email,create_draft,send}`, `outlook_{list_emails,get_email,create_draft,send}` | Read/draft/send; only with credentials / `LAZYTOOLS_ENABLE_OUTLOOK=1` | tests-only | gmail.md |
 | `projects` | see section 3 (core 10 read / 20 write tools; `full` 16 / 40) | Shared project registry | tests-only | projects.md#tool-profiles |
@@ -209,6 +212,12 @@ Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.jso
 | `optimizer_agent` | `portfolio-optimizer-specialist` | LLM specialist over the `fin` tools, one MCP tool taking a task | tests-only | portfolio-optimization.md |
 | `report_agent` | `report-specialist` | LLM specialist over the `report` tools, one MCP tool | tests-only | report.md |
 | `stats_agents` | `stats-supervisor`, `regression-analyst`, `volatility-correlation-analyst`, `regime-analyst` | Statistical specialists and their supervisor as MCP tools | tests-only | skills-stats.md |
+
+## 8a. Orchestration MCP server (`lazytools-orchestration-mcp`)
+
+| Capability | How to call | What it does | Status | Docs |
+| --- | --- | --- | --- | --- |
+| Orchestration-only MCP server | `lazytools-orchestration-mcp [provider ids...] [--allow-unsafe] [--config lazytools.json] [--http --port N] [--list-tools]` | Mounts only `code_bridge`, `code_review`, `claude_review`, `code_sessions`, `codemap`, `projects`, `fleet`, `knowledge`, `pr` (tools in section 8); refuses other ids; starts with one coding CLI or none | tests-only | mcp-server.md#orchestration-server |
 
 ## 9. LazyBridge core (v1.10.0)
 

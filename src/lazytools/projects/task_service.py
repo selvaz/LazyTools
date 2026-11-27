@@ -200,24 +200,25 @@ def _dependencies(task: BoardTask) -> list[dict[str, Any]]:
     return dependencies
 
 
+def _check_placement(
+    task: BoardTask, location: Placement, now: float, *, check_expiry: bool = True
+) -> tuple[PlacementEvidence | None, str]:
+    record = task.data.get("placement_evidence", {}).get(location)
+    if record is None or record["revision"] != task.revision:
+        return None, f"{location} placement evidence is missing"
+    current = PlacementEvidence.model_validate(record["evidence"])
+    if check_expiry and current.expires_at <= now:
+        return None, f"{location} placement evidence is stale"
+    if location == "cloud" and current.eligible and not current.environment_id:
+        return None, "cloud placement evidence is missing environment_id"
+    return current if current.eligible else None, current.reason
+
+
 def _placement(task: BoardTask, now: float) -> tuple[PlacementEvidence | None, str]:
     requested = task.data.get("requested_placement", "local")
-    evidence = task.data.get("placement_evidence", {})
-
-    def check(location: Placement) -> tuple[PlacementEvidence | None, str]:
-        record = evidence.get(location)
-        if record is None or record["revision"] != task.revision:
-            return None, f"{location} placement evidence is missing"
-        current = PlacementEvidence.model_validate(record["evidence"])
-        if current.expires_at <= now:
-            return None, f"{location} placement evidence is stale"
-        if location == "cloud" and current.eligible and not current.environment_id:
-            return None, "cloud placement evidence is missing environment_id"
-        return current if current.eligible else None, current.reason
-
-    eligible, reason = check(requested)
+    eligible, reason = _check_placement(task, requested, now)
     if eligible is None and requested == "cloud":
-        eligible, local_reason = check("local")
+        eligible, local_reason = _check_placement(task, "local", now)
         reason = f"{reason}. Local fallback: {local_reason}"
     return eligible, reason
 
@@ -721,9 +722,15 @@ class ProjectTaskService:
             now = self.clock()
             dispatch = _fenced_dispatch(task, principal, claim_token, now)
             receipt = dispatch["receipt"]
-            placement, _ = _placement(task, now)
             if dispatch["state"] != state or (job_ref is not None and dispatch.get("job_ref") != job_ref):
                 raise TaskServiceError("stale", "The dispatch no longer belongs to this local launch")
+            # Placement evidence admits the launch. Once the job is submitted, its expiry
+            # no longer matters: the evidence must stay unchanged, and the claim lease
+            # bounds how long the job may run.
+            if state == "submitted":
+                placement, _ = _check_placement(task, "local", now, check_expiry=False)
+            else:
+                placement, _ = _placement(task, now)
             if (
                 placement is None
                 or placement.placement != "local"

@@ -179,6 +179,20 @@ def test_dry_run_prints_topological_waves_without_claiming() -> None:
     assert not service.claims
 
 
+def test_dry_run_holds_start_held_task_and_blocks_its_dependants() -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows["A"].update(start_hold=True, hold_reason="waiting on data release")
+
+    def reader(_service: Any, project: str) -> list[Task]:
+        return [Task(f"{project}/{name}", "rev", row["status"], row, None,
+                     hold_reason=row.get("hold_reason"))
+                for name, row in service.rows.items()]
+
+    _dry_run(service, "p", events.append, reader)  # type: ignore[arg-type]
+    assert events == ["held p/A (waiting on data release)", "blocked p/B", "blocked p/C", "blocked p/D"]
+    assert not service.claims
+
+
 def test_cloud_task_is_skipped_without_claim_or_launch() -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     launcher = FakeLauncher(service)
@@ -958,6 +972,33 @@ def test_dispatch_leaves_jobs_without_a_stale_running_heartbeat(status: str, hea
 
     assert cancelled == []
     assert service.rows["A"]["status"] == "claimed"
+
+
+@pytest.mark.parametrize("engine_alive,tool_started,stale", [
+    (True, 2_000 - 20 * 60, False),  # long shell command in a live engine
+    (False, 2_000 - 20 * 60, True),  # engine process died with the tool call pending
+    (True, 2_000 - 61 * 60, True),   # tool call ran past its own bound
+])
+def test_tool_call_in_progress_keeps_only_a_live_engine_alive(
+    monkeypatch: pytest.MonkeyPatch, engine_alive: bool, tool_started: float, stale: bool,
+) -> None:
+    from lazytools.code_bridge import _dispatch
+
+    # ``pid`` is the job worker driving the engine; tool_calls come from its tool call events.
+    monkeypatch.setattr(_dispatch, "_pid_alive", lambda pid: engine_alive and pid == 4321)
+    service = FakeService()
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, [])
+    dispatch.clock = lambda: 2_000
+    dispatch.pass_once()
+    launcher.jobs["job-A"].update(heartbeat_at=tool_started, pid=4321,
+                                  tool_calls={"toolu_1": {"name": "Bash", "started_at": tool_started}})
+    cancelled: list[str] = []
+    launcher.cancel = lambda job_ref, **_: cancelled.append(job_ref) or False  # type: ignore[attr-defined]
+
+    dispatch.pass_once()
+
+    assert cancelled == (["job-A"] if stale else [])
 
 
 def test_dispatch_accepts_a_stale_minutes_override() -> None:

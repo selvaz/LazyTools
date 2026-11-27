@@ -57,6 +57,8 @@ EXPECTED_PROVIDER_IDS = {
     "claude_review",
     "code_write",
     "code_sessions",
+    "fleet",
+    "pr",
     "code_bridge",
     "telegram",
     "gmail",
@@ -64,6 +66,7 @@ EXPECTED_PROVIDER_IDS = {
     "registry",
     "pulse",
     "projects",
+    "knowledge",
 }
 
 

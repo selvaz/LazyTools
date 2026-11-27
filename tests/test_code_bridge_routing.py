@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _jobs, _lockfile, _routing, _store, cli
+from lazytools.code_bridge import _installed, _jobs, _lockfile, _routing, _store, cli
 from lazytools.projects.admission import TelemetryReading, WindowReading
 from lazytools.routing.catalogue import DEFAULT_PATH, load_tiers
 
@@ -20,6 +20,7 @@ def bridge(tmp_path, monkeypatch):
     monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(tmp_path / "sessions.json"))
     script = fakes.install(monkeypatch)
     monkeypatch.setattr(_routing, "load_default_tiers", lambda: load_tiers(DEFAULT_PATH))
+    monkeypatch.setattr(_installed, "installed_engines", lambda override=None, **kwargs: override or frozenset({"codex", "claude"}))
     now = datetime.now(UTC)
 
     def reading(engine, weekly, short):
@@ -236,6 +237,41 @@ def test_review_uses_opposite_engine_and_accepts_job_prefix(bridge, capsys, writ
     assert cli.main(args(bridge, "route", "--review-of", "writer", "--json")) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["provider"] == reviewer and "same_as_writer" in payload["ineligible"].values()
+
+
+@pytest.mark.parametrize(
+    "writer,installed,provider",
+    [("codex", frozenset({"codex"}), "codex"), ("claude", frozenset({"claude"}), "claude_code")],
+)
+def test_review_falls_back_to_fresh_same_provider_when_only_engine_installed(
+    bridge, capsys, monkeypatch, writer, installed, provider
+):
+    monkeypatch.setattr(_installed, "installed_engines", lambda override=None, **kwargs: installed)
+    seed(bridge, "writer", engine=writer)
+    assert cli.main(args(bridge, "run", "--review-of", "writer", "--json")) == 0
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert events[0]["routing"]["provider"] == provider
+    assert events[0]["routing"]["independence"] == "same-provider-fresh"
+    assert events[-1]["independence"] == "same-provider-fresh"
+    review = next(row for row in _jobs.list_jobs(_store.build_store(bridge[3]), all_jobs=True)
+                  if row["job_id"] != "writer")
+    assert review["review_independence"] == "same-provider-fresh"
+
+
+def test_same_provider_fresh_review_refuses_a_session_with_history(bridge, capsys, monkeypatch):
+    monkeypatch.setattr(_installed, "installed_engines", lambda override=None, **kwargs: frozenset({"codex"}))
+    seed(bridge, "writer", session="writer-session")
+    assert cli.main(args(bridge, "run", "--review-of", "writer", "--session", "writer-session")) == 2
+    assert "already has a conversation" in capsys.readouterr().err
+
+
+def test_same_provider_fresh_review_accepts_a_new_session_name(bridge, capsys, monkeypatch):
+    # governed_task names its reviewer session; a new name is still a fresh conversation (CI on #409).
+    monkeypatch.setattr(_installed, "installed_engines", lambda override=None, **kwargs: frozenset({"codex"}))
+    seed(bridge, "writer", session="writer-session")
+    assert cli.main(args(bridge, "route", "--tier", "writing", "--review-of", "writer",
+                         "--session", "reviewer-new", "--json")) == 0
+    assert "same-provider-fresh" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("extra", [[], ["--engine", "codex"], ["--needs", "images"], ["--session", "writer-session"]])
@@ -980,3 +1016,41 @@ def test_tier_run_with_wait_for_slot_keeps_the_busy_engine_and_queues(bridge, mo
 def test_other_providers_tier_name_is_translated_not_rejected(bridge, capsys, extra, expected):
     assert cli.main(args(bridge, "run", *extra)) == 0
     assert bridge[0].engines[-1].kwargs["model"] == expected
+
+
+def test_discovery_without_any_engine_keeps_both_engines(monkeypatch, tmp_path):
+    # CI on #409: runners have neither CLI; finding nothing is no evidence of a single provider.
+    from lazytools.code_bridge import _installed as installed
+
+    monkeypatch.setattr(installed.shutil, "which", lambda name: None)
+    monkeypatch.delenv("CLAUDE_BIN", raising=False)
+    monkeypatch.setattr(installed, "_codex_resolvable", lambda: False)
+    assert installed.installed_engines(config_path=tmp_path / "missing.toml") == installed.ENGINES
+    monkeypatch.setattr(installed, "_codex_resolvable", lambda: True)
+    assert installed.installed_engines(config_path=tmp_path / "missing.toml") == frozenset({"codex"})
+
+
+def test_codex_app_install_counts_as_installed(monkeypatch, tmp_path):
+    # Codex desktop installs are not on PATH; the engine still launches them via codex_executable().
+    from lazybridge.engines.codex import app_server
+
+    from lazytools.code_bridge import _installed as installed
+
+    monkeypatch.setattr(app_server, "codex_executable", lambda: "C:/app/codex.exe")
+    assert installed._codex_resolvable()
+
+    def missing() -> str:
+        raise FileNotFoundError("no codex")
+
+    monkeypatch.setattr(app_server, "codex_executable", missing)
+    assert not installed._codex_resolvable()
+
+
+def test_explicit_opposite_engine_is_honoured_when_discovery_misses_it(bridge, capsys, monkeypatch):
+    # CI on #409: governed reviews pass --engine claude on a runner where discovery found only the fake codex.
+    monkeypatch.setattr(_installed, "installed_engines", lambda override=None, **kwargs: frozenset({"codex"}))
+    seed(bridge, "writer")
+    assert cli.main(args(bridge, "route", "--tier", "writing", "--review-of", "writer",
+                         "--engine", "claude", "--json")) == 0
+    out = capsys.readouterr().out
+    assert "opposite-engine" in out and "same-provider-fresh" not in out

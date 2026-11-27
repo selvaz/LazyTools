@@ -31,8 +31,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _cloud, _concurrency, _gh, _jobs, _store
+from lazytools.code_bridge import _cloud, _concurrency, _gh, _installed, _jobs, _store
 from lazytools.code_bridge._cloud import CloudError, redact
+from lazytools.code_bridge._review_choice import choose_reviewer, opposite_engine
 
 REVIEW_MARKER = "<!-- independent-review v1 -->"
 REVIEW_FILE = "REVIEW.md"
@@ -47,14 +48,6 @@ FORBIDDEN_PUSH_ARGS = frozenset({"--force", "-f", "--force-with-lease", "--mirro
 # --------------------------------------------------------------------------- #
 # small helpers
 # --------------------------------------------------------------------------- #
-
-
-def opposite_engine(engine: str) -> str:
-    """The reviewer for ``engine``'s work: the other engine (same rule as the local router)."""
-    others = [name for name in _jobs.ENGINES if name != engine]
-    if engine not in _jobs.ENGINES or len(others) != 1:
-        raise CloudError(f"no opposite engine for {engine!r}")
-    return others[0]
 
 
 def job_title(job: dict[str, Any]) -> str:
@@ -555,8 +548,12 @@ def review_brief(*, branch: str, head: str, base: str, author: str, job_id: str,
 
 
 def prepare_review(store: Any, registry: Any, reviewed_ref: str, *, job_id: str, repo: str | None = None,
-                   engine: str | None = None, extra: str = "", root: Path | None = None) -> dict[str, Any]:
-    """Everything ``run --where cloud --review-of`` needs: reviewer engine, branch to run on, brief, review meta."""
+                   engine: str | None = None, extra: str = "", root: Path | None = None,
+                   installed: frozenset[str] | None = None, session_history: bool = False) -> dict[str, Any]:
+    """Everything ``run --where cloud --review-of`` needs: reviewer engine, branch to run on, brief, review meta.
+
+    The reviewer comes from ``_review_choice.choose_reviewer``; a refusal raises ``CloudError``.
+    """
     reviewed = _jobs.find_job(store, registry, reviewed_ref)
     if reviewed is None:
         raise CloudError(f"no job found matching {reviewed_ref!r}")
@@ -568,10 +565,11 @@ def prepare_review(store: Any, registry: Any, reviewed_ref: str, *, job_id: str,
     if isinstance(reviewed.get("review"), dict):
         raise CloudError("a review is not itself reviewed: pass the job that wrote the code")
     author = str(reviewed["engine"])
-    reviewer = opposite_engine(author)
-    if engine is not None and engine != reviewer:
-        raise CloudError(f"an independent review of {author}'s work runs on {reviewer}, not {engine}: "
-                         "drop --engine, or pass --engine " + reviewer)
+    choice = choose_reviewer(author, _installed.installed_engines(installed), engine, session_history)
+    if choice.refusal_reason is not None:
+        raise CloudError(choice.refusal_reason)
+    assert choice.engine is not None
+    reviewer = choice.engine
     if repo and str(reviewed.get("repo", "")).lower() != repo.lower():
         raise CloudError(f"job {str(reviewed['job_id'])[:8]} is for {reviewed.get('repo')}, but --cwd is {repo}")
     branch = reviewed.get("landed_branch") or (reviewed.get("result_branch") if reviewed.get("status") == "done" else None)
@@ -593,6 +591,7 @@ def prepare_review(store: Any, registry: Any, reviewed_ref: str, *, job_id: str,
         "of": str(reviewed["job_id"]), "author": author, "reviewer": reviewer, "branch": str(branch),
         "head": str(head), "base": base, "pr_number": reviewed.get("pr_number"), "pr_url": reviewed.get("pr_url"),
         "file": REVIEW_FILE,
+        "independence": choice.independence,
     }
     return {"engine": reviewer, "branch": str(branch), "task": task, "review": review}
 
@@ -673,7 +672,11 @@ def post_review(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any
         if verdict is None:
             verdict = "blocking"
             body = f"(no `verdict:` line in {REVIEW_FILE}: treated as blocking)\n\n{body}"
-        _update_meta(store, job_id, {"review_verdict": verdict, "review_summary": redact(body)[:500]})
+        _update_meta(store, job_id, {
+            "review_verdict": verdict,
+            "review_summary": redact(body)[:500],
+            "review_independence": review.get("independence", "opposite-engine"),
+        })
         pr_number = review.get("pr_number")
         if not pr_number:
             note = "the reviewed job has no PR: the review is in this result only"
@@ -692,6 +695,9 @@ def post_review(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any
         _update_meta(store, job_id, {"review_posted_at": time.time(), "review_comment_url": url or None,
                                      "review_note": None})
         return {"job_id": job_id, "posted": True, "already": False, "verdict": verdict, "url": url or None}
+    except CloudError as exc:
+        _update_meta(store, job_id, {"review_error": redact(str(exc))})
+        raise
     finally:
         _release(store, job_id, "review")
 
