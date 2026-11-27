@@ -128,8 +128,8 @@ ids (or `LAZYTOOLS_MCP_PROVIDERS`) narrow the selection; an id outside the list
 above is an error and the server does not start.
 
 Without `--allow-unsafe` it serves the `codemap`, `fleet`, `lessons_search`,
-`pr_watch_poll` and read-only `projects` tools. With it, bridge jobs, pull-request
-work, reviews, named sessions, project writes and `lessons_record` are added. It starts with one coding CLI installed or none: the review
+`pr_watch_poll` and read-only `projects` tools. With it, bridge jobs, ticket
+decisions and cancellation, pull-request work, reviews, named sessions, project writes and `lessons_record` are added. It starts with one coding CLI installed or none: the review
 provider of a missing CLI is skipped with a warning (Codex is also found through
 `CODEX_BIN` or the desktop app), and no engine SDK is imported at start.
 
@@ -161,7 +161,7 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `code_write` | `CodeWriteTools(...)` | `codex_write`, `claude_code_write` | `--allow-unsafe`, local runtimes; Claude needs `[engines]` |
 | `code_sessions` | `CodeSessionTools(...)` | list/bind/rename/forget native aliases | explicit opt-in with `--allow-unsafe` |
 | `code_bridge` | `CodeBridgeTools(...)` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` — local and cloud coding jobs through `lazytools-code-bridge` | `--allow-unsafe`; cloud jobs also need `allow_cloud=true` per call |
-| `fleet` | `FleetTools(...)` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search`, `bridge_events` | none; always read-only |
+| `fleet` | `FleetTools(...)` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search`, `bridge_events` (+ `bridge_approve`, `bridge_reject`, `bridge_cancel` with `--allow-unsafe`) | none |
 | `knowledge` | `KnowledgeTools(...)` | `lessons_search` (+ `lessons_record` with `--allow-unsafe`) — the dispatcher's lessons store | none (core) |
 | `pr` | `PrTools(...)` | `pr_watch_poll` (+ `pr_navigate`, `bridge_publish`, `bridge_apply` with `--allow-unsafe`) | `gh` CLI, authenticated |
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
@@ -461,15 +461,41 @@ bridge_autonomy(week=None, since=None, until=None) -> JSON
 bridge_models() -> JSON
 capabilities_search(query="") -> rows
 bridge_events(cursor="", timeout_s=0) -> {"events": [...], "cursor": "..."}
+bridge_approve(ticket, reason) -> dict                               # --allow-unsafe
+bridge_reject(ticket, reason) -> dict                                # --allow-unsafe
+bridge_cancel(job, reason) -> dict                                   # --allow-unsafe
 ```
 
 The `fleet` provider mirrors the corresponding `lazytools-code-bridge` CLI
-commands in child processes. It is available in the default read-only provider
-set without `--allow-unsafe`. The model view never opts into the quota-consuming
+commands in child processes. Its views are available in the default read-only
+provider set without `--allow-unsafe`; the three deciding tools need it. The model view never opts into the quota-consuming
 Claude probe. Routing choices and ISO dates are validated before invocation;
 caller-provided values beginning with `-` are rejected rather than passed as
 options. `bridge_pending` reports bridge job approval tickets and is separate
 from the projects provider's pending approvals.
+
+`bridge_approve` and `bridge_reject` run `approve TICKET --ceo` and
+`reject TICKET --ceo`, and `bridge_cancel` runs `cancel JOB`. Each takes the
+ticket id from `bridge_pending` (or a job id or unique prefix) and a non-empty
+reason. They return `ok`, `exit_code`, the command's text in `output`, and its
+error text in `error`. The caller decides as the CEO. The bridge does not record
+who launched a job, so every job counts as one the CEO launched:
+
+- An approval is allowed only when the owner's
+  [autonomy policy](code-bridge.md#autonomy-modes) delegates the ticket's class
+  to the CEO in the registry's current mode, and the owner has issued that
+  class's cards. Otherwise the call fails with "owner decision required" and the
+  ticket stays pending for the owner. A ticket without a class counts as
+  `unknown`, which is never delegated.
+- Rejection and cancellation are always allowed. Cancellation also rejects the
+  job's open tickets.
+- The ticket's reason records the decision as
+  `actor=ceo mode=MODE class=CLASS: REASON`. The job's manual interventions
+  record the same text. A cancellation's reason starts with `actor=ceo:`.
+
+No MCP tool changes the autonomy mode or the owner's cards. Those change only
+through `approver-credential autonomy` with the owner credential. Like the views,
+the deciding tools are never served to, or callable from, a scoped code task.
 
 `bridge_events` is the orchestrator's single job and ticket event channel over
 MCP. MCP calls are bounded, so it returns a cursor instead of streaming. Pass

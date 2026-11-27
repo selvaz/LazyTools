@@ -1910,6 +1910,8 @@ def _cmd_pending(args: argparse.Namespace) -> int:
 
 
 def _cmd_decide(args: argparse.Namespace, action: Literal["approve", "reject"]) -> int:
+    from lazytools.projects.task_store import TaskServiceError
+
     store = _ticket_job_store(args)
     verdict: Literal["approved", "rejected"] = "approved" if action == "approve" else "rejected"
     for registry, job_ids in _operator_registries(args, store):
@@ -1919,18 +1921,35 @@ def _cmd_decide(args: argparse.Namespace, action: Literal["approve", "reject"]) 
         job_id = _registry.job_ref(ticket)
         if job_ids is not None and job_id not in job_ids:
             continue
+        actor, reason = args.actor, args.reason
         try:
-            if not registry.decide(ticket, verdict, args.actor, args.reason):
+            if getattr(args, "ceo", False):
+                # The bridge does not record who launched a job, so every job counts as the CEO's own.
+                ticket_class = str((ticket.request.payload if ticket.request else {}).get("ticket_class") or "unknown")
+                mode, delegated = _coder.ceo_may_approve(registry.path, ticket_class)
+                if action == "approve" and not delegated:
+                    print(f"could not approve {args.ticket_id!r}: owner decision required "
+                          f"(class {ticket_class} is not delegated to the CEO in {mode} mode)", file=sys.stderr)
+                    return 1
+                record = f"actor=ceo mode={mode} class={ticket_class}"
+                actor, reason = "ceo", f"{record}: {reason}" if reason else record
+            if not registry.decide(ticket, verdict, actor, reason):
                 break
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, TaskServiceError) as exc:
             print(f"could not {action} {args.ticket_id!r}: {exc}", file=sys.stderr)
             return 1
         if _store.read_meta(store, job_id) is not None:
-            _record_intervention(store, job_id, action, args.reason)
+            _record_intervention(store, job_id, action, reason)
         print(f"{verdict} {args.ticket_id}")
         return 0
     print(f"could not {action} {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
     return 1
+
+
+_CEO_HELP = (
+    "Decide as the CEO: approve only a class the owner's autonomy policy delegates to the CEO in the "
+    "current mode, and record actor, mode and class with the reason."
+)
 
 
 def _cmd_approve(args: argparse.Namespace) -> int:
@@ -2622,6 +2641,7 @@ def build_parser() -> argparse.ArgumentParser:
     approve_p.add_argument("ticket_id")
     approve_p.add_argument("--actor", default="operator", help="Actor label for historical prompt-only tickets.")
     approve_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
+    approve_p.add_argument("--ceo", action="store_true", help=_CEO_HELP)
     _add_registry_option(approve_p)
     approve_p.set_defaults(func=_cmd_approve)
 
@@ -2629,6 +2649,7 @@ def build_parser() -> argparse.ArgumentParser:
     reject_p.add_argument("ticket_id")
     reject_p.add_argument("--reason", required=True)
     reject_p.add_argument("--actor", default="operator", help="Actor label for historical prompt-only tickets.")
+    reject_p.add_argument("--ceo", action="store_true", help=_CEO_HELP)
     _add_registry_option(reject_p)
     reject_p.set_defaults(func=_cmd_reject)
 

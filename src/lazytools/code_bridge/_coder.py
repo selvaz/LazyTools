@@ -107,6 +107,17 @@ def show(path: Path) -> Selection:
         return Selection.from_record(store.read(_HAND_KEY))
 
 
+def ceo_may_approve(path: Path | None, ticket_class: str) -> tuple[str, bool]:
+    """Return the registry's mode and whether its owner policy gives ``ticket_class`` to the CEO.
+
+    The class must be delegated in the current mode and its cards must be issued: a registry
+    the owner never configured, or one with only the original coder hand, delegates nothing.
+    """
+    selection = show(path) if path is not None else Selection()
+    issued = {card.action_class for card in selection.cards}
+    return selection.mode, ticket_class in issued and ticket_class in delegated_classes(selection.mode, selection.preset)
+
+
 def provision(path: Path) -> bool:
     credential = _credentials.load(path)
     with transaction(path, write=True) as store:
