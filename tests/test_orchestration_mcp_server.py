@@ -106,6 +106,7 @@ def test_provider_list() -> None:
         "projects",
         "fleet",
         "knowledge",
+        "pr",
     )
     assert set(ORCHESTRATION_PROVIDERS) <= PROVIDER_FACTORIES.keys()
 

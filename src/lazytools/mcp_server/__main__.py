@@ -73,10 +73,11 @@ _ORCHESTRATION_SERVER = _ServerSpec(
     description="Serve LazyTools' orchestration tool providers over the Model Context Protocol (stdio).",
     instructions=(
         "LazyTools orchestration tools: project registry (projects_*), code-bridge fleet, "
-        "routing and model views (bridge_*, capabilities_search), repository maps "
-        "(codemap_*) and recorded lessons (lessons_search). Read-only unless started with "
-        "--allow-unsafe, which adds coding jobs (code_bridge_*), read-only Codex and Claude "
-        "Code review and questions (codex_*, claude_*; each needs its local CLI), named "
+        "routing and model views (bridge_*, capabilities_search), pull-request polling "
+        "(pr_watch_poll), repository maps (codemap_*) and recorded lessons (lessons_search). "
+        "Read-only unless started with --allow-unsafe, which adds coding jobs (code_bridge_*), "
+        "pull-request work (pr_navigate, bridge_publish, bridge_apply), read-only Codex and "
+        "Claude Code review and questions (codex_*, claude_*; each needs its local CLI), named "
         "sessions (code_sessions_*) and lesson recording (lessons_record)."
     ),
     providers=ORCHESTRATION_PROVIDERS,
@@ -84,7 +85,7 @@ _ORCHESTRATION_SERVER = _ServerSpec(
 
 #: Providers that ``lazytools-mcp`` keeps for one release only.
 _MOVING_PROVIDERS = frozenset(
-    {"code_bridge", "code_review", "claude_review", "code_sessions", "codemap", "fleet"}
+    {"code_bridge", "code_review", "claude_review", "code_sessions", "codemap", "fleet", "pr"}
 )
 _DEPRECATION_NOTE = "coding tools move to lazytools-orchestration-mcp; they stay here for one release"
 

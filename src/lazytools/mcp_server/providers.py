@@ -56,6 +56,7 @@ ORCHESTRATION_PROVIDERS: tuple[str, ...] = (
     "projects",
     "fleet",
     "knowledge",
+    "pr",
 )
 
 
@@ -972,6 +973,19 @@ def _knowledge(allow_write: bool = False, *, data_source: dict[str, Any] | None 
     from lazytools.code_bridge._mcp_knowledge import KnowledgeTools
 
     return KnowledgeTools((data_source or {}).get("knowledge_db"), allow_write=allow_write)
+
+
+@_register("pr")
+def _pr(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    """Pull-request tools: ``pr_watch_poll`` always; navigate / publish / apply with ``allow_write``."""
+    from lazytools.code_bridge._mcp_pr import PrTools
+
+    config = data_source or {}
+    return PrTools(
+        root=config.get("code_root") or os.environ.get("LAZYTOOLS_CODE_ROOT"),
+        projects_db=config.get("projects_store_db"),
+        allow_write=allow_write,
+    )
 
 
 @_register("telegram")
