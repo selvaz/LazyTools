@@ -232,6 +232,15 @@ def _publish(cwd: Path) -> tuple[str | None, str | None]:
     return expected, None
 
 
+def _sanitize_check(command: str) -> str:
+    """Hide machine-local paths in the published check list."""
+    parts = _split_command(command)
+    if not parts:
+        return command
+    parts[0] = Path(parts[0]).name
+    return re.sub(r"(?i)(?:[A-Z]:[\\/]|/)(?:[^\s`]+[\\/])*[^\s`]+", "<local>", " ".join(parts))
+
+
 def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
           checks: list[str]) -> tuple[str | None, str | None]:
     """Push a published branch to the clone's origin and open its PR (or reuse an open one).
@@ -248,12 +257,17 @@ def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
         if existing and existing.get("url"):
             return str(existing["url"]), None  # a revision of the branch updates its PR
         text_lines = str(data.get("text") or "").strip().splitlines()
-        title = str(data.get("title") or (text_lines[0] if text_lines else task_id)).strip()[:200] or task_id
+        title = str(data.get("title") or "").strip()
+        if not title:
+            sentence = str(data.get("text") or task_id).strip().split(".", 1)[0].strip()
+            title = re.sub(r"\s+", " ", sentence)
+            if len(title) > 72:
+                title = title[:72].rsplit(" ", 1)[0] or title[:72]
         criteria = data.get("acceptance_criteria") or []
         body = "\n".join([
             f"Task: `{task_id}`", "", "Acceptance criteria:",
             *([f"- {item}" for item in criteria] or ["- none recorded"]), "",
-            "Checks that passed:", *([f"- `{command}`" for command in checks] or ["- none configured"]),
+            "Checks that passed:", *([f"- `{_sanitize_check(command)}`" for command in checks] or ["- none configured"]),
         ]) + "\n"
         return _gh.pr_create(repo, base=base, head=branch, title=title, body=body), None
     except (CloudError, subprocess.TimeoutExpired) as exc:
