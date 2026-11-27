@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
@@ -19,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, FiniteFloat, StringConstraints
 from lazytools.projects.contracts import find_contract_for_task
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import get_project, touch_project_progress
-from lazytools.projects.task_fields import Placement, task_id
+from lazytools.projects.task_fields import Placement, plan_fields, task_id, validate_dependencies
 from lazytools.projects.task_store import TaskServiceError, TransactionStore, transaction
 from lazytools.projects.verification import CheckResult, get_verification, get_verification_for_contract
 
@@ -229,6 +230,26 @@ def _load_task(store: TransactionStore, identifier: str) -> BoardTask:
     raise TaskServiceError("not_found", "Task does not exist")
 
 
+def _verify_landing(repo: str, pr_url: str, merge_commit: str) -> bool:
+    """Check the PR in its recorded repository using GitHub's current default branch."""
+    from lazytools.code_bridge._cloud import CloudError
+    from lazytools.code_bridge._gh import _json, default_branch
+
+    match = re.fullmatch(r"https://github\.com/([^/]+/[^/]+)/pull/([0-9]+)", pr_url)
+    if not match or match.group(1).casefold() != repo.casefold():
+        return False
+    try:
+        branch = default_branch(repo)
+        pr = _json("pr", "view", match.group(2), "--repo", repo, "--json",
+                   "state,baseRefName,mergeCommit")
+        return (isinstance(pr, dict) and pr.get("state") == "MERGED"
+                and pr.get("baseRefName") == branch
+                and isinstance(pr.get("mergeCommit"), dict)
+                and pr["mergeCommit"].get("oid") == merge_commit)
+    except CloudError as exc:
+        raise TaskServiceError("unavailable", "Could not verify the PR with GitHub") from exc
+
+
 def _dependencies(task: BoardTask) -> list[dict[str, Any]]:
     by_id = {task_id(item, index): item for index, item in enumerate(task.board["tasks"])}
     dependencies = []
@@ -236,7 +257,9 @@ def _dependencies(task: BoardTask) -> list[dict[str, Any]]:
         entry = by_id.get(dependency, {})
         status = entry.get("status", "missing")
         summary = {"task_id": f"{task.project_id}/{dependency}", "status": status}
-        if entry.get("dispatches") and status == "done":
+        if (entry.get("dispatches") and status == "done"
+                and not (entry.get("landing_evidence", {}).get("revision") == entry.get("revision", "0")
+                         and entry.get("landing_evidence", {}).get("dispatch_count") == len(entry["dispatches"]))):
             completed = entry["dispatches"][-1].get("completion", {}).get("result", {})
             if completed.get("state") != "accepted":
                 summary["status"] = "unverified"
@@ -377,6 +400,7 @@ class ProjectTaskService:
         lease_seconds: int = DEFAULT_LEASE_SECONDS,
         quarantine_threshold: int = 3,
         clock: Callable[[], float] = time.time,
+        landing_check: Callable[[str, str, str], bool] = _verify_landing,
     ):
         self.path = Path(store_db).resolve() if store_db and store_db != ":memory:" else None
         if lease_seconds <= 0:
@@ -390,6 +414,96 @@ class ProjectTaskService:
             raise ValueError("quarantine_threshold must be a positive integer")
         self.quarantine_threshold = quarantine_threshold
         self.clock = clock
+        self.landing_check = landing_check
+
+    def mark_landed(
+        self, principal: TaskPrincipal, project: str, task_id: str, pr_url: str, merge_commit: str, reason: str,
+    ) -> dict[str, Any]:
+        """Record independently verified landing of an unclaimed task."""
+        principal.require_role("orchestrator", "owner")
+        principal.require_project(project)
+        if (not project or "/" in project or not task_id or "/" in task_id or not reason.strip()
+                or not _COMMIT_SHA.fullmatch(merge_commit)):
+            raise TaskServiceError("invalid", "A project, task id, full merge commit and reason are required")
+        identifier = f"{project}/{task_id}"
+
+        def eligible(task: BoardTask) -> str:
+            if (task.data.get("status") not in ("failed", "todo") or task.data.get("owner")
+                    or task.data.get("claimed_at") is not None or task.data.get("active_queue_claim")):
+                raise TaskServiceError("conflict", "Task must be failed or todo and unclaimed")
+            repo = task.data.get("repo")
+            if not isinstance(repo, str) or not repo:
+                raise TaskServiceError("invalid", "Task must specify a repository")
+            return repo
+
+        with transaction(self.path) as store:
+            task = _scoped_task(store, principal, identifier)
+            repo, revision = eligible(task), task.revision
+            snapshot = copy.deepcopy(task.data)
+        if not self.landing_check(repo, pr_url, merge_commit):
+            raise TaskServiceError("invalid", "PR is not merged into the default branch at the given commit")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, identifier)
+            if eligible(task) != repo or task.data != snapshot:
+                raise TaskServiceError("stale", "Task changed during landing verification")
+            now = self.clock()
+            landing = {"pr_url": pr_url, "merge_commit": merge_commit, "actor": principal.actor,
+                       "reason": reason.strip(), "revision": revision, "at": now,
+                       "dispatch_count": len(task.data.get("dispatches", []))}
+            task.data.update(status="done", completed_at=now, result=pr_url, error="", landing_evidence=landing)
+            touch_project_progress(store, project)
+            task.save(store, now)
+            return {"task_id": identifier, "landing": landing}
+
+    def edit_task(
+        self, principal: TaskPrincipal, project: str, task_id: str, expected_revision: str,
+        changes: dict[str, Any], reason: str,
+    ) -> dict[str, Any]:
+        """Edit an unclaimed task atomically and retain its identity and audit trail."""
+        principal.require_role("orchestrator", "owner")
+        principal.require_project(project)
+        allowed = {"text", "title", "checks", "acceptance_criteria", "tier", "dependency_ids", "touches", "engine_preference"}
+        if not reason.strip() or not changes or set(changes) - allowed:
+            raise TaskServiceError("invalid", "A reason and supported changes are required")
+        try:
+            fields = plan_fields({k: v for k, v in changes.items() if k not in ("text", "touches")})
+            if set(fields) != set(changes) - {"text", "touches"}:
+                raise ValueError("Edited fields cannot be null")
+            if "text" in changes:
+                if not isinstance(changes["text"], str) or not changes["text"].strip():
+                    raise ValueError("text must be a nonempty string")
+                fields["text"] = changes["text"].strip()
+            if "touches" in changes:
+                values = changes["touches"]
+                if not isinstance(values, list) or any(not isinstance(v, str) or not v.strip() for v in values):
+                    raise ValueError("touches must be a list of nonempty strings")
+                fields["touches"] = [v.strip() for v in values]
+        except (ValueError, TypeError) as exc:
+            raise TaskServiceError("invalid", str(exc)) from exc
+        if "/" in project or "/" in task_id or not task_id:
+            raise TaskServiceError("invalid", "Expected a project and a task id within that project")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, f"{project}/{task_id}")
+            if task.revision != expected_revision:
+                raise TaskServiceError("stale", "Task revision changed")
+            if (task.data.get("status") != "todo" or task.data.get("owner")
+                    or task.data.get("claimed_at") is not None or task.data.get("active_queue_claim")):
+                raise TaskServiceError("conflict", "Task must be unclaimed and todo")
+            previous = {key: task.data.get(key) for key in fields}
+            task.data.update(fields)
+            try:
+                validate_dependencies(task.board["tasks"])
+            except ValueError as exc:
+                raise TaskServiceError("invalid", str(exc)) from exc
+            now = self.clock()
+            new_revision = uuid4().hex
+            task.data.setdefault("edit_history", []).append({
+                "at": now, "actor": principal.actor, "reason": reason.strip(),
+                "previous_values": previous, "previous_revision": task.revision, "revision": new_revision,
+            })
+            task.data.update(revision=new_revision, effective_placement=None, placement_reason=None, preflight_ref=None)
+            task.save(store, now)
+            return {"task_id": task.identifier, "revision": new_revision}
 
     def publication_review(
         self,
@@ -1019,7 +1133,7 @@ class ProjectTaskService:
         failure_class: FailureClass | None = None,
         continuation: AttemptContinuation | None = None,
     ) -> None:
-        """Record trusted provider evidence. A failure reason stops retries on release."""
+        """Record trusted provider evidence and queue a continuation or settle the claim."""
         principal.require_role("orchestrator")
         with transaction(self.path, write=True) as store:
             task = _scoped_task(store, principal, task_id)
@@ -1055,7 +1169,13 @@ class ProjectTaskService:
                 if failure_class:
                     dispatch["failure_class"] = failure_class
                 if continuation is not None:
+                    # An unsubmitted infra retry can keep its preflight until the original expiry.
+                    placement = None
+                    if observation == "absent" and failure_class == "infra":
+                        placement, _ = _check_placement(task, receipt["effective_placement"], now)
                     _queue_continuation(task, continuation, failure_reason or "dispatch released")
+                    if placement is not None and placement.engine_family == receipt["engine_family"]:
+                        task.data["placement_evidence"][placement.placement]["revision"] = task.revision
                 elif failure_reason:
                     task.data.update(status="failed", completed_at=now, error=failure_reason)
             if job_ref:

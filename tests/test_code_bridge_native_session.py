@@ -144,9 +144,11 @@ def dispatch_queue(tmp_path):
     return projects, ProjectTaskService(path, lease_seconds=60, clock=Clock())
 
 
-def test_expired_local_intent_retries_once_and_keeps_its_continuation(dispatch_queue, tmp_path, monkeypatch):
+@pytest.mark.parametrize("preflight", ["fresh", "expired", "other-engine"])
+def test_expired_local_intent_retries_once_and_keeps_its_continuation(dispatch_queue, tmp_path, monkeypatch, preflight):
     from lazytools.code_bridge import _dispatch, _dispatch_launch
     from lazytools.projects.task_service import AttemptContinuation
+    from lazytools.routing import RoutingDecision
     from test_projects_task_service import OPERATOR, PROJECT, admit, claim, placement, revision, task
 
     projects, service = dispatch_queue
@@ -154,22 +156,32 @@ def test_expired_local_intent_retries_once_and_keeps_its_continuation(dispatch_q
     task_id = f"{PROJECT}/local"
     continuation = AttemptContinuation(preserved_branch="dispatch-attempt/queue-test/local/1", preserved_commit="a" * 40)
     service.prepare_attempt(OPERATOR, task_id, revision(service, "local"), "continue work", continuation=continuation)
-    placement(service, "local")
+    placement(service, "local", ttl=30 if preflight == "expired" else 1000)
     first = claim(service, "local", principal=OPERATOR)
     launcher = _dispatch_launch.BridgeLauncher(str(tmp_path / "jobs.sqlite"), OPERATOR, PROJECT)
     launches, events = [], []
     monkeypatch.setattr(launcher, "launch", lambda task, receipt: launches.append((task, receipt)) or "missing-job")
 
-    def run_pass():
+    def run_pass(*, router=None):
         return _dispatch.Dispatcher(service, OPERATOR, launcher, PROJECT, clock=service.clock,
-                                    emit=events.append).pass_once()
+                                    emit=events.append, router=router).pass_once()
+
+    def route(tier, *_):
+        return RoutingDecision(tier, "codex", None, None, "weekly_margin", True)
 
     run_pass()
     assert launches == [] and events == []
     service.clock.now = first["lease_expires_at"]
-    run_pass()
+    if preflight == "other-engine":
+        placement(service, "local", engine="claude_code")
+    run_pass(router=None if preflight == "fresh" else route)
+    assert len(launches) == 1
     retried_task, retry = launches[0]
     assert retry["attempt"] == first["attempt"] + 1
+    if preflight == "fresh":
+        assert retry["preflight_ref"] == first["preflight_ref"]
+    else:
+        assert retry["preflight_ref"] != first["preflight_ref"]
     assert retried_task["preserved_commit"] == continuation.preserved_commit
     assert f"reconciled {task_id} absent" in events
 
@@ -179,6 +191,7 @@ def test_expired_local_intent_retries_once_and_keeps_its_continuation(dispatch_q
     state = _dispatch._tasks(service, PROJECT)[0]
     assert state.status == "failed" and len(launches) == 1
     assert [old["state"] for old in state.data["dispatches"]] == ["absent", "absent"]
+    assert [old["failure_class"] for old in state.data["dispatches"]] == ["infra", "infra"]
 
 
 @pytest.mark.parametrize("outcome", ["adopted", "legacy-adopted", "absent", "recorded-absent", "unavailable"])
@@ -262,6 +275,8 @@ def test_expired_cloud_submission_reconciles_provider_outcome(dispatch_queue, tm
     elif outcome in ("absent", "recorded-absent"):
         assert job["status"] == "interrupted" and launcher.cloud_free("codex")
         assert state.data["dispatches"][0]["state"] == "absent"
+        assert state.data["dispatches"][0]["failure_class"] == "infra"
+        assert len(launches) == 1
         assert launches[0]["attempt"] == attempt + 1
         assert f"reconciled {task_id} absent" in events
     else:
