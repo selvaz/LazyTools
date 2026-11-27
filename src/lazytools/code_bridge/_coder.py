@@ -139,7 +139,12 @@ def ceo_may_approve(path: Path | None, ticket_class: str) -> tuple[str, bool]:
     if path is None or not path.is_file():
         return Selection().mode, False
     with transaction(path) as store:
-        selection, live, configured = live_authority(store)
+        return ceo_authority(store, ticket_class)
+
+
+def ceo_authority(store: Any, ticket_class: str) -> tuple[str, bool]:
+    """``ceo_may_approve`` read from an open registry store, so a decision can share its transaction."""
+    selection, live, configured = live_authority(store)
     return selection.mode, configured and any(card.action_class == ticket_class for card in live)
 
 

@@ -10,7 +10,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 from lazybridge import Store
@@ -29,6 +29,7 @@ from lazybridge.policy import policy_scope
 
 from lazytools.code_bridge import _coder, _credentials, _store
 from lazytools.connectors.projects.tools import _resolve_store_db
+from lazytools.projects.task_store import transaction
 
 _SOURCE = "code-bridge"
 _CARD_AUDIT = "code-bridge:card-request:"
@@ -80,6 +81,19 @@ def recorded_path(job: dict[str, Any]) -> Path | None:
     return Path(path) if isinstance(path, str) and path else None
 
 
+class OwnerDecisionRequired(ValueError):
+    """The owner's live policy does not delegate this approval to the CEO."""
+
+
+def _ceo_reason(verdict: str, mode: str, delegated: bool, ticket_class: str, reason: str | None) -> str:
+    if verdict == "approved" and not delegated:
+        raise OwnerDecisionRequired(
+            f"owner decision required (class {ticket_class} is not delegated to the CEO in {mode} mode)"
+        )
+    record = f"actor=ceo mode={mode} class={ticket_class}"
+    return f"{record}: {reason}" if reason else record
+
+
 class Registry:
     def __init__(self, job_store: Any, registry_db: Path | None = None) -> None:
         self._store: Store | None = None
@@ -122,17 +136,35 @@ class Registry:
 
     def decide(
         self, ticket: ApprovalTicket, verdict: Literal["approved", "rejected"], actor: str, reason: str | None,
+        *, ceo: bool = False,
     ) -> bool:
+        """Decide a pending ticket; with ``ceo``, as the CEO under the owner's live policy.
+
+        A CEO decision records actor, mode and class with the reason. A CEO approval needs the
+        ticket's class delegated in the current mode and backed by a live owner card; that is
+        read in the same write transaction that records the decision, so an owner revocation or
+        mode change committed first always wins. A refusal raises OwnerDecisionRequired.
+        """
+        ticket_class = str((ticket.request.payload if ticket.request else {}).get("ticket_class") or "unknown")
         if _operator_ticket(ticket):
-            store = self._existing_store()
-            if store is None or self.path is None or ticket.status != "pending":
+            if self.path is None or not self.path.is_file() or ticket.status != "pending":
                 return False
-            queue = ApprovalQueue(store)
             credential = _credentials.load(self.path)
-            approver = queue._authenticated_approver(credential)
-            if approver is None or approver.actor != "owner" or "owner" not in approver.roles:
-                raise ValueError("Invalid owner approver credential for this registry")
-            return queue.decide_typed_ticket(ticket.approval_id, credential=credential, verdict=verdict, reason=reason)
+            with transaction(self.path, write=True) as store:
+                queue = ApprovalQueue(cast(Store, store))
+                approver = queue._authenticated_approver(credential)
+                if approver is None or approver.actor != "owner" or "owner" not in approver.roles:
+                    raise ValueError("Invalid owner approver credential for this registry")
+                if ceo:
+                    mode, delegated = _coder.ceo_authority(store, ticket_class)
+                    reason = _ceo_reason(verdict, mode, delegated, ticket_class, reason)
+                return queue.decide_typed_ticket(
+                    ticket.approval_id, credential=credential, verdict=verdict, reason=reason,
+                )
+        if ceo:
+            # Legacy tickets live in the job store and carry no class, so the CEO can only reject them.
+            mode, _ = _coder.ceo_may_approve(self.path, ticket_class)
+            actor, reason = "ceo", _ceo_reason(verdict, mode, False, ticket_class, reason)
         if verdict == "approved":
             return bool(self.legacy.approve_ticket(ticket.approval_id, actor=actor, channel="cli"))
         return bool(self.legacy.reject_ticket(ticket.approval_id, actor=actor, channel="cli", reason=reason or "rejected"))
