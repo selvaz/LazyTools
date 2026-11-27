@@ -580,6 +580,12 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         else:
             _cloud_print(f"error: {exc}", err=True)
         return 2
+    except _cloud.CloudBusy as exc:
+        if args.json:
+            _cloud_json({"ok": False, "error_code": "cloud_at_concurrency_limit", "error": str(exc)})
+        else:
+            _cloud_print(f"error: {exc}", err=True)
+        return 2
     except (_cloud.CloudError, ValueError) as exc:
         _cloud_print(f"error: {exc}", err=True)
         return 2
@@ -2222,7 +2228,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     dispatch_p = sub.add_parser("dispatch", help="Dispatch every ready task in a project.")
     dispatch_p.add_argument("--project", required=True, help="Projects board identifier.")
-    dispatch_p.add_argument("--parallel", type=int, default=1, metavar="N")
+    dispatch_p.add_argument("--parallel", type=int, metavar="N",
+                            help="Optional cap on active tasks, in addition to local and cloud slot limits.")
     dispatch_p.add_argument("--once", action="store_true")
     dispatch_p.add_argument("--dry-run", action="store_true")
     dispatch_p.add_argument("--repo-root", action="append", default=[], metavar="SLUG=PATH",

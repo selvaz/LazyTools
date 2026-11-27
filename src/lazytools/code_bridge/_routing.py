@@ -235,6 +235,7 @@ def choose(
     respect_slots: bool = True,
     installed: frozenset[str] | None = None,
     occupied_slots: dict[Engine, str] | None = None,
+    available_engines: frozenset[Engine] | None = None,
     engine_preference: tuple[Engine, ...] = (),
     fallback: Fallback = "wait",
     fallback_max_age_seconds: float | None = None,
@@ -259,6 +260,8 @@ def choose(
         if rejection is not None:
             raise ValueError(rejection)
     available = frozenset((requested,)) if requested is not None else frozenset(ENGINES)
+    if available_engines is not None:
+        available &= available_engines
     explicit_engine = requested if engine else None
     # Native conversations cannot migrate providers, including after two failures.
     if continuity.engine is not None:
@@ -313,9 +316,8 @@ def choose(
         if row.get("status") in ("running", "checkpoint", "awaiting_approval") and type(pid) is int and _lockfile._pid_alive(pid):
             in_flight[provider(str(row.get("engine", row.get("kind"))))] += 1
     refused: dict[str, str] = {}
-    busy: dict[Engine, str] = {}
+    busy = dict(occupied_slots or {})
     if respect_slots:
-        busy.update(occupied_slots or {})
         # Machine-wide slots (independent of --db): see _concurrency.
         slot_config = _concurrency.load_config()
         for slot_engine in ENGINES:

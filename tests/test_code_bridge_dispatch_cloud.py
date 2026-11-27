@@ -12,9 +12,9 @@ from typing import Any
 import pytest
 from lazybridge import Store
 
-from lazytools.code_bridge import _dispatch
+from lazytools.code_bridge import _concurrency, _dispatch
 from lazytools.code_bridge._dispatch import Dispatcher
-from lazytools.code_bridge._dispatch_launch import BridgeLauncher, cloud_job_id
+from lazytools.code_bridge._dispatch_launch import BridgeLauncher, CloudSlotUnavailable, cloud_job_id
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
@@ -204,7 +204,7 @@ def test_restart_between_submit_and_its_acknowledgement_adopts_the_job(
     admit(service, None)
     launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
     first = dispatcher(service, launcher, events)
-    first._place(_dispatch._tasks(service, PROJECT))
+    first._place(_dispatch._tasks(service, PROJECT)[0], "cloud", {}, {})
     summary = service.next_ready(PRINCIPAL, PROJECT)["tasks"][0]
     claim = service.claim(PRINCIPAL, summary["task_id"], summary["revision"], "dispatch:A:1")["claim"]
     service.begin_submit(PRINCIPAL, summary["task_id"], claim["claim_token"])
@@ -259,7 +259,7 @@ def test_another_executors_unsubmitted_cloud_claim_is_left_alone(
     admit(service, None)
     launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
     dispatch = dispatcher(service, launcher, events)
-    dispatch._place(_dispatch._tasks(service, PROJECT))
+    dispatch._place(_dispatch._tasks(service, PROJECT)[0], "cloud", {}, {})
     summary = service.next_ready(PRINCIPAL, PROJECT)["tasks"][0]
     other = PRINCIPAL.model_copy(update={"actor": "other-worker"})
     service.claim(other, summary["task_id"], summary["revision"], "other:A:1")
@@ -276,7 +276,7 @@ def test_intent_with_a_job_reference_is_not_resubmitted(
     admit(service, None)
     launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
     dispatch = dispatcher(service, launcher, events)
-    dispatch._place(_dispatch._tasks(service, PROJECT))
+    dispatch._place(_dispatch._tasks(service, PROJECT)[0], "cloud", {}, {})
     summary = service.next_ready(PRINCIPAL, PROJECT)["tasks"][0]
     service.claim(PRINCIPAL, summary["task_id"], summary["revision"], "dispatch:A:1")
     task = _dispatch._tasks(service, PROJECT)[0]
@@ -327,9 +327,7 @@ def test_cloud_task_is_routed_while_local_slots_are_full(
         return SimpleNamespace(decision=decision)
 
     monkeypatch.setattr(_dispatch._routing, "choose", choose)
-    monkeypatch.setattr(_dispatch._cloud, "load_config", lambda: {})
-    monkeypatch.setattr(_dispatch._cloud_place, "decide_for_repo",
-                        lambda *_args, **_kwargs: SimpleNamespace(where="cloud", reason=""))
+    monkeypatch.setattr(_dispatch._cloud, "load_config", _dispatch._cloud.CloudConfig)
     monkeypatch.setattr(_dispatch._cloud, "repo_root", lambda repo: repo)
     monkeypatch.setattr(_dispatch._cloud, "repo_slug", lambda _root: "org/repo")
     monkeypatch.setattr(_dispatch._cloud, "provider",
@@ -352,6 +350,124 @@ def test_full_cloud_slots_leave_the_task_unclaimed(service: ProjectTaskService, 
     assert not launcher.launches
     assert board_task(service)["status"] == "todo"
     assert f"waiting {PROJECT}/A cloud concurrency limit reached" in events
+
+
+@pytest.mark.parametrize(("cloud_limit", "provider_limit", "expected"), [(20, 20, 3), (20, 1, 1), (2, 20, 2)])
+def test_dispatch_fills_local_and_cloud_slots(
+    service: ProjectTaskService, landed: tuple[Path, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    cloud_limit: int, provider_limit: int, expected: int,
+) -> None:
+    from lazytools.code_bridge.cli import build_parser
+
+    repo, sha = landed
+    slug = "org/repo"
+    _git(repo, "remote", "add", "origin", f"https://github.com/{slug}.git")
+    config_path = tmp_path / "code-bridge.toml"
+    config_path.write_text(
+        f'[concurrency]\ncodex = 2\n[cloud]\nconcurrency = {cloud_limit}\n'
+        f'[cloud.codex]\nconcurrency = {provider_limit}\n[cloud.codex.envs]\n"{slug}" = "env-123"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(_concurrency.CONFIG_ENV, str(config_path))
+    monkeypatch.setattr(_dispatch, "_resolve_store_db", lambda _path: service.path)
+    monkeypatch.setattr(_concurrency, "live_holders", lambda *_args: [])
+
+    launcher = FakeCloudLauncher(repo, sha)
+    local: list[str] = []
+
+    def launch(task: dict[str, Any], claim: dict[str, Any]) -> str:
+        local.append(claim["task_id"])
+        return f"local-{claim['task_id']}"
+
+    launcher.launch = launch  # type: ignore[method-assign]
+    limits = BridgeLauncher(str(tmp_path / "jobs.sqlite"), PRINCIPAL, PROJECT)
+    launcher.cloud_free = limits.cloud_free  # type: ignore[method-assign]
+    monkeypatch.setattr(_dispatch._dispatch_launch, "BridgeLauncher", lambda *_args, **_kwargs: launcher)
+    monkeypatch.setattr(_dispatch._cloud, "active_jobs", lambda _store: [
+        {**job, "engine": "codex"} for job in launcher.jobs.values()
+    ])
+
+    def choose(tier: str, **kwargs: Any) -> Any:
+        busy = kwargs.get("occupied_slots", {})
+        pick = codex_placement({}, tier)[0] if "codex" not in busy else RoutingDecision(
+            tier, None, None, None, "wait_for_slot", False, busy=busy,
+        )
+        return SimpleNamespace(decision=pick, readings={})
+
+    monkeypatch.setattr(_dispatch._routing, "choose", choose)
+    tasks = [{"text": f"Produce {name}", "task_id": name, "repo": slug, "acceptance_criteria": ["File exists"]}
+             for name in "ABCDE"]
+    tasks[2]["requested_placement"] = "auto"
+    tasks.append({"text": "Use data on this machine", "task_id": "L", "repo": slug,
+                  "requested_placement": "local", "acceptance_criteria": ["File exists"]})
+    projects = ProjectsTools(store_db=str(service.path), allow_write=True)
+    plan = (PROJECT, "Files exist", "2027-01-01T00:00:00Z", tasks)
+    assert projects.projects_review_plan(*plan)["ok"]
+    assert projects.projects_promote(*plan).startswith("promoted")
+
+    args = build_parser().parse_args(["dispatch", "--project", PROJECT, "--once", "--repo-root", f"{slug}={repo}"])
+    assert args.parallel is None
+    assert _dispatch.dispatch(args) == 0
+    assert local == [f"{PROJECT}/A", f"{PROJECT}/B"]
+    assert [task_id for task_id, _, _ in launcher.launches] == [f"{PROJECT}/{name}" for name in "CDE"[:expected]]
+    rows = {task.task_id.rsplit("/", 1)[1]: task for task in _dispatch._tasks(service, PROJECT)}
+    assert rows["A"].dispatch["receipt"]["requested_placement"] == "auto"
+    assert rows["L"].status == "todo" and rows["L"].dispatch is None
+
+
+def test_auto_waits_for_a_cloud_environment_and_then_runs_locally(
+    service: ProjectTaskService, landed: tuple[Path, str],
+) -> None:
+    projects = ProjectsTools(store_db=str(service.path), allow_write=True)
+    plan = (PROJECT, "File exists", "2027-01-01T00:00:00Z",
+            [{"text": "Produce A", "task_id": "A", "repo": "org/repo", "acceptance_criteria": ["File exists"]},
+             {"text": "Use A", "task_id": "B", "dependency_ids": ["A"], "acceptance_criteria": ["B exists"]}])
+    assert projects.projects_review_plan(*plan)["ok"]
+    assert projects.projects_promote(*plan).startswith("promoted")
+    launcher, events = FakeCloudLauncher(*landed), []
+    launcher.launch = lambda _task, _claim: "local-job"  # type: ignore[method-assign]
+    busy = True
+
+    def route(tier: str, *_args: Any) -> RoutingDecision:
+        if busy:
+            return RoutingDecision(tier, None, None, None, "wait_for_slot", False)
+        return codex_placement({}, tier)[0]
+
+    def no_environment(_task: dict[str, Any], _tier: str) -> tuple[RoutingDecision, str]:
+        raise _dispatch.NoCloudEnvironment("org/repo has no mapping")
+
+    dispatch = Dispatcher(service, PRINCIPAL, launcher, PROJECT, emit=events.append, router=route,
+                          cloud_placer=no_environment)
+    dispatch.pass_once()
+    dispatch.pass_once()
+    assert events.count(f"waiting {PROJECT}/A no cloud environment: org/repo has no mapping") == 1
+    assert board_task(service)["status"] == "todo"
+    busy = False
+    dispatch.pass_once()
+    assert board_task(service)["dispatches"][-1]["receipt"]["effective_placement"] == "local"
+    assert not launcher.launches
+
+
+def test_slot_taken_between_claim_and_submit_leaves_the_task_runnable(
+    service: ProjectTaskService, landed: tuple[Path, str],
+) -> None:
+    admit(service, None)
+    launcher, events = FakeCloudLauncher(*landed), []
+    launch = launcher.launch_cloud
+
+    def slot_taken(*_args: Any) -> str:
+        raise CloudSlotUnavailable("cloud concurrency limit reached")
+
+    launcher.launch_cloud = slot_taken  # type: ignore[method-assign]
+    dispatch = dispatcher(service, launcher, events)
+    dispatch.pass_once()
+    assert board_task(service)["status"] == "todo"
+    assert board_task(service)["dispatches"][-1]["state"] == "absent"
+    assert f"waiting {PROJECT}/A cloud concurrency limit reached" in events
+    launcher.launch_cloud = launch  # type: ignore[method-assign]
+    dispatch.pass_once()
+    assert len(launcher.launches) == 1
+    assert board_task(service)["dispatches"][-1]["state"] == "submitted"
 
 
 def test_cloud_launch_failure_without_a_job_fails_the_task(
@@ -426,9 +542,7 @@ def test_cloud_placement_refuses_a_repository_other_than_the_tasks(
 ) -> None:
     monkeypatch.setattr(_dispatch._routing, "choose", lambda *_args, **_kwargs: SimpleNamespace(
         decision=SimpleNamespace(provider="codex"), readings={}))
-    monkeypatch.setattr(_dispatch._cloud, "load_config", lambda: {})
-    monkeypatch.setattr(_dispatch._cloud_place, "decide_for_repo",
-                        lambda *_args, **_kwargs: SimpleNamespace(where="cloud", reason=""))
+    monkeypatch.setattr(_dispatch._cloud, "load_config", _dispatch._cloud.CloudConfig)
     monkeypatch.setattr(_dispatch._cloud, "provider",
                         lambda _engine: SimpleNamespace(env_for=lambda *_args: "env-123"))
     # Mapped to a checkout of org/other, or not mapped while the dispatcher runs inside org/other.

@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 TaskTier = Literal["basic", "writing", "thinking", "critical"]
 Placement = Literal["local", "cloud"]
+RequestedPlacement = Literal["local", "cloud", "auto"]
 TIERS = ("basic", "writing", "thinking", "critical")
 PLACEMENTS = ("local", "cloud")
 _TEXT_FIELDS = (
@@ -19,6 +20,12 @@ _TEXT_FIELDS = (
 
 def task_id(task: dict[str, Any], index: int) -> str:
     return task.get("task_id") or f"@{index}"
+
+
+def requested_placement(task: dict[str, Any]) -> RequestedPlacement:
+    """A nondefault execution profile needs the local runtime."""
+    default: RequestedPlacement = "local" if task.get("requested_profile") not in (None, "default") else "auto"
+    return task.get("requested_placement") or default
 
 
 def routing_fields(data: dict[str, Any]) -> dict[str, Any]:
@@ -52,7 +59,7 @@ def plan_fields(task: dict[str, Any]) -> dict[str, Any]:
     if "task_id" in fields and not re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_.-]*", fields["task_id"]):
         raise ValueError("task_id must contain only letters, digits, underscores, periods or hyphens")
     for name, choices in (
-        ("tier", TIERS), ("requested_placement", PLACEMENTS), ("effective_placement", PLACEMENTS)
+        ("tier", TIERS), ("requested_placement", (*PLACEMENTS, "auto")), ("effective_placement", PLACEMENTS)
     ):
         value = task.get(name)
         if value is not None:

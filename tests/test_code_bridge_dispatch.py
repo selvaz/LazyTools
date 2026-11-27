@@ -57,7 +57,7 @@ class FakeService:
 
     def claim(self, principal: Any, identifier: str, revision: str, key: str, **_kwargs: Any) -> dict[str, Any]:
         name = identifier.rsplit("/", 1)[1]
-        receipt = {"task_id": identifier, "revision": revision, "claim_token": f"token-{name}",
+        receipt = {"task_id": identifier, "revision": revision, "text": name, "claim_token": f"token-{name}",
                    "attempt": 1, "executor": principal.actor, "engine_family": "codex",
                    "effective_placement": "local", "lease_expires_at": 9999999999}
         self.rows[name]["status"] = "claimed"
@@ -193,10 +193,41 @@ def test_touches_control_parallel_dispatch(second: str, parallel: bool) -> None:
     dispatch.pass_once()
     assert launcher.launches == (["A", "B"] if parallel else ["A"])
     if not parallel:
-        assert "waiting p/B touches overlap with p/A" in events
+        dispatch.pass_once()
+        assert events.count("waiting p/B touches overlap with p/A") == 1
         launcher.finish("A")
         dispatch.pass_once()
         assert launcher.launches == ["A", "B"]
+
+
+def test_waiting_reason_changes_from_dependency_to_parallel_cap() -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.parallel = 1
+    dispatch.pass_once()
+    dispatch.pass_once()
+    launcher.finish("A")
+    dispatch.pass_once()
+    dispatch.pass_once()
+    assert [line for line in events if line.startswith("waiting p/C ")] == [
+        "waiting p/C dependency not done: A", "waiting p/C --parallel limit reached (1)",
+    ]
+    launcher.finish("B")
+    dispatch.pass_once()
+    assert launcher.launches == ["A", "B", "C"]
+
+
+def test_local_capacity_counts_external_holders_and_pending_claims_once() -> None:
+    service = FakeService()
+    dispatch = Dispatcher(service, TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
+                          FakeLauncher(service), "p", capacity=lambda engine: 2 if engine == "codex" else None,
+                          local_holders=lambda _engine: {"live"})  # type: ignore[arg-type]
+    claims = [{"engine_family": "codex", "job_ref": "live"},
+              {"engine_family": "codex", "effective_placement": "cloud"}]
+    assert dispatch._local_busy(claims) == {}
+    claims.append({"engine_family": "codex"})
+    assert "codex 2/2" in dispatch._local_busy(claims)["codex"]
 
 
 @pytest.mark.parametrize("missing", [False, True])
@@ -495,47 +526,25 @@ def test_dependency_artifacts_are_merged_into_descendant_worktree(tmp_path: Path
 
 
 def test_place_records_routed_local_evidence_only_for_unblocked_todo_tasks() -> None:
+    service = FakeService()
+    service.rows = {
+        "A": {"status": "done", "dependency_ids": []},
+        "B": {"status": "todo", "dependency_ids": ["A"]},
+        "C": {"status": "todo", "dependency_ids": ["B"]},
+        "R": {"status": "todo", "dependency_ids": ["A"], "review_of": "B"},
+        "K": {"status": "todo", "dependency_ids": ["A"], "requested_placement": "cloud"},
+    }
     recorded: list[tuple[str, str, Any]] = []
-
-    class PlacingService:
-        lease_seconds = 900
-
-        def record_placement(self, task_id: str, revision: str, evidence: Any) -> None:
-            recorded.append((task_id, revision, evidence))
-
-    def task(identifier: str, status: str = "todo", deps: tuple[str, ...] = (), **extra: Any) -> Task:
-        return Task(f"p/{identifier}", "r1", status, {"dependency_ids": list(deps), "tier": "basic", **extra}, None)
-
-    tasks = [task("A", "done"), task("B", deps=("A",)), task("C", deps=("B",)),
-             task("R", deps=("A",), review_of="B"), task("K", deps=("A",), requested_placement="cloud")]
+    service.record_placement = lambda *args: recorded.append(args)  # type: ignore[attr-defined]
     events: list[str] = []
-    dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
-                          None, "p", emit=events.append, clock=lambda: 1000.0,  # type: ignore[arg-type]
+    dispatch = Dispatcher(service, TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
+                          FakeLauncher(service), "p", emit=events.append, clock=lambda: 1000.0,  # type: ignore[arg-type]
+                          task_reader=service.tasks,  # type: ignore[arg-type]
                           router=lambda tier, *_: RoutingDecision(tier, "codex", None, None, "weekly_margin", True))
-    dispatch._place(tasks)
+    dispatch.pass_once()
     assert [(task_id, evidence.engine_family, evidence.placement) for task_id, _, evidence in recorded] == [
         ("p/B", "codex", "local")]
-    assert events == [
-        "placed p/B local codex tier=basic | weekly_margin | codex weekly projected unavailable | claude weekly projected unavailable"
-    ]
-
-
-def test_place_waits_for_claimed_overlapping_task() -> None:
-    recorded: list[str] = []
-
-    class PlacingService:
-        def record_placement(self, task_id: str, revision: str, evidence: Any) -> None:
-            recorded.append(task_id)
-
-    data = {"dependency_ids": [], "repo": "r", "touches": ["src/*.py"]}
-    tasks = [Task("p/A", "r", "claimed", data, None), Task("p/B", "r", "todo", data, None)]
-    events: list[str] = []
-    dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
-                          None, "p", emit=events.append, clock=lambda: 1000.0,  # type: ignore[arg-type]
-                          router=lambda tier, *_: RoutingDecision(tier, "codex", None, None, "ok", True))
-    dispatch._place(tasks)
-    assert recorded == []
-    assert events == ["waiting p/B touches overlap with p/A"]
+    assert "waiting p/C dependency not done: B" in events
 
 
 @pytest.mark.parametrize("continuation", [
@@ -563,7 +572,7 @@ def test_retry_without_native_resume_is_rerouted(continuation: dict[str, Any]) -
                           None, "p", emit=events.append, clock=lambda: 1000.0, router=route)  # type: ignore[arg-type]
     retry = Task("p/A", "r2", "todo", {"attempt_continuation": continuation},
                  {"receipt": {"engine_family": "claude_code"}})
-    dispatch._place([retry])
+    dispatch._place(retry, dispatch._requested(retry), {}, {})
     assert required == [None] and recorded[0].engine_family == "codex"
     assert events[0].startswith("rerouted p/A local claude_code -> codex ")
 
@@ -588,7 +597,7 @@ def test_retry_with_native_resume_keeps_engine(escalation_tier: str | None) -> N
     retry = Task("p/A", "r2", "todo", {"attempt_continuation": {"engine": "codex", "native_id": "thread",
                                                                  "escalation_tier": escalation_tier}},
                  {"receipt": {"engine_family": "codex"}})
-    dispatch._place([retry])
+    dispatch._place(retry, dispatch._requested(retry), {}, {})
     assert required == ["codex"]
     assert events[0].startswith("placed p/A local codex ")
 
@@ -604,10 +613,11 @@ def test_place_reports_waiting_when_no_engine_is_eligible() -> None:
     dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
                           None, "p", emit=events.append,  # type: ignore[arg-type]
                           router=lambda tier, *_: RoutingDecision(tier, None, None, None, "no_eligible_provider", False))
-    dispatch._place([Task("p/A", "r1", "todo", {"tier": "writing"}, None)])
-    dispatch._place([Task("p/A", "r1", "todo", {"tier": "writing"}, None)])
+    dispatch._place(Task("p/A", "r1", "todo", {"tier": "writing"}, None), "auto", {}, {})
+    dispatch._place(Task("p/A", "r1", "todo", {"tier": "writing"}, None), "auto", {}, {})
     assert events == [
-        "waiting p/A local tier=writing | no_eligible_provider | codex weekly projected unavailable | claude weekly projected unavailable"
+        "waiting p/A local tier=writing | no_eligible_provider | codex weekly projected unavailable | "
+        "claude weekly projected unavailable | quota/pace"
     ]
 
 
@@ -1467,7 +1477,11 @@ def test_place_checks_quota_when_a_slot_was_assigned_in_the_same_tick(
     dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
                           None, "p", emit=events.append, clock=lambda: 1000.0,  # type: ignore[arg-type]
                           router=router, capacity=lambda family: 1 if family == "codex" else None)
-    dispatch._place(tasks)
+    picks = {}
+    assert dispatch._place(tasks[0], "local", {}, picks) is not None
+    busy = dispatch._local_busy([{"engine_family": "codex"}])
+    for task in tasks[1:]:
+        dispatch._place(task, "local", busy, picks)
     assert recorded == [(f"p/{name}", "codex" if name == "A" else "claude_code") for name in placed]
     if "B" not in placed:
         assert any(line.startswith("waiting p/B ") and "wait_for_slot" in line for line in events)
@@ -1509,11 +1523,11 @@ def test_check_repair_waits_for_its_original_engine_slot(tmp_path: Path, monkeyp
     dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
                           None, "p", router=router, capacity=lambda _: 1, emit=events.append,  # type: ignore[arg-type]
                           clock=lambda: 1000.0)
-    busy = Task("p/B", "r1", "claimed", {}, {"receipt": {"engine_family": "codex"}})
-    dispatch._place([task, busy])
+    busy = dispatch._local_busy([{"engine_family": "codex"}])
+    dispatch._place(task, "local", busy, {})
     assert not recorded
     assert any(event.startswith("waiting p/A ") and "wait_for_slot" in event for event in events)
-    dispatch._place([task])
+    dispatch._place(task, "local", {}, {})
     assert recorded[0].engine_family == "codex"
 
 

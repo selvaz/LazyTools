@@ -22,7 +22,6 @@ from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugi
 from lazytools.code_bridge import (
     _cloud,
     _cloud_land,
-    _cloud_place,
     _concurrency,
     _dispatch_launch,
     _dispatch_workspace,
@@ -37,7 +36,7 @@ from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.admission import ENGINES, Engine
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import _key as project_key
-from lazytools.projects.task_fields import routing_fields, touches_overlap
+from lazytools.projects.task_fields import RequestedPlacement, requested_placement, routing_fields, touches_overlap
 from lazytools.projects.task_fields import task_id as board_task_id
 from lazytools.projects.task_service import (
     AttemptContinuation,
@@ -179,12 +178,18 @@ def _placement_detail(decision: RoutingDecision) -> str:
 
 LocalRouter = Callable[[str, dict[Engine, str], tuple[Engine, ...], Fallback, Engine | None], RoutingDecision]
 CloudPlacer = Callable[[dict[str, Any], str], tuple[RoutingDecision, str]]
+RouteCache = dict[tuple[str, tuple[Engine, ...], Fallback, tuple[tuple[Engine, str], ...], Engine | None],
+                  RoutingDecision]
 T = TypeVar("T")
+
+
+class NoCloudEnvironment(CloudError):
+    """The task's repository has no usable cloud environment."""
 
 
 class Dispatcher:
     def __init__(self, service: ProjectTaskService, principal: TaskPrincipal, launcher: _dispatch_launch.Launcher,
-                 project_id: str, *, parallel: int = 1, emit: Callable[[str], None] | None = None,
+                 project_id: str, *, parallel: int | None = None, emit: Callable[[str], None] | None = None,
                  sleep: Callable[[float], None] = time.sleep,
                  task_reader: Callable[[ProjectTaskService, str], list[Task]] = _tasks,
                  clock: Callable[[], float] = time.time, orphan_grace: float = 30.0,
@@ -193,9 +198,10 @@ class Dispatcher:
                  stale_minutes: int = DEFAULT_STALE_MINUTES,
                  capacity: Callable[[str], int | None] | None = None,
                  cloud_placer: CloudPlacer | None = None,
+                 local_holders: Callable[[str], set[str]] | None = None,
                  land: bool = False):
-        if not 1 <= parallel <= 100:
-            raise ValueError("--parallel must be between 1 and 100")
+        if parallel is not None and parallel < 1:
+            raise ValueError("--parallel must be at least 1")
         if stale_minutes < 1:
             raise ValueError("--stale-minutes must be at least 1")
         if max_retries < 0:
@@ -213,6 +219,7 @@ class Dispatcher:
         self.router = router
         self.capacity = capacity  # engine family -> local slot limit (None = unlimited)
         self.cloud_placer = cloud_placer
+        self.local_holders = local_holders
         self.land = land  # push each published branch to origin and open its PR
         # Accepted, published tasks awaiting landing; drained after every claimed task is settled.
         self.landings: list[tuple[Task, Path, str, str, list[str]]] = []
@@ -526,79 +533,55 @@ class Dispatcher:
             reason = " ".join(str(ticket.get("reason") or "").split())[:160]
             self._event("approval", task_id, f"{approval_id} {command} | {reason}", job_id=job_id)
 
-    def _place(self, tasks: list[Task]) -> None:
-        """Record local placement evidence for todo tasks whose dependencies are done.
+    def _local_busy(self, claims: list[dict[str, Any]]) -> dict[Engine, str]:
+        busy: dict[Engine, str] = {}
+        for engine in ENGINES:
+            limit = self.capacity(engine) if self.capacity else None
+            if not limit:
+                continue
+            holders = self.local_holders(engine) if self.local_holders else set()
+            # Include claims whose detached workers have yet to acquire their slots.
+            # A worker already holding a machine-wide slot only counts once.
+            pending = sum(
+                claim.get("effective_placement", "local") == "local"
+                and claim.get("engine_family") == engine
+                and claim.get("job_ref") not in holders
+                and (not claim.get("claim_token") or _dispatch_launch.local_job_id(claim["claim_token"]) not in holders)
+                for claim in claims
+            )
+            count = len(holders) + pending
+            if count >= limit:
+                busy[engine] = f"engine_at_concurrency_limit: {_routing.bridge_engine(engine)} {count}/{limit}"
+        return busy
 
-        `next_ready` only returns tasks with fresh placement evidence; the quota router
-        picks the engine family for the task's tier here, and the launch later pins it.
-        """
-        if self.router is None and self.cloud_placer is None:
-            return
-        status = {task.task_id.rsplit("/", 1)[1]: task.status for task in tasks}
-        now = self.clock()
-        picks: dict[tuple[str, tuple[Engine, ...], Fallback, tuple[tuple[Engine, str], ...], Engine | None], RoutingDecision] = {}
-        self.waiting = {task.task_id: self.waiting[task.task_id] for task in tasks
-                        if task.status == "todo" and not task.data.get("start_hold") and task.task_id in self.waiting}
-        # Engine families already busy: claimed tasks plus tasks placed and not yet claimed.
-        in_use: dict[str, int] = {}
-        for task in tasks:
-            if task.status == "claimed":
-                receipt = (task.dispatch or {}).get("receipt") or {}
-                # A cloud job takes no local engine slot.
-                local = receipt.get("effective_placement", "local") == "local"
-                family = str(receipt.get("engine_family") or "") if local else ""
-            elif task.status == "todo" and not task.data.get("start_hold"):
-                evidence = task.data.get("placement_evidence", {}).get("local", {})
-                fresh = (evidence.get("revision") == task.revision
-                         and evidence.get("evidence", {}).get("eligible")
-                         and evidence.get("evidence", {}).get("expires_at", 0) > now + 60)
-                family = str(evidence.get("evidence", {}).get("engine_family") or "") if fresh else ""
-            else:
-                family = ""
-            if family:
-                in_use[family] = in_use.get(family, 0) + 1
-        for task in tasks:
-            data = task.data
-            continuation = data.get("attempt_continuation") or {}
-            requested = "local" if continuation.get("repair_checkout") else data.get("requested_placement", "local")
-            placer = self.router if requested == "local" else self.cloud_placer if requested == "cloud" else None
-            if (task.status != "todo" or placer is None or data.get("start_hold")
-                    or data.get("owner") or data.get("claimed_at") is not None
-                    or data.get("review_of") or data.get("acceptance_contract")
-                    or any(status.get(dep) != "done" for dep in data.get("dependency_ids", []))):
-                continue
-            overlap = next((other for other in tasks if other.status in ("claimed", "running")
-                            and touches_overlap(data, other.data)), None)
-            if overlap:
-                self._wait(task.task_id, f"touches overlap with {overlap.task_id}")
-                continue
-            if self.waiting.get(task.task_id, "").startswith("touches overlap with "):
-                self.waiting.pop(task.task_id)
-            record = data.get("placement_evidence", {}).get(requested, {})
-            evidence = record.get("evidence", {})
-            if (continuation.get("not_before") or 0) > now:
-                self._wait(task.task_id, "waiting for the quota window [budget]")
-                continue
-            required_engine = None
-            if (continuation.get("engine")
-                    and _dispatch_launch._resumes(continuation, _routing.provider(continuation["engine"]))
+    def _required_engine(self, task: Task) -> Engine | None:
+        continuation = task.data.get("attempt_continuation") or {}
+        if engine := continuation.get("engine"):
+            family = _routing.provider(engine)
+            if (_dispatch_launch._resumes(continuation, family)
                     and _dispatch_launch.resumable(continuation, getattr(self.launcher, "launch_mode", None))):
-                engine = continuation["engine"]
-                required_engine = _routing.provider(engine)
-            if (record.get("revision") == task.revision and evidence.get("expires_at", 0) > now + 60
-                    and (not required_engine or evidence.get("engine_family") == required_engine)):
-                continue
-            tier = continuation.get("escalation_tier") or data.get("tier") or "thinking"
-            if requested == "cloud":
-                self._place_cloud(task, tier, now)
-                continue
-            assert self.router is not None
-            busy: dict[Engine, str] = {}
-            for family in ENGINES:
-                limit = self.capacity(family) if self.capacity else None
-                count = in_use.get(family, 0)
-                if limit and count >= limit:
-                    busy[family] = f"engine_at_concurrency_limit: {_routing.bridge_engine(family)} {count}/{limit} in dispatch"
+                return family
+        return None
+
+    def _requested(self, task: Task) -> RequestedPlacement:
+        continuation = task.data.get("attempt_continuation") or {}
+        if continuation.get("repair_checkout"):
+            return "local"
+        requested = requested_placement(task.data)
+        if requested == "auto" and (continuation.get("preserved_branch") or self._required_engine(task)):
+            return "local"  # a local retry needs its preserved work or native conversation
+        return requested
+
+    def _place(
+        self, task: Task, requested: RequestedPlacement, busy: dict[Engine, str], picks: RouteCache,
+    ) -> PlacementEvidence | None:
+        """Choose a concrete placement using current capacity and record evidence for the claim."""
+        data = task.data
+        continuation = data.get("attempt_continuation") or {}
+        tier = continuation.get("escalation_tier") or data.get("tier") or "thinking"
+        required_engine = self._required_engine(task)
+        where, environment = "local", None
+        if requested in ("local", "auto") and self.router is not None:
             try:
                 preference, fallback = _routing_options(data)
                 key = (tier, preference, fallback, tuple(busy.items()), required_engine)
@@ -607,57 +590,90 @@ class Dispatcher:
                 decision = picks[key]
             except Exception as exc:
                 self._wait(task.task_id, f"routing failed: {str(exc).replace(chr(10), ' ')}")
-                continue
-            detail = _placement_detail(decision)
-            engine = decision.provider
-            if engine is None or (required_engine and engine != required_engine):
-                self._wait(task.task_id, f"local tier={tier} | {detail}")
-                continue
-            self.waiting.pop(task.task_id, None)
-            self.service.record_placement(task.task_id, task.revision, PlacementEvidence(
-                placement="local", eligible=True, reason=detail,
-                reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}",
-                expires_at=now + PLACEMENT_SECONDS, engine_family=engine,
-                model=decision.model, effort=decision.effort,
-            ))
-            in_use[engine] = in_use.get(engine, 0) + 1
-            previous = ((task.dispatch or {}).get("receipt") or {}).get("engine_family")
-            if previous and not required_engine:
-                self._event("rerouted", task.task_id, f"local {previous} -> {engine} tier={tier} | {detail}")
-            else:
-                self._event("placed", task.task_id, f"local {engine} tier={tier} | {detail}")
-
-    def _wait(self, task_id: str, detail: str) -> None:
-        if self.waiting.get(task_id) != detail:
-            self._event("waiting", task_id, detail)
-            self.waiting[task_id] = detail
-
-    def _place_cloud(self, task: Task, tier: str, now: float) -> None:
-        """Record cloud placement evidence: the routed engine and its cloud environment."""
-        assert self.cloud_placer is not None
-        try:
-            decision, environment = self.cloud_placer(task.data, tier)
-        except _dispatch_launch.RepositoryMismatch as exc:
-            # Not a transient condition: the task is not placed, so it can never be claimed.
-            self.waiting.pop(task.task_id, None)
-            if task.task_id not in self.unsupported:
-                self.unsupported.add(task.task_id)
-                self._event("failed", task.task_id, f"cloud placement refused: {str(exc).replace(chr(10), ' ')}")
-            return
-        except Exception as exc:
-            self._wait(task.task_id, f"cloud placement failed: {str(exc).replace(chr(10), ' ')}")
-            return
-        detail = _placement_detail(decision)
+                return None
+            if decision.provider is None or decision.provider in busy or (
+                required_engine and decision.provider != required_engine
+            ):
+                slot_wait = decision.reason == "wait_for_slot" or decision.provider in busy
+                if requested == "auto" and slot_wait and self.cloud_placer is not None:
+                    where = "cloud"
+                else:
+                    cause = "local slot" if slot_wait else "quota/pace"
+                    detail = _placement_detail(decision)
+                    exclusions = " | ".join(f"{name}: {why}" for name, why in decision.ineligible.items())
+                    extra = f" | {exclusions}" if exclusions and not slot_wait else ""
+                    self._wait(task.task_id, f"local tier={tier} | {detail} | {cause}{extra}",
+                               key=f"{cause}: {decision.reason}:{decision.waiting_for}:"
+                                   f"{tuple((name, why.partition(':')[0]) for name, why in decision.ineligible.items())}")
+                    return None
+        else:
+            where = "cloud"
+        if where == "cloud":
+            assert self.cloud_placer is not None
+            try:
+                decision, environment = self.cloud_placer(data, tier)
+            except _dispatch_launch.RepositoryMismatch as exc:
+                if requested == "auto":
+                    self._wait(task.task_id, f"no cloud environment: {exc}")
+                elif task.task_id not in self.unsupported:
+                    self.unsupported.add(task.task_id)
+                    self._event("failed", task.task_id, f"cloud placement refused: {str(exc).replace(chr(10), ' ')}")
+                return None
+            except NoCloudEnvironment as exc:
+                self._wait(task.task_id, f"no cloud environment: {exc}")
+                return None
+            except Exception as exc:
+                self._wait(task.task_id, f"cloud placement failed: {str(exc).replace(chr(10), ' ')}")
+                return None
+            if decision.provider is None:
+                reason = "cloud concurrency limit reached" if decision.reason == "wait_for_slot" else "cloud quota/pace"
+                self._wait(task.task_id, f"{reason} | {_placement_detail(decision)}", key=reason)
+                return None
+            if not self._cloud_available(task.task_id, decision.provider):
+                return None
         engine = decision.provider
         assert engine is not None
-        self.waiting.pop(task.task_id, None)
-        self.service.record_placement(task.task_id, task.revision, PlacementEvidence(
-            placement="cloud", eligible=True,
-            reason=detail,
-            reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}-cloud",
+        detail = _placement_detail(decision)
+        now = self.clock()
+        evidence = PlacementEvidence(
+            placement="cloud" if where == "cloud" else "local", eligible=True, reason=detail,
+            reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}-{where}",
             expires_at=now + PLACEMENT_SECONDS, engine_family=engine, environment_id=environment,
-        ))
-        self._event("placed", task.task_id, f"cloud {engine} env={environment} tier={tier} | {detail}")
+            model=decision.model if where == "local" else None, effort=decision.effort if where == "local" else None,
+        )
+        self.service.record_placement(task.task_id, task.revision, evidence)
+        previous = ((task.dispatch or {}).get("receipt") or {}).get("engine_family")
+        if where == "cloud":
+            self._event("placed", task.task_id, f"cloud {engine} env={environment} tier={tier} | {detail}")
+        elif previous and not required_engine:
+            self._event("rerouted", task.task_id, f"local {previous} -> {engine} tier={tier} | {detail}")
+        else:
+            self._event("placed", task.task_id, f"local {engine} tier={tier} | {detail}")
+        return evidence
+
+    def _wait(self, task_id: str, detail: str, *, key: str | None = None) -> None:
+        reason = key or detail
+        if self.waiting.get(task_id) != reason:
+            self._event("waiting", task_id, detail)
+            self.waiting[task_id] = reason
+
+    def _cloud_available(self, task_id: str, engine: str) -> bool:
+        if not hasattr(self.launcher, "launch_cloud"):
+            self.unsupported.add(task_id)
+            self._event("failed", task_id, "cloud placement not supported by this launcher")
+            return False
+        if not self.launcher.cloud_free(engine):  # type: ignore[attr-defined]
+            self._wait(task_id, "cloud concurrency limit reached")
+            return False
+        return True
+
+    def _ready_tasks(self) -> dict[str, dict[str, Any]]:
+        page = self.service.next_ready(self.principal, self.project_id, limit=100)
+        tasks = {task["task_id"]: task for task in page["tasks"]}
+        while (cursor := page.get("next_cursor")) is not None:
+            page = self.service.next_ready(self.principal, self.project_id, limit=100, cursor=cursor)
+            tasks.update((task["task_id"], task) for task in page["tasks"])
+        return tasks
 
     def _blocked(self, tasks: list[Task]) -> None:
         failed = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "failed"}
@@ -953,7 +969,14 @@ class Dispatcher:
             job = self.launcher.job(job_id)
             if job is None:  # nothing reached the provider
                 try:
-                    self._fail_launch(task, claim, reason)
+                    if isinstance(exc, _dispatch_launch.CloudSlotUnavailable):
+                        continuation = AttemptContinuation.model_validate(task.data.get("attempt_continuation") or {})
+                        self.service.fail_local_launch(
+                            self.principal, task_id, token, reason, dispatcher_owner=owner, continuation=continuation,
+                        )
+                        self._wait(task_id, "cloud concurrency limit reached")
+                    else:
+                        self._fail_launch(task, claim, reason)
                 except Exception as release_exc:
                     self._event("deferred", task_id, f"{release_exc} [infra]", job_id=job_id)
                     return True
@@ -1236,101 +1259,126 @@ class Dispatcher:
         self._land_settled()
         tasks = self.task_reader(self.service, self.project_id)
         self._surface_approvals(tasks)
-        self._place(tasks)
-        tasks = self.task_reader(self.service, self.project_id)
-        running = sum(task.status == "claimed" for task in tasks)
-        ready = self.service.next_ready(self.principal, self.project_id, limit=100)["tasks"]
-        by_id = {task.task_id: task for task in tasks}
+        self.waiting = {task.task_id: self.waiting[task.task_id] for task in tasks
+                        if task.status == "todo" and not task.data.get("start_hold")
+                        and task.task_id in self.waiting and task.task_id not in self.unsupported}
+        preplaced = self._ready_tasks() if self.router is None or self.cloud_placer is None else {}
         active = [task for task in tasks if task.status in ("claimed", "running")]
+        claims = [{**task.dispatch["receipt"], "job_ref": task.dispatch.get("job_ref")}
+                  for task in active if task.dispatch and task.dispatch.get("receipt")]
+        status = {task.task_id.rsplit("/", 1)[1]: task.status for task in tasks}
         running_branches = {
             str(task.data["assigned_branch"])
             for task in tasks
             if task.data.get("assigned_branch")
-            and (task.status == "claimed" or (task.dispatch or {}).get("pending_landing"))
+            and (task.status in ("claimed", "running") or (task.dispatch or {}).get("pending_landing"))
         }
-        for summary in ready:
-            board_task = by_id.get(summary["task_id"])
-            if board_task is None:
-                self._event("failed", summary["task_id"], "task is missing from board")
+        picks: RouteCache = {}
+        for board_task in tasks:
+            task_id, data = board_task.task_id, board_task.data
+            if (board_task.status != "todo" or data.get("start_hold") or data.get("owner")
+                    or data.get("claimed_at") is not None or task_id in self.unsupported):
                 continue
-            data = board_task.data
-            overlap = next((other for other in active if touches_overlap(data, other.data)), None)
-            if overlap:
-                self._wait(summary["task_id"], f"touches overlap with {overlap.task_id}")
+            if data.get("review_of") or data.get("contract_id") or data.get("acceptance_contract"):
+                self.unsupported.add(task_id)
+                self._event("failed", task_id, "review/contract tasks not supported by dispatch v1")
                 continue
-            if self.waiting.get(summary["task_id"], "").startswith("touches overlap with "):
-                self.waiting.pop(summary["task_id"])
-            if running >= self.parallel:
+            pending = [dep for dep in data.get("dependency_ids", []) if status.get(dep) != "done"]
+            if pending:
+                self._wait(task_id, "dependency not done: " + ", ".join(pending))
                 continue
             if ((data.get("attempt_continuation") or {}).get("not_before") or 0) > self.clock():
+                self._wait(task_id, "waiting for the quota window [budget]")
                 continue
-            self._event("ready", summary["task_id"])
-            cloud = summary.get("effective_placement") == "cloud"
-            if not cloud and summary["task_id"] in self.waiting:
-                continue  # An older placement can still be fresh while the new route waits.
-            if cloud and not hasattr(self.launcher, "launch_cloud"):
-                reason = "cloud placement not supported by this launcher"
-                self.unsupported.add(summary["task_id"])
-                self._event("failed", summary["task_id"], reason)
+            overlap = next((other for other in active if touches_overlap(data, other.data)), None)
+            if overlap:
+                self._wait(task_id, f"touches overlap with {overlap.task_id}")
                 continue
-            if data.get("review_of") or data.get("contract_id"):
-                reason = "review/contract tasks not supported by dispatch v1"
-                self.unsupported.add(summary["task_id"])
-                self._event("failed", summary["task_id"], reason)
-                continue
-            if cloud:
-                evidence = data.get("placement_evidence", {}).get("cloud", {}).get("evidence", {})
-                if not self.launcher.cloud_free(str(evidence.get("engine_family") or "")):  # type: ignore[attr-defined]
-                    self._wait(summary["task_id"], "cloud concurrency limit reached")
-                    continue
-                self.waiting.pop(summary["task_id"], None)
             branch = data.get("assigned_branch")
             if branch and str(branch) in running_branches:
-                self._event("failed", summary["task_id"], "assigned branch already running")
+                self._wait(task_id, f"assigned branch already running: {branch}")
                 continue
+            if self.parallel is not None and len(active) >= self.parallel:
+                self._wait(task_id, f"--parallel limit reached ({self.parallel})")
+                continue
+            requested = self._requested(board_task)
+            managed = self.router is not None if requested != "cloud" else self.cloud_placer is not None
+            busy = self._local_busy(claims) if requested != "cloud" else {}
+            expected = self._place(board_task, requested, busy, picks) if managed else None
+            if managed:
+                if expected is None:
+                    continue
+                summary: dict[str, Any] = {}
+                cloud = expected.placement == "cloud"
+            else:
+                summary = preplaced.get(task_id, {})
+                if not summary:
+                    self.waiting.pop(task_id, None)
+                    continue
+                cloud = summary["effective_placement"] == "cloud"
+                if (requested == "cloud" and not cloud) or (requested == "local" and cloud):
+                    self._wait(task_id, f"{requested} placement evidence is missing")
+                    continue
+                location = summary["effective_placement"]
+                record = data.get("placement_evidence", {}).get(location, {}).get("evidence")
+                expected = PlacementEvidence.model_validate(record) if record else None
+                engine = expected.engine_family if expected else None
+                if cloud and not self._cloud_available(task_id, engine or ""):
+                    continue
+                if not cloud and engine in busy:
+                    self._wait(task_id, f"local slot: {busy[engine]}", key=f"local slot: {engine}")
+                    continue
+            self._event("ready", task_id)
             attempt = len(data.get("dispatches", [])) + 1
             try:
                 result = self.service.claim(
-                    self.principal, summary["task_id"], summary["revision"],
-                    f"dispatch:{summary['task_id']}:{summary['revision']}:{attempt}",
-                    dispatcher_owner=self.owner,
+                    self.principal, task_id, board_task.revision,
+                    f"dispatch:{task_id}:{board_task.revision}:{attempt}",
+                    dispatcher_owner=self.owner, expected_placement=expected,
                 )
+            except TaskServiceError as exc:
+                self._wait(task_id, str(exc).replace(chr(10), " "))
+                continue
             except Exception as exc:
-                kind = "deferred" if isinstance(exc, TaskServiceError) and exc.code == "busy" else "failed"
-                self._event(kind, summary["task_id"], str(exc).replace(chr(10), " "))
+                self._event("failed", task_id, str(exc).replace(chr(10), " "))
                 continue
             if not result.get("claim_active", True):
-                self._event("failed", summary["task_id"], "claim is not active")
+                self._wait(task_id, "claim is not active")
                 continue
             if "dispatch_state" in result:
-                continue  # a claim replay never starts another launcher
-            claim = result["claim"]
-            active.append(board_task)
-            self._event("claimed", summary["task_id"])
-            if cloud:
-                if self._launch_cloud(board_task, summary, claim):
-                    running += 1
+                self._wait(task_id, "task already claimed")
                 continue
-            try:
-                job_ref = self.launcher.launch(self._launch_input({**summary, **data}, claim), claim)
-            except Exception as exc:
-                self._record_base(summary["task_id"], claim)
-                reason = str(exc).replace("\n", " ")
-                job_id = _dispatch_launch.local_job_id(claim["claim_token"])
-                if self.launcher.job(job_id) is not None:
-                    self._event("deferred", summary["task_id"], reason, job_id=job_id)
-                    running += 1
-                    if branch:
-                        running_branches.add(str(branch))
-                    continue
-                try:
-                    self._fail_launch(board_task, claim, reason)
-                except Exception as release_exc:
-                    self._event("deferred", summary["task_id"], f"{release_exc} [infra]")
+            claim = result["claim"]
+            summary = {**summary, **claim}
+            self._event("claimed", task_id)
+            job_ref = None
+            if cloud:
+                started = self._launch_cloud(board_task, summary, claim)
             else:
-                self._record_base(summary["task_id"], claim)
-                self._event("launched", summary["task_id"], job_id=job_ref)
-                running += 1
+                try:
+                    job_ref = self.launcher.launch(self._launch_input({**summary, **data}, claim), claim)
+                except Exception as exc:
+                    self._record_base(task_id, claim)
+                    reason = str(exc).replace("\n", " ")
+                    job_id = _dispatch_launch.local_job_id(claim["claim_token"])
+                    started = self.launcher.job(job_id) is not None
+                    if started:
+                        job_ref = job_id
+                        self._event("deferred", task_id, reason, job_id=job_id)
+                    else:
+                        try:
+                            self._fail_launch(board_task, claim, reason)
+                        except Exception as release_exc:
+                            started = True  # reconciliation still owns this claim
+                            self._event("deferred", task_id, f"{release_exc} [infra]")
+                else:
+                    self._record_base(task_id, claim)
+                    self._event("launched", task_id, job_id=job_ref)
+                    started = True
+            if started:
+                self.waiting.pop(task_id, None)
+                active.append(board_task)
+                claims.append({**claim, "job_ref": job_ref})
                 if branch:
                     running_branches.add(str(branch))
         tasks = self.task_reader(self.service, self.project_id)
@@ -1391,7 +1439,8 @@ class Dispatcher:
                     and (task.data.get("attempt_continuation") or {}).get("wait_for_budget")
                     for task in self.task_reader(self.service, self.project_id)
                 )
-                if once or (not ready and not running and not self.waiting and not budget_wait):
+                if once or (not ready and not running and not budget_wait
+                            and not any(not reason.startswith("dependency ") for reason in self.waiting.values())):
                     return 0
             finally:
                 stop.set()
@@ -1483,17 +1532,21 @@ def dispatch(args: argparse.Namespace) -> int:
         worktree_root=Path(args.worktree_root).resolve() if args.worktree_root else None,
         registry_db=registry_db, launch_mode=getattr(args, "launch_mode", None),
     )
-    router, cloud_placer = _routers(Path(args.db) if args.db else None, repo_roots)
-    limits = _concurrency.load_limits()
+    router, cloud_placer = _routers(Path(args.db) if args.db else None, repo_roots, launcher.cloud_free)
+    config = _concurrency.load_config()
 
     def capacity(engine_family: str) -> int | None:
-        return limits.get("claude" if engine_family == "claude_code" else engine_family) or None
+        return config.limits.get(_routing.bridge_engine(_routing.provider(engine_family)))
+
+    def local_holders(engine_family: str) -> set[str]:
+        engine = _routing.bridge_engine(_routing.provider(engine_family))
+        return {str(holder["job_id"]) for holder in _concurrency.live_holders(engine, config.slot_dir)}
 
     knowledge_db = getattr(args, "knowledge_db", None)
     knowledge_store = _store.build_store(Path(knowledge_db).expanduser()) if knowledge_db is not None else None
     try:
         return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
-                          capacity=capacity, cloud_placer=cloud_placer,
+                          capacity=capacity, cloud_placer=cloud_placer, local_holders=local_holders,
                           json_events=bool(getattr(args, "json", False)),
                           knowledge_store=knowledge_store, land=bool(getattr(args, "land", False)),
                           stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)
@@ -1503,7 +1556,7 @@ def dispatch(args: argparse.Namespace) -> int:
 
 
 def _routers(
-    db_path: Path | None, repo_roots: dict[str, Path],
+    db_path: Path | None, repo_roots: dict[str, Path], cloud_free: Callable[[str], bool] | None = None,
 ) -> tuple[LocalRouter, CloudPlacer]:
     """The local quota router and the cloud placer used by `dispatch`."""
 
@@ -1526,26 +1579,31 @@ def _routers(
         return decision
 
     def cloud_placer(task: dict[str, Any], tier: str) -> tuple[RoutingDecision, str]:
-        """The routed engine and its cloud environment, through the same decision `run --where cloud` uses."""
-        repo = _dispatch_launch.cloud_repo(repo_roots, task)  # the repository the cloud job would act on
-        # Local engine slots do not bound cloud work; cloud admission is checked separately (`cloud_free`).
+        """Route among providers with a cloud environment for this repository."""
+        repo = _dispatch_launch.cloud_repo(repo_roots, task)
+        slug = _cloud.repo_slug(_cloud.repo_root(repo))
+        config = _cloud.load_config()
+        environments: dict[Engine, str] = {}
+        errors = []
+        for family in ENGINES:
+            engine = _routing.bridge_engine(family)
+            routine = config.default_routine if engine == "claude" else None
+            if engine == "claude" and routine is None:
+                errors.append("Claude cloud has no default routine")
+                continue
+            try:
+                environments[family] = _cloud.provider(engine).env_for(slug, config, routine)
+            except CloudError as exc:
+                errors.append(str(exc))
+        if not environments:
+            raise NoCloudEnvironment(f"{slug}: {' | '.join(errors)}")
+        busy = {family: f"{_routing.bridge_engine(family)} cloud concurrency limit reached"
+                for family in environments if cloud_free is not None and not cloud_free(family)}
         preference, fallback = _routing_options(task)
         decision = _routing.choose(
-            tier, cwd=os.getcwd(), db_path=db_path, respect_slots=False,
-            engine_preference=preference, fallback=fallback,
+            tier, cwd=os.getcwd(), db_path=db_path, respect_slots=False, available_engines=frozenset(environments),
+            occupied_slots=busy, engine_preference=preference, fallback=fallback,
         ).decision
-        family = decision.provider
-        if family is None:
-            raise ValueError(f"tier={tier} | {_placement_detail(decision)}")
-        engine = "claude" if family == "claude_code" else family
-        config = _cloud.load_config()
-        placement = _cloud_place.decide_for_repo("cloud", config=config, engine=engine, cwd=repo)
-        if placement.where != "cloud":
-            raise ValueError(placement.reason)
-        routine = _cloud.select_routine(config, routine=None, model=None) if engine == "claude" else None
-        if engine == "claude" and routine is None:
-            raise ValueError("Claude cloud jobs need a configured routine ([cloud.claude] default_routine)")
-        environment = _cloud.provider(engine).env_for(_cloud.repo_slug(_cloud.repo_root(repo)), config, routine)
-        return decision, environment
+        return decision, environments[decision.provider] if decision.provider is not None else ""
 
     return router, cloud_placer
