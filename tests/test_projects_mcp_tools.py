@@ -132,6 +132,40 @@ def test_projects_brake_status_agrees_with_shadow_mode(tmp_path, monkeypatch) ->
     assert status["shadow"] is True
 
 
+@pytest.mark.parametrize("left,right,expected", [
+    ("src/**/*.py", "src/file.py", True),
+    ("src/**/a?.py", "src/x/a[0-9].py", True),
+    ("src/[a-c]*.py", "src/[d-f]*.py", False),
+    ("src/*.py", "src/nested/file.py", False),
+    ("src/a*.py", "src/b*.py", False),
+])
+def test_touch_glob_intersection(left: str, right: str, expected: bool) -> None:
+    from lazytools.projects.task_fields import touches_overlap
+
+    assert touches_overlap({"repo": "r", "touches": [left]}, {"repo": "r", "touches": [right]}) is expected
+
+
+def test_review_warns_about_unordered_overlapping_touches(tmp_path) -> None:
+    pt = _rw(tmp_path)
+    pt.projects_create("alpha", "Alpha", "x")
+    tasks = [
+        {"task_id": "A", "text": "a", "acceptance_criteria": ["a passes"],
+         "repo": "r", "touches": ["src/**/*.py"]},
+        {"task_id": "B", "text": "b", "acceptance_criteria": ["b passes"],
+         "repo": "r", "touches": ["src/a*.py"]},
+        {"task_id": "C", "text": "c", "acceptance_criteria": ["c passes"],
+         "repo": "r", "touches": ["src/abc.py"], "dependency_ids": ["B"]},
+        {"task_id": "D", "text": "d", "acceptance_criteria": ["d passes"],
+         "repo": "other", "touches": ["src/abc.py"]},
+    ]
+    result = pt.projects_review_plan("alpha", "obs", "2026-12-01T00:00:00+00:00", tasks)
+    assert result["ok"]
+    assert result["warnings"] == ["touches overlap between A and B without a dependency path",
+                                  "touches overlap between A and C without a dependency path"]
+    assert "promoted" in pt.projects_promote("alpha", "obs", "2026-12-01T00:00:00+00:00", tasks)
+    assert pt._store.read("blackboard:project:alpha")["tasks"][0]["touches"] == ["src/**/*.py"]
+
+
 def test_projects_pause_resume_close_lifecycle(tmp_path) -> None:
     pt = _rw(tmp_path)
     pt.projects_create("alpha", "Alpha", "x")

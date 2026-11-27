@@ -179,6 +179,26 @@ def test_graph_runs_in_topological_parallel_waves() -> None:
     assert launcher.launches == ["A", "B", "C", "D"]
 
 
+@pytest.mark.parametrize("second,parallel", [
+    ("src/**/dispatch*.py", False), ("tests/*.py", True),
+])
+def test_touches_control_parallel_dispatch(second: str, parallel: bool) -> None:
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows = {
+        "A": {"dependency_ids": [], "status": "todo", "repo": "r", "touches": ["src/*/dispatcher.py"]},
+        "B": {"dependency_ids": [], "status": "todo", "repo": "r", "touches": [second]},
+    }
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    assert launcher.launches == (["A", "B"] if parallel else ["A"])
+    if not parallel:
+        assert "waiting p/B touches overlap with p/A" in events
+        launcher.finish("A")
+        dispatch.pass_once()
+        assert launcher.launches == ["A", "B"]
+
+
 @pytest.mark.parametrize("missing", [False, True])
 def test_settlement_defers_busy_store_but_fails_missing_store(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, missing: bool,
@@ -498,6 +518,24 @@ def test_place_records_routed_local_evidence_only_for_unblocked_todo_tasks() -> 
     assert events == [
         "placed p/B local codex tier=basic | weekly_margin | codex weekly projected unavailable | claude weekly projected unavailable"
     ]
+
+
+def test_place_waits_for_claimed_overlapping_task() -> None:
+    recorded: list[str] = []
+
+    class PlacingService:
+        def record_placement(self, task_id: str, revision: str, evidence: Any) -> None:
+            recorded.append(task_id)
+
+    data = {"dependency_ids": [], "repo": "r", "touches": ["src/*.py"]}
+    tasks = [Task("p/A", "r", "claimed", data, None), Task("p/B", "r", "todo", data, None)]
+    events: list[str] = []
+    dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
+                          None, "p", emit=events.append, clock=lambda: 1000.0,  # type: ignore[arg-type]
+                          router=lambda tier, *_: RoutingDecision(tier, "codex", None, None, "ok", True))
+    dispatch._place(tasks)
+    assert recorded == []
+    assert events == ["waiting p/B touches overlap with p/A"]
 
 
 @pytest.mark.parametrize("continuation", [
