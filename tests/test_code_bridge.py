@@ -107,8 +107,27 @@ def test_codex_activity_refreshes_heartbeat_during_a_turn(tmp_path, repo, monkey
     assert engine_events == [now]
 
 
+class ToolUseBlock(SimpleNamespace):
+    """Stand-in with the SDK's type name: the bridge recognises messages by type name."""
+
+
+class ToolResultBlock(SimpleNamespace):
+    pass
+
+
+class AssistantMessage(SimpleNamespace):
+    pass
+
+
+class UserMessage(SimpleNamespace):
+    pass
+
+
+class ResultMessage(SimpleNamespace):
+    pass
+
+
 def test_claude_tool_calls_are_recorded_until_their_results_arrive(tmp_path, repo, monkeypatch):
-    from claude_agent_sdk import AssistantMessage, ResultMessage, ToolResultBlock, ToolUseBlock, UserMessage
 
     _env(monkeypatch, tmp_path)
     fakes.install(monkeypatch)
@@ -150,7 +169,9 @@ def test_claude_tool_calls_are_recorded_until_their_results_arrive(tmp_path, rep
 
 def test_governed_claude_launch_with_release_report_is_admitted(tmp_path, monkeypatch):
     """The heartbeat client passes LazyBridge's governed admission check (no custom transport)."""
-    from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport
+    # Integration with the real (optional) Claude Agent SDK client.
+    subprocess_cli = pytest.importorskip("claude_agent_sdk._internal.transport.subprocess_cli")
+    SubprocessCLITransport = subprocess_cli.SubprocessCLITransport
     from lazybridge.engines.claude_code import sdk_client
 
     folder = tmp_path / "work"

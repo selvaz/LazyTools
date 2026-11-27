@@ -47,23 +47,26 @@ CLAUDE_NO_ATTRIBUTION_SETTINGS: dict[str, Any] = {
 
 
 def _report_claude_activity(on_activity: Callable[..., None], message: Any) -> None:
-    """Report one SDK message, with the tool calls it starts or finishes."""
-    from claude_agent_sdk import AssistantMessage, ResultMessage, ToolResultBlock, ToolUseBlock, UserMessage
+    """Report one SDK message, with the tool calls it starts or finishes.
 
+    Messages are recognised by the SDK's type names, not by importing them: the
+    Claude Agent SDK is an optional extra, and this runs on every engine event.
+    """
+    kind = type(message).__name__
     content = getattr(message, "content", None)
     blocks = content if isinstance(content, list) else []
     reported = False
-    if isinstance(message, AssistantMessage):
+    if kind == "AssistantMessage":
         for block in blocks:
-            if isinstance(block, ToolUseBlock):
+            if type(block).__name__ == "ToolUseBlock":
                 on_activity(tool_started=(block.id, block.name))
                 reported = True
-    elif isinstance(message, UserMessage):
+    elif kind == "UserMessage":
         for block in blocks:
-            if isinstance(block, ToolResultBlock):
+            if type(block).__name__ == "ToolResultBlock":
                 on_activity(tool_finished=block.tool_use_id)
                 reported = True
-    elif isinstance(message, ResultMessage):
+    elif kind == "ResultMessage":
         on_activity(tools_settled=True)
         reported = True
     if not reported:
