@@ -6,7 +6,7 @@ import json
 import os
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -1024,6 +1024,17 @@ def _dry_run(service: ProjectTaskService, project_id: str, emit: Callable[[str],
     return 0
 
 
+def usable_reading(reading: Any, *, max_age_seconds: float = 600.0) -> bool:
+    """A quota reading the dispatcher may act on unattended: present, error-free, recent."""
+    if reading is None or getattr(reading, "error", None) or not getattr(reading, "windows", ()):
+        return False
+    observed = getattr(reading, "observed_at", None)
+    if observed is None:
+        return False
+    from datetime import datetime
+    return reading.age_seconds(now=datetime.now(observed.tzinfo)) <= max_age_seconds
+
+
 def dispatch(args: argparse.Namespace) -> int:
     store_db = _resolve_store_db(None)
     principal = TaskPrincipal(actor="code-bridge-dispatch", role="orchestrator", projects=(args.project,))
@@ -1068,11 +1079,21 @@ def _routers(
 
     def router(tier: str, busy: dict[Engine, str], preference: tuple[Engine, ...], fallback: Fallback,
                required_engine: Engine | None = None) -> RoutingDecision:
-        return _routing.choose(
+        selection = _routing.choose(
             tier, cwd=os.getcwd(), db_path=db_path, occupied_slots=busy,
             engine=_routing.bridge_engine(required_engine) if required_engine else None,
             engine_preference=preference, fallback=fallback, fallback_max_age_seconds=600.0,
-        ).decision
+        )
+        decision = selection.decision
+        # An explicit engine enables the router's operator override for missing or stale telemetry;
+        # an unattended, engine-pinned repair still needs a recent, usable quota reading.
+        if required_engine and decision.provider and not usable_reading(selection.readings.get(decision.provider)):
+            return replace(
+                decision, provider=None, model=None, effort=None,
+                reason="engine-pinned repair needs a recent, usable quota reading",
+                ineligible={**decision.ineligible, decision.provider: "telemetry missing, unreadable or stale"},
+            )
+        return decision
 
     def cloud_placer(task: dict[str, Any], tier: str) -> tuple[RoutingDecision, str]:
         """The routed engine and its cloud environment, through the same decision `run --where cloud` uses."""

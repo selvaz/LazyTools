@@ -2006,3 +2006,22 @@ def test_resume_refused_before_submit_starts_a_fresh_conversation_on_the_preserv
     assert git("rev-parse", "HEAD") == preserved
     assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"
     assert board_task()["status"] == "claimed" and board_task()["dispatches"][-1]["state"] == "submitted"
+
+
+def test_engine_pinned_repair_waits_without_usable_telemetry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Review P2 on #451: an engine-pinned repair must not launch on missing or stale quota telemetry."""
+    from types import SimpleNamespace
+
+    from lazytools.code_bridge import _dispatch as dispatch_module
+    from lazytools.routing.router import RoutingDecision
+
+    decision = RoutingDecision(tier="writing", provider="codex", model="m", effort="high",
+                               reason="operator override", requires_confirmation=False)
+    monkeypatch.setattr(dispatch_module._routing, "choose",
+                        lambda *a, **k: SimpleNamespace(decision=decision, readings={}))
+    router, _ = dispatch_module._routers(None, {})
+    pinned = router("writing", {}, (), "wait", "codex")
+    assert pinned.provider is None
+    assert "usable quota reading" in pinned.reason
+    unpinned = router("writing", {}, (), "wait", None)
+    assert unpinned.provider == "codex"
