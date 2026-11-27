@@ -140,6 +140,7 @@ CORE_TOOLS = frozenset(
         "projects_add_note",
         "projects_revise_plan",
         "projects_edit_task",
+        "projects_mark_landed",
         "projects_schedule_task",
     }
 )
@@ -637,6 +638,18 @@ class ProjectsTools:
         except TaskServiceError as exc:
             return {"ok": False, "error": {"code": exc.code, "message": str(exc)}}
 
+    def projects_mark_landed(
+        self, project: str, task_id: str, pr_url: str, merge_commit: str, reason: str,
+    ) -> dict[str, Any]:
+        """Mark an unclaimed task done after verifying its merged PR."""
+        try:
+            if not self._edit_allowed:
+                raise TaskServiceError("forbidden", "This host is read-only")
+            principal = self._edit_principal or TaskPrincipal(actor="projects", role="orchestrator", projects=(project,))
+            return {"ok": True, **self._edit_service.mark_landed(principal, project, task_id, pr_url, merge_commit, reason)}
+        except TaskServiceError as exc:
+            return {"ok": False, "error": {"code": exc.code, "message": str(exc)}}
+
     def projects_retire_task(
         self,
         project_id: str,
@@ -834,7 +847,8 @@ class ProjectsTools:
         if self._task_tools is not None:
             tools.extend(self._task_tools.as_tools())
             if self._edit_allowed and self._edit_principal and self._edit_principal.role in ("orchestrator", "owner"):
-                tools.append(Tool.wrap(self.projects_edit_task, name="projects_edit_task"))
+                tools.extend(Tool.wrap(method, name=method.__name__)
+                             for method in (self.projects_edit_task, self.projects_mark_landed))
         if not self._allow_write:
             return tools
 
@@ -856,6 +870,7 @@ class ProjectsTools:
             self.projects_reopen_done_task,
             self.projects_revise_plan,
             self.projects_edit_task,
+            self.projects_mark_landed,
             self.projects_schedule_task,
             self.projects_open_contract,
             self.projects_accept_verification,
