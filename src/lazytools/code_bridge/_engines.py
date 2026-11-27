@@ -70,20 +70,6 @@ def _report_claude_activity(on_activity: Callable[..., None], message: Any) -> N
         on_activity()
 
 
-def _claude_transport_factory(on_activity: Callable[..., None]) -> Callable[..., Any]:
-    """SDK transport which reports the engine process id once it is spawned."""
-    from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport
-
-    class ReportingTransport(SubprocessCLITransport):
-        async def connect(self) -> None:
-            await super().connect()
-            pid = getattr(getattr(self, "_process", None), "pid", None)
-            if isinstance(pid, int):
-                on_activity(engine_pid=pid)
-
-    return ReportingTransport
-
-
 def _claude_client(
     *, policy_release_report: Path | str | None = None, on_activity: Callable[..., None] | None = None,
 ) -> Any:
@@ -104,10 +90,8 @@ def _claude_client(
             settings.update(CLAUDE_NO_ATTRIBUTION_SETTINGS)
             return replace(sdk_options, settings=json.dumps(settings))
 
-    return JobScopedSettingsClient(
-        policy_release_report=policy_release_report,
-        transport_factory=_claude_transport_factory(on_activity) if on_activity is not None else None,
-    )
+    # No custom transport: governed launches with a release report refuse one.
+    return JobScopedSettingsClient(policy_release_report=policy_release_report)
 
 def _make_codex_engine(**kwargs: Any) -> Any:
     """Build the ``CodexEngine`` for one job. Patched by tests (see ``_code_fakes.py``)."""

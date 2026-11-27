@@ -8,6 +8,7 @@ refusal.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from types import SimpleNamespace
@@ -18,7 +19,7 @@ from lazybridge.engines.codex.app_server import CodexAppServerClient
 from lazybridge.ext.approval import ApprovalQueue
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _jobs, _registry, _store, cli
+from lazytools.code_bridge import _engines, _jobs, _registry, _store, cli
 from lazytools.code_bridge._lockfile import JobLock, LockHeld
 
 
@@ -120,19 +121,13 @@ def test_claude_tool_calls_are_recorded_until_their_results_arrive(tmp_path, rep
     async def run_agent(agent, _prompt):
         nonlocal now
         client = agent.engine.kwargs["client"]
-        factory = client._transport_factory
-        transport = factory.__new__(factory)  # the real constructor needs full SDK options
-
-        async def connect(_self):
-            transport._process = SimpleNamespace(pid=4321)
-
-        monkeypatch.setattr(factory.__mro__[1], "connect", connect)
-        await transport.connect()
+        # Tool calls come from the engine's own events, not a custom SDK transport.
+        assert client._transport_factory is None and client._query_factory is None
         client._report_session_id(options, AssistantMessage(
             content=[ToolUseBlock(id="toolu_1", name="Bash", input={"command": "pytest"})], model="m"))
         with _store.build_store(db_path) as store:
             meta = _store.read_meta(store, job_id)
-            assert meta["engine_pid"] == 4321
+            assert meta["pid"] == os.getpid() and "engine_pid" not in meta
             assert meta["tool_calls"] == {"toolu_1": {"name": "Bash", "started_at": now}}
             now += 1200
             client._report_session_id(options, UserMessage(content=[ToolResultBlock(tool_use_id="toolu_1")]))
@@ -151,6 +146,34 @@ def test_claude_tool_calls_are_recorded_until_their_results_arrive(tmp_path, rep
                            root=str(tmp_path), db_path=db_path, job_id=job_id)
 
     assert result.status == "done", result
+
+
+def test_governed_claude_launch_with_release_report_is_admitted(tmp_path, monkeypatch):
+    """The heartbeat client passes LazyBridge's governed admission check (no custom transport)."""
+    from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport
+    from lazybridge.engines.claude_code import sdk_client
+
+    folder = tmp_path / "work"
+    folder.mkdir()
+    binary = tmp_path / "bin" / "claude.exe"
+    binary.parent.mkdir()
+    binary.write_text("", encoding="utf-8")
+    report = tmp_path / "release-report.json"
+    report.write_text("{}", encoding="utf-8")
+    seen = {}
+
+    def compile_claude(policy, *, release_report, runtime_revision):
+        seen.update(release_report=release_report, runtime_revision=runtime_revision)
+        return {"eligible": True, "ineligibility_reasons": []}
+
+    monkeypatch.setattr(SubprocessCLITransport, "_find_cli", lambda _self: str(binary))
+    monkeypatch.setattr(sdk_client, "runtime_revision", lambda _binary: "rev-1")
+    monkeypatch.setattr(sdk_client, "compile_claude", compile_claude)
+    client = _engines._claude_client(policy_release_report=report, on_activity=lambda **_: None)
+    options = SimpleNamespace(effective_policy=SimpleNamespace(folder=folder.resolve()))
+
+    assert client._require_policy_evidence(options) == binary.resolve()
+    assert seen == {"release_report": client._policy_release_report, "runtime_revision": "rev-1"}
 
 
 @pytest.mark.parametrize(("engine", "reported_model"), [

@@ -476,20 +476,17 @@ def run_job(
 
         def record_heartbeat(
             *,
-            engine_pid: int | None = None,
             tool_started: tuple[str, str] | None = None,
             tool_finished: str | None = None,
             tools_settled: bool = False,
         ) -> None:
-            # In-progress tool calls are recorded so the dispatcher does not
-            # take a long shell command (no engine events) for a dead job.
+            # In-progress tool calls (from the engine's own tool call / tool
+            # result events) are recorded so the dispatcher does not take a
+            # long shell command (no engine events) for a dead job.
             now = time.time()
             meta = _store.read_meta(store, job_id) or {}
             meta["heartbeat_at"] = now
             calls = dict(meta.get("tool_calls") or {})
-            if engine_pid is not None:
-                meta["engine_pid"] = engine_pid
-                calls = {}
             if tools_settled:
                 calls = {}
             if tool_started is not None:
@@ -796,6 +793,7 @@ def run_job(
                 meta = _store.read_meta(store, job_id) or {}
                 meta["turns"] = turns
                 meta["heartbeat_at"] = turns[-1]["ended_at"]
+                meta["tool_calls"] = {}  # the turn's engine run is over: nothing is in progress
                 if handle:
                     meta["native_id"] = handle
                 _store.write_meta(store, job_id, meta)

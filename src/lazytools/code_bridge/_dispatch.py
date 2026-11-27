@@ -37,13 +37,16 @@ RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "
 
 
 def _tool_call_in_progress(job: dict[str, Any], now: float, bound: float) -> bool:
-    """A tool call is running in a live engine process and within its own bound.
+    """A tool call is running in a live job process and within its own bound.
 
     The engine emits no events while a tool (a long shell command) runs, so
-    the event heartbeat alone would cancel healthy jobs.
+    the event heartbeat alone would cancel healthy jobs. The engine is driven by
+    the job's worker process (``pid``): when the engine exits, the worker ends
+    the turn and clears its tool calls; when the worker dies, nothing is left
+    to finish them.
     """
     calls = job.get("tool_calls")
-    pid = job.get("engine_pid")
+    pid = job.get("pid")
     if not isinstance(calls, dict) or not calls or not isinstance(pid, int) or not _pid_alive(pid):
         return False
     starts = [call.get("started_at") if isinstance(call, dict) else None for call in calls.values()]

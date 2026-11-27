@@ -842,13 +842,14 @@ def test_tool_call_in_progress_keeps_only_a_live_engine_alive(
 ) -> None:
     from lazytools.code_bridge import _dispatch
 
+    # ``pid`` is the job worker driving the engine; tool_calls come from its tool call events.
     monkeypatch.setattr(_dispatch, "_pid_alive", lambda pid: engine_alive and pid == 4321)
     service = FakeService()
     launcher = FakeLauncher(service)
     dispatch = runner(service, launcher, [])
     dispatch.clock = lambda: 2_000
     dispatch.pass_once()
-    launcher.jobs["job-A"].update(heartbeat_at=tool_started, engine_pid=4321,
+    launcher.jobs["job-A"].update(heartbeat_at=tool_started, pid=4321,
                                   tool_calls={"toolu_1": {"name": "Bash", "started_at": tool_started}})
     cancelled: list[str] = []
     launcher.cancel = lambda job_ref, **_: cancelled.append(job_ref) or False  # type: ignore[attr-defined]
