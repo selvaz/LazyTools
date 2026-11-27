@@ -1,7 +1,7 @@
 [solo-dev]
-supervised = ["git_local", "git_push_job_branch", "gh_pr_create"]
+supervised = ["git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout"]
 floor = ["unknown", "payment_or_external_post"]
 
 [with-production]
-supervised = ["git_local", "git_push_job_branch", "gh_pr_create"]
+supervised = ["git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout"]
 floor = ["production_task", "payment_or_external_post", "delete_files", "push_default_branch", "unknown"]

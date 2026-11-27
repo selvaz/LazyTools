@@ -51,6 +51,10 @@ _POWERSHELL = re.compile(
     r'(?:(?: +-(?:NoProfile|NonInteractive|NoLogo)))* +-(?:Command|c) +(.+)', re.IGNORECASE,
 )
 _SHELL_META = re.compile(r'[;&|<>()`$%!^*?\[\]{}"\x00-\x1f\x7f]')
+# Trailing `> file`, `>> file`, `2> file` and `2>&1`. The targets hold no quotes,
+# so a match cannot start inside a quoted argument that is closed later.
+_REDIRECTS = re.compile(r"(?: +(?:2>&1|[12]?>>? *[A-Za-z0-9_./:=+-]+))+ *$")
+_REDIRECT = re.compile(r"2>&1|([12]?>>?) *([A-Za-z0-9_./:=+-]+)")
 _DEVICE = re.compile(r"(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\..*)?", re.IGNORECASE)
 _GIT_EXEC_CONFIG = (
     r"^(core\.(hookspath|fsmonitor)|diff\.(external|.+\.(command|textconv))|"
@@ -67,6 +71,12 @@ _GIT_HOOKS = {
     "reference-transaction", "pre-auto-gc",
 }
 _SENSITIVE_ADD_NAMES = ("*.jks", "id_*", "*credential*")
+# Verification in the job checkout: read-only inspection and the Python checkers.
+# Removal inside the job temp dir joins the class in Workspace.classify.
+_CHECKS = (
+    *(command for command in _READS if command[0] != "gh"),
+    ("python", "-m", "pytest"), ("python", "-m", "ruff"), ("python", "-m", "mypy"),
+)
 
 # The command prefixes describe candidate effects. Workspace checks still
 # have to establish the actual paths, branch and argument restrictions.
@@ -86,8 +96,10 @@ TICKET_COMMANDS: dict[str, tuple[tuple[str, ...], ...]] = {
     ),
     "production_task": (("schtasks",), ("start-scheduledtask",)),
     "payment_or_external_post": (("gh", "pr", "comment"), ("gh", "issue", "comment"), ("gh", "issue", "create")),
+    # After delete_files, so rm and Remove-Item classify there unless every target is in the temp dir.
+    "checks_in_checkout": (*_CHECKS, ("rm",), ("remove-item",)),
     "workspace_tools": tuple(command for command in COMMANDS if command[0] not in {"gh", "python"} and command not in {
-        ("git", "add"), ("git", "commit"), ("rm",), ("remove-item",),
+        ("git", "add"), ("git", "commit"), ("rm",), ("remove-item",), *_CHECKS,
     }),
     "unknown": (),
 }
@@ -104,10 +116,13 @@ def ticket_class(
     command: str, *, job_branch: str | None = None, default_branch: str | None = None, powershell: bool = False,
 ) -> str:
     """Classify one direct command. Unrecognized syntax stays with the owner."""
-    argv = _args(command, powershell=powershell, normalize_windows_paths=True)
+    redirects: list[tuple[str, str]] = []
+    argv = _args(command, powershell=powershell, normalize_windows_paths=True, redirects=redirects)
     if argv is None:
         return "unknown"
-    return _ticket_class(argv, job_branch, default_branch)
+    kind = _ticket_class(argv, job_branch, default_branch)
+    # Only verification commands may redirect their output (into the job's own directories).
+    return "unknown" if redirects and kind != "checks_in_checkout" else kind
 
 
 def _ticket_class(argv: list[str], job_branch: str | None, default_branch: str | None) -> str:
@@ -138,7 +153,15 @@ def _ticket_class(argv: list[str], job_branch: str | None, default_branch: str |
     return "unknown"
 
 
-def _args(command: str, *, powershell: bool, normalize_windows_paths: bool = False) -> list[str] | None:
+def _args(
+    command: str, *, powershell: bool, normalize_windows_paths: bool = False,
+    redirects: list[tuple[str, str]] | None = None,
+) -> list[str] | None:
+    """Split one simple command into argv.
+
+    With a ``redirects`` list, trailing output redirections are removed and
+    appended to it as (operator, target); otherwise any redirection is refused.
+    """
     # A backslash is a path separator in PowerShell and an escape in Bash.
     if powershell and (os.name == "nt" or normalize_windows_paths):
         command = command.replace("\\", "/")
@@ -149,7 +172,11 @@ def _args(command: str, *, powershell: bool, normalize_windows_paths: bool = Fal
                 command = command[1:-1]
         if command.startswith("& "):
             command = command[2:]
-    words = _tokenize(command.strip())
+    command = command.strip()
+    if redirects is not None and (tail := _REDIRECTS.search(command)):
+        redirects.extend((m[1], m[2]) for m in _REDIRECT.finditer(tail[0]) if m[1])
+        command = command[:tail.start()]
+    words = _tokenize(command)
     if not words or any(_SHELL_META.search(word.text) for word in words):
         return None
     return [word.text for word in words]
@@ -446,6 +473,13 @@ class Workspace:
                 return None
         return (cwd,)
 
+    def _redirect_targets(
+        self, redirects: list[tuple[str, str]], cwd: Path, *, powershell: bool,
+    ) -> tuple[Path | None, ...]:
+        return tuple(
+            self._write(target, cwd) for _, target in redirects if powershell or target != "/dev/null"
+        )
+
     def _python(self, argv: list[str], cwd: Path) -> tuple[Path, ...] | None:
         binary = argv[0]
         if binary not in {"python", "python3", "python.exe", Path(sys.executable).as_posix()}:
@@ -512,10 +546,26 @@ class Workspace:
             return "production_task"
         command = request.arguments.get("command")
         if isinstance(command, str):
-            return ticket_class(
+            kind = ticket_class(
                 command, job_branch=self.branch, default_branch=self.default_branch, powershell=request.provider == "codex",
             )
+            if kind == "delete_files" and self._temp_cleanup(request, command):
+                return "checks_in_checkout"
+            return kind
         return "workspace_tools" if request.kind == "tool" and request.name in _EDIT_TOOLS else "unknown"
+
+    def _temp_cleanup(self, request: ApprovalRequest, command: str) -> bool:
+        """Whether an rm or Remove-Item only removes paths inside the job temp dir."""
+        argv = _args(command, powershell=request.provider == "codex")
+        cwd = _scope(request.cwd or str(self.cwd), self.cwd, self.roots)
+        if self.temp is None or argv is None or cwd is None or argv[0].casefold() not in {"rm", "remove-item"}:
+            return False
+        try:
+            paths = self._shell(argv, cwd, autonomy=True)
+        except (OSError, RecursionError):
+            return False
+        temp = self.temp
+        return bool(paths) and all(path is not None and path.is_relative_to(temp) for path in paths or ())
 
     def action(self, request: ApprovalRequest, *, ticket_kind: str | None = None) -> tuple[Path, CardAction] | None:
         try:
@@ -544,7 +594,9 @@ class Workspace:
                 ))
             ):
                 return None
-            args = _args(command, powershell=request.provider == "codex")
+            powershell = request.provider == "codex"
+            redirects: list[tuple[str, str]] = []
+            args = _args(command, powershell=powershell, redirects=redirects if kind == "checks_in_checkout" else None)
             if args is None:
                 return None
             argv = args
@@ -553,6 +605,12 @@ class Workspace:
             paths = self._shell(argv, cwd, autonomy=kind is not None) or ()
             if kind is not None and not paths:
                 paths = self._autonomy_paths(kind, argv, cwd) or ()
+            if paths and redirects:
+                paths = (*paths, *self._redirect_targets(redirects, cwd, powershell=powershell))
+            if kind == "checks_in_checkout" and argv[0] in {"rm", "remove-item"} and not all(
+                path is not None and self.temp is not None and path.is_relative_to(self.temp) for path in paths
+            ):
+                return None
         if not paths or any(path is None for path in paths):
             return None
         affected = tuple(path for path in paths if path is not None)
@@ -570,7 +628,7 @@ class Workspace:
     def network(self, request: ApprovalRequest, kind: str | None) -> Literal["on", "off"]:
         """Return the network state a card must carry for this request, without running anything."""
         command = request.arguments.get("command")
-        argv = _args(command, powershell=request.provider == "codex") if isinstance(command, str) else None
+        argv = _args(command, powershell=request.provider == "codex", redirects=[]) if isinstance(command, str) else None
         return _network(kind, argv or ["bridge-edit"])
 
     def _autonomy_paths(self, kind: str, argv: list[str], cwd: Path) -> tuple[Path, ...] | None:

@@ -186,6 +186,10 @@ class ReadRule:
             return False
         if self.validator == "branch" and positionals and not list_mode:
             return False
+        if self.validator == "sed" and ("-n" not in seen or not positionals or not re.fullmatch(
+            r"[0-9]+(?:,[0-9]+)?p", positionals[0],
+        )):
+            return False
         if self.validator == "api":
             from lazytools.code_bridge._approvals import _api_endpoint_ok
 
@@ -217,7 +221,7 @@ def load_policy(source: Path | None = None) -> tuple[ReadRule, ...]:
         operands, stdin = raw.get("operands", "paths"), raw.get("stdin", False)
         if (
             not raw["command"] or type(count) is not int or count < 0
-            or not isinstance(validator, str) or validator not in {"options", "branch", "api", "find", "git-log"}
+            or not isinstance(validator, str) or validator not in {"options", "branch", "api", "find", "git-log", "sed"}
             or operands not in {"paths", "pattern-paths", "none"} or type(stdin) is not bool
             or not set(raw.get("globs", [])) <= set(raw.get("values", []))
         ):

@@ -1074,8 +1074,8 @@ lazytools-code-bridge approver-credential autonomy --show --registry-db REGISTRY
 ```
 
 `supervised` is the default mode. With either preset it delegates
-`git_local`, `git_push_job_branch`, and `gh_pr_create` once the owner has
-provisioned the cards. In `total` mode the CEO can use cards for classes
+`git_local`, `git_push_job_branch`, `gh_pr_create`, and `checks_in_checkout`
+once the owner has provisioned the cards. In `total` mode the CEO can use cards for classes
 outside the preset's owner-only floor.
 
 | Preset | Classes that stay with the owner in total mode |
@@ -1098,8 +1098,20 @@ Supported PR commands use the checkout's repository and explicit safe flags.
 For example, `gh pr merge 17 --squash` can use a total-mode card. Delegated
 install tickets can use an isolated wheel-only pip install into a new
 workspace target. Shell scripts, unscoped installs, and writes to external
-paths require an operator ticket. The `workspace_tools` class covers scoped
-reads, native file edits, and directory creation.
+paths require an operator ticket. The `checks_in_checkout` class covers
+verification run from the job checkout or the job temp directory:
+`python -m pytest`, `python -m ruff check`, and `python -m mypy` on paths in
+the checkout, and the read-only commands of the allow-list (`git status`,
+`log`, `diff`, `show`, `branch --list`, `grep`, plus `grep`, `sed -n Np`,
+`cat`, `ls`, `head`, `tail`, `find`, and `wc` on relative paths). These
+commands may end with `2>&1`, `> /dev/null` (Bash), or a `>`/`>>` redirection
+into the job directory they run in. The class also covers `rm` and
+`Remove-Item` when every target is inside the job temp directory. Any other
+redirection, removal, network command, or unrecognized command stays pending.
+`python -c` programs stay pending because a card's command cannot contain
+parentheses or quotes. Explicit-path `git add` and `git commit` remain in
+`git_local`. The `workspace_tools` class covers native file edits, directory
+creation, and `git worktree`.
 
 Use `status JOB --json` or `result JOB --json` to see the actor, mode,
 class, and match reason on each card-use receipt. The

@@ -37,6 +37,15 @@ from test_code_bridge_continuations import git
     ("stripe payment_intents create", "payment_or_external_post"),
     ("git status && gh pr merge 17", "unknown"),
     ("arbitrary-command", "unknown"),
+    ("git status --short", "checks_in_checkout"),
+    ("sed -n 1,20p src/file.py", "checks_in_checkout"),
+    ("python -m pytest -q tests/test_file.py", "checks_in_checkout"),
+    (r"D:\venv\Scripts\python.exe -m ruff check src", "checks_in_checkout"),
+    ("python -m pytest -q 2>&1", "checks_in_checkout"),
+    ("python -c \"print(open('src/file.py').read())\"", "unknown"),
+    ('git commit -m "python -m pytest"', "git_local"),
+    ("git add src/file.py > added.txt", "unknown"),
+    ("git fetch origin", "network_other"),
 ])
 def test_ticket_classification(command, kind):
     assert _coder_actions.ticket_class(
@@ -62,7 +71,9 @@ def test_owner_can_select_autonomy_preset(tmp_path, provision_bridge_approver, c
     ("with-production", {"production_task", "payment_or_external_post", "delete_files", "push_default_branch", "unknown"}),
 ])
 def test_packaged_autonomy_presets(preset, floor):
-    assert _coder.delegated_classes("supervised", preset) == {"git_local", "git_push_job_branch", "gh_pr_create"}
+    assert _coder.delegated_classes("supervised", preset) == {
+        "git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout",
+    }
     assert _coder.delegated_classes("total", preset) == _coder_actions.TICKET_COMMANDS.keys() - floor
 
 
@@ -199,12 +210,86 @@ def test_total_cards_respect_native_and_command_scope(autonomy_registry):
         (networked, "gh pr merge 17 --repo other/repo"),
         (networked, "gh pr merge 17 --delete-branch"),
         (networked, "gh issue comment 17 --body hello"),
-        (networked, "python -m pytest"),
+        (networked, "python -m pytest ../outside"),
         (networked, "rm -rf ../outside"),
         (networked, "lazytools-code-bridge approver-credential autonomy --mode total"),
     ]:
         ticket, _ = channel._submit(request(cwd, command), command)
         assert ticket.status == "pending"
+
+
+@pytest.fixture
+def checks_channel(autonomy_registry, tmp_path):
+    cwd, registry = autonomy_registry
+    (cwd / "src").mkdir()
+    (cwd / "src" / "mod.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (cwd / "tests").mkdir()
+    (cwd / "tests" / "test_mod.py").write_text("def test_value():\n    pass\n", encoding="utf-8")
+    temp = tmp_path / "job-temp"
+    temp.mkdir()
+    assert configure(registry, "supervised") == 0
+    expires = datetime.now(UTC) + timedelta(minutes=5)
+    hand = registry.copy_coder_hand("checks", "checks", cwd, temp, expires, network="on")
+    assert hand is not None
+    channel = _registry.ApprovalChannel(
+        registry, "checks", "revision", "digest", timedelta(minutes=5), 0.01,
+        lambda: None, lambda: None, lambda: None, actor="ceo", hand=hand,
+    )
+    return cwd, temp, channel
+
+
+def test_supervised_cards_approve_checks_in_the_checkout(checks_channel):
+    cwd, temp, channel = checks_channel
+    (temp / "scratch.txt").write_text("x", encoding="utf-8")
+    (temp / "build").mkdir()
+    (temp / "build" / "out.log").write_text("x", encoding="utf-8")
+    commands = [
+        "git status --short", "git log --oneline -5", "git diff --stat", "git show --stat HEAD",
+        "git branch --list", "git grep -n VALUE -- src", "grep -n VALUE src/mod.py", "sed -n 1p src/mod.py",
+        "cat src/mod.py", "ls -la src", "head -n 5 src/mod.py", "tail -n 5 src/mod.py",
+        "find src -name mod.py", "wc -l src/mod.py",
+        "python -m pytest -q tests/test_mod.py", "python -m ruff check src", "python -m mypy src",
+        "python -m pytest -q tests 2>&1",
+        "git log --oneline -3 > log.txt",
+        "git diff --stat > /dev/null",
+        f"rm {(temp / 'scratch.txt').as_posix()}",
+        f"rm -rf {(temp / 'build').as_posix()}",
+    ]
+    for command in commands:
+        decision = channel._submit(request(cwd, command), command)
+        assert isinstance(decision, CardApproval), command
+        assert decision.action_class == "checks_in_checkout", command
+    temp_cwd = channel._submit(request(temp, "ls -la"), "ls")
+    assert isinstance(temp_cwd, CardApproval)
+
+
+def test_checks_outside_the_class_stay_pending(checks_channel, tmp_path):
+    cwd, temp, channel = checks_channel
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "notes.txt").write_text("x", encoding="utf-8")
+    commands = {
+        "git status > ../status.txt": "checks_in_checkout",
+        f"python -m pytest -q > {(outside / 'out.txt').as_posix()}": "checks_in_checkout",
+        f"cat src/mod.py > {(temp / 'copy.txt').as_posix()}": "checks_in_checkout",
+        "git fetch origin": "network_other",
+        "git ls-remote origin": "network_other",
+        "curl -q https://example.com/": "network_other",
+        "gh pr view 17": "network_other",
+        "rm src/mod.py": "delete_files",
+        f"rm {(outside / 'notes.txt').as_posix()}": "delete_files",
+        f"rm {(temp / 'missing').as_posix()} src/mod.py": "delete_files",
+        "arbitrary-command --help": "unknown",
+        "python -c \"import os; os.remove('src/mod.py')\"": "unknown",
+        "python -m pip install example": "package_install",
+        "sed -n 1w src/mod.py": "checks_in_checkout",
+        "sed 1p src/mod.py": "checks_in_checkout",
+        "git status; rm -rf src": "unknown",
+    }
+    for command, kind in commands.items():
+        decision = channel._submit(request(cwd, command), command)
+        assert isinstance(decision, tuple) and decision[0].status == "pending", command
+        assert decision[0].request.payload["ticket_class"] == kind, command
 
 
 def test_pr_create_card_requires_an_explicit_job_head(autonomy_registry):

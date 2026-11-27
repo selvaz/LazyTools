@@ -41,6 +41,16 @@ command = ["wc"]
 flags = ["-l", "-w", "-c", "-m", "-L", "--lines", "--words", "--bytes", "--chars"]
 stdin = true
 
+# Line printing only: the script must be N or N,M followed by p (validator "sed"),
+# so the w, e and r commands that write files or run programs never match.
+[[rules]]
+id = "sed-print"
+command = ["sed"]
+validator = "sed"
+flags = ["-n"]
+operands = "pattern-paths"
+stdin = true
+
 [[rules]]
 id = "grep"
 command = ["grep"]
