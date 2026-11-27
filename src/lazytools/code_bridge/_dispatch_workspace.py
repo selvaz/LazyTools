@@ -99,7 +99,9 @@ class Preserved:
     base: str | None = None  # the attempt's original dispatch-base
 
 
-def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved | None, str | None]:
+def _preserve_attempt(
+    cwd: Path, task_id: str, attempt: int, *, commit_uncommitted: bool = True,
+) -> tuple[Preserved | None, str | None]:
     """Keep a failed attempt's work on `dispatch-attempt/<project>/<task>/<n>` before a retry.
 
     Commits uncommitted non-litter changes (outside the engine sandbox, like a finished
@@ -121,7 +123,7 @@ def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved 
     safe_project = re.sub(r"[^A-Za-z0-9_.-]+", "-", project)
     safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task)
     unresolved = tuple(_conflict_markers(cwd))
-    if dirty:
+    if dirty and commit_uncommitted:
         merge_head = git("rev-parse", "-q", "--verify", "MERGE_HEAD").stdout.strip()
         git("add", "-A", "--", ".", *(f":(exclude){pattern}" for pattern in COMMIT_EXCLUDES))
         staged_litter = [path for path in git("diff", "--cached", "--name-only").stdout.splitlines()
@@ -186,7 +188,7 @@ def _checks_changed_checkout(cwd: Path, expected_head: Any) -> str | None:
     return None
 
 
-def _check_failure(command: str, cwd: Path | None) -> str | None:
+def _check_failure(command: str, cwd: Path | None, *, tail_lines: int | None = None) -> str | None:
     message = f"check failed: {command}"
     if cwd is None:
         return f"{message} (missing task checkout)"
@@ -207,7 +209,11 @@ def _check_failure(command: str, cwd: Path | None) -> str | None:
         output = exc.output or b""
     except (OSError, ValueError) as exc:
         return f"{message} (could not run)\n{exc}"
-    tail = _cloud.redact(output[-2000:].decode("utf-8", errors="replace")).strip()
+    if tail_lines is not None:
+        output = b"\n".join(output.splitlines()[-tail_lines:])
+    else:
+        output = output[-2000:]
+    tail = _cloud.redact(output.decode("utf-8", errors="replace")).strip()
     return f"{message}\n{tail}" if tail else message
 
 
