@@ -455,3 +455,11 @@ def test_touches_overlap_compares_repository_names_case_insensitively() -> None:
     left = {"repo": "Owner/Repo", "touches": ["src/a/*.py"]}
     assert touches_overlap(left, {"repo": "owner/repo", "touches": ["src/a/x.py"]})
     assert not touches_overlap(left, {"repo": "owner/other", "touches": ["src/a/x.py"]})
+
+
+def test_touches_overlap_treats_missing_repos_as_the_same_default_checkout() -> None:
+    """Review P2 on #461: tasks without `repo` run in the default checkout, so they can overlap."""
+    from lazytools.projects.task_fields import touches_overlap
+
+    assert touches_overlap({"touches": ["src/a.py"]}, {"touches": ["src/*.py"]})
+    assert not touches_overlap({"touches": ["src/a.py"]}, {"repo": "owner/repo", "touches": ["src/a.py"]})
