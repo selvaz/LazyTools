@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -968,3 +969,151 @@ def test_check_commands_keep_windows_backslashes(tmp_path: Path, monkeypatch: py
     monkeypatch.setattr(subprocess, "run", fake_run)
     assert _dispatch._check_failure(r".venv\Scripts\python.exe -m pytest tests\test_api.py", tmp_path) is None
     assert seen == [[r".venv\Scripts\python.exe", "-m", "pytest", r"tests\test_api.py"]]
+
+
+def _retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """A dispatcher with the real clone handling and a fake bridge CLI; one task p/A in repo r."""
+    source = tmp_path / "source"
+    source_git = _repo(source)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(tmp_path / "sessions.json"))
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    bridge = BridgeLauncher(None, principal, "p", repo_roots={"r": source}, worktree_root=tmp_path / "trees")
+    jobs: dict[str, dict[str, Any]] = {}
+    monkeypatch.setattr(bridge, "job", jobs.get)
+    monkeypatch.setattr(bridge, "find", lambda task_id, attempt: jobs.get("job-A"))
+    monkeypatch.setattr(bridge, "pending", lambda: [])
+    service = FakeService()
+    service.rows = {"A": {"dependency_ids": [], "status": "todo", "repo": "r", "text": "Do A"}}
+    numbers = iter(range(1, 10))
+    real_claim = service.claim
+
+    def claim(*args: Any) -> dict[str, Any]:
+        result = real_claim(*args)
+        result["claim"]["attempt"] = next(numbers)
+        jobs["job-A"] = {"job_id": "job-A", "status": "running"}
+        return result
+
+    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str) -> str:
+        service.reasons.append(reason)  # type: ignore[attr-defined]
+        service.rows["A"]["status"] = "todo"
+        service.claims.pop("A", None)
+        return "rev"
+
+    service.reasons = []  # type: ignore[attr-defined]
+    service.evidence = []  # type: ignore[attr-defined]
+    service.claim = claim  # type: ignore[method-assign]
+    service.prepare_attempt = prepare_attempt  # type: ignore[attr-defined]
+    service.record_completion_evidence = lambda *args: service.evidence.append(args[-1])  # type: ignore[attr-defined, method-assign]
+    launched: list[list[str]] = []
+    real_run = subprocess.run
+
+    def fake_run(argv: list[str], **kwargs: Any) -> Any:
+        if argv[1:3] == ["-m", "lazytools.code_bridge"]:
+            launched.append(argv)
+            return subprocess.CompletedProcess(argv, 0, "a" * 32 + "\n", "")
+        return real_run(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    events: list[str] = []
+    dispatch = Dispatcher(service, principal, bridge, "p", emit=events.append,  # type: ignore[arg-type]
+                          task_reader=service.tasks)  # type: ignore[arg-type]
+    return dispatch, service, jobs, launched, events, source_git, tmp_path / "trees" / "p" / "A"
+
+
+def _flag(argv: list[str], flag: str) -> str:
+    return argv[argv.index(flag) + 1]
+
+
+def test_crash_preserves_work_and_the_retry_resumes_the_same_conversation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lazybridge.engines.sessions import default_session_registry
+
+    from lazytools.code_bridge._dispatch import RESUME_PROMPT
+    dispatch, service, jobs, launched, events, source_git, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    dispatch.pass_once()
+    assert _flag(launched[0], "--session") == "dispatch-attempt-1"
+    (clone / "work.txt").write_text("half done\n")
+    (clone / "error.log").write_text("account_id=secret\n")
+    jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request",
+                         cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1", engine="codex")
+    dispatch.pass_once()
+
+    branch = "dispatch-attempt/p/A/1"
+    assert f"preserved p/A {branch}" in events
+    assert service.evidence[-1].preserved_branch == branch
+    assert branch in service.reasons[-1]
+
+    def git(*argv: str) -> str:
+        return subprocess.run(["git", "-C", str(clone), *argv], text=True, capture_output=True, check=True).stdout.strip()
+    assert (clone / "work.txt").read_text() == "half done\n"
+    assert git("rev-parse", branch) == git("rev-parse", "HEAD")
+    assert git("branch", "--show-current") == "dispatch/p/A"
+    assert git("show", "--name-only", "--format=", "HEAD") == "work.txt"  # litter is never committed
+    assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"  # the kept work counts as the task's
+    assert source_git("rev-parse", branch) == git("rev-parse", "HEAD")
+    retry = launched[1]
+    assert _flag(retry, "--session") == "dispatch-attempt-1" and _flag(retry, "--task") == RESUME_PROMPT
+    assert default_session_registry().resolve("codex", clone, "dispatch-attempt-1") == "thread-1"
+    assert dispatch.retries == {"p/A": 1}
+
+    # The engine cannot load the conversation: a fresh one starts on the preserved work.
+    jobs["job-A"].update(status="failed", cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1",
+                         engine="codex", error="No bridge policy binding for this native session; use a new session alias")
+    dispatch.pass_once()
+    assert any(event.startswith("retry p/A resume failed") for event in events)
+    fresh = launched[2]
+    assert _flag(fresh, "--session") == "dispatch-attempt-3"
+    text = _flag(fresh, "--task")
+    assert "interrupted by the system" in text and "work.txt" in text and text.endswith("Do A")
+    assert "work of interrupted attempt 1" in text
+    assert default_session_registry().resolve("codex", clone, "dispatch-attempt-3") is None
+    assert git("show", "--name-only", "--format=", "HEAD") == "work.txt"
+    assert dispatch.retries == {"p/A": 1}  # a failed resume does not use the retry budget
+
+
+def test_crash_without_a_recorded_conversation_retries_fresh_on_the_kept_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dispatch, _, jobs, launched, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    dispatch.pass_once()
+    (clone / "work.txt").write_text("half done\n")
+    jobs["job-A"].update(status="interrupted", error=f"cancelled by operator: {STALE_HEARTBEAT}", cwd=str(clone),
+                         engine="codex", native_id=None)
+    dispatch.pass_once()
+    assert "preserved p/A dispatch-attempt/p/A/1" in events
+    assert _flag(launched[1], "--session") == "dispatch-attempt-2"
+    assert "work.txt" in _flag(launched[1], "--task")
+    assert (clone / "work.txt").read_text() == "half done\n"
+
+
+def test_check_failure_keeps_todays_behaviour(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dispatch, service, jobs, launched, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    service.rows["A"]["checks"] = [f'"{sys.executable}" -c "raise SystemExit(3)"']
+    dispatch.pass_once()
+    (clone / "work.txt").write_text("done\n")
+    jobs["job-A"].update(status="done", cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1",
+                         engine="codex", error="App Server exited")
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "failed" and service.reasons == []
+    assert not any(event.startswith(("preserved", "retry")) for event in events)
+    assert service.evidence[-1].preserved_branch is None
+    assert len(launched) == 1
+    assert not subprocess.run(["git", "-C", str(clone), "branch", "--list", "dispatch-attempt/*"],
+                              text=True, capture_output=True, check=True).stdout.strip()
+
+
+def test_preserve_never_commits_litter(tmp_path: Path) -> None:
+    from lazytools.code_bridge._dispatch import _preserve_attempt
+    git = _repo(tmp_path / "r")
+    git("config", "dispatch.branch", "main")
+    git("tag", "dispatch-base")
+    (tmp_path / "r" / "error.log").write_text("account_id=secret\n")
+    (tmp_path / "r" / "__pycache__").mkdir()
+    (tmp_path / "r" / "__pycache__" / "m.pyc").write_bytes(b"x")
+    git("add", "-f", "error.log")
+    assert _preserve_attempt(tmp_path / "r", "p/A", 1) == (None, None)  # litter alone is nothing to keep
+    (tmp_path / "r" / "work.txt").write_text("work\n")
+    preserved, error = _preserve_attempt(tmp_path / "r", "p/A", 1)
+    assert error is None and preserved and preserved.files == ("work.txt",)
+    assert git("show", "--name-only", "--format=", "HEAD") == "work.txt"

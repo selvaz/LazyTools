@@ -75,6 +75,7 @@ class CompletionEvidence(BaseModel):
     review_independence: ReviewIndependence | None = None
     outcome: Outcome | None = None
     failure_reason: Nonempty | None = None
+    preserved_branch: Nonempty | None = None  # work of a failed attempt, kept for the retry
 
 
 def _route_key(repo: str, placement: str, environment_id: str) -> str:
@@ -882,8 +883,9 @@ class ProjectTaskService:
             ):
                 raise TaskServiceError("stale", "Evidence does not match the submitted job, executor and engine")
             record = evidence.model_dump(mode="json")
-            if evidence.failure_reason is None:
-                record.pop("failure_reason")  # keep existing evidence replays compatible
+            for optional in ("failure_reason", "preserved_branch"):
+                if record[optional] is None:
+                    record.pop(optional)  # keep existing evidence replays compatible
             records = dispatch.setdefault("evidence", {})
             if evidence.reference in records:
                 if records[evidence.reference] != record:
