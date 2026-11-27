@@ -22,7 +22,13 @@ from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_fields import task_id as board_task_id
-from lazytools.projects.task_service import CompletionEvidence, PlacementEvidence, ProjectTaskService, TaskPrincipal
+from lazytools.projects.task_service import (
+    AttemptContinuation,
+    CompletionEvidence,
+    PlacementEvidence,
+    ProjectTaskService,
+    TaskPrincipal,
+)
 from lazytools.projects.task_store import TaskServiceError, transaction
 
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted", "cancelled"})
@@ -38,6 +44,13 @@ RESUME_FAILURES = ("use a new session alias", "Local launch binding changed", "G
 RESUME_PROMPT = ("Your previous turn on this task was interrupted by the system (an engine or dispatcher "
                  "failure, not a review). Your work so far is kept in this checkout. Continue the task from "
                  "where you stopped: check `git status` and `git log`, finish the work, run the tests and commit.")
+
+
+def _resumes(continuation: dict[str, Any] | None, engine_family: Any) -> bool:
+    """True when an attempt launched with this continuation resumes the failed attempt's conversation."""
+    if not continuation or continuation.get("fresh") or not continuation.get("native_id") or not engine_family:
+        return False
+    return continuation.get("engine") == ("claude" if engine_family == "claude_code" else engine_family)
 
 
 def _has_stale_heartbeat(job: dict[str, Any], cutoff: float) -> bool:
@@ -104,7 +117,7 @@ class BridgeLauncher:
         root = self.worktree_root or repo.parent / "_dispatch"
         checkout = root / safe_project / safe_task
         if checkout.exists():
-            preserved = task.get("preserved_branch")
+            preserved = task.get("preserved_commit") or task.get("preserved_branch")
             if preserved:
                 # Continue from the failed attempt's work; it stays the task's own (base unchanged).
                 current = self._git(checkout, "config", "--get", "dispatch.branch")
@@ -328,6 +341,7 @@ class Preserved:
     branch: str
     files: tuple[str, ...]
     message: str
+    commit: str
 
 
 def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved | None, str | None]:
@@ -370,7 +384,7 @@ def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved 
     changed = git("diff", "--name-only", "dispatch-base", "HEAD") if has_base else None
     files = tuple(changed.stdout.splitlines()) if changed and changed.stdout.strip() else tuple(dirty)
     message = git("log", "-1", "--format=%B").stdout.strip()
-    return Preserved(branch, files, message), None
+    return Preserved(branch, files, message, git("rev-parse", "HEAD").stdout.strip()), None
 
 
 def _is_litter(path: str) -> bool:
@@ -482,8 +496,6 @@ class Dispatcher:
         self.unsupported: set[str] = set()
         self.waiting: set[str] = set()
         self.retries: dict[str, int] = {}
-        self.resume: dict[str, dict[str, Any]] = {}  # task -> how its next attempt continues the failed one
-        self.resumed: set[str] = set()  # tasks whose current job resumed the failed attempt's conversation
         self.seen_tickets: set[str] = set()
         self.cancelled: set[str] = set()
         self.max_retries = max_retries
@@ -522,28 +534,55 @@ class Dispatcher:
         return task
 
     def _launch_input(self, task: dict[str, Any], claim: dict[str, Any]) -> dict[str, Any]:
-        """The task as launched: a retry continues the failed attempt's work and, if it can, its conversation."""
-        resume = self.resume.pop(str(task["task_id"]), None)
-        if resume is None:
+        """The task as launched: a retry continues the failed attempt's work and, if it can, its conversation.
+
+        The continuation is read from the task record, so it survives a dispatcher restart.
+        """
+        resume = task.get("attempt_continuation")
+        if not resume:
             return self._with_lessons(task)
-        preserved: Preserved | None = resume["preserved"]
-        if preserved:
-            task = {**task, "preserved_branch": preserved.branch}
-        family = claim.get("engine_family")
-        same_engine = bool(family) and resume["engine"] == ("claude" if family == "claude_code" else family)
-        if resume["native_id"] and same_engine:
-            self.resumed.add(str(task["task_id"]))
-            return {**task, "text": RESUME_PROMPT, "resume_session": resume["session"],
+        branch = resume.get("preserved_branch")
+        if branch:
+            task = {**task, "preserved_branch": branch, "preserved_commit": resume.get("preserved_commit")}
+        if _resumes(resume, claim.get("engine_family")):
+            return {**task, "text": RESUME_PROMPT, "resume_session": resume.get("session"),
                     "resume_native_id": resume["native_id"]}
         task = self._with_lessons(task)
-        if preserved:
-            files = ", ".join(preserved.files[:50]) + (" ..." if len(preserved.files) > 50 else "")
+        if branch:
+            changed = list(resume.get("preserved_files") or [])
+            files = ", ".join(changed[:50]) + (" ..." if len(changed) > 50 else "")
+            message = " ".join(str(resume.get("preserved_message") or "").split())[:500]
             task = {**task, "text": (
                 "A previous attempt at this task was interrupted by the system. Its work is kept in this "
-                f"checkout (also on branch {preserved.branch}). Files it changed: {files or 'none'}. Its last "
-                f"commit message: {' '.join(preserved.message.split())[:500]}. Review that work, keep what is "
+                f"checkout (also on branch {branch}). Files it changed: {files or 'none'}. Its last "
+                f"commit message: {message}. Review that work, keep what is "
                 "right and finish the task below.\n\n" + str(task["text"]))}
         return task
+
+    def _retry(self, task: Task, cause: str, failure_reason: str, continuation: dict[str, Any],
+               job_ref: str) -> bool:
+        """Prepare the next attempt with its continuation stored durably in the task record."""
+        current = next((item for item in self.task_reader(self.service, self.project_id)
+                        if item.task_id == task.task_id), None)
+        if current is None:
+            return False
+        reason = f"retry after {cause}: {failure_reason[:200]}"
+        if continuation.get("preserved_branch"):
+            reason += f" (work preserved on {continuation['preserved_branch']})"
+        self.service.prepare_attempt(self.principal, task.task_id, current.revision, reason,
+                                     continuation=AttemptContinuation(**continuation))
+        self._event("retry", task.task_id, f"{cause}: {failure_reason[:120]}", job_id=job_ref)
+        return True
+
+    def _refused_resume(self, task: Task, job: dict[str, Any], continuation: dict[str, Any]) -> bool:
+        """Settle a resume the bridge refused before submitting, then start a fresh conversation."""
+        receipt = (task.dispatch or {})["receipt"]
+        reason = str(job.get("error") or "resume refused").replace("\n", " ")
+        self.service.fail_local_launch(self.principal, task.task_id, receipt["claim_token"],
+                                       f"resume refused before submit: {reason}")
+        # The refused job never ran: the checkout still holds the preserved work.
+        return self._retry(task, "resume failed", reason, {**continuation, "native_id": None, "fresh": True},
+                           str(job.get("job_id")))
 
     def _record_lesson(self, task: Task, kind: str, reason: str) -> None:
         store = self.knowledge_store
@@ -688,6 +727,15 @@ class Dispatcher:
         receipt = dispatch.get("receipt", {})
         job_ref = dispatch.get("job_ref")
         job = self.launcher.job(job_ref) if job_ref else self.launcher.find(task.task_id, receipt.get("attempt", 0))
+        continuation = task.data.get("attempt_continuation")
+        resumed = _resumes(continuation, receipt.get("engine_family"))
+        if (job and not job_ref and resumed and continuation and dispatch.get("state") == "intent"
+                and job.get("status") in TERMINAL
+                and any(marker in str(job.get("error") or "") for marker in RESUME_FAILURES)):
+            # Refused before submit (check_resume, governed resume guard): the dispatch never
+            # reaches the provider boundary, so reconciliation below could never settle it.
+            self._refused_resume(task, job, continuation)
+            return True
         if job and not job_ref:
             try:
                 self.service.reconcile_dispatch(self.principal, task.task_id, receipt["attempt"], "submitted",
@@ -800,9 +848,8 @@ class Dispatcher:
                 self._event("published", task.task_id, published, job_id=str(job_ref))
         failed_cleanly = not accepted and not check_failure
         retryable = failed_cleanly and any(marker in failure_reason for marker in RETRYABLE_FAILURES)
-        resume_failed = (failed_cleanly and task.task_id in self.resumed
+        resume_failed = (failed_cleanly and resumed
                          and any(marker in failure_reason for marker in RESUME_FAILURES))
-        self.resumed.discard(task.task_id)
         preserved = None
         if (retryable or resume_failed) and cwd is not None:
             # A retry must not lose the work of an attempt the system stopped.
@@ -832,21 +879,21 @@ class Dispatcher:
             self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
         # A failed resume is retried once more in a fresh conversation, outside the retry budget.
         if resume_failed or (retryable and self.retries.get(task.task_id, 0) < self.max_retries):
-            current = next((item for item in self.task_reader(self.service, self.project_id)
-                            if item.task_id == task.task_id), None)
-            if current is not None:
-                cause = "resume failed" if resume_failed else "engine crash"
-                reason = f"retry after {cause}: {failure_reason[:200]}"
-                if preserved:
-                    reason += f" (work preserved on {preserved.branch})"
-                self.service.prepare_attempt(self.principal, task.task_id, current.revision, reason)
+            # Wake the same agent, except after a failed resume. A reviewer never resumes a writer.
+            native_id = None if resume_failed or task.data.get("review_of") else _jobs._native_id(job)
+            kept: dict[str, Any] = {
+                "preserved_branch": preserved.branch, "preserved_commit": preserved.commit,
+                "preserved_files": list(preserved.files), "preserved_message": preserved.message,
+            } if preserved else {key: (continuation or {}).get(key) for key in (
+                "preserved_branch", "preserved_commit", "preserved_files", "preserved_message",
+            ) if resume_failed and (continuation or {}).get(key)}
+            cause = "resume failed" if resume_failed else "engine crash"
+            if self._retry(task, cause, failure_reason, {
+                **kept, "session": job.get("session_name"), "native_id": native_id,
+                "engine": job.get("engine"), "fresh": resume_failed,
+            }, str(job_ref)):
                 if not resume_failed:
                     self.retries[task.task_id] = self.retries.get(task.task_id, 0) + 1
-                # Wake the same agent, except after a failed resume. A reviewer never resumes a writer.
-                native_id = None if resume_failed or task.data.get("review_of") else _jobs._native_id(job)
-                self.resume[task.task_id] = {"preserved": preserved, "native_id": native_id,
-                                             "session": job.get("session_name"), "engine": job.get("engine")}
-                self._event("retry", task.task_id, f"{cause}: {failure_reason[:120]}", job_id=str(job_ref))
                 return True
         self._event("failed", task.task_id, check_failure.split("\n", 1)[0] if check_failure else failure_reason,
                     job_id=str(job_ref))

@@ -1908,6 +1908,10 @@ Each attempt runs under a `--session` alias. When the failed job recorded a
 native conversation id and the retry uses the same engine, the retry resumes
 that conversation and tells the agent to continue. If the engine cannot load it,
 one more attempt starts a fresh conversation whose prompt lists the kept files
-and last commit message. This extra attempt does not count against the retry
-limit. Check failures and other task failures are not retried. Review tasks
+and last commit message. A resume the bridge refuses before submitting the job
+is settled as a failed launch and starts that fresh attempt too. This extra
+attempt does not count against the retry limit. How the retry continues (kept
+branch and commit, session, native id, fresh-conversation flag) is stored with
+the prepared attempt in the task record, so a dispatcher restart before the
+launch still resumes the kept work. Check failures and other task failures are not retried. Review tasks
 never resume a writer's conversation.
