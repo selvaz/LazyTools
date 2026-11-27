@@ -46,6 +46,10 @@ class RepositoryMismatch(ValueError):
     """The repository a cloud task would act on is not the task's repository."""
 
 
+class CloudSlotUnavailable(RuntimeError):
+    """Another submit took the slot before the cloud provider was called."""
+
+
 def cloud_repo(repo_roots: dict[str, Path], task: dict[str, Any]) -> Path:
     """The checkout a cloud task acts on: its --repo-root mapping, verified against the task's `repo`.
 
@@ -391,7 +395,8 @@ class BridgeLauncher:
         """Whether the configured cloud limits ([cloud] concurrency, per provider) leave a place."""
         engine = "claude" if engine_family == "claude_code" else engine_family
         config = _cloud.load_config()
-        active = _cloud.active_jobs(_store.build_store(Path(self.db) if self.db else None))
+        with _store.build_store(Path(self.db) if self.db else None) as store:
+            active = _cloud.active_jobs(store)
         if config.concurrency and len(active) >= config.concurrency:
             return False
         limit = config.provider_concurrency.get(engine)
@@ -408,7 +413,7 @@ class BridgeLauncher:
                    "--branch", _cloud.current_branch(repo), "--open-pr", "--land",
                    "--task-id", claim["task_id"], "--job-id", job_id,
                    "--cwd", str(repo), "--root", str(repo), "--task", brief,
-                   "--tier", task.get("tier") or "thinking", "--no-brief-check"]
+                   "--tier", claim.get("tier") or task.get("tier") or "thinking", "--no-brief-check", "--json"]
         if self.db:
             command.extend(("--db", self.db))
         if task.get("requested_network") is not None:
@@ -419,6 +424,12 @@ class BridgeLauncher:
             env[CLOUD_CLAIM_ENV] = json.dumps([claim["claim_token"], owner["instance_id"]])
         result = subprocess.run(command, text=True, capture_output=True, check=False, env=env)
         if result.returncode:
+            try:
+                payload = json.loads(result.stdout)
+            except ValueError:
+                payload = None
+            if isinstance(payload, dict) and payload.get("error_code") == "cloud_at_concurrency_limit":
+                raise CloudSlotUnavailable(str(payload["error"]))
             raise RuntimeError((result.stderr or result.stdout).strip() or f"bridge exited {result.returncode}")
         return job_id
 

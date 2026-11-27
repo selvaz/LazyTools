@@ -20,7 +20,14 @@ from pydantic import BaseModel, ConfigDict, FiniteFloat, StringConstraints
 from lazytools.projects.contracts import find_contract_for_task
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import get_project, touch_project_progress
-from lazytools.projects.task_fields import Placement, plan_fields, task_id, validate_dependencies
+from lazytools.projects.task_fields import (
+    Placement,
+    plan_fields,
+    requested_placement,
+    task_id,
+    touches_overlap,
+    validate_dependencies,
+)
 from lazytools.projects.task_store import TaskServiceError, TransactionStore, transaction
 from lazytools.projects.verification import CheckResult, get_verification, get_verification_for_contract
 
@@ -291,15 +298,20 @@ def _check_placement(
 def _placement(task: BoardTask, now: float) -> tuple[PlacementEvidence | None, str]:
     if (task.data.get("attempt_continuation") or {}).get("repair_checkout"):
         return _check_placement(task, "local", now)
-    requested = task.data.get("requested_placement", "local")
-    eligible, reason = _check_placement(task, requested, now)
+    requested = requested_placement(task.data)
+    preferred = "local" if requested == "auto" else requested
+    eligible, reason = _check_placement(task, preferred, now)
+    if eligible is None and requested == "auto":
+        return _check_placement(task, "cloud", now)
     if eligible is None and requested == "cloud":
         eligible, local_reason = _check_placement(task, "local", now)
         reason = f"{reason}. Local fallback: {local_reason}"
     return eligible, reason
 
 
-def _ready(task: BoardTask, now: float) -> tuple[dict[str, Any], PlacementEvidence] | None:
+def _ready(
+    task: BoardTask, now: float, location: Placement | None = None,
+) -> tuple[dict[str, Any], PlacementEvidence] | None:
     data = task.data
     continuation = data.get("attempt_continuation") or {}
     if (
@@ -313,7 +325,10 @@ def _ready(task: BoardTask, now: float) -> tuple[dict[str, Any], PlacementEviden
     dependencies = _dependencies(task)
     if any(dep["status"] != "done" for dep in dependencies):
         return None
-    placement, reason = _placement(task, now)
+    requested = "local" if continuation.get("repair_checkout") else requested_placement(data)
+    if location is not None and requested not in ("auto", location):
+        return None
+    placement, reason = _check_placement(task, location, now) if location else _placement(task, now)
     if placement is None:
         return None
     summary = {
@@ -326,7 +341,7 @@ def _ready(task: BoardTask, now: float) -> tuple[dict[str, Any], PlacementEviden
         "acceptance_criteria": data.get("acceptance_criteria", []),
         "requested_profile": data.get("requested_profile"),
         "requested_network": data.get("requested_network"),
-        "requested_placement": data.get("requested_placement", "local"),
+        "requested_placement": requested_placement(data),
         "effective_placement": placement.placement,
         "placement_reason": reason,
         "preflight_ref": placement.reference,
@@ -795,10 +810,10 @@ class ProjectTaskService:
 
     def claim(
         self, principal: TaskPrincipal, task_id: str, expected_revision: str, idempotency_key: str,
-        *, dispatcher_owner: DispatcherOwner | None = None,
+        *, dispatcher_owner: DispatcherOwner | None = None, expected_placement: PlacementEvidence | None = None,
     ) -> dict[str, Any]:
         principal.require_role("worker", "orchestrator")
-        if dispatcher_owner is not None:
+        if dispatcher_owner is not None or expected_placement is not None:
             principal.require_role("orchestrator")
         if not idempotency_key.strip():
             raise TaskServiceError("invalid", "A dispatch idempotency key is required")
@@ -823,10 +838,17 @@ class ProjectTaskService:
                 raise TaskServiceError("stale", "Task revision changed")
             _require_open(store, task.project_id)
             now = self.clock()
-            ready = _ready(task, now)
+            ready = _ready(task, now, expected_placement.placement if expected_placement else None)
             if ready is None:
                 raise TaskServiceError("conflict", "Task is no longer ready")
             summary, placement = ready
+            if expected_placement is not None and placement != expected_placement:
+                raise TaskServiceError("conflict", "Task placement changed")
+            if dispatcher_owner is not None:
+                for index, other in enumerate(task.board["tasks"]):
+                    if other.get("status") in ("claimed", "running") and touches_overlap(task.data, other):
+                        other_id = BoardTask(task.project_id, task.board, index).identifier
+                        raise TaskServiceError("conflict", f"touches overlap with {other_id}")
             route = _route(task, placement)
             if route and store.read(_route_key(*route), {}).get("quarantined"):
                 raise TaskServiceError("route_quarantined", "Route is quarantined pending a fresh green preflight")

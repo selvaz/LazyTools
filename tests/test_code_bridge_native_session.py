@@ -144,7 +144,7 @@ def dispatch_queue(tmp_path):
     return projects, ProjectTaskService(path, lease_seconds=60, clock=Clock())
 
 
-@pytest.mark.parametrize("preflight", ["fresh", "expired", "other-engine"])
+@pytest.mark.parametrize("preflight", ["fresh", "fresh-routed", "expired", "other-engine"])
 def test_expired_local_intent_retries_once_and_keeps_its_continuation(dispatch_queue, tmp_path, monkeypatch, preflight):
     from lazytools.code_bridge import _dispatch, _dispatch_launch
     from lazytools.projects.task_service import AttemptContinuation
@@ -178,7 +178,7 @@ def test_expired_local_intent_retries_once_and_keeps_its_continuation(dispatch_q
     assert len(launches) == 1
     retried_task, retry = launches[0]
     assert retry["attempt"] == first["attempt"] + 1
-    if preflight == "fresh":
+    if preflight in ("fresh", "fresh-routed"):
         assert retry["preflight_ref"] == first["preflight_ref"]
     else:
         assert retry["preflight_ref"] != first["preflight_ref"]
