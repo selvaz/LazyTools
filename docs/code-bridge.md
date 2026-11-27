@@ -1989,8 +1989,12 @@ Completing a task unlocks its dependents; failure blocks only the dependent bran
 It polls every 15 seconds until no task is ready or running. Use `--once` for one
 launch/settlement pass, or `--dry-run` to print the topological launch order without
 claiming work. A repeated command adopts submitted jobs recorded on active claims
-rather than launching duplicates. `--parallel` is an additional project-wide ceiling;
-the bridge's configured per-engine local concurrency limits still apply.
+rather than launching duplicates. Tasks run within real capacity: available local
+engine slots and cloud slots, subject to the bridge's global and per-provider cloud
+concurrency limits. With `auto` placement, a task uses a free local slot when one is
+available and otherwise uses cloud placement. `--parallel` is an optional additional
+project-wide cap. Each waiting task reports its current reason, such as a full local
+or cloud limit, quota window, dependency, or placement requirement.
 
 Events are line-oriented on stdout: `ready TASK`, `claimed TASK`, `launched JOB`,
 `done TASK`, `failed TASK REASON`, and `blocked TASK`.
