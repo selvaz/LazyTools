@@ -51,9 +51,14 @@ def scrub_job_environment() -> Iterator[None]:
 
 def credential_directory() -> Path:
     directory = (Path.home() / ".lazytools" / "approver-credentials").resolve()
-    if any((parent / ".git").exists() for parent in (directory, *directory.parents)):
-        raise ValueError("The approver credential directory must be outside Git checkouts")
+    require_outside_checkout(directory)
     return directory
+
+
+def require_outside_checkout(path: Path) -> None:
+    path = path.resolve()
+    if any((parent / ".git").exists() for parent in (path, *path.parents)):
+        raise ValueError("Owner approval state must be outside Git checkouts")
 
 
 def _path(registry: Path) -> Path:

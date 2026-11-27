@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
-from lazytools.code_bridge import _jobs
+from lazytools.code_bridge import _jobs, _registry
 
 TERMINAL = {"done", "partial", "failed", "interrupted"}
 
@@ -25,7 +26,10 @@ def report(store: Any, *, since: date, until: date) -> dict[str, Any]:
     start = datetime.combine(since, datetime.min.time(), tzinfo=UTC).timestamp()
     end = datetime.combine(until, datetime.min.time(), tzinfo=UTC).timestamp()
     finished = []
+    card_ids: dict[Path | None, set[str]] = defaultdict(set)
     for job in _jobs.list_jobs(store, all_jobs=True):
+        if ids := job.get("coder_card_ids"):
+            card_ids[_registry.recorded_path(job)].update(ids)
         finished_at = job.get("completed_at") or job.get("finished_at") or job.get("updated_at") or job.get("created_at")
         if job.get("status") in TERMINAL and isinstance(finished_at, (int, float)) and start <= finished_at < end:
             finished.append(job)
@@ -37,6 +41,12 @@ def report(store: Any, *, since: date, until: date) -> dict[str, Any]:
     )
     autonomous = sum(not job.get("manual_interventions") for job in finished)
     total = len(finished)
+    card_decisions = Counter(
+        receipt.get("ticket_class") or receipt["action_class"]
+        for path, ids in card_ids.items()
+        for receipt in _registry.Registry(store, path).card_audit({"coder_card_ids": ids})
+        if start <= datetime.fromisoformat(receipt["approved_at"]).timestamp() < end
+    )
     return {
         "since": since.isoformat(),
         "until": until.isoformat(),
@@ -46,4 +56,5 @@ def report(store: Any, *, since: date, until: date) -> dict[str, Any]:
         "target_percent": 90.0,
         "target_met": (100.0 * autonomous / total >= 90.0) if total else None,
         "intervention_causes": dict(sorted(causes.items())),
+        "card_approvals_by_class": dict(sorted(card_decisions.items())),
     }

@@ -41,6 +41,7 @@ detached launch JSON gives the id, pid and log path at once.
 | `pending --json` | `approval_id`, `job_id`, gist, command/reason when available, creation and expiry |
 | `approver-credential init` | Provision the local owner credential for a typed approval registry |
 | `approver-credential provision-automatic PROJECT_ID` | Provision the project's automatic approval cards |
+| `approver-credential autonomy --mode MODE [--preset NAME]` or `--show` | Configure or inspect the owner-delegated [autonomy modes](#autonomy-modes) |
 | `approve` / `reject` | Decide a pending ticket. Rejection requires `--reason` |
 | `status` / `result` | Status or full job record/text; `--json` preserves metadata |
 | `wait` | Terminal result; exit 3 on waiter timeout, 1 when process disappears before final record |
@@ -376,7 +377,9 @@ autonomous count and percentage against the 90 percent target, followed by the
 number of intervention events grouped by command kind. JSON output contains
 `finished_jobs`, `autonomous_jobs`, `autonomy_percent`, `target_percent`,
 `target_met`, and `intervention_causes`. With no finished jobs, the percentage
-and target result are `null` rather than claiming success.
+and target result are `null`. The report also includes `card_approvals_by_class`,
+which counts card-use receipts by approval time in the same UTC range. A
+running job can contribute receipts as soon as the queue records them.
 
 ## Claude writes, Codex reviews
 
@@ -1010,7 +1013,8 @@ consumption and outcome record.
 
 ### Coder approval cards
 
-Provision the coder hand once per approval registry from the owner shell.
+For the original coder hand, provision it once per approval registry from the
+owner shell. See [autonomy modes](#autonomy-modes) to choose a preset.
 Use the same store options for provisioning, running the job and inspecting
 its audit. With a custom \`--db\` alone, the bridge uses the sibling
 \`<db-stem>.registry.sqlite\` registry.
@@ -1054,6 +1058,52 @@ the copied card ID, its original, the request digest and the command or file
 paths. The plain-text output lists each approved action. Use the coder hand
 with trusted local repositories and toolchains. Tests execute repository code.
 Git hooks and custom execution settings can require operator approval.
+
+### Autonomy modes
+
+Use the owner shell to configure the CEO's delegated card classes in the
+approval registry used by local writer jobs. The registry and the owner
+credential belong outside the job checkout. Mode changes require that
+registry's owner credential and are available through the operator CLI.
+
+```console
+lazytools-code-bridge approver-credential init --registry-db REGISTRY_DB
+lazytools-code-bridge approver-credential autonomy --mode supervised --preset with-production --registry-db REGISTRY_DB
+lazytools-code-bridge approver-credential autonomy --mode total --preset with-production --registry-db REGISTRY_DB
+lazytools-code-bridge approver-credential autonomy --show --registry-db REGISTRY_DB
+```
+
+`supervised` is the default mode. With either preset it delegates
+`git_local`, `git_push_job_branch`, and `gh_pr_create` once the owner has
+provisioned the cards. In `total` mode the CEO can use cards for classes
+outside the preset's owner-only floor.
+
+| Preset | Classes that stay with the owner in total mode |
+| --- | --- |
+| `solo-dev` | `unknown`, `payment_or_external_post` |
+| `with-production` | `production_task`, `payment_or_external_post`, `delete_files`, `push_default_branch`, `unknown` |
+
+Omitting `--preset` keeps the current preset and defaults to
+`with-production` on first setup. Configuring a mode replaces the original
+coder hand if one was provisioned. A mode or preset change replaces the cards
+and invalidates copies issued to running jobs. New writer jobs get the new
+hand. Requests without a matching card enter the normal `pending`,
+`approve`, and `reject` flow.
+
+Each class applies to recognized direct commands within their native grants
+and the card's path, branch, and network restrictions. Job-branch pushes use
+`git push origin JOB_BRANCH` from the job checkout and require a GitHub
+`origin` with its default branch recorded in `refs/remotes/origin/HEAD`.
+Supported PR commands use the checkout's repository and explicit safe flags.
+For example, `gh pr merge 17 --squash` can use a total-mode card. Delegated
+install tickets can use an isolated wheel-only pip install into a new
+workspace target. Shell scripts, unscoped installs, and writes to external
+paths require an operator ticket. The `workspace_tools` class covers scoped
+reads, native file edits, and directory creation.
+
+Use `status JOB --json` or `result JOB --json` to see the actor, mode,
+class, and match reason on each card-use receipt. The
+[autonomy report](#autonomy-report) counts those decisions by class.
 
 ### Per-job temp directory
 

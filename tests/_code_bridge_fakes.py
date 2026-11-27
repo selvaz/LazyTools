@@ -17,9 +17,13 @@ underlying engine faked out.
 
 from __future__ import annotations
 
+import os
+import sys
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import pytest
 
 _SEAMS = (
@@ -158,3 +162,36 @@ def install(monkeypatch: pytest.MonkeyPatch) -> Script:
     agent_cls = type("BoundFakeAgent", (FakeAgent,), {"script": script})
     monkeypatch.setattr(lazybridge, "Agent", agent_cls)
     return script
+
+
+# Emulates `gh repo set-default --view`: print the remote marked gh-resolved, else nothing.
+FAKE_GH = r'''
+import subprocess, sys
+if sys.argv[1:] != ["repo", "set-default", "--view"]:
+    sys.exit(2)
+def git(*args):
+    return subprocess.run(["git", *args], capture_output=True, text=True).stdout.split()
+resolved = git("config", "--get-regexp", r"^remote\..*\.gh-resolved$")
+if not resolved:
+    print("X No default remote repository has been set.", file=sys.stderr)
+    sys.exit(0)
+key, value = resolved[:2]
+if value == "base":
+    url = git("remote", "get-url", key.split(".")[1])[0]
+    value = "/".join(url.removesuffix(".git").replace(":", "/").split("/")[-2:])
+print(value)
+'''
+
+
+def install_fake_gh(directory: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Put a ``gh`` that only answers ``repo set-default --view`` first on PATH."""
+    directory.mkdir()
+    script = directory / "fake_gh.py"
+    script.write_text(FAKE_GH, encoding="utf-8")
+    if os.name == "nt":
+        (directory / "gh.cmd").write_text(f'@"{sys.executable}" "{script}" %*\n', encoding="utf-8")
+    else:
+        launcher = directory / "gh"
+        launcher.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{script}" "$@"\n', encoding="utf-8")
+        launcher.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{directory}{os.pathsep}{os.environ['PATH']}")
