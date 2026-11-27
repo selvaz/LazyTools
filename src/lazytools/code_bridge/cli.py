@@ -2167,6 +2167,8 @@ def build_parser() -> argparse.ArgumentParser:
                             help="Passed to every task's run (default: the run default).")
     dispatch_p.add_argument("--json", action="store_true",
                             help="Print one JSON event per line with the keys wait-any events carry.")
+    dispatch_p.add_argument("--land", action="store_true",
+                            help="Push each published task branch to origin and open its PR (or update an open one).")
     dispatch_p.set_defaults(func=_dispatch.dispatch)
 
     watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")

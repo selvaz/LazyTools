@@ -1975,3 +1975,15 @@ the bridge's configured per-engine local concurrency limits still apply.
 
 Events are line-oriented on stdout: `ready TASK`, `claimed TASK`, `launched JOB`,
 `done TASK`, `failed TASK REASON`, and `blocked TASK`.
+
+The dispatcher publishes the local branch `dispatch/<project>/<task>` in the source
+checkout (`published TASK BRANCH`) before completing the task (`done TASK`). With
+`--land` the dispatcher then runs `git push origin <branch>` from the task's clone
+(fast-forward only, excluding the repository's default branch) and runs `gh pr create --head
+<branch> --base <default branch>`. The PR title is the task's title or the first line
+of its text. The PR body lists the task id, its acceptance criteria and the checks that
+passed. If an open PR for the branch already exists, the dispatcher only pushes, so a
+later task that revises the branch updates that PR. Landing emits a follow-up event,
+`landed TASK PR_URL` on success or `land-failed TASK REASON` on failure. The task is
+already accepted and its dependants are eligible to run. `gh` must be
+installed and authenticated (`gh auth login` or `GH_TOKEN`).
