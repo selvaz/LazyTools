@@ -1373,6 +1373,60 @@ def test_preserve_never_commits_litter(tmp_path: Path) -> None:
     assert git("show", "--name-only", "--format=", "HEAD") == "work.txt"
 
 
+def test_preserved_conflicted_merge_stays_unresolved_for_the_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lazytools.code_bridge._dispatch import RESUME_PROMPT, _conclude_workspace
+    dispatch, service, jobs, launched, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    dispatch.pass_once()
+
+    def git(*argv: str, check: bool = True) -> str:
+        return subprocess.run(["git", "-C", str(clone), *argv], text=True, capture_output=True,
+                              check=check).stdout.strip()
+    # The engine crashes while resolving a dependency merge: markers remain in f.txt.
+    git("checkout", "-qb", "dep")
+    (clone / "f.txt").write_text("dep\n")
+    git("commit", "-qam", "dep")
+    git("checkout", "-q", "dispatch/p/A")
+    (clone / "f.txt").write_text("task\n")
+    git("commit", "-qam", "task side")
+    git("merge", "--no-edit", "dep", check=False)
+    assert "<<<<<<<" in (clone / "f.txt").read_text()
+    jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request",
+                         cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1", engine="codex")
+    dispatch.pass_once()
+
+    assert "preserved p/A dispatch-attempt/p/A/1" in events
+    assert "UNRESOLVED" in git("log", "-1", "--format=%B")
+    assert service.rows["A"]["attempt_continuation"]["preserved_unresolved"] == ["f.txt"]
+    retry = _flag(launched[1], "--task")
+    assert retry.startswith(RESUME_PROMPT) and "merge is UNRESOLVED" in retry and "f.txt" in retry
+    # The preservation commit left a clean checkout, but its markers are still caught.
+    assert git("status", "--porcelain") == ""
+    assert _conclude_workspace(clone, "p/A") == ("unresolved conflict markers in f.txt", None)
+
+    # The retry reports success without resolving the file: rejected, never published.
+    jobs["job-A"].update(status="done", cwd=str(clone))
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "failed"
+    assert "failed p/A unresolved conflict markers in f.txt" in events
+    assert not any(event.startswith("published") for event in events)
+
+
+def test_clean_commit_with_conflict_markers_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dispatch, service, jobs, _, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    dispatch.pass_once()
+    (clone / "calc.py").write_text("<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> dep\n")
+    (clone / "notes.txt").write_text("fine\n")
+    subprocess.run(["git", "-C", str(clone), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(clone), "commit", "-qm", "work"], check=True)
+    jobs["job-A"].update(status="done", cwd=str(clone))
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "failed"
+    assert "failed p/A unresolved conflict markers in calc.py" in events
+    assert not any(event.startswith(("published", "done")) for event in events)
+
+
 def _real_retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, refuse_resume: bool = False) -> Any:
     """The real ProjectTaskService and clone handling; the bridge CLI is faked like run_job.
 
