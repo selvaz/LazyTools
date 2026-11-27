@@ -412,17 +412,19 @@ _PR_HEAD_FLAGS = frozenset({"--head", "-H"})
 _PR_BOOL_FLAGS = frozenset({"--draft", "-d", "--fill"})
 
 
-def pr_create_grantable(words: list[_Word], job_branch: str | None) -> bool:
+def pr_create_grantable(words: list[_Word], job_branch: str | None, *, require_head: bool = False) -> bool:
     """``gh pr create`` with only title/body (inline text)/base/head/label/draft/fill.
 
     Anything else asks: ``--body-file``/``-F`` (reads a local file into a public PR
     body), ``--template``, ``--repo``/``-R``, ``--web``, ``--hostname``, ``--fill-*``,
     ``--recover``, positionals. ``--head`` must be this job's branch. Flag values
     may not start with ``-`` (a value could otherwise smuggle in a second flag).
+    Card approvals require an explicit head to skip GitHub CLI's push and fork behavior.
     """
     if len(words) < 3 or any(word.quoted for word in words[:3]) or [w.text for w in words[:3]] != ["gh", "pr", "create"]:
         return False
     rest = words[3:]
+    has_head = False
     i = 0
     while i < len(rest):
         word = rest[i]
@@ -441,12 +443,14 @@ def pr_create_grantable(words: list[_Word], job_branch: str | None) -> bool:
                 value = rest[i].text
             if not value or value.startswith("-"):
                 return False
-            if name in _PR_HEAD_FLAGS and (not job_branch or value != job_branch):
-                return False
+            if name in _PR_HEAD_FLAGS:
+                if not job_branch or value != job_branch:
+                    return False
+                has_head = True
         elif name not in _PR_BOOL_FLAGS or equals:
             return False
         i += 1
-    return True
+    return has_head or not require_head
 
 
 #: Tools that change a file and the argument(s) that name it.

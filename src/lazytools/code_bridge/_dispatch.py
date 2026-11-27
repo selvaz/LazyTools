@@ -25,32 +25,75 @@ from lazytools.code_bridge import (
     _cloud_land,
     _cloud_place,
     _concurrency,
+    _gh,
     _jobs,
     _registry,
     _routing,
     _store,
     _task,
 )
+from lazytools.code_bridge._cloud import CloudError
+from lazytools.code_bridge._lockfile import _pid_alive
 from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_fields import task_id as board_task_id
-from lazytools.projects.task_service import CompletionEvidence, PlacementEvidence, ProjectTaskService, TaskPrincipal
+from lazytools.projects.task_service import (
+    AttemptContinuation,
+    CompletionEvidence,
+    PlacementEvidence,
+    ProjectTaskService,
+    TaskPrincipal,
+)
 from lazytools.projects.task_store import TaskServiceError, transaction
 
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted", "cancelled"})
 DEFAULT_STALE_MINUTES = 10
+DEFAULT_TOOL_STALE_MINUTES = 60  # one tool call running longer than this is stale
 STALE_HEARTBEAT = "engine heartbeat went stale"
 # Engine crashes (not task failures): retried once with a fresh attempt.
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
 RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
                       "no new commit since the task started", STALE_HEARTBEAT, "database is locked")
 CLOUD_POLL_SECONDS = 30.0  # minimum spacing of provider status polls for one cloud job
+# A retry that could not load the failed attempt's conversation: start a fresh one instead.
+RESUME_FAILURES = ("use a new session alias", "Local launch binding changed", "Governed Claude resume requires",
+                   "No conversation found", "thread not found", "no rollout found")
+RESUME_PROMPT = ("Your previous turn on this task was interrupted by the system (an engine or dispatcher "
+                 "failure, not a review). Your work so far is kept in this checkout. Continue the task from "
+                 "where you stopped: check `git status` and `git log`, finish the work, run the tests and commit.")
 
 
-def _has_stale_heartbeat(job: dict[str, Any], cutoff: float) -> bool:
+def _resumes(continuation: dict[str, Any] | None, engine_family: Any) -> bool:
+    """True when an attempt launched with this continuation resumes the failed attempt's conversation."""
+    if not continuation or continuation.get("fresh") or not continuation.get("native_id") or not engine_family:
+        return False
+    return continuation.get("engine") == ("claude" if engine_family == "claude_code" else engine_family)
+
+
+def _tool_call_in_progress(job: dict[str, Any], now: float, bound: float) -> bool:
+    """A tool call is running in a live job process and within its own bound.
+
+    The engine emits no events while a tool (a long shell command) runs, so
+    the event heartbeat alone would cancel healthy jobs. The engine is driven by
+    the job's worker process (``pid``): when the engine exits, the worker ends
+    the turn and clears its tool calls; when the worker dies, nothing is left
+    to finish them.
+    """
+    calls = job.get("tool_calls")
+    pid = job.get("pid")
+    if not isinstance(calls, dict) or not calls or not isinstance(pid, int) or not _pid_alive(pid):
+        return False
+    starts = [call.get("started_at") if isinstance(call, dict) else None for call in calls.values()]
+    return all(isinstance(start, (int, float)) and now - start < bound for start in starts)
+
+
+def _has_stale_heartbeat(job: dict[str, Any], cutoff: float, *, now: float | None = None,
+                         tool_bound: float = DEFAULT_TOOL_STALE_MINUTES * 60) -> bool:
     heartbeat = job.get("heartbeat_at")
-    return job.get("status") == "running" and isinstance(heartbeat, (int, float)) and heartbeat < cutoff
+    if job.get("status") != "running" or not isinstance(heartbeat, (int, float)) or heartbeat >= cutoff:
+        return False
+    return not _tool_call_in_progress(job, time.time() if now is None else now, tool_bound)
 
 
 @dataclass(frozen=True)
@@ -136,6 +179,12 @@ class BridgeLauncher:
         root = self.worktree_root or repo.parent / "_dispatch"
         checkout = root / safe_project / safe_task
         if checkout.exists():
+            preserved = task.get("preserved_commit") or task.get("preserved_branch")
+            if preserved:
+                # Continue from the failed attempt's work; it stays the task's own (base unchanged).
+                current = self._git(checkout, "config", "--get", "dispatch.branch")
+                self._git(checkout, "checkout", "--quiet", "-B", current, str(preserved))
+                return checkout
             # A new attempt in an existing checkout must add its own commits.
             subprocess.run(["git", "-C", str(checkout), "tag", "-f", "dispatch-base", "HEAD"],
                            text=True, capture_output=True, check=False)
@@ -223,6 +272,15 @@ class BridgeLauncher:
         engine_family = claim.get("engine_family")
         if engine_family:
             command.extend(("--engine", "claude" if engine_family == "claude_code" else str(engine_family)))
+        # Every attempt runs in a named conversation, so a retry can wake the same agent.
+        session = str(task.get("resume_session") or f"dispatch-attempt-{claim.get('attempt', 1)}")
+        if task.get("resume_native_id") and engine_family:
+            from lazybridge.engines.sessions import default_session_registry
+
+            # Point the alias at the failed attempt's conversation (also one that ran without an alias).
+            default_session_registry().bind("claude" if engine_family == "claude_code" else str(engine_family),
+                                            cwd, session, str(task["resume_native_id"]))
+        command.extend(("--session", session))
         if self.db:
             command.extend(("--db", self.db))
         if self.registry_db:
@@ -422,6 +480,57 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
     return None, git("rev-parse", "HEAD").stdout.strip() or None
 
 
+@dataclass(frozen=True)
+class Preserved:
+    branch: str
+    files: tuple[str, ...]
+    message: str
+    commit: str
+
+
+def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved | None, str | None]:
+    """Keep a failed attempt's work on `dispatch-attempt/<project>/<task>/<n>` before a retry.
+
+    Commits uncommitted non-litter changes (outside the engine sandbox, like a finished
+    task) and points the branch at HEAD. Returns (None, None) when there is nothing to keep.
+    """
+    def git(*argv: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(["git", "-C", str(cwd), *argv], text=True, capture_output=True, check=False)
+
+    if not cwd.is_dir() or not git("config", "--get", "dispatch.branch").stdout.strip():
+        return None, None  # only a dispatcher clone is written by the dispatcher
+    dirty = [line[3:] for line in git("status", "--porcelain").stdout.splitlines()
+             if line.strip() and not _is_litter(line[3:])]
+    has_base = git("rev-parse", "-q", "--verify", "refs/tags/dispatch-base").returncode == 0
+    if not dirty and not (has_base and _has_new_commit(cwd)):
+        return None, None
+    project, _, task = task_id.rpartition("/")
+    safe_project = re.sub(r"[^A-Za-z0-9_.-]+", "-", project)
+    safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task)
+    if dirty:
+        git("add", "-A", "--", ".", *(f":(exclude){pattern}" for pattern in COMMIT_EXCLUDES))
+        staged_litter = [path for path in git("diff", "--cached", "--name-only").stdout.splitlines()
+                         if _is_litter(path)]
+        if staged_litter:
+            git("reset", "-q", "--", *staged_litter)
+        merging = git("rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0
+        if git("diff", "--cached", "--name-only").stdout.strip() or merging:
+            commit = git("commit", "-q", "-m", f"{task}: work of interrupted attempt {attempt}",
+                         "-m", "Preserved by the dispatcher before a retry: the engine stopped for a system reason.")
+            if commit.returncode:
+                return None, f"could not commit the attempt's work: {(commit.stderr or commit.stdout).strip()[:200]}"
+    branch = f"dispatch-attempt/{safe_project}/{safe_task}/{attempt}"
+    created = git("branch", "-f", branch, "HEAD")
+    if created.returncode:
+        return None, f"could not create {branch}: {(created.stderr or created.stdout).strip()[:200]}"
+    # Best effort: a copy in the source repository survives a lost clone.
+    git("push", "--quiet", "dispatch-source", f"{branch}:refs/heads/{branch}")
+    changed = git("diff", "--name-only", "dispatch-base", "HEAD") if has_base else None
+    files = tuple(changed.stdout.splitlines()) if changed and changed.stdout.strip() else tuple(dirty)
+    message = git("log", "-1", "--format=%B").stdout.strip()
+    return Preserved(branch, files, message, git("rev-parse", "HEAD").stdout.strip()), None
+
+
 def _is_litter(path: str) -> bool:
     parts = path.strip().strip('"').replace("\\", "/").split("/")
     return (parts[-1].endswith(".log") or "__pycache__" in parts or ".pytest_cache" in parts)
@@ -503,6 +612,34 @@ def _publish(cwd: Path) -> tuple[str | None, str | None]:
     return expected, None
 
 
+def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
+          checks: list[str]) -> tuple[str | None, str | None]:
+    """Push a published branch to the clone's origin and open its PR (or reuse an open one).
+
+    Returns (pr_url, error). The push is fast-forward only and never targets the default branch.
+    """
+    try:
+        repo = _cloud.repo_slug(cwd)
+        base = _gh.default_branch(repo)
+        if branch == base:
+            return None, f"refusing to land on the default branch {base}"
+        _cloud_land._push(cwd, branch, branch)
+        existing = _gh.pr_for_branch(repo, branch)
+        if existing and existing.get("url"):
+            return str(existing["url"]), None  # a revision of the branch updates its PR
+        text_lines = str(data.get("text") or "").strip().splitlines()
+        title = str(data.get("title") or (text_lines[0] if text_lines else task_id)).strip()[:200] or task_id
+        criteria = data.get("acceptance_criteria") or []
+        body = "\n".join([
+            f"Task: `{task_id}`", "", "Acceptance criteria:",
+            *([f"- {item}" for item in criteria] or ["- none recorded"]), "",
+            "Checks that passed:", *([f"- `{command}`" for command in checks] or ["- none configured"]),
+        ]) + "\n"
+        return _gh.pr_create(repo, base=base, head=branch, title=title, body=body), None
+    except (CloudError, subprocess.TimeoutExpired) as exc:
+        return None, (" ".join(_cloud.redact(str(exc)).split())[:500] or "landing failed")
+
+
 class Dispatcher:
     def __init__(self, service: ProjectTaskService, principal: TaskPrincipal, launcher: Launcher,
                  project_id: str, *, parallel: int = 1, emit: Callable[[str], None] | None = None,
@@ -513,7 +650,8 @@ class Dispatcher:
                  json_events: bool = False, knowledge_store: Store | None = None,
                  stale_minutes: int = DEFAULT_STALE_MINUTES,
                  capacity: Callable[[str], int | None] | None = None, router_with_engine: bool = False,
-                 cloud_placer: Callable[[dict[str, Any], str], tuple[str, str]] | None = None):
+                 cloud_placer: Callable[[dict[str, Any], str], tuple[str, str]] | None = None,
+                 land: bool = False):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
         if stale_minutes < 1:
@@ -530,6 +668,7 @@ class Dispatcher:
         self.router_with_engine = router_with_engine  # router accepts (tier, engine_family)
         # (task data, tier) -> (engine family, cloud environment id); raises when cloud is not possible
         self.cloud_placer = cloud_placer
+        self.land = land  # push each published branch to origin and open its PR
         self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
         self.waiting: set[str] = set()
@@ -570,6 +709,57 @@ class Dispatcher:
         except Exception as exc:
             self._event("knowledge-error", task["task_id"], f"could not read lessons: {exc}")
         return task
+
+    def _launch_input(self, task: dict[str, Any], claim: dict[str, Any]) -> dict[str, Any]:
+        """The task as launched: a retry continues the failed attempt's work and, if it can, its conversation.
+
+        The continuation is read from the task record, so it survives a dispatcher restart.
+        """
+        resume = task.get("attempt_continuation")
+        if not resume:
+            return self._with_lessons(task)
+        branch = resume.get("preserved_branch")
+        if branch:
+            task = {**task, "preserved_branch": branch, "preserved_commit": resume.get("preserved_commit")}
+        if _resumes(resume, claim.get("engine_family")):
+            return {**task, "text": RESUME_PROMPT, "resume_session": resume.get("session"),
+                    "resume_native_id": resume["native_id"]}
+        task = self._with_lessons(task)
+        if branch:
+            changed = list(resume.get("preserved_files") or [])
+            files = ", ".join(changed[:50]) + (" ..." if len(changed) > 50 else "")
+            message = " ".join(str(resume.get("preserved_message") or "").split())[:500]
+            task = {**task, "text": (
+                "A previous attempt at this task was interrupted by the system. Its work is kept in this "
+                f"checkout (also on branch {branch}). Files it changed: {files or 'none'}. Its last "
+                f"commit message: {message}. Review that work, keep what is "
+                "right and finish the task below.\n\n" + str(task["text"]))}
+        return task
+
+    def _retry(self, task: Task, cause: str, failure_reason: str, continuation: dict[str, Any],
+               job_ref: str) -> bool:
+        """Prepare the next attempt with its continuation stored durably in the task record."""
+        current = next((item for item in self.task_reader(self.service, self.project_id)
+                        if item.task_id == task.task_id), None)
+        if current is None:
+            return False
+        reason = f"retry after {cause}: {failure_reason[:200]}"
+        if continuation.get("preserved_branch"):
+            reason += f" (work preserved on {continuation['preserved_branch']})"
+        self.service.prepare_attempt(self.principal, task.task_id, current.revision, reason,
+                                     continuation=AttemptContinuation(**continuation))
+        self._event("retry", task.task_id, f"{cause}: {failure_reason[:120]}", job_id=job_ref)
+        return True
+
+    def _refused_resume(self, task: Task, job: dict[str, Any], continuation: dict[str, Any]) -> bool:
+        """Settle a resume the bridge refused before submitting, then start a fresh conversation."""
+        receipt = (task.dispatch or {})["receipt"]
+        reason = str(job.get("error") or "resume refused").replace("\n", " ")
+        self.service.fail_local_launch(self.principal, task.task_id, receipt["claim_token"],
+                                       f"resume refused before submit: {reason}")
+        # The refused job never ran: the checkout still holds the preserved work.
+        return self._retry(task, "resume failed", reason, {**continuation, "native_id": None, "fresh": True},
+                           str(job.get("job_id")))
 
     def _record_lesson(self, task: Task, kind: str, reason: str) -> None:
         store = self.knowledge_store
@@ -762,7 +952,13 @@ class Dispatcher:
             return True
         return False
 
-    def _conclude(self, task: Task, evidence: CompletionEvidence, expired: bool) -> CompletionEvidence:
+    def _conclude(
+        self, task: Task, *, reference: str, job_ref: str, accepted: bool, expired: bool,
+        artifact_ref: str | None = None, failure_reason: str | None = None,
+        verification_id: str | None = None, reviewed_sha: str | None = None,
+        review_passed: bool = False, review_independence: Any = None,
+        preserved_branch: str | None = None, pr_url: str | None = None, land_failure: str | None = None,
+    ) -> CompletionEvidence:
         """Record completion evidence and complete the claim; return the evidence the task settled on.
 
         Evidence already recorded under the reference decides (a restart replays it). After lease
@@ -771,13 +967,27 @@ class Dispatcher:
         """
         dispatch = task.dispatch or {}
         receipt = dispatch.get("receipt", {})
-        recorded = dispatch.get("evidence", {}).get(evidence.reference)
+        records = dispatch.get("evidence", {})
+        recorded = records.get(reference)
+        if recorded:
+            evidence = CompletionEvidence.model_validate(recorded)
+        else:
+            evidence = CompletionEvidence(
+                reference=reference, job_ref=job_ref, executor=receipt["executor"],
+                engine_family=receipt["engine_family"], state="accepted" if accepted else "blocked",
+                artifact_ref=artifact_ref, verification_id=verification_id, reviewed_sha=reviewed_sha,
+                review_passed=review_passed, review_independence=review_independence,
+                outcome="success" if accepted else "task_failure", failure_reason=failure_reason,
+                preserved_branch=preserved_branch, pr_url=pr_url, land_failure=land_failure,
+            )
         if expired and evidence.state == "accepted":
-            evidence = evidence.model_copy(update={"state": "blocked", "outcome": "task_failure",
-                                                   "failure_reason": "claim lease expired"})
-        if expired and recorded and recorded.get("state") == "accepted":
-            evidence = evidence.model_copy(update={"reference": f"{evidence.reference}:lease-expired"})
-            recorded = dispatch.get("evidence", {}).get(evidence.reference)
+            if recorded:
+                reference = f"{reference}:lease-expired"
+                recorded = records.get(reference)
+            evidence = (CompletionEvidence.model_validate(recorded) if recorded else evidence.model_copy(update={
+                "reference": reference, "state": "blocked", "outcome": "task_failure",
+                "failure_reason": "claim lease expired",
+            }))
         if not recorded:
             self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
         accepted = evidence.state == "accepted"
@@ -818,6 +1028,8 @@ class Dispatcher:
         reference = f"cloud-job:{job_ref}:{status}" + (":checks" if checks else "")
         recorded = dispatch.get("evidence", {}).get(reference)
         landed = bool(status == "done" and job.get("landed_at") and job.get("pr_url") and job.get("pushed_sha"))
+        land_error = job.get("land_failure") or job.get("land_error")
+        land_failure = _cloud.redact(str(land_error)).strip() if land_error else None
         failure: str | None
         if recorded:  # restarted after recording: the evidence decides, the checks are not run again
             failure = None if recorded.get("state") == "accepted" else (
@@ -825,8 +1037,8 @@ class Dispatcher:
         elif status != "done":
             failure = f"cloud job {status}: {_cloud.redact(str(job.get('error') or 'no error recorded'))}"
         elif not landed:
-            detail = job.get("land_failure") or job.get("land_error") or "no PR url or pushed commit recorded"
-            failure = f"cloud job did not land: {_cloud.redact(str(detail))}"
+            detail = land_failure or "no PR url or pushed commit recorded"
+            failure = f"cloud job did not land: {detail}"
         elif expired:
             failure = "claim lease expired"
         elif checks:
@@ -846,18 +1058,16 @@ class Dispatcher:
             failure = failure or ("claim lease expired" if expired else None)
         else:
             failure = None
-        accepted = failure is None
-        settled = self._conclude(task, CompletionEvidence(
-            reference=reference, job_ref=job_ref, executor=receipt["executor"],
-            engine_family=receipt["engine_family"], state="accepted" if accepted else "blocked",
+        settled = self._conclude(
+            task, reference=reference, job_ref=job_ref, accepted=failure is None, expired=expired,
             artifact_ref=str(job["pushed_sha"]) if landed else None,
-            outcome="success" if accepted else "task_failure", failure_reason=failure), expired)
-        accepted = settled.state == "accepted"
-        failure = failure or settled.failure_reason
-        if accepted:
-            self._event("published", task.task_id, str(job["pr_url"]), job_id=job_ref)
+            failure_reason=failure, pr_url=job.get("pr_url"), land_failure=land_failure or None,
+        )
+        if settled.state == "accepted":
+            self._event("published", task.task_id, settled.pr_url or str(job["pr_url"]), job_id=job_ref)
             self._event("done", task.task_id, job_id=job_ref)
             return True
+        failure = settled.failure_reason or failure
         assert failure is not None
         self._record_lesson(task, "task failure", failure)
         self._event("failed", task.task_id, failure.split("\n", 1)[0], job_id=job_ref)
@@ -899,6 +1109,15 @@ class Dispatcher:
             return self._settle_cloud(task)
         job_ref = dispatch.get("job_ref")
         job = self.launcher.job(job_ref) if job_ref else self.launcher.find(task.task_id, receipt.get("attempt", 0))
+        continuation = task.data.get("attempt_continuation")
+        resumed = _resumes(continuation, receipt.get("engine_family"))
+        if (job and not job_ref and resumed and continuation and dispatch.get("state") == "intent"
+                and job.get("status") in TERMINAL
+                and any(marker in str(job.get("error") or "") for marker in RESUME_FAILURES)):
+            # Refused before submit (check_resume, governed resume guard): the dispatch never
+            # reaches the provider boundary, so reconciliation below could never settle it.
+            self._refused_resume(task, job, continuation)
+            return True
         if job and not job_ref:
             try:
                 self.service.reconcile_dispatch(self.principal, task.task_id, receipt["attempt"], "submitted",
@@ -914,7 +1133,7 @@ class Dispatcher:
             now = self.clock()
             lease_end = float(receipt.get("lease_expires_at", float("inf")))
             cutoff = now - self.stale_seconds
-            stale = _has_stale_heartbeat(job, cutoff)
+            stale = _has_stale_heartbeat(job, cutoff, now=now)
             cancel = getattr(self.launcher, "cancel", None)
             if (not stale and lease_end > now) or cancel is None or str(job_ref) in self.cancelled:
                 return False
@@ -988,6 +1207,7 @@ class Dispatcher:
         else:
             failure_reason = job_error
         # Publish only after the lease and evidence checks; a failed publish fails the task.
+        published: str | None = None
         if accepted and cwd is not None:
             published, publish_error = _publish(cwd)
             if publish_error:
@@ -995,27 +1215,55 @@ class Dispatcher:
                 failure_reason = publish_error
             elif published:
                 self._event("published", task.task_id, published, job_id=str(job_ref))
-        self._conclude(task, CompletionEvidence(reference=reference, job_ref=str(job_ref),
-            executor=receipt["executor"], engine_family=receipt["engine_family"],
-            state="accepted" if accepted else "blocked",
+        failed_cleanly = not accepted and not check_failure
+        retryable = failed_cleanly and any(marker in failure_reason for marker in RETRYABLE_FAILURES)
+        resume_failed = (failed_cleanly and resumed
+                         and any(marker in failure_reason for marker in RESUME_FAILURES))
+        preserved = None
+        if (retryable or resume_failed) and cwd is not None:
+            # A retry must not lose the work of an attempt the system stopped.
+            preserved, preserve_error = _preserve_attempt(cwd, task.task_id, int(receipt["attempt"]))
+            if preserve_error:
+                self._event("preserve-failed", task.task_id, preserve_error, job_id=str(job_ref))
+            elif preserved:
+                self._event("preserved", task.task_id, preserved.branch, job_id=str(job_ref))
+        settled = self._conclude(
+            task, reference=reference, job_ref=str(job_ref), accepted=accepted, expired=expired,
             artifact_ref=job.get("final_commit") or job.get("candidate_commit"),
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
-            review_independence=review_independence,
-            outcome="success" if accepted else "task_failure", failure_reason=check_failure), expired)
+            review_independence=review_independence, failure_reason=check_failure,
+            preserved_branch=preserved.branch if preserved else None,
+        )
         self._record_rejection(task, job)
-        if accepted:
+        if settled.state == "accepted":
             self._event("done", task.task_id, job_id=str(job_ref))
+            if self.land and published and cwd is not None:
+                # The local artifact is accepted before contacting origin or GitHub.
+                pr_url, land_failure = _land(cwd, published, task.task_id, task.data, list(checks or []))
+                if pr_url:
+                    self._event("landed", task.task_id, pr_url, job_id=str(job_ref))
+                elif land_failure:
+                    self._event("land-failed", task.task_id, land_failure, job_id=str(job_ref))
             return True
-        retryable = not check_failure and any(marker in failure_reason for marker in RETRYABLE_FAILURES)
-        self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
-        if retryable and self.retries.get(task.task_id, 0) < self.max_retries:
-            current = next((item for item in self.task_reader(self.service, self.project_id)
-                            if item.task_id == task.task_id), None)
-            if current is not None:
-                self.service.prepare_attempt(self.principal, task.task_id, current.revision,
-                                             f"retry after engine crash: {failure_reason[:200]}")
-                self.retries[task.task_id] = self.retries.get(task.task_id, 0) + 1
-                self._event("retry", task.task_id, f"engine crash: {failure_reason[:120]}", job_id=str(job_ref))
+        if not resume_failed:
+            self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
+        # A failed resume is retried once more in a fresh conversation, outside the retry budget.
+        if resume_failed or (retryable and self.retries.get(task.task_id, 0) < self.max_retries):
+            # Wake the same agent, except after a failed resume. A reviewer never resumes a writer.
+            native_id = None if resume_failed or task.data.get("review_of") else _jobs._native_id(job)
+            kept: dict[str, Any] = {
+                "preserved_branch": preserved.branch, "preserved_commit": preserved.commit,
+                "preserved_files": list(preserved.files), "preserved_message": preserved.message,
+            } if preserved else {key: (continuation or {}).get(key) for key in (
+                "preserved_branch", "preserved_commit", "preserved_files", "preserved_message",
+            ) if resume_failed and (continuation or {}).get(key)}
+            cause = "resume failed" if resume_failed else "engine crash"
+            if self._retry(task, cause, failure_reason, {
+                **kept, "session": job.get("session_name"), "native_id": native_id,
+                "engine": job.get("engine"), "fresh": resume_failed,
+            }, str(job_ref)):
+                if not resume_failed:
+                    self.retries[task.task_id] = self.retries.get(task.task_id, 0) + 1
                 return True
         self._event("failed", task.task_id, check_failure.split("\n", 1)[0] if check_failure else failure_reason,
                     job_id=str(job_ref))
@@ -1093,7 +1341,7 @@ class Dispatcher:
                     running += 1
                 continue
             try:
-                job_ref = self.launcher.launch(self._with_lessons({**summary, **data}), claim)
+                job_ref = self.launcher.launch(self._launch_input({**summary, **data}, claim), claim)
             except Exception as exc:
                 reason = str(exc).replace("\n", " ")
                 try:
@@ -1191,7 +1439,7 @@ def dispatch(args: argparse.Namespace) -> int:
         return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
                           capacity=capacity, router_with_engine=True, cloud_placer=cloud_placer,
                           json_events=bool(getattr(args, "json", False)),
-                          knowledge_store=knowledge_store,
+                          knowledge_store=knowledge_store, land=bool(getattr(args, "land", False)),
                           stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)
     finally:
         if knowledge_store is not None:

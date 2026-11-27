@@ -171,13 +171,19 @@ def test_wait_any_all_active_loop_waits_for_a_first_job(tmp_path, capsys, monkey
     assert main(["wait-any", "--all-active", "--db", str(db)]) == 2  # without --loop it is still a snapshot
 
 
-@pytest.mark.parametrize("action", ["land-failed", "review-failed"])
-def test_wait_any_reports_cloud_finishing_failure(tmp_path, capsys, monkeypatch, action):
+@pytest.mark.parametrize(("action", "field"), [("land-failed", "land_error"), ("review-failed", "review_error")])
+def test_wait_any_reports_cloud_finishing_failure(tmp_path, capsys, monkeypatch, action, field):
     db = tmp_path / "jobs.sqlite"
     store = _job(db, "cloud-failure", "done")
-    _store.write_meta(store, "cloud-failure", {"job_id": "cloud-failure", "where": "cloud", "land": True})
+    meta = {"job_id": "cloud-failure", "where": "cloud", "land": True}
+    _store.write_meta(store, "cloud-failure", meta)
+
+    def fail(*args, **kwargs):  # the finisher persists its failure, as land_job/post_review do
+        _store.write_meta(store, "cloud-failure", {**meta, field: "boom"})
+        return {"action": action}
+
     monkeypatch.setattr(cli._cloud_land, "needs_finishing", lambda job: True)
-    monkeypatch.setattr(cli._cloud_land, "process_job", lambda *args, **kwargs: {"action": action})
+    monkeypatch.setattr(cli._cloud_land, "process_job", fail)
     assert main(["wait-any", "cloud-failure", "--db", str(db)]) == 0
     assert json.loads(capsys.readouterr().out)["event"] == "failed"
 

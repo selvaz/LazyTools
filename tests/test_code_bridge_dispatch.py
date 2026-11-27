@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -468,7 +469,7 @@ def test_engine_crash_is_retried_once_then_fails(knowledge_store: Store) -> None
     service.rows["A"].update(repo="org/repo", text="Update Codex App Server")
     attempts: list[str] = []
 
-    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str) -> str:
+    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str, **_: Any) -> str:
         attempts.append(reason)
         name = identifier.rsplit("/", 1)[1]
         service.rows[name]["status"] = "todo"
@@ -501,7 +502,7 @@ def test_database_locked_failure_is_retried_once(knowledge_store: Store) -> None
     service.rows["A"].update(repo="org/repo", text="Update Codex App Server")
     attempts: list[str] = []
 
-    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str) -> str:
+    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str, **_: Any) -> str:
         attempts.append(reason)
         name = identifier.rsplit("/", 1)[1]
         service.rows[name]["status"] = "todo"
@@ -745,6 +746,231 @@ def test_publish_checks_branch_and_never_overwrites(tmp_path: Path) -> None:
     assert _publish(clone)[1] == "checkout is on elsewhere, expected dispatch/p/A"
 
 
+class FakeGh:
+    """Stands in for `_gh.run_gh`: answers repo view, pr list and pr create, records every call."""
+
+    def __init__(self, *, existing_pr: str | None = None, fail: str | None = None) -> None:
+        self.calls: list[tuple[tuple[str, ...], str | None]] = []
+        self.existing_pr, self.fail = existing_pr, fail
+
+    def __call__(self, *args: str, stdin: str | None = None, timeout: float = 0) -> str:
+        from lazytools.code_bridge._cloud import CloudError
+        self.calls.append((args, stdin))
+        if self.fail and args[:2] == tuple(self.fail.split()):
+            raise CloudError(f"gh {self.fail} exited 1: HTTP 401 token=ghp_secretsecretsecret")
+        if args[:2] == ("repo", "view"):
+            return '{"defaultBranchRef": {"name": "main"}}'
+        if args[:2] == ("pr", "list"):
+            url = self.existing_pr
+            return f'[{{"number": 7, "url": "{url}", "headRefOid": "x", "baseRefName": "main"}}]' if url else "[]"
+        if args[:2] == ("pr", "create"):
+            self.existing_pr = "https://github.com/o/r/pull/7"
+            return self.existing_pr + "\n"
+        raise AssertionError(f"unexpected gh call {args}")
+
+    def created(self) -> list[tuple[tuple[str, ...], str | None]]:
+        return [call for call in self.calls if call[0][:2] == ("pr", "create")]
+
+
+def _landing_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh: FakeGh, *, task_id: str = "p/A",
+) -> tuple[Path, Path, Any, Any]:
+    """A source repo whose origin is a GitHub URL pushed (via pushInsteadOf) to a local bare remote."""
+    from lazytools.code_bridge import _gh
+    source = tmp_path / "source"
+    source_git = _repo(source)
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(source), str(remote)], check=True)
+    source_git("remote", "add", "origin", "https://github.com/o/r.git")
+    project_id = task_id.split("/", 1)[0]
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=(project_id,))
+    bridge = BridgeLauncher(None, principal, project_id, repo_roots={"o/r": source}, worktree_root=tmp_path / "trees")
+    clone = bridge._checkout({"task_id": task_id, "repo": "o/r"})
+    bridge._git(clone, "config", f"url.{remote.as_uri()}.pushInsteadOf", "https://github.com/o/r.git")
+    (clone / "work.txt").write_text("task work\n")
+    bridge._git(clone, "add", "work.txt")
+    bridge._git(clone, "commit", "-qm", "Task work")
+    monkeypatch.setattr(_gh, "run_gh", gh)
+
+    def remote_git(*argv: str) -> str:
+        return subprocess.run(["git", "--git-dir", str(remote), *argv], text=True, capture_output=True,
+                              check=False).stdout.strip()
+    return clone, remote, bridge, remote_git
+
+
+def _land_run(clone: Path, events: list[str], captured: list[Any]) -> FakeService:
+    service = FakeService()
+    service.rows["A"].update(text="Add landing to the dispatcher\nMore detail.",
+                             acceptance_criteria=["PR opened", "branch pushed"])
+    service.record_completion_evidence = lambda *args: captured.append(args[-1])  # type: ignore[method-assign]
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.land = True
+    dispatch.pass_once()
+    launcher.finish("A")
+    launcher.jobs["job-A"]["cwd"] = str(clone)
+    dispatch.pass_once()
+    return service
+
+
+def test_land_pushes_the_published_branch_and_opens_a_pr(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    gh = FakeGh()
+    clone, _remote, bridge, remote_git = _landing_setup(tmp_path, monkeypatch, gh)
+    events: list[str] = []
+    captured: list[Any] = []
+    service = _land_run(clone, events, captured)
+
+    head = bridge._git(clone, "rev-parse", "HEAD")
+    assert service.rows["A"]["status"] == "done"
+    assert remote_git("rev-parse", "refs/heads/dispatch/p/A") == head
+    assert remote_git("rev-parse", "refs/heads/main") != head  # the default branch is never pushed
+    (args, body), = gh.created()
+    assert args[args.index("--head") + 1] == "dispatch/p/A"
+    assert args[args.index("--base") + 1] == "main"
+    assert args[args.index("--title") + 1] == "Add landing to the dispatcher"
+    assert body and "p/A" in body and "- PR opened" in body and "- branch pushed" in body
+    assert "landed p/A https://github.com/o/r/pull/7" in events
+    assert events.index("published p/A dispatch/p/A") < events.index("done p/A") < events.index(
+        "landed p/A https://github.com/o/r/pull/7",
+    )
+    evidence, = captured
+    assert evidence.state == "accepted" and evidence.pr_url is None and evidence.land_failure is None
+
+    # A later revision of the branch updates the open PR: push only, no second PR.
+    from lazytools.code_bridge._dispatch import _land
+    (clone / "work.txt").write_text("revised\n")
+    bridge._git(clone, "commit", "-qam", "Revise")
+    assert _land(clone, "dispatch/p/A", "p/A", {}, []) == ("https://github.com/o/r/pull/7", None)
+    assert remote_git("rev-parse", "refs/heads/dispatch/p/A") == bridge._git(clone, "rev-parse", "HEAD")
+    assert len(gh.created()) == 1
+
+
+def test_land_can_outlast_the_claim_lease(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge import _gh
+    from lazytools.code_bridge._dispatch import _tasks
+    from lazytools.connectors.projects import ProjectsTools
+    from lazytools.projects.task_service import PlacementEvidence, ProjectTaskService
+
+    gh = FakeGh()
+    clone, _remote, _bridge, _remote_git = _landing_setup(tmp_path, monkeypatch, gh, task_id="landing/A")
+    path = str(tmp_path / "projects.sqlite")
+    projects = ProjectsTools(store_db=path, allow_write=True)
+    assert "AS A DRAFT" in projects.projects_create("landing", "Landing", "Test landing after completion")
+    plan = [
+        {"task_id": "A", "text": "Publish A", "acceptance_criteria": ["A is published"]},
+        {"task_id": "B", "text": "Use A", "acceptance_criteria": ["B uses A"], "dependency_ids": ["A"]},
+    ]
+    args = ("landing", "Publish and use A", "2027-01-01T00:00:00Z", plan)
+    verdict = projects.projects_review_plan(*args)
+    assert verdict["ok"], verdict
+    assert projects.projects_promote(*args).startswith("promoted")
+
+    now = 1000.0
+
+    def clock() -> float:
+        return now
+
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("landing",))
+    service = ProjectTaskService(path, lease_seconds=60, clock=clock)
+    for task in _tasks(service, "landing"):
+        service.record_placement(task.task_id, task.revision, PlacementEvidence(
+            placement="local", eligible=True, reason="test runner", reference="test-placement",
+            expires_at=2000, engine_family="codex",
+        ))
+    launcher = FakeLauncher(FakeService())
+    events: list[str] = []
+    dispatch = Dispatcher(service, principal, launcher, "landing", clock=clock, emit=events.append, land=True)
+    dispatch.pass_once()
+    task = next(task for task in _tasks(service, "landing") if task.task_id == "landing/A")
+    assert task.dispatch is not None, events
+    receipt = task.dispatch["receipt"]
+    service.begin_submit(principal, task.task_id, receipt["claim_token"])
+    service.record_submit(principal, task.task_id, receipt["claim_token"], "job-A")
+    launcher.finish("A")
+    launcher.jobs["job-A"]["cwd"] = str(clone)
+    now = receipt["lease_expires_at"] - 1
+
+    def slow_gh(*args: str, **kwargs: Any) -> str:
+        nonlocal now
+        if args[:2] == ("repo", "view"):
+            now += 2
+            assert [row["task_id"] for row in service.next_ready(principal, "landing")["tasks"]] == ["landing/B"]
+        return gh(*args, **kwargs)
+
+    monkeypatch.setattr(_gh, "run_gh", slow_gh)
+    dispatch.pass_once()
+
+    assert now > receipt["lease_expires_at"]
+    assert "landed landing/A https://github.com/o/r/pull/7" in events, events
+    assert launcher.launches == ["A", "B"]
+    task = next(task for task in _tasks(service, "landing") if task.task_id == "landing/A")
+    assert task.status == "done"
+    settled = task.data["dispatches"][-1]
+    assert settled["completion"]["result"]["state"] == "accepted"
+    evidence, = settled["evidence"].values()
+    assert evidence["state"] == "accepted" and "pr_url" not in evidence and "land_failure" not in evidence
+
+
+@pytest.mark.parametrize("failure", ["push", "gh", "push-timeout"])
+def test_land_failure_keeps_the_task_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    gh = FakeGh(fail="pr create" if failure == "gh" else None)
+    clone, remote, _bridge, remote_git = _landing_setup(tmp_path, monkeypatch, gh)
+    if failure == "push":  # someone else's commit on the remote branch: no fast-forward, never forced
+        other = tmp_path / "other"
+        subprocess.run(["git", "clone", "-q", str(remote), str(other)], check=True)
+        for argv in (["config", "user.email", "o@example.com"], ["config", "user.name", "O"],
+                     ["commit", "-q", "--allow-empty", "-m", "elsewhere"],
+                     ["push", "-q", "origin", "HEAD:refs/heads/dispatch/p/A"]):
+            subprocess.run(["git", "-C", str(other), *argv], check=True)
+    foreign = remote_git("rev-parse", "refs/heads/dispatch/p/A")
+    if failure == "push-timeout":
+        run = subprocess.run
+
+        def timeout_push(argv: list[str], **kwargs: Any) -> Any:
+            if argv[3:5] == ["push", "origin"]:
+                raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+            return run(argv, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", timeout_push)
+    events: list[str] = []
+    captured: list[Any] = []
+    service = _land_run(clone, events, captured)
+
+    assert service.rows["A"]["status"] == "done"
+    assert "done p/A" in events and not [line for line in events if line.startswith("landed")]
+    failed = [line for line in events if line.startswith("land-failed p/A ")]
+    assert len(failed) == 1
+    assert events.index("done p/A") < events.index(failed[0])
+    assert not any(line.startswith("failed p/A") for line in events)
+    evidence, = captured
+    assert evidence.state == "accepted" and evidence.pr_url is None and evidence.land_failure is None
+    assert "ghp_secret" not in failed[0]
+    if failure == "push":
+        assert "rejected" in failed[0] and not gh.created()
+        assert remote_git("rev-parse", "refs/heads/dispatch/p/A") == foreign
+    elif failure == "push-timeout":
+        assert "timed out after 300 seconds" in failed[0] and not gh.created()
+    else:
+        assert "pr create" in failed[0]
+
+
+def test_land_refuses_the_default_branch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge._dispatch import _land
+    gh = FakeGh()
+    clone, _remote, _bridge, remote_git = _landing_setup(tmp_path, monkeypatch, gh)
+    before = remote_git("rev-parse", "refs/heads/main")
+    pr_url, error = _land(clone, "main", "p/A", {}, [])
+    assert pr_url is None and error == "refusing to land on the default branch main"
+    assert remote_git("rev-parse", "refs/heads/main") == before and not gh.created()
+
+
+def test_dispatch_land_flag_parses() -> None:
+    assert build_parser().parse_args(["dispatch", "--project", "p", "--land"]).land is True
+    assert build_parser().parse_args(["dispatch", "--project", "p"]).land is False
+
+
 def test_base_is_set_after_dependency_merges(tmp_path: Path) -> None:
     from lazytools.code_bridge._dispatch import _has_new_commit
     git = _repo(tmp_path / "repo")
@@ -796,7 +1022,7 @@ def test_stale_heartbeat_cancels_and_retries_the_job(monkeypatch: pytest.MonkeyP
         launcher.jobs[job_ref].update(status="interrupted", error=f"cancelled by operator: {STALE_HEARTBEAT}")
         return True
 
-    def prepare_attempt(_principal: Any, task_id: str, _revision: str, reason: str) -> None:
+    def prepare_attempt(_principal: Any, task_id: str, _revision: str, reason: str, **_: Any) -> None:
         assert task_id == "p/A"
         assert "retry after engine crash" in reason and "heartbeat" in reason
         assert service.rows["A"]["status"] == "failed"
@@ -830,6 +1056,33 @@ def test_dispatch_leaves_jobs_without_a_stale_running_heartbeat(status: str, hea
 
     assert cancelled == []
     assert service.rows["A"]["status"] == "claimed"
+
+
+@pytest.mark.parametrize("engine_alive,tool_started,stale", [
+    (True, 2_000 - 20 * 60, False),  # long shell command in a live engine
+    (False, 2_000 - 20 * 60, True),  # engine process died with the tool call pending
+    (True, 2_000 - 61 * 60, True),   # tool call ran past its own bound
+])
+def test_tool_call_in_progress_keeps_only_a_live_engine_alive(
+    monkeypatch: pytest.MonkeyPatch, engine_alive: bool, tool_started: float, stale: bool,
+) -> None:
+    from lazytools.code_bridge import _dispatch
+
+    # ``pid`` is the job worker driving the engine; tool_calls come from its tool call events.
+    monkeypatch.setattr(_dispatch, "_pid_alive", lambda pid: engine_alive and pid == 4321)
+    service = FakeService()
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, [])
+    dispatch.clock = lambda: 2_000
+    dispatch.pass_once()
+    launcher.jobs["job-A"].update(heartbeat_at=tool_started, pid=4321,
+                                  tool_calls={"toolu_1": {"name": "Bash", "started_at": tool_started}})
+    cancelled: list[str] = []
+    launcher.cancel = lambda job_ref, **_: cancelled.append(job_ref) or False  # type: ignore[attr-defined]
+
+    dispatch.pass_once()
+
+    assert cancelled == (["job-A"] if stale else [])
 
 
 def test_dispatch_accepts_a_stale_minutes_override() -> None:
@@ -968,3 +1221,284 @@ def test_check_commands_keep_windows_backslashes(tmp_path: Path, monkeypatch: py
     monkeypatch.setattr(subprocess, "run", fake_run)
     assert _dispatch._check_failure(r".venv\Scripts\python.exe -m pytest tests\test_api.py", tmp_path) is None
     assert seen == [[r".venv\Scripts\python.exe", "-m", "pytest", r"tests\test_api.py"]]
+
+
+def _retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """A dispatcher with the real clone handling and a fake bridge CLI; one task p/A in repo r."""
+    source = tmp_path / "source"
+    source_git = _repo(source)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(tmp_path / "sessions.json"))
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    bridge = BridgeLauncher(None, principal, "p", repo_roots={"r": source}, worktree_root=tmp_path / "trees")
+    jobs: dict[str, dict[str, Any]] = {}
+    monkeypatch.setattr(bridge, "job", jobs.get)
+    monkeypatch.setattr(bridge, "find", lambda task_id, attempt: jobs.get("job-A"))
+    monkeypatch.setattr(bridge, "pending", lambda: [])
+    service = FakeService()
+    service.rows = {"A": {"dependency_ids": [], "status": "todo", "repo": "r", "text": "Do A"}}
+    numbers = iter(range(1, 10))
+    real_claim = service.claim
+
+    def claim(*args: Any) -> dict[str, Any]:
+        result = real_claim(*args)
+        result["claim"]["attempt"] = next(numbers)
+        jobs["job-A"] = {"job_id": "job-A", "status": "running"}
+        return result
+
+    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str, *,
+                        continuation: Any = None) -> str:
+        service.reasons.append(reason)  # type: ignore[attr-defined]
+        service.rows["A"]["attempt_continuation"] = continuation.model_dump(mode="json") if continuation else None
+        service.rows["A"]["status"] = "todo"
+        service.claims.pop("A", None)
+        return "rev"
+
+    service.reasons = []  # type: ignore[attr-defined]
+    service.evidence = []  # type: ignore[attr-defined]
+    service.claim = claim  # type: ignore[method-assign]
+    service.prepare_attempt = prepare_attempt  # type: ignore[attr-defined]
+    service.record_completion_evidence = lambda *args: service.evidence.append(args[-1])  # type: ignore[attr-defined, method-assign]
+    launched: list[list[str]] = []
+    real_run = subprocess.run
+
+    def fake_run(argv: list[str], **kwargs: Any) -> Any:
+        if argv[1:3] == ["-m", "lazytools.code_bridge"]:
+            launched.append(argv)
+            return subprocess.CompletedProcess(argv, 0, "a" * 32 + "\n", "")
+        return real_run(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    events: list[str] = []
+    dispatch = Dispatcher(service, principal, bridge, "p", emit=events.append,  # type: ignore[arg-type]
+                          task_reader=service.tasks)  # type: ignore[arg-type]
+    return dispatch, service, jobs, launched, events, source_git, tmp_path / "trees" / "p" / "A"
+
+
+def _flag(argv: list[str], flag: str) -> str:
+    return argv[argv.index(flag) + 1]
+
+
+def test_crash_preserves_work_and_the_retry_resumes_the_same_conversation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lazybridge.engines.sessions import default_session_registry
+
+    from lazytools.code_bridge._dispatch import RESUME_PROMPT
+    dispatch, service, jobs, launched, events, source_git, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    dispatch.pass_once()
+    assert _flag(launched[0], "--session") == "dispatch-attempt-1"
+    (clone / "work.txt").write_text("half done\n")
+    (clone / "error.log").write_text("account_id=secret\n")
+    jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request",
+                         cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1", engine="codex")
+    dispatch.pass_once()
+
+    branch = "dispatch-attempt/p/A/1"
+    assert f"preserved p/A {branch}" in events
+    assert service.evidence[-1].preserved_branch == branch
+    assert branch in service.reasons[-1]
+
+    def git(*argv: str) -> str:
+        return subprocess.run(["git", "-C", str(clone), *argv], text=True, capture_output=True, check=True).stdout.strip()
+    assert (clone / "work.txt").read_text() == "half done\n"
+    assert git("rev-parse", branch) == git("rev-parse", "HEAD")
+    assert git("branch", "--show-current") == "dispatch/p/A"
+    assert git("show", "--name-only", "--format=", "HEAD") == "work.txt"  # litter is never committed
+    assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"  # the kept work counts as the task's
+    assert source_git("rev-parse", branch) == git("rev-parse", "HEAD")
+    retry = launched[1]
+    assert _flag(retry, "--session") == "dispatch-attempt-1" and _flag(retry, "--task") == RESUME_PROMPT
+    assert default_session_registry().resolve("codex", clone, "dispatch-attempt-1") == "thread-1"
+    assert dispatch.retries == {"p/A": 1}
+
+    # The engine cannot load the conversation: a fresh one starts on the preserved work.
+    jobs["job-A"].update(status="failed", cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1",
+                         engine="codex", error="No bridge policy binding for this native session; use a new session alias")
+    dispatch.pass_once()
+    assert any(event.startswith("retry p/A resume failed") for event in events)
+    fresh = launched[2]
+    assert _flag(fresh, "--session") == "dispatch-attempt-3"
+    text = _flag(fresh, "--task")
+    assert "interrupted by the system" in text and "work.txt" in text and text.endswith("Do A")
+    assert "work of interrupted attempt 1" in text
+    assert default_session_registry().resolve("codex", clone, "dispatch-attempt-3") is None
+    assert git("show", "--name-only", "--format=", "HEAD") == "work.txt"
+    assert dispatch.retries == {"p/A": 1}  # a failed resume does not use the retry budget
+
+
+def test_crash_without_a_recorded_conversation_retries_fresh_on_the_kept_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dispatch, _, jobs, launched, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    dispatch.pass_once()
+    (clone / "work.txt").write_text("half done\n")
+    jobs["job-A"].update(status="interrupted", error=f"cancelled by operator: {STALE_HEARTBEAT}", cwd=str(clone),
+                         engine="codex", native_id=None)
+    dispatch.pass_once()
+    assert "preserved p/A dispatch-attempt/p/A/1" in events
+    assert _flag(launched[1], "--session") == "dispatch-attempt-2"
+    assert "work.txt" in _flag(launched[1], "--task")
+    assert (clone / "work.txt").read_text() == "half done\n"
+
+
+def test_check_failure_keeps_todays_behaviour(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dispatch, service, jobs, launched, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    service.rows["A"]["checks"] = [f'"{sys.executable}" -c "raise SystemExit(3)"']
+    dispatch.pass_once()
+    (clone / "work.txt").write_text("done\n")
+    jobs["job-A"].update(status="done", cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1",
+                         engine="codex", error="App Server exited")
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "failed" and service.reasons == []
+    assert not any(event.startswith(("preserved", "retry")) for event in events)
+    assert service.evidence[-1].preserved_branch is None
+    assert len(launched) == 1
+    assert not subprocess.run(["git", "-C", str(clone), "branch", "--list", "dispatch-attempt/*"],
+                              text=True, capture_output=True, check=True).stdout.strip()
+
+
+def test_preserve_never_commits_litter(tmp_path: Path) -> None:
+    from lazytools.code_bridge._dispatch import _preserve_attempt
+    git = _repo(tmp_path / "r")
+    git("config", "dispatch.branch", "main")
+    git("tag", "dispatch-base")
+    (tmp_path / "r" / "error.log").write_text("account_id=secret\n")
+    (tmp_path / "r" / "__pycache__").mkdir()
+    (tmp_path / "r" / "__pycache__" / "m.pyc").write_bytes(b"x")
+    git("add", "-f", "error.log")
+    assert _preserve_attempt(tmp_path / "r", "p/A", 1) == (None, None)  # litter alone is nothing to keep
+    (tmp_path / "r" / "work.txt").write_text("work\n")
+    preserved, error = _preserve_attempt(tmp_path / "r", "p/A", 1)
+    assert error is None and preserved and preserved.files == ("work.txt",)
+    assert git("show", "--name-only", "--format=", "HEAD") == "work.txt"
+
+
+def _real_retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, refuse_resume: bool = False) -> Any:
+    """The real ProjectTaskService and clone handling; the bridge CLI is faked like run_job.
+
+    The fake bridge submits through the service's dispatch fence, or, with refuse_resume,
+    records a failed job for a resumed conversation before begin_submit (check_resume).
+    """
+    from lazytools.code_bridge._dispatch import RESUME_PROMPT
+    from lazytools.connectors.projects import ProjectsTools
+    from lazytools.projects.plan_edit import _board_key
+    from lazytools.projects.task_service import ProjectTaskService
+    from test_projects_task_service import PROJECT, admit, placement, task
+
+    monkeypatch.delenv("LAZYTOOLS_PROJECTS_STORE_DB", raising=False)
+    monkeypatch.setenv("LAZYBRIDGE_SESSIONS_FILE", str(tmp_path / "sessions.json"))
+    source = tmp_path / "source"
+    _repo(source)
+    path = str(tmp_path / "projects.sqlite")
+    projects = ProjectsTools(store_db=path, allow_write=True)
+    projects.projects_create(PROJECT, "Retry", "Resume retries")
+    admit(projects, [task("A", repo="example/a", text="Do A"), task("B", dependency_ids=["A"])])
+    service = ProjectTaskService(path)
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=(PROJECT,))
+    jobs: dict[str, dict[str, Any]] = {}
+    launched: list[list[str]] = []
+    real_run = subprocess.run
+
+    def fake_run(argv: list[str], **kwargs: Any) -> Any:
+        if argv[1:3] != ["-m", "lazytools.code_bridge"]:
+            return real_run(argv, **kwargs)
+        launched.append(argv)
+        task_id, token = _flag(argv, "--task-id"), _flag(argv, "--claim-token")
+        job_id = f"{len(launched):032x}"
+        attempt = service.dispatch_status(principal, task_id)["attempt"]
+        job = {"job_id": job_id, "task_id": task_id, "task_attempt": attempt, "status": "running",
+               "cwd": _flag(argv, "--cwd"), "engine": "codex", "session_name": _flag(argv, "--session")}
+        if refuse_resume and _flag(argv, "--task") == RESUME_PROMPT:
+            job.update(status="failed", error="No bridge policy binding for this native session; use a new session alias")
+        else:
+            service.begin_submit(principal, task_id, token)
+            service.record_submit(principal, task_id, token, job_id)
+        jobs[job_id] = job
+        return subprocess.CompletedProcess(argv, 0, job_id + "\n", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    def dispatcher(events: list[str]) -> Dispatcher:
+        bridge = BridgeLauncher(None, principal, PROJECT, repo_roots={"example/a": source},
+                                worktree_root=tmp_path / "trees")
+        monkeypatch.setattr(bridge, "job", jobs.get)
+        monkeypatch.setattr(bridge, "find", lambda task_id, attempt: next(
+            (job for job in jobs.values() if job["task_id"] == task_id and job["task_attempt"] == attempt), None))
+        monkeypatch.setattr(bridge, "pending", lambda: [])
+        return Dispatcher(service, principal, bridge, PROJECT, emit=events.append)
+
+    def git(*argv: str) -> str:
+        return real_run(["git", "-C", str(tmp_path / "trees" / PROJECT / "A"), *argv], text=True,
+                        capture_output=True, check=True).stdout.strip()
+
+    def crash_first_attempt(events: list[str]) -> Dispatcher:
+        first = dispatcher(events)
+        placement(service, "A")
+        first.pass_once()
+        clone = Path(_flag(launched[0], "--cwd"))
+        (clone / "work.txt").write_text("half done\n")
+        jobs[f"{1:032x}"].update(status="failed", error="Codex App Server exited before completing the request",
+                                 native_id="thread-1")
+        return first
+
+    def board_task() -> dict[str, Any]:
+        with Store(db=path) as store:
+            return dict(store.read(_board_key(PROJECT))["tasks"][0])
+
+    return service, launched, crash_first_attempt, dispatcher, placement, git, board_task
+
+
+def test_restart_between_settlement_and_launch_resumes_the_preserved_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lazybridge.engines.sessions import default_session_registry
+
+    from lazytools.code_bridge._dispatch import RESUME_PROMPT
+    service, launched, crash_first_attempt, dispatcher, placement, git, board_task = _real_retrying_dispatch(
+        tmp_path, monkeypatch)
+    events: list[str] = []
+    first = crash_first_attempt(events)
+    first.pass_once()  # settles and prepares the retry; the new revision has no placement, so nothing launches
+    assert any(event.startswith("retry queue-test/A engine crash") for event in events)
+    assert len(launched) == 1
+    continuation = board_task()["attempt_continuation"]
+    preserved = git("rev-parse", "dispatch-attempt/queue-test/A/1")
+    assert continuation["preserved_commit"] == preserved and continuation["native_id"] == "thread-1"
+    git("checkout", "--quiet", "-B", "dispatch/queue-test/A", "dispatch-base")  # the clone moved meanwhile
+
+    restarted = dispatcher(events)  # a new process: nothing survives in memory
+    placement(service, "A")
+    restarted.pass_once()
+    retry = launched[1]
+    assert _flag(retry, "--task") == RESUME_PROMPT and _flag(retry, "--session") == "dispatch-attempt-1"
+    assert default_session_registry().resolve("codex", Path(_flag(retry, "--cwd")), "dispatch-attempt-1") == "thread-1"
+    assert git("rev-parse", "HEAD") == preserved
+    assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"  # the artifact check counts the kept work
+
+
+def test_resume_refused_before_submit_starts_a_fresh_conversation_on_the_preserved_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, launched, crash_first_attempt, _, placement, git, board_task = _real_retrying_dispatch(
+        tmp_path, monkeypatch, refuse_resume=True)
+    events: list[str] = []
+    dispatch = crash_first_attempt(events)
+    dispatch.pass_once()  # settles the crash and prepares the retry
+    placement(service, "A")
+    dispatch.pass_once()  # the resumed attempt is refused before begin_submit
+    assert len(launched) == 2 and board_task()["dispatches"][-1]["state"] == "intent"
+    preserved = git("rev-parse", "dispatch-attempt/queue-test/A/1")
+    dispatch.pass_once()  # settles the refusal (it never reaches the provider boundary)
+    assert any(event.startswith("retry queue-test/A resume failed") for event in events)
+    refused = board_task()["dispatches"][-1]
+    assert refused["state"] == "absent" and "use a new session alias" in refused["launch_error"]
+    assert board_task()["attempt_continuation"]["fresh"] is True
+    placement(service, "A")
+    dispatch.pass_once()
+    fresh = launched[2]
+    assert _flag(fresh, "--session") == "dispatch-attempt-3"
+    text = _flag(fresh, "--task")
+    assert "interrupted by the system" in text and "work.txt" in text and text.endswith("Do A")
+    assert git("rev-parse", "HEAD") == preserved
+    assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"
+    assert board_task()["status"] == "claimed" and board_task()["dispatches"][-1]["state"] == "submitted"

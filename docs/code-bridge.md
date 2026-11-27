@@ -41,6 +41,7 @@ detached launch JSON gives the id, pid and log path at once.
 | `pending --json` | `approval_id`, `job_id`, gist, command/reason when available, creation and expiry |
 | `approver-credential init` | Provision the local owner credential for a typed approval registry |
 | `approver-credential provision-automatic PROJECT_ID` | Provision the project's automatic approval cards |
+| `approver-credential autonomy --mode MODE [--preset NAME]` or `--show` | Configure or inspect the owner-delegated [autonomy modes](#autonomy-modes) |
 | `approve` / `reject` | Decide a pending ticket. Rejection requires `--reason` |
 | `status` / `result` | Status or full job record/text; `--json` preserves metadata |
 | `wait` | Terminal result; exit 3 on waiter timeout, 1 when process disappears before final record |
@@ -82,6 +83,12 @@ not change that default format.
 its JSON lines for completion, failures, approvals, landings, and interruptions
 instead of maintaining a separate poller per job. The dispatch command also
 supports `--json` to emit structured task events as JSON lines.
+
+The event computation lives in `lazytools.code_bridge._events.iter_events`.
+`wait-any` calls it in its polling loop. The `bridge_events` MCP tool calls the
+same function through `_events.poll(cursor)`, which keeps the stream state in a
+cursor between calls (see [mcp-server.md](mcp-server.md#fleet--read-only-code-bridge-views)).
+There is one implementation, so both channels report the same events.
 
 ## Dispatch task graphs
 
@@ -370,7 +377,9 @@ autonomous count and percentage against the 90 percent target, followed by the
 number of intervention events grouped by command kind. JSON output contains
 `finished_jobs`, `autonomous_jobs`, `autonomy_percent`, `target_percent`,
 `target_met`, and `intervention_causes`. With no finished jobs, the percentage
-and target result are `null` rather than claiming success.
+and target result are `null`. The report also includes `card_approvals_by_class`,
+which counts card-use receipts by approval time in the same UTC range. A
+running job can contribute receipts as soon as the queue records them.
 
 ## Claude writes, Codex reviews
 
@@ -689,6 +698,28 @@ engine, session, review and capability constraints cannot silently relax
 these rules. `--needs` on `run` requires a tier. `--review-of` without a tier
 keeps the explicit `--engine` and does not apply the opposite-engine rule.
 
+#### Reviewer decision table
+
+One function, `_review_choice.choose_reviewer`, decides the reviewer for local
+routing (`route`, `run --tier`), cloud reviews and the job launcher. The first
+matching row wins:
+
+| row | condition | outcome |
+| --- | --- | --- |
+| 1 | the reviewer's native conversation id equals the writer's | refused: not independent |
+| 2 | the opposite engine is installed, or `--engine` names it | opposite engine, `opposite-engine` |
+| 3 | the writer's engine is the only one installed | writer's engine, `same-provider-fresh` |
+| 4 | neither 2 nor 3 | refused: opposite engine unavailable |
+| 5 | row 2 or 3 chose, but `--engine` names the other engine | refused: the review runs on the chosen engine |
+| 6 | row 3 chose and `--session` already has a conversation | refused: needs a new session name or none |
+
+An explicit `--engine` naming the opposite engine counts as installed: discovery
+only decides automatic selection. A local refusal is reported as
+`human_review_required`; a cloud refusal is an error. The launcher's engine is
+already fixed, so for it only row 1 can refuse (which is why `--review-of`
+without a tier keeps its `--engine`). After a reviewer is chosen, local routing
+can still end in `human_review_required` when that engine is ineligible.
+
 ### Native conversation ids and independence
 
 A local job records `native_id`, the Claude Code session id or Codex thread id
@@ -982,7 +1013,8 @@ consumption and outcome record.
 
 ### Coder approval cards
 
-Provision the coder hand once per approval registry from the owner shell.
+For the original coder hand, provision it once per approval registry from the
+owner shell. See [autonomy modes](#autonomy-modes) to choose a preset.
 Use the same store options for provisioning, running the job and inspecting
 its audit. With a custom \`--db\` alone, the bridge uses the sibling
 \`<db-stem>.registry.sqlite\` registry.
@@ -1026,6 +1058,52 @@ the copied card ID, its original, the request digest and the command or file
 paths. The plain-text output lists each approved action. Use the coder hand
 with trusted local repositories and toolchains. Tests execute repository code.
 Git hooks and custom execution settings can require operator approval.
+
+### Autonomy modes
+
+Use the owner shell to configure the CEO's delegated card classes in the
+approval registry used by local writer jobs. The registry and the owner
+credential belong outside the job checkout. Mode changes require that
+registry's owner credential and are available through the operator CLI.
+
+```console
+lazytools-code-bridge approver-credential init --registry-db REGISTRY_DB
+lazytools-code-bridge approver-credential autonomy --mode supervised --preset with-production --registry-db REGISTRY_DB
+lazytools-code-bridge approver-credential autonomy --mode total --preset with-production --registry-db REGISTRY_DB
+lazytools-code-bridge approver-credential autonomy --show --registry-db REGISTRY_DB
+```
+
+`supervised` is the default mode. With either preset it delegates
+`git_local`, `git_push_job_branch`, and `gh_pr_create` once the owner has
+provisioned the cards. In `total` mode the CEO can use cards for classes
+outside the preset's owner-only floor.
+
+| Preset | Classes that stay with the owner in total mode |
+| --- | --- |
+| `solo-dev` | `unknown`, `payment_or_external_post` |
+| `with-production` | `production_task`, `payment_or_external_post`, `delete_files`, `push_default_branch`, `unknown` |
+
+Omitting `--preset` keeps the current preset and defaults to
+`with-production` on first setup. Configuring a mode replaces the original
+coder hand if one was provisioned. A mode or preset change replaces the cards
+and invalidates copies issued to running jobs. New writer jobs get the new
+hand. Requests without a matching card enter the normal `pending`,
+`approve`, and `reject` flow.
+
+Each class applies to recognized direct commands within their native grants
+and the card's path, branch, and network restrictions. Job-branch pushes use
+`git push origin JOB_BRANCH` from the job checkout and require a GitHub
+`origin` with its default branch recorded in `refs/remotes/origin/HEAD`.
+Supported PR commands use the checkout's repository and explicit safe flags.
+For example, `gh pr merge 17 --squash` can use a total-mode card. Delegated
+install tickets can use an isolated wheel-only pip install into a new
+workspace target. Shell scripts, unscoped installs, and writes to external
+paths require an operator ticket. The `workspace_tools` class covers scoped
+reads, native file edits, and directory creation.
+
+Use `status JOB --json` or `result JOB --json` to see the actor, mode,
+class, and match reason on each card-use receipt. The
+[autonomy report](#autonomy-report) counts those decisions by class.
 
 ### Per-job temp directory
 
@@ -1897,6 +1975,38 @@ the bridge's configured per-engine local concurrency limits still apply.
 
 Events are line-oriented on stdout: `ready TASK`, `claimed TASK`, `launched JOB`,
 `done TASK`, `failed TASK REASON`, and `blocked TASK`.
+
+### Local tasks
+
+A local job that stops for a system reason (engine crash, stale heartbeat, database
+lock) is retried once. Before the retry, the dispatcher commits the attempt's
+uncommitted work in the task clone (never tool litter such as `*.log` or
+`__pycache__`) and points `dispatch-attempt/PROJECT/TASK/N` at it, in the clone
+and, when it can, in the source repository. It emits `preserved TASK BRANCH` and
+records the branch in the attempt's evidence. The retry starts from that work.
+Each attempt runs under a `--session` alias. When the failed job recorded a
+native conversation id and the retry uses the same engine, the retry resumes
+that conversation and tells the agent to continue. If the engine cannot load it,
+one more attempt starts a fresh conversation whose prompt lists the kept files
+and last commit message. A resume the bridge refuses before submitting the job
+is settled as a failed launch and starts that fresh attempt too. This extra
+attempt does not count against the retry limit. How the retry continues (kept
+branch and commit, session, native id, fresh-conversation flag) is stored with
+the prepared attempt in the task record, so a dispatcher restart before the
+launch still resumes the kept work. Check failures and other task failures are not retried. Review tasks
+never resume a writer's conversation.
+
+The dispatcher publishes the local branch `dispatch/<project>/<task>` in the source
+checkout (`published TASK BRANCH`) before completing the task (`done TASK`). With
+`--land` the dispatcher then runs `git push origin <branch>` from the task's clone
+(fast-forward only, excluding the repository's default branch) and runs `gh pr create --head
+<branch> --base <default branch>`. The PR title is the task's title or the first line
+of its text. The PR body lists the task id, its acceptance criteria and the checks that
+passed. If an open PR for the branch already exists, the dispatcher only pushes, so a
+later task that revises the branch updates that PR. Landing emits a follow-up event,
+`landed TASK PR_URL` on success or `land-failed TASK REASON` on failure. The task is
+already accepted and its dependants are eligible to run. `gh` must be
+installed and authenticated (`gh auth login` or `GH_TOKEN`).
 
 ### Cloud tasks
 

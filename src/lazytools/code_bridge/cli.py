@@ -40,6 +40,7 @@ from lazytools.code_bridge import (
     _credentials,
     _dispatch,
     _engines,
+    _events,
     _freshness,
     _jobs,
     _launch,
@@ -502,6 +503,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
         extra_meta: dict[str, Any] = {"task_id": args.task_id} if args.task_id else {}
         if args.review_of:
             store = _store.build_store(_db_path(args))
+            rows = _jobs.list_jobs(store, all_jobs=True) if args.session else []
             prep = _cloud_land.prepare_review(
                 store,
                 _store.build_job_registry(store),
@@ -511,19 +513,14 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
                 engine=args.engine,
                 extra=task,
                 root=_cloud.repo_root(cwd),
+                session_history=bool(args.session)
+                and _routing.session_hint(rows, str(cwd), args.session).engine is not None,
             )
             if branch and branch != prep["branch"]:
                 raise ValueError(f"--branch {branch!r} conflicts with the reviewed branch {prep['branch']!r}")
             args.engine, branch, task = prep["engine"], prep["branch"], prep["task"]
             review_meta = extra_meta["review"] = prep["review"]
             extra_meta["review_independence"] = review_meta["independence"]
-            if args.session and review_meta["independence"] == "same-provider-fresh":
-                rows = _jobs.list_jobs(store, all_jobs=True)
-                if _routing.session_hint(rows, str(cwd), args.session).engine is not None:
-                    raise ValueError(
-                        f"--session {args.session!r} already has a conversation in this repository; a "
-                        "same-provider-fresh review needs a new session name or none"
-                    )
         if args.routine and args.engine != "claude":
             raise ValueError("--routine is only for --where cloud --engine claude")
     except (OSError, ValueError, _cloud.CloudError) as exc:
@@ -1406,38 +1403,13 @@ def _cmd_wait(args: argparse.Namespace) -> int:
         time.sleep(args.interval)
 
 
-_WAIT_EVENTS = {"done", "failed", "approval", "landed", "interrupted"}
-
-
-def _wait_event(job: dict[str, Any], event: str, approval: dict[str, Any] | None = None) -> dict[str, Any]:
-    # kind/job_id/task_id/detail are shared with `dispatch --json` events.
-    if approval is not None:
-        command = " ".join(str(approval.get("command") or approval.get("summary") or "").split())[:200]
-        reason = " ".join(str(approval.get("reason") or "").split())[:160]
-        detail = f"{approval['approval_id']} {command} | {reason}"
-    elif event == "landed":
-        detail = str(job.get("pr_url") or "")
-    else:
-        detail = " ".join(str(job.get("error") or job.get("status") or "").split())
-    return {
-        "event": event,
-        "job_id": str(job["job_id"]),
-        "state": job.get("status"),
-        "approval": approval,
-        "pr_url": job.get("pr_url"),
-        "kind": event,
-        "task_id": job.get("task_id"),
-        "detail": detail,
-    }
-
-
 def _cmd_wait_any(args: argparse.Namespace) -> int:
     """Wait for the next actionable state across a snapshot of jobs."""
     started_at = time.time()
     db_path = _db_path(args)
     try:
         events = {value.strip() for value in args.events.split(",") if value.strip()}
-        unknown_events = events - _WAIT_EVENTS
+        unknown_events = events - _events.WAIT_EVENTS
         if unknown_events:
             raise ValueError(f"unknown --events value(s): {', '.join(sorted(unknown_events))}")
         if not events:
@@ -1478,91 +1450,22 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
                 watched.append(job_id)
 
     deadline = None if args.timeout is None else time.monotonic() + args.timeout
-    emitted_approvals: set[str] = set()
-    terminal_seen: set[str] = set()
+    # The event computation is shared with the `bridge_events` MCP tool (`_events.poll`).
+    state = _events.WatchState(watched=watched, history=history, follow=args.follow, started_at=started_at)
     while True:
-        store = _store.build_store(db_path)
-        registry = _store.build_job_registry(store)
-        if args.follow:  # pick up every job created after this stream began, even one already finished
-            for job in _jobs.list_jobs(store, all_jobs=True):
-                job_id = str(job["job_id"])
-                if job_id not in watched and job_id not in history:
-                    watched.append(job_id)
-        jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
-
-        # A ticket is emitted once per invocation, even if it remains pending.
-        tickets = _pending_tickets(args, store, jobs=(job for job in jobs.values() if job is not None))
-        for ticket in tickets:
-            job = jobs.get(_registry.job_ref(ticket))
-            if job is None or ticket.approval_id in emitted_approvals:
-                continue
-            emitted_approvals.add(ticket.approval_id)
-            detail = _request_detail(ticket.prompt)
-            approval = {
-                "approval_id": ticket.approval_id,
-                "command": detail.get("command"),
-                "summary": detail.get("summary") or ticket.prompt.splitlines()[0],
-                "reason": detail.get("reason"),
-            }
-            if "approval" in events:
-                _print_json(_wait_event(job, "approval", approval))
-                if not args.loop:
-                    return 0
-
-        candidates: list[tuple[float, dict[str, Any], str]] = []
-        for job_id, current in jobs.items():
-            if current is None or job_id in terminal_seen:
-                continue
-            job = current
-            finishing_action = None
-            if _cloud.is_cloud(job) and (job.get("status") not in _TERMINAL or _cloud_land.needs_finishing(job)):
-                row = _cloud_land.process_job(
-                    store,
-                    registry,
-                    job,
-                    db_path=db_path,
-                    poll_interval=args.interval,
-                    deadline=deadline,
-                    nonblocking_poll=True,
-                )
-                job = _jobs.find_job(store, registry, job_id) or job
-                finishing_action = row["action"]
-            status = str(job.get("status") or "")
-            landing_failed = finishing_action in {"land-failed", "review-failed"}
-            landed_at = job.get("landed_at")
-            landed = finishing_action == "landed" or bool(
-                _cloud.is_cloud(job)
-                and job.get("land")
-                and landed_at
-                and (float(landed_at) >= started_at or not job.get("landed_event_reported_at"))
-            )
-            event = (
-                "failed"
-                if landing_failed
-                else (
-                    "landed"
-                    if landed
-                    else (
-                        {"done": "done", "failed": "failed", "partial": "failed", "interrupted": "interrupted"}.get(
-                            status
-                        )
-                    )
-                )
-            )
-            if event:
-                meta = _store.read_meta(store, job_id) or {}
-                candidates.append((float(meta.get("completed_at") or meta.get("updated_at") or 0), job, event))
-        for _at, job, event in sorted(candidates, key=lambda item: item[0]):
-            terminal_seen.add(str(job["job_id"]))
-            if event in events:
-                _print_json(_wait_event(job, event))
-                if event == "landed":
-                    meta = _store.read_meta(store, str(job["job_id"])) or {}
-                    meta["landed_event_reported_at"] = time.time()
-                    _store.write_meta(store, str(job["job_id"]), meta)
-                if not args.loop:
-                    return 0
-        if args.loop and not args.follow and len(terminal_seen) == len(watched):
+        for event in _events.iter_events(
+            state,
+            db_path=db_path,
+            registry_db=args.registry_db,
+            kinds=events,
+            finish=True,
+            interval=args.interval,
+            deadline=deadline,
+        ):
+            _print_json(event)
+            if not args.loop:
+                return 0
+        if args.loop and not args.follow and len(state.seen_jobs) == len(state.watched):
             return 0
         if deadline is not None and time.monotonic() >= deadline:
             return 3
@@ -2085,6 +1988,27 @@ def _cmd_provision_coder(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_configure_autonomy(args: argparse.Namespace) -> int:
+    from lazytools.projects.task_store import TaskServiceError
+
+    if args.show and args.preset is not None:
+        print("--preset requires --mode", file=sys.stderr)
+        return 2
+    try:
+        path = _selected_registry_db(args) or _registry._registry_path()
+        if path is None:
+            raise ValueError("A persistent approval registry is required")
+        selection = _coder.show(path) if args.show else _coder.configure(path, args.mode, args.preset)
+    except (OSError, ValueError, TaskServiceError) as exc:
+        print(f"could not read or configure autonomy: {exc}", file=sys.stderr)
+        return 1
+    classes = sorted({card.action_class for card in selection.cards})
+    print(f"Mode: {selection.mode}")
+    print(f"Preset: {selection.preset}")
+    print(f"Delegated classes: {', '.join(classes) if classes else 'none'}")
+    return 0
+
+
 def _cmd_autonomy(args: argparse.Namespace) -> int:
     try:
         if args.week:
@@ -2113,6 +2037,11 @@ def _cmd_autonomy(args: argparse.Namespace) -> int:
         if not payload["intervention_causes"]:
             print("  none")
         for kind, count in payload["intervention_causes"].items():
+            print(f"  {kind}: {count}")
+        print("Card approvals by class:")
+        if not payload["card_approvals_by_class"]:
+            print("  none")
+        for kind, count in payload["card_approvals_by_class"].items():
             print(f"  {kind}: {count}")
     return 0
 
@@ -2239,6 +2168,8 @@ def build_parser() -> argparse.ArgumentParser:
                             help="Passed to every task's run (default: the run default).")
     dispatch_p.add_argument("--json", action="store_true",
                             help="Print one JSON event per line with the keys wait-any events carry.")
+    dispatch_p.add_argument("--land", action="store_true",
+                            help="Push each published task branch to origin and open its PR (or update an open one).")
     dispatch_p.set_defaults(func=_dispatch.dispatch)
 
     watch_p = sub.add_parser("watch", help="Print new events for one or more GitHub pull requests.")
@@ -2682,6 +2613,14 @@ def build_parser() -> argparse.ArgumentParser:
     coder_cards = credential_sub.add_parser("provision-coder", help="Provision the owner's coder hand for this registry.")
     _add_registry_option(coder_cards)
     coder_cards.set_defaults(func=_cmd_provision_coder)
+
+    autonomy_config = credential_sub.add_parser("autonomy", help="Read or set the owner-delegated coder hand.")
+    autonomy_operation = autonomy_config.add_mutually_exclusive_group(required=True)
+    autonomy_operation.add_argument("--show", action="store_true")
+    autonomy_operation.add_argument("--mode", choices=_coder.MODES)
+    autonomy_config.add_argument("--preset", help="Setup preset. Defaults to the current preset or with-production.")
+    _add_registry_option(autonomy_config)
+    autonomy_config.set_defaults(func=_cmd_configure_autonomy)
 
     approve_p = sub.add_parser("approve", help="Approve a pending ticket.")
     approve_p.add_argument("ticket_id")

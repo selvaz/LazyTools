@@ -5,10 +5,14 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import time
 from datetime import date
 from typing import Any
 
 from lazytools.code_bridge._mcp import QUERY_TIMEOUT, CodeBridgeTools
+
+_EVENTS_MAX_WAIT = 60
+_EVENTS_POLL_INTERVAL = 0.5
 
 
 class FleetTools(CodeBridgeTools):
@@ -124,6 +128,32 @@ class FleetTools(CodeBridgeTools):
         """Inspect model availability without running the optional Claude probe."""
         return self._read_call(["models", "--json"])
 
+    def bridge_events(self, cursor: str = "", timeout_s: int = 0) -> Any:
+        """Return bridge job events since ``cursor`` as ``{"events": [...], "cursor": "..."}``.
+
+        Pass the returned cursor to the next call. An empty cursor starts "from now": jobs
+        that already finished are not replayed, open approval tickets are reported. An event
+        that happens between two calls is returned by the next call. With ``timeout_s`` (at
+        most 60) the call waits that long for at least one event. Event kinds: ``approval``,
+        ``done``, ``failed``, ``interrupted``, ``cancelled``, ``landed``. A cursor this tool
+        did not return is refused.
+        """
+        from lazytools.code_bridge import _events
+
+        if not isinstance(cursor, str):
+            raise ValueError("cursor must be text")
+        if isinstance(timeout_s, bool) or not isinstance(timeout_s, int) or not 0 <= timeout_s <= _EVENTS_MAX_WAIT:
+            raise ValueError(f"timeout_s must be an integer from 0 to {_EVENTS_MAX_WAIT}")
+        if cursor:
+            _events.decode_cursor(cursor)  # refuse a malformed cursor before reading any store
+        deadline = time.monotonic() + timeout_s
+        while True:
+            events, cursor = _events.poll(cursor)
+            remaining = deadline - time.monotonic()
+            if events or remaining <= 0:
+                return {"events": events, "cursor": cursor}
+            time.sleep(min(_EVENTS_POLL_INTERVAL, remaining))
+
     def capabilities_search(self, query: str = "") -> Any:
         """Search the capabilities catalog and return its tabular rows."""
         query = self._safe_text("query", query)
@@ -146,7 +176,7 @@ class FleetTools(CodeBridgeTools):
         return rows
 
     def as_tools(self) -> list[Any]:
-        """Only the six read-only views; the inherited submit/status/result stay in ``code_bridge``.
+        """Only the read-only views; the inherited submit/status/result stay in ``code_bridge``.
 
         These are fleet-wide (every job and ticket in the shared store), so they carry no
         ``CODE_ACCESS`` grant: a task-scoped server (``_scoped_tools``) never exposes them, and
@@ -155,7 +185,7 @@ class FleetTools(CodeBridgeTools):
         from lazybridge import Tool
 
         methods = (self.bridge_jobs, self.bridge_pending, self.bridge_route, self.bridge_autonomy,
-                   self.bridge_models, self.capabilities_search)
+                   self.bridge_models, self.capabilities_search, self.bridge_events)
         return [Tool.wrap(_unscoped(method), name=method.__name__) for method in methods]
 
 

@@ -75,11 +75,13 @@ PROVIDER_GROUPS: dict[str, ProviderCatalogEntry] = {
     "claude_review": _entry("Coding agents", 6, "Claude Review", "LazyTools", "Review code and answer design questions with Claude Code."),
     "code_sessions": _entry("Coding agents", 6, "Code Sessions", "LazyTools", "Inspect and curate named coding sessions."),
     "fleet": _entry("Coding agents", 6, "Fleet", "LazyTools", "Read jobs, approval tickets, routes, autonomy, models, and capabilities."),
+    "pr": _entry("Coding agents", 6, "Pull Requests", "LazyTools", "Watch, navigate, publish, and apply pull-request work."),
     "telegram": _entry("Messaging", 7, "Telegram", "LazyTools", "Send allow-listed Telegram messages and documents."),
     "gmail": _entry("Messaging", 7, "Gmail", "LazyTools", "Read, draft, and send Gmail messages."),
     "outlook": _entry("Messaging", 7, "Outlook", "LazyTools", "Read, draft, and send Outlook messages."),
     "projects": _entry("Operations", 8, "Projects", "LazyTools", "Inspect and maintain the shared project registry."),
     "registry": _entry("Operations", 8, "Registry", "LazyTools", "Inspect ecosystem databases and artifacts."),
+    "knowledge": _entry("Operations", 8, "Knowledge", "LazyTools", "Search and record the lessons shared with the dispatcher."),
     "pulse": _entry("Operations", 8, "LazyCEO backlog and approvals", "LazyCEO", "Inspect LazyCEO backlog items and approval tickets."),
     "studio": _entry("Operations", 8, "Studio", "LazyStudio", "Discover and invoke agents published by LazyStudio."),
 }

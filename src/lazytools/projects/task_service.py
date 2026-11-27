@@ -75,6 +75,23 @@ class CompletionEvidence(BaseModel):
     review_independence: ReviewIndependence | None = None
     outcome: Outcome | None = None
     failure_reason: Nonempty | None = None
+    preserved_branch: Nonempty | None = None  # work of a failed attempt, kept for the retry
+    pr_url: Nonempty | None = None  # `dispatch --land`: the PR the accepted branch was pushed to
+    land_failure: Nonempty | None = None  # `dispatch --land`: why push or PR failed (the task stays accepted)
+
+
+class AttemptContinuation(BaseModel):
+    """How a retry continues the attempt the system stopped, stored with the attempt it prepares."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    preserved_branch: Nonempty | None = None
+    preserved_commit: Nonempty | None = None
+    preserved_files: tuple[str, ...] = ()
+    preserved_message: str = ""
+    session: Nonempty | None = None  # the failed attempt's session alias
+    native_id: Nonempty | None = None  # its engine conversation; None starts a fresh one
+    engine: Nonempty | None = None
+    fresh: bool = False  # the resume was refused: this attempt starts a fresh conversation
 
 
 def _route_key(repo: str, placement: str, environment_id: str) -> str:
@@ -573,9 +590,13 @@ class ProjectTaskService:
 
     def prepare_attempt(
         self, principal: TaskPrincipal, task_id: str, expected_revision: str, reason: str, *,
-        review_target: str | None = None,
+        review_target: str | None = None, continuation: AttemptContinuation | None = None,
     ) -> str:
-        """Queue another attempt while retaining the previous dispatch and its evidence."""
+        """Queue another attempt while retaining the previous dispatch and its evidence.
+
+        A continuation is stored with the task until the next prepared attempt, so a
+        dispatcher that restarts before the launch still continues the failed attempt.
+        """
         principal.require_role("orchestrator", "owner")
         if not reason.strip():
             raise TaskServiceError("invalid", "An attempt reason is required")
@@ -601,6 +622,7 @@ class ProjectTaskService:
             task.data.update(
                 revision=uuid4().hex, completed_at=None, result="", error="", attempt_reason=reason.strip(),
                 review_target=review_target,
+                attempt_continuation=continuation.model_dump(mode="json") if continuation else None,
             )
             task.save(store, self.clock())
             return task.revision
@@ -882,8 +904,9 @@ class ProjectTaskService:
             ):
                 raise TaskServiceError("stale", "Evidence does not match the submitted job, executor and engine")
             record = evidence.model_dump(mode="json")
-            if evidence.failure_reason is None:
-                record.pop("failure_reason")  # keep existing evidence replays compatible
+            for optional in ("failure_reason", "preserved_branch", "pr_url", "land_failure"):
+                if record[optional] is None:
+                    record.pop(optional)  # keep existing evidence replays compatible
             records = dispatch.setdefault("evidence", {})
             if evidence.reference in records:
                 if records[evidence.reference] != record:
