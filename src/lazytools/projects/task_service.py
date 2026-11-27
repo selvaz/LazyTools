@@ -88,6 +88,7 @@ class AttemptContinuation(BaseModel):
     preserved_commit: Nonempty | None = None
     preserved_files: tuple[str, ...] = ()
     preserved_message: str = ""
+    preserved_unresolved: tuple[str, ...] = ()  # files the preserved work left with conflict markers
     session: Nonempty | None = None  # the failed attempt's session alias
     native_id: Nonempty | None = None  # its engine conversation; None starts a fresh one
     engine: Nonempty | None = None
@@ -814,7 +815,7 @@ class ProjectTaskService:
             }
 
     def fail_local_launch(self, principal: TaskPrincipal, task_id: str, claim_token: str, error: str) -> None:
-        """Settle a local dispatch after the reconciler rules out a submitted job."""
+        """Settle a local or cloud dispatch after the reconciler rules out a submitted job."""
         principal.require_role("orchestrator")
         if not error.strip():
             raise TaskServiceError("invalid", "Launch failure evidence is required")
@@ -826,11 +827,11 @@ class ProjectTaskService:
             if receipt["claim_token"] != claim_token:
                 raise TaskServiceError("stale", "Claim token has been superseded")
             if (
-                receipt["effective_placement"] != "local"
+                receipt["effective_placement"] not in ("local", "cloud")
                 or dispatch["state"] not in ("intent", "submitting")
                 or dispatch.get("job_ref")
             ):
-                raise TaskServiceError("conflict", "Only an unsubmitted local launch can be settled as failed")
+                raise TaskServiceError("conflict", "Only an unsubmitted launch can be settled as failed")
             if dispatch.get("unresolved_effects"):
                 raise TaskServiceError("unresolved", "Reconcile outstanding effects before releasing the claim")
             now = self.clock()

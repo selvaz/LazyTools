@@ -121,6 +121,10 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "pr_navigate",
     "bridge_publish",
     "bridge_apply",
+    # The writers of the ``fleet`` provider: ticket decisions and job cancellation.
+    "bridge_approve",
+    "bridge_reject",
+    "bridge_cancel",
     # Session-name curation: changes what a name resumes (and so which
     # conversation a later call continues). ``code_sessions_list`` is a reader.
     "code_sessions_bind",

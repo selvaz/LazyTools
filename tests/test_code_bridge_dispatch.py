@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import shutil
+import stat
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -202,7 +205,7 @@ def test_cloud_task_is_skipped_without_claim_or_launch() -> None:
     assert not launcher.launches
     assert service.rows["A"]["status"] == "todo"
     assert not service.claims
-    assert "failed p/A cloud placement not supported by dispatch v1" in events
+    assert "failed p/A cloud placement not supported by this launcher" in events
 
 
 def test_expired_orphan_is_reconciled_and_released() -> None:
@@ -912,6 +915,83 @@ def test_land_can_outlast_the_claim_lease(tmp_path: Path, monkeypatch: pytest.Mo
     assert evidence["state"] == "accepted" and "pr_url" not in evidence and "land_failure" not in evidence
 
 
+def test_slow_landing_does_not_consume_another_tasks_lease(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lazytools.code_bridge import _gh
+    from lazytools.code_bridge._dispatch import _tasks
+    from lazytools.connectors.projects import ProjectsTools
+    from lazytools.projects.task_service import PlacementEvidence, ProjectTaskService
+
+    gh = FakeGh()
+    clone_a, remote, bridge, remote_git = _landing_setup(tmp_path, monkeypatch, gh, task_id="landing/A")
+    clone_b = bridge._checkout({"task_id": "landing/B", "repo": "o/r"})
+    bridge._git(clone_b, "remote", "set-url", "origin", "https://github.com/o/r.git")
+    bridge._git(clone_b, "config", f"url.{remote.as_uri()}.pushInsteadOf", "https://github.com/o/r.git")
+    (clone_b / "other.txt").write_text("task B work\n")
+    bridge._git(clone_b, "add", "other.txt")
+    bridge._git(clone_b, "commit", "-qm", "Task B work")
+    path = str(tmp_path / "projects.sqlite")
+    projects = ProjectsTools(store_db=path, allow_write=True)
+    assert "AS A DRAFT" in projects.projects_create("landing", "Landing", "Test independent landings")
+    plan = [
+        {"task_id": "A", "text": "Publish A", "acceptance_criteria": ["A is published"]},
+        {"task_id": "B", "text": "Publish B", "acceptance_criteria": ["B is published"]},
+    ]
+    args = ("landing", "Publish A and B", "2027-01-01T00:00:00Z", plan)
+    verdict = projects.projects_review_plan(*args)
+    assert verdict["ok"], verdict
+    assert projects.projects_promote(*args).startswith("promoted")
+
+    now = 1000.0
+
+    def clock() -> float:
+        return now
+
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("landing",))
+    service = ProjectTaskService(path, lease_seconds=60, clock=clock)
+    for task in _tasks(service, "landing"):
+        service.record_placement(task.task_id, task.revision, PlacementEvidence(
+            placement="local", eligible=True, reason="test runner", reference="test-placement",
+            expires_at=2000, engine_family="codex",
+        ))
+    launcher = FakeLauncher(FakeService())
+    events: list[str] = []
+    dispatch = Dispatcher(service, principal, launcher, "landing", parallel=2, clock=clock,
+                          emit=events.append, land=True)
+    dispatch.pass_once()
+    assert sorted(launcher.launches) == ["A", "B"], events
+    leases = []
+    for task in _tasks(service, "landing"):
+        assert task.dispatch is not None, events
+        receipt = task.dispatch["receipt"]
+        service.begin_submit(principal, task.task_id, receipt["claim_token"])
+        service.record_submit(principal, task.task_id, receipt["claim_token"], f"job-{task.task_id[-1]}")
+        leases.append(receipt["lease_expires_at"])
+    for name, clone in (("A", clone_a), ("B", clone_b)):
+        launcher.finish(name)
+        launcher.jobs[f"job-{name}"]["cwd"] = str(clone)
+    now = min(leases) - 1
+
+    def slow_gh(*args: str, **kwargs: Any) -> str:
+        nonlocal now
+        if args[:2] == ("repo", "view"):
+            now += 2  # each landing outlasts every remaining lease
+        return gh(*args, **kwargs)
+
+    monkeypatch.setattr(_gh, "run_gh", slow_gh)
+    dispatch.pass_once()
+
+    assert now > max(leases)
+    for task in _tasks(service, "landing"):
+        assert task.status == "done", events
+        assert task.data["dispatches"][-1]["completion"]["result"]["state"] == "accepted"
+    assert events.index("done landing/A") < events.index("landed landing/A https://github.com/o/r/pull/7")
+    assert events.index("done landing/B") < events.index("landed landing/A https://github.com/o/r/pull/7")
+    assert not [line for line in events if line.startswith(("failed", "land-failed"))], events
+    assert remote_git("rev-parse", "refs/heads/dispatch/landing/B") == bridge._git(clone_b, "rev-parse", "HEAD")
+
+
 @pytest.mark.parametrize("failure", ["push", "gh", "push-timeout"])
 def test_land_failure_keeps_the_task_accepted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
@@ -1374,6 +1454,60 @@ def test_preserve_never_commits_litter(tmp_path: Path) -> None:
     assert git("show", "--name-only", "--format=", "HEAD") == "work.txt"
 
 
+def test_preserved_conflicted_merge_stays_unresolved_for_the_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lazytools.code_bridge._dispatch import RESUME_PROMPT, _conclude_workspace
+    dispatch, service, jobs, launched, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    dispatch.pass_once()
+
+    def git(*argv: str, check: bool = True) -> str:
+        return subprocess.run(["git", "-C", str(clone), *argv], text=True, capture_output=True,
+                              check=check).stdout.strip()
+    # The engine crashes while resolving a dependency merge: markers remain in f.txt.
+    git("checkout", "-qb", "dep")
+    (clone / "f.txt").write_text("dep\n")
+    git("commit", "-qam", "dep")
+    git("checkout", "-q", "dispatch/p/A")
+    (clone / "f.txt").write_text("task\n")
+    git("commit", "-qam", "task side")
+    git("merge", "--no-edit", "dep", check=False)
+    assert "<<<<<<<" in (clone / "f.txt").read_text()
+    jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request",
+                         cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1", engine="codex")
+    dispatch.pass_once()
+
+    assert "preserved p/A dispatch-attempt/p/A/1" in events
+    assert "UNRESOLVED" in git("log", "-1", "--format=%B")
+    assert service.rows["A"]["attempt_continuation"]["preserved_unresolved"] == ["f.txt"]
+    retry = _flag(launched[1], "--task")
+    assert retry.startswith(RESUME_PROMPT) and "merge is UNRESOLVED" in retry and "f.txt" in retry
+    # The preservation commit left a clean checkout, but its markers are still caught.
+    assert git("status", "--porcelain") == ""
+    assert _conclude_workspace(clone, "p/A") == ("unresolved conflict markers in f.txt", None)
+
+    # The retry reports success without resolving the file: rejected, never published.
+    jobs["job-A"].update(status="done", cwd=str(clone))
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "failed"
+    assert "failed p/A unresolved conflict markers in f.txt" in events
+    assert not any(event.startswith("published") for event in events)
+
+
+def test_clean_commit_with_conflict_markers_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dispatch, service, jobs, _, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    dispatch.pass_once()
+    (clone / "calc.py").write_text("<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> dep\n")
+    (clone / "notes.txt").write_text("fine\n")
+    subprocess.run(["git", "-C", str(clone), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(clone), "commit", "-qm", "work"], check=True)
+    jobs["job-A"].update(status="done", cwd=str(clone))
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "failed"
+    assert "failed p/A unresolved conflict markers in calc.py" in events
+    assert not any(event.startswith(("published", "done")) for event in events)
+
+
 def _real_retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, refuse_resume: bool = False) -> Any:
     """The real ProjectTaskService and clone handling; the bridge CLI is faked like run_job.
 
@@ -1560,6 +1694,30 @@ def test_a_source_that_cannot_be_updated_is_left_alone_and_reported_once(
     assert len(waiting) == 1 and waiting[0].startswith(f"waiting p/A source base is stale: {why}")
     assert recorded == {"p/A": head, "p/B": head}
     assert (source_git("rev-parse", "HEAD"), source_git("status", "--porcelain")) == (head, status)
+
+
+def test_retry_recreates_missing_clone_with_preserved_work(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    service, launched, crash_first_attempt, dispatcher, placement, git, board_task = _real_retrying_dispatch(
+        tmp_path, monkeypatch)
+    events: list[str] = []
+    first = crash_first_attempt(events)
+    first.pass_once()
+    preserved = board_task()["attempt_continuation"]["preserved_commit"]
+    base = git("rev-parse", "dispatch-base")
+    clone = Path(_flag(launched[0], "--cwd"))
+    def remove_readonly(func: Any, path: str, _error: Any) -> None:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+    shutil.rmtree(clone, onerror=remove_readonly)
+
+    placement(service, "A")
+    dispatcher(events).pass_once()
+    assert len(launched) == 2
+    assert (clone / "work.txt").read_text() == "half done\n"
+    assert git("rev-parse", "HEAD") == preserved
+    assert git("rev-parse", "dispatch-base") == base
+    assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"
 
 
 def test_resume_refused_before_submit_starts_a_fresh_conversation_on_the_preserved_work(
