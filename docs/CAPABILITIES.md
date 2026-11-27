@@ -1,5 +1,7 @@
 # Capabilities catalog (LazyTools + LazyBridge)
 
+For the architecture and task lifecycle, see the [LazyTools agent orchestrator overview](orchestrator-overview.html).
+
 ## How to use this file
 
 1. Search this file (Ctrl-F) BEFORE building any tool, watcher, viewer, queue or gate. If a row looks close, read its doc and run its `--help`.
