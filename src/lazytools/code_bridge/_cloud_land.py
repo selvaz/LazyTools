@@ -705,6 +705,9 @@ def post_review(store: Any, registry: Any, job: dict[str, Any]) -> dict[str, Any
         _update_meta(store, job_id, {"review_posted_at": time.time(), "review_comment_url": url or None,
                                      "review_note": None})
         return {"job_id": job_id, "posted": True, "already": False, "verdict": verdict, "url": url or None}
+    except CloudError as exc:
+        _update_meta(store, job_id, {"review_error": redact(str(exc))})
+        raise
     finally:
         _release(store, job_id, "review")
 

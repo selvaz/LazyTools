@@ -46,9 +46,10 @@ class WatchState:
     """What one event stream has already looked at and reported.
 
     ``seen_jobs`` maps a job id to the event kind reported for it (or, for history, the
-    status it already had); a job in it gets no further terminal event, except a cloud job
-    that lands later when the caller does not finish cloud jobs itself. ``seen_tickets``
-    maps each reported approval ticket id to its job id.
+    one it already stood for); a job in it gets no further terminal event, except that a
+    caller which does not finish cloud jobs itself is still told once when a done cloud
+    job's landing (or review posting) later fails or succeeds. ``seen_tickets`` maps each
+    reported approval ticket id to its job id.
     """
 
     watched: list[str]
@@ -57,6 +58,23 @@ class WatchState:
     started_at: float = 0.0
     seen_jobs: dict[str, str] = field(default_factory=dict)
     seen_tickets: dict[str, str] = field(default_factory=dict)
+
+
+def job_event(job: dict[str, Any]) -> str | None:
+    """The event a stored job record stands for, or ``None`` while it is unfinished.
+
+    Only persisted state counts (status and landing/review metadata), so every reader of
+    the same record gets the same answer, whoever ran the finisher.
+    """
+    status = str(job.get("status") or "")
+    if status == "done" and _cloud.is_cloud(job):
+        if job.get("land") and job.get("landed_at"):
+            return "landed"
+        land_failed = job.get("land_error") and not job.get("landed_at")
+        review_failed = job.get("review_error") and not (job.get("review_posted_at") or job.get("review_comment_url"))
+        if land_failed or review_failed:
+            return "failed"
+    return _TERMINAL_EVENT.get(status)
 
 
 def wait_event(job: dict[str, Any], event: str, approval: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -68,7 +86,10 @@ def wait_event(job: dict[str, Any], event: str, approval: dict[str, Any] | None 
     elif event == "landed":
         detail = str(job.get("pr_url") or "")
     else:
-        detail = " ".join(str(job.get("error") or job.get("status") or "").split())
+        error = job.get("error")
+        if event == "failed" and job.get("status") == "done":
+            error = job.get("land_error") or job.get("review_error")
+        detail = " ".join(str(error or job.get("status") or "").split())
     return {
         "event": event,
         "job_id": str(job["job_id"]),
@@ -177,15 +198,14 @@ def iter_events(
         if current is None:
             continue
         prior = state.seen_jobs.get(job_id)
-        # Without the finisher, a reported cloud job can still land later: look again.
+        # Without the finisher, a reported cloud job can still land or fail to later: look again.
         if prior is not None and (finish or prior == "landed" or not _cloud.is_cloud(current)):
             continue
         job = current
-        finishing_action = None
         if finish and _cloud.is_cloud(job) and (
             job.get("status") not in cli._TERMINAL or _cloud_land.needs_finishing(job)
         ):
-            row = _cloud_land.process_job(
+            _cloud_land.process_job(
                 store,
                 registry,
                 job,
@@ -195,18 +215,12 @@ def iter_events(
                 nonblocking_poll=True,
             )
             job = _jobs.find_job(store, registry, job_id) or job
-            finishing_action = row["action"]
-        status = str(job.get("status") or "")
-        landing_failed = finishing_action in {"land-failed", "review-failed"}
-        landed_at = job.get("landed_at")
-        landed = finishing_action == "landed" or bool(
-            _cloud.is_cloud(job)
-            and job.get("land")
-            and landed_at
-            and (float(landed_at) >= state.started_at or not job.get("landed_event_reported_at"))
-        )
-        event = "failed" if landing_failed else ("landed" if landed else _TERMINAL_EVENT.get(status))
-        if prior is not None and event != "landed":
+        event = job_event(job)
+        # A landing an earlier stream already delivered is, to this one, just a done job.
+        if event == "landed" and float(job["landed_at"]) < state.started_at and job.get("landed_event_reported_at"):
+            event = "done"
+        # After the first report, only a new landing outcome of a done job is news.
+        if prior is not None and (event == prior or event not in ("landed", "failed") or job.get("status") != "done"):
             continue
         if event == "interrupted" and "cancelled" in kinds and _cancelled(store, job):
             event = "cancelled"
@@ -274,10 +288,6 @@ def decode_cursor(cursor: str) -> WatchState:
                       seen_jobs=dict(seen_jobs), seen_tickets=dict(seen_tickets))
 
 
-def _landed_at_snapshot(job: dict[str, Any]) -> bool:
-    return bool(_cloud.is_cloud(job) and job.get("land") and job.get("landed_at"))
-
-
 def _start_state(db_path: Path | None, registry_db: Path | None) -> WatchState:
     """The "from now" state: like ``wait-any --follow``'s startup snapshot."""
     from lazytools.code_bridge import cli  # deferred: cli imports this module
@@ -287,7 +297,7 @@ def _start_state(db_path: Path | None, registry_db: Path | None) -> WatchState:
     jobs = _jobs.list_jobs(store, all_jobs=True)
     for job in jobs:
         if str(job.get("status") or "") in cli._TERMINAL:
-            state.seen_jobs[str(job["job_id"])] = "landed" if _landed_at_snapshot(job) else str(job["status"])
+            state.seen_jobs[str(job["job_id"])] = job_event(job) or str(job["status"])
     # Decisions made before the stream began are history; open tickets are reported.
     legacy = _legacy_tickets(store)
     fallback = cli._selected_registry_db(_ticket_args(db_path, registry_db))
@@ -312,8 +322,8 @@ def poll(
     state = decode_cursor(cursor) if cursor else _start_state(db_path, registry_db)
     store = _store.build_store(db_path)
     by_id = {str(job["job_id"]): job for job in _jobs.list_jobs(store, all_jobs=True)}
-    # Settled jobs (reported, and not a cloud job that may still land) are history: they are
-    # not looked at again, and their ticket ids need not be remembered.
+    # Settled jobs (reported, and not a cloud job whose landing may still change) are history:
+    # they are not looked at again, and their ticket ids need not be remembered.
     state.history = {
         job_id for job_id, kind in state.seen_jobs.items()
         if job_id in by_id and (kind == "landed" or not _cloud.is_cloud(by_id[job_id]))
@@ -336,6 +346,7 @@ __all__ = [
     "decode_cursor",
     "encode_cursor",
     "iter_events",
+    "job_event",
     "poll",
     "wait_event",
 ]
