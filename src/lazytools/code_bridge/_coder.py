@@ -13,6 +13,7 @@ from typing import Any, cast
 from lazybridge import Store
 from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import ApprovalQueue
+from lazybridge.ext.approval.cards import _CardState
 from lazybridge.policy import (
     ApprovalCard,
     CardMatcher,
@@ -107,6 +108,41 @@ def show(path: Path) -> Selection:
         return Selection.from_record(store.read(_HAND_KEY))
 
 
+def live_authority(store: Any) -> tuple[Selection, tuple[ApprovalCard, ...], bool]:
+    """Return the saved hand, its original cards the owner still backs, and whether a mode is configured.
+
+    The saved hand is only a list of card IDs: each card must still be live in the card
+    registry (present unchanged, not revoked, not expired, not used up) and, for a configured
+    hand, its class delegated in the current mode. Owner revocation takes effect immediately.
+    """
+    raw = store.read(_HAND_KEY)
+    selection = Selection.from_record(raw)
+    configured = isinstance(raw, dict)
+    queue = ApprovalQueue(cast(Store, store), action_tiers=TIERS)
+    state_raw = store.read(queue._cards._key)
+    state = _CardState.model_validate(state_raw) if state_raw is not None else _CardState()
+    delegated = delegated_classes(selection.mode, selection.preset) if configured else frozenset({ACTION})
+    now = datetime.now(UTC)
+    live = tuple(
+        card for card in selection.cards
+        if card.action_class in delegated and state.cards.get(card.card_id) == card and state.live(card, now)
+    )
+    return selection, live, configured
+
+
+def ceo_may_approve(path: Path | None, ticket_class: str) -> tuple[str, bool]:
+    """Return the registry's mode and whether its owner policy gives ``ticket_class`` to the CEO.
+
+    The class must be delegated in the current mode and backed by a live owner card: a registry
+    the owner never configured, or one with only the original coder hand, delegates nothing.
+    """
+    if path is None or not path.is_file():
+        return Selection().mode, False
+    with transaction(path) as store:
+        selection, live, configured = live_authority(store)
+    return selection.mode, configured and any(card.action_class == ticket_class for card in live)
+
+
 def provision(path: Path) -> bool:
     credential = _credentials.load(path)
     with transaction(path, write=True) as store:
@@ -165,12 +201,11 @@ def copy_for_job(
     store: Store, queue: ApprovalQueue, cwd: Path, temp: Path | None, task_id: str, expires: datetime,
     record: Callable[[str], None], *, network: str,
 ) -> Hand | None:
-    raw = store.read(_HAND_KEY)
-    selection = Selection.from_record(raw)
-    originals = tuple(card for card in selection.cards if card.matcher.network == "off" or network == "on")
-    if not originals:
+    selection, live, configured = live_authority(store)
+    if not any(card.matcher.network == "off" or network == "on" for card in selection.cards):
         return None
-    configured = isinstance(raw, dict)
+    # Copy only what the owner still backs, so a revoked class never reaches the job.
+    originals = tuple(card for card in live if card.matcher.network == "off" or network == "on")
     workspace = _coder_actions.Workspace.capture(cwd, temp, autonomy=configured)
     policies = {}
     # The 1.10 template-copy helper preserves the original matcher. Copy
