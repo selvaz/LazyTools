@@ -15,7 +15,8 @@ from lazybridge.ext.approval import ApprovalQueue, ApprovalTarget, TypedApproval
 from lazybridge.ext.knowledge import DurableKnowledgeBase
 
 from lazytools.code_bridge import _store
-from lazytools.code_bridge._dispatch import STALE_HEARTBEAT, BridgeLauncher, Dispatcher, Task, _dry_run
+from lazytools.code_bridge._dispatch import STALE_HEARTBEAT, Dispatcher, Task, _dry_run
+from lazytools.code_bridge._dispatch_launch import BridgeLauncher
 from lazytools.code_bridge.cli import build_parser
 from lazytools.projects.task_service import TaskPrincipal
 
@@ -583,7 +584,7 @@ def test_launch_failure_records_a_lesson(knowledge_store: Store, monkeypatch: py
 
 
 def test_conclude_workspace_commits_a_resolved_merge_and_rejects_markers(tmp_path: Path) -> None:
-    from lazytools.code_bridge._dispatch import _conclude_workspace
+    from lazytools.code_bridge._dispatch_workspace import _conclude_workspace
     repo = tmp_path / "repo"
     repo.mkdir()
     def git(*argv: str) -> str:
@@ -615,7 +616,7 @@ def test_conclude_workspace_commits_a_resolved_merge_and_rejects_markers(tmp_pat
 
 
 def test_has_new_commit_requires_work_after_the_base_tag(tmp_path: Path) -> None:
-    from lazytools.code_bridge._dispatch import _has_new_commit
+    from lazytools.code_bridge._dispatch_workspace import _has_new_commit
     repo = tmp_path / "repo"
     repo.mkdir()
     def git(*argv: str) -> None:
@@ -742,7 +743,7 @@ def _repo(path: Path) -> Any:
 
 
 def test_staged_litter_is_never_committed(tmp_path: Path) -> None:
-    from lazytools.code_bridge._dispatch import _conclude_workspace
+    from lazytools.code_bridge._dispatch_workspace import _conclude_workspace
     git = _repo(tmp_path / "r")
     (tmp_path / "r" / "work.txt").write_text("work\n")
     (tmp_path / "r" / "error.log").write_text("account_id=secret\n")
@@ -753,7 +754,7 @@ def test_staged_litter_is_never_committed(tmp_path: Path) -> None:
 
 
 def test_publish_checks_branch_and_never_overwrites(tmp_path: Path) -> None:
-    from lazytools.code_bridge._dispatch import _publish
+    from lazytools.code_bridge._dispatch_workspace import _publish
     source_git = _repo(tmp_path / "source")
     clone = tmp_path / "clone"
     subprocess.run(["git", "clone", "-q", "--local", str(tmp_path / "source"), str(clone)], check=True)
@@ -871,7 +872,7 @@ def test_land_pushes_the_published_branch_and_opens_a_pr(tmp_path: Path, monkeyp
     assert evidence.state == "accepted" and evidence.pr_url is None and evidence.land_failure is None
 
     # A later revision of the branch updates the open PR: push only, no second PR.
-    from lazytools.code_bridge._dispatch import _land
+    from lazytools.code_bridge._dispatch_workspace import _land
     (clone / "work.txt").write_text("revised\n")
     bridge._git(clone, "commit", "-qam", "Revise")
     assert _land(clone, "dispatch/p/A", "p/A", {}, []) == ("https://github.com/o/r/pull/7", None)
@@ -1068,7 +1069,7 @@ def test_land_failure_keeps_the_task_accepted(
 
 
 def test_land_refuses_the_default_branch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from lazytools.code_bridge._dispatch import _land
+    from lazytools.code_bridge._dispatch_workspace import _land
     gh = FakeGh()
     clone, _remote, _bridge, remote_git = _landing_setup(tmp_path, monkeypatch, gh)
     before = remote_git("rev-parse", "refs/heads/main")
@@ -1083,7 +1084,7 @@ def test_dispatch_land_flag_parses() -> None:
 
 
 def test_base_is_set_after_dependency_merges(tmp_path: Path) -> None:
-    from lazytools.code_bridge._dispatch import _has_new_commit
+    from lazytools.code_bridge._dispatch_workspace import _has_new_commit
     git = _repo(tmp_path / "repo")
     git("checkout", "-qb", "b")
     (tmp_path / "repo" / "b.txt").write_text("b\n")
@@ -1206,7 +1207,7 @@ def test_dispatch_accepts_a_stale_minutes_override() -> None:
 
 
 def test_litter_only_workspace_counts_as_clean(tmp_path: Path) -> None:
-    from lazytools.code_bridge._dispatch import _conclude_workspace
+    from lazytools.code_bridge._dispatch_workspace import _conclude_workspace
     _repo(tmp_path / "r")
     (tmp_path / "r" / "error.log").write_text("noise\n")
     assert _conclude_workspace(tmp_path / "r", "p/A") == (None, None)
@@ -1323,7 +1324,7 @@ def test_checks_that_change_the_checkout_reject_the_task(
 
 
 def test_check_commands_keep_windows_backslashes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from lazytools.code_bridge import _dispatch, _navigator
+    from lazytools.code_bridge import _dispatch_workspace, _navigator
     monkeypatch.setattr(_navigator.os, "name", "nt")
     seen: list[list[str]] = []
 
@@ -1332,7 +1333,7 @@ def test_check_commands_keep_windows_backslashes(tmp_path: Path, monkeypatch: py
         return subprocess.CompletedProcess(argv, 0, b"")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
-    assert _dispatch._check_failure(r".venv\Scripts\python.exe -m pytest tests\test_api.py", tmp_path) is None
+    assert _dispatch_workspace._check_failure(r".venv\Scripts\python.exe -m pytest tests\test_api.py", tmp_path) is None
     assert seen == [[r".venv\Scripts\python.exe", "-m", "pytest", r"tests\test_api.py"]]
 
 
@@ -1396,7 +1397,7 @@ def test_crash_preserves_work_and_the_retry_resumes_the_same_conversation(
 ) -> None:
     from lazybridge.engines.sessions import default_session_registry
 
-    from lazytools.code_bridge._dispatch import RESUME_PROMPT
+    from lazytools.code_bridge._dispatch_launch import RESUME_PROMPT
     dispatch, service, jobs, launched, events, source_git, clone = _retrying_dispatch(tmp_path, monkeypatch)
     dispatch.pass_once()
     assert _flag(launched[0], "--session") == "dispatch-attempt-1"
@@ -1471,7 +1472,7 @@ def test_check_failure_keeps_todays_behaviour(tmp_path: Path, monkeypatch: pytes
 
 
 def test_preserve_never_commits_litter(tmp_path: Path) -> None:
-    from lazytools.code_bridge._dispatch import _preserve_attempt
+    from lazytools.code_bridge._dispatch_workspace import _preserve_attempt
     git = _repo(tmp_path / "r")
     git("config", "dispatch.branch", "main")
     git("tag", "dispatch-base")
@@ -1489,7 +1490,8 @@ def test_preserve_never_commits_litter(tmp_path: Path) -> None:
 def test_preserved_conflicted_merge_stays_unresolved_for_the_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from lazytools.code_bridge._dispatch import RESUME_PROMPT, _conclude_workspace
+    from lazytools.code_bridge._dispatch_launch import RESUME_PROMPT
+    from lazytools.code_bridge._dispatch_workspace import _conclude_workspace
     dispatch, service, jobs, launched, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
     dispatch.pass_once()
 
@@ -1546,7 +1548,7 @@ def _real_retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, 
     The fake bridge submits through the service's dispatch fence, or, with refuse_resume,
     records a failed job for a resumed conversation before begin_submit (check_resume).
     """
-    from lazytools.code_bridge._dispatch import RESUME_PROMPT
+    from lazytools.code_bridge._dispatch_launch import RESUME_PROMPT
     from lazytools.connectors.projects import ProjectsTools
     from lazytools.projects.plan_edit import _board_key
     from lazytools.projects.task_service import ProjectTaskService
@@ -1620,7 +1622,7 @@ def test_restart_between_settlement_and_launch_resumes_the_preserved_work(
 ) -> None:
     from lazybridge.engines.sessions import default_session_registry
 
-    from lazytools.code_bridge._dispatch import RESUME_PROMPT
+    from lazytools.code_bridge._dispatch_launch import RESUME_PROMPT
     service, launched, crash_first_attempt, dispatcher, placement, git, board_task = _real_retrying_dispatch(
         tmp_path, monkeypatch)
     events: list[str] = []

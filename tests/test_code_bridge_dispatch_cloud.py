@@ -12,7 +12,8 @@ import pytest
 from lazybridge import Store
 
 from lazytools.code_bridge import _dispatch
-from lazytools.code_bridge._dispatch import BridgeLauncher, Dispatcher, cloud_job_id
+from lazytools.code_bridge._dispatch import Dispatcher
+from lazytools.code_bridge._dispatch_launch import BridgeLauncher, cloud_job_id
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
