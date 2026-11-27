@@ -46,8 +46,46 @@ CLAUDE_NO_ATTRIBUTION_SETTINGS: dict[str, Any] = {
 }
 
 
+def _report_claude_activity(on_activity: Callable[..., None], message: Any) -> None:
+    """Report one SDK message, with the tool calls it starts or finishes."""
+    from claude_agent_sdk import AssistantMessage, ResultMessage, ToolResultBlock, ToolUseBlock, UserMessage
+
+    content = getattr(message, "content", None)
+    blocks = content if isinstance(content, list) else []
+    reported = False
+    if isinstance(message, AssistantMessage):
+        for block in blocks:
+            if isinstance(block, ToolUseBlock):
+                on_activity(tool_started=(block.id, block.name))
+                reported = True
+    elif isinstance(message, UserMessage):
+        for block in blocks:
+            if isinstance(block, ToolResultBlock):
+                on_activity(tool_finished=block.tool_use_id)
+                reported = True
+    elif isinstance(message, ResultMessage):
+        on_activity(tools_settled=True)
+        reported = True
+    if not reported:
+        on_activity()
+
+
+def _claude_transport_factory(on_activity: Callable[..., None]) -> Callable[..., Any]:
+    """SDK transport which reports the engine process id once it is spawned."""
+    from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport
+
+    class ReportingTransport(SubprocessCLITransport):
+        async def connect(self) -> None:
+            await super().connect()
+            pid = getattr(getattr(self, "_process", None), "pid", None)
+            if isinstance(pid, int):
+                on_activity(engine_pid=pid)
+
+    return ReportingTransport
+
+
 def _claude_client(
-    *, policy_release_report: Path | str | None = None, on_activity: Callable[[], None] | None = None,
+    *, policy_release_report: Path | str | None = None, on_activity: Callable[..., None] | None = None,
 ) -> Any:
     """Agent SDK client which adds job-scoped no-attribution settings."""
     from lazybridge.engines.claude_code.sdk_client import AgentSdkClient
@@ -56,7 +94,7 @@ def _claude_client(
         @staticmethod
         def _report_session_id(options: Any, message: Any) -> None:
             if on_activity is not None:
-                on_activity()
+                _report_claude_activity(on_activity, message)
             AgentSdkClient._report_session_id(options, message)
 
         @staticmethod
@@ -66,7 +104,10 @@ def _claude_client(
             settings.update(CLAUDE_NO_ATTRIBUTION_SETTINGS)
             return replace(sdk_options, settings=json.dumps(settings))
 
-    return JobScopedSettingsClient(policy_release_report=policy_release_report)
+    return JobScopedSettingsClient(
+        policy_release_report=policy_release_report,
+        transport_factory=_claude_transport_factory(on_activity) if on_activity is not None else None,
+    )
 
 def _make_codex_engine(**kwargs: Any) -> Any:
     """Build the ``CodexEngine`` for one job. Patched by tests (see ``_code_fakes.py``)."""
@@ -221,7 +262,7 @@ def build_claude_engine(
     launch: Launch,
     timeout: float = DEFAULT_TIMEOUT,
     temp_dir: str | None = None,
-    on_activity: Callable[[], None] | None = None,
+    on_activity: Callable[..., None] | None = None,
 ) -> Any:
     """A ``ClaudeCodeEngine`` for one foreground job: Write/Edit/Bash, every call gated.
 

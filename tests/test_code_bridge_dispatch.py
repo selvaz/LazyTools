@@ -832,6 +832,32 @@ def test_dispatch_leaves_jobs_without_a_stale_running_heartbeat(status: str, hea
     assert service.rows["A"]["status"] == "claimed"
 
 
+@pytest.mark.parametrize("engine_alive,tool_started,stale", [
+    (True, 2_000 - 20 * 60, False),  # long shell command in a live engine
+    (False, 2_000 - 20 * 60, True),  # engine process died with the tool call pending
+    (True, 2_000 - 61 * 60, True),   # tool call ran past its own bound
+])
+def test_tool_call_in_progress_keeps_only_a_live_engine_alive(
+    monkeypatch: pytest.MonkeyPatch, engine_alive: bool, tool_started: float, stale: bool,
+) -> None:
+    from lazytools.code_bridge import _dispatch
+
+    monkeypatch.setattr(_dispatch, "_pid_alive", lambda pid: engine_alive and pid == 4321)
+    service = FakeService()
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, [])
+    dispatch.clock = lambda: 2_000
+    dispatch.pass_once()
+    launcher.jobs["job-A"].update(heartbeat_at=tool_started, engine_pid=4321,
+                                  tool_calls={"toolu_1": {"name": "Bash", "started_at": tool_started}})
+    cancelled: list[str] = []
+    launcher.cancel = lambda job_ref, **_: cancelled.append(job_ref) or False  # type: ignore[attr-defined]
+
+    dispatch.pass_once()
+
+    assert cancelled == (["job-A"] if stale else [])
+
+
 def test_dispatch_accepts_a_stale_minutes_override() -> None:
     parser = build_parser()
     args = ["dispatch", "--project", "p"]

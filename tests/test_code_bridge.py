@@ -106,6 +106,53 @@ def test_codex_activity_refreshes_heartbeat_during_a_turn(tmp_path, repo, monkey
     assert engine_events == [now]
 
 
+def test_claude_tool_calls_are_recorded_until_their_results_arrive(tmp_path, repo, monkeypatch):
+    from claude_agent_sdk import AssistantMessage, ResultMessage, ToolResultBlock, ToolUseBlock, UserMessage
+
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    db_path = tmp_path / "store.sqlite"
+    job_id = "tool-heartbeat-test"
+    now = time.time()
+    monkeypatch.setattr(_jobs, "time", SimpleNamespace(time=lambda: now, monotonic=time.monotonic))
+    options = SimpleNamespace(on_session_id=None)
+
+    async def run_agent(agent, _prompt):
+        nonlocal now
+        client = agent.engine.kwargs["client"]
+        factory = client._transport_factory
+        transport = factory.__new__(factory)  # the real constructor needs full SDK options
+
+        async def connect(_self):
+            transport._process = SimpleNamespace(pid=4321)
+
+        monkeypatch.setattr(factory.__mro__[1], "connect", connect)
+        await transport.connect()
+        client._report_session_id(options, AssistantMessage(
+            content=[ToolUseBlock(id="toolu_1", name="Bash", input={"command": "pytest"})], model="m"))
+        with _store.build_store(db_path) as store:
+            meta = _store.read_meta(store, job_id)
+            assert meta["engine_pid"] == 4321
+            assert meta["tool_calls"] == {"toolu_1": {"name": "Bash", "started_at": now}}
+            now += 1200
+            client._report_session_id(options, UserMessage(content=[ToolResultBlock(tool_use_id="toolu_1")]))
+            meta = _store.read_meta(store, job_id)
+            assert meta["tool_calls"] == {} and meta["heartbeat_at"] == now
+            client._report_session_id(options, AssistantMessage(
+                content=[ToolUseBlock(id="toolu_2", name="Bash", input={})], model="m"))
+            client._report_session_id(options, ResultMessage(
+                subtype="success", duration_ms=1, duration_api_ms=1, is_error=False, num_turns=1, session_id="s"))
+            assert _store.read_meta(store, job_id)["tool_calls"] == {}
+        return Envelope(payload="done")
+
+    monkeypatch.setattr(fakes.FakeAgent, "run", run_agent)
+
+    result = _jobs.run_job(engine_name="claude", cwd=str(repo), task="do a thing",
+                           root=str(tmp_path), db_path=db_path, job_id=job_id)
+
+    assert result.status == "done", result
+
+
 @pytest.mark.parametrize(("engine", "reported_model"), [
     ("codex", "gpt-reported-by-app-server"),
     ("claude", "claude-reported-by-sdk"),

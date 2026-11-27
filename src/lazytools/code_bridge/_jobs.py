@@ -474,10 +474,29 @@ def run_job(
             _store.write_meta(store, job_id, meta)
             registry.write(job_id, task, tool_name=engine_name, status=status, result=result, error=error)
 
-        def record_heartbeat() -> None:
+        def record_heartbeat(
+            *,
+            engine_pid: int | None = None,
+            tool_started: tuple[str, str] | None = None,
+            tool_finished: str | None = None,
+            tools_settled: bool = False,
+        ) -> None:
+            # In-progress tool calls are recorded so the dispatcher does not
+            # take a long shell command (no engine events) for a dead job.
             now = time.time()
             meta = _store.read_meta(store, job_id) or {}
             meta["heartbeat_at"] = now
+            calls = dict(meta.get("tool_calls") or {})
+            if engine_pid is not None:
+                meta["engine_pid"] = engine_pid
+                calls = {}
+            if tools_settled:
+                calls = {}
+            if tool_started is not None:
+                calls[tool_started[0]] = {"name": tool_started[1], "started_at": now}
+            if tool_finished is not None:
+                calls.pop(tool_finished, None)
+            meta["tool_calls"] = calls
             _store.write_meta(store, job_id, meta)
 
         def _finish(
