@@ -333,7 +333,7 @@ def test_dispatch_runs_plan_checks_before_publishing(
 
     calls: list[list[str]] = []
     real_run = subprocess.run
-    output = b"output head\n" + b"." * 2200 + b"\nApp Server exited is test output\n"
+    output = b"output head\n" + b"more output\n" * 60 + b"App Server exited is test output\n"
 
     def fake_run(argv: list[str], **kwargs: Any) -> Any:
         if argv[0] != "test runner":
@@ -1496,9 +1496,10 @@ def test_crash_without_a_recorded_conversation_retries_fresh_on_the_kept_work(
     assert (clone / "work.txt").read_text() == "half done\n"
 
 
-def test_check_failure_keeps_todays_behaviour(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_check_failure_does_not_retry_when_disabled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     dispatch, service, jobs, launched, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
     service.rows["A"]["checks"] = [f'"{sys.executable}" -c "raise SystemExit(3)"']
+    service.rows["A"]["max_check_retries"] = 0
     dispatch.pass_once()
     (clone / "work.txt").write_text("done\n")
     jobs["job-A"].update(status="done", cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1",
@@ -1583,13 +1584,16 @@ def test_clean_commit_with_conflict_markers_is_rejected(tmp_path: Path, monkeypa
     assert not any(event.startswith(("published", "done")) for event in events)
 
 
-def _real_retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, refuse_resume: bool = False) -> Any:
+def _real_retrying_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, refuse_resume: bool = False, **task_fields: Any,
+) -> Any:
     """The real ProjectTaskService and clone handling; the bridge CLI is faked like run_job.
 
     The fake bridge submits through the service's dispatch fence, or, with refuse_resume,
     records a failed job for a resumed conversation before begin_submit (check_resume).
     """
     from lazytools.code_bridge._dispatch_launch import RESUME_PROMPT
+    from lazytools.code_bridge.cli import _read_task
     from lazytools.connectors.projects import ProjectsTools
     from lazytools.projects.plan_edit import _board_key
     from lazytools.projects.task_service import ProjectTaskService
@@ -1602,7 +1606,7 @@ def _real_retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, 
     path = str(tmp_path / "projects.sqlite")
     projects = ProjectsTools(store_db=path, allow_write=True)
     projects.projects_create(PROJECT, "Retry", "Resume retries")
-    admit(projects, [task("A", repo="example/a", text="Do A"), task("B", dependency_ids=["A"])])
+    admit(projects, [task("A", repo="example/a", text="Do A", **task_fields), task("B", dependency_ids=["A"])])
     service = ProjectTaskService(path)
     principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=(PROJECT,))
     jobs: dict[str, dict[str, Any]] = {}
@@ -1612,6 +1616,8 @@ def _real_retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, 
     def fake_run(argv: list[str], **kwargs: Any) -> Any:
         if argv[1:3] != ["-m", "lazytools.code_bridge"]:
             return real_run(argv, **kwargs)
+        argv = argv.copy()
+        argv[argv.index("--task") + 1] = _read_task(_flag(argv, "--task"))
         launched.append(argv)
         task_id, token = _flag(argv, "--task-id"), _flag(argv, "--claim-token")
         job_id = f"{len(launched):032x}"
@@ -1628,20 +1634,20 @@ def _real_retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, 
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 
-    def dispatcher(events: list[str]) -> Dispatcher:
+    def dispatcher(events: list[str], **kwargs: Any) -> Dispatcher:
         bridge = BridgeLauncher(None, principal, PROJECT, repo_roots={"example/a": source},
                                 worktree_root=tmp_path / "trees")
         monkeypatch.setattr(bridge, "job", jobs.get)
         monkeypatch.setattr(bridge, "find", lambda task_id, attempt: next(
             (job for job in jobs.values() if job["task_id"] == task_id and job["task_attempt"] == attempt), None))
         monkeypatch.setattr(bridge, "pending", lambda: [])
-        return Dispatcher(service, principal, bridge, PROJECT, emit=events.append)
+        return Dispatcher(service, principal, bridge, PROJECT, emit=events.append, **kwargs)
 
     def git(*argv: str) -> str:
         return real_run(["git", "-C", str(tmp_path / "trees" / PROJECT / "A"), *argv], text=True,
                         capture_output=True, check=True).stdout.strip()
 
-    def crash_first_attempt(events: list[str]) -> Dispatcher:
+    def crash_first_attempt(events: list[str], **result: Any) -> Dispatcher:
         first = dispatcher(events)
         placement(service, "A")
         first.pass_once()
@@ -1649,6 +1655,7 @@ def _real_retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, 
         (clone / "work.txt").write_text("half done\n")
         jobs[f"{1:032x}"].update(status="failed", error="Codex App Server exited before completing the request",
                                  native_id="thread-1")
+        jobs[f"{1:032x}"].update(result)
         return first
 
     def board_task() -> dict[str, Any]:
@@ -1656,6 +1663,69 @@ def _real_retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, 
             return dict(store.read(_board_key(PROJECT))["tasks"][0])
 
     return service, launched, crash_first_attempt, dispatcher, placement, git, board_task
+
+
+@pytest.mark.parametrize(("limit", "fixed"), [(1, True), (None, False)])
+def test_check_retries_resume_and_recheck(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, limit: int | None, fixed: bool,
+) -> None:
+    from lazybridge.engines.sessions import default_session_registry
+
+    script = ("from pathlib import Path; value = Path('work.txt').read_text().strip(); "
+              "[print(f'line {i:02d} ' + 'x' * 600) for i in range(64)]; "
+              "print('check saw ' + value); raise SystemExit(value != 'fixed')")
+    command = f'"{sys.executable}" -c "{script}"'
+    settings = {} if limit is None else {"max_check_retries": limit}
+    _, launched, start_first_attempt, dispatcher, _, git, board_task = _real_retrying_dispatch(
+        tmp_path, monkeypatch, checks=[command], **settings)
+    events: list[str] = []
+    first = start_first_attempt(events, status="done", error=None)
+    first.pass_once()  # prepare the retry without launching it yet
+    assert len(launched) == 1
+    assert board_task()["status"] == "todo"
+    assert board_task()["attempt_continuation"]["native_id"] == "thread-1"
+
+    routed: list[str | None] = []
+
+    def route(_tier: str, engine: str | None = None) -> str | None:
+        routed.append(engine)
+        return engine
+
+    retries = limit if limit is not None else 2
+    for attempt in range(1, retries + 1):
+        restarted = dispatcher(events, router=route, router_with_engine=True)
+        restarted.pass_once()
+        retry = launched[attempt]
+        clone = Path(_flag(retry, "--cwd"))
+        assert clone == Path(_flag(launched[0], "--cwd"))
+        assert _flag(retry, "--session") == _flag(launched[0], "--session")
+        assert routed[-1] == _flag(retry, "--engine") == "codex"
+        assert default_session_registry().resolve("codex", clone, _flag(retry, "--session")) == "thread-1"
+        assert git("show", "HEAD:work.txt") == ("half done" if attempt == 1 else f"broken {attempt - 1}")
+        prompt = _flag(retry, "--task")
+        assert command in prompt and "commit the fix" in prompt
+        assert "line 04 " not in prompt and "line 05 " in prompt and "line 63 " in prompt
+        assert "check saw " + ("half done" if attempt == 1 else f"broken {attempt - 1}") in prompt
+        (clone / "work.txt").write_text("fixed\n" if fixed else f"broken {attempt}\n")
+        git("commit", "-qam", "Repair the check failure")
+        job = restarted.launcher.job(f"{attempt + 1:032x}")
+        assert job is not None
+        job.update(status="done", native_id="thread-1")
+        # Settle without routing so each retry is launched by a new dispatcher.
+        dispatcher(events).pass_once()
+
+    assert len(launched) == retries + 1
+    assert sum(event.startswith("retry queue-test/A check failed") for event in events) == retries
+    task = board_task()
+    assert len(task["dispatches"]) == retries + 1
+    if fixed:
+        assert task["status"] == "done" and "done queue-test/A" in events
+        assert git("show", "dispatch/queue-test/A:work.txt") == "fixed"
+    else:
+        assert task["status"] == "failed"
+        assert any(event.startswith("failed queue-test/A check failed") for event in events)
+        for outcome in ("half done", "broken 1", "broken 2"):
+            assert f"check saw {outcome}" in task["error"]
 
 
 def test_restart_between_settlement_and_launch_resumes_the_preserved_work(

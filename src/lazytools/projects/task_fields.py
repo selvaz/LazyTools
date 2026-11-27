@@ -43,6 +43,11 @@ def plan_fields(task: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(network, bool):
             raise ValueError("requested_network must be a boolean")
         fields["requested_network"] = network
+    if "max_check_retries" in task:
+        retries = task["max_check_retries"]
+        if type(retries) is not int or retries < 0:
+            raise ValueError("max_check_retries must be a nonnegative integer")
+        fields["max_check_retries"] = retries
     for name in ("dependency_ids", "acceptance_criteria", "checks"):
         if name in task:
             values = task[name]
