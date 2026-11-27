@@ -633,8 +633,18 @@ class Dispatcher:
                 return None
         engine = decision.provider
         assert engine is not None
-        detail = _placement_detail(decision)
         now = self.clock()
+        dispatch = task.dispatch or {}
+        if dispatch.get("state") == "absent" and dispatch.get("failure_class") == "infra":
+            # Reconciliation carries valid preflight forward. Reuse it only after routing
+            # confirms that its engine and placement can still take the retry.
+            record = data.get("placement_evidence", {}).get(where, {})
+            if record.get("revision") == task.revision:
+                previous_evidence = PlacementEvidence.model_validate(record["evidence"])
+                if (previous_evidence.eligible and previous_evidence.expires_at > now
+                        and previous_evidence.engine_family == engine and previous_evidence.environment_id == environment):
+                    return previous_evidence
+        detail = _placement_detail(decision)
         evidence = PlacementEvidence(
             placement="cloud" if where == "cloud" else "local", eligible=True, reason=detail,
             reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}-{where}",
@@ -642,7 +652,7 @@ class Dispatcher:
             model=decision.model if where == "local" else None, effort=decision.effort if where == "local" else None,
         )
         self.service.record_placement(task.task_id, task.revision, evidence)
-        previous = ((task.dispatch or {}).get("receipt") or {}).get("engine_family")
+        previous = (dispatch.get("receipt") or {}).get("engine_family")
         if where == "cloud":
             self._event("placed", task.task_id, f"cloud {engine} env={environment} tier={tier} | {detail}")
         elif previous and not required_engine:
@@ -1267,6 +1277,12 @@ class Dispatcher:
         claims = [{**task.dispatch["receipt"], "job_ref": task.dispatch.get("job_ref")}
                   for task in active if task.dispatch and task.dispatch.get("receipt")]
         status = {task.task_id.rsplit("/", 1)[1]: task.status for task in tasks}
+        awaiting_submission = {
+            task.task_id.rsplit("/", 1)[1] for task in active
+            if (dispatch := task.dispatch) and dispatch.get("state") == "intent"
+            and (receipt := dispatch.get("receipt")) and not receipt.get("dispatcher_owner")
+            and not self._orphan_expired(dispatch, receipt)
+        }
         running_branches = {
             str(task.data["assigned_branch"])
             for task in tasks
@@ -1285,7 +1301,9 @@ class Dispatcher:
                 continue
             pending = [dep for dep in data.get("dependency_ids", []) if status.get(dep) != "done"]
             if pending:
-                self._wait(task_id, "dependency not done: " + ", ".join(pending))
+                # A legacy intent can still submit during its grace period.
+                if any(dep not in awaiting_submission for dep in pending):
+                    self._wait(task_id, "dependency not done: " + ", ".join(pending))
                 continue
             if ((data.get("attempt_continuation") or {}).get("not_before") or 0) > self.clock():
                 self._wait(task_id, "waiting for the quota window [budget]")
