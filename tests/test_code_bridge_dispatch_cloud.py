@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -204,6 +206,63 @@ def test_restart_between_submit_and_its_acknowledgement_adopts_the_job(
     data = board_task(service)
     assert data["status"] == "done", events
     assert data["dispatches"][-1]["job_ref"] == job_id
+
+
+def test_restart_after_lease_expiry_settles_recorded_accepted_evidence(
+    service: ProjectTaskService, landed: tuple[Path, str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    admit(service, check("ok.py"))
+    launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
+    launcher.land(launched(service, launcher, events))
+
+    def die(*_args: Any, **_kwargs: Any) -> None:
+        raise KeyboardInterrupt("dispatcher stopped after recording evidence")
+
+    monkeypatch.setattr(service, "complete", die)
+    with pytest.raises(KeyboardInterrupt):
+        dispatcher(service, launcher, events).pass_once()
+    monkeypatch.undo()
+    data = board_task(service)
+    assert data["status"] == "claimed"
+    assert [record["state"] for record in data["dispatches"][-1]["evidence"].values()] == ["accepted"]
+
+    later = time.time() + 3600  # the dispatcher comes back after the lease has expired
+    service.clock = lambda: later
+    restarted = Dispatcher(service, PRINCIPAL, launcher, PROJECT, emit=events.append,  # type: ignore[arg-type]
+                           cloud_placer=lambda _task, _tier: ("codex", "env-123"), clock=lambda: later)
+    restarted.pass_once()
+    data = board_task(service)
+    assert data["status"] == "failed", events
+    assert data["error"] == "claim lease expired"
+    assert data["dispatches"][-1]["completion"]["result"]["state"] == "blocked"
+    restarted.pass_once()  # the dependant is no longer waiting on a claimed task
+    assert f"blocked {PROJECT}/B" in events
+    assert len(launcher.launches) == 1
+
+
+def test_cloud_task_is_routed_while_local_slots_are_full(
+    service: ProjectTaskService, landed: tuple[Path, str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def choose(tier: str, *, respect_slots: bool = True, **_kwargs: Any) -> Any:
+        # Every engine is at its machine-wide local limit: only a slot-blind pick finds one.
+        return SimpleNamespace(decision=SimpleNamespace(provider=None if respect_slots else "codex"), readings={})
+
+    monkeypatch.setattr(_dispatch._routing, "choose", choose)
+    monkeypatch.setattr(_dispatch._cloud, "load_config", lambda: {})
+    monkeypatch.setattr(_dispatch._cloud_place, "decide_for_repo",
+                        lambda *_args, **_kwargs: SimpleNamespace(where="cloud", reason=""))
+    monkeypatch.setattr(_dispatch._cloud, "repo_root", lambda repo: repo)
+    monkeypatch.setattr(_dispatch._cloud, "repo_slug", lambda _root: "org/repo")
+    monkeypatch.setattr(_dispatch._cloud, "provider",
+                        lambda _engine: SimpleNamespace(env_for=lambda *_args: "env-123"))
+    router, cloud_placer = _dispatch._routers(None, {"org/repo": landed[0]})
+    assert router("basic") is None  # local placement honours the full slots
+    admit(service, None)
+    launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
+    Dispatcher(service, PRINCIPAL, launcher, PROJECT, emit=events.append, router=router,  # type: ignore[arg-type]
+               capacity=lambda _engine: 1, router_with_engine=True, cloud_placer=cloud_placer).pass_once()
+    assert [(task_id, engine) for task_id, engine, _job in launcher.launches] == [(f"{PROJECT}/A", "codex")], events
+    assert board_task(service)["placement_evidence"]["cloud"]["evidence"]["environment_id"] == "env-123"
 
 
 def test_full_cloud_slots_leave_the_task_unclaimed(service: ProjectTaskService, landed: tuple[Path, str]) -> None:

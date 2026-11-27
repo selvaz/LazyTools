@@ -710,6 +710,31 @@ class Dispatcher:
             return True
         return False
 
+    def _conclude(self, task: Task, evidence: CompletionEvidence, expired: bool) -> CompletionEvidence:
+        """Record completion evidence and complete the claim; return the evidence the task settled on.
+
+        Evidence already recorded under the reference decides (a restart replays it). After lease
+        expiry the claim is closed through the service's reconcile path, which only takes a blocked
+        result: accepted evidence becomes blocked, under a new reference when the old one is bound.
+        """
+        dispatch = task.dispatch or {}
+        receipt = dispatch.get("receipt", {})
+        recorded = dispatch.get("evidence", {}).get(evidence.reference)
+        if expired and evidence.state == "accepted":
+            evidence = evidence.model_copy(update={"state": "blocked", "outcome": "task_failure",
+                                                   "failure_reason": "claim lease expired"})
+        if expired and recorded and recorded.get("state") == "accepted":
+            evidence = evidence.model_copy(update={"reference": f"{evidence.reference}:lease-expired"})
+            recorded = dispatch.get("evidence", {}).get(evidence.reference)
+        if not recorded:
+            self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
+        accepted = evidence.state == "accepted"
+        complete_options = {"reconcile_failure": True} if expired else {}
+        self.service.complete(self.principal, task.task_id, receipt["claim_token"], evidence.reference,
+                              evidence.state, evidence.reference, "success" if accepted else "task_failure",
+                              **complete_options)
+        return evidence
+
     def _settle_cloud(self, task: Task) -> bool:
         """Settle a cloud dispatch once its job is terminal and its landing is resolved.
 
@@ -765,16 +790,13 @@ class Dispatcher:
         else:
             failure = None
         accepted = failure is None
-        state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
-        if not recorded:
-            self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], CompletionEvidence(
-                reference=reference, job_ref=job_ref, executor=receipt["executor"],
-                engine_family=receipt["engine_family"], state=state,
-                artifact_ref=str(job["pushed_sha"]) if landed else None,
-                outcome="success" if accepted else "task_failure", failure_reason=failure))
-        complete_options = {"reconcile_failure": True} if expired and not accepted else {}
-        self.service.complete(self.principal, task.task_id, token, reference, state, reference,
-                              "success" if accepted else "task_failure", **complete_options)
+        settled = self._conclude(task, CompletionEvidence(
+            reference=reference, job_ref=job_ref, executor=receipt["executor"],
+            engine_family=receipt["engine_family"], state="accepted" if accepted else "blocked",
+            artifact_ref=str(job["pushed_sha"]) if landed else None,
+            outcome="success" if accepted else "task_failure", failure_reason=failure), expired)
+        accepted = settled.state == "accepted"
+        failure = failure or settled.failure_reason
         if accepted:
             self._event("published", task.task_id, str(job["pr_url"]), job_id=job_ref)
             self._event("done", task.task_id, job_id=job_ref)
@@ -916,18 +938,13 @@ class Dispatcher:
                 failure_reason = publish_error
             elif published:
                 self._event("published", task.task_id, published, job_id=str(job_ref))
-        state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
-        evidence = CompletionEvidence(reference=reference, job_ref=str(job_ref), executor=receipt["executor"],
-            engine_family=receipt["engine_family"], state=state,
+        self._conclude(task, CompletionEvidence(reference=reference, job_ref=str(job_ref),
+            executor=receipt["executor"], engine_family=receipt["engine_family"],
+            state="accepted" if accepted else "blocked",
             artifact_ref=job.get("final_commit") or job.get("candidate_commit"),
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
             review_independence=review_independence,
-            outcome="success" if accepted else "task_failure", failure_reason=check_failure)
-        if not recorded_failure:
-            self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
-        complete_options = {"reconcile_failure": True} if expired else {}
-        self.service.complete(self.principal, task.task_id, receipt["claim_token"], reference, state, reference,
-                              "success" if accepted else "task_failure", **complete_options)
+            outcome="success" if accepted else "task_failure", failure_reason=check_failure), expired)
         self._record_rejection(task, job)
         if accepted:
             self._event("done", task.task_id, job_id=str(job_ref))
@@ -1105,36 +1122,7 @@ def dispatch(args: argparse.Namespace) -> int:
     launcher = BridgeLauncher(args.db, principal, args.project, repo_roots=repo_roots,
                               worktree_root=Path(args.worktree_root).resolve() if args.worktree_root else None,
                               registry_db=registry_db, launch_mode=getattr(args, "launch_mode", None))
-    db_path = Path(args.db) if args.db else None
-
-    def router(tier: str, engine_family: str | None = None) -> str | None:
-        if engine_family is None:
-            return _routing.choose(tier, cwd=os.getcwd(), db_path=db_path).decision.provider
-        # Fallback to the other engine: an explicit engine enables the router's operator
-        # override for unreadable telemetry, so require a usable, recent reading here.
-        engine = "claude" if engine_family == "claude_code" else engine_family
-        selection = _routing.choose(tier, cwd=os.getcwd(), db_path=db_path, engine=engine)
-        provider = selection.decision.provider
-        reading = selection.readings.get(provider) if provider else None
-        return provider if usable_reading(reading) else None
-
-    def cloud_placer(task: dict[str, Any], tier: str) -> tuple[str, str]:
-        """The routed engine and its cloud environment, through the same decision `run --where cloud` uses."""
-        family = router(tier)
-        if family is None:
-            raise ValueError(f"no eligible engine for tier {tier}")
-        engine = "claude" if family == "claude_code" else family
-        repo = repo_roots.get(str(task.get("repo"))) or Path.cwd()
-        config = _cloud.load_config()
-        placement = _cloud_place.decide_for_repo("cloud", config=config, engine=engine, cwd=repo)
-        if placement.where != "cloud":
-            raise ValueError(placement.reason)
-        routine = _cloud.select_routine(config, routine=None, model=None) if engine == "claude" else None
-        if engine == "claude" and routine is None:
-            raise ValueError("Claude cloud jobs need a configured routine ([cloud.claude] default_routine)")
-        environment = _cloud.provider(engine).env_for(_cloud.repo_slug(_cloud.repo_root(repo)), config, routine)
-        return family, environment
-
+    router, cloud_placer = _routers(Path(args.db) if args.db else None, repo_roots)
     limits = _concurrency.load_limits()
 
     def capacity(engine_family: str) -> int | None:
@@ -1151,3 +1139,40 @@ def dispatch(args: argparse.Namespace) -> int:
     finally:
         if knowledge_store is not None:
             knowledge_store.close()
+
+
+def _routers(
+    db_path: Path | None, repo_roots: dict[str, Path],
+) -> tuple[Callable[..., str | None], Callable[[dict[str, Any], str], tuple[str, str]]]:
+    """The local quota router and the cloud placer used by `dispatch`."""
+
+    def router(tier: str, engine_family: str | None = None) -> str | None:
+        if engine_family is None:
+            return _routing.choose(tier, cwd=os.getcwd(), db_path=db_path).decision.provider
+        # Fallback to the other engine: an explicit engine enables the router's operator
+        # override for unreadable telemetry, so require a usable, recent reading here.
+        engine = "claude" if engine_family == "claude_code" else engine_family
+        selection = _routing.choose(tier, cwd=os.getcwd(), db_path=db_path, engine=engine)
+        provider = selection.decision.provider
+        reading = selection.readings.get(provider) if provider else None
+        return provider if usable_reading(reading) else None
+
+    def cloud_placer(task: dict[str, Any], tier: str) -> tuple[str, str]:
+        """The routed engine and its cloud environment, through the same decision `run --where cloud` uses."""
+        # Local engine slots do not bound cloud work; cloud admission is checked separately (`cloud_free`).
+        family = _routing.choose(tier, cwd=os.getcwd(), db_path=db_path, respect_slots=False).decision.provider
+        if family is None:
+            raise ValueError(f"no eligible engine for tier {tier}")
+        engine = "claude" if family == "claude_code" else family
+        repo = repo_roots.get(str(task.get("repo"))) or Path.cwd()
+        config = _cloud.load_config()
+        placement = _cloud_place.decide_for_repo("cloud", config=config, engine=engine, cwd=repo)
+        if placement.where != "cloud":
+            raise ValueError(placement.reason)
+        routine = _cloud.select_routine(config, routine=None, model=None) if engine == "claude" else None
+        if engine == "claude" and routine is None:
+            raise ValueError("Claude cloud jobs need a configured routine ([cloud.claude] default_routine)")
+        environment = _cloud.provider(engine).env_for(_cloud.repo_slug(_cloud.repo_root(repo)), config, routine)
+        return family, environment
+
+    return router, cloud_placer
