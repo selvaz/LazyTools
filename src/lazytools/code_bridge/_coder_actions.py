@@ -120,17 +120,28 @@ def ticket_class(
     argv = _args(command, powershell=powershell, normalize_windows_paths=True, redirects=redirects)
     if argv is None:
         return "unknown"
-    kind = _ticket_class(argv, job_branch, default_branch)
+    kind = _ticket_class(argv, touched_paths(argv, redirects), job_branch, default_branch)
     # Only verification commands may redirect their output (into the job's own directories).
-    return "unknown" if redirects and kind != "checks_in_checkout" else kind
+    return "unknown" if redirects and kind not in {"checks_in_checkout", "production_task"} else kind
 
 
-def _ticket_class(argv: list[str], job_branch: str | None, default_branch: str | None) -> str:
+def touched_paths(argv: list[str], redirects: list[tuple[str, str]]) -> tuple[str, ...]:
+    """Every path word a command may read or write: its argv and its redirection targets."""
+    return (*argv, *(target for _, target in redirects))
+
+
+def production_path(path: str) -> bool:
+    return bool(_PRODUCTION_PATH.search(path.replace("\\", "/")))
+
+
+def _ticket_class(
+    argv: list[str], paths: tuple[str, ...], job_branch: str | None, default_branch: str | None,
+) -> str:
     binary = argv[0].replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".exe")
     if binary == "python3":
         binary = "python"
     words = (binary, *argv[1:])
-    if any(_PRODUCTION_PATH.search(word.replace("\\", "/")) for word in argv):
+    if any(production_path(path) for path in paths):
         return "production_task"
     if words[:2] == ("git", "push"):
         if len(words) != 4 or words[2] != "origin":
@@ -542,7 +553,7 @@ class Workspace:
         paths = [request.cwd]
         if request.kind == "tool" and request.name in _EDIT_TOOLS:
             paths.extend(request.arguments.get(key) for key in _EDIT_PATH_KEYS)
-        if any(isinstance(path, str) and _PRODUCTION_PATH.search(path.replace("\\", "/")) for path in paths):
+        if any(isinstance(path, str) and production_path(path) for path in paths):
             return "production_task"
         command = request.arguments.get("command")
         if isinstance(command, str):
@@ -614,6 +625,12 @@ class Workspace:
         if not paths or any(path is None for path in paths):
             return None
         affected = tuple(path for path in paths if path is not None)
+        # Checks may write only inside the job's directories and never to a production path.
+        if kind == "checks_in_checkout" and any(
+            production_path(path.relative_to(root).as_posix())
+            for path in affected for root in self.roots if path.is_relative_to(root)
+        ):
+            return None
         for root in self.roots:
             if all(path.is_relative_to(root) for path in affected):
                 # Temp cards cover effects inside the separately scoped job

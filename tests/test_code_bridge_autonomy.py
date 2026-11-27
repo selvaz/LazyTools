@@ -45,6 +45,9 @@ from test_code_bridge_continuations import git
     ("python -c \"print(open('src/file.py').read())\"", "unknown"),
     ('git commit -m "python -m pytest"', "git_local"),
     ("git add src/file.py > added.txt", "unknown"),
+    ("cat input.txt > prod/config.txt", "production_task"),
+    ("python -m pytest -q 2> production/x.log", "production_task"),
+    ("python -m pytest -q > out.log", "checks_in_checkout"),
     ("git fetch origin", "network_other"),
 ])
 def test_ticket_classification(command, kind):
@@ -348,6 +351,29 @@ def test_checks_outside_the_class_stay_pending(checks_channel, tmp_path):
         decision = channel._submit(request(cwd, command), command)
         assert isinstance(decision, tuple) and decision[0].status == "pending", command
         assert decision[0].request.payload["ticket_class"] == kind, command
+
+
+def test_redirects_into_production_paths_stay_with_the_owner(autonomy_registry):
+    cwd, registry = autonomy_registry
+    (cwd / "input.txt").write_text("x", encoding="utf-8")
+    (cwd / "prod").mkdir()
+    assert configure(registry, "total", "--preset", "with-production") == 0
+    channel = channel_for(registry, cwd, "prod-redirect")
+    for command in ("cat input.txt > prod/config.txt", "python -m pytest -q > prod/x.log"):
+        held = channel._submit(request(cwd, command), command)
+        assert isinstance(held, tuple) and held[0].status == "pending", command
+        assert held[0].request.payload["ticket_class"] == "production_task", command
+    command = "python -m pytest -q > out.log"
+    decision = channel._submit(request(cwd, command), command)
+    assert isinstance(decision, CardApproval) and decision.action_class == "checks_in_checkout"
+
+
+def test_checks_card_refuses_production_write_targets(checks_channel):
+    cwd, temp, _ = checks_channel
+    workspace = _coder_actions.Workspace.capture(cwd, temp, autonomy=True)
+    for command in ("python -m pytest -q > prod/x.log", "cat src/mod.py > production.txt"):
+        assert workspace.action(request(cwd, command), ticket_kind="checks_in_checkout") is None, command
+    assert workspace.action(request(cwd, "python -m pytest -q > out.log"), ticket_kind="checks_in_checkout")
 
 
 def test_pr_create_card_requires_an_explicit_job_head(autonomy_registry):
