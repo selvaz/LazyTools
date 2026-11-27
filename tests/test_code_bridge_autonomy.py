@@ -37,6 +37,18 @@ from test_code_bridge_continuations import git
     ("stripe payment_intents create", "payment_or_external_post"),
     ("git status && gh pr merge 17", "unknown"),
     ("arbitrary-command", "unknown"),
+    ("git status --short", "checks_in_checkout"),
+    ("sed -n 1,20p src/file.py", "checks_in_checkout"),
+    ("python -m pytest -q tests/test_file.py", "checks_in_checkout"),
+    (r"D:\venv\Scripts\python.exe -m ruff check src", "checks_in_checkout"),
+    ("python -m pytest -q 2>&1", "checks_in_checkout"),
+    ("python -c \"print(open('src/file.py').read())\"", "unknown"),
+    ('git commit -m "python -m pytest"', "git_local"),
+    ("git add src/file.py > added.txt", "unknown"),
+    ("cat input.txt > prod/config.txt", "production_task"),
+    ("python -m pytest -q 2> production/x.log", "production_task"),
+    ("python -m pytest -q > out.log", "checks_in_checkout"),
+    ("git fetch origin", "network_other"),
 ])
 def test_ticket_classification(command, kind):
     assert _coder_actions.ticket_class(
@@ -62,7 +74,9 @@ def test_owner_can_select_autonomy_preset(tmp_path, provision_bridge_approver, c
     ("with-production", {"production_task", "payment_or_external_post", "delete_files", "push_default_branch", "unknown"}),
 ])
 def test_packaged_autonomy_presets(preset, floor):
-    assert _coder.delegated_classes("supervised", preset) == {"git_local", "git_push_job_branch", "gh_pr_create"}
+    assert _coder.delegated_classes("supervised", preset) == {
+        "git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout",
+    }
     assert _coder.delegated_classes("total", preset) == _coder_actions.TICKET_COMMANDS.keys() - floor
 
 
@@ -187,6 +201,64 @@ def test_mode_switch_revokes_cards_in_existing_hand(autonomy_registry):
     assert isinstance(channel_for(registry, cwd, "next-total-job")._submit(merge, "Approve?"), CardApproval)
 
 
+@pytest.fixture
+def old_definitions():
+    """The ticket classes before checks_in_checkout: reads were workspace_tools."""
+    monkeypatch = pytest.MonkeyPatch()
+    commands = dict(_coder_actions.TICKET_COMMANDS)
+    del commands["checks_in_checkout"]
+    commands["workspace_tools"] = tuple(command for command in _coder_actions.COMMANDS if command[0] not in {
+        "gh", "python"} and command not in {("git", "add"), ("git", "commit"), ("rm",), ("remove-item",)})
+    delegated = {
+        (mode, preset): _coder.delegated_classes(mode, preset) - {"checks_in_checkout"}
+        for mode in _coder.MODES for preset in ("solo-dev", "with-production")
+    }
+    monkeypatch.setattr(_coder_actions, "TICKET_COMMANDS", commands)
+    monkeypatch.setattr(_coder, "delegated_classes", lambda mode, preset: delegated[mode, preset])
+    yield monkeypatch.undo
+    monkeypatch.undo()
+
+
+def card_classes(registry):
+    return {card.action_class for card in _coder.show(registry.path).cards}
+
+
+def test_configure_reissues_hand_from_old_definitions(autonomy_registry, old_definitions):
+    cwd, registry = autonomy_registry
+    assert configure(registry, "supervised") == 0
+    stale = _coder.show(registry.path).cards
+    assert "checks_in_checkout" not in card_classes(registry)
+    old_definitions()
+
+    assert configure(registry, "supervised") == 0
+    assert "checks_in_checkout" in card_classes(registry)
+    assert not {card.card_id for card in stale} & {card.card_id for card in _coder.show(registry.path).cards}
+    command = "python -m pytest -q"
+    decision = channel_for(registry, cwd, "refreshed")._submit(request(cwd, command), command)
+    assert isinstance(decision, CardApproval) and decision.action_class == "checks_in_checkout"
+
+
+def test_total_hand_keeps_read_approval_after_reclassification(autonomy_registry, old_definitions):
+    cwd, registry = autonomy_registry
+    command = "git status --short"
+    assert configure(registry, "total") == 0
+    old_definitions()
+    held, _ = channel_for(registry, cwd, "stale")._submit(request(cwd, command), command)
+    assert held.status == "pending" and held.request.payload["ticket_class"] == "checks_in_checkout"
+
+    assert configure(registry, "total") == 0
+    decision = channel_for(registry, cwd, "refreshed")._submit(request(cwd, command), command)
+    assert isinstance(decision, CardApproval) and decision.action_class == "checks_in_checkout"
+
+
+def test_configure_with_same_definitions_keeps_the_hand(autonomy_registry):
+    _, registry = autonomy_registry
+    assert configure(registry, "supervised") == 0
+    original = _coder.show(registry.path)
+    assert configure(registry, "supervised") == 0
+    assert _coder.show(registry.path) == original
+
+
 def test_total_cards_respect_native_and_command_scope(autonomy_registry):
     cwd, registry = autonomy_registry
     assert configure(registry, "total", "--preset", "solo-dev") == 0
@@ -199,12 +271,109 @@ def test_total_cards_respect_native_and_command_scope(autonomy_registry):
         (networked, "gh pr merge 17 --repo other/repo"),
         (networked, "gh pr merge 17 --delete-branch"),
         (networked, "gh issue comment 17 --body hello"),
-        (networked, "python -m pytest"),
+        (networked, "python -m pytest ../outside"),
         (networked, "rm -rf ../outside"),
         (networked, "lazytools-code-bridge approver-credential autonomy --mode total"),
     ]:
         ticket, _ = channel._submit(request(cwd, command), command)
         assert ticket.status == "pending"
+
+
+@pytest.fixture
+def checks_channel(autonomy_registry, tmp_path):
+    cwd, registry = autonomy_registry
+    (cwd / "src").mkdir()
+    (cwd / "src" / "mod.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (cwd / "tests").mkdir()
+    (cwd / "tests" / "test_mod.py").write_text("def test_value():\n    pass\n", encoding="utf-8")
+    temp = tmp_path / "job-temp"
+    temp.mkdir()
+    assert configure(registry, "supervised") == 0
+    expires = datetime.now(UTC) + timedelta(minutes=5)
+    hand = registry.copy_coder_hand("checks", "checks", cwd, temp, expires, network="on")
+    assert hand is not None
+    channel = _registry.ApprovalChannel(
+        registry, "checks", "revision", "digest", timedelta(minutes=5), 0.01,
+        lambda: None, lambda: None, lambda: None, actor="ceo", hand=hand,
+    )
+    return cwd, temp, channel
+
+
+def test_supervised_cards_approve_checks_in_the_checkout(checks_channel):
+    cwd, temp, channel = checks_channel
+    (temp / "scratch.txt").write_text("x", encoding="utf-8")
+    (temp / "build").mkdir()
+    (temp / "build" / "out.log").write_text("x", encoding="utf-8")
+    commands = [
+        "git status --short", "git log --oneline -5", "git diff --stat", "git show --stat HEAD",
+        "git branch --list", "git grep -n VALUE -- src", "grep -n VALUE src/mod.py", "sed -n 1p src/mod.py",
+        "cat src/mod.py", "ls -la src", "head -n 5 src/mod.py", "tail -n 5 src/mod.py",
+        "find src -name mod.py", "wc -l src/mod.py",
+        "python -m pytest -q tests/test_mod.py", "python -m ruff check src", "python -m mypy src",
+        "python -m pytest -q tests 2>&1",
+        "git log --oneline -3 > log.txt",
+        "git diff --stat > /dev/null",
+        f"rm {(temp / 'scratch.txt').as_posix()}",
+        f"rm -rf {(temp / 'build').as_posix()}",
+    ]
+    for command in commands:
+        decision = channel._submit(request(cwd, command), command)
+        assert isinstance(decision, CardApproval), command
+        assert decision.action_class == "checks_in_checkout", command
+    temp_cwd = channel._submit(request(temp, "ls -la"), "ls")
+    assert isinstance(temp_cwd, CardApproval)
+
+
+def test_checks_outside_the_class_stay_pending(checks_channel, tmp_path):
+    cwd, temp, channel = checks_channel
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "notes.txt").write_text("x", encoding="utf-8")
+    commands = {
+        "git status > ../status.txt": "checks_in_checkout",
+        f"python -m pytest -q > {(outside / 'out.txt').as_posix()}": "checks_in_checkout",
+        f"cat src/mod.py > {(temp / 'copy.txt').as_posix()}": "checks_in_checkout",
+        "git fetch origin": "network_other",
+        "git ls-remote origin": "network_other",
+        "curl -q https://example.com/": "network_other",
+        "gh pr view 17": "network_other",
+        "rm src/mod.py": "delete_files",
+        f"rm {(outside / 'notes.txt').as_posix()}": "delete_files",
+        f"rm {(temp / 'missing').as_posix()} src/mod.py": "delete_files",
+        "arbitrary-command --help": "unknown",
+        "python -c \"import os; os.remove('src/mod.py')\"": "unknown",
+        "python -m pip install example": "package_install",
+        "sed -n 1w src/mod.py": "checks_in_checkout",
+        "sed 1p src/mod.py": "checks_in_checkout",
+        "git status; rm -rf src": "unknown",
+    }
+    for command, kind in commands.items():
+        decision = channel._submit(request(cwd, command), command)
+        assert isinstance(decision, tuple) and decision[0].status == "pending", command
+        assert decision[0].request.payload["ticket_class"] == kind, command
+
+
+def test_redirects_into_production_paths_stay_with_the_owner(autonomy_registry):
+    cwd, registry = autonomy_registry
+    (cwd / "input.txt").write_text("x", encoding="utf-8")
+    (cwd / "prod").mkdir()
+    assert configure(registry, "total", "--preset", "with-production") == 0
+    channel = channel_for(registry, cwd, "prod-redirect")
+    for command in ("cat input.txt > prod/config.txt", "python -m pytest -q > prod/x.log"):
+        held = channel._submit(request(cwd, command), command)
+        assert isinstance(held, tuple) and held[0].status == "pending", command
+        assert held[0].request.payload["ticket_class"] == "production_task", command
+    command = "python -m pytest -q > out.log"
+    decision = channel._submit(request(cwd, command), command)
+    assert isinstance(decision, CardApproval) and decision.action_class == "checks_in_checkout"
+
+
+def test_checks_card_refuses_production_write_targets(checks_channel):
+    cwd, temp, _ = checks_channel
+    workspace = _coder_actions.Workspace.capture(cwd, temp, autonomy=True)
+    for command in ("python -m pytest -q > prod/x.log", "cat src/mod.py > production.txt"):
+        assert workspace.action(request(cwd, command), ticket_kind="checks_in_checkout") is None, command
+    assert workspace.action(request(cwd, "python -m pytest -q > out.log"), ticket_kind="checks_in_checkout")
 
 
 def test_pr_create_card_requires_an_explicit_job_head(autonomy_registry):

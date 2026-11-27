@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -33,17 +35,38 @@ MODES = ("supervised", "total")
 DEFAULT_PRESET = "with-production"
 TIERS: dict[str, CardTier] = {
     ACTION: "routine",
-    **dict.fromkeys(("git_local", "git_push_job_branch", "gh_pr_create"), "routine"),
+    **dict.fromkeys(("git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout"), "routine"),
     **dict.fromkeys(_coder_actions.TICKET_COMMANDS.keys() - _coder_actions.OWNER_CLASSES
-                    - {"git_local", "git_push_job_branch", "gh_pr_create"}, "sensitive"),
+                    - {"git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout"}, "sensitive"),
 }
 _HAND_KEY = "code-bridge:coder-hand"
+
+
+def _presets_text() -> str:
+    return files(__package__).joinpath("autonomy_presets.toml").read_text(encoding="utf-8")
+
+
+def definitions_digest() -> str:
+    """Digest of the definitions the coder cards are issued from.
+
+    A persisted hand whose digest differs was issued from older ticket classes,
+    presets or command rules and must be re-issued.
+    """
+    definitions = {
+        "commands": {kind: [list(command) for command in commands]
+                     for kind, commands in _coder_actions.TICKET_COMMANDS.items()},
+        "network": sorted(_coder_actions.NETWORK_CLASSES),
+        "owner": sorted(_coder_actions.OWNER_CLASSES),
+        "tiers": TIERS,
+        "presets": tomllib.loads(_presets_text()),
+    }
+    return hashlib.sha256(json.dumps(definitions, sort_keys=True).encode()).hexdigest()
 
 
 def delegated_classes(mode: str, preset: str) -> frozenset[str]:
     if mode not in MODES:
         raise ValueError(f"Unknown autonomy mode: {mode}")
-    presets = tomllib.loads(files(__package__).joinpath("autonomy_presets.toml").read_text(encoding="utf-8"))
+    presets = tomllib.loads(_presets_text())
     if preset not in presets:
         raise ValueError(f"Unknown autonomy preset: {preset}")
     settings = presets[preset]
@@ -82,7 +105,8 @@ def configure(path: Path, mode: str, preset: str | None) -> Selection:
         previous = Selection.from_record(raw)
         preset = preset or previous.preset
         classes = delegated_classes(mode, preset)
-        if isinstance(raw, dict) and (mode, preset) == (previous.mode, previous.preset):
+        digest = definitions_digest()
+        if isinstance(raw, dict) and (mode, preset, digest) == (previous.mode, previous.preset, raw.get("digest")):
             return previous
         cards = tuple(
             queue.issue_card(
@@ -96,7 +120,8 @@ def configure(path: Path, mode: str, preset: str | None) -> Selection:
             queue.revoke_card(card.card_id, credential=credential)
         queue.set_card_template("coder", tuple(card.card_id for card in cards), credential=credential)
         store.write(_HAND_KEY, {
-            "mode": mode, "preset": preset, "cards": [card.model_dump(mode="json") for card in cards],
+            "mode": mode, "preset": preset, "digest": digest,
+            "cards": [card.model_dump(mode="json") for card in cards],
         })
         return Selection(mode, preset, cards)
 
