@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import shutil
+import stat
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -1474,6 +1477,30 @@ def test_restart_between_settlement_and_launch_resumes_the_preserved_work(
     assert default_session_registry().resolve("codex", Path(_flag(retry, "--cwd")), "dispatch-attempt-1") == "thread-1"
     assert git("rev-parse", "HEAD") == preserved
     assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"  # the artifact check counts the kept work
+
+
+def test_retry_recreates_missing_clone_with_preserved_work(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    service, launched, crash_first_attempt, dispatcher, placement, git, board_task = _real_retrying_dispatch(
+        tmp_path, monkeypatch)
+    events: list[str] = []
+    first = crash_first_attempt(events)
+    first.pass_once()
+    preserved = board_task()["attempt_continuation"]["preserved_commit"]
+    base = git("rev-parse", "dispatch-base")
+    clone = Path(_flag(launched[0], "--cwd"))
+    def remove_readonly(func: Any, path: str, _error: Any) -> None:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+    shutil.rmtree(clone, onerror=remove_readonly)
+
+    placement(service, "A")
+    dispatcher(events).pass_once()
+    assert len(launched) == 2
+    assert (clone / "work.txt").read_text() == "half done\n"
+    assert git("rev-parse", "HEAD") == preserved
+    assert git("rev-parse", "dispatch-base") == base
+    assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"
 
 
 def test_resume_refused_before_submit_starts_a_fresh_conversation_on_the_preserved_work(
