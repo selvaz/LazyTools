@@ -467,6 +467,36 @@ def test_last_dependency_conflict_is_left_for_the_agent(tmp_path: Path) -> None:
     assert git("rev-parse", "-q", "--verify", "MERGE_HEAD", cwd=checkout) == c_commit
 
 
+def test_recreated_clone_restores_preserved_conflict_resolution_without_replaying_merges(tmp_path: Path) -> None:
+    git = _repo(tmp_path / "repo")
+    repo = tmp_path / "repo"
+    git("checkout", "-qb", "b")
+    (repo / "f.txt").write_text("from b\n")
+    git("commit", "-qam", "b")
+    b_commit = git("rev-parse", "HEAD")
+    git("checkout", "-q", "main")
+    (repo / "f.txt").write_text("from c\n")
+    git("commit", "-qam", "c")
+    c_commit = git("rev-parse", "HEAD")
+    # The interrupted attempt resolved the conflict and committed; its copy is in the source.
+    git("checkout", "-qb", "dispatch-attempt/p/D/1", b_commit)
+    subprocess.run(["git", "merge", "-q", c_commit], cwd=repo, capture_output=True, check=False)
+    (repo / "f.txt").write_text("from b and c\n")
+    git("commit", "-qam", "resolve")
+    preserved = git("rev-parse", "HEAD")
+    git("checkout", "-q", "main")
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    launcher = BridgeLauncher(None, principal, "p", repo_roots={"r": repo}, worktree_root=tmp_path / "trees")
+    checkout = launcher._checkout({
+        "task_id": "p/D", "repo": "r", "dependencies": [{"artifact_ref": b_commit}, {"artifact_ref": c_commit}],
+        "preserved_branch": "dispatch-attempt/p/D/1", "preserved_commit": preserved, "preserved_base": b_commit})
+    assert launcher.conflicts == {}
+    assert (checkout / "f.txt").read_text() == "from b and c\n"
+    assert git("rev-parse", "HEAD", cwd=checkout) == preserved
+    assert git("branch", "--show-current", cwd=checkout) == "dispatch/p/D"
+    assert git("rev-parse", "dispatch-base", cwd=checkout) == b_commit
+
+
 def test_engine_crash_is_retried_once_then_fails(knowledge_store: Store) -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     service.rows["A"].update(repo="org/repo", text="Update Codex App Server")
@@ -1629,6 +1659,33 @@ def test_retry_recreates_missing_clone_with_preserved_work(tmp_path: Path, monke
     assert len(launched) == 2
     assert (clone / "work.txt").read_text() == "half done\n"
     assert git("rev-parse", "HEAD") == preserved
+    assert git("rev-parse", "dispatch-base") == base
+    assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"
+
+
+def test_recreated_clone_keeps_original_base_when_source_moved(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    service, launched, crash_first_attempt, dispatcher, placement, git, board_task = _real_retrying_dispatch(
+        tmp_path, monkeypatch)
+    events: list[str] = []
+    first = crash_first_attempt(events)
+    first.pass_once()
+    continuation = board_task()["attempt_continuation"]
+    base = git("rev-parse", "dispatch-base")
+    assert continuation["preserved_base"] == base
+    clone = Path(_flag(launched[0], "--cwd"))
+    def remove_readonly(func: Any, path: str, _error: Any) -> None:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+    shutil.rmtree(clone, onerror=remove_readonly)
+    # The source checkout now sits on the preserved work itself.
+    subprocess.run(["git", "-C", str(tmp_path / "source"), "checkout", "-q", "dispatch-attempt/queue-test/A/1"],
+                   capture_output=True, check=True)
+
+    placement(service, "A")
+    dispatcher(events).pass_once()
+    assert len(launched) == 2
+    assert git("rev-parse", "HEAD") == continuation["preserved_commit"]
     assert git("rev-parse", "dispatch-base") == base
     assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"
 
