@@ -73,10 +73,11 @@ _ORCHESTRATION_SERVER = _ServerSpec(
     description="Serve LazyTools' orchestration tool providers over the Model Context Protocol (stdio).",
     instructions=(
         "LazyTools orchestration tools: project registry (projects_*), code-bridge fleet, "
-        "routing and model views (bridge_*, capabilities_search) and repository maps "
-        "(codemap_*). Read-only unless started with --allow-unsafe, which adds coding jobs "
-        "(code_bridge_*), read-only Codex and Claude Code review and questions (codex_*, "
-        "claude_*; each needs its local CLI) and named sessions (code_sessions_*)."
+        "routing and model views (bridge_*, capabilities_search), repository maps "
+        "(codemap_*) and recorded lessons (lessons_search). Read-only unless started with "
+        "--allow-unsafe, which adds coding jobs (code_bridge_*), read-only Codex and Claude "
+        "Code review and questions (codex_*, claude_*; each needs its local CLI), named "
+        "sessions (code_sessions_*) and lesson recording (lessons_record)."
     ),
     providers=ORCHESTRATION_PROVIDERS,
 )
