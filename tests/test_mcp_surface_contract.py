@@ -237,6 +237,7 @@ PROJECTS_WRITE = {
     "projects_reopen_done_task",
     "projects_revise_plan",
     "projects_edit_task",
+    "projects_mark_landed",
     "projects_schedule_task",
     "projects_open_contract",
     "projects_accept_verification",

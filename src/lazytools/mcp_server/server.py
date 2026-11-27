@@ -136,6 +136,7 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "projects_close_task",
     "projects_complete_todo",
     "projects_edit_task",
+    "projects_mark_landed",
     "tasks_claim",
     "tasks_complete",
     "tasks_route_clear",
