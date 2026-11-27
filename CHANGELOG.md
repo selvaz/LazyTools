@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `lazytools-orchestration-mcp --allow-unsafe` sends each new approval ticket to the client as `notifications/message`, read from the same event source as `bridge_events`.
+
 ### Fixed
 - `dispatch` fetches the source repository's origin and fast-forwards its clean base branch before creating a task clone, so later tasks include PRs merged meanwhile; a source it cannot update is reported as `waiting <task> source base is stale: <why>`, and the dispatch receipt records `base_commit`.
 
