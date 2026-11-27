@@ -379,9 +379,6 @@ def run_job(
     wall_started = time.monotonic()
     registry_db = _registry.isolated_path(db_path, registry_db)
     resolved_cwd = _engines.resolve_cwd(cwd, root)
-    approval_path = registry_db or _registry._registry_path()
-    if approval_path is not None and approval_path.is_relative_to(resolved_cwd):
-        raise ValueError("The approval registry must be outside the job checkout")
     claim = _task.load(task_id, claim_token, state="intent")
     resolver = claim.launch if claim else _launch.resolve_launch
     launch = resolver(engine_name, resolved_cwd, profile, network, launch_mode, review=intentional_review)

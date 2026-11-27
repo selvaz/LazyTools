@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import CardApproval
 
+import _code_bridge_fakes as fakes
 from lazytools.code_bridge import _coder, _coder_actions, _registry, _store, cli
 from test_code_bridge_coder_cards import request
 from test_code_bridge_continuations import git
@@ -100,11 +102,21 @@ def test_autonomy_refuses_registry_in_a_checkout(tmp_path, provision_bridge_appr
 def autonomy_registry(tmp_path, provision_bridge_approver, monkeypatch):
     monkeypatch.delenv("GH_REPO", raising=False)
     monkeypatch.delenv("GH_HOST", raising=False)
+    fakes.install_fake_gh(tmp_path / "bin", monkeypatch)
+    # A local bare remote stands in for github.com/example/autonomy.
+    remotes = (tmp_path / "remotes").as_posix()
+    bare = f"{remotes}/example/autonomy.git"
+    git(tmp_path, "init", "--bare", bare)
+    monkeypatch.setattr(_coder_actions, "_GITHUB_REMOTE", re.compile(
+        rf"(?:https://github\.com/|{re.escape(remotes)}/)([\w.-]+/[\w.-]+)",
+    ))
     cwd = tmp_path / "checkout"
     cwd.mkdir()
     git(cwd, "init")
     git(cwd, "symbolic-ref", "HEAD", "refs/heads/feature/work")
-    git(cwd, "remote", "add", "origin", "https://github.com/example/autonomy.git")
+    git(cwd, "-c", "user.name=Bridge Trial", "-c", "user.email=bridge@example.invalid",
+        "commit", "--allow-empty", "-m", "Job commit")
+    git(cwd, "remote", "add", "origin", bare)
     git(cwd, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
     path = tmp_path / "registry.sqlite"
     provision_bridge_approver(path)
@@ -246,6 +258,43 @@ def test_github_cards_check_repo_flags_and_allow_matching_overrides(autonomy_reg
     monkeypatch.setenv("GH_REPO", "github.com/example/autonomy")
     command = "gh.exe run list -R GitHub.com/Example/Autonomy"
     assert isinstance(channel._submit(request(cwd, command), command), CardApproval)
+
+
+@pytest.mark.parametrize("destination", ["refs/heads/main", "refs/heads/trunk", "refs/tags/release"])
+def test_push_card_checks_the_ref_git_would_update(autonomy_registry, destination):
+    cwd, registry = autonomy_registry
+    assert configure(registry, "supervised") == 0
+    channel = channel_for(registry, cwd, "push-mapping")
+    command = "git push origin feature/work"
+    assert isinstance(channel._submit(request(cwd, command), command), CardApproval)
+
+    git(cwd, "config", "remote.origin.push", f"refs/heads/feature/work:{destination}")
+    decision = channel._submit(request(cwd, command), command)
+    assert isinstance(decision, tuple) and decision[0].status == "pending"
+    git(cwd, "config", "--unset", "remote.origin.push")
+    assert isinstance(channel._submit(request(cwd, command), command), CardApproval)
+
+
+def test_github_cards_check_the_default_repository(autonomy_registry, monkeypatch):
+    cwd, registry = autonomy_registry
+    assert configure(registry, "total") == 0
+    channel = channel_for(registry, cwd, "gh-default")
+    command = "gh pr merge 17 --squash"
+
+    def pending():
+        decision = channel._submit(request(cwd, command), command)
+        return isinstance(decision, tuple) and decision[0].status == "pending"
+
+    git(cwd, "remote", "add", "upstream", "https://github.com/another/production.git")
+    assert pending()  # gh would choose between two remotes
+    git(cwd, "config", "remote.upstream.gh-resolved", "base")
+    assert pending()
+    git(cwd, "config", "--unset", "remote.upstream.gh-resolved")
+    git(cwd, "config", "remote.origin.gh-resolved", "base")
+    assert isinstance(channel._submit(request(cwd, command), command), CardApproval)
+
+    monkeypatch.setattr(_coder_actions.shutil, "which", lambda _name: None)
+    assert pending()
 
 
 def test_solo_total_accepts_scoped_commands_outside_supervised_classes(autonomy_registry):

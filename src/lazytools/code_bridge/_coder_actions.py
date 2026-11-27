@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -270,6 +271,48 @@ def _git_value(cwd: Path, *args: str) -> str:
         ["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5, check=False,
     )
     return "" if result.returncode else result.stdout.strip()
+
+
+def _push_updates_only(argv: list[str], cwd: Path, ref: str) -> bool:
+    """Ask Git which remote refs this exact push would update (after refspec and push configuration)."""
+    result = subprocess.run(
+        ["git", "push", "--dry-run", "--porcelain", "--no-verify", *argv[2:]],
+        cwd=cwd, capture_output=True, text=True, timeout=60, check=False,
+        env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never"},
+    )
+    lines = result.stdout.splitlines()
+    if result.returncode or lines[-1:] != ["Done"]:
+        return False
+    destinations = [line.removeprefix("To ") for line in lines if line.startswith("To ")]
+    if destinations != [_git_value(cwd, "remote", "get-url", "origin")]:
+        return False
+    updates = [line.split("\t") for line in lines[:-1] if not line.startswith("To ")]
+    # Accept new, fast-forward and up-to-date refs only. Forced updates,
+    # deletions and rejections are left to the owner.
+    return bool(updates) and all(
+        len(update) == 3 and update[0] in {" ", "*", "="} and update[1].rpartition(":")[2] == ref
+        for update in updates
+    )
+
+
+def _gh_default_repo(cwd: Path) -> str | None:
+    """Return the repository gh resolves in this checkout without GH_REPO or --repo."""
+    gh = shutil.which("gh")
+    if gh is None:
+        return None
+    result = subprocess.run(
+        [gh, "repo", "set-default", "--view"], cwd=cwd, capture_output=True, text=True, timeout=15, check=False,
+        env={**os.environ, "GH_PROMPT_DISABLED": "1", "NO_COLOR": "1"},
+    )
+    if result.returncode:
+        return None
+    if repo := result.stdout.strip():
+        return repo.casefold()
+    # Without a configured default gh picks among the remotes; only a lone origin is unambiguous.
+    remote = _GITHUB_REMOTE.fullmatch(_git_value(cwd, "remote", "get-url", "origin"))
+    if remote is None or _git_value(cwd, "remote").split() != ["origin"]:
+        return None
+    return remote[1].removesuffix(".git").casefold()
 
 
 _GITHUB_REMOTE = re.compile(r"(?:https://github\.com/|git@github\.com:)([\w.-]+/[\w.-]+)")
@@ -547,8 +590,16 @@ class Workspace:
                 return False
             words = _tokenize(_quoted(argv))
             if kind == "git_push_job_branch":
-                return words is not None and push_grantable(words, self.branch)
-            return argv[3] == current_default and short_branch(_git_value(cwd, "symbolic-ref", "--quiet", "HEAD")) == current_default
+                if words is None or not push_grantable(words, self.branch):
+                    return False
+                target = self.branch
+            elif argv[3] != current_default or short_branch(
+                _git_value(cwd, "symbolic-ref", "--quiet", "HEAD"),
+            ) != current_default:
+                return False
+            else:
+                target = current_default
+            return _push_updates_only(argv, cwd, "refs/heads/" + target)
         if argv[:3] == ["git", "ls-remote", "origin"]:
             return len(argv) == 3 and _GITHUB_REMOTE.fullmatch(_git_value(cwd, "remote", "get-url", "origin")) is not None
         if argv[0] != "gh" or not _GITHUB_REMOTE.fullmatch(_git_value(cwd, "remote", "get-url", "origin")):
@@ -578,14 +629,14 @@ class Workspace:
             flag, sep, value = arg.partition("=")
             if flag in {"--repo", "-R"}:
                 overrides.append(value if sep else next(args, ""))
-        if not overrides:
-            return True
         if cwd != self.cwd or self.git_metadata is None or _git_metadata(cwd) != self.git_metadata:
             return False
         remote = _GITHUB_REMOTE.fullmatch(_git_value(cwd, "remote", "get-url", "origin"))
         if remote is None:
             return False
         origin = remote[1].removesuffix(".git").casefold()
+        if not overrides:
+            return _gh_default_repo(cwd) in {origin, f"github.com/{origin}"}
         # A hostless repo override uses gh's configured default host when GH_HOST is unset.
         allowed = {f"github.com/{origin}"}
         if host:

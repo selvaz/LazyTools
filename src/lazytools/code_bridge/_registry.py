@@ -151,6 +151,10 @@ class Registry:
         store = self._existing_store()
         if store is None:
             return None
+        # Only a writer copying cards needs this: the job could otherwise edit its own owner state.
+        assert self.path is not None
+        if self.path.resolve().is_relative_to(cwd.resolve()):
+            raise ValueError("The approval registry must be outside the job checkout")
 
         def remember(card_id: str) -> None:
             meta = _store.read_meta(self.job_store, job_id) or {}
