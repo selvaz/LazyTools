@@ -86,6 +86,7 @@ class AttemptContinuation(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     preserved_branch: Nonempty | None = None
     preserved_commit: Nonempty | None = None
+    preserved_base: Nonempty | None = None  # the interrupted attempt's original dispatch-base
     preserved_files: tuple[str, ...] = ()
     preserved_message: str = ""
     preserved_unresolved: tuple[str, ...] = ()  # files the preserved work left with conflict markers

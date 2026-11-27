@@ -233,26 +233,36 @@ class BridgeLauncher:
                     self._stale_sources.pop(repo, None)
                 elif self._stale_sources.get(repo) != why:
                     self._stale_sources[repo] = self.stale_bases[str(task["task_id"])] = why
-            self._create_checkout(task, repo, checkout, safe_project, safe_task)  # records the base commit
+                return self._create_checkout(task, repo, checkout, safe_project, safe_task)
+            self._create_checkout(task, repo, checkout, safe_project, safe_task)
+        elif preserved:
+            self._restore_preserved(task, checkout, self._git(checkout, "config", "--get", "dispatch.branch"))
         else:
-            if not preserved:
-                # A new attempt in an existing checkout must add its own commits.
-                subprocess.run(["git", "-C", str(checkout), "tag", "-f", "dispatch-base", "HEAD"],
-                               text=True, capture_output=True, check=False)
-            base_tag = subprocess.run(["git", "-C", str(checkout), "rev-parse", "-q", "--verify",
-                                       "dispatch-base^{commit}"], text=True, capture_output=True, check=False)
-            if base_tag.returncode == 0:
-                self.base_commits[str(task["task_id"])] = base_tag.stdout.strip()
-        if preserved:
-            # A recreated clone has the source branch as a remote-tracking ref.
-            if not task.get("preserved_commit") and subprocess.run(
-                ["git", "-C", str(checkout), "show-ref", "--verify", "--quiet", f"refs/heads/{preserved}"],
-                check=False,
-            ).returncode != 0:
-                preserved = f"origin/{preserved}"
-            current = self._git(checkout, "config", "--get", "dispatch.branch")
-            self._git(checkout, "checkout", "--quiet", "-B", current, str(preserved))
+            # A new attempt in an existing checkout must add its own commits.
+            subprocess.run(["git", "-C", str(checkout), "tag", "-f", "dispatch-base", "HEAD"],
+                           text=True, capture_output=True, check=False)
+        base_tag = subprocess.run(["git", "-C", str(checkout), "rev-parse", "-q", "--verify",
+                                   "dispatch-base^{commit}"], text=True, capture_output=True, check=False)
+        if base_tag.returncode == 0:
+            self.base_commits[str(task["task_id"])] = base_tag.stdout.strip()
         return checkout
+
+    def _restore_preserved(self, task: dict[str, Any], checkout: Path, branch: str) -> None:
+        """Put the interrupted attempt's commit on the task branch with its original dispatch-base.
+
+        The preserved history already contains any dependency merges (and their resolution),
+        so nothing is replayed, and the base is the recorded one, never the source's current state.
+        """
+        preserved = str(task.get("preserved_commit") or task.get("preserved_branch"))
+        # A recreated clone has the source branch as a remote-tracking ref.
+        if not task.get("preserved_commit") and subprocess.run(
+            ["git", "-C", str(checkout), "show-ref", "--verify", "--quiet", f"refs/heads/{preserved}"],
+            check=False,
+        ).returncode != 0:
+            preserved = f"origin/{preserved}"
+        self._git(checkout, "checkout", "--quiet", "-B", branch, preserved)
+        if task.get("preserved_base"):
+            self._git(checkout, "tag", "-f", "dispatch-base", str(task["preserved_base"]))
 
     def _create_checkout(self, task: dict[str, Any], repo: Path, checkout: Path,
                          safe_project: str, safe_task: str) -> Path:
@@ -291,8 +301,12 @@ class BridgeLauncher:
         for sibling in sorted(path for path in checkout.parent.iterdir() if path != checkout and (path / ".git").is_dir()):
             subprocess.run(["git", "-C", str(checkout), "fetch", "--quiet", str(sibling), "+HEAD:refs/dispatch/" + sibling.name],
                            text=True, capture_output=True, check=False)
-        self._git(checkout, "checkout", "--quiet", "-B", str(branch), str(base))
         self._git(checkout, "config", "dispatch.branch", str(branch))  # publication checks it
+        if task.get("preserved_commit") or task.get("preserved_branch"):
+            # Never replay dependency merges or recompute the base for preserved work.
+            self._restore_preserved(task, checkout, str(branch))
+            return checkout
+        self._git(checkout, "checkout", "--quiet", "-B", str(branch), str(base))
         self.base_commits[str(task["task_id"])] = self._git(checkout, "rev-parse", "HEAD")
         for index, commit in enumerate(commits[1:], start=1):
             result = subprocess.run(
@@ -586,6 +600,7 @@ class Preserved:
     message: str
     commit: str
     unresolved: tuple[str, ...] = ()  # files that still hold conflict markers (an unresolved merge)
+    base: str | None = None  # the attempt's original dispatch-base
 
 
 def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved | None, str | None]:
@@ -635,7 +650,9 @@ def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved 
     changed = git("diff", "--name-only", "dispatch-base", "HEAD") if has_base else None
     files = tuple(changed.stdout.splitlines()) if changed and changed.stdout.strip() else tuple(dirty)
     message = git("log", "-1", "--format=%B").stdout.strip()
-    return Preserved(branch, files, message, git("rev-parse", "HEAD").stdout.strip(), unresolved), None
+    base = git("rev-parse", "dispatch-base^{commit}").stdout.strip() if has_base else None
+    return Preserved(branch, files, message, git("rev-parse", "HEAD").stdout.strip(),
+                     unresolved=unresolved, base=base or None), None
 
 
 def _is_litter(path: str) -> bool:
@@ -829,7 +846,8 @@ class Dispatcher:
             return self._with_lessons(task)
         branch = resume.get("preserved_branch")
         if branch:
-            task = {**task, "preserved_branch": branch, "preserved_commit": resume.get("preserved_commit")}
+            task = {**task, "preserved_branch": branch, "preserved_commit": resume.get("preserved_commit"),
+                    "preserved_base": resume.get("preserved_base")}
         unresolved = list(resume.get("preserved_unresolved") or [])
         warning = ("" if not unresolved else
                    " The merge is UNRESOLVED: conflict markers remain in "
@@ -1377,10 +1395,11 @@ class Dispatcher:
             native_id = None if resume_failed or task.data.get("review_of") else _jobs._native_id(job)
             kept: dict[str, Any] = {
                 "preserved_branch": preserved.branch, "preserved_commit": preserved.commit,
+                "preserved_base": preserved.base,
                 "preserved_files": list(preserved.files), "preserved_message": preserved.message,
                 "preserved_unresolved": list(preserved.unresolved),
             } if preserved else {key: (continuation or {}).get(key) for key in (
-                "preserved_branch", "preserved_commit", "preserved_files", "preserved_message",
+                "preserved_branch", "preserved_commit", "preserved_base", "preserved_files", "preserved_message",
                 "preserved_unresolved",
             ) if resume_failed and (continuation or {}).get(key)}
             cause = "resume failed" if resume_failed else "engine crash"
