@@ -708,3 +708,17 @@ def test_mark_landed_requires_authority_and_handles_task_changes(queue):
     service.landing_check = lambda *_: True
     result = service.mark_landed(OPERATOR, PROJECT, "a", url, SHA, "reason")
     assert result["landing"]["merge_commit"] == SHA
+
+
+def test_transaction_store_compare_and_swap_many_matches_lazybridge_semantics(tmp_path) -> None:
+    """LazyBridge's per-card approval registry calls compare_and_swap_many on this adapter (downstream check 27/11)."""
+    from lazytools.projects.task_store import transaction
+
+    db = tmp_path / "projects.sqlite"
+    Store(db=str(db)).close()  # creates the store table
+    with transaction(db, write=True) as store:
+        assert store.compare_and_swap_many({"a": None}, {"a": 1, "b": 2})  # None matches a missing key
+        assert not store.compare_and_swap_many({"a": 99}, {"a": 3})  # mismatch: nothing applies
+        assert store.read("a") == 1
+        assert store.compare_and_swap_many({"a": 1, "b": 2}, {"c": 3}, delete=("b",))
+        assert store.read("b") is None and store.read("c") == 3

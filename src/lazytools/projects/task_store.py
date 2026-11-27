@@ -7,7 +7,7 @@ import logging
 import os
 import sqlite3
 import time
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any, Protocol
@@ -82,6 +82,27 @@ class TransactionStore:
         if self.read(key) != expected:
             return False
         self.write(key, new, agent_id=agent_id)
+        return True
+
+    def compare_and_swap_many(
+        self,
+        expected: Mapping[str, Any],
+        updates: Mapping[str, Any],
+        *,
+        delete: Iterable[str] = (),
+        agent_id: str | None = None,
+    ) -> bool:
+        """LazyBridge Store semantics inside the surrounding transaction.
+
+        All expectations must match (an expected ``None`` matches a missing key); then every update applies, then
+        every deletion. LazyBridge's per-card approval registry uses it.
+        """
+        if any(self.read(key) != value for key, value in expected.items()):
+            return False
+        for key, value in updates.items():
+            self.write(key, value, agent_id=agent_id)
+        for key in delete:
+            self.connection.execute("DELETE FROM store WHERE key = ?", (key,))
         return True
 
 
