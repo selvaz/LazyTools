@@ -533,8 +533,29 @@ the returned `cursor` to the next call:
   metadata), so `wait-any` and `bridge_events` read the same record alike.
 
 The event computation is shared with `wait-any`
-(`lazytools.code_bridge._events`). MCP notifications for events (SPEC R4.2)
-are not implemented yet. They are a separate task after the server split.
+(`lazytools.code_bridge._events`).
+
+#### Approval notifications
+
+`lazytools-orchestration-mcp --allow-unsafe` also sends each new approval ticket
+to the client as `notifications/message`, with level `info`. `data` is the
+`approval` event exactly as `bridge_events` returns it, and
+`data.approval.approval_id` is the ticket id.
+
+- Each client session has its own loop. It starts when the client reports
+  `initialized`, reads `bridge_events` after its own cursor every 2 seconds, and
+  stops when the session closes.
+- As with an empty cursor, tickets already open when the session starts are sent
+  too. A session is sent each ticket once. The same ticket can also appear in
+  `bridge_events`, so de-duplicate by ticket id.
+- No loop runs without `--allow-unsafe`, on a task-scoped server
+  (`code_task_context`), when `fleet` is not mounted, or on `lazytools-mcp`.
+- Delivery is best effort. Clients that do not receive log notifications,
+  including those speaking the 2026-07-28 protocol (which has no
+  `initialized` step), keep polling `bridge_events`, as must any client that
+  cannot afford to miss a ticket.
+- The server declares the `logging` capability for this. It accepts
+  `logging/setLevel` but sends approval tickets whatever level is set.
 
 ### `knowledge` — shared lessons
 

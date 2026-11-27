@@ -219,6 +219,7 @@ Start: `lazytools-mcp [provider ids...] [--allow-unsafe] [--config lazytools.jso
 | Capability | How to call | What it does | Status | Docs |
 | --- | --- | --- | --- | --- |
 | Orchestration-only MCP server | `lazytools-orchestration-mcp [provider ids...] [--allow-unsafe] [--config lazytools.json] [--http --port N] [--list-tools]` | Mounts only `code_bridge`, `code_review`, `claude_review`, `code_sessions`, `codemap`, `projects`, `fleet`, `knowledge`, `pr` (tools in section 8); refuses other ids; starts with one coding CLI or none | tests-only | mcp-server.md#orchestration-server |
+| Approval notifications | `lazytools-orchestration-mcp --allow-unsafe` (automatic, per client session) | Sends each new approval ticket as `notifications/message` (level `info`, data = the `bridge_events` `approval` event with the ticket id), read from `bridge_events`; stops with the session; never on read-only or task-scoped servers; best effort, so clients without notifications keep using `bridge_events` | tests-only | mcp-server.md#approval-notifications |
 
 ## 9. LazyBridge core (v1.10.0)
 

@@ -41,6 +41,8 @@ class _ServerSpec:
     instructions: str
     #: Default and only accepted provider ids; ``None`` means every provider.
     providers: tuple[str, ...] | None = None
+    #: Send new approval tickets as MCP notifications (with ``--allow-unsafe``).
+    notify_approvals: bool = False
 
 
 _DATA_SERVER = _ServerSpec(
@@ -82,6 +84,7 @@ _ORCHESTRATION_SERVER = _ServerSpec(
         "sessions (code_sessions_*) and lesson recording (lessons_record)."
     ),
     providers=ORCHESTRATION_PROVIDERS,
+    notify_approvals=True,
 )
 
 #: Providers that ``lazytools-mcp`` keeps for one release only.
@@ -272,6 +275,7 @@ def _launch(spec: _ServerSpec, argv: list[str] | None = None) -> None:
         read_only=not args.allow_unsafe,
         code_task_resolver=configured_task_resolver(data_source or {}, http=args.http),
         instructions=spec.instructions,
+        notify_approvals=spec.notify_approvals,
     )
     if args.http:
         serve_http(server, host=args.host, port=args.port)
