@@ -20,8 +20,28 @@ def task_id(task: dict[str, Any], index: int) -> str:
     return task.get("task_id") or f"@{index}"
 
 
-def plan_fields(task: dict[str, Any]) -> dict[str, Any]:
+def routing_fields(data: dict[str, Any]) -> dict[str, Any]:
     fields: dict[str, Any] = {}
+    preference = data.get("engine_preference")
+    if preference is not None:
+        if not isinstance(preference, (list, tuple)) or any(
+            engine not in ("codex", "claude", "claude_code") for engine in preference
+        ):
+            raise ValueError("engine_preference must be a list of codex or claude engines")
+        normalised = ["claude" if engine == "claude_code" else engine for engine in preference]
+        if len(set(normalised)) != len(normalised):
+            raise ValueError("engine_preference must not repeat an engine")
+        fields["engine_preference"] = normalised
+    fallback = data.get("fallback")
+    if fallback is not None:
+        if fallback not in ("wait", "allow"):
+            raise ValueError("fallback must be wait or allow")
+        fields["fallback"] = fallback
+    return fields
+
+
+def plan_fields(task: dict[str, Any]) -> dict[str, Any]:
+    fields = routing_fields(task)
     for name in _TEXT_FIELDS:
         value = task.get(name)
         if value is not None:

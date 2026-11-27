@@ -264,6 +264,11 @@ class BridgeLauncher:
         engine_family = claim.get("engine_family")
         if engine_family:
             command.extend(("--engine", "claude" if engine_family == "claude_code" else str(engine_family)))
+        # A slot fallback can choose a later rung with a different quota window.
+        if model := claim.get("model"):
+            command.extend(("--model", str(model)))
+        if effort := claim.get("effort"):
+            command.extend(("--effort", str(effort)))
         # Every attempt runs in a named conversation, so a retry can wake the same agent.
         session = str(task.get("resume_session") or f"dispatch-attempt-{claim.get('attempt', 1)}")
         if task.get("resume_native_id") and engine_family:

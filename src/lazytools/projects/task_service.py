@@ -57,6 +57,8 @@ class PlacementEvidence(BaseModel):
     expires_at: FiniteFloat
     engine_family: Nonempty
     environment_id: Nonempty | None = None
+    model: Nonempty | None = None
+    effort: Nonempty | None = None
 
 
 class CompletionEvidence(BaseModel):
@@ -673,6 +675,10 @@ class ProjectTaskService:
                 "engine_family": placement.engine_family,
                 "route": list(route) if route is not None else None,
             }
+            if placement.model is not None:
+                receipt["model"] = placement.model
+            if placement.effort is not None:
+                receipt["effort"] = placement.effort
             # A null claimed_at keeps the legacy board's lease timer from
             # independently recycling this claim. This receipt owns the lease.
             task.data.update(

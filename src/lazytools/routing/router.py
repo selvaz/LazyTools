@@ -2,10 +2,9 @@
 provider and model it WOULD choose -- and nothing else. No LLM ever picks a model; this
 function is plain code, and callers pass a capability ``tier``.
 
-The router walks a tier's ladder ("gradini") IN ORDER: the first rung with at least one eligible
-provider decides, and a rung with none (every provider's telemetry stale, unreadable, or
-missing a budget) is skipped in favour of the next one -- not a failure of the whole route,
-only of that one rung. Only when EVERY rung comes up empty does ``route()`` return no pick.
+The router walks a tier's ladder in order. It skips rungs with no eligible
+providers. When a rung would wait for a slot, the router checks later rungs for
+an eligible, free fallback that satisfies the pace policy. If none is found, the task waits.
 This is not escalation on a FAILED task -- it is simply "nobody to decide between at this
 rung", the same shape ``no_eligible_provider`` already had for a single-rung tier.
 
@@ -57,11 +56,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from lazytools.projects.admission import (
+    ENGINES,
     LONG_WINDOW_MINUTES,
     MAX_TELEMETRY_SKEW_SECONDS,
+    WEEKLY_PACE_PERCENT,
     Engine,
     EngineBudget,
     TelemetryReading,
@@ -69,6 +70,9 @@ from lazytools.projects.admission import (
 )
 from lazytools.projects.admission import decide as _admission_decide
 from lazytools.routing.catalogue import StepModel, TierCatalogue
+
+Fallback = Literal["wait", "allow"]
+_WRITER_TIERS = frozenset({"writing", "thinking", "critical"})
 
 #: A single, provisional, visible threshold (design section 3: "una sola soglia, provvisoria
 #: e ben visibile (10 punti di margine), da tarare sul numero di cambi osservati"). Two
@@ -189,6 +193,9 @@ class RoutingDecision:
     telemetry_age: dict[str, float | None] = field(default_factory=dict)
     decided_at: datetime | None = None
     warnings: dict[Engine, str] = field(default_factory=dict)
+    busy: dict[Engine, str] = field(default_factory=dict)
+    weekly_projections: dict[Engine, float | None] = field(default_factory=dict)
+    waiting_for: StepModel | None = None
 
     def as_record(self) -> dict[str, Any]:
         record: dict[str, Any] = {
@@ -205,6 +212,10 @@ class RoutingDecision:
         }
         if self.warnings:
             record["warnings"] = self.warnings
+        if self.busy:
+            record["busy"] = self.busy
+        if self.waiting_for is not None:
+            record["waiting_for"] = self.waiting_for.provider
         return record
 
 
@@ -261,17 +272,14 @@ def _margin_pair(
     ``admission.decide()`` judges, computed at ``observed_at`` the same way it is (design
     section 3: "calcolato a reading.observed_at, come fa il freno")."""
     position_margin = budget.autonomous_percent - (window.used_percent + reserved)
-    elapsed = window.elapsed_fraction(now=observed_at)
-    projected = window.projected_end_percent(now=observed_at)
-    forecast_margin = None
-    if projected is not None and elapsed is not None and elapsed > 0:
-        forecast_margin = budget.forecast_limit_percent(elapsed) - (projected + reserved)
+    forecast = window.forecast(budget, observed_at=observed_at, reserved=reserved)
+    forecast_margin = forecast[1] - forecast[0] if forecast is not None else None
     return position_margin, forecast_margin
 
 
 def _score_provider(
     *, engine: Engine, model: str, reading: TelemetryReading, budget: EngineBudget, in_flight: int, moment: datetime,
-    operator_directed: bool = False,
+    operator_directed: bool = False, weekly: WindowReading | WindowAvailability | None = None,
 ) -> ProviderScore | str:
     """A provider's margins, or the ineligibility reason (a string) if its telemetry cannot
     support a score at all.
@@ -295,7 +303,8 @@ def _score_provider(
             f"limit {budget.max_telemetry_age_seconds / 3600:.1f}h"
         )
     weekly_bucket = _weekly_window_id(engine, model)
-    weekly = _find_window(reading, bucket=weekly_bucket, weekly=True)
+    if weekly is None:
+        weekly = _find_window(reading, bucket=weekly_bucket, weekly=True)
     if weekly is WindowAvailability.UNREADABLE:
         return f"telemetry_window_unreadable: no usable weekly window for {engine}/{model!r} ({weekly_bucket!r})"
     assert isinstance(weekly, WindowReading)
@@ -364,6 +373,32 @@ def _price_and_order_tiebreak(a: StepModel, b: StepModel) -> tuple[str, Engine]:
     return "provider_order_tiebreak", (a.provider if order_a <= order_b else b.provider)
 
 
+def _rank(
+    models: dict[Engine, StepModel],
+    scores: dict[str, dict[str, Any]],
+    continuity: ContinuityHint,
+    engine_preference: tuple[Engine, ...],
+) -> tuple[str, Engine]:
+    for engine in engine_preference:
+        if engine in models:
+            return "engine_preference", engine
+    if continuity.engine is not None and continuity.engine in models and continuity.failed_attempts < 2:
+        return "continuity", continuity.engine
+    if len(models) == 1:
+        return "only_eligible_provider", next(iter(models))
+
+    best, second = sorted(models, key=lambda e: scores[e]["weekly_margin"], reverse=True)[:2]
+    gap = scores[best]["weekly_margin"] - scores[second]["weekly_margin"]
+    if gap >= HYSTERESIS_MARGIN_POINTS:
+        return "weekly_margin", best
+    best_five, second_five = scores[best]["five_hour_margin"], scores[second]["five_hour_margin"]
+    if best_five is not None and second_five is not None and best_five != second_five:
+        return "hysteresis_five_hour_tiebreak", best if best_five >= second_five else second
+    if gap == 0:
+        return _price_and_order_tiebreak(models[best], models[second])
+    return "hysteresis_no_tiebreak_data", best
+
+
 def route(
     tier: str,
     *,
@@ -378,6 +413,10 @@ def route(
     now: datetime | None = None,
     operator_directed: bool = False,
     requested_engine: Engine | None = None,
+    busy: dict[Engine, str] | None = None,
+    engine_preference: tuple[Engine, ...] = (),
+    fallback: Fallback = "wait",
+    fallback_max_age_seconds: float | None = None,
 ) -> RoutingDecision:
     """What the router would choose for ``tier``, right now -- PURE and DETERMINISTIC: no
     store, no network, no side effect, and no LLM ever makes this choice. Walks
@@ -407,10 +446,21 @@ def route(
     that opposite provider eligible, the result is ``provider=None`` with reason
     ``"human_review_required"`` -- never a same-provider review, and never a "weaker but
     available" one presented as adequate.
+
+    ``busy`` describes temporarily occupied slots. Writer tiers favor engines
+    within their weekly pace. If the preferred eligible engine is busy, a free
+    over-pace engine may take its place only with ``fallback="allow"``. Later rungs
+    can supply a free alternative if the current rung would wait.
+    A caller can require fresher telemetry for a slot fallback.
     """
     moment = now or datetime.now(UTC)
     continuity = continuity or ContinuityHint()
     capability = capability or CapabilityRequirement()
+    prefer_pace = tier in _WRITER_TIERS and writer_provider_for_review is None
+    busy = busy or {}
+    if writer_provider_for_review is not None:
+        continuity = ContinuityHint()
+        engine_preference = ()
 
     warnings: dict[Engine, str] = {}
     common: dict[str, Any] = dict(tier=tier, decided_at=moment, warnings=warnings)
@@ -425,6 +475,7 @@ def route(
     ineligible: dict[str, str] = {}
     telemetry_age: dict[str, float | None] = {}
     rung_failures: list[str] = []
+    slot_wait: RoutingDecision | None = None
 
     for step_index, step in enumerate(tier_catalogue.steps):
         # Keys namespaced by rung once there is more than one to distinguish -- rung 0 keeps
@@ -435,12 +486,24 @@ def route(
         step_scores: dict[str, dict[str, Any]] = {}
         step_ineligible: dict[str, str] = {}
         eligible_models: dict[Engine, StepModel] = {}
+        projections: dict[Engine, float | None] = dict.fromkeys(ENGINES)
+        common["weekly_projections"] = projections
 
         for step_model in step.providers:
             engine = step_model.provider
             reading = readings.get(engine)
+            budget = budgets.get(engine)
+            weekly: WindowReading | WindowAvailability = WindowAvailability.UNREADABLE
             if reading is not None:
-                telemetry_age[engine] = reading.age_seconds(now=moment)
+                age = telemetry_age[engine] = reading.age_seconds(now=moment)
+                if (reading.error is None and budget is not None
+                        and -MAX_TELEMETRY_SKEW_SECONDS <= age <= budget.max_telemetry_age_seconds):
+                    weekly = _find_window(reading, bucket=_weekly_window_id(engine, step_model.model), weekly=True)
+                    if isinstance(weekly, WindowReading):
+                        reserved = (max(in_flight.get(engine, 0), 0) + 1) * budget.per_job_reserve_percent
+                        forecast = weekly.forecast(budget, observed_at=reading.observed_at, reserved=reserved)
+                        if forecast is not None:
+                            projections[engine] = forecast[0]
             elif engine not in telemetry_age:
                 telemetry_age[engine] = None
 
@@ -453,12 +516,14 @@ def route(
             if writer_provider_for_review is not None and engine == writer_provider_for_review:
                 step_ineligible[engine] = "same_as_writer"
                 continue
+            if writer_provider_for_review is not None and engine in busy:
+                step_ineligible[engine] = busy[engine]
+                continue
             allow_unreadable = operator_directed and engine == requested_engine
             if reading is None and not allow_unreadable:
                 step_ineligible[engine] = "telemetry_missing"
                 continue
 
-            budget = budgets.get(engine)
             if budget is None:
                 step_ineligible[engine] = "no_budget_configured"
                 continue
@@ -471,6 +536,7 @@ def route(
                     engine=engine,
                     model=step_model.model,
                     reading=reading,
+                    weekly=weekly,
                     budget=budget,
                     in_flight=in_flight.get(engine, 0),
                     moment=moment,
@@ -491,79 +557,44 @@ def route(
             ineligible[f"{key_prefix}{provider_name}"] = why
         for provider_name, record in step_scores.items():
             scores[f"{key_prefix}{provider_name}"] = record
-
-        # Review mode with nobody left standing on THIS rung: try the next one, never fall
-        # back to the writer's own provider or to a weaker-but-present one (design F.2).
-        if writer_provider_for_review is not None and not eligible_models:
-            detail = "; ".join(f"{e}: {w}" for e, w in sorted(step_ineligible.items())) or "no provider at this step"
-            rung_failures.append(f"step{step_index}: {detail}")
-            continue
-
-        # Continuity: the last attempt's engine is kept, unless it is ineligible on this rung
-        # or has already failed twice for this task (design section 3.1.3). Only applies
-        # outside review mode -- a reviewer is never "the writer's own last engine".
-        if (
-            writer_provider_for_review is None
-            and continuity.engine is not None
-            and continuity.failed_attempts < 2
-            and continuity.engine in eligible_models
-        ):
-            chosen = eligible_models[continuity.engine]
-            return RoutingDecision(
-                provider=chosen.provider,
-                model=chosen.model,
-                effort=chosen.effort,
-                reason="continuity" if step_index == 0 else f"continuity_step{step_index}",
-                requires_confirmation=chosen.provider == "codex",
-                scores=scores,
-                ineligible=ineligible,
-                telemetry_age=telemetry_age,
-                **common,
-            )
+        if slot_wait is not None:
+            for engine, projection in projections.items():
+                if slot_wait.weekly_projections[engine] is None:
+                    slot_wait.weekly_projections[engine] = projection
 
         if not eligible_models:
             detail = "; ".join(f"{e}: {w}" for e, w in sorted(step_ineligible.items())) or "no provider at this step"
             rung_failures.append(f"step{step_index}: {detail}")
             continue
 
-        if len(eligible_models) == 1:
-            (engine, chosen) = next(iter(eligible_models.items()))
-            return RoutingDecision(
-                provider=chosen.provider,
-                model=chosen.model,
-                effort=chosen.effort,
-                reason="only_eligible_provider" if step_index == 0 else f"only_eligible_provider_step{step_index}",
-                requires_confirmation=chosen.provider == "codex",
-                scores=scores,
-                ineligible=ineligible,
-                telemetry_age=telemetry_age,
-                **common,
-            )
-
-        # Two or more eligible candidates on this rung: rank by weekly margin -- the largest
-        # remaining budget margin decides, deterministically. A tie within the hysteresis band
-        # is broken by the five-hour margin; a tie even THAT cannot break falls to the
-        # documented last resort (price, then fixed provider order) -- see
-        # ``_price_and_order_tiebreak`` and the module docstring (design section 3,
-        # "Classifica", plus this PR's own addition).
-        engines_sorted = sorted(eligible_models.keys(), key=lambda e: step_scores[e]["weekly_margin"], reverse=True)
-        best, second = engines_sorted[0], engines_sorted[1]
-        reason = "weekly_margin"
-        winner = best
-        if abs(step_scores[best]["weekly_margin"] - step_scores[second]["weekly_margin"]) < HYSTERESIS_MARGIN_POINTS:
-            best_five = step_scores[best]["five_hour_margin"]
-            second_five = step_scores[second]["five_hour_margin"]
-            if best_five is not None and second_five is not None and best_five != second_five:
-                reason = "hysteresis_five_hour_tiebreak"
-                winner = best if best_five >= second_five else second
-            elif step_scores[best]["weekly_margin"] == step_scores[second]["weekly_margin"]:
-                # An exact weekly tie the five-hour window also could not break (missing on
-                # one side, or tied there too): the documented last resort, never an
-                # unexplained "whichever sorted first".
-                reason, winner = _price_and_order_tiebreak(eligible_models[best], eligible_models[second])
-            else:
-                reason = "hysteresis_no_tiebreak_data"
-                winner = best  # keep the (already-tied) weekly ranking; nothing better to go on
+        over_pace = {e for e, projected in projections.items()
+                     if projected is not None and projected > WEEKLY_PACE_PERCENT}
+        preferred = {e: m for e, m in eligible_models.items() if not prefer_pace or e not in over_pace}
+        reason, winner = _rank(preferred or eligible_models, step_scores, continuity, engine_preference)
+        if preferred and len(preferred) < len(eligible_models):
+            reason = "weekly_pace"
+        step_busy = {e: why for e, why in busy.items() if e in eligible_models}
+        if winner in step_busy or slot_wait is not None:
+            free = {e: m for e, m in eligible_models.items() if e not in step_busy}
+            if fallback_max_age_seconds is not None:
+                free = {e: m for e, m in free.items()
+                        if e in readings and readings[e].age_seconds(now=moment) <= fallback_max_age_seconds}
+            free_within_pace = {e: m for e, m in free.items() if e not in over_pace}
+            if not free or (not free_within_pace and fallback == "wait"):
+                if slot_wait is None:
+                    slot_wait = RoutingDecision(
+                        provider=None, model=None, effort=None, reason="wait_for_slot", requires_confirmation=False,
+                        scores=scores, ineligible=ineligible, telemetry_age=telemetry_age,
+                        busy=step_busy, waiting_for=eligible_models[winner], **common,
+                    )
+                continue
+            _, winner = _rank(free_within_pace or free, step_scores, continuity, engine_preference)
+            reason = "available_slot_fallback" if free_within_pace else "over_pace_fallback_allowed"
+            if slot_wait is not None:
+                step_busy = {**slot_wait.busy, **step_busy}
+                for engine in step_busy:
+                    if projections[engine] is None:
+                        projections[engine] = slot_wait.weekly_projections[engine]
         if step_index > 0:
             reason = f"{reason}_step{step_index}"
 
@@ -577,9 +608,12 @@ def route(
             scores=scores,
             ineligible=ineligible,
             telemetry_age=telemetry_age,
+            busy=step_busy,
             **common,
         )
 
+    if slot_wait is not None:
+        return slot_wait
     # Every rung came up empty.
     if writer_provider_for_review is not None:
         return RoutingDecision(

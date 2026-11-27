@@ -49,6 +49,7 @@ MIN_ELAPSED_FOR_FORECAST = 0.05
 
 LONG_WINDOW_MINUTES = 24 * 60
 MIN_ELAPSED_FOR_FORECAST_LONG_WINDOW = 0.20
+WEEKLY_PACE_PERCENT = 100.0
 
 CAS_ATTEMPTS = 8
 
@@ -110,6 +111,14 @@ class WindowReading:
         if elapsed is None or elapsed < floor:
             return None
         return self.used_percent / elapsed
+
+    def forecast(self, budget: EngineBudget, *, observed_at: datetime, reserved: float) -> tuple[float, float] | None:
+        """Projected end including reservations, and the admission limit at observation time."""
+        projected = self.projected_end_percent(now=observed_at)
+        elapsed = self.elapsed_fraction(now=observed_at)
+        if projected is None or elapsed is None or elapsed <= 0:
+            return None
+        return projected + reserved, budget.forecast_limit_percent(elapsed)
 
 
 @dataclass(frozen=True)
@@ -236,12 +245,11 @@ def decide(
             allowed=False, reason="autonomous_boundary", detail="the remaining capacity is reserved for operator-directed work", **window_common
         )
 
-    forecasts = [(w, w.projected_end_percent(now=reading.observed_at)) for w in usable]
     ranked = []
-    for w, p in forecasts:
-        elapsed = w.elapsed_fraction(now=reading.observed_at)
-        if p is not None and elapsed is not None:
-            ranked.append((w, p + reserved, budget.forecast_limit_percent(elapsed)))
+    for window in usable:
+        forecast = window.forecast(budget, observed_at=reading.observed_at, reserved=reserved)
+        if forecast is not None:
+            ranked.append((window, *forecast))
     if not operator_directed and ranked:
         fastest, projected, limit = max(ranked, key=lambda entry: entry[1] - entry[2])
         if projected >= limit:

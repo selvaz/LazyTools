@@ -18,9 +18,14 @@ from lazytools.code_bridge._dispatch_launch import BridgeLauncher, cloud_job_id
 from lazytools.connectors.projects import ProjectsTools
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
+from lazytools.routing import RoutingDecision
 
 PROJECT = "cloudp"
 PRINCIPAL = TaskPrincipal(actor="code-bridge-dispatch", role="orchestrator", projects=(PROJECT,))
+
+
+def codex_placement(_task: dict[str, Any], tier: str) -> tuple[RoutingDecision, str]:
+    return RoutingDecision(tier, "codex", None, None, "only_eligible_provider", True), "env-123"
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -114,7 +119,7 @@ def check(script: str) -> str:
 
 def dispatcher(service: ProjectTaskService, launcher: FakeCloudLauncher, events: list[str]) -> Dispatcher:
     return Dispatcher(service, PRINCIPAL, launcher, PROJECT, emit=events.append,  # type: ignore[arg-type]
-                      cloud_placer=lambda _task, _tier: ("codex", "env-123"))
+                      cloud_placer=codex_placement)
 
 
 @pytest.fixture
@@ -303,7 +308,7 @@ def test_restart_after_lease_expiry_settles_recorded_accepted_evidence(
     later = time.time() + 3600  # the dispatcher comes back after the lease has expired
     service.clock = lambda: later
     restarted = Dispatcher(service, PRINCIPAL, launcher, PROJECT, emit=events.append,  # type: ignore[arg-type]
-                           cloud_placer=lambda _task, _tier: ("codex", "env-123"), clock=lambda: later)
+                           cloud_placer=codex_placement, clock=lambda: later)
     restarted.pass_once()
     data = board_task(service)
     assert data["status"] == "failed", events
@@ -319,7 +324,9 @@ def test_cloud_task_is_routed_while_local_slots_are_full(
 ) -> None:
     def choose(tier: str, *, respect_slots: bool = True, **_kwargs: Any) -> Any:
         # Every engine is at its machine-wide local limit: only a slot-blind pick finds one.
-        return SimpleNamespace(decision=SimpleNamespace(provider=None if respect_slots else "codex"), readings={})
+        decision = (RoutingDecision(tier, None, None, None, "wait_for_slot", False)
+                    if respect_slots else codex_placement({}, tier)[0])
+        return SimpleNamespace(decision=decision)
 
     monkeypatch.setattr(_dispatch._routing, "choose", choose)
     monkeypatch.setattr(_dispatch._cloud, "load_config", lambda: {})
@@ -330,11 +337,11 @@ def test_cloud_task_is_routed_while_local_slots_are_full(
     monkeypatch.setattr(_dispatch._cloud, "provider",
                         lambda _engine: SimpleNamespace(env_for=lambda *_args: "env-123"))
     router, cloud_placer = _dispatch._routers(None, {"org/repo": landed[0]})
-    assert router("basic") is None  # local placement honours the full slots
+    assert router("basic", {}, (), "wait").provider is None  # local placement honours the full slots
     admit(service, None)
     launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
     Dispatcher(service, PRINCIPAL, launcher, PROJECT, emit=events.append, router=router,  # type: ignore[arg-type]
-               capacity=lambda _engine: 1, router_with_engine=True, cloud_placer=cloud_placer).pass_once()
+               capacity=lambda _engine: 1, cloud_placer=cloud_placer).pass_once()
     assert [(task_id, engine) for task_id, engine, _job in launcher.launches] == [(f"{PROJECT}/A", "codex")], events
     assert board_task(service)["placement_evidence"]["cloud"]["evidence"]["environment_id"] == "env-123"
 
@@ -470,7 +477,7 @@ def test_cloud_launch_with_a_mismatched_repository_fails_and_submits_nothing(
     events: list[str] = []
     # Placement evidence recorded earlier (by a placer without the check); the launch checks again.
     Dispatcher(service, PRINCIPAL, Launcher(None, PRINCIPAL, PROJECT, repo_roots={"org/repo": other}), PROJECT,
-               emit=events.append, cloud_placer=lambda _task, _tier: ("codex", "env-123")).pass_once()
+               emit=events.append, cloud_placer=codex_placement).pass_once()
     data = board_task(service)
     assert data["status"] == "failed", events
     assert "Cloud repository differs from the task claim" in data["error"] and "org/other" in data["error"]

@@ -32,6 +32,7 @@ from pydantic import BaseModel, ConfigDict
 
 from lazytools.projects.keys import PROJECT_PREFIX
 from lazytools.projects.owner import get_project_owner
+from lazytools.projects.task_fields import routing_fields
 
 if TYPE_CHECKING:
     from lazybridge import Store
@@ -102,6 +103,8 @@ def open_project(
     prefix: str = PROJECT_PREFIX,
     extra_fields: Mapping[str, Any] | None = None,
     record_factory: RecordFactory | None = None,
+    engine_preference: list[str] | None = None,
+    fallback: Literal["wait", "allow"] | None = None,
 ) -> ProjectRecord:
     """Create a project AS A DRAFT, rejecting any existing record with the same id.
 
@@ -147,8 +150,8 @@ def open_project(
         process=process,
         classification_rationale=classification_rationale,
     )
-    if extra_fields is not None or record_factory is not None:
-        extras = dict(extra_fields or {})
+    extras = {**(extra_fields or {}), **routing_fields({"engine_preference": engine_preference, "fallback": fallback})}
+    if extras or record_factory is not None:
         conflicts = sorted(set(extras).intersection(ProjectRecord.model_fields))
         if conflicts:
             raise ValueError("extra_fields cannot override project fields: " + ", ".join(conflicts))
