@@ -161,7 +161,7 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `code_write` | `CodeWriteTools(...)` | `codex_write`, `claude_code_write` | `--allow-unsafe`, local runtimes; Claude needs `[engines]` |
 | `code_sessions` | `CodeSessionTools(...)` | list/bind/rename/forget native aliases | explicit opt-in with `--allow-unsafe` |
 | `code_bridge` | `CodeBridgeTools(...)` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` — local and cloud coding jobs through `lazytools-code-bridge` | `--allow-unsafe`; cloud jobs also need `allow_cloud=true` per call |
-| `fleet` | `FleetTools(...)` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search` | none; always read-only |
+| `fleet` | `FleetTools(...)` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search`, `bridge_events` | none; always read-only |
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
 | `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — Tools that delegate through `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
 | `studio` | Published agents and pipelines discovered from LazyStudio | each published `studio_<slug>` tool, `studio_run_status`; `studio_status` when disconnected | LazyStudio operator token; published calls need `--allow-unsafe` |
@@ -458,6 +458,7 @@ bridge_route(tier, engine=None, where=None, needs=None) -> JSON
 bridge_autonomy(week=None, since=None, until=None) -> JSON
 bridge_models() -> JSON
 capabilities_search(query="") -> rows
+bridge_events(cursor="", timeout_s=0) -> {"events": [...], "cursor": "..."}
 ```
 
 The `fleet` provider mirrors the corresponding `lazytools-code-bridge` CLI
@@ -467,6 +468,41 @@ Claude probe. Routing choices and ISO dates are validated before invocation;
 caller-provided values beginning with `-` are rejected rather than passed as
 options. `bridge_pending` reports bridge job approval tickets and is separate
 from the projects provider's pending approvals.
+
+`bridge_events` is the orchestrator's single job and ticket event channel over
+MCP. MCP calls are bounded, so it returns a cursor instead of streaming. Pass
+the returned `cursor` to the next call:
+
+- An empty cursor means "from now", like the startup snapshot of
+  `wait-any --all-active --loop --follow`. Jobs that already finished and
+  tickets that were already decided are not replayed. Tickets that are still
+  open are reported.
+- An event that happens between two calls is returned by the next call that
+  passes the previous cursor. This covers a job that starts and finishes, and a
+  ticket that is created and decided, between the two calls.
+- With `timeout_s` greater than 0 (at most 60), the call waits that long for at
+  least one new event. Otherwise it returns at once, possibly with no events.
+- Event kinds are `approval`, `done`, `failed` (also `partial` and failed cloud
+  landing or review), `interrupted`, `cancelled` (an interrupted job that an
+  operator cancelled or stopped), and `landed`. Each event carries `kind`,
+  `job_id`, `task_id` and `detail` (as `dispatch --json` events do), plus
+  `state`, `pr_url` and `approval`. `approval.status` gives the ticket's state
+  when it was read (`pending`, `approved`, `rejected`, `expired`).
+- The cursor is opaque: `ev1.<compressed state>.<checksum>`. The state lists
+  the jobs already reported or finished before the cursor started (job id
+  with its status or reported event) and the ticket ids already reported. A
+  cursor that fails validation (wrong format, checksum or schema) is refused
+  with an error. It is never silently reset. The cursor is checked for
+  integrity but not signed with a secret. Its size grows with the number of
+  finished jobs kept in the store, and ids of pruned jobs are dropped.
+- The tool only reads. Unlike `wait-any`, it does not finish cloud jobs (refresh
+  provider state, land, review). A cloud job's `landed` event shows up once a
+  `wait`, `wait-any` or `land` caller has recorded the landing, even if `done`
+  was already reported for that job.
+
+The event computation is shared with `wait-any`
+(`lazytools.code_bridge._events`). MCP notifications for events (SPEC R4.2)
+are not implemented yet. They are a separate task after the server split.
 
 ### Scoped code tasks
 

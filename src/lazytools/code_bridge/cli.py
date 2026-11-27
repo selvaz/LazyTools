@@ -40,6 +40,7 @@ from lazytools.code_bridge import (
     _credentials,
     _dispatch,
     _engines,
+    _events,
     _freshness,
     _jobs,
     _launch,
@@ -1405,38 +1406,13 @@ def _cmd_wait(args: argparse.Namespace) -> int:
         time.sleep(args.interval)
 
 
-_WAIT_EVENTS = {"done", "failed", "approval", "landed", "interrupted"}
-
-
-def _wait_event(job: dict[str, Any], event: str, approval: dict[str, Any] | None = None) -> dict[str, Any]:
-    # kind/job_id/task_id/detail are shared with `dispatch --json` events.
-    if approval is not None:
-        command = " ".join(str(approval.get("command") or approval.get("summary") or "").split())[:200]
-        reason = " ".join(str(approval.get("reason") or "").split())[:160]
-        detail = f"{approval['approval_id']} {command} | {reason}"
-    elif event == "landed":
-        detail = str(job.get("pr_url") or "")
-    else:
-        detail = " ".join(str(job.get("error") or job.get("status") or "").split())
-    return {
-        "event": event,
-        "job_id": str(job["job_id"]),
-        "state": job.get("status"),
-        "approval": approval,
-        "pr_url": job.get("pr_url"),
-        "kind": event,
-        "task_id": job.get("task_id"),
-        "detail": detail,
-    }
-
-
 def _cmd_wait_any(args: argparse.Namespace) -> int:
     """Wait for the next actionable state across a snapshot of jobs."""
     started_at = time.time()
     db_path = _db_path(args)
     try:
         events = {value.strip() for value in args.events.split(",") if value.strip()}
-        unknown_events = events - _WAIT_EVENTS
+        unknown_events = events - _events.WAIT_EVENTS
         if unknown_events:
             raise ValueError(f"unknown --events value(s): {', '.join(sorted(unknown_events))}")
         if not events:
@@ -1477,91 +1453,22 @@ def _cmd_wait_any(args: argparse.Namespace) -> int:
                 watched.append(job_id)
 
     deadline = None if args.timeout is None else time.monotonic() + args.timeout
-    emitted_approvals: set[str] = set()
-    terminal_seen: set[str] = set()
+    # The event computation is shared with the `bridge_events` MCP tool (`_events.poll`).
+    state = _events.WatchState(watched=watched, history=history, follow=args.follow, started_at=started_at)
     while True:
-        store = _store.build_store(db_path)
-        registry = _store.build_job_registry(store)
-        if args.follow:  # pick up every job created after this stream began, even one already finished
-            for job in _jobs.list_jobs(store, all_jobs=True):
-                job_id = str(job["job_id"])
-                if job_id not in watched and job_id not in history:
-                    watched.append(job_id)
-        jobs = {job_id: _jobs.find_job(store, registry, job_id) for job_id in watched}
-
-        # A ticket is emitted once per invocation, even if it remains pending.
-        tickets = _pending_tickets(args, store, jobs=(job for job in jobs.values() if job is not None))
-        for ticket in tickets:
-            job = jobs.get(_registry.job_ref(ticket))
-            if job is None or ticket.approval_id in emitted_approvals:
-                continue
-            emitted_approvals.add(ticket.approval_id)
-            detail = _request_detail(ticket.prompt)
-            approval = {
-                "approval_id": ticket.approval_id,
-                "command": detail.get("command"),
-                "summary": detail.get("summary") or ticket.prompt.splitlines()[0],
-                "reason": detail.get("reason"),
-            }
-            if "approval" in events:
-                _print_json(_wait_event(job, "approval", approval))
-                if not args.loop:
-                    return 0
-
-        candidates: list[tuple[float, dict[str, Any], str]] = []
-        for job_id, current in jobs.items():
-            if current is None or job_id in terminal_seen:
-                continue
-            job = current
-            finishing_action = None
-            if _cloud.is_cloud(job) and (job.get("status") not in _TERMINAL or _cloud_land.needs_finishing(job)):
-                row = _cloud_land.process_job(
-                    store,
-                    registry,
-                    job,
-                    db_path=db_path,
-                    poll_interval=args.interval,
-                    deadline=deadline,
-                    nonblocking_poll=True,
-                )
-                job = _jobs.find_job(store, registry, job_id) or job
-                finishing_action = row["action"]
-            status = str(job.get("status") or "")
-            landing_failed = finishing_action in {"land-failed", "review-failed"}
-            landed_at = job.get("landed_at")
-            landed = finishing_action == "landed" or bool(
-                _cloud.is_cloud(job)
-                and job.get("land")
-                and landed_at
-                and (float(landed_at) >= started_at or not job.get("landed_event_reported_at"))
-            )
-            event = (
-                "failed"
-                if landing_failed
-                else (
-                    "landed"
-                    if landed
-                    else (
-                        {"done": "done", "failed": "failed", "partial": "failed", "interrupted": "interrupted"}.get(
-                            status
-                        )
-                    )
-                )
-            )
-            if event:
-                meta = _store.read_meta(store, job_id) or {}
-                candidates.append((float(meta.get("completed_at") or meta.get("updated_at") or 0), job, event))
-        for _at, job, event in sorted(candidates, key=lambda item: item[0]):
-            terminal_seen.add(str(job["job_id"]))
-            if event in events:
-                _print_json(_wait_event(job, event))
-                if event == "landed":
-                    meta = _store.read_meta(store, str(job["job_id"])) or {}
-                    meta["landed_event_reported_at"] = time.time()
-                    _store.write_meta(store, str(job["job_id"]), meta)
-                if not args.loop:
-                    return 0
-        if args.loop and not args.follow and len(terminal_seen) == len(watched):
+        for event in _events.iter_events(
+            state,
+            db_path=db_path,
+            registry_db=args.registry_db,
+            kinds=events,
+            finish=True,
+            interval=args.interval,
+            deadline=deadline,
+        ):
+            _print_json(event)
+            if not args.loop:
+                return 0
+        if args.loop and not args.follow and len(state.seen_jobs) == len(state.watched):
             return 0
         if deadline is not None and time.monotonic() >= deadline:
             return 3
