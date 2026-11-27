@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -17,7 +20,18 @@ from typing import Any, Literal, Protocol
 from lazybridge import Store
 from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugify
 
-from lazytools.code_bridge import _cloud, _cloud_land, _concurrency, _gh, _jobs, _registry, _routing, _store
+from lazytools.code_bridge import (
+    _cloud,
+    _cloud_land,
+    _cloud_place,
+    _concurrency,
+    _gh,
+    _jobs,
+    _registry,
+    _routing,
+    _store,
+    _task,
+)
 from lazytools.code_bridge._cloud import CloudError
 from lazytools.code_bridge._lockfile import _pid_alive
 from lazytools.code_bridge._navigator import _split_command
@@ -41,6 +55,7 @@ STALE_HEARTBEAT = "engine heartbeat went stale"
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
 RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
                       "no new commit since the task started", STALE_HEARTBEAT, "database is locked")
+CLOUD_POLL_SECONDS = 30.0  # minimum spacing of provider status polls for one cloud job
 # A retry that could not load the failed attempt's conversation: start a fresh one instead.
 RESUME_FAILURES = ("use a new session alias", "Local launch binding changed", "Governed Claude resume requires",
                    "No conversation found", "thread not found", "no rollout found")
@@ -91,6 +106,29 @@ class Task:
     hold_reason: str | None = None  # reason recorded with the task's current start_hold
 
 
+class RepositoryMismatch(ValueError):
+    """The repository a cloud task would act on is not the task's repository."""
+
+
+def cloud_repo(repo_roots: dict[str, Path], task: dict[str, Any]) -> Path:
+    """The checkout a cloud task acts on: its --repo-root mapping, verified against the task's `repo`.
+
+    The cloud job takes its repository from this checkout, so there is no fallback to the
+    dispatcher's own checkout: a wrong one would publish the work to another repository.
+    """
+    repo = str(task.get("repo") or "")
+    if not repo:
+        raise RepositoryMismatch("cloud task names no repository")
+    root = next((path for slug, path in repo_roots.items() if slug.casefold() == repo.casefold()), None)
+    if root is None:
+        raise RepositoryMismatch(f"no --repo-root mapping for the task's repository {repo}")
+    try:
+        _task.check_repo(_cloud.repo_root(root), repo, label="Cloud")  # the rule local launches apply
+    except Exception as exc:
+        raise RepositoryMismatch(str(exc)) from exc
+    return root
+
+
 class Launcher(Protocol):
     def launch(self, task: dict[str, Any], claim: dict[str, Any]) -> str: ...
     def job(self, job_ref: str) -> dict[str, Any] | None: ...
@@ -124,6 +162,7 @@ class BridgeLauncher:
         self.project_id = project_id
         self.repo_roots = repo_roots or {}
         self.worktree_root = worktree_root
+        self.cloud_checkouts: set[Path] = set()  # acceptance clones this launcher allocated
 
     @staticmethod
     def _git(repo: Path, *args: str) -> str:
@@ -337,6 +376,88 @@ class BridgeLauncher:
         return next((job for job in _jobs.list_jobs(store, all_jobs=True)
                      if job.get("task_id") == task_id and job.get("task_attempt") == attempt), None)
 
+    # Cloud placement: the existing `run --where cloud` path submits, lands and opens the PR.
+
+    def cloud_free(self, engine_family: str) -> bool:
+        """Whether the configured cloud limits ([cloud] concurrency, per provider) leave a place."""
+        engine = "claude" if engine_family == "claude_code" else engine_family
+        config = _cloud.load_config()
+        active = _cloud.active_jobs(_store.build_store(Path(self.db) if self.db else None))
+        if config.concurrency and len(active) >= config.concurrency:
+            return False
+        limit = config.provider_concurrency.get(engine)
+        return not (limit and sum(job.get("engine") == engine for job in active) >= limit)
+
+    def launch_cloud(self, task: dict[str, Any], claim: dict[str, Any], job_id: str) -> str:
+        repo = cloud_repo(self.repo_roots, task)  # checked again: placement may predate the mapping
+        family = str(claim["engine_family"])
+        command = [sys.executable, "-m", "lazytools.code_bridge", "run", "--where", "cloud", "--allow-cloud",
+                   "--engine", "claude" if family == "claude_code" else family,
+                   "--branch", _cloud.current_branch(repo), "--open-pr", "--land",
+                   "--task-id", claim["task_id"], "--job-id", job_id,
+                   "--cwd", str(repo), "--root", str(repo), "--task", str(task["text"]),
+                   "--tier", task.get("tier") or "thinking", "--no-brief-check"]
+        if self.db:
+            command.extend(("--db", self.db))
+        if task.get("requested_network") is not None:
+            command.extend(("--network", "on" if task["requested_network"] else "off"))
+        result = subprocess.run(command, text=True, capture_output=True, check=False)
+        if result.returncode:
+            raise RuntimeError((result.stderr or result.stdout).strip() or f"bridge exited {result.returncode}")
+        return job_id
+
+    def cloud_job(self, job_ref: str) -> dict[str, Any] | None:
+        """Poll a cloud job once and land it when done (as `wait-any` does); return its record."""
+        db_path = Path(self.db) if self.db else None
+        store = _store.build_store(db_path)
+        registry = _store.build_job_registry(store)
+        job = _jobs.find_job(store, registry, job_ref)
+        if job is None:
+            return None
+        row = _cloud_land.process_job(store, registry, job, db_path=db_path, poll_interval=CLOUD_POLL_SECONDS,
+                                      nonblocking_poll=True)
+        job = _jobs.find_job(store, registry, str(job["job_id"])) or job
+        if row["action"] in ("land-failed", "skipped"):
+            job = {**job, "land_failure": row["detail"]}
+        return job
+
+    def cloud_checkout(self, task_id: str, job: dict[str, Any]) -> Path:
+        """A fresh local clone of the landed branch at the pushed commit, for the acceptance checks.
+
+        The clone gets a newly allocated directory in its own namespace, never a path derived
+        from the task name, so it cannot coincide with a local task's checkout.
+        """
+        repo = Path(str(job.get("repo_root") or Path.cwd()))
+        safe_project = re.sub(r"[^A-Za-z0-9_.-]+", "-", self.project_id)
+        safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task_id.rsplit("/", 1)[-1])
+        namespace = (self.worktree_root or repo.parent / "_dispatch") / safe_project / ".cloud-accept"
+        namespace.mkdir(parents=True, exist_ok=True)
+        checkout = Path(tempfile.mkdtemp(prefix=f"{safe_task}-{job.get('task_attempt') or 0}-", dir=namespace))
+        self.cloud_checkouts.add(checkout)
+        try:
+            self._git(repo, "clone", "--quiet", "--local", "--no-checkout", str(repo), str(checkout))
+            self._git(checkout, "remote", "set-url", "origin", self._git(repo, "remote", "get-url", "origin"))
+            self._git(checkout, "fetch", "--quiet", "origin", f"refs/heads/{job['landed_branch']}")
+            self._git(checkout, "checkout", "--quiet", "--detach", str(job["pushed_sha"]))
+        except Exception:
+            self.remove_cloud_checkout(checkout)
+            raise
+        return checkout
+
+    def remove_cloud_checkout(self, checkout: Path) -> None:
+        """Delete an acceptance clone; only directories `cloud_checkout` allocated are ever touched."""
+        if checkout in self.cloud_checkouts:
+            self.cloud_checkouts.discard(checkout)
+            for directory, _, files in os.walk(checkout):  # git objects are read-only on Windows
+                for name in files:
+                    os.chmod(os.path.join(directory, name), stat.S_IREAD | stat.S_IWRITE)
+            shutil.rmtree(checkout, ignore_errors=True)
+
+
+def cloud_job_id(claim_token: str) -> str:
+    """The cloud job id of a claim: known before the submit, so a restart can find the job."""
+    return hashlib.sha256(f"dispatch-cloud:{claim_token}".encode()).hexdigest()[:32]
+
 
 def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None]:
     """Make a finished job's checkout committed, or say why it is not.
@@ -351,14 +472,16 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
 
     if not cwd.is_dir():
         return None, None
+    # Checked even for a clean checkout: a commit (the agent's or a preserved attempt's)
+    # does not make conflict markers resolved.
+    markers = _conflict_markers(cwd)
+    if markers:
+        return f"unresolved conflict markers in {', '.join(markers[:5])}", None
     # Tool litter alone (error.log, __pycache__) is not unfinished work.
     dirty = [line[3:] for line in git("status", "--porcelain").stdout.splitlines()
              if line.strip() and not _is_litter(line[3:])]
     if not dirty:
         return None, None
-    markers = git("grep", "-l", "-E", "^(<<<<<<<|>>>>>>>) ", "--", ".").stdout.split()
-    if markers:
-        return f"unresolved conflict markers in {', '.join(markers[:5])}", None
     merging = git("rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0
     # Never stage tool litter (the Codex CLI writes error.log with account details),
     # and unstage any the agent already staged.
@@ -381,12 +504,42 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
     return None, git("rev-parse", "HEAD").stdout.strip() or None
 
 
+_CONFLICT_MARKER = re.compile(rb"^(<<<<<<<|>>>>>>>) ", re.MULTILINE)
+
+
+def _conflict_markers(cwd: Path) -> list[str]:
+    """Files changed since `dispatch-base` (committed or not) that still hold conflict markers.
+
+    The one marker check of settlement. Without a `dispatch-base` tag every file is checked.
+    """
+    def paths(*argv: str) -> list[str]:
+        result = subprocess.run(["git", "-C", str(cwd), *argv, "-z"], text=True, capture_output=True, check=False)
+        return [path for path in result.stdout.split("\0") if path]
+
+    has_base = subprocess.run(["git", "-C", str(cwd), "rev-parse", "-q", "--verify", "refs/tags/dispatch-base"],
+                              text=True, capture_output=True, check=False).returncode == 0
+    candidates = (paths("diff", "--name-only", "dispatch-base") if has_base else paths("ls-files", "--cached"))
+    candidates += paths("ls-files", "--others", "--exclude-standard")
+    found = []
+    for path in sorted(set(candidates)):
+        file = cwd / path
+        if _is_litter(path) or not file.is_file():
+            continue
+        try:
+            if _CONFLICT_MARKER.search(file.read_bytes()):
+                found.append(path)
+        except OSError:
+            continue
+    return found
+
+
 @dataclass(frozen=True)
 class Preserved:
     branch: str
     files: tuple[str, ...]
     message: str
     commit: str
+    unresolved: tuple[str, ...] = ()  # files that still hold conflict markers (an unresolved merge)
     base: str | None = None  # the attempt's original dispatch-base
 
 
@@ -395,6 +548,8 @@ def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved 
 
     Commits uncommitted non-litter changes (outside the engine sandbox, like a finished
     task) and points the branch at HEAD. Returns (None, None) when there is nothing to keep.
+    A merge left unresolved is recorded as such (commit message and `Preserved.unresolved`)
+    so the retry is told; settlement rejects any artifact that still holds the markers.
     """
     def git(*argv: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(["git", "-C", str(cwd), *argv], text=True, capture_output=True, check=False)
@@ -409,16 +564,21 @@ def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved 
     project, _, task = task_id.rpartition("/")
     safe_project = re.sub(r"[^A-Za-z0-9_.-]+", "-", project)
     safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task)
+    unresolved = tuple(_conflict_markers(cwd))
     if dirty:
+        merge_head = git("rev-parse", "-q", "--verify", "MERGE_HEAD").stdout.strip()
         git("add", "-A", "--", ".", *(f":(exclude){pattern}" for pattern in COMMIT_EXCLUDES))
         staged_litter = [path for path in git("diff", "--cached", "--name-only").stdout.splitlines()
                          if _is_litter(path)]
         if staged_litter:
             git("reset", "-q", "--", *staged_litter)
-        merging = git("rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0
-        if git("diff", "--cached", "--name-only").stdout.strip() or merging:
-            commit = git("commit", "-q", "-m", f"{task}: work of interrupted attempt {attempt}",
-                         "-m", "Preserved by the dispatcher before a retry: the engine stopped for a system reason.")
+        if git("diff", "--cached", "--name-only").stdout.strip() or merge_head:
+            body = ["-m", "Preserved by the dispatcher before a retry: the engine stopped for a system reason."]
+            if unresolved:
+                what = f"The merge of {merge_head} is UNRESOLVED" if merge_head else "The work is UNRESOLVED"
+                body += ["-m", f"{what}: conflict markers remain in {', '.join(unresolved[:20])}."]
+            commit = git("commit", "-q", "-m", f"{task}: work of interrupted attempt {attempt}"
+                         + (" (unresolved merge)" if unresolved else ""), *body)
             if commit.returncode:
                 return None, f"could not commit the attempt's work: {(commit.stderr or commit.stdout).strip()[:200]}"
     branch = f"dispatch-attempt/{safe_project}/{safe_task}/{attempt}"
@@ -431,7 +591,8 @@ def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved 
     files = tuple(changed.stdout.splitlines()) if changed and changed.stdout.strip() else tuple(dirty)
     message = git("log", "-1", "--format=%B").stdout.strip()
     base = git("rev-parse", "dispatch-base^{commit}").stdout.strip() if has_base else None
-    return Preserved(branch, files, message, git("rev-parse", "HEAD").stdout.strip(), base or None), None
+    return Preserved(branch, files, message, git("rev-parse", "HEAD").stdout.strip(),
+                     unresolved=unresolved, base=base or None), None
 
 
 def _is_litter(path: str) -> bool:
@@ -553,6 +714,7 @@ class Dispatcher:
                  json_events: bool = False, knowledge_store: Store | None = None,
                  stale_minutes: int = DEFAULT_STALE_MINUTES,
                  capacity: Callable[[str], int | None] | None = None, router_with_engine: bool = False,
+                 cloud_placer: Callable[[dict[str, Any], str], tuple[str, str]] | None = None,
                  land: bool = False):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
@@ -568,7 +730,11 @@ class Dispatcher:
         self.router = router
         self.capacity = capacity  # engine family -> local slot limit (None = unlimited)
         self.router_with_engine = router_with_engine  # router accepts (tier, engine_family)
+        # (task data, tier) -> (engine family, cloud environment id); raises when cloud is not possible
+        self.cloud_placer = cloud_placer
         self.land = land  # push each published branch to origin and open its PR
+        # Accepted, published tasks awaiting landing; drained after every claimed task is settled.
+        self.landings: list[tuple[Task, Path, str, str, list[str]]] = []
         self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
         self.waiting: set[str] = set()
@@ -622,8 +788,14 @@ class Dispatcher:
         if branch:
             task = {**task, "preserved_branch": branch, "preserved_commit": resume.get("preserved_commit"),
                     "preserved_base": resume.get("preserved_base")}
+        unresolved = list(resume.get("preserved_unresolved") or [])
+        warning = ("" if not unresolved else
+                   " The merge is UNRESOLVED: conflict markers remain in "
+                   + ", ".join(unresolved[:20]) + (" ..." if len(unresolved) > 20 else "")
+                   + ". Resolve every conflict first so the changes of both sides are kept, then commit;"
+                   " the task is rejected while any marker remains.")
         if _resumes(resume, claim.get("engine_family")):
-            return {**task, "text": RESUME_PROMPT, "resume_session": resume.get("session"),
+            return {**task, "text": RESUME_PROMPT + warning, "resume_session": resume.get("session"),
                     "resume_native_id": resume["native_id"]}
         task = self._with_lessons(task)
         if branch:
@@ -633,7 +805,7 @@ class Dispatcher:
             task = {**task, "text": (
                 "A previous attempt at this task was interrupted by the system. Its work is kept in this "
                 f"checkout (also on branch {branch}). Files it changed: {files or 'none'}. Its last "
-                f"commit message: {message}. Review that work, keep what is "
+                f"commit message: {message}.{warning} Review that work, keep what is "
                 "right and finish the task below.\n\n" + str(task["text"]))}
         return task
 
@@ -731,7 +903,7 @@ class Dispatcher:
         `next_ready` only returns tasks with fresh placement evidence; the quota router
         picks the engine family for the task's tier here, and the launch later pins it.
         """
-        if self.router is None:
+        if self.router is None and self.cloud_placer is None:
             return
         status = {task.task_id.rsplit("/", 1)[1]: task.status for task in tasks}
         now = self.clock()
@@ -740,7 +912,10 @@ class Dispatcher:
         in_use: dict[str, int] = {}
         for task in tasks:
             if task.status == "claimed":
-                family = str(((task.dispatch or {}).get("receipt") or {}).get("engine_family") or "")
+                receipt = (task.dispatch or {}).get("receipt") or {}
+                # A cloud job takes no local engine slot.
+                local = receipt.get("effective_placement", "local") == "local"
+                family = str(receipt.get("engine_family") or "") if local else ""
             elif task.status == "todo":
                 evidence = task.data.get("placement_evidence", {}).get("local", {})
                 fresh = evidence.get("revision") == task.revision and                     evidence.get("evidence", {}).get("expires_at", 0) > now + 60
@@ -751,15 +926,21 @@ class Dispatcher:
                 in_use[family] = in_use.get(family, 0) + 1
         for task in tasks:
             data = task.data
-            if (task.status != "todo" or data.get("requested_placement", "local") != "local"
+            requested = data.get("requested_placement", "local")
+            placer = self.router if requested == "local" else self.cloud_placer if requested == "cloud" else None
+            if (task.status != "todo" or placer is None
                     or data.get("review_of") or data.get("acceptance_contract")
                     or any(status.get(dep) != "done" for dep in data.get("dependency_ids", []))):
                 continue
-            record = data.get("placement_evidence", {}).get("local", {})
+            record = data.get("placement_evidence", {}).get(requested, {})
             evidence = record.get("evidence", {})
             if record.get("revision") == task.revision and evidence.get("expires_at", 0) > now + 60:
                 continue
             tier = data.get("tier") or "thinking"
+            if requested == "cloud":
+                self._place_cloud(task, tier, now)
+                continue
+            assert self.router is not None
             if tier not in picks:
                 try:
                     picks[tier] = self.router(tier)
@@ -792,6 +973,32 @@ class Dispatcher:
             in_use[engine] = in_use.get(engine, 0) + 1
             self._event("placed", task.task_id, f"local {engine} tier={tier}")
 
+    def _place_cloud(self, task: Task, tier: str, now: float) -> None:
+        """Record cloud placement evidence: the routed engine and its cloud environment."""
+        assert self.cloud_placer is not None
+        try:
+            engine, environment = self.cloud_placer(task.data, tier)
+        except RepositoryMismatch as exc:
+            # Not a transient condition: the task is not placed, so it can never be claimed.
+            self.waiting.discard(task.task_id)
+            if task.task_id not in self.unsupported:
+                self.unsupported.add(task.task_id)
+                self._event("failed", task.task_id, f"cloud placement refused: {str(exc).replace(chr(10), ' ')}")
+            return
+        except Exception as exc:
+            if task.task_id not in self.waiting:
+                self._event("waiting", task.task_id, f"cloud placement failed: {str(exc).replace(chr(10), ' ')}")
+                self.waiting.add(task.task_id)
+            return
+        self.waiting.discard(task.task_id)
+        self.service.record_placement(task.task_id, task.revision, PlacementEvidence(
+            placement="cloud", eligible=True,
+            reason=f"quota router picked {engine} for tier {tier}; cloud environment {environment}",
+            reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}-cloud",
+            expires_at=now + self.service.lease_seconds + 60, engine_family=engine, environment_id=environment,
+        ))
+        self._event("placed", task.task_id, f"cloud {engine} env={environment} tier={tier}")
+
     def _blocked(self, tasks: list[Task]) -> None:
         failed = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "failed"}
         for task in tasks:
@@ -800,9 +1007,179 @@ class Dispatcher:
                 self._event("blocked", task.task_id)
                 self.reported_blocked.add(task.task_id)
 
+    def _settle_missing(self, task: Task, dispatch: dict[str, Any], receipt: dict[str, Any]) -> bool:
+        """Release a claim whose job never appeared, once the lease and the grace period are over."""
+        created = float(dispatch.get("created_at", 0))
+        expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+        if expired and self.clock() - created >= self.orphan_grace:
+            dispatch_state = dispatch.get("state", "intent")
+            observation: Literal["absent", "terminated"] = "terminated" if dispatch.get("job_ref") else "absent"
+            self.service.reconcile_dispatch(
+                self.principal, task.task_id, receipt["attempt"], observation,
+                evidence_ref=None if dispatch_state == "intent" else "dispatcher:no-job-after-grace",
+                job_ref=dispatch.get("job_ref"),
+            )
+            reason = "no job after dispatch grace period"
+            self._record_lesson(task, "missing job", reason)
+            self._event("failed", task.task_id, reason, job_id=dispatch.get("job_ref"))
+            return True
+        return False
+
+    def _conclude(
+        self, task: Task, *, reference: str, job_ref: str, accepted: bool, expired: bool,
+        artifact_ref: str | None = None, failure_reason: str | None = None,
+        verification_id: str | None = None, reviewed_sha: str | None = None,
+        review_passed: bool = False, review_independence: Any = None,
+        preserved_branch: str | None = None, pr_url: str | None = None, land_failure: str | None = None,
+    ) -> CompletionEvidence:
+        """Record completion evidence and complete the claim; return the evidence the task settled on.
+
+        Evidence already recorded under the reference decides (a restart replays it). After lease
+        expiry the claim is closed through the service's reconcile path, which only takes a blocked
+        result: accepted evidence becomes blocked, under a new reference when the old one is bound.
+        """
+        dispatch = task.dispatch or {}
+        receipt = dispatch.get("receipt", {})
+        records = dispatch.get("evidence", {})
+        recorded = records.get(reference)
+        if recorded:
+            evidence = CompletionEvidence.model_validate(recorded)
+        else:
+            evidence = CompletionEvidence(
+                reference=reference, job_ref=job_ref, executor=receipt["executor"],
+                engine_family=receipt["engine_family"], state="accepted" if accepted else "blocked",
+                artifact_ref=artifact_ref, verification_id=verification_id, reviewed_sha=reviewed_sha,
+                review_passed=review_passed, review_independence=review_independence,
+                outcome="success" if accepted else "task_failure", failure_reason=failure_reason,
+                preserved_branch=preserved_branch, pr_url=pr_url, land_failure=land_failure,
+            )
+        if expired and evidence.state == "accepted":
+            if recorded:
+                reference = f"{reference}:lease-expired"
+                recorded = records.get(reference)
+            evidence = (CompletionEvidence.model_validate(recorded) if recorded else evidence.model_copy(update={
+                "reference": reference, "state": "blocked", "outcome": "task_failure",
+                "failure_reason": "claim lease expired",
+            }))
+        if not recorded:
+            self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
+        accepted = evidence.state == "accepted"
+        complete_options = {"reconcile_failure": True} if expired else {}
+        self.service.complete(self.principal, task.task_id, receipt["claim_token"], evidence.reference,
+                              evidence.state, evidence.reference, "success" if accepted else "task_failure",
+                              **complete_options)
+        return evidence
+
+    def _settle_cloud(self, task: Task) -> bool:
+        """Settle a cloud dispatch once its job is terminal and its landing is resolved.
+
+        Accepted only when the job landed (PR url and pushed commit recorded) and the
+        task's checks pass in a fresh local clone of the landed branch.
+        """
+        dispatch = task.dispatch or {}
+        receipt = dispatch.get("receipt", {})
+        token = receipt["claim_token"]
+        job_ref = str(dispatch.get("job_ref") or cloud_job_id(token))
+        job = self.launcher.cloud_job(job_ref)  # type: ignore[attr-defined]
+        if job is None:
+            return self._settle_missing(task, dispatch, receipt)
+        if not dispatch.get("job_ref"):
+            # Restarted between the submit and its acknowledgement: adopt the job.
+            self.service.record_submit(self.principal, task.task_id, token, job_ref)
+        status = job.get("status")
+        expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+        landing_owed = status == "done" and _cloud_land.needs_finishing(job) and not job.get("land_failure")
+        if status not in TERMINAL or landing_owed:
+            cancel = getattr(self.launcher, "cancel", None)
+            if (expired and status not in TERMINAL and cancel is not None and job_ref not in self.cancelled
+                    and cancel(job_ref)):
+                self.cancelled.add(job_ref)
+                self._event("cancelled", task.task_id, "claim lease expired; settling once the job has stopped",
+                            job_id=job_ref)
+            return False
+        checks = task.data.get("checks")
+        reference = f"cloud-job:{job_ref}:{status}" + (":checks" if checks else "")
+        recorded = dispatch.get("evidence", {}).get(reference)
+        landed = bool(status == "done" and job.get("landed_at") and job.get("pr_url") and job.get("pushed_sha"))
+        land_error = job.get("land_failure") or job.get("land_error")
+        land_failure = _cloud.redact(str(land_error)).strip() if land_error else None
+        failure: str | None
+        if recorded:  # restarted after recording: the evidence decides, the checks are not run again
+            failure = None if recorded.get("state") == "accepted" else (
+                recorded.get("failure_reason") or "cloud job failed")
+        elif status != "done":
+            failure = f"cloud job {status}: {_cloud.redact(str(job.get('error') or 'no error recorded'))}"
+        elif not landed:
+            detail = land_failure or "no PR url or pushed commit recorded"
+            failure = f"cloud job did not land: {detail}"
+        elif expired:
+            failure = "claim lease expired"
+        elif checks:
+            try:
+                cwd = self.launcher.cloud_checkout(task.task_id, job)  # type: ignore[attr-defined]
+            except Exception as exc:
+                failure = f"could not clone the landed branch: {_cloud.redact(str(exc))[:300]}"
+            else:
+                try:
+                    failure = ("\n".join(filter(None, (_check_failure(command, cwd) for command in checks)))
+                               or _checks_changed_checkout(cwd, job.get("pushed_sha")))
+                finally:
+                    remove = getattr(self.launcher, "remove_cloud_checkout", None)
+                    if remove is not None:
+                        remove(cwd)
+            expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+            failure = failure or ("claim lease expired" if expired else None)
+        else:
+            failure = None
+        settled = self._conclude(
+            task, reference=reference, job_ref=job_ref, accepted=failure is None, expired=expired,
+            artifact_ref=str(job["pushed_sha"]) if landed else None,
+            failure_reason=failure, pr_url=job.get("pr_url"), land_failure=land_failure or None,
+        )
+        if settled.state == "accepted":
+            self._event("published", task.task_id, settled.pr_url or str(job["pr_url"]), job_id=job_ref)
+            self._event("done", task.task_id, job_id=job_ref)
+            return True
+        failure = settled.failure_reason or failure
+        assert failure is not None
+        self._record_lesson(task, "task failure", failure)
+        self._event("failed", task.task_id, failure.split("\n", 1)[0], job_id=job_ref)
+        return True
+
+    def _launch_cloud(self, task: Task, summary: dict[str, Any], claim: dict[str, Any]) -> bool:
+        """Submit a claimed cloud task through `run --where cloud`; record its job; True when launched."""
+        task_id, token = summary["task_id"], claim["claim_token"]
+        job_id = cloud_job_id(token)
+        try:
+            self.service.begin_submit(self.principal, task_id, token)
+        except Exception as exc:
+            reason = str(exc).replace("\n", " ")
+            self.service.fail_dispatch_launch(self.principal, task_id, token, reason)  # back to todo
+            self._event("failed", task_id, reason)
+            return False
+        try:
+            job_ref = self.launcher.launch_cloud(  # type: ignore[attr-defined]
+                self._with_lessons({**summary, **task.data}), claim, job_id)
+        except Exception as exc:
+            reason = _cloud.redact(str(exc)).replace("\n", " ")
+            if self.launcher.job(job_id) is None:  # nothing reached the provider
+                try:
+                    self.service.fail_local_launch(self.principal, task_id, token, reason)
+                except Exception as release_exc:
+                    reason = f"{reason}; claim release failed: {str(release_exc).replace(chr(10), ' ')}"
+                self._record_lesson(task, "launch failure", reason)
+                self._event("failed", task_id, reason)
+                return False
+            job_ref = job_id  # a failed submit is recorded; settlement reports it
+        self.service.record_submit(self.principal, task_id, token, job_ref)
+        self._event("launched", task_id, job_id=job_ref)
+        return True
+
     def _settle(self, task: Task) -> bool:
         dispatch = task.dispatch or {}
         receipt = dispatch.get("receipt", {})
+        if receipt.get("effective_placement") == "cloud":
+            return self._settle_cloud(task)
         job_ref = dispatch.get("job_ref")
         job = self.launcher.job(job_ref) if job_ref else self.launcher.find(task.task_id, receipt.get("attempt", 0))
         continuation = task.data.get("attempt_continuation")
@@ -824,21 +1201,7 @@ class Dispatcher:
                 raise
             job_ref = str(job["job_id"])
         if not job:
-            created = float(dispatch.get("created_at", 0))
-            expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
-            if expired and self.clock() - created >= self.orphan_grace:
-                dispatch_state = dispatch.get("state", "intent")
-                observation: Literal["absent", "terminated"] = "terminated" if dispatch.get("job_ref") else "absent"
-                self.service.reconcile_dispatch(
-                    self.principal, task.task_id, receipt["attempt"], observation,
-                    evidence_ref=None if dispatch_state == "intent" else "dispatcher:no-job-after-grace",
-                    job_ref=dispatch.get("job_ref"),
-                )
-                reason = "no job after dispatch grace period"
-                self._record_lesson(task, "missing job", reason)
-                self._event("failed", task.task_id, reason, job_id=dispatch.get("job_ref"))
-                return True
-            return False
+            return self._settle_missing(task, dispatch, receipt)
         if job.get("status") not in TERMINAL:
             now = self.clock()
             lease_end = float(receipt.get("lease_expires_at", float("inf")))
@@ -937,31 +1300,20 @@ class Dispatcher:
                 self._event("preserve-failed", task.task_id, preserve_error, job_id=str(job_ref))
             elif preserved:
                 self._event("preserved", task.task_id, preserved.branch, job_id=str(job_ref))
-        state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
-        evidence = CompletionEvidence(reference=reference, job_ref=str(job_ref), executor=receipt["executor"],
-            engine_family=receipt["engine_family"], state=state,
+        settled = self._conclude(
+            task, reference=reference, job_ref=str(job_ref), accepted=accepted, expired=expired,
             artifact_ref=job.get("final_commit") or job.get("candidate_commit"),
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
-            review_independence=review_independence,
-            outcome="success" if accepted else "task_failure", failure_reason=check_failure,
+            review_independence=review_independence, failure_reason=check_failure,
             preserved_branch=preserved.branch if preserved else None,
-            # Preserve landing fields only when replaying evidence from an older dispatcher.
-            pr_url=recorded.get("pr_url"), land_failure=recorded.get("land_failure"))
-        if not recorded_failure:
-            self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
-        complete_options = {"reconcile_failure": True} if expired else {}
-        self.service.complete(self.principal, task.task_id, receipt["claim_token"], reference, state, reference,
-                              "success" if accepted else "task_failure", **complete_options)
+        )
         self._record_rejection(task, job)
-        if accepted:
+        if settled.state == "accepted":
             self._event("done", task.task_id, job_id=str(job_ref))
             if self.land and published and cwd is not None:
-                # The local artifact is accepted before contacting origin or GitHub.
-                pr_url, land_failure = _land(cwd, published, task.task_id, task.data, list(checks or []))
-                if pr_url:
-                    self._event("landed", task.task_id, pr_url, job_id=str(job_ref))
-                elif land_failure:
-                    self._event("land-failed", task.task_id, land_failure, job_id=str(job_ref))
+                # Landed by pass_once only after every claimed task is settled, so network
+                # latency here never consumes another task's lease.
+                self.landings.append((task, cwd, published, str(job_ref), list(checks or [])))
             return True
         if not resume_failed:
             self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
@@ -973,8 +1325,10 @@ class Dispatcher:
                 "preserved_branch": preserved.branch, "preserved_commit": preserved.commit,
                 "preserved_base": preserved.base,
                 "preserved_files": list(preserved.files), "preserved_message": preserved.message,
+                "preserved_unresolved": list(preserved.unresolved),
             } if preserved else {key: (continuation or {}).get(key) for key in (
                 "preserved_branch", "preserved_commit", "preserved_base", "preserved_files", "preserved_message",
+                "preserved_unresolved",
             ) if resume_failed and (continuation or {}).get(key)}
             cause = "resume failed" if resume_failed else "engine crash"
             if self._retry(task, cause, failure_reason, {
@@ -988,6 +1342,19 @@ class Dispatcher:
                     job_id=str(job_ref))
         return True
 
+    def _land_settled(self) -> None:
+        """Land the tasks accepted in this pass; outcomes are follow-up events only."""
+        landings, self.landings = self.landings, []
+        for task, cwd, branch, job_ref, checks in landings:
+            try:
+                pr_url, land_failure = _land(cwd, branch, task.task_id, task.data, checks)
+            except Exception as exc:
+                pr_url, land_failure = None, " ".join(_cloud.redact(str(exc)).split())[:500] or "landing failed"
+            if pr_url:
+                self._event("landed", task.task_id, pr_url, job_id=job_ref)
+            elif land_failure:
+                self._event("land-failed", task.task_id, land_failure, job_id=job_ref)
+
     def pass_once(self) -> tuple[int, int]:
         tasks = self.task_reader(self.service, self.project_id)
         for task in tasks:
@@ -997,6 +1364,7 @@ class Dispatcher:
                 except Exception as exc:
                     self._event("failed", task.task_id, str(exc).replace(chr(10), " "),
                                 job_id=(task.dispatch or {}).get("job_ref"))
+        self._land_settled()
         tasks = self.task_reader(self.service, self.project_id)
         self._surface_approvals(tasks)
         self._place(tasks)
@@ -1018,8 +1386,9 @@ class Dispatcher:
                 continue
             data = board_task.data
             self._event("ready", summary["task_id"])
-            if summary.get("effective_placement") == "cloud":
-                reason = "cloud placement not supported by dispatch v1"
+            cloud = summary.get("effective_placement") == "cloud"
+            if cloud and not hasattr(self.launcher, "launch_cloud"):
+                reason = "cloud placement not supported by this launcher"
                 self.unsupported.add(summary["task_id"])
                 self._event("failed", summary["task_id"], reason)
                 continue
@@ -1028,6 +1397,14 @@ class Dispatcher:
                 self.unsupported.add(summary["task_id"])
                 self._event("failed", summary["task_id"], reason)
                 continue
+            if cloud:
+                evidence = data.get("placement_evidence", {}).get("cloud", {}).get("evidence", {})
+                if not self.launcher.cloud_free(str(evidence.get("engine_family") or "")):  # type: ignore[attr-defined]
+                    if summary["task_id"] not in self.waiting:
+                        self._event("waiting", summary["task_id"], "cloud concurrency limit reached")
+                        self.waiting.add(summary["task_id"])
+                    continue
+                self.waiting.discard(summary["task_id"])
             branch = data.get("assigned_branch")
             if branch and str(branch) in running_branches:
                 self._event("failed", summary["task_id"], "assigned branch already running")
@@ -1046,6 +1423,10 @@ class Dispatcher:
                 continue
             claim = result["claim"]
             self._event("claimed", summary["task_id"])
+            if cloud:
+                if self._launch_cloud(board_task, summary, claim):
+                    running += 1
+                continue
             try:
                 job_ref = self.launcher.launch(self._launch_input({**summary, **data}, claim), claim)
             except Exception as exc:
@@ -1133,7 +1514,29 @@ def dispatch(args: argparse.Namespace) -> int:
     launcher = BridgeLauncher(args.db, principal, args.project, repo_roots=repo_roots,
                               worktree_root=Path(args.worktree_root).resolve() if args.worktree_root else None,
                               registry_db=registry_db, launch_mode=getattr(args, "launch_mode", None))
-    db_path = Path(args.db) if args.db else None
+    router, cloud_placer = _routers(Path(args.db) if args.db else None, repo_roots)
+    limits = _concurrency.load_limits()
+
+    def capacity(engine_family: str) -> int | None:
+        return limits.get("claude" if engine_family == "claude_code" else engine_family) or None
+
+    knowledge_db = getattr(args, "knowledge_db", None)
+    knowledge_store = _store.build_store(Path(knowledge_db).expanduser()) if knowledge_db is not None else None
+    try:
+        return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
+                          capacity=capacity, router_with_engine=True, cloud_placer=cloud_placer,
+                          json_events=bool(getattr(args, "json", False)),
+                          knowledge_store=knowledge_store, land=bool(getattr(args, "land", False)),
+                          stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)
+    finally:
+        if knowledge_store is not None:
+            knowledge_store.close()
+
+
+def _routers(
+    db_path: Path | None, repo_roots: dict[str, Path],
+) -> tuple[Callable[..., str | None], Callable[[dict[str, Any], str], tuple[str, str]]]:
+    """The local quota router and the cloud placer used by `dispatch`."""
 
     def router(tier: str, engine_family: str | None = None) -> str | None:
         if engine_family is None:
@@ -1146,19 +1549,22 @@ def dispatch(args: argparse.Namespace) -> int:
         reading = selection.readings.get(provider) if provider else None
         return provider if usable_reading(reading) else None
 
-    limits = _concurrency.load_limits()
+    def cloud_placer(task: dict[str, Any], tier: str) -> tuple[str, str]:
+        """The routed engine and its cloud environment, through the same decision `run --where cloud` uses."""
+        repo = cloud_repo(repo_roots, task)  # the repository the cloud job would act on
+        # Local engine slots do not bound cloud work; cloud admission is checked separately (`cloud_free`).
+        family = _routing.choose(tier, cwd=os.getcwd(), db_path=db_path, respect_slots=False).decision.provider
+        if family is None:
+            raise ValueError(f"no eligible engine for tier {tier}")
+        engine = "claude" if family == "claude_code" else family
+        config = _cloud.load_config()
+        placement = _cloud_place.decide_for_repo("cloud", config=config, engine=engine, cwd=repo)
+        if placement.where != "cloud":
+            raise ValueError(placement.reason)
+        routine = _cloud.select_routine(config, routine=None, model=None) if engine == "claude" else None
+        if engine == "claude" and routine is None:
+            raise ValueError("Claude cloud jobs need a configured routine ([cloud.claude] default_routine)")
+        environment = _cloud.provider(engine).env_for(_cloud.repo_slug(_cloud.repo_root(repo)), config, routine)
+        return family, environment
 
-    def capacity(engine_family: str) -> int | None:
-        return limits.get("claude" if engine_family == "claude_code" else engine_family) or None
-
-    knowledge_db = getattr(args, "knowledge_db", None)
-    knowledge_store = _store.build_store(Path(knowledge_db).expanduser()) if knowledge_db is not None else None
-    try:
-        return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
-                          capacity=capacity, router_with_engine=True,
-                          json_events=bool(getattr(args, "json", False)),
-                          knowledge_store=knowledge_store, land=bool(getattr(args, "land", False)),
-                          stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)
-    finally:
-        if knowledge_store is not None:
-            knowledge_store.close()
+    return router, cloud_placer

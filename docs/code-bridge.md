@@ -1976,7 +1976,9 @@ the bridge's configured per-engine local concurrency limits still apply.
 Events are line-oriented on stdout: `ready TASK`, `claimed TASK`, `launched JOB`,
 `done TASK`, `failed TASK REASON`, and `blocked TASK`.
 
-A job that stops for a system reason (engine crash, stale heartbeat, database
+### Local tasks
+
+A local job that stops for a system reason (engine crash, stale heartbeat, database
 lock) is retried once. Before the retry, the dispatcher commits the attempt's
 uncommitted work in the task clone (never tool litter such as `*.log` or
 `__pycache__`) and points `dispatch-attempt/PROJECT/TASK/N` at it, in the clone
@@ -2005,3 +2007,37 @@ later task that revises the branch updates that PR. Landing emits a follow-up ev
 `landed TASK PR_URL` on success or `land-failed TASK REASON` on failure. The task is
 already accepted and its dependants are eligible to run. `gh` must be
 installed and authenticated (`gh auth login` or `GH_TOKEN`).
+
+### Cloud tasks
+
+A task whose `requested_placement` is `cloud` runs on a cloud agent through the
+same path as `run --where cloud`; the dispatcher adds no cloud logic of its own.
+
+- **Placement.** The quota router picks the engine for the task's tier, and the
+  cloud placement decision (`--where cloud` for the task's repository, see
+  `--repo-root`) supplies the environment: the mapped Codex environment, or the
+  Claude routine (`[cloud.claude] default_routine`). Cloud placement evidence
+  needs an environment id; without one the task waits (`waiting TASK cloud
+  placement failed: ...`) and does not fall back to local.
+- **Limits.** Before claiming, the dispatcher checks the `[cloud] concurrency`
+  limits (global and per provider). When they are full the task stays unclaimed
+  (`waiting TASK cloud concurrency limit reached`). Cloud jobs take no local
+  engine slot.
+- **Launch.** `lazytools-code-bridge run --where cloud --allow-cloud --engine E
+  --branch BASE --open-pr --land --task-id TASK`, where `BASE` is the branch the
+  source checkout is on (it must exist on `origin`; dependency work must already
+  be on it). The job id is derived from the claim, so a restart between the
+  submit and its acknowledgement adopts the job instead of submitting again.
+  The job reference is recorded on the dispatch receipt.
+- **Settlement.** Each pass polls the job and lands it when it is done, as
+  `wait-any` does. The task is settled once the job is terminal and its landing
+  has resolved. It is **accepted** only if the job landed (PR url and pushed
+  commit recorded) and every `checks` command passes in a fresh local clone of
+  the landed branch at the pushed commit. The pushed commit is the task's
+  artifact. Otherwise the task fails with the reason: the job's error, `cloud job
+  did not land: ...`, or the failing check and its output. A restarted dispatcher
+  settles running cloud jobs on its next pass. Cloud tasks are not retried.
+- **Lease.** The claim lease (`--lease-minutes`, default 60) also bounds a cloud
+  job. When it expires, the job is cancelled and the task fails. Raise the
+  lease for long cloud tasks.
+- Review and contract tasks are still not dispatched, locally or in the cloud.

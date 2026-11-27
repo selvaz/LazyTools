@@ -500,7 +500,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             raise ValueError("run requires --task (or --review-of, for a cloud review)")
         cwd = _engines.resolve_cwd(args.cwd, args.root)
         branch = args.branch
-        extra_meta: dict[str, Any] = {}
+        extra_meta: dict[str, Any] = {"task_id": args.task_id} if args.task_id else {}
         if args.review_of:
             store = _store.build_store(_db_path(args))
             rows = _jobs.list_jobs(store, all_jobs=True) if args.session else []
@@ -671,10 +671,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if refusal is not None:
         return refusal
     if args.where == _cloud.WHERE_CLOUD:
+        # A cloud job may carry --task-id as a label (dispatch records it); the claim
+        # fence (--claim-token) is checked by local launches only.
         if (
             args.launch_mode != "auto"
             or args.profile not in _launch.LEGACY_PROFILES
-            or args.task_id
             or args.claim_token
         ):
             print("error: core launch mode, profiles, and task claims require local placement", file=sys.stderr)
@@ -1910,6 +1911,8 @@ def _cmd_pending(args: argparse.Namespace) -> int:
 
 
 def _cmd_decide(args: argparse.Namespace, action: Literal["approve", "reject"]) -> int:
+    from lazytools.projects.task_store import TaskServiceError
+
     store = _ticket_job_store(args)
     verdict: Literal["approved", "rejected"] = "approved" if action == "approve" else "rejected"
     for registry, job_ids in _operator_registries(args, store):
@@ -1919,18 +1922,35 @@ def _cmd_decide(args: argparse.Namespace, action: Literal["approve", "reject"]) 
         job_id = _registry.job_ref(ticket)
         if job_ids is not None and job_id not in job_ids:
             continue
+        actor, reason = args.actor, args.reason
         try:
-            if not registry.decide(ticket, verdict, args.actor, args.reason):
+            if getattr(args, "ceo", False):
+                # The bridge does not record who launched a job, so every job counts as the CEO's own.
+                ticket_class = str((ticket.request.payload if ticket.request else {}).get("ticket_class") or "unknown")
+                mode, delegated = _coder.ceo_may_approve(registry.path, ticket_class)
+                if action == "approve" and not delegated:
+                    print(f"could not approve {args.ticket_id!r}: owner decision required "
+                          f"(class {ticket_class} is not delegated to the CEO in {mode} mode)", file=sys.stderr)
+                    return 1
+                record = f"actor=ceo mode={mode} class={ticket_class}"
+                actor, reason = "ceo", f"{record}: {reason}" if reason else record
+            if not registry.decide(ticket, verdict, actor, reason):
                 break
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, TaskServiceError) as exc:
             print(f"could not {action} {args.ticket_id!r}: {exc}", file=sys.stderr)
             return 1
         if _store.read_meta(store, job_id) is not None:
-            _record_intervention(store, job_id, action, args.reason)
+            _record_intervention(store, job_id, action, reason)
         print(f"{verdict} {args.ticket_id}")
         return 0
     print(f"could not {action} {args.ticket_id!r}: not pending, already resolved, or expired", file=sys.stderr)
     return 1
+
+
+_CEO_HELP = (
+    "Decide as the CEO: approve only a class the owner's autonomy policy delegates to the CEO in the "
+    "current mode, and record actor, mode and class with the reason."
+)
 
 
 def _cmd_approve(args: argparse.Namespace) -> int:
@@ -2295,7 +2315,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="Governed requires matching release evidence. Legacy explicitly allows an ungoverned launch.",
     )
-    run_p.add_argument("--task-id", help="Projects task ID for a local launch, paired with --claim-token.")
+    run_p.add_argument("--task-id", help="Projects task ID: for a local launch paired with --claim-token; "
+                       "a cloud job only records it.")
     run_p.add_argument("--claim-token", help="Fence token returned by the projects task claim.")
     run_p.add_argument("--intentional-review", action="store_true", help=argparse.SUPPRESS)
     run_p.add_argument("--detached-binding", action="store_true", help=argparse.SUPPRESS)
@@ -2624,6 +2645,7 @@ def build_parser() -> argparse.ArgumentParser:
     approve_p.add_argument("ticket_id")
     approve_p.add_argument("--actor", default="operator", help="Actor label for historical prompt-only tickets.")
     approve_p.add_argument("--reason", default=None, help="Optional reason for the manual intervention.")
+    approve_p.add_argument("--ceo", action="store_true", help=_CEO_HELP)
     _add_registry_option(approve_p)
     approve_p.set_defaults(func=_cmd_approve)
 
@@ -2631,6 +2653,7 @@ def build_parser() -> argparse.ArgumentParser:
     reject_p.add_argument("ticket_id")
     reject_p.add_argument("--reason", required=True)
     reject_p.add_argument("--actor", default="operator", help="Actor label for historical prompt-only tickets.")
+    reject_p.add_argument("--ceo", action="store_true", help=_CEO_HELP)
     _add_registry_option(reject_p)
     reject_p.set_defaults(func=_cmd_reject)
 

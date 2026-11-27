@@ -1,4 +1,4 @@
-"""Read-only MCP views over the ``lazytools-code-bridge`` CLI."""
+"""MCP views over the ``lazytools-code-bridge`` CLI, plus ticket decisions and cancel with ``allow_write``."""
 
 from __future__ import annotations
 
@@ -7,18 +7,25 @@ import re
 import subprocess
 import time
 from datetime import date
+from inspect import getdoc
 from typing import Any
 
 from lazytools.code_bridge._mcp import QUERY_TIMEOUT, CodeBridgeTools
 
 _EVENTS_MAX_WAIT = 60
 _EVENTS_POLL_INTERVAL = 0.5
+_TICKET_RE = re.compile(r"[0-9A-Za-z][0-9A-Za-z_-]{3,127}")
+_REASON_MAX = 2000
 
 
 class FleetTools(CodeBridgeTools):
-    """Read-only fleet, routing, model, and capability views."""
+    """Fleet, routing, model, and capability views; ticket decisions and cancel with ``allow_write``."""
 
     _is_lazy_tool_provider = True
+
+    def __init__(self, root: str | None = None, *, allow_write: bool = False) -> None:
+        super().__init__(root)
+        self._allow_write = allow_write
 
     @staticmethod
     def _safe_text(name: str, value: str) -> str:
@@ -175,18 +182,78 @@ class FleetTools(CodeBridgeTools):
                 rows.append(dict(zip(("section", "capability", "call", "status"), cells, strict=True)))
         return rows
 
+    @staticmethod
+    def _reason(reason: str) -> str:
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be non-empty text")
+        if len(reason) > _REASON_MAX:
+            raise ValueError(f"reason must be at most {_REASON_MAX} characters")
+        return reason.strip()
+
+    @classmethod
+    def _ticket(cls, ticket: str) -> str:
+        if not isinstance(ticket, str) or not _TICKET_RE.fullmatch(ticket):
+            raise ValueError("ticket must be a ticket id from bridge_pending")
+        return ticket
+
+    def _write_call(self, argv: list[str]) -> dict[str, Any]:
+        """Run a deciding CLI command; these print text, not JSON."""
+        try:
+            code, out, err = self._invoke(argv, QUERY_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "error": f"the bridge command did not finish within {QUERY_TIMEOUT:g}s"}
+        return {"ok": code == 0, "exit_code": code, "output": out.strip()[:4000],
+                **({"error": err.strip()[:2000]} if err.strip() else {})}
+
+    def bridge_approve(self, ticket: str, reason: str) -> dict[str, Any]:
+        """Approve a pending job ticket as the CEO.
+
+        Runs `lazytools-code-bridge approve TICKET --ceo`. The approval is allowed only
+        when the owner's autonomy policy delegates the ticket's class to the CEO in the
+        current mode; otherwise it is refused with "owner decision required" and the
+        ticket stays pending for the owner. The ticket records actor, mode, class and
+        reason. Args: ticket (id from bridge_pending); reason (text).
+        """
+        ticket, reason = self._ticket(ticket), self._reason(reason)
+        return self._write_call(["approve", ticket, "--ceo", f"--reason={reason}"])
+
+    def bridge_reject(self, ticket: str, reason: str) -> dict[str, Any]:
+        """Reject a pending job ticket as the CEO; always allowed.
+
+        Runs `lazytools-code-bridge reject TICKET --ceo`. The ticket records actor, mode,
+        class and reason. Args: ticket (id from bridge_pending); reason (text).
+        """
+        ticket, reason = self._ticket(ticket), self._reason(reason)
+        return self._write_call(["reject", ticket, "--ceo", f"--reason={reason}"])
+
+    def bridge_cancel(self, job: str, reason: str) -> dict[str, Any]:
+        """Cancel a bridge job as the CEO; always allowed.
+
+        Runs `lazytools-code-bridge cancel JOB`: stops the job's process tree (or the
+        cloud task), records workspace evidence and rejects its open tickets. The
+        recorded reason names the CEO as actor. Args: job (id or unique prefix); reason (text).
+        """
+        job = self._job_ref(self._safe_text("job", job))
+        reason = self._reason(reason)
+        return self._write_call(["cancel", job, f"--reason=actor=ceo: {reason}"])
+
     def as_tools(self) -> list[Any]:
-        """Only the read-only views; the inherited submit/status/result stay in ``code_bridge``.
+        """The views, and with ``allow_write`` the deciding tools; submit/status/result stay in ``code_bridge``.
 
         These are fleet-wide (every job and ticket in the shared store), so they carry no
         ``CODE_ACCESS`` grant: a task-scoped server (``_scoped_tools``) never exposes them, and
-        each call refuses inside an authenticated task context as a second guard.
+        each call refuses inside an authenticated task context as a second guard. No tool
+        here changes the autonomy mode or the owner's cards.
         """
         from lazybridge import Tool
 
         methods = (self.bridge_jobs, self.bridge_pending, self.bridge_route, self.bridge_autonomy,
                    self.bridge_models, self.capabilities_search, self.bridge_events)
-        return [Tool.wrap(_unscoped(method), name=method.__name__) for method in methods]
+        tools = [Tool.wrap(_unscoped(method), name=method.__name__) for method in methods]
+        if self._allow_write:
+            tools += [Tool.wrap(_unscoped(method), name=method.__name__, description=getdoc(method))
+                      for method in (self.bridge_approve, self.bridge_reject, self.bridge_cancel)]
+        return tools
 
 
 def _unscoped(method: Any) -> Any:
