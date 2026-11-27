@@ -1,8 +1,10 @@
 """Operator cancellation tests: fake killers, durable records and real lock reclaim."""
 
 import json
+import sqlite3
 import subprocess
 import sys
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -101,7 +103,7 @@ def test_cancel_preserves_terminal_record_written_during_process_exit(
     monkeypatch.setattr(cli, "_kill_process_tree", kill)
     monkeypatch.setattr(_jobs, "interrupt_job", lambda *a, **kw: pytest.fail("overwrote terminal record"))
     assert cli.main(["cancel", "cancel-this", "--db", str(db)]) == 0
-    assert capsys.readouterr().out.strip() == f"job cancel-this-job already {status}"
+    assert capsys.readouterr().out.splitlines()[-1] == f"job cancel-this-job already {status}"
     assert _jobs.find_job(store, registry, "cancel-this-job") == terminal
     assert killed == ([] if already_dead else [4242])
     assert _store.build_approval_queue(store).get_ticket(ticket.approval_id).status == "pending"
@@ -271,6 +273,29 @@ def test_cancel_kill_failure_preserves_running_record(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "_kill_process_tree", fail_kill)
     assert cli.main(["cancel", "cancel-this", "--db", str(db)]) == 1
     assert _jobs.find_job(store, registry, "cancel-this-job")["status"] == "running"
+
+
+def test_cancel_cli_times_out_while_the_store_is_locked(tmp_path):
+    db, _, store, registry = job_record(tmp_path, pid=2**31 - 1)
+    command = [
+        sys.executable, "-m", "lazytools.code_bridge", "cancel", "cancel-this",
+        "--db", str(db), "--timeout", "2",
+    ]
+    with sqlite3.connect(db) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        started = time.monotonic()
+        result = subprocess.run(command, capture_output=True, text=True, timeout=15, check=False)
+        elapsed = time.monotonic() - started
+    assert result.returncode == 3, (result.stdout, result.stderr)
+    assert elapsed < 10  # Includes interpreter startup before the CLI starts the two-second timer.
+    assert "looking up the job (cancellation limit 2s)" in result.stdout
+    assert "cancellation timed out after 2s" in result.stderr
+    assert _jobs.find_job(store, registry, "cancel-this-job")["status"] == "running"
+
+    result = subprocess.run([*command[:-1], "15"], capture_output=True, text=True, timeout=20, check=False)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert "collecting workspace evidence and closing approvals" in result.stdout
+    assert _jobs.find_job(store, registry, "cancel-this-job")["status"] == "interrupted"
 
 
 def test_cancel_missing_or_ambiguous_job_cannot_kill(tmp_path, monkeypatch):

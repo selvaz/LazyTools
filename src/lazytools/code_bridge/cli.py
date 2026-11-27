@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Iterable, Iterator
+from contextlib import suppress
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
@@ -1162,6 +1163,7 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         job_id = str(job["job_id"])
         pid = _detached_pid(db_path, job_id) or job.get("pid")
     if _cloud.is_cloud(job):
+        print(f"job {job_id}: waiting for the cloud provider to stop the job", flush=True)
         result = _cancel_cloud(store, registry, job, args.reason)
         if result == 0:
             _record_intervention(store, job_id, "cancel", args.reason)
@@ -1184,6 +1186,7 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         if args.stale_before is not None and not _dispatch._has_stale_heartbeat(latest or {}, args.stale_before):
             print(f"job {job_id} no longer has a stale running heartbeat", file=sys.stderr)
             return 1
+        print(f"job {job_id}: waiting for process tree {pid} to stop", flush=True)
         try:
             _kill_process_tree(pid, owns_group=bool(job.get("owns_process_group")))
         except (OSError, subprocess.SubprocessError) as exc:
@@ -1210,6 +1213,7 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
         meta.setdefault("pid", pid)
         _store.write_meta(store, job_id, meta)
     message = "cancelled by operator during startup" if startup else "cancelled by operator"
+    print(f"job {job_id}: collecting workspace evidence and closing approvals", flush=True)
     error = _jobs.interrupt_job(
         store,
         registry,
@@ -1221,6 +1225,46 @@ def _cmd_cancel(args: argparse.Namespace) -> int:
     _record_intervention(store, job_id, "cancel", args.reason)
     print(f"[interrupted] job {job_id}\n{error}")
     return 0
+
+
+def _cancel_with_timeout(argv: list[str], args: argparse.Namespace) -> int:
+    """Bound the whole cancellation, including provider calls and store locks."""
+    from lazytools.code_bridge._probe_process import WindowsProbeJob
+
+    deadline = time.monotonic() + args.timeout
+    print(f"job {args.job_id}: looking up the job (cancellation limit {args.timeout:g}s)", flush=True)
+    windows = sys.platform == "win32"
+    job = None
+    worker: subprocess.Popen[bytes] | None = None
+    try:
+        # Own only the cancellation helper and its children. The target job
+        # still goes through the regular identity and heartbeat checks.
+        if windows:
+            job = WindowsProbeJob()
+        worker = subprocess.Popen(
+            [sys.executable, "-c", "import sys; from lazytools.code_bridge.cli import main; "
+             "raise SystemExit(main(sys.argv[1:]))", *argv],
+            stdin=subprocess.DEVNULL, start_new_session=not windows,
+            creationflags=0x00000004 if windows else 0,  # CREATE_SUSPENDED
+        )
+        if job is not None:
+            job.attach_and_resume(worker.pid)
+        return worker.wait(timeout=max(0, deadline - time.monotonic()))
+    except subprocess.TimeoutExpired:
+        print(f"job {args.job_id}: cancellation timed out after {args.timeout:g}s", file=sys.stderr, flush=True)
+        return 3
+    except OSError as exc:
+        print(f"job {args.job_id}: cancellation helper failed: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if job is not None:
+            job.close()
+        if worker is not None and worker.returncode is None:
+            with suppress(OSError):
+                if sys.platform != "win32":
+                    os.killpg(worker.pid, signal.SIGKILL)
+                else:
+                    worker.kill()  # also handles failed Job Object attachment
 
 
 def _cmd_cloud_stop(args: argparse.Namespace) -> int:
@@ -2449,6 +2493,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cancel_p.add_argument("job_id", help="Full job id or unique prefix.")
     cancel_p.add_argument("--reason", default="requested cancellation", help="Reason recorded with the interruption.")
+    cancel_p.add_argument("--timeout", type=float, default=60,
+                          help="Maximum seconds to wait for cancellation (default: 60, timeout exits 3).")
     cancel_p.add_argument("--stale-before", type=float, help=argparse.SUPPRESS)
     _add_registry_option(cancel_p)
     cancel_p.set_defaults(func=_cmd_cancel)
@@ -2764,6 +2810,11 @@ def main(argv: list[str] | None = None) -> int:
     _utf8_output()
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "cancel":
+        if not math.isfinite(args.timeout) or args.timeout <= 0:
+            parser.error("cancel --timeout must be a finite positive number")
+        if argv is None:
+            return _cancel_with_timeout(sys.argv[1:], args)
     if argv is None and os.name != "nt" and args.command == "run" and not args.detach:
         # Keep engine descendants in our own session/group for `cancel`.
         _isolate_process_group()

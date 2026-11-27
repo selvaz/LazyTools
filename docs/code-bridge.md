@@ -570,7 +570,9 @@ Stop an active job by full id or unique prefix:
 lazytools-code-bridge cancel JOB_ID --reason "operator stopped the task"
 ```
 
-`--reason` is optional (default `requested cancellation`). Cancellation
+`--reason` is optional (default `requested cancellation`). The CLI reports
+the phase it is waiting on and returns exit code **3** if the cancellation
+reaches `--timeout SECONDS` (default 60). Cancellation
 kills the process tree (`taskkill /PID ... /T /F` on Windows; the CLI's
 private process group on POSIX, falling back to the single pid if no
 private group is available), marks the job `interrupted` with
@@ -1091,7 +1093,9 @@ hand. Requests without a matching card enter the normal `pending`,
 `approve`, and `reject` flow.
 
 Each class applies to recognized direct commands within their native grants
-and the card's path, branch, and network restrictions. Job-branch pushes use
+and the card's path, branch, and network restrictions. For Codex, the same
+rules apply to one literal PowerShell `-Command` or cmd.exe `/c` wrapper.
+Job-branch pushes use
 `git push origin JOB_BRANCH` from the job checkout and require a GitHub
 `origin` with its default branch recorded in `refs/remotes/origin/HEAD`.
 Supported PR commands use the checkout's repository and explicit safe flags.
@@ -1109,9 +1113,12 @@ into the job directory they run in. The class also covers `rm` and
 `Remove-Item` when every target is inside the job temp directory. Any other
 redirection, removal, network command, or unrecognized command stays pending.
 `python -c` programs stay pending because a card's command cannot contain
-parentheses or quotes. Explicit-path `git add` and `git commit` remain in
-`git_local`. The `workspace_tools` class covers native file edits, directory
-creation, and `git worktree`.
+parentheses or quotes. The `git_local` class covers explicit-path `git add`,
+`git commit`, and `git merge origin/BRANCH` into the job branch when the
+tracking ref and changed paths pass the checkout checks. Owners with an
+existing hand can rerun `approver-credential autonomy` with their current
+mode to issue the merge card for new jobs. The `workspace_tools` class
+covers native file edits, directory creation, and `git worktree`.
 
 Use `status JOB --json` or `result JOB --json` to see the actor, mode,
 class, and match reason on each card-use receipt. The
