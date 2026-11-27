@@ -430,7 +430,7 @@ def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
             "Checks that passed:", *([f"- `{command}`" for command in checks] or ["- none configured"]),
         ]) + "\n"
         return _gh.pr_create(repo, base=base, head=branch, title=title, body=body), None
-    except CloudError as exc:
+    except (CloudError, subprocess.TimeoutExpired) as exc:
         return None, (" ".join(_cloud.redact(str(exc)).split())[:500] or "landing failed")
 
 
@@ -755,14 +755,6 @@ class Dispatcher:
                 failure_reason = publish_error
             elif published:
                 self._event("published", task.task_id, published, job_id=str(job_ref))
-        pr_url, land_failure = recorded.get("pr_url"), recorded.get("land_failure")
-        if accepted and published and self.land and cwd is not None and not recorded:
-            # The work is safe in the local branch: a failed push or PR leaves the task accepted.
-            pr_url, land_failure = _land(cwd, published, task.task_id, task.data, list(checks or []))
-        if accepted and pr_url:
-            self._event("landed", task.task_id, str(pr_url), job_id=str(job_ref))
-        elif accepted and land_failure:
-            self._event("land-failed", task.task_id, str(land_failure), job_id=str(job_ref))
         state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
         evidence = CompletionEvidence(reference=reference, job_ref=str(job_ref), executor=receipt["executor"],
             engine_family=receipt["engine_family"], state=state,
@@ -770,7 +762,8 @@ class Dispatcher:
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
             review_independence=review_independence,
             outcome="success" if accepted else "task_failure", failure_reason=check_failure,
-            pr_url=pr_url, land_failure=land_failure)
+            # Preserve landing fields only when replaying evidence from an older dispatcher.
+            pr_url=recorded.get("pr_url"), land_failure=recorded.get("land_failure"))
         if not recorded_failure:
             self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], evidence)
         complete_options = {"reconcile_failure": True} if expired else {}
@@ -779,6 +772,13 @@ class Dispatcher:
         self._record_rejection(task, job)
         if accepted:
             self._event("done", task.task_id, job_id=str(job_ref))
+            if self.land and published and cwd is not None:
+                # The local artifact is accepted before contacting origin or GitHub.
+                pr_url, land_failure = _land(cwd, published, task.task_id, task.data, list(checks or []))
+                if pr_url:
+                    self._event("landed", task.task_id, pr_url, job_id=str(job_ref))
+                elif land_failure:
+                    self._event("land-failed", task.task_id, land_failure, job_id=str(job_ref))
             return True
         retryable = not check_failure and any(marker in failure_reason for marker in RETRYABLE_FAILURES)
         self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)

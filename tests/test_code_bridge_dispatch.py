@@ -771,7 +771,9 @@ class FakeGh:
         return [call for call in self.calls if call[0][:2] == ("pr", "create")]
 
 
-def _landing_setup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh: FakeGh) -> tuple[Path, Path, Any, Any]:
+def _landing_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh: FakeGh, *, task_id: str = "p/A",
+) -> tuple[Path, Path, Any, Any]:
     """A source repo whose origin is a GitHub URL pushed (via pushInsteadOf) to a local bare remote."""
     from lazytools.code_bridge import _gh
     source = tmp_path / "source"
@@ -779,9 +781,10 @@ def _landing_setup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh: FakeGh) 
     remote = tmp_path / "remote.git"
     subprocess.run(["git", "clone", "-q", "--bare", str(source), str(remote)], check=True)
     source_git("remote", "add", "origin", "https://github.com/o/r.git")
-    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
-    bridge = BridgeLauncher(None, principal, "p", repo_roots={"o/r": source}, worktree_root=tmp_path / "trees")
-    clone = bridge._checkout({"task_id": "p/A", "repo": "o/r"})
+    project_id = task_id.split("/", 1)[0]
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=(project_id,))
+    bridge = BridgeLauncher(None, principal, project_id, repo_roots={"o/r": source}, worktree_root=tmp_path / "trees")
+    clone = bridge._checkout({"task_id": task_id, "repo": "o/r"})
     bridge._git(clone, "config", f"url.{remote.as_uri()}.pushInsteadOf", "https://github.com/o/r.git")
     (clone / "work.txt").write_text("task work\n")
     bridge._git(clone, "add", "work.txt")
@@ -826,10 +829,11 @@ def test_land_pushes_the_published_branch_and_opens_a_pr(tmp_path: Path, monkeyp
     assert args[args.index("--title") + 1] == "Add landing to the dispatcher"
     assert body and "p/A" in body and "- PR opened" in body and "- branch pushed" in body
     assert "landed p/A https://github.com/o/r/pull/7" in events
-    assert events.index("published p/A dispatch/p/A") < events.index("landed p/A https://github.com/o/r/pull/7")
+    assert events.index("published p/A dispatch/p/A") < events.index("done p/A") < events.index(
+        "landed p/A https://github.com/o/r/pull/7",
+    )
     evidence, = captured
-    assert evidence.state == "accepted" and evidence.pr_url == "https://github.com/o/r/pull/7"
-    assert evidence.land_failure is None
+    assert evidence.state == "accepted" and evidence.pr_url is None and evidence.land_failure is None
 
     # A later revision of the branch updates the open PR: push only, no second PR.
     from lazytools.code_bridge._dispatch import _land
@@ -840,7 +844,73 @@ def test_land_pushes_the_published_branch_and_opens_a_pr(tmp_path: Path, monkeyp
     assert len(gh.created()) == 1
 
 
-@pytest.mark.parametrize("failure", ["push", "gh"])
+def test_land_can_outlast_the_claim_lease(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge import _gh
+    from lazytools.code_bridge._dispatch import _tasks
+    from lazytools.connectors.projects import ProjectsTools
+    from lazytools.projects.task_service import PlacementEvidence, ProjectTaskService
+
+    gh = FakeGh()
+    clone, _remote, _bridge, _remote_git = _landing_setup(tmp_path, monkeypatch, gh, task_id="landing/A")
+    path = str(tmp_path / "projects.sqlite")
+    projects = ProjectsTools(store_db=path, allow_write=True)
+    assert "AS A DRAFT" in projects.projects_create("landing", "Landing", "Test landing after completion")
+    plan = [
+        {"task_id": "A", "text": "Publish A", "acceptance_criteria": ["A is published"]},
+        {"task_id": "B", "text": "Use A", "acceptance_criteria": ["B uses A"], "dependency_ids": ["A"]},
+    ]
+    args = ("landing", "Publish and use A", "2027-01-01T00:00:00Z", plan)
+    verdict = projects.projects_review_plan(*args)
+    assert verdict["ok"], verdict
+    assert projects.projects_promote(*args).startswith("promoted")
+
+    now = 1000.0
+
+    def clock() -> float:
+        return now
+
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("landing",))
+    service = ProjectTaskService(path, lease_seconds=60, clock=clock)
+    for task in _tasks(service, "landing"):
+        service.record_placement(task.task_id, task.revision, PlacementEvidence(
+            placement="local", eligible=True, reason="test runner", reference="test-placement",
+            expires_at=2000, engine_family="codex",
+        ))
+    launcher = FakeLauncher(FakeService())
+    events: list[str] = []
+    dispatch = Dispatcher(service, principal, launcher, "landing", clock=clock, emit=events.append, land=True)
+    dispatch.pass_once()
+    task = next(task for task in _tasks(service, "landing") if task.task_id == "landing/A")
+    assert task.dispatch is not None, events
+    receipt = task.dispatch["receipt"]
+    service.begin_submit(principal, task.task_id, receipt["claim_token"])
+    service.record_submit(principal, task.task_id, receipt["claim_token"], "job-A")
+    launcher.finish("A")
+    launcher.jobs["job-A"]["cwd"] = str(clone)
+    now = receipt["lease_expires_at"] - 1
+
+    def slow_gh(*args: str, **kwargs: Any) -> str:
+        nonlocal now
+        if args[:2] == ("repo", "view"):
+            now += 2
+            assert [row["task_id"] for row in service.next_ready(principal, "landing")["tasks"]] == ["landing/B"]
+        return gh(*args, **kwargs)
+
+    monkeypatch.setattr(_gh, "run_gh", slow_gh)
+    dispatch.pass_once()
+
+    assert now > receipt["lease_expires_at"]
+    assert "landed landing/A https://github.com/o/r/pull/7" in events, events
+    assert launcher.launches == ["A", "B"]
+    task = next(task for task in _tasks(service, "landing") if task.task_id == "landing/A")
+    assert task.status == "done"
+    settled = task.data["dispatches"][-1]
+    assert settled["completion"]["result"]["state"] == "accepted"
+    evidence, = settled["evidence"].values()
+    assert evidence["state"] == "accepted" and "pr_url" not in evidence and "land_failure" not in evidence
+
+
+@pytest.mark.parametrize("failure", ["push", "gh", "push-timeout"])
 def test_land_failure_keeps_the_task_accepted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
 ) -> None:
@@ -854,6 +924,15 @@ def test_land_failure_keeps_the_task_accepted(
                      ["push", "-q", "origin", "HEAD:refs/heads/dispatch/p/A"]):
             subprocess.run(["git", "-C", str(other), *argv], check=True)
     foreign = remote_git("rev-parse", "refs/heads/dispatch/p/A")
+    if failure == "push-timeout":
+        run = subprocess.run
+
+        def timeout_push(argv: list[str], **kwargs: Any) -> Any:
+            if argv[3:5] == ["push", "origin"]:
+                raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+            return run(argv, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", timeout_push)
     events: list[str] = []
     captured: list[Any] = []
     service = _land_run(clone, events, captured)
@@ -862,14 +941,18 @@ def test_land_failure_keeps_the_task_accepted(
     assert "done p/A" in events and not [line for line in events if line.startswith("landed")]
     failed = [line for line in events if line.startswith("land-failed p/A ")]
     assert len(failed) == 1
+    assert events.index("done p/A") < events.index(failed[0])
+    assert not any(line.startswith("failed p/A") for line in events)
     evidence, = captured
-    assert evidence.state == "accepted" and evidence.pr_url is None and evidence.land_failure
-    assert "ghp_secret" not in evidence.land_failure
+    assert evidence.state == "accepted" and evidence.pr_url is None and evidence.land_failure is None
+    assert "ghp_secret" not in failed[0]
     if failure == "push":
-        assert "rejected" in evidence.land_failure and not gh.created()
+        assert "rejected" in failed[0] and not gh.created()
         assert remote_git("rev-parse", "refs/heads/dispatch/p/A") == foreign
+    elif failure == "push-timeout":
+        assert "timed out after 300 seconds" in failed[0] and not gh.created()
     else:
-        assert "pr create" in evidence.land_failure
+        assert "pr create" in failed[0]
 
 
 def test_land_refuses_the_default_branch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
