@@ -57,7 +57,7 @@ DEFAULT_TOOL_STALE_MINUTES = 60  # one tool call running longer than this is sta
 DEFAULT_MAX_CHECK_RETRIES = 2
 PLACEMENT_SECONDS = 3660  # placement stays valid while a detached job waits for its engine slot
 STALE_HEARTBEAT = "engine heartbeat went stale"
-NEXT_TIER = {"writing": "thinking", "thinking": "critical"}
+NEXT_TIER = {"basic": "writing", "writing": "thinking", "thinking": "critical"}
 INFRA_ERRORS = (
     "database is locked", "database is busy", "store is busy", "store is unavailable",
     "connection refused", "connection reset", "connection timed out", "network is unreachable",
