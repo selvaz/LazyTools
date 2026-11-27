@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import io
+import sqlite3
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from lazytools.code_bridge import _coder, _credentials, _jobs, _lockfile, _store, cli
+from lazytools.code_bridge import _coder, _credentials, _jobs, _lockfile, _registry, _store, cli
 from lazytools.code_bridge._mcp_fleet import FleetTools
 from lazytools.mcp_server.catalog import tool_metadata
 from lazytools.mcp_server.providers import PROVIDER_FACTORIES
@@ -144,16 +145,59 @@ def test_supervised_mode_approves_only_delegated_classes(tickets) -> None:
 def test_owner_revocation_withdraws_ceo_authority_at_once(tickets) -> None:
     registry, held, _, tools = tickets
     # The saved hand still lists the card; only the live card registry knows it is revoked.
-    credential = _credentials.load(registry.path)
-    for card in _coder.show(registry.path).cards:
-        if card.action_class == "git_push_job_branch":
-            assert registry.queue.revoke_card(card.card_id, credential=credential)
+    _revoke_push_cards(registry)
     assert _coder.ceo_may_approve(registry.path, "git_push_job_branch") == ("supervised", False)
     result = _run(tools, "bridge_approve", ticket=held["git_push_job_branch"], reason="pushed after review")
     assert not result["ok"] and "owner decision required" in result["error"]
     assert registry.inspect(held["git_push_job_branch"]).status == "pending"
     # A delegated class whose cards are still live keeps its authority.
     assert _coder.ceo_may_approve(registry.path, "git_local") == ("supervised", True)
+
+
+def _revoke_push_cards(registry: Any) -> None:
+    credential = _credentials.load(registry.path)
+    for card in _coder.show(registry.path).cards:
+        if card.action_class == "git_push_job_branch":
+            assert registry.queue.revoke_card(card.card_id, credential=credential)
+
+
+def test_revocation_after_the_ticket_is_read_wins(tickets, monkeypatch: pytest.MonkeyPatch) -> None:
+    registry, held, _, tools = tickets
+    opened = _registry.transaction
+
+    @contextlib.contextmanager
+    def revoke_first(path: Path, *, write: bool = False) -> Any:
+        # The owner revokes after the CLI has read the ticket, just before the decision begins.
+        if write:
+            _revoke_push_cards(registry)
+        with opened(path, write=write) as store:
+            yield store
+
+    monkeypatch.setattr(_registry, "transaction", revoke_first)
+    result = _run(tools, "bridge_approve", ticket=held["git_push_job_branch"], reason="pushed after review")
+    assert not result["ok"] and "owner decision required" in result["error"]
+    assert registry.inspect(held["git_push_job_branch"]).status == "pending"
+
+
+def test_ceo_authority_is_read_in_the_deciding_transaction(tickets, monkeypatch: pytest.MonkeyPatch) -> None:
+    registry, held, _, tools = tickets
+    read = _coder.ceo_authority
+    locked_out: list[bool] = []
+
+    def revoke_after_read(store: Any, ticket_class: str) -> tuple[str, bool]:
+        authority = read(store, ticket_class)
+        # No owner write (a revocation or mode change) can land between this read and the decision.
+        with contextlib.closing(sqlite3.connect(registry.path, timeout=0)) as other:
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                other.execute("BEGIN IMMEDIATE")
+            locked_out.append(True)
+        return authority
+
+    monkeypatch.setattr(_coder, "ceo_authority", revoke_after_read)
+    result = _run(tools, "bridge_approve", ticket=held["git_push_job_branch"], reason="pushed after review")
+    assert result["ok"], result
+    assert locked_out == [True]
+    assert registry.inspect(held["git_push_job_branch"]).status == "approved"
 
 
 def test_total_mode_approves_outside_the_owner_floor(tickets) -> None:

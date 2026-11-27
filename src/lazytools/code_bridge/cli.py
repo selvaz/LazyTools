@@ -1922,20 +1922,15 @@ def _cmd_decide(args: argparse.Namespace, action: Literal["approve", "reject"]) 
         job_id = _registry.job_ref(ticket)
         if job_ids is not None and job_id not in job_ids:
             continue
-        actor, reason = args.actor, args.reason
+        reason = args.reason
+        # The bridge does not record who launched a job, so every job counts as the CEO's own.
+        ceo = bool(getattr(args, "ceo", False))
         try:
-            if getattr(args, "ceo", False):
-                # The bridge does not record who launched a job, so every job counts as the CEO's own.
-                ticket_class = str((ticket.request.payload if ticket.request else {}).get("ticket_class") or "unknown")
-                mode, delegated = _coder.ceo_may_approve(registry.path, ticket_class)
-                if action == "approve" and not delegated:
-                    print(f"could not approve {args.ticket_id!r}: owner decision required "
-                          f"(class {ticket_class} is not delegated to the CEO in {mode} mode)", file=sys.stderr)
-                    return 1
-                record = f"actor=ceo mode={mode} class={ticket_class}"
-                actor, reason = "ceo", f"{record}: {reason}" if reason else record
-            if not registry.decide(ticket, verdict, actor, reason):
+            if not registry.decide(ticket, verdict, args.actor, reason, ceo=ceo):
                 break
+            if ceo:
+                decided = registry.inspect(args.ticket_id)
+                reason = decided.reason if decided is not None else reason
         except (OSError, ValueError, TaskServiceError) as exc:
             print(f"could not {action} {args.ticket_id!r}: {exc}", file=sys.stderr)
             return 1
