@@ -233,7 +233,6 @@ class BridgeLauncher:
                     self._stale_sources.pop(repo, None)
                 elif self._stale_sources.get(repo) != why:
                     self._stale_sources[repo] = self.stale_bases[str(task["task_id"])] = why
-                return self._create_checkout(task, repo, checkout, safe_project, safe_task)
             self._create_checkout(task, repo, checkout, safe_project, safe_task)
         elif preserved:
             self._restore_preserved(task, checkout, self._git(checkout, "config", "--get", "dispatch.branch"))
@@ -307,7 +306,6 @@ class BridgeLauncher:
             self._restore_preserved(task, checkout, str(branch))
             return checkout
         self._git(checkout, "checkout", "--quiet", "-B", str(branch), str(base))
-        self.base_commits[str(task["task_id"])] = self._git(checkout, "rev-parse", "HEAD")
         for index, commit in enumerate(commits[1:], start=1):
             result = subprocess.run(
                 ["git", "-C", str(checkout), "merge", "--no-edit", commit],
