@@ -139,17 +139,26 @@ class BridgeLauncher:
         safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task_name)
         root = self.worktree_root or repo.parent / "_dispatch"
         checkout = root / safe_project / safe_task
-        if checkout.exists():
-            preserved = task.get("preserved_commit") or task.get("preserved_branch")
-            if preserved:
-                # Continue from the failed attempt's work; it stays the task's own (base unchanged).
-                current = self._git(checkout, "config", "--get", "dispatch.branch")
-                self._git(checkout, "checkout", "--quiet", "-B", current, str(preserved))
-                return checkout
+        if not checkout.exists():
+            self._create_checkout(task, repo, checkout, safe_project, safe_task)
+        elif not (task.get("preserved_commit") or task.get("preserved_branch")):
             # A new attempt in an existing checkout must add its own commits.
             subprocess.run(["git", "-C", str(checkout), "tag", "-f", "dispatch-base", "HEAD"],
                            text=True, capture_output=True, check=False)
-            return checkout
+        preserved = task.get("preserved_commit") or task.get("preserved_branch")
+        if preserved:
+            # A recreated clone has the source branch as a remote-tracking ref.
+            if not task.get("preserved_commit") and subprocess.run(
+                ["git", "-C", str(checkout), "show-ref", "--verify", "--quiet", f"refs/heads/{preserved}"],
+                check=False,
+            ).returncode != 0:
+                preserved = f"origin/{preserved}"
+            current = self._git(checkout, "config", "--get", "dispatch.branch")
+            self._git(checkout, "checkout", "--quiet", "-B", current, str(preserved))
+        return checkout
+
+    def _create_checkout(self, task: dict[str, Any], repo: Path, checkout: Path,
+                         safe_project: str, safe_task: str) -> Path:
         checkout.parent.mkdir(parents=True, exist_ok=True)
         dependencies = task.get("dependencies", [])
         commits = [str(item["artifact_ref"]) for item in dependencies if item.get("artifact_ref")]
