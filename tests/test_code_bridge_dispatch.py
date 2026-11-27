@@ -811,14 +811,15 @@ def _landing_setup(
     """A source repo whose origin is a GitHub URL pushed (via pushInsteadOf) to a local bare remote."""
     from lazytools.code_bridge import _gh
     source = tmp_path / "source"
-    source_git = _repo(source)
+    _repo(source)
     remote = tmp_path / "remote.git"
     subprocess.run(["git", "clone", "-q", "--bare", str(source), str(remote)], check=True)
-    source_git("remote", "add", "origin", "https://github.com/o/r.git")
     project_id = task_id.split("/", 1)[0]
     principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=(project_id,))
     bridge = BridgeLauncher(None, principal, project_id, repo_roots={"o/r": source}, worktree_root=tmp_path / "trees")
     clone = bridge._checkout({"task_id": task_id, "repo": "o/r"})
+    # Set on the clone only: a GitHub origin on the source would be fetched over the network.
+    bridge._git(clone, "remote", "set-url", "origin", "https://github.com/o/r.git")
     bridge._git(clone, "config", f"url.{remote.as_uri()}.pushInsteadOf", "https://github.com/o/r.git")
     (clone / "work.txt").write_text("task work\n")
     bridge._git(clone, "add", "work.txt")
@@ -955,6 +956,7 @@ def test_slow_landing_does_not_consume_another_tasks_lease(
     gh = FakeGh()
     clone_a, remote, bridge, remote_git = _landing_setup(tmp_path, monkeypatch, gh, task_id="landing/A")
     clone_b = bridge._checkout({"task_id": "landing/B", "repo": "o/r"})
+    bridge._git(clone_b, "remote", "set-url", "origin", "https://github.com/o/r.git")
     bridge._git(clone_b, "config", f"url.{remote.as_uri()}.pushInsteadOf", "https://github.com/o/r.git")
     (clone_b / "other.txt").write_text("task B work\n")
     bridge._git(clone_b, "add", "other.txt")
@@ -1637,6 +1639,91 @@ def test_restart_between_settlement_and_launch_resumes_the_preserved_work(
     assert default_session_registry().resolve("codex", Path(_flag(retry, "--cwd")), "dispatch-attempt-1") == "thread-1"
     assert git("rev-parse", "HEAD") == preserved
     assert git("rev-list", "--count", "dispatch-base..HEAD") == "1"  # the artifact check counts the kept work
+    assert board_task()["dispatches"][-1]["receipt"]["base_commit"] == git("rev-parse", "dispatch-base")
+
+
+def _source_with_origin(tmp_path: Path) -> tuple[Any, Any]:
+    """A source checkout of a local bare origin, and a function that merges a new commit on that origin."""
+    origin, other = tmp_path / "origin.git", tmp_path / "other"
+    other_git = _repo(other)
+    subprocess.run(["git", "clone", "-q", "--bare", str(other), str(origin)], check=True)
+    source = tmp_path / "source"
+    subprocess.run(["git", "clone", "-q", str(origin), str(source)], check=True)
+
+    def source_git(*argv: str) -> str:
+        return subprocess.run(["git", "-C", str(source), *argv], text=True, capture_output=True,
+                              check=True).stdout.strip()
+    source_git("config", "user.email", "t@example.com")
+    source_git("config", "user.name", "T")
+
+    def merge_on_origin(name: str) -> str:
+        (other / name).write_text("merged\n")
+        other_git("add", name)
+        other_git("commit", "-qm", name)
+        other_git("push", "-q", str(origin), "main")
+        return str(other_git("rev-parse", "HEAD"))
+    return source_git, merge_on_origin
+
+
+def test_a_commit_merged_on_origin_after_start_is_in_a_later_task_clone(tmp_path: Path) -> None:
+    source_git, merge_on_origin = _source_with_origin(tmp_path)
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    launcher = BridgeLauncher(None, principal, "p", repo_roots={"r": tmp_path / "source"},
+                              worktree_root=tmp_path / "trees")
+    first = launcher._checkout({"task_id": "p/A", "repo": "r"})
+    merged = merge_on_origin("merged.txt")
+    second = launcher._checkout({"task_id": "p/B", "repo": "r"})
+
+    assert not (first / "merged.txt").exists() and (second / "merged.txt").exists()
+    assert source_git("rev-parse", "HEAD") == merged
+    assert launcher._git(second, "rev-parse", "dispatch-base") == merged
+    assert launcher.base_commits["p/B"] == merged and not launcher.stale_bases
+
+
+@pytest.mark.parametrize("state, why", [
+    ("dirty", "source checkout is dirty"),
+    ("diverged", "source main has diverged from origin/main"),
+    ("branch", "source is on feature, not main"),
+    ("unreachable", "fetch from origin failed: "),
+])
+def test_a_source_that_cannot_be_updated_is_left_alone_and_reported_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str, why: str,
+) -> None:
+    source_git, merge_on_origin = _source_with_origin(tmp_path)
+    source = tmp_path / "source"
+    if state == "dirty":
+        (source / "f.txt").write_text("operator edit\n")
+    elif state == "diverged":
+        source_git("commit", "-q", "--allow-empty", "-m", "local only")
+    elif state == "branch":
+        source_git("checkout", "-qb", "feature")
+    else:
+        source_git("remote", "set-url", "origin", str(tmp_path / "gone.git"))
+    merge_on_origin("merged.txt")
+    head, status = source_git("rev-parse", "HEAD"), source_git("status", "--porcelain")
+
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    service.rows = {name: {"dependency_ids": [], "status": "todo", "repo": "r"} for name in ("A", "B")}
+    recorded: dict[str, str] = {}
+    service.record_base_commit = (  # type: ignore[attr-defined]
+        lambda _principal, task_id, _token, base: recorded.update({task_id: base}))
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
+    launcher = BridgeLauncher(None, principal, "p", repo_roots={"r": source}, worktree_root=tmp_path / "trees")
+    real_run = subprocess.run
+
+    def fake_run(argv: list[str], **kwargs: Any) -> Any:
+        if argv[1:3] != ["-m", "lazytools.code_bridge"]:
+            return real_run(argv, **kwargs)
+        return subprocess.CompletedProcess(argv, 0, "a" * 32 + "\n", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    Dispatcher(service, principal, launcher, "p", parallel=2, emit=events.append,  # type: ignore[arg-type]
+               task_reader=service.tasks).pass_once()
+
+    waiting = [event for event in events if event.startswith("waiting ")]
+    assert len(waiting) == 1 and waiting[0].startswith(f"waiting p/A source base is stale: {why}")
+    assert recorded == {"p/A": head, "p/B": head}
+    assert (source_git("rev-parse", "HEAD"), source_git("status", "--porcelain")) == (head, status)
 
 
 def test_retry_recreates_missing_clone_with_preserved_work(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

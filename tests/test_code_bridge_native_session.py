@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 
 import pytest
 from lazybridge import Envelope
@@ -129,6 +130,143 @@ def test_a_retry_attempt_resumes_the_writer_conversation_of_its_task(bridge, mon
     store = _store.build_store(bridge[3])
     assert [_store.read_meta(store, result.job_id)["native_id"] for result in results] == ["codex-id-1"] * 2
     assert bridge[0].engines[1].kwargs["thread_id"] == "codex-id-1"
+
+
+@pytest.fixture
+def dispatch_queue(tmp_path):
+    from lazytools.connectors.projects import ProjectsTools
+    from lazytools.projects.task_service import ProjectTaskService
+    from test_projects_task_service import PROJECT, Clock
+
+    path = str(tmp_path / "dispatch-queue.sqlite")
+    projects = ProjectsTools(store_db=path, allow_write=True)
+    projects.projects_create(PROJECT, "Bridge test", "Recover an orphaned attempt")
+    return projects, ProjectTaskService(path, lease_seconds=60, clock=Clock())
+
+
+def test_expired_local_intent_retries_once_and_keeps_its_continuation(dispatch_queue, tmp_path, monkeypatch):
+    from lazytools.code_bridge import _dispatch
+    from lazytools.projects.task_service import AttemptContinuation
+    from test_projects_task_service import OPERATOR, PROJECT, admit, claim, placement, revision, task
+
+    projects, service = dispatch_queue
+    admit(projects, [task("local"), task("other", dependency_ids=["local"])])
+    task_id = f"{PROJECT}/local"
+    continuation = AttemptContinuation(preserved_branch="dispatch-attempt/queue-test/local/1", preserved_commit="a" * 40)
+    service.prepare_attempt(OPERATOR, task_id, revision(service, "local"), "continue work", continuation=continuation)
+    placement(service, "local")
+    first = claim(service, "local", principal=OPERATOR)
+    launcher = _dispatch.BridgeLauncher(str(tmp_path / "jobs.sqlite"), OPERATOR, PROJECT)
+    launches, events = [], []
+    monkeypatch.setattr(launcher, "launch", lambda task, receipt: launches.append((task, receipt)) or "missing-job")
+
+    def run_pass():
+        return _dispatch.Dispatcher(service, OPERATOR, launcher, PROJECT, clock=service.clock,
+                                    emit=events.append).pass_once()
+
+    run_pass()
+    assert launches == [] and events == []
+    service.clock.now = first["lease_expires_at"]
+    run_pass()
+    retried_task, retry = launches[0]
+    assert retry["attempt"] == first["attempt"] + 1
+    assert retried_task["preserved_commit"] == continuation.preserved_commit
+    assert f"reconciled {task_id} absent" in events
+
+    # The retry also dies before submit. The budget survives dispatcher restart.
+    service.clock.now = retry["lease_expires_at"]
+    run_pass()
+    state = _dispatch._tasks(service, PROJECT)[0]
+    assert state.status == "failed" and len(launches) == 1
+    assert [old["state"] for old in state.data["dispatches"]] == ["absent", "absent"]
+
+
+@pytest.mark.parametrize("outcome", ["adopted", "legacy-adopted", "absent", "recorded-absent", "unavailable"])
+def test_expired_cloud_submission_reconciles_provider_outcome(dispatch_queue, tmp_path, monkeypatch, outcome):
+    from lazytools.code_bridge import _cloud, _cloud_stop, _dispatch
+    from test_projects_task_service import OPERATOR, PROJECT, admit, claim, placement, task
+
+    projects, service = dispatch_queue
+    admit(projects, [task("cloud", requested_placement="cloud"), task("other", dependency_ids=["cloud"])])
+    placement(service, "cloud", "cloud")
+    first = claim(service, "cloud", principal=OPERATOR)
+    task_id, token, attempt = first["task_id"], first["claim_token"], first["attempt"]
+    service.begin_submit(OPERATOR, task_id, token)
+    job_id = _dispatch.cloud_job_id(token)
+    if outcome in ("absent", "recorded-absent"):
+        # An older dispatcher could acknowledge the bridge record without a provider handle.
+        service.record_submit(OPERATOR, task_id, token, job_id)
+    db = tmp_path / "jobs.sqlite"
+    label = _cloud.dispatch_label(task_id, attempt, job_id)
+    brief = "Produce cloud" if outcome == "legacy-adopted" else f"Produce cloud\n\n{label}"
+    created_at = service.clock()
+    with _store.build_store(db) as store:
+        meta = {
+            "job_id": job_id, "task_id": task_id, "where": "cloud", "engine": "codex",
+            "env_id": "cloud-env", "cloud_handle": None, "objective": brief,
+            "created_at": created_at, "brief_hash": _store.brief_hash(brief),
+        }
+        _cloud._write(store, _store.build_job_registry(store), job_id, meta, status="submitting")
+        if outcome == "recorded-absent":
+            # A restart between writing the absence evidence and closing the bridge job.
+            _store.write_meta(store, job_id, {**meta, "cloud_submission_absent": True})
+
+    lookups = []
+
+    def cli_list(argv, **_kwargs):
+        assert argv[:6] == ["codex", "cloud", "list", "--json", "--env", "cloud-env"]
+        lookups.append(argv[6:])
+        if outcome == "unavailable":
+            return subprocess.CompletedProcess(argv, 1, "", "provider unavailable")
+        page = {"tasks": [{"id": "task_matching"}]} if argv[6:] else {
+            "tasks": [{"id": "task_other"}], "cursor": "page-two",
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(page), "")
+
+    def details(method, url, token, *, account_id):
+        assert (method, token, account_id) == ("GET", "fake-token", "fake-account")
+        prompt = _cloud.CLOUD_PREAMBLE + brief + _cloud.CLOUD_REPORT_SUFFIX
+        if outcome != "adopted" or url.endswith("task_other"):
+            prompt = prompt.replace(label, _cloud.dispatch_label(task_id, attempt + 1, job_id))
+        submitted_at = created_at - 10 if url.endswith("task_other") else created_at + 1
+        return {
+            "task": {"created_at": submitted_at},
+            "current_user_turn": {"input_items": [{"role": "user", "content": [
+                {"content_type": "text", "text": prompt},
+            ]}]},
+        }
+
+    monkeypatch.setattr(_cloud, "_codex_argv", lambda: ["codex"])
+    monkeypatch.setattr(_cloud_stop.subprocess, "run", cli_list)
+    monkeypatch.setattr(_cloud_stop, "_credentials", lambda _engine: ("fake-token", "fake-account"))
+    monkeypatch.setattr(_cloud_stop, "_request", details)
+    launcher = _dispatch.BridgeLauncher(str(db), OPERATOR, PROJECT)
+    launches, events = [], []
+    monkeypatch.setattr(launcher, "launch_cloud", lambda task, receipt, job_id: launches.append(receipt) or job_id)
+
+    def run_pass():
+        _dispatch.Dispatcher(service, OPERATOR, launcher, PROJECT, clock=service.clock, emit=events.append).pass_once()
+
+    run_pass()
+    assert not lookups and not launches
+    service.clock.now = first["lease_expires_at"]
+    run_pass()
+    assert lookups == {"recorded-absent": [], "unavailable": [[]]}.get(outcome, [[], ["--cursor", "page-two"]])
+    state = _dispatch._tasks(service, PROJECT)[0]
+    job = launcher.job(job_id)
+    assert job is not None
+    if outcome in ("adopted", "legacy-adopted"):
+        assert job["cloud_handle"] == "task_matching" and job["status"] == "running"
+        assert state.dispatch["job_ref"] == job_id and state.status == "claimed" and not launches
+        assert f"reconciled {task_id} adopted" in events
+    elif outcome in ("absent", "recorded-absent"):
+        assert job["status"] == "interrupted" and launcher.cloud_free("codex")
+        assert state.data["dispatches"][0]["state"] == "absent"
+        assert launches[0]["attempt"] == attempt + 1
+        assert f"reconciled {task_id} absent" in events
+    else:
+        assert job["status"] == "submitting" and state.status == "claimed" and not launches
+        assert any("provider unavailable" in event for event in events)
 
 
 def test_unknown_writer_job_is_refused_without_a_record(bridge):

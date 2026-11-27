@@ -1990,6 +1990,15 @@ Events are line-oriented on stdout: `ready TASK`, `claimed TASK`, `launched JOB`
 
 ### Local tasks
 
+Before creating a new task clone, the dispatcher fetches the source repository's `origin`
+and fast-forwards its base branch (origin's default branch) if the source checkout is
+clean and on that branch. It never resets or forces. If the source stays behind
+(dirty, diverged, on another branch, or the fetch failed), it is left alone, the task
+starts from its current commit, and `waiting TASK source base is stale: WHY` is emitted
+once until the reason changes. A task with dependencies still starts from their accepted
+commits. An existing clone, or a clone recreated for preserved work, is not refreshed.
+The dispatch receipt records the starting commit as `base_commit`.
+
 A local job that stops for a system reason (engine crash, stale heartbeat, database
 lock) is retried once. Before the retry, the dispatcher commits the attempt's
 uncommitted work in the task clone (never tool litter such as `*.log` or

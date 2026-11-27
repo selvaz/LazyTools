@@ -158,6 +158,9 @@ class BridgeLauncher:
         self.registry_db = registry_db
         self.launch_mode = launch_mode
         self.conflicts: dict[str, str] = {}
+        self.base_commits: dict[str, str] = {}  # task -> commit its checkout started from
+        self.stale_bases: dict[str, str] = {}  # task -> why its source could not be brought up to date
+        self._stale_sources: dict[Path, str] = {}  # reported once until the reason changes
         self.principal = principal
         self.project_id = project_id
         self.repo_roots = repo_roots or {}
@@ -171,6 +174,49 @@ class BridgeLauncher:
             raise RuntimeError(result.stderr.strip() or f"git {' '.join(args)} failed")
         return result.stdout.strip()
 
+    @staticmethod
+    def _refresh_source(repo: Path) -> str | None:
+        """Fetch the source's origin and fast-forward its base branch (origin's default branch).
+
+        Returns why the source stays behind origin, or None when it is current or has no origin.
+        The source is only written when it is clean and on that branch, and only fast-forward.
+        """
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never"}  # never prompt
+
+        def git(*argv: str) -> subprocess.CompletedProcess[str]:
+            try:
+                return subprocess.run(["git", "-C", str(repo), *argv], text=True, capture_output=True,
+                                      check=False, env=env, timeout=120)
+            except subprocess.TimeoutExpired:
+                return subprocess.CompletedProcess(argv, 1, "", "timed out")
+
+        def failed(action: str, result: subprocess.CompletedProcess[str]) -> str:
+            return f"{action} failed: {' '.join(_cloud.redact(result.stderr).split())[:200]}"
+
+        if git("remote", "get-url", "origin").returncode:
+            return None
+        fetched = git("fetch", "--quiet", "origin")
+        if fetched.returncode:
+            return failed("fetch from origin", fetched)
+        head = git("ls-remote", "--symref", "origin", "HEAD")
+        match = re.search(r"^ref: refs/heads/(\S+)\s+HEAD$", head.stdout, re.MULTILINE)
+        if match is None:
+            return failed("reading origin's default branch", head)
+        base = match.group(1)
+        target = f"refs/remotes/origin/{base}"
+        if git("merge-base", "--is-ancestor", target, "HEAD").returncode == 0:
+            return None  # the commit tasks start from already has everything on origin
+        current = git("branch", "--show-current").stdout.strip()
+        if current != base:
+            return f"source is on {current or 'a detached HEAD'}, not {base}"
+        status = git("status", "--porcelain")
+        if status.returncode or status.stdout.strip():
+            return "source checkout is dirty"
+        if git("merge-base", "--is-ancestor", "HEAD", target).returncode:
+            return f"source {base} has diverged from origin/{base}"
+        merged = git("merge", "--ff-only", "--quiet", target)
+        return failed("fast-forward", merged) if merged.returncode else None
+
     def _checkout(self, task: dict[str, Any]) -> Path:
         repo = self.repo_roots.get(str(task.get("repo"))) or Path.cwd()
         task_name = str(task["task_id"]).rsplit("/", 1)[-1]
@@ -178,14 +224,27 @@ class BridgeLauncher:
         safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task_name)
         root = self.worktree_root or repo.parent / "_dispatch"
         checkout = root / safe_project / safe_task
+        preserved = task.get("preserved_commit") or task.get("preserved_branch")
         if not checkout.exists():
-            return self._create_checkout(task, repo, checkout, safe_project, safe_task)
-        if task.get("preserved_commit") or task.get("preserved_branch"):
+            if not preserved:
+                # Only a fresh clone starts from the source base; preserved work keeps its own.
+                why = self._refresh_source(repo)
+                if why is None:
+                    self._stale_sources.pop(repo, None)
+                elif self._stale_sources.get(repo) != why:
+                    self._stale_sources[repo] = self.stale_bases[str(task["task_id"])] = why
+                return self._create_checkout(task, repo, checkout, safe_project, safe_task)
+            self._create_checkout(task, repo, checkout, safe_project, safe_task)
+        elif preserved:
             self._restore_preserved(task, checkout, self._git(checkout, "config", "--get", "dispatch.branch"))
         else:
             # A new attempt in an existing checkout must add its own commits.
             subprocess.run(["git", "-C", str(checkout), "tag", "-f", "dispatch-base", "HEAD"],
                            text=True, capture_output=True, check=False)
+        base_tag = subprocess.run(["git", "-C", str(checkout), "rev-parse", "-q", "--verify",
+                                   "dispatch-base^{commit}"], text=True, capture_output=True, check=False)
+        if base_tag.returncode == 0:
+            self.base_commits[str(task["task_id"])] = base_tag.stdout.strip()
         return checkout
 
     def _restore_preserved(self, task: dict[str, Any], checkout: Path, branch: str) -> None:
@@ -248,6 +307,7 @@ class BridgeLauncher:
             self._restore_preserved(task, checkout, str(branch))
             return checkout
         self._git(checkout, "checkout", "--quiet", "-B", str(branch), str(base))
+        self.base_commits[str(task["task_id"])] = self._git(checkout, "rev-parse", "HEAD")
         for index, commit in enumerate(commits[1:], start=1):
             result = subprocess.run(
                 ["git", "-C", str(checkout), "merge", "--no-edit", commit],
@@ -391,11 +451,14 @@ class BridgeLauncher:
     def launch_cloud(self, task: dict[str, Any], claim: dict[str, Any], job_id: str) -> str:
         repo = cloud_repo(self.repo_roots, task)  # checked again: placement may predate the mapping
         family = str(claim["engine_family"])
+        brief = str(task["text"])
+        if family == "codex" and (attempt := claim.get("attempt")) is not None:
+            brief += f"\n\n{_cloud.dispatch_label(claim['task_id'], attempt, job_id)}"
         command = [sys.executable, "-m", "lazytools.code_bridge", "run", "--where", "cloud", "--allow-cloud",
                    "--engine", "claude" if family == "claude_code" else family,
                    "--branch", _cloud.current_branch(repo), "--open-pr", "--land",
                    "--task-id", claim["task_id"], "--job-id", job_id,
-                   "--cwd", str(repo), "--root", str(repo), "--task", str(task["text"]),
+                   "--cwd", str(repo), "--root", str(repo), "--task", brief,
                    "--tier", task.get("tier") or "thinking", "--no-brief-check"]
         if self.db:
             command.extend(("--db", self.db))
@@ -420,6 +483,11 @@ class BridgeLauncher:
         if row["action"] in ("land-failed", "skipped"):
             job = {**job, "land_failure": row["detail"]}
         return job
+
+    def reconcile_cloud_submission(self, job: dict[str, Any], task_id: str, attempt: int) -> dict[str, Any]:
+        with _store.build_store(Path(self.db) if self.db else None) as store:
+            label = _cloud.dispatch_label(task_id, attempt, str(job["job_id"]))
+            return _cloud.reconcile_submission(store, _store.build_job_registry(store), job, label)
 
     def cloud_checkout(self, task_id: str, job: dict[str, Any]) -> Path:
         """A fresh local clone of the landed branch at the pushed commit, for the acceptance checks.
@@ -834,6 +902,18 @@ class Dispatcher:
         return self._retry(task, "resume failed", reason, {**continuation, "native_id": None, "fresh": True},
                            str(job.get("job_id")))
 
+    def _record_base(self, task_id: str, claim: dict[str, Any]) -> None:
+        """Report a source that stayed stale and keep the checkout's base commit in the receipt."""
+        why = getattr(self.launcher, "stale_bases", {}).pop(task_id, None)
+        if why:
+            self._event("waiting", task_id, f"source base is stale: {why}")
+        base = getattr(self.launcher, "base_commits", {}).pop(task_id, None)
+        if base:
+            try:
+                self.service.record_base_commit(self.principal, task_id, claim["claim_token"], base)
+            except Exception as exc:
+                self._event("receipt-error", task_id, f"could not record base commit: {exc}")
+
     def _record_lesson(self, task: Task, kind: str, reason: str) -> None:
         store = self.knowledge_store
         if store is None:
@@ -1007,23 +1087,34 @@ class Dispatcher:
                 self._event("blocked", task.task_id)
                 self.reported_blocked.add(task.task_id)
 
-    def _settle_missing(self, task: Task, dispatch: dict[str, Any], receipt: dict[str, Any]) -> bool:
-        """Release a claim whose job never appeared, once the lease and the grace period are over."""
+    def _orphan_expired(self, dispatch: dict[str, Any], receipt: dict[str, Any]) -> bool:
+        now = self.clock()
         created = float(dispatch.get("created_at", 0))
-        expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
-        if expired and self.clock() - created >= self.orphan_grace:
-            dispatch_state = dispatch.get("state", "intent")
-            observation: Literal["absent", "terminated"] = "terminated" if dispatch.get("job_ref") else "absent"
-            self.service.reconcile_dispatch(
-                self.principal, task.task_id, receipt["attempt"], observation,
-                evidence_ref=None if dispatch_state == "intent" else "dispatcher:no-job-after-grace",
-                job_ref=dispatch.get("job_ref"),
-            )
-            reason = "no job after dispatch grace period"
-            self._record_lesson(task, "missing job", reason)
-            self._event("failed", task.task_id, reason, job_id=dispatch.get("job_ref"))
-            return True
-        return False
+        return float(receipt.get("lease_expires_at", float("inf"))) <= now and now - created >= self.orphan_grace
+
+    def _settle_missing(self, task: Task, dispatch: dict[str, Any], receipt: dict[str, Any], *,
+                        cloud_absent: bool = False) -> bool:
+        """Release an expired claim after its job has been ruled out."""
+        if not self._orphan_expired(dispatch, receipt):
+            return False
+        job_ref = dispatch.get("job_ref")
+        observation: Literal["absent", "terminated"] = "terminated" if job_ref and not cloud_absent else "absent"
+        evidence_ref = "dispatcher:cloud-submission-absent" if cloud_absent else "dispatcher:no-job-after-grace"
+        previous_orphans = sum(
+            old.get("reconciliation_ref") in ("dispatcher:cloud-submission-absent", "dispatcher:no-job-after-grace")
+            and old["receipt"]["revision"] == receipt.get("revision")
+            for old in task.data.get("dispatches", [])[:-1]
+        )
+        reason = "provider has no matching dispatch" if cloud_absent else "no job after dispatch grace period"
+        retry = previous_orphans + self.retries.get(task.task_id, 0) < self.max_retries
+        self.service.reconcile_dispatch(
+            self.principal, task.task_id, receipt["attempt"], observation, evidence_ref=evidence_ref,
+            job_ref=job_ref, failure_reason=None if retry else reason,
+        )
+        self._event("reconciled", task.task_id, observation, job_id=job_ref)
+        self._record_lesson(task, "missing job", reason)
+        self._event("failed", task.task_id, reason, job_id=job_ref)
+        return True
 
     def _conclude(
         self, task: Task, *, reference: str, job_ref: str, accepted: bool, expired: bool,
@@ -1083,9 +1174,29 @@ class Dispatcher:
         job = self.launcher.cloud_job(job_ref)  # type: ignore[attr-defined]
         if job is None:
             return self._settle_missing(task, dispatch, receipt)
+        if job.get("status") == "submitting" and not job.get("cloud_handle"):
+            if not self._orphan_expired(dispatch, receipt):
+                return False
+            try:
+                job = self.launcher.reconcile_cloud_submission(  # type: ignore[attr-defined]
+                    job, task.task_id, receipt["attempt"])
+            except CloudError as exc:
+                self._event("waiting", task.task_id, f"cloud submission lookup failed: {_cloud.redact(str(exc))}",
+                            job_id=job_ref)
+                return False
+            if job.get("cloud_handle"):
+                self.service.reconcile_dispatch(self.principal, task.task_id, receipt["attempt"], "submitted",
+                                                evidence_ref=f"bridge-job:{job_ref}", job_ref=job_ref)
+                self._event("reconciled", task.task_id, "adopted", job_id=job_ref)
+                return False  # the next pass can poll or cancel the adopted handle
+            if job.get("status") == "submitting":
+                return False
+        if job.get("cloud_submission_absent") and not job.get("cloud_handle"):
+            return self._settle_missing(task, dispatch, receipt, cloud_absent=True)
         if not dispatch.get("job_ref"):
             # Restarted between the submit and its acknowledgement: adopt the job.
             self.service.record_submit(self.principal, task.task_id, token, job_ref)
+            self._event("reconciled", task.task_id, "adopted", job_id=job_ref)
         status = job.get("status")
         expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
         landing_owed = status == "done" and _cloud_land.needs_finishing(job) and not job.get("land_failure")
@@ -1162,7 +1273,8 @@ class Dispatcher:
                 self._with_lessons({**summary, **task.data}), claim, job_id)
         except Exception as exc:
             reason = _cloud.redact(str(exc)).replace("\n", " ")
-            if self.launcher.job(job_id) is None:  # nothing reached the provider
+            job = self.launcher.job(job_id)
+            if job is None:  # nothing reached the provider
                 try:
                     self.service.fail_local_launch(self.principal, task_id, token, reason)
                 except Exception as release_exc:
@@ -1170,6 +1282,8 @@ class Dispatcher:
                 self._record_lesson(task, "launch failure", reason)
                 self._event("failed", task_id, reason)
                 return False
+            if job.get("status") == "submitting" and not job.get("cloud_handle"):
+                return True  # settle the incomplete submission from provider evidence after expiry
             job_ref = job_id  # a failed submit is recorded; settlement reports it
         self.service.record_submit(self.principal, task_id, token, job_ref)
         self._event("launched", task_id, job_id=job_ref)
@@ -1191,6 +1305,10 @@ class Dispatcher:
             # reaches the provider boundary, so reconciliation below could never settle it.
             self._refused_resume(task, job, continuation)
             return True
+        if job and not job_ref and dispatch.get("state") == "intent":
+            pid = job.get("pid")
+            if job.get("status") in TERMINAL or (isinstance(pid, int) and not _pid_alive(pid)):
+                return self._settle_missing(task, dispatch, receipt)
         if job and not job_ref:
             try:
                 self.service.reconcile_dispatch(self.principal, task.task_id, receipt["attempt"], "submitted",
@@ -1200,6 +1318,7 @@ class Dispatcher:
                     return False  # the child is still waiting for an engine slot
                 raise
             job_ref = str(job["job_id"])
+            self._event("reconciled", task.task_id, "adopted", job_id=job_ref)
         if not job:
             return self._settle_missing(task, dispatch, receipt)
         if job.get("status") not in TERMINAL:
@@ -1430,6 +1549,7 @@ class Dispatcher:
             try:
                 job_ref = self.launcher.launch(self._launch_input({**summary, **data}, claim), claim)
             except Exception as exc:
+                self._record_base(summary["task_id"], claim)
                 reason = str(exc).replace("\n", " ")
                 try:
                     self.service.fail_local_launch(
@@ -1440,6 +1560,7 @@ class Dispatcher:
                 self._record_lesson(board_task, "launch failure", reason)
                 self._event("failed", summary["task_id"], reason)
             else:
+                self._record_base(summary["task_id"], claim)
                 self._event("launched", summary["task_id"], job_id=job_ref)
                 running += 1
                 if branch:
