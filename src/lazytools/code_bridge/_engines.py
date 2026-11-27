@@ -46,8 +46,35 @@ CLAUDE_NO_ATTRIBUTION_SETTINGS: dict[str, Any] = {
 }
 
 
+def _report_claude_activity(on_activity: Callable[..., None], message: Any) -> None:
+    """Report one SDK message, with the tool calls it starts or finishes.
+
+    Messages are recognised by the SDK's type names, not by importing them: the
+    Claude Agent SDK is an optional extra, and this runs on every engine event.
+    """
+    kind = type(message).__name__
+    content = getattr(message, "content", None)
+    blocks = content if isinstance(content, list) else []
+    reported = False
+    if kind == "AssistantMessage":
+        for block in blocks:
+            if type(block).__name__ == "ToolUseBlock":
+                on_activity(tool_started=(block.id, block.name))
+                reported = True
+    elif kind == "UserMessage":
+        for block in blocks:
+            if type(block).__name__ == "ToolResultBlock":
+                on_activity(tool_finished=block.tool_use_id)
+                reported = True
+    elif kind == "ResultMessage":
+        on_activity(tools_settled=True)
+        reported = True
+    if not reported:
+        on_activity()
+
+
 def _claude_client(
-    *, policy_release_report: Path | str | None = None, on_activity: Callable[[], None] | None = None,
+    *, policy_release_report: Path | str | None = None, on_activity: Callable[..., None] | None = None,
 ) -> Any:
     """Agent SDK client which adds job-scoped no-attribution settings."""
     from lazybridge.engines.claude_code.sdk_client import AgentSdkClient
@@ -56,7 +83,7 @@ def _claude_client(
         @staticmethod
         def _report_session_id(options: Any, message: Any) -> None:
             if on_activity is not None:
-                on_activity()
+                _report_claude_activity(on_activity, message)
             AgentSdkClient._report_session_id(options, message)
 
         @staticmethod
@@ -66,6 +93,7 @@ def _claude_client(
             settings.update(CLAUDE_NO_ATTRIBUTION_SETTINGS)
             return replace(sdk_options, settings=json.dumps(settings))
 
+    # No custom transport: governed launches with a release report refuse one.
     return JobScopedSettingsClient(policy_release_report=policy_release_report)
 
 def _make_codex_engine(**kwargs: Any) -> Any:
@@ -221,7 +249,7 @@ def build_claude_engine(
     launch: Launch,
     timeout: float = DEFAULT_TIMEOUT,
     temp_dir: str | None = None,
-    on_activity: Callable[[], None] | None = None,
+    on_activity: Callable[..., None] | None = None,
 ) -> Any:
     """A ``ClaudeCodeEngine`` for one foreground job: Write/Edit/Bash, every call gated.
 

@@ -18,6 +18,7 @@ from lazybridge import Store
 from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugify
 
 from lazytools.code_bridge import _cloud, _concurrency, _jobs, _registry, _routing, _store
+from lazytools.code_bridge._lockfile import _pid_alive
 from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
@@ -27,6 +28,7 @@ from lazytools.projects.task_store import TaskServiceError, transaction
 
 TERMINAL = frozenset({"done", "partial", "failed", "interrupted", "cancelled"})
 DEFAULT_STALE_MINUTES = 10
+DEFAULT_TOOL_STALE_MINUTES = 60  # one tool call running longer than this is stale
 STALE_HEARTBEAT = "engine heartbeat went stale"
 # Engine crashes (not task failures): retried once with a fresh attempt.
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
@@ -34,9 +36,29 @@ RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "
                       "no new commit since the task started", STALE_HEARTBEAT, "database is locked")
 
 
-def _has_stale_heartbeat(job: dict[str, Any], cutoff: float) -> bool:
+def _tool_call_in_progress(job: dict[str, Any], now: float, bound: float) -> bool:
+    """A tool call is running in a live job process and within its own bound.
+
+    The engine emits no events while a tool (a long shell command) runs, so
+    the event heartbeat alone would cancel healthy jobs. The engine is driven by
+    the job's worker process (``pid``): when the engine exits, the worker ends
+    the turn and clears its tool calls; when the worker dies, nothing is left
+    to finish them.
+    """
+    calls = job.get("tool_calls")
+    pid = job.get("pid")
+    if not isinstance(calls, dict) or not calls or not isinstance(pid, int) or not _pid_alive(pid):
+        return False
+    starts = [call.get("started_at") if isinstance(call, dict) else None for call in calls.values()]
+    return all(isinstance(start, (int, float)) and now - start < bound for start in starts)
+
+
+def _has_stale_heartbeat(job: dict[str, Any], cutoff: float, *, now: float | None = None,
+                         tool_bound: float = DEFAULT_TOOL_STALE_MINUTES * 60) -> bool:
     heartbeat = job.get("heartbeat_at")
-    return job.get("status") == "running" and isinstance(heartbeat, (int, float)) and heartbeat < cutoff
+    if job.get("status") != "running" or not isinstance(heartbeat, (int, float)) or heartbeat >= cutoff:
+        return False
+    return not _tool_call_in_progress(job, time.time() if now is None else now, tool_bound)
 
 
 @dataclass(frozen=True)
@@ -620,7 +642,7 @@ class Dispatcher:
             now = self.clock()
             lease_end = float(receipt.get("lease_expires_at", float("inf")))
             cutoff = now - self.stale_seconds
-            stale = _has_stale_heartbeat(job, cutoff)
+            stale = _has_stale_heartbeat(job, cutoff, now=now)
             cancel = getattr(self.launcher, "cancel", None)
             if (not stale and lease_end > now) or cancel is None or str(job_ref) in self.cancelled:
                 return False
