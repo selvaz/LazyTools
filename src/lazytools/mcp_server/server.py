@@ -135,6 +135,7 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     # never on a read-only surface, whichever provider instance carries it.
     "projects_close_task",
     "projects_complete_todo",
+    "projects_edit_task",
     "tasks_claim",
     "tasks_complete",
     "tasks_route_clear",

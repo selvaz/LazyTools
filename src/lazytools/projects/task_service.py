@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, FiniteFloat, StringConstraints
 from lazytools.projects.contracts import find_contract_for_task
 from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import get_project, touch_project_progress
-from lazytools.projects.task_fields import Placement, task_id
+from lazytools.projects.task_fields import Placement, plan_fields, task_id, validate_dependencies
 from lazytools.projects.task_store import TaskServiceError, TransactionStore, transaction
 from lazytools.projects.verification import CheckResult, get_verification, get_verification_for_contract
 
@@ -365,6 +365,56 @@ class ProjectTaskService:
             raise ValueError("quarantine_threshold must be a positive integer")
         self.quarantine_threshold = quarantine_threshold
         self.clock = clock
+
+    def edit_task(
+        self, principal: TaskPrincipal, project: str, task_id: str, expected_revision: str,
+        changes: dict[str, Any], reason: str,
+    ) -> dict[str, Any]:
+        """Edit an unclaimed task atomically and retain its identity and audit trail."""
+        principal.require_role("orchestrator", "owner")
+        principal.require_project(project)
+        allowed = {"text", "title", "checks", "acceptance_criteria", "tier", "dependency_ids", "touches", "engine_preference"}
+        if not reason.strip() or not changes or set(changes) - allowed:
+            raise TaskServiceError("invalid", "A reason and supported changes are required")
+        try:
+            fields = plan_fields({k: v for k, v in changes.items() if k not in ("text", "touches")})
+            if set(fields) != set(changes) - {"text", "touches"}:
+                raise ValueError("Edited fields cannot be null")
+            if "text" in changes:
+                if not isinstance(changes["text"], str) or not changes["text"].strip():
+                    raise ValueError("text must be a nonempty string")
+                fields["text"] = changes["text"].strip()
+            if "touches" in changes:
+                values = changes["touches"]
+                if not isinstance(values, list) or any(not isinstance(v, str) or not v.strip() for v in values):
+                    raise ValueError("touches must be a list of nonempty strings")
+                fields["touches"] = [v.strip() for v in values]
+        except (ValueError, TypeError) as exc:
+            raise TaskServiceError("invalid", str(exc)) from exc
+        if "/" in project or "/" in task_id or not task_id:
+            raise TaskServiceError("invalid", "Expected a project and a task id within that project")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, f"{project}/{task_id}")
+            if task.revision != expected_revision:
+                raise TaskServiceError("stale", "Task revision changed")
+            if (task.data.get("status") != "todo" or task.data.get("owner")
+                    or task.data.get("claimed_at") is not None or task.data.get("active_queue_claim")):
+                raise TaskServiceError("conflict", "Task must be unclaimed and todo")
+            previous = {key: task.data.get(key) for key in fields}
+            task.data.update(fields)
+            try:
+                validate_dependencies(task.board["tasks"])
+            except ValueError as exc:
+                raise TaskServiceError("invalid", str(exc)) from exc
+            now = self.clock()
+            new_revision = uuid4().hex
+            task.data.setdefault("edit_history", []).append({
+                "at": now, "actor": principal.actor, "reason": reason.strip(),
+                "previous_values": previous, "previous_revision": task.revision, "revision": new_revision,
+            })
+            task.data.update(revision=new_revision, effective_placement=None, placement_reason=None, preflight_ref=None)
+            task.save(store, now)
+            return {"task_id": task.identifier, "revision": new_revision}
 
     def publication_review(
         self,

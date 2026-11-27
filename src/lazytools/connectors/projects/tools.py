@@ -54,7 +54,8 @@ from lazytools.projects import task_claims as _task_claims
 from lazytools.projects import timeline as _timeline
 from lazytools.projects import verification as _verification
 from lazytools.projects.keys import CEO_STORE_DB_ENV
-from lazytools.projects.task_service import TaskPrincipal
+from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
+from lazytools.projects.task_store import TaskServiceError
 
 #: Claude Code's default list/timeline view when no explicit ``owner`` is
 #: given: its own projects plus shared ones, never a CEO project by
@@ -138,6 +139,7 @@ CORE_TOOLS = frozenset(
         "projects_complete_todo",
         "projects_add_note",
         "projects_revise_plan",
+        "projects_edit_task",
         "projects_schedule_task",
     }
 )
@@ -171,6 +173,9 @@ class ProjectsTools:
         approver_credential_file: str | None = None,
     ) -> None:
         path = _resolve_store_db(store_db)
+        self._edit_service = ProjectTaskService(path)
+        self._edit_principal = task_principal
+        self._edit_allowed = allow_write
         from lazytools.connectors.projects.receipt_tools import ReceiptTools
 
         self._receipt_tools = ReceiptTools(
@@ -620,6 +625,18 @@ class ProjectsTools:
 
     # ---- write: plan editing ----------------------------------------------
 
+    def projects_edit_task(
+        self, project: str, task_id: str, expected_revision: str, changes: dict[str, Any], reason: str,
+    ) -> dict[str, Any]:
+        """Edit an unclaimed todo task in place using its current revision."""
+        try:
+            if not self._edit_allowed:
+                raise TaskServiceError("forbidden", "This host is read-only")
+            principal = self._edit_principal or TaskPrincipal(actor="projects", role="orchestrator", projects=(project,))
+            return {"ok": True, **self._edit_service.edit_task(principal, project, task_id, expected_revision, changes, reason)}
+        except TaskServiceError as exc:
+            return {"ok": False, "error": {"code": exc.code, "message": str(exc)}}
+
     def projects_retire_task(
         self,
         project_id: str,
@@ -816,6 +833,8 @@ class ProjectsTools:
         )
         if self._task_tools is not None:
             tools.extend(self._task_tools.as_tools())
+            if self._edit_allowed and self._edit_principal and self._edit_principal.role in ("orchestrator", "owner"):
+                tools.append(Tool.wrap(self.projects_edit_task, name="projects_edit_task"))
         if not self._allow_write:
             return tools
 
@@ -836,6 +855,7 @@ class ProjectsTools:
             self.projects_reopen_task,
             self.projects_reopen_done_task,
             self.projects_revise_plan,
+            self.projects_edit_task,
             self.projects_schedule_task,
             self.projects_open_contract,
             self.projects_accept_verification,
