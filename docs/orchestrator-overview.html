@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LazyTools agent orchestrator</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --page: #f5f7fa;
+    --paper: #fff;
+    --text: #17243b;
+    --muted: #45566f;
+    --line: #ced7e3;
+    --link: #174fa3;
+    --control: #e4efff;
+    --control-line: #5179b1;
+    --worker: #dff4eb;
+    --worker-line: #397d65;
+    --decision: #fff0d6;
+    --decision-line: #94621b;
+    --record: #edf0f5;
+    --record-line: #64748b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #111722;
+      --paper: #192231;
+      --text: #eef4ff;
+      --muted: #b7c5d9;
+      --line: #394a61;
+      --link: #a4c9ff;
+      --control: #223d60;
+      --control-line: #85b3f3;
+      --worker: #1c4038;
+      --worker-line: #7ac5a8;
+      --decision: #49361e;
+      --decision-line: #e0b36b;
+      --record: #303c50;
+      --record-line: #a0b2cc;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 1.25rem;
+    background: var(--page);
+    color: var(--text);
+    font: 1rem/1.6 system-ui, sans-serif;
+  }
+  main { max-width: 53rem; margin: 0 auto; padding: 2rem 0 3rem; }
+  h1, h2, h3 { line-height: 1.2; }
+  h1 { font-size: clamp(2rem, 5vw, 3rem); margin: 0 0 1.5rem; }
+  h2 { font-size: 1.55rem; margin: 2rem 0 .65rem; }
+  h3 { font-size: 1.2rem; margin: 1.5rem 0 .65rem; }
+  p, ul { margin: .6rem 0; }
+  ul { padding-inline-start: 1.35rem; }
+  li + li { margin-top: .45rem; }
+  a { color: var(--link); text-underline-offset: .16em; }
+  code { background: var(--record); border-radius: .2rem; padding: .06em .24em; overflow-wrap: anywhere; }
+  .sources, figcaption { font-size: .875rem; color: var(--muted); }
+  figure {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: .5rem;
+    margin: .8rem 0;
+    padding: .8rem 1rem;
+    break-inside: avoid;
+  }
+  .diagram { overflow-x: auto; }
+  .diagram:focus-visible, a:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+  svg { display: block; width: 100%; min-width: 38rem; height: auto; }
+  svg text { fill: var(--text); text-anchor: middle; font: 600 15px system-ui, sans-serif; }
+  svg .sub { fill: var(--muted); font: 13px system-ui, sans-serif; }
+  svg rect { rx: 8px; stroke-width: 1.25; }
+  .control { fill: var(--control); stroke: var(--control-line); }
+  .worker { fill: var(--worker); stroke: var(--worker-line); }
+  .decision { fill: var(--decision); stroke: var(--decision-line); }
+  .record { fill: var(--record); stroke: var(--record-line); }
+  .edges { fill: none; stroke: var(--record-line); stroke-width: 1.5; }
+  marker path { fill: var(--record-line); }
+  figcaption { margin-top: .4rem; }
+  @media print {
+    body { padding: 0; background: var(--paper); }
+    main { padding: 0; }
+    svg { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+<h1>LazyTools agent orchestrator</h1>
+
+<section>
+<h2>1. Goal</h2>
+<p>LazyTools turns a reviewed plan into trackable coding jobs. A lead can give work to Codex or Claude Code, leave it running while the caller moves on, and come back to job results, approval requests and evidence tied to a specific task. The dispatcher unlocks dependent tasks after acceptance. The orchestration MCP server lets an agent use the same job and review mechanisms as the CLI.</p>
+<p class="sources">Sources · <a href="code-bridge.md#job-lifecycle">Code bridge</a> · <a href="projects.md#governed-task-queue">Projects queue</a> · <a href="design/orchestration-mcp/SPEC.md#goal">MCP design goal</a></p>
+</section>
+
+<section>
+<h2>2. Components and roles</h2>
+<ul>
+  <li><strong>Lead / CEO.</strong> A CLI lead or an agent using MCP shapes the plan and briefs, follows jobs and PRs, and decides tickets within the owner’s delegation. The separate LazyCEO application can use the shared Projects Store and supplies its own messaging, specialist lifecycle and acceptance policy.</li>
+  <li><strong>LazyTools.</strong> Projects holds the board and task receipts. The dispatcher selects, claims, launches and settles tasks. The code bridge owns job records, execution, approvals and the PR workflow. The dedicated orchestration MCP server exposes these services to clients.</li>
+  <li><strong>LazyBridge.</strong> The framework supplies the Store and durable blackboard, engine adapters, approvals, and supporting primitives such as receipts and lessons.</li>
+  <li><strong>Workers and reviewers.</strong> Local writers run Codex or Claude Code in a task checkout. Codex Cloud and Claude cloud sessions start from a GitHub branch of the target repository. A separate reviewer judges the resulting commit or PR head.</li>
+  <li><strong>Owner.</strong> The human operator controls the credential and delegation policy, decides owner-routed requests, and handles escalations that need human judgment.</li>
+</ul>
+<p class="sources">Sources · <a href="projects.md#layering">Repository boundaries</a> · <a href="code-bridge.md#dispatching-a-project">Dispatcher and workers</a> · <a href="code-bridge.md#operator-credentials">Owner credential</a> · <a href="CAPABILITIES.md#9-lazybridge-core-v1100">LazyBridge primitives</a></p>
+</section>
+
+<section>
+<h2>3. Architecture</h2>
+<figure>
+  <div class="diagram" tabindex="0" role="group" aria-label="Architecture diagram">
+  <svg viewBox="0 0 720 302" role="img" aria-labelledby="architecture-title">
+    <title id="architecture-title">The lead drives the dispatcher and bridge. The owner configures approvals. Local and cloud engines exchange work and results with the bridge.</title>
+    <defs><marker id="arrow-architecture" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 8 4 0 8z"/></marker></defs>
+    <g class="edges" marker-end="url(#arrow-architecture)">
+      <path d="M252 34H118V92"/><path d="M360 58V92"/><path d="M602 58V92"/>
+      <path d="M224 118H252"/><path d="M496 118H468"/>
+      <path d="M118 144V174"/><path d="M360 144V174"/>
+      <path d="M419 144V158H484V231H228V246"/><path d="M484 231H492V246"/>
+    </g>
+    <rect class="control" x="252" y="10" width="216" height="48"/><text x="360" y="39">Lead / CEO</text>
+    <rect class="decision" x="496" y="10" width="212" height="48"/><text x="602" y="39">Owner</text>
+    <text class="sub" x="141" y="75">CLI</text><text class="sub" x="405" y="79">CLI / MCP</text>
+    <rect class="control" x="12" y="92" width="212" height="52"/>
+    <text x="118" y="114">Dispatcher</text><text class="sub" x="118" y="132">Place, claim and settle tasks</text>
+    <rect class="control" x="252" y="92" width="216" height="52"/>
+    <text x="360" y="114">Code bridge</text><text class="sub" x="360" y="132">Run jobs and collect evidence</text>
+    <rect class="decision" x="496" y="92" width="212" height="52"/>
+    <text x="602" y="114">Approval registry</text><text class="sub" x="602" y="132">Policy, cards and tickets</text>
+    <rect class="record" x="12" y="174" width="212" height="48"/>
+    <text x="118" y="194">Projects Store</text><text class="sub" x="118" y="212">Board and task receipts</text>
+    <rect class="record" x="252" y="174" width="216" height="48"/>
+    <text x="360" y="194">Job Store</text><text class="sub" x="360" y="212">Status and results</text>
+    <rect class="worker" x="116" y="246" width="224" height="48"/>
+    <text x="228" y="266">Local engines</text><text class="sub" x="228" y="284">Codex / Claude Code</text>
+    <rect class="worker" x="380" y="246" width="224" height="48"/>
+    <text x="492" y="266">Cloud engines</text><text class="sub" x="492" y="284">Codex Cloud / Claude</text>
+  </svg>
+  </div>
+  <figcaption>Blue marks control, green marks execution, amber marks authority or a gate, and gray marks records.</figcaption>
+</figure>
+<p class="sources">Sources · <a href="mcp-server.md#orchestration-server">MCP server</a> · <a href="projects.md#layering">Projects and Store</a> · <a href="code-bridge.md#dispatching-a-project">Dispatch</a> · <a href="code-bridge.md#operator-credentials">Approval registry</a></p>
+</section>
+
+<section>
+<h2>4. How it works</h2>
+
+<section>
+<h3>Task graph and lifecycle</h3>
+<figure>
+  <div class="diagram" tabindex="0" role="group" aria-label="Task lifecycle diagram">
+  <svg viewBox="0 0 720 254" role="img" aria-labelledby="lifecycle-title">
+    <title id="lifecycle-title">In the example graph, tests and documentation both depend on implementation. Each task moves from todo through placement, claim and launch. Accepted work unlocks dependents and may be landed on a PR.</title>
+    <defs><marker id="arrow-lifecycle" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 8 4 0 8z"/></marker></defs>
+    <g class="edges" marker-end="url(#arrow-lifecycle)">
+      <path d="M108 41H128"/><path d="M228 41H248"/><path d="M348 41H368"/><path d="M468 41H488"/><path d="M588 41H608"/>
+      <path d="M418 65V110H488"/><path d="M538 65V83H658V96"/>
+      <path d="M356 202H407V179H448"/><path d="M356 202H407V225H448"/>
+    </g>
+    <rect class="record" x="8" y="17" width="100" height="48"/><text x="58" y="46">todo</text>
+    <rect class="control" x="128" y="17" width="100" height="48"/><text x="178" y="46">placed</text>
+    <rect class="control" x="248" y="17" width="100" height="48"/><text x="298" y="46">claimed</text>
+    <rect class="worker" x="368" y="17" width="100" height="48"/><text x="418" y="46">launched</text>
+    <rect class="record" x="488" y="17" width="100" height="48"/><text x="538" y="46">done</text>
+    <rect class="record" x="608" y="17" width="100" height="48"/><text x="658" y="46">landed</text>
+    <rect class="decision" x="488" y="96" width="100" height="48"/><text x="538" y="115">failed</text><text class="sub" x="538" y="133">Blocks branch</text>
+    <rect class="record" x="608" y="96" width="100" height="48"/><text x="658" y="115">Dependents</text><text class="sub" x="658" y="133">Can start</text>
+    <text class="sub" x="120" y="207">Example dependencies</text>
+    <rect class="record" x="216" y="182" width="140" height="40"/><text x="286" y="207">Implement</text>
+    <rect class="record" x="448" y="159" width="140" height="40"/><text x="518" y="184">Add tests</text>
+    <rect class="record" x="448" y="205" width="140" height="40"/><text x="518" y="230">Update docs</text>
+  </svg>
+  </div>
+  <figcaption>Local writer path, with optional PR landing. Cloud dispatch lands before accepting the task.</figcaption>
+</figure>
+<p>Run the graph with <code>lazytools-code-bridge dispatch --project ID</code>. A task can name its repository, dependency IDs, tier, placement, acceptance criteria and check commands. Plan validation rejects duplicate IDs, missing dependencies and cycles. A <code>todo</code> task becomes claimable when its dependencies are accepted, its hold is clear and current placement evidence matches its revision. The claim binds the attempt, executor and route to a token and lease. Launch records a job reference. Acceptance sets the board task to <code>done</code>, terminal failure sets it to <code>failed</code>, and a retry returns it to <code>todo</code>.</p>
+<p class="sources">Sources · <a href="../src/lazytools/projects/task_fields.py">Plan fields and dependencies</a> · <a href="../src/lazytools/projects/task_service.py">Readiness, claims and completion</a> · <a href="../src/lazytools/code_bridge/_dispatch_launch.py">Job launch</a></p>
+</section>
+
+<section>
+<h3>Placement, quota and capacity</h3>
+<figure>
+  <div class="diagram" tabindex="0" role="group" aria-label="Placement diagram">
+  <svg viewBox="0 0 720 176" role="img" aria-labelledby="placement-title">
+    <title id="placement-title">Tier and quota routing choose an engine, then placement requires either a local slot or a cloud environment and capacity. Work waits if admission cannot proceed.</title>
+    <defs><marker id="arrow-placement" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 8 4 0 8z"/></marker></defs>
+    <g class="edges" marker-end="url(#arrow-placement)">
+      <path d="M178 87H218"/><path d="M432 87H454V36H476"/><path d="M432 87H476"/><path d="M432 87H454V138H476"/>
+    </g>
+    <rect class="record" x="12" y="63" width="166" height="48"/><text x="95" y="82">Task tier</text><text class="sub" x="95" y="101">Preference + fallback</text>
+    <rect class="control" x="218" y="56" width="214" height="62"/><text x="325" y="82">Quota router</text><text class="sub" x="325" y="101">Engine, model and effort</text>
+    <rect class="worker" x="476" y="14" width="232" height="44"/><text x="592" y="41">Local engine slot</text>
+    <rect class="worker" x="476" y="65" width="232" height="44"/><text x="592" y="92">Cloud environment + limit</text>
+    <rect class="decision" x="476" y="116" width="232" height="44"/><text x="592" y="143">Wait for eligibility or capacity</text>
+  </svg>
+  </div>
+</figure>
+<p>The router walks the tier’s model ladder, uses quota headroom and prefers writers on pace to finish the weekly window within budget. Admission also checks the applicable short and weekly windows. With <code>fallback: wait</code>, a busy preferred engine can hold the task when the only free alternatives project above 100%. <code>fallback: allow</code> can use an otherwise eligible over-pace engine. Each task can inherit or override the project preference and fallback.</p>
+<p>Dispatch observes a project-wide parallel limit and machine-wide limits per local engine. Cloud placement needs a mapped Codex environment or a configured Claude routine and room in the bridge’s global and per-provider cloud limits. Cloud jobs consume no local slot. Separately, standalone <code>run --where auto</code> can choose cloud in configured busy windows or when local slots are full. Cloud submission requires explicit opt-in.</p>
+<p class="sources">Sources · <a href="projects.md#governed-task-queue">Weekly pace and fallback</a> · <a href="../src/lazytools/code_bridge/_routing.py">Routing and admission</a> · <a href="../src/lazytools/code_bridge/_dispatch.py">Dispatch placement</a> · <a href="../src/lazytools/code_bridge/_dispatch_launch.py">Cloud capacity</a> · <a href="code-bridge.md#placement---where-auto">Standalone auto placement</a></p>
+</section>
+
+<section>
+<h3>Delegation and authority</h3>
+<figure>
+  <div class="diagram" tabindex="0" role="group" aria-label="Delegation diagram">
+  <svg viewBox="0 0 720 122" role="img" aria-labelledby="authority-title">
+    <title id="authority-title">The owner credential configures a mode and preset that issue original cards. A worker receives narrower copies scoped to the job.</title>
+    <defs><marker id="arrow-authority" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 8 4 0 8z"/></marker></defs>
+    <g class="edges" marker-end="url(#arrow-authority)"><path d="M168 53H190"/><path d="M350 53H372"/><path d="M524 53H546"/></g>
+    <rect class="decision" x="8" y="25" width="160" height="56"/><text x="88" y="49">Owner credential</text><text class="sub" x="88" y="68">Operator CLI</text>
+    <rect class="decision" x="190" y="25" width="160" height="56"/><text x="270" y="49">Mode + preset</text><text class="sub" x="270" y="68">Owner selects classes</text>
+    <rect class="record" x="372" y="25" width="152" height="56"/><text x="448" y="49">Original cards</text><text class="sub" x="448" y="68">In private registry</text>
+    <rect class="worker" x="546" y="25" width="166" height="56"/><text x="629" y="49">Scoped job copies</text><text class="sub" x="629" y="68">Path, branch, network</text>
+    <text class="sub" x="360" y="107">Authority can narrow at each step. It takes the owner credential to widen it.</text>
+  </svg>
+  </div>
+</figure>
+<p><code>supervised</code> is the default. Its four delegated classes cover local Git operations, checkout checks, pushes to the job branch and PR creation. <code>total</code> can delegate recognized classes outside the preset’s owner-only floor. Both <code>solo-dev</code> and <code>with-production</code> reserve unknown actions and payments or external posts for the owner. <code>with-production</code>, the default preset, also reserves production tasks, file deletion and pushes to the default branch.</p>
+<p>The owner configures delegation using <code>approver-credential autonomy</code>. MCP has no setter, and jobs receive no owner secret. Card copies are nontransferable and constrained by the job, native grants and the action’s path, branch and network. Changing mode or preset replaces the originals and invalidates their copies. Copies are revoked at completion or cancellation and expire if recovery is impossible.</p>
+<p class="sources">Sources · <a href="code-bridge.md#operator-credentials">Credential storage</a> · <a href="code-bridge.md#autonomy-modes">Modes and presets</a> · <a href="../src/lazytools/code_bridge/_coder.py">Card issuance and narrowing</a> · <a href="../src/lazytools/code_bridge/_coder_actions.py">Action classification and scope</a></p>
+</section>
+
+<section>
+<h3>Approval tickets from request to decision</h3>
+<figure>
+  <div class="diagram" tabindex="0" role="group" aria-label="Approval ticket diagram">
+  <svg viewBox="0 0 720 172" role="img" aria-labelledby="tickets-title">
+    <title id="tickets-title">A gated action uses a matching card or waits on a ticket. Events surface the ticket to the lead or owner, whose decision is recorded.</title>
+    <defs><marker id="arrow-tickets" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 8 4 0 8z"/></marker></defs>
+    <g class="edges" marker-end="url(#arrow-tickets)">
+      <path d="M168 92H194"/><path d="M348 92H365V39H388"/><path d="M348 92H365V131H388"/><path d="M538 131H558"/><path d="M633 105V65"/>
+    </g>
+    <rect class="worker" x="8" y="66" width="160" height="52"/><text x="88" y="97">Gated action</text>
+    <rect class="decision" x="194" y="66" width="154" height="52"/><text x="271" y="97">Card match?</text>
+    <text class="sub" x="344" y="43">Yes</text><text class="sub" x="344" y="135">No</text>
+    <rect class="record" x="388" y="13" width="150" height="52"/><text x="463" y="35">Card receipt</text><text class="sub" x="463" y="54">Action can proceed</text>
+    <rect class="record" x="388" y="105" width="150" height="52"/><text x="463" y="127">Pending ticket</text><text class="sub" x="463" y="146">Poll or notification</text>
+    <rect class="decision" x="558" y="105" width="150" height="52"/><text x="633" y="127">Lead or owner</text><text class="sub" x="633" y="146">Approve or reject</text>
+    <rect class="record" x="558" y="13" width="150" height="52"/><text x="633" y="35">Recorded outcome</text><text class="sub" x="633" y="54">Expiry also denies</text>
+  </svg>
+  </div>
+</figure>
+<p>When a local writer requests a gated action, a valid scoped card can approve it immediately and produce a receipt. Otherwise the bridge persists a one-use ticket with the command, reason and expiry, and the worker waits. Dispatch surfaces the ticket. The lead can use <code>bridge_pending</code>, cursor polling or an MCP notification to find its ID.</p>
+<p><code>bridge_approve</code> and <code>bridge_reject</code> decide as the CEO. Every job is treated as CEO-launched. Approval needs a delegated class backed by live owner-issued cards, or the ticket stays pending for the credentialed owner. The CEO may reject a request or cancel a job with a reason. Decisions record actor, mode, class and reason. The autonomy report counts card use by class.</p>
+<p>The governed Projects effect queue is separate. <code>approvals_pending</code> lists its requests, which bind the claim and exact action digest. The host checks scope, assignee and current grant, consumes an approved effect once and records its outcome. Project cards can cover reads and local commits. Production effects go to the owner.</p>
+<p class="sources">Sources · <a href="code-bridge.md#coder-approval-cards">Bridge tickets and card receipts</a> · <a href="mcp-server.md#fleet--read-only-code-bridge-views">CEO decisions</a> · <a href="../src/lazytools/code_bridge/_autonomy.py">Autonomy report</a> · <a href="../src/lazytools/projects/task_approvals.py">Projects effects</a></p>
+</section>
+
+<section>
+<h3>Acceptance, review and PR landing</h3>
+<figure>
+  <div class="diagram" tabindex="0" role="group" aria-label="Acceptance and review diagram">
+  <svg viewBox="0 0 720 182" role="img" aria-labelledby="acceptance-title">
+    <title id="acceptance-title">Local dispatch checks and accepts a commit before optional landing. Cloud dispatch lands a PR before checking its pushed commit. The PR workflow reviews the current head.</title>
+    <defs><marker id="arrow-acceptance" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 8 4 0 8z"/></marker></defs>
+    <g class="edges" marker-end="url(#arrow-acceptance)">
+      <path d="M156 35H182"/><path d="M334 35H360"/><path d="M512 35H538"/>
+      <path d="M156 88H182"/><path d="M334 88H360"/><path d="M512 88H538"/>
+      <path d="M156 146H182"/><path d="M334 146H360"/><path d="M512 146H538"/>
+    </g>
+    <rect class="worker" x="8" y="13" width="148" height="44"/><text x="82" y="40">Local commit</text>
+    <rect class="decision" x="182" y="13" width="152" height="44"/><text x="258" y="40">Run task checks</text>
+    <rect class="record" x="360" y="13" width="152" height="44"/><text x="436" y="40">Publish + accept</text>
+    <rect class="record" x="538" y="13" width="174" height="44"/><text x="625" y="40">Optional PR landing</text>
+    <rect class="worker" x="8" y="66" width="148" height="44"/><text x="82" y="93">Cloud result</text>
+    <rect class="record" x="182" y="66" width="152" height="44"/><text x="258" y="93">Land to PR</text>
+    <rect class="decision" x="360" y="66" width="152" height="44"/><text x="436" y="93">Check pushed SHA</text>
+    <rect class="record" x="538" y="66" width="174" height="44"/><text x="625" y="93">Accept task</text>
+    <rect class="record" x="8" y="124" width="148" height="44"/><text x="82" y="151">PR head</text>
+    <rect class="worker" x="182" y="124" width="152" height="44"/><text x="258" y="151">Independent review</text>
+    <rect class="decision" x="360" y="124" width="152" height="44"/><text x="436" y="151">Checks + verdict</text>
+    <rect class="record" x="538" y="124" width="174" height="44"/><text x="625" y="151">Merge-ready</text>
+  </svg>
+  </div>
+  <figcaption>Dispatch checks task acceptance. The separate PR navigator verifies merge readiness.</figcaption>
+</figure>
+<p>Local dispatch uses a per-task clone and can commit completed changes when the engine cannot write Git metadata. It requires a new commit and runs configured checks against it. Checks that move <code>HEAD</code> or edit tracked files invalidate the evidence. Dispatch publishes the accepted branch back to the source repository. With <code>--land</code> it then pushes that branch and opens or updates a PR. Cloud dispatch lands first and checks the pushed SHA in a fresh local clone. The bridge applies the Codex Cloud diff locally or verifies the result branch already pushed by Claude.</p>
+<p>For routed <code>--review-of</code> jobs the opposite engine is preferred. If only the writer’s CLI is installed, the bridge can use a fresh same-provider conversation and records <code>same-provider-fresh</code>. If the opposite engine is installed but ineligible, human review is required. The PR navigator requires an independent verdict on the current head and green checks. Landing a job means putting it on a PR. Merging goes through the repository’s separate merge gate.</p>
+<p class="sources">Sources · <a href="../src/lazytools/code_bridge/_dispatch_workspace.py">Local checks and landing</a> · <a href="../src/lazytools/code_bridge/_cloud_land.py">Cloud landing and review comments</a> · <a href="code-bridge.md#reviewer-decision-table">Reviewer selection</a> · <a href="code-bridge.md#navigator-r1-the-merge-ready-loop">PR navigator</a></p>
+</section>
+
+<section>
+<h3>Failures, retries and crash recovery</h3>
+<figure>
+  <div class="diagram" tabindex="0" role="group" aria-label="Failure and recovery diagram">
+  <svg viewBox="0 0 720 210" role="img" aria-labelledby="recovery-title">
+    <title id="recovery-title">Infrastructure failures get bounded retries, budget failures wait for quota, policy rejections stop, and persistent check failures get bounded repair and one tier escalation.</title>
+    <defs><marker id="arrow-recovery" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 8 4 0 8z"/></marker></defs>
+    <g class="edges" marker-end="url(#arrow-recovery)">
+      <path d="M164 102H187V31H210"/><path d="M164 102H187V79H210"/><path d="M164 102H187V127H210"/><path d="M164 102H187V175H210"/>
+      <path d="M358 31H388"/><path d="M358 79H388"/><path d="M358 127H388"/><path d="M358 175H388"/>
+      <path d="M550 175H574"/>
+    </g>
+    <rect class="decision" x="8" y="76" width="156" height="52"/><text x="86" y="107">Classify failure</text>
+    <rect class="record" x="210" y="12" width="148" height="38"/><text x="284" y="36">Infrastructure</text>
+    <rect class="record" x="210" y="60" width="148" height="38"/><text x="284" y="84">Budget</text>
+    <rect class="record" x="210" y="108" width="148" height="38"/><text x="284" y="132">Policy</text>
+    <rect class="record" x="210" y="156" width="148" height="38"/><text x="284" y="180">Check</text>
+    <rect class="control" x="388" y="12" width="162" height="38"/><text x="469" y="36">Retry with backoff</text>
+    <rect class="decision" x="388" y="60" width="162" height="38"/><text x="469" y="84">Wait for quota</text>
+    <rect class="decision" x="388" y="108" width="162" height="38"/><text x="469" y="132">Stop on rejection</text>
+    <rect class="control" x="388" y="156" width="162" height="38"/><text x="469" y="180">Rerun / repair</text>
+    <rect class="decision" x="574" y="156" width="138" height="38"/><text x="643" y="180">Next tier once</text>
+  </svg>
+  </div>
+</figure>
+<p><strong>Classify and verify.</strong> Dispatch backs off on transient infrastructure errors, defers quota failures until a reset or retry time, and treats a rejected ticket as a policy failure. It reruns a failed check once on the unchanged checkout and records a pass on rerun as flaky. Persistent check failures get up to two repair attempts by default, then one fresh attempt at the next tier when available. Exhaustion fails the task. A cloud check failure can enter the same repair loop locally on the landed branch. The separate PR navigator escalates P0, P1, unknown severity or the review round cap to the owner.</p>
+<p><strong>Recover.</strong> The dispatcher renews 180-second leases by default, even during checks or landing. The claim records dispatcher instance, host, PID and process start time. A replacement with the same executor identity can take over after proving local process exit or PID reuse, or after expiry. It adopts a known job by its durable reference or claim-derived ID and settles it against recorded evidence. When no job can be found, dispatch waits for the applicable startup grace or recovery and checks for an in-flight submission before releasing the claim. A local crash retry can preserve work on an attempt branch, resume on the same engine, or start fresh if resume is refused.</p>
+<p><strong>Avoid repeat failures.</strong> Dispatch holds tasks whose declared <code>touches</code> globs intersect active work in the same repository. The governed queue can quarantine a repository, placement and environment after repeated infrastructure failures (three by default). Clearing it requires fresh eligible preflight evidence. With <code>--knowledge-db</code>, dispatch adds matching lessons to briefs and records failures such as a missing job, an engine crash or a rejected ticket.</p>
+<p class="sources">Sources · <a href="../src/lazytools/code_bridge/_dispatch.py">Classification, verify loop and recovery</a> · <a href="../src/lazytools/code_bridge/_dispatch_launch.py">Adoption and resume</a> · <a href="../src/lazytools/projects/task_service.py">Leases and route quarantine</a> · <a href="../src/lazytools/projects/task_fields.py">Overlap matching</a> · <a href="code-bridge.md#navigator-r1-the-merge-ready-loop">Owner escalation</a></p>
+</section>
+
+<section>
+<h3>Orchestration MCP tools and events</h3>
+<figure>
+  <div class="diagram" tabindex="0" role="group" aria-label="MCP event diagram">
+  <svg viewBox="0 0 720 145" role="img" aria-labelledby="events-title">
+    <title id="events-title">MCP calls use the same CLI or service. An event reader reads stored jobs and tickets and returns cursor pages or best-effort ticket notifications.</title>
+    <defs><marker id="arrow-events" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 8 4 0 8z"/></marker></defs>
+    <g class="edges" marker-end="url(#arrow-events)">
+      <path d="M158 73H194"/><path d="M370 73H417"/><path d="M500 48V25H81V48"/>
+      <path d="M500 98V121H81V98"/>
+    </g>
+    <rect class="control" x="8" y="48" width="150" height="50"/><text x="83" y="78">MCP client</text>
+    <rect class="control" x="194" y="48" width="176" height="50"/><text x="282" y="78">CLI / shared service</text>
+    <rect class="record" x="417" y="48" width="166" height="50"/><text x="500" y="78">Jobs and tickets</text>
+    <text class="sub" x="282" y="18">Events + cursor</text>
+    <text class="sub" x="282" y="139">Ticket notification</text>
+  </svg>
+  </div>
+</figure>
+<p><code>lazytools-orchestration-mcp</code> uses the same CLI or service gates. Its read tools cover fleet views, capabilities, code maps, Projects, lessons and <code>pr_watch_poll</code>. <code>--allow-unsafe</code> adds <code>code_bridge_submit</code>, <code>code_bridge_status</code> and <code>code_bridge_result</code>, plus ticket decisions, cancellation, reviews, sessions, project writes and lesson recording. It also adds <code>pr_navigate</code>, <code>bridge_publish</code> and <code>bridge_apply</code>. The data providers and synchronous coding writes are excluded. The server starts with either CLI alone and loads engines only when needed.</p>
+<p><code>bridge_events(cursor, timeout_s)</code> reads recorded jobs and tickets and returns a new cursor. An empty cursor starts from now and includes open tickets. Reusing the returned cursor picks up intervening events, with a maximum wait of 60 seconds. The feed includes approvals, done, failed, interrupted, cancelled and landed. Per-session approval notifications are best effort on the unscoped orchestration server with writes enabled. Keep polling and de-duplicate by ticket ID. Cloud completion or landing appears after another caller records it. Dispatcher and PR watcher events have their own interfaces.</p>
+<p class="sources">Sources · <a href="mcp-server.md#orchestration-server">Provider list and flags</a> · <a href="../src/lazytools/code_bridge/_mcp.py">Bridge adapter</a> · <a href="../src/lazytools/code_bridge/_mcp_fleet.py">Fleet tools</a> · <a href="../src/lazytools/code_bridge/_mcp_pr.py">PR tools</a> · <a href="../src/lazytools/code_bridge/_mcp_knowledge.py">Lessons</a> · <a href="../src/lazytools/code_bridge/_events.py">Event computation</a> · <a href="mcp-server.md#approval-notifications">Notifications</a></p>
+</section>
+</section>
+
+<section>
+<h2>5. Limits and residual risks</h2>
+<ul>
+  <li><strong>Coverage.</strong> The graph dispatcher handles writer tasks. Review and contract tasks need another caller. The current MCP tool list leaves graph dispatch on the CLI. One-pass dispatch tools and a supervised continuous runner are design requirements.</li>
+  <li><strong>State and capacity.</strong> The governed queue requires a file-backed Store. Callers must point to the same file to share state. The project owner label is for coordination. Some project updates span keys, and in-process callbacks can fail after a write has committed. Quota is an estimate, and declared path globs can miss a real conflict.</li>
+  <li><strong>Local execution.</strong> Approval parsing is conservative and covers only actions visible to the bridge. Native sandbox policy, repository configuration and executables matter. Git helpers or hooks can run repository code, and readable credentials inside a checkout can be exposed. Legacy launch has unverified runtime confinement. The ordinary bridge repository lock uses PID-only liveness and can race during stale lock reclamation.</li>
+  <li><strong>Cloud and delivery.</strong> Cloud workers see the remote checkout and provider environment. They lack local files and data, and their tool calls are outside the local command gate. Landing can fail on a moved base, and an ambiguous provider submission may need reconciliation. The event cursor is integrity-checked but unsigned, grows with retained jobs, and covers recorded events.</li>
+</ul>
+<p class="sources">Sources · <a href="projects.md#known-gaps-and-boundaries">Projects boundaries</a> · <a href="code-bridge.md#known-limits">Local risks</a> · <a href="code-bridge.md#safety-boundary-for-cloud-jobs">Cloud boundary</a> · <a href="../src/lazytools/code_bridge/_cloud.py">Submission and reconciliation</a> · <a href="../src/lazytools/code_bridge/_cloud_preflight.py">Cloud preflight</a> · <a href="mcp-server.md#orchestration-server">Current MCP surface</a> · <a href="design/orchestration-mcp/SPEC.md#requirements">Design requirements</a> · <a href="design/orchestration-mcp/INVENTORY.md#dispatcher-durability">Parity inventory</a></p>
+</section>
+</main>
+</body>
+</html>
