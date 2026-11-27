@@ -8,6 +8,7 @@ refusal.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from types import SimpleNamespace
@@ -18,7 +19,7 @@ from lazybridge.engines.codex.app_server import CodexAppServerClient
 from lazybridge.ext.approval import ApprovalQueue
 
 import _code_bridge_fakes as fakes
-from lazytools.code_bridge import _jobs, _registry, _store, cli
+from lazytools.code_bridge import _engines, _jobs, _registry, _store, cli
 from lazytools.code_bridge._lockfile import JobLock, LockHeld
 
 
@@ -104,6 +105,96 @@ def test_codex_activity_refreshes_heartbeat_during_a_turn(tmp_path, repo, monkey
 
     assert result.status == "done"
     assert engine_events == [now]
+
+
+class ToolUseBlock(SimpleNamespace):
+    """Stand-in with the SDK's type name: the bridge recognises messages by type name."""
+
+
+class ToolResultBlock(SimpleNamespace):
+    pass
+
+
+class AssistantMessage(SimpleNamespace):
+    pass
+
+
+class UserMessage(SimpleNamespace):
+    pass
+
+
+class ResultMessage(SimpleNamespace):
+    pass
+
+
+def test_claude_tool_calls_are_recorded_until_their_results_arrive(tmp_path, repo, monkeypatch):
+
+    _env(monkeypatch, tmp_path)
+    fakes.install(monkeypatch)
+    db_path = tmp_path / "store.sqlite"
+    job_id = "tool-heartbeat-test"
+    now = time.time()
+    monkeypatch.setattr(_jobs, "time", SimpleNamespace(time=lambda: now, monotonic=time.monotonic))
+    options = SimpleNamespace(on_session_id=None)
+
+    async def run_agent(agent, _prompt):
+        nonlocal now
+        client = agent.engine.kwargs["client"]
+        # Tool calls come from the engine's own events, not a custom SDK transport.
+        assert client._transport_factory is None and client._query_factory is None
+        client._report_session_id(options, AssistantMessage(
+            content=[ToolUseBlock(id="toolu_1", name="Bash", input={"command": "pytest"})], model="m"))
+        with _store.build_store(db_path) as store:
+            meta = _store.read_meta(store, job_id)
+            assert meta["pid"] == os.getpid() and "engine_pid" not in meta
+            assert meta["tool_calls"] == {"toolu_1": {"name": "Bash", "started_at": now}}
+            now += 1200
+            client._report_session_id(options, UserMessage(content=[ToolResultBlock(tool_use_id="toolu_1")]))
+            meta = _store.read_meta(store, job_id)
+            assert meta["tool_calls"] == {} and meta["heartbeat_at"] == now
+            client._report_session_id(options, AssistantMessage(
+                content=[ToolUseBlock(id="toolu_2", name="Bash", input={})], model="m"))
+            client._report_session_id(options, ResultMessage(
+                subtype="success", duration_ms=1, duration_api_ms=1, is_error=False, num_turns=1, session_id="s"))
+            assert _store.read_meta(store, job_id)["tool_calls"] == {}
+        return Envelope(payload="done")
+
+    monkeypatch.setattr(fakes.FakeAgent, "run", run_agent)
+
+    result = _jobs.run_job(engine_name="claude", cwd=str(repo), task="do a thing",
+                           root=str(tmp_path), db_path=db_path, job_id=job_id)
+
+    assert result.status == "done", result
+
+
+def test_governed_claude_launch_with_release_report_is_admitted(tmp_path, monkeypatch):
+    """The heartbeat client passes LazyBridge's governed admission check (no custom transport)."""
+    # Integration with the real (optional) Claude Agent SDK client.
+    subprocess_cli = pytest.importorskip("claude_agent_sdk._internal.transport.subprocess_cli")
+    SubprocessCLITransport = subprocess_cli.SubprocessCLITransport
+    from lazybridge.engines.claude_code import sdk_client
+
+    folder = tmp_path / "work"
+    folder.mkdir()
+    binary = tmp_path / "bin" / "claude.exe"
+    binary.parent.mkdir()
+    binary.write_text("", encoding="utf-8")
+    report = tmp_path / "release-report.json"
+    report.write_text("{}", encoding="utf-8")
+    seen = {}
+
+    def compile_claude(policy, *, release_report, runtime_revision):
+        seen.update(release_report=release_report, runtime_revision=runtime_revision)
+        return {"eligible": True, "ineligibility_reasons": []}
+
+    monkeypatch.setattr(SubprocessCLITransport, "_find_cli", lambda _self: str(binary))
+    monkeypatch.setattr(sdk_client, "runtime_revision", lambda _binary: "rev-1")
+    monkeypatch.setattr(sdk_client, "compile_claude", compile_claude)
+    client = _engines._claude_client(policy_release_report=report, on_activity=lambda **_: None)
+    options = SimpleNamespace(effective_policy=SimpleNamespace(folder=folder.resolve()))
+
+    assert client._require_policy_evidence(options) == binary.resolve()
+    assert seen == {"release_report": client._policy_release_report, "runtime_revision": "rev-1"}
 
 
 @pytest.mark.parametrize(("engine", "reported_model"), [

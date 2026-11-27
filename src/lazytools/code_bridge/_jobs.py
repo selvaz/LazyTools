@@ -40,6 +40,7 @@ from lazytools.code_bridge import (
 from lazytools.code_bridge._approvals import BridgeGate
 from lazytools.code_bridge._lockfile import JobLock
 from lazytools.code_bridge._policy import NATIVE_READ_RULES
+from lazytools.code_bridge._review_choice import choose_reviewer
 from lazytools.code_bridge._review_tools import review_tools
 from lazytools.code_bridge._turn_cleanup import TurnCleanup
 
@@ -141,13 +142,6 @@ def _native_id(job: dict[str, Any]) -> str | None:
     """The job's native conversation id; older records kept it only per turn."""
     turns = reversed(job.get("turns") or [])
     return job.get("native_id") or next((t["thread_id"] for t in turns if t.get("thread_id")), None)
-
-
-def _not_independent(native_id: str, writer_job_id: str) -> str:
-    return (
-        f"review refused as not independent: native conversation id {native_id} is the one used by "
-        f"writer job {writer_job_id}; use a new --session alias"
-    )
 
 
 def _write_result(db_path: Path | None, job_id: str, text: str) -> Path:
@@ -427,6 +421,15 @@ def run_job(
         raise ValueError(f"no job found matching {review_of!r}")
     writer_native_id = _native_id(writer_job) if writer_job else None
 
+    def independence_refusal(native_id: str | None) -> str | None:
+        """The reviewer rule for the engine this job launches (only the native-id row can refuse)."""
+        if writer_job is None:
+            return None
+        return choose_reviewer(
+            str(writer_job.get("engine", writer_job.get("kind"))), {engine_name}, engine_name,
+            writer_native_id=writer_native_id, reviewer_native_id=native_id,
+        ).refusal_reason
+
     lock = JobLock(_store.locks_dir(db_path), _git_repo_root(resolved_cwd))
     stale_job_id = lock.acquire(job_id)  # raises LockHeld -- job_id was reported but nothing else is recorded
 
@@ -474,10 +477,26 @@ def run_job(
             _store.write_meta(store, job_id, meta)
             registry.write(job_id, task, tool_name=engine_name, status=status, result=result, error=error)
 
-        def record_heartbeat() -> None:
+        def record_heartbeat(
+            *,
+            tool_started: tuple[str, str] | None = None,
+            tool_finished: str | None = None,
+            tools_settled: bool = False,
+        ) -> None:
+            # In-progress tool calls (from the engine's own tool call / tool
+            # result events) are recorded so the dispatcher does not take a
+            # long shell command (no engine events) for a dead job.
             now = time.time()
             meta = _store.read_meta(store, job_id) or {}
             meta["heartbeat_at"] = now
+            calls = dict(meta.get("tool_calls") or {})
+            if tools_settled:
+                calls = {}
+            if tool_started is not None:
+                calls[tool_started[0]] = {"name": tool_started[1], "started_at": now}
+            if tool_finished is not None:
+                calls.pop(tool_finished, None)
+            meta["tool_calls"] = calls
             _store.write_meta(store, job_id, meta)
 
         def _finish(
@@ -654,8 +673,9 @@ def run_job(
             meta["native_id"] = native_id
             _store.write_meta(store, job_id, meta)
             # Checked before check_resume, whose policy-binding refusal would hide the reason.
-            if writer_job and native_id == writer_native_id:
-                raise PolicyError(_not_independent(native_id, writer_job["job_id"]))
+            refusal = independence_refusal(native_id)
+            if refusal is not None:
+                raise PolicyError(refusal)
         _launch.check_resume(store, engine_name, native_id, native_binding)
         if native_id and engine_name == "claude" and launch.mode == "governed":
             raise PolicyError("Governed Claude resume requires the original SDK client; use a new session alias")
@@ -763,9 +783,9 @@ def run_job(
                     env.error.type == "TimeoutError" or "Turn timed out on durable thread" in env.error.message
                 )
                 handle = getattr(engine, "thread_id", None) or getattr(engine, "session_id", None)
-                same_as_writer = bool(handle) and handle == writer_native_id
+                refusal = independence_refusal(handle)
                 # The writer's conversation keeps its own policy binding.
-                if handle and not same_as_writer:
+                if handle and refusal is None:
                     _launch.bind_native(store, engine_name, handle, native_binding)
                 turns.append({
                     "turn": turn, "started_at": started, "ended_at": time.time(),
@@ -777,12 +797,12 @@ def run_job(
                 meta = _store.read_meta(store, job_id) or {}
                 meta["turns"] = turns
                 meta["heartbeat_at"] = turns[-1]["ended_at"]
+                meta["tool_calls"] = {}  # the turn's engine run is over: nothing is in progress
                 if handle:
                     meta["native_id"] = handle
                 _store.write_meta(store, job_id, meta)
-                if same_as_writer:
-                    assert handle and writer_job
-                    return _finish("failed", "", _not_independent(handle, writer_job["job_id"]))
+                if refusal is not None:
+                    return _finish("failed", "", refusal)
                 if cleanup.error:
                     return _finish("partial" if any(t["progress"] for t in turns) else "failed", "", cleanup.error)
                 if not env.ok and commit_continuation:
