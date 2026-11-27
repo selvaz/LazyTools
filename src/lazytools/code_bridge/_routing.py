@@ -28,7 +28,7 @@ from lazytools.routing import (
 )
 from lazytools.routing.live import read_readings, reading_record
 from lazytools.routing.policy import DEFAULT_POLICY, translate_model
-from lazytools.routing.router import FIVE_HOUR_WINDOW_MAX_MINUTES, _five_hour_window_id, _weekly_window_id
+from lazytools.routing.router import FIVE_HOUR_WINDOW_MAX_MINUTES, Fallback, _five_hour_window_id, _weekly_window_id
 
 
 def provider(engine: str) -> Engine:
@@ -145,18 +145,15 @@ class Selection:
 
     def record(self) -> dict[str, Any]:
         return {**self.decision.as_record(), "override": self.override, "rung": self.rung,
-                "operator_directed": self.operator_directed, "independence": self.independence}
+                "operator_directed": self.operator_directed, "independence": self.independence,
+                "weekly_projections": self.decision.weekly_projections}
 
     def forecast(self, engine: Engine, window: WindowReading) -> tuple[float, float] | None:
         """Projected usage including the same reservations used in the router's margins."""
         reading = self.readings[engine]
-        projected = window.projected_end_percent(now=reading.observed_at)
-        elapsed = window.elapsed_fraction(now=reading.observed_at)
-        if projected is None or elapsed is None or elapsed <= 0:
-            return None
         budget = budget_for(engine)
         reserved = (max(self.in_flight.get(engine, 0), 0) + 1) * budget.per_job_reserve_percent
-        return projected + reserved, budget.forecast_limit_percent(elapsed)
+        return window.forecast(budget, observed_at=reading.observed_at, reserved=reserved)
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -193,13 +190,15 @@ class Selection:
 
     def error(self) -> str:
         grouped: dict[str, list[str]] = {}
-        for key, why in self.decision.ineligible.items():
+        reasons_by_key = dict(self.decision.ineligible)
+        reasons_by_key.update(self.decision.busy.items())
+        for key, why in reasons_by_key.items():
             reasons = grouped.setdefault(key.rsplit(":", 1)[-1], [])
             if why not in reasons:
                 reasons.append(why)
         exclusions = "; ".join(f"{engine}: {'; '.join(reasons)}" for engine, reasons in grouped.items())
         notice = f" {self.notice}" if self.notice else ""
-        if any("engine_at_concurrency_limit" in why for why in self.decision.ineligible.values()):
+        if self.slot_limited:
             notice += " An engine is at its concurrency limit: pass --wait-for-slot to queue for it."
         ceilings = self._ceiling_guidance()
         if self.decision.reason == "session_conflict":
@@ -222,6 +221,12 @@ class Selection:
         hint = " Try an explicit --engine for manual selection." if self.requested_engine is None else ""
         return f"{reason}; {exclusions}.{hint}{notice}"
 
+    @property
+    def slot_limited(self) -> bool:
+        return bool(self.decision.busy) or any(
+            "engine_at_concurrency_limit" in why for why in self.decision.ineligible.values()
+        )
+
 
 def choose(
     tier: str, *, cwd: str, db_path: Path | None = None, engine: str | None = None,
@@ -229,14 +234,15 @@ def choose(
     model: str | None = None, effort: str | None = None, tiers_path: Path | None = None,
     respect_slots: bool = True,
     installed: frozenset[str] | None = None,
+    occupied_slots: dict[Engine, str] | None = None,
+    engine_preference: tuple[Engine, ...] = (),
+    fallback: Fallback = "wait",
+    fallback_max_age_seconds: float | None = None,
 ) -> Selection:
     """Pick an engine/model for ``tier``.
 
-    With ``respect_slots`` (the default) an engine already at its machine-wide
-    concurrency limit (see ``_concurrency``) is excluded, with the running job
-    named in the exclusion -- so a busy Codex routes the job to Claude when
-    Claude is eligible. ``respect_slots=False`` is for ``--wait-for-slot``
-    when no free engine is eligible: pick as if the slot were free, then queue.
+    ``occupied_slots`` adds the slots the dispatcher has already assigned.
+    ``respect_slots=False`` ignores local slots for cloud placement or explicit queueing.
     """
     catalogue = load_tiers(tiers_path) if tiers_path is not None else load_default_tiers()
     # Unknown tiers should fail before the slow telemetry read.
@@ -307,7 +313,9 @@ def choose(
         if row.get("status") in ("running", "checkpoint", "awaiting_approval") and type(pid) is int and _lockfile._pid_alive(pid):
             in_flight[provider(str(row.get("engine", row.get("kind"))))] += 1
     refused: dict[str, str] = {}
+    busy: dict[Engine, str] = {}
     if respect_slots:
+        busy.update(occupied_slots or {})
         # Machine-wide slots (independent of --db): see _concurrency.
         slot_config = _concurrency.load_config()
         for slot_engine in ENGINES:
@@ -315,8 +323,13 @@ def choose(
             holders = _concurrency.engine_at_limit(name, slot_config)
             if holders:
                 limit = slot_config.limits.get(name) or len(holders)
-                refused[slot_engine] = _concurrency.busy_reason(name, limit, holders)
-                available -= frozenset((slot_engine,))
+                busy[slot_engine] = _concurrency.busy_reason(name, limit, holders)
+    if review_of:
+        # Preserve the review refusal when the required reviewer has no free slot.
+        refused.update(busy.items())
+        available -= frozenset(busy)
+        busy.clear()
+        engine_preference = ()
     readings = read_readings()
     routing_catalogue = catalogue
     if model is not None:
@@ -352,15 +365,17 @@ def choose(
             capability=CapabilityRequirement(images=needs == "images"),
             writer_provider_for_review=writer, available=available, readings=routing_readings,
             operator_directed=operator_directed, requested_engine=explicit_engine,
+            busy=busy, engine_preference=engine_preference, fallback=fallback,
+            fallback_max_age_seconds=fallback_max_age_seconds,
         )
         scores.update(decision.scores)
-        if decision.provider is None:
+        chosen = decision.provider if decision.waiting_for is None else decision.waiting_for.provider
+        if chosen is None:
             break
-        chosen = decision.provider
         # Preserve weekly scoring, but gate the launch on the effective model's
         # weekly bucket and its engine's 5-hour/session window. Other models'
         # buckets (such as Claude Fable) do not apply to this job.
-        chosen_model = model.strip() if model is not None else decision.model
+        chosen_model = decision.model if decision.waiting_for is None else decision.waiting_for.model
         assert chosen_model is not None
         chosen_reading = readings.get(chosen)
         if chosen_reading is None:
@@ -491,5 +506,7 @@ def print_selection(selection: Selection) -> None:
             print(f"warning: {bridge_engine(engine)} {warning}")
         for provider_name, why in selection.decision.ineligible.items():
             print(f"excluded {provider_name}: {why}")
+    for engine, why in selection.decision.busy.items():
+        print(f"busy {bridge_engine(engine)}: {why}")
     if selection.notice and selection.decision.provider is not None:
         print(selection.notice)

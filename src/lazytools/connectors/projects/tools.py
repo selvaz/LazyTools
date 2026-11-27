@@ -34,7 +34,7 @@ import argparse
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from lazybridge import Store
 
@@ -382,11 +382,16 @@ class ProjectsTools:
         risk: str | None = None,
         process: str | None = None,
         classification_rationale: str | None = None,
+        engine_preference: list[str] | None = None,
+        fallback: Literal["wait", "allow"] | None = None,
     ) -> str:
         """Create a new project AS A DRAFT, owned by ``owner`` (default "claude").
 
         A draft does not run: review its plan with projects_review_plan, then
         projects_promote, before any task can be claimed or delegated.
+        Tasks inherit the project engine order and fallback policy unless they
+        declare their own. The default waits if a busy engine's alternatives
+        are all over weekly pace.
         """
         # Validate the owner BEFORE the create-only CAS: afterwards a bad owner
         # would leave a reserved draft with no owner record. Found by review.
@@ -402,6 +407,8 @@ class ProjectsTools:
                 risk=risk,
                 process=process,
                 classification_rationale=classification_rationale,
+                engine_preference=engine_preference,
+                fallback=fallback,
             )
         except ValueError as exc:
             return f"REJECTED: {exc}"

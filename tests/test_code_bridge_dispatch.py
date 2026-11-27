@@ -7,6 +7,7 @@ import stat
 import subprocess
 import sys
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -15,12 +16,16 @@ from lazybridge import Store
 from lazybridge.ext.approval import ApprovalQueue, ApprovalTarget, TypedApprovalRequest
 from lazybridge.ext.knowledge import DurableKnowledgeBase
 
-from lazytools.code_bridge import _store
-from lazytools.code_bridge._dispatch import STALE_HEARTBEAT, Dispatcher, Task, _dry_run
+from lazytools.code_bridge import _concurrency, _routing, _store
+from lazytools.code_bridge._dispatch import STALE_HEARTBEAT, Dispatcher, Task, _dry_run, _routers, _tasks
 from lazytools.code_bridge._dispatch_launch import BridgeLauncher
 from lazytools.code_bridge.cli import build_parser
-from lazytools.projects.task_service import TaskPrincipal
+from lazytools.connectors.projects import ProjectsTools
+from lazytools.projects.admission import TelemetryReading, WindowReading
+from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
 from lazytools.projects.task_store import transaction
+from lazytools.routing import RoutingDecision
+from lazytools.routing.catalogue import DEFAULT_PATH, load_tiers
 
 
 class FakeService:
@@ -394,7 +399,7 @@ def test_two_tasks_get_separate_retained_worktrees(tmp_path: Path) -> None:
                           capture_output=True, check=True).stdout.strip() == "task-a"
 
 
-def test_launch_pins_the_claimed_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_launch_pins_the_claimed_engine_model_and_effort(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
     launcher = BridgeLauncher(None, principal, "p", worktree_root=tmp_path / "trees")
     monkeypatch.setattr(launcher, "_checkout", lambda task: tmp_path)
@@ -405,9 +410,12 @@ def test_launch_pins_the_claimed_engine(tmp_path: Path, monkeypatch: pytest.Monk
         return subprocess.CompletedProcess(command, 0, "a" * 32 + "\n", "")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
-    claim = {"task_id": "p/A", "claim_token": "t", "effective_placement": "local", "engine_family": "claude_code"}
+    claim = {"task_id": "p/A", "claim_token": "t", "effective_placement": "local", "engine_family": "claude_code",
+             "model": "claude-opus-5-5", "effort": "high"}
     launcher.launch({"text": "do it", "tier": "writing"}, claim)
     assert seen[0][seen[0].index("--engine") + 1] == "claude"
+    assert seen[0][seen[0].index("--model") + 1] == "claude-opus-5-5"
+    assert seen[0][seen[0].index("--effort") + 1] == "high"
 
 
 def test_dependency_artifacts_are_merged_into_descendant_worktree(tmp_path: Path) -> None:
@@ -459,11 +467,13 @@ def test_place_records_routed_local_evidence_only_for_unblocked_todo_tasks() -> 
     events: list[str] = []
     dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
                           None, "p", emit=events.append, clock=lambda: 1000.0,  # type: ignore[arg-type]
-                          router=lambda tier: "codex")
+                          router=lambda tier, *_: RoutingDecision(tier, "codex", None, None, "weekly_margin", True))
     dispatch._place(tasks)
     assert [(task_id, evidence.engine_family, evidence.placement) for task_id, _, evidence in recorded] == [
         ("p/B", "codex", "local")]
-    assert events == ["placed p/B local codex tier=basic"]
+    assert events == [
+        "placed p/B local codex tier=basic | weekly_margin | codex weekly projected unavailable | claude weekly projected unavailable"
+    ]
 
 
 def test_place_reports_waiting_when_no_engine_is_eligible() -> None:
@@ -475,10 +485,13 @@ def test_place_reports_waiting_when_no_engine_is_eligible() -> None:
 
     events: list[str] = []
     dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
-                          None, "p", emit=events.append, router=lambda tier: None)  # type: ignore[arg-type]
+                          None, "p", emit=events.append,  # type: ignore[arg-type]
+                          router=lambda tier, *_: RoutingDecision(tier, None, None, None, "no_eligible_provider", False))
     dispatch._place([Task("p/A", "r1", "todo", {"tier": "writing"}, None)])
     dispatch._place([Task("p/A", "r1", "todo", {"tier": "writing"}, None)])
-    assert events == ["waiting p/A no eligible engine for tier writing"]
+    assert events == [
+        "waiting p/A local tier=writing | no_eligible_provider | codex weekly projected unavailable | claude weekly projected unavailable"
+    ]
 
 
 def test_last_dependency_conflict_is_left_for_the_agent(tmp_path: Path) -> None:
@@ -1283,7 +1296,14 @@ def test_failed_cancel_is_retried_on_the_next_pass() -> None:
     assert attempts == ["job-A", "job-A"]
 
 
-def test_place_switches_engine_when_the_routed_one_is_full() -> None:
+@pytest.mark.parametrize("claude_projection,claude_age,placed", [
+    (110, 0, ("A", "C")),
+    (60, 0, ("A", "B", "C")),
+    (60, 3600, ("A",)),
+])
+def test_place_checks_quota_when_a_slot_was_assigned_in_the_same_tick(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, claude_projection: int, claude_age: int, placed: tuple[str, ...],
+) -> None:
     recorded: list[tuple[str, str]] = []
 
     class PlacingService:
@@ -1292,36 +1312,80 @@ def test_place_switches_engine_when_the_routed_one_is_full() -> None:
         def record_placement(self, task_id: str, revision: str, evidence: Any) -> None:
             recorded.append((task_id, evidence.engine_family))
 
-    def router(tier: str, engine_family: str | None = None) -> str | None:
-        return engine_family or "codex"
-
     events: list[str] = []
-    tasks = [Task(f"p/{name}", "r1", "todo", {"tier": "thinking"}, None) for name in ("A", "B", "C")]
+    tasks = [Task(f"p/{name}", "r1", "todo", fields, None) for name, fields in (
+        ("A", {"tier": "thinking"}),
+        ("B", {"tier": "thinking"}),
+        ("C", {"tier": "thinking", "fallback": "allow"}),
+    )]
+    router = _pace_router(tmp_path, monkeypatch, claude_projection=claude_projection, claude_age=claude_age)
     dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
                           None, "p", emit=events.append, clock=lambda: 1000.0,  # type: ignore[arg-type]
-                          router=router, capacity=lambda family: 1 if family == "codex" else None,
-                          router_with_engine=True)
+                          router=router, capacity=lambda family: 1 if family == "codex" else None)
     dispatch._place(tasks)
-    assert recorded == [("p/A", "codex"), ("p/B", "claude_code"), ("p/C", "claude_code")]
+    assert recorded == [(f"p/{name}", "codex" if name == "A" else "claude_code") for name in placed]
+    if "B" not in placed:
+        assert any(line.startswith("waiting p/B ") and "wait_for_slot" in line for line in events)
+    if claude_projection == 110:
+        assert any(line.startswith("placed p/C ") and "over_pace_fallback_allowed" in line for line in events)
 
 
-def test_fallback_engine_needs_a_usable_recent_reading() -> None:
-    from datetime import UTC, datetime, timedelta
-    from types import SimpleNamespace
-
-    from lazytools.code_bridge._dispatch import usable_reading
+def _pace_router(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, claude_projection: int = 110, claude_age: int = 0,
+) -> Any:
     now = datetime.now(UTC)
+    claude_observed = now - timedelta(seconds=claude_age)
+    readings = {
+        "codex": TelemetryReading("codex", "test", now, (WindowReading("codex/10080m", 23, 10080, now + timedelta(hours=84)),)),
+        "claude_code": TelemetryReading("claude_code", "test", claude_observed, (
+            WindowReading("weekly/all models", (claude_projection - 1) / 2, 10080, claude_observed + timedelta(hours=84)),
+        )),
+    }
+    monkeypatch.setattr(_routing, "read_readings", lambda: readings)
+    monkeypatch.setattr(_routing, "load_default_tiers", lambda: load_tiers(DEFAULT_PATH))
+    monkeypatch.setattr(_concurrency, "engine_at_limit", lambda *_: [])
+    return _routers(tmp_path / "bridge.sqlite", {})[0]
 
-    def reading(**changes: Any) -> Any:
-        base = {"error": None, "windows": ("w",), "observed_at": now}
-        base.update(changes)
-        return SimpleNamespace(**base, age_seconds=lambda *, now: (now - base["observed_at"]).total_seconds())
 
-    assert usable_reading(reading())
-    assert not usable_reading(None)
-    assert not usable_reading(reading(error="timed out"))
-    assert not usable_reading(reading(windows=()))
-    assert not usable_reading(reading(observed_at=now - timedelta(hours=1)))
+@pytest.mark.parametrize("task_fallback", [{}, {"fallback": "allow"}])
+def test_dispatch_retries_a_waiting_writer_when_its_slot_frees(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, task_fallback: dict[str, str],
+) -> None:
+    router = _pace_router(tmp_path, monkeypatch)
+    slot_busy = True
+    monkeypatch.setattr(_concurrency, "engine_at_limit",
+                        lambda name, _: [{"job_id": "busy"}] if slot_busy and name == "codex" else [])
+    path = tmp_path / "projects.sqlite"
+    projects = ProjectsTools(store_db=str(path), allow_write=True)
+    projects.projects_create("pace", "Pace", "Place a writer", engine_preference=["codex", "claude"])
+    plan = [
+        {"task_id": "A", "text": "Write A", "tier": "writing", "acceptance_criteria": ["A exists"], **task_fallback},
+        {"task_id": "B", "text": "Write B", "dependency_ids": ["A"], "acceptance_criteria": ["B exists"]},
+    ]
+    args = ("pace", "A and B exist", "2027-01-01T00:00:00Z", plan)
+    assert projects.projects_review_plan(*args)["ok"]
+    assert projects.projects_promote(*args).startswith("promoted")
+    service = ProjectTaskService(path)
+    principal = TaskPrincipal(actor="d", role="orchestrator", projects=("pace",))
+    launcher, events = FakeLauncher(FakeService()), []
+    dispatch = Dispatcher(service, principal, launcher, "pace", router=router, emit=events.append)
+    assert _tasks(service, "pace")[0].data["engine_preference"] == ["codex", "claude"]
+
+    dispatch.pass_once()
+    if task_fallback:
+        assert "over_pace_fallback_allowed" in events[0]
+        assert _tasks(service, "pace")[0].dispatch["receipt"]["engine_family"] == "claude_code"
+    else:
+        assert not launcher.launches and _tasks(service, "pace")[0].status == "todo"
+        assert events[0].startswith("waiting pace/A local tier=writing | wait_for_slot")
+        assert "codex weekly projected 47% | claude weekly projected 110%" in events[0]
+        slot_busy = False
+        dispatch.pass_once()
+        assert any(line.startswith("placed pace/A local codex tier=writing | weekly_pace")
+                   and "codex weekly projected 47% | claude weekly projected 110%" in line for line in events)
+        assert _tasks(service, "pace")[0].dispatch["receipt"]["engine_family"] == "codex"
+        assert _tasks(service, "pace")[0].dispatch["receipt"]["model"] == "gpt-6.1-terra"
+    assert launcher.launches == ["A"]
 
 
 @pytest.mark.parametrize("change", ["edit", "commit"])

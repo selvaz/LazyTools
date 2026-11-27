@@ -972,10 +972,10 @@ def test_route_falls_back_to_claude_when_codex_is_at_its_limit_and_says_why(brid
         slot.release()
     out = capsys.readouterr().out
     assert "chosen: claude/" in out
-    assert "excluded" in out and "engine_at_concurrency_limit" in out and "codex-busy-job" in out
+    assert "busy codex:" in out and "engine_at_concurrency_limit" in out and "codex-busy-job" in out
 
 
-def test_route_json_records_the_slot_exclusion(bridge, capsys):
+def test_route_json_records_the_busy_engine_as_eligible(bridge, capsys):
     slot = _hold_codex(bridge)
     try:
         assert cli.main(args(bridge, "route", "--json")) == 0
@@ -983,7 +983,88 @@ def test_route_json_records_the_slot_exclusion(bridge, capsys):
         slot.release()
     payload = json.loads(capsys.readouterr().out)
     assert payload["engine"] == "claude"
-    assert any("engine_at_concurrency_limit" in why for why in payload["ineligible"].values())
+    assert "engine_at_concurrency_limit" in payload["busy"]["codex"]
+    assert "codex" in payload["scores"] and "codex" not in payload["ineligible"]
+
+
+@pytest.mark.parametrize(
+    "claude_projection,busy,preference,fallback,engine,reason",
+    [
+        (110, True, (), "wait", None, "wait_for_slot"),
+        (60, True, (), "wait", "claude_code", "available_slot_fallback"),
+        (110, False, (), "wait", "codex", "weekly_pace"),
+        (110, True, ("codex", "claude_code"), "allow", "claude_code", "over_pace_fallback_allowed"),
+        (110, False, ("claude_code", "codex"), "wait", "codex", "weekly_pace"),
+        (60, False, ("claude_code", "codex"), "wait", "claude_code", "engine_preference"),
+        (100, True, (), "wait", "claude_code", "available_slot_fallback"),
+    ],
+)
+def test_writer_slot_fallback_respects_weekly_pace(
+    bridge, claude_projection, busy, preference, fallback, engine, reason,
+):
+    _, readings, repo, db = bridge
+    for provider, projected in (("codex", 47), ("claude_code", claude_projection)):
+        reading = readings[provider]
+        weekly, short = reading.windows
+        weekly = replace(weekly, used_percent=(projected - 1) / 2, resets_at=reading.observed_at + timedelta(hours=84))
+        readings[provider] = replace(reading, windows=(weekly, short))
+    slot = _hold_codex(bridge) if busy else None
+    try:
+        selection = _routing.choose("writing", cwd=str(repo), db_path=db, engine_preference=preference, fallback=fallback)
+    finally:
+        if slot:
+            slot.release()
+    assert selection.decision.provider == engine
+    assert selection.decision.reason == reason
+    assert selection.record()["weekly_projections"] == {"codex": 47, "claude_code": claude_projection}
+    assert selection.decision.ineligible == {}
+    if engine is None:
+        assert selection.decision.waiting_for.provider == "codex"
+
+
+def test_busy_engine_at_its_short_window_ceiling_does_not_trigger_wait(bridge):
+    _, readings, repo, db = bridge
+    codex = readings["codex"]
+    readings["codex"] = replace(codex, windows=(codex.windows[0], replace(codex.windows[1], used_percent=94)))
+    claude = readings["claude_code"]
+    readings["claude_code"] = replace(claude, windows=(
+        replace(claude.windows[0], used_percent=54.5, resets_at=claude.observed_at + timedelta(hours=84)),
+        claude.windows[1],
+    ))
+    slot = _hold_codex(bridge)
+    try:
+        decision = _routing.choose("writing", cwd=str(repo), db_path=db).decision
+    finally:
+        slot.release()
+    assert decision.provider == "claude_code"
+    assert decision.ineligible["codex"].startswith("bridge_admission_would_refuse:absolute_ceiling")
+    assert decision.busy == {}
+
+
+@pytest.mark.parametrize("claude_projection,expected_engine", [(60, "claude"), (110, None)])
+def test_route_checks_later_rungs_for_a_fallback_within_pace(
+    bridge, monkeypatch, capsys, claude_projection, expected_engine,
+):
+    catalogue = load_tiers(DEFAULT_PATH)
+    writing = catalogue["writing"]
+    steps = tuple(replace(step, providers=(step.for_provider(engine),))
+                  for step, engine in zip(writing.steps, ("codex", "claude_code"), strict=True))
+    monkeypatch.setattr(_routing, "load_default_tiers", lambda: {**catalogue, "writing": replace(writing, steps=steps)})
+    claude = bridge[1]["claude_code"]
+    bridge[1]["claude_code"] = replace(claude, windows=(
+        replace(claude.windows[0], used_percent=(claude_projection - 1) / 2,
+                resets_at=claude.observed_at + timedelta(hours=84)),
+        claude.windows[1],
+    ))
+    slot = _hold_codex(bridge)
+    try:
+        assert cli.main(args(bridge, "route", "--json")) == (2 if expected_engine is None else 0)
+    finally:
+        slot.release()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["engine"] == expected_engine
+    assert payload["reason"] == ("wait_for_slot" if expected_engine is None else "available_slot_fallback_step1")
+    assert payload["weekly_projections"]["claude_code"] == claude_projection
 
 
 def test_tier_run_pinned_to_busy_codex_refuses_naming_the_job(bridge, capsys):

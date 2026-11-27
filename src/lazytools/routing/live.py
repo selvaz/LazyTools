@@ -20,7 +20,7 @@ from typing import Any
 from lazytools.projects import quota_telemetry
 from lazytools.projects.admission import ENGINES, Engine, TelemetryReading, WindowReading, budget_for
 from lazytools.routing.catalogue import TierCatalogue
-from lazytools.routing.router import CapabilityRequirement, ContinuityHint, RoutingDecision, route
+from lazytools.routing.router import CapabilityRequirement, ContinuityHint, Fallback, RoutingDecision, route
 
 CACHE_MAX_AGE_SECONDS = 120.0
 READ_TIMEOUT_SECONDS = 45.0
@@ -202,6 +202,10 @@ def recommend(
     now: datetime | None = None,
     operator_directed: bool = False,
     requested_engine: Engine | None = None,
+    busy: dict[Engine, str] | None = None,
+    engine_preference: tuple[Engine, ...] = (),
+    fallback: Fallback = "wait",
+    fallback_max_age_seconds: float | None = None,
 ) -> RoutingDecision:
     """Read quota, obtain admission budgets, and route in the caller's admission mode.
 
@@ -221,4 +225,8 @@ def recommend(
         now=now,
         operator_directed=operator_directed,
         requested_engine=requested_engine,
+        busy=busy,
+        engine_preference=engine_preference,
+        fallback=fallback,
+        fallback_max_age_seconds=fallback_max_age_seconds,
     )

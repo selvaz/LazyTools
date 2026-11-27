@@ -117,6 +117,13 @@ derives IDs such as `deployment/@0` for tasks without an explicit ID. Use the
 project-local IDs in dependencies. A `review_of` field names the writer task
 and requires it as a dependency.
 
+Set `engine_preference` (for example, `["codex", "claude"]`) and `fallback`
+(`wait` or `allow`) on a task or when creating a project. Tasks inherit each
+field from the project unless they supply their own. Writer tiers prefer engines
+within weekly pace. When the preferred engine is busy and the only free
+alternatives project above 100%, dispatch waits by default. Set `fallback: allow`
+to let an otherwise eligible alternative run over pace.
+
 The trusted execution host supplies placement evidence for the task revision,
 reserves the provider call with `begin_submit`, and records its job reference
 and completion evidence. After a crash it must reconcile using the persisted

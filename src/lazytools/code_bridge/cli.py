@@ -725,7 +725,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
             resolved_cwd = _engines.resolve_cwd(args.cwd, args.root)
             selection = _select(args, cwd=str(resolved_cwd))
-            if selection.decision.provider is None and args.wait_for_slot and _slot_excluded(selection):
+            if selection.decision.provider is None and args.wait_for_slot and selection.slot_limited:
                 # Nothing free is eligible, but a busy engine would be: with
                 # --wait-for-slot, pick as if its slot were free and queue.
                 selection = _select(args, cwd=str(resolved_cwd), respect_slots=False)
@@ -867,10 +867,6 @@ def _announce_slot_wait(busy: EngineBusy, *, err: bool = False) -> None:
         file=sys.stderr if err else sys.stdout,
         flush=True,
     )
-
-
-def _slot_excluded(selection: _routing.Selection) -> bool:
-    return any("engine_at_concurrency_limit" in why for why in selection.decision.ineligible.values())
 
 
 def _select(args: argparse.Namespace, *, cwd: str, respect_slots: bool = True) -> _routing.Selection:
