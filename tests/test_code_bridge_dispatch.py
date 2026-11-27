@@ -2303,3 +2303,13 @@ def test_engine_pinned_repair_waits_without_usable_telemetry(monkeypatch: pytest
     assert "usable quota reading" in pinned.reason
     unpinned = router("writing", {}, (), "wait", None)
     assert unpinned.provider == "codex"
+
+
+def test_every_task_tier_below_critical_escalates() -> None:
+    """Review P2 on #456: basic tasks escalate too, so no tier fails without its higher-tier attempt."""
+    from lazytools.code_bridge import _dispatch as dispatch_module
+
+    assert dispatch_module.NEXT_TIER["basic"] == "writing"
+    assert dispatch_module.NEXT_TIER["writing"] == "thinking"
+    assert dispatch_module.NEXT_TIER["thinking"] == "critical"
+    assert "critical" not in dispatch_module.NEXT_TIER
