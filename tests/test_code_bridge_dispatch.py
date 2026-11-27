@@ -1099,6 +1099,8 @@ def test_base_is_set_after_dependency_merges(tmp_path: Path) -> None:
     launcher = BridgeLauncher(None, principal, "p", repo_roots={"r": tmp_path / "repo"}, worktree_root=tmp_path / "trees")
     checkout = launcher._checkout({"task_id": "p/D", "repo": "r", "dependencies": [
         {"artifact_ref": b_commit}, {"artifact_ref": c_commit}]})
+    head = launcher._git(checkout, "rev-parse", "HEAD")
+    assert launcher.base_commits["p/D"] == launcher._git(checkout, "rev-parse", "dispatch-base") == head
     assert not _has_new_commit(checkout)  # the clean dependency merge is not the task's work
 
 
