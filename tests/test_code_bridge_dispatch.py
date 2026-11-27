@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -19,6 +20,7 @@ from lazytools.code_bridge._dispatch import STALE_HEARTBEAT, Dispatcher, Task, _
 from lazytools.code_bridge._dispatch_launch import BridgeLauncher
 from lazytools.code_bridge.cli import build_parser
 from lazytools.projects.task_service import TaskPrincipal
+from lazytools.projects.task_store import transaction
 
 
 class FakeService:
@@ -151,6 +153,45 @@ def test_graph_runs_in_topological_parallel_waves() -> None:
     launcher.finish("C")
     dispatch.pass_once()
     assert launcher.launches == ["A", "B", "C", "D"]
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_settlement_defers_busy_store_but_fails_missing_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, missing: bool,
+) -> None:
+    path = tmp_path / "projects.sqlite"
+    if not missing:
+        connection = sqlite3.connect(path)
+        connection.execute("CREATE TABLE store (key TEXT PRIMARY KEY, value TEXT)")
+        connection.close()
+    monkeypatch.setenv("LAZYBRIDGE_STORE_BUSY_TIMEOUT", "0.01")
+    monkeypatch.setenv("LAZYBRIDGE_STORE_SLOW_WRITE", "0.001")
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    launcher = FakeLauncher(service)
+    dispatch = runner(service, launcher, events)
+    dispatch.pass_once()
+    launcher.finish("A")
+
+    def record(*args: Any) -> None:
+        with transaction(path, write=True):
+            pass
+
+    monkeypatch.setattr(service, "record_completion_evidence", record)
+    if missing:
+        dispatch.pass_once()
+        assert any(event.startswith("failed p/A The projects store is unavailable") for event in events)
+    else:
+        with sqlite3.connect(path) as lock:
+            lock.execute("BEGIN IMMEDIATE")
+            dispatch.pass_once()
+            assert any(event.startswith("deferred p/A The projects store is busy") for event in events)
+            assert "slow projects Store lock wait" in caplog.text
+            assert service.rows["A"]["status"] == "claimed"
+            assert not any(event.startswith("failed p/A") for event in events)
+        dispatch.pass_once()
+        assert service.rows["A"]["status"] == "done"
+        assert launcher.launches.count("A") == 1
+        assert dispatch.retries == {}
 
 
 def test_failure_blocks_dependent_but_independent_branch_finishes() -> None:

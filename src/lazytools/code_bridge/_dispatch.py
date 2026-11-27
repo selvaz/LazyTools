@@ -133,6 +133,7 @@ class Dispatcher:
         self.retries: dict[str, int] = {}
         self.seen_tickets: set[str] = set()
         self.cancelled: set[str] = set()
+        self.pending_cloud: dict[str, tuple[Task, dict[str, Any], dict[str, Any]]] = {}
         self.max_retries = max_retries
         self.json_events = json_events
         self.knowledge_store = knowledge_store
@@ -590,6 +591,10 @@ class Dispatcher:
         try:
             self.service.begin_submit(self.principal, task_id, token)
         except Exception as exc:
+            if isinstance(exc, TaskServiceError) and exc.code == "busy":
+                self.pending_cloud[task_id] = (task, summary, claim)
+                self._event("deferred", task_id, str(exc))
+                return False
             reason = str(exc).replace("\n", " ")
             self.service.fail_dispatch_launch(self.principal, task_id, token, reason)  # back to todo
             self._event("failed", task_id, reason)
@@ -807,9 +812,14 @@ class Dispatcher:
         for task in tasks:
             if task.status == "claimed":
                 try:
-                    self._settle(task)
+                    pending = self.pending_cloud.pop(task.task_id, None)
+                    if pending is not None:
+                        self._launch_cloud(*pending)
+                    else:
+                        self._settle(task)
                 except Exception as exc:
-                    self._event("failed", task.task_id, str(exc).replace(chr(10), " "),
+                    kind = "deferred" if isinstance(exc, TaskServiceError) and exc.code == "busy" else "failed"
+                    self._event(kind, task.task_id, str(exc).replace(chr(10), " "),
                                 job_id=(task.dispatch or {}).get("job_ref"))
         self._land_settled()
         tasks = self.task_reader(self.service, self.project_id)
@@ -863,7 +873,8 @@ class Dispatcher:
                     f"dispatch:{summary['task_id']}:{summary['revision']}:{attempt}",
                 )
             except Exception as exc:
-                self._event("failed", summary["task_id"], str(exc).replace(chr(10), " "))
+                kind = "deferred" if isinstance(exc, TaskServiceError) and exc.code == "busy" else "failed"
+                self._event(kind, summary["task_id"], str(exc).replace(chr(10), " "))
                 continue
             if not result.get("claim_active", True):
                 self._event("failed", summary["task_id"], "claim is not active")
@@ -873,6 +884,8 @@ class Dispatcher:
             if cloud:
                 if self._launch_cloud(board_task, summary, claim):
                     running += 1
+                else:
+                    running += int(summary["task_id"] in self.pending_cloud)
                 continue
             try:
                 job_ref = self.launcher.launch(self._launch_input({**summary, **data}, claim), claim)
@@ -899,10 +912,19 @@ class Dispatcher:
 
     def run(self, *, once: bool = False) -> int:
         while True:
-            _, running = self.pass_once()
-            ready = [task for task in self.service.next_ready(
-                self.principal, self.project_id, limit=100
-            )["tasks"] if task["task_id"] not in self.unsupported]
+            try:
+                _, running = self.pass_once()
+                ready = [task for task in self.service.next_ready(
+                    self.principal, self.project_id, limit=100
+                )["tasks"] if task["task_id"] not in self.unsupported]
+            except TaskServiceError as exc:
+                if exc.code != "busy":
+                    raise
+                self._event("deferred", self.project_id, str(exc))
+                if once:
+                    return 0
+                self.sleep(15)
+                continue
             if once or (not ready and not running and not self.waiting):
                 return 0
             self.sleep(15)
