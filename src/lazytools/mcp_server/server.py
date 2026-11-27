@@ -130,6 +130,8 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "tasks_complete",
     "tasks_route_clear",
     "approvals_decide",
+    # Writes the lessons store the dispatcher feeds into later task prompts.
+    "lessons_record",
 )
 
 
