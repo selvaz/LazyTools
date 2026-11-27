@@ -4,14 +4,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import signal
 import socket
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from datetime import datetime
 from pathlib import Path
 from threading import Event, Thread, current_thread, main_thread
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 from uuid import uuid4
 
 from lazybridge import Store
@@ -42,6 +44,7 @@ from lazytools.projects.task_service import (
     CompletionEvidence,
     DispatcherOwner,
     DispatchLanding,
+    FailureClass,
     PlacementEvidence,
     ProjectTaskService,
     TaskPrincipal,
@@ -55,11 +58,57 @@ DEFAULT_TOOL_STALE_MINUTES = 60  # one tool call running longer than this is sta
 DEFAULT_MAX_CHECK_RETRIES = 2
 PLACEMENT_SECONDS = 3660  # placement stays valid while a detached job waits for its engine slot
 STALE_HEARTBEAT = "engine heartbeat went stale"
-# Engine crashes (not task failures): retried once with a fresh attempt.
-RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
-                      "no new commit since the task started", STALE_HEARTBEAT, "database is locked")
+NEXT_TIER = {"writing": "thinking", "thinking": "critical"}
+INFRA_ERRORS = (
+    "database is locked", "database is busy", "store is busy", "store is unavailable",
+    "connection refused", "connection reset", "connection timed out", "network is unreachable",
+    "could not resolve host", "temporary failure in name resolution", "unable to access",
+    "service unavailable", "provider outage", "bad gateway", "gateway timeout",
+    "failed to connect", "remote end hung up", "git remote", "missing task checkout",
+    "network error", "http 502", "http 503", "http 504",
+)
+BUDGET_ERRORS = (
+    "quota exceeded", "quota exhausted", "insufficient quota", "insufficient_quota", "quota limit",
+    "rate limit", "ratelimit", "rate_limit", "usage limit", "usage_limit", "hit your limit",
+    "budget exceeded", "budget exhausted", "absolute_ceiling", "too many requests", "http 429",
+    "429 client error", "status code 429",
+)
 ORPHAN_EVIDENCE = ("dispatcher:cloud-submission-absent", "dispatcher:no-job-after-grace",
                    "dispatcher:abandoned-claim")
+
+
+def _error_class(reason: str, default: FailureClass = "infra") -> FailureClass:
+    error = reason.casefold()
+    if any(marker in error for marker in BUDGET_ERRORS):
+        return "budget"
+    if any(marker in error for marker in ("ticket rejected", "rejected ticket", "ticket refused", "approval denied")):
+        return "policy"
+    if any(marker in error for marker in INFRA_ERRORS):
+        return "infra"
+    return default
+
+
+def _check_class(reason: str) -> FailureClass:
+    header, _, output = reason.partition("\n")
+    if "missing task checkout" in header:
+        return "infra"
+    if re.search(r"(?m)^(?:FAILED .* - |\s*E\s+|\s*)(?:AssertionError\b|assert\s)", output):
+        return "check"
+    return _error_class(output, "check")
+
+
+def _budget_ready_at(job: dict[str, Any], reason: str, now: float) -> float:
+    reset = job.get("quota_resets_at") or job.get("resets_at")
+    if isinstance(reset, (int, float)) and reset > now:
+        return float(reset)
+    if isinstance(reset, str):
+        try:
+            return max(now + 1, datetime.fromisoformat(reset).timestamp())
+        except ValueError:
+            pass
+    delay = _cloud._retry_after_seconds(reason)
+    # Without a provider hint, back off and let quota routing check admission again.
+    return now + (max(1, delay) if delay is not None else 60)
 
 
 def _tool_call_in_progress(job: dict[str, Any], now: float, bound: float) -> bool:
@@ -130,6 +179,7 @@ def _placement_detail(decision: RoutingDecision) -> str:
 
 LocalRouter = Callable[[str, dict[Engine, str], tuple[Engine, ...], Fallback, Engine | None], RoutingDecision]
 CloudPlacer = Callable[[dict[str, Any], str], tuple[RoutingDecision, str]]
+T = TypeVar("T")
 
 
 class Dispatcher:
@@ -148,6 +198,8 @@ class Dispatcher:
             raise ValueError("--parallel must be between 1 and 100")
         if stale_minutes < 1:
             raise ValueError("--stale-minutes must be at least 1")
+        if max_retries < 0:
+            raise ValueError("max_retries must be nonnegative")
         self.service, self.principal, self.launcher = service, principal, launcher
         self.project_id, self.parallel, self.sleep = project_id, parallel, sleep
         # Flush each event: the dispatcher is usually piped into a log or a watcher.
@@ -167,7 +219,6 @@ class Dispatcher:
         self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
         self.waiting: dict[str, str] = {}
-        self.retries: dict[str, int] = {}
         self.seen_tickets: set[str] = set()
         self.cancelled: set[str] = set()
         self.max_retries = max_retries
@@ -213,10 +264,12 @@ class Dispatcher:
         resume = task.get("attempt_continuation")
         if not resume:
             return self._with_lessons(task)
-        resumes = _dispatch_launch._resumes(resume, claim.get("engine_family"))
+        if tier := resume.get("escalation_tier"):
+            task = {**task, "tier": tier}
+        resumes = _dispatch_launch._resumes(resume, claim.get("engine_family")) and _dispatch_launch.resumable(
+            resume, getattr(self.launcher, "launch_mode", None)
+        )
         check_failures = resume.get("check_failures")
-        if check_failures and not resumes:
-            raise ValueError("Check repair requires the original engine conversation")
         branch = resume.get("preserved_branch")
         if branch:
             task = {**task, "preserved_branch": branch, "preserved_commit": resume.get("preserved_commit"),
@@ -236,6 +289,15 @@ class Dispatcher:
             return {**task, "text": prompt, "resume_session": resume.get("session"),
                     "resume_native_id": resume["native_id"]}
         task = self._with_lessons(task)
+        if check_failures:
+            introduction = (
+                f"This is the escalation at tier {tier}. Review all previous acceptance failures below."
+                if tier else "A previous conversation left work in this checkout and an acceptance check failed."
+            )
+            failures = check_failures if tier else check_failures[-1:]
+            prompt = (introduction + " Fix the cause in this checkout, rerun the failing checks and commit the fix."
+                      + warning + "\n\n" + "\n\n".join(failures) + "\n\nOriginal task\n" + str(task["text"]))
+            return {**task, "text": prompt}
         if branch:
             changed = list(resume.get("preserved_files") or [])
             files = ", ".join(changed[:50]) + (" ..." if len(changed) > 50 else "")
@@ -247,34 +309,17 @@ class Dispatcher:
                 "right and finish the task below.\n\n" + str(task["text"]))}
         return task
 
-    def _retry(self, task: Task, cause: str, failure_reason: str, continuation: dict[str, Any],
-               job_ref: str) -> bool:
-        """Prepare the next attempt with its continuation stored durably in the task record."""
-        current = next((item for item in self.task_reader(self.service, self.project_id)
-                        if item.task_id == task.task_id), None)
-        if current is None or current.revision != task.revision:
-            return False
-        reason = f"retry after {cause}: {failure_reason[:200]}"
-        if continuation.get("preserved_branch"):
-            reason += f" (work preserved on {continuation['preserved_branch']})"
-        self.service.prepare_attempt(self.principal, task.task_id, current.revision, reason,
-                                     continuation=AttemptContinuation(**continuation))
-        self._event("retry", task.task_id, f"{cause}: {failure_reason[:120]}", job_id=job_ref)
-        return True
-
     def _refused_resume(self, task: Task, job: dict[str, Any], continuation: dict[str, Any]) -> bool:
         """Settle a resume the bridge refused before submitting, then start a fresh conversation."""
         receipt = (task.dispatch or {})["receipt"]
         reason = str(job.get("error") or "resume refused").replace("\n", " ")
-        self.service.fail_local_launch(self.principal, task.task_id, receipt["claim_token"],
-                                       f"resume refused before submit: {reason}",
-                                       dispatcher_owner=receipt.get("dispatcher_owner"))
-        if continuation.get("check_failures"):
-            self._event("failed", task.task_id, f"resume refused before submit: {reason}", job_id=job.get("job_id"))
-            return True
-        # The refused job never ran: the checkout still holds the preserved work.
-        return self._retry(task, "resume failed", reason, {**continuation, "native_id": None, "fresh": True},
-                           str(job.get("job_id")))
+        self.service.fail_local_launch(
+            self.principal, task.task_id, receipt["claim_token"], f"resume refused before submit: {reason}",
+            dispatcher_owner=receipt.get("dispatcher_owner"), failure_class="infra",
+            continuation=AttemptContinuation(**{**continuation, "native_id": None, "fresh": True}),
+        )
+        self._event("retry", task.task_id, f"resume failed: {reason} [infra]", job_id=job.get("job_id"))
+        return True
 
     def _record_base(self, task_id: str, claim: dict[str, Any]) -> None:
         """Report a source that stayed stale and keep the checkout's base commit in the receipt."""
@@ -314,17 +359,147 @@ class Dispatcher:
         except Exception as exc:
             self._event("knowledge-error", task.task_id, f"could not save lesson: {exc}")
 
-    def _record_rejection(self, task: Task, job: dict[str, Any]) -> None:
+    def _rejection_reason(self, job: dict[str, Any]) -> str:
         rejected_ticket_reason = getattr(self.launcher, "rejected_ticket_reason", None)
-        if self.knowledge is None or rejected_ticket_reason is None:
+        return _cloud.redact(rejected_ticket_reason(job)).strip() if rejected_ticket_reason else ""
+
+    def _backoff(self, retries: int) -> None:
+        self.sleep(min(0.25 * 2 ** min(retries, 5), 8))
+
+    def _store_step(self, task_id: str, operation: Callable[[], T]) -> T:
+        """Retry store reads and transactional writes without restarting a worker."""
+        for retry in range(self.max_retries + 1):
+            try:
+                return operation()
+            except Exception as exc:
+                transient = (
+                    isinstance(exc, TaskServiceError) and exc.code in ("busy", "unavailable")
+                ) or _error_class(str(exc), "check") == "infra"
+                if not transient or retry == self.max_retries:
+                    raise
+                self._event("retry", task_id, f"{str(exc).splitlines()[0]} [infra]")
+                self._backoff(retry)
+        raise AssertionError("max_retries must be nonnegative")
+
+    def _infra_retry(self, task: Task) -> AttemptContinuation | None:
+        continuation = AttemptContinuation.model_validate(task.data.get("attempt_continuation") or {})
+        if continuation.infra_retries >= self.max_retries:
+            return None
+        self._backoff(continuation.infra_retries)
+        return continuation.model_copy(update={
+            "infra_retries": continuation.infra_retries + 1, "not_before": None, "wait_for_budget": False,
+        })
+
+    def _budget_retry(self, task: Task, job: dict[str, Any], reason: str) -> AttemptContinuation:
+        continuation = AttemptContinuation.model_validate(task.data.get("attempt_continuation") or {})
+        return continuation.model_copy(update={
+            "engine": job.get("engine") or continuation.engine,
+            "wait_for_budget": True, "not_before": _budget_ready_at(job, reason, self.clock()),
+        })
+
+    def _fail_launch(self, task: Task, claim: dict[str, Any], reason: str) -> None:
+        cls = _error_class(reason)
+        followup = None
+        if cls == "budget":
+            followup = self._budget_retry(task, {"engine": _routing.bridge_engine(claim["engine_family"])}, reason)
+        elif cls == "infra" and _error_class(reason, "check") == "infra":
+            followup = self._infra_retry(task)
+        self.service.fail_local_launch(
+            self.principal, task.task_id, claim["claim_token"], reason,
+            dispatcher_owner=claim.get("dispatcher_owner"), failure_class=cls, continuation=followup,
+        )
+        self._record_lesson(task, "rejected ticket" if cls == "policy" else "launch failure", reason)
+        tier = (task.data.get("attempt_continuation") or {}).get("escalation_tier")
+        kind = "waiting" if cls == "budget" else "retry" if followup else "escalation_failed" if tier else "failed"
+        self._event(kind, task.task_id, f"{reason} [{cls}]")
+
+    def _run_checks(
+        self, task: Task, job_ref: str, cwd: Path | None, expected_head: Any,
+    ) -> tuple[str | None, FailureClass | None, tuple[str, ...]]:
+        failures: list[str] = []
+        failed_classes: list[FailureClass] = []
+        flaky: list[str] = []
+        recovered_infra = False
+        for command in task.data.get("checks") or ():
+            failure = _dispatch_workspace._check_failure(command, cwd, tail_lines=60)
+            if failure is None:
+                continue
+            unchanged = cwd is not None and not _dispatch_workspace._checks_changed_checkout(cwd, expected_head)
+            retries = 0
+            while failure and _check_class(failure) == "infra" and unchanged and retries < self.max_retries:
+                self._event("retry", task.task_id, f"{failure.splitlines()[0]} [infra]", job_id=job_ref)
+                self._backoff(retries)
+                retries += 1
+                failure = _dispatch_workspace._check_failure(command, cwd, tail_lines=60)
+                unchanged = not _dispatch_workspace._checks_changed_checkout(cwd, expected_head) if cwd else False
+            if failure is None:
+                recovered_infra = True
+                continue
+            kind = _check_class(failure)
+            if unchanged and kind == "check":
+                repeated = _dispatch_workspace._check_failure(command, cwd, tail_lines=60)
+                if repeated is None and cwd is not None and not _dispatch_workspace._checks_changed_checkout(
+                    cwd, expected_head
+                ):
+                    flaky.extend(re.findall(r"(?m)^FAILED (.+?::.+?)(?: - .*|$)", failure) or [command])
+                    continue
+                if repeated is not None:
+                    failure, kind = repeated, _check_class(repeated)
+            failures.append(failure)
+            failed_classes.append(kind)
+        changed = _dispatch_workspace._checks_changed_checkout(cwd, expected_head) if cwd is not None else None
+        if changed:
+            failures.append(changed)
+            failed_classes.append("check")
+        if failures:
+            priority: tuple[FailureClass, ...] = ("policy", "check", "infra", "budget")
+            kind = next(kind for kind in priority if kind in failed_classes)
+            return "\n".join(failures), kind, tuple(dict.fromkeys(flaky))
+        return None, "flaky" if flaky else "infra" if recovered_infra else None, tuple(dict.fromkeys(flaky))
+
+    def _defer_check(self, task: Task, job: dict[str, Any], reason: str) -> None:
+        receipt = (task.dispatch or {})["receipt"]
+        self.service.defer_dispatch_step(
+            self.principal, task.task_id, receipt["attempt"], _budget_ready_at(job, reason, self.clock()),
+            dispatcher_owner=receipt.get("dispatcher_owner"),
+        )
+        self._event("waiting", task.task_id, f"{reason.splitlines()[0]} [budget]", job_id=job["job_id"])
+
+    def _repair_retry(self, task: Task, previous: AttemptContinuation, reason: str) -> AttemptContinuation | None:
+        if previous.escalation_tier:
+            return None
+        exhausted = len(previous.check_failures) >= task.data.get("max_check_retries", DEFAULT_MAX_CHECK_RETRIES)
+        tier = NEXT_TIER.get(task.data.get("tier") or "thinking") if exhausted else None
+        if exhausted and not tier:
+            return None
+        return previous.model_copy(update={
+            "check_failures": (*previous.check_failures, reason), "escalation_tier": tier,
+        })
+
+    def _report_settlement(self, task: Task, evidence: CompletionEvidence, reason: str) -> None:
+        cls, followup, job_ref = evidence.failure_class, evidence.continuation, evidence.job_ref
+        for check in evidence.flaky_checks:
+            self._record_lesson(task, f"flaky check {check}", f"{check} failed, then passed on the unchanged checkout")
+            self._event("flaky", task.task_id, f"{check} [flaky]", job_id=job_ref)
+        if evidence.state == "accepted":
+            self._event("done", task.task_id, job_id=job_ref)
             return
-        try:
-            reason = rejected_ticket_reason(job)
-        except Exception as exc:
-            self._event("knowledge-error", task.task_id, f"could not read rejected tickets: {exc}")
-            return
-        if reason:
-            self._record_lesson(task, "rejected ticket", reason)
+        if cls in ("check", "infra", "policy"):
+            lesson = {"check": "check failure", "infra": "engine crash", "policy": "rejected ticket"}[cls]
+            self._record_lesson(task, lesson, reason)
+        detail = f"{reason.splitlines()[0]} [{cls}]"
+        tier = (task.data.get("attempt_continuation") or {}).get("escalation_tier")
+        if followup and followup.wait_for_budget:
+            self._event("waiting", task.task_id, detail, job_id=job_ref)
+        elif followup and followup.escalation_tier and not tier:
+            self._event("escalated", task.task_id, f"tier={followup.escalation_tier} | {detail}", job_id=job_ref)
+        elif followup:
+            prefix = "resume failed: " if "resume refused" in reason or any(
+                marker in reason for marker in _dispatch_launch.RESUME_FAILURES
+            ) else ""
+            self._event("retry", task.task_id, prefix + detail, job_id=job_ref)
+        else:
+            self._event("escalation_failed" if tier else "failed", task.task_id, detail, job_id=job_ref)
 
     def _surface_approvals(self, tasks: list[Task]) -> None:
         """Put every pending ticket of a running task into the event stream, once.
@@ -384,7 +559,8 @@ class Dispatcher:
                 in_use[family] = in_use.get(family, 0) + 1
         for task in tasks:
             data = task.data
-            requested = data.get("requested_placement", "local")
+            continuation = data.get("attempt_continuation") or {}
+            requested = "local" if continuation.get("repair_checkout") else data.get("requested_placement", "local")
             placer = self.router if requested == "local" else self.cloud_placer if requested == "cloud" else None
             if (task.status != "todo" or placer is None or data.get("start_hold")
                     or data.get("owner") or data.get("claimed_at") is not None
@@ -393,15 +569,18 @@ class Dispatcher:
                 continue
             record = data.get("placement_evidence", {}).get(requested, {})
             evidence = record.get("evidence", {})
-            continuation = data.get("attempt_continuation") or {}
+            if (continuation.get("not_before") or 0) > now:
+                self._wait(task.task_id, "waiting for the quota window [budget]")
+                continue
             required_engine = None
-            if continuation.get("check_failures"):
+            if ((continuation.get("check_failures") and not continuation.get("escalation_tier"))
+                    or continuation.get("wait_for_budget")) and continuation.get("engine"):
                 engine = continuation["engine"]
                 required_engine = _routing.provider(engine)
             if (record.get("revision") == task.revision and evidence.get("expires_at", 0) > now + 60
                     and (not required_engine or evidence.get("engine_family") == required_engine)):
                 continue
-            tier = data.get("tier") or "thinking"
+            tier = continuation.get("escalation_tier") or data.get("tier") or "thinking"
             if requested == "cloud":
                 self._place_cloud(task, tier, now)
                 continue
@@ -513,22 +692,19 @@ class Dispatcher:
         job_ref = dispatch.get("job_ref")
         observation: Literal["absent", "terminated"] = "terminated" if job_ref and not cloud_absent else "absent"
         evidence_ref = ORPHAN_EVIDENCE[0] if cloud_absent else ORPHAN_EVIDENCE[2 if owned else 1]
-        previous_orphans = sum(
-            old.get("reconciliation_ref") in ORPHAN_EVIDENCE
-            and old["receipt"]["revision"] == receipt.get("revision")
-            for old in task.data.get("dispatches", [])[:-1]
-        )
         reason = "provider has no matching dispatch" if cloud_absent else (
             "abandoned claim has no bridge job" if owned else "no job after dispatch grace period")
-        retry = previous_orphans + self.retries.get(task.task_id, 0) < self.max_retries
+        followup = self._infra_retry(task)
         self.service.reconcile_dispatch(
             self.principal, task.task_id, receipt["attempt"], observation, evidence_ref=evidence_ref,
-            job_ref=job_ref, failure_reason=None if retry else reason,
+            job_ref=job_ref, failure_reason=reason, failure_class="infra", continuation=followup,
             dispatcher_owner=self.owner if owned else None,
         )
         self._event("reconciled", task.task_id, observation, job_id=job_ref)
         self._record_lesson(task, "missing job", reason)
-        self._event("failed", task.task_id, reason, job_id=job_ref)
+        tier = (task.data.get("attempt_continuation") or {}).get("escalation_tier")
+        self._event("retry" if followup else "escalation_failed" if tier else "failed",
+                    task.task_id, f"{reason} [infra]", job_id=job_ref)
         return True
 
     def _conclude(
@@ -538,6 +714,8 @@ class Dispatcher:
         review_passed: bool = False, review_independence: Any = None,
         preserved_branch: str | None = None, pr_url: str | None = None, land_failure: str | None = None,
         landing: DispatchLanding | None = None,
+        failure_class: FailureClass | None = None, continuation: AttemptContinuation | None = None,
+        flaky_checks: tuple[str, ...] = (),
     ) -> CompletionEvidence:
         """Record completion evidence and complete the claim; return the evidence the task settled on.
 
@@ -559,6 +737,8 @@ class Dispatcher:
                 review_passed=review_passed, review_independence=review_independence,
                 outcome="success" if accepted else "task_failure", failure_reason=failure_reason,
                 preserved_branch=preserved_branch, pr_url=pr_url, land_failure=land_failure,
+                failure_class=failure_class, continuation=continuation, flaky_checks=flaky_checks,
+                landing=landing,
             )
         if expired and evidence.state == "accepted":
             if recorded:
@@ -567,19 +747,22 @@ class Dispatcher:
             evidence = (CompletionEvidence.model_validate(recorded) if recorded else evidence.model_copy(update={
                 "reference": reference, "state": "blocked", "outcome": "task_failure",
                 "failure_reason": "claim lease expired",
+                "failure_class": "infra",
             }))
         if not recorded:
             owner_options: dict[str, Any] = {"dispatcher_owner": self.owner} if receipt.get("dispatcher_owner") else {}
-            self.service.record_completion_evidence(
+            self._store_step(task.task_id, lambda: self.service.record_completion_evidence(
                 self.principal, task.task_id, receipt["attempt"], evidence, **owner_options,
-            )
+            ))
         accepted = evidence.state == "accepted"
         complete_options: dict[str, Any] = {"reconcile_failure": True} if expired else {}
         if receipt.get("dispatcher_owner"):
-            complete_options.update(dispatcher_owner=self.owner, landing=landing if accepted else None)
-        self.service.complete(self.principal, task.task_id, receipt["claim_token"], evidence.reference,
-                              evidence.state, evidence.reference, "success" if accepted else "task_failure",
-                              **complete_options)
+            complete_options.update(dispatcher_owner=self.owner, landing=evidence.landing if accepted else None)
+        self._store_step(task.task_id, lambda: self.service.complete(
+            self.principal, task.task_id, receipt["claim_token"], evidence.reference,
+            evidence.state, evidence.reference, "success" if accepted else "task_failure",
+            **complete_options,
+        ))
         return evidence
 
     def _settle_cloud(self, task: Task) -> bool:
@@ -592,7 +775,8 @@ class Dispatcher:
         receipt = dispatch.get("receipt", {})
         token = receipt["claim_token"]
         job_ref = str(dispatch.get("job_ref") or _dispatch_launch.cloud_job_id(token))
-        job = self.launcher.cloud_job(job_ref)  # type: ignore[attr-defined]
+        cloud_job = self.launcher.cloud_job  # type: ignore[attr-defined]
+        job = self._store_step(task.task_id, lambda: cloud_job(job_ref))
         if job is None:
             # Still `intent` with no job: begin_submit never succeeded (the store was busy, or the
             # dispatcher stopped first), so nothing reached the provider and the submit is still owed.
@@ -601,6 +785,13 @@ class Dispatcher:
                     and receipt.get("executor") == self.principal.actor):
                 return self._launch_cloud(task, receipt, receipt)
             return self._settle_missing(task, dispatch, receipt)
+        for retry in range(self.max_retries):
+            land_error = str(job.get("land_failure") or "")
+            if _error_class(land_error, "check") != "infra":
+                break
+            self._event("retry", task.task_id, f"{land_error} [infra]", job_id=job_ref)
+            self._backoff(retry)
+            job = self._store_step(task.task_id, lambda: cloud_job(job_ref)) or job
         if job.get("status") == "submitting" and not job.get("cloud_handle"):
             if not (receipt.get("dispatcher_owner") == self.owner or self._orphan_expired(dispatch, receipt)):
                 return False
@@ -642,49 +833,84 @@ class Dispatcher:
         land_error = job.get("land_failure") or job.get("land_error")
         land_failure = _cloud.redact(str(land_error)).strip() if land_error else None
         failure: str | None
+        cls: FailureClass | None = None
+        followup = None
+        flaky: tuple[str, ...] = ()
+        rejection = "" if recorded else self._rejection_reason(job)
         if recorded:  # restarted after recording: the evidence decides, the checks are not run again
             failure = None if recorded.get("state") == "accepted" else (
                 recorded.get("failure_reason") or "cloud job failed")
+        elif rejection:
+            failure, cls = rejection, "policy"
         elif status != "done":
             failure = f"cloud job {status}: {_cloud.redact(str(job.get('error') or 'no error recorded'))}"
+            cls = _error_class(failure)
+            if cls == "budget":
+                followup = self._budget_retry(task, job, failure)
+            elif cls == "infra" and not expired and _error_class(failure, "check") == "infra":
+                followup = self._infra_retry(task)
         elif not landed:
             detail = land_failure or "no PR url or pushed commit recorded"
             failure = f"cloud job did not land: {detail}"
+            if not expired and _error_class(failure) == "budget":
+                self._defer_check(task, job, failure)
+                return False
         elif expired:
             failure = "claim lease expired"
         elif checks:
-            try:
-                cwd = self.launcher.cloud_checkout(task.task_id, job)  # type: ignore[attr-defined]
-            except Exception as exc:
-                failure = f"could not clone the landed branch: {_cloud.redact(str(exc))[:300]}"
-            else:
+            cwd, failure = self._cloud_check_checkout(task, job, job_ref)
+            if cwd is not None:
                 try:
-                    failure = (
-                        "\n".join(filter(None, (_dispatch_workspace._check_failure(command, cwd) for command in checks)))
-                        or _dispatch_workspace._checks_changed_checkout(cwd, job.get("pushed_sha"))
-                    )
+                    failure, cls, flaky = self._run_checks(task, job_ref, cwd, job.get("pushed_sha"))
+                    expired = self._expired(receipt)
+                    if failure and cls == "budget" and not expired:
+                        self._defer_check(task, job, failure)
+                        return False
+                    prepare = getattr(self.launcher, "prepare_cloud_repair", None)
+                    if failure and cls == "check" and prepare and not expired:
+                        previous = AttemptContinuation.model_validate(task.data.get("attempt_continuation") or {})
+                        repair = self._repair_retry(task, previous, failure)
+                        if repair:
+                            prepare(cwd, task.data, job)
+                            followup = repair.model_copy(update={
+                                "repair_checkout": str(cwd), "cloud_branch": job["landed_branch"],
+                                "cloud_pr_url": job["pr_url"], "engine": _routing.bridge_engine(receipt["engine_family"]),
+                                "fresh": True, "wait_for_budget": False, "not_before": None,
+                            })
                 finally:
                     remove = getattr(self.launcher, "remove_cloud_checkout", None)
-                    if remove is not None:
+                    if remove is not None and followup is None:
                         remove(cwd)
             expired = self._expired(receipt)
             failure = failure or ("claim lease expired" if expired else None)
         else:
             failure = None
+        if failure and cls is None:
+            cls = _error_class(failure)
         settled = self._conclude(
             task, reference=reference, job_ref=job_ref, accepted=failure is None, expired=expired,
             artifact_ref=str(job["pushed_sha"]) if landed else None,
             failure_reason=failure, pr_url=job.get("pr_url"), land_failure=land_failure or None,
+            failure_class=cls, continuation=followup, flaky_checks=flaky,
         )
         if settled.state == "accepted":
             self._event("published", task.task_id, settled.pr_url or str(job["pr_url"]), job_id=job_ref)
-            self._event("done", task.task_id, job_id=job_ref)
-            return True
-        failure = settled.failure_reason or failure
-        assert failure is not None
-        self._record_lesson(task, "task failure", failure)
-        self._event("failed", task.task_id, failure.split("\n", 1)[0], job_id=job_ref)
+        self._report_settlement(task, settled, settled.failure_reason or "cloud job failed")
         return True
+
+    def _cloud_check_checkout(
+        self, task: Task, job: dict[str, Any], job_ref: str,
+    ) -> tuple[Path | None, str | None]:
+        for retry in range(self.max_retries + 1):
+            try:
+                return self.launcher.cloud_checkout(task.task_id, job), None  # type: ignore[attr-defined,no-any-return]
+            except Exception as exc:
+                failure = f"could not clone the landed branch: {_cloud.redact(str(exc))[:300]}"
+                if retry == self.max_retries:
+                    return None, failure
+                self._event("retry", task.task_id, f"{failure} [infra]", job_id=job_ref)
+                self._backoff(retry)
+        raise AssertionError("max_retries must be nonnegative")
 
     def _launch_cloud(self, task: Task, summary: dict[str, Any], claim: dict[str, Any]) -> bool:
         """Submit a claimed cloud task through `run --where cloud`; record its job.
@@ -702,11 +928,10 @@ class Dispatcher:
                 return True
             reason = str(exc).replace("\n", " ")
             try:
-                self.service.fail_dispatch_launch(self.principal, task_id, token, reason, dispatcher_owner=owner)
+                self._fail_launch(task, claim, reason)
             except TaskServiceError as release_exc:
                 self._event("deferred", task_id, str(release_exc))
                 return True
-            self._event("failed", task_id, reason)
             return False
         try:
             job_ref = self.launcher.launch_cloud(  # type: ignore[attr-defined]
@@ -716,11 +941,10 @@ class Dispatcher:
             job = self.launcher.job(job_id)
             if job is None:  # nothing reached the provider
                 try:
-                    self.service.fail_local_launch(self.principal, task_id, token, reason, dispatcher_owner=owner)
+                    self._fail_launch(task, claim, reason)
                 except Exception as release_exc:
-                    reason = f"{reason}; claim release failed: {str(release_exc).replace(chr(10), ' ')}"
-                self._record_lesson(task, "launch failure", reason)
-                self._event("failed", task_id, reason)
+                    self._event("deferred", task_id, f"{release_exc} [infra]", job_id=job_id)
+                    return True
                 return False
             if job.get("status") == "submitting" and not job.get("cloud_handle"):
                 return True  # settle the incomplete submission from provider evidence after expiry
@@ -732,10 +956,12 @@ class Dispatcher:
     def _settle(self, task: Task) -> bool:
         dispatch = task.dispatch or {}
         receipt = dispatch.get("receipt", {})
+        if dispatch.get("retry_at", 0) > self.clock() and not self._expired(receipt):
+            return False
         if receipt.get("effective_placement") == "cloud":
             return self._settle_cloud(task)
         job_ref = dispatch.get("job_ref")
-        job = self._local_job(task)
+        job = self._store_step(task.task_id, lambda: self._local_job(task))
         continuation = task.data.get("attempt_continuation")
         resumed = _dispatch_launch._resumes(continuation, receipt.get("engine_family"))
         if (job and not job_ref and resumed and continuation and dispatch.get("state") == "intent"
@@ -798,9 +1024,15 @@ class Dispatcher:
         if checks:
             reference += ":checks"  # evidence for this gate survives a restart between recording and completion
         recorded = dispatch.get("evidence", {}).get(reference, {})
-        recorded_failure = recorded.get("failure_reason")
+        if recorded:
+            settled = self._conclude(task, reference=reference, job_ref=str(job_ref),
+                                     accepted=recorded["state"] == "accepted", expired=self._expired(receipt))
+            self._report_settlement(task, settled, settled.failure_reason or "job failed")
+            return True
         cwd = Path(str(job["cwd"])) if job.get("cwd") else None
-        accepted = job.get("status") == "done" and not recorded_failure
+        rejection = self._rejection_reason(job)
+        accepted = job.get("status") == "done" and not rejection
+        workspace_error = None
         if accepted and cwd is not None:
             workspace_error, merge_commit = _dispatch_workspace._conclude_workspace(cwd, task.task_id)
             if workspace_error:
@@ -829,18 +1061,18 @@ class Dispatcher:
         )
         expired = self._expired(receipt)
         job_error = str(job.get("error") or job.get("status") or "job failed").replace("\n", " ")
-        check_failure = recorded_failure
-        if accepted and checks and not (needs_evidence or expired or recorded):
-            check_failure = (
-                "\n".join(filter(None, (_dispatch_workspace._check_failure(command, cwd, tail_lines=60)
-                                        for command in checks))) or None
-            )
-            if not check_failure and cwd is not None:
-                # Evidence must describe the artifact that is published: a check that edits
-                # tracked files (e.g. `ruff --fix`) or commits would pass on unpublished content.
-                check_failure = _dispatch_workspace._checks_changed_checkout(cwd, job.get("final_commit"))
+        check_failure: str | None = None
+        cls: FailureClass | None = None
+        flaky: tuple[str, ...] = ()
+        if accepted and checks and not (needs_evidence or expired):
+            check_failure, cls, flaky = self._run_checks(task, str(job_ref), cwd, job.get("final_commit"))
             expired = self._expired(receipt)
-        if check_failure:
+            if check_failure and cls == "budget" and not expired:
+                self._defer_check(task, job, check_failure)
+                return False
+        if rejection:
+            failure_reason, cls = rejection, "policy"
+        elif check_failure:
             accepted = False
             failure_reason = check_failure
         elif needs_evidence:
@@ -851,84 +1083,96 @@ class Dispatcher:
             failure_reason = job_error if STALE_HEARTBEAT in job_error else "claim lease expired"
         else:
             failure_reason = job_error
+        previous = AttemptContinuation.model_validate(continuation or {})
         # Publish only after the lease and evidence checks; a failed publish fails the task.
         published: str | None = None
         if accepted and cwd is not None:
             published, publish_error = _dispatch_workspace._publish(cwd)
+            for retry in range(self.max_retries):
+                if not publish_error or _error_class(publish_error) != "infra":
+                    break
+                self._event("retry", task.task_id, f"{publish_error} [infra]", job_id=str(job_ref))
+                self._backoff(retry)
+                published, publish_error = _dispatch_workspace._publish(cwd)
+            if not publish_error and previous.cloud_branch:
+                for retry in range(self.max_retries + 1):
+                    try:
+                        _cloud_land._push(cwd, "HEAD", previous.cloud_branch)
+                        publish_error = None
+                        break
+                    except CloudError as exc:
+                        publish_error = _cloud.redact(str(exc))
+                        if retry < self.max_retries:
+                            self._event("retry", task.task_id, f"{publish_error} [infra]", job_id=str(job_ref))
+                            self._backoff(retry)
             if publish_error:
+                if not self._expired(receipt) and _error_class(publish_error) == "budget":
+                    self._defer_check(task, job, publish_error)
+                    return False
                 accepted = False
                 failure_reason = publish_error
+                cls = _error_class(publish_error)
             elif published:
                 self._event("published", task.task_id, published, job_id=str(job_ref))
-        failed_cleanly = not accepted and not check_failure
-        retryable = failed_cleanly and (
-            job.get("status") in ("interrupted", "cancelled")
-            or any(marker in failure_reason for marker in RETRYABLE_FAILURES)
-        )
-        resume_failed = (failed_cleanly and resumed
-                         and any(marker in failure_reason for marker in _dispatch_launch.RESUME_FAILURES))
-        check_failures = list((continuation or {}).get("check_failures", []))
-        native_id = None if resume_failed or task.data.get("review_of") else _jobs._native_id(job)
-        retry_check = bool(
-            check_failure and check_failure.startswith("check failed: ") and cwd is not None and not expired
-            and native_id and job.get("engine") and len(check_failures) < task.data.get(
-                "max_check_retries", DEFAULT_MAX_CHECK_RETRIES)
-        )
+        else:
+            publish_error = None
+        followup, resume_failed = None, False
+        if not accepted:
+            cls = cls if cls and cls != "flaky" else _error_class(failure_reason)
+            resume_failed = (cls == "infra" and resumed and
+                             any(marker in failure_reason for marker in _dispatch_launch.RESUME_FAILURES))
+            if cls == "budget":
+                followup = self._budget_retry(task, job, failure_reason)
+            elif resume_failed:
+                followup = previous.model_copy(update={"native_id": None, "fresh": True})
+            elif cls == "infra" and not (publish_error or check_failure or needs_evidence or expired or workspace_error):
+                followup = self._infra_retry(task)
+            elif cls == "check" and cwd is not None and not expired:
+                followup = self._repair_retry(task, previous, failure_reason)
         preserved = None
-        if (retryable or (resume_failed and not check_failures) or retry_check) and cwd is not None:
+        if followup and cwd is not None and not resume_failed:
             # Keep the engine's work, without committing files the failed checks may have edited.
             preserved, preserve_error = _dispatch_workspace._preserve_attempt(
-                cwd, task.task_id, int(receipt["attempt"]), commit_uncommitted=not retry_check)
+                cwd, task.task_id, int(receipt["attempt"]), commit_uncommitted=not bool(check_failure))
             if preserve_error:
                 self._event("preserve-failed", task.task_id, preserve_error, job_id=str(job_ref))
             elif preserved:
                 self._event("preserved", task.task_id, preserved.branch, job_id=str(job_ref))
-        evidence_failure = check_failure
-        if check_failure and check_failures and not retry_check and not recorded:
-            evidence_failure = check_failure + "\n\nPrevious check failures\n" + "\n\n".join(check_failures)
+        if followup and not resume_failed:
+            engine = job.get("engine") or _routing.bridge_engine(receipt["engine_family"])
+            native_id = _jobs._native_id(job)
+            if (followup.escalation_tier and cls == "check") or task.data.get("review_of") or not (
+                _dispatch_launch.resumable({**job, "engine": engine}, getattr(self.launcher, "launch_mode", None))
+            ):
+                native_id = None
+            followup = followup.model_copy(update={
+                "session": job.get("session_name"), "native_id": native_id, "engine": engine,
+                "fresh": not bool(native_id),
+                "wait_for_budget": cls == "budget",
+                "not_before": followup.not_before if cls == "budget" else None,
+                **({
+                    "preserved_branch": preserved.branch, "preserved_commit": preserved.commit,
+                    "preserved_base": preserved.base, "preserved_files": preserved.files,
+                    "preserved_message": preserved.message, "preserved_unresolved": preserved.unresolved,
+                } if preserved else {}),
+            })
+        evidence_failure = None if accepted else failure_reason
+        if evidence_failure and previous.check_failures and not followup:
+            evidence_failure += "\n\nPrevious check failures\n" + "\n\n".join(previous.check_failures)
         landing = (DispatchLanding(cwd=str(cwd), branch=published, checks=tuple(checks or ()))
-                   if self.land and published and cwd is not None else None)
+                   if self.land and published and cwd is not None and not previous.cloud_branch else None)
         settled = self._conclude(
             task, reference=reference, job_ref=str(job_ref), accepted=accepted, expired=expired,
             artifact_ref=job.get("final_commit") or job.get("candidate_commit"),
             verification_id=verification_id, reviewed_sha=reviewed_sha, review_passed=review_passed,
             review_independence=review_independence, failure_reason=evidence_failure,
             preserved_branch=preserved.branch if preserved else None, landing=landing,
+            pr_url=previous.cloud_pr_url if accepted else None,
+            failure_class=cls, continuation=followup, flaky_checks=flaky,
         )
-        self._record_rejection(task, job)
-        if settled.state == "accepted":
-            self._event("done", task.task_id, job_id=str(job_ref))
-            if landing is not None and not receipt.get("dispatcher_owner"):
-                self.landings.append((task, Path(landing.cwd), landing.branch, str(job_ref), list(landing.checks)))
-            return True
-        if not (resume_failed or retry_check):
-            self._record_lesson(task, "engine crash" if retryable else "task failure", failure_reason)
-        # A failed resume is retried once more in a fresh conversation, outside the retry budget.
-        if retry_check or (resume_failed and not check_failures) or (
-                retryable and not resume_failed and self.retries.get(task.task_id, 0) < self.max_retries):
-            kept: dict[str, Any] = {
-                "preserved_branch": preserved.branch, "preserved_commit": preserved.commit,
-                "preserved_base": preserved.base,
-                "preserved_files": list(preserved.files), "preserved_message": preserved.message,
-                "preserved_unresolved": list(preserved.unresolved),
-            } if preserved else {key: (continuation or {}).get(key) for key in (
-                "preserved_branch", "preserved_commit", "preserved_base", "preserved_files", "preserved_message",
-                "preserved_unresolved",
-            ) if resume_failed and (continuation or {}).get(key)}
-            if retry_check:
-                check_failures.append(failure_reason)
-                cause = "check failed"
-            else:
-                cause = "resume failed" if resume_failed else "engine crash"
-            if self._retry(task, cause, failure_reason, {
-                **kept, "session": job.get("session_name"), "native_id": native_id,
-                "engine": job.get("engine"), "fresh": resume_failed, "check_failures": check_failures,
-            }, str(job_ref)):
-                if not (resume_failed or retry_check):
-                    self.retries[task.task_id] = self.retries.get(task.task_id, 0) + 1
-                return True
-        self._event("failed", task.task_id, check_failure.split("\n", 1)[0] if check_failure else failure_reason,
-                    job_id=str(job_ref))
+        self._report_settlement(task, settled, failure_reason)
+        if settled.state == "accepted" and landing is not None and not receipt.get("dispatcher_owner"):
+            self.landings.append((task, Path(landing.cwd), landing.branch, str(job_ref), list(landing.checks)))
         return True
 
     def _local_job(self, task: Task) -> dict[str, Any] | None:
@@ -975,7 +1219,7 @@ class Dispatcher:
                     self._settle(task)
                 except Exception as exc:
                     kind = "deferred" if isinstance(exc, TaskServiceError) and exc.code == "busy" else "failed"
-                    self._event(kind, task.task_id, str(exc).replace(chr(10), " "),
+                    self._event(kind, task.task_id, f"{str(exc).replace(chr(10), ' ')} [infra]",
                                 job_id=(task.dispatch or {}).get("job_ref"))
         self._land_settled()
         tasks = self.task_reader(self.service, self.project_id)
@@ -999,6 +1243,8 @@ class Dispatcher:
                 self._event("failed", summary["task_id"], "task is missing from board")
                 continue
             data = board_task.data
+            if ((data.get("attempt_continuation") or {}).get("not_before") or 0) > self.clock():
+                continue
             self._event("ready", summary["task_id"])
             cloud = summary.get("effective_placement") == "cloud"
             if not cloud and summary["task_id"] in self.waiting:
@@ -1058,14 +1304,9 @@ class Dispatcher:
                         running_branches.add(str(branch))
                     continue
                 try:
-                    self.service.fail_local_launch(
-                        self.principal, summary["task_id"], claim["claim_token"], reason,
-                        dispatcher_owner=claim.get("dispatcher_owner"),
-                    )
+                    self._fail_launch(board_task, claim, reason)
                 except Exception as release_exc:
-                    reason = f"{reason}; claim release failed: {str(release_exc).replace(chr(10), ' ')}"
-                self._record_lesson(board_task, "launch failure", reason)
-                self._event("failed", summary["task_id"], reason)
+                    self._event("deferred", summary["task_id"], f"{release_exc} [infra]")
             else:
                 self._record_base(summary["task_id"], claim)
                 self._event("launched", summary["task_id"], job_id=job_ref)
@@ -1125,7 +1366,12 @@ class Dispatcher:
                 if once:
                     return 0
             else:
-                if once or (not ready and not running and not self.waiting):
+                budget_wait = any(
+                    task.status == "todo" and not task.data.get("start_hold")
+                    and (task.data.get("attempt_continuation") or {}).get("wait_for_budget")
+                    for task in self.task_reader(self.service, self.project_id)
+                )
+                if once or (not ready and not running and not self.waiting and not budget_wait):
                     return 0
             finally:
                 stop.set()

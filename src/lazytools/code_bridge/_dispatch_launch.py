@@ -34,6 +34,14 @@ def _resumes(continuation: dict[str, Any] | None, engine_family: Any) -> bool:
     return continuation.get("engine") == ("claude" if engine_family == "claude_code" else engine_family)
 
 
+def resumable(job: dict[str, Any], launch_mode: str | None) -> bool:
+    # Claimed auto launches are governed. Only an explicitly legacy Claude job
+    # can resume across dispatch workers.
+    return job.get("engine") not in ("claude", "claude_code") or (
+        launch_mode == "legacy" and job.get("launch_mode") not in ("auto", "governed")
+    )
+
+
 class RepositoryMismatch(ValueError):
     """The repository a cloud task would act on is not the task's repository."""
 
@@ -137,7 +145,12 @@ class BridgeLauncher:
         safe_project = re.sub(r"[^A-Za-z0-9_.-]+", "-", self.project_id)
         safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task_name)
         root = self.worktree_root or repo.parent / "_dispatch"
-        checkout = root / safe_project / safe_task
+        repair_checkout = (task.get("attempt_continuation") or {}).get("repair_checkout")
+        checkout = Path(repair_checkout) if repair_checkout else root / safe_project / safe_task
+        if repair_checkout and (
+            checkout.resolve().parent != (root / safe_project / ".cloud-accept").resolve() or not checkout.is_dir()
+        ):
+            raise RuntimeError("The checkout prepared for cloud check repair is unavailable")
         preserved = task.get("preserved_commit") or task.get("preserved_branch")
         if not checkout.exists():
             if not preserved:
@@ -150,7 +163,7 @@ class BridgeLauncher:
             self._create_checkout(task, repo, checkout, safe_project, safe_task)
         elif preserved:
             self._restore_preserved(task, checkout, self._git(checkout, "config", "--get", "dispatch.branch"))
-        else:
+        elif not repair_checkout:
             # A new attempt in an existing checkout must add its own commits.
             subprocess.run(["git", "-C", str(checkout), "tag", "-f", "dispatch-base", "HEAD"],
                            text=True, capture_output=True, check=False)
@@ -460,6 +473,18 @@ class BridgeLauncher:
                 for name in files:
                     os.chmod(os.path.join(directory, name), stat.S_IREAD | stat.S_IWRITE)
             shutil.rmtree(checkout, ignore_errors=True)
+
+    def prepare_cloud_repair(self, checkout: Path, task: dict[str, Any], job: dict[str, Any]) -> None:
+        """Keep the acceptance clone as the local repair checkout for the landed change."""
+        repo = cloud_repo(self.repo_roots, task)
+        branch = str(task.get("assigned_branch") or job["landed_branch"]).removeprefix("refs/heads/")
+        self._git(checkout, "checkout", "--quiet", "-B", branch, str(job["pushed_sha"]))
+        self._git(checkout, "config", "dispatch.branch", branch)
+        self._git(checkout, "config", "user.name", "lazytools-dispatch")
+        self._git(checkout, "config", "user.email", "dispatch@lazytools.invalid")
+        self._git(checkout, "remote", "add", "dispatch-source", str(repo))
+        base = str(job.get("base_commit") or job["pushed_sha"])
+        self._git(checkout, "tag", "-f", "dispatch-base", base)
 
 
 def cloud_job_id(claim_token: str) -> str:

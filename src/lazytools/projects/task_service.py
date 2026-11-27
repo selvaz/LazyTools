@@ -79,6 +79,33 @@ class PlacementEvidence(BaseModel):
     effort: Nonempty | None = None
 
 
+FailureClass = Literal["check", "infra", "flaky", "budget", "policy"]
+
+
+class AttemptContinuation(BaseModel):
+    """How a retry continues its predecessor, stored with the attempt it prepares."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    preserved_branch: Nonempty | None = None
+    preserved_commit: Nonempty | None = None
+    preserved_base: Nonempty | None = None  # the interrupted attempt's original dispatch-base
+    preserved_files: tuple[str, ...] = ()
+    preserved_message: str = ""
+    preserved_unresolved: tuple[str, ...] = ()  # files the preserved work left with conflict markers
+    session: Nonempty | None = None  # the failed attempt's session alias
+    native_id: Nonempty | None = None  # its engine conversation; None starts a fresh one
+    engine: Nonempty | None = None
+    fresh: bool = False
+    check_failures: tuple[str, ...] = ()  # one diagnostic per verification retry already prepared
+    escalation_tier: Nonempty | None = None
+    infra_retries: int = 0
+    not_before: FiniteFloat | None = None
+    wait_for_budget: bool = False
+    repair_checkout: Nonempty | None = None
+    cloud_branch: Nonempty | None = None
+    cloud_pr_url: Nonempty | None = None
+
+
 class CompletionEvidence(BaseModel):
     """An independently observed terminal provider receipt."""
 
@@ -95,26 +122,13 @@ class CompletionEvidence(BaseModel):
     review_independence: ReviewIndependence | None = None
     outcome: Outcome | None = None
     failure_reason: Nonempty | None = None
+    failure_class: FailureClass | None = None
+    continuation: AttemptContinuation | None = None
+    flaky_checks: tuple[str, ...] = ()
+    landing: DispatchLanding | None = None
     preserved_branch: Nonempty | None = None  # work of a failed attempt, kept for the retry
     pr_url: Nonempty | None = None  # `dispatch --land`: the PR the accepted branch was pushed to
     land_failure: Nonempty | None = None  # `dispatch --land`: why push or PR failed (the task stays accepted)
-
-
-class AttemptContinuation(BaseModel):
-    """How a retry continues its predecessor, stored with the attempt it prepares."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    preserved_branch: Nonempty | None = None
-    preserved_commit: Nonempty | None = None
-    preserved_base: Nonempty | None = None  # the interrupted attempt's original dispatch-base
-    preserved_files: tuple[str, ...] = ()
-    preserved_message: str = ""
-    preserved_unresolved: tuple[str, ...] = ()  # files the preserved work left with conflict markers
-    session: Nonempty | None = None  # the failed attempt's session alias
-    native_id: Nonempty | None = None  # its engine conversation; None starts a fresh one
-    engine: Nonempty | None = None
-    fresh: bool = False  # the resume was refused: this attempt starts a fresh conversation
-    check_failures: tuple[str, ...] = ()  # one diagnostic per verification retry already prepared
 
 
 def _route_key(repo: str, placement: str, environment_id: str) -> str:
@@ -275,6 +289,8 @@ def _check_placement(
 
 
 def _placement(task: BoardTask, now: float) -> tuple[PlacementEvidence | None, str]:
+    if (task.data.get("attempt_continuation") or {}).get("repair_checkout"):
+        return _check_placement(task, "local", now)
     requested = task.data.get("requested_placement", "local")
     eligible, reason = _check_placement(task, requested, now)
     if eligible is None and requested == "cloud":
@@ -285,11 +301,13 @@ def _placement(task: BoardTask, now: float) -> tuple[PlacementEvidence | None, s
 
 def _ready(task: BoardTask, now: float) -> tuple[dict[str, Any], PlacementEvidence] | None:
     data = task.data
+    continuation = data.get("attempt_continuation") or {}
     if (
         data.get("status") != "todo"
         or data.get("owner")
         or data.get("claimed_at") is not None
         or data.get("start_hold")
+        or (continuation.get("not_before") or 0) > now
     ):
         return None
     dependencies = _dependencies(task)
@@ -303,7 +321,7 @@ def _ready(task: BoardTask, now: float) -> tuple[dict[str, Any], PlacementEviden
         "project_id": task.project_id,
         "revision": task.revision,
         "text": data["text"],
-        "tier": data.get("tier"),
+        "tier": continuation.get("escalation_tier") or data.get("tier"),
         "dependencies": dependencies,
         "acceptance_criteria": data.get("acceptance_criteria", []),
         "requested_profile": data.get("requested_profile"),
@@ -365,6 +383,13 @@ def _require_dispatcher_owner(receipt: dict[str, Any], owner: DispatcherOwner | 
 
 def _release(task: BoardTask) -> None:
     task.data.update(active_queue_claim=False, status="todo", owner=None, claimed_at=None)
+
+
+def _queue_continuation(task: BoardTask, continuation: AttemptContinuation, reason: str) -> None:
+    task.data.update(
+        revision=uuid4().hex, completed_at=None, result="", error="", attempt_reason=reason,
+        attempt_continuation=continuation.model_dump(mode="json"),
+    )
 
 
 class ProjectTaskService:
@@ -1039,7 +1064,8 @@ class ProjectTaskService:
 
     def fail_local_launch(
         self, principal: TaskPrincipal, task_id: str, claim_token: str, error: str,
-        *, dispatcher_owner: DispatcherOwner | None = None,
+        *, dispatcher_owner: DispatcherOwner | None = None, failure_class: FailureClass | None = None,
+        continuation: AttemptContinuation | None = None,
     ) -> None:
         """Settle a local or cloud dispatch after the reconciler rules out a submitted job."""
         principal.require_role("orchestrator")
@@ -1064,7 +1090,13 @@ class ProjectTaskService:
             now = self.clock()
             dispatch.update(state="absent", launch_error=error.strip(), reconciled_at=now)
             _release(task)
-            task.data.update(status="failed", completed_at=now, queue_released_at=now, error=dispatch["launch_error"])
+            task.data["queue_released_at"] = now
+            if failure_class:
+                dispatch["failure_class"] = failure_class
+            if continuation is not None:
+                _queue_continuation(task, continuation, dispatch["launch_error"])
+            else:
+                task.data.update(status="failed", completed_at=now, error=dispatch["launch_error"])
             task.save(store, now)
 
     def fail_dispatch_launch(
@@ -1098,8 +1130,10 @@ class ProjectTaskService:
         job_ref: str | None = None,
         failure_reason: str | None = None,
         dispatcher_owner: DispatcherOwner | None = None,
+        failure_class: FailureClass | None = None,
+        continuation: AttemptContinuation | None = None,
     ) -> None:
-        """Record trusted provider evidence. A failure reason stops retries on release."""
+        """Record trusted provider evidence and queue a continuation or settle the claim."""
         principal.require_role("orchestrator")
         with transaction(self.path, write=True) as store:
             task = _scoped_task(store, principal, task_id)
@@ -1132,12 +1166,38 @@ class ProjectTaskService:
                     raise TaskServiceError("unresolved", "Reconcile outstanding effects before releasing the claim")
                 _release(task)
                 task.data["queue_released_at"] = now
-                if failure_reason:
+                if failure_class:
+                    dispatch["failure_class"] = failure_class
+                if continuation is not None:
+                    # An unsubmitted infra retry can keep its preflight until the original expiry.
+                    placement = None
+                    if observation == "absent" and failure_class == "infra":
+                        placement, _ = _check_placement(task, receipt["effective_placement"], now)
+                    _queue_continuation(task, continuation, failure_reason or "dispatch released")
+                    if placement is not None and placement.engine_family == receipt["engine_family"]:
+                        task.data["placement_evidence"][placement.placement]["revision"] = task.revision
+                elif failure_reason:
                     task.data.update(status="failed", completed_at=now, error=failure_reason)
             if job_ref:
                 dispatch["job_ref"] = job_ref
             dispatch.update(state=observation, reconciliation_ref=evidence_ref, reconciled_at=now)
             task.save(store, now)
+
+    def defer_dispatch_step(
+        self, principal: TaskPrincipal, task_id: str, attempt: int, retry_at: float, *,
+        dispatcher_owner: DispatcherOwner | None = None,
+    ) -> None:
+        """Keep the same submitted attempt while verification waits for a quota window."""
+        principal.require_role("orchestrator")
+        with transaction(self.path, write=True) as store:
+            task = _scoped_task(store, principal, task_id)
+            dispatch = _active_dispatch(task)
+            receipt = dispatch["receipt"]
+            _require_dispatcher_owner(receipt, dispatcher_owner)
+            if receipt["attempt"] != attempt or dispatch["state"] != "submitted":
+                raise TaskServiceError("stale", "Only the current submitted dispatch can wait")
+            dispatch.update(retry_at=retry_at, failure_class="budget")
+            task.save(store, self.clock())
 
     def record_completion_evidence(
         self, principal: TaskPrincipal, task_id: str, attempt: int, evidence: CompletionEvidence,
@@ -1277,6 +1337,8 @@ class ProjectTaskService:
                 state="completed",
                 completion={"idempotency_key": idempotency_key, "binding": replay_binding, "result": result},
             )
+            if evidence.failure_class:
+                dispatch["failure_class"] = evidence.failure_class
             if landing is not None:
                 dispatch["pending_landing"] = landing.model_dump(mode="json")
             _release(task)
@@ -1284,6 +1346,8 @@ class ProjectTaskService:
             if result_state == "accepted":
                 task.data.update(status="done", completed_at=now, result=evidence_ref, error="")
                 touch_project_progress(store, task.project_id)
+            elif result_state == "blocked" and evidence.continuation is not None:
+                _queue_continuation(task, evidence.continuation, evidence.failure_reason or evidence_ref)
             elif result_state == "blocked":
                 task.data.update(status="failed", completed_at=now, error=evidence.failure_reason or evidence_ref)
             else:

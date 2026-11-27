@@ -37,6 +37,8 @@ class FakeService:
             "D": {"dependency_ids": ["B", "C"], "status": "todo"},
         }
         self.claims: dict[str, dict[str, Any]] = {}
+        self.evidence: list[Any] = []
+        self.reasons: list[str] = []
 
     def tasks(self, _service: Any, project: str) -> list[Task]:
         return [Task(f"{project}/{name}", "rev", row["status"], row,
@@ -62,20 +64,35 @@ class FakeService:
         self.claims[name] = {"state": "submitted", "job_ref": f"job-{name}", "receipt": receipt}
         return {"claim": receipt, "claim_active": True}
 
-    def record_completion_evidence(self, *args: Any) -> None: pass
+    def record_completion_evidence(self, *args: Any) -> None:
+        self.evidence.append(args[-1])
 
     def complete(self, _principal: Any, identifier: str, _token: str, _key: str,
-                 state: str, _evidence: str, _outcome: str) -> None:
-        self.rows[identifier.rsplit("/", 1)[1]]["status"] = "done" if state == "accepted" else "failed"
+                 state: str, evidence_ref: str, _outcome: str, **_kwargs: Any) -> None:
+        name = identifier.rsplit("/", 1)[1]
+        evidence = next((item for item in reversed(self.evidence) if item.reference == evidence_ref), None)
+        if evidence and evidence.continuation:
+            self._queue_retry(name, evidence.failure_reason, evidence.continuation)
+        else:
+            self.rows[name]["status"] = "done" if state == "accepted" else "failed"
+
+    def _queue_retry(self, name: str, reason: str, continuation: Any) -> None:
+        self.reasons.append(reason)
+        self.rows[name].update(status="todo", attempt_continuation=continuation.model_dump(mode="json"))
+        self.claims.pop(name, None)
 
     def fail_local_launch(
         self, _principal: Any, identifier: str, _token: str, _error: str, **_kwargs: Any,
     ) -> None:
-        self.rows[identifier.rsplit("/", 1)[1]]["status"] = "failed"
+        name = identifier.rsplit("/", 1)[1]
+        if continuation := _kwargs.get("continuation"):
+            self._queue_retry(name, _error, continuation)
+        else:
+            self.rows[name]["status"] = "failed"
 
     def reconcile_dispatch(self, *args: Any, **kwargs: Any) -> None: pass
 
-    def fail_dispatch_launch(self, _principal: Any, identifier: str, _token: str, _error: str) -> None:
+    def fail_dispatch_launch(self, _principal: Any, identifier: str, _token: str, _error: str, **_kwargs: Any) -> None:
         self.rows[identifier.rsplit("/", 1)[1]]["status"] = "todo"
 
 
@@ -198,13 +215,14 @@ def test_settlement_defers_busy_store_but_fails_missing_store(
         dispatch.pass_once()
         assert service.rows["A"]["status"] == "done"
         assert launcher.launches.count("A") == 1
-        assert dispatch.retries == {}
+        assert not service.reasons
 
 
 def test_failure_blocks_dependent_but_independent_branch_finishes() -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     launcher = FakeLauncher(service)
     dispatch = runner(service, launcher, events)
+    dispatch.max_retries = 0
     dispatch.pass_once()
     launcher.finish("A")
     dispatch.pass_once()
@@ -273,7 +291,7 @@ def test_expired_orphan_is_reconciled_and_released() -> None:
     dispatch = runner(service, launcher, events)
     dispatch.clock = lambda: 100.0
     dispatch.pass_once()
-    assert "failed p/A no job after dispatch grace period" in events
+    assert "retry p/A no job after dispatch grace period [infra]" in events
     assert launcher.launches == ["A"]  # released task became ready and was safely dispatched again
 
 
@@ -285,7 +303,7 @@ def test_settlement_failure_does_not_stop_other_tasks() -> None:
     launcher.finish("A")
     service.complete = lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError("Claim lease has expired"))  # type: ignore[method-assign]
     dispatch.pass_once()
-    assert "failed p/A Claim lease has expired" in events
+    assert "failed p/A Claim lease has expired [infra]" in events
 
 
 def test_review_task_is_skipped_without_claim() -> None:
@@ -330,6 +348,8 @@ def test_dispatch_runs_plan_checks_before_publishing(
     service, events = FakeService(), []  # type: FakeService, list[str]
     commands = ['"test runner" first', '"test runner" "test with spaces.py"', '"test runner" last']
     service.rows["A"]["checks"] = commands
+    service.rows["A"]["max_check_retries"] = 0
+    service.rows["A"]["tier"] = "critical"
     captured: list[Any] = []
     service.record_completion_evidence = lambda *args: captured.append(args[-1])  # type: ignore[method-assign]
     launcher = FakeLauncher(service)
@@ -363,7 +383,8 @@ def test_dispatch_runs_plan_checks_before_publishing(
     monkeypatch.setattr(subprocess, "run", fake_run)
     dispatch.pass_once()
 
-    assert calls == [["test runner", "first"], ["test runner", "test with spaces.py"], ["test runner", "last"]]
+    middle = [["test runner", "test with spaces.py"]] * (2 if failure else 1)
+    assert calls == [["test runner", "first"], *middle, ["test runner", "last"]]
     if failure is None:
         assert service.rows["A"]["status"] == "done"
         assert source_git("rev-parse", "dispatch/p/A") == bridge._git(clone, "rev-parse", "HEAD")
@@ -373,9 +394,10 @@ def test_dispatch_runs_plan_checks_before_publishing(
     assert not source_git("branch", "--list", "dispatch/p/A")
     assert launcher.launches == ["A"]
     message = f"check failed: {commands[1]} ({detail})"
-    assert f"failed p/A {message}" in events
+    assert f"failed p/A {message} [check]" in events
     evidence, = captured
     assert evidence.state == "blocked" and evidence.outcome == "task_failure"
+    assert evidence.failure_class == "check"
     assert evidence.failure_reason.startswith(f"{message}\n")
     assert "output head" not in evidence.failure_reason
     assert evidence.failure_reason.endswith("no test runner" if failure == "missing" else "App Server exited is test output")
@@ -557,28 +579,21 @@ def test_recreated_clone_restores_preserved_conflict_resolution_without_replayin
 def test_engine_crash_is_retried_once_then_fails(knowledge_store: Store) -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     service.rows["A"].update(repo="org/repo", text="Update Codex App Server")
-    attempts: list[str] = []
-
-    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str, **_: Any) -> str:
-        attempts.append(reason)
-        name = identifier.rsplit("/", 1)[1]
-        service.rows[name]["status"] = "todo"
-        service.claims.pop(name, None)
-        return "rev"
-
-    service.prepare_attempt = prepare_attempt  # type: ignore[attr-defined]
     launcher = FakeLauncher(service)
     dispatch = runner(service, launcher, events, knowledge_store)
+    delays: list[float] = []
+    dispatch.sleep = delays.append
     dispatch.pass_once()
     launcher.jobs["job-A"].update(status="failed", error="Codex App Server exited before completing the request")
     dispatch.pass_once()
-    assert len(attempts) == 1 and any(event.startswith("retry p/A") for event in events)
+    assert len(service.reasons) == 1 and any(event.startswith("retry p/A") and "[infra]" in event for event in events)
+    assert service.evidence[-1].failure_class == "infra" and delays == [0.25]
     assert launcher.launches == ["A", "A"]
     assert "Codex App Server exited before completing the request" in launcher.prompts[1]
     assert launcher.prompts[1].count("Known lessons") == 1
     launcher.jobs["job-A"].update(status="failed", error="Codex App Server exited again")
     dispatch.pass_once()
-    assert len(attempts) == 1
+    assert len(service.reasons) == 1 and delays == [0.25]
     assert any(event.startswith("failed p/A") for event in events)
     lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("engine crash")
     assert lesson["topic"] == "org/repo: engine crash"
@@ -590,37 +605,27 @@ def test_engine_crash_is_retried_once_then_fails(knowledge_store: Store) -> None
 def test_database_locked_failure_is_retried_once(knowledge_store: Store) -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     service.rows["A"].update(repo="org/repo", text="Update Codex App Server")
-    attempts: list[str] = []
-
-    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str, **_: Any) -> str:
-        attempts.append(reason)
-        name = identifier.rsplit("/", 1)[1]
-        service.rows[name]["status"] = "todo"
-        service.claims.pop(name, None)
-        return "rev"
-
-    service.prepare_attempt = prepare_attempt  # type: ignore[attr-defined]
     launcher = FakeLauncher(service)
     dispatch = runner(service, launcher, events, knowledge_store)
     dispatch.pass_once()
     launcher.jobs["job-A"].update(status="failed", error="error: database is locked")
     dispatch.pass_once()
-    assert len(attempts) == 1 and any(event.startswith("retry p/A") for event in events)
+    assert len(service.reasons) == 1 and any(event.startswith("retry p/A") for event in events)
     assert launcher.launches == ["A", "A"]
 
 
-def test_task_failure_is_not_retried(knowledge_store: Store) -> None:
+def test_infra_failure_is_final_when_retries_are_disabled(knowledge_store: Store) -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     service.rows["A"]["repo"] = "org/repo"
-    service.prepare_attempt = lambda *args: (_ for _ in ()).throw(AssertionError("no retry"))  # type: ignore[attr-defined]
     launcher = FakeLauncher(service)
     dispatch = runner(service, launcher, events, knowledge_store)
+    dispatch.max_retries = 0
     dispatch.pass_once()
     launcher.finish("A", "failed")
     dispatch.pass_once()
     assert any(event.startswith("failed p/A boom") for event in events)
     lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("boom")
-    assert (lesson["topic"], lesson["what_worked"], lesson["gotchas"]) == ("org/repo: task failure", "", "boom")
+    assert (lesson["topic"], lesson["what_worked"], lesson["gotchas"]) == ("org/repo: engine crash", "", "boom")
 
 
 def test_launch_failure_records_a_lesson(knowledge_store: Store, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -632,7 +637,9 @@ def test_launch_failure_records_a_lesson(knowledge_store: Store, monkeypatch: py
         raise RuntimeError("checkout unavailable")
 
     monkeypatch.setattr(launcher, "launch", fail_launch)
-    runner(service, launcher, [], knowledge_store).pass_once()
+    dispatch = runner(service, launcher, [], knowledge_store)
+    dispatch.max_retries = 0
+    dispatch.pass_once()
     lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("checkout")
     assert service.rows["A"]["status"] == "failed"
     assert lesson["topic"] == "org/repo: launch failure"
@@ -722,7 +729,7 @@ def test_json_events_carry_the_wait_any_keys() -> None:
     assert all(set(row) == {"kind", "job_id", "task_id", "detail"} for row in rows)
     assert {"kind": "launched", "job_id": "job-A", "task_id": "p/A", "detail": ""} in rows
     assert {"kind": "approval", "job_id": "job-A", "task_id": "p/A", "detail": "t-1 git push | publish"} in rows
-    assert {"kind": "failed", "job_id": "job-A", "task_id": "p/A", "detail": "boom"} in rows
+    assert {"kind": "retry", "job_id": "job-A", "task_id": "p/A", "detail": "boom [infra]"} in rows
 
 
 def test_bridge_launcher_reads_tickets_like_wait_any(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -739,7 +746,7 @@ def test_bridge_launcher_reads_tickets_like_wait_any(tmp_path: Path, monkeypatch
 
 
 @pytest.mark.parametrize("typed", [True, False])
-def test_terminal_job_records_ticket_rejection_even_if_task_succeeds(
+def test_terminal_job_fails_with_the_rejected_ticket_reason(
     tmp_path: Path, knowledge_store: Store, monkeypatch: pytest.MonkeyPatch, typed: bool,
 ) -> None:
     db = tmp_path / "jobs.sqlite"
@@ -772,15 +779,20 @@ def test_terminal_job_records_ticket_rejection_even_if_task_succeeds(
 
     service = FakeService()
     service.rows = {"A": {"dependency_ids": [], "status": "todo", "repo": "org/repo"}}
+    events: list[str] = []
     principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=("p",))
     launcher = BridgeLauncher(str(db), principal, "p")
     monkeypatch.setattr(launcher, "launch", lambda task, claim: "job-A")
-    dispatch = Dispatcher(service, principal, launcher, "p", emit=lambda line: None,  # type: ignore[arg-type]
+    dispatch = Dispatcher(service, principal, launcher, "p", emit=events.append,  # type: ignore[arg-type]
                           task_reader=service.tasks, knowledge_store=knowledge_store)  # type: ignore[arg-type]
     dispatch.pass_once()
     dispatch.pass_once()
     dispatch.pass_once()
-    assert service.rows["A"]["status"] == "done"
+    assert service.rows["A"]["status"] == "failed"
+    assert len(service.evidence) == 1
+    assert service.evidence[0].failure_class == "policy"
+    assert service.evidence[0].failure_reason == reason
+    assert f"failed p/A {reason} [policy]" in events
     lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("rejected ticket")
     assert (lesson["topic"], lesson["gotchas"], lesson["revision"]) == ("org/repo: rejected ticket", reason, 1)
 
@@ -1225,20 +1237,13 @@ def test_stale_heartbeat_cancels_and_retries_the_job(monkeypatch: pytest.MonkeyP
         launcher.jobs[job_ref].update(status="interrupted", error=f"cancelled by operator: {STALE_HEARTBEAT}")
         return True
 
-    def prepare_attempt(_principal: Any, task_id: str, _revision: str, reason: str, **_: Any) -> None:
-        assert task_id == "p/A"
-        assert "retry after engine crash" in reason and "heartbeat" in reason
-        assert service.rows["A"]["status"] == "failed"
-        service.rows["A"]["status"] = "todo"
-
     monkeypatch.setattr(launcher, "cancel", cancel, raising=False)
-    monkeypatch.setattr(service, "prepare_attempt", prepare_attempt, raising=False)
     dispatch.pass_once()
     assert service.rows["A"]["status"] == "claimed"
     dispatch.pass_once()
     assert cancellations == ["job-A", "job-A"]
     assert launcher.launches == ["A", "A"]
-    assert any(event.startswith("retry p/A engine crash") for event in events)
+    assert any(event.startswith("retry p/A cancelled by operator: ") and "[infra]" in event for event in events)
 
 
 @pytest.mark.parametrize("status,heartbeat", [("running", 1_400), ("running", None), ("awaiting_approval", 1_000)])
@@ -1512,6 +1517,7 @@ def _retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
     monkeypatch.setattr(bridge, "job", jobs.get)
     monkeypatch.setattr(bridge, "find", lambda task_id, attempt: jobs.get("job-A"))
     monkeypatch.setattr(bridge, "pending", lambda: [])
+    monkeypatch.setattr(bridge, "rejected_ticket_reason", lambda job: "")
     service = FakeService()
     service.rows = {"A": {"dependency_ids": [], "status": "todo", "repo": "r", "text": "Do A"}}
     numbers = iter(range(1, 10))
@@ -1523,19 +1529,7 @@ def _retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
         jobs["job-A"] = {"job_id": "job-A", "status": "running"}
         return result
 
-    def prepare_attempt(_principal: Any, identifier: str, _revision: str, reason: str, *,
-                        continuation: Any = None) -> str:
-        service.reasons.append(reason)  # type: ignore[attr-defined]
-        service.rows["A"]["attempt_continuation"] = continuation.model_dump(mode="json") if continuation else None
-        service.rows["A"]["status"] = "todo"
-        service.claims.pop("A", None)
-        return "rev"
-
-    service.reasons = []  # type: ignore[attr-defined]
-    service.evidence = []  # type: ignore[attr-defined]
     service.claim = claim  # type: ignore[method-assign]
-    service.prepare_attempt = prepare_attempt  # type: ignore[attr-defined]
-    service.record_completion_evidence = lambda *args: service.evidence.append(args[-1])  # type: ignore[attr-defined, method-assign]
     launched: list[list[str]] = []
     real_run = subprocess.run
 
@@ -1574,7 +1568,7 @@ def test_crash_preserves_work_and_the_retry_resumes_the_same_conversation(
     branch = "dispatch-attempt/p/A/1"
     assert f"preserved p/A {branch}" in events
     assert service.evidence[-1].preserved_branch == branch
-    assert branch in service.reasons[-1]
+    assert service.rows["A"]["attempt_continuation"]["preserved_branch"] == branch
 
     def git(*argv: str) -> str:
         return subprocess.run(["git", "-C", str(clone), *argv], text=True, capture_output=True, check=True).stdout.strip()
@@ -1587,7 +1581,7 @@ def test_crash_preserves_work_and_the_retry_resumes_the_same_conversation(
     retry = launched[1]
     assert _flag(retry, "--session") == "dispatch-attempt-1" and _flag(retry, "--task") == RESUME_PROMPT
     assert default_session_registry().resolve("codex", clone, "dispatch-attempt-1") == "thread-1"
-    assert dispatch.retries == {"p/A": 1}
+    assert service.rows["A"]["attempt_continuation"]["infra_retries"] == 1
 
     # The engine cannot load the conversation: a fresh one starts on the preserved work.
     jobs["job-A"].update(status="failed", cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1",
@@ -1601,7 +1595,7 @@ def test_crash_preserves_work_and_the_retry_resumes_the_same_conversation(
     assert "work of interrupted attempt 1" in text
     assert default_session_registry().resolve("codex", clone, "dispatch-attempt-3") is None
     assert git("show", "--name-only", "--format=", "HEAD") == "work.txt"
-    assert dispatch.retries == {"p/A": 1}  # a failed resume does not use the retry budget
+    assert service.rows["A"]["attempt_continuation"]["infra_retries"] == 1
 
 
 def test_crash_without_a_recorded_conversation_retries_fresh_on_the_kept_work(
@@ -1623,6 +1617,7 @@ def test_check_failure_does_not_retry_when_disabled(tmp_path: Path, monkeypatch:
     dispatch, service, jobs, launched, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
     service.rows["A"]["checks"] = [f'"{sys.executable}" -c "raise SystemExit(3)"']
     service.rows["A"]["max_check_retries"] = 0
+    service.rows["A"]["tier"] = "critical"
     dispatch.pass_once()
     (clone / "work.txt").write_text("done\n")
     jobs["job-A"].update(status="done", cwd=str(clone), session_name="dispatch-attempt-1", native_id="thread-1",
@@ -1689,7 +1684,7 @@ def test_preserved_conflicted_merge_stays_unresolved_for_the_retry(
     jobs["job-A"].update(status="done", cwd=str(clone))
     dispatch.pass_once()
     assert service.rows["A"]["status"] == "failed"
-    assert "failed p/A unresolved conflict markers in f.txt" in events
+    assert "failed p/A unresolved conflict markers in f.txt [infra]" in events
     assert not any(event.startswith("published") for event in events)
 
 
@@ -1703,7 +1698,7 @@ def test_clean_commit_with_conflict_markers_is_rejected(tmp_path: Path, monkeypa
     jobs["job-A"].update(status="done", cwd=str(clone))
     dispatch.pass_once()
     assert service.rows["A"]["status"] == "failed"
-    assert "failed p/A unresolved conflict markers in calc.py" in events
+    assert "failed p/A unresolved conflict markers in calc.py [infra]" in events
     assert not any(event.startswith(("published", "done")) for event in events)
 
 
@@ -1746,7 +1741,8 @@ def _real_retrying_dispatch(
         job_id = local_job_id(token)
         attempt = service.dispatch_status(principal, task_id)["attempt"]
         job = {"job_id": job_id, "task_id": task_id, "task_attempt": attempt, "status": "running",
-               "cwd": _flag(argv, "--cwd"), "engine": "codex", "session_name": _flag(argv, "--session")}
+               "cwd": _flag(argv, "--cwd"), "engine": _flag(argv, "--engine"),
+               "session_name": _flag(argv, "--session")}
         if refuse_resume and _flag(argv, "--task") == RESUME_PROMPT:
             job.update(status="failed", error="No bridge policy binding for this native session; use a new session alias")
         else:
@@ -1757,22 +1753,24 @@ def _real_retrying_dispatch(
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 
-    def dispatcher(events: list[str], **kwargs: Any) -> Dispatcher:
+    def dispatcher(events: list[str], *, launch_mode: str | None = None, **kwargs: Any) -> Dispatcher:
         bridge = BridgeLauncher(None, principal, PROJECT, repo_roots={"example/a": source},
-                                worktree_root=tmp_path / "trees")
+                                worktree_root=tmp_path / "trees", launch_mode=launch_mode)
         monkeypatch.setattr(bridge, "job", jobs.get)
         monkeypatch.setattr(bridge, "find", lambda task_id, attempt: next(
             (job for job in jobs.values() if job["task_id"] == task_id and job["task_attempt"] == attempt), None))
         monkeypatch.setattr(bridge, "pending", lambda: [])
+        monkeypatch.setattr(bridge, "rejected_ticket_reason", lambda job: "")
         return Dispatcher(service, principal, bridge, PROJECT, emit=events.append, **kwargs)
 
     def git(*argv: str) -> str:
         return real_run(["git", "-C", str(tmp_path / "trees" / PROJECT / "A"), *argv], text=True,
                         capture_output=True, check=True).stdout.strip()
 
-    def crash_first_attempt(events: list[str], **result: Any) -> Dispatcher:
-        first = dispatcher(events)
-        placement(service, "A")
+    def crash_first_attempt(events: list[str], *, engine_family: str = "codex",
+                            mode: str | None = None, **result: Any) -> Dispatcher:
+        first = dispatcher(events, launch_mode=mode)
+        placement(service, "A", engine=engine_family)
         first.pass_once()
         clone = Path(_flag(launched[0], "--cwd"))
         (clone / "work.txt").write_text("half done\n")
@@ -1788,9 +1786,10 @@ def _real_retrying_dispatch(
     return service, launched, crash_first_attempt, dispatcher, placement, git, board_task
 
 
-@pytest.mark.parametrize(("limit", "fixed"), [(1, True), (None, False)])
+@pytest.mark.parametrize(("limit", "fixed", "escalation_fixed"), [(1, True, False), (None, False, False),
+                                                               (None, False, True)])
 def test_check_retries_resume_and_recheck(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, limit: int | None, fixed: bool,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, limit: int | None, fixed: bool, escalation_fixed: bool,
 ) -> None:
     from lazybridge.engines.sessions import default_session_registry
 
@@ -1798,7 +1797,7 @@ def test_check_retries_resume_and_recheck(
               "[print(f'line {i:02d} ' + 'x' * 600) for i in range(64)]; "
               "print('check saw ' + value); raise SystemExit(value != 'fixed')")
     command = f'"{sys.executable}" -c "{script}"'
-    settings = {} if limit is None else {"max_check_retries": limit}
+    settings = {"tier": "thinking" if escalation_fixed else "writing"} if limit is None else {"max_check_retries": limit}
     _, launched, start_first_attempt, dispatcher, _, git, board_task = _real_retrying_dispatch(
         tmp_path, monkeypatch, checks=[command], **settings)
     events: list[str] = []
@@ -1812,7 +1811,7 @@ def test_check_retries_resume_and_recheck(
 
     def route(_tier: str, _busy: Any, _preference: Any, _fallback: Any, engine: Any) -> RoutingDecision:
         routed.append(engine)
-        return RoutingDecision(_tier, engine, None, None, "required engine", True)
+        return RoutingDecision(_tier, engine or "claude_code", None, None, "required engine", True)
 
     retries = limit if limit is not None else 2
     for attempt in range(1, retries + 1):
@@ -1842,14 +1841,151 @@ def test_check_retries_resume_and_recheck(
     assert sum(event.startswith("retry queue-test/A check failed") for event in events) == retries
     task = board_task()
     assert len(task["dispatches"]) == retries + 1
+    assert all(item["failure_class"] == "check" for item in task["dispatches"][:retries])
     if fixed:
         assert task["status"] == "done" and "done queue-test/A" in events
         assert git("show", "dispatch/queue-test/A:work.txt") == "fixed"
+        return
+    expected_tier = "critical" if escalation_fixed else "thinking"
+    assert task["status"] == "todo" and task["attempt_continuation"]["escalation_tier"] == expected_tier
+    escalation = dispatcher(events, router=route)
+    escalation.pass_once()
+    retry = launched[-1]
+    assert len(launched) == retries + 2 and routed[-1] is None
+    assert _flag(retry, "--tier") == expected_tier and _flag(retry, "--engine") == "claude"
+    assert _flag(retry, "--cwd") == _flag(launched[0], "--cwd")
+    assert _flag(retry, "--session") == "dispatch-attempt-4"
+    for outcome in ("half done", "broken 1", "broken 2"):
+        assert f"check saw {outcome}" in _flag(retry, "--task")
+    if escalation_fixed:
+        (Path(_flag(retry, "--cwd")) / "work.txt").write_text("fixed\n")
+        git("commit", "-qam", "Fix the acceptance failure")
+    job = escalation.launcher.job(board_task()["dispatches"][-1]["job_ref"])
+    assert job is not None
+    job.update(status="done", launch_mode="governed")
+    escalation.router = None
+    escalation.pass_once()
+    escalation.pass_once()
+    assert board_task()["status"] == ("done" if escalation_fixed else "failed")
+    failures = [event for event in events if event.startswith("escalation_failed queue-test/A")]
+    assert len(failures) == (0 if escalation_fixed else 1)
+    if failures:
+        assert "[check]" in failures[0]
+    assert len(launched) == retries + 2
+
+
+@pytest.mark.parametrize("mode", [None, "auto", "governed"])
+def test_governed_claude_repairs_in_a_fresh_conversation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                                        mode: str | None) -> None:
+    from lazybridge.engines.sessions import default_session_registry
+
+    from lazytools.projects.plan_edit import _board_key
+
+    command = f'"{sys.executable}" -c "print(\'broken assertion\'); raise SystemExit(1)"'
+    service, launched, start, dispatcher, placement, git, board_task = _real_retrying_dispatch(
+        tmp_path, monkeypatch, checks=[command], max_check_retries=1)
+    events: list[str] = []
+    first = start(events, engine_family="claude_code", mode=mode, status="done", error=None,
+                  launch_mode="governed", native_id="claude-session")
+    first.pass_once()
+    continuation = board_task()["attempt_continuation"]
+    assert continuation["fresh"] is True and continuation["native_id"] is None
+    assert len(continuation["check_failures"]) == 1
+    if mode is None:
+        # A dispatcher can inherit a repair queued before it checked resumability.
+        with Store(db=str(service.path)) as store:
+            key = _board_key(first.project_id)
+            board = store.read(key)
+            board["tasks"][0]["attempt_continuation"].update(fresh=False, native_id="claude-session")
+            store.write(key, board)
+    placement(service, "A", engine="claude_code")
+    dispatcher(events, launch_mode=mode).pass_once()
+    original, repair = launched
+    clone = Path(_flag(repair, "--cwd"))
+    assert _flag(repair, "--engine") == "claude" and clone == Path(_flag(original, "--cwd"))
+    assert _flag(repair, "--session") == "dispatch-attempt-2"
+    assert default_session_registry().resolve("claude", clone, "dispatch-attempt-2") is None
+    assert git("show", "HEAD:work.txt") == "half done"
+    assert command in _flag(repair, "--task") and "broken assertion" in _flag(repair, "--task")
+    assert board_task()["dispatches"][-1]["state"] == "submitted"
+
+
+@pytest.mark.parametrize("kind", ["flaky", "infra"])
+def test_verification_recovers_on_the_same_checkout_without_launching_an_agent(
+    kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, knowledge_store: Store,
+) -> None:
+    from lazytools.code_bridge import _dispatch_workspace
+
+    command = "pytest tests/test_api.py"
+    test_id = "tests/test_api.py::test_rate_limit"
+    failure = f"check failed: {command} (exit 1)\n"
+    failure += f"FAILED {test_id} - AssertionError" if kind == "flaky" else "database is locked"
+    results = iter([failure, None])
+    calls: list[tuple[str, Path]] = []
+
+    def run_check(command: str, cwd: Path, **_kwargs: Any) -> str | None:
+        calls.append((command, cwd))
+        return next(results)
+
+    monkeypatch.setattr(_dispatch_workspace, "_check_failure", run_check)
+    dispatch, service, jobs, launched, events, _, clone = _retrying_dispatch(tmp_path, monkeypatch)
+    dispatch.knowledge_store = knowledge_store
+    service.rows["A"]["checks"] = [command]
+    dispatch.pass_once()
+    (clone / "work.txt").write_text("done\n")
+    jobs["job-A"].update(status="done", cwd=str(clone))
+    dispatch.pass_once()
+    assert service.rows["A"]["status"] == "done" and len(launched) == 1
+    assert calls == [(command, clone), (command, clone)]
+    assert any(event.endswith(f"[{kind}]") for event in events)
+    assert service.evidence[-1].failure_class == kind
+    if kind == "flaky":
+        lesson, = DurableKnowledgeBase(knowledge_store).find_lessons("flaky check")
+        assert lesson["topic"] == f"r: flaky check {test_id}"
+
+
+@pytest.mark.parametrize("step", ["engine", "check"])
+def test_budget_failure_waits_for_reset_without_spending_a_repair(
+    step: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lazytools.code_bridge import _dispatch_workspace
+
+    service, launched, start, dispatcher, placement, _, board_task = _real_retrying_dispatch(
+        tmp_path, monkeypatch, checks=["pytest"], max_check_retries=1)
+    events: list[str] = []
+    now = service.clock()
+    service.clock = lambda: now
+    reason = "Provider quota exhausted. Retry-After: 30"
+    first = start(events, status="failed" if step == "engine" else "done", error=reason, quota_resets_at=now + 30)
+    first.clock = service.clock
+    calls: list[str] = []
+
+    def check(command: str, *_args: Any, **_kwargs: Any) -> str | None:
+        calls.append(command)
+        return f"check failed: {command}\n{reason}" if len(calls) == 1 else None
+
+    monkeypatch.setattr(_dispatch_workspace, "_check_failure", check)
+    first.pass_once()
+    assert board_task()["dispatches"][-1]["failure_class"] == "budget"
+    assert any(event.startswith("waiting queue-test/A") and "[budget]" in event for event in events)
+    if step == "engine":
+        assert board_task()["status"] == "todo"
+        continuation = board_task()["attempt_continuation"]
+        assert continuation["check_failures"] == [] and continuation["infra_retries"] == 0
+        placement(service, "A")
+        first = dispatcher(events, clock=service.clock)
     else:
-        assert task["status"] == "failed"
-        assert any(event.startswith("failed queue-test/A check failed") for event in events)
-        for outcome in ("half done", "broken 1", "broken 2"):
-            assert f"check saw {outcome}" in task["error"]
+        assert board_task()["status"] == "claimed"
+    first.pass_once()
+    assert len(launched) == 1
+    assert len(calls) == (0 if step == "engine" else 1)
+    now += 31
+    first.pass_once()
+    if step == "engine":
+        assert len(launched) == 2 and board_task()["status"] == "claimed"
+        assert _flag(launched[-1], "--session") == _flag(launched[0], "--session")
+    else:
+        assert len(launched) == 1 and board_task()["status"] == "done" and len(calls) == 2
 
 
 def test_restart_between_settlement_and_launch_resumes_the_preserved_work(
@@ -1863,7 +1999,7 @@ def test_restart_between_settlement_and_launch_resumes_the_preserved_work(
     events: list[str] = []
     first = crash_first_attempt(events)
     first.pass_once()  # settles and prepares the retry; the new revision has no placement, so nothing launches
-    assert any(event.startswith("retry queue-test/A engine crash") for event in events)
+    assert any(event.startswith("retry queue-test/A Codex App Server exited") and "[infra]" in event for event in events)
     assert len(launched) == 1
     continuation = board_task()["attempt_continuation"]
     preserved = git("rev-parse", "dispatch-attempt/queue-test/A/1")
