@@ -249,7 +249,8 @@ class ApprovalChannel:
         kind = hand.workspace.classify(request) if hand else "unknown"
         card_class = kind if selection else _coder.ACTION
         action = None
-        if hand and (selection is None or any(card.action_class == kind for card in selection.cards)):
+        # The job's own authority decides first; probes may reach the network.
+        if hand and hand.admits(request, kind):
             action = hand.workspace.action(request, ticket_kind=kind if selection else None)
         target = ApprovalTarget(path=request.cwd if action is None else None)
         typed = TypedApprovalRequest.create(

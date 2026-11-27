@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from lazybridge.engines.coding import ApprovalRequest
@@ -273,6 +275,40 @@ def test_push_card_checks_the_ref_git_would_update(autonomy_registry, destinatio
     assert isinstance(decision, tuple) and decision[0].status == "pending"
     git(cwd, "config", "--unset", "remote.origin.push")
     assert isinstance(channel._submit(request(cwd, command), command), CardApproval)
+
+
+SSH_SHIM = """\
+import subprocess, sys
+with open(sys.argv[1], "a", encoding="utf-8") as log:
+    log.write(sys.argv[-1] + "\\n")
+service, _, path = sys.argv[-1].partition(" ")
+sys.exit(subprocess.run(["git", service.removeprefix("git-"), sys.argv[2] + "/" + path.strip("'")]).returncode)
+"""
+
+
+def test_job_authority_is_checked_before_any_network_probe(autonomy_registry, tmp_path, monkeypatch):
+    cwd, registry = autonomy_registry
+    remotes = (tmp_path / "remotes").as_posix()
+    shim, log = tmp_path / "ssh_shim.py", tmp_path / "ssh.log"
+    shim.write_text(SSH_SHIM, encoding="utf-8")
+    monkeypatch.setenv("GIT_SSH_VARIANT", "simple")
+    monkeypatch.setenv("GIT_SSH_COMMAND", f'"{Path(sys.executable).as_posix()}" "{shim.as_posix()}" "{log.as_posix()}" "{remotes}"')
+    monkeypatch.setattr(_coder_actions, "_GITHUB_REMOTE", re.compile(r"shim:([\w.-]+/[\w.-]+)"))
+    git(cwd, "remote", "set-url", "origin", "shim:example/autonomy.git")
+    gh_probes = []
+    monkeypatch.setattr(_coder_actions, "_gh_default_repo", lambda path: gh_probes.append(path))
+    assert configure(registry, "supervised") == 0
+    push = "git push origin feature/work"
+
+    offline = channel_for(registry, cwd, "offline", network="off")
+    for command in (push, "gh pr create --fill --head feature/work"):
+        decision = offline._submit(request(cwd, command), command)
+        assert isinstance(decision, tuple) and decision[0].status == "pending", command
+    assert not log.exists() and not gh_probes
+
+    online = channel_for(registry, cwd, "online")
+    assert isinstance(online._submit(request(cwd, push), push), CardApproval)
+    assert "git-receive-pack 'example/autonomy.git'" in log.read_text(encoding="utf-8")
 
 
 def test_github_cards_check_the_default_repository(autonomy_registry, monkeypatch):

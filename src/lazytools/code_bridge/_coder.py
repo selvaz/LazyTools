@@ -5,12 +5,13 @@ from __future__ import annotations
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, cast
 
 from lazybridge import Store
+from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.ext.approval import ApprovalQueue
 from lazybridge.policy import (
     ApprovalCard,
@@ -138,6 +139,26 @@ class Hand:
     workspace: _coder_actions.Workspace
     policies: dict[Path, EffectivePolicy]
     selection: Selection | None
+    network: str
+
+    def admits(self, request: ApprovalRequest, kind: str) -> bool:
+        """Whether the job's own authority and copied cards could approve this request.
+
+        Checked before any workspace probe, since some probes (git push --dry-run,
+        gh repo set-default --view) reach the network themselves.
+        """
+        action_class = kind if self.selection else ACTION
+        # The same ticket kind Workspace.action receives, so both agree on the network state.
+        network = self.workspace.network(request, kind if self.selection else None)
+        if network == "on" and self.network != "on":
+            return False
+        now = datetime.now(UTC)
+        return any(
+            card.action_class == action_class and card.matcher.network == network
+            and (card.expires_at is None or card.expires_at > now)
+            and (network == "off" or policy.network == "on")
+            for policy in self.policies.values() for card in policy.approval_cards
+        )
 
 
 def copy_for_job(
@@ -176,4 +197,4 @@ def copy_for_job(
                 record(copy.card_id)
                 copies.append(copy)
             policies[root] = _policy(root, tuple(copies))
-    return Hand(workspace, policies, selection if configured else None)
+    return Hand(workspace, policies, selection if configured else None, network)

@@ -12,6 +12,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path
+from typing import Literal
 
 from lazybridge.engines.coding import ApprovalRequest
 from lazybridge.policy import CardAction
@@ -271,6 +272,10 @@ def _git_value(cwd: Path, *args: str) -> str:
         ["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5, check=False,
     )
     return "" if result.returncode else result.stdout.strip()
+
+
+def _network(kind: str | None, argv: list[str]) -> Literal["on", "off"]:
+    return "on" if kind in NETWORK_CLASSES or argv[0] == "gh" else "off"
 
 
 def _push_updates_only(argv: list[str], cwd: Path, ref: str) -> bool:
@@ -558,9 +563,15 @@ class Workspace:
                 return root, CardAction(
                     argv=tuple(argv), cwd=root, paths=affected,
                     branch=self.branch if kind == "git_push_job_branch" else None,
-                    network="on" if kind in NETWORK_CLASSES or argv[0] == "gh" else "off",
+                    network=_network(kind, argv),
                 )
         return None
+
+    def network(self, request: ApprovalRequest, kind: str | None) -> Literal["on", "off"]:
+        """Return the network state a card must carry for this request, without running anything."""
+        command = request.arguments.get("command")
+        argv = _args(command, powershell=request.provider == "codex") if isinstance(command, str) else None
+        return _network(kind, argv or ["bridge-edit"])
 
     def _autonomy_paths(self, kind: str, argv: list[str], cwd: Path) -> tuple[Path, ...] | None:
         if kind in {"git_push_job_branch", "push_default_branch", "gh_pr_create", "gh_pr_merge", "network_other"}:
