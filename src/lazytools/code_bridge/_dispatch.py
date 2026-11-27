@@ -338,14 +338,16 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
 
     if not cwd.is_dir():
         return None, None
+    # Checked even for a clean checkout: a commit (the agent's or a preserved attempt's)
+    # does not make conflict markers resolved.
+    markers = _conflict_markers(cwd)
+    if markers:
+        return f"unresolved conflict markers in {', '.join(markers[:5])}", None
     # Tool litter alone (error.log, __pycache__) is not unfinished work.
     dirty = [line[3:] for line in git("status", "--porcelain").stdout.splitlines()
              if line.strip() and not _is_litter(line[3:])]
     if not dirty:
         return None, None
-    markers = git("grep", "-l", "-E", "^(<<<<<<<|>>>>>>>) ", "--", ".").stdout.split()
-    if markers:
-        return f"unresolved conflict markers in {', '.join(markers[:5])}", None
     merging = git("rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0
     # Never stage tool litter (the Codex CLI writes error.log with account details),
     # and unstage any the agent already staged.
@@ -368,12 +370,42 @@ def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None
     return None, git("rev-parse", "HEAD").stdout.strip() or None
 
 
+_CONFLICT_MARKER = re.compile(rb"^(<<<<<<<|>>>>>>>) ", re.MULTILINE)
+
+
+def _conflict_markers(cwd: Path) -> list[str]:
+    """Files changed since `dispatch-base` (committed or not) that still hold conflict markers.
+
+    The one marker check of settlement. Without a `dispatch-base` tag every file is checked.
+    """
+    def paths(*argv: str) -> list[str]:
+        result = subprocess.run(["git", "-C", str(cwd), *argv, "-z"], text=True, capture_output=True, check=False)
+        return [path for path in result.stdout.split("\0") if path]
+
+    has_base = subprocess.run(["git", "-C", str(cwd), "rev-parse", "-q", "--verify", "refs/tags/dispatch-base"],
+                              text=True, capture_output=True, check=False).returncode == 0
+    candidates = (paths("diff", "--name-only", "dispatch-base") if has_base else paths("ls-files", "--cached"))
+    candidates += paths("ls-files", "--others", "--exclude-standard")
+    found = []
+    for path in sorted(set(candidates)):
+        file = cwd / path
+        if _is_litter(path) or not file.is_file():
+            continue
+        try:
+            if _CONFLICT_MARKER.search(file.read_bytes()):
+                found.append(path)
+        except OSError:
+            continue
+    return found
+
+
 @dataclass(frozen=True)
 class Preserved:
     branch: str
     files: tuple[str, ...]
     message: str
     commit: str
+    unresolved: tuple[str, ...] = ()  # files that still hold conflict markers (an unresolved merge)
 
 
 def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved | None, str | None]:
@@ -381,6 +413,8 @@ def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved 
 
     Commits uncommitted non-litter changes (outside the engine sandbox, like a finished
     task) and points the branch at HEAD. Returns (None, None) when there is nothing to keep.
+    A merge left unresolved is recorded as such (commit message and `Preserved.unresolved`)
+    so the retry is told; settlement rejects any artifact that still holds the markers.
     """
     def git(*argv: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(["git", "-C", str(cwd), *argv], text=True, capture_output=True, check=False)
@@ -395,16 +429,21 @@ def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved 
     project, _, task = task_id.rpartition("/")
     safe_project = re.sub(r"[^A-Za-z0-9_.-]+", "-", project)
     safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task)
+    unresolved = tuple(_conflict_markers(cwd))
     if dirty:
+        merge_head = git("rev-parse", "-q", "--verify", "MERGE_HEAD").stdout.strip()
         git("add", "-A", "--", ".", *(f":(exclude){pattern}" for pattern in COMMIT_EXCLUDES))
         staged_litter = [path for path in git("diff", "--cached", "--name-only").stdout.splitlines()
                          if _is_litter(path)]
         if staged_litter:
             git("reset", "-q", "--", *staged_litter)
-        merging = git("rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0
-        if git("diff", "--cached", "--name-only").stdout.strip() or merging:
-            commit = git("commit", "-q", "-m", f"{task}: work of interrupted attempt {attempt}",
-                         "-m", "Preserved by the dispatcher before a retry: the engine stopped for a system reason.")
+        if git("diff", "--cached", "--name-only").stdout.strip() or merge_head:
+            body = ["-m", "Preserved by the dispatcher before a retry: the engine stopped for a system reason."]
+            if unresolved:
+                what = f"The merge of {merge_head} is UNRESOLVED" if merge_head else "The work is UNRESOLVED"
+                body += ["-m", f"{what}: conflict markers remain in {', '.join(unresolved[:20])}."]
+            commit = git("commit", "-q", "-m", f"{task}: work of interrupted attempt {attempt}"
+                         + (" (unresolved merge)" if unresolved else ""), *body)
             if commit.returncode:
                 return None, f"could not commit the attempt's work: {(commit.stderr or commit.stdout).strip()[:200]}"
     branch = f"dispatch-attempt/{safe_project}/{safe_task}/{attempt}"
@@ -416,7 +455,7 @@ def _preserve_attempt(cwd: Path, task_id: str, attempt: int) -> tuple[Preserved 
     changed = git("diff", "--name-only", "dispatch-base", "HEAD") if has_base else None
     files = tuple(changed.stdout.splitlines()) if changed and changed.stdout.strip() else tuple(dirty)
     message = git("log", "-1", "--format=%B").stdout.strip()
-    return Preserved(branch, files, message, git("rev-parse", "HEAD").stdout.strip()), None
+    return Preserved(branch, files, message, git("rev-parse", "HEAD").stdout.strip(), unresolved), None
 
 
 def _is_litter(path: str) -> bool:
@@ -608,8 +647,14 @@ class Dispatcher:
         branch = resume.get("preserved_branch")
         if branch:
             task = {**task, "preserved_branch": branch, "preserved_commit": resume.get("preserved_commit")}
+        unresolved = list(resume.get("preserved_unresolved") or [])
+        warning = ("" if not unresolved else
+                   " The merge is UNRESOLVED: conflict markers remain in "
+                   + ", ".join(unresolved[:20]) + (" ..." if len(unresolved) > 20 else "")
+                   + ". Resolve every conflict first so the changes of both sides are kept, then commit;"
+                   " the task is rejected while any marker remains.")
         if _resumes(resume, claim.get("engine_family")):
-            return {**task, "text": RESUME_PROMPT, "resume_session": resume.get("session"),
+            return {**task, "text": RESUME_PROMPT + warning, "resume_session": resume.get("session"),
                     "resume_native_id": resume["native_id"]}
         task = self._with_lessons(task)
         if branch:
@@ -619,7 +664,7 @@ class Dispatcher:
             task = {**task, "text": (
                 "A previous attempt at this task was interrupted by the system. Its work is kept in this "
                 f"checkout (also on branch {branch}). Files it changed: {files or 'none'}. Its last "
-                f"commit message: {message}. Review that work, keep what is "
+                f"commit message: {message}.{warning} Review that work, keep what is "
                 "right and finish the task below.\n\n" + str(task["text"]))}
         return task
 
@@ -955,8 +1000,10 @@ class Dispatcher:
             kept: dict[str, Any] = {
                 "preserved_branch": preserved.branch, "preserved_commit": preserved.commit,
                 "preserved_files": list(preserved.files), "preserved_message": preserved.message,
+                "preserved_unresolved": list(preserved.unresolved),
             } if preserved else {key: (continuation or {}).get(key) for key in (
                 "preserved_branch", "preserved_commit", "preserved_files", "preserved_message",
+                "preserved_unresolved",
             ) if resume_failed and (continuation or {}).get(key)}
             cause = "resume failed" if resume_failed else "engine crash"
             if self._retry(task, cause, failure_reason, {

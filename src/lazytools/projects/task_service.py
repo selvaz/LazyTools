@@ -88,6 +88,7 @@ class AttemptContinuation(BaseModel):
     preserved_commit: Nonempty | None = None
     preserved_files: tuple[str, ...] = ()
     preserved_message: str = ""
+    preserved_unresolved: tuple[str, ...] = ()  # files the preserved work left with conflict markers
     session: Nonempty | None = None  # the failed attempt's session alias
     native_id: Nonempty | None = None  # its engine conversation; None starts a fresh one
     engine: Nonempty | None = None
