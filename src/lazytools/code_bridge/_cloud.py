@@ -64,6 +64,7 @@ must stay local jobs.
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
 import shutil
@@ -72,10 +73,12 @@ import sys
 import time
 import tomllib
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
 from lazytools.code_bridge import _cloud_place, _cloud_preflight, _concurrency, _store
+from lazytools.code_bridge._lockfile import _pid_alive
 
 WHERE_LOCAL = "local"
 WHERE_CLOUD = "cloud"
@@ -717,6 +720,10 @@ def parse_submit(text: str) -> tuple[str, str | None]:
     raise CloudError(f"codex cloud exec did not print a task URL or id; output was:\n{text.strip()[:2000]}")
 
 
+def dispatch_label(task_id: str, attempt: int, job_id: str) -> str:
+    return f"[LazyTools dispatch {task_id} attempt {attempt} job {job_id}]"
+
+
 # --------------------------------------------------------------------------- #
 # providers
 # --------------------------------------------------------------------------- #
@@ -825,6 +832,62 @@ class CodexCloud:
         _, out, _ = self._run("exec", "--env", env_id, "--branch", branch, cwd=repo_dir, input=prompt)
         handle, url = parse_submit(out)
         return Submission(handle=url or handle, url=url, env_id=env_id, raw=redact(out))
+
+    def find_submission(self, job: dict[str, Any], label: str) -> str | None:
+        """Look for the dispatch label in the provider's recorded user prompt."""
+        from lazytools.code_bridge import _cloud_stop
+
+        matches: set[str] = set()
+        seen: set[str] = set()
+        legacy = not str(job.get("objective", "")).endswith(label)
+        created_at = float(job.get("created_at") or 0)
+        credentials = None
+        try:
+            for row in _cloud_stop.codex_tasks(env_id=job.get("env_id"), require_complete=True):
+                if isinstance(updated_at := row.get("updated_at"), str):
+                    try:
+                        updated = datetime.fromisoformat(updated_at).timestamp()
+                    except ValueError:
+                        pass  # a task with no usable timestamp still needs its details checked
+                    else:
+                        if updated + CLI_TIMEOUT < created_at:
+                            continue  # predates submission, allowing for clock skew
+                handle = str(row.get("id") or row.get("task_id") or "")
+                if not _TASK_ID.fullmatch(handle):
+                    raise CloudError("Codex task list returned a task without an id")
+                if handle in seen:
+                    continue
+                seen.add(handle)
+                if credentials is None:
+                    credentials = _cloud_stop._credentials("codex")
+                token, account_id = credentials
+                details = _cloud_stop._request("GET", _cloud_stop.CODEX_API.format(task_id=handle), token,
+                                               account_id=account_id)
+                try:
+                    items = details["current_user_turn"]["input_items"]
+                    prompts = [part["text"] for item in items if item.get("role") == "user"
+                               for part in item["content"] if part.get("content_type") == "text"]
+                except (KeyError, TypeError, AttributeError):
+                    raise CloudError("Codex task details did not include the user prompt") from None
+                for prompt in prompts:
+                    if label in prompt.splitlines():
+                        matches.add(handle)
+                    elif legacy and prompt.startswith(CLOUD_PREAMBLE) and prompt.endswith(CLOUD_REPORT_SUFFIX):
+                        brief = prompt.removeprefix(CLOUD_PREAMBLE).removesuffix(CLOUD_REPORT_SUFFIX)
+                        if _store.brief_hash(brief) != job.get("brief_hash"):
+                            continue
+                        # Older submissions only have a brief hash. Check when the matching task was created.
+                        try:
+                            created = float(details["task"]["created_at"])
+                            if created >= created_at:
+                                matches.add(handle)
+                        except (KeyError, TypeError, ValueError):
+                            raise CloudError("Cannot date a Codex task matching the original dispatch brief") from None
+        except (_cloud_stop.StopError, OSError, subprocess.TimeoutExpired) as exc:
+            raise CloudError(redact(str(exc))) from None
+        if len(matches) > 1:
+            raise CloudError("Multiple Codex tasks match the dispatch")
+        return next(iter(matches), None)
 
     def status(self, handle: str) -> CloudStatus:
         """Poll once. A non-zero exit is NOT automatically a poll error.
@@ -955,6 +1018,33 @@ def _write_unless_terminal(store: Any, registry: Any, job_id: str, updates: dict
 def mark_interrupted(store: Any, registry: Any, job_id: str, error: str) -> bool:
     """Record a cloud job interrupted (operator cancel), unless it already ended."""
     return _write_unless_terminal(store, registry, job_id, {}, status="interrupted", error=error)
+
+
+def reconcile_submission(store: Any, registry: Any, job: dict[str, Any], label: str) -> dict[str, Any]:
+    """Recover a handle or close the bridge record after a conclusive lookup."""
+    handle = None
+    if not job.get("cloud_submission_absent"):
+        pid = job.get("submit_pid")
+        if isinstance(pid, int) and _pid_alive(pid):
+            return job
+        prov = provider(str(job["engine"]))
+        lookup = getattr(prov, "find_submission", None)
+        if lookup is None:
+            raise CloudError(f"{job['engine']} cloud does not expose a submission lookup")
+        handle = lookup(job, label)
+    job_id = str(job["job_id"])
+    with _concurrency._guard(_concurrency.load_config().slot_dir):
+        current = _merged(store, registry, job_id)
+        if current.get("status") != "submitting" or current.get("cloud_handle"):
+            return current
+        meta = _store.read_meta(store, job_id) or {}
+        if handle:
+            _write(store, registry, job_id, {**meta, "cloud_handle": handle, "submitted_at": time.time()},
+                   status="running")
+        else:
+            _write(store, registry, job_id, {**meta, "cloud_submission_absent": True},
+                   status="interrupted", error="provider has no matching dispatch")
+        return _merged(store, registry, job_id)
 
 
 def active_jobs(store: Any, engine: str | None = None) -> list[dict[str, Any]]:
@@ -1313,6 +1403,7 @@ def submit_job(
         "title": redact(title.strip()) if title and title.strip() else None,
         "created_at": time.time(),
         "cloud_handle": None,
+        "submit_pid": os.getpid(),
         "open_pr": bool(open_pr),
         "land": bool(land),
         "rebase_ok": bool(rebase_ok),

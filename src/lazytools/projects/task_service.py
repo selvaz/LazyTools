@@ -866,8 +866,9 @@ class ProjectTaskService:
         *,
         evidence_ref: str | None = None,
         job_ref: str | None = None,
+        failure_reason: str | None = None,
     ) -> None:
-        """Record trusted provider evidence. Release only after conclusively ruling out live work."""
+        """Record trusted provider evidence. A failure reason stops retries on release."""
         principal.require_role("orchestrator")
         with transaction(self.path, write=True) as store:
             task = _scoped_task(store, principal, task_id)
@@ -883,7 +884,10 @@ class ProjectTaskService:
             if dispatch["state"] != "intent" and not (evidence_ref or "").strip():
                 raise TaskServiceError("invalid", "Provider reconciliation evidence is required")
             known_job = dispatch.get("job_ref")
-            if known_job and (observation == "absent" or (job_ref and known_job != job_ref)):
+            # A cloud acknowledgement can refer to a bridge record that never got a provider handle.
+            missing_cloud_submission = receipt["effective_placement"] == "cloud" and job_ref == known_job
+            if known_job and ((observation == "absent" and not missing_cloud_submission)
+                              or (job_ref and known_job != job_ref)):
                 raise TaskServiceError("conflict", "Provider observation conflicts with the recorded job")
             if observation in ("submitted", "terminated") and not (job_ref or "").strip():
                 raise TaskServiceError("invalid", "Provider job reference is required")
@@ -894,6 +898,8 @@ class ProjectTaskService:
                     raise TaskServiceError("unresolved", "Reconcile outstanding effects before releasing the claim")
                 _release(task)
                 task.data["queue_released_at"] = now
+                if failure_reason:
+                    task.data.update(status="failed", completed_at=now, error=failure_reason)
             if job_ref:
                 dispatch["job_ref"] = job_ref
             dispatch.update(state=observation, reconciliation_ref=evidence_ref, reconciled_at=now)

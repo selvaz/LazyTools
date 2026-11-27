@@ -16,7 +16,7 @@ import time
 import urllib.error
 import urllib.request
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +54,7 @@ def _nested_string(value: Any, names: tuple[str, ...]) -> str | None:
     return None
 
 
-def _token(provider: str) -> str:
+def _credentials(provider: str) -> tuple[str, str | None]:
     path = credential_paths()[provider]
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -63,7 +63,7 @@ def _token(provider: str) -> str:
         token = None
     if not token:
         raise StopError(f"{provider}: login needed")
-    return token
+    return token, _nested_string(payload, ("account_id", "accountId"))
 
 
 def _claude_stop(handle: str) -> dict[str, Any]:
@@ -91,9 +91,12 @@ def _claude_stop(handle: str) -> dict[str, Any]:
     return {"provider": "claude", "handle": handle, "status": "stop requested"}
 
 
-def _request(method: str, url: str, token: str, *, opener: Callable[..., Any] = urllib.request.urlopen) -> Any:
+def _request(method: str, url: str, token: str, *, account_id: str | None = None,
+             opener: Callable[..., Any] = urllib.request.urlopen) -> Any:
     request = urllib.request.Request(url, data=b"{}" if method == "POST" else None, method=method)
     request.add_header("Authorization", f"Bearer {token}")
+    if account_id:
+        request.add_header("ChatGPT-Account-ID", account_id)
     request.add_header("Content-Type", "application/json")
     try:
         with opener(request, timeout=15) as response:
@@ -107,6 +110,8 @@ def _request(method: str, url: str, token: str, *, opener: Callable[..., Any] = 
         # Some HTTP stacks include request headers in their exception text.
         # Remove the exact in-memory credential before the general redactor.
         detail = str(exc).replace(token, "[redacted]")
+        if account_id:
+            detail = detail.replace(account_id, "[redacted]")
         raise StopError(f"cloud request failed: {detail}") from None
 
 
@@ -122,16 +127,16 @@ def stop(provider: str, handle: str, *, opener: Callable[..., Any] = urllib.requ
          sleep: Callable[[float], None] = time.sleep, timeout: float = 60) -> dict[str, Any]:
     if provider == "claude":
         return _claude_stop(handle)
-    token = _token(provider)
+    token, account_id = _credentials(provider)
     url = CODEX_API.format(task_id=handle)
-    before = _request("GET", url, token, opener=opener)
+    before = _request("GET", url, token, account_id=account_id, opener=opener)
     old = _codex_status(before)
     if old and old not in ("pending", "running", "in_progress", "queued"):
         return {"provider": provider, "handle": handle, "status": "already finished", "reason": old}
-    _request("POST", url + "/cancel", token, opener=opener)
+    _request("POST", url + "/cancel", token, account_id=account_id, opener=opener)
     deadline = time.monotonic() + timeout
     while True:
-        state = _codex_status(_request("GET", url, token, opener=opener))
+        state = _codex_status(_request("GET", url, token, account_id=account_id, opener=opener))
         if state not in (None, "pending", "running", "in_progress", "queued"):
             status = "stopped" if state in ("failed", "cancelled", "canceled") else "already finished"
             return {"provider": provider, "handle": handle, "status": status, "reason": state}
@@ -153,12 +158,13 @@ def _codex_status(payload: Any) -> str | None:
     return str(value).lower() if value else None
 
 
-def codex_running() -> list[str]:
-    """Ask the installed Codex CLI for account-wide tasks, including non-bridge tasks."""
-    rows: list[Any] = []
+def codex_tasks(*, env_id: str | None = None, require_complete: bool = False) -> Iterator[dict[str, Any]]:
+    """Read Codex task pages, including tasks that have already ended."""
     cursor: str | None = None
     for _page in range(_CODEX_LIST_PAGE_CAP):
         argv = [*_cloud._codex_argv(), "cloud", "list", "--json"]
+        if env_id:
+            argv.extend(("--env", env_id))
         if cursor:
             argv.extend(("--cursor", cursor))
         proc = subprocess.run(argv, capture_output=True, text=True, timeout=30)
@@ -169,29 +175,33 @@ def codex_running() -> list[str]:
         except ValueError as exc:
             raise StopError(f"codex cloud list returned invalid JSON: {exc}") from None
         if isinstance(payload, list):
-            rows.extend(payload)
-            cursor = None
+            page_rows, cursor = payload, None
         elif isinstance(payload, dict):
             page_rows = payload.get("tasks", [])
-            if isinstance(page_rows, list):
-                rows.extend(page_rows)
             next_cursor = payload.get("next_cursor") or payload.get("cursor")
             cursor = str(next_cursor) if next_cursor else None
         else:
-            cursor = None
+            page_rows, cursor = None, None
+        if require_complete and (
+            (isinstance(payload, dict) and "tasks" not in payload)
+            or not isinstance(page_rows, list) or any(not isinstance(row, dict) for row in page_rows)
+        ):
+            raise StopError("codex cloud list returned an invalid task page")
+        if isinstance(page_rows, list):
+            yield from (row for row in page_rows if isinstance(row, dict))
         if cursor is None:
-            break
-    else:
-        warnings.warn(
-            f"codex cloud list reached its {_CODEX_LIST_PAGE_CAP}-page cap; results may be incomplete",
-            RuntimeWarning,
-            stacklevel=2,
-        )
+            return
+    message = f"codex cloud list reached its {_CODEX_LIST_PAGE_CAP}-page cap; results may be incomplete"
+    if require_complete:
+        raise StopError(message)
+    warnings.warn(message, RuntimeWarning, stacklevel=3)
+
+
+def codex_running() -> list[str]:
+    """Ask the installed Codex CLI for account-wide tasks, including non-bridge tasks."""
     found: list[str] = []
     seen: set[str] = set()
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
+    for row in codex_tasks():
         state = str(row.get("status") or row.get("turn_status") or "").lower()
         handle = row.get("id") or row.get("task_id") or row.get("url")
         if state in ("pending", "running", "in_progress", "queued") and handle:
