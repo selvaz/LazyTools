@@ -7,8 +7,10 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -27,6 +29,7 @@ from lazytools.code_bridge import (
     _registry,
     _routing,
     _store,
+    _task,
 )
 from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects.tools import _resolve_store_db
@@ -58,6 +61,29 @@ class Task:
     data: dict[str, Any]
     dispatch: dict[str, Any] | None
     hold_reason: str | None = None  # reason recorded with the task's current start_hold
+
+
+class RepositoryMismatch(ValueError):
+    """The repository a cloud task would act on is not the task's repository."""
+
+
+def cloud_repo(repo_roots: dict[str, Path], task: dict[str, Any]) -> Path:
+    """The checkout a cloud task acts on: its --repo-root mapping, verified against the task's `repo`.
+
+    The cloud job takes its repository from this checkout, so there is no fallback to the
+    dispatcher's own checkout: a wrong one would publish the work to another repository.
+    """
+    repo = str(task.get("repo") or "")
+    if not repo:
+        raise RepositoryMismatch("cloud task names no repository")
+    root = next((path for slug, path in repo_roots.items() if slug.casefold() == repo.casefold()), None)
+    if root is None:
+        raise RepositoryMismatch(f"no --repo-root mapping for the task's repository {repo}")
+    try:
+        _task.check_repo(_cloud.repo_root(root), repo, label="Cloud")  # the rule local launches apply
+    except Exception as exc:
+        raise RepositoryMismatch(str(exc)) from exc
+    return root
 
 
 class Launcher(Protocol):
@@ -93,6 +119,7 @@ class BridgeLauncher:
         self.project_id = project_id
         self.repo_roots = repo_roots or {}
         self.worktree_root = worktree_root
+        self.cloud_checkouts: set[Path] = set()  # acceptance clones this launcher allocated
 
     @staticmethod
     def _git(repo: Path, *args: str) -> str:
@@ -282,7 +309,7 @@ class BridgeLauncher:
         return not (limit and sum(job.get("engine") == engine for job in active) >= limit)
 
     def launch_cloud(self, task: dict[str, Any], claim: dict[str, Any], job_id: str) -> str:
-        repo = self.repo_roots.get(str(task.get("repo"))) or Path.cwd()
+        repo = cloud_repo(self.repo_roots, task)  # checked again: placement may predate the mapping
         family = str(claim["engine_family"])
         command = [sys.executable, "-m", "lazytools.code_bridge", "run", "--where", "cloud", "--allow-cloud",
                    "--engine", "claude" if family == "claude_code" else family,
@@ -315,18 +342,36 @@ class BridgeLauncher:
         return job
 
     def cloud_checkout(self, task_id: str, job: dict[str, Any]) -> Path:
-        """A fresh local clone of the landed branch at the pushed commit, for the acceptance checks."""
+        """A fresh local clone of the landed branch at the pushed commit, for the acceptance checks.
+
+        The clone gets a newly allocated directory in its own namespace, never a path derived
+        from the task name, so it cannot coincide with a local task's checkout.
+        """
         repo = Path(str(job.get("repo_root") or Path.cwd()))
         safe_project = re.sub(r"[^A-Za-z0-9_.-]+", "-", self.project_id)
         safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task_id.rsplit("/", 1)[-1])
-        checkout = (self.worktree_root or repo.parent / "_dispatch") / safe_project / f"{safe_task}-cloud"
-        shutil.rmtree(checkout, ignore_errors=True)
-        checkout.parent.mkdir(parents=True, exist_ok=True)
-        self._git(repo, "clone", "--quiet", "--local", "--no-checkout", str(repo), str(checkout))
-        self._git(checkout, "remote", "set-url", "origin", self._git(repo, "remote", "get-url", "origin"))
-        self._git(checkout, "fetch", "--quiet", "origin", f"refs/heads/{job['landed_branch']}")
-        self._git(checkout, "checkout", "--quiet", "--detach", str(job["pushed_sha"]))
+        namespace = (self.worktree_root or repo.parent / "_dispatch") / safe_project / ".cloud-accept"
+        namespace.mkdir(parents=True, exist_ok=True)
+        checkout = Path(tempfile.mkdtemp(prefix=f"{safe_task}-{job.get('task_attempt') or 0}-", dir=namespace))
+        self.cloud_checkouts.add(checkout)
+        try:
+            self._git(repo, "clone", "--quiet", "--local", "--no-checkout", str(repo), str(checkout))
+            self._git(checkout, "remote", "set-url", "origin", self._git(repo, "remote", "get-url", "origin"))
+            self._git(checkout, "fetch", "--quiet", "origin", f"refs/heads/{job['landed_branch']}")
+            self._git(checkout, "checkout", "--quiet", "--detach", str(job["pushed_sha"]))
+        except Exception:
+            self.remove_cloud_checkout(checkout)
+            raise
         return checkout
+
+    def remove_cloud_checkout(self, checkout: Path) -> None:
+        """Delete an acceptance clone; only directories `cloud_checkout` allocated are ever touched."""
+        if checkout in self.cloud_checkouts:
+            self.cloud_checkouts.discard(checkout)
+            for directory, _, files in os.walk(checkout):  # git objects are read-only on Windows
+                for name in files:
+                    os.chmod(os.path.join(directory, name), stat.S_IREAD | stat.S_IWRITE)
+            shutil.rmtree(checkout, ignore_errors=True)
 
 
 def cloud_job_id(claim_token: str) -> str:
@@ -670,6 +715,13 @@ class Dispatcher:
         assert self.cloud_placer is not None
         try:
             engine, environment = self.cloud_placer(task.data, tier)
+        except RepositoryMismatch as exc:
+            # Not a transient condition: the task is not placed, so it can never be claimed.
+            self.waiting.discard(task.task_id)
+            if task.task_id not in self.unsupported:
+                self.unsupported.add(task.task_id)
+                self._event("failed", task.task_id, f"cloud placement refused: {str(exc).replace(chr(10), ' ')}")
+            return
         except Exception as exc:
             if task.task_id not in self.waiting:
                 self._event("waiting", task.task_id, f"cloud placement failed: {str(exc).replace(chr(10), ' ')}")
@@ -783,8 +835,13 @@ class Dispatcher:
             except Exception as exc:
                 failure = f"could not clone the landed branch: {_cloud.redact(str(exc))[:300]}"
             else:
-                failure = ("\n".join(filter(None, (_check_failure(command, cwd) for command in checks)))
-                           or _checks_changed_checkout(cwd, job.get("pushed_sha")))
+                try:
+                    failure = ("\n".join(filter(None, (_check_failure(command, cwd) for command in checks)))
+                               or _checks_changed_checkout(cwd, job.get("pushed_sha")))
+                finally:
+                    remove = getattr(self.launcher, "remove_cloud_checkout", None)
+                    if remove is not None:
+                        remove(cwd)
             expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
             failure = failure or ("claim lease expired" if expired else None)
         else:
@@ -1159,12 +1216,12 @@ def _routers(
 
     def cloud_placer(task: dict[str, Any], tier: str) -> tuple[str, str]:
         """The routed engine and its cloud environment, through the same decision `run --where cloud` uses."""
+        repo = cloud_repo(repo_roots, task)  # the repository the cloud job would act on
         # Local engine slots do not bound cloud work; cloud admission is checked separately (`cloud_free`).
         family = _routing.choose(tier, cwd=os.getcwd(), db_path=db_path, respect_slots=False).decision.provider
         if family is None:
             raise ValueError(f"no eligible engine for tier {tier}")
         engine = "claude" if family == "claude_code" else family
-        repo = repo_roots.get(str(task.get("repo"))) or Path.cwd()
         config = _cloud.load_config()
         placement = _cloud_place.decide_for_repo("cloud", config=config, engine=engine, cwd=repo)
         if placement.where != "cloud":

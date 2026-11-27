@@ -30,6 +30,15 @@ def principal() -> TaskPrincipal:
     return TaskPrincipal.model_validate_json(raw)
 
 
+def check_repo(cwd: Path, repo: str | None, *, label: str = "Local") -> None:
+    """The repository-identity rule for a claimed task: `cwd` must be a checkout of the task's `repo`."""
+    if not repo:
+        return
+    slug = _cloud.repo_slug(cwd)
+    if slug.casefold() != repo.casefold():
+        raise ValueError(f"{label} repository differs from the task claim ({slug}, the task names {repo})")
+
+
 @dataclass(frozen=True)
 class Claim:
     service: ProjectTaskService
@@ -53,8 +62,7 @@ class Claim:
         claimed_engine = receipt["engine_family"]
         if claimed_engine != engine and (claimed_engine, engine) != ("claude_code", "claude"):
             raise ValueError("Local engine differs from the task claim")
-        if receipt["repo"] and _cloud.repo_slug(cwd).casefold() != receipt["repo"].casefold():
-            raise ValueError("Local repository differs from the task claim")
+        check_repo(cwd, receipt["repo"])
         if receipt["assigned_branch"] and _cloud.current_branch(cwd) != receipt["assigned_branch"].removeprefix("refs/heads/"):
             raise ValueError("Local branch differs from the task claim")
         review = review or profile in {"read", "review"} or bool(receipt["review_of"])

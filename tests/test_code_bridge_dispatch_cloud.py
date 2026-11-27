@@ -299,7 +299,8 @@ def test_bridge_launcher_reuses_the_cloud_run_path(tmp_path: Path, monkeypatch: 
 
     def fake_run(argv: list[str], **kwargs: Any) -> Any:
         if argv[0] == "git":
-            return subprocess.CompletedProcess(argv, 0, "main\n", "")
+            answer = {"get-url": "https://github.com/org/repo.git\n", "--show-toplevel": f"{source}\n"}
+            return subprocess.CompletedProcess(argv, 0, answer.get(argv[-1], answer.get(argv[-2], "main\n")), "")
         seen.append(argv)
         return subprocess.CompletedProcess(argv, 0, "abc\n", "")
 
@@ -331,6 +332,98 @@ def test_cloud_checkout_clones_the_landed_branch_at_the_pushed_commit(tmp_path: 
                                                         "pushed_sha": sha})
     assert _git(checkout, "rev-parse", "HEAD") == sha
     assert (checkout / "work.txt").read_text() == "cloud work\n"
+
+
+def _other_repo(path: Path) -> Path:
+    _repo(path)
+    _git(path, "remote", "add", "origin", "https://github.com/org/other.git")
+    return path
+
+
+@pytest.mark.parametrize("mapped", [True, False])
+def test_cloud_placement_refuses_a_repository_other_than_the_tasks(
+    service: ProjectTaskService, tmp_path: Path, landed: tuple[Path, str], monkeypatch: pytest.MonkeyPatch,
+    mapped: bool,
+) -> None:
+    monkeypatch.setattr(_dispatch._routing, "choose", lambda *_args, **_kwargs: SimpleNamespace(
+        decision=SimpleNamespace(provider="codex"), readings={}))
+    monkeypatch.setattr(_dispatch._cloud, "load_config", lambda: {})
+    monkeypatch.setattr(_dispatch._cloud_place, "decide_for_repo",
+                        lambda *_args, **_kwargs: SimpleNamespace(where="cloud", reason=""))
+    monkeypatch.setattr(_dispatch._cloud, "provider",
+                        lambda _engine: SimpleNamespace(env_for=lambda *_args: "env-123"))
+    # Mapped to a checkout of org/other, or not mapped while the dispatcher runs inside org/other.
+    other = _other_repo(tmp_path / "other")
+    monkeypatch.chdir(other)
+    _router, cloud_placer = _dispatch._routers(None, {"org/repo": other} if mapped else {})
+    admit(service, None)
+    launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
+    first = Dispatcher(service, PRINCIPAL, launcher, PROJECT, emit=events.append,  # type: ignore[arg-type]
+                       cloud_placer=cloud_placer)
+    first.pass_once()
+    first.pass_once()
+    assert not launcher.launches
+    data = board_task(service)
+    assert "cloud" not in data.get("placement_evidence", {})
+    refused = [line for line in events if line.startswith(f"failed {PROJECT}/A cloud placement refused")]
+    assert len(refused) == 1, events
+    assert ("org/other" if mapped else "no --repo-root mapping") in refused[0]
+    assert first.run(once=False) == 0  # nothing left to wait for
+
+
+def test_cloud_launch_with_a_mismatched_repository_fails_and_submits_nothing(
+    service: ProjectTaskService, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    other = _other_repo(tmp_path / "other")
+
+    class Launcher(BridgeLauncher):
+        def cloud_free(self, engine_family: str) -> bool:
+            return True
+
+        def job(self, job_ref: str) -> dict[str, Any] | None:
+            return None
+
+    bridge_calls: list[list[str]] = []
+    real_run = subprocess.run
+
+    def run(argv: list[str], *args: Any, **kwargs: Any) -> Any:
+        if argv[0] != "git":
+            bridge_calls.append(argv)
+        return real_run(argv, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    admit(service, None)
+    events: list[str] = []
+    # Placement evidence recorded earlier (by a placer without the check); the launch checks again.
+    Dispatcher(service, PRINCIPAL, Launcher(None, PRINCIPAL, PROJECT, repo_roots={"org/repo": other}), PROJECT,
+               emit=events.append, cloud_placer=lambda _task, _tier: ("codex", "env-123")).pass_once()
+    data = board_task(service)
+    assert data["status"] == "failed", events
+    assert "Cloud repository differs from the task claim" in data["error"] and "org/other" in data["error"]
+    assert not data["dispatches"][-1].get("job_ref")
+    assert bridge_calls == []
+
+
+def test_cloud_acceptance_checkout_never_shares_or_deletes_a_local_checkout(tmp_path: Path) -> None:
+    origin = tmp_path / "origin"
+    _repo(origin)
+    source = tmp_path / "source"
+    _git(tmp_path, "clone", "-q", str(origin), str(source))
+    sha = _git(origin, "rev-parse", "HEAD")
+    launcher = BridgeLauncher(None, PRINCIPAL, PROJECT, repo_roots={"org/repo": source},
+                              worktree_root=tmp_path / "trees")
+    local = launcher._checkout({"task_id": f"{PROJECT}/A-cloud", "repo": "org/repo"})
+    (local / "wip.txt").write_text("uncommitted local work\n")
+    job = {"repo_root": str(source), "landed_branch": "main", "pushed_sha": sha, "task_attempt": 1}
+    first = launcher.cloud_checkout(f"{PROJECT}/A", job)
+    second = launcher.cloud_checkout(f"{PROJECT}/A", job)
+    assert len({local, first, second}) == 3
+    assert first.parent == second.parent == tmp_path / "trees" / PROJECT / ".cloud-accept"
+    launcher.remove_cloud_checkout(first)
+    launcher.remove_cloud_checkout(second)
+    launcher.remove_cloud_checkout(local)  # not a path this launcher allocated: left alone
+    assert not first.exists() and not second.exists()
+    assert (local / ".git").is_dir() and (local / "wip.txt").read_text() == "uncommitted local work\n"
 
 
 def test_cloud_run_accepts_a_task_id_label_but_not_a_claim_token(monkeypatch: pytest.MonkeyPatch) -> None:
