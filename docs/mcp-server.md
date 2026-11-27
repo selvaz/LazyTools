@@ -115,7 +115,7 @@ Providers whose optional extra is missing are simply skipped, a bare
 
 `lazytools-orchestration-mcp` runs the same server with only the orchestration
 providers: `code_bridge`, `code_review`, `claude_review`, `code_sessions`,
-`codemap`, `projects` and `fleet`. `code_write` and the data providers are never
+`codemap`, `projects`, `fleet` and `knowledge`. `code_write` and the data providers are never
 mounted. See the [design spec](design/orchestration-mcp/SPEC.md).
 
 ```sh
@@ -127,9 +127,9 @@ It takes the same flags and environment variables as `lazytools-mcp`. Positional
 ids (or `LAZYTOOLS_MCP_PROVIDERS`) narrow the selection; an id outside the list
 above is an error and the server does not start.
 
-Without `--allow-unsafe` it serves the `codemap`, `fleet` and read-only
-`projects` tools. With it, bridge jobs, reviews, named sessions and project
-writes are added. It starts with one coding CLI installed or none: the review
+Without `--allow-unsafe` it serves the `codemap`, `fleet`, `lessons_search` and
+read-only `projects` tools. With it, bridge jobs, reviews, named sessions,
+project writes and `lessons_record` are added. It starts with one coding CLI installed or none: the review
 provider of a missing CLI is skipped with a warning (Codex is also found through
 `CODEX_BIN` or the desktop app), and no engine SDK is imported at start.
 
@@ -162,6 +162,7 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `code_sessions` | `CodeSessionTools(...)` | list/bind/rename/forget native aliases | explicit opt-in with `--allow-unsafe` |
 | `code_bridge` | `CodeBridgeTools(...)` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` — local and cloud coding jobs through `lazytools-code-bridge` | `--allow-unsafe`; cloud jobs also need `allow_cloud=true` per call |
 | `fleet` | `FleetTools(...)` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search` | none; always read-only |
+| `knowledge` | `KnowledgeTools(...)` | `lessons_search` (+ `lessons_record` with `--allow-unsafe`) — the dispatcher's lessons store | none (core) |
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
 | `claude_review` | `claude_reviewer(...)`, `claude_consultant(...)` — Tools that delegate through `ClaudeCodeEngine` | `claude_code_review`, `claude_ask` | `--allow-unsafe` + a locally authenticated `claude` CLI (opt-in only) |
 | `studio` | Published agents and pipelines discovered from LazyStudio | each published `studio_<slug>` tool, `studio_run_status`; `studio_status` when disconnected | LazyStudio operator token; published calls need `--allow-unsafe` |
@@ -467,6 +468,25 @@ Claude probe. Routing choices and ISO dates are validated before invocation;
 caller-provided values beginning with `-` are rejected rather than passed as
 options. `bridge_pending` reports bridge job approval tickets and is separate
 from the projects provider's pending approvals.
+
+### `knowledge` — shared lessons
+
+```text
+lessons_search(query, limit=5) -> list of lesson records
+lessons_record(topic, what_worked, gotchas="") -> text     # --allow-unsafe only
+```
+
+The store is the `knowledge_db` key of the `--config` file, else
+`LAZYTOOLS_KNOWLEDGE_DB`, else `~/.lazytools/knowledge.sqlite`. The dispatcher
+has no default store: to share lessons, start it with `--knowledge-db` pointing
+at the same file.
+
+Topics follow the dispatcher's form, `<repository>: <subject>`. Recording an
+existing topic revises that lesson; empty `gotchas` keeps the stored ones.
+`topic` is limited to 200 characters and each text to 4000, and
+credential-looking substrings are redacted. A new topic is also subject to
+LazyBridge's 60-character slug limit; a refusal is returned as `REJECTED: ...`.
+Searching never creates the database.
 
 ### Scoped code tasks
 
